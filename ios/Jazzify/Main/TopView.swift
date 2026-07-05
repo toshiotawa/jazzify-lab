@@ -9,6 +9,7 @@ struct TopView: View {
 
     @State private var mainQuestProgress: SupabaseService.MainQuestProgressResult?
     @State private var mainQuestLessonToOpen: Lesson?
+    @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
 
     private var locale: AppLocale { appState.locale }
@@ -57,7 +58,10 @@ struct TopView: View {
                 Group {
                     if let lesson = mainQuestLessonToOpen {
                         if appState.isPremium || (lesson.blockNumber ?? 1) <= MainQuestFreeTier.maxFreeBlockNumber {
-                            LessonDetailView(lesson: lesson)
+                            LessonDetailView(
+                                lesson: lesson,
+                                autoStartFirstRequirement: autoStartFirstQuestRequirement
+                            )
                         } else {
                             Color.clear
                                 .frame(width: 0, height: 0)
@@ -73,6 +77,7 @@ struct TopView: View {
             }
             .onChange(of: mainQuestLessonToOpen == nil) { isNil in
                 if isNil {
+                    autoStartFirstQuestRequirement = false
                     Task { await loadData() }
                 }
             }
@@ -259,6 +264,7 @@ struct TopView: View {
                                     .lineLimit(2)
 
                                 Button {
+                                    autoStartFirstQuestRequirement = false
                                     mainQuestLessonToOpen = nextLesson
                                 } label: {
                                     HStack(spacing: 6) {
@@ -514,6 +520,15 @@ struct TopView: View {
         mainQuestProgress = loadedMainQuestProgress
         earnedBadges = loadedBadges
         await playerXpHub.refreshFromServer()
+
+        if appState.pendingMainQuestAutoStart {
+            appState.pendingMainQuestAutoStart = false
+            if let progress = loadedMainQuestProgress,
+               let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
+                autoStartFirstQuestRequirement = true
+                mainQuestLessonToOpen = nextLesson
+            }
+        }
     }
 }
 

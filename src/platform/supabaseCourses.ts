@@ -576,7 +576,13 @@ export interface MainQuestProgress {
   courseTitle: string;
   totalLessons: number;
   completedLessons: number;
-  nextLesson: { id: string; title: string; title_en: string | null; order_index: number } | null;
+  nextLesson: {
+    id: string;
+    title: string;
+    title_en: string | null;
+    order_index: number;
+    block_number: number;
+  } | null;
 }
 
 /** audience によらずメインクエストは1コース（is_main_course=true） */
@@ -640,6 +646,7 @@ export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null
           title: nextLesson.title,
           title_en: nextLesson.title_en ?? null,
           order_index: nextLesson.order_index,
+          block_number: nextLesson.block_number ?? 1,
         }
       : null,
   };

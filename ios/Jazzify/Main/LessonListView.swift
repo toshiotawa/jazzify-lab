@@ -1573,9 +1573,11 @@ struct LessonDetailView: View {
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
     @State private var showReadyToCompletePrompt = false
+    @State private var pendingAutoStartFirstRequirement: Bool
 
-    init(lesson: Lesson) {
+    init(lesson: Lesson, autoStartFirstRequirement: Bool = false) {
         _activeLesson = State(initialValue: lesson)
+        _pendingAutoStartFirstRequirement = State(initialValue: autoStartFirstRequirement)
     }
 
     private var locale: AppLocale { appState.locale }
@@ -1903,6 +1905,12 @@ struct LessonDetailView: View {
             .task(id: activeLesson.id) {
                 isNavigating = false
                 await loadLessonDetail()
+                if pendingAutoStartFirstRequirement {
+                    pendingAutoStartFirstRequirement = false
+                    if let firstIncomplete = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
+                        launchRequirement(firstIncomplete)
+                    }
+                }
             }
             .onChange(of: appState.locale) { _ in
                 Task { await loadLessonDetail() }

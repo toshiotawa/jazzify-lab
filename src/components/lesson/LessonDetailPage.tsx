@@ -27,6 +27,7 @@ import {
   buildEarTrainingLessonRequirementDisplay,
 } from '@/utils/lessonRequirementDisplay';
 import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters';
+import { buildLessonRequirementLaunchHash } from '@/utils/lessonRequirementLaunch';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -79,7 +80,6 @@ import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { SurvivalRequirementDetailLines } from '@/components/lesson/SurvivalRequirementDetailLines';
 import {
   lessonSongHasInlineComposite,
-  resolveLessonSurvivalMapCategory,
 } from '@/utils/survivalLessonDisplay';
 
 /**
@@ -88,8 +88,12 @@ import {
  */
 const LessonDetailPage: React.FC = () => {
   const { lessonId: routeLessonId } = useParams<{ lessonId?: string }>();
+  const [searchParams] = useSearchParams();
   const [hashLessonId, setHashLessonId] = useState<string | null>(null);
+  const [hashAutoStart, setHashAutoStart] = useState(false);
   const lessonId = routeLessonId ?? hashLessonId;
+  const routeAutoStart = searchParams.get('autoStart') === '1';
+  const autoStartFirstRequirement = routeLessonId ? routeAutoStart : hashAutoStart;
   const open = Boolean(lessonId);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [lessonProgress, setLessonProgress] = useState<LessonProgress | null>(null);
@@ -164,6 +168,7 @@ const LessonDetailPage: React.FC = () => {
 
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
+  const autoStartConsumedRef = useRef(false);
 
   useEffect(() => {
     if (routeLessonId) {
@@ -173,10 +178,13 @@ const LessonDetailPage: React.FC = () => {
     const syncFromHash = (): void => {
       const hash = window.location.hash;
       if (hash.startsWith('#lesson-detail')) {
-        const id = new URLSearchParams(hash.split('?')[1] || '').get('id');
-        setHashLessonId(id);
+        const query = hash.split('?')[1] || '';
+        const params = new URLSearchParams(query);
+        setHashLessonId(params.get('id'));
+        setHashAutoStart(params.get('autoStart') === '1');
       } else {
         setHashLessonId(null);
+        setHashAutoStart(false);
       }
       setIsNavigating(false);
     };
@@ -391,6 +399,62 @@ const LessonDetailPage: React.FC = () => {
     }
   }, [requirementsProgress]);
 
+  const launchRequirement = useCallback((req: LessonRequirement) => {
+    const extended = req as LessonRequirement & {
+      is_fantasy?: boolean;
+      is_survival?: boolean;
+      is_survival_tutorial?: boolean;
+      is_ear_training_tutorial?: boolean;
+      is_ear_training?: boolean;
+      is_balloon_rush?: boolean;
+    };
+    const isFantasy = extended.is_fantasy || false;
+    const isSurvivalTutorial = extended.is_survival_tutorial || false;
+    const isEarTrainingTutorial = extended.is_ear_training_tutorial || false;
+    const isSurvival = extended.is_survival || isSurvivalTutorial || false;
+    const isEarTraining = extended.is_ear_training || isEarTrainingTutorial || false;
+    const isBalloonRush = extended.is_balloon_rush === true;
+
+    if (
+      (isFantasy || isSurvival || isEarTraining || isBalloonRush)
+      && !isPremiumMember
+      && !(
+        lessonCourseIsMainQuest
+        && isMainQuestBlockPlayable(lesson?.block_number ?? 1, isPremiumMember)
+      )
+    ) {
+      toast.warning(
+        isEnglishCopy
+          ? 'This task requires Premium.'
+          : 'この課題はプレミアム会員のみプレイできます。',
+      );
+      return;
+    }
+
+    void import('@/utils/MidiController').then(({ markAudioUserInteraction }) => {
+      markAudioUserInteraction();
+    }).catch(() => undefined);
+    prefetchPracticeResources(req);
+
+    const launchHash = buildLessonRequirementLaunchHash(extended);
+    if (!launchHash) {
+      if (isBalloonRush) {
+        toast.warning(
+          isEnglishCopy ? 'Balloon rush stage is not configured.' : '風船ラッシュステージが設定されていません。',
+        );
+      }
+      return;
+    }
+    window.location.hash = launchHash;
+  }, [
+    isEnglishCopy,
+    isPremiumMember,
+    lesson?.block_number,
+    lessonCourseIsMainQuest,
+    prefetchPracticeResources,
+    toast,
+  ]);
+
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
   const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
   const [showPaywall, setShowPaywall] = useState(false);
@@ -411,6 +475,40 @@ const LessonDetailPage: React.FC = () => {
       }),
     );
   }, [loading, requirements.length, allRequirementsCompleted, lessonProgress?.completed, lessonId]);
+
+  useEffect(() => {
+    autoStartConsumedRef.current = false;
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (!autoStartFirstRequirement || loading || requirements.length === 0) {
+      return;
+    }
+    if (autoStartConsumedRef.current) {
+      return;
+    }
+    autoStartConsumedRef.current = true;
+
+    const firstIncomplete = requirements.find((req) => {
+      if (isLegendOnlyLessonRequirement(req)) {
+        return false;
+      }
+      const progress = requirementsProgress.find(
+        (p) => p.lesson_song_id === req.lesson_song_id,
+      );
+      return !progress?.is_completed;
+    });
+
+    if (firstIncomplete) {
+      launchRequirement(firstIncomplete);
+    }
+  }, [
+    autoStartFirstRequirement,
+    loading,
+    requirements,
+    requirementsProgress,
+    launchRequirement,
+  ]);
 
   // 完了プロンプト表示時に SE を先行ロード（詳細ページ単体では init されないため）
   useEffect(() => {
@@ -1072,87 +1170,7 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            if (
-                              (isFantasy || isSurvival || isEarTraining || isBalloonRush)
-                              && !isPremiumMember
-                              && !(
-                                lessonCourseIsMainQuest
-                                && isMainQuestBlockPlayable(lesson?.block_number ?? 1, isPremiumMember)
-                              )
-                            ) {
-                              toast.warning(
-                                isEnglishCopy
-                                  ? 'This task requires Premium.'
-                                  : 'この課題はプレミアム会員のみプレイできます。',
-                              );
-                              return;
-                            }
-                            void import('@/utils/MidiController').then(({ markAudioUserInteraction }) => {
-                              markAudioUserInteraction();
-                            }).catch(() => undefined);
-                            prefetchPracticeResources(req);
-                            if (isSurvivalTutorial) {
-                              const params = new URLSearchParams();
-                              params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id);
-                              params.set('scriptId', req.survival_tutorial_script_id ?? 'onboarding-v1');
-                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              window.location.hash = `#survival-tutorial-lesson?${params.toString()}`;
-                            } else if (isSurvival) {
-                              const params = new URLSearchParams();
-                              params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id);
-                              const hasInlineComposite = lessonSongHasInlineComposite(req.survival_composite_config);
-                              if (!hasInlineComposite) {
-                                params.set('stageNumber', String(req.survival_stage_number || 0));
-                              }
-                              params.set(
-                                'mapCategory',
-                                resolveLessonSurvivalMapCategory(req.survival_map_category ?? undefined),
-                              );
-                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              window.location.hash = `#survival-lesson?${params.toString()}`;
-                            } else if (isBalloonRush) {
-                              const stId = req.balloon_rush_stage?.id ?? req.balloon_rush_stage_id ?? '';
-                              if (!stId) {
-                                toast.warning(
-                                  isEnglishCopy ? 'Balloon rush stage is not configured.' : '風船ラッシュステージが設定されていません。',
-                                );
-                                return;
-                              }
-                              const params = new URLSearchParams();
-                              params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id);
-                              params.set('stageId', stId);
-                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              window.location.hash = `#balloon-rush-lesson?${params.toString()}`;
-                            } else if (isFantasy) {
-                              const params = new URLSearchParams();
-                              params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id);
-                              params.set('stageId', req.fantasy_stage?.id || req.fantasy_stage_id || '');
-                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              const url = `#fantasy?${params.toString()}`;
-                              window.location.hash = url;
-                            } else if (isEarTrainingTutorial) {
-                              const params = new URLSearchParams();
-                              params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id);
-                              params.set('scriptId', req.ear_training_tutorial_script_id ?? 'developer-full-v1');
-                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              window.location.hash = `#ear-training-tutorial-lesson?${params.toString()}`;
-                            } else if (isEarTraining) {
-                              const params = new URLSearchParams();
-                              params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id);
-                              params.set('stageId', req.ear_training_stage?.id || req.ear_training_stage_id || '');
-                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
-                              const lessonBgmUrl = req.survival_lesson_overrides?.bgmUrl?.trim();
-                              if (lessonBgmUrl && lessonBgmUrl.length > 0) {
-                                params.set('bgmUrl', lessonBgmUrl);
-                              }
-                              window.location.hash = `#ear-training-lesson?${params.toString()}`;
-                            }
+                            launchRequirement(req);
                           }}
                         >
                           {isCompleted ? practiceCopy.retry : practiceCopy.startPractice}

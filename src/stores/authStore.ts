@@ -17,6 +17,7 @@ interface AuthState {
   isGuest: boolean;
   guestId: string | null;
   hasProfile: boolean;
+  pendingMainQuestAutoStart: boolean;
   optimisticAvatarUrl: string | null;
   emailChangeStatus: {
     type: 'success' | 'warning' | null;
@@ -63,6 +64,7 @@ interface AuthActions {
   logout: () => Promise<void>;
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
   createProfile: (nickname: string, agreed: boolean) => Promise<void>;
+  consumeMainQuestAutoStart: () => boolean;
   updateEmail: (newEmail: string, isEnglishCopy?: boolean) => Promise<{ success: boolean; message: string }>;
   /** メール変更用 OTP（ダッシュボードの Change email テンプレートに {{ .Token }} が必要） */
   verifyEmailChangeOtp: (
@@ -118,6 +120,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     isGuest: false,
     guestId: null,
     hasProfile: false,
+    pendingMainQuestAutoStart: false,
     optimisticAvatarUrl: null,
     emailChangeStatus: null,
     profile: null,
@@ -559,6 +562,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.isGuest = false;
         state.guestId = null;
         state.hasProfile = false;
+        state.pendingMainQuestAutoStart = false;
         state.profile = null;
       });
     },
@@ -734,10 +738,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // 作成成功後、プロフィール情報を取得（キャッシュをクリアして最新を取得）
         await get().fetchProfile({ forceRefresh: true });
-        
+
         set(state => {
           state.loading = false;
           state.error = null;
+          state.pendingMainQuestAutoStart = true;
         });
         
       } catch (error) {
@@ -747,6 +752,17 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.error = (error instanceof Error ? error.message : String(error)) || 'プロフィールの作成に失敗しました';
         });
       }
+    },
+
+    consumeMainQuestAutoStart: () => {
+      const pending = get().pendingMainQuestAutoStart;
+      if (!pending) {
+        return false;
+      }
+      set(state => {
+        state.pendingMainQuestAutoStart = false;
+      });
+      return true;
     },
 
     /**

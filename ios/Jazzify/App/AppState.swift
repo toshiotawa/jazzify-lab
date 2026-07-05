@@ -10,6 +10,7 @@ final class AppState: ObservableObject {
     @Published var profileSetupError: String?
     @Published var appUpdateNotice: AppUpdateNotice?
     @Published var locale: AppLocale
+    @Published var pendingMainQuestAutoStart = false
     @Published private(set) var lastBillingCheckedAt: Date?
 
     private var periodEndTimer: Task<Void, Never>?
@@ -164,6 +165,7 @@ final class AppState: ObservableObject {
                 throw ProfileSetupError.profileNotFoundAfterCreation
             }
 
+            pendingMainQuestAutoStart = true
             await activateAuthenticatedState(userId: userId, profile: createdProfile)
         } catch {
             if let existingProfile = try? await supabase.fetchProfileIfExists(userId: userId) {

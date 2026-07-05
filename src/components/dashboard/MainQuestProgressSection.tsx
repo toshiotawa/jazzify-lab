@@ -4,6 +4,8 @@ import { FaPlay, FaStar } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 const CIRCLE_SIZE = 64;
 const STROKE_WIDTH = 6;
@@ -13,20 +15,23 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const MainQuestProgressSection: React.FC = () => {
   const [progress, setProgress] = useState<MainQuestProgress | null>(null);
   const [loading, setLoading] = useState(true);
-  const { profile } = useAuthStore();
+  const { profile, pendingMainQuestAutoStart, consumeMainQuestAutoStart } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const data = await fetchMainQuestProgress();
-        if (!cancelled) setProgress(data);
+        if (!cancelled) {
+          setProgress(data);
+        }
       } catch {
         // ignore
       } finally {
@@ -35,6 +40,16 @@ const MainQuestProgressSection: React.FC = () => {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!pendingMainQuestAutoStart || !progress?.nextLesson) {
+      return;
+    }
+    consumeMainQuestAutoStart();
+    if (isMainQuestBlockPlayable(progress.nextLesson.block_number, isPremiumMember)) {
+      window.location.hash = `#lesson-detail?id=${progress.nextLesson.id}&autoStart=1`;
+    }
+  }, [pendingMainQuestAutoStart, progress, isPremiumMember, consumeMainQuestAutoStart]);
 
   if (loading || !progress) return null;
 
