@@ -5,6 +5,8 @@ import { getLandingCopy } from '@/components/landing/landingCopy';
 import {
   HELP_IOS_MIDI_PATH,
   HELP_MIDI_KEYBOARD_CHOICE_PATH,
+  JAZZIFY_INSTAGRAM_URL,
+  JAZZIFY_X_URL,
 } from '@/components/landing/landingLinks';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -49,6 +51,27 @@ export const LpFooter: React.FC = () => {
               ariaLabel={copy.footer.appStoreAria}
               className="mt-4"
             />
+
+            <div className="mt-5 flex items-center gap-4">
+              <a
+                href={JAZZIFY_X_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-gold-deep)]"
+                aria-label={copy.footer.xAria}
+              >
+                <i className="fab fa-x-twitter text-lg" aria-hidden="true" />
+              </a>
+              <a
+                href={JAZZIFY_INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-gold-deep)]"
+                aria-label={copy.footer.instagramAria}
+              >
+                <i className="fab fa-instagram text-lg" aria-hidden="true" />
+              </a>
+            </div>
           </div>
 
           <div>

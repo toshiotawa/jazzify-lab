@@ -107,22 +107,38 @@ const webTermsJa: TermsArticle[] = [
     ],
   },
   {
+    id: 'streaming',
+    title: '第9条（配信・録画等の利用）',
+    paragraphs: [
+      '当社は、利用者が本サービスの画面を、実況配信、動画投稿、録画配信その他これに類する方法（以下「配信等」といいます）で利用することを、原則として許諾します。有料プランのコンテンツを含む配信等も、本条に定める条件の範囲内で行うことができます。',
+      '利用者は、配信等を行うにあたり、次の各号を遵守するものとします。',
+      '当社は、本サービスの運営上必要がある場合、本規約の変更、コンテンツの変更その他の理由により、特定の配信等を制限し、又は禁止することがあります。この場合、合理的な方法により周知します。',
+      '配信等に関するお問い合わせは、第16条のお問い合わせ先までご連絡ください。',
+    ],
+    points: [
+      '利用者本人のアカウントを使用すること（アカウントの共有、貸与、なりすましは禁止）',
+      '本サービス又はコンテンツの無断複製、転載、再配布、販売を目的としないこと',
+      '当社又は第三者の権利を侵害しないこと',
+      '本規約に定める禁止事項に該当する行為をしないこと',
+    ],
+  },
+  {
     id: 'intellectual',
-    title: '第9条（知的財産権）',
+    title: '第10条（知的財産権）',
     paragraphs: [
       '本サービス及びコンテンツに関する著作権、商標権その他の知的財産権は、当社又は正当な権利者に帰属します。利用者は、当社が明示的に許諾した場合を除き、これらを利用することはできません。',
     ],
   },
   {
     id: 'suspension',
-    title: '第10条（利用停止等）',
+    title: '第11条（利用停止等）',
     paragraphs: [
       '当社は、利用者が本規約に違反した場合又は本サービスの運営上必要がある場合、事前の通知なく、当該利用者による本サービスの利用を制限し、アカウントを停止し、又は削除することができます。',
     ],
   },
   {
     id: 'disclaimer',
-    title: '第11条（免責）',
+    title: '第12条（免責）',
     paragraphs: [
       '当社は、本サービスが利用者の特定の目的に適合すること、期待する機能、正確性、有用性又は継続性を有することを保証しません。',
       '当社は、本サービスの利用又は利用不能により利用者に生じた損害について、当社に故意又は重過失がある場合を除き責任を負いません。',
@@ -131,7 +147,7 @@ const webTermsJa: TermsArticle[] = [
   },
   {
     id: 'withdrawal',
-    title: '第12条（退会）',
+    title: '第13条（退会）',
     paragraphs: [
       '会員は、当社所定の方法により退会することができます。',
       'なお、プレミアムプランの解約とアカウント退会は別途手続が必要となる場合があります。',
@@ -139,21 +155,21 @@ const webTermsJa: TermsArticle[] = [
   },
   {
     id: 'changes',
-    title: '第13条（規約の変更）',
+    title: '第14条（規約の変更）',
     paragraphs: [
       '当社は、必要がある場合、本規約を変更することがあります。重要な変更がある場合は、本サービス上で周知その他適切な方法により通知します。',
     ],
   },
   {
     id: 'jurisdiction',
-    title: '第14条（準拠法・合意管轄）',
+    title: '第15条（準拠法・合意管轄）',
     paragraphs: [
       '本規約は日本法に準拠し、本サービスに関して当社と利用者との間に生じる一切の紛争については、訴額に応じて東京地方裁判所又は東京簡易裁判所を第一審の専属的合意管轄裁判所とします。',
     ],
   },
   {
     id: 'contact',
-    title: '第15条（お問い合わせ）',
+    title: '第16条（お問い合わせ）',
     paragraphs: [
       '本規約に関するお問い合わせ先は、以下のとおりです。',
       '合同会社KindWords',
@@ -252,22 +268,38 @@ const webTermsEn: TermsArticle[] = [
     ],
   },
   {
+    id: 'streaming',
+    title: 'Article 9 (Streaming and Recording)',
+    paragraphs: [
+      'The Company generally permits users to use the Service through live streaming, video uploads, recorded broadcasts, and similar methods (collectively, “Streaming”). Streaming that includes Premium Plan content is also permitted within the scope of this Article.',
+      'When engaging in Streaming, users shall comply with each of the following.',
+      'If necessary for operation of the Service, the Company may restrict or prohibit specific Streaming due to changes to these Terms, changes to Content, or other reasons. In such cases, the Company will notify users by reasonable means.',
+      'For inquiries regarding Streaming, contact the address in Article 16.',
+    ],
+    points: [
+      'Use the user’s own account (sharing, lending, or impersonation of accounts is prohibited).',
+      'Do not use Streaming for unauthorized copying, reproduction, redistribution, or sale of the Service or Content.',
+      'Do not infringe the rights of the Company or third parties.',
+      'Do not engage in conduct prohibited under these Terms.',
+    ],
+  },
+  {
     id: 'intellectual',
-    title: 'Article 9 (Intellectual Property)',
+    title: 'Article 10 (Intellectual Property)',
     paragraphs: [
       'Copyrights, trademark rights, and other intellectual property rights in the Service and Content belong to the Company or legitimate right holders. Users may not use them except where expressly permitted by the Company.',
     ],
   },
   {
     id: 'suspension',
-    title: 'Article 10 (Suspension of Use)',
+    title: 'Article 11 (Suspension of Use)',
     paragraphs: [
       'If a user breaches these Terms or if the Company otherwise deems it necessary for operation of the Service, the Company may, without prior notice, restrict the user’s use of the Service, suspend, or delete the account.',
     ],
   },
   {
     id: 'disclaimer',
-    title: 'Article 11 (Disclaimer)',
+    title: 'Article 12 (Disclaimer)',
     paragraphs: [
       'The Company does not warrant that the Service will meet a user’s particular purpose or that it will have expected functions, accuracy, usefulness, or continuity.',
       'The Company shall not be liable for damages arising from use or inability to use the Service, except in cases of willful misconduct or gross negligence on the part of the Company.',
@@ -276,7 +308,7 @@ const webTermsEn: TermsArticle[] = [
   },
   {
     id: 'withdrawal',
-    title: 'Article 12 (Withdrawal)',
+    title: 'Article 13 (Withdrawal)',
     paragraphs: [
       'Members may withdraw membership in the manner prescribed by the Company.',
       'Cancellation of the Premium Plan and account withdrawal may require separate procedures.',
@@ -284,21 +316,21 @@ const webTermsEn: TermsArticle[] = [
   },
   {
     id: 'changes',
-    title: 'Article 13 (Changes to the Terms)',
+    title: 'Article 14 (Changes to the Terms)',
     paragraphs: [
       'The Company may change these Terms when necessary. If there are important changes, the Company will notify users through the Service or by other appropriate means.',
     ],
   },
   {
     id: 'jurisdiction',
-    title: 'Article 14 (Governing Law and Jurisdiction)',
+    title: 'Article 15 (Governing Law and Jurisdiction)',
     paragraphs: [
       'These Terms are governed by the laws of Japan. All disputes between the Company and users regarding the Service shall be subject to the exclusive jurisdiction of the Tokyo District Court or Tokyo Summary Court in the first instance, depending on the amount in controversy.',
     ],
   },
   {
     id: 'contact',
-    title: 'Article 15 (Contact)',
+    title: 'Article 16 (Contact)',
     paragraphs: [
       'For inquiries regarding these Terms, contact:',
       'KindWords LLC (Godo Kaisha KindWords)',
@@ -399,22 +431,38 @@ const iosTermsJa: TermsArticle[] = [
     ],
   },
   {
+    id: 'streaming',
+    title: '第9条（配信・録画等の利用）',
+    paragraphs: [
+      '当社は、利用者が本アプリの画面を、実況配信、動画投稿、録画配信その他これに類する方法（以下「配信等」といいます）で利用することを、原則として許諾します。有料プランのコンテンツを含む配信等も、本条に定める条件の範囲内で行うことができます。',
+      '利用者は、配信等を行うにあたり、次の各号を遵守するものとします。',
+      '当社は、本アプリの運営上必要がある場合、本規約の変更、コンテンツの変更その他の理由により、特定の配信等を制限し、又は禁止することがあります。この場合、合理的な方法により周知します。',
+      '配信等に関するお問い合わせは、第16条のお問い合わせ先までご連絡ください。',
+    ],
+    points: [
+      '利用者本人のアカウントを使用すること（アカウントの共有、貸与、なりすましは禁止）',
+      '本アプリ又はコンテンツの無断複製、転載、再配布、販売を目的としないこと',
+      '当社又は第三者の権利を侵害しないこと',
+      '本規約に定める禁止事項に該当する行為をしないこと',
+    ],
+  },
+  {
     id: 'intellectual',
-    title: '第9条（知的財産権）',
+    title: '第10条（知的財産権）',
     paragraphs: [
       '本アプリ及びコンテンツに関する著作権、商標権その他の知的財産権は、当社又は正当な権利者に帰属します。利用者は、当社が明示的に許諾した場合を除き、これらを利用することはできません。',
     ],
   },
   {
     id: 'suspension',
-    title: '第10条（利用停止等）',
+    title: '第11条（利用停止等）',
     paragraphs: [
       '当社は、利用者が本規約に違反した場合又は本アプリの運営上必要がある場合、事前の通知なく、当該利用者による本アプリの利用を制限し、アカウントを停止し、又は削除することができます。',
     ],
   },
   {
     id: 'disclaimer',
-    title: '第11条（免責）',
+    title: '第12条（免責）',
     paragraphs: [
       '当社は、本アプリが利用者の特定の目的に適合すること、期待する機能、正確性、有用性又は継続性を有することを保証しません。',
       '当社は、本アプリの利用又は利用不能により利用者に生じた損害について、当社に故意又は重過失がある場合を除き責任を負いません。',
@@ -423,7 +471,7 @@ const iosTermsJa: TermsArticle[] = [
   },
   {
     id: 'withdrawal',
-    title: '第12条（退会）',
+    title: '第13条（退会）',
     paragraphs: [
       '利用者は、当社所定の方法によりアカウント退会を申請することができます。',
       'なお、アカウント退会とApp Storeサブスクリプションの解約は別手続です。',
@@ -432,21 +480,21 @@ const iosTermsJa: TermsArticle[] = [
   },
   {
     id: 'changes',
-    title: '第13条（規約の変更）',
+    title: '第14条（規約の変更）',
     paragraphs: [
       '当社は、必要がある場合、本規約を変更することがあります。重要な変更がある場合は、本アプリ内、当社ウェブサイトその他適切な方法により通知します。',
     ],
   },
   {
     id: 'jurisdiction',
-    title: '第14条（準拠法・合意管轄）',
+    title: '第15条（準拠法・合意管轄）',
     paragraphs: [
       '本規約は日本法に準拠し、本アプリに関して当社と利用者との間に生じる一切の紛争については、訴額に応じて東京地方裁判所又は東京簡易裁判所を第一審の専属的合意管轄裁判所とします。',
     ],
   },
   {
     id: 'contact',
-    title: '第15条（お問い合わせ）',
+    title: '第16条（お問い合わせ）',
     paragraphs: [
       '本規約に関するお問い合わせ先は、以下のとおりです。',
       '合同会社KindWords',
@@ -547,22 +595,38 @@ const iosTermsEn: TermsArticle[] = [
     ],
   },
   {
+    id: 'streaming',
+    title: 'Article 9 (Streaming and Recording)',
+    paragraphs: [
+      'The Company generally permits users to use the App through live streaming, video uploads, recorded broadcasts, and similar methods (collectively, “Streaming”). Streaming that includes Premium Plan content is also permitted within the scope of this Article.',
+      'When engaging in Streaming, users shall comply with each of the following.',
+      'If necessary for operation of the App, the Company may restrict or prohibit specific Streaming due to changes to these Terms, changes to Content, or other reasons. In such cases, the Company will notify users by reasonable means.',
+      'For inquiries regarding Streaming, contact the address in Article 16.',
+    ],
+    points: [
+      'Use the user’s own account (sharing, lending, or impersonation of accounts is prohibited).',
+      'Do not use Streaming for unauthorized copying, reproduction, redistribution, or sale of the App or Content.',
+      'Do not infringe the rights of the Company or third parties.',
+      'Do not engage in conduct prohibited under these Terms.',
+    ],
+  },
+  {
     id: 'intellectual',
-    title: 'Article 9 (Intellectual Property)',
+    title: 'Article 10 (Intellectual Property)',
     paragraphs: [
       'Copyrights, trademark rights, and other intellectual property rights in the App and Content belong to the Company or legitimate right holders. Users may not use them except where expressly permitted by the Company.',
     ],
   },
   {
     id: 'suspension',
-    title: 'Article 10 (Suspension of Use)',
+    title: 'Article 11 (Suspension of Use)',
     paragraphs: [
       'If a user breaches these Terms or if the Company otherwise deems it necessary for operation of the App, the Company may, without prior notice, restrict the user’s use of the App, suspend, or delete the account.',
     ],
   },
   {
     id: 'disclaimer',
-    title: 'Article 11 (Disclaimer)',
+    title: 'Article 12 (Disclaimer)',
     paragraphs: [
       'The Company does not warrant that the App will meet a user’s particular purpose or that it will have expected functions, accuracy, usefulness, or continuity.',
       'The Company shall not be liable for damages arising from use or inability to use the App, except in cases of willful misconduct or gross negligence on the part of the Company.',
@@ -571,7 +635,7 @@ const iosTermsEn: TermsArticle[] = [
   },
   {
     id: 'withdrawal',
-    title: 'Article 12 (Account Deletion)',
+    title: 'Article 13 (Account Deletion)',
     paragraphs: [
       'Users may request account deletion in the manner prescribed by the Company.',
       'Account deletion and cancellation of an App Store subscription are separate procedures.',
@@ -580,21 +644,21 @@ const iosTermsEn: TermsArticle[] = [
   },
   {
     id: 'changes',
-    title: 'Article 13 (Changes to the Terms)',
+    title: 'Article 14 (Changes to the Terms)',
     paragraphs: [
       'The Company may change these Terms when necessary. If there are important changes, the Company will notify users within the App, on its website, or by other appropriate means.',
     ],
   },
   {
     id: 'jurisdiction',
-    title: 'Article 14 (Governing Law and Jurisdiction)',
+    title: 'Article 15 (Governing Law and Jurisdiction)',
     paragraphs: [
       'These Terms are governed by the laws of Japan. All disputes between the Company and users regarding the App shall be subject to the exclusive jurisdiction of the Tokyo District Court or Tokyo Summary Court in the first instance, depending on the amount in controversy.',
     ],
   },
   {
     id: 'contact',
-    title: 'Article 15 (Contact)',
+    title: 'Article 16 (Contact)',
     paragraphs: [
       'For inquiries regarding these Terms, contact:',
       'KindWords LLC (Godo Kaisha KindWords)',
@@ -607,6 +671,7 @@ const webHighlightsJa: string[] = [
   '本サービスはジャズ学習支援を目的としたウェブサービスです。',
   '有料プランはプレミアムのみで、月額3,980円（税込）または年額34,800円（税込）。初回利用者に限り7日間の無料トライアルが付与される場合があります（対象外となる場合があります）。',
   'お支払いはLemon Squeezy等を通じて行い、トライアル終了後は月額プランは1か月単位、年額プランは1年単位で自動更新されます。解約は次回更新前までに所定の手続きが必要です。',
+  '実況配信・動画投稿は原則として許可されています（第9条）。有料コンテンツを含む配信も可能です。',
   '禁止事項、免責、個人情報の取扱いは本規約およびプライバシーポリシーに従います。',
 ];
 
@@ -614,6 +679,7 @@ const webHighlightsEn: string[] = [
   'The Service is a web-based platform for jazz learning support.',
   'The only paid plan is Premium at ¥3,980 per month (tax included) or ¥34,800 per year (tax included). Eligible first-time subscribers may receive a seven-day free trial.',
   'Payment is processed through Lemon Squeezy or other designated processors; after any trial, monthly plans renew every month and annual plans renew every year. Cancel before the next renewal as instructed.',
+  'Live streaming and video uploads are generally permitted (Article 9), including Premium content.',
   'Prohibited conduct, disclaimers, and personal data handling are governed by these Terms and the Privacy Policy.',
 ];
 
@@ -621,6 +687,7 @@ const iosHighlightsJa: string[] = [
   '本アプリはジャズ学習支援を目的としたiOSアプリです。',
   '有料プランはプレミアムのみで、価格は利用時点のApp Storeの表示に従います。所定の条件で7日間の無料トライアルが付与される場合があります。',
   '課金・解約・返金はAppleのIn-App PurchaseおよびApp Storeの設定に従います。アプリを削除しただけではサブスクリプションは解約されません。',
+  '実況配信・動画投稿は原則として許可されています（第9条）。有料コンテンツを含む配信も可能です。',
   '個人情報はiOS版プライバシーポリシーに従います。',
 ];
 
@@ -628,11 +695,12 @@ const iosHighlightsEn: string[] = [
   'The App is an iOS application for jazz learning support.',
   'The only paid plan is Premium; pricing follows the App Store display at the time of purchase. A seven-day free trial may be offered when eligible.',
   'Billing, cancellation, and refunds follow Apple In-App Purchase and App Store settings. Deleting the App does not cancel the subscription.',
+  'Live streaming and video uploads are generally permitted (Article 9), including Premium content.',
   'Personal information is handled under the iOS Privacy Policy.',
 ];
 
-const LAST_UPDATED = '2026年4月3日';
-const LAST_UPDATED_EN = 'April 3, 2026';
+const LAST_UPDATED = '2026年7月5日';
+const LAST_UPDATED_EN = 'July 5, 2026';
 
 const TERMS_COPY: Record<TermsVariant, Record<TermsLocale, TermsCopy>> = {
   web: {

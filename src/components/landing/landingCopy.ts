@@ -206,6 +206,8 @@ interface LandingFooterCopy {
   privacyLink: string;
   tokushohoLink: string;
   appStoreAria: string;
+  xAria: string;
+  instagramAria: string;
 }
 
 interface LandingSeoCopy {
@@ -599,6 +601,8 @@ const COPY_JA: LandingCopy = {
     privacyLink: 'プライバシーポリシー',
     tokushohoLink: '特定商取引法に基づく表記',
     appStoreAria: 'App StoreでJazzifyをダウンロード',
+    xAria: 'Jazzify公式X（@jazz_ad_lib）',
+    instagramAria: '開発者Instagram（@toshio_jazzpiano）',
   },
 };
 
@@ -952,6 +956,8 @@ const COPY_EN: LandingCopy = {
     privacyLink: 'Privacy Policy',
     tokushohoLink: 'Legal Notice',
     appStoreAria: 'Download Jazzify on the App Store',
+    xAria: 'Jazzify on X (@jazz_ad_lib)',
+    instagramAria: 'Developer Instagram (@toshio_jazzpiano)',
   },
 };
 

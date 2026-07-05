@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { JAZZIFY_INSTAGRAM_URL, JAZZIFY_X_URL } from '@/components/landing/landingLinks';
 
 const SiteFooter: React.FC = () => {
   return (
@@ -30,8 +31,14 @@ const SiteFooter: React.FC = () => {
           <div>
             <h4 className="text-white font-bold mb-4">フォローする</h4>
             <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Twitter">
-                <i className="fab fa-twitter text-xl"></i>
+              <a
+                href={JAZZIFY_X_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-purple-400 transition"
+                aria-label="Jazzify公式X（@jazz_ad_lib）"
+              >
+                <i className="fab fa-x-twitter text-xl" aria-hidden="true" />
               </a>
               <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Facebook">
                 <i className="fab fa-facebook text-xl"></i>
@@ -39,8 +46,14 @@ const SiteFooter: React.FC = () => {
               <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="YouTube">
                 <i className="fab fa-youtube text-xl"></i>
               </a>
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Instagram">
-                <i className="fab fa-instagram text-xl"></i>
+              <a
+                href={JAZZIFY_INSTAGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-400 hover:text-purple-400 transition"
+                aria-label="開発者Instagram（@toshio_jazzpiano）"
+              >
+                <i className="fab fa-instagram text-xl" aria-hidden="true" />
               </a>
             </div>
           </div>
