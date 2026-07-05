@@ -38,7 +38,7 @@ async function sendWithdrawalEmail(email: string): Promise<void> {
 
   try {
     await resend.emails.send({
-      from: 'Jazzify <noreply@jazzify.jp>',
+      from: 'Jazzify <noreply@auth.jazzify.jp>',
       to: email,
       subject: '【Jazzify】退会手続きが完了しました',
       html: `

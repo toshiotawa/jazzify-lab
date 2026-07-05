@@ -16,7 +16,8 @@ export interface MarketingEmailContent {
   html: string;
 }
 
-export const MARKETING_EMAIL_FROM = 'Jazzify <noreply@jazzify.jp>';
+/** Resend で検証済みの auth.jazzify.jp を使用（ルート jazzify.jp は未検証） */
+export const MARKETING_EMAIL_FROM = 'Jazzify <noreply@auth.jazzify.jp>';
 
 const URL_MAIN_LESSONS = 'https://jazzify.jp/main/lessons';
 const URL_ACCOUNT = 'https://jazzify.jp/main/account';
