@@ -1,10 +1,14 @@
 import React from 'react';
 import { FaChevronRight } from 'react-icons/fa';
-import { taskClearNextStepPromptCopy } from '@/utils/lessonCompletionCopy';
+import {
+  taskClearNextStepPromptCopy,
+  type TaskClearPromptMode,
+} from '@/utils/lessonCompletionCopy';
 
 export interface TaskClearNextStepModalProps {
   nextTaskTitle: string;
   isEnglishCopy: boolean;
+  mode?: TaskClearPromptMode;
   onNext: () => void;
   onQuestList: () => void;
   onStopForToday: () => void;
@@ -13,11 +17,12 @@ export interface TaskClearNextStepModalProps {
 export const TaskClearNextStepModal: React.FC<TaskClearNextStepModalProps> = ({
   nextTaskTitle,
   isEnglishCopy,
+  mode = 'afterClear',
   onNext,
   onQuestList,
   onStopForToday,
 }) => {
-  const copy = taskClearNextStepPromptCopy(isEnglishCopy);
+  const copy = taskClearNextStepPromptCopy(isEnglishCopy, mode);
 
   return (
     <div
@@ -37,9 +42,11 @@ export const TaskClearNextStepModal: React.FC<TaskClearNextStepModalProps> = ({
         aria-labelledby="task-clear-next-step-modal-title"
       >
         <div className="mb-4 text-center">
-          <div className="mb-2 text-4xl" aria-hidden>
-            🎉
-          </div>
+          {copy.showCelebrationEmoji ? (
+            <div className="mb-2 text-4xl" aria-hidden>
+              🎉
+            </div>
+          ) : null}
           <h3 id="task-clear-next-step-modal-title" className="text-xl font-bold text-white">
             {copy.heading}
           </h3>

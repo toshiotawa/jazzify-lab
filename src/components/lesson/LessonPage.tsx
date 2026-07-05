@@ -21,6 +21,7 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { buildLessonAccessGraph, findDeepestUnlockedLesson, LessonAccessGraph } from '@/utils/lessonAccess';
 import { applyMainQuestFreeTierLocks, isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import { stageCardRectangularPath, stageCardSquarePath } from '@/utils/stageCardAssets';
 import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
 import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
@@ -343,15 +344,20 @@ const LessonPage: React.FC = () => {
   }, []);
 
   const openLesson = useCallback((lessonId: string) => {
+    let mqLesson: Lesson | undefined;
     if (mainQuestCourse) {
       const mqLessons = lessonsByCourse[mainQuestCourse.id] ?? [];
-      const found = mqLessons.find(l => l.id === lessonId);
-      if (found !== undefined && !isMainQuestBlockPlayable(found.block_number ?? 1, isPremiumMember)) {
+      mqLesson = mqLessons.find(l => l.id === lessonId);
+      if (mqLesson !== undefined && !isMainQuestBlockPlayable(mqLesson.block_number ?? 1, isPremiumMember)) {
         setShowPaywall(true);
         return;
       }
     }
-    window.location.hash = `#lesson-detail?id=${lessonId}`;
+    const shouldAutoStart = mqLesson != null && (mqLesson.block_number ?? 1) === 1;
+    window.location.hash = buildLessonDetailHash(
+      lessonId,
+      shouldAutoStart ? { autoStart: true } : undefined,
+    );
   }, [mainQuestCourse, lessonsByCourse, isPremiumMember]);
 
   if (!open) return null;

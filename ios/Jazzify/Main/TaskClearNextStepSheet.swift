@@ -1,8 +1,14 @@
 import SwiftUI
 
+enum TaskClearPromptMode {
+    case afterClear
+    case entry
+}
+
 struct TaskClearNextStepSheet: View {
     let nextTaskTitle: String
     let locale: AppLocale
+    var mode: TaskClearPromptMode = .afterClear
     let onNext: () -> Void
     let onQuestList: () -> Void
     let onStopForToday: () -> Void
@@ -10,17 +16,38 @@ struct TaskClearNextStepSheet: View {
     private var isJapanese: Bool { locale == .ja }
 
     private var heading: String {
-        isJapanese ? "課題クリア！" : "Task cleared!"
+        switch mode {
+        case .afterClear:
+            return isJapanese ? "課題クリア！" : "Task cleared!"
+        case .entry:
+            return isJapanese ? "始めましょう" : "Let's begin!"
+        }
     }
 
     private var bodyText: String {
-        isJapanese ? "次の課題に進みましょう。" : "Next up — keep the momentum going."
+        switch mode {
+        case .afterClear:
+            return isJapanese ? "次の課題に進みましょう。" : "Next up — keep the momentum going."
+        case .entry:
+            return isJapanese ? "次の課題に挑戦しましょう。" : "Ready for the next task."
+        }
+    }
+
+    private var primaryButtonTitle: String {
+        switch mode {
+        case .afterClear:
+            return isJapanese ? "次の課題へ" : "Next task"
+        case .entry:
+            return isJapanese ? "課題を始める" : "Start task"
+        }
     }
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("🎉")
-                .font(.system(size: 44))
+            if mode == .afterClear {
+                Text("🎉")
+                    .font(.system(size: 44))
+            }
             Text(heading)
                 .font(.title3.bold())
                 .multilineTextAlignment(.center)
@@ -33,7 +60,7 @@ struct TaskClearNextStepSheet: View {
                 .foregroundStyle(Color(hex: "93c5fd"))
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
-                Button(isJapanese ? "次の課題へ" : "Next task", action: onNext)
+                Button(primaryButtonTitle, action: onNext)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)

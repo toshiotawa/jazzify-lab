@@ -92,7 +92,7 @@ struct TopView: View {
                     onContinue: {
                         MainQuestResumePreferences.markShownToday()
                         showMainQuestResumeSheet = false
-                        autoStartFirstQuestRequirement = false
+                        autoStartFirstQuestRequirement = true
                         if let lesson = resumeNextLesson {
                             mainQuestLessonToOpen = lesson
                         }
@@ -260,7 +260,7 @@ struct TopView: View {
                                 .lineLimit(2)
 
                             Button {
-                                autoStartFirstQuestRequirement = false
+                                autoStartFirstQuestRequirement = true
                                 mainQuestLessonToOpen = nextLesson
                             } label: {
                                 HStack(spacing: 6) {

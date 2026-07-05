@@ -8,6 +8,7 @@ import {
   shouldShowMainQuestResumePrompt,
 } from '@/utils/mainQuestResume';
 import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
+import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
 
 describe('findFirstIncompleteRequirement', () => {
   const requirements: RequirementWithLessonSongId[] = [
@@ -117,5 +118,62 @@ describe('resolveJustClearedLessonSongId', () => {
         hashJustCleared: null,
       }),
     ).toBeNull();
+  });
+});
+
+describe('shouldShowMainQuestTaskEntryPrompt', () => {
+  it('returns true for chapter 1 main quest with autoStart and no justCleared', () => {
+    expect(
+      shouldShowMainQuestTaskEntryPrompt({
+        isMainQuest: true,
+        blockNumber: 1,
+        hasAutoStart: true,
+        hasJustCleared: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false when justCleared is present', () => {
+    expect(
+      shouldShowMainQuestTaskEntryPrompt({
+        isMainQuest: true,
+        blockNumber: 1,
+        hasAutoStart: true,
+        hasJustCleared: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false without autoStart', () => {
+    expect(
+      shouldShowMainQuestTaskEntryPrompt({
+        isMainQuest: true,
+        blockNumber: 1,
+        hasAutoStart: false,
+        hasJustCleared: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for chapter 2', () => {
+    expect(
+      shouldShowMainQuestTaskEntryPrompt({
+        isMainQuest: true,
+        blockNumber: 2,
+        hasAutoStart: true,
+        hasJustCleared: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false for non-main quest', () => {
+    expect(
+      shouldShowMainQuestTaskEntryPrompt({
+        isMainQuest: false,
+        blockNumber: 1,
+        hasAutoStart: true,
+        hasJustCleared: false,
+      }),
+    ).toBe(false);
   });
 });

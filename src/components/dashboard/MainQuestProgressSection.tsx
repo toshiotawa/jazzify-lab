@@ -10,6 +10,7 @@ import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 
 const MainQuestProgressSection: React.FC = () => {
   const [progress, setProgress] = useState<MainQuestProgress | null>(null);
@@ -71,7 +72,7 @@ const MainQuestProgressSection: React.FC = () => {
     if (!nextLesson || !nextLessonPlayable) {
       return;
     }
-    window.location.hash = `#lesson-detail?id=${nextLesson.id}`;
+    window.location.hash = buildLessonDetailHash(nextLesson.id, { autoStart: true });
   };
 
   const sectionTitle = isEnglishCopy ? 'Main Quest' : 'メインクエスト';

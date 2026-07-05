@@ -11,6 +11,7 @@ import {
   readMainQuestResumeSessionShown,
   shouldShowMainQuestResumePrompt,
 } from '@/utils/mainQuestResume';
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 
 const MainQuestResumeModal: React.FC = () => {
   const [progress, setProgress] = useState<MainQuestProgress | null>(null);
@@ -59,7 +60,7 @@ const MainQuestResumeModal: React.FC = () => {
   const handleResume = () => {
     markMainQuestResumeSessionShown();
     setOpen(false);
-    window.location.hash = `#lesson-detail?id=${nextLesson.id}`;
+    window.location.hash = buildLessonDetailHash(nextLesson.id, { autoStart: true });
   };
 
   const handleQuestList = () => {

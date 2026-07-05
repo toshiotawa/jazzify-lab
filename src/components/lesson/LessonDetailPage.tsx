@@ -80,6 +80,8 @@ import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteM
 import TaskClearNextStepModal from '@/components/lesson/TaskClearNextStepModal';
 import { shouldShowQuestReadyToCompletePrompt, findFirstIncompleteRequirement } from '@/utils/lessonRequirementProgress';
 import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
+import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
+import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
 import { lessonDetailPath } from '@/utils/appNavigation';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
@@ -478,7 +480,28 @@ const LessonDetailPage: React.FC = () => {
   const [showReadyToCompletePrompt, setShowReadyToCompletePrompt] = useState(false);
   const [showTaskClearNextStepModal, setShowTaskClearNextStepModal] = useState(false);
   const [nextTaskAfterClear, setNextTaskAfterClear] = useState<LessonRequirement | null>(null);
+  const [taskClearPromptMode, setTaskClearPromptMode] = useState<TaskClearPromptMode>('afterClear');
   const justClearedConsumedRef = useRef(false);
+
+  const clearAutoStartFromUrl = useCallback(() => {
+    if (!lessonId) {
+      return;
+    }
+    if (routeLessonId) {
+      const params = new URLSearchParams(searchParams);
+      params.delete('autoStart');
+      const remaining = params.toString();
+      navigate(`${lessonDetailPath(lessonId)}${remaining ? `?${remaining}` : ''}`, { replace: true });
+      return;
+    }
+    const nextHash = buildLessonDetailHash(lessonId, {
+      justCleared: hashJustCleared ?? undefined,
+    });
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, '', nextHash);
+    }
+    setHashAutoStart(false);
+  }, [lessonId, routeLessonId, hashJustCleared, searchParams, navigate]);
 
   const clearJustClearedFromUrl = useCallback(() => {
     if (!lessonId) {
@@ -522,6 +545,7 @@ const LessonDetailPage: React.FC = () => {
     justClearedConsumedRef.current = false;
     setShowTaskClearNextStepModal(false);
     setNextTaskAfterClear(null);
+    setTaskClearPromptMode('afterClear');
   }, [lessonId]);
 
   useEffect(() => {
@@ -543,6 +567,7 @@ const LessonDetailPage: React.FC = () => {
     clearJustClearedFromUrl();
 
     if (nextIncomplete) {
+      setTaskClearPromptMode('afterClear');
       setNextTaskAfterClear(nextIncomplete);
       setShowTaskClearNextStepModal(true);
     }
@@ -567,22 +592,36 @@ const LessonDetailPage: React.FC = () => {
     if (autoStartConsumedRef.current) {
       return;
     }
-    autoStartConsumedRef.current = true;
+    if (!shouldShowMainQuestTaskEntryPrompt({
+      isMainQuest: lessonCourseIsMainQuest,
+      blockNumber: lesson?.block_number,
+      hasAutoStart: true,
+      hasJustCleared: Boolean(justClearedParam),
+    })) {
+      return;
+    }
 
     const firstIncomplete = findFirstIncompleteRequirement(
       requirements,
       requirementsProgress,
     );
+    autoStartConsumedRef.current = true;
+    clearAutoStartFromUrl();
 
     if (firstIncomplete) {
-      launchRequirement(firstIncomplete);
+      setTaskClearPromptMode('entry');
+      setNextTaskAfterClear(firstIncomplete);
+      setShowTaskClearNextStepModal(true);
     }
   }, [
     autoStartFirstRequirement,
     loading,
     requirements,
     requirementsProgress,
-    launchRequirement,
+    lessonCourseIsMainQuest,
+    lesson?.block_number,
+    justClearedParam,
+    clearAutoStartFromUrl,
   ]);
 
   // 完了プロンプト表示時に SE を先行ロード（詳細ページ単体では init されないため）
@@ -1476,7 +1515,13 @@ const LessonDetailPage: React.FC = () => {
                           clearSupabaseCache();
                         }
                         setTimeout(() => {
-                          window.location.hash = `#lesson-detail?id=${navigationInfo.nextLesson!.id}`;
+                          const next = navigationInfo.nextLesson!;
+                          const shouldAutoStart = lessonCourseIsMainQuest
+                            && (next.block_number ?? 1) === 1;
+                          window.location.hash = buildLessonDetailHash(
+                            next.id,
+                            shouldAutoStart ? { autoStart: true } : undefined,
+                          );
                         }, 100);
                       }
                     : undefined
@@ -1516,6 +1561,7 @@ const LessonDetailPage: React.FC = () => {
                   ) + 1,
                 )}
                 isEnglishCopy={isEnglishCopy}
+                mode={taskClearPromptMode}
                 onNext={() => {
                   setShowTaskClearNextStepModal(false);
                   const task = nextTaskAfterClear;

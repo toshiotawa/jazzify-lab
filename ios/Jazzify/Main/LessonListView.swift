@@ -129,7 +129,10 @@ struct LessonListView: View {
                 )
             ) {
                 if let lesson = lessonToOpen {
-                    LessonDetailView(lesson: lesson)
+                    LessonDetailView(
+                        lesson: lesson,
+                        autoStartFirstRequirement: shouldAutoStartMainQuestTaskEntry(for: lesson)
+                    )
                 }
             }
             .onChange(of: journeyCourse == nil) { isNil in
@@ -1153,6 +1156,11 @@ struct LessonListView: View {
 
     // MARK: - Data
 
+    private func shouldAutoStartMainQuestTaskEntry(for lesson: Lesson) -> Bool {
+        guard mainQuestCourse != nil else { return false }
+        return (lesson.blockNumber ?? 1) == 1
+    }
+
     private func loadCourses() async {
         isLoading = true
         do {
@@ -1575,6 +1583,7 @@ struct LessonDetailView: View {
     @State private var showReadyToCompletePrompt = false
     @State private var pendingClearCheck: PendingRequirementClearCheck?
     @State private var taskClearNextStepTarget: LessonSong?
+    @State private var taskClearPromptMode: TaskClearPromptMode = .afterClear
     @State private var pendingAutoStartFirstRequirement: Bool
 
     private struct PendingRequirementClearCheck {
@@ -1704,6 +1713,9 @@ struct LessonDetailView: View {
                     onContinue: sheetModel.nextLesson.map { next in
                         {
                             questCompletionSheet = nil
+                            if courseIsMainQuest, (next.blockNumber ?? 1) == 1 {
+                                pendingAutoStartFirstRequirement = true
+                            }
                             activeLesson = next
                         }
                     },
@@ -1729,6 +1741,7 @@ struct LessonDetailView: View {
                 TaskClearNextStepSheet(
                     nextTaskTitle: target.localizedTitle(locale) ?? (locale == .ja ? "次の課題" : "Next task"),
                     locale: locale,
+                    mode: taskClearPromptMode,
                     onNext: {
                         let next = target
                         taskClearNextStepTarget = nil
@@ -1945,11 +1958,19 @@ struct LessonDetailView: View {
             }
             .task(id: activeLesson.id) {
                 isNavigating = false
+                pendingClearCheck = nil
+                taskClearNextStepTarget = nil
+                taskClearPromptMode = .afterClear
                 await loadLessonDetail()
                 if pendingAutoStartFirstRequirement {
                     pendingAutoStartFirstRequirement = false
-                    if let firstIncomplete = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
-                        launchRequirement(firstIncomplete)
+                    if courseIsMainQuest,
+                       (activeLesson.blockNumber ?? 1) == 1,
+                       pendingClearCheck == nil,
+                       let firstIncomplete = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
+                        showReadyToCompletePrompt = false
+                        taskClearPromptMode = .entry
+                        taskClearNextStepTarget = firstIncomplete
                     }
                 }
             }
@@ -2662,6 +2683,7 @@ struct LessonDetailView: View {
 
         if let next = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
             showReadyToCompletePrompt = false
+            taskClearPromptMode = .afterClear
             taskClearNextStepTarget = next
         }
     }
