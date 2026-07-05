@@ -20,8 +20,10 @@ export const initGa = (): void => {
   }
 
   window.dataLayer = window.dataLayer ?? [];
-  window.gtag = function gtag(...args: unknown[]) {
-    window.dataLayer?.push(args);
+  // gtag.js expects Arguments objects in dataLayer, not Arrays.
+  window.gtag = function gtag() {
+    // eslint-disable-next-line prefer-rest-params -- GA4 dataLayer contract requires `arguments`
+    window.dataLayer?.push(arguments);
   };
 
   const script = document.createElement('script');
@@ -48,7 +50,7 @@ export const trackPageView = (path: string): void => {
   }
   window.gtag('event', 'page_view', {
     page_path: path,
-    page_location: `${window.location.origin}${path}${window.location.search}`,
+    page_location: `${window.location.origin}${path}`,
     page_title: document.title,
   });
 };
