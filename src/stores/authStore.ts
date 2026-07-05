@@ -764,6 +764,18 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         trackEvent('sign_up', { method: 'email_otp' });
 
+        // オプトイン時は登録直後メール（PDF配布）をfire-and-forgetで依頼
+        // 失敗してもcron（marketingDripCron）が1時間以内にリカバリする
+        if (marketingEmailOptIn) {
+          const accessToken = get().session?.access_token;
+          if (accessToken) {
+            void fetch('/.netlify/functions/sendMarketingWelcome', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }).catch(() => undefined);
+          }
+        }
+
         // 作成成功後、プロフィール情報を取得（キャッシュをクリアして最新を取得）
         await get().fetchProfile({ forceRefresh: true });
 

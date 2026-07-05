@@ -1,7 +1,20 @@
+export const MARKETING_EMAIL_OPT_IN_LABEL_JA =
+  '無料PDF「Bluesy Licks 5選」と、Jazzifyの練習ヒントをメールで受け取る';
+
+export const MARKETING_EMAIL_OPT_IN_LABEL_EN =
+  'Get the free "5 Bluesy Licks" PDF and Jazzify practice tips by email';
+
+export const MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA =
+  '登録後、PDFと3日間の練習メールをお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。';
+
+export const MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN =
+  "After signing up, we'll email you the PDF and a 3-day practice series. Unsubscribe anytime. You can sign up without checking this box.";
+
+// 同意の証跡としてDB（profiles.marketing_email_opt_in_text）に保存する文言
 export const MARKETING_EMAIL_OPT_IN_TEXT_JA =
-  '3日間のJazzify攻略メールを受け取る。パリィ体験の始め方、最初にやるべき課題、無料トライアルの案内をお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。';
+  `${MARKETING_EMAIL_OPT_IN_LABEL_JA}。${MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA}`;
 
 export const MARKETING_EMAIL_OPT_IN_TEXT_EN =
-  'Receive 3 days of Jazzify tips: how to start the parry experience, your first lessons, and free trial info. Unsubscribe anytime. You can sign up without checking this box.';
+  `${MARKETING_EMAIL_OPT_IN_LABEL_EN}. ${MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN}`;
 
 export const MARKETING_EMAIL_OPT_IN_SOURCE = 'signup_wizard';

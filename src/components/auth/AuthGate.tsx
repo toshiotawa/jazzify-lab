@@ -7,6 +7,10 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
 import {
+  MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN,
+  MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA,
+  MARKETING_EMAIL_OPT_IN_LABEL_EN,
+  MARKETING_EMAIL_OPT_IN_LABEL_JA,
   MARKETING_EMAIL_OPT_IN_TEXT_EN,
   MARKETING_EMAIL_OPT_IN_TEXT_JA,
 } from '@/utils/marketingEmailOptIn';
@@ -146,11 +150,11 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
   const termsLinkLabel = termsContent.detailLinkLabel;
   const termsSummaryHeading = termsContent.summaryHeading;
   const marketingOptInLabel = isEnglishCopy
-    ? 'Receive 3 days of Jazzify tips'
-    : '3日間のJazzify攻略メールを受け取る';
+    ? MARKETING_EMAIL_OPT_IN_LABEL_EN
+    : MARKETING_EMAIL_OPT_IN_LABEL_JA;
   const marketingOptInDescription = isEnglishCopy
-    ? 'Tips for starting the parry experience, your first lessons, and free trial info. Unsubscribe anytime. You can sign up without checking this box.'
-    : 'パリィ体験の始め方、最初にやるべき課題、無料トライアルの案内をお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。';
+    ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN
+    : MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA;
   const marketingOptInText = isEnglishCopy
     ? MARKETING_EMAIL_OPT_IN_TEXT_EN
     : MARKETING_EMAIL_OPT_IN_TEXT_JA;

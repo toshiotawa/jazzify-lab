@@ -578,6 +578,10 @@ MIDIキーボードがなくても、まずはタッチ鍵盤で試せます。
 
 具体的には、プロフィール作成完了（許諾あり）をトリガーに、Netlify FunctionからResend APIで1通送る。既存の `netlify/functions/deleteAccount.ts` にResend利用の先例があるので構成はそれに倣う。
 
+### 実装済み（2026-07-05 更新）
+
+本章の「最初は1通だけ」方針から拡張し、PDFリードマグネット（Bluesy Licks 5選）を軸にした day0（登録直後・PDF＋音源）→ day1 → day2（MIDI）→ day3 ＋ trial_start の5通構成を実装済み。実体は `netlify/functions/marketingDripCron.ts`（毎時cron）+ `sendMarketingWelcome.ts`（登録直後）+ `marketingUnsubscribe.ts`（配信停止）+ `lib/marketingEmails.ts`（JA/EN文面）。対象はリリース以降の新規オプトインのみ。トライアル開始者には以後のトライアルCTAを出さない。
+
 ### 実装の順番（再掲）
 
 1. UTM・計測（P0）
