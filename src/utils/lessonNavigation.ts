@@ -425,6 +425,20 @@ export type QuestCompletionModalKind =
   | 'chapterCompleteOnly'
   | 'none';
 
+export function buildLessonDetailHash(
+  lessonId: string,
+  options?: { autoStart?: boolean; justCleared?: string },
+): string {
+  const params = new URLSearchParams({ id: lessonId });
+  if (options?.autoStart === true) {
+    params.set('autoStart', '1');
+  }
+  if (options?.justCleared) {
+    params.set('justCleared', options.justCleared);
+  }
+  return `#lesson-detail?${params.toString()}`;
+}
+
 export function sortLessonsByOrder(lessons: Lesson[]): Lesson[] {
   return [...lessons].sort((a, b) => {
     const blockA = a.block_number ?? 1;

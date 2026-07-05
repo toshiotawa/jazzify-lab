@@ -437,6 +437,7 @@ final class SupabaseService: Sendable {
         let totalLessons: Int
         let completedLessons: Int
         let nextLesson: Lesson?
+        let lastPlayedAt: Date?
     }
 
     func fetchMainQuestProgress(userId: UUID) async throws -> MainQuestProgressResult? {
@@ -473,11 +474,36 @@ final class SupabaseService: Sendable {
         let completedIds = Set(progressRows.map(\.lessonId))
         let nextLesson = lessons.first { !completedIds.contains($0.id) }
 
+        let chapterOneLessonIds = lessons
+            .filter { ($0.blockNumber ?? 1) == 1 }
+            .map(\.id)
+
+        var lastPlayedAt: Date?
+        if !chapterOneLessonIds.isEmpty {
+            struct ProgressTimestampRow: Decodable {
+                let updatedAt: Date
+                enum CodingKeys: String, CodingKey {
+                    case updatedAt = "updated_at"
+                }
+            }
+            let timestampRows: [ProgressTimestampRow] = try await client
+                .from("user_lesson_requirements_progress")
+                .select("updated_at")
+                .eq("user_id", value: userId.uuidString)
+                .in("lesson_id", values: chapterOneLessonIds.map(\.uuidString))
+                .order("updated_at", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+            lastPlayedAt = timestampRows.first?.updatedAt
+        }
+
         return MainQuestProgressResult(
             courseId: course.id,
             totalLessons: lessons.count,
             completedLessons: completedIds.count,
-            nextLesson: nextLesson
+            nextLesson: nextLesson,
+            lastPlayedAt: lastPlayedAt
         )
     }
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 
 import { useAuthStore } from '@/stores/authStore';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
@@ -6,6 +6,7 @@ import type { ClearConditions } from '@/types';
 
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import { EarTrainingLessonTutorialExperience } from './EarTrainingLessonTutorialExperience';
 
 function parseRouteParams(): Record<string, string> {
@@ -19,6 +20,7 @@ const EarTrainingTutorialMain: React.FC = () => {
   const lessonId = params.lessonId ?? '';
   const lessonSongId = params.lessonSongId ?? '';
   const scriptId = params.scriptId ?? 'developer-full-v1';
+  const clearedThisSessionRef = useRef(false);
   const clearConditions: ClearConditions = useMemo(() => {
     try {
       return JSON.parse(params.clearConditions ?? '{"count":1,"rank":"S"}') as ClearConditions;
@@ -30,13 +32,16 @@ const EarTrainingTutorialMain: React.FC = () => {
   const handleTutorialCompleted = useCallback(async () => {
     if (!profile || !lessonId || !lessonSongId) return;
     try {
-      await updateLessonRequirementProgress(
+      const completed = await updateLessonRequirementProgress(
         lessonId,
         lessonSongId,
         clearConditions.rank ?? 'S',
         clearConditions,
         { sourceType: 'ear_training', lessonSongId },
       );
+      if (completed) {
+        clearedThisSessionRef.current = true;
+      }
     } catch {
       /* ignore */
     }
@@ -44,11 +49,13 @@ const EarTrainingTutorialMain: React.FC = () => {
 
   const handleExit = useCallback(() => {
     if (lessonId) {
-      window.location.hash = `#lesson-detail?id=${lessonId}`;
+      window.location.hash = buildLessonDetailHash(lessonId, {
+        justCleared: clearedThisSessionRef.current ? lessonSongId : undefined,
+      });
     } else {
       window.location.hash = '#lessons';
     }
-  }, [lessonId]);
+  }, [lessonId, lessonSongId]);
 
   return (
     <EarTrainingLessonTutorialExperience

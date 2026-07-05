@@ -11,6 +11,11 @@ struct TopView: View {
     @State private var mainQuestLessonToOpen: Lesson?
     @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
+    @State private var showMainQuestResumeSheet = false
+    @State private var resumePreviousQuestLabel = ""
+    @State private var resumeNextQuestLabel = ""
+    @State private var resumeNextQuestTitle = ""
+    @State private var resumeNextLesson: Lesson?
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -83,6 +88,26 @@ struct TopView: View {
             }
             .sheet(isPresented: $showSubscription) {
                 SubscriptionView()
+            }
+            .sheet(isPresented: $showMainQuestResumeSheet) {
+                MainQuestResumeSheet(
+                    locale: locale,
+                    previousQuestLabel: resumePreviousQuestLabel,
+                    nextQuestLabel: resumeNextQuestLabel,
+                    nextQuestTitle: resumeNextQuestTitle,
+                    onContinue: {
+                        MainQuestResumePreferences.markShownToday()
+                        showMainQuestResumeSheet = false
+                        autoStartFirstQuestRequirement = false
+                        if let lesson = resumeNextLesson {
+                            mainQuestLessonToOpen = lesson
+                        }
+                    },
+                    onLater: {
+                        MainQuestResumePreferences.markShownToday()
+                        showMainQuestResumeSheet = false
+                    }
+                )
             }
         }
     }
@@ -530,6 +555,26 @@ struct TopView: View {
                 }
                 autoStartFirstQuestRequirement = true
                 mainQuestLessonToOpen = nextLesson
+            }
+        } else if let progress = loadedMainQuestProgress,
+                  let nextLesson = mainQuestPlayableNextLesson(progress: progress),
+                  (nextLesson.blockNumber ?? 1) == 1,
+                  let lastPlayedAt = progress.lastPlayedAt,
+                  MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
+            let lessons = try? await SupabaseService.shared.fetchLessons(courseId: progress.courseId)
+            let previousLesson = lessons?
+                .filter { ($0.blockNumber ?? 1) == 1 }
+                .first { $0.orderIndex == nextLesson.orderIndex - 1 }
+            await MainActor.run {
+                resumeNextLesson = nextLesson
+                resumePreviousQuestLabel = previousLesson.map {
+                    locale == .ja ? "クエスト\($0.orderIndex + 1)" : "Quest \($0.orderIndex + 1)"
+                } ?? (locale == .ja ? "前のクエスト" : "Previous quest")
+                resumeNextQuestLabel = locale == .ja
+                    ? "クエスト\(nextLesson.orderIndex + 1)"
+                    : "Quest \(nextLesson.orderIndex + 1)"
+                resumeNextQuestTitle = nextLesson.localizedTitle(locale)
+                showMainQuestResumeSheet = true
             }
         }
     }

@@ -1,3 +1,5 @@
+import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters';
+
 /** lesson_songs 行のうち、進捗の song_id / lesson_song_id が lesson_songs.id を指すタイプ */
 export interface LessonSongProgressKeySource {
   id: string;
@@ -68,3 +70,31 @@ export const shouldShowQuestReadyToCompletePrompt = (input: {
   input.hasRequirements
   && input.allRequirementsCompleted
   && !input.isLessonCompleted;
+
+export interface RequirementWithLessonSongId {
+  lesson_song_id?: string | null;
+  song_id?: string | null;
+  is_fantasy?: boolean;
+  is_survival?: boolean;
+  is_survival_tutorial?: boolean;
+  is_balloon_rush?: boolean;
+  is_ear_training?: boolean;
+  is_ear_training_tutorial?: boolean;
+}
+
+/**
+ * クエスト内の最初の未完了課題を返す（レジェンド専用課題は除外）。
+ */
+export const findFirstIncompleteRequirement = <T extends RequirementWithLessonSongId>(
+  requirements: readonly T[],
+  progress: readonly LessonSongProgressMatch[],
+): T | undefined =>
+  requirements.find((req) => {
+    if (isLegendOnlyLessonRequirement(req)) {
+      return false;
+    }
+    const reqProgress = progress.find(
+      (p) => p.lesson_song_id === req.lesson_song_id,
+    );
+    return !reqProgress?.is_completed;
+  });

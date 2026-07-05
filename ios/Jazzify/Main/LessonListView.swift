@@ -1573,7 +1573,14 @@ struct LessonDetailView: View {
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
     @State private var showReadyToCompletePrompt = false
+    @State private var pendingClearCheck: PendingRequirementClearCheck?
+    @State private var taskClearNextStepTarget: LessonSong?
     @State private var pendingAutoStartFirstRequirement: Bool
+
+    private struct PendingRequirementClearCheck {
+        let lessonSongId: UUID
+        let wasCompletedBefore: Bool
+    }
 
     init(lesson: Lesson, autoStartFirstRequirement: Bool = false) {
         _activeLesson = State(initialValue: lesson)
@@ -1718,6 +1725,24 @@ struct LessonDetailView: View {
                     onLater: { showReadyToCompletePrompt = false }
                 )
             }
+            .sheet(item: $taskClearNextStepTarget) { target in
+                TaskClearNextStepSheet(
+                    nextTaskTitle: target.localizedTitle(locale) ?? (locale == .ja ? "次の課題" : "Next task"),
+                    locale: locale,
+                    onNext: {
+                        let next = target
+                        taskClearNextStepTarget = nil
+                        launchRequirement(next)
+                    },
+                    onQuestList: {
+                        taskClearNextStepTarget = nil
+                        dismiss()
+                    },
+                    onStopForToday: {
+                        taskClearNextStepTarget = nil
+                    }
+                )
+            }
     }
 
     @ViewBuilder
@@ -1725,32 +1750,32 @@ struct LessonDetailView: View {
         lessonDetailWithGameLaunchers
             .onChange(of: launchDestination == nil) { isNil in
                 if isNil {
-                    Task { await loadLessonDetail() }
+                    reloadLessonDetailAfterGame()
                 }
             }
             .onChange(of: earTrainingLaunch == nil) { isNil in
                 if isNil {
-                    Task { await loadLessonDetail() }
+                    reloadLessonDetailAfterGame()
                 }
             }
             .onChange(of: earTrainingTutorialLaunch == nil) { isNil in
                 if isNil {
-                    Task { await loadLessonDetail() }
+                    reloadLessonDetailAfterGame()
                 }
             }
             .onChange(of: survivalTutorialLaunch == nil) { isNil in
                 if isNil {
-                    Task { await loadLessonDetail() }
+                    reloadLessonDetailAfterGame()
                 }
             }
             .onChange(of: survivalLessonLaunch == nil) { isNil in
                 if isNil {
-                    Task { await loadLessonDetail() }
+                    reloadLessonDetailAfterGame()
                 }
             }
             .onChange(of: balloonRushLessonLaunch == nil) { isNil in
                 if isNil {
-                    Task { await loadLessonDetail() }
+                    reloadLessonDetailAfterGame()
                 }
             }
     }
@@ -2583,6 +2608,36 @@ struct LessonDetailView: View {
         }
     }
 
+    private func reloadLessonDetailAfterGame() {
+        Task {
+            await loadLessonDetail()
+            await MainActor.run {
+                evaluateTaskClearNextStepAfterGame()
+            }
+        }
+    }
+
+    private func evaluateTaskClearNextStepAfterGame() {
+        guard courseIsMainQuest,
+              (activeLesson.blockNumber ?? 1) == 1,
+              let check = pendingClearCheck else {
+            pendingClearCheck = nil
+            return
+        }
+        pendingClearCheck = nil
+
+        guard !check.wasCompletedBefore else { return }
+        guard let played = sortedRequirements.first(where: { $0.id == check.lessonSongId }),
+              progress(for: played)?.isCompleted == true else {
+            return
+        }
+
+        if let next = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
+            showReadyToCompletePrompt = false
+            taskClearNextStepTarget = next
+        }
+    }
+
     private func loadLessonDetail() async {
         loadGeneration += 1
         let generation = loadGeneration
@@ -3156,6 +3211,11 @@ struct LessonDetailView: View {
     }
 
     private func launchRequirement(_ requirement: LessonSong) {
+        pendingClearCheck = PendingRequirementClearCheck(
+            lessonSongId: requirement.id,
+            wasCompletedBefore: progress(for: requirement)?.isCompleted == true
+        )
+
         let bn = activeLesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
             alertMessage = locale == .ja

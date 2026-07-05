@@ -29,7 +29,7 @@ struct QuestReadyToCompleteSheet: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
-                Button(isJapanese ? "完了" : "Complete", action: onComplete)
+                Button(isJapanese ? "クエストを完了する" : "Complete this quest", action: onComplete)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)

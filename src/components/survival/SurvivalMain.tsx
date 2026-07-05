@@ -4,7 +4,7 @@
  * lessonMode: レッスン課題からの起動（URLパラメータからコード/コンテキスト読み取り）
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './SurvivalTypes';
 import { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalDescentMap from './descent/SurvivalDescentMap';
@@ -64,6 +64,7 @@ import { useSurvivalMidiSession } from '@/hooks/useSurvivalMidiSession';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import GameHeader from '@/components/ui/GameHeader';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
@@ -167,6 +168,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
   const [survivalSessionNonce, setSurvivalSessionNonce] = useState(0);
+  const lessonClearedThisSessionRef = useRef(false);
   const [lessonInlineCompositePhrases, setLessonInlineCompositePhrases] = useState<
     readonly SurvivalPhraseDefinition[] | null
   >(null);
@@ -474,15 +476,27 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const handleLessonStageClear = useCallback(async () => {
     if (!lessonContext || !profile) return;
     try {
-      await updateLessonRequirementProgress(
+      const completed = await updateLessonRequirementProgress(
         lessonContext.lessonId,
         lessonContext.lessonSongId,
         'S',
         lessonContext.clearConditions,
         { sourceType: 'survival', lessonSongId: lessonContext.lessonSongId }
       );
+      if (completed) {
+        lessonClearedThisSessionRef.current = true;
+      }
     } catch { /* ignore */ }
   }, [lessonContext, profile]);
+
+  const navigateBackToLessonDetail = useCallback(() => {
+    if (!lessonContext) return;
+    window.location.hash = buildLessonDetailHash(lessonContext.lessonId, {
+      justCleared: lessonClearedThisSessionRef.current
+        ? lessonContext.lessonSongId
+        : undefined,
+    });
+  }, [lessonContext]);
 
   const handleSurvivalRunModeRestart = useCallback((nextHintMode: boolean) => {
     setActiveHintMode(nextHintMode);
@@ -572,7 +586,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       return;
     }
     if (lessonMode && lessonContext) {
-      window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      navigateBackToLessonDetail();
       return;
     }
     setScreen('select');
@@ -582,7 +596,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setSelectedCharacter(undefined);
     setActiveStageDefinition(null);
     setActiveHintMode(false);
-  }, [isIOSSurvival, lessonMode, lessonContext]);
+  }, [isIOSSurvival, lessonMode, lessonContext, navigateBackToLessonDetail]);
 
   const handleBackToMenu = useCallback(() => {
     if (isIOSWebView()) {
@@ -590,11 +604,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       return;
     }
     if (lessonMode && lessonContext) {
-      window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      navigateBackToLessonDetail();
       return;
     }
     window.location.hash = '#dashboard';
-  }, [lessonMode, lessonContext]);
+  }, [lessonMode, lessonContext, navigateBackToLessonDetail]);
 
   if (isIOSSurvival && !iosInitialized) {
     return (
@@ -659,7 +673,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
             isEnglishCopy={isEnglishCopy}
             initialHintMode={activeHintMode}
             onCancel={() => {
-              window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+              navigateBackToLessonDetail();
             }}
             onConfirm={(hint) => {
               setActiveHintMode(hint);

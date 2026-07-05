@@ -108,6 +108,26 @@ export const questReadyToCompletePromptCopy = (
   body: isEnglish
     ? 'All practice tasks are complete. Ready to finish this quest!'
     : '全ての課題が完了しました、クエスト完了です！',
-  complete: isEnglish ? 'Complete' : '完了',
+  complete: isEnglish ? 'Complete this quest' : 'クエストを完了する',
   later: isEnglish ? 'Later' : 'あとで',
+});
+
+export type TaskClearNextStepPromptCopy = {
+  heading: string;
+  body: string;
+  nextTask: string;
+  questList: string;
+  stopForToday: string;
+};
+
+export const taskClearNextStepPromptCopy = (
+  isEnglish: boolean,
+): TaskClearNextStepPromptCopy => ({
+  heading: isEnglish ? 'Task cleared!' : '課題クリア！',
+  body: isEnglish
+    ? 'Next up — keep the momentum going.'
+    : '次の課題に進みましょう。',
+  nextTask: isEnglish ? 'Next task' : '次の課題へ',
+  questList: isEnglish ? 'View quest list' : 'クエスト一覧を見る',
+  stopForToday: isEnglish ? 'Stop for today' : '今日はここまで',
 });

@@ -71,12 +71,14 @@ import {
   clearNavigationCacheForCourse,
   getQuestCompletionModalKind,
   sortLessonsByOrder,
+  buildLessonDetailHash,
   type LessonNavigationInfo,
   type QuestCompletionModalKind,
 } from '@/utils/lessonNavigation';
 import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteModal';
-import { shouldShowQuestReadyToCompletePrompt } from '@/utils/lessonRequirementProgress';
+import TaskClearNextStepModal from '@/components/lesson/TaskClearNextStepModal';
+import { shouldShowQuestReadyToCompletePrompt, findFirstIncompleteRequirement } from '@/utils/lessonRequirementProgress';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
@@ -94,6 +96,7 @@ const LessonDetailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [hashLessonId, setHashLessonId] = useState<string | null>(null);
   const [hashAutoStart, setHashAutoStart] = useState(false);
+  const [hashJustCleared, setHashJustCleared] = useState<string | null>(null);
   const lessonId = routeLessonId ?? hashLessonId;
   const routeAutoStart = searchParams.get('autoStart') === '1';
   const autoStartFirstRequirement = routeLessonId ? routeAutoStart : hashAutoStart;
@@ -185,9 +188,11 @@ const LessonDetailPage: React.FC = () => {
         const params = new URLSearchParams(query);
         setHashLessonId(params.get('id'));
         setHashAutoStart(params.get('autoStart') === '1');
+        setHashJustCleared(params.get('justCleared'));
       } else {
         setHashLessonId(null);
         setHashAutoStart(false);
+        setHashJustCleared(null);
       }
       setIsNavigating(false);
     };
@@ -462,11 +467,29 @@ const LessonDetailPage: React.FC = () => {
   const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showReadyToCompletePrompt, setShowReadyToCompletePrompt] = useState(false);
+  const [showTaskClearNextStepModal, setShowTaskClearNextStepModal] = useState(false);
+  const [nextTaskAfterClear, setNextTaskAfterClear] = useState<LessonRequirement | null>(null);
+  const justClearedConsumedRef = useRef(false);
 
-  // 詳細ページ表示時、課題が全完了かつ未完了なら完了プロンプトを自動表示する。
-  // state 変化に反応するイベント駆動。lessonId 変更（再選択/次クエスト遷移）で再評価される。
+  const clearJustClearedFromUrl = useCallback(() => {
+    if (!lessonId) {
+      return;
+    }
+    const nextHash = buildLessonDetailHash(lessonId, {
+      autoStart: hashAutoStart,
+    });
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, '', nextHash);
+    }
+    setHashJustCleared(null);
+  }, [lessonId, hashAutoStart]);
+
   useEffect(() => {
     if (loading) {
+      setShowReadyToCompletePrompt(false);
+      return;
+    }
+    if (showTaskClearNextStepModal) {
       setShowReadyToCompletePrompt(false);
       return;
     }
@@ -477,7 +500,45 @@ const LessonDetailPage: React.FC = () => {
         isLessonCompleted: lessonProgress?.completed === true,
       }),
     );
-  }, [loading, requirements.length, allRequirementsCompleted, lessonProgress?.completed, lessonId]);
+  }, [loading, requirements.length, allRequirementsCompleted, lessonProgress?.completed, lessonId, showTaskClearNextStepModal]);
+
+  useEffect(() => {
+    justClearedConsumedRef.current = false;
+    setShowTaskClearNextStepModal(false);
+    setNextTaskAfterClear(null);
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (
+      loading
+      || !hashJustCleared
+      || justClearedConsumedRef.current
+      || !lessonCourseIsMainQuest
+      || (lesson?.block_number ?? 1) !== 1
+    ) {
+      return;
+    }
+
+    const nextIncomplete = findFirstIncompleteRequirement<LessonRequirement>(
+      requirements,
+      requirementsProgress,
+    );
+    justClearedConsumedRef.current = true;
+    clearJustClearedFromUrl();
+
+    if (nextIncomplete) {
+      setNextTaskAfterClear(nextIncomplete);
+      setShowTaskClearNextStepModal(true);
+    }
+  }, [
+    loading,
+    hashJustCleared,
+    lessonCourseIsMainQuest,
+    lesson?.block_number,
+    requirements,
+    requirementsProgress,
+    clearJustClearedFromUrl,
+  ]);
 
   useEffect(() => {
     autoStartConsumedRef.current = false;
@@ -492,15 +553,10 @@ const LessonDetailPage: React.FC = () => {
     }
     autoStartConsumedRef.current = true;
 
-    const firstIncomplete = requirements.find((req) => {
-      if (isLegendOnlyLessonRequirement(req)) {
-        return false;
-      }
-      const progress = requirementsProgress.find(
-        (p) => p.lesson_song_id === req.lesson_song_id,
-      );
-      return !progress?.is_completed;
-    });
+    const firstIncomplete = findFirstIncompleteRequirement(
+      requirements,
+      requirementsProgress,
+    );
 
     if (firstIncomplete) {
       launchRequirement(firstIncomplete);
@@ -1420,7 +1476,7 @@ const LessonDetailPage: React.FC = () => {
                 }
               />
             ) : null}
-            {showReadyToCompletePrompt && !showNextLessonPrompt ? (
+            {showReadyToCompletePrompt && !showNextLessonPrompt && !showTaskClearNextStepModal ? (
               <QuestReadyToCompleteModal
                 isEnglishCopy={isEnglishCopy}
                 onComplete={() => {
@@ -1428,6 +1484,37 @@ const LessonDetailPage: React.FC = () => {
                   void handleComplete();
                 }}
                 onLater={() => setShowReadyToCompletePrompt(false)}
+              />
+            ) : null}
+            {showTaskClearNextStepModal && nextTaskAfterClear ? (
+              <TaskClearNextStepModal
+                nextTaskTitle={lessonSongDisplayTitle(
+                  {
+                    title: nextTaskAfterClear.title ?? null,
+                    title_en: nextTaskAfterClear.title_en ?? null,
+                  },
+                  isEnglishCopy,
+                ) || practiceCopy.taskFallback(
+                  requirements.findIndex(
+                    (r) => r.lesson_song_id === nextTaskAfterClear.lesson_song_id,
+                  ) + 1,
+                )}
+                isEnglishCopy={isEnglishCopy}
+                onNext={() => {
+                  setShowTaskClearNextStepModal(false);
+                  const task = nextTaskAfterClear;
+                  setNextTaskAfterClear(null);
+                  launchRequirement(task);
+                }}
+                onQuestList={() => {
+                  setShowTaskClearNextStepModal(false);
+                  setNextTaskAfterClear(null);
+                  window.location.hash = '#lessons';
+                }}
+                onStopForToday={() => {
+                  setShowTaskClearNextStepModal(false);
+                  setNextTaskAfterClear(null);
+                }}
               />
             ) : null}
             <WebPaywallModal

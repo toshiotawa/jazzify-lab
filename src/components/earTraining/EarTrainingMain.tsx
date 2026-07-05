@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { ClearConditions, EarTrainingStage } from '@/types';
@@ -20,6 +20,7 @@ import {
   type EarTrainingBattleEnemy,
 } from '@/utils/earTrainingBattleAvatar';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import { useGameMidiSession } from '@/hooks/useGameMidiSession';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 interface EarTrainingLessonContext {
@@ -99,11 +100,13 @@ const EarTrainingMain: React.FC = () => {
 
   const [confirmedPracticeMode, setConfirmedPracticeMode] = useState(initialPracticeMode);
   const [earSessionNonce, setEarSessionNonce] = useState(0);
+  const lessonClearedThisSessionRef = useRef(false);
 
   useEffect(() => {
     if (lessonContext) {
       setConfirmedPracticeMode(initialPracticeMode);
       setEarSessionNonce(0);
+      lessonClearedThisSessionRef.current = false;
     }
   }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, lessonContext]);
 
@@ -170,7 +173,11 @@ const EarTrainingMain: React.FC = () => {
 
   const handleBack = useCallback(() => {
     if (lessonContext) {
-      getWindow().location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      getWindow().location.hash = buildLessonDetailHash(lessonContext.lessonId, {
+        justCleared: lessonClearedThisSessionRef.current
+          ? lessonContext.lessonSongId
+          : undefined,
+      });
       return;
     }
     getWindow().location.hash = '#lessons';
@@ -180,13 +187,16 @@ const EarTrainingMain: React.FC = () => {
     if (!lessonContext) {
       return;
     }
-    await updateLessonRequirementProgress(
+    const completed = await updateLessonRequirementProgress(
       lessonContext.lessonId,
       lessonContext.lessonSongId,
       lessonRank,
       lessonContext.clearConditions,
       { sourceType: 'ear_training', lessonSongId: lessonContext.lessonSongId },
     );
+    if (completed) {
+      lessonClearedThisSessionRef.current = true;
+    }
   }, [lessonContext]);
 
   const lessonRestartProps =

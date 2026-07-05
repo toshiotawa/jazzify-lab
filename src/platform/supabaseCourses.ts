@@ -576,6 +576,7 @@ export interface MainQuestProgress {
   courseTitle: string;
   totalLessons: number;
   completedLessons: number;
+  lastPlayedAt: string | null;
   nextLesson: {
     id: string;
     title: string;
@@ -617,9 +618,29 @@ export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null
 
   if (lessonsError || !lessons) return null;
 
+  const chapterOneLessonIds = lessons
+    .filter((l) => (l.block_number ?? 1) === 1)
+    .map((l) => l.id);
+
   const { getCurrentUserIdCached } = await import('./supabaseClient');
   const uid = await getCurrentUserIdCached();
   if (!uid) return null;
+
+  let lastPlayedAt: string | null = null;
+  if (chapterOneLessonIds.length > 0) {
+    const { data: lastProgressRow, error: lastProgressError } = await supabase
+      .from('user_lesson_requirements_progress')
+      .select('updated_at')
+      .eq('user_id', uid)
+      .in('lesson_id', chapterOneLessonIds)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!lastProgressError && lastProgressRow?.updated_at) {
+      lastPlayedAt = lastProgressRow.updated_at;
+    }
+  }
 
   const { data: progressData, error: progressError } = await supabase
     .from('user_lesson_progress')
@@ -640,6 +661,7 @@ export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null
     courseTitle: courseData.title,
     totalLessons: lessons.length,
     completedLessons,
+    lastPlayedAt,
     nextLesson: nextLesson
       ? {
           id: nextLesson.id,

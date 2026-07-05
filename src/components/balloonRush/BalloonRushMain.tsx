@@ -3,7 +3,7 @@
  * 準備・ゲーム画面はサバイバルモードの UI を流用する。
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getWindow } from '@/platform';
@@ -15,6 +15,7 @@ import type { ClearConditions, LessonContext, ProductionHintMode } from '@/types
 import { fetchLessonSongById } from '@/platform/supabaseLessons';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
+import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
 import { resolveBalloonRushAllowedChordIds } from '@/utils/balloonRushStageDefinitions';
 import {
@@ -99,6 +100,7 @@ const BalloonRushMain: React.FC = () => {
   const [resolvedStage, setResolvedStage] = useState<BalloonRushResolvedStage | null>(null);
   const [hintMode, setHintMode] = useState(false);
   const [gameNonce, setGameNonce] = useState(0);
+  const lessonClearedThisSessionRef = useRef(false);
   const [gameConfigOverride, setGameConfigOverride] = useState<DifficultyConfig | null>(null);
   const [lessonRandomChordOverrides, setLessonRandomChordOverrides] = useState<
     ReadonlyMap<string, ChordDefinition> | undefined
@@ -223,7 +225,11 @@ const BalloonRushMain: React.FC = () => {
 
   const handleBack = useCallback(() => {
     if (lessonContext) {
-      getWindow().location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      getWindow().location.hash = buildLessonDetailHash(lessonContext.lessonId, {
+        justCleared: lessonClearedThisSessionRef.current
+          ? lessonContext.lessonSongId
+          : undefined,
+      });
       return;
     }
     getWindow().location.hash = '#lessons';
@@ -231,13 +237,16 @@ const BalloonRushMain: React.FC = () => {
 
   const handleLessonClear = useCallback(async (): Promise<void> => {
     if (!lessonContext) return;
-    await updateLessonRequirementProgress(
+    const completed = await updateLessonRequirementProgress(
       lessonContext.lessonId,
       lessonContext.lessonSongId,
       'S',
       lessonContext.clearConditions,
       { sourceType: 'balloon_rush', lessonSongId: lessonContext.lessonSongId },
     );
+    if (completed) {
+      lessonClearedThisSessionRef.current = true;
+    }
   }, [lessonContext]);
 
   const prepStageDefinition = useMemo(
