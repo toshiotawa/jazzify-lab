@@ -563,6 +563,66 @@
 }
 
 /* =====================
+   LP Viral Tweet Embed
+   ===================== */
+.lp-viral-tweet {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lp-viral-tweet-caption {
+  max-width: 36rem;
+  margin-inline: auto;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--lp-ink-muted);
+}
+
+.lp-viral-tweet-embed {
+  display: flex;
+  justify-content: center;
+}
+
+.lp-viral-tweet-translation {
+  max-width: 36rem;
+  margin: 1.5rem auto 0;
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lp-viral-tweet-translation-label {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-gold);
+}
+
+.lp-viral-tweet-translation-text {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--lp-ink-muted);
+}
+
+.lp-viral-tweet-link {
+  display: inline-block;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--lp-blue);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.lp-viral-tweet-link:hover {
+  color: var(--lp-gold);
+}
+
+/* =====================
    LP Mobile Fallback
    ===================== */
 /*

@@ -1,5 +1,6 @@
 import React from 'react';
 import { getLandingCopy, type LandingModeItem } from '@/components/landing/landingCopy';
+import { LpViralTweetEmbed } from '@/components/landing/sections/LpViralTweetEmbed';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 interface ModeBlockProps {
@@ -102,15 +103,17 @@ export const LpModes: React.FC = () => {
 
         <div className="space-y-16 sm:space-y-20 max-w-5xl mx-auto">
           {modes.map(({ mode, imageSrc, imageWidth, imageHeight, imageAnimate, reversed }) => (
-            <ModeBlock
-              key={mode.title}
-              mode={mode}
-              imageSrc={imageSrc}
-              imageWidth={imageWidth}
-              imageHeight={imageHeight}
-              imageAnimate={imageAnimate}
-              reversed={reversed}
-            />
+            <React.Fragment key={mode.title}>
+              <ModeBlock
+                mode={mode}
+                imageSrc={imageSrc}
+                imageWidth={imageWidth}
+                imageHeight={imageHeight}
+                imageAnimate={imageAnimate}
+                reversed={reversed}
+              />
+              {mode === copy.modes.battle ? <LpViralTweetEmbed /> : null}
+            </React.Fragment>
           ))}
         </div>
       </div>
