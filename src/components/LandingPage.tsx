@@ -138,7 +138,7 @@ const LandingPage: React.FC = () => {
                 </section>
               )}
             >
-              <LpDemo />
+              <LpDemo autoOpenOnMount />
             </React.Suspense>
           ) : (
             <LpDemoPlaceholder onActivate={activateDemo} />

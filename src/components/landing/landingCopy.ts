@@ -90,11 +90,7 @@ export interface LandingModeItem {
 }
 
 export interface LandingViralTweetCopy {
-  eyebrow: string;
-  caption: string;
-  translationLabel?: string;
   translationText?: string;
-  viewOnXLabel: string;
 }
 
 interface LandingModesCopy {
@@ -402,11 +398,7 @@ const COPY_JA: LandingCopy = {
       ],
       imageAlt: 'バトルモードのプレイ画面',
     },
-    viralTweet: {
-      eyebrow: 'Xで話題になりました',
-      caption: '開発者本人が投稿した「パリィで倒すジャズ学習ゲー」の紹介動画が、多くの反響を集めました。',
-      viewOnXLabel: 'Xでポストを見る',
-    },
+    viralTweet: {},
   },
   platforms: {
     heading: 'Webでも、iPhone/iPadでも。',
@@ -762,13 +754,8 @@ const COPY_EN: LandingCopy = {
       imageAlt: 'Battle mode gameplay screen',
     },
     viralTweet: {
-      eyebrow: 'Went viral on X',
-      caption:
-        'A post from the developer introducing the "parry-only jazz learning game" caught a lot of attention.',
-      translationLabel: 'Translation (from Japanese):',
       translationText:
         'What if a jazz-learning game where the only way to attack is to parry? Enemy plays a phrase → you play the same notes back in time → parry success → the jazz enemy goes down. I\'m building this pretty nonsensical game.',
-      viewOnXLabel: 'View the original post on X',
     },
   },
   platforms: {

@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { LpMidiDeviceSelector } from '@/components/landing/LpMidiDeviceSelector';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -19,7 +19,12 @@ interface FullscreenCapableDocument extends Document {
   msExitFullscreen?: () => void;
 }
 
-export const LpDemo: React.FC = () => {
+interface LpDemoProps {
+  /** プレースホルダー経由の初回ロード時、再生ボタンの二重タップを避けて即開始する */
+  autoOpenOnMount?: boolean;
+}
+
+export const LpDemo: React.FC<LpDemoProps> = ({ autoOpenOnMount = false }) => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<FullscreenCapableElement | null>(null);
@@ -93,6 +98,15 @@ export const LpDemo: React.FC = () => {
       try { window.dispatchEvent(new Event('resize')); } catch { /* noop */ }
     }, 0);
   }, []);
+
+  const didAutoOpenRef = useRef(false);
+  useEffect(() => {
+    if (!autoOpenOnMount || didAutoOpenRef.current) {
+      return;
+    }
+    didAutoOpenRef.current = true;
+    openDemo();
+  }, [autoOpenOnMount, openDemo]);
 
   return (
     <section className="lp-dark py-20 sm:py-28 scroll-mt-20">

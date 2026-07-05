@@ -54,9 +54,8 @@ const ensureTwitterWidgetsScript = (): void => {
 };
 
 export const LpViralTweetEmbed: React.FC = () => {
-  const isEnglish = shouldUseEnglishCopy();
-  const copy = getLandingCopy(isEnglish);
-  const { viralTweet } = copy.modes;
+  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const { translationText } = copy.modes.viralTweet;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [shouldLoadWidget, setShouldLoadWidget] = useState(false);
 
@@ -85,11 +84,6 @@ export const LpViralTweetEmbed: React.FC = () => {
 
   return (
     <div ref={containerRef} className="lp-viral-tweet">
-      <div className="text-center mb-6">
-        <span className="lp-eyebrow">{viralTweet.eyebrow}</span>
-        <p className="lp-viral-tweet-caption mt-3">{viralTweet.caption}</p>
-      </div>
-
       <div className="lp-viral-tweet-embed">
         <blockquote className="twitter-tweet" data-dnt="true" data-theme="dark">
           <p lang="ja" dir="ltr">
@@ -118,31 +112,9 @@ export const LpViralTweetEmbed: React.FC = () => {
         </blockquote>
       </div>
 
-      {isEnglish && viralTweet.translationLabel && viralTweet.translationText ? (
-        <div className="lp-viral-tweet-translation">
-          <p className="lp-viral-tweet-translation-label">{viralTweet.translationLabel}</p>
-          <p className="lp-viral-tweet-translation-text">{viralTweet.translationText}</p>
-          <a
-            href={JAZZIFY_VIRAL_TWEET_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="lp-viral-tweet-link"
-          >
-            {viralTweet.viewOnXLabel}
-          </a>
-        </div>
-      ) : (
-        <div className="text-center mt-4">
-          <a
-            href={JAZZIFY_VIRAL_TWEET_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="lp-viral-tweet-link"
-          >
-            {viralTweet.viewOnXLabel}
-          </a>
-        </div>
-      )}
+      {translationText ? (
+        <p className="lp-viral-tweet-translation-text">{translationText}</p>
+      ) : null}
     </div>
   );
 };
