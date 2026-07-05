@@ -37,6 +37,7 @@ const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'ski
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 const HAMMER_DISMISS_FADE_MS = 280;
 const OSMD_REFLECT_HIT_DELAY_MS = 140;
+const HAMMER_THROW_WAVE_DURATION_MS = 200;
 
 let visualIdCounter = 0;
 const nextVisualId = (): string => {
@@ -507,9 +508,46 @@ const playEnemyAttackEffect = (
   }, impactMs);
 };
 
+const addEnemyHammerThrowWave = (
+  runtime: EarTrainingBattleDrawRuntime,
+  anchors: BattleAnchors,
+): void => {
+  const startedAt = performance.now();
+  const facingLeft = anchors.player.x <= anchors.enemy.x;
+  const waveX = anchors.enemy.x - 28;
+  const waveY = anchors.enemy.bodyY;
+  const visuals: CanvasEffectVisual[] = [];
+  addVisual(visuals, {
+    kind: 'shockwave',
+    startedAt,
+    durationMs: HAMMER_THROW_WAVE_DURATION_MS,
+    fromX: waveX,
+    fromY: waveY,
+    toX: waveX,
+    toY: waveY,
+    color: 'rgba(255, 255, 255, 0.85)',
+    size: 56,
+    alpha: 0.85,
+    rotation: facingLeft ? 180 : 0,
+    rotationEnd: facingLeft ? 180 : 0,
+    scaleStart: 0.45,
+    scaleEnd: 1.35,
+    fadeOut: true,
+  });
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'osmdHammer' },
+    startedAt,
+    impactAt: startedAt,
+    impactFired: true,
+    visuals,
+  });
+};
+
 const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
   const { runtime, anchors, onDirty, scheduleImpact, enemyTimers, snapshot, width } = ctx;
   const impactMs = Math.max(120, Math.round((command.travelDurationSec ?? 0.72) * 1000));
+  addEnemyHammerThrowWave(runtime, anchors);
   holdCharacterForAction(runtime.enemy, 'attack', 760, snapshot, runtime.player.x, width, enemyTimers, onDirty);
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {

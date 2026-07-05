@@ -44,8 +44,12 @@ import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTiming
 
 /** @deprecated ユーザー timingAdjustment のデフォルト (+40ms) と同等。新規コードは timingAdjustment を使用 */
 export const CHORD_OSMD_JUDGMENT_OFFSET_SEC = OSMD_TIMING_ADJUSTMENT_MS_DEFAULT / 1000;
-/** カウントイン中に最初のターゲットのハンマーも投げきれるよう、リードを短めにする */
-export const CHORD_OSMD_HAMMER_LEAD_SEC = 2.4;
+/** ターゲット拍の何拍前にハンマー投擲を開始するか */
+export const CHORD_OSMD_HAMMER_LEAD_BEATS = 4;
+
+/** BPM からハンマー投擲リード秒数を算出（4拍前） */
+export const chordOsmdHammerLeadSec = (bpm: number): number =>
+  (60 / Math.max(1, bpm)) * CHORD_OSMD_HAMMER_LEAD_BEATS;
 /** ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出 */
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.3;
 

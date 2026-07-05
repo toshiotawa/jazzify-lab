@@ -87,7 +87,8 @@ export type CanvasEffectVisualKind =
   | 'energyOrb'
   | 'magicCircle'
   | 'slash'
-  | 'thinRing';
+  | 'thinRing'
+  | 'shockwave';
 
 export interface CanvasEffectVisual {
   id: string;

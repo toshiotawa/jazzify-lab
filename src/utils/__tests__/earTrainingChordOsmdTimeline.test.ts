@@ -11,8 +11,8 @@ import {
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
-  CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  chordOsmdHammerLeadSec,
 } from '@/utils/earTrainingChordOsmd';
 
 const CBLUES_CI = 'https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_count-in.mp3';
@@ -37,6 +37,8 @@ describe('shouldStartTutorialOsmdDrumLoop', () => {
 });
 
 describe('countChordOsmdHammersDueFromIndex', () => {
+  const bpm = 100;
+  const leadSec = chordOsmdHammerLeadSec(bpm);
   const targets = [
     { targetTimeSec: 4.8 },
     { targetTimeSec: 9.6 },
@@ -44,21 +46,21 @@ describe('countChordOsmdHammersDueFromIndex', () => {
   ];
 
   it('投擲時刻前は 0 本', () => {
-    const beforeFirst = 4.8 - CHORD_OSMD_HAMMER_LEAD_SEC - 0.01;
-    expect(countChordOsmdHammersDueFromIndex(targets, beforeFirst, 0)).toBe(0);
+    const beforeFirst = 4.8 - leadSec - 0.01;
+    expect(countChordOsmdHammersDueFromIndex(targets, beforeFirst, 0, bpm)).toBe(0);
   });
 
   it('経過に応じて投擲済みハンマー数が増える', () => {
-    const atFirst = 4.8 - CHORD_OSMD_HAMMER_LEAD_SEC;
-    expect(countChordOsmdHammersDueFromIndex(targets, atFirst, 0)).toBe(1);
-    expect(countChordOsmdHammersDueFromIndex(targets, 9.6 - CHORD_OSMD_HAMMER_LEAD_SEC, 0)).toBe(2);
-    expect(countChordOsmdHammersDueFromIndex(targets, 14.4 - CHORD_OSMD_HAMMER_LEAD_SEC, 0)).toBe(3);
+    const atFirst = 4.8 - leadSec;
+    expect(countChordOsmdHammersDueFromIndex(targets, atFirst, 0, bpm)).toBe(1);
+    expect(countChordOsmdHammersDueFromIndex(targets, 9.6 - leadSec, 0, bpm)).toBe(2);
+    expect(countChordOsmdHammersDueFromIndex(targets, 14.4 - leadSec, 0, bpm)).toBe(3);
   });
 
   it('startIndex 以降だけ数える', () => {
-    const atThird = 14.4 - CHORD_OSMD_HAMMER_LEAD_SEC;
-    expect(countChordOsmdHammersDueFromIndex(targets, atThird, 2)).toBe(1);
-    expect(countChordOsmdHammersDueFromIndex(targets, atThird, 3)).toBe(0);
+    const atThird = 14.4 - leadSec;
+    expect(countChordOsmdHammersDueFromIndex(targets, atThird, 2, bpm)).toBe(1);
+    expect(countChordOsmdHammersDueFromIndex(targets, atThird, 3, bpm)).toBe(0);
   });
 });
 

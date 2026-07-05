@@ -15,7 +15,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     static let parryPreciseRingOnSuccess = true
     private static let osmdVoicingHintStrongSec: Double = 0.03
     private static let osmdVoicingHintMediumSec: Double = 0.07
-    private static let hammerLeadSec: Double = 2.4
+    private static let hammerLeadBeats: Double = 4
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
     private static let hammerImpactOffsetSec: Double = 0.3
     private static let effectClearPaddingMs: Double = 420
@@ -249,6 +249,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             stage.bpm,
             speedPercent: effectivePracticeSpeedPercent()
         )
+    }
+
+    /// ターゲット拍の4拍前にハンマー投擲を開始する秒数
+    private func hammerLeadSec() -> Double {
+        60.0 / Double(max(1, resolveEffectivePracticeBpm())) * Self.hammerLeadBeats
     }
 
     /// OSMD プレイヘッドの 1 小節あたり秒数（練習速度を反映）。
@@ -978,7 +983,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func throwDueHammers(at time: Double) {
         while nextHammerTargetIndex < targets.count {
             let target = targets[nextHammerTargetIndex]
-            let throwTime = resolveCalibratedTargetTimeSec(target.targetTimeSec) - Self.hammerLeadSec
+            let throwTime = resolveCalibratedTargetTimeSec(target.targetTimeSec) - hammerLeadSec()
             guard time >= throwTime else { break }
             let impactTime = resolveCalibratedTargetTimeSec(target.targetTimeSec) + Self.hammerImpactOffsetSec
             let travel = max(0.12, impactTime - time)

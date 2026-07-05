@@ -83,7 +83,7 @@ import {
   collectChordOsmdMusicXmlLyrics,
   findFirstIncompleteChordOsmdTarget,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
-  CHORD_OSMD_HAMMER_LEAD_SEC,
+  chordOsmdHammerLeadSec,
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   hasChordOsmdJudgmentWindowExpired,
@@ -1015,10 +1015,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   ]);
 
   const throwDueHammers = useCallback((phraseTimeSec: number) => {
+    const hammerLeadSec = chordOsmdHammerLeadSec(resolveEffectivePracticeBpm());
     const phraseTargets = targetsRef.current;
     while (nextHammerTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextHammerTargetIndexRef.current];
-      const throwTime = resolveCalibratedTargetTimeSec(target.targetTimeSec) - CHORD_OSMD_HAMMER_LEAD_SEC;
+      const throwTime = resolveCalibratedTargetTimeSec(target.targetTimeSec) - hammerLeadSec;
       if (phraseTimeSec + 1e-9 < throwTime) {
         break;
       }
@@ -1037,7 +1038,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       nextHammerTargetIndexRef.current += 1;
     }
-  }, [handleHammerImpact, registerBattleEffectImpact, resolveCalibratedTargetTimeSec, triggerBattleEffect]);
+  }, [handleHammerImpact, registerBattleEffectImpact, resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, triggerBattleEffect]);
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;

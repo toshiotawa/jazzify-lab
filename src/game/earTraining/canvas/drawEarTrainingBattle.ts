@@ -854,7 +854,7 @@ const drawEffectVisual = (
     size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicOut(expandT));
     const fadeT = t <= expandEnd ? 0 : (t - expandEnd) / (1 - expandEnd);
     alpha = visual.alpha * (1 - easeCubicOut(fadeT));
-  } else if (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'slash') {
+  } else if (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'slash' || visual.kind === 'shockwave') {
     alpha = visual.alpha * (1 - easeCubicOut(t));
   }
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
@@ -887,6 +887,12 @@ const drawEffectVisual = (
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.strokeStyle = visual.color;
     ctx.lineWidth = 5;
+    ctx.stroke();
+  } else if (visual.kind === 'shockwave') {
+    ctx.beginPath();
+    ctx.arc(0, 0, size / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.strokeStyle = visual.color;
+    ctx.lineWidth = 4;
     ctx.stroke();
   } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark') {
     ctx.fillStyle = visual.color;

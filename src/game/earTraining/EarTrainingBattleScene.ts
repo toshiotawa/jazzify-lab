@@ -2306,6 +2306,34 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
+  private showEnemyHammerThrowWave(anchors: ReturnType<EarTrainingBattleScene['getBattleAnchors']>): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const facingLeft = anchors.player.x <= anchors.enemy.x;
+    const waveX = anchors.enemy.x - 28;
+    const waveY = anchors.enemy.bodyY;
+    const radius = 28;
+    const wave = this.add.graphics();
+    wave.lineStyle(4, 0xffffff, 0.85);
+    wave.beginPath();
+    wave.arc(0, 0, radius, -Math.PI / 2, Math.PI / 2);
+    wave.strokePath();
+    wave.setPosition(waveX, waveY);
+    wave.setScale(facingLeft ? -0.45 : 0.45, 0.45);
+    wave.setAlpha(0.85);
+    this.effectLayer.add(wave);
+    this.tweens.add({
+      targets: wave,
+      scaleX: facingLeft ? -1.35 : 1.35,
+      scaleY: 1.35,
+      alpha: 0,
+      duration: 200,
+      ease: 'Cubic.easeOut',
+      onComplete: () => wave.destroy(),
+    });
+  }
+
   private playOsmdHammerEffect(command: EarTrainingBattleEffectCommand): void {
     if (!this.effectLayer) {
       return;
@@ -2314,6 +2342,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const anchors = this.getBattleAnchors(width, height);
+    this.showEnemyHammerThrowWave(anchors);
     const travelMs = Math.max(120, Math.round((command.travelDurationSec ?? 0.72) * 1000));
     const hammer = this.add.image(
       anchors.enemy.x - 28,

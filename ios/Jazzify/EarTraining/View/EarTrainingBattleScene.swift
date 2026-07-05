@@ -1977,10 +1977,44 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
+    private func showEnemyHammerThrowWave(at position: CGPoint, facingLeft: Bool) {
+        let radius = Self.battleLayoutPt(28)
+        let path = UIBezierPath(
+            arcCenter: .zero,
+            radius: radius,
+            startAngle: -.pi / 2,
+            endAngle: .pi / 2,
+            clockwise: true
+        )
+        let wave = SKShapeNode(path: path.cgPath)
+        wave.fillColor = .clear
+        wave.strokeColor = UIColor.white.withAlphaComponent(0.85)
+        wave.lineWidth = Self.battleLayoutPt(4)
+        wave.position = position
+        wave.alpha = 0.85
+        wave.setScale(0.45)
+        if facingLeft {
+            wave.zRotation = .pi
+        }
+        wave.zPosition = 62
+        effectLayer.addChild(wave)
+        wave.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.scale(to: 1.35, duration: 0.2),
+                SKAction.fadeOut(withDuration: 0.2),
+            ]),
+            SKAction.removeFromParent(),
+        ]))
+    }
+
     private func playOSMDHammerEffect(_ command: EarTrainingBattleEffectCommand) {
         let travelDuration = max(0.12, min(4.2, command.travelDurationSec ?? 3.2))
         holdCharacterForAction(.enemy, state: .attack, durationMs: min(980, travelDuration * 1000))
         let anchors = battleAnchors()
+        showEnemyHammerThrowWave(
+            at: CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY),
+            facingLeft: anchors.player.x <= anchors.enemy.x
+        )
         let hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
         hammer.position = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
         hammer.zRotation = -18 * (.pi / 180)

@@ -1,7 +1,7 @@
 import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
-  CHORD_OSMD_HAMMER_LEAD_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  chordOsmdHammerLeadSec,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
 
@@ -49,10 +49,12 @@ export const countChordOsmdHammersDueFromIndex = (
   targets: readonly Pick<ChordOsmdRhythmTarget, 'targetTimeSec'>[],
   phraseTimeSec: number,
   startIndex: number,
+  bpm: number,
 ): number => {
+  const leadSec = chordOsmdHammerLeadSec(bpm);
   let count = 0;
   for (let i = Math.max(0, startIndex); i < targets.length; i += 1) {
-    const throwTime = targets[i].targetTimeSec - CHORD_OSMD_HAMMER_LEAD_SEC;
+    const throwTime = targets[i].targetTimeSec - leadSec;
     if (phraseTimeSec + 1e-9 < throwTime) {
       break;
     }
