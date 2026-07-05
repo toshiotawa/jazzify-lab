@@ -4,6 +4,7 @@ import {
   TUTORIAL_BOOTSTRAP_OVERRIDES,
   type SurvivalScenarioOverrides,
 } from '@/components/survival/scenario/survivalScenarioTypes';
+import { progressionBassRootName } from '@/utils/chord-utils';
 import type { TutorialLocalizedText } from './tutorialScriptTypes';
 import { TutorialAudioController } from './TutorialAudioController';
 import { hasWebMidiInputDeviceInitially } from './tutorialMidiSetup';
@@ -141,9 +142,14 @@ async function playSceneOneChord(
   const midis = chord.notes;
   if (midis.length > 0) {
     handle.playChordAudio(midis);
-    const root = midis[0];
-    if (root !== undefined) {
-      handle.playChordAudio([root]);
+    const rootNote =
+      (typeof chord.displayName === 'string' && progressionBassRootName(chord.displayName))
+      || progressionBassRootName(chord.root)
+      || chord.root
+      || chord.noteNames?.[0];
+    if (rootNote) {
+      const { FantasySoundManager } = await import('@/utils/FantasySoundManager');
+      FantasySoundManager.playCorrectRootBassNote(rootNote).catch(() => {});
     }
   }
   await sleep(0.25, signal);

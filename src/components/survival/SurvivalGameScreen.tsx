@@ -2882,6 +2882,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (completedChord && scenarioOnComplete.isActive) {
           newState.damageTexts.push(createChordNameText(prev.player.x, prev.player.y, completedChord.displayName));
         }
+        // 正解時にルート音を鳴らす（ファンタジーモードと同様）
+        if (completedChord) {
+          const rootNote =
+            (typeof completedChord.displayName === 'string'
+              && progressionBassRootName(completedChord.displayName))
+            || progressionBassRootName(completedChord.root)
+            || completedChord.root
+            || completedChord.noteNames?.[0];
+          if (rootNote) {
+            FantasySoundManager.playCorrectRootBassNote(rootNote).catch(() => {});
+          }
+        }
         if (
           completedSlotIndex === 1
           && scenarioOnComplete.isActive
@@ -2897,19 +2909,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         ) {
           emitScenarioAttackOnlyRef.current(scenarioOnComplete.bChordCompletionAttackSlot);
           continue;
-        }
-        
-        // 正解時にルート音を鳴らす（ファンタジーモードと同様）
-        if (completedChord) {
-          const rootNote =
-            (typeof completedChord.displayName === 'string'
-              && progressionBassRootName(completedChord.displayName))
-            || progressionBassRootName(completedChord.root)
-            || completedChord.root
-            || completedChord.noteNames?.[0];
-          if (rootNote) {
-            FantasySoundManager.playCorrectRootBassNote(rootNote).catch(() => {});
-          }
         }
         
         // 攻撃処理

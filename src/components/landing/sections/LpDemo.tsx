@@ -202,7 +202,9 @@ export const LpDemo: React.FC = () => {
                   trackEvent(reachedEnd ? 'tutorial_complete' : 'tutorial_skip', {
                     tutorial_name: 'lp_demo',
                   });
-                  closeDemo();
+                  if (!reachedEnd) {
+                    closeDemo();
+                  }
                 }}
               />
             </Suspense>

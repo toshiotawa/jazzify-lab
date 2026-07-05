@@ -230,7 +230,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
   }, [finish]);
 
   const handleCta = useCallback(() => {
-    finish(false);
+    finish(true);
   }, [finish]);
 
   return (
