@@ -2914,6 +2914,9 @@ struct LessonDetailView: View {
                 nextBlockedReason: navState.nextBlockedReason
             )
             guard kind != .none else { return }
+            if activeLesson.orderIndex == 0, let userId = appState.profile?.id {
+                AnalyticsTracker.trackTutorialComplete(userId: userId, tutorialName: "first_quest")
+            }
             await MainActor.run {
                 navigationState = navState
                 questCompletionSheet = QuestCompletionSheetModel(

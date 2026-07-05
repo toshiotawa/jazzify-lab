@@ -525,6 +525,9 @@ struct TopView: View {
             appState.pendingMainQuestAutoStart = false
             if let progress = loadedMainQuestProgress,
                let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
+                if nextLesson.orderIndex == 0, let userId = appState.profile?.id {
+                    AnalyticsTracker.trackTutorialBegin(userId: userId, tutorialName: "first_quest")
+                }
                 autoStartFirstQuestRequirement = true
                 mainQuestLessonToOpen = nextLesson
             }

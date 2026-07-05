@@ -34,6 +34,7 @@ final class AppState: ObservableObject {
     }
 
     func bootstrap() async {
+        AnalyticsTracker.trackFirstOpenIfNeeded()
         startAppUpdateNoticeRefreshIfNeeded()
 
         do {
@@ -166,6 +167,7 @@ final class AppState: ObservableObject {
             }
 
             pendingMainQuestAutoStart = true
+            AnalyticsTracker.trackSignUp()
             await activateAuthenticatedState(userId: userId, profile: createdProfile)
         } catch {
             if let existingProfile = try? await supabase.fetchProfileIfExists(userId: userId) {

@@ -93,6 +93,7 @@ final class SupabaseService: Sendable {
             let is_admin: Bool = false
             let signup_platform: String = "ios"
             let country: String?
+            let ga_client_id: String
         }
 
         try await client
@@ -102,7 +103,24 @@ final class SupabaseService: Sendable {
                 email: email,
                 nickname: nickname,
                 preferred_locale: locale.rawValue,
-                country: SignupMetadata.resolveSignupCountry()
+                country: SignupMetadata.resolveSignupCountry(),
+                ga_client_id: AnalyticsClientID.current()
+            ))
+            .execute()
+    }
+
+    func recordUserMilestone(userId: UUID, milestone: String, source: String? = nil) async throws {
+        struct MilestoneParams: Encodable {
+            let p_user_id: UUID
+            let p_milestone: String
+            let p_source: String?
+        }
+
+        try await client
+            .rpc("record_user_milestone", params: MilestoneParams(
+                p_user_id: userId,
+                p_milestone: milestone,
+                p_source: source
             ))
             .execute()
     }

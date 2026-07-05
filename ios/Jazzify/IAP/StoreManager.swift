@@ -114,7 +114,7 @@ final class StoreManager: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
-                await handleSuccessfulPurchase(transaction)
+                await handleSuccessfulPurchase(transaction, product: product)
                 purchaseState = .purchased
 
             case .userCancelled:
@@ -226,10 +226,21 @@ final class StoreManager: ObservableObject {
         }
     }
 
-    private func handleSuccessfulPurchase(_ transaction: Transaction) async {
+    private func handleSuccessfulPurchase(_ transaction: Transaction, product: Product? = nil) async {
         isSubscribed = true
         currentSubscription = transaction
         subscriptionBelongsToOtherAccount = false
+        if let userId = currentUserId {
+            let resolvedProduct = product
+                ?? (transaction.productID == Config.iapYearlyProductID ? yearlyProduct : monthlyProduct)
+            let price = resolvedProduct.map { NSDecimalNumber(decimal: $0.price).doubleValue } ?? 0
+            AnalyticsTracker.trackPurchase(
+                userId: userId,
+                transactionId: String(transaction.id),
+                value: price,
+                currency: "JPY"
+            )
+        }
         await syncWithServer(transaction)
     }
 

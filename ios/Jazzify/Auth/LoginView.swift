@@ -390,6 +390,9 @@ struct LoginView: View {
         Task {
             do {
                 let shouldCreate = authMode == .signup
+                if shouldCreate {
+                    AnalyticsTracker.trackSignUpClick()
+                }
                 try await SupabaseService.shared.sendOTP(
                     email: normalizedEmail,
                     shouldCreateUser: shouldCreate

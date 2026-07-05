@@ -113,6 +113,13 @@ struct SubscriptionView: View {
                 await store.loadProducts()
                 await appState.refreshBillingIfNeeded()
             }
+            .onAppear {
+                if appState.canShowIAP,
+                   !appState.isPremium,
+                   let userId = appState.profile?.id {
+                    AnalyticsTracker.trackPaywallView(userId: userId, source: "subscription_sheet")
+                }
+            }
             .task(id: introEligibilityTaskID) {
                 introEligibilityChecked = false
                 introEligibleProductIDs = []
@@ -433,6 +440,9 @@ struct SubscriptionView: View {
                 }
 
                 Button {
+                    if let userId = appState.profile?.id {
+                        AnalyticsTracker.trackBeginCheckout(userId: userId)
+                    }
                     Task {
                         try? await store.purchase(product)
                         await appState.refreshBillingStatus()

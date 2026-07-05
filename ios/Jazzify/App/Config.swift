@@ -58,6 +58,11 @@ enum Config {
     static let iosAppStoreListingURL =
         URL(string: "https://apps.apple.com/us/app/jazzify/id6761457001")!
 
+    static var iosAnalyticsEventURL: URL {
+        URL(string: webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            + "/.netlify/functions/iosAnalyticsEvent")!
+    }
+
     /// 開発者専用レッスンコースを一覧に含めるか（DEBUG では既定 true。Release では Info.plist の `IncludeDevLessonCourses` が true のときのみ true）
     static var includeDeveloperLessonCourses: Bool {
         #if DEBUG
