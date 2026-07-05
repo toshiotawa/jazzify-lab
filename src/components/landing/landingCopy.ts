@@ -203,6 +203,7 @@ interface LandingFooterCopy {
   signupLink: string;
   loginLink: string;
   supportHeading: string;
+  followHeading: string;
   faqLink: string;
   iosMidiLink: string;
   midiChoiceLink: string;
@@ -599,6 +600,7 @@ const COPY_JA: LandingCopy = {
     signupLink: '新規登録',
     loginLink: 'ログイン',
     supportHeading: 'サポート',
+    followHeading: 'フォローする',
     faqLink: 'よくある質問',
     iosMidiLink: 'iPhone/iPadでMIDIを使う',
     midiChoiceLink: 'MIDIキーボードの選び方',
@@ -958,6 +960,7 @@ const COPY_EN: LandingCopy = {
     signupLink: 'Sign up',
     loginLink: 'Log in',
     supportHeading: 'Support',
+    followHeading: 'Follow',
     faqLink: 'FAQ',
     iosMidiLink: 'MIDI on iPhone / iPad',
     midiChoiceLink: 'Choosing a MIDI keyboard',
