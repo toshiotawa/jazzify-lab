@@ -12,6 +12,7 @@ import {
   fetchAggregatedRequirementsProgress
 } from '@/platform/supabaseLessonRequirements';
 import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
+import { log } from '@/utils/logger';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast, useToastStore } from '@/stores/toastStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -341,7 +342,7 @@ const LessonDetailPage: React.FC = () => {
               setNavigationInfo(navInfo);
             }
         } catch (navError) {
-          console.error('Navigation info loading error:', navError);
+          log.error('Navigation info loading error:', navError);
           // ナビゲーション情報の取得失敗は致命的ではないので、エラーログのみ
         }
       }
@@ -353,7 +354,7 @@ const LessonDetailPage: React.FC = () => {
           'error',
         );
       }
-      console.error('Error loading lesson data:', e);
+      log.error('Error loading lesson data:', e);
     } finally {
       if (loadGen === lessonLoadGenerationRef.current) {
         setLoading(false);
@@ -620,21 +621,39 @@ const LessonDetailPage: React.FC = () => {
       setAllRequirementsCompleted(true);
 
       // ナビゲーション情報を再取得（完了後の最新状態で判定）
+      // 完了直後は Supabase 側の反映が僅かに遅れることがあるため、1 回だけ再試行する。
       if (lesson.course_id) {
-        try {
-          clearNavigationCacheForCourse(lesson.course_id);
-          const freshNavInfo = await getLessonNavigationInfo(
-            lessonId,
-            lesson.course_id,
-            effectiveRank,
-            {
-              forceRefresh: true,
-              isMainQuest: lessonCourseIsMainQuest,
-              isPremiumMember,
-            },
-          );
+        let freshNavInfo: LessonNavigationInfo | null = null;
+        let courseLessons: Lesson[] | null = null;
+        for (let attempt = 0; attempt < 2 && !freshNavInfo; attempt += 1) {
+          try {
+            if (attempt > 0) {
+              await new Promise((resolve) => { setTimeout(resolve, 500); });
+              clearSupabaseCache();
+            }
+            clearNavigationCacheForCourse(lesson.course_id);
+            const [navInfoResult, lessonsResult] = await Promise.all([
+              getLessonNavigationInfo(
+                lessonId,
+                lesson.course_id,
+                effectiveRank,
+                {
+                  forceRefresh: true,
+                  isMainQuest: lessonCourseIsMainQuest,
+                  isPremiumMember,
+                },
+              ),
+              fetchLessonsByCourse(lesson.course_id),
+            ]);
+            freshNavInfo = navInfoResult;
+            courseLessons = lessonsResult;
+          } catch (navError) {
+            log.error('Post-completion navigation info loading error:', navError);
+          }
+        }
+
+        if (freshNavInfo && courseLessons) {
           setNavigationInfo(freshNavInfo);
-          const courseLessons = await fetchLessonsByCourse(lesson.course_id);
           const modalKind = getQuestCompletionModalKind(
             lesson,
             sortLessonsByOrder(courseLessons),
@@ -646,8 +665,13 @@ const LessonDetailPage: React.FC = () => {
             recordUserMilestoneFireAndForget(profile.id, 'first_success');
             trackEvent('tutorial_complete', { tutorial_name: 'first_quest' });
           }
-        } catch (_) {
-          // ナビゲーション情報取得失敗は致命的でないため無視
+        } else {
+          // クエスト完了自体は成功しているため、次クエストへの案内のみ諦めてユーザーに伝える
+          toast.warning(
+            isEnglishCopy
+              ? 'Quest completed, but could not load the next quest. Please reopen the quest list.'
+              : 'クエストは完了しましたが、次のクエスト情報を読み込めませんでした。クエスト一覧から開き直してください。',
+          );
         }
       }
     } catch {

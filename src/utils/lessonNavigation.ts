@@ -5,6 +5,7 @@ import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { buildLessonAccessGraph, MembershipRank } from '@/utils/lessonAccess';
 import { applyMainQuestFreeTierLocks, isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+import { log } from '@/utils/logger';
 
 export type NavigationBlockedReason =
   | 'first_lesson'
@@ -40,7 +41,10 @@ const navigationCache = new Map<string, {
   courseId: string;
 }>();
 
-const NAVIGATION_CACHE_TTL = 5 * 60 * 1000; // 5分
+// 進捗の解放判定に直結するため、他端末・他タブでの完了操作を早く反映できるよう短命に留める。
+// 目的は主に同一ページ内での再計算（Reactの二重effect等）の重複フェッチ回避であり、
+// 長期キャッシュとして進捗の鮮度を犠牲にしない。
+const NAVIGATION_CACHE_TTL = 15 * 1000; // 15秒
 const MAX_CACHE_SIZE = 20; // 最大キャッシュサイズ
 
 /**
@@ -301,7 +305,7 @@ export async function getLessonNavigationInfo(
     return navigationInfo;
     
   } catch (error) {
-    console.error('Navigation info loading error:', error);
+    log.error('Navigation info loading error:', error);
     throw error;
   }
 }
@@ -422,7 +426,14 @@ export type QuestCompletionModalKind =
   | 'none';
 
 export function sortLessonsByOrder(lessons: Lesson[]): Lesson[] {
-  return [...lessons].sort((a, b) => a.order_index - b.order_index);
+  return [...lessons].sort((a, b) => {
+    const blockA = a.block_number ?? 1;
+    const blockB = b.block_number ?? 1;
+    if (blockA !== blockB) {
+      return blockA - blockB;
+    }
+    return a.order_index - b.order_index;
+  });
 }
 
 export function sortLessonSongsByOrderIndex<T extends { order_index?: number }>(

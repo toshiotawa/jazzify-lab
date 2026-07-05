@@ -73,6 +73,26 @@ describe('computeLessonNavigationInfo', () => {
     expect(result.canGoNext).toBe(true);
   });
 
+  it('order_index がブロックごとにリセットされていても block_number を優先して隣接クエストを判定する', () => {
+    // 実データでは order_index がブロック単位で 0 から振り直されるため、
+    // order_index のみでソートすると異なるブロックのレッスンが入り交じってしまう。
+    const b1First = lesson('b1-first', 0, 1);
+    const b1Second = lesson('b1-second', 1, 1);
+    const b1Third = lesson('b1-third', 2, 1);
+    const b2First = lesson('b2-first', 0, 2); // order_index は b1-first と同じ 0
+
+    const result = computeLessonNavigationInfo(
+      'b1-second',
+      'course-1',
+      [b1First, b1Second, b1Third, b2First],
+      { 'b1-first': progress('b1-first', true) },
+      { isMainQuest: true, isPremiumMember: true },
+    );
+
+    expect(result.previousLesson?.id).toBe('b1-first');
+    expect(result.nextLesson?.id).toBe('b1-third');
+  });
+
   it('メインクエスト: フリー会員 block1 最終完了 → block2 lesson1 へ進めない', () => {
     const block1First = lesson('b1-first', 0, 1);
     const block1Last = lesson('b1-last', 1, 1);
