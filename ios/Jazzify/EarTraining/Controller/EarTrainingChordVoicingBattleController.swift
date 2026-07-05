@@ -9,8 +9,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private static let audioEndEpsilonSec: Double = 0.03
     private static let audioSyncEpsilonSec: Double = 0.012
     private static let minAudioSyncTimerSec: Double = 0.008
-    private static let kBattleEffectMs: Double = 1_600
-    private static let kAwesomeBattleEffectMs: Double = 4_500
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
     /// Web `MEASURE_SHIFT_DELAY_MS`：セルフペース時のみ、譜面の現在小節表示更新を遅らせる。
@@ -126,7 +124,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var timeLimitTask: Task<Void, Never>?
     private var chordSyncTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
-    private var battleEffectClearTask: Task<Void, Never>?
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
@@ -1596,14 +1593,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             lastEmittedEffectId = id
             scene?.runEffect(command)
         }
-        let effectTimeoutMs = Self.effectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(effectTimeoutMs * 1_000_000))
-            await MainActor.run {
-                self?.pendingImpactHandlers[id] = nil
-            }
-        }
         return id
     }
 
@@ -1637,17 +1626,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         return CGPoint(x: centerX, y: sceneY)
     }
 
-    private static func effectDurationMs(
-        kind: EarTrainingBattleEffectKind,
-        label: String?,
-        phraseNoteCount: Int?
-    ) -> Double {
-        if kind == .quotaReached { return 700 }
-        let isAwesome = kind == .complete
-            && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
-        return isAwesome ? kAwesomeBattleEffectMs : kBattleEffectMs
-    }
-
     private func triggerFeedback(_ value: EarTrainingBattleController.Feedback) {
         feedback = value
         feedbackTask?.cancel()
@@ -1671,8 +1649,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         countInEarlyInputActive = false
         feedbackTask?.cancel()
         feedbackTask = nil
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = nil
         clearMeasureDisplayShiftQueue()
     }
 

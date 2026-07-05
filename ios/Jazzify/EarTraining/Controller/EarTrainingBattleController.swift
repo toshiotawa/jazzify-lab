@@ -43,8 +43,6 @@ final class EarTrainingBattleController: ObservableObject {
 
     private static let inputCooldownMs: Double = 20
     private static let audioEndEpsilonSec: Double = 0.03
-    private static let battleEffectDurationMs: Double = 1_600
-    private static let awesomeBattleEffectDurationMs: Double = 4_500
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
 
@@ -102,7 +100,6 @@ final class EarTrainingBattleController: ObservableObject {
     private var countdownTask: Task<Void, Never>?
     private var timeLimitTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
-    private var battleEffectClearTask: Task<Void, Never>?
     private var lastInputAt: TimeInterval = 0
     private var progressSaveStarted: Bool = false
     private var lastEmittedEffectId: Int = -1
@@ -470,31 +467,11 @@ final class EarTrainingBattleController: ObservableObject {
             lastEmittedEffectId = id
             scene?.runEffect(command)
         }
-        // 長尺の Awesome メテオは着弾が通常エフェクトより遅い。
-        let effectTimeoutMs = Self.battleEffectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(effectTimeoutMs * 1_000_000))
-            await MainActor.run {
-                self?.pendingImpactHandlers[id] = nil
-            }
-        }
         return id
     }
 
     private func registerBattleEffectImpact(effectId: Int, handler: @escaping () -> Void) {
         pendingImpactHandlers[effectId] = handler
-    }
-
-    private static func battleEffectDurationMs(
-        kind: EarTrainingBattleEffectKind,
-        label: String?,
-        phraseNoteCount: Int?
-    ) -> Double {
-        if kind == .quotaReached { return 700 }
-        let isAwesome = kind == .complete
-            && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
-        return isAwesome ? awesomeBattleEffectDurationMs : battleEffectDurationMs
     }
 
     // MARK: - Feedback flash
@@ -850,7 +827,6 @@ final class EarTrainingBattleController: ObservableObject {
         cancelCountdownTimer()
         cancelTimeLimitTimer()
         feedbackTask?.cancel(); feedbackTask = nil
-        battleEffectClearTask?.cancel(); battleEffectClearTask = nil
     }
 
     private func cancelFailTimer() {

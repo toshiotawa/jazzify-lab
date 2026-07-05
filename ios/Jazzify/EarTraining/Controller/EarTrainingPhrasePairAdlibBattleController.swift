@@ -7,7 +7,6 @@ import QuartzCore
 final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     private static let inputCooldownMs: Double = 20
     private static let audioSyncEpsilonSec: Double = 0.012
-    private static let kBattleEffectMs: Double = 1_600
 
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseRunId: Int = 0
@@ -59,7 +58,6 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     private var timeLimitTask: Task<Void, Never>?
     private var chordSyncTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
-    private var battleEffectClearTask: Task<Void, Never>?
     private var drumLoopStarted = false
     private var completionPulseEventKey = 0
 
@@ -514,13 +512,6 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
             lastEmittedEffectId = id
             scene?.runEffect(command)
         }
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.kBattleEffectMs * 1_000_000))
-            await MainActor.run {
-                self?.pendingImpactHandlers[id] = nil
-            }
-        }
         return id
     }
 
@@ -547,8 +538,6 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         chordSyncTask = nil
         feedbackTask?.cancel()
         feedbackTask = nil
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = nil
         cancelTutorialTimers()
     }
 

@@ -18,7 +18,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private static let hammerLeadBeats: Double = 4
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
     private static let hammerImpactOffsetSec: Double = 0.3
-    private static let effectClearPaddingMs: Double = 420
     /// 正解連打時の statusText 更新間隔（SwiftUI 再描画抑制）
     private static let statusTextThrottleSec: Double = 0.4
     /// フレーズ終了検知のセーフティパディング。`loop_duration_sec` の直後ではなく、
@@ -129,7 +128,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     private var countdownTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
-    private var battleEffectClearTasks: [Int: Task<Void, Never>] = [:]
     private var phrasePrepareTask: Task<Void, Never>?
     private var lastRankStorage: EarTrainingRank?
     private var runtimeCompletedTargetCount: Int = 0
@@ -272,8 +270,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     func handleEffectImpact(effectId: Int) {
-        battleEffectClearTasks[effectId]?.cancel()
-        battleEffectClearTasks[effectId] = nil
         guard let handler = pendingImpactHandlers.removeValue(forKey: effectId) else {
             Log.battle.debug("EarTrainingChordOSMD effectImpact no handler effectId=\(effectId)")
             return
@@ -1322,30 +1318,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             lastEmittedEffectId = id
             scene?.runEffect(command)
         }
-        let ms = Self.effectDurationMs(kind: kind, travelDurationSec: travelDurationSec)
-        battleEffectClearTasks[id]?.cancel()
-        let clearedId = id
-        battleEffectClearTasks[id] = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(ms * 1_000_000))
-            guard let self else { return }
-            self.pendingImpactHandlers.removeValue(forKey: clearedId)
-            self.battleEffectClearTasks[clearedId] = nil
-        }
         Log.battle.debug("EarTrainingChordOSMD battleEffect id=\(id) kind=\(String(describing: kind))")
         return id
-    }
-
-    private static func effectDurationMs(kind: EarTrainingBattleEffectKind, travelDurationSec: Double?) -> Double {
-        switch kind {
-        case .osmdHammer:
-            return ((travelDurationSec ?? 3.2) * 1000) + effectClearPaddingMs
-        case .osmdMeteor:
-            return 2_100
-        case .osmdHammerReflect:
-            return 550
-        default:
-            return 1_600
-        }
     }
 
     private func publishSnapshot() {
@@ -1374,10 +1348,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         cancelTutorialOsmdTimedLineWorks()
         countdownTask?.cancel(); countdownTask = nil
         feedbackTask?.cancel(); feedbackTask = nil
-        for (_, task) in battleEffectClearTasks {
-            task.cancel()
-        }
-        battleEffectClearTasks.removeAll()
         phrasePrepareTask?.cancel(); phrasePrepareTask = nil
         if !keepsAudio {
             audio.stopPhrase()

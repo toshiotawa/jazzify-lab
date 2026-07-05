@@ -7,8 +7,6 @@ import CoreGraphics
 final class EarTrainingChordQuizBattleController: ObservableObject {
     private static let inputCooldownMs: Double = 20
     private static let zeroDamage = EarTrainingDamageConfig.zero
-    private static let kBattleEffectMs: Double = 1_600
-    private static let kAwesomeBattleEffectMs: Double = 4_500
 
     /// コードクイズ本番の敵 HP（DB の enemyHp とは独立）。
     private static let quizEnemyHpFixed: Int = 10_000
@@ -114,7 +112,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private var quizTickerTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
     private var drumPrepareTask: Task<Void, Never>?
-    private var battleEffectClearTask: Task<Void, Never>?
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
@@ -250,8 +247,6 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
         drumPrepareTask = nil
         feedbackTask?.cancel()
         feedbackTask = nil
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = nil
         midiHeldKeys.removeAll()
         audio.stop()
         scene = nil
@@ -938,26 +933,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             lastEmittedEffectId = id
             scene?.runEffect(command)
         }
-        battleEffectClearTask?.cancel()
-        battleEffectClearTask = Task { [weak self] in
-            let ms = Self.effectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
-            try? await Task.sleep(nanoseconds: UInt64(ms * 1_000_000))
-            await MainActor.run {
-                self?.pendingImpactHandlers[id] = nil
-            }
-        }
         return id
-    }
-
-    private static func effectDurationMs(
-        kind: EarTrainingBattleEffectKind,
-        label: String?,
-        phraseNoteCount: Int?
-    ) -> Double {
-        if kind == .quotaReached { return 700 }
-        let isAwesome = kind == .complete
-            && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
-        return isAwesome ? kAwesomeBattleEffectMs : kBattleEffectMs
     }
 
     private func triggerFeedbackFlash(_ value: EarTrainingBattleController.Feedback) {
