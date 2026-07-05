@@ -12,8 +12,6 @@ struct TopView: View {
     @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
     @State private var showMainQuestResumeSheet = false
-    @State private var resumePreviousQuestTitle = ""
-    @State private var resumeNextQuestTitle = ""
     @State private var resumeNextLesson: Lesson?
 
     private var locale: AppLocale { appState.locale }
@@ -91,8 +89,6 @@ struct TopView: View {
             .sheet(isPresented: $showMainQuestResumeSheet) {
                 MainQuestResumeSheet(
                     locale: locale,
-                    previousQuestTitle: resumePreviousQuestTitle,
-                    nextQuestTitle: resumeNextQuestTitle,
                     onContinue: {
                         MainQuestResumePreferences.markShownToday()
                         showMainQuestResumeSheet = false
@@ -246,97 +242,71 @@ struct TopView: View {
                         .foregroundStyle(.white)
                 }
 
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .stroke(Color(hex: "334155"), lineWidth: 5)
-                            .frame(width: 56, height: 56)
-                        Circle()
-                            .trim(
-                                from: 0,
-                                to: progress.totalLessons > 0
-                                    ? CGFloat(progress.completedLessons) / CGFloat(progress.totalLessons)
-                                    : 0
-                            )
-                            .stroke(
-                                progress.completedLessons >= progress.totalLessons ? Color.green : Color.cyan,
-                                style: StrokeStyle(lineWidth: 5, lineCap: .round)
-                            )
-                            .frame(width: 56, height: 56)
-                            .rotationEffect(.degrees(-90))
-                        Text("\(progress.completedLessons)/\(progress.totalLessons)")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                    }
-
-                    Group {
-                        if progress.completedLessons >= progress.totalLessons {
+                Group {
+                    if progress.completedLessons >= progress.totalLessons {
+                        Text(locale == .ja
+                             ? "メインクエストをすべて完了しました！"
+                             : "Main Quest complete!")
+                            .font(.subheadline)
+                            .foregroundStyle(.green)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(locale == .ja
-                                 ? "メインクエストをすべて完了しました！"
-                                 : "Main Quest complete!")
+                                 ? "\(nextLesson.localizedTitle(locale))を完了しましょう"
+                                 : "Complete \(nextLesson.localizedTitle(locale))")
                                 .font(.subheadline)
-                                .foregroundStyle(.green)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else if let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(locale == .ja
-                                     ? "\(nextLesson.localizedTitle(locale))を完了しましょう"
-                                     : "Complete \(nextLesson.localizedTitle(locale))")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.cyan)
-                                    .lineLimit(2)
+                                .foregroundStyle(.cyan)
+                                .lineLimit(2)
 
-                                Button {
-                                    autoStartFirstQuestRequirement = false
-                                    mainQuestLessonToOpen = nextLesson
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "play.fill")
-                                            .font(.caption2)
-                                        Text(locale == .ja ? "クエストを始める" : "Start Quest")
-                                            .font(.subheadline.bold())
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(.cyan.opacity(0.8))
-                                    .cornerRadius(20)
+                            Button {
+                                autoStartFirstQuestRequirement = false
+                                mainQuestLessonToOpen = nextLesson
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "play.fill")
+                                        .font(.caption2)
+                                    Text(locale == .ja ? "クエストを始める" : "Start Quest")
+                                        .font(.subheadline.bold())
                                 }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(.cyan.opacity(0.8))
+                                .cornerRadius(20)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        } else if !appState.isPremium,
-                                  progress.completedLessons < progress.totalLessons,
-                                  let gatedNext = progress.nextLesson,
-                                  (gatedNext.blockNumber ?? 1) > MainQuestFreeTier.maxFreeBlockNumber {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(locale == .ja
-                                     ? "メインクエスト第2チャプター以降はプレミアムでプレイできます。"
-                                     : "Main Quest chapters 2+ require Premium.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.orange)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                Button {
-                                    showSubscription = true
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "lock.fill")
-                                            .font(.caption2)
-                                        Text(locale == .ja ? "プレミアムを見る" : "View Premium")
-                                            .font(.subheadline.bold())
-                                    }
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.purple.opacity(0.85))
-                                    .cornerRadius(20)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                    }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if !appState.isPremium,
+                              progress.completedLessons < progress.totalLessons,
+                              let gatedNext = progress.nextLesson,
+                              (gatedNext.blockNumber ?? 1) > MainQuestFreeTier.maxFreeBlockNumber {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(locale == .ja
+                                 ? "メインクエスト第2チャプター以降はプレミアムでプレイできます。"
+                                 : "Main Quest chapters 2+ require Premium.")
+                                .font(.subheadline)
+                                .foregroundStyle(.orange)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Spacer()
+                            Button {
+                                showSubscription = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "lock.fill")
+                                        .font(.caption2)
+                                    Text(locale == .ja ? "プレミアムを見る" : "View Premium")
+                                        .font(.subheadline.bold())
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.purple.opacity(0.85))
+                                .cornerRadius(20)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .padding(16)
@@ -559,15 +529,8 @@ struct TopView: View {
                   (nextLesson.blockNumber ?? 1) == 1,
                   let lastPlayedAt = progress.lastPlayedAt,
                   MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
-            let lessons = try? await SupabaseService.shared.fetchLessons(courseId: progress.courseId)
-            let previousLesson = lessons?
-                .filter { ($0.blockNumber ?? 1) == 1 }
-                .first { $0.orderIndex == nextLesson.orderIndex - 1 }
             await MainActor.run {
                 resumeNextLesson = nextLesson
-                resumePreviousQuestTitle = previousLesson?.localizedTitle(locale)
-                    ?? (locale == .ja ? "前のクエスト" : "Previous quest")
-                resumeNextQuestTitle = nextLesson.localizedTitle(locale)
                 showMainQuestResumeSheet = true
             }
         }

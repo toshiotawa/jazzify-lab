@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { fetchLessonByIdForDetail, fetchLessonsByCourse, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
@@ -79,6 +79,8 @@ import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteModal';
 import TaskClearNextStepModal from '@/components/lesson/TaskClearNextStepModal';
 import { shouldShowQuestReadyToCompletePrompt, findFirstIncompleteRequirement } from '@/utils/lessonRequirementProgress';
+import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
+import { lessonDetailPath } from '@/utils/appNavigation';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
@@ -94,12 +96,19 @@ import {
 const LessonDetailPage: React.FC = () => {
   const { lessonId: routeLessonId } = useParams<{ lessonId?: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [hashLessonId, setHashLessonId] = useState<string | null>(null);
   const [hashAutoStart, setHashAutoStart] = useState(false);
   const [hashJustCleared, setHashJustCleared] = useState<string | null>(null);
   const lessonId = routeLessonId ?? hashLessonId;
   const routeAutoStart = searchParams.get('autoStart') === '1';
+  const routeJustCleared = searchParams.get('justCleared');
   const autoStartFirstRequirement = routeLessonId ? routeAutoStart : hashAutoStart;
+  const justClearedParam = resolveJustClearedLessonSongId({
+    routeLessonId,
+    routeJustCleared,
+    hashJustCleared,
+  });
   const open = Boolean(lessonId);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [lessonProgress, setLessonProgress] = useState<LessonProgress | null>(null);
@@ -475,6 +484,13 @@ const LessonDetailPage: React.FC = () => {
     if (!lessonId) {
       return;
     }
+    if (routeLessonId) {
+      const params = new URLSearchParams(searchParams);
+      params.delete('justCleared');
+      const remaining = params.toString();
+      navigate(`${lessonDetailPath(lessonId)}${remaining ? `?${remaining}` : ''}`, { replace: true });
+      return;
+    }
     const nextHash = buildLessonDetailHash(lessonId, {
       autoStart: hashAutoStart,
     });
@@ -482,7 +498,7 @@ const LessonDetailPage: React.FC = () => {
       window.history.replaceState(null, '', nextHash);
     }
     setHashJustCleared(null);
-  }, [lessonId, hashAutoStart]);
+  }, [lessonId, routeLessonId, hashAutoStart, searchParams, navigate]);
 
   useEffect(() => {
     if (loading) {
@@ -511,7 +527,7 @@ const LessonDetailPage: React.FC = () => {
   useEffect(() => {
     if (
       loading
-      || !hashJustCleared
+      || !justClearedParam
       || justClearedConsumedRef.current
       || !lessonCourseIsMainQuest
       || (lesson?.block_number ?? 1) !== 1
@@ -532,7 +548,7 @@ const LessonDetailPage: React.FC = () => {
     }
   }, [
     loading,
-    hashJustCleared,
+    justClearedParam,
     lessonCourseIsMainQuest,
     lesson?.block_number,
     requirements,

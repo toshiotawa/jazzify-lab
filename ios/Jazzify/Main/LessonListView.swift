@@ -1810,12 +1810,20 @@ struct LessonDetailView: View {
                     locale: locale,
                     onClose: { earTrainingTutorialLaunch = nil },
                     onComplete: {
-                        _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
-                            lessonId: launch.lessonId,
-                            lessonSongId: launch.lessonSongId,
-                            rank: launch.clearConditions?.rank ?? "S",
-                            clearConditions: launch.clearConditions
-                        )
+                        do {
+                            _ = try await SupabaseService.shared.recordEarTrainingLessonProgress(
+                                lessonId: launch.lessonId,
+                                lessonSongId: launch.lessonSongId,
+                                rank: launch.clearConditions?.rank ?? "S",
+                                clearConditions: launch.clearConditions
+                            )
+                        } catch {
+                            await MainActor.run {
+                                alertMessage = locale == .ja
+                                    ? "進捗の保存に失敗しました。"
+                                    : "Failed to save progress."
+                            }
+                        }
                     }
                 )
             }
@@ -1826,12 +1834,20 @@ struct LessonDetailView: View {
                     showSkip: false,
                     onClose: { survivalTutorialLaunch = nil },
                     onComplete: {
-                        _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
-                            lessonId: launch.lessonId,
-                            lessonSongId: launch.lessonSongId,
-                            rank: launch.clearConditions?.rank ?? "S",
-                            clearConditions: launch.clearConditions
-                        )
+                        do {
+                            _ = try await SupabaseService.shared.recordEarTrainingLessonProgress(
+                                lessonId: launch.lessonId,
+                                lessonSongId: launch.lessonSongId,
+                                rank: launch.clearConditions?.rank ?? "S",
+                                clearConditions: launch.clearConditions
+                            )
+                        } catch {
+                            await MainActor.run {
+                                alertMessage = locale == .ja
+                                    ? "進捗の保存に失敗しました。"
+                                    : "Failed to save progress."
+                            }
+                        }
                     }
                 )
             }
@@ -2611,13 +2627,12 @@ struct LessonDetailView: View {
     private func reloadLessonDetailAfterGame() {
         Task {
             await loadLessonDetail()
-            await MainActor.run {
-                evaluateTaskClearNextStepAfterGame()
-            }
+            await evaluateTaskClearNextStepAfterGame()
         }
     }
 
-    private func evaluateTaskClearNextStepAfterGame() {
+    @MainActor
+    private func evaluateTaskClearNextStepAfterGame() async {
         guard courseIsMainQuest,
               (activeLesson.blockNumber ?? 1) == 1,
               let check = pendingClearCheck else {
@@ -2627,10 +2642,23 @@ struct LessonDetailView: View {
         pendingClearCheck = nil
 
         guard !check.wasCompletedBefore else { return }
-        guard let played = sortedRequirements.first(where: { $0.id == check.lessonSongId }),
-              progress(for: played)?.isCompleted == true else {
-            return
+
+        func isPlayedRequirementCompleted() -> Bool {
+            guard let played = sortedRequirements.first(where: { $0.id == check.lessonSongId }) else {
+                return false
+            }
+            return progress(for: played)?.isCompleted == true
         }
+
+        if !isPlayedRequirementCompleted(),
+           let userId = appState.profile?.id {
+            requirementProgress = (try? await SupabaseService.shared.fetchLessonRequirementProgress(
+                lessonId: activeLesson.id,
+                userId: userId
+            )) ?? requirementProgress
+        }
+
+        guard isPlayedRequirementCompleted() else { return }
 
         if let next = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
             showReadyToCompletePrompt = false

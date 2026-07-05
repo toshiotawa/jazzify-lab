@@ -7,6 +7,7 @@ import {
   MAIN_QUEST_RESUME_THRESHOLD_MS,
   shouldShowMainQuestResumePrompt,
 } from '@/utils/mainQuestResume';
+import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
 
 describe('findFirstIncompleteRequirement', () => {
   const requirements: RequirementWithLessonSongId[] = [
@@ -77,5 +78,44 @@ describe('shouldShowMainQuestResumePrompt', () => {
         sessionAlreadyShown: true,
       }),
     ).toBe(false);
+  });
+});
+
+describe('resolveJustClearedLessonSongId', () => {
+  it('reads justCleared from search params on path routes', () => {
+    expect(
+      resolveJustClearedLessonSongId({
+        routeLessonId: 'lesson-1',
+        routeJustCleared: 'ls-1',
+        hashJustCleared: null,
+      }),
+    ).toBe('ls-1');
+  });
+
+  it('reads justCleared from hash on legacy hash routes', () => {
+    expect(
+      resolveJustClearedLessonSongId({
+        routeLessonId: undefined,
+        routeJustCleared: null,
+        hashJustCleared: 'ls-2',
+      }),
+    ).toBe('ls-2');
+  });
+
+  it('returns null when neither route nor hash provides justCleared', () => {
+    expect(
+      resolveJustClearedLessonSongId({
+        routeLessonId: 'lesson-1',
+        routeJustCleared: null,
+        hashJustCleared: 'ls-ignored',
+      }),
+    ).toBeNull();
+    expect(
+      resolveJustClearedLessonSongId({
+        routeLessonId: undefined,
+        routeJustCleared: null,
+        hashJustCleared: null,
+      }),
+    ).toBeNull();
   });
 });
