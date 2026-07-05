@@ -105,7 +105,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // ユーザーの進捗を取得（lesson_songs.idで管理）
   const { data: progress, error: progError } = await supabase
     .from('user_lesson_requirements_progress')
-    .select('song_id, lesson_song_id, is_completed')
+    .select('lesson_song_id, is_completed')
     .eq('user_id', userId)
     .eq('lesson_id', lessonId)
     .eq('is_completed', true);
@@ -113,7 +113,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   if (progError) return false;
 
   return required.every(req =>
-    (progress ?? []).some(p => isLessonSongRequirementCompleted(req, p)),
+    (progress ?? []).some(p => isLessonSongRequirementCompleted(req, { ...p, song_id: null })),
   );
 }
 
