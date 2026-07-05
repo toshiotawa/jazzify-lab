@@ -136,7 +136,7 @@ export const LessonListPanel: React.FC<LessonListPanelProps> = ({
                           ) : state.isFrontier ? (
                             <FaPlay className="text-[9px] translate-x-[1px]" />
                           ) : (
-                            lesson.order_index + 1
+                            <span className="block w-1.5 h-1.5 rounded-full bg-violet-300" aria-hidden />
                           )}
                         </span>
                         <span className="flex-1 min-w-0">

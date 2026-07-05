@@ -450,6 +450,23 @@ export function sortLessonsByOrder(lessons: Lesson[]): Lesson[] {
   });
 }
 
+type LessonOrderFields = Pick<Lesson, 'id' | 'order_index' | 'block_number'>;
+
+export function findNextIncompleteLesson<T extends LessonOrderFields>(
+  lessons: readonly T[],
+  completedIds: ReadonlySet<string>,
+): T | null {
+  const sorted = [...lessons].sort((a, b) => {
+    const blockA = a.block_number ?? 1;
+    const blockB = b.block_number ?? 1;
+    if (blockA !== blockB) {
+      return blockA - blockB;
+    }
+    return a.order_index - b.order_index;
+  });
+  return sorted.find((lesson) => !completedIds.has(lesson.id)) ?? null;
+}
+
 export function sortLessonSongsByOrderIndex<T extends { order_index?: number }>(
   lessonSongs: T[],
 ): T[] {

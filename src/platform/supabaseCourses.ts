@@ -2,7 +2,7 @@ import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey
 import { Course } from '@/types';
 import { resolveCourseAccess, type MembershipRank } from '@/utils/lessonAccess';
 import { shouldIncludeDeveloperLessonCourses } from '@/utils/environment';
-import { sortLessonSongsByOrderIndex } from '@/utils/lessonNavigation';
+import { findNextIncompleteLesson, sortLessonSongsByOrderIndex } from '@/utils/lessonNavigation';
 
 const coursesDetailCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
   `courses-detail-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
@@ -654,7 +654,7 @@ export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null
   const completedSet = new Set((progressData || []).map(p => p.lesson_id));
   const completedLessons = completedSet.size;
 
-  const nextLesson = lessons.find(l => !completedSet.has(l.id)) ?? null;
+  const nextLesson = findNextIncompleteLesson(lessons, completedSet);
 
   return {
     courseId: courseData.id,

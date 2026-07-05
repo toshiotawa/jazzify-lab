@@ -8,6 +8,7 @@ import {
   lessonDisplayDescription,
   lessonDisplayTitle,
   lessonSongDisplayTitle,
+  stripQuestTitlePrefix,
 } from '@/utils/lessonCopy';
 
 const baseLesson = {
@@ -26,6 +27,27 @@ describe('lessonDisplayTitle', () => {
 
   it('英語でも title_en が無ければ title', () => {
     expect(lessonDisplayTitle(baseLesson, true)).toBe('日本語タイトル');
+  });
+
+  it('クエスト番号プレフィックスを除去する', () => {
+    expect(
+      lessonDisplayTitle(
+        { ...baseLesson, title: 'クエスト2：コードの2音を覚える' },
+        false,
+      ),
+    ).toBe('コードの2音を覚える');
+    expect(
+      lessonDisplayTitle(
+        { ...baseLesson, title_en: 'Quest 1: Ad-lib with C, Eb, F' },
+        true,
+      ),
+    ).toBe('Ad-lib with C, Eb, F');
+  });
+});
+
+describe('stripQuestTitlePrefix', () => {
+  it('プレフィックスが無いタイトルはそのまま返す', () => {
+    expect(stripQuestTitlePrefix('コードの2音を覚える', false)).toBe('コードの2音を覚える');
   });
 });
 

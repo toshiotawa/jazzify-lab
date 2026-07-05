@@ -108,7 +108,8 @@ struct Lesson: Codable, Identifiable, Sendable {
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
-        locale == .en ? (titleEn ?? title) : title
+        let raw = locale == .en ? (titleEn ?? title) : title
+        return LessonTitleFormatting.stripQuestTitlePrefix(raw, locale: locale)
     }
 
     func localizedDescription(_ locale: AppLocale) -> String? {
@@ -119,6 +120,19 @@ struct Lesson: Codable, Identifiable, Sendable {
 private enum LessonLocalization {
     static let tutorialBlockNameJa = "チュートリアル"
     static let tutorialBlockNameEn = "Tutorial"
+}
+
+private enum LessonTitleFormatting {
+    static func stripQuestTitlePrefix(_ title: String, locale: AppLocale) -> String {
+        let pattern: String
+        if locale == .en {
+            pattern = #"^Quest\s+\d+[:：]\s*"#
+        } else {
+            pattern = #"^クエスト\d+[:：]\s*"#
+        }
+        return title.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 extension Lesson {

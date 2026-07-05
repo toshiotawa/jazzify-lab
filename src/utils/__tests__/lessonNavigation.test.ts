@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lesson, LessonProgress } from '@/types';
 import {
   computeLessonNavigationInfo,
+  findNextIncompleteLesson,
   getNavigationErrorMessage,
   getQuestCompletionModalKind,
   isLastLessonInBlock,
@@ -178,6 +179,34 @@ describe('getNavigationErrorMessage', () => {
       { isMainQuest: true, isPremiumMember: false },
     );
     expect(getNavigationErrorMessage('next', info, false)).toContain('プレミアム');
+  });
+});
+
+describe('findNextIncompleteLesson', () => {
+  it('order_index がブロックごとにリセットされていても block_number を優先して次の未完了を返す', () => {
+    const b1First = lesson('b1-first', 0, 1);
+    const b1Second = lesson('b1-second', 1, 1);
+    const b1Third = lesson('b1-third', 2, 1);
+    const b2First = lesson('b2-first', 0, 2);
+
+    const result = findNextIncompleteLesson(
+      [b1First, b2First, b1Second, b1Third],
+      new Set(['b1-first']),
+    );
+
+    expect(result?.id).toBe('b1-second');
+  });
+
+  it('すべて完了済みなら null を返す', () => {
+    const b1First = lesson('b1-first', 0, 1);
+    const b1Second = lesson('b1-second', 1, 1);
+
+    const result = findNextIncompleteLesson(
+      [b1First, b1Second],
+      new Set(['b1-first', 'b1-second']),
+    );
+
+    expect(result).toBeNull();
   });
 });
 

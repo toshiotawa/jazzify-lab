@@ -2,8 +2,7 @@ import SwiftUI
 
 struct MainQuestResumeSheet: View {
     let locale: AppLocale
-    let previousQuestLabel: String
-    let nextQuestLabel: String
+    let previousQuestTitle: String
     let nextQuestTitle: String
     let onContinue: () -> Void
     let onLater: () -> Void
@@ -17,19 +16,15 @@ struct MainQuestResumeSheet: View {
                 .multilineTextAlignment(.center)
             Text(
                 isJapanese
-                    ? "前回は「\(previousQuestLabel)」をクリアしました。次は「\(nextQuestLabel)」です。"
-                    : "You cleared \"\(previousQuestLabel)\". Next is \"\(nextQuestLabel)\"."
+                    ? "前回は「\(previousQuestTitle)」をクリアしました。次は「\(nextQuestTitle)」です。"
+                    : "You cleared \"\(previousQuestTitle)\". Next is \"\(nextQuestTitle)\"."
             )
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
-            Text(nextQuestTitle)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color(hex: "67e8f9"))
-                .multilineTextAlignment(.center)
             VStack(spacing: 12) {
                 Button(
-                    isJapanese ? "\(nextQuestLabel)へ進む" : "Go to \(nextQuestLabel)",
+                    isJapanese ? "続きから再開" : "Resume",
                     action: onContinue
                 )
                 .buttonStyle(.borderedProminent)

@@ -6,6 +6,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { lessonDisplayTitle } from '@/utils/lessonCopy';
 import {
   markMainQuestResumeSessionShown,
   readMainQuestResumeSessionShown,
@@ -55,12 +56,7 @@ const MainQuestResumeModal: React.FC = () => {
   }
 
   const nextLesson = progress.nextLesson;
-  const nextTitle = isEnglishCopy
-    ? (nextLesson.title_en ?? nextLesson.title)
-    : nextLesson.title;
-  const questLabel = isEnglishCopy
-    ? `Quest ${nextLesson.order_index + 1}`
-    : `クエスト${nextLesson.order_index + 1}`;
+  const nextTitle = lessonDisplayTitle(nextLesson, isEnglishCopy);
 
   const handleResume = () => {
     markMainQuestResumeSessionShown();
@@ -102,8 +98,8 @@ const MainQuestResumeModal: React.FC = () => {
           </h3>
           <p className="mt-2 text-sm text-gray-300">
             {isEnglishCopy
-              ? `You can continue from ${questLabel} "${nextTitle}".`
-              : `${questLabel}「${nextTitle}」から続けられます。`}
+              ? `You can continue from "${nextTitle}".`
+              : `「${nextTitle}」から続けられます。`}
           </p>
         </div>
         <div className="flex flex-col gap-3">

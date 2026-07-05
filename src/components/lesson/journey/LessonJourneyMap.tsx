@@ -395,7 +395,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
         : state?.isUnlocked
           ? isEnglishCopy ? 'available' : '挑戦可能'
           : isEnglishCopy ? 'locked' : '未解放';
-      return `${isEnglishCopy ? 'Quest' : 'クエスト'} ${lesson.order_index + 1}: ${lessonDisplayTitle(lesson, isEnglishCopy)} (${statusLabel})`;
+      return `${lessonDisplayTitle(lesson, isEnglishCopy)} (${statusLabel})`;
     },
     [lessonsById, accessGraph, isEnglishCopy],
   );

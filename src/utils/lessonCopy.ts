@@ -4,7 +4,8 @@ import type { EarTrainingStage, FantasyStage, Lesson } from '@/types';
 const TUTORIAL_LESSON_BLOCK_NAME_JA = 'チュートリアル';
 const TUTORIAL_LESSON_BLOCK_NAME_EN = 'Tutorial';
 
-type LessonLocalized = Pick<Lesson, 'title' | 'description' | 'block_number' | 'block_name'> & {
+type LessonLocalized = Pick<Lesson, 'title' | 'block_number' | 'block_name'> & {
+  description?: string;
   title_en?: string | null;
   description_en?: string | null;
   block_name_en?: string | null;
@@ -68,18 +69,24 @@ export const earTrainingStageDisplayDescription = (
   return stage.description?.trim() ?? '';
 };
 
+const QUEST_TITLE_PREFIX_JA = /^クエスト\d+[：:]\s*/;
+const QUEST_TITLE_PREFIX_EN = /^Quest\s+\d+[：:]\s*/i;
+
+export const stripQuestTitlePrefix = (title: string, isEnglish: boolean): string => {
+  const pattern = isEnglish ? QUEST_TITLE_PREFIX_EN : QUEST_TITLE_PREFIX_JA;
+  return title.replace(pattern, '').trim();
+};
+
 export const lessonDisplayTitle = (lesson: LessonLocalized, isEnglish: boolean): string => {
-  if (isEnglish && lesson.title_en) {
-    return lesson.title_en;
-  }
-  return lesson.title;
+  const raw = isEnglish && lesson.title_en ? lesson.title_en : lesson.title;
+  return stripQuestTitlePrefix(raw, isEnglish);
 };
 
 export const lessonDisplayDescription = (lesson: LessonLocalized, isEnglish: boolean): string => {
   if (isEnglish && lesson.description_en) {
     return lesson.description_en;
   }
-  return lesson.description;
+  return lesson.description ?? '';
 };
 
 export const lessonDisplayBlockName = (lesson: LessonLocalized, isEnglish: boolean): string => {

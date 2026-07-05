@@ -12,8 +12,7 @@ struct TopView: View {
     @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
     @State private var showMainQuestResumeSheet = false
-    @State private var resumePreviousQuestLabel = ""
-    @State private var resumeNextQuestLabel = ""
+    @State private var resumePreviousQuestTitle = ""
     @State private var resumeNextQuestTitle = ""
     @State private var resumeNextLesson: Lesson?
 
@@ -92,8 +91,7 @@ struct TopView: View {
             .sheet(isPresented: $showMainQuestResumeSheet) {
                 MainQuestResumeSheet(
                     locale: locale,
-                    previousQuestLabel: resumePreviousQuestLabel,
-                    nextQuestLabel: resumeNextQuestLabel,
+                    previousQuestTitle: resumePreviousQuestTitle,
                     nextQuestTitle: resumeNextQuestTitle,
                     onContinue: {
                         MainQuestResumePreferences.markShownToday()
@@ -282,8 +280,8 @@ struct TopView: View {
                         } else if let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(locale == .ja
-                                     ? "クエスト\(nextLesson.orderIndex + 1)：\(nextLesson.localizedTitle(locale))"
-                                     : "Quest \(nextLesson.orderIndex + 1): \(nextLesson.localizedTitle(locale))")
+                                     ? "\(nextLesson.localizedTitle(locale))を完了しましょう"
+                                     : "Complete \(nextLesson.localizedTitle(locale))")
                                     .font(.subheadline)
                                     .foregroundStyle(.cyan)
                                     .lineLimit(2)
@@ -567,12 +565,8 @@ struct TopView: View {
                 .first { $0.orderIndex == nextLesson.orderIndex - 1 }
             await MainActor.run {
                 resumeNextLesson = nextLesson
-                resumePreviousQuestLabel = previousLesson.map {
-                    locale == .ja ? "クエスト\($0.orderIndex + 1)" : "Quest \($0.orderIndex + 1)"
-                } ?? (locale == .ja ? "前のクエスト" : "Previous quest")
-                resumeNextQuestLabel = locale == .ja
-                    ? "クエスト\(nextLesson.orderIndex + 1)"
-                    : "Quest \(nextLesson.orderIndex + 1)"
+                resumePreviousQuestTitle = previousLesson?.localizedTitle(locale)
+                    ?? (locale == .ja ? "前のクエスト" : "Previous quest")
                 resumeNextQuestTitle = nextLesson.localizedTitle(locale)
                 showMainQuestResumeSheet = true
             }

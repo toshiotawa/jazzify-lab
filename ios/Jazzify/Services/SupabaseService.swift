@@ -472,7 +472,8 @@ final class SupabaseService: Sendable {
             .value
 
         let completedIds = Set(progressRows.map(\.lessonId))
-        let nextLesson = lessons.first { !completedIds.contains($0.id) }
+        let nextLesson = LessonNavigationHelpers.sortLessonsByOrder(lessons)
+            .first { !completedIds.contains($0.id) }
 
         let chapterOneLessonIds = lessons
             .filter { ($0.blockNumber ?? 1) == 1 }

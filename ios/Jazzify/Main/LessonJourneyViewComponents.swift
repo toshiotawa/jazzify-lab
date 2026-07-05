@@ -807,7 +807,9 @@ struct LessonJourneyListPanel: View {
                     } else if isFrontier {
                         Image(systemName: "play.fill").font(.caption2).foregroundStyle(Color(hex: "fbbf24"))
                     } else {
-                        Text("\(lesson.orderIndex + 1)").font(.caption.bold()).foregroundStyle(Color(hex: "c4b5fd"))
+                        Circle()
+                            .fill(Color(hex: "c4b5fd"))
+                            .frame(width: 6, height: 6)
                     }
                 }
                 Text(lesson.localizedTitle(locale))
