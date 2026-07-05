@@ -5,6 +5,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { navigateToDashboardPath } from '@/utils/appNavigation';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { trackEvent } from '@/utils/analytics/ga';
 
 interface AuthLandingProps {
   mode: 'signup' | 'login';
@@ -52,6 +53,12 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
       navigate(navigateToDashboardPath(), { replace: true });
     }
   }, [mode, user, navigate]);
+
+  useEffect(() => {
+    if (mode === 'signup') {
+      trackEvent('sign_up_click', { method: 'email_otp' });
+    }
+  }, [mode]);
 
   // 地理情報の事前取得や国のローカル保存は行わない
 

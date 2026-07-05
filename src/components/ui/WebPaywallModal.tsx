@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   FaTimes,
@@ -12,6 +12,8 @@ import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
 import { useAuthStore } from '@/stores/authStore';
 import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
 import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
+import { trackEvent } from '@/utils/analytics/ga';
+import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 
 interface WebPaywallModalProps {
   open: boolean;
@@ -112,11 +114,26 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
   const copy = isEnglishCopy ? COPY.en : COPY.ja;
   const usdRate = useJpyUsdRate(isEnglishCopy, open);
 
+  useEffect(() => {
+    if (!open || !profile) {
+      return;
+    }
+    trackEvent('paywall_view');
+    recordUserMilestoneFireAndForget(profile.id, 'free_tier_wall_view');
+  }, [open, profile]);
+
   const handleCheckout = useCallback(async () => {
     if (!profile) {
       setError(copy.loginRequired);
       return;
     }
+
+    trackEvent('begin_checkout', {
+      currency: 'JPY',
+      value: PREMIUM_PRICING_JPY.monthly,
+      plan: 'premium',
+    });
+    recordUserMilestoneFireAndForget(profile.id, 'checkout_click');
 
     setLoading(true);
     setError(null);

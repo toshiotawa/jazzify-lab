@@ -39,7 +39,7 @@ export interface OnboardingExperienceProps {
   embeddedFullHeight?: boolean;
   showSignupCtaOnFinish?: boolean;
   showSkip?: boolean;
-  onComplete?: () => void;
+  onComplete?: (reachedEnd: boolean) => void;
   ctaHref?: string;
   ctaLabel?: string;
 }
@@ -94,11 +94,11 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
     return () => window.removeEventListener('pointerdown', unlockOnce);
   }, []);
 
-  const finish = useCallback(() => {
+  const finish = useCallback((reachedEnd: boolean) => {
     runnerAbortRef.current?.abort();
     audioRef.current?.stopAllAudio();
     setShowFinishedOverlay(true);
-    onComplete?.();
+    onComplete?.(reachedEnd);
   }, [onComplete]);
 
   const setRunnerCharacterOverlay = useCallback(
@@ -207,7 +207,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
           waitForMidiNoteOrTimeout,
           waitForFirstInputNote,
           waitForSlotBCompletion,
-          onFinish: finish,
+          onFinish: () => finish(true),
           signal: abort.signal,
         });
       };
@@ -226,11 +226,11 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
   );
 
   const handleSkip = useCallback(() => {
-    finish();
+    finish(false);
   }, [finish]);
 
   const handleCta = useCallback(() => {
-    finish();
+    finish(false);
   }, [finish]);
 
   return (
@@ -256,8 +256,8 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
         scenarioUserInputPulseRef={userInputPulseRef}
         scenarioSlotBCompletionPulseRef={slotBCompletionPulseRef}
         scenarioMidiNoteReceivedRef={midiNoteReceivedRef}
-        onBackToSelect={() => finish()}
-        onBackToMenu={() => finish()}
+        onBackToSelect={() => finish(false)}
+        onBackToMenu={() => finish(false)}
       />
       </div>
 

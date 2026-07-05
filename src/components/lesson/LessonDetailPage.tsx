@@ -77,6 +77,7 @@ import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteModal';
 import { shouldShowQuestReadyToCompletePrompt } from '@/utils/lessonRequirementProgress';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
+import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { SurvivalRequirementDetailLines } from '@/components/lesson/SurvivalRequirementDetailLines';
 import {
   lessonSongHasInlineComposite,
@@ -640,6 +641,9 @@ const LessonDetailPage: React.FC = () => {
           );
           setQuestCompletionModalKind(modalKind);
           setShowNextLessonPrompt(modalKind !== 'none');
+          if (lesson.order_index === 0 && modalKind !== 'none' && profile) {
+            recordUserMilestoneFireAndForget(profile.id, 'first_success');
+          }
         } catch (_) {
           // ナビゲーション情報取得失敗は致命的でないため無視
         }

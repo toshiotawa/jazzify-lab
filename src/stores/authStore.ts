@@ -8,6 +8,8 @@ import { normalizeMembershipTier } from '@/utils/membership';
 import { isIOSWebView, getNativeAuthToken, getNativeRefreshToken } from '@/utils/iosbridge';
 import { useGeoStore } from './geoStore';
 import { resolveWebSignupCountry, resolveWebSignupPlatform } from '@/utils/signupMetadata';
+import { getStoredFirstTouch } from '@/utils/analytics/attribution';
+import { getGaClientId, trackEvent } from '@/utils/analytics/ga';
 
 interface AuthState {
   user: User | null;
@@ -718,23 +720,36 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // 新規プロフィール作成（localStorage > ブラウザ言語 > 検出チェーン の順で初期言語を決定）
         const initialLocale = getStoredPreferredLocale() ?? detectBrowserLocale() ?? resolveAudienceLocale();
-                 const { error } = await supabase.from('profiles').insert({
-           id: user.id,
-           email: user.email!,
-           nickname,
-           rank: 'free',
-           xp: 0,
-           level: 1,
-           is_admin: false,
-           preferred_locale: initialLocale,
-           signup_platform: resolveWebSignupPlatform(),
-           country: signupCountry,
-         });
+        const firstTouch = getStoredFirstTouch();
+        const gaClientId = await getGaClientId();
+        const { error } = await supabase.from('profiles').insert({
+          id: user.id,
+          email: user.email!,
+          nickname,
+          rank: 'free',
+          xp: 0,
+          level: 1,
+          is_admin: false,
+          preferred_locale: initialLocale,
+          signup_platform: resolveWebSignupPlatform(),
+          country: signupCountry,
+          first_touch_utm_source: firstTouch?.utm_source ?? null,
+          first_touch_utm_medium: firstTouch?.utm_medium ?? null,
+          first_touch_utm_campaign: firstTouch?.utm_campaign ?? null,
+          first_touch_utm_content: firstTouch?.utm_content ?? null,
+          first_touch_utm_term: firstTouch?.utm_term ?? null,
+          first_touch_referrer: firstTouch?.referrer ?? null,
+          first_touch_landing_path: firstTouch?.landing_path ?? null,
+          first_touch_captured_at: firstTouch?.captured_at ?? null,
+          ga_client_id: gaClientId,
+        });
         persistPreferredLocale(initialLocale);
-        
+
         if (error) {
           throw error;
         }
+
+        trackEvent('sign_up', { method: 'email_otp' });
 
         // 作成成功後、プロフィール情報を取得（キャッシュをクリアして最新を取得）
         await get().fetchProfile({ forceRefresh: true });

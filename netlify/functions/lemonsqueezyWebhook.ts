@@ -32,6 +32,11 @@ import {
   handleOrderRefundedBillingInvoice,
   handleSubscriptionBillingHistoryFromWebhook,
 } from './lib/lemonBillingWebhookHandlers';
+import {
+  isInitialPaidInvoice,
+  recordUserMilestoneForUserSafe,
+  sendPurchaseGa4EventForUser,
+} from './lib/analyticsMilestones';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -369,6 +374,24 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
         },
       );
 
+      if (
+        userId
+        && eventName === 'subscription_payment_success'
+        && invoiceResult.kind === 'saved'
+      ) {
+        await recordUserMilestoneForUserSafe(supabase, userId, 'paid');
+        if (isInitialPaidInvoice(attrs.billing_reason ?? null)) {
+          const totalCents = typeof attrs.total === 'number' ? attrs.total : null;
+          const currency = typeof attrs.currency === 'string' ? attrs.currency.toUpperCase() : 'JPY';
+          const value = totalCents !== null ? totalCents / 100 : 3980;
+          await sendPurchaseGa4EventForUser(supabase, userId, {
+            currency,
+            value,
+            transactionId: providerEventId,
+          });
+        }
+      }
+
       return ok({
         received: true,
         billing: invoiceResult.kind,
@@ -432,6 +455,14 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       providerEventId,
       source,
     );
+
+    if (
+      eventName === 'subscription_created'
+      && String(attrs.status ?? '').toLowerCase() === 'on_trial'
+    ) {
+      await recordUserMilestoneForUserSafe(supabase, userId, 'trial_start');
+    }
+
     return ok(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

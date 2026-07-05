@@ -11,6 +11,7 @@ import {
   shouldRedirectLegacyAppHash,
 } from '@/utils/appPaths';
 import { navigateToDashboardPath } from '@/utils/appNavigation';
+import { useGaPageViews } from '@/hooks/useGaPageViews';
 
 const LandingPage = React.lazy(() => import('@/components/LandingPage'));
 const ProtectedAppRoute = React.lazy(() => import('@/routes/ProtectedAppRoute'));
@@ -77,6 +78,7 @@ const LandingRoute: React.FC = () => {
 
 const App: React.FC = () => {
   const location = useLocation();
+  useGaPageViews();
   const [authReady, setAuthReady] = useState(false);
   const authBootstrapStartedRef = useRef(false);
   const pathname = normalizePathname(location.pathname);

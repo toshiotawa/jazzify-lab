@@ -3,6 +3,7 @@ import { LpMidiDeviceSelector } from '@/components/landing/LpMidiDeviceSelector'
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getLandingCopy } from '@/components/landing/landingCopy';
+import { trackEvent } from '@/utils/analytics/ga';
 
 const OnboardingExperience = React.lazy(
   () => import('@/components/onboarding/OnboardingExperience'),
@@ -43,6 +44,7 @@ export const LpDemo: React.FC = () => {
   }, []);
 
   const openDemo = useCallback(() => {
+    trackEvent('tutorial_begin', { tutorial_name: 'lp_demo' });
     void import('@/components/survival/tutorial/tutorialAudioUnlock')
       .then(({ unlockTutorialAudio }) => unlockTutorialAudio())
       .catch(() => { /* autoplay policy */ });
@@ -180,7 +182,10 @@ export const LpDemo: React.FC = () => {
           <div className="absolute top-0 right-0 z-50 pt-[max(12px,env(safe-area-inset-top))] pr-[max(12px,env(safe-area-inset-right))]">
             <button
               type="button"
-              onClick={closeDemo}
+              onClick={() => {
+                trackEvent('tutorial_skip', { tutorial_name: 'lp_demo', exit_method: 'close_button' });
+                closeDemo();
+              }}
               className="px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-white border border-white/10"
             >
               {copy.demo.exit}
@@ -193,7 +198,12 @@ export const LpDemo: React.FC = () => {
                 showSignupCtaOnFinish
                 showSkip
                 ctaLabel={copy.demo.finishCta}
-                onComplete={closeDemo}
+                onComplete={(reachedEnd) => {
+                  trackEvent(reachedEnd ? 'tutorial_complete' : 'tutorial_skip', {
+                    tutorial_name: 'lp_demo',
+                  });
+                  closeDemo();
+                }}
               />
             </Suspense>
           </div>
