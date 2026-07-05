@@ -14,11 +14,13 @@ import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
 import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
 import { trackEvent } from '@/utils/analytics/ga';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
+import type { PaywallSource } from '@/utils/analytics/paywallSource';
 
 interface WebPaywallModalProps {
   open: boolean;
   onClose: () => void;
   isEnglishCopy: boolean;
+  source: PaywallSource;
 }
 
 const formatUsdReferenceLine = (jpyAmount: number, usdRate: number): string =>
@@ -31,6 +33,8 @@ const COPY = {
   ja: {
     headline: 'ジャズの練習を、ここから先へ。',
     subheadline: 'Jazzify Premiumで、全コース・全ステージ・学習記録を開放。',
+    mainQuestHeadline: '今のステージの続きはPremiumで解放されます。',
+    mainQuestSubheadline: '7日間無料で、第2章のCブルースの続きがプレイできます。',
     features: [
       '初心者向けメインクエストを最後まで進められる',
       'アドリブ・両手ヴォイシングなど目的別に練習できる',
@@ -54,6 +58,8 @@ const COPY = {
   en: {
     headline: 'Take your jazz practice further.',
     subheadline: 'Unlock all courses, stages, and learning records with Jazzify Premium.',
+    mainQuestHeadline: 'Continue this stage with Premium.',
+    mainQuestSubheadline: 'Start a 7-day free trial and play Chapter 2 — C Blues and beyond.',
     features: [
       'Finish the beginner Main Quest from start to end',
       'Practice by goal—improv, two-hand voicings, and more',
@@ -105,22 +111,29 @@ const PriceRow: React.FC<PriceRowProps> = ({ icon, label, sublabel }) => (
   </div>
 );
 
-const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy }) => {
+const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy, source }) => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const trialUsed = profile?.lemon_trial_used === true;
-  const copy = isEnglishCopy ? COPY.en : COPY.ja;
+  const baseCopy = isEnglishCopy ? COPY.en : COPY.ja;
+  const copy = source === 'main_quest'
+    ? {
+        ...baseCopy,
+        headline: baseCopy.mainQuestHeadline,
+        subheadline: baseCopy.mainQuestSubheadline,
+      }
+    : baseCopy;
   const usdRate = useJpyUsdRate(isEnglishCopy, open);
 
   useEffect(() => {
     if (!open || !profile) {
       return;
     }
-    trackEvent('paywall_view');
-    recordUserMilestoneFireAndForget(profile.id, 'free_tier_wall_view');
-  }, [open, profile]);
+    trackEvent('paywall_view', { source });
+    recordUserMilestoneFireAndForget(profile.id, 'free_tier_wall_view', source);
+  }, [open, profile, source]);
 
   const handleCheckout = useCallback(async () => {
     if (!profile) {

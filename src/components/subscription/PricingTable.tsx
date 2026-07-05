@@ -318,6 +318,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
         open={showPaywall}
         onClose={() => setShowPaywall(false)}
         isEnglishCopy={isEnglishCopy}
+        source="pricing_table"
       />
     </div>
   );

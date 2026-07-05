@@ -10,6 +10,7 @@ import { useGeoStore } from './geoStore';
 import { resolveWebSignupCountry, resolveWebSignupPlatform } from '@/utils/signupMetadata';
 import { getStoredFirstTouch } from '@/utils/analytics/attribution';
 import { getGaClientId, trackEvent } from '@/utils/analytics/ga';
+import { MARKETING_EMAIL_OPT_IN_SOURCE } from '@/utils/marketingEmailOptIn';
 
 interface AuthState {
   user: User | null;
@@ -65,7 +66,14 @@ interface AuthActions {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
-  createProfile: (nickname: string, agreed: boolean) => Promise<void>;
+  createProfile: (
+    nickname: string,
+    agreed: boolean,
+    options?: {
+      marketingEmailOptIn?: boolean;
+      marketingEmailOptInText?: string;
+    },
+  ) => Promise<void>;
   consumeMainQuestAutoStart: () => boolean;
   updateEmail: (newEmail: string, isEnglishCopy?: boolean) => Promise<{ success: boolean; message: string }>;
   /** メール変更用 OTP（ダッシュボードの Change email テンプレートに {{ .Token }} が必要） */
@@ -674,7 +682,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-         createProfile: async (nickname, agreed) => {
+         createProfile: async (nickname, agreed, options) => {
       if (!agreed) {
         set(state => {
           state.error = '利用規約に同意してください';
@@ -722,6 +730,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         const initialLocale = getStoredPreferredLocale() ?? detectBrowserLocale() ?? resolveAudienceLocale();
         const firstTouch = getStoredFirstTouch();
         const gaClientId = await getGaClientId();
+        const marketingEmailOptIn = options?.marketingEmailOptIn === true;
         const { error } = await supabase.from('profiles').insert({
           id: user.id,
           email: user.email!,
@@ -742,6 +751,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           first_touch_landing_path: firstTouch?.landing_path ?? null,
           first_touch_captured_at: firstTouch?.captured_at ?? null,
           ga_client_id: gaClientId,
+          marketing_email_opt_in: marketingEmailOptIn,
+          marketing_email_opt_in_at: marketingEmailOptIn ? new Date().toISOString() : null,
+          marketing_email_opt_in_source: marketingEmailOptIn ? MARKETING_EMAIL_OPT_IN_SOURCE : null,
+          marketing_email_opt_in_text: marketingEmailOptIn ? (options?.marketingEmailOptInText ?? null) : null,
         });
         persistPreferredLocale(initialLocale);
 

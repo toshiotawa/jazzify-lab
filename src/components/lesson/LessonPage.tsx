@@ -522,7 +522,7 @@ const LessonPage: React.FC = () => {
         </div>
       </div>
       <OrientationLandscapePrompt isEnglishCopy={isEnglishCopy} />
-      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
+      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} source="lesson_list" />
     </div>
   );
 };

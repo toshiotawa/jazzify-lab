@@ -963,7 +963,7 @@ const AccountPage: React.FC = () => {
         </div>
       </div>
 
-      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
+      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} source="account_modal" />
       <PlanChangeConfirmModal
         open={planChangeTarget !== null}
         target={planChangeTarget ?? 'yearly'}

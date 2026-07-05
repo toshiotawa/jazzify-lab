@@ -2831,8 +2831,8 @@ struct LessonDetailView: View {
         let bn = activeLesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
             alertMessage = locale == .ja
-                ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
-                : "Main Quest chapters after Chapter 1 require Premium."
+                ? "メインクエスト第2チャプター以降はプレミアムが必要です。7日間無料トライアルで続きをプレイできます。"
+                : "Main Quest chapters after Chapter 1 require Premium. Continue with a 7-day free trial."
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
@@ -3156,8 +3156,8 @@ struct LessonDetailView: View {
         let bn = activeLesson.blockNumber ?? 1
         if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
             alertMessage = locale == .ja
-                ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
-                : "Main Quest chapters after Chapter 1 require Premium."
+                ? "メインクエスト第2チャプター以降はプレミアムが必要です。7日間無料トライアルで続きをプレイできます。"
+                : "Main Quest chapters after Chapter 1 require Premium. Continue with a 7-day free trial."
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {

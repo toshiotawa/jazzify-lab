@@ -7,6 +7,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
+import { trackEvent } from '@/utils/analytics/ga';
 
 const CIRCLE_SIZE = 64;
 const STROKE_WIDTH = 6;
@@ -49,6 +50,7 @@ const MainQuestProgressSection: React.FC = () => {
     consumeMainQuestAutoStart();
     if (progress.nextLesson.order_index === 0) {
       recordUserMilestoneFireAndForget(profile.id, 'first_play');
+      trackEvent('tutorial_begin', { tutorial_name: 'first_quest' });
     }
     if (isMainQuestBlockPlayable(progress.nextLesson.block_number, isPremiumMember)) {
       window.location.hash = `#lesson-detail?id=${progress.nextLesson.id}&autoStart=1`;

@@ -1122,7 +1122,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         </div>
       )}
 
-      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
+      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} source="survival" />
     </div>
   );
 };

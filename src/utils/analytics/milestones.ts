@@ -11,11 +11,13 @@ export type UserMilestone =
 export const recordUserMilestone = async (
   userId: string,
   milestone: UserMilestone,
+  source?: string,
 ): Promise<void> => {
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('record_user_milestone', {
     p_user_id: userId,
     p_milestone: milestone,
+    p_source: source ?? null,
   });
 
   if (error) {
@@ -26,8 +28,9 @@ export const recordUserMilestone = async (
 export const recordUserMilestoneFireAndForget = (
   userId: string,
   milestone: UserMilestone,
+  source?: string,
 ): void => {
-  void recordUserMilestone(userId, milestone).catch(() => {
+  void recordUserMilestone(userId, milestone, source).catch(() => {
     /* analytics must not block UX */
   });
 };

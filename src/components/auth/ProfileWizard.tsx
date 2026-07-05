@@ -4,11 +4,16 @@ import { useToast } from '@/stores/toastStore';
 import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import {
+  MARKETING_EMAIL_OPT_IN_TEXT_EN,
+  MARKETING_EMAIL_OPT_IN_TEXT_JA,
+} from '@/utils/marketingEmailOptIn';
 
 const ProfileWizard: React.FC = () => {
   const { createProfile, hasProfile, error, profile } = useAuthStore();
   const [nickname,setNickname] = useState('');
   const [agreed,setAgreed] = useState(false);
+  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(false);
   const toast = useToast();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({
@@ -30,6 +35,15 @@ const ProfileWizard: React.FC = () => {
   const termsLinkLabel = isEnglishCopy ? 'Terms of Service' : '利用規約';
   const privacyLinkLabel = isEnglishCopy ? 'Privacy Policy' : 'プライバシーポリシー';
   const summaryUpdatedLabel = isEnglishCopy ? 'Last updated:' : '最終更新日:';
+  const marketingOptInLabel = isEnglishCopy
+    ? 'Receive 3 days of Jazzify tips'
+    : '3日間のJazzify攻略メールを受け取る';
+  const marketingOptInDescription = isEnglishCopy
+    ? 'Tips for starting the parry experience, your first lessons, and free trial info. Unsubscribe anytime. You can sign up without checking this box.'
+    : 'パリィ体験の始め方、最初にやるべき課題、無料トライアルの案内をお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。';
+  const marketingOptInText = isEnglishCopy
+    ? MARKETING_EMAIL_OPT_IN_TEXT_EN
+    : MARKETING_EMAIL_OPT_IN_TEXT_JA;
 
   if (hasProfile) return null;
 
@@ -42,7 +56,10 @@ const ProfileWizard: React.FC = () => {
       toast.error(termsAgreementToast);
       return;
     }
-    await createProfile(nickname, agreed);
+    await createProfile(nickname, agreed, {
+      marketingEmailOptIn,
+      marketingEmailOptInText: marketingOptInText,
+    });
     toast.success(profileCreatedToast);
   };
 
@@ -75,6 +92,18 @@ const ProfileWizard: React.FC = () => {
             {checkboxTextSuffix}
           </span>
         </label>
+        <label className="flex items-start space-x-2 text-sm">
+          <input
+            type="checkbox"
+            className="checkbox mt-0.5"
+            checked={marketingEmailOptIn}
+            onChange={e => setMarketingEmailOptIn(e.target.checked)}
+          />
+          <span className="leading-relaxed">
+            <span className="block font-medium text-gray-100">{marketingOptInLabel}</span>
+            <span className="block text-xs text-gray-400 mt-1">{marketingOptInDescription}</span>
+          </span>
+        </label>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         <button className="btn btn-primary w-full" onClick={handleSubmit}>{submitLabel}</button>
       </div>
@@ -82,4 +111,4 @@ const ProfileWizard: React.FC = () => {
   );
 };
 
-export default ProfileWizard; 
+export default ProfileWizard;

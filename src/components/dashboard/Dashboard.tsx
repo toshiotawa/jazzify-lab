@@ -136,7 +136,7 @@ const Dashboard: React.FC = () => {
               </div>
             </button>
           )}
-          <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
+          <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} source="dashboard" />
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
               <div className="flex items-center space-x-4">

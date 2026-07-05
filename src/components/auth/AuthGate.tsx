@@ -6,6 +6,10 @@ import { getTermsContent, type TermsCopy, type TermsLocale } from '@/components/
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
+import {
+  MARKETING_EMAIL_OPT_IN_TEXT_EN,
+  MARKETING_EMAIL_OPT_IN_TEXT_JA,
+} from '@/utils/marketingEmailOptIn';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -113,7 +117,14 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
 export default AuthGate;
 
 interface AccountModalProps {
-  onSubmit: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
+  onSubmit: (
+    nickname: string,
+    agreed: boolean,
+    options?: {
+      marketingEmailOptIn?: boolean;
+      marketingEmailOptInText?: string;
+    },
+  ) => Promise<void>;
   error: string | null;
   onRetry: () => Promise<void>;
   isEnglishCopy: boolean;
@@ -123,6 +134,7 @@ interface AccountModalProps {
 const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry, isEnglishCopy, termsContent }) => {
   const [nickname, setNickname] = useState('');
   const [agreed, setAgreed] = useState(false);
+  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
   const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
@@ -133,6 +145,15 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
   const registeringLabel = isEnglishCopy ? 'Creating…' : '登録中...';
   const termsLinkLabel = termsContent.detailLinkLabel;
   const termsSummaryHeading = termsContent.summaryHeading;
+  const marketingOptInLabel = isEnglishCopy
+    ? 'Receive 3 days of Jazzify tips'
+    : '3日間のJazzify攻略メールを受け取る';
+  const marketingOptInDescription = isEnglishCopy
+    ? 'Tips for starting the parry experience, your first lessons, and free trial info. Unsubscribe anytime. You can sign up without checking this box.'
+    : 'パリィ体験の始め方、最初にやるべき課題、無料トライアルの案内をお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。';
+  const marketingOptInText = isEnglishCopy
+    ? MARKETING_EMAIL_OPT_IN_TEXT_EN
+    : MARKETING_EMAIL_OPT_IN_TEXT_JA;
 
   const handleSubmit = async () => {
     if (!nickname.trim()) {
@@ -144,7 +165,10 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
 
     setSubmitting(true);
     try {
-      await onSubmit(nickname.trim(), agreed);
+      await onSubmit(nickname.trim(), agreed, {
+        marketingEmailOptIn,
+        marketingEmailOptInText: marketingOptInText,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -224,6 +248,19 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
                       {isEnglishCopy ? 'Privacy Policy' : 'プライバシーポリシー'}
                     </a>
                     {isEnglishCopy ? '.' : ' に同意します'}
+                </span>
+              </label>
+              <label className="flex items-start space-x-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={marketingEmailOptIn}
+                  onChange={e => setMarketingEmailOptIn(e.target.checked)}
+                  className="mt-1"
+                  disabled={submitting}
+                />
+                <span className="leading-relaxed">
+                  <span className="block font-medium text-gray-100">{marketingOptInLabel}</span>
+                  <span className="block text-xs text-gray-400 mt-1">{marketingOptInDescription}</span>
                 </span>
               </label>
               {error && !isExistingProfileError && (

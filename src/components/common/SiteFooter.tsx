@@ -40,12 +40,6 @@ const SiteFooter: React.FC = () => {
               >
                 <i className="fab fa-x-twitter text-xl" aria-hidden="true" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="Facebook">
-                <i className="fab fa-facebook text-xl"></i>
-              </a>
-              <a href="#" className="text-gray-400 hover:text-purple-400 transition" aria-label="YouTube">
-                <i className="fab fa-youtube text-xl"></i>
-              </a>
               <a
                 href={JAZZIFY_INSTAGRAM_URL}
                 target="_blank"

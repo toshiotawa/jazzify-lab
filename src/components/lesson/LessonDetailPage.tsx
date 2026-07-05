@@ -78,6 +78,7 @@ import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteM
 import { shouldShowQuestReadyToCompletePrompt } from '@/utils/lessonRequirementProgress';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
+import { trackEvent } from '@/utils/analytics/ga';
 import { SurvivalRequirementDetailLines } from '@/components/lesson/SurvivalRequirementDetailLines';
 import {
   lessonSongHasInlineComposite,
@@ -643,6 +644,7 @@ const LessonDetailPage: React.FC = () => {
           setShowNextLessonPrompt(modalKind !== 'none');
           if (lesson.order_index === 0 && modalKind !== 'none' && profile) {
             recordUserMilestoneFireAndForget(profile.id, 'first_success');
+            trackEvent('tutorial_complete', { tutorial_name: 'first_quest' });
           }
         } catch (_) {
           // ナビゲーション情報取得失敗は致命的でないため無視
@@ -1408,6 +1410,7 @@ const LessonDetailPage: React.FC = () => {
               open={showPaywall}
               onClose={() => setShowPaywall(false)}
               isEnglishCopy={isEnglishCopy}
+              source="main_quest"
             />
           </div>
         </div>
