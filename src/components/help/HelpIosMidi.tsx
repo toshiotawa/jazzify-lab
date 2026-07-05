@@ -156,10 +156,6 @@ const HelpIosMidi: React.FC = () => {
               </ul>
             </section>
 
-            <p className="text-gray-400 text-sm border-t border-white/10 pt-6">
-              同じ内容は、チュートリアルコースのレッスン「MIDIキーボード接続方法」でもご確認いただけます。
-            </p>
-
             <div className="pt-4">
               <Link to="/contact" className="text-blue-300 underline">
                 お問い合わせフォーム
