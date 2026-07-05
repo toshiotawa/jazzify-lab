@@ -13,6 +13,7 @@ import {
   MARKETING_EMAIL_FROM,
   type MarketingEmailKey,
   type MarketingEmailLocale,
+  type MarketingEmailPlatform,
 } from './marketingEmails';
 
 export const MARKETING_EMAIL_RELEASE_CUTOFF = '2026-07-05T00:00:00Z';
@@ -53,11 +54,16 @@ export const resolveMarketingLocale = (
   return 'ja';
 };
 
+/** signup_platform（'web'|'ios'|null）からメール文面用プラットフォームを解決。不明時はweb扱い */
+export const resolveMarketingPlatform = (signupPlatform: string | null): MarketingEmailPlatform =>
+  signupPlatform === 'ios' ? 'ios' : 'web';
+
 export interface MarketingEmailRecipient {
   userId: string;
   email: string;
   locale: MarketingEmailLocale;
   includeTrialCta: boolean;
+  platform: MarketingEmailPlatform;
 }
 
 export type MarketingSendResult = 'sent' | 'already_sent' | 'send_failed' | 'not_configured';
@@ -92,6 +98,7 @@ export const claimAndSendMarketingEmail = async (
       locale: recipient.locale,
       unsubscribeUrl,
       includeTrialCta: recipient.includeTrialCta,
+      platform: recipient.platform,
     });
     const resend = new Resend(resendApiKey);
     const { error: sendError } = await resend.emails.send({

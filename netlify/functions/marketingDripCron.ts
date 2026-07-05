@@ -16,6 +16,7 @@ import {
   claimAndSendMarketingEmail,
   MARKETING_EMAIL_RELEASE_CUTOFF,
   resolveMarketingLocale,
+  resolveMarketingPlatform,
 } from './lib/marketingEmailDelivery';
 import type { MarketingEmailKey } from './lib/marketingEmails';
 
@@ -35,6 +36,7 @@ interface DripProfileRow {
   email: string;
   preferred_locale: string | null;
   country: string | null;
+  signup_platform: string | null;
   marketing_email_opt_in_at: string;
 }
 
@@ -52,7 +54,7 @@ export const handler = async () => {
     windowStart > MARKETING_EMAIL_RELEASE_CUTOFF ? windowStart : MARKETING_EMAIL_RELEASE_CUTOFF;
   const { data: optedIn, error: optedInError } = await supabase
     .from('profiles')
-    .select('id, email, preferred_locale, country, marketing_email_opt_in_at')
+    .select('id, email, preferred_locale, country, signup_platform, marketing_email_opt_in_at')
     .eq('marketing_email_opt_in', true)
     .gte('marketing_email_opt_in_at', dripCutoff)
     .limit(BATCH_LIMIT);
@@ -118,6 +120,7 @@ export const handler = async () => {
         email: profile.email,
         locale: resolveMarketingLocale(profile.preferred_locale, profile.country),
         includeTrialCta: step.key === 'day3' && !trialStarted.has(profile.id),
+        platform: resolveMarketingPlatform(profile.signup_platform),
       });
       results[`${profile.id}:${step.key}`] = result;
       break;
@@ -129,7 +132,7 @@ export const handler = async () => {
   if (trialPendingIds.length > 0) {
     const { data: trialProfiles, error: trialProfilesError } = await supabase
       .from('profiles')
-      .select('id, email, preferred_locale, country')
+      .select('id, email, preferred_locale, country, signup_platform')
       .in('id', trialPendingIds)
       .gte('created_at', MARKETING_EMAIL_RELEASE_CUTOFF);
     if (trialProfilesError) {
@@ -142,6 +145,7 @@ export const handler = async () => {
         email: profile.email,
         locale: resolveMarketingLocale(profile.preferred_locale, profile.country),
         includeTrialCta: false,
+        platform: resolveMarketingPlatform(profile.signup_platform),
       });
       results[`${profile.id}:trial_start`] = result;
     }

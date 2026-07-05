@@ -128,7 +128,7 @@ final class AppState: ObservableObject {
             .map { Int($0) ?? 0 }
     }
 
-    func createProfile(nickname: String, agreed: Bool) async {
+    func createProfile(nickname: String, agreed: Bool, marketingEmailOptIn: Bool) async {
         let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedNickname.isEmpty else {
@@ -159,7 +159,9 @@ final class AppState: ObservableObject {
                 userId: userId,
                 email: email,
                 nickname: trimmedNickname,
-                locale: locale
+                locale: locale,
+                marketingEmailOptIn: marketingEmailOptIn,
+                marketingEmailOptInText: marketingEmailOptIn ? MarketingEmailOptIn.consentText(locale: locale) : nil
             )
 
             guard let createdProfile = try await supabase.fetchProfileIfExists(userId: userId) else {
@@ -168,6 +170,9 @@ final class AppState: ObservableObject {
 
             pendingMainQuestAutoStart = true
             AnalyticsTracker.trackSignUp()
+            if marketingEmailOptIn {
+                Task { await supabase.sendMarketingWelcomeEmail() }
+            }
             await activateAuthenticatedState(userId: userId, profile: createdProfile)
         } catch {
             if let existingProfile = try? await supabase.fetchProfileIfExists(userId: userId) {

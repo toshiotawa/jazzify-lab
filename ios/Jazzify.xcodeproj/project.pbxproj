@@ -60,6 +60,7 @@
 		03724194B6C8D5BB89CC901D /* PaymentIssueBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */; };
 		07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */; };
 		A1B2C3D4E5F60718293A6002 /* SignupMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A6001 /* SignupMetadata.swift */; };
+		A1B2C3D4E5F60718293A7002 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A7001 /* MarketingEmailOptIn.swift */; };
 		ANLYT0100000002 /* AnalyticsClientID.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANLYT0100000001 /* AnalyticsClientID.swift */; };
 		ANLYT0100000004 /* AnalyticsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANLYT0100000003 /* AnalyticsTracker.swift */; };
 		0C4A607FEC5B7FD7C041477F /* ProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2BD5DA49B637FB8C0E889B /* ProfileSetupView.swift */; };
@@ -364,6 +365,7 @@
 		A1B2C3D4E5F60718293A4B5C /* AppReleaseVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReleaseVersion.swift; sourceTree = "<group>"; };
 		400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A6001 /* SignupMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupMetadata.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A7001 /* MarketingEmailOptIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingEmailOptIn.swift; sourceTree = "<group>"; };
 		ANLYT0100000001 /* AnalyticsClientID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsClientID.swift; sourceTree = "<group>"; };
 		ANLYT0100000003 /* AnalyticsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTracker.swift; sourceTree = "<group>"; };
 		44BB606E44E08242A371BE80 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
@@ -816,6 +818,7 @@
 			isa = PBXGroup;
 			children = (
 				A1B2C3D4E5F60718293A6001 /* SignupMetadata.swift */,
+				A1B2C3D4E5F60718293A7001 /* MarketingEmailOptIn.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1399,6 +1402,7 @@
 				6BFFD02966CF6D54DC197D87 /* SubscriptionView.swift in Sources */,
 				07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */,
 				A1B2C3D4E5F60718293A6002 /* SignupMetadata.swift in Sources */,
+				A1B2C3D4E5F60718293A7002 /* MarketingEmailOptIn.swift in Sources */,
 				ANLYT0100000002 /* AnalyticsClientID.swift in Sources */,
 				ANLYT0100000004 /* AnalyticsTracker.swift in Sources */,
 				CB19406828C418DB3A880E17 /* SurvivalBossEffectRenderer.swift in Sources */,

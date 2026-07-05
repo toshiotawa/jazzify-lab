@@ -81,7 +81,14 @@ final class SupabaseService: Sendable {
         return response.first
     }
 
-    func createProfile(userId: UUID, email: String, nickname: String, locale: AppLocale) async throws {
+    func createProfile(
+        userId: UUID,
+        email: String,
+        nickname: String,
+        locale: AppLocale,
+        marketingEmailOptIn: Bool,
+        marketingEmailOptInText: String?
+    ) async throws {
         struct NewProfile: Encodable {
             let id: UUID
             let email: String
@@ -94,6 +101,10 @@ final class SupabaseService: Sendable {
             let signup_platform: String = "ios"
             let country: String?
             let ga_client_id: String
+            let marketing_email_opt_in: Bool
+            let marketing_email_opt_in_at: String?
+            let marketing_email_opt_in_source: String?
+            let marketing_email_opt_in_text: String?
         }
 
         try await client
@@ -104,9 +115,26 @@ final class SupabaseService: Sendable {
                 nickname: nickname,
                 preferred_locale: locale.rawValue,
                 country: SignupMetadata.resolveSignupCountry(),
-                ga_client_id: AnalyticsClientID.current()
+                ga_client_id: AnalyticsClientID.current(),
+                marketing_email_opt_in: marketingEmailOptIn,
+                marketing_email_opt_in_at: marketingEmailOptIn ? ISO8601DateFormatter().string(from: Date()) : nil,
+                marketing_email_opt_in_source: marketingEmailOptIn ? MarketingEmailOptIn.source : nil,
+                marketing_email_opt_in_text: marketingEmailOptIn ? marketingEmailOptInText : nil
             ))
             .execute()
+    }
+
+    /// 登録直後メール（day0・PDF配布）送信をfire-and-forgetで依頼。
+    /// 失敗しても marketingDripCron が1時間以内に day0 を拾うためベストエフォートでよい。
+    func sendMarketingWelcomeEmail() async {
+        guard let token = try? await accessToken() else { return }
+
+        var request = URLRequest(url: Config.sendMarketingWelcomeURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     func recordUserMilestone(userId: UUID, milestone: String, source: String? = nil) async throws {

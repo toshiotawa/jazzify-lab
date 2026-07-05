@@ -9,6 +9,7 @@ import { authenticateRequest } from './lib/lemonNetlifyCommon';
 import {
   claimAndSendMarketingEmail,
   resolveMarketingLocale,
+  resolveMarketingPlatform,
 } from './lib/marketingEmailDelivery';
 
 const headers = {
@@ -34,7 +35,7 @@ export const handler: Handler = async (event) => {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('email, preferred_locale, country, marketing_email_opt_in')
+    .select('email, preferred_locale, country, signup_platform, marketing_email_opt_in')
     .eq('id', userId)
     .maybeSingle();
   if (profileError || !profile) {
@@ -49,6 +50,7 @@ export const handler: Handler = async (event) => {
     email: profile.email,
     locale: resolveMarketingLocale(profile.preferred_locale, profile.country),
     includeTrialCta: false,
+    platform: resolveMarketingPlatform(profile.signup_platform),
   });
 
   return { statusCode: 200, headers, body: JSON.stringify({ result }) };

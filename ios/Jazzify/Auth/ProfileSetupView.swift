@@ -7,6 +7,7 @@ struct ProfileSetupView: View {
 
     @State private var nickname = ""
     @State private var agreed = false
+    @State private var marketingEmailOptIn = false
     @State private var isSubmitting = false
     @FocusState private var isNicknameFocused: Bool
 
@@ -95,6 +96,22 @@ struct ProfileSetupView: View {
                             }
                             .foregroundStyle(.purple)
 
+                            VStack(alignment: .leading, spacing: 4) {
+                                Toggle(isOn: $marketingEmailOptIn) {
+                                    Text(MarketingEmailOptIn.label(locale: locale))
+                                        .font(.footnote)
+                                        .foregroundStyle(.white)
+                                }
+                                .tint(.purple)
+
+                                Text(MarketingEmailOptIn.description(locale: locale))
+                                    .font(.caption2)
+                                    .foregroundStyle(.gray)
+                            }
+                            .padding(12)
+                            .background(Color(hex: "374151"))
+                            .cornerRadius(8)
+
                             if let error = appState.profileSetupError {
                                 Text(error)
                                     .font(.caption)
@@ -148,7 +165,11 @@ struct ProfileSetupView: View {
         isSubmitting = true
 
         Task {
-            await appState.createProfile(nickname: trimmedNickname, agreed: agreed)
+            await appState.createProfile(
+                nickname: trimmedNickname,
+                agreed: agreed,
+                marketingEmailOptIn: marketingEmailOptIn
+            )
             isSubmitting = false
         }
     }

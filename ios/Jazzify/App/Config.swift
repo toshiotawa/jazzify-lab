@@ -63,6 +63,12 @@ enum Config {
             + "/.netlify/functions/iosAnalyticsEvent")!
     }
 
+    /// 登録直後メール（day0・PDF配布）送信。要 Authorization: Bearer <supabase access token>。
+    static var sendMarketingWelcomeURL: URL {
+        URL(string: webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            + "/.netlify/functions/sendMarketingWelcome")!
+    }
+
     /// 開発者専用レッスンコースを一覧に含めるか（DEBUG では既定 true。Release では Info.plist の `IncludeDevLessonCourses` が true のときのみ true）
     static var includeDeveloperLessonCourses: Bool {
         #if DEBUG

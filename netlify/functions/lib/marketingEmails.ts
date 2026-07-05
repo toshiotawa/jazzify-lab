@@ -1,11 +1,14 @@
 export type MarketingEmailKey = 'day0' | 'day1' | 'day2' | 'day3' | 'trial_start';
 export type MarketingEmailLocale = 'ja' | 'en';
+export type MarketingEmailPlatform = 'web' | 'ios';
 
 export interface MarketingEmailInput {
   locale: MarketingEmailLocale;
   unsubscribeUrl: string;
   /** day3のみ使用。falseならトライアル誘導ブロックを丸ごと省く */
   includeTrialCta: boolean;
+  /** day3のみ使用。iOSはApple IAP専用のためWebのLemon課金導線（URL_ACCOUNT）を出さない */
+  platform: MarketingEmailPlatform;
 }
 
 export interface MarketingEmailContent {
@@ -16,7 +19,7 @@ export interface MarketingEmailContent {
 export const MARKETING_EMAIL_FROM = 'Jazzify <noreply@jazzify.jp>';
 
 const URL_MAIN_LESSONS = 'https://jazzify.jp/main/lessons';
-const URL_PRICING = 'https://jazzify.jp/main/pricing';
+const URL_ACCOUNT = 'https://jazzify.jp/main/account';
 const URL_IOS_MIDI = 'https://jazzify.jp/help/ios-midi';
 const URL_MIDI_KEYBOARD = 'https://jazzify.jp/help/midi-keyboard-choice';
 const URL_PDF = 'https://jazzify.jp/sozai/bluesy-licks/bluesy-licks-1-5.pdf';
@@ -267,7 +270,34 @@ const buildDay2Body = (locale: MarketingEmailLocale): string => {
   ].join('');
 };
 
-const buildDay3Body = (locale: MarketingEmailLocale, includeTrialCta: boolean): string => {
+const buildTrialCtaParagraph = (
+  locale: MarketingEmailLocale,
+  platform: MarketingEmailPlatform,
+): string => {
+  if (locale === 'ja') {
+    return platform === 'ios'
+      ? paragraph(
+          'もっと先のフレーズや実践課題に進みたい方は、Jazzifyアプリの「設定 → サブスクリプション」から7日間の無料トライアルを始められます。',
+        )
+      : paragraph(
+          `もっと先のフレーズや実践課題に進みたい方は、7日間の無料トライアルでBluesy Licksコースも試せます。${link(URL_ACCOUNT, '無料トライアルを見てみる')}`,
+        );
+  }
+
+  return platform === 'ios'
+    ? paragraph(
+        'Want to go further? Open the Jazzify app and go to Settings → Subscriptions to start your 7-day free trial.',
+      )
+    : paragraph(
+        `Want to go further? A 7-day free trial unlocks the full Bluesy Licks course and more. ${link(URL_ACCOUNT, 'See the free trial')}`,
+      );
+};
+
+const buildDay3Body = (
+  locale: MarketingEmailLocale,
+  includeTrialCta: boolean,
+  platform: MarketingEmailPlatform,
+): string => {
   if (locale === 'ja') {
     const parts = [
       paragraph(
@@ -287,11 +317,7 @@ const buildDay3Body = (locale: MarketingEmailLocale, includeTrialCta: boolean): 
     ];
 
     if (includeTrialCta) {
-      parts.push(
-        paragraph(
-          `もっと先のフレーズや実践課題に進みたい方は、7日間の無料トライアルでBluesy Licksコースも試せます。${link(URL_PRICING, '無料トライアルを見てみる')}`,
-        ),
-      );
+      parts.push(buildTrialCtaParagraph('ja', platform));
     }
 
     return parts.join('');
@@ -315,11 +341,7 @@ const buildDay3Body = (locale: MarketingEmailLocale, includeTrialCta: boolean): 
   ];
 
   if (includeTrialCta) {
-    parts.push(
-      paragraph(
-        `Want to go further? A 7-day free trial unlocks the full Bluesy Licks course and more. ${link(URL_PRICING, 'See the free trial')}`,
-      ),
-    );
+    parts.push(buildTrialCtaParagraph('en', platform));
   }
 
   return parts.join('');
@@ -406,7 +428,7 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     subjectEn: 'Take a phrase from the PDF into Jazzify',
     titleJa: 'PDFのフレーズをJazzifyで',
     titleEn: 'From PDF to practice',
-    buildBody: (locale, input) => buildDay3Body(locale, input.includeTrialCta),
+    buildBody: (locale, input) => buildDay3Body(locale, input.includeTrialCta, input.platform),
   },
   trial_start: {
     subjectJa: 'トライアル開始ありがとうございます。まずはここから',
