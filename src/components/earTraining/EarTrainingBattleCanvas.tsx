@@ -84,7 +84,6 @@ const createInitialRuntime = (
   phraseSlotKey: '',
   lastEffectId: 0,
   staffReservedBottomY: resolveStaffReservedBottomY(height, width, snapshot.staffBand),
-  activeThinRingCount: 0,
   effectByCommandId: new Map(),
   visualSlow: null,
   parryMotionGeneration: 0,

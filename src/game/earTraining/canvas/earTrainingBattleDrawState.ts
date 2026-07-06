@@ -201,9 +201,6 @@ export interface ParrySparkSlot {
   size: number;
   timeOffsetMs: number;
   radiusScale: number;
-  wobblePhase: number;
-  wobbleAmp: number;
-  tangentSkew: number;
 }
 
 export interface EarTrainingBattleDrawRuntime {
@@ -229,8 +226,6 @@ export interface EarTrainingBattleDrawRuntime {
   phraseSlotKey: string;
   lastEffectId: number;
   staffReservedBottomY: number;
-  /** アクティブな precise parry thinRing 数（stackIndex 用、prune 時に再計算） */
-  activeThinRingCount: number;
   /** OSMD ハンマー dismiss の O(1) 参照 */
   effectByCommandId: Map<number, CanvasEffectRuntime>;
   /** 描画のみの疑似ヒットストップ（パリィ成功時） */

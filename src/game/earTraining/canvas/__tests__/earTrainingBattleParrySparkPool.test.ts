@@ -95,7 +95,7 @@ describe('earTrainingBattleParrySparkPool', () => {
     expect(state?.color).toBe(PARRY_SPARK_COLOR);
   });
 
-  it('applies per-spark jitter so merge distances are not identical', () => {
+  it('applies per-spark radius scale so merge distances are not identical', () => {
     const pool = createParrySparkPool();
     spawnParrySparks(pool, 100, 100, 1_000, false);
     const mergeTime = 1_000 + PARRY_FINISH_START_MS;

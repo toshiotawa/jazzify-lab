@@ -49,8 +49,7 @@ const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_POSE_KEY = 'guardD';
 const PARRY_FINISH_POSE_KEY = 'finish';
 const PARRY_RING_ORANGE = 'rgba(251, 146, 60, 0.85)';
-const PARRY_PRECISE_RING_ORANGE = 'rgba(251, 146, 60, 1)';
-const PARRY_PRECISE_RING_DURATION_MS = PARRY_TOTAL_MS - PARRY_RING_EXPAND_START_MS;
+const PARRY_SLASH_DURATION_MS = 240;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
 const PERFECT_LIGHTNING_IMPACT_MS = 470;
@@ -363,8 +362,6 @@ const scheduleParryMotion = (
   }, PARRY_MOTION_END_MS);
 };
 
-const THIN_RING_STACK_MAX = 3;
-
 const registerTrackedEffect = (
   runtime: EarTrainingBattleDrawRuntime,
   effect: CanvasEffectRuntime,
@@ -373,61 +370,6 @@ const registerTrackedEffect = (
   if (effect.commandId >= 0) {
     runtime.effectByCommandId.set(effect.commandId, effect);
   }
-};
-
-const syncActiveThinRingCount = (
-  runtime: EarTrainingBattleDrawRuntime,
-  now: number,
-): void => {
-  let count = 0;
-  for (const effect of runtime.effects) {
-    for (const visual of effect.visuals) {
-      if (visual.kind === 'thinRing' && now < visual.startedAt + visual.durationMs) {
-        count += 1;
-      }
-    }
-  }
-  runtime.activeThinRingCount = count;
-};
-
-const addPreciseParryRing = (
-  runtime: EarTrainingBattleDrawRuntime,
-  x: number,
-  y: number,
-  ringStartedAt: number,
-  parryStartedAt: number,
-): void => {
-  const stackIndex = Math.min(runtime.activeThinRingCount, THIN_RING_STACK_MAX);
-  runtime.activeThinRingCount += 1;
-  const scaleStart = PARRY_RING_MERGE_SCALE + stackIndex * 0.08;
-  const scaleEnd = PARRY_RING_MAX_SCALE + stackIndex * 0.12;
-  const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, {
-    kind: 'thinRing',
-    startedAt: ringStartedAt,
-    durationMs: PARRY_PRECISE_RING_DURATION_MS,
-    fromX: x,
-    fromY: y,
-    toX: x,
-    toY: y,
-    color: PARRY_PRECISE_RING_ORANGE,
-    size: 68,
-    alpha: 1,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart,
-    scaleEnd,
-    fadeOut: true,
-    groupStartedAt: parryStartedAt,
-  });
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'osmdHammerReflect' },
-    startedAt: ringStartedAt,
-    impactAt: ringStartedAt,
-    impactFired: true,
-    visuals,
-  });
 };
 
 const dismissIncomingOsmdHammer = (
@@ -707,17 +649,28 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   triggerParryCameraZoom(runtime.camera, width / 2, height / 2);
   spawnParrySparks(runtime.parrySparkPool, parryCenterX, parryCenterY, now, isChainParry);
   addParryGuardEffect(runtime, parryCenterX, parryCenterY, now + PARRY_RING_EXPAND_START_MS, now);
-  if (command.precise === true) {
-    addPreciseParryRing(
-      runtime,
-      parryCenterX,
-      parryCenterY,
-      now + PARRY_RING_EXPAND_START_MS,
-      now,
-    );
-  }
 
   const visuals: CanvasEffectVisual[] = [];
+  const slashCenterX = (parryCenterX + anchors.enemy.x) / 2;
+  const slashSpan = Math.abs(anchors.enemy.x - parryCenterX) + 48;
+  addVisual(visuals, {
+    kind: 'slash',
+    startedAt: now + PARRY_REFLECT_HIT_MS,
+    durationMs: PARRY_SLASH_DURATION_MS,
+    fromX: slashCenterX,
+    fromY: parryCenterY,
+    toX: slashCenterX,
+    toY: parryCenterY,
+    color: 'rgba(255, 255, 255, 0.95)',
+    size: slashSpan / 1.9,
+    alpha: 1,
+    rotation: -4,
+    rotationEnd: -4,
+    scaleStart: 0.5,
+    scaleEnd: 1,
+    fadeOut: true,
+    groupStartedAt: now,
+  });
 
   runtime.effects.push({
     commandId: command.id,
@@ -1003,7 +956,6 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     }
     return keep;
   });
-  syncActiveThinRingCount(runtime, visualNow);
   runtime.floatingTexts = runtime.floatingTexts.filter(t => now - t.startedAt < t.durationMs);
   runtime.damageTexts = runtime.damageTexts.filter(t => now - t.startedAt < t.durationMs);
   if (runtime.screenFlash && now - runtime.screenFlash.startedAt > runtime.screenFlash.durationMs) {
