@@ -1,11 +1,15 @@
 import {
+  getParryEffectRadiusAtAge,
   getParryLingerAlpha,
+  getParryRingScaleAtAge,
   getVisualNow,
   getVisualSlowCompensation,
   PARRY_EFFECT_FADE_START_MS,
   PARRY_FINISH_START_MS,
   PARRY_LINGER_FADE_DURATION_MS,
+  PARRY_MERGE_RADIUS_PX,
   PARRY_MOTION_END_MS,
+  PARRY_RING_MERGE_SCALE,
   PARRY_SLOW_PHASE_MS,
   PARRY_TOTAL_MS,
   PARRY_VISUAL_SLOW_DURATION_MS,
@@ -15,6 +19,7 @@ import {
   createParrySparkPool,
   getParrySparkDrawState,
   hasActiveParrySparks,
+  PARRY_SPARK_COLOR,
   PARRY_SPARK_DURATION_MS,
   pruneParrySparks,
   spawnParrySparks,
@@ -47,17 +52,25 @@ describe('earTrainingBattle visual slow', () => {
   });
 });
 
+describe('parry merge timeline', () => {
+  it('aligns spark radius and ring scale at 251ms', () => {
+    expect(getParryEffectRadiusAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
+    expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_RING_MERGE_SCALE);
+    expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS - 1)).toBeNull();
+  });
+});
+
 describe('earTrainingBattleParrySparkPool', () => {
-  it('spawns 32 sparks for normal parry and 42 for chain parry', () => {
+  it('spawns 14 sparks for normal parry and 20 for chain parry', () => {
     const pool = createParrySparkPool();
-    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(32);
+    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(14);
     expect(hasActiveParrySparks(pool)).toBe(true);
 
     for (const slot of pool) {
       slot.active = false;
     }
 
-    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(42);
+    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(20);
   });
 
   it('reuses inactive pool slots without allocating new objects', () => {
@@ -72,26 +85,31 @@ describe('earTrainingBattleParrySparkPool', () => {
     expect(pool.some(slot => slot.active && slot.startedAt === 700)).toBe(true);
   });
 
-  it('uses white-orange gradient colors only', () => {
+  it('uses orange color only', () => {
     const pool = createParrySparkPool();
     spawnParrySparks(pool, 50, 50, 1_000, false);
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
     const state = getParrySparkDrawState(slot, 1_020);
-    expect(state?.color.startsWith('rgb(')).toBe(true);
-    expect(state?.color).not.toContain('ef4444');
+    expect(state?.color).toBe(PARRY_SPARK_COLOR);
   });
 
-  it('spawns sparks from spread origins rather than a single center point', () => {
+  it('expands sparks radially from the player center', () => {
     const pool = createParrySparkPool();
     spawnParrySparks(pool, 100, 100, 1_000, false);
-    const active = pool.filter(slot => slot.active);
-    expect(active.length).toBeGreaterThan(0);
-    const allAtCenter = active.every(
-      slot => slot.originX === 100 && slot.originY === 100,
-    );
-    expect(allAtCenter).toBe(false);
+    const slot = pool.find(entry => entry.active);
+    expect(slot).toBeDefined();
+    if (!slot) return;
+    const early = getParrySparkDrawState(slot, 1_010);
+    const merged = getParrySparkDrawState(slot, 1_000 + PARRY_FINISH_START_MS);
+    expect(early).toBeDefined();
+    expect(merged).toBeDefined();
+    if (!early || !merged) return;
+    const earlyDist = Math.hypot(early.x - 100, early.y - 100);
+    const mergedDist = Math.hypot(merged.x - 100, merged.y - 100);
+    expect(mergedDist).toBeGreaterThan(earlyDist);
+    expect(mergedDist).toBeCloseTo(PARRY_MERGE_RADIUS_PX, 0);
   });
 });
 

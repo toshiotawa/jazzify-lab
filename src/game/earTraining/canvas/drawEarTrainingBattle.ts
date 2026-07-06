@@ -47,12 +47,11 @@ import {
   easeLinear,
   getEffectProgress,
   getParryLingerAlpha,
+  getParryRingScaleAtAge,
   getVisualNow,
   lerp,
   PARRY_EFFECT_FADE_START_MS,
   PARRY_LINGER_FADE_DURATION_MS,
-  PARRY_RING_EXPAND_END_MS,
-  PARRY_RING_EXPAND_START_MS,
 } from './earTrainingBattleDrawState';
 import {
   getCharacterFlashAlpha,
@@ -859,16 +858,11 @@ const drawEffectVisual = (
   let alpha = visual.alpha;
   if (visual.parryRingExpand && visual.groupStartedAt !== undefined) {
     const age = now - visual.groupStartedAt;
-    if (age < PARRY_RING_EXPAND_START_MS) {
+    const ringScale = getParryRingScaleAtAge(age);
+    if (ringScale === null) {
       return;
     }
-    if (age <= PARRY_RING_EXPAND_END_MS) {
-      const expandT = (age - PARRY_RING_EXPAND_START_MS)
-        / (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
-      size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicOut(expandT));
-    } else {
-      size = visual.size * visual.scaleEnd;
-    }
+    size = visual.size * ringScale;
     if (age >= PARRY_EFFECT_FADE_START_MS) {
       const fadeT = (age - PARRY_EFFECT_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS;
       alpha = visual.alpha * (1 - easeCubicOut(Math.min(1, fadeT)));

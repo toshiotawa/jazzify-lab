@@ -136,6 +136,12 @@ export const PARRY_GUARD_ONLY_MS = PARRY_MOTION_END_MS;
 /** 敵ダメージ・ノックバック（リング最大付近） */
 export const PARRY_REFLECT_HIT_MS = 501;
 export const PARRY_TOTAL_MS = 1000;
+export const PARRY_RING_BASE_SIZE = 72;
+export const PARRY_SPARK_START_RADIUS_PX = 4;
+export const PARRY_MERGE_RADIUS_PX = 34;
+export const PARRY_RING_MERGE_SCALE = (PARRY_MERGE_RADIUS_PX * 2) / PARRY_RING_BASE_SIZE;
+export const PARRY_RING_MAX_SCALE = 2.45;
+export const PARRY_MAX_RADIUS_PX = (PARRY_RING_BASE_SIZE * PARRY_RING_MAX_SCALE) / 2;
 export const PARRY_RING_START_MS = PARRY_RING_EXPAND_START_MS;
 export const PARRY_LINGER_FADE_START_MS = PARRY_EFFECT_FADE_START_MS;
 export const PARRY_LINGER_FADE_DURATION_MS = PARRY_MOTION_END_MS - PARRY_EFFECT_FADE_START_MS;
@@ -184,14 +190,11 @@ export interface ParrySparkSlot {
   startedAt: number;
   durationMs: number;
   parryStartedAt: number;
-  originX: number;
-  originY: number;
+  centerX: number;
+  centerY: number;
   dirX: number;
   dirY: number;
-  travel: number;
   size: number;
-  /** 0=白, 1=オレンジ のグラデーション */
-  colorMix: number;
 }
 
 export interface EarTrainingBattleDrawRuntime {
@@ -240,6 +243,8 @@ export const easeCubicInOut = (t: number): number =>
 export const easeSineInOut = (t: number): number => -(Math.cos(Math.PI * t) - 1) / 2;
 export const easeLinear = (t: number): number => t;
 
+export const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
+
 export const getParryLingerAlpha = (
   now: number,
   groupStartedAt: number | undefined,
@@ -252,12 +257,35 @@ export const getParryLingerAlpha = (
   return baseAlpha * (1 - easeCubicOut(fadeT));
 };
 
+/** 花火・パリィ円が共有する半径タイムライン（251ms で合流） */
+export const getParryEffectRadiusAtAge = (ageMs: number): number => {
+  if (ageMs <= PARRY_RING_EXPAND_START_MS) {
+    const t = ageMs / PARRY_RING_EXPAND_START_MS;
+    return lerp(PARRY_SPARK_START_RADIUS_PX, PARRY_MERGE_RADIUS_PX, easeCubicOut(t));
+  }
+  if (ageMs <= PARRY_RING_EXPAND_END_MS) {
+    const t = (ageMs - PARRY_RING_EXPAND_START_MS)
+      / (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
+    return lerp(PARRY_MERGE_RADIUS_PX, PARRY_MAX_RADIUS_PX, easeCubicOut(t));
+  }
+  return PARRY_MAX_RADIUS_PX;
+};
+
+/** 251ms 以前は非表示。合流サイズから拡大 */
+export const getParryRingScaleAtAge = (ageMs: number): number | null => {
+  if (ageMs < PARRY_RING_EXPAND_START_MS) return null;
+  if (ageMs <= PARRY_RING_EXPAND_END_MS) {
+    const t = (ageMs - PARRY_RING_EXPAND_START_MS)
+      / (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
+    return lerp(PARRY_RING_MERGE_SCALE, PARRY_RING_MAX_SCALE, easeCubicOut(t));
+  }
+  return PARRY_RING_MAX_SCALE;
+};
+
 export const getEffectProgress = (visual: CanvasEffectVisual, now: number): number => {
   if (visual.durationMs <= 0) return 1;
   return Math.min(Math.max((now - visual.startedAt) / visual.durationMs, 0), 1);
 };
-
-export const lerp = (from: number, to: number, t: number): number => from + (to - from) * t;
 
 export const hexColor = (value: number, alpha = 1): string => {
   const r = (value >> 16) & 0xff;

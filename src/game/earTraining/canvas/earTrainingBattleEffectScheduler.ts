@@ -14,12 +14,13 @@ import {
   getVisualNow,
   hexColor,
   lerp,
-  PARRY_FINISH_GUARD_MS,
-  PARRY_FINISH_START_MS,
   PARRY_GUARD_ONLY_MS,
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HIT_MS,
+  PARRY_RING_BASE_SIZE,
   PARRY_RING_EXPAND_START_MS,
+  PARRY_RING_MAX_SCALE,
+  PARRY_RING_MERGE_SCALE,
   PARRY_TOTAL_MS,
   PARRY_VISUAL_SLOW_DURATION_MS,
   PARRY_VISUAL_SLOW_SCALE,
@@ -34,6 +35,7 @@ import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
   triggerCameraShake,
+  triggerParryCameraZoom,
   triggerZoomToPlayer,
 } from './earTrainingBattleCamera';
 import {
@@ -269,12 +271,12 @@ const addParryGuardEffect = (
     toY: y,
     color: 'rgba(255, 255, 255, 0)',
     strokeColor: PARRY_RING_ORANGE,
-    size: 72,
+    size: PARRY_RING_BASE_SIZE,
     alpha: 0.82,
     rotation: 0,
     rotationEnd: 0,
-    scaleStart: 0.32,
-    scaleEnd: 2.45,
+    scaleStart: PARRY_RING_MERGE_SCALE,
+    scaleEnd: PARRY_RING_MAX_SCALE,
     parryRingExpand: true,
     groupStartedAt: parryStartedAt,
   });
@@ -339,12 +341,7 @@ const scheduleParryMotion = (
 
   if (finishOnly) {
     runtime.parryFinishLocked = true;
-    setPose(PARRY_GUARD_POSE_KEY, PARRY_FINISH_GUARD_MS);
-
-    runtime.parryFinishTimer = setTimeout(() => {
-      if (runtime.parryMotionGeneration !== generation) return;
-      setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS - PARRY_FINISH_START_MS);
-    }, PARRY_FINISH_START_MS);
+    setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS);
 
     runtime.parryMotionEndTimer = setTimeout(() => {
       if (runtime.parryMotionGeneration !== generation) return;
@@ -400,8 +397,8 @@ const addPreciseParryRing = (
 ): void => {
   const stackIndex = Math.min(runtime.activeThinRingCount, THIN_RING_STACK_MAX);
   runtime.activeThinRingCount += 1;
-  const scaleStart = 0.45 + stackIndex * 0.12;
-  const scaleEnd = 2.3 + stackIndex * 0.16;
+  const scaleStart = PARRY_RING_MERGE_SCALE + stackIndex * 0.08;
+  const scaleEnd = PARRY_RING_MAX_SCALE + stackIndex * 0.12;
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'thinRing',
@@ -682,12 +679,11 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
 };
 
 const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
-  const { runtime, anchors, onDirty, onImpact, playerTimers, snapshot, width } = ctx;
+  const { runtime, anchors, onDirty, onImpact, playerTimers, snapshot, width, height } = ctx;
   const now = performance.now();
 
-  const guardDirection = anchors.enemy.x < anchors.player.x ? -1 : 1;
-  const guardX = anchors.player.x + guardDirection * 54;
-  const guardY = anchors.player.bodyY - 22;
+  const parryCenterX = anchors.player.x;
+  const parryCenterY = anchors.player.bodyY - 28;
 
   holdCharacterForAction(
     runtime.player,
@@ -706,13 +702,14 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   runtime.lastParryAt = now;
   triggerParryVisualSlow(runtime, now);
   scheduleParryMotion(runtime, onDirty, finishOnly);
-  spawnParrySparks(runtime.parrySparkPool, guardX, guardY, now, isChainParry);
-  addParryGuardEffect(runtime, guardX, guardY, now + PARRY_RING_EXPAND_START_MS, now);
+  triggerParryCameraZoom(runtime.camera, parryCenterX, parryCenterY, width / 2, height / 2);
+  spawnParrySparks(runtime.parrySparkPool, parryCenterX, parryCenterY, now, isChainParry);
+  addParryGuardEffect(runtime, parryCenterX, parryCenterY, now + PARRY_RING_EXPAND_START_MS, now);
   if (command.precise === true) {
     addPreciseParryRing(
       runtime,
-      guardX,
-      guardY,
+      parryCenterX,
+      parryCenterY,
       now + PARRY_RING_EXPAND_START_MS,
       now,
     );

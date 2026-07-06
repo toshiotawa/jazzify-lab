@@ -66,6 +66,26 @@ export const triggerZoomToPlayer = (
   };
 };
 
+export const triggerParryCameraZoom = (
+  camera: CanvasCameraRuntime,
+  focusX: number,
+  focusY: number,
+  centerX: number,
+  centerY: number,
+): void => {
+  camera.zoom = {
+    startedAt: performance.now(),
+    focusX,
+    focusY,
+    centerX,
+    centerY,
+    panInMs: 20,
+    holdMs: 0,
+    returnMs: 80,
+    zoomTarget: 1.045,
+  };
+};
+
 export interface CameraTransform {
   offsetX: number;
   offsetY: number;
