@@ -137,8 +137,8 @@ export const PARRY_FINISH_START_MS = 251;
 export const PARRY_MOTION_END_MS = 1000;
 /** 通常パリィのガード_pose持続（フィニッシュなし） */
 export const PARRY_GUARD_ONLY_MS = PARRY_MOTION_END_MS;
-/** 敵ダメージ・ノックバック（リング最大付近） */
-export const PARRY_REFLECT_HIT_MS = 501;
+/** 敵ダメージ・ノックバック・slash（パリィ直後） */
+export const PARRY_REFLECT_HIT_MS = 1;
 export const PARRY_TOTAL_MS = 1000;
 export const PARRY_RING_BASE_SIZE = 72;
 export const PARRY_SPARK_START_RADIUS_PX = 4;
