@@ -38,6 +38,11 @@ import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBatt
 import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
 import { getBattleAnchors, resolveStaffReservedBottomY } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
+import { PARRY_TOTAL_MS } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
+import {
+  createParrySparkPool,
+  hasActiveParrySparks,
+} from '@/game/earTraining/canvas/earTrainingBattleParrySparkPool';
 import {
   pruneExpiredEffects,
   scheduleEarTrainingBattleEffect,
@@ -85,6 +90,8 @@ const createInitialRuntime = (
   parryMotionGeneration: 0,
   parryFinishTimer: null,
   parryMotionEndTimer: null,
+  parrySparkPool: createParrySparkPool(),
+  lastParryAt: 0,
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({
@@ -396,6 +403,11 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         || (
           runtime.visualSlow !== null
           && now < runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
+        )
+        || hasActiveParrySparks(runtime.parrySparkPool)
+        || (
+          runtime.lastParryAt > 0
+          && now < runtime.lastParryAt + PARRY_TOTAL_MS + 250
         );
 
       if (!dirtyRef.current && !hasActiveMotion) {

@@ -46,6 +46,7 @@ import {
   easeCubicOut,
   easeLinear,
   getEffectProgress,
+  getParryLingerAlpha,
   getVisualNow,
   lerp,
 } from './earTrainingBattleDrawState';
@@ -53,6 +54,9 @@ import {
   getCharacterFlashAlpha,
   updateCharacterPositions,
 } from './earTrainingBattleCharacterMotion';
+import {
+  drawParrySparks,
+} from './earTrainingBattleParrySparkPool';
 import {
   applyWorldCameraTransform,
   computeCameraTransform,
@@ -858,6 +862,7 @@ const drawEffectVisual = (
   } else if (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'slash' || visual.kind === 'shockwave') {
     alpha = visual.alpha * (1 - easeCubicOut(t));
   }
+  alpha = getParryLingerAlpha(now, visual.groupStartedAt, alpha);
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
 
   ctx.save();
@@ -938,6 +943,8 @@ const drawEffects = (
   runtime.effects.forEach(effect => {
     effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
   });
+
+  drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
 
   runtime.floatingTexts.forEach(text => {
     const t = (visualNow - text.startedAt) / text.durationMs;

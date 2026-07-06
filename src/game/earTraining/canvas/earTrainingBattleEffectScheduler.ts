@@ -15,6 +15,7 @@ import {
   hexColor,
   lerp,
   PARRY_FINISH_START_MS,
+  PARRY_GUARD_PHASE_MS,
   PARRY_MOTION_END_MS,
   PARRY_RING_START_MS,
   PARRY_TOTAL_MS,
@@ -33,25 +34,22 @@ import {
   triggerCameraShake,
   triggerZoomToPlayer,
 } from './earTrainingBattleCamera';
+import {
+  spawnParrySparks,
+  pruneParrySparks,
+} from './earTrainingBattleParrySparkPool';
 
 const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
-const PARRY_POSE_KEY = 'yokoIssenB';
+const PARRY_GUARD_POSE_KEY = 'guardD';
+const PARRY_FINISH_POSE_KEY = 'finish';
 const PARRY_GUARD_SLOW_RING_DELAY_MS = 35;
+const PARRY_SLOW_RING_DURATION_MS = PARRY_TOTAL_MS - PARRY_RING_START_MS - PARRY_GUARD_SLOW_RING_DELAY_MS;
+const PARRY_PRECISE_RING_DURATION_MS = PARRY_TOTAL_MS - PARRY_RING_START_MS;
 const PARRY_RING_ORANGE = 'rgba(251, 146, 60, 0.85)';
 const PARRY_RING_ORANGE_FADE = 'rgba(251, 146, 60, 0.42)';
 const PARRY_PRECISE_RING_ORANGE = 'rgba(251, 146, 60, 1)';
-const PARRY_FIREWORK_COLORS = [
-  '#ffffff',
-  '#fef08a',
-  '#fde047',
-  '#fb923c',
-  '#f97316',
-  '#bae6fd',
-  '#7dd3fc',
-  '#fef3c7',
-] as const;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
 const PERFECT_LIGHTNING_IMPACT_MS = 470;
@@ -258,12 +256,13 @@ const addParryGuardEffect = (
   runtime: EarTrainingBattleDrawRuntime,
   x: number,
   y: number,
-  startedAt: number,
+  ringStartedAt: number,
+  parryStartedAt: number,
 ): void => {
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'ring',
-    startedAt,
+    startedAt: ringStartedAt,
     durationMs: 90,
     fromX: x,
     fromY: y,
@@ -277,11 +276,12 @@ const addParryGuardEffect = (
     rotationEnd: 0,
     scaleStart: 0.45,
     scaleEnd: 1.15,
+    groupStartedAt: parryStartedAt,
   });
   addVisual(visuals, {
     kind: 'ring',
-    startedAt: startedAt + PARRY_GUARD_SLOW_RING_DELAY_MS,
-    durationMs: 240,
+    startedAt: ringStartedAt + PARRY_GUARD_SLOW_RING_DELAY_MS,
+    durationMs: PARRY_SLOW_RING_DURATION_MS,
     fromX: x,
     fromY: y,
     toX: x,
@@ -294,139 +294,14 @@ const addParryGuardEffect = (
     rotationEnd: 0,
     scaleStart: 0.7,
     scaleEnd: 1.75,
+    fadeOut: true,
+    groupStartedAt: parryStartedAt,
   });
   runtime.effects.push({
     commandId: -1,
     command: { id: -1, kind: 'osmdHammerReflect' },
-    startedAt,
-    impactAt: startedAt,
-    impactFired: true,
-    visuals,
-  });
-};
-
-const addParryFireworks = (
-  runtime: EarTrainingBattleDrawRuntime,
-  centerX: number,
-  centerY: number,
-  startedAt: number,
-): void => {
-  const visuals: CanvasEffectVisual[] = [];
-  const launchCount = 3;
-
-  for (let launch = 0; launch < launchCount; launch += 1) {
-    const launchDelay = launch * 75;
-    const launchX = centerX + (launch - 1) * 20 + (Math.random() - 0.5) * 14;
-    const launchBaseY = centerY + 12;
-    const apexY = centerY - 78 - launch * 18 - Math.random() * 28;
-    const launchDuration = 150 + launch * 25;
-    const burstAt = startedAt + launchDelay + launchDuration;
-
-    addVisual(visuals, {
-      kind: 'particle',
-      startedAt: startedAt + launchDelay,
-      durationMs: launchDuration,
-      fromX: launchX,
-      fromY: launchBaseY,
-      toX: launchX + (Math.random() - 0.5) * 10,
-      toY: apexY,
-      color: '#fef9c3',
-      size: 6,
-      alpha: 1,
-      rotation: 0,
-      rotationEnd: 0,
-      scaleStart: 1.4,
-      scaleEnd: 0.5,
-      fadeOut: true,
-    });
-
-    for (let trail = 0; trail < 5; trail += 1) {
-      const trailY = launchBaseY - trail * 16;
-      addVisual(visuals, {
-        kind: 'particle',
-        startedAt: startedAt + launchDelay + trail * 24,
-        durationMs: 130,
-        fromX: launchX,
-        fromY: trailY,
-        toX: launchX + (Math.random() - 0.5) * 18,
-        toY: trailY - 22 - Math.random() * 16,
-        color: PARRY_FIREWORK_COLORS[(launch + trail) % PARRY_FIREWORK_COLORS.length],
-        size: 3 + Math.random() * 3,
-        alpha: 0.92,
-        rotation: 0,
-        rotationEnd: 0,
-        scaleStart: 1.1,
-        scaleEnd: 0.15,
-        fadeOut: true,
-      });
-    }
-
-    addVisual(visuals, {
-      kind: 'burst',
-      startedAt: burstAt,
-      durationMs: 120,
-      fromX: launchX,
-      fromY: apexY,
-      toX: launchX,
-      toY: apexY,
-      color: 'rgba(255, 255, 255, 0.96)',
-      size: 28,
-      alpha: 1,
-      rotation: 0,
-      rotationEnd: 0,
-      scaleStart: 0.2,
-      scaleEnd: 1.6,
-      fadeOut: true,
-    });
-
-    const burstParticleCount = 20 + launch * 5;
-    for (let index = 0; index < burstParticleCount; index += 1) {
-      const angle = (Math.PI * 2 * index) / burstParticleCount + (Math.random() - 0.5) * 0.25;
-      const distance = 40 + Math.random() * 52;
-      addVisual(visuals, {
-        kind: 'particle',
-        startedAt: burstAt,
-        durationMs: 480 + Math.round(Math.random() * 240),
-        fromX: launchX,
-        fromY: apexY,
-        toX: launchX + Math.cos(angle) * distance,
-        toY: apexY + Math.sin(angle) * distance * 0.65 + 18 + Math.random() * 24,
-        color: PARRY_FIREWORK_COLORS[index % PARRY_FIREWORK_COLORS.length],
-        size: 4 + Math.random() * 5,
-        alpha: 0.98,
-        rotation: 0,
-        rotationEnd: 0,
-        scaleStart: 1.4,
-        scaleEnd: 0.1,
-        fadeOut: true,
-      });
-    }
-
-    addVisual(visuals, {
-      kind: 'ring',
-      startedAt: burstAt,
-      durationMs: 320,
-      fromX: launchX,
-      fromY: apexY,
-      toX: launchX,
-      toY: apexY,
-      color: 'rgba(255, 255, 255, 0)',
-      strokeColor: launch % 2 === 0 ? PARRY_RING_ORANGE : PARRY_RING_ORANGE_FADE,
-      size: 16,
-      alpha: 0.82,
-      rotation: 0,
-      rotationEnd: 0,
-      scaleStart: 0.25,
-      scaleEnd: 3.2,
-      fadeOut: true,
-    });
-  }
-
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'osmdHammerReflect' },
-    startedAt,
-    impactAt: startedAt,
+    startedAt: ringStartedAt,
+    impactAt: ringStartedAt,
     impactFired: true,
     visuals,
   });
@@ -477,11 +352,11 @@ const scheduleParryMotion = (
     onDirty();
   };
 
-  setPose(PARRY_POSE_KEY, PARRY_TOTAL_MS);
+  setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_PHASE_MS);
 
   runtime.parryFinishTimer = setTimeout(() => {
     if (runtime.parryMotionGeneration !== generation) return;
-    setPose(PARRY_POSE_KEY, PARRY_TOTAL_MS - PARRY_FINISH_START_MS);
+    setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS - PARRY_FINISH_START_MS);
   }, PARRY_FINISH_START_MS);
 
   runtime.parryMotionEndTimer = setTimeout(() => {
@@ -522,7 +397,8 @@ const addPreciseParryRing = (
   runtime: EarTrainingBattleDrawRuntime,
   x: number,
   y: number,
-  startedAt: number,
+  ringStartedAt: number,
+  parryStartedAt: number,
 ): void => {
   const stackIndex = Math.min(runtime.activeThinRingCount, THIN_RING_STACK_MAX);
   runtime.activeThinRingCount += 1;
@@ -531,8 +407,8 @@ const addPreciseParryRing = (
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'thinRing',
-    startedAt,
-    durationMs: 480,
+    startedAt: ringStartedAt,
+    durationMs: PARRY_PRECISE_RING_DURATION_MS,
     fromX: x,
     fromY: y,
     toX: x,
@@ -545,12 +421,13 @@ const addPreciseParryRing = (
     scaleStart,
     scaleEnd,
     fadeOut: true,
+    groupStartedAt: parryStartedAt,
   });
   runtime.effects.push({
     commandId: -1,
     command: { id: -1, kind: 'osmdHammerReflect' },
-    startedAt,
-    impactAt: startedAt,
+    startedAt: ringStartedAt,
+    impactAt: ringStartedAt,
     impactFired: true,
     visuals,
   });
@@ -826,12 +703,20 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   );
 
   dismissIncomingOsmdHammer(runtime, command.relatedEffectId);
+  const isChainParry = runtime.lastParryAt > 0 && now - runtime.lastParryAt < PARRY_TOTAL_MS;
+  runtime.lastParryAt = now;
   triggerParryVisualSlow(runtime, now);
   scheduleParryMotion(runtime, onDirty);
-  addParryFireworks(runtime, anchors.player.x, anchors.player.bodyY - 28, now);
-  addParryGuardEffect(runtime, guardX, guardY, now + PARRY_RING_START_MS);
+  spawnParrySparks(runtime.parrySparkPool, guardX, guardY, now, isChainParry);
+  addParryGuardEffect(runtime, guardX, guardY, now + PARRY_RING_START_MS, now);
   if (command.precise === true) {
-    addPreciseParryRing(runtime, anchors.player.x, anchors.player.bodyY, now + PARRY_RING_START_MS);
+    addPreciseParryRing(
+      runtime,
+      anchors.player.x,
+      anchors.player.bodyY,
+      now + PARRY_RING_START_MS,
+      now,
+    );
   }
 
   const visuals: CanvasEffectVisual[] = [];
@@ -853,6 +738,8 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     rotationEnd: -4,
     scaleStart: 0.5,
     scaleEnd: 1,
+    fadeOut: true,
+    groupStartedAt: now,
   });
 
   runtime.effects.push({
@@ -1124,12 +1011,16 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     runtime.visualSlow = null;
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
+  pruneParrySparks(runtime.parrySparkPool, visualNow);
   runtime.effects = runtime.effects.filter(effect => {
-    const maxVisualEnd = effect.visuals.reduce(
-      (max, visual) => Math.max(max, visual.startedAt + visual.durationMs),
-      effect.startedAt,
-    );
-    const keep = maxVisualEnd + 200 > visualNow;
+    const keepUntil = effect.visuals.reduce((max, visual) => {
+      const visualEnd = visual.startedAt + visual.durationMs;
+      const lingerEnd = visual.groupStartedAt !== undefined
+        ? visual.groupStartedAt + PARRY_TOTAL_MS
+        : visualEnd;
+      return Math.max(max, visualEnd, lingerEnd);
+    }, effect.startedAt);
+    const keep = keepUntil + 200 > visualNow;
     if (!keep && effect.commandId >= 0) {
       runtime.effectByCommandId.delete(effect.commandId);
     }

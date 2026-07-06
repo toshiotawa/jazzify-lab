@@ -110,6 +110,8 @@ export interface CanvasEffectVisual {
   label?: string;
   fadeOut?: boolean;
   strokeColor?: string;
+  /** パリィ演出全体の開始時刻（750ms以降の残光フェード用） */
+  groupStartedAt?: number;
 }
 
 export interface CanvasVisualSlowState {
@@ -119,11 +121,13 @@ export interface CanvasVisualSlowState {
 }
 
 /** パリィ成功時の描画のみスロー（ガードフェーズ全体、ゲーム時間は止めない） */
-export const PARRY_GUARD_PHASE_MS = 250;
-export const PARRY_FINISH_START_MS = 251;
-export const PARRY_MOTION_END_MS = 500;
-export const PARRY_TOTAL_MS = 750;
+export const PARRY_GUARD_PHASE_MS = 500;
+export const PARRY_FINISH_START_MS = 501;
+export const PARRY_MOTION_END_MS = 1000;
+export const PARRY_TOTAL_MS = 1000;
 export const PARRY_RING_START_MS = 251;
+export const PARRY_LINGER_FADE_START_MS = 750;
+export const PARRY_LINGER_FADE_DURATION_MS = 250;
 export const PARRY_VISUAL_SLOW_DURATION_MS = PARRY_GUARD_PHASE_MS;
 export const PARRY_VISUAL_SLOW_SCALE = 0.22;
 
@@ -164,6 +168,20 @@ export interface BackgroundCacheState {
   canvas: HTMLCanvasElement | null;
 }
 
+export interface ParrySparkSlot {
+  active: boolean;
+  startedAt: number;
+  durationMs: number;
+  parryStartedAt: number;
+  originX: number;
+  originY: number;
+  dirX: number;
+  dirY: number;
+  travel: number;
+  size: number;
+  color: string;
+}
+
 export interface EarTrainingBattleDrawRuntime {
   width: number;
   height: number;
@@ -197,6 +215,8 @@ export interface EarTrainingBattleDrawRuntime {
   parryMotionGeneration: number;
   parryFinishTimer: ReturnType<typeof setTimeout> | null;
   parryMotionEndTimer: ReturnType<typeof setTimeout> | null;
+  parrySparkPool: ParrySparkSlot[];
+  lastParryAt: number;
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;
@@ -205,6 +225,18 @@ export const easeCubicInOut = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 export const easeSineInOut = (t: number): number => -(Math.cos(Math.PI * t) - 1) / 2;
 export const easeLinear = (t: number): number => t;
+
+export const getParryLingerAlpha = (
+  now: number,
+  groupStartedAt: number | undefined,
+  baseAlpha: number,
+): number => {
+  if (groupStartedAt === undefined) return baseAlpha;
+  const age = now - groupStartedAt;
+  if (age < PARRY_LINGER_FADE_START_MS) return baseAlpha;
+  const fadeT = Math.min(1, (age - PARRY_LINGER_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS);
+  return baseAlpha * (1 - easeCubicOut(fadeT));
+};
 
 export const getEffectProgress = (visual: CanvasEffectVisual, now: number): number => {
   if (visual.durationMs <= 0) return 1;
