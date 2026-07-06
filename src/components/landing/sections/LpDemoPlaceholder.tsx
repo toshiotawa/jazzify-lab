@@ -1,4 +1,5 @@
 import React from 'react';
+import { getLpDemoShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -7,7 +8,9 @@ interface LpDemoPlaceholderProps {
 }
 
 export const LpDemoPlaceholder: React.FC<LpDemoPlaceholderProps> = ({ onActivate }) => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglish = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglish);
+  const demoShot = getLpDemoShot(isEnglish);
 
   return (
     <section className="lp-dark py-20 sm:py-28 scroll-mt-20">
@@ -41,16 +44,16 @@ export const LpDemoPlaceholder: React.FC<LpDemoPlaceholderProps> = ({ onActivate
           >
             <picture>
               <source
-                srcSet="/newLP/survival-balloon-640.webp"
+                srcSet={demoShot.mobileSrc}
                 media="(max-width: 767px)"
                 type="image/webp"
               />
               <img
-                src="/newLP/survival-balloon.webp"
+                src={demoShot.src}
                 alt={copy.modes.survival.imageAlt}
                 className="w-full h-auto block"
-                width={1024}
-                height={587}
+                width={demoShot.width}
+                height={demoShot.height}
                 loading="lazy"
                 decoding="async"
               />

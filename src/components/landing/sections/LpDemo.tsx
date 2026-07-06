@@ -2,6 +2,7 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { LpMidiDeviceSelector } from '@/components/landing/LpMidiDeviceSelector';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { getLpDemoShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { trackEvent } from '@/utils/analytics/ga';
 
@@ -25,7 +26,9 @@ interface LpDemoProps {
 }
 
 export const LpDemo: React.FC<LpDemoProps> = ({ autoOpenOnMount = false }) => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglish = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglish);
+  const demoShot = getLpDemoShot(isEnglish);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<FullscreenCapableElement | null>(null);
   const dvhCleanupRef = useRef<(() => void) | null>(null);
@@ -136,16 +139,16 @@ export const LpDemo: React.FC<LpDemoProps> = ({ autoOpenOnMount = false }) => {
           >
             <picture>
               <source
-                srcSet="/newLP/survival-balloon-640.webp"
+                srcSet={demoShot.mobileSrc}
                 media="(max-width: 767px)"
                 type="image/webp"
               />
               <img
-                src="/newLP/survival-balloon.webp"
+                src={demoShot.src}
                 alt={copy.modes.survival.imageAlt}
                 className="w-full h-auto block"
-                width={1024}
-                height={587}
+                width={demoShot.width}
+                height={demoShot.height}
                 loading="lazy"
                 decoding="async"
               />

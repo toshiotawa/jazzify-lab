@@ -1,4 +1,5 @@
 import React from 'react';
+import { getLpMainQuestShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -21,7 +22,9 @@ const StepArrow: React.FC = () => (
 );
 
 export const LpMainQuest: React.FC = () => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglish = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglish);
+  const mainQuestShot = getLpMainQuestShot(isEnglish);
 
   return (
     <section className="py-12 sm:py-20 scroll-mt-20">
@@ -71,15 +74,15 @@ export const LpMainQuest: React.FC = () => {
             <div className="lp-shot">
               <picture>
                 <source
-                  srcSet="/newLP/main-quest-520.webp"
+                  srcSet={mainQuestShot.mobileSrc}
                   media="(max-width: 767px)"
                   type="image/webp"
                 />
                 <img
-                  src="/newLP/main-quest.webp"
+                  src={mainQuestShot.src}
                   alt={copy.mainQuest.imageAlt}
-                  width={1280}
-                  height={564}
+                  width={mainQuestShot.width}
+                  height={mainQuestShot.height}
                   loading="lazy"
                   decoding="async"
                   className="w-full h-auto block"

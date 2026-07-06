@@ -1,9 +1,12 @@
 import React from 'react';
+import { getLpCoursesShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 export const LpCourses: React.FC = () => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglish = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglish);
+  const coursesShot = getLpCoursesShot(isEnglish);
 
   return (
     <section
@@ -36,15 +39,15 @@ export const LpCourses: React.FC = () => {
           <div className="lp-shot">
             <picture>
               <source
-                srcSet="/newLP/courses-900.webp"
+                srcSet={coursesShot.mobileSrc}
                 media="(max-width: 1023px)"
                 type="image/webp"
               />
               <img
-                src="/newLP/courses.webp"
+                src={coursesShot.src}
                 alt={copy.courses.imageAlt}
-                width={1280}
-                height={674}
+                width={coursesShot.width}
+                height={coursesShot.height}
                 loading="lazy"
                 decoding="async"
                 className="w-full h-auto block"
