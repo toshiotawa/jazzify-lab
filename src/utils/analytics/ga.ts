@@ -1,3 +1,5 @@
+import { detectPreferredLocale } from '@/utils/globalAudience';
+
 declare global {
   interface Window {
     dataLayer?: unknown[];
@@ -6,6 +8,35 @@ declare global {
 }
 
 export type GaEventParams = Record<string, string | number | boolean | undefined>;
+
+const LP_CONTEXT_EVENT_NAMES = new Set([
+  'sign_up',
+  'tutorial_complete',
+  'begin_checkout',
+]);
+
+const getLpEventContext = (): GaEventParams => {
+  if (typeof window === 'undefined') {
+    return {
+      lp_locale: 'ja',
+      lp_hostname: '',
+      lp_path: '',
+    };
+  }
+
+  return {
+    lp_locale: detectPreferredLocale(),
+    lp_hostname: window.location.hostname,
+    lp_path: window.location.pathname,
+  };
+};
+
+const shouldAttachLpContext = (name: string, params?: GaEventParams): boolean => {
+  if (LP_CONTEXT_EVENT_NAMES.has(name)) {
+    return true;
+  }
+  return name === 'tutorial_begin' && params?.tutorial_name === 'first_quest';
+};
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined;
 
@@ -41,7 +72,10 @@ export const trackEvent = (name: string, params?: GaEventParams): void => {
   if (!initialized || !window.gtag) {
     return;
   }
-  window.gtag('event', name, params ?? {});
+  const eventParams = shouldAttachLpContext(name, params)
+    ? { ...getLpEventContext(), ...params }
+    : (params ?? {});
+  window.gtag('event', name, eventParams);
 };
 
 export const trackPageView = (path: string): void => {

@@ -61,4 +61,64 @@ describe('initGa dataLayer contract', () => {
       page_title: '',
     });
   });
+
+  it('attaches lp context to major funnel events', async () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        hostname: 'en.jazzify.jp',
+        pathname: '/signup',
+        search: '',
+        hash: '',
+        origin: 'https://en.jazzify.jp',
+      },
+    });
+
+    const pushed: unknown[] = [];
+    const dataLayer: unknown[] = [];
+    Object.defineProperty(dataLayer, 'push', {
+      value: (...items: unknown[]) => {
+        pushed.push(...items);
+        return pushed.length;
+      },
+    });
+    window.dataLayer = dataLayer;
+
+    const { initGa, trackEvent } = await import('@/utils/analytics/ga');
+    initGa();
+    trackEvent('sign_up', { method: 'email_otp' });
+
+    const signUpCommand = pushed.find(
+      (item) => !Array.isArray(item) && (item as IArguments)[0] === 'event' && (item as IArguments)[1] === 'sign_up',
+    ) as IArguments | undefined;
+
+    expect(signUpCommand?.[2]).toEqual({
+      lp_locale: 'en',
+      lp_hostname: 'en.jazzify.jp',
+      lp_path: '/signup',
+      method: 'email_otp',
+    });
+  });
+
+  it('does not attach lp context to non-funnel events', async () => {
+    const pushed: unknown[] = [];
+    const dataLayer: unknown[] = [];
+    Object.defineProperty(dataLayer, 'push', {
+      value: (...items: unknown[]) => {
+        pushed.push(...items);
+        return pushed.length;
+      },
+    });
+    window.dataLayer = dataLayer;
+
+    const { initGa, trackEvent } = await import('@/utils/analytics/ga');
+    initGa();
+    trackEvent('tutorial_begin', { tutorial_name: 'lp_demo' });
+
+    const demoBeginCommand = pushed.find(
+      (item) => !Array.isArray(item) && (item as IArguments)[0] === 'event' && (item as IArguments)[1] === 'tutorial_begin',
+    ) as IArguments | undefined;
+
+    expect(demoBeginCommand?.[2]).toEqual({ tutorial_name: 'lp_demo' });
+  });
 });
