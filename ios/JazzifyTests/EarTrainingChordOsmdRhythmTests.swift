@@ -54,4 +54,16 @@ final class EarTrainingChordOsmdRhythmTests: XCTestCase {
         XCTAssertNil(EarTrainingBattleParryConstants.getParryRingScaleAtAge(250))
         XCTAssertNotNil(EarTrainingBattleParryConstants.getParryRingScaleAtAge(251))
     }
+
+    func testVisualSlowCatchUpWhenSlowEnds() {
+        let slowStartedAt = 1_000.0
+        let midReal = slowStartedAt + EarTrainingBattleParryConstants.visualSlowDurationMs * 0.5
+        let afterReal = slowStartedAt + EarTrainingBattleParryConstants.visualSlowDurationMs + 10
+
+        let midVisual = EarTrainingBattleParryConstants.getVisualNow(now: midReal, slowStartedAt: slowStartedAt)
+        XCTAssertLessThan(midVisual - slowStartedAt, midReal - slowStartedAt)
+
+        let afterVisualExpired = EarTrainingBattleParryConstants.getVisualNow(now: afterReal, slowStartedAt: nil)
+        XCTAssertEqual(afterVisualExpired, afterReal, accuracy: 0.001)
+    }
 }

@@ -3,6 +3,9 @@ import {
   getParryEffectRadiusAtAge,
   getParryLingerAlpha,
   PARRY_MOTION_END_MS,
+  PARRY_SPARK_RADIUS_SCALE_MAX,
+  PARRY_SPARK_RADIUS_SCALE_MIN,
+  PARRY_SPARK_TIME_OFFSET_MS,
 } from './earTrainingBattleDrawState';
 
 export const PARRY_SPARK_POOL_SIZE = 128;
@@ -61,8 +64,9 @@ export const spawnParrySparks = (
     slot.dirX = Math.cos(angle);
     slot.dirY = Math.sin(angle);
     slot.size = sizeMin + Math.random() * (sizeMax - sizeMin);
-    slot.timeOffsetMs = (Math.random() - 0.5) * 50;
-    slot.radiusScale = 0.88 + Math.random() * 0.24;
+    slot.timeOffsetMs = (Math.random() * 2 - 1) * PARRY_SPARK_TIME_OFFSET_MS;
+    slot.radiusScale = PARRY_SPARK_RADIUS_SCALE_MIN
+      + Math.random() * (PARRY_SPARK_RADIUS_SCALE_MAX - PARRY_SPARK_RADIUS_SCALE_MIN);
     spawned += 1;
   }
 
@@ -71,18 +75,18 @@ export const spawnParrySparks = (
 
 export const getParrySparkDrawState = (
   slot: ParrySparkSlot,
-  now: number,
+  visualNow: number,
 ): ParrySparkDrawState | null => {
-  if (!slot.active || now < slot.startedAt) return null;
+  if (!slot.active) return null;
 
-  const age = now - slot.parryStartedAt + slot.timeOffsetMs;
+  const age = visualNow - slot.parryStartedAt + slot.timeOffsetMs;
   if (age >= slot.durationMs || age < 0) return null;
 
   const radius = getParryEffectRadiusAtAge(age) * slot.radiusScale;
   const x = slot.centerX + slot.dirX * radius;
   const y = slot.centerY + slot.dirY * radius;
   const fadeT = age / slot.durationMs;
-  const alpha = getParryLingerAlpha(now, slot.parryStartedAt, 1 - fadeT * 0.4);
+  const alpha = getParryLingerAlpha(visualNow, slot.parryStartedAt, 1 - fadeT * 0.4);
   const size = slot.size * (1 - fadeT * 0.35);
 
   return {
@@ -94,10 +98,11 @@ export const getParrySparkDrawState = (
   };
 };
 
-export const pruneParrySparks = (pool: ParrySparkSlot[], now: number): void => {
+export const pruneParrySparks = (pool: ParrySparkSlot[], visualNow: number): void => {
   for (const slot of pool) {
     if (!slot.active) continue;
-    if (now >= slot.startedAt + slot.durationMs) {
+    const age = visualNow - slot.parryStartedAt + slot.timeOffsetMs;
+    if (age >= slot.durationMs) {
       slot.active = false;
     }
   }
@@ -109,10 +114,10 @@ export const hasActiveParrySparks = (pool: ParrySparkSlot[]): boolean =>
 export const drawParrySparks = (
   ctx: CanvasRenderingContext2D,
   pool: ParrySparkSlot[],
-  now: number,
+  visualNow: number,
 ): void => {
   for (const slot of pool) {
-    const state = getParrySparkDrawState(slot, now);
+    const state = getParrySparkDrawState(slot, visualNow);
     if (!state || state.alpha <= 0) continue;
 
     ctx.save();

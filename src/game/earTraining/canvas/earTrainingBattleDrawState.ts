@@ -141,6 +141,13 @@ export const PARRY_GUARD_ONLY_MS = PARRY_MOTION_END_MS;
 export const PARRY_REFLECT_HIT_MS = 1;
 export const PARRY_TOTAL_MS = 1000;
 export const PARRY_RING_BASE_SIZE = 72;
+/** iOS `EarTrainingBattleParryConstants` / `battleLayoutPt(5)` 相当 */
+export const PARRY_RING_LINE_WIDTH = 5;
+export const PARRY_RING_ALPHA = 0.82;
+export const PARRY_RING_ORANGE = 'rgba(251, 146, 60, 0.85)';
+export const PARRY_SPARK_TIME_OFFSET_MS = 25;
+export const PARRY_SPARK_RADIUS_SCALE_MIN = 0.88;
+export const PARRY_SPARK_RADIUS_SCALE_MAX = 1.12;
 export const PARRY_SPARK_START_RADIUS_PX = 4;
 export const PARRY_MERGE_RADIUS_PX = 34;
 export const PARRY_RING_MERGE_SCALE = (PARRY_MERGE_RADIUS_PX * 2) / PARRY_RING_BASE_SIZE;

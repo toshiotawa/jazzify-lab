@@ -17,10 +17,12 @@ import {
   PARRY_GUARD_ONLY_MS,
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HIT_MS,
+  PARRY_RING_ALPHA,
   PARRY_RING_BASE_SIZE,
   PARRY_RING_EXPAND_START_MS,
   PARRY_RING_MAX_SCALE,
   PARRY_RING_MERGE_SCALE,
+  PARRY_RING_ORANGE,
   PARRY_TOTAL_MS,
   PARRY_VISUAL_SLOW_DURATION_MS,
   PARRY_VISUAL_SLOW_SCALE,
@@ -48,7 +50,6 @@ const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_POSE_KEY = 'guardD';
 const PARRY_FINISH_POSE_KEY = 'finish';
-const PARRY_RING_ORANGE = 'rgba(251, 146, 60, 0.85)';
 const PARRY_SLASH_DURATION_MS = 240;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
@@ -271,15 +272,13 @@ const addParryGuardEffect = (
     color: 'rgba(255, 255, 255, 0)',
     strokeColor: PARRY_RING_ORANGE,
     size: PARRY_RING_BASE_SIZE,
-    alpha: 0.82,
+    alpha: PARRY_RING_ALPHA,
     rotation: 0,
     rotationEnd: 0,
     scaleStart: PARRY_RING_MERGE_SCALE,
     scaleEnd: PARRY_RING_MAX_SCALE,
     parryRingExpand: true,
     groupStartedAt: parryStartedAt,
-    parryRingTimeOffsetMs: (Math.random() - 0.5) * 80,
-    parryRingScaleJitter: 0.9 + Math.random() * 0.2,
   });
   runtime.effects.push({
     commandId: -1,
@@ -941,7 +940,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     runtime.visualSlow = null;
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
-  pruneParrySparks(runtime.parrySparkPool, now);
+  pruneParrySparks(runtime.parrySparkPool, visualNow);
   runtime.effects = runtime.effects.filter(effect => {
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;

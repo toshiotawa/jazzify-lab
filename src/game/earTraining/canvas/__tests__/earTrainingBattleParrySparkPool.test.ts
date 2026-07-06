@@ -9,6 +9,7 @@ import {
   PARRY_LINGER_FADE_DURATION_MS,
   PARRY_MERGE_RADIUS_PX,
   PARRY_MOTION_END_MS,
+  PARRY_RING_LINE_WIDTH,
   PARRY_RING_MERGE_SCALE,
   PARRY_SLOW_PHASE_MS,
   PARRY_TOTAL_MS,
@@ -58,6 +59,10 @@ describe('parry merge timeline', () => {
     expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_RING_MERGE_SCALE);
     expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS - 1)).toBeNull();
   });
+
+  it('matches iOS ring stroke width constant', () => {
+    expect(PARRY_RING_LINE_WIDTH).toBe(5);
+  });
 });
 
 describe('earTrainingBattleParrySparkPool', () => {
@@ -78,11 +83,50 @@ describe('earTrainingBattleParrySparkPool', () => {
     spawnParrySparks(pool, 10, 10, 100, false);
     const firstActive = pool.find(slot => slot.active);
     expect(firstActive).toBeDefined();
+    if (!firstActive) return;
+    firstActive.timeOffsetMs = 0;
     pruneParrySparks(pool, 100 + PARRY_MOTION_END_MS);
-    expect(firstActive?.active).toBe(false);
+    expect(firstActive.active).toBe(false);
 
     spawnParrySparks(pool, 20, 20, 700, false);
     expect(pool.some(slot => slot.active && slot.startedAt === 700)).toBe(true);
+  });
+
+  it('uses visualNow so sparks stay in sync during visual slow', () => {
+    const pool = createParrySparkPool();
+    const parryStartedAt = 1_000;
+    spawnParrySparks(pool, 100, 100, parryStartedAt, false);
+    const slot = pool.find(entry => entry.active);
+    expect(slot).toBeDefined();
+    if (!slot) return;
+
+    slot.timeOffsetMs = 0;
+    slot.radiusScale = 1;
+    const slow = {
+      startedAt: parryStartedAt,
+      durationMs: PARRY_VISUAL_SLOW_DURATION_MS,
+      scale: PARRY_VISUAL_SLOW_SCALE,
+    };
+    const midReal = parryStartedAt + PARRY_VISUAL_SLOW_DURATION_MS / 2;
+    const visualMid = getVisualNow(midReal, slow);
+    const realMid = getParrySparkDrawState(slot, midReal);
+    const slowedMid = getParrySparkDrawState(slot, visualMid);
+    expect(slowedMid).toBeDefined();
+    expect(realMid).toBeDefined();
+    if (!realMid || !slowedMid) return;
+    expect(Math.hypot(slowedMid.x - 100, slowedMid.y - 100))
+      .toBeLessThan(Math.hypot(realMid.x - 100, realMid.y - 100));
+  });
+
+  it('prunes sparks by visual age including time offset', () => {
+    const pool = createParrySparkPool();
+    spawnParrySparks(pool, 10, 10, 100, false);
+    const slot = pool.find(entry => entry.active);
+    expect(slot).toBeDefined();
+    if (!slot) return;
+    slot.timeOffsetMs = 0;
+    pruneParrySparks(pool, 100 + PARRY_MOTION_END_MS);
+    expect(slot.active).toBe(false);
   });
 
   it('uses orange color only', () => {

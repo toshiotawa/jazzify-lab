@@ -52,6 +52,8 @@ import {
   lerp,
   PARRY_EFFECT_FADE_START_MS,
   PARRY_LINGER_FADE_DURATION_MS,
+  PARRY_RING_LINE_WIDTH,
+  PARRY_RING_ORANGE,
 } from './earTrainingBattleDrawState';
 import {
   getCharacterFlashAlpha,
@@ -857,12 +859,12 @@ const drawEffectVisual = (
   let size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
   let alpha = visual.alpha;
   if (visual.parryRingExpand && visual.groupStartedAt !== undefined) {
-    const age = now - visual.groupStartedAt + (visual.parryRingTimeOffsetMs ?? 0);
+    const age = now - visual.groupStartedAt;
     const ringScale = getParryRingScaleAtAge(age);
     if (ringScale === null) {
       return;
     }
-    size = visual.size * ringScale * (visual.parryRingScaleJitter ?? 1);
+    size = visual.size * ringScale;
     const fadeAge = now - visual.groupStartedAt;
     if (fadeAge >= PARRY_EFFECT_FADE_START_MS) {
       const fadeT = (fadeAge - PARRY_EFFECT_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS;
@@ -899,14 +901,22 @@ const drawEffectVisual = (
       drawEffectSpriteFallback(ctx, size, visual.color || '#ff851f');
     }
   } else if (visual.kind === 'burst' || visual.kind === 'ring') {
-    ctx.fillStyle = visual.color;
-    ctx.beginPath();
-    ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
-    ctx.fill();
-    if (visual.kind === 'ring') {
-      ctx.strokeStyle = visual.strokeColor ?? 'rgba(255, 255, 255, 0.72)';
-      ctx.lineWidth = 2;
+    if (visual.parryRingExpand) {
+      ctx.strokeStyle = visual.strokeColor ?? PARRY_RING_ORANGE;
+      ctx.lineWidth = PARRY_RING_LINE_WIDTH;
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
       ctx.stroke();
+    } else {
+      ctx.fillStyle = visual.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      if (visual.kind === 'ring') {
+        ctx.strokeStyle = visual.strokeColor ?? 'rgba(255, 255, 255, 0.72)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
   } else if (visual.kind === 'thinRing') {
     ctx.beginPath();
@@ -962,7 +972,7 @@ const drawEffects = (
     effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
   });
 
-  drawParrySparks(ctx, runtime.parrySparkPool, now);
+  drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
 
   runtime.floatingTexts.forEach(text => {
     const t = (visualNow - text.startedAt) / text.durationMs;

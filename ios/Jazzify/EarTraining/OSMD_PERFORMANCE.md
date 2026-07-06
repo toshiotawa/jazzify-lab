@@ -18,7 +18,8 @@ Web(TS) と Swift で実施済みの最適化メモ。
 - 背景は手続きジャズバー + スポットライト + 楽器プロップ（Web Canvas と同等）
 - `osmdHammerReflect` は 1000ms タイムライン（GuardD / finish、花火 spark pool、描画のみ visualSlow、微カメラズーム、1ms ダメージ）
 - `osmdHammerReflect` 着弾の `showImpactBurst` を省略（parry ring + slash + spark pool を維持）
-- `osmdHammerNodesByEffectId` でハンマー dismiss O(1)
+- `osmdHammerFlightsByEffectId` でハンマー dismiss O(1)
+- OSMD ハンマーは `getVisualNow` で毎フレーム位置更新（パリィ visualSlow 終了時に Web と同様キャッチアップ。着弾は実時間）
 - `showImpactBurst` に `lightSparkCount` オプション（他エフェクト用）
 
 ### EarTrainingBattleParrySparkPool.swift

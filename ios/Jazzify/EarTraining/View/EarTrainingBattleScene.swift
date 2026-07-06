@@ -201,7 +201,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var staffReservedBandBottomY: CGFloat?
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
-    private var osmdHammerNodesByEffectId: [Int: SKSpriteNode] = [:]
+    private var osmdHammerFlightsByEffectId: [Int: OsmdHammerFlight] = [:]
+
+    private struct OsmdHammerFlight {
+        let effectId: Int
+        let startedAt: TimeInterval
+        let travelDuration: TimeInterval
+        let from: CGPoint
+        let to: CGPoint
+        let startRotation: CGFloat
+        let spinRadians: CGFloat
+        let node: SKSpriteNode
+    }
 
     // MARK: - Init
 
@@ -237,8 +248,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     override func update(_ currentTime: TimeInterval) {
         super.update(currentTime)
+        let wallNow = CACurrentMediaTime()
+        expireVisualSlowIfNeeded(wallNow: wallNow)
+        if osmdHammerFlightsByEffectId.isEmpty == false {
+            updateOsmdHammerFlights(wallNow: wallNow)
+        }
         guard let parrySparkPool, parrySparkPool.hasActiveSparks else { return }
-        parrySparkPool.update(now: CACurrentMediaTime(), slowStartedAt: visualSlowStartedAt)
+        parrySparkPool.update(now: wallNow, slowStartedAt: visualSlowStartedAt)
     }
 
     private func ensureParrySparkPool() {
@@ -1985,11 +2001,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     func dismissOsmdHammerEffect(effectId: Int) {
-        guard let hammer = osmdHammerNodesByEffectId.removeValue(forKey: effectId) else { return }
-        hammer.removeAllActions()
+        guard let flight = osmdHammerFlightsByEffectId.removeValue(forKey: effectId) else { return }
+        flight.node.removeAllActions()
         let fade = SKAction.fadeOut(withDuration: 0.28)
-        hammer.run(fade) { [weak hammer] in
-            hammer?.removeFromParent()
+        flight.node.run(fade) { [node = flight.node] in
+            node.removeFromParent()
         }
     }
 
@@ -2027,34 +2043,85 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let travelDuration = max(0.12, min(4.2, command.travelDurationSec ?? 3.2))
         holdCharacterForAction(.enemy, state: .attack, durationMs: min(980, travelDuration * 1000))
         let anchors = battleAnchors()
-        showEnemyHammerThrowWave(
-            at: CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY),
-            facingLeft: anchors.player.x <= anchors.enemy.x
-        )
+        let from = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
+        let to = CGPoint(x: anchors.player.x, y: anchors.player.bodyY)
+        showEnemyHammerThrowWave(at: from, facingLeft: anchors.player.x <= anchors.enemy.x)
         let hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
-        hammer.position = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
+        hammer.position = from
         hammer.zRotation = -18 * (.pi / 180)
-        osmdHammerNodesByEffectId[command.id] = hammer
         effectLayer.addChild(hammer)
 
-        let move = SKAction.move(to: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), duration: travelDuration)
-        move.timingMode = .linear
-        let spin = SKAction.rotate(byAngle: 900 * (.pi / 180), duration: travelDuration)
-        hammer.run(SKAction.group([move, spin])) { [weak self, weak hammer] in
-            guard let self, let hammer else { return }
-            guard let active = self.osmdHammerNodesByEffectId[command.id], active === hammer else { return }
-            self.osmdHammerNodesByEffectId[command.id] = nil
-            hammer.removeFromParent()
-            self.flashCharacter(.player)
-            self.showImpactBurst(
-                at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY),
-                color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0),
-                large: false,
-                lightRadius: Self.battleLayoutPt(17),
-                lightScaleEnd: 1.3,
-                lightDuration: 0.26
-            )
-            self.onEffectImpact?(command.id)
+        let startedAt = CACurrentMediaTime()
+        let flight = OsmdHammerFlight(
+            effectId: command.id,
+            startedAt: startedAt,
+            travelDuration: travelDuration,
+            from: from,
+            to: to,
+            startRotation: hammer.zRotation,
+            spinRadians: 900 * (.pi / 180),
+            node: hammer
+        )
+        osmdHammerFlightsByEffectId[command.id] = flight
+        applyOsmdHammerFlightVisual(flight, wallNow: startedAt)
+
+        run(SKAction.wait(forDuration: travelDuration)) { [weak self] in
+            self?.handleOsmdHammerImpact(effectId: command.id, impactPoint: to)
+        }
+    }
+
+    private func handleOsmdHammerImpact(effectId: Int, impactPoint: CGPoint) {
+        guard let flight = osmdHammerFlightsByEffectId.removeValue(forKey: effectId) else { return }
+        flight.node.removeFromParent()
+        flashCharacter(.player)
+        showImpactBurst(
+            at: impactPoint,
+            color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0),
+            large: false,
+            lightRadius: Self.battleLayoutPt(17),
+            lightScaleEnd: 1.3,
+            lightDuration: 0.26
+        )
+        onEffectImpact?(effectId)
+    }
+
+    private func expireVisualSlowIfNeeded(wallNow: TimeInterval) {
+        guard let started = visualSlowStartedAt else { return }
+        let durationSec = EarTrainingBattleParryConstants.visualSlowDurationMs / 1000
+        guard wallNow > started + durationSec else { return }
+        visualSlowStartedAt = nil
+        effectLayer.speed = 1
+        cameraNode.speed = 1
+    }
+
+    private func visualSlowStartedAtMs(wallNowSec: TimeInterval) -> Double? {
+        guard let started = visualSlowStartedAt else { return nil }
+        let durationSec = EarTrainingBattleParryConstants.visualSlowDurationMs / 1000
+        if wallNowSec > started + durationSec { return nil }
+        return started * 1000
+    }
+
+    private func visualNowMs(wallNowSec: TimeInterval) -> Double {
+        EarTrainingBattleParryConstants.getVisualNow(
+            now: wallNowSec * 1000,
+            slowStartedAt: visualSlowStartedAtMs(wallNowSec: wallNowSec)
+        )
+    }
+
+    private func applyOsmdHammerFlightVisual(_ flight: OsmdHammerFlight, wallNow: TimeInterval) {
+        let elapsedMs = visualNowMs(wallNowSec: wallNow) - flight.startedAt * 1000
+        let durationMs = flight.travelDuration * 1000
+        let progress = min(1, max(0, elapsedMs / durationMs))
+        flight.node.position = CGPoint(
+            x: flight.from.x + (flight.to.x - flight.from.x) * CGFloat(progress),
+            y: flight.from.y + (flight.to.y - flight.from.y) * CGFloat(progress)
+        )
+        flight.node.zRotation = flight.startRotation + flight.spinRadians * CGFloat(progress)
+    }
+
+    private func updateOsmdHammerFlights(wallNow: TimeInterval) {
+        for flight in osmdHammerFlightsByEffectId.values {
+            applyOsmdHammerFlightVisual(flight, wallNow: wallNow)
         }
     }
 
@@ -2129,15 +2196,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         visualSlowStartedAt = CACurrentMediaTime()
         effectLayer.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
         cameraNode.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
-        run(SKAction.sequence([
-            SKAction.wait(forDuration: EarTrainingBattleParryConstants.visualSlowDurationMs / 1000),
-            SKAction.run { [weak self] in
-                guard let self else { return }
-                self.effectLayer.speed = 1
-                self.cameraNode.speed = 1
-                self.visualSlowStartedAt = nil
-            },
-        ]))
     }
 
     private func triggerParryCameraZoom() {
