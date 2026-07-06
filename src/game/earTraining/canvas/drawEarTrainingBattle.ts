@@ -46,6 +46,7 @@ import {
   easeCubicOut,
   easeLinear,
   getEffectProgress,
+  getVisualNow,
   lerp,
 } from './earTrainingBattleDrawState';
 import {
@@ -878,7 +879,7 @@ const drawEffectVisual = (
     ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.fill();
     if (visual.kind === 'ring') {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.strokeStyle = visual.strokeColor ?? 'rgba(255, 255, 255, 0.72)';
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -923,10 +924,10 @@ const drawEffectVisual = (
 const drawEffects = (
   ctx: CanvasRenderingContext2D,
   runtime: EarTrainingBattleDrawRuntime,
-  now: number,
+  visualNow: number,
 ): void => {
   if (runtime.screenFlash) {
-    const flashT = (now - runtime.screenFlash.startedAt) / runtime.screenFlash.durationMs;
+    const flashT = (visualNow - runtime.screenFlash.startedAt) / runtime.screenFlash.durationMs;
     if (flashT <= 1) {
       ctx.fillStyle = runtime.screenFlash.color.replace(/[\d.]+\)$/, `${runtime.screenFlash.alpha * (1 - flashT)})`);
       ctx.fillRect(0, 0, runtime.width, runtime.height);
@@ -934,11 +935,11 @@ const drawEffects = (
   }
 
   runtime.effects.forEach(effect => {
-    effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, now));
+    effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
   });
 
   runtime.floatingTexts.forEach(text => {
-    const t = (now - text.startedAt) / text.durationMs;
+    const t = (visualNow - text.startedAt) / text.durationMs;
     if (t > 1) return;
     ctx.save();
     ctx.globalAlpha = 1 - easeCubicOut(t);
@@ -951,7 +952,7 @@ const drawEffects = (
   });
 
   runtime.damageTexts.forEach(text => {
-    const t = (now - text.startedAt) / text.durationMs;
+    const t = (visualNow - text.startedAt) / text.durationMs;
     if (t > 1) return;
     ctx.save();
     ctx.globalAlpha = 1 - easeCubicOut(t);
@@ -973,14 +974,15 @@ export const drawEarTrainingBattle = (
   const { width, height } = runtime;
   ctx.clearRect(0, 0, width, height);
 
-  const cameraTransform = computeCameraTransform(runtime.camera, width, height, now);
+  const visualNow = getVisualNow(now, runtime.visualSlow);
+  const cameraTransform = computeCameraTransform(runtime.camera, width, height, visualNow);
   ctx.save();
   applyWorldCameraTransform(ctx, cameraTransform);
   drawBackground(ctx, width, height, runtime);
-  drawCharacter(ctx, runtime, 'player', now);
-  drawCharacter(ctx, runtime, 'enemy', now);
-  drawPhraseIntro(ctx, runtime, now);
-  drawEffects(ctx, runtime, now);
+  drawCharacter(ctx, runtime, 'player', visualNow);
+  drawCharacter(ctx, runtime, 'enemy', visualNow);
+  drawPhraseIntro(ctx, runtime, visualNow);
+  drawEffects(ctx, runtime, visualNow);
   ctx.restore();
 
   drawHud(ctx, snapshot, runtime);

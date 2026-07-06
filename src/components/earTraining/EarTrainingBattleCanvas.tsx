@@ -80,6 +80,8 @@ const createInitialRuntime = (
   staffReservedBottomY: resolveStaffReservedBottomY(height, width, snapshot.staffBand),
   activeThinRingCount: 0,
   effectByCommandId: new Map(),
+  visualSlow: null,
+  yokoIssenPoseAlternate: false,
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({
@@ -387,7 +389,11 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         || runtime.damageTexts.length > 0
         || runtime.phraseIntro !== null
         || runtime.screenFlash !== null
-        || isCameraActive(runtime.camera, now);
+        || isCameraActive(runtime.camera, now)
+        || (
+          runtime.visualSlow !== null
+          && now < runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
+        );
 
       if (!dirtyRef.current && !hasActiveMotion) {
         rafRef.current = 0;

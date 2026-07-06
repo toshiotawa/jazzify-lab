@@ -8,7 +8,15 @@ import type {
   CanvasFloatingText,
   EarTrainingBattleDrawRuntime,
 } from './earTrainingBattleDrawState';
-import { easeCubicIn, getEffectProgress, hexColor, lerp } from './earTrainingBattleDrawState';
+import {
+  easeCubicIn,
+  getEffectProgress,
+  getVisualNow,
+  hexColor,
+  lerp,
+  PARRY_VISUAL_SLOW_DURATION_MS,
+  PARRY_VISUAL_SLOW_SCALE,
+} from './earTrainingBattleDrawState';
 import {
   flashCharacter,
   holdCharacterForAction,
@@ -26,6 +34,10 @@ const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_SLOW_RING_DELAY_MS = 35;
+const PARRY_RING_ORANGE = 'rgba(251, 146, 60, 0.85)';
+const PARRY_RING_ORANGE_FADE = 'rgba(251, 146, 60, 0.42)';
+const PARRY_PRECISE_RING_ORANGE = 'rgba(251, 146, 60, 1)';
+const PARRY_SPARK_COLORS = ['#ffffff', '#fef08a', '#fde047', '#bae6fd', '#7dd3fc'] as const;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
 const PERFECT_LIGHTNING_IMPACT_MS = 470;
@@ -244,6 +256,7 @@ const addParryGuardEffect = (
     toX: x,
     toY: y,
     color: 'rgba(255, 255, 255, 0)',
+    strokeColor: PARRY_RING_ORANGE,
     size: 30,
     alpha: 0.75,
     rotation: 0,
@@ -260,6 +273,7 @@ const addParryGuardEffect = (
     toX: x,
     toY: y,
     color: 'rgba(255, 255, 255, 0)',
+    strokeColor: PARRY_RING_ORANGE_FADE,
     size: 38,
     alpha: 0.24,
     rotation: 0,
@@ -275,6 +289,72 @@ const addParryGuardEffect = (
     impactFired: true,
     visuals,
   });
+};
+
+const addParryContactSparks = (
+  runtime: EarTrainingBattleDrawRuntime,
+  x: number,
+  y: number,
+): void => {
+  const startedAt = performance.now();
+  const sparkDurationMs = 150;
+  const sparkCount = 8 + Math.floor(Math.random() * 7);
+  const visuals: CanvasEffectVisual[] = [];
+  addVisual(visuals, {
+    kind: 'burst',
+    startedAt,
+    durationMs: 70,
+    fromX: x,
+    fromY: y,
+    toX: x,
+    toY: y,
+    color: 'rgba(255, 255, 255, 0.92)',
+    size: 18,
+    alpha: 0.95,
+    rotation: 0,
+    rotationEnd: 0,
+    scaleStart: 0.35,
+    scaleEnd: 1.1,
+    fadeOut: true,
+  });
+  for (let index = 0; index < sparkCount; index += 1) {
+    const angle = (Math.PI * 2 * index) / sparkCount + (Math.random() - 0.5) * 0.35;
+    const distance = 16 + Math.random() * 22;
+    const color = PARRY_SPARK_COLORS[index % PARRY_SPARK_COLORS.length];
+    addVisual(visuals, {
+      kind: 'spark',
+      startedAt,
+      durationMs: sparkDurationMs + Math.round((Math.random() - 0.5) * 40),
+      fromX: x,
+      fromY: y,
+      toX: x + Math.cos(angle) * distance,
+      toY: y + Math.sin(angle) * distance,
+      color,
+      size: 4 + Math.random() * 3,
+      alpha: 0.95,
+      rotation: 0,
+      rotationEnd: 0,
+      scaleStart: 1,
+      scaleEnd: 0.25,
+      fadeOut: true,
+    });
+  }
+  runtime.effects.push({
+    commandId: -1,
+    command: { id: -1, kind: 'osmdHammerReflect' },
+    startedAt,
+    impactAt: startedAt,
+    impactFired: true,
+    visuals,
+  });
+};
+
+const triggerParryVisualSlow = (runtime: EarTrainingBattleDrawRuntime, now: number): void => {
+  runtime.visualSlow = {
+    startedAt: now,
+    durationMs: PARRY_VISUAL_SLOW_DURATION_MS,
+    scale: PARRY_VISUAL_SLOW_SCALE,
+  };
 };
 
 const THIN_RING_STACK_MAX = 3;
@@ -314,7 +394,6 @@ const addPreciseParryRing = (
   runtime.activeThinRingCount += 1;
   const scaleStart = 0.45 + stackIndex * 0.12;
   const scaleEnd = 2.3 + stackIndex * 0.16;
-  const color = stackIndex > 0 ? 'rgba(251, 146, 60, 1)' : 'rgba(194, 65, 12, 1)';
   const visuals: CanvasEffectVisual[] = [];
   addVisual(visuals, {
     kind: 'thinRing',
@@ -324,7 +403,7 @@ const addPreciseParryRing = (
     fromY: y,
     toX: x,
     toY: y,
-    color,
+    color: PARRY_PRECISE_RING_ORANGE,
     size: 68,
     alpha: 1,
     rotation: 0,
@@ -612,11 +691,14 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     onDirty,
   );
 
-  runtime.player.poseKey = 'yokoIssen';
+  runtime.player.poseKey = runtime.yokoIssenPoseAlternate ? 'yokoIssenB' : 'yokoIssen';
+  runtime.yokoIssenPoseAlternate = !runtime.yokoIssenPoseAlternate;
   runtime.player.poseUntil = now + 300;
 
   dismissIncomingOsmdHammer(runtime, command.relatedEffectId);
+  triggerParryVisualSlow(runtime, now);
   addParryGuardEffect(runtime, guardX, guardY);
+  addParryContactSparks(runtime, guardX, guardY);
   if (command.precise === true) {
     addPreciseParryRing(runtime, anchors.player.x, anchors.player.bodyY);
   }
@@ -904,18 +986,25 @@ export const scheduleEarTrainingBattleEffect = (
 };
 
 export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: number): void => {
+  if (
+    runtime.visualSlow
+    && now > runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
+  ) {
+    runtime.visualSlow = null;
+  }
+  const visualNow = getVisualNow(now, runtime.visualSlow);
   runtime.effects = runtime.effects.filter(effect => {
     const maxVisualEnd = effect.visuals.reduce(
       (max, visual) => Math.max(max, visual.startedAt + visual.durationMs),
       effect.startedAt,
     );
-    const keep = maxVisualEnd + 200 > now;
+    const keep = maxVisualEnd + 200 > visualNow;
     if (!keep && effect.commandId >= 0) {
       runtime.effectByCommandId.delete(effect.commandId);
     }
     return keep;
   });
-  syncActiveThinRingCount(runtime, now);
+  syncActiveThinRingCount(runtime, visualNow);
   runtime.floatingTexts = runtime.floatingTexts.filter(t => now - t.startedAt < t.durationMs);
   runtime.damageTexts = runtime.damageTexts.filter(t => now - t.startedAt < t.durationMs);
   if (runtime.screenFlash && now - runtime.screenFlash.startedAt > runtime.screenFlash.durationMs) {

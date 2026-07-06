@@ -109,7 +109,33 @@ export interface CanvasEffectVisual {
   imageKey?: string;
   label?: string;
   fadeOut?: boolean;
+  strokeColor?: string;
 }
+
+export interface CanvasVisualSlowState {
+  startedAt: number;
+  durationMs: number;
+  scale: number;
+}
+
+/** パリィ成功時の描画のみスロー（35〜55ms、ゲーム時間は止めない） */
+export const PARRY_VISUAL_SLOW_DURATION_MS = 45;
+export const PARRY_VISUAL_SLOW_SCALE = 0.22;
+
+export const getVisualSlowCompensation = (
+  now: number,
+  slow: CanvasVisualSlowState | null,
+): number => {
+  if (!slow || now <= slow.startedAt) return 0;
+  const elapsed = now - slow.startedAt;
+  if (elapsed >= slow.durationMs) {
+    return slow.durationMs * (1 - slow.scale);
+  }
+  return elapsed * (1 - slow.scale);
+};
+
+export const getVisualNow = (now: number, slow: CanvasVisualSlowState | null): number =>
+  now - getVisualSlowCompensation(now, slow);
 
 export interface CanvasEffectRuntime {
   commandId: number;
@@ -160,6 +186,10 @@ export interface EarTrainingBattleDrawRuntime {
   activeThinRingCount: number;
   /** OSMD ハンマー dismiss の O(1) 参照 */
   effectByCommandId: Map<number, CanvasEffectRuntime>;
+  /** 描画のみの疑似ヒットストップ（パリィ成功時） */
+  visualSlow: CanvasVisualSlowState | null;
+  /** 横一閃ポーズを交互に切り替える */
+  yokoIssenPoseAlternate: boolean;
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;
