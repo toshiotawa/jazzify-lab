@@ -928,20 +928,17 @@ const drawEffectVisual = (
     ctx.fill();
   } else if (visual.kind === 'slash') {
     const w = size * 1.9;
-    const h = Math.max(5, size * 0.075);
+    const h = Math.max(2, size * 0.032);
 
     const gradient = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
     gradient.addColorStop(0, 'rgba(255,255,255,0)');
-    gradient.addColorStop(0.04, 'rgba(255,255,255,0.88)');
-    gradient.addColorStop(0.5, visual.color || 'rgba(255,255,255,0.95)');
-    gradient.addColorStop(0.96, 'rgba(255,255,255,0.88)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+    gradient.addColorStop(0.05, 'rgba(255,255,255,0.88)');
+    gradient.addColorStop(0.42, visual.color || 'rgba(255,255,255,0.95)');
+    gradient.addColorStop(0.72, 'rgba(255,255,255,0.35)');
+    gradient.addColorStop(0.88, 'rgba(255,255,255,0)');
 
     ctx.fillStyle = gradient;
     ctx.fillRect(-w / 2, -h / 2, w, h);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillRect(-w * 0.08, -1, w * 0.84, 2);
   }
 
   ctx.restore();

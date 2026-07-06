@@ -34,7 +34,7 @@ import {
   EFFECT_IMAGE_URLS,
   preloadEarTrainingBattleImages,
 } from '@/game/earTraining/canvas/drawEarTrainingBattle';
-import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
+import { BACKGROUND_IMAGE_URLS, invalidateBackgroundCache } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
 import { getBattleAnchors, resolveStaffReservedBottomY } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
@@ -312,6 +312,9 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         const img = map.get(url);
         if (img) runtimeRef.current?.loadedImages.set(key, img);
       });
+      if (runtimeRef.current) {
+        invalidateBackgroundCache(runtimeRef.current.backgroundCache);
+      }
       markDirty();
       window.requestAnimationFrame(() => markDirty());
     });
