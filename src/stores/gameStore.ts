@@ -44,10 +44,10 @@ const defaultSettings: GameSettings = {
 };
 
 const validateSettings = (
-  settings: Partial<GameSettings>,
+  settings: GameSettings,
 ): { valid: boolean; errors: string[]; normalized: GameSettings } => {
   const errors: string[] = [];
-  const normalized: GameSettings = { ...defaultSettings, ...settings };
+  const normalized: GameSettings = { ...settings };
 
   if (normalized.masterVolume < 0 || normalized.masterVolume > 1) {
     errors.push('マスター音量は0-1の範囲で設定してください');
@@ -127,9 +127,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
       settingsErrors: [],
 
       updateSettings: (newSettings) => {
-        const validation = validateSettings(newSettings);
         set((state) => {
-          state.settings = { ...state.settings, ...validation.normalized };
+          const validation = validateSettings({ ...state.settings, ...newSettings });
+          state.settings = validation.normalized;
           if (!validation.valid) {
             state.settingsErrors.push(...validation.errors);
           }
@@ -137,7 +137,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
       },
 
       updateSettingsSafe: (newSettings) => {
-        const validation = validateSettings(newSettings);
+        const current = useGameStore.getState().settings;
+        const validation = validateSettings({ ...current, ...newSettings });
         if (!validation.valid) {
           set((state) => {
             state.settingsErrors.push(...validation.errors);
@@ -145,7 +146,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           return { success: false, errors: validation.errors };
         }
         set((state) => {
-          state.settings = { ...state.settings, ...validation.normalized };
+          state.settings = validation.normalized;
         });
         return { success: true, errors: [] };
       },
