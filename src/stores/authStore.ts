@@ -3,7 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient, fetchWithCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
-import { persistPreferredLocale, resolveAudienceLocale, detectBrowserLocale, getStoredPreferredLocale } from '@/utils/globalAudience';
+import { persistPreferredLocale, resolveAudienceLocale, detectPreferredLocale } from '@/utils/globalAudience';
 import { normalizeMembershipTier } from '@/utils/membership';
 import { isIOSWebView, getNativeAuthToken, getNativeRefreshToken } from '@/utils/iosbridge';
 import { useGeoStore } from './geoStore';
@@ -727,7 +727,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         const signupCountry = resolveWebSignupCountry(useGeoStore.getState().country);
 
         // 新規プロフィール作成（localStorage > ブラウザ言語 > 検出チェーン の順で初期言語を決定）
-        const initialLocale = getStoredPreferredLocale() ?? detectBrowserLocale() ?? resolveAudienceLocale();
+        const initialLocale = detectPreferredLocale();
         const firstTouch = getStoredFirstTouch();
         const gaClientId = await getGaClientId();
         const marketingEmailOptIn = options?.marketingEmailOptIn === true;

@@ -48,6 +48,10 @@ export default defineConfig(({ mode }) => {
       assetsDir: 'assets',
       // 並列処理の最適化
       rollupOptions: {
+        input: {
+          main: resolve(__dirname, 'index.html'),
+          en: resolve(__dirname, 'index-en.html'),
+        },
         onwarn(warning, warn) {
           if (typeof warning.message === 'string' && warning.message.includes('sourcemap')) return;
           warn(warning);

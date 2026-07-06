@@ -85,20 +85,29 @@ const normalizeCountry = (value: string | null | undefined): string | null => {
   return trimmed.toUpperCase();
 };
 
+const getActiveLocalStorage = (): Storage | null => {
+  try {
+    const platformStorage = getWindow().localStorage;
+    if (platformStorage) {
+      return platformStorage;
+    }
+  } catch {
+    // fall through to window.localStorage
+  }
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+
+  return null;
+};
+
 const safeReadLocalStorage = (key: string): string | null => {
   try {
-    const platformWindow = getWindow();
-    return platformWindow?.localStorage?.getItem(key) ?? null;
+    return getActiveLocalStorage()?.getItem(key) ?? null;
   } catch {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        return window.localStorage.getItem(key);
-      }
-    } catch {
-      return null;
-    }
+    return null;
   }
-  return null;
 };
 
 const getStoredSignupCountry = (): string | null => normalizeCountry(safeReadLocalStorage(STORAGE_KEY_SIGNUP_COUNTRY));
@@ -109,55 +118,104 @@ export const getStoredPreferredLocale = (): AppLocale | null => normalizeLocale(
 
 export const persistPreferredLocale = (locale: AppLocale | null): void => {
   try {
-    const platformWindow = getWindow();
+    const storage = getActiveLocalStorage();
+    if (!storage) {
+      return;
+    }
     if (!locale) {
-      platformWindow?.localStorage?.removeItem(STORAGE_KEY_PREFERRED_LOCALE);
+      storage.removeItem(STORAGE_KEY_PREFERRED_LOCALE);
     } else {
-      platformWindow?.localStorage?.setItem(STORAGE_KEY_PREFERRED_LOCALE, locale);
+      storage.setItem(STORAGE_KEY_PREFERRED_LOCALE, locale);
     }
   } catch {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        if (!locale) {
-          window.localStorage.removeItem(STORAGE_KEY_PREFERRED_LOCALE);
-        } else {
-          window.localStorage.setItem(STORAGE_KEY_PREFERRED_LOCALE, locale);
-        }
-      }
-    } catch {
-      // ignore storage errors
-    }
+    // ignore storage errors
   }
 };
 
-export const detectBrowserLocale = (): AppLocale | null => {
+const readBrowserLocation = (): { hostname: string; search: string; hash: string } => {
   if (!isBrowserEnvironment()) {
-    return null;
+    return { hostname: '', search: '', hash: '' };
   }
 
   try {
     const platformWindow = getWindow();
+    return {
+      hostname: normalizeHostname(platformWindow.location.hostname),
+      search: platformWindow.location.search,
+      hash: platformWindow.location.hash,
+    };
+  } catch {
+    return {
+      hostname: normalizeHostname(window.location?.hostname),
+      search: window.location?.search ?? '',
+      hash: window.location?.hash ?? '',
+    };
+  }
+};
+
+/**
+ * URL 由来のロケール（?lang= / ハッシュ / en.jazzify.jp 等）。
+ * localStorage より優先する判定に使う。
+ */
+export const resolveUrlLocaleOverride = (): AppLocale | null => {
+  const { hostname, search, hash } = readBrowserLocation();
+
+  const queryLocale = resolveQueryLocale(search);
+  if (queryLocale) return queryLocale;
+
+  const hashLocale = resolveHashLocale(hash);
+  if (hashLocale) return hashLocale;
+
+  return resolveSubdomainLocale(hostname);
+};
+
+export const syncPreferredLocaleFromUrl = (): void => {
+  const urlLocale = resolveUrlLocaleOverride();
+  if (urlLocale) {
+    persistPreferredLocale(urlLocale);
+  }
+};
+
+const readNavigatorLanguages = (): string[] => {
+  try {
+    const platformWindow = getWindow();
     const navigatorLanguages = platformWindow?.navigator?.languages;
-    if (Array.isArray(navigatorLanguages)) {
-      for (const locale of navigatorLanguages) {
-        const normalized = normalizeLocale(locale);
-        if (normalized) return normalized;
-      }
+    if (Array.isArray(navigatorLanguages) && navigatorLanguages.length > 0) {
+      return navigatorLanguages;
     }
-    return normalizeLocale(platformWindow?.navigator?.language);
+    const primaryLanguage = platformWindow?.navigator?.language;
+    return primaryLanguage ? [primaryLanguage] : [];
   } catch {
     if (typeof navigator !== 'undefined') {
-      if (Array.isArray(navigator.languages)) {
-        for (const locale of navigator.languages) {
-          const normalized = normalizeLocale(locale);
-          if (normalized) return normalized;
-        }
+      if (Array.isArray(navigator.languages) && navigator.languages.length > 0) {
+        return navigator.languages;
       }
-      return normalizeLocale(navigator.language);
+      return navigator.language ? [navigator.language] : [];
     }
   }
 
-  return null;
+  return [];
+};
+
+/**
+ * ブラウザ言語: ja のみ日本語、それ以外（en/fr/de/ko/zh 等）は英語。
+ */
+export const detectBrowserLocale = (): AppLocale => {
+  if (!isBrowserEnvironment()) {
+    return LOCALE_EN;
+  }
+
+  for (const locale of readNavigatorLanguages()) {
+    const normalized = normalizeLocale(locale);
+    if (normalized === LOCALE_JA) {
+      return LOCALE_JA;
+    }
+    if (normalized === LOCALE_EN) {
+      return LOCALE_EN;
+    }
+  }
+
+  return LOCALE_EN;
 };
 
 export const detectPreferredLocale = (): AppLocale => {
@@ -165,44 +223,21 @@ export const detectPreferredLocale = (): AppLocale => {
     return LOCALE_JA;
   }
 
-  let hostname = '';
-  let search = '';
-  let hash = '';
-  try {
-    const platformWindow = getWindow();
-    hostname = normalizeHostname(platformWindow.location.hostname);
-    search = platformWindow.location.search;
-    hash = platformWindow.location.hash;
-  } catch {
-    hostname = normalizeHostname(window.location?.hostname);
-    search = window.location?.search ?? '';
-    hash = window.location?.hash ?? '';
-  }
+  const { hostname } = readBrowserLocation();
+
+  const urlLocale = resolveUrlLocaleOverride();
+  if (urlLocale) return urlLocale;
 
   const storedLocale = getStoredPreferredLocale();
   if (storedLocale) return storedLocale;
 
-  // 優先順位1: 通常のクエリパラメータ (?lang=en)
-  const queryLocale = resolveQueryLocale(search);
-  if (queryLocale) return queryLocale;
-
-  // 優先順位2: ハッシュ内のクエリパラメータ (#fantasy?lang=en)
-  const hashLocale = resolveHashLocale(hash);
-  if (hashLocale) return hashLocale;
-
-  // 優先順位3: サブドメイン (en.jazzify.jp)
-  const subdomainLocale = resolveSubdomainLocale(hostname);
-  if (subdomainLocale) return subdomainLocale;
-
-  // 優先順位4: ブラウザ言語設定
   const browserLocale = detectBrowserLocale();
   if (browserLocale) return browserLocale;
 
-  // 優先順位5: TLD (.jp → ja, .com → en)
   const tldLocale = resolveTopLevelLocale(hostname);
   if (tldLocale) return tldLocale;
 
-  return LOCALE_JA;
+  return LOCALE_EN;
 };
 
 export interface AudienceContext {

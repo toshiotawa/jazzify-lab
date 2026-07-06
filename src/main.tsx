@@ -20,6 +20,7 @@ const showDebugInfo = (message: string, _isError = false) => {
 import { isLandingPath } from '@/utils/appPaths';
 import { captureFirstTouch } from '@/utils/analytics/attribution';
 import { initGa } from '@/utils/analytics/ga';
+import { syncPreferredLocaleFromUrl } from '@/utils/globalAudience';
 
 // ローディング画面を非表示にする
 const hideLoading = () => {
@@ -84,6 +85,7 @@ window.addEventListener('unhandledrejection', (event) => {
 // 簡素化されたアプリケーション初期化
 const initializeApp = async () => {
   try {
+    syncPreferredLocaleFromUrl();
     captureFirstTouch();
     initGa();
     showDebugInfo('Starting initialization...');

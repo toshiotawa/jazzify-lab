@@ -50,7 +50,8 @@ const ModeBlock: React.FC<ModeBlockProps> = ({
 );
 
 export const LpModes: React.FC = () => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglishCopy = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglishCopy);
 
   const modes: Array<{
     mode: LandingModeItem;
@@ -112,7 +113,7 @@ export const LpModes: React.FC = () => {
                 imageAnimate={imageAnimate}
                 reversed={reversed}
               />
-              {mode === copy.modes.battle ? <LpViralTweetEmbed /> : null}
+              {mode === copy.modes.battle && !isEnglishCopy ? <LpViralTweetEmbed /> : null}
             </React.Fragment>
           ))}
         </div>

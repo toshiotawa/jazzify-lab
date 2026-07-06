@@ -104,7 +104,7 @@ const LandingPage: React.FC = () => {
 
   return (
     <div className="lp-root flex h-screen flex-col overflow-hidden">
-      <Helmet>
+      <Helmet htmlAttributes={{ lang: isEnglishLanding ? 'en' : 'ja' }}>
         <title>{copy.seo.title}</title>
         <meta name="description" content={copy.seo.description} />
         <link rel="canonical" href={`${siteOrigin}/`} />
