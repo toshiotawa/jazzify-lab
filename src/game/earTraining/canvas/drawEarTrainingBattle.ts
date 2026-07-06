@@ -896,9 +896,10 @@ const drawEffectVisual = (
     ctx.lineWidth = 4;
     ctx.stroke();
   } else if (visual.kind === 'particle' || visual.kind === 'energyOrb' || visual.kind === 'spark') {
+    const particleSize = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicOut(t));
     ctx.fillStyle = visual.color;
     ctx.beginPath();
-    ctx.arc(0, 0, visual.size / 2, 0, Math.PI * 2);
+    ctx.arc(0, 0, Math.max(1, particleSize / 2), 0, Math.PI * 2);
     ctx.fill();
   } else if (visual.kind === 'slash') {
     const w = size * 1.9;

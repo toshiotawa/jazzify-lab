@@ -41,6 +41,7 @@ import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/ear
 import {
   pruneExpiredEffects,
   scheduleEarTrainingBattleEffect,
+  clearParryMotionTimers,
 } from '@/game/earTraining/canvas/earTrainingBattleEffectScheduler';
 
 interface EarTrainingBattleCanvasProps {
@@ -81,7 +82,11 @@ const createInitialRuntime = (
   activeThinRingCount: 0,
   effectByCommandId: new Map(),
   visualSlow: null,
-  yokoIssenPoseAlternate: false,
+  parryGuardPoseAlternate: false,
+  parryMotionGeneration: 0,
+  parryGuardSwapTimer: null,
+  parryFinishTimer: null,
+  parryMotionEndTimer: null,
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({
@@ -439,6 +444,9 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     return () => {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
+      if (runtimeRef.current) {
+        clearParryMotionTimers(runtimeRef.current);
+      }
     };
   }, [bindHudHitRegions, scheduleDrawFrame]);
 

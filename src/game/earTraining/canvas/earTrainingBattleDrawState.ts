@@ -118,8 +118,14 @@ export interface CanvasVisualSlowState {
   scale: number;
 }
 
-/** パリィ成功時の描画のみスロー（35〜55ms、ゲーム時間は止めない） */
-export const PARRY_VISUAL_SLOW_DURATION_MS = 45;
+/** パリィ成功時の描画のみスロー（ガードフェーズ全体、ゲーム時間は止めない） */
+export const PARRY_GUARD_PHASE_MS = 250;
+export const PARRY_FINISH_START_MS = 251;
+export const PARRY_MOTION_END_MS = 500;
+export const PARRY_TOTAL_MS = 750;
+export const PARRY_RING_START_MS = 251;
+export const PARRY_GUARD_SWAP_MS = 125;
+export const PARRY_VISUAL_SLOW_DURATION_MS = PARRY_GUARD_PHASE_MS;
 export const PARRY_VISUAL_SLOW_SCALE = 0.22;
 
 export const getVisualSlowCompensation = (
@@ -188,8 +194,13 @@ export interface EarTrainingBattleDrawRuntime {
   effectByCommandId: Map<number, CanvasEffectRuntime>;
   /** 描画のみの疑似ヒットストップ（パリィ成功時） */
   visualSlow: CanvasVisualSlowState | null;
-  /** 横一閃ポーズを交互に切り替える */
-  yokoIssenPoseAlternate: boolean;
+  /** ガードポーズ B/C の交互開始 */
+  parryGuardPoseAlternate: boolean;
+  /** フィニッシュモーションのキャンセル用 */
+  parryMotionGeneration: number;
+  parryGuardSwapTimer: ReturnType<typeof setTimeout> | null;
+  parryFinishTimer: ReturnType<typeof setTimeout> | null;
+  parryMotionEndTimer: ReturnType<typeof setTimeout> | null;
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;
