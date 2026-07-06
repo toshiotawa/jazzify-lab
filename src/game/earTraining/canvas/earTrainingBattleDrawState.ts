@@ -201,6 +201,9 @@ export interface ParrySparkSlot {
   size: number;
   timeOffsetMs: number;
   radiusScale: number;
+  wobblePhase: number;
+  wobbleAmp: number;
+  tangentSkew: number;
 }
 
 export interface EarTrainingBattleDrawRuntime {

@@ -19,6 +19,7 @@ export interface ParrySparkDrawState {
   size: number;
   dirX: number;
   dirY: number;
+  streakLength: number;
   color: string;
 }
 
@@ -35,6 +36,9 @@ export const createParrySparkPool = (): ParrySparkSlot[] =>
     size: 0,
     timeOffsetMs: 0,
     radiusScale: 1,
+    wobblePhase: 0,
+    wobbleAmp: 0,
+    tangentSkew: 0,
   }));
 
 export const spawnParrySparks = (
@@ -63,8 +67,11 @@ export const spawnParrySparks = (
     slot.dirX = Math.cos(angle);
     slot.dirY = Math.sin(angle);
     slot.size = sizeMin + Math.random() * (sizeMax - sizeMin);
-    slot.timeOffsetMs = (Math.random() - 0.5) * 50;
-    slot.radiusScale = 0.88 + Math.random() * 0.24;
+    slot.timeOffsetMs = (Math.random() - 0.5) * 90;
+    slot.radiusScale = 0.76 + Math.random() * 0.48;
+    slot.wobblePhase = Math.random() * Math.PI * 2;
+    slot.wobbleAmp = 2 + Math.random() * 10;
+    slot.tangentSkew = (Math.random() - 0.5) * 0.55;
     spawned += 1;
   }
 
@@ -80,12 +87,18 @@ export const getParrySparkDrawState = (
   const age = now - slot.parryStartedAt + slot.timeOffsetMs;
   if (age >= slot.durationMs || age < 0) return null;
 
-  const radius = getParryEffectRadiusAtAge(age) * slot.radiusScale;
-  const x = slot.centerX + slot.dirX * radius;
-  const y = slot.centerY + slot.dirY * radius;
+  const baseRadius = getParryEffectRadiusAtAge(age) * slot.radiusScale;
+  const wobble = Math.sin(age * 0.014 + slot.wobblePhase) * slot.wobbleAmp;
+  const radius = Math.max(0, baseRadius + wobble);
+  const tanX = -slot.dirY;
+  const tanY = slot.dirX;
+  const skew = slot.tangentSkew * radius * 0.18;
+  const x = slot.centerX + slot.dirX * radius + tanX * skew;
+  const y = slot.centerY + slot.dirY * radius + tanY * skew;
   const fadeT = age / slot.durationMs;
   const alpha = getParryLingerAlpha(now, slot.parryStartedAt, 1 - fadeT * 0.4);
   const size = slot.size * (1 - fadeT * 0.35);
+  const streakLength = size * (1 - fadeT * 0.5) * 1.6;
 
   return {
     x,
@@ -94,6 +107,7 @@ export const getParrySparkDrawState = (
     size,
     dirX: slot.dirX,
     dirY: slot.dirY,
+    streakLength,
     color: PARRY_SPARK_COLOR,
   };
 };
@@ -126,7 +140,10 @@ export const drawParrySparks = (
     ctx.lineWidth = Math.max(1, state.size * 0.85);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(slot.centerX, slot.centerY);
+    ctx.moveTo(
+      state.x - state.dirX * state.streakLength,
+      state.y - state.dirY * state.streakLength,
+    );
     ctx.lineTo(state.x, state.y);
     ctx.stroke();
     ctx.beginPath();
