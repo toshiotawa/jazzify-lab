@@ -666,7 +666,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     alpha: 1,
     rotation: -4,
     rotationEnd: -4,
-    scaleStart: 0.5,
+    scaleStart: 1,
     scaleEnd: 1,
     fadeOut: true,
     groupStartedAt: now,
