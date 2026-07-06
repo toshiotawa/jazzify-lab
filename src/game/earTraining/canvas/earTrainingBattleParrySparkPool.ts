@@ -2,14 +2,15 @@ import type { ParrySparkSlot } from './earTrainingBattleDrawState';
 import {
   getParryLingerAlpha,
   PARRY_MOTION_END_MS,
-  PARRY_SLOW_PHASE_MS,
 } from './earTrainingBattleDrawState';
 
 export const PARRY_SPARK_POOL_SIZE = 128;
-export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS - PARRY_SLOW_PHASE_MS;
+export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS;
 
 const NORMAL_SPARK_COUNT = 32;
 const CHAIN_SPARK_COUNT = 42;
+const SPARK_ORIGIN_SPREAD_MIN = 16;
+const SPARK_ORIGIN_SPREAD_MAX = 42;
 
 const SPARK_WHITE = '#ffffff';
 const SPARK_ORANGE = '#fb923c';
@@ -57,8 +58,8 @@ export const spawnParrySparks = (
   isChainParry: boolean,
 ): number => {
   const count = isChainParry ? CHAIN_SPARK_COUNT : NORMAL_SPARK_COUNT;
-  const speedMin = isChainParry ? 160 : 120;
-  const speedMax = isChainParry ? 320 : 260;
+  const speedMin = isChainParry ? 200 : 160;
+  const speedMax = isChainParry ? 380 : 300;
   const sizeMin = 2;
   const sizeMax = isChainParry ? 6 : 5;
   let spawned = 0;
@@ -69,15 +70,17 @@ export const spawnParrySparks = (
 
     const angle = Math.random() * Math.PI * 2;
     const speed = speedMin + Math.random() * (speedMax - speedMin);
+    const startRadius = SPARK_ORIGIN_SPREAD_MIN
+      + Math.random() * (SPARK_ORIGIN_SPREAD_MAX - SPARK_ORIGIN_SPREAD_MIN);
     slot.active = true;
     slot.startedAt = startedAt;
     slot.durationMs = PARRY_SPARK_DURATION_MS;
     slot.parryStartedAt = startedAt;
-    slot.originX = x;
-    slot.originY = y;
+    slot.originX = x + Math.cos(angle) * startRadius;
+    slot.originY = y + Math.sin(angle) * startRadius;
     slot.dirX = Math.cos(angle);
     slot.dirY = Math.sin(angle);
-    slot.travel = speed * (PARRY_SPARK_DURATION_MS / 1000) * 0.72;
+    slot.travel = speed * (PARRY_SPARK_DURATION_MS / 1000) * 0.88;
     slot.size = sizeMin + Math.random() * (sizeMax - sizeMin);
     slot.colorMix = Math.random();
     spawned += 1;
@@ -96,10 +99,10 @@ export const getParrySparkDrawState = (
   const t = Math.min(1, elapsed / slot.durationMs);
   if (t >= 1) return null;
 
-  const moveT = 1 - (1 - t) ** 3;
+  const moveT = 1 - (1 - t) ** 2;
   const x = slot.originX + slot.dirX * slot.travel * moveT;
   const y = slot.originY + slot.dirY * slot.travel * moveT;
-  const alpha = getParryLingerAlpha(now, slot.parryStartedAt, 1 - t);
+  const alpha = getParryLingerAlpha(now, slot.parryStartedAt, 1 - t * 0.35);
   const scale = 1 + (0.2 - 1) * t;
   const size = slot.size * scale;
   const streakLength = size * (1 - t * 0.7) * 2.8;

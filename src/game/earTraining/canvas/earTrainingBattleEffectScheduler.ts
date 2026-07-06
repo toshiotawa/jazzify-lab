@@ -14,12 +14,12 @@ import {
   getVisualNow,
   hexColor,
   lerp,
+  PARRY_FINISH_GUARD_MS,
   PARRY_FINISH_START_MS,
-  PARRY_GUARD_PHASE_MS,
+  PARRY_GUARD_ONLY_MS,
   PARRY_MOTION_END_MS,
-  PARRY_RING_EXPAND_END_MS,
+  PARRY_REFLECT_HIT_MS,
   PARRY_RING_EXPAND_START_MS,
-  PARRY_RING_START_MS,
   PARRY_TOTAL_MS,
   PARRY_VISUAL_SLOW_DURATION_MS,
   PARRY_VISUAL_SLOW_SCALE,
@@ -59,7 +59,7 @@ const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'] as const;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 const HAMMER_DISMISS_FADE_MS = 280;
-const OSMD_REFLECT_HIT_DELAY_MS = PARRY_FINISH_START_MS;
+const OSMD_REFLECT_HIT_DELAY_MS = PARRY_REFLECT_HIT_MS;
 const HAMMER_THROW_WAVE_DURATION_MS = 200;
 
 let visualIdCounter = 0;
@@ -288,75 +288,6 @@ const addParryGuardEffect = (
   });
 };
 
-const addParryCharacterFlash = (
-  runtime: EarTrainingBattleDrawRuntime,
-  x: number,
-  y: number,
-  parryStartedAt: number,
-): void => {
-  const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, {
-    kind: 'burst',
-    startedAt: parryStartedAt + PARRY_RING_EXPAND_START_MS,
-    durationMs: 110,
-    fromX: x,
-    fromY: y,
-    toX: x,
-    toY: y,
-    color: 'rgba(255, 255, 255, 0.95)',
-    size: 36,
-    alpha: 0.92,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 0.35,
-    scaleEnd: 1.35,
-    fadeOut: true,
-    groupStartedAt: parryStartedAt,
-  });
-  addVisual(visuals, {
-    kind: 'burst',
-    startedAt: parryStartedAt + PARRY_RING_EXPAND_START_MS,
-    durationMs: PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS,
-    fromX: x,
-    fromY: y,
-    toX: x,
-    toY: y,
-    color: 'rgba(251, 146, 60, 0.55)',
-    size: 52,
-    alpha: 0.34,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 0.55,
-    scaleEnd: 1.05,
-    groupStartedAt: parryStartedAt,
-  });
-  addVisual(visuals, {
-    kind: 'burst',
-    startedAt: parryStartedAt + PARRY_FINISH_START_MS,
-    durationMs: PARRY_RING_EXPAND_END_MS - PARRY_FINISH_START_MS + 1,
-    fromX: x,
-    fromY: y,
-    toX: x,
-    toY: y,
-    color: 'rgba(255, 250, 240, 0.72)',
-    size: 44,
-    alpha: 0.22,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 0.85,
-    scaleEnd: 0.95,
-    groupStartedAt: parryStartedAt,
-  });
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'osmdHammerReflect' },
-    startedAt: parryStartedAt + PARRY_RING_EXPAND_START_MS,
-    impactAt: parryStartedAt + PARRY_RING_EXPAND_START_MS,
-    impactFired: true,
-    visuals,
-  });
-};
-
 const triggerParryVisualSlow = (runtime: EarTrainingBattleDrawRuntime, now: number): void => {
   runtime.visualSlow = {
     startedAt: now,
@@ -392,29 +323,6 @@ const scheduleParryMotion = (
   onDirty: () => void,
   finishOnly: boolean,
 ): void => {
-  if (finishOnly) {
-    if (runtime.parryFinishLocked) {
-      return;
-    }
-    cancelParryFinishMotion(runtime);
-    runtime.parryFinishLocked = true;
-    runtime.parryMotionGeneration += 1;
-    const generation = runtime.parryMotionGeneration;
-    const setPose = (poseKey: string | null, remainingMs: number): void => {
-      runtime.player.poseKey = poseKey;
-      runtime.player.poseUntil = performance.now() + remainingMs + 40;
-      onDirty();
-    };
-    setPose(PARRY_FINISH_POSE_KEY, PARRY_TOTAL_MS);
-    runtime.parryMotionEndTimer = setTimeout(() => {
-      if (runtime.parryMotionGeneration !== generation) return;
-      runtime.player.poseKey = null;
-      runtime.parryFinishLocked = false;
-      onDirty();
-    }, PARRY_MOTION_END_MS);
-    return;
-  }
-
   if (runtime.parryFinishLocked) {
     return;
   }
@@ -429,12 +337,25 @@ const scheduleParryMotion = (
     onDirty();
   };
 
-  setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_PHASE_MS);
+  if (finishOnly) {
+    runtime.parryFinishLocked = true;
+    setPose(PARRY_GUARD_POSE_KEY, PARRY_FINISH_GUARD_MS);
 
-  runtime.parryFinishTimer = setTimeout(() => {
-    if (runtime.parryMotionGeneration !== generation) return;
-    setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS - PARRY_FINISH_START_MS);
-  }, PARRY_FINISH_START_MS);
+    runtime.parryFinishTimer = setTimeout(() => {
+      if (runtime.parryMotionGeneration !== generation) return;
+      setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS - PARRY_FINISH_START_MS);
+    }, PARRY_FINISH_START_MS);
+
+    runtime.parryMotionEndTimer = setTimeout(() => {
+      if (runtime.parryMotionGeneration !== generation) return;
+      runtime.player.poseKey = null;
+      runtime.parryFinishLocked = false;
+      onDirty();
+    }, PARRY_MOTION_END_MS);
+    return;
+  }
+
+  setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_ONLY_MS);
 
   runtime.parryMotionEndTimer = setTimeout(() => {
     if (runtime.parryMotionGeneration !== generation) return;
@@ -787,7 +708,6 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   scheduleParryMotion(runtime, onDirty, finishOnly);
   spawnParrySparks(runtime.parrySparkPool, guardX, guardY, now, isChainParry);
   addParryGuardEffect(runtime, guardX, guardY, now + PARRY_RING_EXPAND_START_MS, now);
-  addParryCharacterFlash(runtime, anchors.player.x, anchors.player.bodyY - 28, now);
   if (command.precise === true) {
     addPreciseParryRing(
       runtime,
@@ -1069,7 +989,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     runtime.visualSlow = null;
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
-  pruneParrySparks(runtime.parrySparkPool, visualNow);
+  pruneParrySparks(runtime.parrySparkPool, now);
   runtime.effects = runtime.effects.filter(effect => {
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;

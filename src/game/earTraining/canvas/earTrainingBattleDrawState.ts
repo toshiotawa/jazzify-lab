@@ -127,9 +127,14 @@ export const PARRY_SLOW_PHASE_MS = 250;
 export const PARRY_RING_EXPAND_START_MS = 251;
 export const PARRY_RING_EXPAND_END_MS = 750;
 export const PARRY_EFFECT_FADE_START_MS = 751;
-export const PARRY_GUARD_PHASE_MS = 500;
-export const PARRY_FINISH_START_MS = 501;
+/** フィニッシュ前のガード_pose（小節最終音符のみ） */
+export const PARRY_FINISH_GUARD_MS = 250;
+export const PARRY_FINISH_START_MS = 251;
 export const PARRY_MOTION_END_MS = 1000;
+/** 通常パリィのガード_pose持続（フィニッシュなし） */
+export const PARRY_GUARD_ONLY_MS = PARRY_MOTION_END_MS;
+/** 敵ダメージ・ノックバック（リング最大付近） */
+export const PARRY_REFLECT_HIT_MS = 501;
 export const PARRY_TOTAL_MS = 1000;
 export const PARRY_RING_START_MS = PARRY_RING_EXPAND_START_MS;
 export const PARRY_LINGER_FADE_START_MS = PARRY_EFFECT_FADE_START_MS;

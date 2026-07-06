@@ -956,6 +956,7 @@ const drawEffects = (
   ctx: CanvasRenderingContext2D,
   runtime: EarTrainingBattleDrawRuntime,
   visualNow: number,
+  now: number,
 ): void => {
   if (runtime.screenFlash) {
     const flashT = (visualNow - runtime.screenFlash.startedAt) / runtime.screenFlash.durationMs;
@@ -969,7 +970,7 @@ const drawEffects = (
     effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
   });
 
-  drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
+  drawParrySparks(ctx, runtime.parrySparkPool, now);
 
   runtime.floatingTexts.forEach(text => {
     const t = (visualNow - text.startedAt) / text.durationMs;
@@ -1015,7 +1016,7 @@ export const drawEarTrainingBattle = (
   drawCharacter(ctx, runtime, 'player', visualNow);
   drawCharacter(ctx, runtime, 'enemy', visualNow);
   drawPhraseIntro(ctx, runtime, visualNow);
-  drawEffects(ctx, runtime, visualNow);
+  drawEffects(ctx, runtime, visualNow, now);
   ctx.restore();
 
   drawHud(ctx, snapshot, runtime);

@@ -3,6 +3,7 @@ import {
   getVisualNow,
   getVisualSlowCompensation,
   PARRY_EFFECT_FADE_START_MS,
+  PARRY_FINISH_START_MS,
   PARRY_LINGER_FADE_DURATION_MS,
   PARRY_MOTION_END_MS,
   PARRY_SLOW_PHASE_MS,
@@ -14,6 +15,7 @@ import {
   createParrySparkPool,
   getParrySparkDrawState,
   hasActiveParrySparks,
+  PARRY_SPARK_DURATION_MS,
   pruneParrySparks,
   spawnParrySparks,
 } from '@/game/earTraining/canvas/earTrainingBattleParrySparkPool';
@@ -72,13 +74,24 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('uses white-orange gradient colors only', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 0, 0, 1_000, false);
+    spawnParrySparks(pool, 50, 50, 1_000, false);
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
     const state = getParrySparkDrawState(slot, 1_020);
     expect(state?.color.startsWith('rgb(')).toBe(true);
     expect(state?.color).not.toContain('ef4444');
+  });
+
+  it('spawns sparks from spread origins rather than a single center point', () => {
+    const pool = createParrySparkPool();
+    spawnParrySparks(pool, 100, 100, 1_000, false);
+    const active = pool.filter(slot => slot.active);
+    expect(active.length).toBeGreaterThan(0);
+    const allAtCenter = active.every(
+      slot => slot.originX === 100 && slot.originY === 100,
+    );
+    expect(allAtCenter).toBe(false);
   });
 });
 
@@ -91,6 +104,8 @@ describe('getParryLingerAlpha', () => {
     ).toBeLessThan(0.05);
     expect(PARRY_LINGER_FADE_DURATION_MS).toBe(PARRY_MOTION_END_MS - PARRY_EFFECT_FADE_START_MS);
     expect(PARRY_SLOW_PHASE_MS).toBe(250);
+    expect(PARRY_FINISH_START_MS).toBe(251);
+    expect(PARRY_SPARK_DURATION_MS).toBe(PARRY_TOTAL_MS);
     expect(PARRY_TOTAL_MS).toBe(1000);
   });
 });
