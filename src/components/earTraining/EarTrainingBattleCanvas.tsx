@@ -82,9 +82,7 @@ const createInitialRuntime = (
   activeThinRingCount: 0,
   effectByCommandId: new Map(),
   visualSlow: null,
-  parryGuardPoseAlternate: false,
   parryMotionGeneration: 0,
-  parryGuardSwapTimer: null,
   parryFinishTimer: null,
   parryMotionEndTimer: null,
 });

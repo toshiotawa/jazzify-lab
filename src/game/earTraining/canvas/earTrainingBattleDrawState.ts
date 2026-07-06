@@ -124,7 +124,6 @@ export const PARRY_FINISH_START_MS = 251;
 export const PARRY_MOTION_END_MS = 500;
 export const PARRY_TOTAL_MS = 750;
 export const PARRY_RING_START_MS = 251;
-export const PARRY_GUARD_SWAP_MS = 125;
 export const PARRY_VISUAL_SLOW_DURATION_MS = PARRY_GUARD_PHASE_MS;
 export const PARRY_VISUAL_SLOW_SCALE = 0.22;
 
@@ -194,11 +193,8 @@ export interface EarTrainingBattleDrawRuntime {
   effectByCommandId: Map<number, CanvasEffectRuntime>;
   /** 描画のみの疑似ヒットストップ（パリィ成功時） */
   visualSlow: CanvasVisualSlowState | null;
-  /** ガードポーズ B/C の交互開始 */
-  parryGuardPoseAlternate: boolean;
   /** フィニッシュモーションのキャンセル用 */
   parryMotionGeneration: number;
-  parryGuardSwapTimer: ReturnType<typeof setTimeout> | null;
   parryFinishTimer: ReturnType<typeof setTimeout> | null;
   parryMotionEndTimer: ReturnType<typeof setTimeout> | null;
 }
