@@ -279,6 +279,8 @@ const addParryGuardEffect = (
     scaleEnd: PARRY_RING_MAX_SCALE,
     parryRingExpand: true,
     groupStartedAt: parryStartedAt,
+    parryRingTimeOffsetMs: (Math.random() - 0.5) * 80,
+    parryRingScaleJitter: 0.9 + Math.random() * 0.2,
   });
   runtime.effects.push({
     commandId: -1,
@@ -702,7 +704,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   runtime.lastParryAt = now;
   triggerParryVisualSlow(runtime, now);
   scheduleParryMotion(runtime, onDirty, finishOnly);
-  triggerParryCameraZoom(runtime.camera, parryCenterX, parryCenterY, width / 2, height / 2);
+  triggerParryCameraZoom(runtime.camera, width / 2, height / 2);
   spawnParrySparks(runtime.parrySparkPool, parryCenterX, parryCenterY, now, isChainParry);
   addParryGuardEffect(runtime, parryCenterX, parryCenterY, now + PARRY_RING_EXPAND_START_MS, now);
   if (command.precise === true) {

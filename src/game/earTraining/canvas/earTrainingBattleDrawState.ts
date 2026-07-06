@@ -114,6 +114,10 @@ export interface CanvasEffectVisual {
   groupStartedAt?: number;
   /** 251–750ms で拡大し 751ms 以降フェードするパリィ円 */
   parryRingExpand?: boolean;
+  /** パリィ円タイムラインのランダムずれ（ms） */
+  parryRingTimeOffsetMs?: number;
+  /** パリィ円半径のランダム倍率 */
+  parryRingScaleJitter?: number;
 }
 
 export interface CanvasVisualSlowState {
@@ -195,6 +199,11 @@ export interface ParrySparkSlot {
   dirX: number;
   dirY: number;
   size: number;
+  timeOffsetMs: number;
+  radiusScale: number;
+  wobblePhase: number;
+  wobbleAmp: number;
+  tangentSkew: number;
 }
 
 export interface EarTrainingBattleDrawRuntime {

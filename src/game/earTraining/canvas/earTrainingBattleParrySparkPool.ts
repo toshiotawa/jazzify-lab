@@ -8,8 +8,8 @@ import {
 export const PARRY_SPARK_POOL_SIZE = 128;
 export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS;
 
-const NORMAL_SPARK_COUNT = 14;
-const CHAIN_SPARK_COUNT = 20;
+const NORMAL_SPARK_COUNT = 28;
+const CHAIN_SPARK_COUNT = 40;
 export const PARRY_SPARK_COLOR = '#fb923c';
 
 export interface ParrySparkDrawState {
@@ -34,6 +34,11 @@ export const createParrySparkPool = (): ParrySparkSlot[] =>
     dirX: 0,
     dirY: 0,
     size: 0,
+    timeOffsetMs: 0,
+    radiusScale: 1,
+    wobblePhase: 0,
+    wobbleAmp: 0,
+    tangentSkew: 0,
   }));
 
 export const spawnParrySparks = (
@@ -52,7 +57,7 @@ export const spawnParrySparks = (
     const slot = pool[index];
     if (slot.active) continue;
 
-    const angle = (Math.PI * 2 * spawned) / count + (Math.random() - 0.5) * 0.12;
+    const angle = Math.random() * Math.PI * 2;
     slot.active = true;
     slot.startedAt = startedAt;
     slot.durationMs = PARRY_SPARK_DURATION_MS;
@@ -62,6 +67,11 @@ export const spawnParrySparks = (
     slot.dirX = Math.cos(angle);
     slot.dirY = Math.sin(angle);
     slot.size = sizeMin + Math.random() * (sizeMax - sizeMin);
+    slot.timeOffsetMs = (Math.random() - 0.5) * 90;
+    slot.radiusScale = 0.76 + Math.random() * 0.48;
+    slot.wobblePhase = Math.random() * Math.PI * 2;
+    slot.wobbleAmp = 2 + Math.random() * 10;
+    slot.tangentSkew = (Math.random() - 0.5) * 0.55;
     spawned += 1;
   }
 
@@ -74,12 +84,18 @@ export const getParrySparkDrawState = (
 ): ParrySparkDrawState | null => {
   if (!slot.active || now < slot.startedAt) return null;
 
-  const age = now - slot.parryStartedAt;
+  const age = now - slot.parryStartedAt + slot.timeOffsetMs;
   if (age >= slot.durationMs) return null;
+  if (age < 0) return null;
 
-  const radius = getParryEffectRadiusAtAge(age);
-  const x = slot.centerX + slot.dirX * radius;
-  const y = slot.centerY + slot.dirY * radius;
+  const baseRadius = getParryEffectRadiusAtAge(age) * slot.radiusScale;
+  const wobble = Math.sin(age * 0.014 + slot.wobblePhase) * slot.wobbleAmp;
+  const radius = Math.max(0, baseRadius + wobble);
+  const tanX = -slot.dirY;
+  const tanY = slot.dirX;
+  const skew = slot.tangentSkew * radius * 0.18;
+  const x = slot.centerX + slot.dirX * radius + tanX * skew;
+  const y = slot.centerY + slot.dirY * radius + tanY * skew;
   const fadeT = age / slot.durationMs;
   const alpha = getParryLingerAlpha(now, slot.parryStartedAt, 1 - fadeT * 0.4);
   const size = slot.size * (1 - fadeT * 0.35);

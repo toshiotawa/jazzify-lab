@@ -53,7 +53,7 @@ describe('earTrainingBattle visual slow', () => {
 });
 
 describe('parry merge timeline', () => {
-  it('aligns spark radius and ring scale at 251ms', () => {
+  it('uses shared baseline radius at 251ms before per-effect jitter', () => {
     expect(getParryEffectRadiusAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
     expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_RING_MERGE_SCALE);
     expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS - 1)).toBeNull();
@@ -61,16 +61,16 @@ describe('parry merge timeline', () => {
 });
 
 describe('earTrainingBattleParrySparkPool', () => {
-  it('spawns 14 sparks for normal parry and 20 for chain parry', () => {
+  it('spawns 28 sparks for normal parry and 40 for chain parry', () => {
     const pool = createParrySparkPool();
-    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(14);
+    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(28);
     expect(hasActiveParrySparks(pool)).toBe(true);
 
     for (const slot of pool) {
       slot.active = false;
     }
 
-    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(20);
+    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(40);
   });
 
   it('reuses inactive pool slots without allocating new objects', () => {
@@ -91,25 +91,26 @@ describe('earTrainingBattleParrySparkPool', () => {
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
-    const state = getParrySparkDrawState(slot, 1_020);
+    const state = getParrySparkDrawState(slot, 1_100);
     expect(state?.color).toBe(PARRY_SPARK_COLOR);
   });
 
-  it('expands sparks radially from the player center', () => {
+  it('applies per-spark jitter so merge distances are not identical', () => {
     const pool = createParrySparkPool();
     spawnParrySparks(pool, 100, 100, 1_000, false);
-    const slot = pool.find(entry => entry.active);
-    expect(slot).toBeDefined();
-    if (!slot) return;
-    const early = getParrySparkDrawState(slot, 1_010);
-    const merged = getParrySparkDrawState(slot, 1_000 + PARRY_FINISH_START_MS);
-    expect(early).toBeDefined();
-    expect(merged).toBeDefined();
-    if (!early || !merged) return;
-    const earlyDist = Math.hypot(early.x - 100, early.y - 100);
-    const mergedDist = Math.hypot(merged.x - 100, merged.y - 100);
-    expect(mergedDist).toBeGreaterThan(earlyDist);
-    expect(mergedDist).toBeCloseTo(PARRY_MERGE_RADIUS_PX, 0);
+    const mergeTime = 1_000 + PARRY_FINISH_START_MS;
+    const distances = pool
+      .filter(slot => slot.active)
+      .map(slot => {
+        const state = getParrySparkDrawState(slot, mergeTime);
+        if (!state) return null;
+        return Math.hypot(state.x - 100, state.y - 100);
+      })
+      .filter((value): value is number => value !== null);
+    expect(distances.length).toBeGreaterThan(1);
+    const min = Math.min(...distances);
+    const max = Math.max(...distances);
+    expect(max - min).toBeGreaterThan(2);
   });
 });
 

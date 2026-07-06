@@ -857,14 +857,15 @@ const drawEffectVisual = (
   let size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
   let alpha = visual.alpha;
   if (visual.parryRingExpand && visual.groupStartedAt !== undefined) {
-    const age = now - visual.groupStartedAt;
+    const age = now - visual.groupStartedAt + (visual.parryRingTimeOffsetMs ?? 0);
     const ringScale = getParryRingScaleAtAge(age);
     if (ringScale === null) {
       return;
     }
-    size = visual.size * ringScale;
-    if (age >= PARRY_EFFECT_FADE_START_MS) {
-      const fadeT = (age - PARRY_EFFECT_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS;
+    size = visual.size * ringScale * (visual.parryRingScaleJitter ?? 1);
+    const fadeAge = now - visual.groupStartedAt;
+    if (fadeAge >= PARRY_EFFECT_FADE_START_MS) {
+      const fadeT = (fadeAge - PARRY_EFFECT_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS;
       alpha = visual.alpha * (1 - easeCubicOut(Math.min(1, fadeT)));
     }
   } else if (visual.kind === 'thinRing') {
