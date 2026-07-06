@@ -1031,13 +1031,30 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let chordName = targets[index].label
         let damage = practiceMode ? 0 : stage.perCorrectNoteDamage
         let reflectRelatedId = incomingHammerEffectId
+        let target = targets[index]
+        let rhythmRefs = targets.map {
+            EarTrainingChordOsmdRhythmTargetRef(
+                targetTimeSec: $0.targetTimeSec,
+                measureNumber: $0.measureNumber,
+                orderIndex: $0.orderIndex
+            )
+        }
+        let targetRef = EarTrainingChordOsmdRhythmTargetRef(
+            targetTimeSec: target.targetTimeSec,
+            measureNumber: target.measureNumber,
+            orderIndex: target.orderIndex
+        )
         let effectId = triggerBattleEffect(
             kind: .osmdHammerReflect,
             label: chordName,
             damage: damage,
             phraseNoteCount: nil,
             relatedEffectId: reflectRelatedId,
-            precise: Self.parryPreciseRingOnSuccess
+            precise: Self.parryPreciseRingOnSuccess,
+            parryFinishOnly: EarTrainingChordOsmdRhythm.isLastTargetInMeasure(
+                targets: rhythmRefs,
+                target: targetRef
+            )
         )
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             self?.applyEnemyDamage(damage)
@@ -1300,7 +1317,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         phraseNoteCount: Int?,
         relatedEffectId: Int? = nil,
         travelDurationSec: Double? = nil,
-        precise: Bool = false
+        precise: Bool = false,
+        parryFinishOnly: Bool = false
     ) -> Int {
         battleEffectIdCounter += 1
         let id = battleEffectIdCounter
@@ -1312,7 +1330,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             phraseNoteCount: phraseNoteCount,
             relatedEffectId: relatedEffectId,
             travelDurationSec: travelDurationSec,
-            precise: precise
+            precise: precise,
+            parryFinishOnly: parryFinishOnly
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
@@ -1532,13 +1551,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 transposeOffset: transposeOffset,
                 isSwing: isSwing
             )
-            return drafts.map {
+            return drafts.enumerated().map { index, draft in
                 RhythmTarget(
-                    id: $0.id,
-                    label: $0.label,
-                    targetTimeSec: $0.targetTimeSec,
-                    measureNumber: $0.measureNumber,
-                    midiCounts: $0.midiCounts
+                    id: draft.id,
+                    label: draft.label,
+                    targetTimeSec: draft.targetTimeSec,
+                    measureNumber: draft.measureNumber,
+                    midiCounts: draft.midiCounts,
+                    orderIndex: index
                 )
             }
         }
@@ -1592,7 +1612,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                         ),
                         targetTimeSec: time,
                         measureNumber: measure,
-                        midiCounts: midiCounts
+                        midiCounts: midiCounts,
+                        orderIndex: result.count
                     )
                 )
             }
@@ -1620,6 +1641,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var label: String
         let targetTimeSec: Double
         let measureNumber: Int
+        let orderIndex: Int
         var midiCounts: [Int: Int]
         var remainingMidiCounts: [Int: Int]
         var completed: Bool = false
@@ -1627,11 +1649,19 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var hammerEffectId: Int?
         var reflected: Bool = false
 
-        init(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int]) {
+        init(
+            id: UUID,
+            label: String,
+            targetTimeSec: Double,
+            measureNumber: Int,
+            midiCounts: [Int: Int],
+            orderIndex: Int
+        ) {
             self.id = id
             self.label = label
             self.targetTimeSec = targetTimeSec
             self.measureNumber = measureNumber
+            self.orderIndex = orderIndex
             self.midiCounts = midiCounts
             self.remainingMidiCounts = midiCounts
         }

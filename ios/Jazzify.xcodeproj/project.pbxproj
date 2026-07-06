@@ -206,6 +206,9 @@
 		F2EE770002DD11EE0000DD02 /* EarTrainingMusicXmlTransposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770002DD11EE0000DD01 /* EarTrainingMusicXmlTransposer.swift */; };
 		F2EE770003EE11EE0000EE02 /* EarTrainingPracticeSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770003EE11EE0000EE01 /* EarTrainingPracticeSpeed.swift */; };
 		F2EE770004FF11EE0000FF02 /* EarTrainingOsmdTimingAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE770004FF11EE0000FF01 /* EarTrainingOsmdTimingAdjustment.swift */; };
+		F4PARRY001ENG0102 /* EarTrainingBattleParryConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */; };
+		F4PARRY002ENG0102 /* EarTrainingBattleParrySparkPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */; };
+		F4PARRY003ENG0102 /* EarTrainingChordOsmdRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */; };
 		F2PRECC001ENG0102 /* EarTrainingSmfBinary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */; };
 		F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */; };
 		F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */; };
@@ -437,6 +440,9 @@
 		F2EE770002DD11EE0000DD01 /* EarTrainingMusicXmlTransposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingMusicXmlTransposer.swift; sourceTree = "<group>"; };
 		F2EE770003EE11EE0000EE01 /* EarTrainingPracticeSpeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPracticeSpeed.swift; sourceTree = "<group>"; };
 		F2EE770004FF11EE0000FF01 /* EarTrainingOsmdTimingAdjustment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdTimingAdjustment.swift; sourceTree = "<group>"; };
+		F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParryConstants.swift; sourceTree = "<group>"; };
+		F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParrySparkPool.swift; sourceTree = "<group>"; };
+		F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdRhythm.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSmfBinary.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionNotes.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionJudge.swift; sourceTree = "<group>"; };
@@ -651,6 +657,9 @@
 				F2EE770002DD11EE0000DD01 /* EarTrainingMusicXmlTransposer.swift */,
 				F2EE770003EE11EE0000EE01 /* EarTrainingPracticeSpeed.swift */,
 				F2EE770004FF11EE0000FF01 /* EarTrainingOsmdTimingAdjustment.swift */,
+				F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */,
+				F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */,
+				F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */,
 				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
 				ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */,
 				PPAD002E2606021400000002 /* EarTrainingPhrasePairEngine.swift */,
@@ -1297,6 +1306,9 @@
 				F2EE770002DD11EE0000DD02 /* EarTrainingMusicXmlTransposer.swift in Sources */,
 				F2EE770003EE11EE0000EE02 /* EarTrainingPracticeSpeed.swift in Sources */,
 				F2EE770004FF11EE0000FF02 /* EarTrainingOsmdTimingAdjustment.swift in Sources */,
+				F4PARRY001ENG0102 /* EarTrainingBattleParryConstants.swift in Sources */,
+				F4PARRY002ENG0102 /* EarTrainingBattleParrySparkPool.swift in Sources */,
+				F4PARRY003ENG0102 /* EarTrainingChordOsmdRhythm.swift in Sources */,
 				F2EE770002BB11EE0000BB02 /* EarTrainingChordOSMDGameView.swift in Sources */,
 				F2PRECC001VIE0802 /* EarTrainingOSMDScoreWebView.swift in Sources */,
 				F2PRECC001VIE0702 /* PrecisionNotesCanvasView.swift in Sources */,

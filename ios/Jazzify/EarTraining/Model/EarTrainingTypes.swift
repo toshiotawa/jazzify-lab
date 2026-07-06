@@ -47,6 +47,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let relatedEffectId: Int?
     let travelDurationSec: Double?
     let precise: Bool
+    /// 小節最終音符: 最初からフィニッシュモーション（連続パリィでもキャンセルしない）
+    let parryFinishOnly: Bool
 
     init(
         id: Int,
@@ -57,7 +59,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         originPoint: CGPoint? = nil,
         relatedEffectId: Int? = nil,
         travelDurationSec: Double? = nil,
-        precise: Bool = false
+        precise: Bool = false,
+        parryFinishOnly: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -68,6 +71,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         self.relatedEffectId = relatedEffectId
         self.travelDurationSec = travelDurationSec
         self.precise = precise
+        self.parryFinishOnly = parryFinishOnly
     }
 }
 

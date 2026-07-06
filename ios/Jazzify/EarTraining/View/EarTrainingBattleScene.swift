@@ -56,7 +56,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private enum PlayerAvatarPoseAsset {
         static let correctName = "correct3"
         static let castName = "eishou"
-        static let yokoIssenName = "yoko_issen"
+        static let guardDName = "GuardD"
+        static let finishName = "finish"
         static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
     }
 
@@ -163,11 +164,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private var snapshot: EarTrainingBattleSceneSnapshot?
     private var lastEffectId: Int = -1
-    private var activePreciseParryRingCount = 0
-    private static let thinRingStackMax = 3
     private var lastPhraseIntroKey: String?
     private var lastPhraseRunId: Int?
     private var lastBuiltAvatarSignature: String?
+    private var lastParryAt: TimeInterval = 0
+    private var parryFinishLocked = false
+    private var visualSlowStartedAt: TimeInterval?
+    private var parrySparkPool: EarTrainingBattleParrySparkPool?
     /// 着弾 (HP 反映) 通知をコントローラーへ伝えるブロック。
     var onEffectImpact: ((Int) -> Void)?
 
@@ -229,6 +232,19 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             addChild(node)
         }
         rebuildScene()
+        ensureParrySparkPool()
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        super.update(currentTime)
+        guard let parrySparkPool, parrySparkPool.hasActiveSparks else { return }
+        parrySparkPool.update(now: CACurrentMediaTime(), slowStartedAt: visualSlowStartedAt)
+    }
+
+    private func ensureParrySparkPool() {
+        if parrySparkPool == nil {
+            parrySparkPool = EarTrainingBattleParrySparkPool(parent: effectLayer)
+        }
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
@@ -2043,33 +2059,129 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playOSMDHammerReflectEffect(_ command: EarTrainingBattleEffectCommand) {
-        holdCharacterForAction(.player, state: .cast, durationMs: 300)
-        showPlayerPose(assetName: PlayerAvatarPoseAsset.yokoIssenName, durationMs: 300)
         let anchors = battleAnchors()
+        let parryCenterX = anchors.player.x
+        let parryCenterY = anchors.player.bodyY - Self.battleLayoutPt(28)
+        let now = CACurrentMediaTime()
+        let isChainParry = lastParryAt > 0
+            && (now - lastParryAt) < (EarTrainingBattleParryConstants.totalMs / 1000)
+        lastParryAt = now
 
-        let guardDirection: CGFloat = anchors.enemy.x < anchors.player.x ? -1 : 1
-        let guardPoint = CGPoint(
-            x: anchors.player.x + guardDirection * Self.battleLayoutPt(54),
-            y: anchors.player.bodyY - Self.battleLayoutPt(22)
-        )
+        holdCharacterForAction(.player, state: .cast, durationMs: EarTrainingBattleParryConstants.motionEndMs)
 
         if let relatedId = command.relatedEffectId {
             dismissOsmdHammerEffect(effectId: relatedId)
         }
 
-        showParryGuardEffect(at: guardPoint)
-        if command.precise {
-            showPreciseParryRing(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY))
-        }
-        showParrySlashEffect(from: guardPoint, toEnemyX: anchors.enemy.x)
+        triggerParryVisualSlow()
+        scheduleParryMotion(finishOnly: command.parryFinishOnly)
+        triggerParryCameraZoom()
+        ensureParrySparkPool()
+        parrySparkPool?.spawn(
+            x: parryCenterX,
+            y: parryCenterY,
+            startedAt: now,
+            isChainParry: isChainParry
+        )
+        showParryOrangeRing(at: CGPoint(x: parryCenterX, y: parryCenterY))
 
-        run(.wait(forDuration: 0.14)) { [weak self] in
-            guard let self else { return }
-            self.flashCharacter(.enemy)
-            self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
-            self.knockEnemyAfterDamage(distance: Self.battleLayoutPt(22), durationMs: 160)
-            self.onEffectImpact?(command.id)
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: EarTrainingBattleParryConstants.reflectHitMs / 1000),
+            SKAction.run { [weak self] in
+                guard let self else { return }
+                self.showParrySlashEffect(
+                    from: CGPoint(x: parryCenterX, y: parryCenterY),
+                    toEnemyX: anchors.enemy.x
+                )
+                self.flashCharacter(.enemy)
+                self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
+                self.knockEnemyAfterDamage(distance: Self.battleLayoutPt(22), durationMs: 160)
+                self.onEffectImpact?(command.id)
+            },
+        ]))
+    }
+
+    private func scheduleParryMotion(finishOnly: Bool) {
+        if parryFinishLocked { return }
+
+        if finishOnly {
+            parryFinishLocked = true
+            showPlayerPose(
+                assetName: PlayerAvatarPoseAsset.finishName,
+                durationMs: EarTrainingBattleParryConstants.motionEndMs
+            )
+            run(SKAction.sequence([
+                SKAction.wait(forDuration: EarTrainingBattleParryConstants.motionEndMs / 1000),
+                SKAction.run { [weak self] in
+                    self?.parryFinishLocked = false
+                },
+            ]))
+            return
         }
+
+        showPlayerPose(
+            assetName: PlayerAvatarPoseAsset.guardDName,
+            durationMs: EarTrainingBattleParryConstants.motionEndMs
+        )
+    }
+
+    private func triggerParryVisualSlow() {
+        visualSlowStartedAt = CACurrentMediaTime()
+        effectLayer.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
+        cameraNode.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: EarTrainingBattleParryConstants.visualSlowDurationMs / 1000),
+            SKAction.run { [weak self] in
+                guard let self else { return }
+                self.effectLayer.speed = 1
+                self.cameraNode.speed = 1
+                self.visualSlowStartedAt = nil
+            },
+        ]))
+    }
+
+    private func triggerParryCameraZoom() {
+        if cameraNode.position == .zero {
+            resetCameraToCenter()
+        }
+        cameraNode.removeAction(forKey: "parry-camera-zoom")
+        let zoomIn = SKAction.scale(
+            to: 1.0 / EarTrainingBattleParryConstants.parryCameraZoomTarget,
+            duration: EarTrainingBattleParryConstants.parryCameraZoomInSec
+        )
+        zoomIn.timingMode = .easeOut
+        let zoomOut = SKAction.scale(to: 1.0, duration: EarTrainingBattleParryConstants.parryCameraZoomOutSec)
+        zoomOut.timingMode = .easeInEaseOut
+        cameraNode.run(SKAction.sequence([zoomIn, zoomOut]), withKey: "parry-camera-zoom")
+    }
+
+    private func showParryOrangeRing(at position: CGPoint) {
+        let ringRadius = EarTrainingBattleParryConstants.ringBaseSize / 2
+        let ring = SKShapeNode(circleOfRadius: ringRadius)
+        ring.fillColor = .clear
+        ring.strokeColor = EarTrainingBattleParryConstants.ringOrange
+        ring.lineWidth = Self.battleLayoutPt(5)
+        ring.position = position
+        ring.alpha = 0.82
+        ring.isHidden = true
+        ring.zPosition = 65
+        effectLayer.addChild(ring)
+
+        let expandDuration = (EarTrainingBattleParryConstants.ringExpandEndMs - EarTrainingBattleParryConstants.ringExpandStartMs) / 1000
+        let holdBeforeFade = max(0, (EarTrainingBattleParryConstants.effectFadeStartMs - EarTrainingBattleParryConstants.ringExpandEndMs) / 1000)
+        let fadeDuration = (EarTrainingBattleParryConstants.motionEndMs - EarTrainingBattleParryConstants.effectFadeStartMs) / 1000
+
+        ring.run(SKAction.sequence([
+            SKAction.wait(forDuration: EarTrainingBattleParryConstants.ringExpandStartMs / 1000),
+            SKAction.run {
+                ring.isHidden = false
+                ring.setScale(EarTrainingBattleParryConstants.ringMergeScale)
+            },
+            SKAction.scale(to: EarTrainingBattleParryConstants.ringMaxScale, duration: expandDuration),
+            SKAction.wait(forDuration: holdBeforeFade),
+            SKAction.fadeOut(withDuration: fadeDuration),
+            SKAction.removeFromParent(),
+        ]))
     }
 
     private func playOSMDMeteorEffect(_ command: EarTrainingBattleEffectCommand) {
@@ -2382,76 +2494,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 SKAction.fadeOut(withDuration: 0.72),
                 SKAction.scale(to: 1.08, duration: 0.72),
             ]),
-            SKAction.removeFromParent(),
-        ]))
-    }
-
-    private func showParryGuardEffect(at position: CGPoint) {
-        let fastRingRadius = Self.battleLayoutPt(15)
-        let fastRing = SKShapeNode(circleOfRadius: fastRingRadius)
-        fastRing.fillColor = .clear
-        fastRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
-        fastRing.lineWidth = Self.battleLayoutPt(2)
-        fastRing.position = position
-        fastRing.alpha = 0.75
-        fastRing.setScale(0.45)
-        fastRing.zPosition = 64
-        effectLayer.addChild(fastRing)
-        fastRing.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.scale(to: 1.15, duration: 0.09),
-                SKAction.fadeOut(withDuration: 0.09),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
-
-        let slowRingRadius = Self.battleLayoutPt(19)
-        let slowRing = SKShapeNode(circleOfRadius: slowRingRadius)
-        slowRing.fillColor = .clear
-        slowRing.strokeColor = UIColor.white.withAlphaComponent(0.72)
-        slowRing.lineWidth = Self.battleLayoutPt(2)
-        slowRing.position = position
-        slowRing.alpha = 0.24
-        slowRing.setScale(0.7)
-        slowRing.zPosition = 63
-        effectLayer.addChild(slowRing)
-        slowRing.run(SKAction.sequence([
-            SKAction.wait(forDuration: 0.035),
-            SKAction.group([
-                SKAction.scale(to: 1.75, duration: 0.24),
-                SKAction.fadeOut(withDuration: 0.24),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
-    }
-
-    private func showPreciseParryRing(at position: CGPoint) {
-        let stackIndex = min(activePreciseParryRingCount, Self.thinRingStackMax)
-        activePreciseParryRingCount += 1
-        let ringRadius = Self.battleLayoutPt(28)
-        let ring = SKShapeNode(circleOfRadius: ringRadius)
-        ring.fillColor = .clear
-        ring.strokeColor = stackIndex > 0
-            ? UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1)
-            : UIColor(red: 0.761, green: 0.255, blue: 0.047, alpha: 1)
-        ring.lineWidth = Self.battleLayoutPt(5)
-        ring.position = position
-        ring.alpha = 1
-        ring.setScale(0.45 + CGFloat(stackIndex) * 0.12)
-        ring.zPosition = 65 + CGFloat(stackIndex)
-        effectLayer.addChild(ring)
-        ring.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.scale(to: 2.3 + CGFloat(stackIndex) * 0.16, duration: 0.48),
-                SKAction.sequence([
-                    SKAction.wait(forDuration: 0.17),
-                    SKAction.fadeOut(withDuration: 0.31),
-                ]),
-            ]),
-            SKAction.run { [weak self] in
-                guard let self else { return }
-                self.activePreciseParryRingCount = max(0, self.activePreciseParryRingCount - 1)
-            },
             SKAction.removeFromParent(),
         ]))
     }
