@@ -1,7 +1,14 @@
 import {
-  PARRY_LINGER_FADE_START_MS,
-  PARRY_TOTAL_MS,
   getParryLingerAlpha,
+  getVisualNow,
+  getVisualSlowCompensation,
+  PARRY_EFFECT_FADE_START_MS,
+  PARRY_LINGER_FADE_DURATION_MS,
+  PARRY_MOTION_END_MS,
+  PARRY_SLOW_PHASE_MS,
+  PARRY_TOTAL_MS,
+  PARRY_VISUAL_SLOW_DURATION_MS,
+  PARRY_VISUAL_SLOW_SCALE,
 } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
   createParrySparkPool,
@@ -11,17 +18,44 @@ import {
   spawnParrySparks,
 } from '@/game/earTraining/canvas/earTrainingBattleParrySparkPool';
 
+describe('earTrainingBattle visual slow', () => {
+  const slow = {
+    startedAt: 1_000,
+    durationMs: PARRY_VISUAL_SLOW_DURATION_MS,
+    scale: PARRY_VISUAL_SLOW_SCALE,
+  };
+
+  it('returns zero compensation before slow starts', () => {
+    expect(getVisualSlowCompensation(900, slow)).toBe(0);
+    expect(getVisualNow(900, slow)).toBe(900);
+  });
+
+  it('slows visual time during the slow window', () => {
+    const midReal = slow.startedAt + slow.durationMs / 2;
+    const compensation = getVisualSlowCompensation(midReal, slow);
+    expect(compensation).toBeCloseTo((slow.durationMs / 2) * (1 - slow.scale));
+    expect(getVisualNow(midReal, slow)).toBeCloseTo(midReal - compensation);
+  });
+
+  it('caps compensation after slow ends', () => {
+    const afterReal = slow.startedAt + slow.durationMs + 100;
+    const maxCompensation = slow.durationMs * (1 - slow.scale);
+    expect(getVisualSlowCompensation(afterReal, slow)).toBeCloseTo(maxCompensation);
+    expect(getVisualNow(afterReal, slow)).toBeCloseTo(afterReal - maxCompensation);
+  });
+});
+
 describe('earTrainingBattleParrySparkPool', () => {
-  it('spawns 16 sparks for normal parry and 22 for chain parry', () => {
+  it('spawns 32 sparks for normal parry and 42 for chain parry', () => {
     const pool = createParrySparkPool();
-    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(16);
+    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(32);
     expect(hasActiveParrySparks(pool)).toBe(true);
 
     for (const slot of pool) {
       slot.active = false;
     }
 
-    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(22);
+    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(42);
   });
 
   it('reuses inactive pool slots without allocating new objects', () => {
@@ -29,39 +63,34 @@ describe('earTrainingBattleParrySparkPool', () => {
     spawnParrySparks(pool, 10, 10, 100, false);
     const firstActive = pool.find(slot => slot.active);
     expect(firstActive).toBeDefined();
-    pruneParrySparks(pool, 600);
+    pruneParrySparks(pool, 100 + PARRY_MOTION_END_MS);
     expect(firstActive?.active).toBe(false);
 
     spawnParrySparks(pool, 20, 20, 700, false);
     expect(pool.some(slot => slot.active && slot.startedAt === 700)).toBe(true);
   });
 
-  it('decelerates spark motion and fades alpha', () => {
+  it('uses white-orange gradient colors only', () => {
     const pool = createParrySparkPool();
     spawnParrySparks(pool, 0, 0, 1_000, false);
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
-
-    const early = getParrySparkDrawState(slot, 1_030);
-    const late = getParrySparkDrawState(slot, 1_200);
-    expect(early).not.toBeNull();
-    expect(late).not.toBeNull();
-    if (!early || !late) return;
-
-    const earlyDistance = Math.hypot(early.x - slot.originX, early.y - slot.originY);
-    const lateDistance = Math.hypot(late.x - slot.originX, late.y - slot.originY);
-    expect(lateDistance).toBeGreaterThan(earlyDistance);
-    expect(late.alpha).toBeLessThan(early.alpha);
+    const state = getParrySparkDrawState(slot, 1_020);
+    expect(state?.color.startsWith('rgb(')).toBe(true);
+    expect(state?.color).not.toContain('ef4444');
   });
 });
 
 describe('getParryLingerAlpha', () => {
-  it('starts fading after 750ms from parry start', () => {
+  it('starts fading after 751ms from parry start', () => {
     const parryStartedAt = 1_000;
-    expect(getParryLingerAlpha(parryStartedAt + PARRY_LINGER_FADE_START_MS - 1, parryStartedAt, 1)).toBe(1);
+    expect(getParryLingerAlpha(parryStartedAt + PARRY_EFFECT_FADE_START_MS - 1, parryStartedAt, 1)).toBe(1);
     expect(
-      getParryLingerAlpha(parryStartedAt + PARRY_TOTAL_MS, parryStartedAt, 1),
+      getParryLingerAlpha(parryStartedAt + PARRY_MOTION_END_MS, parryStartedAt, 1),
     ).toBeLessThan(0.05);
+    expect(PARRY_LINGER_FADE_DURATION_MS).toBe(PARRY_MOTION_END_MS - PARRY_EFFECT_FADE_START_MS);
+    expect(PARRY_SLOW_PHASE_MS).toBe(250);
+    expect(PARRY_TOTAL_MS).toBe(1000);
   });
 });

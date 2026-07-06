@@ -32,6 +32,8 @@ export interface EarTrainingBattleEffectCommand {
   travelDurationSec?: number;
   /** OSMD: 正解パリィ成立時にオレンジ精密リングを表示するとき true */
   precise?: boolean;
+  /** 小節最終音符: 最初からフィニッシュモーション（連続パリィでもキャンセルしない） */
+  parryFinishOnly?: boolean;
 }
 
 export interface EarTrainingBattleChordView {

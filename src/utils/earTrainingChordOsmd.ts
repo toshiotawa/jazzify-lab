@@ -1573,3 +1573,32 @@ export const areAllChordOsmdTargetsCompleted = (
 ): boolean => (
   targets.length > 0 && targets.every(target => isCompleted(target.id))
 );
+
+/** 同一小節内で最後に判定されるターゲットか（小節最終音符のフィニッシュモーション用）。 */
+export const isLastChordOsmdTargetInMeasure = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  target: ChordOsmdRhythmTarget,
+): boolean => {
+  let latestTimeSec = target.targetTimeSec;
+  let latestOrderIndex = target.orderIndex;
+  for (const candidate of targets) {
+    if (candidate.measureNumber !== target.measureNumber) {
+      continue;
+    }
+    if (candidate.targetTimeSec > latestTimeSec + 1e-9) {
+      latestTimeSec = candidate.targetTimeSec;
+      latestOrderIndex = candidate.orderIndex;
+      continue;
+    }
+    if (
+      Math.abs(candidate.targetTimeSec - latestTimeSec) <= 1e-9
+      && candidate.orderIndex > latestOrderIndex
+    ) {
+      latestOrderIndex = candidate.orderIndex;
+    }
+  }
+  return (
+    Math.abs(target.targetTimeSec - latestTimeSec) <= 1e-9
+    && target.orderIndex === latestOrderIndex
+  );
+};

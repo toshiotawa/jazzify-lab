@@ -78,6 +78,7 @@ import {
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   buildChordOsmdRhythmTargets,
+  isLastChordOsmdTargetInMeasure,
   areAllChordOsmdTargetsCompleted,
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdMusicXmlLyrics,
@@ -600,6 +601,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       relatedEffectId?: number;
       travelDurationSec?: number;
       precise?: boolean;
+      parryFinishOnly?: boolean;
     } = {},
   ): number => {
     battleEffectIdRef.current += 1;
@@ -613,6 +615,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       relatedEffectId: options.relatedEffectId,
       travelDurationSec: options.travelDurationSec,
       precise: options.precise,
+      parryFinishOnly: options.parryFinishOnly,
     };
     phaserGameRef.current?.triggerEffect(command);
     return effectId;
@@ -1598,6 +1601,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       damage,
       relatedEffectId: state.hammerEffectId,
       precise: OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
+      parryFinishOnly: isLastChordOsmdTargetInMeasure(targetsRef.current, target),
     });
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);

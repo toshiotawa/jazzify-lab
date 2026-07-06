@@ -92,6 +92,7 @@ const createInitialRuntime = (
   parryMotionEndTimer: null,
   parrySparkPool: createParrySparkPool(),
   lastParryAt: 0,
+  parryFinishLocked: false,
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({

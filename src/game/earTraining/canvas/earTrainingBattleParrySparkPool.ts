@@ -1,20 +1,18 @@
 import type { ParrySparkSlot } from './earTrainingBattleDrawState';
-import { getParryLingerAlpha } from './earTrainingBattleDrawState';
+import {
+  getParryLingerAlpha,
+  PARRY_MOTION_END_MS,
+  PARRY_SLOW_PHASE_MS,
+} from './earTrainingBattleDrawState';
 
-export const PARRY_SPARK_POOL_SIZE = 96;
-export const PARRY_SPARK_DURATION_MS = 380;
+export const PARRY_SPARK_POOL_SIZE = 128;
+export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS - PARRY_SLOW_PHASE_MS;
 
-const NORMAL_SPARK_COUNT = 16;
-const CHAIN_SPARK_COUNT = 22;
+const NORMAL_SPARK_COUNT = 32;
+const CHAIN_SPARK_COUNT = 42;
 
-const SPARK_COLORS = [
-  '#ffffff',
-  '#fef08a',
-  '#fde047',
-  '#fb923c',
-  '#f97316',
-  '#ef4444',
-] as const;
+const SPARK_WHITE = '#ffffff';
+const SPARK_ORANGE = '#fb923c';
 
 export interface ParrySparkDrawState {
   x: number;
@@ -24,6 +22,7 @@ export interface ParrySparkDrawState {
   dirX: number;
   dirY: number;
   streakLength: number;
+  color: string;
 }
 
 export const createParrySparkPool = (): ParrySparkSlot[] =>
@@ -38,13 +37,16 @@ export const createParrySparkPool = (): ParrySparkSlot[] =>
     dirY: 0,
     travel: 0,
     size: 0,
-    color: SPARK_COLORS[0],
+    colorMix: 0,
   }));
 
-const pickSparkColor = (): string => {
-  const roll = Math.random();
-  if (roll < 0.08) return SPARK_COLORS[5];
-  return SPARK_COLORS[Math.floor(Math.random() * 5)];
+const mixSparkColor = (mix: number): string => {
+  const clamped = Math.min(1, Math.max(0, mix));
+  const whiteWeight = 1 - clamped;
+  const r = Math.round(255 * whiteWeight + 251 * clamped);
+  const g = Math.round(255 * whiteWeight + 146 * clamped);
+  const b = Math.round(255 * whiteWeight + 60 * clamped);
+  return `rgb(${r}, ${g}, ${b})`;
 };
 
 export const spawnParrySparks = (
@@ -77,7 +79,7 @@ export const spawnParrySparks = (
     slot.dirY = Math.sin(angle);
     slot.travel = speed * (PARRY_SPARK_DURATION_MS / 1000) * 0.72;
     slot.size = sizeMin + Math.random() * (sizeMax - sizeMin);
-    slot.color = pickSparkColor();
+    slot.colorMix = Math.random();
     spawned += 1;
   }
 
@@ -110,6 +112,7 @@ export const getParrySparkDrawState = (
     dirX: slot.dirX,
     dirY: slot.dirY,
     streakLength,
+    color: mixSparkColor(slot.colorMix),
   };
 };
 
@@ -136,8 +139,8 @@ export const drawParrySparks = (
 
     ctx.save();
     ctx.globalAlpha = state.alpha;
-    ctx.strokeStyle = slot.color;
-    ctx.fillStyle = slot.color;
+    ctx.strokeStyle = state.color;
+    ctx.fillStyle = state.color;
     ctx.lineWidth = Math.max(1, state.size * 0.85);
     ctx.lineCap = 'round';
     ctx.beginPath();

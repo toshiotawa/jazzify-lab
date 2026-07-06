@@ -49,6 +49,10 @@ import {
   getParryLingerAlpha,
   getVisualNow,
   lerp,
+  PARRY_EFFECT_FADE_START_MS,
+  PARRY_LINGER_FADE_DURATION_MS,
+  PARRY_RING_EXPAND_END_MS,
+  PARRY_RING_EXPAND_START_MS,
 } from './earTrainingBattleDrawState';
 import {
   getCharacterFlashAlpha,
@@ -853,16 +857,37 @@ const drawEffectVisual = (
   const y = lerp(visual.fromY, visual.toY, positionEase(t));
   let size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicInOut(t));
   let alpha = visual.alpha;
-  if (visual.kind === 'thinRing') {
+  if (visual.parryRingExpand && visual.groupStartedAt !== undefined) {
+    const age = now - visual.groupStartedAt;
+    if (age < PARRY_RING_EXPAND_START_MS) {
+      return;
+    }
+    if (age <= PARRY_RING_EXPAND_END_MS) {
+      const expandT = (age - PARRY_RING_EXPAND_START_MS)
+        / (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
+      size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicOut(expandT));
+    } else {
+      size = visual.size * visual.scaleEnd;
+    }
+    if (age >= PARRY_EFFECT_FADE_START_MS) {
+      const fadeT = (age - PARRY_EFFECT_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS;
+      alpha = visual.alpha * (1 - easeCubicOut(Math.min(1, fadeT)));
+    }
+  } else if (visual.kind === 'thinRing') {
     const expandEnd = 0.35;
     const expandT = Math.min(1, t / expandEnd);
     size = visual.size * lerp(visual.scaleStart, visual.scaleEnd, easeCubicOut(expandT));
     const fadeT = t <= expandEnd ? 0 : (t - expandEnd) / (1 - expandEnd);
     alpha = visual.alpha * (1 - easeCubicOut(fadeT));
-  } else if (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'slash' || visual.kind === 'shockwave') {
+  } else if (
+    !visual.parryRingExpand
+    && (visual.fadeOut || visual.kind === 'magicCircle' || visual.kind === 'ring' || visual.kind === 'slash' || visual.kind === 'shockwave')
+  ) {
     alpha = visual.alpha * (1 - easeCubicOut(t));
   }
-  alpha = getParryLingerAlpha(now, visual.groupStartedAt, alpha);
+  if (!visual.parryRingExpand) {
+    alpha = getParryLingerAlpha(now, visual.groupStartedAt, alpha);
+  }
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
 
   ctx.save();
