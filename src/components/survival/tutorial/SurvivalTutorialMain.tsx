@@ -7,6 +7,7 @@ import type { ClearConditions } from '@/types';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import { SurvivalLessonTutorialExperience } from './SurvivalLessonTutorialExperience';
 
 function parseRouteParams(): Record<string, string> {
@@ -21,6 +22,7 @@ const SurvivalTutorialMain: React.FC = () => {
   const lessonSongId = params.lessonSongId ?? '';
   const scriptId = params.scriptId ?? 'onboarding-v1';
   const clearedThisSessionRef = useRef(false);
+  const assignmentStartRecordedRef = useRef(false);
   const clearConditions: ClearConditions = useMemo(() => {
     try {
       return JSON.parse(params.clearConditions ?? '{"count":1,"rank":"S"}') as ClearConditions;
@@ -57,11 +59,24 @@ const SurvivalTutorialMain: React.FC = () => {
     }
   }, [lessonId, lessonSongId]);
 
+  const handlePlayable = useCallback(() => {
+    if (assignmentStartRecordedRef.current || !profile?.id || !lessonId || !lessonSongId) {
+      return;
+    }
+    assignmentStartRecordedRef.current = true;
+    recordAssignmentStartFireAndForget(profile.id, {
+      lessonId,
+      lessonSongId,
+      isPractice: false,
+    });
+  }, [profile?.id, lessonId, lessonSongId]);
+
   return (
     <SurvivalLessonTutorialExperience
       scriptId={scriptId}
       embeddedFullHeight
       showSkip={false}
+      onPlayable={handlePlayable}
       onLessonTutorialCompleted={handleTutorialCompleted}
       onExit={handleExit}
     />

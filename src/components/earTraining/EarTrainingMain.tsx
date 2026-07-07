@@ -23,6 +23,7 @@ import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import { useGameMidiSession } from '@/hooks/useGameMidiSession';
 import { markAudioUserInteraction } from '@/utils/MidiController';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -101,6 +102,7 @@ const EarTrainingMain: React.FC = () => {
   const [confirmedPracticeMode, setConfirmedPracticeMode] = useState(initialPracticeMode);
   const [earSessionNonce, setEarSessionNonce] = useState(0);
   const lessonClearedThisSessionRef = useRef(false);
+  const assignmentStartRecordedForNonceRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (lessonContext) {
@@ -165,6 +167,35 @@ const EarTrainingMain: React.FC = () => {
       cancelled = true;
     };
   }, [isEnglishCopy, params]);
+
+  useEffect(() => {
+    if (loading || error || !stage || !lessonContext || !profile?.id) {
+      return;
+    }
+    if (!params.get('stageId') && stages.length > 1 && !stagePicked) {
+      return;
+    }
+    if (assignmentStartRecordedForNonceRef.current === earSessionNonce) {
+      return;
+    }
+    assignmentStartRecordedForNonceRef.current = earSessionNonce;
+    recordAssignmentStartFireAndForget(profile.id, {
+      lessonId: lessonContext.lessonId,
+      lessonSongId: lessonContext.lessonSongId,
+      isPractice: effectivePracticeMode,
+    });
+  }, [
+    loading,
+    error,
+    stage,
+    lessonContext,
+    profile?.id,
+    earSessionNonce,
+    effectivePracticeMode,
+    params,
+    stages.length,
+    stagePicked,
+  ]);
 
   const enemy = useMemo<EarTrainingBattleEnemy | null>(
     () => (stage ? resolveEarTrainingBattleEnemy(stage, isEnglishCopy) : null),

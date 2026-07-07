@@ -1821,6 +1821,8 @@ struct LessonDetailView: View {
                 EarTrainingTutorialView(
                     scriptId: launch.scriptId,
                     locale: locale,
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
                     onClose: { earTrainingTutorialLaunch = nil },
                     onComplete: {
                         do {
@@ -1845,6 +1847,8 @@ struct LessonDetailView: View {
                     scriptId: launch.scriptId,
                     locale: locale,
                     showSkip: false,
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
                     onClose: { survivalTutorialLaunch = nil },
                     onComplete: {
                         do {

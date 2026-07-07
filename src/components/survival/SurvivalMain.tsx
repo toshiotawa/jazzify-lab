@@ -65,6 +65,7 @@ import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import GameHeader from '@/components/ui/GameHeader';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
@@ -169,6 +170,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [lessonInitialized, setLessonInitialized] = useState(false);
   const [survivalSessionNonce, setSurvivalSessionNonce] = useState(0);
   const lessonClearedThisSessionRef = useRef(false);
+  const assignmentStartRecordedForNonceRef = useRef<number | null>(null);
   const [lessonInlineCompositePhrases, setLessonInlineCompositePhrases] = useState<
     readonly SurvivalPhraseDefinition[] | null
   >(null);
@@ -472,6 +474,33 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
     initLesson();
   }, [lessonMode, lessonParams, lessonInitialized, isPremiumMember, demoMode, isIOSSurvival]);
+
+  useEffect(() => {
+    if (!lessonMode || !lessonContext || !profile?.id || screen !== 'game' || !lessonInitialized) {
+      return;
+    }
+    if (!selectedConfig || !activeStageDefinition) {
+      return;
+    }
+    if (assignmentStartRecordedForNonceRef.current === survivalSessionNonce) {
+      return;
+    }
+    assignmentStartRecordedForNonceRef.current = survivalSessionNonce;
+    recordAssignmentStartFireAndForget(profile.id, {
+      lessonId: lessonContext.lessonId,
+      lessonSongId: lessonContext.lessonSongId,
+      isPractice: false,
+    });
+  }, [
+    lessonMode,
+    lessonContext,
+    profile?.id,
+    screen,
+    lessonInitialized,
+    selectedConfig,
+    activeStageDefinition,
+    survivalSessionNonce,
+  ]);
 
   const handleLessonStageClear = useCallback(async () => {
     if (!lessonContext || !profile) return;

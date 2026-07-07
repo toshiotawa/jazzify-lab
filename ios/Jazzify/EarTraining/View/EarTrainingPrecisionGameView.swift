@@ -11,11 +11,14 @@ struct EarTrainingPrecisionGameView: View {
     var isAdmin: Bool = false
     let onClose: () -> Void
 
+    @EnvironmentObject private var appState: AppState
+
     @State private var controller: EarTrainingPrecisionBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
     @State private var isLoading = true
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
+    @State private var assignmentStartRecorded = false
 
     var body: some View {
         ZStack {
@@ -128,6 +131,22 @@ struct EarTrainingPrecisionGameView: View {
         isLoading = false
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
         createdController.start()
+        recordAssignmentStartIfNeeded()
+    }
+
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonContext,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            isPractice: initialPracticeMode
+        )
     }
 }
 

@@ -21,10 +21,13 @@ final class SupabaseService: Sendable {
 
     // MARK: - Auth
 
-    func sendOTP(email: String, shouldCreateUser: Bool) async throws {
+    func sendOTP(email: String, shouldCreateUser: Bool, locale: AppLocale) async throws {
+        let redirectTo = Self.authEmailRedirectURL(locale: locale)
         try await client.auth.signInWithOTP(
             email: email,
-            shouldCreateUser: shouldCreateUser
+            redirectTo: redirectTo,
+            shouldCreateUser: shouldCreateUser,
+            data: [Self.authEmailLocaleMetadataKey: .string(locale.rawValue)]
         )
     }
 
@@ -153,6 +156,31 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    func recordAssignmentStart(
+        userId: UUID,
+        lessonId: UUID,
+        lessonSongId: UUID,
+        isPractice: Bool
+    ) async throws {
+        struct AssignmentStartParams: Encodable {
+            let p_user_id: UUID
+            let p_lesson_song_id: UUID
+            let p_lesson_id: UUID
+            let p_platform: String
+            let p_is_practice: Bool
+        }
+
+        try await client
+            .rpc("record_assignment_start", params: AssignmentStartParams(
+                p_user_id: userId,
+                p_lesson_song_id: lessonSongId,
+                p_lesson_id: lessonId,
+                p_platform: "ios",
+                p_is_practice: isPractice
+            ))
+            .execute()
+    }
+
     func updatePreferredLocale(userId: UUID, locale: AppLocale) async throws {
         struct LocaleUpdate: Encodable {
             let preferred_locale: String
@@ -229,9 +257,14 @@ final class SupabaseService: Sendable {
     }
 
     /// Web の `supabase.auth.updateUser({ email })` と同じ経路（確認コード送信。テンプレートに `{{ .Token }}` が必要）
-    func requestEmailChange(newEmail: String) async throws {
+    func requestEmailChange(newEmail: String, locale: AppLocale) async throws {
         let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        _ = try await client.auth.update(user: .init(email: trimmed))
+        _ = try await client.auth.update(
+            user: UserAttributes(
+                email: trimmed,
+                data: [Self.authEmailLocaleMetadataKey: .string(locale.rawValue)]
+            )
+        )
     }
 
     /// メール変更の OTP 検証（`verifyOtp` type `email_change`）
@@ -1759,6 +1792,22 @@ final class SupabaseService: Sendable {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw SupabaseServiceError.serverError(statusCode: httpResponse.statusCode, message: body)
         }
+    }
+}
+
+private extension SupabaseService {
+    static let authEmailLocaleMetadataKey = "auth_email_locale"
+
+    static func authEmailRedirectURL(locale: AppLocale) -> URL {
+        var components = URLComponents(
+            url: Config.webAppBaseURL.appendingPathComponent("login/verify-otp"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "auth_locale", value: locale.rawValue)]
+        guard let url = components?.url else {
+            return Config.webAppBaseURL.appendingPathComponent("login/verify-otp")
+        }
+        return url
     }
 }
 

@@ -21,6 +21,7 @@ struct EarTrainingGameView: View {
     @State private var isLoading: Bool = true
     @State private var resolvedMode: EarTrainingMode?
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
+    @State private var assignmentStartRecorded = false
 
     var body: some View {
         ZStack {
@@ -140,16 +141,19 @@ struct EarTrainingGameView: View {
             if stageDetail.resolvedMode == .chordVoicing {
                 self.resolvedMode = .chordVoicing
                 self.isLoading = false
+                recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordQuiz {
                 self.resolvedMode = .chordQuiz
                 self.isLoading = false
+                recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordOSMD {
                 self.resolvedMode = .chordOSMD
                 self.isLoading = false
+                recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordPrecision {
@@ -160,11 +164,13 @@ struct EarTrainingGameView: View {
             if stageDetail.resolvedMode == .adlib {
                 self.resolvedMode = .adlib
                 self.isLoading = false
+                recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .phrasePairAdlib {
                 self.resolvedMode = .phrasePairAdlib
                 self.isLoading = false
+                recordAssignmentStartIfNeeded()
                 return
             }
             self.resolvedMode = .phrase
@@ -223,10 +229,27 @@ struct EarTrainingGameView: View {
             self.controller = createdController
             self.isLoading = false
             createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
+            recordAssignmentStartIfNeeded()
         } catch {
             loadError = error.localizedDescription
             isLoading = false
         }
+    }
+
+    @MainActor
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonContext,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            isPractice: initialPracticeMode
+        )
     }
 }
 

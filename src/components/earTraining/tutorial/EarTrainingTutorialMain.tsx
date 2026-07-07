@@ -7,6 +7,7 @@ import type { ClearConditions } from '@/types';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import { EarTrainingLessonTutorialExperience } from './EarTrainingLessonTutorialExperience';
 
 function parseRouteParams(): Record<string, string> {
@@ -21,6 +22,7 @@ const EarTrainingTutorialMain: React.FC = () => {
   const lessonSongId = params.lessonSongId ?? '';
   const scriptId = params.scriptId ?? 'developer-full-v1';
   const clearedThisSessionRef = useRef(false);
+  const assignmentStartRecordedRef = useRef(false);
   const clearConditions: ClearConditions = useMemo(() => {
     try {
       return JSON.parse(params.clearConditions ?? '{"count":1,"rank":"S"}') as ClearConditions;
@@ -57,10 +59,23 @@ const EarTrainingTutorialMain: React.FC = () => {
     }
   }, [lessonId, lessonSongId]);
 
+  const handlePlayable = useCallback(() => {
+    if (assignmentStartRecordedRef.current || !profile?.id || !lessonId || !lessonSongId) {
+      return;
+    }
+    assignmentStartRecordedRef.current = true;
+    recordAssignmentStartFireAndForget(profile.id, {
+      lessonId,
+      lessonSongId,
+      isPractice: false,
+    });
+  }, [profile?.id, lessonId, lessonSongId]);
+
   return (
     <EarTrainingLessonTutorialExperience
       scriptId={scriptId}
       embeddedFullHeight
+      onPlayable={handlePlayable}
       onLessonTutorialCompleted={handleTutorialCompleted}
       onExit={handleExit}
     />

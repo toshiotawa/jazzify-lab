@@ -28,6 +28,8 @@ struct SurvivalGameView: View {
     var externalPlayerBubbleText: String = ""
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
 
+    @EnvironmentObject private var appState: AppState
+
     init(
         stage: SurvivalStageDefinition,
         hintMode: Bool,
@@ -75,6 +77,7 @@ struct SurvivalGameView: View {
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
     @State private var isLoading: Bool = true
     @State private var loadError: String?
+    @State private var assignmentStartRecorded = false
     @StateObject private var orientation = OrientationManager.shared
 
     var body: some View {
@@ -243,6 +246,7 @@ struct SurvivalGameView: View {
 
         self.session = created
         self.isLoading = false
+        recordAssignmentStartIfNeeded()
 
         midiSubscriptionHolder.cancel()
         midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak created] status, data1, data2 in
@@ -276,6 +280,22 @@ struct SurvivalGameView: View {
         guard !isDemo else { return }
         activeHintMode = newHintMode
         session?.restartSameStage(hintMode: newHintMode)
+    }
+
+    @MainActor
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonContext,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            isPractice: false
+        )
     }
 
 }
@@ -1037,9 +1057,11 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var mapLoadTask: Task<Void, Never>?
     @State private var lifecycleID = UUID()
     @State private var isViewActive = false
+    @State private var assignmentStartRecorded = false
     @State private var frameTick: UInt = 0
     @StateObject private var frameClock = SurvivalCodeRunFrameClock()
     @StateObject private var midiManager = MIDIManager.shared
+    @EnvironmentObject private var appState: AppState
 
     private let audio = SurvivalAudioController()
     private var currentChord: SurvivalResolvedChord? {
@@ -1112,6 +1134,7 @@ private struct SurvivalCodeRunGameContent: View {
         }
         .onAppear {
             isViewActive = true
+            recordAssignmentStartIfNeeded()
             let id = UUID()
             lifecycleID = id
             OrientationManager.shared.lock(.portrait)
@@ -1863,6 +1886,21 @@ private struct SurvivalCodeRunGameContent: View {
                 if messageType == 0x80 || (messageType == 0x90 && velocity == 0) { noteOff(note) }
             }
         }
+    }
+
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonContext,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            isPractice: false
+        )
     }
 
     private func submitClearIfNeeded() {

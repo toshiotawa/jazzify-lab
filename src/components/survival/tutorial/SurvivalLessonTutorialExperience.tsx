@@ -71,6 +71,7 @@ export interface SurvivalLessonTutorialExperienceProps {
   scriptId?: string;
   embeddedFullHeight?: boolean;
   showSkip?: boolean;
+  onPlayable?: () => void;
   /** CTA／台本末尾まで完了時のみに呼ぶ（進捗更新用） */
   onLessonTutorialCompleted?: () => void | Promise<void>;
   /** スキップ・戻る・未定義 runner で必ず一度呼ぶ */
@@ -88,6 +89,7 @@ export const SurvivalLessonTutorialExperience: React.FC<
   scriptId = 'onboarding-v1',
   embeddedFullHeight = false,
   showSkip = true,
+  onPlayable,
   onLessonTutorialCompleted,
   onExit,
 }) => {
@@ -118,6 +120,12 @@ export const SurvivalLessonTutorialExperience: React.FC<
   const [v3TapCueVisible, setV3TapCueVisible] = useState(false);
 
   useQuestCompleteJingleWhenVisible(v3FinishCta || showCta);
+
+  useEffect(() => {
+    if (gate === 'ready') {
+      onPlayable?.();
+    }
+  }, [gate, onPlayable]);
 
   const v3AudioRef = useRef<TutorialAudioController | null>(null);
   const v3TapResolverRef = useRef<(() => void) | null>(null);

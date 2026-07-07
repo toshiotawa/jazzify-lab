@@ -4,14 +4,19 @@ import SwiftUI
 struct EarTrainingTutorialView: View {
     let scriptId: String
     let locale: AppLocale
+    var lessonId: UUID?
+    var lessonSongId: UUID?
     let onClose: () -> Void
     var onComplete: (() async -> Void)?
+
+    @EnvironmentObject private var appState: AppState
 
     @State private var gate: Gate = .loading
     @State private var script: EarTrainingTutorialScriptPayload?
     @State private var sceneIndex: Int = 0
     @State private var showFinishCta = false
     @State private var showGreatInterstitial = false
+    @State private var assignmentStartRecorded = false
 
     /// `dialogue_only` のあとのアタッチ用（そのシーンのみ消費）。
     @State private var pendingQuizPrewarm: EarTrainingTutorialPrewarmedQuizPack?
@@ -59,6 +64,7 @@ struct EarTrainingTutorialView: View {
                 pendingOsmdPrewarm = nil
                 showGreatInterstitial = false
                 gate = .ready
+                recordAssignmentStartIfNeeded()
             } else {
                 gate = .failed
             }
@@ -68,6 +74,22 @@ struct EarTrainingTutorialView: View {
                 QuestJinglePlayer.playComplete()
             }
         }
+    }
+
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonId,
+              let lessonSongId,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonId,
+            lessonSongId: lessonSongId,
+            isPractice: false
+        )
     }
 
     @ViewBuilder

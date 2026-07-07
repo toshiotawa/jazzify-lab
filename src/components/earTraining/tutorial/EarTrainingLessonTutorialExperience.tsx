@@ -23,6 +23,7 @@ import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTuto
 export interface EarTrainingLessonTutorialExperienceProps {
   scriptId?: string;
   embeddedFullHeight?: boolean;
+  onPlayable?: () => void;
   onLessonTutorialCompleted?: () => void | Promise<void>;
   onExit: () => void;
 }
@@ -38,6 +39,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
 > = ({
   scriptId = 'developer-full-v1',
   embeddedFullHeight = false,
+  onPlayable,
   onLessonTutorialCompleted,
   onExit,
 }) => {
@@ -72,6 +74,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
         setScriptRow(row);
         setSceneIndex(0);
         setGate('ready');
+        onPlayable?.();
         void unlockTutorialAudio();
         const needsEnemyAvatar = row.script.scenes.some(
           (scene) => scene.type !== 'dialogue_only',
@@ -93,7 +96,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     return () => {
       cancelled = true;
     };
-  }, [scriptId]);
+  }, [scriptId, onPlayable]);
 
   useEffect(() => () => {
     if (sceneCompleteTimerRef.current !== null) {

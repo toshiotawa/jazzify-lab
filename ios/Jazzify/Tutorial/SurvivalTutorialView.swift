@@ -52,24 +52,33 @@ struct SurvivalTutorialView: View {
     let scriptId: String
     let locale: AppLocale
     let showSkip: Bool
+    var lessonId: UUID?
+    var lessonSongId: UUID?
     let onClose: () -> Void
     var onComplete: (() async -> Void)?
+
+    @EnvironmentObject private var appState: AppState
 
     @StateObject private var container: SurvivalTutorialContainer
     @StateObject private var scenarioController = SurvivalScenarioController()
     @StateObject private var bgm = OnboardingBgmController()
     @State private var fadeOpacity: Double = 0
+    @State private var assignmentStartRecorded = false
 
     init(
         scriptId: String,
         locale: AppLocale,
         showSkip: Bool = true,
+        lessonId: UUID? = nil,
+        lessonSongId: UUID? = nil,
         onClose: @escaping () -> Void,
         onComplete: (() async -> Void)? = nil
     ) {
         self.scriptId = scriptId
         self.locale = locale
         self.showSkip = showSkip
+        self.lessonId = lessonId
+        self.lessonSongId = lessonSongId
         self.onClose = onClose
         self.onComplete = onComplete
         _container = StateObject(wrappedValue: SurvivalTutorialContainer(scriptId: scriptId, locale: locale))
@@ -117,7 +126,29 @@ struct SurvivalTutorialView: View {
         }
         .task(id: scriptId) {
             await container.loadIfNeeded()
+            switch container.gate {
+            case .readyV2, .readyV3:
+                recordAssignmentStartIfNeeded()
+            default:
+                break
+            }
         }
+    }
+
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonId,
+              let lessonSongId,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonId,
+            lessonSongId: lessonSongId,
+            isPractice: false
+        )
     }
 }
 

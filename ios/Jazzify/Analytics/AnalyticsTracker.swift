@@ -60,6 +60,28 @@ enum AnalyticsTracker {
         recordMilestone(userId: userId, milestone: "paid")
     }
 
+    static func trackAssignmentStart(
+        userId: UUID,
+        lessonId: UUID,
+        lessonSongId: UUID,
+        isPractice: Bool
+    ) {
+        sendGa4Event(name: "assignment_start", params: [
+            "lesson_id": lessonId.uuidString,
+            "lesson_song_id": lessonSongId.uuidString,
+            "platform": "ios",
+            "is_practice": isPractice,
+        ])
+        Task {
+            try? await SupabaseService.shared.recordAssignmentStart(
+                userId: userId,
+                lessonId: lessonId,
+                lessonSongId: lessonSongId,
+                isPractice: isPractice
+            )
+        }
+    }
+
     private static func sendGa4Event(name: String, params: [String: Any] = [:]) {
         let url = Config.iosAnalyticsEventURL
         var request = URLRequest(url: url)
