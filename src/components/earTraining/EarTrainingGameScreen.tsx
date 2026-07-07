@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from '@/hooks/useQuestCompleteJingle';
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingBattleRenderer from './EarTrainingBattleRenderer';
-import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
+import DeferredEarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './DeferredEarTrainingPianoOverlay';
 import type {
   ClearConditions,
   EarTrainingGameState,
@@ -1062,7 +1062,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         className="h-full w-full"
       />
 
-      <EarTrainingPianoOverlay
+      <DeferredEarTrainingPianoOverlay
         ref={pianoOverlayRef}
         onPianoKeyDown={handlePianoKeyDown}
         onPianoKeyUp={handlePianoKeyUp}

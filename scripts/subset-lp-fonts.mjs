@@ -62,4 +62,12 @@ if (!existsSync(zenKakuCssSrc)) {
 }
 cpSync(zenKakuCssSrc, zenKakuCssDest);
 
+const zenKaku900CssSrc = join(root, 'src', 'zenKakuFontFaces900.css');
+const zenKaku900CssDest = join(outDir, 'zen-kaku-font-faces-900.css');
+if (!existsSync(zenKaku900CssSrc)) {
+  console.error(`Missing font CSS: ${zenKaku900CssSrc}`);
+  process.exit(1);
+}
+cpSync(zenKaku900CssSrc, zenKaku900CssDest);
+
 console.log(`Copied ${copied} font files and zen-kaku-font-faces.css to public/fonts/lp/`);

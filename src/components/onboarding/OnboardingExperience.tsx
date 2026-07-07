@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import SurvivalGameScreen from '@/components/survival/SurvivalGameScreen';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { SurvivalScenarioHandle } from '@/components/survival/scenario/survivalScenarioHandle';
 import { TUTORIAL_BOOTSTRAP_OVERRIDES } from '@/components/survival/scenario/survivalScenarioTypes';
@@ -9,7 +8,6 @@ import { TutorialAudioController } from '@/components/survival/tutorial/Tutorial
 import { TUTORIAL_DRUM_LOOP_AUDIO_TRACKS } from '@/components/survival/tutorial/tutorialDrumLoopBgm';
 import { runOnboardingScript } from '@/components/onboarding/runOnboardingScript';
 import { TUTORIAL_STAGE_DEFINITION } from '@/components/survival/tutorial/tutorialOnboardingChords';
-import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 import type { TutorialLocalizedText } from '@/components/survival/tutorial/tutorialScriptTypes';
@@ -20,6 +18,10 @@ import { resolveTutorialStyledSegments, segmentsToPlainString } from '@/types/tu
 import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 
 import { OnboardingOverlays } from './OnboardingOverlays';
+
+const LazySurvivalGameScreen = React.lazy(
+  () => import('@/components/survival/SurvivalGameScreen'),
+);
 
 const TUTORIAL_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
@@ -53,12 +55,7 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
   ctaHref = '/signup',
   ctaLabel,
 }) => {
-  const profile = useAuthStore((s) => s.profile);
-  const isEnglishCopy = shouldUseEnglishCopy({
-    preferredLocale: profile?.preferred_locale,
-    country: profile?.country,
-    rank: profile?.rank,
-  });
+  const isEnglishCopy = shouldUseEnglishCopy();
 
   const [characterSegments, setCharacterSegments] = useState<
     readonly TutorialResolvedTextSegment[]
@@ -242,23 +239,31 @@ export const OnboardingExperience: React.FC<OnboardingExperienceProps> = ({
       }
     >
       <div className={embeddedFullHeight ? 'min-h-0 flex-1' : 'contents'}>
-      <SurvivalGameScreen
-        key={sessionKey}
-        difficulty="easy"
-        config={TUTORIAL_CONFIG}
-        stageDefinition={TUTORIAL_STAGE_DEFINITION}
-        hintMode
-        embeddedFullHeight={embeddedFullHeight}
-        survivalTutorialLayout={embeddedFullHeight}
-        scenarioMode
-        initialScenarioOverrides={TUTORIAL_BOOTSTRAP_OVERRIDES}
-        onScenarioHandleReady={onScenarioHandleReady}
-        scenarioUserInputPulseRef={userInputPulseRef}
-        scenarioSlotBCompletionPulseRef={slotBCompletionPulseRef}
-        scenarioMidiNoteReceivedRef={midiNoteReceivedRef}
-        onBackToSelect={() => finish(false)}
-        onBackToMenu={() => finish(false)}
-      />
+        <Suspense
+          fallback={(
+            <div className="flex h-full min-h-[240px] w-full items-center justify-center bg-black text-white">
+              {isEnglishCopy ? 'Loading demo...' : 'デモを読み込み中...'}
+            </div>
+          )}
+        >
+          <LazySurvivalGameScreen
+            key={sessionKey}
+            difficulty="easy"
+            config={TUTORIAL_CONFIG}
+            stageDefinition={TUTORIAL_STAGE_DEFINITION}
+            hintMode
+            embeddedFullHeight={embeddedFullHeight}
+            survivalTutorialLayout={embeddedFullHeight}
+            scenarioMode
+            initialScenarioOverrides={TUTORIAL_BOOTSTRAP_OVERRIDES}
+            onScenarioHandleReady={onScenarioHandleReady}
+            scenarioUserInputPulseRef={userInputPulseRef}
+            scenarioSlotBCompletionPulseRef={slotBCompletionPulseRef}
+            scenarioMidiNoteReceivedRef={midiNoteReceivedRef}
+            onBackToSelect={() => finish(false)}
+            onBackToMenu={() => finish(false)}
+          />
+        </Suspense>
       </div>
 
       <OnboardingOverlays

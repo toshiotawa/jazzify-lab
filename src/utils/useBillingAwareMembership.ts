@@ -16,6 +16,8 @@ import {
   isPremiumForDisplay,
 } from '@/utils/membershipDisplay';
 
+const BILLING_FETCH_DEFER_MS = 1200;
+
 export interface BillingAwareMembership {
   billingPayload: BillingStatusPayload | null;
   isPremiumMember: boolean;
@@ -50,6 +52,9 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
 
   useEffect(() => {
     let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let idleId: number | undefined;
+
     const run = async (): Promise<void> => {
       const token = session?.access_token ?? null;
       if (!token) {
@@ -62,9 +67,29 @@ export function useBillingAwareMembership(locale: 'ja' | 'en'): BillingAwareMemb
       });
       if (!cancelled) setBillingPayload(p);
     };
-    void run();
+
+    const schedule = (): void => {
+      if (typeof requestIdleCallback === 'function') {
+        idleId = requestIdleCallback(() => {
+          void run();
+        }, { timeout: BILLING_FETCH_DEFER_MS + 2000 });
+        return;
+      }
+      timeoutId = setTimeout(() => {
+        void run();
+      }, BILLING_FETCH_DEFER_MS);
+    };
+
+    schedule();
+
     return () => {
       cancelled = true;
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+      if (idleId !== undefined && typeof cancelIdleCallback === 'function') {
+        cancelIdleCallback(idleId);
+      }
     };
   }, [session?.access_token, billingRefreshNonce]);
 

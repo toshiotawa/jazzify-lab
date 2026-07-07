@@ -42,6 +42,10 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
       cssMinify: 'esbuild',
       reportCompressedSize: false, // ビルド時間短縮
+      // LP 初回: 先読みポリフィルを無効化（supabase チャンクへの誤った同期依存を防ぐ）
+      modulePreload: {
+        polyfill: false,
+      },
       // ビルド時間短縮のための追加設定
       write: true,
       outDir: 'dist',
@@ -57,15 +61,37 @@ export default defineConfig(({ mode }) => {
           warn(warning);
         },
         output: {
-            manualChunks: {
-              'react-vendor': ['react', 'react-dom'],
-              'audio': ['tone'],
-              'soundfont': ['soundfont-player'],
-              'icons': ['react-icons'],
-              'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
-              'supabase': ['@supabase/supabase-js'],
-              'tonal': ['tonal'],
-              'osmd': ['opensheetmusicdisplay'],
+            manualChunks(id) {
+              if (id.includes('node_modules/phaser')) {
+                return 'phaser';
+              }
+              if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
+                return 'react-vendor';
+              }
+              if (id.includes('node_modules/tone')) {
+                return 'audio';
+              }
+              if (id.includes('node_modules/soundfont-player')) {
+                return 'soundfont';
+              }
+              if (id.includes('node_modules/react-icons')) {
+                return 'icons';
+              }
+              if (
+                id.includes('node_modules/clsx')
+                || id.includes('node_modules/tailwind-merge')
+                || id.includes('node_modules/zustand')
+                || id.includes('node_modules/immer')
+              ) {
+                return 'utils';
+              }
+              if (id.includes('node_modules/tonal')) {
+                return 'tonal';
+              }
+              if (id.includes('node_modules/opensheetmusicdisplay')) {
+                return 'osmd';
+              }
+              return undefined;
             },
           chunkFileNames: 'assets/[name]-[hash].js',
           entryFileNames: 'assets/[name]-[hash].js',

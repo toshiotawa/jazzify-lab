@@ -121,6 +121,17 @@
         stylesheet.rel = 'stylesheet';
         stylesheet.href = '/fonts/lp/zen-kaku-font-faces.css';
         document.head.appendChild(stylesheet);
+        var loadHeavyFonts = function () {
+          var heavy = document.createElement('link');
+          heavy.rel = 'stylesheet';
+          heavy.href = '/fonts/lp/zen-kaku-font-faces-900.css';
+          document.head.appendChild(heavy);
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(loadHeavyFonts, { timeout: 8000 });
+        } else {
+          setTimeout(loadHeavyFonts, 3000);
+        }
       }
     })();
   </script>

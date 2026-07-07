@@ -20,6 +20,7 @@ const showDebugInfo = (message: string, _isError = false) => {
 import { isLandingPath } from '@/utils/appPaths';
 import { captureFirstTouch } from '@/utils/analytics/attribution';
 import { initGa } from '@/utils/analytics/ga';
+import { initWebVitalsRum } from '@/utils/analytics/webVitals';
 import { syncPreferredLocaleFromUrl } from '@/utils/globalAudience';
 
 // ローディング画面を非表示にする
@@ -88,6 +89,7 @@ const initializeApp = async () => {
     syncPreferredLocaleFromUrl();
     captureFirstTouch();
     initGa();
+    initWebVitalsRum();
     showDebugInfo('Starting initialization...');
     
     // 基本的な環境チェック

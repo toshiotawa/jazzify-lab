@@ -23,6 +23,8 @@ import { LpFooter } from '@/components/landing/sections/LpFooter';
 
 import '@/landing.css';
 
+type LpDemoComponent = React.ComponentType<{ autoOpenOnMount?: boolean }>;
+
 const DemoUnavailable: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
   return (
@@ -36,21 +38,26 @@ const DemoUnavailable: React.FC = () => {
   );
 };
 
-const LpDemo = React.lazy(
-  () => import('@/components/landing/sections/LpDemo')
-    .then((m) => ({ default: m.LpDemo }))
-    .catch(() => ({ default: DemoUnavailable })),
-);
-
 const LandingPage: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [shouldRenderDemo, setShouldRenderDemo] = useState(false);
+  const [LpDemoComponent, setLpDemoComponent] = useState<LpDemoComponent | null>(null);
   const isEnglishLanding = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglishLanding);
 
   const activateDemo = useCallback(() => {
     setShouldRenderDemo(true);
-  }, []);
+    if (LpDemoComponent) {
+      return;
+    }
+    void import(/* @vite-ignore */ '@/components/landing/sections/LpDemo')
+      .then((module) => {
+        setLpDemoComponent(() => module.LpDemo);
+      })
+      .catch(() => {
+        setLpDemoComponent(() => DemoUnavailable);
+      });
+  }, [LpDemoComponent]);
 
   useEffect(() => {
     const scrollRoot = scrollRef.current;
@@ -131,15 +138,13 @@ const LandingPage: React.FC = () => {
 
         <div id="demo" className="scroll-mt-20 lp-dark" style={{ background: 'var(--lp-night-2)' }}>
           {shouldRenderDemo ? (
-            <React.Suspense
-              fallback={(
-                <section className="py-20 text-center" style={{ color: 'var(--lp-ink-muted)' }}>
-                  {copy.demo.loading}
-                </section>
-              )}
-            >
-              <LpDemo autoOpenOnMount />
-            </React.Suspense>
+            LpDemoComponent ? (
+              <LpDemoComponent autoOpenOnMount />
+            ) : (
+              <section className="py-20 text-center" style={{ color: 'var(--lp-ink-muted)' }}>
+                {copy.demo.loading}
+              </section>
+            )
           ) : (
             <LpDemoPlaceholder onActivate={activateDemo} />
           )}

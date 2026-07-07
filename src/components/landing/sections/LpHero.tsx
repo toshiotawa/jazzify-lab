@@ -9,6 +9,51 @@ const HERO_POSTER_MOBILE_SRC = '/newLP/hero-poster-640.webp';
 const HERO_VIDEO_WEBM = '/newLP/hero.webm';
 const HERO_VIDEO_MP4 = '/newLP/hero.mp4';
 
+interface NetworkConnectionInfo {
+  saveData?: boolean;
+  effectiveType?: string;
+}
+
+const isNetworkConnectionInfo = (value: unknown): value is NetworkConnectionInfo => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if ('saveData' in record && typeof record.saveData !== 'boolean') {
+    return false;
+  }
+  if ('effectiveType' in record && typeof record.effectiveType !== 'string') {
+    return false;
+  }
+  return true;
+};
+
+const getNetworkConnection = (): NetworkConnectionInfo | undefined => {
+  if (typeof navigator === 'undefined') {
+    return undefined;
+  }
+  const raw: unknown = Reflect.get(navigator, 'connection');
+  return isNetworkConnectionInfo(raw) ? raw : undefined;
+};
+
+const shouldDeferHeroVideo = (): boolean => {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    return true;
+  }
+  const connection = getNetworkConnection();
+  if (connection?.saveData) {
+    return true;
+  }
+  const effectiveType = connection?.effectiveType;
+  if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
+    return true;
+  }
+  return false;
+};
+
 const scrollToDemo = (): void => {
   document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
@@ -20,7 +65,7 @@ export const LpHero: React.FC = () => {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || shouldDeferHeroVideo()) return;
 
     let cancelled = false;
 

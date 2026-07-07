@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { getWindow } from '@/platform';
-import { STORAGE_KEY_GEO_COUNTRY } from '@/constants/storageKeys';
+import { STORAGE_KEY_GEO_COUNTRY, STORAGE_KEY_GEO_COUNTRY_FETCHED_AT } from '@/constants/storageKeys';
 
 type GeoStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -15,6 +15,8 @@ interface GeoState {
   resetCountryHint: () => void;
 }
 
+const GEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 const normalizeCountry = (value: string | null | undefined): string | null => {
   if (!value) {
     return null;
@@ -24,6 +26,42 @@ const normalizeCountry = (value: string | null | undefined): string | null => {
     return null;
   }
   return trimmed.toUpperCase();
+};
+
+const getStoredFetchedAt = (): number | null => {
+  try {
+    const platformWindow = getWindow();
+    const stored = platformWindow?.localStorage?.getItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT) ?? null;
+    if (!stored) {
+      return null;
+    }
+    const parsed = Number(stored);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const setStoredFetchedAt = (timestamp: number): void => {
+  try {
+    const platformWindow = getWindow();
+    platformWindow?.localStorage?.setItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT, String(timestamp));
+  } catch {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT, String(timestamp));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
+const isGeoCacheFresh = (country: string | null, fetchedAt: number | null): boolean => {
+  if (!country || fetchedAt === null) {
+    return false;
+  }
+  return Date.now() - fetchedAt < GEO_CACHE_TTL_MS;
 };
 
 const getStoredCountry = (): string | null => {
@@ -45,20 +83,25 @@ const getStoredCountry = (): string | null => {
 };
 
 const setStoredCountry = (country: string | null): void => {
+  const fetchedAt = Date.now();
   try {
     const platformWindow = getWindow();
     if (!country) {
       platformWindow?.localStorage?.removeItem(STORAGE_KEY_GEO_COUNTRY);
+      platformWindow?.localStorage?.removeItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT);
     } else {
       platformWindow?.localStorage?.setItem(STORAGE_KEY_GEO_COUNTRY, country);
+      platformWindow?.localStorage?.setItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT, String(fetchedAt));
     }
   } catch {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         if (!country) {
           window.localStorage.removeItem(STORAGE_KEY_GEO_COUNTRY);
+          window.localStorage.removeItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT);
         } else {
           window.localStorage.setItem(STORAGE_KEY_GEO_COUNTRY, country);
+          window.localStorage.setItem(STORAGE_KEY_GEO_COUNTRY_FETCHED_AT, String(fetchedAt));
         }
       }
     } catch {
@@ -90,20 +133,21 @@ const fetchGeoCountry = async (): Promise<string | null> => {
 };
 
 const initialCountry = getStoredCountry();
+const initialFetchedAt = getStoredFetchedAt();
 
 export const useGeoStore = create<GeoState>()(
   immer((set, get) => ({
     country: initialCountry,
     status: initialCountry ? 'success' : 'idle',
     error: null,
-    detectedAt: initialCountry ? Date.now() : null,
+    detectedAt: initialFetchedAt ?? (initialCountry ? Date.now() : null),
 
     ensureCountry: async () => {
-      const { status, country } = get();
+      const { status, country, detectedAt } = get();
       if (status === 'loading') {
         return;
       }
-      if (country) {
+      if (isGeoCacheFresh(country, detectedAt)) {
         return;
       }
 
