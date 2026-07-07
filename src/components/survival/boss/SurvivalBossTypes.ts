@@ -195,9 +195,9 @@ export const HEALING_AMOUNT = 40; // プレイヤー最大HPの4%
 
 // ===== 画像パス（public 配下） =====
 export const BOSS_SPRITE_PATH: Record<BossType, string> = {
-  A: `${import.meta.env.BASE_URL}monster_icons/monster_45.png`, // ゴリラ（重量感）
-  B: `${import.meta.env.BASE_URL}monster_icons/monster_50.png`, // オレンジ（召喚主）
-  C: `${import.meta.env.BASE_URL}monster_icons/monster_63.png`, // 青ネコ（領域支配・神秘）
+  A: `${import.meta.env.BASE_URL}monster_icons/monster_45.webp`, // ゴリラ（重量感）
+  B: `${import.meta.env.BASE_URL}monster_icons/monster_50.webp`, // オレンジ（召喚主）
+  C: `${import.meta.env.BASE_URL}monster_icons/monster_63.webp`, // 青ネコ（領域支配・神秘）
 };
 
 export const BOSS_DISPLAY_NAME: Record<BossType, { ja: string; en: string }> = {

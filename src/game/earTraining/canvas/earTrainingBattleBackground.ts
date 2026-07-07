@@ -297,12 +297,9 @@ export const BACKGROUND_IMAGE_URLS: Record<string, string> = {
 
 export const PLAYER_POSE_IMAGE_URLS: Record<string, string> = {
   correct3: '/data/correct3.webp',
-  guardD: '/GuardD.png',
-  finish: '/finish.png',
-  yokoIssen: '/yoko_issen.png',
-  yokoIssenB: '/yoko_issen_B.png',
-  yokoIssenC: '/yoko_issen_C.png',
-  cast: '/data/eishou.png',
+  guardD: '/GuardD.webp',
+  finish: '/finish.webp',
+  cast: '/data/eishou.webp',
   skill1: '/data/Frame1.webp',
   skill2: '/data/Frame2.webp',
   skill3: '/data/Frame3.webp',

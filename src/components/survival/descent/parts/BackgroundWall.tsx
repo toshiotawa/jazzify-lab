@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { DESCENT_MAP_TEXTURE_URLS } from '@/utils/descentMapAssets';
 import { BlockLayout, getBlockLayoutsByCategory } from '../descentLayout';
 import { getBlockFilter, getBlockTint } from '../blockTheme';
 import { SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY } from '../../SurvivalTypes';
@@ -49,7 +50,7 @@ export const BackgroundWall: React.FC<BackgroundWallProps> = ({
               style={{
                 top,
                 height,
-                backgroundImage: "url('/background.webp?v=20260420b')",
+                backgroundImage: `url('${DESCENT_MAP_TEXTURE_URLS.background}')`,
                 backgroundRepeat: 'repeat',
                 backgroundSize: `${tile}px ${tile}px`,
                 filter: filter.background,

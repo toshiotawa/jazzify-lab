@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { DESCENT_MAP_TEXTURE_URLS } from '@/utils/descentMapAssets';
 
 interface BlockDoorProps {
   xPx: number;
@@ -35,7 +36,7 @@ export const BlockDoor: React.FC<BlockDoorProps> = ({ xPx, yPx, scale, opened, d
         top: yPx - heightPx,
         width: widthPx,
         height: heightPx,
-        backgroundImage: "url('/door.webp?v=20260420b')",
+        backgroundImage: `url('${DESCENT_MAP_TEXTURE_URLS.door}')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         filter: combined,

@@ -9,11 +9,11 @@ export type SurvivalDefaultSpriteVariant =
   | 'ue';
 
 export const SURVIVAL_DEFAULT_SPRITE_PATHS: Record<SurvivalDefaultSpriteVariant, string> = {
-  migi: '/default_avater/muki/migi.png',
-  naname_migi_shita: '/default_avater/muki/naname_migi_shita.png',
-  naname_migi_ue: '/default_avater/muki/naname_migi_ue.png',
-  shita: '/default_avater/muki/shita.png',
-  ue: '/default_avater/muki/ue.png',
+  migi: '/default_avater/muki/migi.webp',
+  naname_migi_shita: '/default_avater/muki/naname_migi_shita.webp',
+  naname_migi_ue: '/default_avater/muki/naname_migi_ue.webp',
+  shita: '/default_avater/muki/shita.webp',
+  ue: '/default_avater/muki/ue.webp',
 };
 
 export const SURVIVAL_DEFAULT_SPRITE_VARIANTS: readonly SurvivalDefaultSpriteVariant[] = [

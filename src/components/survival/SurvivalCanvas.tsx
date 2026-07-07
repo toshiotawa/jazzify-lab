@@ -196,9 +196,9 @@ const ENEMY_ICONS: Record<string, string> = {
 
 // ===== プレイヤー表示サイズ =====
 const PLAYER_SIZE = 48;  // プレイヤーの表示サイズ（当たり判定はGameEngine側で別管理）
-/** ジャ爺スプライト表示サイズ（向き固定 `/stage_icons/5.png`） */
+/** ジャ爺スプライト表示サイズ（向き固定 `/stage_icons/5.webp`） */
 const JAJII_SPRITE_SIZE = 48;
-const JAJII_SPRITE_PATH = '/stage_icons/5.png';
+const JAJII_SPRITE_PATH = '/stage_icons/5.webp';
 const LIGHTNING_SEGMENT_COUNT = 4;
 const LIGHTNING_SCREEN_PADDING = 120;
 

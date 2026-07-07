@@ -58,7 +58,7 @@ const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.webp`;
 const MAGIC_CIRCLE_ASSET_KEY = 'ear-training-effect-magic-circle';
 const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.webp';
 const ENEMY_ATTACK_HAMMER_ASSET_KEY = 'ear-training-enemy-attack-hammer';
-const ENEMY_ATTACK_HAMMER_ASSET_URL = `${EFFECT_ASSET_PATH}effect-hammer-transparent.png`;
+const ENEMY_ATTACK_HAMMER_ASSET_URL = `${EFFECT_ASSET_PATH}effect-hammer-transparent.webp`;
 const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
@@ -209,7 +209,7 @@ const PLAYER_AVATAR_POSE_ASSETS: Record<PlayerAvatarPoseName, BattleEffectSprite
   },
   cast: {
     key: 'ear-training-player-pose-cast',
-    url: '/data/eishou.png',
+    url: '/data/eishou.webp',
   },
   skill1: {
     key: 'ear-training-player-pose-skill-1',

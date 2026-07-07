@@ -37,7 +37,7 @@ export const createEarTrainingChordVoicingStaffBand = (
 export const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
 export const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.webp`;
 export const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.webp';
-export const ENEMY_ATTACK_HAMMER_ASSET_URL = `${EFFECT_ASSET_PATH}effect-hammer-transparent.png`;
+export const ENEMY_ATTACK_HAMMER_ASSET_URL = `${EFFECT_ASSET_PATH}effect-hammer-transparent.webp`;
 
 export interface EarTrainingRect {
   x: number;

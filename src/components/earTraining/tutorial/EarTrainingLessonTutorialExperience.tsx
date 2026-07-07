@@ -129,8 +129,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const currentScene = scenes[sceneIndex] ?? null;
 
   useEffect(() => {
-    if (gate !== 'ready' || !script?.scenes.length) return;
-    if (script.scenes[0]?.type !== 'dialogue_only') return;
+    if (gate !== 'ready' || !script) return;
     void preloadEarTrainingTutorialBattleChunks({ script, isEnglishCopy });
   }, [gate, isEnglishCopy, script]);
 

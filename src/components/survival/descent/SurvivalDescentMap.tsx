@@ -46,6 +46,7 @@ import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
+import { DESCENT_MAP_PRELOAD_IMAGES } from '@/utils/descentMapAssets';
 import { SurvivalMapAudio, SURVIVAL_MAP_BGM_URL } from '@/utils/SurvivalMapAudio';
 import { useGameStore } from '@/stores/gameStore';
 import {
@@ -120,13 +121,6 @@ interface SurvivalDescentMapProps {
 
 const VIEWPORT_FALLBACK_HEIGHT = 720;
 
-const DESCENT_MAP_IMAGES = [
-  '/background.webp?v=20260420b',
-  '/big_odoriba.webp?v=20260420b',
-  '/odoriba.webp?v=20260420b',
-  '/door.webp?v=20260420b',
-];
-
 interface SurvivalMapProgressSnapshot {
   currentStageNumber: number;
   clearedStages: Set<number>;
@@ -147,7 +141,7 @@ const preloadDescentImages = (): Promise<void> => {
   if (descentImagesPreloadPromise) return descentImagesPreloadPromise;
 
   descentImagesPreloadPromise = new Promise(resolve => {
-    let remaining = DESCENT_MAP_IMAGES.length;
+    let remaining = DESCENT_MAP_PRELOAD_IMAGES.length;
     if (remaining === 0) {
       resolve();
       return;
@@ -156,7 +150,7 @@ const preloadDescentImages = (): Promise<void> => {
       remaining -= 1;
       if (remaining === 0) resolve();
     };
-    DESCENT_MAP_IMAGES.forEach(src => {
+    DESCENT_MAP_PRELOAD_IMAGES.forEach(src => {
       const img = new Image();
       img.onload = done;
       img.onerror = done;

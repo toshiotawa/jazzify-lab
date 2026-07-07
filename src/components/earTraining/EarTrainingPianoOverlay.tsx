@@ -7,15 +7,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
+import { PIXINotesRenderer, type PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import { getWindow } from '@/platform';
-
-type PixiNotesRendererComponent = React.ComponentType<{
-  width: number;
-  height: number;
-  onReady?: (renderer: PIXINotesRendererInstance | null) => void;
-  className?: string;
-}>;
 
 export interface EarTrainingPianoOverlayHandle {
   highlightKey: (midiNote: number, active: boolean) => void;
@@ -53,21 +46,6 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
   const isProgrammaticScrollRef = useRef(false);
   const [renderer, setRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
-  const [PixiNotesRenderer, setPixiNotesRenderer] = useState<PixiNotesRendererComponent | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void import('@/components/piano/PIXINotesRenderer')
-      .then((mod) => {
-        if (!cancelled) {
-          setPixiNotesRenderer(() => mod.PIXINotesRenderer);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     onPianoKeyDownRef.current = onPianoKeyDown;
@@ -222,15 +200,13 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
     requestCenterPianoC4();
   }, [containerWidth, layout.needsScroll, renderer, requestCenterPianoC4]);
 
-  const piano = PixiNotesRenderer ? (
-    <PixiNotesRenderer
+  const piano = (
+    <PIXINotesRenderer
       width={layout.pixiWidth}
       height={PIANO_HEIGHT}
       onReady={handleRendererReady}
       className="h-full w-full"
     />
-  ) : (
-    <div className="h-full w-full bg-slate-900/80" aria-hidden="true" />
   );
 
   return (

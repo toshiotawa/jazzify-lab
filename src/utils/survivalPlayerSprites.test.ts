@@ -25,7 +25,7 @@ describe('getSurvivalDefaultSpriteForDirection', () => {
   it('paths exist for every variant used', () => {
     cases.forEach(([direction]) => {
       const { variant } = getSurvivalDefaultSpriteForDirection(direction);
-      expect(SURVIVAL_DEFAULT_SPRITE_PATHS[variant]).toMatch(/^\/default_avater\/muki\//);
+      expect(SURVIVAL_DEFAULT_SPRITE_PATHS[variant]).toMatch(/^\/default_avater\/muki\/.*\.webp$/);
     });
   });
 });

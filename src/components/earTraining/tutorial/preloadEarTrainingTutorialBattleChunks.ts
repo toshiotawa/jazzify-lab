@@ -1,6 +1,7 @@
 import { EFFECT_IMAGE_URLS, preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import { prefetchEarTrainingLobbyAssetsFromStage } from '@/utils/prefetchEarTrainingLobbyAssets';
 import { preloadBattleCountInClick, preloadBattleGmPiano } from '@/utils/ensureBattlePianoAudio';
+import { preloadEarTrainingPianoOverlay } from '@/utils/preloadEarTrainingPianoOverlay';
 
 import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
 import type {
@@ -52,6 +53,7 @@ export const preloadEarTrainingTutorialBattleChunks = async (
 
   void preloadEarTrainingBattleImages(Object.values(EFFECT_IMAGE_URLS));
 
+  preloadEarTrainingPianoOverlay();
   preloadBattleGmPiano();
   preloadBattleCountInClick();
 

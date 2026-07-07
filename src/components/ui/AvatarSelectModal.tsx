@@ -16,7 +16,7 @@ interface Props {
 const CHARACTER_AVATARS = [
   { path: DEFAULT_AVATAR_URL, label: 'Default' },
   ...Array.from({ length: 10 }, (_, i) => ({
-    path: `/stage_icons/${i + 1}.png`,
+    path: `/stage_icons/${i + 1}.webp`,
     label: `Character ${i + 1}`,
   })),
 ];

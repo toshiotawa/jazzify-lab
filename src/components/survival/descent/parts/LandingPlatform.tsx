@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { DESCENT_MAP_TEXTURE_URLS } from '@/utils/descentMapAssets';
 
 interface LandingPlatformProps {
   type: 'small' | 'big';
@@ -42,7 +43,7 @@ export const LandingPlatform: React.FC<LandingPlatformProps> = ({
         top: yPx - heightPx / 2,
         width: widthPx,
         height: heightPx,
-        backgroundImage: `url('/${type === 'big' ? 'big_odoriba.webp' : 'odoriba.webp'}?v=20260420b')`,
+        backgroundImage: `url('${type === 'big' ? DESCENT_MAP_TEXTURE_URLS.bigOdoriba : DESCENT_MAP_TEXTURE_URLS.odoriba}')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         filter,

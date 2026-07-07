@@ -1,8 +1,5 @@
-import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-
-import { runWhenIdle } from '@/utils/idlePrefetch';
 
 import EarTrainingPianoOverlay from './EarTrainingPianoOverlay';
 
@@ -11,11 +8,7 @@ vi.mock('@/components/piano/PIXINotesRenderer', () => ({
 }));
 
 describe('EarTrainingPianoOverlay', () => {
-  it('prefetch 後でも mount 時に Pixi 鍵盤を表示する', async () => {
-    runWhenIdle(`chunk:ear-training-piano-pixi-prefetch-${Date.now()}`, () => {
-      void import('@/components/piano/PIXINotesRenderer').catch(() => undefined);
-    });
-
+  it('mount 時に Pixi 鍵盤を表示する', async () => {
     render(
       <EarTrainingPianoOverlay
         onPianoKeyDown={() => undefined}

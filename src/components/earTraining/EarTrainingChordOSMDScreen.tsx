@@ -29,6 +29,7 @@ import {
   updateGlobalVolume,
 } from '@/utils/MidiController';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
+import { preloadEarTrainingPianoOverlay } from '@/utils/preloadEarTrainingPianoOverlay';
 import {
   fetchEarTrainingMidi,
   getCachedEarTrainingMidi,
@@ -250,6 +251,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (typeof performance !== 'undefined' && performance.mark) {
       performance.mark('ear-training:osmd-screen-mounted');
     }
+    preloadEarTrainingPianoOverlay();
   }, []);
 
   useQuestCompleteJingleOnStageClear(gameState);
