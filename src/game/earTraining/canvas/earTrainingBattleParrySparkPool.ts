@@ -10,7 +10,7 @@ import {
   PARRY_SPARK_TIME_OFFSET_MS,
 } from './earTrainingBattleDrawState';
 
-export const PARRY_SPARK_POOL_SIZE = 128;
+export const PARRY_SPARK_POOL_SIZE = 512;
 export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS;
 
 const NORMAL_SPARK_COUNT = 36;
@@ -29,6 +29,26 @@ const copyParryBeatSync = (beatSync: ParryBeatSyncRuntime): ParryBeatSyncRuntime
 
 const defaultBeatSync = (): ParryBeatSyncRuntime =>
   createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS);
+
+export interface ParrySparkSpawnCursor {
+  index: number;
+}
+
+/** 表示終了済みスロットのみ再利用（表示中の花火はキャンセルしない） */
+const reclaimParrySparkSlotIfExpired = (
+  slot: ParrySparkSlot,
+  visualNow: number,
+): boolean => {
+  if (!slot.active) {
+    return true;
+  }
+  const age = visualNow - slot.parryStartedAt + slot.timeOffsetMs;
+  if (age >= slot.durationMs) {
+    slot.active = false;
+    return true;
+  }
+  return false;
+};
 
 export interface ParrySparkDrawState {
   x: number;
@@ -63,16 +83,25 @@ export const spawnParrySparks = (
   startedAt: number,
   isChainParry: boolean,
   beatSync: ParryBeatSyncRuntime,
+  visualNow: number,
+  cursor: ParrySparkSpawnCursor,
 ): number => {
   const count = isChainParry ? CHAIN_SPARK_COUNT : NORMAL_SPARK_COUNT;
   const sizeMin = 2;
   const sizeMax = isChainParry ? 5.5 : 5;
   const frozenBeatSync = copyParryBeatSync(beatSync);
   let spawned = 0;
+  let scanned = 0;
 
-  for (let index = 0; index < pool.length && spawned < count; index += 1) {
-    const slot = pool[index];
-    if (slot.active) continue;
+  while (spawned < count && scanned < pool.length) {
+    const poolIndex = cursor.index % pool.length;
+    cursor.index = (poolIndex + 1) % pool.length;
+    scanned += 1;
+
+    const slot = pool[poolIndex];
+    if (!reclaimParrySparkSlotIfExpired(slot, visualNow)) {
+      continue;
+    }
 
     const angle = Math.random() * Math.PI * 2;
     slot.active = true;

@@ -710,6 +710,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   runtime.lastParryAt = now;
   triggerParryBeatSyncEffects(runtime, command, now);
   scheduleParryMotion(runtime, onDirty, finishOnly);
+  const sparkCursor = { index: runtime.parrySparkSpawnCursor };
   spawnParrySparks(
     runtime.parrySparkPool,
     parryCenterX,
@@ -717,7 +718,10 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     now,
     isChainParry,
     runtime.parryBeatSync,
+    getVisualNow(now, runtime.visualSlow),
+    sparkCursor,
   );
+  runtime.parrySparkSpawnCursor = sparkCursor.index;
 
   const visuals: CanvasEffectVisual[] = [];
   const slashCenterX = (parryCenterX + anchors.enemy.x) / 2;

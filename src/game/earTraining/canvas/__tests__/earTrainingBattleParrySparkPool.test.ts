@@ -94,22 +94,23 @@ describe('parry spark radius timeline', () => {
 
 describe('earTrainingBattleParrySparkPool', () => {
   const defaultBeatSync = createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS);
+  const spawnCursor = (): { index: number } => ({ index: 0 });
 
   it('spawns 36 sparks for normal parry and 48 for chain parry', () => {
     const pool = createParrySparkPool();
-    expect(spawnParrySparks(pool, 120, 80, 1_000, false, defaultBeatSync)).toBe(36);
+    expect(spawnParrySparks(pool, 120, 80, 1_000, false, defaultBeatSync, 1_000, spawnCursor())).toBe(36);
     expect(hasActiveParrySparks(pool)).toBe(true);
 
     for (const slot of pool) {
       slot.active = false;
     }
 
-    expect(spawnParrySparks(pool, 120, 80, 2_000, true, defaultBeatSync)).toBe(48);
+    expect(spawnParrySparks(pool, 120, 80, 2_000, true, defaultBeatSync, 2_000, spawnCursor())).toBe(48);
   });
 
   it('reuses inactive pool slots without allocating new objects', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync);
+    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync, 100, spawnCursor());
     const firstActive = pool.find(slot => slot.active);
     expect(firstActive).toBeDefined();
     if (!firstActive) return;
@@ -117,14 +118,14 @@ describe('earTrainingBattleParrySparkPool', () => {
     pruneParrySparks(pool, 100 + PARRY_MOTION_END_MS);
     expect(firstActive.active).toBe(false);
 
-    spawnParrySparks(pool, 20, 20, 700, false, defaultBeatSync);
+    spawnParrySparks(pool, 20, 20, 700, false, defaultBeatSync, 700, spawnCursor());
     expect(pool.some(slot => slot.active && slot.startedAt === 700)).toBe(true);
   });
 
   it('freezes beatSync per spawn so later parry does not retroactively move sparks', () => {
     const pool = createParrySparkPool();
     const shortSync = createParryBeatSyncFromSlowPhaseMs(250);
-    spawnParrySparks(pool, 100, 100, 1_000, false, shortSync);
+    spawnParrySparks(pool, 100, 100, 1_000, false, shortSync, 1_000, spawnCursor());
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -136,7 +137,7 @@ describe('earTrainingBattleParrySparkPool', () => {
     if (!at200) return;
 
     const longSync = createParryBeatSyncFromSlowPhaseMs(800);
-    spawnParrySparks(pool, 120, 120, 1_100, false, longSync);
+    spawnParrySparks(pool, 120, 120, 1_100, false, longSync, 1_100, spawnCursor());
     const afterSecondSpawn = getParrySparkDrawState(slot, 1_200);
     expect(afterSecondSpawn).toBeDefined();
     if (!afterSecondSpawn) return;
@@ -147,7 +148,7 @@ describe('earTrainingBattleParrySparkPool', () => {
   it('uses visualNow so sparks stay in sync during visual slow', () => {
     const pool = createParrySparkPool();
     const parryStartedAt = 1_000;
-    spawnParrySparks(pool, 100, 100, parryStartedAt, false, defaultBeatSync);
+    spawnParrySparks(pool, 100, 100, parryStartedAt, false, defaultBeatSync, parryStartedAt, spawnCursor());
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -173,7 +174,7 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('prunes sparks by visual age including time offset', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync);
+    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync, 100, spawnCursor());
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -184,7 +185,7 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('uses orange color only', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 50, 50, 1_000, false, defaultBeatSync);
+    spawnParrySparks(pool, 50, 50, 1_000, false, defaultBeatSync, 1_000, spawnCursor());
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -194,7 +195,7 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('applies per-spark radius scale so merge distances are not identical', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 100, 100, 1_000, false, defaultBeatSync);
+    spawnParrySparks(pool, 100, 100, 1_000, false, defaultBeatSync, 1_000, spawnCursor());
     const mergeTime = 1_000 + PARRY_SLOW_PHASE_MS;
     const distances = pool
       .filter(slot => slot.active)
@@ -212,11 +213,21 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('does not deactivate existing sparks when spawning again', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync);
+    const cursor = spawnCursor();
+    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync, 100, cursor);
     const firstCount = pool.filter(slot => slot.active).length;
-    spawnParrySparks(pool, 20, 20, 200, false, defaultBeatSync);
+    spawnParrySparks(pool, 20, 20, 200, false, defaultBeatSync, 200, cursor);
     expect(pool.filter(slot => slot.active && slot.startedAt === 100).length).toBe(firstCount);
     expect(pool.filter(slot => slot.active).length).toBeGreaterThan(firstCount);
+  });
+
+  it('always spawns a full batch while earlier visible sparks remain', () => {
+    const pool = createParrySparkPool();
+    const cursor = spawnCursor();
+    expect(spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync, 150, cursor)).toBe(36);
+    expect(spawnParrySparks(pool, 20, 20, 200, false, defaultBeatSync, 250, cursor)).toBe(36);
+    expect(pool.filter(slot => slot.active && slot.startedAt === 100).length).toBe(36);
+    expect(pool.filter(slot => slot.active && slot.startedAt === 200).length).toBe(36);
   });
 });
 

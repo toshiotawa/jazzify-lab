@@ -106,6 +106,7 @@ const createInitialRuntime = (
   parryFinishTimer: null,
   parryMotionEndTimer: null,
   parrySparkPool: createParrySparkPool(),
+  parrySparkSpawnCursor: 0,
   osuCirclePool: createOsuCirclePool(),
   osuCircleShatterPool: createOsuCircleShatterPool(),
   chordOsmdBattle: false,
