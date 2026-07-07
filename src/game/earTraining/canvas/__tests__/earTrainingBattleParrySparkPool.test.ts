@@ -31,6 +31,7 @@ describe('earTrainingBattle visual slow', () => {
     startedAt: 1_000,
     durationMs: PARRY_VISUAL_SLOW_DURATION_MS,
     scale: PARRY_VISUAL_SLOW_SCALE,
+    baseCompensation: 0,
   };
 
   it('returns zero compensation before slow starts', () => {
@@ -50,6 +51,28 @@ describe('earTrainingBattle visual slow', () => {
     const maxCompensation = slow.durationMs * (1 - slow.scale);
     expect(getVisualSlowCompensation(afterReal, slow)).toBeCloseTo(maxCompensation);
     expect(getVisualNow(afterReal, slow)).toBeCloseTo(afterReal - maxCompensation);
+  });
+
+  it('keeps visualNow continuous when slow restarts mid-flight', () => {
+    const hit1At = 1_000;
+    const firstSlow = {
+      startedAt: hit1At,
+      durationMs: 375,
+      scale: PARRY_VISUAL_SLOW_SCALE,
+      baseCompensation: 0,
+    };
+    const hit2At = hit1At + 120;
+    const visualNowBefore = getVisualNow(hit2At, firstSlow);
+    const restarted = {
+      startedAt: hit2At,
+      durationMs: 375,
+      scale: PARRY_VISUAL_SLOW_SCALE,
+      baseCompensation: getVisualSlowCompensation(hit2At, firstSlow),
+    };
+    expect(getVisualNow(hit2At, restarted)).toBeCloseTo(visualNowBefore);
+    expect(getVisualNow(hit2At + 50, restarted)).toBeCloseTo(
+      visualNowBefore + 50 * PARRY_VISUAL_SLOW_SCALE,
+    );
   });
 });
 
@@ -106,6 +129,7 @@ describe('earTrainingBattleParrySparkPool', () => {
       startedAt: parryStartedAt,
       durationMs: PARRY_VISUAL_SLOW_DURATION_MS,
       scale: PARRY_VISUAL_SLOW_SCALE,
+      baseCompensation: 0,
     };
     const midReal = parryStartedAt + PARRY_VISUAL_SLOW_DURATION_MS / 2;
     const visualMid = getVisualNow(midReal, slow);

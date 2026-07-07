@@ -126,6 +126,8 @@ export interface CanvasVisualSlowState {
   startedAt: number;
   durationMs: number;
   scale: number;
+  /** スロー再開時に引き継ぐ補償（visualNow の連続性、位置ジャンプ防止） */
+  baseCompensation: number;
 }
 
 export interface ParryBeatSyncRuntime {
@@ -198,12 +200,14 @@ export const getVisualSlowCompensation = (
   now: number,
   slow: CanvasVisualSlowState | null,
 ): number => {
-  if (!slow || now <= slow.startedAt) return 0;
+  if (!slow) return 0;
+  const base = slow.baseCompensation ?? 0;
+  if (now <= slow.startedAt) return base;
   const elapsed = now - slow.startedAt;
   if (elapsed >= slow.durationMs) {
-    return slow.durationMs * (1 - slow.scale);
+    return base + slow.durationMs * (1 - slow.scale);
   }
-  return elapsed * (1 - slow.scale);
+  return base + elapsed * (1 - slow.scale);
 };
 
 export const getVisualNow = (now: number, slow: CanvasVisualSlowState | null): number =>

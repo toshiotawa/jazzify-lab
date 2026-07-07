@@ -970,11 +970,7 @@ const drawEffects = (
   }
 
   runtime.effects.forEach(effect => {
-    effect.visuals.forEach(visual => {
-      // OSMD ハンマーは着弾と同じ実時間で進行（visualSlow 再開時の位置ジャンプを防ぐ）
-      const effectNow = visual.kind === 'hammer' ? now : visualNow;
-      drawEffectVisual(ctx, visual, runtime, effectNow);
-    });
+    effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
   });
 
   drawParrySparks(ctx, runtime.parrySparkPool, visualNow, runtime.parryBeatSync);

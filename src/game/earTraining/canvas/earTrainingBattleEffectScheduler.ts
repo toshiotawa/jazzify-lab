@@ -13,6 +13,7 @@ import {
   easeCubicIn,
   easeLinear,
   getEffectProgress,
+  getVisualSlowCompensation,
   getVisualNow,
   hexColor,
   lerp,
@@ -350,10 +351,12 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
+  // スロー再開時は補償を引き継ぎ visualNow を連続にする（ハンマー位置補正はしない）
   runtime.visualSlow = {
     startedAt: now,
     durationMs: schedule.slowDurationMs,
     scale: PARRY_VISUAL_SLOW_SCALE,
+    baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
   };
 
   const snapOut = shouldRestartParryZoom(
@@ -463,19 +466,20 @@ const dismissIncomingOsmdHammer = (
   if (!incoming) return;
   incoming.osmdHammerActive = false;
   const now = performance.now();
+  const visualNow = getVisualNow(now, runtime.visualSlow);
   const hammerVisual = incoming.visuals.find(visual => visual.kind === 'hammer');
   if (!hammerVisual) {
     incoming.visuals = [];
     return;
   }
-  const progress = getEffectProgress(hammerVisual, now);
+  const progress = getEffectProgress(hammerVisual, visualNow);
   const currentX = lerp(hammerVisual.fromX, hammerVisual.toX, easeLinear(progress));
   const currentY = lerp(hammerVisual.fromY, hammerVisual.toY, easeLinear(progress));
   const currentRotation = lerp(hammerVisual.rotation, hammerVisual.rotationEnd, progress);
   incoming.visuals = [{
     id: nextVisualId(),
     kind: 'hammer',
-    startedAt: now,
+    startedAt: visualNow,
     durationMs: HAMMER_DISMISS_FADE_MS,
     fromX: currentX,
     fromY: currentY,
