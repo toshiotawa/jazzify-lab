@@ -1,8 +1,10 @@
-import type { ParrySparkSlot } from './earTrainingBattleDrawState';
+import type { ParryBeatSyncRuntime, ParrySparkSlot } from './earTrainingBattleDrawState';
 import {
+  createParryBeatSyncFromSlowPhaseMs,
   getParryEffectRadiusAtAge,
   getParryLingerAlpha,
   PARRY_MOTION_END_MS,
+  PARRY_SLOW_PHASE_MS,
   PARRY_SPARK_RADIUS_SCALE_MAX,
   PARRY_SPARK_RADIUS_SCALE_MIN,
   PARRY_SPARK_TIME_OFFSET_MS,
@@ -44,6 +46,7 @@ export const spawnParrySparks = (
   y: number,
   startedAt: number,
   isChainParry: boolean,
+  motionEndMs: number = PARRY_MOTION_END_MS,
 ): number => {
   const count = isChainParry ? CHAIN_SPARK_COUNT : NORMAL_SPARK_COUNT;
   const sizeMin = 1.5;
@@ -57,7 +60,7 @@ export const spawnParrySparks = (
     const angle = Math.random() * Math.PI * 2;
     slot.active = true;
     slot.startedAt = startedAt;
-    slot.durationMs = PARRY_SPARK_DURATION_MS;
+    slot.durationMs = motionEndMs;
     slot.parryStartedAt = startedAt;
     slot.centerX = x;
     slot.centerY = y;
@@ -76,17 +79,18 @@ export const spawnParrySparks = (
 export const getParrySparkDrawState = (
   slot: ParrySparkSlot,
   visualNow: number,
+  beatSync: ParryBeatSyncRuntime = createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
 ): ParrySparkDrawState | null => {
   if (!slot.active) return null;
 
   const age = visualNow - slot.parryStartedAt + slot.timeOffsetMs;
   if (age >= slot.durationMs || age < 0) return null;
 
-  const radius = getParryEffectRadiusAtAge(age) * slot.radiusScale;
+  const radius = getParryEffectRadiusAtAge(age, beatSync) * slot.radiusScale;
   const x = slot.centerX + slot.dirX * radius;
   const y = slot.centerY + slot.dirY * radius;
   const fadeT = age / slot.durationMs;
-  const alpha = getParryLingerAlpha(visualNow, slot.parryStartedAt, 1 - fadeT * 0.4);
+  const alpha = getParryLingerAlpha(visualNow, slot.parryStartedAt, 1 - fadeT * 0.4, beatSync);
   const size = slot.size * (1 - fadeT * 0.35);
 
   return {
@@ -115,9 +119,10 @@ export const drawParrySparks = (
   ctx: CanvasRenderingContext2D,
   pool: ParrySparkSlot[],
   visualNow: number,
+  beatSync: ParryBeatSyncRuntime = createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
 ): void => {
   for (const slot of pool) {
-    const state = getParrySparkDrawState(slot, visualNow);
+    const state = getParrySparkDrawState(slot, visualNow, beatSync);
     if (!state || state.alpha <= 0) continue;
 
     ctx.save();

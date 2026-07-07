@@ -612,6 +612,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       approachStartMs?: number;
       judgedMs?: number;
       parryFinishOnly?: boolean;
+      hitPhraseTimeSec?: number;
+      effectiveBpm?: number;
+      isSwing?: boolean;
+      nextTargetPhraseTimeSec?: number;
     } = {},
   ): number => {
     battleEffectIdRef.current += 1;
@@ -627,6 +631,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       approachStartMs: options.approachStartMs,
       judgedMs: options.judgedMs,
       parryFinishOnly: options.parryFinishOnly,
+      hitPhraseTimeSec: options.hitPhraseTimeSec,
+      effectiveBpm: options.effectiveBpm,
+      isSwing: options.isSwing,
+      nextTargetPhraseTimeSec: options.nextTargetPhraseTimeSec,
     };
     phaserGameRef.current?.triggerEffect(command);
     return effectId;
@@ -1703,6 +1711,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const completeTarget = useCallback((
     target: ChordOsmdRhythmTarget,
     state: RuntimeTargetState,
+    hitPhraseTimeSec: number,
   ) => {
     state.completed = true;
     syncPracticeVoicingHints();
@@ -1721,11 +1730,21 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       state.osuCircleEffectId = undefined;
     }
+    const nextTarget = findFirstIncompleteChordOsmdTarget(
+      targetsRef.current,
+      isTargetIncomplete,
+    );
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
       damage,
       relatedEffectId: state.hammerEffectId,
       parryFinishOnly: isLastChordOsmdTargetInMeasure(targetsRef.current, target),
+      hitPhraseTimeSec,
+      effectiveBpm: resolveEffectivePracticeBpm(),
+      isSwing: stage.is_swing === true,
+      nextTargetPhraseTimeSec: nextTarget
+        ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
+        : undefined,
     });
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);
@@ -1734,7 +1753,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     activeDamageConfig.perCorrectNote,
     applyEnemyDamage,
     copy,
+    isTargetIncomplete,
     registerBattleEffectImpact,
+    resolveCalibratedTargetTimeSec,
+    resolveEffectivePracticeBpm,
+    stage.is_swing,
     syncPracticeVoicingHints,
     triggerBattleEffect,
   ]);
@@ -1773,7 +1796,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       state.remainingCounts = nextRemaining;
       syncSelfPacedMeasureAndHints();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(firstTarget, state);
+        completeTarget(firstTarget, state, Number.NaN);
         if (areAllChordOsmdTargetsCompleted(targetsRef.current, isTargetCompleted)) {
           finishCurrentPhraseRef.current(phraseRunIdRef.current);
         }
@@ -1805,7 +1828,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         syncPracticeVoicingHints();
       }
       if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(target, state);
+        completeTarget(target, state, phraseT);
       }
       return;
     }

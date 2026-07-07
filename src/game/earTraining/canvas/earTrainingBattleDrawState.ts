@@ -128,6 +128,15 @@ export interface CanvasVisualSlowState {
   scale: number;
 }
 
+export interface ParryBeatSyncRuntime {
+  slowPhaseMs: number;
+  ringExpandStartMs: number;
+  ringExpandEndMs: number;
+  effectFadeStartMs: number;
+  motionEndMs: number;
+  lingerFadeDurationMs: number;
+}
+
 /** パリィ成功時の描画のみスロー（0–250ms、ゲーム時間は止めない） */
 export const PARRY_SLOW_PHASE_MS = 250;
 export const PARRY_RING_EXPAND_START_MS = 251;
@@ -160,6 +169,30 @@ export const PARRY_LINGER_FADE_START_MS = PARRY_EFFECT_FADE_START_MS;
 export const PARRY_LINGER_FADE_DURATION_MS = PARRY_MOTION_END_MS - PARRY_EFFECT_FADE_START_MS;
 export const PARRY_VISUAL_SLOW_DURATION_MS = PARRY_SLOW_PHASE_MS;
 export const PARRY_VISUAL_SLOW_SCALE = 0.22;
+
+const buildDefaultParryBeatSync = (): ParryBeatSyncRuntime => ({
+  slowPhaseMs: PARRY_SLOW_PHASE_MS,
+  ringExpandStartMs: PARRY_RING_EXPAND_START_MS,
+  ringExpandEndMs: PARRY_RING_EXPAND_END_MS,
+  effectFadeStartMs: PARRY_EFFECT_FADE_START_MS,
+  motionEndMs: PARRY_MOTION_END_MS,
+  lingerFadeDurationMs: PARRY_LINGER_FADE_DURATION_MS,
+});
+
+export const createParryBeatSyncFromSlowPhaseMs = (slowPhaseMs: number): ParryBeatSyncRuntime => {
+  const ringExpandStartMs = slowPhaseMs + 1;
+  const ringExpandEndMs = ringExpandStartMs + (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
+  const effectFadeStartMs = ringExpandEndMs + 1;
+  const motionEndMs = effectFadeStartMs + PARRY_LINGER_FADE_DURATION_MS;
+  return {
+    slowPhaseMs,
+    ringExpandStartMs,
+    ringExpandEndMs,
+    effectFadeStartMs,
+    motionEndMs,
+    lingerFadeDurationMs: PARRY_LINGER_FADE_DURATION_MS,
+  };
+};
 
 export const getVisualSlowCompensation = (
   now: number,
@@ -253,6 +286,8 @@ export interface EarTrainingBattleDrawRuntime {
   lastParryAt: number;
   /** 小節最終音符フィニッシュ中は連続パリィでモーションをキャンセルしない */
   parryFinishLocked: boolean;
+  /** パリィ BPM 同期タイムライン（描画 age 境界） */
+  parryBeatSync: ParryBeatSyncRuntime;
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;
@@ -268,34 +303,41 @@ export const getParryLingerAlpha = (
   now: number,
   groupStartedAt: number | undefined,
   baseAlpha: number,
+  beatSync: ParryBeatSyncRuntime = buildDefaultParryBeatSync(),
 ): number => {
   if (groupStartedAt === undefined) return baseAlpha;
   const age = now - groupStartedAt;
-  if (age < PARRY_LINGER_FADE_START_MS) return baseAlpha;
-  const fadeT = Math.min(1, (age - PARRY_LINGER_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS);
+  if (age < beatSync.effectFadeStartMs) return baseAlpha;
+  const fadeT = Math.min(1, (age - beatSync.effectFadeStartMs) / beatSync.lingerFadeDurationMs);
   return baseAlpha * (1 - easeCubicOut(fadeT));
 };
 
-/** 花火・パリィ円が共有する半径タイムライン（251ms で合流） */
-export const getParryEffectRadiusAtAge = (ageMs: number): number => {
-  if (ageMs <= PARRY_RING_EXPAND_START_MS) {
-    const t = ageMs / PARRY_RING_EXPAND_START_MS;
+/** 花火・パリィ円が共有する半径タイムライン（slowPhase 終了で合流） */
+export const getParryEffectRadiusAtAge = (
+  ageMs: number,
+  beatSync: ParryBeatSyncRuntime = buildDefaultParryBeatSync(),
+): number => {
+  if (ageMs <= beatSync.ringExpandStartMs) {
+    const t = ageMs / Math.max(1, beatSync.slowPhaseMs);
     return lerp(PARRY_SPARK_START_RADIUS_PX, PARRY_MERGE_RADIUS_PX, easeCubicOut(t));
   }
-  if (ageMs <= PARRY_RING_EXPAND_END_MS) {
-    const t = (ageMs - PARRY_RING_EXPAND_START_MS)
-      / (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
+  if (ageMs <= beatSync.ringExpandEndMs) {
+    const t = (ageMs - beatSync.ringExpandStartMs)
+      / Math.max(1, beatSync.ringExpandEndMs - beatSync.ringExpandStartMs);
     return lerp(PARRY_MERGE_RADIUS_PX, PARRY_MAX_RADIUS_PX, easeCubicOut(t));
   }
   return PARRY_MAX_RADIUS_PX;
 };
 
-/** 251ms 以前は非表示。合流サイズから拡大 */
-export const getParryRingScaleAtAge = (ageMs: number): number | null => {
-  if (ageMs < PARRY_RING_EXPAND_START_MS) return null;
-  if (ageMs <= PARRY_RING_EXPAND_END_MS) {
-    const t = (ageMs - PARRY_RING_EXPAND_START_MS)
-      / (PARRY_RING_EXPAND_END_MS - PARRY_RING_EXPAND_START_MS);
+/** slowPhase 終了以前は非表示。合流サイズから拡大 */
+export const getParryRingScaleAtAge = (
+  ageMs: number,
+  beatSync: ParryBeatSyncRuntime = buildDefaultParryBeatSync(),
+): number | null => {
+  if (ageMs < beatSync.ringExpandStartMs) return null;
+  if (ageMs <= beatSync.ringExpandEndMs) {
+    const t = (ageMs - beatSync.ringExpandStartMs)
+      / Math.max(1, beatSync.ringExpandEndMs - beatSync.ringExpandStartMs);
     return lerp(PARRY_RING_MERGE_SCALE, PARRY_RING_MAX_SCALE, easeCubicOut(t));
   }
   return PARRY_RING_MAX_SCALE;

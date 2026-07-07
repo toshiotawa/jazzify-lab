@@ -39,8 +39,12 @@ import {
 } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
 import { getBattleAnchors, resolveStaffReservedBottomY } from '@/game/earTraining/canvas/earTrainingBattleLayout';
-import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
-import { PARRY_TOTAL_MS } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
+import {
+  createParryBeatSyncFromSlowPhaseMs,
+  PARRY_SLOW_PHASE_MS,
+  PARRY_TOTAL_MS,
+  type EarTrainingBattleDrawRuntime,
+} from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
   createParrySparkPool,
   hasActiveParrySparks,
@@ -107,6 +111,7 @@ const createInitialRuntime = (
   chordOsmdBattle: false,
   lastParryAt: 0,
   parryFinishLocked: false,
+  parryBeatSync: createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({

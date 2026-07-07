@@ -38,6 +38,14 @@ export interface EarTrainingBattleEffectCommand {
   judgedMs?: number;
   /** 小節最終音符: 最初からフィニッシュモーション（連続パリィでもキャンセルしない） */
   parryFinishOnly?: boolean;
+  /** OSMD: パリィヒット時の phrase タイムライン秒 */
+  hitPhraseTimeSec?: number;
+  /** OSMD: 練習速度反映済み BPM */
+  effectiveBpm?: number;
+  /** OSMD: スウィンググリッド */
+  isSwing?: boolean;
+  /** OSMD: 次の未完了ターゲット phrase 秒（連続パリィ判定） */
+  nextTargetPhraseTimeSec?: number;
 }
 
 export interface EarTrainingBattleChordView {

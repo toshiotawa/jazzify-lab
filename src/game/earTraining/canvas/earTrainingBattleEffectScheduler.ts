@@ -9,6 +9,7 @@ import type {
   EarTrainingBattleDrawRuntime,
 } from './earTrainingBattleDrawState';
 import {
+  createParryBeatSyncFromSlowPhaseMs,
   easeCubicIn,
   getEffectProgress,
   getVisualNow,
@@ -19,9 +20,12 @@ import {
   PARRY_REFLECT_HIT_MS,
   PARRY_RING_ORANGE,
   PARRY_TOTAL_MS,
-  PARRY_VISUAL_SLOW_DURATION_MS,
   PARRY_VISUAL_SLOW_SCALE,
 } from './earTrainingBattleDrawState';
+import {
+  resolveParryBeatSyncScheduleOrFallback,
+  shouldRestartParryZoom,
+} from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
   holdCharacterForAction,
@@ -33,6 +37,7 @@ import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
   triggerCameraShake,
   triggerParryCameraZoom,
+  triggerParryCameraZoomBeatSync,
   triggerZoomToPlayer,
 } from './earTrainingBattleCamera';
 import {
@@ -329,12 +334,50 @@ const playOsmdApproachCircleDismissEffect = (
   onDirty();
 };
 
-const triggerParryVisualSlow = (runtime: EarTrainingBattleDrawRuntime, now: number): void => {
+const triggerParryBeatSyncEffects = (
+  runtime: EarTrainingBattleDrawRuntime,
+  command: EarTrainingBattleEffectCommand,
+  now: number,
+  centerX: number,
+  centerY: number,
+): void => {
+  const schedule = resolveParryBeatSyncScheduleOrFallback({
+    hitPhraseSec: command.hitPhraseTimeSec,
+    hitPerfMs: now,
+    bpm: command.effectiveBpm,
+    isSwing: command.isSwing,
+    nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
+  });
+  runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
   runtime.visualSlow = {
     startedAt: now,
-    durationMs: PARRY_VISUAL_SLOW_DURATION_MS,
+    durationMs: schedule.slowDurationMs,
     scale: PARRY_VISUAL_SLOW_SCALE,
   };
+
+  const snapOut = shouldRestartParryZoom(
+    command.nextTargetPhraseTimeSec,
+    schedule.landingPhraseSec,
+  ) && runtime.camera.zoom?.useBeatSync === true;
+
+  if (
+    command.hitPhraseTimeSec !== undefined
+    && command.effectiveBpm !== undefined
+    && command.isSwing !== undefined
+    && Number.isFinite(command.hitPhraseTimeSec)
+  ) {
+    triggerParryCameraZoomBeatSync(runtime.camera, {
+      centerX,
+      centerY,
+      hitPerfMs: now,
+      panInEndPerfMs: schedule.panInEndPerfMs,
+      returnEndPerfMs: schedule.returnEndPerfMs,
+      snapOutBeforeRestart: snapOut,
+    });
+    return;
+  }
+
+  triggerParryCameraZoom(runtime.camera, centerX, centerY);
 };
 
 export const clearParryMotionTimers = (runtime: EarTrainingBattleDrawRuntime): void => {
@@ -682,10 +725,16 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   const isChainParry = runtime.lastParryAt > 0 && now - runtime.lastParryAt < PARRY_TOTAL_MS;
   const finishOnly = command.parryFinishOnly === true;
   runtime.lastParryAt = now;
-  triggerParryVisualSlow(runtime, now);
+  triggerParryBeatSyncEffects(runtime, command, now, width / 2, height / 2);
   scheduleParryMotion(runtime, onDirty, finishOnly);
-  triggerParryCameraZoom(runtime.camera, width / 2, height / 2);
-  spawnParrySparks(runtime.parrySparkPool, parryCenterX, parryCenterY, now, isChainParry);
+  spawnParrySparks(
+    runtime.parrySparkPool,
+    parryCenterX,
+    parryCenterY,
+    now,
+    isChainParry,
+    runtime.parryBeatSync.motionEndMs,
+  );
 
   const visuals: CanvasEffectVisual[] = [];
   const slashCenterX = (parryCenterX + anchors.enemy.x) / 2;
@@ -994,7 +1043,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;
       const lingerEnd = visual.groupStartedAt !== undefined
-        ? visual.groupStartedAt + PARRY_TOTAL_MS
+        ? visual.groupStartedAt + runtime.parryBeatSync.motionEndMs
         : visualEnd;
       return Math.max(max, visualEnd, lingerEnd);
     }, effect.startedAt);

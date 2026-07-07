@@ -16,6 +16,12 @@ export interface CameraZoomState {
   holdMs: number;
   returnMs: number;
   zoomTarget: number;
+  /** BPM同期: performance.now 基準の panIn 終了時刻 */
+  panInEndPerfMs?: number;
+  /** BPM同期: performance.now 基準の return 終了時刻 */
+  returnEndPerfMs?: number;
+  /** BPM同期時は real now で補間する */
+  useBeatSync?: boolean;
 }
 
 export interface CanvasCameraRuntime {
@@ -84,6 +90,38 @@ export const triggerParryCameraZoom = (
   };
 };
 
+export interface ParryBeatSyncCameraParams {
+  centerX: number;
+  centerY: number;
+  hitPerfMs: number;
+  panInEndPerfMs: number;
+  returnEndPerfMs: number;
+  snapOutBeforeRestart?: boolean;
+}
+
+export const triggerParryCameraZoomBeatSync = (
+  camera: CanvasCameraRuntime,
+  params: ParryBeatSyncCameraParams,
+): void => {
+  if (params.snapOutBeforeRestart) {
+    camera.zoom = null;
+  }
+  camera.zoom = {
+    startedAt: params.hitPerfMs,
+    focusX: params.centerX,
+    focusY: params.centerY,
+    centerX: params.centerX,
+    centerY: params.centerY,
+    panInMs: 0,
+    holdMs: 0,
+    returnMs: 0,
+    zoomTarget: 1.012,
+    panInEndPerfMs: params.panInEndPerfMs,
+    returnEndPerfMs: params.returnEndPerfMs,
+    useBeatSync: true,
+  };
+};
+
 export interface CameraTransform {
   offsetX: number;
   offsetY: number;
@@ -98,6 +136,19 @@ const scratchTransform: CameraTransform = {
   scale: 1,
   focusX: 0,
   focusY: 0,
+};
+
+const computeBeatSyncZoomTransform = (
+  zoom: CameraZoomState,
+  now: number,
+): void => {
+  const returnEnd = zoom.returnEndPerfMs ?? zoom.startedAt;
+  const duration = Math.max(1, returnEnd - zoom.startedAt);
+  const progress = Math.min(1, Math.max(0, (now - zoom.startedAt) / duration));
+  const zoomT = Math.sin(Math.PI * progress);
+  scratchTransform.focusX = zoom.centerX + (zoom.focusX - zoom.centerX) * zoomT;
+  scratchTransform.focusY = zoom.centerY + (zoom.focusY - zoom.centerY) * zoomT;
+  scratchTransform.scale = 1 + (zoom.zoomTarget - 1) * zoomT;
 };
 
 export const computeCameraTransform = (
@@ -130,28 +181,38 @@ export const computeCameraTransform = (
 
   if (camera.zoom) {
     const zoom = camera.zoom;
-    const elapsed = now - zoom.startedAt;
-    const panInEnd = zoom.panInMs;
-    const holdEnd = panInEnd + zoom.holdMs;
-    const returnEnd = holdEnd + zoom.returnMs;
 
-    if (elapsed >= returnEnd) {
-      camera.zoom = null;
-    } else if (elapsed < panInEnd) {
-      const t = easeSineInOut(elapsed / panInEnd);
-      scratchTransform.focusX = zoom.centerX + (zoom.focusX - zoom.centerX) * t;
-      scratchTransform.focusY = zoom.centerY + (zoom.focusY - zoom.centerY) * t;
-      scratchTransform.scale = 1 + (zoom.zoomTarget - 1) * easeCubicOut(elapsed / panInEnd);
-    } else if (elapsed < holdEnd) {
-      scratchTransform.focusX = zoom.focusX;
-      scratchTransform.focusY = zoom.focusY;
-      scratchTransform.scale = zoom.zoomTarget;
+    if (zoom.useBeatSync) {
+      const returnEnd = zoom.returnEndPerfMs ?? zoom.startedAt;
+      if (now > returnEnd) {
+        camera.zoom = null;
+      } else {
+        computeBeatSyncZoomTransform(zoom, now);
+      }
     } else {
-      const returnT = (elapsed - holdEnd) / zoom.returnMs;
-      const t = easeSineInOut(returnT);
-      scratchTransform.focusX = zoom.focusX + (zoom.centerX - zoom.focusX) * t;
-      scratchTransform.focusY = zoom.focusY + (zoom.centerY - zoom.focusY) * t;
-      scratchTransform.scale = zoom.zoomTarget + (1 - zoom.zoomTarget) * easeCubicInOut(returnT);
+      const elapsed = now - zoom.startedAt;
+      const panInEnd = zoom.panInMs;
+      const holdEnd = panInEnd + zoom.holdMs;
+      const returnEnd = holdEnd + zoom.returnMs;
+
+      if (elapsed >= returnEnd) {
+        camera.zoom = null;
+      } else if (elapsed < panInEnd) {
+        const t = easeSineInOut(elapsed / panInEnd);
+        scratchTransform.focusX = zoom.centerX + (zoom.focusX - zoom.centerX) * t;
+        scratchTransform.focusY = zoom.centerY + (zoom.focusY - zoom.centerY) * t;
+        scratchTransform.scale = 1 + (zoom.zoomTarget - 1) * easeCubicOut(elapsed / panInEnd);
+      } else if (elapsed < holdEnd) {
+        scratchTransform.focusX = zoom.focusX;
+        scratchTransform.focusY = zoom.focusY;
+        scratchTransform.scale = zoom.zoomTarget;
+      } else {
+        const returnT = (elapsed - holdEnd) / zoom.returnMs;
+        const t = easeSineInOut(returnT);
+        scratchTransform.focusX = zoom.focusX + (zoom.centerX - zoom.focusX) * t;
+        scratchTransform.focusY = zoom.focusY + (zoom.centerY - zoom.focusY) * t;
+        scratchTransform.scale = zoom.zoomTarget + (1 - zoom.zoomTarget) * easeCubicInOut(returnT);
+      }
     }
   }
 
@@ -166,6 +227,10 @@ export const isCameraActive = (
     return true;
   }
   if (camera.zoom) {
+    if (camera.zoom.useBeatSync) {
+      const returnEnd = camera.zoom.returnEndPerfMs ?? camera.zoom.startedAt;
+      return now <= returnEnd;
+    }
     const zoom = camera.zoom;
     const elapsed = now - zoom.startedAt;
     return elapsed < zoom.panInMs + zoom.holdMs + zoom.returnMs;

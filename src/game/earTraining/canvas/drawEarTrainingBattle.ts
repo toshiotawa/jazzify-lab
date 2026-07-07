@@ -47,8 +47,6 @@ import {
   getParryRingScaleAtAge,
   getVisualNow,
   lerp,
-  PARRY_EFFECT_FADE_START_MS,
-  PARRY_LINGER_FADE_DURATION_MS,
   PARRY_RING_LINE_WIDTH,
   PARRY_RING_ORANGE,
 } from './earTrainingBattleDrawState';
@@ -862,14 +860,15 @@ const drawEffectVisual = (
   let alpha = visual.alpha;
   if (visual.parryRingExpand && visual.groupStartedAt !== undefined) {
     const age = now - visual.groupStartedAt;
-    const ringScale = getParryRingScaleAtAge(age);
+    const beatSync = runtime.parryBeatSync;
+    const ringScale = getParryRingScaleAtAge(age, beatSync);
     if (ringScale === null) {
       return;
     }
     size = visual.size * ringScale;
     const fadeAge = now - visual.groupStartedAt;
-    if (fadeAge >= PARRY_EFFECT_FADE_START_MS) {
-      const fadeT = (fadeAge - PARRY_EFFECT_FADE_START_MS) / PARRY_LINGER_FADE_DURATION_MS;
+    if (fadeAge >= beatSync.effectFadeStartMs) {
+      const fadeT = (fadeAge - beatSync.effectFadeStartMs) / beatSync.lingerFadeDurationMs;
       alpha = visual.alpha * (1 - easeCubicOut(Math.min(1, fadeT)));
     }
   } else if (visual.kind === 'thinRing') {
@@ -885,7 +884,7 @@ const drawEffectVisual = (
     alpha = visual.alpha * (1 - easeCubicOut(t));
   }
   if (!visual.parryRingExpand) {
-    alpha = getParryLingerAlpha(now, visual.groupStartedAt, alpha);
+    alpha = getParryLingerAlpha(now, visual.groupStartedAt, alpha, runtime.parryBeatSync);
   }
   const rotation = lerp(visual.rotation, visual.rotationEnd, easeLinear(t)) * Math.PI / 180;
 
@@ -974,7 +973,7 @@ const drawEffects = (
     effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
   });
 
-  drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
+  drawParrySparks(ctx, runtime.parrySparkPool, visualNow, runtime.parryBeatSync);
   if (runtime.chordOsmdBattle) {
     drawOsuCircles(ctx, runtime.osuCirclePool, now);
     drawOsuCircleShatter(ctx, runtime.osuCircleShatterPool, now);
@@ -1017,7 +1016,8 @@ export const drawEarTrainingBattle = (
   ctx.clearRect(0, 0, width, height);
 
   const visualNow = getVisualNow(now, runtime.visualSlow);
-  const cameraTransform = computeCameraTransform(runtime.camera, width, height, visualNow);
+  const cameraNow = runtime.camera.zoom?.useBeatSync ? now : visualNow;
+  const cameraTransform = computeCameraTransform(runtime.camera, width, height, cameraNow);
   ctx.save();
   applyWorldCameraTransform(ctx, cameraTransform);
   drawBackground(ctx, width, height, runtime);
