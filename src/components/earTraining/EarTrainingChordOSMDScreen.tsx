@@ -19,6 +19,7 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrainingBattleLayout';
+import { OSU_CIRCLE_JUDGED_OFFSET_MS } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -631,6 +632,16 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     return effectId;
   }, []);
 
+  const dismissOsuCircleForState = useCallback((state: RuntimeTargetState) => {
+    if (state.osuCircleEffectId === undefined) {
+      return;
+    }
+    triggerBattleEffect('osmdApproachCircleDismiss', {
+      relatedEffectId: state.osuCircleEffectId,
+    });
+    state.osuCircleEffectId = undefined;
+  }, [triggerBattleEffect]);
+
   const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
     pendingImpactHandlersRef.current.set(effectId, handler);
   }, []);
@@ -884,32 +895,32 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const failTargetIfNeeded = useCallback((targetId: string) => {
     const state = runtimeByTargetIdRef.current.get(targetId);
-    if (!state || state.completed || state.failed) {
+    if (!state || state.completed) {
+      return;
+    }
+    dismissOsuCircleForState(state);
+    if (state.failed) {
       return;
     }
     state.failed = true;
-    if (state.osuCircleEffectId !== undefined) {
-      triggerBattleEffect('osmdApproachCircleDismiss', {
-        relatedEffectId: state.osuCircleEffectId,
-      });
-    }
     syncPracticeVoicingHints();
     triggerFeedback('miss');
     setStatusText(isEnglishCopy ? 'Miss' : 'ミス');
-  }, [isEnglishCopy, syncPracticeVoicingHints, triggerBattleEffect, triggerFeedback]);
+  }, [dismissOsuCircleForState, isEnglishCopy, syncPracticeVoicingHints, triggerFeedback]);
 
   const handleHammerImpact = useCallback((targetId: string) => {
     const state = runtimeByTargetIdRef.current.get(targetId);
     if (!state || state.completed) {
       return;
     }
+    dismissOsuCircleForState(state);
     if (!state.failed) {
       state.failed = true;
     }
     if (!tutorialNoCombat) {
       applyPlayerDamage(activeDamageConfig.miss);
     }
-  }, [activeDamageConfig.miss, applyPlayerDamage, tutorialNoCombat]);
+  }, [activeDamageConfig.miss, applyPlayerDamage, dismissOsuCircleForState, tutorialNoCombat]);
 
   const finishCurrentPhrase = useCallback((runId: number) => {
     if (
@@ -927,8 +938,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     runtimeByTargetIdRef.current.forEach(state => {
       if (state.completed) {
         completed += 1;
-      } else if (!state.failed) {
-        state.failed = true;
+      } else {
+        if (!state.failed) {
+          state.failed = true;
+        }
+        dismissOsuCircleForState(state);
       }
     });
     pianoOverlayRef.current?.clearVoicingHints();
@@ -1037,6 +1051,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     registerBattleEffectImpact,
     stopPhraseAudio,
     triggerBattleEffect,
+    dismissOsuCircleForState,
   ]);
 
   const throwDueHammers = useCallback((phraseTimeSec: number) => {
@@ -1080,7 +1095,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextApproachTargetIndexRef.current += 1;
         continue;
       }
-      const judgedMs = performance.now() + (judged - phraseTimeSec) * 1000;
+      const judgedMs = performance.now()
+        + (judged - phraseTimeSec) * 1000
+        + OSU_CIRCLE_JUDGED_OFFSET_MS;
       const approachStartMs = judgedMs - approachLeadSec * 1000;
       const effectId = triggerBattleEffect('osmdApproachCircle', {
         approachStartMs,
@@ -1665,6 +1682,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       triggerBattleEffect('osmdApproachCircleBurst', {
         relatedEffectId: state.osuCircleEffectId,
       });
+      state.osuCircleEffectId = undefined;
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,

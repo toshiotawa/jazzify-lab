@@ -1,6 +1,8 @@
 import {
   computeOsuCircleTiming,
+  getOsuCircleOverlapOuterRadiusPx,
   OSU_CIRCLE_INNER_RADIUS_PX,
+  OSU_CIRCLE_LINE_WIDTH,
   OSU_CIRCLE_OUTER_START_RADIUS_PX,
 } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 
@@ -32,15 +34,17 @@ describe('computeOsuCircleTiming', () => {
     expect(state.innerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX);
   });
 
-  it('判定時刻: 外円半径 = 内円半径', () => {
+  it('判定時刻: 外円が内円外周に接する', () => {
+    const overlapOuter = getOsuCircleOverlapOuterRadiusPx();
     const state = computeOsuCircleTiming({
       ...baseInput,
       nowMs: 1500,
     });
     expect(state.visible).toBe(true);
     expect(state.phase).toBe('locked');
-    expect(state.outerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX);
+    expect(state.outerRadius).toBe(overlapOuter);
     expect(state.innerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX);
+    expect(state.outerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX + OSU_CIRCLE_LINE_WIDTH);
   });
 
   it('判定後: 外円がさらに縮まない', () => {
@@ -76,14 +80,15 @@ describe('computeOsuCircleTiming', () => {
     expect(state.phase).toBe('dismissed');
   });
 
-  it('早押し窓（-250ms）付近では外円が内円と重ならない', () => {
+  it('早押し窓（-250ms）付近では外円が内円外周に接しない', () => {
     const beatMs = baseInput.judgedMs - baseInput.approachStartMs;
     const earlyWindowMs = 250;
+    const overlapOuter = getOsuCircleOverlapOuterRadiusPx();
     const state = computeOsuCircleTiming({
       ...baseInput,
       nowMs: baseInput.judgedMs - earlyWindowMs,
     });
     expect(beatMs).toBe(500);
-    expect(state.outerRadius).toBeGreaterThan(state.innerRadius + 1);
+    expect(state.outerRadius).toBeGreaterThan(overlapOuter + 1);
   });
 });

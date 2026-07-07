@@ -10,6 +10,8 @@ import {
 export const OSU_CIRCLE_INNER_RADIUS_PX = PARRY_RING_BASE_SIZE / 2;
 /** OSU! アプローチ外円の開始半径。パリィ円の最大拡大半径 */
 export const OSU_CIRCLE_OUTER_START_RADIUS_PX = PARRY_MAX_RADIUS_PX;
+/** フレーズタイムラインと聴感のずれ補正（重なりをわずかに遅らせる） */
+export const OSU_CIRCLE_JUDGED_OFFSET_MS = 35;
 /** 下からスライドイン完了までの approach 進行割合 */
 export const OSU_CIRCLE_ENTER_FRACTION = 0.2;
 /** ヒット位置より下の開始オフセット（px） */
@@ -17,6 +19,9 @@ export const OSU_CIRCLE_ENTER_OFFSET_PX = 48;
 export const OSU_CIRCLE_INNER_STROKE = 'rgba(251, 146, 60, 0.9)';
 export const OSU_CIRCLE_OUTER_STROKE = 'rgba(255, 255, 255, 0.85)';
 export const OSU_CIRCLE_LINE_WIDTH = PARRY_RING_LINE_WIDTH;
+/** アプローチ外円の中心線半径がこの値で内円外周と接する（OSU! 同様） */
+export const getOsuCircleOverlapOuterRadiusPx = (): number =>
+  OSU_CIRCLE_INNER_RADIUS_PX + OSU_CIRCLE_LINE_WIDTH;
 
 export type OsuCirclePhase = 'hidden' | 'approach' | 'locked' | 'burst' | 'dismissed';
 
@@ -96,6 +101,8 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
     easeCubicOut(enterT),
   );
 
+  const overlapOuterRadiusPx = getOsuCircleOverlapOuterRadiusPx();
+
   if (nowMs >= judgedMs) {
     return {
       visible: true,
@@ -103,14 +110,14 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
       centerX,
       centerY,
       innerRadius: OSU_CIRCLE_INNER_RADIUS_PX,
-      outerRadius: OSU_CIRCLE_INNER_RADIUS_PX,
+      outerRadius: overlapOuterRadiusPx,
     };
   }
 
-  // 線形補間: easeOut だと早押し窓（約 -250ms）付近で見かけ上重なってしまう
+  // 線形補間: 外円の内側がヒット円外周に触れる位置まで縮小
   const outerRadius = lerp(
     OSU_CIRCLE_OUTER_START_RADIUS_PX,
-    OSU_CIRCLE_INNER_RADIUS_PX,
+    overlapOuterRadiusPx,
     approachT,
   );
 
