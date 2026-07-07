@@ -14,6 +14,9 @@ export type EarTrainingBattleEffectKind =
   | 'quotaReached'
   | 'osmdHammer'
   | 'osmdHammerReflect'
+  | 'osmdApproachCircle'
+  | 'osmdApproachCircleBurst'
+  | 'osmdApproachCircleDismiss'
   | 'osmdMeteor';
 
 export interface EarTrainingBattleEffectOriginPoint {
@@ -30,8 +33,9 @@ export interface EarTrainingBattleEffectCommand {
   originPoint?: EarTrainingBattleEffectOriginPoint;
   relatedEffectId?: number;
   travelDurationSec?: number;
-  /** OSMD: 正解パリィ成立時にオレンジ精密リングを表示するとき true */
-  precise?: boolean;
+  /** OSMD: OSU! アプローチ円の performance.now 基準タイムスタンプ */
+  approachStartMs?: number;
+  judgedMs?: number;
   /** 小節最終音符: 最初からフィニッシュモーション（連続パリィでもキャンセルしない） */
   parryFinishOnly?: boolean;
 }

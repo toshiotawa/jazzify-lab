@@ -2,6 +2,7 @@ import type { EarTrainingBattleEffectCommand } from '@/game/earTraining/types';
 import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import type { CanvasCameraRuntime } from './earTrainingBattleCamera';
 import type { EarTrainingRect } from './earTrainingBattleLayout';
+import type { OsuCircleSlot } from './earTrainingBattleOsuCirclePool';
 
 export type CanvasCharacterMotionState = 'idle' | 'walk' | 'cast' | 'attack' | 'recover' | 'knockback' | 'dead';
 
@@ -242,6 +243,8 @@ export interface EarTrainingBattleDrawRuntime {
   parryFinishTimer: ReturnType<typeof setTimeout> | null;
   parryMotionEndTimer: ReturnType<typeof setTimeout> | null;
   parrySparkPool: ParrySparkSlot[];
+  /** OSMD: OSU! 式アプローチ円（visualSlow 非影響） */
+  osuCirclePool: OsuCircleSlot[];
   lastParryAt: number;
   /** 小節最終音符フィニッシュ中は連続パリィでモーションをキャンセルしない */
   parryFinishLocked: boolean;

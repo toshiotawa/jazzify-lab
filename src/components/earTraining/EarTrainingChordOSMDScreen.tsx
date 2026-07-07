@@ -73,7 +73,6 @@ import {
 import {
   computeChordOsmdActiveMeasureNumber,
   computeChordOsmdPhraseLoopEndSec,
-  OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
@@ -84,6 +83,7 @@ import {
   collectChordOsmdMusicXmlLyrics,
   findFirstIncompleteChordOsmdTarget,
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
+  chordOsmdApproachLeadSec,
   chordOsmdHammerLeadSec,
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
@@ -157,6 +157,7 @@ interface RuntimeTargetState {
   completed: boolean;
   failed: boolean;
   hammerEffectId?: number;
+  osuCircleEffectId?: number;
 }
 
 type PendingImpactHandler = () => void;
@@ -317,6 +318,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const phraseLoopDurationSecRef = useRef(0);
   const phraseLoopEndSecRef = useRef(0);
   const nextHammerTargetIndexRef = useRef(0);
+  const nextApproachTargetIndexRef = useRef(0);
   const nextMissTargetIndexRef = useRef(0);
   const nextLyricQuoteIndexRef = useRef(0);
   const finishCurrentPhraseRef = useRef<(runId: number) => void>(() => undefined);
@@ -606,7 +608,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       phraseNoteCount?: number;
       relatedEffectId?: number;
       travelDurationSec?: number;
-      precise?: boolean;
+      approachStartMs?: number;
+      judgedMs?: number;
       parryFinishOnly?: boolean;
     } = {},
   ): number => {
@@ -620,7 +623,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       phraseNoteCount: options.phraseNoteCount,
       relatedEffectId: options.relatedEffectId,
       travelDurationSec: options.travelDurationSec,
-      precise: options.precise,
+      approachStartMs: options.approachStartMs,
+      judgedMs: options.judgedMs,
       parryFinishOnly: options.parryFinishOnly,
     };
     phaserGameRef.current?.triggerEffect(command);
@@ -856,6 +860,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const resetPhraseTimelineIndices = useCallback(() => {
     nextHammerTargetIndexRef.current = 0;
+    nextApproachTargetIndexRef.current = 0;
     nextMissTargetIndexRef.current = 0;
     nextLyricQuoteIndexRef.current = 0;
   }, []);
@@ -883,10 +888,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     state.failed = true;
+    if (state.osuCircleEffectId !== undefined) {
+      triggerBattleEffect('osmdApproachCircleDismiss', {
+        relatedEffectId: state.osuCircleEffectId,
+      });
+    }
     syncPracticeVoicingHints();
     triggerFeedback('miss');
     setStatusText(isEnglishCopy ? 'Miss' : 'ミス');
-  }, [isEnglishCopy, syncPracticeVoicingHints, triggerFeedback]);
+  }, [isEnglishCopy, syncPracticeVoicingHints, triggerBattleEffect, triggerFeedback]);
 
   const handleHammerImpact = useCallback((targetId: string) => {
     const state = runtimeByTargetIdRef.current.get(targetId);
@@ -1055,6 +1065,32 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
   }, [handleHammerImpact, registerBattleEffectImpact, resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, triggerBattleEffect]);
 
+  const spawnDueApproachCircles = useCallback((phraseTimeSec: number) => {
+    const approachLeadSec = chordOsmdApproachLeadSec(resolveEffectivePracticeBpm());
+    const phraseTargets = targetsRef.current;
+    while (nextApproachTargetIndexRef.current < phraseTargets.length) {
+      const target = phraseTargets[nextApproachTargetIndexRef.current];
+      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
+      const spawnTime = judged - approachLeadSec;
+      if (phraseTimeSec + 1e-9 < spawnTime) {
+        break;
+      }
+      const state = runtimeByTargetIdRef.current.get(target.id);
+      if (!state || state.completed || state.failed) {
+        nextApproachTargetIndexRef.current += 1;
+        continue;
+      }
+      const judgedMs = performance.now() + (judged - phraseTimeSec) * 1000;
+      const approachStartMs = judgedMs - approachLeadSec * 1000;
+      const effectId = triggerBattleEffect('osmdApproachCircle', {
+        approachStartMs,
+        judgedMs,
+      });
+      state.osuCircleEffectId = effectId;
+      nextApproachTargetIndexRef.current += 1;
+    }
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, triggerBattleEffect]);
+
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
     while (nextMissTargetIndexRef.current < phraseTargets.length) {
@@ -1123,6 +1159,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       updateActiveMeasureForPhraseTime(phraseTimeSec);
     }
     throwDueHammers(phraseTimeSec);
+    spawnDueApproachCircles(phraseTimeSec);
     failExpiredTargets(phraseTimeSec);
     applyMusicXmlLyricQuotes(phraseTimeSec);
     syncPracticeVoicingHints();
@@ -1139,6 +1176,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     isTargetCompleted,
     syncPracticeVoicingHints,
     syncSelfPacedMeasureAndHints,
+    spawnDueApproachCircles,
     throwDueHammers,
     updateActiveMeasureForPhraseTime,
   ]);
@@ -1623,11 +1661,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       setStatusText(copy.chordCompleted(target.label));
     }
     const damage = activeDamageConfig.perCorrectNote;
+    if (state.osuCircleEffectId !== undefined) {
+      triggerBattleEffect('osmdApproachCircleBurst', {
+        relatedEffectId: state.osuCircleEffectId,
+      });
+    }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
       damage,
       relatedEffectId: state.hammerEffectId,
-      precise: OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
       parryFinishOnly: isLastChordOsmdTargetInMeasure(targetsRef.current, target),
     });
     registerBattleEffectImpact(effectId, () => {

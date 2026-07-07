@@ -1,14 +1,12 @@
 import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  chordOsmdApproachLeadSec,
   chordOsmdHammerLeadSec,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
 
 export const CHORD_OSMD_PHRASE_END_PADDING_SEC = 0.08;
-
-/** 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する */
-export const OSMD_PARRY_PRECISE_RING_ON_SUCCESS = true as const;
 
 const normalizeAudioUrl = (url: string | null | undefined): string => (
   url?.trim() ?? ''
@@ -56,6 +54,25 @@ export const countChordOsmdHammersDueFromIndex = (
   for (let i = Math.max(0, startIndex); i < targets.length; i += 1) {
     const throwTime = targets[i].targetTimeSec - leadSec;
     if (phraseTimeSec + 1e-9 < throwTime) {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+};
+
+/** `startIndex` 以降で `phraseTimeSec` 時点までに表示すべき OSU! アプローチ円数（テスト用）。 */
+export const countChordOsmdApproachCirclesDueFromIndex = (
+  targets: readonly Pick<ChordOsmdRhythmTarget, 'targetTimeSec'>[],
+  phraseTimeSec: number,
+  startIndex: number,
+  bpm: number,
+): number => {
+  const leadSec = chordOsmdApproachLeadSec(bpm);
+  let count = 0;
+  for (let i = Math.max(0, startIndex); i < targets.length; i += 1) {
+    const spawnTime = targets[i].targetTimeSec - leadSec;
+    if (phraseTimeSec + 1e-9 < spawnTime) {
       break;
     }
     count += 1;

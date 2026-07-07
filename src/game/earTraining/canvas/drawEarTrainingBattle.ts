@@ -60,6 +60,9 @@ import {
   drawParrySparks,
 } from './earTrainingBattleParrySparkPool';
 import {
+  drawOsuCircles,
+} from './earTrainingBattleOsuCirclePool';
+import {
   applyWorldCameraTransform,
   computeCameraTransform,
 } from './earTrainingBattleCamera';
@@ -969,6 +972,7 @@ const drawEffects = (
   });
 
   drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
+  drawOsuCircles(ctx, runtime.osuCirclePool, now);
 
   runtime.floatingTexts.forEach(text => {
     const t = (visualNow - text.startedAt) / text.durationMs;

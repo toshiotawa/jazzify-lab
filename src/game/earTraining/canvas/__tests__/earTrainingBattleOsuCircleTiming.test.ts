@@ -1,0 +1,78 @@
+import {
+  computeOsuCircleTiming,
+  OSU_CIRCLE_INNER_RADIUS_PX,
+  OSU_CIRCLE_OUTER_START_RADIUS_PX,
+} from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
+
+const baseInput = {
+  approachStartMs: 1000,
+  judgedMs: 1500,
+  centerX: 200,
+  targetY: 300,
+};
+
+describe('computeOsuCircleTiming', () => {
+  it('approachStartMs 以前は非表示', () => {
+    const state = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 999,
+    });
+    expect(state.visible).toBe(false);
+    expect(state.phase).toBe('hidden');
+  });
+
+  it('1拍前: 外円は最大半径で内円が表示開始', () => {
+    const state = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 1000,
+    });
+    expect(state.visible).toBe(true);
+    expect(state.phase).toBe('approach');
+    expect(state.outerRadius).toBe(OSU_CIRCLE_OUTER_START_RADIUS_PX);
+    expect(state.innerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX);
+  });
+
+  it('判定時刻: 外円半径 = 内円半径', () => {
+    const state = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 1500,
+    });
+    expect(state.visible).toBe(true);
+    expect(state.phase).toBe('locked');
+    expect(state.outerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX);
+    expect(state.innerRadius).toBe(OSU_CIRCLE_INNER_RADIUS_PX);
+  });
+
+  it('判定後: 外円がさらに縮まない', () => {
+    const atJudged = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 1500,
+    });
+    const afterJudged = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 1800,
+    });
+    expect(afterJudged.outerRadius).toBe(atJudged.outerRadius);
+    expect(afterJudged.phase).toBe('locked');
+  });
+
+  it('burst 後は非表示', () => {
+    const state = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 1600,
+      burstAtMs: 1550,
+    });
+    expect(state.visible).toBe(false);
+    expect(state.phase).toBe('burst');
+  });
+
+  it('dismiss 後は非表示', () => {
+    const state = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: 1600,
+      dismissed: true,
+    });
+    expect(state.visible).toBe(false);
+    expect(state.phase).toBe('dismissed');
+  });
+});

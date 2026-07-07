@@ -17,11 +17,6 @@ import {
   PARRY_GUARD_ONLY_MS,
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HIT_MS,
-  PARRY_RING_ALPHA,
-  PARRY_RING_BASE_SIZE,
-  PARRY_RING_EXPAND_START_MS,
-  PARRY_RING_MAX_SCALE,
-  PARRY_RING_MERGE_SCALE,
   PARRY_RING_ORANGE,
   PARRY_TOTAL_MS,
   PARRY_VISUAL_SLOW_DURATION_MS,
@@ -44,6 +39,12 @@ import {
   spawnParrySparks,
   pruneParrySparks,
 } from './earTrainingBattleParrySparkPool';
+import {
+  burstOsuCircle,
+  dismissOsuCircle,
+  pruneOsuCircles,
+  spawnOsuCircle,
+} from './earTrainingBattleOsuCirclePool';
 
 const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
@@ -253,41 +254,63 @@ const addImpactBurst = (
   });
 };
 
-const addParryGuardEffect = (
-  runtime: EarTrainingBattleDrawRuntime,
-  x: number,
-  y: number,
-  ringStartedAt: number,
-  parryStartedAt: number,
+const playOsmdApproachCircleEffect = (
+  ctx: EffectSchedulerContext,
+  command: EarTrainingBattleEffectCommand,
 ): void => {
-  const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, {
-    kind: 'ring',
-    startedAt: ringStartedAt,
-    durationMs: PARRY_TOTAL_MS - PARRY_RING_EXPAND_START_MS,
-    fromX: x,
-    fromY: y,
-    toX: x,
-    toY: y,
-    color: 'rgba(255, 255, 255, 0)',
-    strokeColor: PARRY_RING_ORANGE,
-    size: PARRY_RING_BASE_SIZE,
-    alpha: PARRY_RING_ALPHA,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: PARRY_RING_MERGE_SCALE,
-    scaleEnd: PARRY_RING_MAX_SCALE,
-    parryRingExpand: true,
-    groupStartedAt: parryStartedAt,
+  const { runtime, anchors, onDirty } = ctx;
+  const approachStartMs = command.approachStartMs;
+  const judgedMs = command.judgedMs;
+  if (approachStartMs === undefined || judgedMs === undefined) {
+    return;
+  }
+  const centerX = anchors.player.x;
+  const targetY = anchors.player.bodyY - 28;
+  spawnOsuCircle(runtime.osuCirclePool, {
+    commandId: command.id,
+    approachStartMs,
+    judgedMs,
+    centerX,
+    targetY,
   });
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'osmdHammerReflect' },
-    startedAt: ringStartedAt,
-    impactAt: ringStartedAt,
-    impactFired: true,
-    visuals,
+  onDirty();
+};
+
+const playOsmdApproachCircleBurstEffect = (
+  ctx: EffectSchedulerContext,
+  command: EarTrainingBattleEffectCommand,
+): void => {
+  const { runtime, onDirty } = ctx;
+  const relatedId = command.relatedEffectId;
+  if (relatedId === undefined) {
+    return;
+  }
+  const now = performance.now();
+  const slot = burstOsuCircle(runtime.osuCirclePool, relatedId, now);
+  if (!slot) {
+    return;
+  }
+  addImpactBurst(runtime, slot.centerX, slot.targetY, PARRY_RING_ORANGE, false, {
+    durationMs: 280,
+    size: 40,
+    scaleEnd: 1.5,
+    sparkDuration: 240,
+    sparkCount: 14,
   });
+  onDirty();
+};
+
+const playOsmdApproachCircleDismissEffect = (
+  ctx: EffectSchedulerContext,
+  command: EarTrainingBattleEffectCommand,
+): void => {
+  const { runtime, onDirty } = ctx;
+  const relatedId = command.relatedEffectId;
+  if (relatedId === undefined) {
+    return;
+  }
+  dismissOsuCircle(runtime.osuCirclePool, relatedId);
+  onDirty();
 };
 
 const triggerParryVisualSlow = (runtime: EarTrainingBattleDrawRuntime, now: number): void => {
@@ -647,7 +670,6 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   scheduleParryMotion(runtime, onDirty, finishOnly);
   triggerParryCameraZoom(runtime.camera, width / 2, height / 2);
   spawnParrySparks(runtime.parrySparkPool, parryCenterX, parryCenterY, now, isChainParry);
-  addParryGuardEffect(runtime, parryCenterX, parryCenterY, now + PARRY_RING_EXPAND_START_MS, now);
 
   const visuals: CanvasEffectVisual[] = [];
   const slashCenterX = (parryCenterX + anchors.enemy.x) / 2;
@@ -910,6 +932,15 @@ export const scheduleEarTrainingBattleEffect = (
     case 'osmdHammer':
       playOsmdHammerEffect(ctx, command);
       break;
+    case 'osmdApproachCircle':
+      playOsmdApproachCircleEffect(ctx, command);
+      break;
+    case 'osmdApproachCircleBurst':
+      playOsmdApproachCircleBurstEffect(ctx, command);
+      break;
+    case 'osmdApproachCircleDismiss':
+      playOsmdApproachCircleDismissEffect(ctx, command);
+      break;
     case 'osmdHammerReflect':
       playOsmdHammerReflectEffect(ctx, command);
       break;
@@ -941,6 +972,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
   pruneParrySparks(runtime.parrySparkPool, visualNow);
+  pruneOsuCircles(runtime.osuCirclePool, now);
   runtime.effects = runtime.effects.filter(effect => {
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;

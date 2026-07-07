@@ -5,13 +5,14 @@ import {
   computeChordOsmdScoreMaxMeasure,
   computeOsmdActiveMeasureFromTimeline,
   computeOsmdMeasurePlayheadState,
+  countChordOsmdApproachCirclesDueFromIndex,
   countChordOsmdHammersDueFromIndex,
-  OSMD_PARRY_PRECISE_RING_ON_SUCCESS,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  chordOsmdApproachLeadSec,
   chordOsmdHammerLeadSec,
 } from '@/utils/earTrainingChordOsmd';
 
@@ -135,8 +136,24 @@ describe('computeOsmdMeasurePlayheadState', () => {
   });
 });
 
-describe('OSMD_PARRY_PRECISE_RING_ON_SUCCESS', () => {
-  it('正解パリィ時は timing offset に関わらず precise リングを表示する', () => {
-    expect(OSMD_PARRY_PRECISE_RING_ON_SUCCESS).toBe(true);
+describe('countChordOsmdApproachCirclesDueFromIndex', () => {
+  const bpm = 100;
+  const leadSec = chordOsmdApproachLeadSec(bpm);
+  const targets = [
+    { targetTimeSec: 4.8 },
+    { targetTimeSec: 9.6 },
+    { targetTimeSec: 14.4 },
+  ];
+
+  it('表示開始時刻前は 0 個', () => {
+    const beforeFirst = 4.8 - leadSec - 0.01;
+    expect(countChordOsmdApproachCirclesDueFromIndex(targets, beforeFirst, 0, bpm)).toBe(0);
+  });
+
+  it('経過に応じて表示済みアプローチ円数が増える', () => {
+    const atFirst = 4.8 - leadSec;
+    expect(countChordOsmdApproachCirclesDueFromIndex(targets, atFirst, 0, bpm)).toBe(1);
+    expect(countChordOsmdApproachCirclesDueFromIndex(targets, 9.6 - leadSec, 0, bpm)).toBe(2);
+    expect(countChordOsmdApproachCirclesDueFromIndex(targets, 14.4 - leadSec, 0, bpm)).toBe(3);
   });
 });
