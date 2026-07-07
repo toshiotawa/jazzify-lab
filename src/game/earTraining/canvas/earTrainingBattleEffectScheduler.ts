@@ -11,6 +11,7 @@ import type {
 import {
   createParryBeatSyncFromSlowPhaseMs,
   easeCubicIn,
+  easeLinear,
   getEffectProgress,
   getVisualNow,
   hexColor,
@@ -468,8 +469,8 @@ const dismissIncomingOsmdHammer = (
     return;
   }
   const progress = getEffectProgress(hammerVisual, now);
-  const currentX = lerp(hammerVisual.fromX, hammerVisual.toX, easeCubicIn(progress));
-  const currentY = lerp(hammerVisual.fromY, hammerVisual.toY, easeCubicIn(progress));
+  const currentX = lerp(hammerVisual.fromX, hammerVisual.toX, easeLinear(progress));
+  const currentY = lerp(hammerVisual.fromY, hammerVisual.toY, easeLinear(progress));
   const currentRotation = lerp(hammerVisual.rotation, hammerVisual.rotationEnd, progress);
   incoming.visuals = [{
     id: nextVisualId(),
