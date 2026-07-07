@@ -1,4 +1,3 @@
-import { CHORD_OSMD_SWING_LONG_EIGHTH_RATIO } from '@/utils/earTrainingChordOsmd';
 import { PARRY_VISUAL_SLOW_DURATION_MS } from './earTrainingBattleDrawState';
 
 export const BEAT_SYNC_TARGET_OFFSET_SEC = 0.25;
@@ -24,16 +23,9 @@ export interface ResolveParryBeatSyncScheduleParams {
 
 const beatDurationSec = (bpm: number): number => 60 / Math.max(1, bpm);
 
-const isOnBeatHead = (phraseSec: number, bpm: number): boolean => {
-  const beatDur = beatDurationSec(bpm);
-  const beatIndex = phraseSec / beatDur;
-  return Math.abs(beatIndex - Math.round(beatIndex)) < BEAT_EPS;
-};
-
 const collectLandingCandidates = (
   hitPhraseSec: number,
   bpm: number,
-  isSwing: boolean,
 ): number[] => {
   const beatDur = beatDurationSec(bpm);
   const hitBeat = hitPhraseSec / beatDur;
@@ -46,13 +38,6 @@ const collectLandingCandidates = (
     if (onBeatSec > hitPhraseSec + BEAT_EPS) {
       candidates.push(onBeatSec);
     }
-    const offbeatFraction = isSwing
-      ? CHORD_OSMD_SWING_LONG_EIGHTH_RATIO
-      : 0.5;
-    const offbeatSec = (beat + offbeatFraction) * beatDur;
-    if (offbeatSec > hitPhraseSec + BEAT_EPS) {
-      candidates.push(offbeatSec);
-    }
   }
 
   return candidates;
@@ -61,40 +46,28 @@ const collectLandingCandidates = (
 export const resolveBeatSyncLandingSec = (
   hitPhraseSec: number,
   bpm: number,
-  isSwing: boolean,
+  _isSwing: boolean,
   targetOffsetSec = BEAT_SYNC_TARGET_OFFSET_SEC,
 ): number => {
   const targetSec = hitPhraseSec + targetOffsetSec;
-  const candidates = collectLandingCandidates(hitPhraseSec, bpm, isSwing);
+  const candidates = collectLandingCandidates(hitPhraseSec, bpm);
   if (candidates.length === 0) {
     return hitPhraseSec + targetOffsetSec;
   }
 
   let bestSec = candidates[0];
   let bestDistance = Math.abs(bestSec - targetSec);
-  let bestOnBeat = isOnBeatHead(bestSec, bpm);
 
   for (let i = 1; i < candidates.length; i += 1) {
     const candidateSec = candidates[i];
     const distance = Math.abs(candidateSec - targetSec);
-    const candidateOnBeat = isOnBeatHead(candidateSec, bpm);
 
     if (distance < bestDistance - BEAT_EPS) {
       bestSec = candidateSec;
       bestDistance = distance;
-      bestOnBeat = candidateOnBeat;
       continue;
     }
-    if (Math.abs(distance - bestDistance) > BEAT_EPS) {
-      continue;
-    }
-    if (candidateOnBeat && !bestOnBeat) {
-      bestSec = candidateSec;
-      bestDistance = distance;
-      bestOnBeat = candidateOnBeat;
-      continue;
-    }
-    if (candidateOnBeat === bestOnBeat && candidateSec > bestSec) {
+    if (Math.abs(distance - bestDistance) <= BEAT_EPS && candidateSec > bestSec) {
       bestSec = candidateSec;
       bestDistance = distance;
     }
