@@ -16,6 +16,7 @@ struct EarTrainingTutorialView: View {
     @State private var sceneIndex: Int = 0
     @State private var showFinishCta = false
     @State private var showGreatInterstitial = false
+    @State private var greatInterstitialPercent: Int?
     @State private var assignmentStartRecorded = false
 
     /// `dialogue_only` のあとのアタッチ用（そのシーンのみ消費）。
@@ -30,6 +31,13 @@ struct EarTrainingTutorialView: View {
     }
 
     private var isJa: Bool { locale == .ja }
+
+    private var greatInterstitialLabel: String {
+        if let greatInterstitialPercent {
+            return "Great!!(\(greatInterstitialPercent)%)"
+        }
+        return "Great!!"
+    }
 
     var body: some View {
         Group {
@@ -123,7 +131,7 @@ struct EarTrainingTutorialView: View {
                     if showGreatInterstitial {
                         Color.black.opacity(0.35)
                             .allowsHitTesting(false)
-                        Text("Great!!")
+                        Text(greatInterstitialLabel)
                             .font(.system(size: 44, weight: .heavy))
                             .foregroundStyle(Color(red: 0.99, green: 0.92, blue: 0.55))
                             .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 4)
@@ -359,7 +367,7 @@ struct EarTrainingTutorialView: View {
             ui: script.ui,
             noCombat: script.ui.noCombat,
             onCharacterText: { _ in },
-            onSceneComplete: { handleSceneFinished(script: script) },
+            onSceneComplete: { result in handleSceneFinished(script: script, result: result) },
             requiredSuccessfulLoops: max(1, requiredLoops),
             onLoopSuccess: onLoopSuccess,
             quiz: quiz,
@@ -371,7 +379,10 @@ struct EarTrainingTutorialView: View {
         )
     }
 
-    private func handleSceneFinished(script: EarTrainingTutorialScriptPayload) {
+    private func handleSceneFinished(
+        script: EarTrainingTutorialScriptPayload,
+        result: EarTrainingTutorialOsmdSceneResult? = nil
+    ) {
         let scenes = script.scenes
         guard scenes.indices.contains(sceneIndex) else {
             advanceScene(script: script)
@@ -381,10 +392,27 @@ struct EarTrainingTutorialView: View {
         case .dialogueOnly:
             advanceScene(script: script)
         default:
+            greatInterstitialPercent = result?.noteHitPercent
+            if
+                let result,
+                let lessonSongId,
+                case .chordOsmd(let osmdScene) = scenes[sceneIndex]
+            {
+                Task {
+                    try? await SupabaseService.shared.recordEarTrainingTutorialOsmdSceneResult(
+                        lessonSongId: lessonSongId,
+                        scriptId: scriptId,
+                        sceneIndex: sceneIndex,
+                        requiredLoops: osmdScene.requiredLoops,
+                        noteHitRatio: Double(result.noteHitPercent) / 100.0
+                    )
+                }
+            }
             showGreatInterstitial = true
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 showGreatInterstitial = false
+                greatInterstitialPercent = nil
                 advanceScene(script: script)
             }
         }
@@ -393,6 +421,7 @@ struct EarTrainingTutorialView: View {
     private func advanceScene(script: EarTrainingTutorialScriptPayload) {
         showFinishCta = false
         showGreatInterstitial = false
+        greatInterstitialPercent = nil
         let next = sceneIndex + 1
         if next >= script.scenes.count {
             Task {

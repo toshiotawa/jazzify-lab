@@ -611,7 +611,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
                 audio.stopDrumLoop()
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 600_000_000)
-                    hooks.onSceneComplete()
+                    hooks.onSceneComplete(nil)
                 }
             } else {
                 advanceAfterCorrect()

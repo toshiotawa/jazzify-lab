@@ -89,6 +89,7 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   hasChordOsmdJudgmentWindowExpired,
   isPhraseTimeInChordOsmdJudgmentWindow,
+  chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   consumeChordOsmdMidi,
@@ -124,6 +125,7 @@ import {
   isEarTrainingTutorialNoCombat,
   shouldTutorialBlockGameOver,
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
+import type { EarTrainingTutorialOsmdSceneResult } from '@/components/earTraining/tutorial/earTrainingTutorialScriptTypes';
 import type { EarTrainingTutorialOsmdConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
 import {
   scheduleOsmdTimedLinesForLoop,
@@ -144,7 +146,10 @@ interface EarTrainingChordOSMDScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
-  tutorial?: EarTrainingTutorialOsmdConfig & { drumLoopUrl?: string; onSceneComplete: () => void };
+  tutorial?: EarTrainingTutorialOsmdConfig & {
+    drumLoopUrl?: string;
+    onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
+  };
 }
 
 interface RuntimeTargetState {
@@ -942,7 +947,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (tutorial) {
         tutorialOsmdLoopRef.current += 1;
         if (tutorialOsmdLoopRef.current >= tutorial.scene.requiredLoops) {
-          tutorial.onSceneComplete();
+          const noteHitRatio = chordOsmdNoteHitRatio(
+            phraseTargets,
+            runtimeByTargetIdRef.current,
+          );
+          tutorial.onSceneComplete({
+            noteHitPercent: Math.round(noteHitRatio * 100),
+          });
           return;
         }
         const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);

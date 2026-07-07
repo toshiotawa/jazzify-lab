@@ -346,12 +346,17 @@ struct EarTrainingTutorialQuizSceneHooks {
     let onCorrectText: String
 }
 
+/// OSMD チュートリアルシーン完了時の MIDI ノーツ hit ratio（0〜100）。
+struct EarTrainingTutorialOsmdSceneResult: Sendable {
+    let noteHitPercent: Int
+}
+
 /// チュートリアル各シーンからゲームコントローラへ渡すコールバック。
 struct EarTrainingTutorialSceneHooks {
     let ui: EarTrainingTutorialUiOverrides
     let noCombat: Bool
     let onCharacterText: (String) -> Void
-    let onSceneComplete: () -> Void
+    let onSceneComplete: (EarTrainingTutorialOsmdSceneResult?) -> Void
     var requiredSuccessfulLoops: Int = 1
     var onLoopSuccess: (() -> Void)?
     var quiz: EarTrainingTutorialQuizSceneHooks?

@@ -2,6 +2,39 @@ import XCTest
 @testable import Jazzify
 
 final class EarTrainingChordOsmdRhythmTests: XCTestCase {
+    func testNoteHitRatioReturnsOneWhenAllNotesConsumed() {
+        XCTAssertEqual(
+            EarTrainingChordOsmdRhythm.noteHitRatio(
+                expectedMidiCounts: [60: 1, 64: 1, 67: 2],
+                remainingMidiCounts: [:]
+            ),
+            1,
+            accuracy: 0.0001
+        )
+    }
+
+    func testNoteHitRatioReturnsPartialRatio() {
+        XCTAssertEqual(
+            EarTrainingChordOsmdRhythm.noteHitRatio(
+                expectedMidiCounts: [60: 1, 64: 1, 67: 2],
+                remainingMidiCounts: [60: 1, 64: 1, 67: 2]
+            ),
+            0.25,
+            accuracy: 0.0001
+        )
+    }
+
+    func testNoteHitRatioReturnsOneWhenExpectedIsZero() {
+        XCTAssertEqual(
+            EarTrainingChordOsmdRhythm.noteHitRatio(
+                expectedMidiCounts: [:],
+                remainingMidiCounts: [:]
+            ),
+            1,
+            accuracy: 0.0001
+        )
+    }
+
     func testIsLastTargetInMeasureUsesLatestTimeInSameMeasure() {
         let targets = [
             EarTrainingChordOsmdRhythmTargetRef(targetTimeSec: 1.0, measureNumber: 2, orderIndex: 0),

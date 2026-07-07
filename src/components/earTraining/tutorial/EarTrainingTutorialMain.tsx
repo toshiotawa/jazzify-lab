@@ -74,6 +74,8 @@ const EarTrainingTutorialMain: React.FC = () => {
   return (
     <EarTrainingLessonTutorialExperience
       scriptId={scriptId}
+      lessonId={lessonId}
+      lessonSongId={lessonSongId}
       embeddedFullHeight
       onPlayable={handlePlayable}
       onLessonTutorialCompleted={handleTutorialCompleted}

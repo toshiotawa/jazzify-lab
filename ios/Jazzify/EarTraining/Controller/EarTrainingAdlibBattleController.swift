@@ -609,7 +609,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
             let capturedRunId = runId
             let work = DispatchWorkItem { [weak self] in
                 guard let self, self.phraseRunId == capturedRunId else { return }
-                hooks.onSceneComplete()
+                hooks.onSceneComplete(nil)
             }
             tutorialClearWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + delayMs / 1000, execute: work)

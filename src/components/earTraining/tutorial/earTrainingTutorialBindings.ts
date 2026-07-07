@@ -1,4 +1,7 @@
-import type { EarTrainingTutorialUiOverrides } from './earTrainingTutorialScriptTypes';
+import type {
+  EarTrainingTutorialOsmdSceneResult,
+  EarTrainingTutorialUiOverrides,
+} from './earTrainingTutorialScriptTypes';
 
 /** 敵からの攻撃・敵ゲージ・プレイヤー被ダメージを抑止する（チュートリアル向け）。 */
 export const isEarTrainingTutorialNoCombat = (
@@ -14,7 +17,7 @@ export interface EarTrainingTutorialBindings {
   ui: EarTrainingTutorialUiOverrides;
   isEnglishCopy: boolean;
   setCharacterText: (text: string) => void;
-  onSceneComplete: () => void;
+  onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
   onExit: () => void;
 }
 

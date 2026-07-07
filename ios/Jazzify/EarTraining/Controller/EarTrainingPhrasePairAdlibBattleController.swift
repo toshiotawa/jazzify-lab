@@ -575,7 +575,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         guard !tutorialSceneCompleted else { return }
         guard loopIndex >= required else { return }
         tutorialSceneCompleted = true
-        hooks.onSceneComplete()
+        hooks.onSceneComplete(nil)
     }
 
     private func scheduleTutorialSession(runId: Int) {

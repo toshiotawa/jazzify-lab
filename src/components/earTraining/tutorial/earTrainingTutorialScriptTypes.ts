@@ -218,6 +218,10 @@ export interface EarTrainingTutorialOsmdScene {
   timedLines: EarTrainingTutorialOsmdTimedLine[];
 }
 
+export interface EarTrainingTutorialOsmdSceneResult {
+  noteHitPercent: number;
+}
+
 export interface EarTrainingTutorialFinishScene {
   type: 'finish';
 }

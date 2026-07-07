@@ -1555,6 +1555,34 @@ export const getChordOsmdTotalNoteCount = (
   targets.reduce((sum, target) => sum + getChordOsmdTargetNoteCount(target), 0)
 );
 
+export interface ChordOsmdRuntimeRemainingCounts {
+  readonly remainingCounts: ReadonlyMap<number, number>;
+}
+
+export const chordOsmdNoteHitRatio = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  runtimeByTargetId: ReadonlyMap<string, ChordOsmdRuntimeRemainingCounts>,
+): number => {
+  let expected = 0;
+  let remaining = 0;
+  for (const target of targets) {
+    const targetExpected = getChordOsmdTargetNoteCount(target);
+    expected += targetExpected;
+    const state = runtimeByTargetId.get(target.id);
+    if (state) {
+      for (const count of state.remainingCounts.values()) {
+        remaining += count;
+      }
+    } else {
+      remaining += targetExpected;
+    }
+  }
+  if (expected <= 0) {
+    return 1;
+  }
+  return (expected - remaining) / expected;
+};
+
 export const findFirstIncompleteChordOsmdTarget = (
   targets: readonly ChordOsmdRhythmTarget[],
   isIncomplete: (targetId: string) => boolean,

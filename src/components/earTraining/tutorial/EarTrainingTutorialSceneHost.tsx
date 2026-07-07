@@ -7,6 +7,7 @@ import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
 import { EarTrainingTutorialDialogueScene } from './EarTrainingTutorialDialogueScene';
 import {
   resolveTutorialOsmdDrumLoopUrl,
+  type EarTrainingTutorialOsmdSceneResult,
   type EarTrainingTutorialScene,
   type EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
@@ -35,7 +36,7 @@ interface EarTrainingTutorialSceneHostProps {
   enemy: SurvivalCharacterRow | null;
   bindings: EarTrainingTutorialBindings;
   isEnglishCopy: boolean;
-  onSceneComplete: () => void;
+  onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
 }
 
 export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHostProps> = ({
@@ -48,13 +49,13 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
 }) => {
   const completedRef = useRef(false);
 
-  const completeOnce = useCallback(() => {
+  const completeOnce = useCallback((result?: EarTrainingTutorialOsmdSceneResult) => {
     if (completedRef.current) {
       return;
     }
     completedRef.current = true;
     bindings.setCharacterText('');
-    onSceneComplete();
+    onSceneComplete(result);
   }, [bindings, onSceneComplete]);
 
   useEffect(() => {

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { OnboardingOverlays } from '@/components/onboarding/OnboardingOverlays';
 import { fetchSurvivalCharacters, type SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import { recordEarTrainingTutorialOsmdSceneResult } from '@/platform/supabaseEarTrainingTutorialOsmdResults';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -13,6 +14,7 @@ import {
 } from './EarTrainingTutorialSceneHost';
 import { fetchEarTrainingTutorialScript } from './fetchEarTrainingTutorialScript';
 import type {
+  EarTrainingTutorialOsmdSceneResult,
   EarTrainingTutorialScene,
   EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
@@ -22,6 +24,8 @@ import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTuto
 
 export interface EarTrainingLessonTutorialExperienceProps {
   scriptId?: string;
+  lessonId?: string;
+  lessonSongId?: string;
   embeddedFullHeight?: boolean;
   onPlayable?: () => void;
   onLessonTutorialCompleted?: () => void | Promise<void>;
@@ -38,6 +42,8 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   EarTrainingLessonTutorialExperienceProps
 > = ({
   scriptId = 'developer-full-v1',
+  lessonId = '',
+  lessonSongId = '',
   embeddedFullHeight = false,
   onPlayable,
   onLessonTutorialCompleted,
@@ -56,6 +62,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const [sceneIndex, setSceneIndex] = useState(0);
   const [showCta, setShowCta] = useState(false);
   const [greatInterstitialVisible, setGreatInterstitialVisible] = useState(false);
+  const [greatInterstitialPercent, setGreatInterstitialPercent] = useState<number | null>(null);
   const finalizedRef = useRef(false);
   const sceneCompleteTimerRef = useRef<number | null>(null);
   const audioUnlockedRef = useRef(false);
@@ -180,19 +187,44 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     setShowCta(false);
   }, [finalizeLesson, sceneIndex, script]);
 
-  const onTutorialSceneComplete = useCallback(() => {
+  const onTutorialSceneComplete = useCallback((result?: EarTrainingTutorialOsmdSceneResult) => {
     const completed = scenes[sceneIndex];
     if (!completed || completed.type === 'dialogue_only') {
       advanceSceneImmediate();
       return;
     }
+    setGreatInterstitialPercent(result?.noteHitPercent ?? null);
+    if (
+      result
+      && profile
+      && lessonId
+      && lessonSongId
+      && completed.type === 'chord_osmd'
+    ) {
+      void recordEarTrainingTutorialOsmdSceneResult({
+        lessonSongId,
+        scriptId,
+        sceneIndex,
+        requiredLoops: completed.requiredLoops,
+        noteHitRatio: result.noteHitPercent / 100,
+      }).catch(() => undefined);
+    }
     setGreatInterstitialVisible(true);
     sceneCompleteTimerRef.current = window.setTimeout(() => {
       sceneCompleteTimerRef.current = null;
       setGreatInterstitialVisible(false);
+      setGreatInterstitialPercent(null);
       advanceSceneImmediate();
     }, 1000);
-  }, [advanceSceneImmediate, sceneIndex, scenes]);
+  }, [
+    advanceSceneImmediate,
+    lessonId,
+    lessonSongId,
+    profile,
+    sceneIndex,
+    scenes,
+    scriptId,
+  ]);
 
   const bindingsWithAdvance: EarTrainingTutorialBindings = useMemo(
     () => ({
@@ -212,6 +244,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
       sceneCompleteTimerRef.current = null;
     }
     setGreatInterstitialVisible(false);
+    setGreatInterstitialPercent(null);
     void finalizeLesson('aborted');
   }, [finalizeLesson]);
 
@@ -307,7 +340,9 @@ export const EarTrainingLessonTutorialExperience: React.FC<
           aria-hidden
         >
           <span className="text-5xl font-black tracking-wide text-[#fde68a] [text-shadow:0_2px_0_rgb(2_6_23),0_4px_24px_rgb(2_6_23)] sm:text-6xl">
-            Great!!
+            {greatInterstitialPercent !== null
+              ? `Great!!(${greatInterstitialPercent}%)`
+              : 'Great!!'}
           </span>
         </div>
       ) : null}

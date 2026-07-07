@@ -8,6 +8,16 @@ struct EarTrainingChordOsmdRhythmTargetRef: Equatable {
 }
 
 enum EarTrainingChordOsmdRhythm {
+    static func noteHitRatio(
+        expectedMidiCounts: [Int: Int],
+        remainingMidiCounts: [Int: Int]
+    ) -> Double {
+        let expected = expectedMidiCounts.values.reduce(0, +)
+        guard expected > 0 else { return 1 }
+        let remaining = remainingMidiCounts.values.reduce(0, +)
+        return Double(expected - remaining) / Double(expected)
+    }
+
     static func isLastTargetInMeasure(
         targets: [EarTrainingChordOsmdRhythmTargetRef],
         target: EarTrainingChordOsmdRhythmTargetRef

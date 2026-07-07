@@ -702,7 +702,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             let completedLoops = tutorialCompositeCompleteCount / sourceCount
             if completedLoops >= requiredLoops {
                 cancelTutorialTimedLineWorks()
-                tutorialHooks?.onSceneComplete()
+                tutorialHooks?.onSceneComplete(nil)
             }
         }
     }
@@ -715,7 +715,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             tutorialSuccessfulLoopCount += 1
             hooks.onLoopSuccess?()
             if tutorialSuccessfulLoopCount >= hooks.requiredSuccessfulLoops {
-                hooks.onSceneComplete()
+                hooks.onSceneComplete(nil)
                 return
             }
             allChordsCompletedFlag = false

@@ -1586,6 +1586,38 @@ final class SupabaseService: Sendable {
         return result
     }
 
+    func recordEarTrainingTutorialOsmdSceneResult(
+        lessonSongId: UUID,
+        scriptId: String,
+        sceneIndex: Int,
+        requiredLoops: Int,
+        noteHitRatio: Double
+    ) async throws {
+        let userId = try await currentUserId()
+
+        struct RpcParams: Encodable {
+            let p_user_id: UUID
+            let p_lesson_song_id: UUID
+            let p_script_id: String
+            let p_scene_index: Int
+            let p_required_loops: Int
+            let p_note_hit_ratio: Double
+        }
+
+        let params = RpcParams(
+            p_user_id: userId,
+            p_lesson_song_id: lessonSongId,
+            p_script_id: scriptId,
+            p_scene_index: sceneIndex,
+            p_required_loops: requiredLoops,
+            p_note_hit_ratio: noteHitRatio
+        )
+
+        try await client
+            .rpc("record_ear_training_tutorial_osmd_scene_result", params: params)
+            .execute()
+    }
+
     func fetchBalloonRushStageById(_ id: UUID) async throws -> BalloonRushStageDefinition? {
         let row: BalloonRushStageRow = try await client
             .from("balloon_rush_stages")

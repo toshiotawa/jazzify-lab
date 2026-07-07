@@ -1093,7 +1093,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 cancelTutorialOsmdTimedLineWorks()
                 audio.stopDrumLoop()
                 audio.stopPhrase()
-                hooks.onSceneComplete()
+                failRemainingTargets()
+                let noteHitPercent = Int(round(Self.noteHitRatio(targets) * 100))
+                hooks.onSceneComplete(
+                    EarTrainingTutorialOsmdSceneResult(noteHitPercent: noteHitPercent)
+                )
                 return
             }
             phraseEnding = false
@@ -1273,6 +1277,23 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         targets.reduce(0) { partial, target in
             partial + target.midiCounts.values.reduce(0, +)
         }
+    }
+
+    private static func noteHitRatio(_ targets: [RhythmTarget]) -> Double {
+        var expected: [Int: Int] = [:]
+        var remaining: [Int: Int] = [:]
+        for target in targets {
+            for (midi, count) in target.midiCounts {
+                expected[midi, default: 0] += count
+            }
+            for (midi, count) in target.remainingMidiCounts {
+                remaining[midi, default: 0] += count
+            }
+        }
+        return EarTrainingChordOsmdRhythm.noteHitRatio(
+            expectedMidiCounts: expected,
+            remainingMidiCounts: remaining
+        )
     }
 
     private func saveLessonProgressIfNeeded(rank: EarTrainingRank) {

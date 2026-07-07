@@ -8,6 +8,7 @@ import {
   buildChordOsmdRhythmTargets,
   CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
   chordOsmdBeatToTargetTimeSec,
+  chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   collectChordOsmdMusicXmlAttacks,
@@ -398,6 +399,60 @@ describe('chordOsmdRankForAccuracy', () => {
     expect(chordOsmdRankForAccuracy(0.85)).toBe('Great');
     expect(chordOsmdRankForAccuracy(0.4)).toBe('Good');
     expect(chordOsmdRankForAccuracy(0.39)).toBe('Fail');
+  });
+});
+
+describe('chordOsmdNoteHitRatio', () => {
+  const targetA = {
+    id: 'a',
+    label: 'C',
+    orderIndex: 0,
+    targetTimeSec: 0,
+    measureNumber: 1,
+    midiCounts: [{ midi: 60, count: 1 }, { midi: 64, count: 1 }],
+  };
+  const targetB = {
+    id: 'b',
+    label: 'G',
+    orderIndex: 1,
+    targetTimeSec: 1,
+    measureNumber: 1,
+    midiCounts: [{ midi: 67, count: 2 }],
+  };
+
+  it('全ノート消化で 100% を返す', () => {
+    const runtime = new Map([
+      ['a', { remainingCounts: new Map<number, number>() }],
+      ['b', { remainingCounts: new Map<number, number>() }],
+    ]);
+    expect(chordOsmdNoteHitRatio([targetA, targetB], runtime)).toBe(1);
+  });
+
+  it('一部のみ consume した割合を返す', () => {
+    let remainingA = createChordOsmdRemainingCounts(targetA);
+    remainingA = consumeChordOsmdMidi(remainingA, 60) ?? remainingA;
+    const runtime = new Map([
+      ['a', { remainingCounts: remainingA }],
+      ['b', { remainingCounts: createChordOsmdRemainingCounts(targetB) }],
+    ]);
+    expect(chordOsmdNoteHitRatio([targetA, targetB], runtime)).toBeCloseTo(1 / 4, 5);
+  });
+
+  it('failed ターゲットの remaining も未弾きとして計上する', () => {
+    const runtime = new Map([
+      ['a', { remainingCounts: createChordOsmdRemainingCounts(targetA) }],
+      ['b', { remainingCounts: createChordOsmdRemainingCounts(targetB) }],
+    ]);
+    expect(chordOsmdNoteHitRatio([targetA, targetB], runtime)).toBe(0);
+  });
+
+  it('期待ノート数 0 のとき 1 を返す', () => {
+    const emptyTarget = {
+      ...targetA,
+      id: 'empty',
+      midiCounts: [] as const,
+    };
+    expect(chordOsmdNoteHitRatio([emptyTarget], new Map())).toBe(1);
   });
 });
 
