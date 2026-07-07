@@ -9,8 +9,6 @@ import {
   CHARACTER_DISPLAY_SIZE,
   CHARACTER_SHADOW_HEIGHT,
   CHARACTER_SHADOW_WIDTH,
-  EFFECT_ASSET_PATH,
-  ENEMY_ATTACK_HAMMER_ASSET_URL,
   clampPercent,
   colorForHp,
   getChordHudLayout,
@@ -25,7 +23,6 @@ import {
   getPhraseIntroY,
   getPhraseSlotViewport,
   HUD_HEIGHT,
-  MAGIC_CIRCLE_ASSET_URL,
   PHRASE_INTRO_EMPHASIS_FADE_MS,
   PHRASE_INTRO_FADE_MS,
   PLAYER_QUOTE_CORNER_RADIUS,
@@ -68,7 +65,6 @@ import {
 } from './earTrainingBattleCamera';
 import {
   drawCachedBackground,
-  PLAYER_POSE_IMAGE_URLS,
 } from './earTrainingBattleBackground';
 
 const HUD_FONT = 'Arial, sans-serif';
@@ -1082,32 +1078,3 @@ export const computePhraseSlotViewportKey = (
   snapshot.chordCompleted.map(v => (v ? 1 : 0)).join(''),
   width,
 ].join('|');
-
-export const preloadEarTrainingBattleImages = (
-  urls: readonly string[],
-): Promise<Map<string, HTMLImageElement>> => {
-  const map = new Map<string, HTMLImageElement>();
-  const unique = [...new Set(urls.filter(Boolean))];
-  return Promise.all(unique.map(url => new Promise<void>((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      map.set(url, img);
-      resolve();
-    };
-    img.onerror = () => resolve();
-    img.src = url;
-  }))).then(() => map);
-};
-
-export const EFFECT_IMAGE_URLS: Record<string, string> = {
-  fireball: `${EFFECT_ASSET_PATH}effect-fireball-transparent.webp`,
-  fireRing: `${EFFECT_ASSET_PATH}effect-fire-ring-transparent.webp`,
-  snowflake: `${EFFECT_ASSET_PATH}effect-snowflake-transparent.webp`,
-  lightning: `${EFFECT_ASSET_PATH}effect-lightning-transparent.webp`,
-  meteor: `${EFFECT_ASSET_PATH}effect-meteor-transparent.webp`,
-  cloud: `${EFFECT_ASSET_PATH}effect-cloud-transparent.webp`,
-  hammer: ENEMY_ATTACK_HAMMER_ASSET_URL,
-  fukidashi: FUKIDASHI_ASSET_URL,
-  magicCircle: MAGIC_CIRCLE_ASSET_URL,
-  ...PLAYER_POSE_IMAGE_URLS,
-};

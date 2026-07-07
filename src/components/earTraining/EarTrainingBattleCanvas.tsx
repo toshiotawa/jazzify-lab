@@ -29,12 +29,12 @@ import {
   shouldRunCharacterAutoMotion,
   syncCharactersFromSnapshot,
 } from '@/game/earTraining/canvas/earTrainingBattleCharacterMotion';
+import { drawEarTrainingBattle } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import {
-  drawEarTrainingBattle,
-  EFFECT_IMAGE_URLS,
-  preloadEarTrainingBattleImages,
-} from '@/game/earTraining/canvas/drawEarTrainingBattle';
-import { BACKGROUND_IMAGE_URLS, invalidateBackgroundCache } from '@/game/earTraining/canvas/earTrainingBattleBackground';
+  applyEarTrainingBattleImageMap,
+  preloadEarTrainingBattleCriticalImages,
+  scheduleEarTrainingBattleDeferredImages,
+} from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
 import { getBattleAnchors, resolveStaffReservedBottomY } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
@@ -113,6 +113,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   const enemyTimersRef = useRef(createCharacterMotionTimers());
   const impactTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const hudHitRegionsRef = useRef<EarTrainingBattleDrawRuntime['hudHitRegions']>([]);
+  const deferredImagesScheduledRef = useRef(false);
 
   snapshotRef.current = snapshot;
   callbacksRef.current = callbacks;
@@ -290,33 +291,33 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     if (!container) return undefined;
 
     let cancelled = false;
+    deferredImagesScheduledRef.current = false;
+
     const avatarUrls = [
-      snapshotRef.current.playerAvatarUrl,
-      snapshotRef.current.enemyAvatarUrl,
+      snapshot.playerAvatarUrl,
+      snapshot.enemyAvatarUrl,
     ];
-    const battleImageUrls = [
-      ...Object.values(EFFECT_IMAGE_URLS),
-      ...Object.values(BACKGROUND_IMAGE_URLS),
-    ];
-    void preloadEarTrainingBattleImages([...avatarUrls, ...battleImageUrls]).then((map) => {
-      if (cancelled || !runtimeRef.current) return;
-      avatarUrls.forEach(url => {
-        const img = map.get(url);
-        if (img) runtimeRef.current?.loadedImages.set(url, img);
-      });
-      Object.entries(EFFECT_IMAGE_URLS).forEach(([key, url]) => {
-        const img = map.get(url);
-        if (img) runtimeRef.current?.loadedImages.set(key, img);
-      });
-      Object.entries(BACKGROUND_IMAGE_URLS).forEach(([key, url]) => {
-        const img = map.get(url);
-        if (img) runtimeRef.current?.loadedImages.set(key, img);
-      });
-      if (runtimeRef.current) {
-        invalidateBackgroundCache(runtimeRef.current.backgroundCache);
+
+    void preloadEarTrainingBattleCriticalImages(avatarUrls).then((map) => {
+      if (cancelled || !runtimeRef.current) {
+        return;
       }
+      applyEarTrainingBattleImageMap(runtimeRef.current, map, avatarUrls);
       markDirty();
       window.requestAnimationFrame(() => markDirty());
+
+      if (deferredImagesScheduledRef.current) {
+        return;
+      }
+      deferredImagesScheduledRef.current = true;
+      scheduleEarTrainingBattleDeferredImages(
+        runtimeRef.current,
+        () => {
+          markDirty();
+          window.requestAnimationFrame(() => markDirty());
+        },
+        () => cancelled,
+      );
     });
 
     const resizeCanvas = (): void => {
@@ -341,7 +342,12 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       cancelled = true;
       ro.disconnect();
     };
-  }, [ensureRuntime, markDirty]);
+  }, [
+    ensureRuntime,
+    markDirty,
+    snapshot.enemyAvatarUrl,
+    snapshot.playerAvatarUrl,
+  ]);
 
   useEffect(() => {
     applySnapshotToRuntime(snapshot);

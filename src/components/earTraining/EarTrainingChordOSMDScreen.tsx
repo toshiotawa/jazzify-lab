@@ -42,7 +42,6 @@ import {
 import { buildPrecisionNotesFromMidi } from '@/utils/earTrainingPrecisionMidi';
 import {
   preloadBattleCountInClick,
-  preloadBattleGmPiano,
 } from '@/utils/ensureBattlePianoAudio';
 import {
   getCompletionDamage,
@@ -293,6 +292,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
   const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
+  const battlePianoAudioPromiseRef = useRef<Promise<void> | null>(null);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
   const gameStateRef = useRef<EarTrainingGameState>('idle');
   const phraseIndexRef = useRef(0);
@@ -393,7 +393,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [baseMusicXmlText, practiceMode, practiceTransposeEnabled]);
 
   useEffect(() => {
-    preloadBattleGmPiano();
     preloadBattleCountInClick();
     prefetchEarTrainingLobbyAssetsFromStage(stage);
   }, [stage]);
@@ -1456,10 +1455,34 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startPhraseRef.current = startPhrase;
   }, [startPhrase]);
 
+  const ensureBattlePianoAudioLazy = useCallback((): void => {
+    if (battlePianoAudioPromiseRef.current) {
+      return;
+    }
+    battlePianoAudioPromiseRef.current = import('@/utils/ensureBattlePianoAudio')
+      .then(({ ensureBattlePianoAudio }) =>
+        ensureBattlePianoAudio({
+          midiVolume: settings.midiVolume,
+          soundEffectVolume: settings.soundEffectVolume,
+          rootSoundVolume: settings.rootSoundVolume,
+        }),
+      )
+      .catch(() => undefined);
+  }, [
+    settings.midiVolume,
+    settings.rootSoundVolume,
+    settings.soundEffectVolume,
+  ]);
+
+  const handleMidiNoteOn = useCallback((note: number) => {
+    ensureBattlePianoAudioLazy();
+    handleNoteInputRef.current(note);
+  }, [ensureBattlePianoAudioLazy]);
+
   const ensureBattleAudioReady = useCallback(async (): Promise<void> => {
     if (!midiControllerRef.current) {
       midiControllerRef.current = new MIDIController({
-        onNoteOn: note => handleNoteInputRef.current(note),
+        onNoteOn: note => handleMidiNoteOn(note),
         onNoteOff: () => undefined,
         onConnectionChange: connected => setIsMidiConnected(connected),
         playMidiSound: true,
@@ -1469,23 +1492,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     controller.setKeyHighlightCallback((note, active) => {
       pianoOverlayRef.current?.highlightKey(note, active);
     });
-    await import('@/utils/ensureBattlePianoAudio').then(({ ensureBattlePianoAudio }) =>
-      ensureBattlePianoAudio({
-        midiVolume: settings.midiVolume,
-        soundEffectVolume: settings.soundEffectVolume,
-        rootSoundVolume: settings.rootSoundVolume,
-      }),
-    );
     await controller.initialize();
     if (settings.selectedMidiDevice) {
       const connected = await controller.connectDevice(settings.selectedMidiDevice);
       setIsMidiConnected(Boolean(connected));
     }
   }, [
-    settings.midiVolume,
-    settings.rootSoundVolume,
+    handleMidiNoteOn,
     settings.selectedMidiDevice,
-    settings.soundEffectVolume,
   ]);
 
   const startBattle = useCallback(() => {
@@ -1707,7 +1721,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => {
     if (!midiControllerRef.current) {
       midiControllerRef.current = new MIDIController({
-        onNoteOn: note => handleNoteInputRef.current(note),
+        onNoteOn: note => handleMidiNoteOn(note),
         onNoteOff: () => undefined,
         onConnectionChange: connected => setIsMidiConnected(connected),
         playMidiSound: true,
@@ -1721,7 +1735,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       void controller.destroy();
       midiControllerRef.current = null;
     };
-  }, []);
+  }, [handleMidiNoteOn]);
 
   const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
     updateSettings({ selectedMidiDevice: deviceId });
@@ -1740,9 +1754,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
+    ensureBattlePianoAudioLazy();
     void playNote(midiNote, 100);
     handleNoteInputRef.current(midiNote);
-  }, []);
+  }, [ensureBattlePianoAudioLazy]);
 
   const handlePianoKeyUp = useCallback((midiNote: number) => {
     void stopNote(midiNote);

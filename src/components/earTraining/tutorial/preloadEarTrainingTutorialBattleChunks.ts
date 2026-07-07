@@ -1,7 +1,13 @@
-import { EFFECT_IMAGE_URLS, preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/drawEarTrainingBattle';
+import { preloadEarTrainingBattleCriticalImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import { prefetchEarTrainingLobbyAssetsFromStage } from '@/utils/prefetchEarTrainingLobbyAssets';
-import { preloadBattleCountInClick, preloadBattleGmPiano } from '@/utils/ensureBattlePianoAudio';
+import { preloadBattleCountInClick } from '@/utils/ensureBattlePianoAudio';
 import { preloadEarTrainingPianoOverlay } from '@/utils/preloadEarTrainingPianoOverlay';
+import {
+  buildEarTrainingEnemyBattleSourceKey,
+  EAR_TRAINING_PLAYER_AVATAR_URL,
+  resolveEarTrainingBattleEnemy,
+  resolveEarTrainingEnemyAvatarFromBattleSourceKey,
+} from '@/utils/earTrainingBattleAvatar';
 
 import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
 import type {
@@ -32,8 +38,27 @@ const resolveFirstBattleStage = (
   );
 };
 
+const resolveTutorialBattleAvatarUrls = (
+  script: EarTrainingTutorialScriptPayload | undefined,
+  isEnglishCopy: boolean,
+): string[] => {
+  const urls = [EAR_TRAINING_PLAYER_AVATAR_URL];
+  if (!script) {
+    return urls;
+  }
+  const stage = resolveFirstBattleStage(script, isEnglishCopy);
+  if (!stage) {
+    return urls;
+  }
+  const enemy = resolveEarTrainingBattleEnemy(stage, isEnglishCopy);
+  const battleSourceKey = buildEarTrainingEnemyBattleSourceKey(stage.id, enemy);
+  urls.push(resolveEarTrainingEnemyAvatarFromBattleSourceKey(battleSourceKey).url);
+  return urls;
+};
+
 /**
  * dialogue_only 中にバトル用の重い chunk・画像・音源を先読みして、次シーンで Suspense が出にくくする。
+ * キャラ・ハンマー等のクリティカル画像のみ先読みし、エフェクト類はバトル canvas 側で遅延読込する。
  */
 export const preloadEarTrainingTutorialBattleChunks = async (
   options: PreloadEarTrainingTutorialBattleChunksOptions = {},
@@ -51,10 +76,12 @@ export const preloadEarTrainingTutorialBattleChunks = async (
   void adlib;
   void pairAdlib;
 
-  void preloadEarTrainingBattleImages(Object.values(EFFECT_IMAGE_URLS));
+  const isEnglishCopy = options.isEnglishCopy ?? false;
+  void preloadEarTrainingBattleCriticalImages(
+    resolveTutorialBattleAvatarUrls(options.script, isEnglishCopy),
+  );
 
   preloadEarTrainingPianoOverlay();
-  preloadBattleGmPiano();
   preloadBattleCountInClick();
 
   const script = options.script;
@@ -62,7 +89,7 @@ export const preloadEarTrainingTutorialBattleChunks = async (
     return;
   }
 
-  const stage = resolveFirstBattleStage(script, options.isEnglishCopy ?? false);
+  const stage = resolveFirstBattleStage(script, isEnglishCopy);
   if (stage) {
     prefetchEarTrainingLobbyAssetsFromStage(stage);
   }
