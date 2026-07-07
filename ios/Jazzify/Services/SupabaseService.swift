@@ -160,7 +160,8 @@ final class SupabaseService: Sendable {
         userId: UUID,
         lessonId: UUID,
         lessonSongId: UUID,
-        isPractice: Bool
+        isPractice: Bool,
+        inputSnapshot: AssignmentInputSnapshot.Values
     ) async throws {
         struct AssignmentStartParams: Encodable {
             let p_user_id: UUID
@@ -168,6 +169,10 @@ final class SupabaseService: Sendable {
             let p_lesson_id: UUID
             let p_platform: String
             let p_is_practice: Bool
+            let p_input_method: String
+            let p_midi_api_available: Bool
+            let p_midi_device_count: Int
+            let p_midi_connected: Bool
         }
 
         try await client
@@ -176,7 +181,11 @@ final class SupabaseService: Sendable {
                 p_lesson_song_id: lessonSongId,
                 p_lesson_id: lessonId,
                 p_platform: "ios",
-                p_is_practice: isPractice
+                p_is_practice: isPractice,
+                p_input_method: inputSnapshot.inputMethod,
+                p_midi_api_available: inputSnapshot.midiApiAvailable,
+                p_midi_device_count: inputSnapshot.midiDeviceCount,
+                p_midi_connected: inputSnapshot.midiConnected
             ))
             .execute()
     }

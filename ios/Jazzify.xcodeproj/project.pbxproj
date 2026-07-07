@@ -63,6 +63,7 @@
 		A1B2C3D4E5F60718293A7002 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A7001 /* MarketingEmailOptIn.swift */; };
 		ANLYT0100000002 /* AnalyticsClientID.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANLYT0100000001 /* AnalyticsClientID.swift */; };
 		ANLYT0100000004 /* AnalyticsTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANLYT0100000003 /* AnalyticsTracker.swift */; };
+		ANLYT0100000008 /* AssignmentInputSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = ANLYT0100000007 /* AssignmentInputSnapshot.swift */; };
 		0C4A607FEC5B7FD7C041477F /* ProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2BD5DA49B637FB8C0E889B /* ProfileSetupView.swift */; };
 		0FD918D7197C061E71DA139C /* SurvivalChordPadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */; };
 		113523707C66472EDCE989B7 /* SurvivalStatusEffectEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */; };
@@ -373,6 +374,7 @@
 		A1B2C3D4E5F60718293A7001 /* MarketingEmailOptIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingEmailOptIn.swift; sourceTree = "<group>"; };
 		ANLYT0100000001 /* AnalyticsClientID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsClientID.swift; sourceTree = "<group>"; };
 		ANLYT0100000003 /* AnalyticsTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTracker.swift; sourceTree = "<group>"; };
+		ANLYT0100000007 /* AssignmentInputSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentInputSnapshot.swift; sourceTree = "<group>"; };
 		44BB606E44E08242A371BE80 /* BillingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BillingService.swift; sourceTree = "<group>"; };
 		4D635FD067D6C35FA30F9F12 /* SurvivalDescentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentView.swift; sourceTree = "<group>"; };
 		4DEC6DAE57E109225B5AAE3A /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -840,6 +842,7 @@
 			isa = PBXGroup;
 			children = (
 				ANLYT0100000001 /* AnalyticsClientID.swift */,
+				ANLYT0100000007 /* AssignmentInputSnapshot.swift */,
 				ANLYT0100000003 /* AnalyticsTracker.swift */,
 			);
 			path = Analytics;
@@ -1423,6 +1426,7 @@
 				A1B2C3D4E5F60718293A7002 /* MarketingEmailOptIn.swift in Sources */,
 				ANLYT0100000002 /* AnalyticsClientID.swift in Sources */,
 				ANLYT0100000004 /* AnalyticsTracker.swift in Sources */,
+				ANLYT0100000008 /* AssignmentInputSnapshot.swift in Sources */,
 				CB19406828C418DB3A880E17 /* SurvivalBossEffectRenderer.swift in Sources */,
 				AC36839E2864B4BA360B7197 /* SurvivalBossEngine.swift in Sources */,
 				C3A8FBFDAC1257EAC9983BFB /* SurvivalCharacterProfile.swift in Sources */,
