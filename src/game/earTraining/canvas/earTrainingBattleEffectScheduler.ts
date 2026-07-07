@@ -26,7 +26,6 @@ import {
 } from './earTrainingBattleDrawState';
 import {
   resolveParryBeatSyncScheduleOrFallback,
-  shouldRestartParryZoom,
 } from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
@@ -38,9 +37,6 @@ import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
   triggerCameraShake,
-  triggerParryCameraZoom,
-  triggerParryCameraZoomBeatSync,
-  triggerZoomToPlayer,
 } from './earTrainingBattleCamera';
 import {
   spawnParrySparks,
@@ -70,7 +66,7 @@ const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
 const PERFECT_LIGHTNING_IMPACT_MS = 470;
 const METEOR_IMPACT_MS = 980;
-const AWESOME_METEOR_START_MS = 180 + 1080 + 340;
+const AWESOME_METEOR_START_MS = 1080;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'] as const;
@@ -340,8 +336,6 @@ const triggerParryBeatSyncEffects = (
   runtime: EarTrainingBattleDrawRuntime,
   command: EarTrainingBattleEffectCommand,
   now: number,
-  centerX: number,
-  centerY: number,
 ): void => {
   const schedule = resolveParryBeatSyncScheduleOrFallback({
     hitPhraseSec: command.hitPhraseTimeSec,
@@ -368,30 +362,6 @@ const triggerParryBeatSyncEffects = (
       baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
     };
   }
-
-  const snapOut = shouldRestartParryZoom(
-    command.nextTargetPhraseTimeSec,
-    schedule.landingPhraseSec,
-  ) && runtime.camera.zoom?.useBeatSync === true;
-
-  if (
-    command.hitPhraseTimeSec !== undefined
-    && command.effectiveBpm !== undefined
-    && command.isSwing !== undefined
-    && Number.isFinite(command.hitPhraseTimeSec)
-  ) {
-    triggerParryCameraZoomBeatSync(runtime.camera, {
-      centerX,
-      centerY,
-      hitPerfMs: now,
-      panInEndPerfMs: schedule.panInEndPerfMs,
-      returnEndPerfMs: schedule.returnEndPerfMs,
-      snapOutBeforeRestart: snapOut,
-    });
-    return;
-  }
-
-  triggerParryCameraZoom(runtime.camera, centerX, centerY);
 };
 
 export const clearParryMotionTimers = (runtime: EarTrainingBattleDrawRuntime): void => {
@@ -739,7 +709,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   const isChainParry = runtime.lastParryAt > 0 && now - runtime.lastParryAt < PARRY_TOTAL_MS;
   const finishOnly = command.parryFinishOnly === true;
   runtime.lastParryAt = now;
-  triggerParryBeatSyncEffects(runtime, command, now, width / 2, height / 2);
+  triggerParryBeatSyncEffects(runtime, command, now);
   scheduleParryMotion(runtime, onDirty, finishOnly);
   spawnParrySparks(
     runtime.parrySparkPool,
@@ -890,10 +860,9 @@ const launchMeteor = (ctx: EffectSchedulerContext, command: EarTrainingBattleEff
 };
 
 const playMeteorEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
-  const { runtime, anchors, onDirty, playerTimers, snapshot, width, height } = ctx;
+  const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
   holdCharacterForAction(runtime.player, 'attack', 1780, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
   showFloatingText(runtime, 'Awesome!', anchors.player.x, anchors.player.resultTextY, '#fde68a', 1600);
-  triggerZoomToPlayer(runtime.camera, anchors.player.x, anchors.player.bodyY, width / 2, height / 2, 1080);
   setTimeout(() => showPlayerPoseSequence(runtime, onDirty), 180);
   const magicStartedAt = performance.now();
   runtime.effects.push({

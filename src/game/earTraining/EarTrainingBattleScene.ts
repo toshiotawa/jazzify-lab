@@ -2591,12 +2591,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.zoomToPlayer(
-      anchors,
-      1080,
-      () => this.showPlayerPoseSequence(SKILL_PLAYER_POSE_SEQUENCE, SKILL_PLAYER_POSE_FRAME_MS, false),
-      () => this.launchMeteor(command, anchors),
-    );
+    this.showPlayerPoseSequence(SKILL_PLAYER_POSE_SEQUENCE, SKILL_PLAYER_POSE_FRAME_MS, false);
+    this.time.delayedCall(1080, () => {
+      this.launchMeteor(command, anchors);
+    });
     this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 220);
   }
 
@@ -2652,34 +2650,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const sprite = this.add.image(x, y, asset.key).setOrigin(0.5, 0.5).setDisplaySize(displaySize, displaySize);
     this.effectLayer?.add(sprite);
     return sprite;
-  }
-
-  private zoomToPlayer(anchors: BattleAnchors, holdMs: number, onZoomedIn?: () => void, onReturned?: () => void): void {
-    const camera = this.cameras.main;
-    camera.pan(anchors.player.x, anchors.player.bodyY, 180, 'Sine.easeInOut');
-    this.tweens.add({
-      targets: camera,
-      zoom: 1.98,
-      duration: 180,
-      ease: 'Sine.easeOut',
-      onComplete: () => {
-        onZoomedIn?.();
-        this.time.delayedCall(holdMs, () => {
-          camera.pan(this.scale.width / 2, this.scale.height / 2, 340, 'Sine.easeInOut');
-          this.tweens.add({
-            targets: camera,
-            zoom: 1,
-            duration: 340,
-            ease: 'Sine.easeInOut',
-            onComplete: () => {
-              camera.setZoom(1);
-              camera.centerOn(this.scale.width / 2, this.scale.height / 2);
-              onReturned?.();
-            },
-          });
-        });
-      },
-    });
   }
 
   private createMagicCircle(x: number, y: number, size: number): void {

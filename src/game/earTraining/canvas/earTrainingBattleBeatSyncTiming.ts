@@ -6,8 +6,6 @@ const BEAT_EPS = 1e-6;
 export interface ParryBeatSyncSchedule {
   landingPhraseSec: number;
   slowDurationMs: number;
-  panInEndPerfMs: number;
-  returnEndPerfMs: number;
   slowPhaseMs: number;
   ringExpandStartMs: number;
 }
@@ -82,20 +80,11 @@ export const phraseLandingToPerfMs = (
   hitPerfMs: number,
 ): number => hitPerfMs + (landingPhraseSec - hitPhraseSec) * 1000;
 
-export const shouldRestartParryZoom = (
-  nextTargetPhraseSec: number | undefined,
-  landingPhraseSec: number,
-): boolean =>
-  nextTargetPhraseSec !== undefined
-  && Number.isFinite(nextTargetPhraseSec)
-  && nextTargetPhraseSec < landingPhraseSec - BEAT_EPS;
-
 export const resolveParryBeatSyncSchedule = (
   params: ResolveParryBeatSyncScheduleParams,
 ): ParryBeatSyncSchedule => {
   const {
     hitPhraseSec,
-    hitPerfMs,
     bpm,
     isSwing,
     targetOffsetSec = BEAT_SYNC_TARGET_OFFSET_SEC,
@@ -111,15 +100,12 @@ export const resolveParryBeatSyncSchedule = (
     1,
     Math.round((landingPhraseSec - hitPhraseSec) * 1000),
   );
-  const endPerfMs = phraseLandingToPerfMs(hitPhraseSec, landingPhraseSec, hitPerfMs);
 
   return {
     landingPhraseSec,
     slowDurationMs,
     slowPhaseMs: slowDurationMs,
     ringExpandStartMs: slowDurationMs + 1,
-    panInEndPerfMs: endPerfMs,
-    returnEndPerfMs: endPerfMs,
   };
 };
 
@@ -143,14 +129,11 @@ export const resolveParryBeatSyncScheduleOrFallback = (
     || bpm <= 0
   ) {
     const fallbackMs = PARRY_VISUAL_SLOW_DURATION_MS;
-    const endPerfMs = hitPerfMs + fallbackMs;
     return {
       landingPhraseSec: hitPhraseSec ?? 0,
       slowDurationMs: fallbackMs,
       slowPhaseMs: fallbackMs,
       ringExpandStartMs: fallbackMs + 1,
-      panInEndPerfMs: endPerfMs,
-      returnEndPerfMs: endPerfMs,
     };
   }
 

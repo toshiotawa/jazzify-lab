@@ -1019,8 +1019,7 @@ export const drawEarTrainingBattle = (
   ctx.clearRect(0, 0, width, height);
 
   const visualNow = getVisualNow(now, runtime.visualSlow);
-  const cameraNow = runtime.camera.zoom?.useBeatSync ? now : visualNow;
-  const cameraTransform = computeCameraTransform(runtime.camera, width, height, cameraNow);
+  const cameraTransform = computeCameraTransform(runtime.camera, width, height, visualNow);
   ctx.save();
   applyWorldCameraTransform(ctx, cameraTransform);
   drawBackground(ctx, width, height, runtime);

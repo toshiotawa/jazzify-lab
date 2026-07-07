@@ -3,7 +3,6 @@ import {
   phraseLandingToPerfMs,
   resolveBeatSyncLandingSec,
   resolveParryBeatSyncSchedule,
-  shouldRestartParryZoom,
 } from '@/game/earTraining/canvas/earTrainingBattleBeatSyncTiming';
 
 describe('resolveBeatSyncLandingSec', () => {
@@ -46,7 +45,7 @@ describe('phraseLandingToPerfMs', () => {
 });
 
 describe('resolveParryBeatSyncSchedule', () => {
-  it('uses the same perf end for pan in and return', () => {
+  it('derives slow duration from beat-sync landing', () => {
     const schedule = resolveParryBeatSyncSchedule({
       hitPhraseSec: 0,
       hitPerfMs: 1000,
@@ -54,16 +53,6 @@ describe('resolveParryBeatSyncSchedule', () => {
       isSwing: true,
     });
     expect(schedule.slowDurationMs).toBe(375);
-    expect(schedule.panInEndPerfMs).toBe(1375);
-    expect(schedule.returnEndPerfMs).toBe(1375);
     expect(schedule.ringExpandStartMs).toBe(376);
-  });
-});
-
-describe('shouldRestartParryZoom', () => {
-  it('returns true when next target lands before computed landing', () => {
-    expect(shouldRestartParryZoom(0.2, 0.3)).toBe(true);
-    expect(shouldRestartParryZoom(0.3, 0.3)).toBe(false);
-    expect(shouldRestartParryZoom(undefined, 0.3)).toBe(false);
   });
 });
