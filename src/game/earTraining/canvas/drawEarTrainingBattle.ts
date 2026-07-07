@@ -970,7 +970,10 @@ const drawEffects = (
   }
 
   runtime.effects.forEach(effect => {
-    effect.visuals.forEach(visual => drawEffectVisual(ctx, visual, runtime, visualNow));
+    effect.visuals.forEach(visual => {
+      const effectNow = visual.kind === 'hammer' ? now : visualNow;
+      drawEffectVisual(ctx, visual, runtime, effectNow);
+    });
   });
 
   drawParrySparks(ctx, runtime.parrySparkPool, visualNow, runtime.parryBeatSync);

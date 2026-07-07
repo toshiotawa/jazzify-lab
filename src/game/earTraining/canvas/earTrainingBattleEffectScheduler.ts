@@ -476,20 +476,19 @@ const dismissIncomingOsmdHammer = (
   if (!incoming) return;
   incoming.osmdHammerActive = false;
   const now = performance.now();
-  const visualNow = getVisualNow(now, runtime.visualSlow);
   const hammerVisual = incoming.visuals.find(visual => visual.kind === 'hammer');
   if (!hammerVisual) {
     incoming.visuals = [];
     return;
   }
-  const progress = getEffectProgress(hammerVisual, visualNow);
+  const progress = getEffectProgress(hammerVisual, now);
   const currentX = lerp(hammerVisual.fromX, hammerVisual.toX, easeLinear(progress));
   const currentY = lerp(hammerVisual.fromY, hammerVisual.toY, easeLinear(progress));
   const currentRotation = lerp(hammerVisual.rotation, hammerVisual.rotationEnd, progress);
   incoming.visuals = [{
     id: nextVisualId(),
     kind: 'hammer',
-    startedAt: visualNow,
+    startedAt: now,
     durationMs: HAMMER_DISMISS_FADE_MS,
     fromX: currentX,
     fromY: currentY,

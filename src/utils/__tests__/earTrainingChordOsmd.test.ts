@@ -27,9 +27,10 @@ import {
   resolveEarTrainingOsmdTargetsFromScore,
   chordOsmdHammerLeadBeats,
   chordOsmdHammerLeadSec,
-  findLastChordOsmdTargetInMeasure,
-  isLastChordOsmdTargetInParrySpan,
-  resolveChordOsmdParrySpanEndMeasure,
+  findLastChordOsmdTargetOnBeatInMeasure,
+  resolveChordOsmdParrySpanFinishMeasure,
+  resolveChordOsmdParrySpanState,
+  toChordOsmdParrySpanAnchor,
 } from '@/utils/earTrainingChordOsmd';
 
 const chord = (overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number }): EarTrainingPhraseChord => ({
@@ -1052,24 +1053,67 @@ describe('chordOsmdHammerLeadSec', () => {
 });
 
 describe('chord osmd parry span finish', () => {
+  const BPM = 120;
+  const BEATS = 4;
+  const beat = (measure: number, beatInMeasure: number): number => (
+    ((measure - 1) * BEATS + (beatInMeasure - 1)) * (60 / BPM)
+  );
+
   const targets = [
-    { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: 0, orderIndex: 0, midiCounts: [] },
-    { id: 'b', label: 'B', measureNumber: 1, targetTimeSec: 1, orderIndex: 1, midiCounts: [] },
-    { id: 'c', label: 'C', measureNumber: 2, targetTimeSec: 2, orderIndex: 2, midiCounts: [] },
-    { id: 'd', label: 'D', measureNumber: 2, targetTimeSec: 3, orderIndex: 3, midiCounts: [] },
+    { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: beat(1, 1), orderIndex: 0, midiCounts: [] },
+    { id: 'b', label: 'B', measureNumber: 1, targetTimeSec: beat(1, 2), orderIndex: 1, midiCounts: [] },
+    { id: 'c', label: 'C', measureNumber: 2, targetTimeSec: beat(2, 1), orderIndex: 2, midiCounts: [] },
+    { id: 'd', label: 'D', measureNumber: 2, targetTimeSec: beat(2, 1) + 0.25, orderIndex: 3, midiCounts: [] },
+    { id: 'e', label: 'E', measureNumber: 2, targetTimeSec: beat(2, 2), orderIndex: 4, midiCounts: [] },
   ];
 
-  it('1小節スパンは同一小節の最終ターゲットが finish', () => {
-    expect(resolveChordOsmdParrySpanEndMeasure(1, 1)).toBe(1);
-    expect(isLastChordOsmdTargetInParrySpan(targets, targets[0], 1, 1)).toBe(false);
-    expect(isLastChordOsmdTargetInParrySpan(targets, targets[1], 1, 1)).toBe(true);
-    expect(isLastChordOsmdTargetInParrySpan(targets, targets[2], 1, 1)).toBe(false);
+  it('finish 小節はアンカー小節 + n', () => {
+    expect(resolveChordOsmdParrySpanFinishMeasure(1, 1)).toBe(2);
+    expect(resolveChordOsmdParrySpanFinishMeasure(3, 2)).toBe(5);
   });
 
-  it('2小節スパンは2小節目の最終ターゲットが finish', () => {
-    expect(resolveChordOsmdParrySpanEndMeasure(1, 2)).toBe(2);
-    expect(findLastChordOsmdTargetInMeasure(targets, 2)?.id).toBe('d');
-    expect(isLastChordOsmdTargetInParrySpan(targets, targets[1], 1, 2)).toBe(false);
-    expect(isLastChordOsmdTargetInParrySpan(targets, targets[3], 1, 2)).toBe(true);
+  it('finish は n 小節後の1拍目最後のターゲット', () => {
+    const finish = findLastChordOsmdTargetOnBeatInMeasure(targets, 2, 1, BPM, BEATS);
+    expect(finish?.id).toBe('d');
+  });
+
+  it('2拍目ヒット・1小節スパンでは次小節1拍目最後が finish', () => {
+    const first = resolveChordOsmdParrySpanState(
+      targets, targets[1], null, 1, BPM, BEATS, false,
+    );
+    expect(first.isFinish).toBe(false);
+    expect(first.extendVisualSlow).toBe(false);
+    expect(first.finishTarget?.id).toBe('d');
+
+    const mid = resolveChordOsmdParrySpanState(
+      targets, targets[2], first.anchor, 1, BPM, BEATS, false,
+    );
+    expect(mid.isFinish).toBe(false);
+    expect(mid.extendVisualSlow).toBe(true);
+
+    const finish = resolveChordOsmdParrySpanState(
+      targets, targets[3], mid.anchor, 1, BPM, BEATS, false,
+    );
+    expect(finish.isFinish).toBe(true);
+    expect(finish.extendVisualSlow).toBe(false);
+  });
+
+  it('2小節スパンではアンカーから2小節後の1拍目最後が finish', () => {
+    const targets2 = [
+      { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: beat(1, 1), orderIndex: 0, midiCounts: [] },
+      { id: 'b', label: 'B', measureNumber: 1, targetTimeSec: beat(1, 2), orderIndex: 1, midiCounts: [] },
+      { id: 'c', label: 'C', measureNumber: 2, targetTimeSec: beat(2, 1), orderIndex: 2, midiCounts: [] },
+      { id: 'd', label: 'D', measureNumber: 3, targetTimeSec: beat(3, 1), orderIndex: 3, midiCounts: [] },
+      { id: 'e', label: 'E', measureNumber: 3, targetTimeSec: beat(3, 1) + 0.25, orderIndex: 4, midiCounts: [] },
+    ];
+    const first = resolveChordOsmdParrySpanState(
+      targets2, targets2[0], null, 2, BPM, BEATS, false,
+    );
+    expect(first.finishTarget?.id).toBe('e');
+
+    const finish = resolveChordOsmdParrySpanState(
+      targets2, targets2[4], toChordOsmdParrySpanAnchor(targets2[0]), 2, BPM, BEATS, false,
+    );
+    expect(finish.isFinish).toBe(true);
   });
 });

@@ -79,8 +79,8 @@ import {
 import {
   buildChordOsmdRhythmTargets,
   CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT,
-  findLastChordOsmdTargetInMeasure,
-  isLastChordOsmdTargetInParrySpan,
+  resolveChordOsmdParrySpanState,
+  type ChordOsmdParrySpanAnchor,
   areAllChordOsmdTargetsCompleted,
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdMusicXmlLyrics,
@@ -88,7 +88,6 @@ import {
   CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC,
   chordOsmdApproachLeadSec,
   chordOsmdHammerLeadSec,
-  resolveChordOsmdParrySpanEndMeasure,
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   hasChordOsmdJudgmentWindowExpired,
@@ -313,7 +312,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const lastStatusUpdateAtRef = useRef(0);
   const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
   const battleEffectIdRef = useRef(0);
-  const parryChainStartMeasureRef = useRef<number | null>(null);
+  const parryChainAnchorRef = useRef<ChordOsmdParrySpanAnchor | null>(null);
   const progressSaveStartedRef = useRef(false);
   const phraseEndingRef = useRef(false);
   const totalCompletedTargetsRef = useRef(0);
@@ -674,7 +673,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     state.failed = true;
-    parryChainStartMeasureRef.current = null;
+    parryChainAnchorRef.current = null;
     clearParryVisualSlow();
     syncPracticeVoicingHints();
     triggerFeedback('miss');
@@ -948,7 +947,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     nextApproachTargetIndexRef.current = 0;
     nextMissTargetIndexRef.current = 0;
     nextLyricQuoteIndexRef.current = 0;
-    parryChainStartMeasureRef.current = null;
+    parryChainAnchorRef.current = null;
   }, []);
 
   const resetPhraseRuntime = useCallback((nextTargets: readonly ChordOsmdRhythmTarget[]) => {
@@ -982,7 +981,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (!state.failed) {
       state.failed = true;
     }
-    parryChainStartMeasureRef.current = null;
+    parryChainAnchorRef.current = null;
     clearParryVisualSlow();
     if (!tutorialNoCombat) {
       applyPlayerDamage(activeDamageConfig.miss);
@@ -1763,36 +1762,23 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       isTargetIncomplete,
     );
     const leadMeasures = resolveHammerLeadMeasures();
-    const chainStart = parryChainStartMeasureRef.current;
-    const spanEndMeasure = chainStart === null
-      ? resolveChordOsmdParrySpanEndMeasure(target.measureNumber, leadMeasures)
-      : resolveChordOsmdParrySpanEndMeasure(chainStart, leadMeasures);
-    if (
-      chainStart === null
-      || target.measureNumber > spanEndMeasure
-    ) {
-      parryChainStartMeasureRef.current = target.measureNumber;
-    }
-    const spanStartMeasure = parryChainStartMeasureRef.current ?? target.measureNumber;
-    const spanEnd = resolveChordOsmdParrySpanEndMeasure(spanStartMeasure, leadMeasures);
-    const isFinish = isLastChordOsmdTargetInParrySpan(
+    const spanState = resolveChordOsmdParrySpanState(
       targetsRef.current,
       target,
-      spanStartMeasure,
+      parryChainAnchorRef.current,
       leadMeasures,
+      resolveEffectivePracticeBpm(),
+      stage.beats_per_measure,
+      stage.is_swing === true,
     );
-    const isExtend = !isFinish
-      && target.measureNumber >= spanStartMeasure
-      && target.measureNumber <= spanEnd;
+    parryChainAnchorRef.current = spanState.anchor;
+    const { isFinish, extendVisualSlow: isExtend, finishTarget } = spanState;
     let visualSlowSustainMs: number | undefined;
-    if (Number.isFinite(hitPhraseTimeSec)) {
-      const lastInSpan = findLastChordOsmdTargetInMeasure(targetsRef.current, spanEnd);
-      if (lastInSpan) {
-        const sustainPhraseSec = resolveCalibratedTargetTimeSec(lastInSpan.targetTimeSec)
-          + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
-          + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
-        visualSlowSustainMs = Math.max(0, Math.ceil((sustainPhraseSec - hitPhraseTimeSec) * 1000));
-      }
+    if (Number.isFinite(hitPhraseTimeSec) && finishTarget) {
+      const sustainPhraseSec = resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
+        + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
+        + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
+      visualSlowSustainMs = Math.max(0, Math.ceil((sustainPhraseSec - hitPhraseTimeSec) * 1000));
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
@@ -1810,7 +1796,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         : undefined,
     });
     if (isFinish) {
-      parryChainStartMeasureRef.current = null;
+      parryChainAnchorRef.current = null;
     }
     registerBattleEffectImpact(effectId, () => {
       applyEnemyDamage(damage, lastRankRef.current);
@@ -1825,6 +1811,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     resolveEffectivePracticeBpm,
     resolveEffectiveTimingWindowSec,
     resolveHammerLeadMeasures,
+    stage.beats_per_measure,
     stage.is_swing,
     syncPracticeVoicingHints,
     triggerBattleEffect,
