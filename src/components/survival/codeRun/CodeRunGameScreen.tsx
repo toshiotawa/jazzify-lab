@@ -422,6 +422,10 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   }, [handleNoteInput]);
 
   useEffect(() => {
+    void survivalMidi.prepareBattleAudio();
+  }, [survivalMidi]);
+
+  useEffect(() => {
     return survivalMidi.registerNoteHandler((note) => {
       handleNoteInputRef.current(note);
     });

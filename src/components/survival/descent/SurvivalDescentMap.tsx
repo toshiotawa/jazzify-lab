@@ -44,8 +44,8 @@ import {
 } from '../SurvivalTypes';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { initializeAudioSystem, markAudioUserInteraction } from '@/utils/MidiController';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { markAudioUserInteraction } from '@/utils/MidiController';
+import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
 import { SurvivalMapAudio, SURVIVAL_MAP_BGM_URL } from '@/utils/SurvivalMapAudio';
 import { useGameStore } from '@/stores/gameStore';
 import {
@@ -756,17 +756,15 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       markAudioUserInteraction();
       SurvivalMapAudio.stopBgmImmediately();
       stopPhrasePreview({ restoreMapBgm: false });
-      if (!isIOSWebView()) {
-        try {
-          await Promise.race([
-            (async () => {
-              await FantasySoundManager.unlock();
-              await initializeAudioSystem();
-            })(),
-            new Promise(resolve => platform.setTimeout(resolve, 3000)),
-          ]);
-        } catch { /* ignore */ }
-      }
+      try {
+        await Promise.race([
+          (async () => {
+            await FantasySoundManager.unlock();
+            await ensureSurvivalBattleAudio();
+          })(),
+          new Promise(resolve => platform.setTimeout(resolve, 3000)),
+        ]);
+      } catch { /* ignore */ }
 
       const baseConfig = getConfig(selectedStage.difficulty);
       const stageConfig: DifficultyConfig = {

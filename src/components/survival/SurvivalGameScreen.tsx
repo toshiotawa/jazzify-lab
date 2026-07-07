@@ -1523,6 +1523,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     };
   }, [survivalMidi]); // survivalMidi 未指定時のみローカル MIDI を生成
+
+  useEffect(() => {
+    if (!survivalMidi) {
+      return;
+    }
+    void survivalMidi.prepareBattleAudio();
+  }, [survivalMidi]);
   
   useEffect(() => {
     if (survivalMidi) {

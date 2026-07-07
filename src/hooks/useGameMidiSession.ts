@@ -1,14 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import { useGameStore } from '@/stores/gameStore';
-import {
-  MIDIController,
-  initializeAudioSystem,
-  updateGlobalVolume,
-  warmupIOSBattleSoundFonts,
-} from '@/utils/MidiController';
+import { MIDIController, updateGlobalVolume } from '@/utils/MidiController';
 import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
-import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
 import { isIOSWebView } from '@/utils/iosbridge';
 
 export type GameMidiAudioProfile = 'survival' | 'battle';
@@ -21,31 +16,7 @@ export type GameMidiBindings = {
   isMidiConnected: boolean;
   isMidiInitialized: boolean;
   getMidiController: () => MIDIController | null;
-};
-
-const initSurvivalAudio = async (): Promise<void> => {
-  const { soundEffectVolume, rootSoundVolume, midiVolume } = useGameStore.getState().settings;
-  const seVol = soundEffectVolume ?? 0.8;
-  const rootVol = rootSoundVolume ?? 0.7;
-  FantasySoundManager.setRootVolume(rootVol);
-  FantasySoundManager.enableRootSound(true);
-  warmupIOSBattleSoundFonts();
-  FantasySoundManager.preloadCorrectRootBassSoundFont().catch(() => {});
-
-  if (isIOSWebView()) {
-    await FantasySoundManager.init(seVol, rootVol, true).catch(() => undefined);
-    return;
-  }
-
-  await Promise.all([
-    initializeAudioSystem().then(() => {
-      updateGlobalVolume(midiVolume ?? 0.8);
-    }),
-    FantasySoundManager.init(seVol, rootVol, true).then(() => {
-      FantasySoundManager.enableRootSound(true);
-    }),
-  ]);
-  FantasySoundManager.ensureContextsRunning();
+  prepareBattleAudio: () => Promise<void>;
 };
 
 const initBattleAudio = async (): Promise<void> => {
@@ -85,22 +56,20 @@ export const useGameMidiSession = (audioProfile: GameMidiAudioProfile): GameMidi
     });
     controllerRef.current = controller;
 
-    const initPromise = (async () => {
-      try {
-        if (audioProfile === 'survival') {
-          await initSurvivalAudio();
-        } else {
+    if (audioProfile === 'battle') {
+      const initPromise = (async () => {
+        try {
           await initBattleAudio();
+          if (!isIOSWebView()) {
+            await controller.initialize();
+          }
+          setIsMidiInitialized(true);
+        } catch {
+          setIsMidiInitialized(true);
         }
-        if (!isIOSWebView()) {
-          await controller.initialize();
-        }
-        setIsMidiInitialized(true);
-      } catch {
-        setIsMidiInitialized(true);
-      }
-    })();
-    initPromiseRef.current = initPromise;
+      })();
+      initPromiseRef.current = initPromise;
+    }
 
     return () => {
       void controller.destroy();
@@ -109,6 +78,34 @@ export const useGameMidiSession = (audioProfile: GameMidiAudioProfile): GameMidi
       setIsMidiInitialized(false);
       setIsMidiConnected(false);
     };
+  }, [audioProfile]);
+
+  const prepareBattleAudio = useCallback(async (): Promise<void> => {
+    if (audioProfile === 'battle') {
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      return;
+    }
+
+    if (initPromiseRef.current) {
+      return initPromiseRef.current;
+    }
+
+    const controller = controllerRef.current;
+    const initPromise = (async () => {
+      try {
+        await ensureSurvivalBattleAudio();
+        if (controller && !isIOSWebView()) {
+          await controller.initialize();
+        }
+        setIsMidiInitialized(true);
+      } catch {
+        setIsMidiInitialized(true);
+      }
+    })();
+    initPromiseRef.current = initPromise;
+    return initPromise;
   }, [audioProfile]);
 
   useEffect(() => {
@@ -198,6 +195,7 @@ export const useGameMidiSession = (audioProfile: GameMidiAudioProfile): GameMidi
       isMidiConnected,
       isMidiInitialized,
       getMidiController,
+      prepareBattleAudio,
     }),
     [
       registerNoteHandler,
@@ -207,6 +205,7 @@ export const useGameMidiSession = (audioProfile: GameMidiAudioProfile): GameMidi
       isMidiConnected,
       isMidiInitialized,
       getMidiController,
+      prepareBattleAudio,
     ],
   );
 };

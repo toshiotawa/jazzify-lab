@@ -58,8 +58,7 @@ import {
   toSurvivalBgmSettingsMap,
 } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
-import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { initializeAudioSystem, markAudioUserInteraction } from '@/utils/MidiController';
+import { markAudioUserInteraction } from '@/utils/MidiController';
 import { useSurvivalMidiSession } from '@/hooks/useSurvivalMidiSession';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -402,11 +401,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         }
       }
 
-      try {
-        markAudioUserInteraction();
-        void FantasySoundManager.unlock();
-        void initializeAudioSystem().catch(() => {});
-      } catch { /* ignore */ }
+      markAudioUserInteraction();
 
       let faiChar: SurvivalCharacter | undefined;
       try {

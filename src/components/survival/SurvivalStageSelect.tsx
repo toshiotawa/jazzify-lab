@@ -23,7 +23,6 @@ import {
 } from '@/platform/supabaseSurvival';
 import { FaSkull, FaStar, FaFire, FaBolt } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { initializeAudioSystem } from '@/utils/MidiController';
 
 // 全17ルート（#♭含む）
 const R17 = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
@@ -375,7 +374,6 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
     try {
       await FantasySoundManager.unlock();
-      await initializeAudioSystem();
     } catch {
       // ignore
     }
