@@ -14,6 +14,7 @@ export type EarTrainingBattleEffectKind =
   | 'quotaReached'
   | 'osmdHammer'
   | 'osmdHammerReflect'
+  | 'clearParryVisualSlow'
   | 'osmdApproachCircle'
   | 'osmdApproachCircleBurst'
   | 'osmdApproachCircleDismiss'
@@ -46,6 +47,12 @@ export interface EarTrainingBattleEffectCommand {
   isSwing?: boolean;
   /** OSMD: 次の未完了ターゲット phrase 秒（連続パリィ判定） */
   nextTargetPhraseTimeSec?: number;
+  /** OSMD: スロー中の連続パリィ（visualSlow を再開せず継続） */
+  extendParryVisualSlow?: boolean;
+  /** OSMD: パリィスローを解除（ミス / finish） */
+  clearParryVisualSlow?: boolean;
+  /** OSMD: visualSlow 継続の最低残りミリ秒（phrase 終端まで） */
+  visualSlowSustainMs?: number;
 }
 
 export interface EarTrainingBattleChordView {

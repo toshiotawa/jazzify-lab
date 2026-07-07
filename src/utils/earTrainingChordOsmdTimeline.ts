@@ -48,8 +48,10 @@ export const countChordOsmdHammersDueFromIndex = (
   phraseTimeSec: number,
   startIndex: number,
   bpm: number,
+  beatsPerMeasure = 4,
+  leadMeasures = 1,
 ): number => {
-  const leadSec = chordOsmdHammerLeadSec(bpm);
+  const leadSec = chordOsmdHammerLeadSec(bpm, beatsPerMeasure, leadMeasures);
   let count = 0;
   for (let i = Math.max(0, startIndex); i < targets.length; i += 1) {
     const throwTime = targets[i].targetTimeSec - leadSec;

@@ -351,13 +351,23 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
-  // スロー再開時は補償を引き継ぎ visualNow を連続にする（ハンマー位置補正はしない）
-  runtime.visualSlow = {
-    startedAt: now,
-    durationMs: schedule.slowDurationMs,
-    scale: PARRY_VISUAL_SLOW_SCALE,
-    baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
-  };
+
+  if (command.clearParryVisualSlow) {
+    runtime.visualSlow = null;
+  } else if (command.extendParryVisualSlow && runtime.visualSlow) {
+    const sustainMs = command.visualSlowSustainMs ?? schedule.slowDurationMs;
+    const minEndAt = now + sustainMs;
+    const currentEndAt = runtime.visualSlow.startedAt + runtime.visualSlow.durationMs;
+    runtime.visualSlow.durationMs = Math.max(currentEndAt, minEndAt) - runtime.visualSlow.startedAt;
+  } else {
+    const sustainMs = command.visualSlowSustainMs ?? 0;
+    runtime.visualSlow = {
+      startedAt: now,
+      durationMs: Math.max(schedule.slowDurationMs, sustainMs),
+      scale: PARRY_VISUAL_SLOW_SCALE,
+      baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
+    };
+  }
 
   const snapOut = shouldRestartParryZoom(
     command.nextTargetPhraseTimeSec,
@@ -1013,6 +1023,9 @@ export const scheduleEarTrainingBattleEffect = (
       break;
     case 'osmdHammerReflect':
       playOsmdHammerReflectEffect(ctx, command);
+      break;
+    case 'clearParryVisualSlow':
+      ctx.runtime.visualSlow = null;
       break;
     case 'osmdMeteor':
       playOsmdMeteorEffect(ctx, command);

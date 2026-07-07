@@ -44,14 +44,24 @@ import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTiming
 
 /** @deprecated ユーザー timingAdjustment のデフォルト (+40ms) と同等。新規コードは timingAdjustment を使用 */
 export const CHORD_OSMD_JUDGMENT_OFFSET_SEC = OSMD_TIMING_ADJUSTMENT_MS_DEFAULT / 1000;
-/** ターゲット拍の何拍前にハンマー投擲を開始するか */
+/** ターゲット拍の何小節前にハンマー投擲を開始するか（既定 1 小節 = beats_per_measure 拍） */
+export const CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT = 1;
+/** @deprecated {@link CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT} と beats_per_measure を使用 */
 export const CHORD_OSMD_HAMMER_LEAD_BEATS = 4;
 /** ターゲット拍の何拍前に OSU! アプローチ円を表示開始するか */
 export const CHORD_OSMD_APPROACH_LEAD_BEATS = 1;
 
-/** BPM からハンマー投擲リード秒数を算出（4拍前） */
-export const chordOsmdHammerLeadSec = (bpm: number): number =>
-  (60 / Math.max(1, bpm)) * CHORD_OSMD_HAMMER_LEAD_BEATS;
+export const chordOsmdHammerLeadBeats = (
+  beatsPerMeasure: number,
+  leadMeasures: number = CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT,
+): number => Math.max(1, leadMeasures) * Math.max(1, beatsPerMeasure);
+
+/** BPM・拍子・小節数からハンマー投擲リード秒数を算出 */
+export const chordOsmdHammerLeadSec = (
+  bpm: number,
+  beatsPerMeasure: number = 4,
+  leadMeasures: number = CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT,
+): number => (60 / Math.max(1, bpm)) * chordOsmdHammerLeadBeats(beatsPerMeasure, leadMeasures);
 /** BPM から OSU! アプローチ円リード秒数を算出（1拍前） */
 export const chordOsmdApproachLeadSec = (bpm: number): number =>
   (60 / Math.max(1, bpm)) * CHORD_OSMD_APPROACH_LEAD_BEATS;
@@ -1634,4 +1644,48 @@ export const isLastChordOsmdTargetInMeasure = (
     Math.abs(target.targetTimeSec - latestTimeSec) <= 1e-9
     && target.orderIndex === latestOrderIndex
   );
+};
+
+export const resolveChordOsmdParrySpanEndMeasure = (
+  spanStartMeasure: number,
+  spanMeasures: number,
+): number => spanStartMeasure + Math.max(1, spanMeasures) - 1;
+
+export const findLastChordOsmdTargetInMeasure = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  measureNumber: number,
+): ChordOsmdRhythmTarget | null => {
+  let last: ChordOsmdRhythmTarget | null = null;
+  for (const candidate of targets) {
+    if (candidate.measureNumber !== measureNumber) {
+      continue;
+    }
+    if (!last) {
+      last = candidate;
+      continue;
+    }
+    if (candidate.targetTimeSec > last.targetTimeSec + 1e-9) {
+      last = candidate;
+      continue;
+    }
+    if (
+      Math.abs(candidate.targetTimeSec - last.targetTimeSec) <= 1e-9
+      && candidate.orderIndex > last.orderIndex
+    ) {
+      last = candidate;
+    }
+  }
+  return last;
+};
+
+/** パリィスパン終了小節の最終ターゲットか（hammer_lead_measures 小節分の finish 判定）。 */
+export const isLastChordOsmdTargetInParrySpan = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  target: ChordOsmdRhythmTarget,
+  spanStartMeasure: number,
+  spanMeasures: number,
+): boolean => {
+  const endMeasure = resolveChordOsmdParrySpanEndMeasure(spanStartMeasure, spanMeasures);
+  return target.measureNumber === endMeasure
+    && isLastChordOsmdTargetInMeasure(targets, target);
 };

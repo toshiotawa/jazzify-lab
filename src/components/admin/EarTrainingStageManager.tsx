@@ -73,6 +73,7 @@ const defaultStageForm: StageForm = {
   practice_transpose: false,
   show_score_lyrics_in_battle: false,
   is_swing: false,
+  hammer_lead_measures: 1,
 };
 
 const defaultPhraseForm: PhraseForm = {
@@ -178,6 +179,7 @@ const stageToForm = (stage: EarTrainingStage): StageForm => ({
   practice_transpose: stage.practice_transpose ?? false,
   show_score_lyrics_in_battle: stage.show_score_lyrics_in_battle ?? false,
   is_swing: stage.is_swing ?? false,
+  hammer_lead_measures: stage.hammer_lead_measures ?? 1,
 });
 
 const parseNotes = (text: string): Omit<EarTrainingPhraseNote, 'id' | 'phrase_id' | 'created_at'>[] =>
@@ -780,6 +782,16 @@ const EarTrainingStageManager: React.FC = () => {
                   />
                   スイング（2:1）でノーツ/ハンマー生成（イーブン記譜をスイングタイミングに変換）
                 </label>
+              )}
+              {stageForm.mode === 'chord_osmd' && (
+                <NumberInput
+                  label="ハンマー投擲（小節前）"
+                  value={stageForm.hammer_lead_measures ?? 1}
+                  onChange={value => setStageForm(prev => ({
+                    ...prev,
+                    hammer_lead_measures: Math.max(1, value),
+                  }))}
+                />
               )}
               <NumberInput label="BPM" value={stageForm.bpm} onChange={value => setStageForm(prev => ({ ...prev, bpm: value }))} />
               <NumberInput label="拍/小節" value={stageForm.beats_per_measure} onChange={value => setStageForm(prev => ({ ...prev, beats_per_measure: value }))} />

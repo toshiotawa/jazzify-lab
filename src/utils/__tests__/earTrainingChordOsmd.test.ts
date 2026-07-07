@@ -25,6 +25,11 @@ import {
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
   resolveActiveScoreLyricTextAtTime,
   resolveEarTrainingOsmdTargetsFromScore,
+  chordOsmdHammerLeadBeats,
+  chordOsmdHammerLeadSec,
+  findLastChordOsmdTargetInMeasure,
+  isLastChordOsmdTargetInParrySpan,
+  resolveChordOsmdParrySpanEndMeasure,
 } from '@/utils/earTrainingChordOsmd';
 
 const chord = (overrides: Partial<EarTrainingPhraseChord> & { id: string; order_index: number }): EarTrainingPhraseChord => ({
@@ -1026,5 +1031,45 @@ describe('chord osmd asymmetric judgment window', () => {
   it('遅れミスはターゲット+300ms超過で確定', () => {
     expect(hasChordOsmdJudgmentWindowExpired(0.3, 0)).toBe(false);
     expect(hasChordOsmdJudgmentWindowExpired(0.301, 0)).toBe(true);
+  });
+});
+
+describe('chordOsmdHammerLeadSec', () => {
+  it('1小節・4/4 なら4拍前', () => {
+    expect(chordOsmdHammerLeadBeats(4, 1)).toBe(4);
+    expect(chordOsmdHammerLeadSec(120, 4, 1)).toBeCloseTo(2, 5);
+  });
+
+  it('1小節・3/4 なら3拍前', () => {
+    expect(chordOsmdHammerLeadBeats(3, 1)).toBe(3);
+    expect(chordOsmdHammerLeadSec(120, 3, 1)).toBeCloseTo(1.5, 5);
+  });
+
+  it('2小節・4/4 なら8拍前', () => {
+    expect(chordOsmdHammerLeadBeats(4, 2)).toBe(8);
+    expect(chordOsmdHammerLeadSec(120, 4, 2)).toBeCloseTo(4, 5);
+  });
+});
+
+describe('chord osmd parry span finish', () => {
+  const targets = [
+    { id: 'a', label: 'A', measureNumber: 1, targetTimeSec: 0, orderIndex: 0, midiCounts: [] },
+    { id: 'b', label: 'B', measureNumber: 1, targetTimeSec: 1, orderIndex: 1, midiCounts: [] },
+    { id: 'c', label: 'C', measureNumber: 2, targetTimeSec: 2, orderIndex: 2, midiCounts: [] },
+    { id: 'd', label: 'D', measureNumber: 2, targetTimeSec: 3, orderIndex: 3, midiCounts: [] },
+  ];
+
+  it('1小節スパンは同一小節の最終ターゲットが finish', () => {
+    expect(resolveChordOsmdParrySpanEndMeasure(1, 1)).toBe(1);
+    expect(isLastChordOsmdTargetInParrySpan(targets, targets[0], 1, 1)).toBe(false);
+    expect(isLastChordOsmdTargetInParrySpan(targets, targets[1], 1, 1)).toBe(true);
+    expect(isLastChordOsmdTargetInParrySpan(targets, targets[2], 1, 1)).toBe(false);
+  });
+
+  it('2小節スパンは2小節目の最終ターゲットが finish', () => {
+    expect(resolveChordOsmdParrySpanEndMeasure(1, 2)).toBe(2);
+    expect(findLastChordOsmdTargetInMeasure(targets, 2)?.id).toBe('d');
+    expect(isLastChordOsmdTargetInParrySpan(targets, targets[1], 1, 2)).toBe(false);
+    expect(isLastChordOsmdTargetInParrySpan(targets, targets[3], 1, 2)).toBe(true);
   });
 });

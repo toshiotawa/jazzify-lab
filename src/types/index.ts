@@ -845,6 +845,8 @@ export interface EarTrainingStage {
   show_score_lyrics_in_battle?: boolean;
   /** chord_osmd/chord_precision: MusicXML イーブン記譜をスイング（2:1）タイミングでノーツ/ハンマー生成 */
   is_swing?: boolean;
+  /** chord_osmd: ハンマー投擲を何小節前から開始するか（既定 1 = beats_per_measure 拍前） */
+  hammer_lead_measures?: number;
   created_at?: string;
   updated_at?: string;
   phrases?: EarTrainingPhrase[];
