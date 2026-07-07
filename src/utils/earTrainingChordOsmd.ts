@@ -1670,7 +1670,96 @@ export const toChordOsmdParrySpanAnchor = (
   orderIndex: target.orderIndex,
 });
 
-/** 指定小節・拍（1-indexed）上の最終ターゲット（1拍目最後 = finish 候補） */
+const chordOsmdBeatEndSec = (
+  measureNumber: number,
+  beatStartInMeasure: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  isSwing = false,
+): number => (
+  beatStartInMeasure < beatsPerMeasure
+    ? chordOsmdLyricTargetTimeSec(
+      measureNumber,
+      beatStartInMeasure + 1,
+      bpm,
+      beatsPerMeasure,
+      isSwing,
+    )
+    : chordOsmdLyricTargetTimeSec(
+      measureNumber + 1,
+      1,
+      bpm,
+      beatsPerMeasure,
+      isSwing,
+    )
+);
+
+/** targetTimeSec が属する拍（1-indexed） */
+export const resolveChordOsmdBeatInMeasure = (
+  measureNumber: number,
+  targetTimeSec: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  isSwing = false,
+): number => {
+  for (let beat = beatsPerMeasure; beat >= 1; beat -= 1) {
+    const beatStartSec = chordOsmdLyricTargetTimeSec(
+      measureNumber,
+      beat,
+      bpm,
+      beatsPerMeasure,
+      isSwing,
+    );
+    if (targetTimeSec + 1e-9 >= beatStartSec) {
+      return beat;
+    }
+  }
+  return 1;
+};
+
+/** ヒット拍 K → finish 拍 max(1, K-1) */
+export const resolveChordOsmdParrySpanFinishBeatInMeasure = (
+  anchorBeatInMeasure: number,
+): number => (anchorBeatInMeasure > 1 ? anchorBeatInMeasure - 1 : 1);
+
+/** パリィ区間の終端（排他的秒）。アンカー小節+n の finish 拍末尾まで */
+export const resolveChordOsmdParrySpanEndSec = (
+  anchor: ChordOsmdParrySpanAnchor,
+  spanMeasures: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  isSwing = false,
+): number => {
+  const anchorBeat = resolveChordOsmdBeatInMeasure(
+    anchor.measureNumber,
+    anchor.targetTimeSec,
+    bpm,
+    beatsPerMeasure,
+    isSwing,
+  );
+  const finishMeasure = resolveChordOsmdParrySpanFinishMeasure(anchor.measureNumber, spanMeasures);
+  const finishBeat = resolveChordOsmdParrySpanFinishBeatInMeasure(anchorBeat);
+  return chordOsmdBeatEndSec(
+    finishMeasure,
+    finishBeat,
+    bpm,
+    beatsPerMeasure,
+    isSwing,
+  );
+};
+
+const isLaterChordOsmdRhythmTarget = (
+  candidate: ChordOsmdRhythmTarget,
+  last: ChordOsmdRhythmTarget,
+): boolean => (
+  candidate.targetTimeSec > last.targetTimeSec + 1e-9
+  || (
+    Math.abs(candidate.targetTimeSec - last.targetTimeSec) <= 1e-9
+    && candidate.orderIndex > last.orderIndex
+  )
+);
+
+/** 指定小節・拍（1-indexed）上の最終ターゲット */
 export const findLastChordOsmdTargetOnBeatInMeasure = (
   targets: readonly ChordOsmdRhythmTarget[],
   measureNumber: number,
@@ -1686,21 +1775,13 @@ export const findLastChordOsmdTargetOnBeatInMeasure = (
     beatsPerMeasure,
     isSwing,
   );
-  const beatEndSec = beatStartInMeasure < beatsPerMeasure
-    ? chordOsmdLyricTargetTimeSec(
-      measureNumber,
-      beatStartInMeasure + 1,
-      bpm,
-      beatsPerMeasure,
-      isSwing,
-    )
-    : chordOsmdLyricTargetTimeSec(
-      measureNumber + 1,
-      1,
-      bpm,
-      beatsPerMeasure,
-      isSwing,
-    );
+  const beatEndSec = chordOsmdBeatEndSec(
+    measureNumber,
+    beatStartInMeasure,
+    bpm,
+    beatsPerMeasure,
+    isSwing,
+  );
 
   let last: ChordOsmdRhythmTarget | null = null;
   for (const candidate of targets) {
@@ -1713,14 +1794,38 @@ export const findLastChordOsmdTargetOnBeatInMeasure = (
     if (candidate.targetTimeSec >= beatEndSec - 1e-9) {
       continue;
     }
-    if (
-      !last
-      || candidate.targetTimeSec > last.targetTimeSec + 1e-9
-      || (
-        Math.abs(candidate.targetTimeSec - last.targetTimeSec) <= 1e-9
-        && candidate.orderIndex > last.orderIndex
-      )
-    ) {
+    if (!last || isLaterChordOsmdRhythmTarget(candidate, last)) {
+      last = candidate;
+    }
+  }
+  return last;
+};
+
+/** パリィ区間 [アンカー, 区間終端) 内の最終ターゲット */
+export const findLastChordOsmdTargetInParrySpan = (
+  targets: readonly ChordOsmdRhythmTarget[],
+  anchor: ChordOsmdParrySpanAnchor,
+  spanMeasures: number,
+  bpm: number,
+  beatsPerMeasure: number,
+  isSwing = false,
+): ChordOsmdRhythmTarget | null => {
+  const spanEndSec = resolveChordOsmdParrySpanEndSec(
+    anchor,
+    spanMeasures,
+    bpm,
+    beatsPerMeasure,
+    isSwing,
+  );
+  let last: ChordOsmdRhythmTarget | null = null;
+  for (const candidate of targets) {
+    if (candidate.targetTimeSec + 1e-9 < anchor.targetTimeSec) {
+      continue;
+    }
+    if (candidate.targetTimeSec >= spanEndSec - 1e-9) {
+      continue;
+    }
+    if (!last || isLaterChordOsmdRhythmTarget(candidate, last)) {
       last = candidate;
     }
   }
@@ -1734,25 +1839,24 @@ export const resolveChordOsmdParrySpanFinishTarget = (
   bpm: number,
   beatsPerMeasure: number,
   isSwing = false,
-): ChordOsmdRhythmTarget | null => {
-  const finishMeasure = resolveChordOsmdParrySpanFinishMeasure(anchor.measureNumber, spanMeasures);
-  return findLastChordOsmdTargetOnBeatInMeasure(
+): ChordOsmdRhythmTarget | null => (
+  findLastChordOsmdTargetInParrySpan(
     targets,
-    finishMeasure,
-    1,
+    anchor,
+    spanMeasures,
     bpm,
     beatsPerMeasure,
     isSwing,
-  );
-};
+  )
+);
 
 export const isChordOsmdTargetInParrySpan = (
   target: ChordOsmdRhythmTarget,
   anchor: ChordOsmdParrySpanAnchor,
-  finish: ChordOsmdRhythmTarget,
+  spanEndSec: number,
 ): boolean => (
   target.targetTimeSec >= anchor.targetTimeSec - 1e-9
-  && target.targetTimeSec <= finish.targetTimeSec + 1e-9
+  && target.targetTimeSec < spanEndSec - 1e-9
 );
 
 export interface ChordOsmdParrySpanState {
@@ -1762,7 +1866,7 @@ export interface ChordOsmdParrySpanState {
   extendVisualSlow: boolean;
 }
 
-/** ヒットノーツを軸に n 小節後の1拍目最後を finish とするパリィ区間を解決 */
+/** ヒットノーツを軸に n 小節後の (ヒット拍-1) 拍目末尾までを区間とし、区間内最後の音を finish */
 export const resolveChordOsmdParrySpanState = (
   targets: readonly ChordOsmdRhythmTarget[],
   target: ChordOsmdRhythmTarget,
@@ -1774,18 +1878,14 @@ export const resolveChordOsmdParrySpanState = (
 ): ChordOsmdParrySpanState => {
   let activeAnchor = chainAnchor;
   if (activeAnchor !== null) {
-    const previousFinish = resolveChordOsmdParrySpanFinishTarget(
-      targets,
+    const previousSpanEndSec = resolveChordOsmdParrySpanEndSec(
       activeAnchor,
       spanMeasures,
       bpm,
       beatsPerMeasure,
       isSwing,
     );
-    if (
-      previousFinish !== null
-      && target.targetTimeSec > previousFinish.targetTimeSec + 1e-9
-    ) {
+    if (target.targetTimeSec >= previousSpanEndSec - 1e-9) {
       activeAnchor = null;
     }
   }
@@ -1795,7 +1895,14 @@ export const resolveChordOsmdParrySpanState = (
     activeAnchor = toChordOsmdParrySpanAnchor(target);
   }
 
-  const finishTarget = resolveChordOsmdParrySpanFinishTarget(
+  const spanEndSec = resolveChordOsmdParrySpanEndSec(
+    activeAnchor,
+    spanMeasures,
+    bpm,
+    beatsPerMeasure,
+    isSwing,
+  );
+  const finishTarget = findLastChordOsmdTargetInParrySpan(
     targets,
     activeAnchor,
     spanMeasures,
@@ -1807,7 +1914,7 @@ export const resolveChordOsmdParrySpanState = (
   const extendVisualSlow = hadChain
     && !isFinish
     && finishTarget !== null
-    && isChordOsmdTargetInParrySpan(target, activeAnchor, finishTarget)
+    && isChordOsmdTargetInParrySpan(target, activeAnchor, spanEndSec)
     && target.id !== activeAnchor.id;
 
   return {
