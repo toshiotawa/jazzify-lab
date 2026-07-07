@@ -5,6 +5,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from 'react';
+import type { EarTrainingMode } from '@/types';
 import type {
   EarTrainingBattleCallbacks,
   EarTrainingBattleEffectCommand,
@@ -33,6 +34,7 @@ import { drawEarTrainingBattle } from '@/game/earTraining/canvas/drawEarTraining
 import {
   applyEarTrainingBattleImageMap,
   preloadEarTrainingBattleCriticalImages,
+  preloadEarTrainingBattleSecondaryImages,
   scheduleEarTrainingBattleDeferredImages,
 } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import { createCameraRuntime, isCameraActive } from '@/game/earTraining/canvas/earTrainingBattleCamera';
@@ -55,6 +57,7 @@ interface EarTrainingBattleCanvasProps {
   callbacks: EarTrainingBattleCallbacks;
   className?: string;
   disableCorrectSe?: boolean;
+  battleMode?: EarTrainingMode;
 }
 
 const createInitialRuntime = (
@@ -100,6 +103,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   callbacks,
   className,
   disableCorrectSe = true,
+  battleMode,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -298,13 +302,22 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       snapshot.enemyAvatarUrl,
     ];
 
-    void preloadEarTrainingBattleCriticalImages(avatarUrls).then((map) => {
+    void preloadEarTrainingBattleCriticalImages(avatarUrls, battleMode).then((map) => {
       if (cancelled || !runtimeRef.current) {
         return;
       }
-      applyEarTrainingBattleImageMap(runtimeRef.current, map, avatarUrls);
+      applyEarTrainingBattleImageMap(runtimeRef.current, map, avatarUrls, battleMode);
       markDirty();
       window.requestAnimationFrame(() => markDirty());
+
+      void preloadEarTrainingBattleSecondaryImages(battleMode).then((secondaryMap) => {
+        if (cancelled || !runtimeRef.current) {
+          return;
+        }
+        applyEarTrainingBattleImageMap(runtimeRef.current, secondaryMap, [], battleMode);
+        markDirty();
+        window.requestAnimationFrame(() => markDirty());
+      });
 
       if (deferredImagesScheduledRef.current) {
         return;
@@ -317,6 +330,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
           window.requestAnimationFrame(() => markDirty());
         },
         () => cancelled,
+        battleMode,
       );
     });
 
@@ -343,6 +357,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       ro.disconnect();
     };
   }, [
+    battleMode,
     ensureRuntime,
     markDirty,
     snapshot.enemyAvatarUrl,

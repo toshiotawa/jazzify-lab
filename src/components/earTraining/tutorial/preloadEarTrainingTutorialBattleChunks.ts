@@ -1,3 +1,4 @@
+import type { EarTrainingMode } from '@/types';
 import { preloadEarTrainingBattleCriticalImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import { prefetchEarTrainingLobbyAssetsFromStage } from '@/utils/prefetchEarTrainingLobbyAssets';
 import { preloadBattleCountInClick } from '@/utils/ensureBattlePianoAudio';
@@ -56,40 +57,55 @@ const resolveTutorialBattleAvatarUrls = (
   return urls;
 };
 
+const importBattleScreenForMode = (mode: EarTrainingMode): Promise<unknown> => {
+  switch (mode) {
+    case 'chord_osmd':
+      return import('@/components/earTraining/EarTrainingChordOSMDScreen');
+    case 'chord_precision':
+      return import('@/components/earTraining/EarTrainingPrecisionScreen');
+    case 'chord_quiz':
+      return import('@/components/earTraining/EarTrainingChordQuizScreen');
+    case 'chord_voicing':
+      return import('@/components/earTraining/EarTrainingChordVoicingScreen');
+    case 'adlib':
+      return import('@/components/earTraining/EarTrainingAdlibScreen');
+    case 'phrase_pair_adlib':
+      return import('@/components/earTraining/EarTrainingPhrasePairAdlibScreen');
+    case 'phrase':
+      return import('@/components/earTraining/EarTrainingGameScreen');
+    default: {
+      const exhaustive: never = mode;
+      return exhaustive;
+    }
+  }
+};
+
 /**
  * dialogue_only 中にバトル用の重い chunk・画像・音源を先読みして、次シーンで Suspense が出にくくする。
- * キャラ・ハンマー等のクリティカル画像のみ先読みし、エフェクト類はバトル canvas 側で遅延読込する。
+ * 次バトルのモードに必要な Screen chunk のみ読み、クリティカル画像もモード別に絞る。
  */
 export const preloadEarTrainingTutorialBattleChunks = async (
   options: PreloadEarTrainingTutorialBattleChunksOptions = {},
 ): Promise<void> => {
-  const [voicing, quiz, osmd, adlib, pairAdlib] = await Promise.all([
-    import('@/components/earTraining/EarTrainingChordVoicingScreen'),
-    import('@/components/earTraining/EarTrainingChordQuizScreen'),
-    import('@/components/earTraining/EarTrainingChordOSMDScreen'),
-    import('@/components/earTraining/EarTrainingAdlibScreen'),
-    import('@/components/earTraining/EarTrainingPhrasePairAdlibScreen'),
-  ]);
-  void voicing;
-  void quiz;
-  void osmd;
-  void adlib;
-  void pairAdlib;
-
   const isEnglishCopy = options.isEnglishCopy ?? false;
+  const script = options.script;
+  const stage = script ? resolveFirstBattleStage(script, isEnglishCopy) : null;
+  const battleMode = stage?.mode;
+
+  if (battleMode) {
+    await importBattleScreenForMode(battleMode);
+  } else {
+    await import('@/components/earTraining/EarTrainingChordOSMDScreen');
+  }
+
   void preloadEarTrainingBattleCriticalImages(
-    resolveTutorialBattleAvatarUrls(options.script, isEnglishCopy),
+    resolveTutorialBattleAvatarUrls(script, isEnglishCopy),
+    battleMode,
   );
 
   preloadEarTrainingPianoOverlay();
   preloadBattleCountInClick();
 
-  const script = options.script;
-  if (!script) {
-    return;
-  }
-
-  const stage = resolveFirstBattleStage(script, isEnglishCopy);
   if (stage) {
     prefetchEarTrainingLobbyAssetsFromStage(stage);
   }

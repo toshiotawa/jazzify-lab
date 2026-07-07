@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getEarTrainingBattleCriticalUrls,
   getEarTrainingBattleDeferredUrls,
+  getEarTrainingBattleSecondaryUrls,
 } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
 import { preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 
@@ -23,10 +24,32 @@ describe('earTrainingBattleImagePreload', () => {
     expect(urls.some((url) => url.includes('fireball'))).toBe(false);
   });
 
-  it('getEarTrainingBattleDeferredUrls はエフェクトと背景を含む', () => {
+  it('OSMD クリティカルにはパリィ用ポーズを含む', () => {
+    const urls = getEarTrainingBattleCriticalUrls([], 'chord_osmd');
+    expect(urls.some((url) => url.includes('GuardD'))).toBe(true);
+    expect(urls.some((url) => url.includes('finish'))).toBe(true);
+    expect(urls.some((url) => url.includes('eishou'))).toBe(true);
+    expect(urls.some((url) => url.includes('fireball'))).toBe(false);
+  });
+
+  it('OSMD secondary はフレーズ終了エフェクトとスキルポーズのみ', () => {
+    const urls = getEarTrainingBattleSecondaryUrls('chord_osmd');
+    expect(urls.some((url) => url.includes('meteor'))).toBe(true);
+    expect(urls.some((url) => url.includes('Frame2'))).toBe(true);
+    expect(urls.some((url) => url.includes('GuardD'))).toBe(false);
+  });
+
+  it('OSMD deferred は背景のみ', () => {
+    const urls = getEarTrainingBattleDeferredUrls('chord_osmd');
+    expect(urls.some((url) => url.includes('bg-drum-kit'))).toBe(true);
+    expect(urls.some((url) => url.includes('fireball'))).toBe(false);
+    expect(urls.some((url) => url.includes('Frame2'))).toBe(false);
+  });
+
+  it('getEarTrainingBattleDeferredUrls はモード未指定時に従来どおり全件', () => {
     const urls = getEarTrainingBattleDeferredUrls();
     expect(urls.some((url) => url.includes('fireball'))).toBe(true);
-    expect(urls.some((url) => url.includes('hammer'))).toBe(false);
+    expect(urls.some((url) => url.includes('Frame2'))).toBe(true);
   });
 
   it('preloadEarTrainingBattleImages は失敗時にリトライする', async () => {

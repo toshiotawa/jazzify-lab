@@ -1,11 +1,11 @@
+import type { EarTrainingMode } from '@/types';
 import type { EarTrainingBattleDrawRuntime } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
-  BATTLE_UI_SPRITE_URLS,
-  EFFECT_IMAGE_URLS,
   getEarTrainingBattleCriticalUrls,
   getEarTrainingBattleDeferredUrls,
+  getEarTrainingBattleSecondaryUrls,
+  getEarTrainingBattleSpriteRegistryForMode,
 } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
-import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { invalidateBackgroundCache } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 
 const MAX_CONCURRENT = 4;
@@ -46,30 +46,12 @@ export const preloadEarTrainingBattleImages = async (
   return map;
 };
 
-export const applyEarTrainingBattleImageMap = (
+const applySpriteRecord = (
   runtime: EarTrainingBattleDrawRuntime,
   map: Map<string, HTMLImageElement>,
-  avatarUrls: readonly string[],
+  sprites: Record<string, string>,
 ): void => {
-  avatarUrls.forEach((url) => {
-    const img = map.get(url);
-    if (img) {
-      runtime.loadedImages.set(url, img);
-    }
-  });
-  Object.entries(BATTLE_UI_SPRITE_URLS).forEach(([key, url]) => {
-    const img = map.get(url);
-    if (img) {
-      runtime.loadedImages.set(key, img);
-    }
-  });
-  Object.entries(EFFECT_IMAGE_URLS).forEach(([key, url]) => {
-    const img = map.get(url);
-    if (img) {
-      runtime.loadedImages.set(key, img);
-    }
-  });
-  Object.entries(BACKGROUND_IMAGE_URLS).forEach(([key, url]) => {
+  Object.entries(sprites).forEach(([key, url]) => {
     const img = map.get(url);
     if (img) {
       runtime.loadedImages.set(key, img);
@@ -77,25 +59,54 @@ export const applyEarTrainingBattleImageMap = (
   });
 };
 
+export const applyEarTrainingBattleImageMap = (
+  runtime: EarTrainingBattleDrawRuntime,
+  map: Map<string, HTMLImageElement>,
+  avatarUrls: readonly string[],
+  mode?: EarTrainingMode,
+): void => {
+  avatarUrls.forEach((url) => {
+    const img = map.get(url);
+    if (img) {
+      runtime.loadedImages.set(url, img);
+    }
+  });
+
+  const registry = getEarTrainingBattleSpriteRegistryForMode(mode);
+  applySpriteRecord(runtime, map, registry.uiSprites);
+  applySpriteRecord(runtime, map, registry.effectSprites);
+  applySpriteRecord(runtime, map, registry.poseSprites);
+  applySpriteRecord(runtime, map, registry.backgroundSprites);
+};
+
 export const preloadEarTrainingBattleCriticalImages = (
   avatarUrls: readonly string[],
+  mode?: EarTrainingMode,
 ): Promise<Map<string, HTMLImageElement>> =>
-  preloadEarTrainingBattleImages(getEarTrainingBattleCriticalUrls(avatarUrls));
+  preloadEarTrainingBattleImages(getEarTrainingBattleCriticalUrls(avatarUrls, mode));
 
-export const preloadEarTrainingBattleDeferredImages = (): Promise<Map<string, HTMLImageElement>> =>
-  preloadEarTrainingBattleImages(getEarTrainingBattleDeferredUrls());
+export const preloadEarTrainingBattleSecondaryImages = (
+  mode?: EarTrainingMode,
+): Promise<Map<string, HTMLImageElement>> =>
+  preloadEarTrainingBattleImages(getEarTrainingBattleSecondaryUrls(mode));
+
+export const preloadEarTrainingBattleDeferredImages = (
+  mode?: EarTrainingMode,
+): Promise<Map<string, HTMLImageElement>> =>
+  preloadEarTrainingBattleImages(getEarTrainingBattleDeferredUrls(mode));
 
 export const scheduleEarTrainingBattleDeferredImages = (
   runtime: EarTrainingBattleDrawRuntime,
   onReady: () => void,
   isCancelled: () => boolean,
+  mode?: EarTrainingMode,
 ): void => {
   const run = (): void => {
-    void preloadEarTrainingBattleDeferredImages().then((map) => {
+    void preloadEarTrainingBattleDeferredImages(mode).then((map) => {
       if (isCancelled()) {
         return;
       }
-      applyEarTrainingBattleImageMap(runtime, map, []);
+      applyEarTrainingBattleImageMap(runtime, map, [], mode);
       invalidateBackgroundCache(runtime.backgroundCache);
       onReady();
     });

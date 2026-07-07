@@ -1,3 +1,4 @@
+import type { EarTrainingMode } from '@/types';
 import {
   BACKGROUND_IMAGE_URLS,
   PLAYER_POSE_IMAGE_URLS,
@@ -33,20 +34,136 @@ export const EFFECT_IMAGE_URLS: Record<string, string> = {
   ...PLAYER_POSE_IMAGE_URLS,
 };
 
+const OSMD_CRITICAL_POSE_KEYS = ['guardD', 'finish', 'cast'] as const;
+const OSMD_SECONDARY_POSE_KEYS = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5', 'skill6'] as const;
+const OSMD_EFFECT_KEYS = ['meteor', 'fireRing', 'snowflake', 'lightning', 'cloud'] as const;
+
+const isOsmdLikeMode = (mode?: EarTrainingMode): boolean =>
+  mode === 'chord_osmd' || mode === 'chord_precision';
+
+const pickRecordKeys = (
+  source: Record<string, string>,
+  keys: readonly string[],
+): Record<string, string> => {
+  const picked: Record<string, string> = {};
+  keys.forEach((key) => {
+    const url = source[key];
+    if (url) {
+      picked[key] = url;
+    }
+  });
+  return picked;
+};
+
+export const getEarTrainingBattleCriticalPoseSpritesForMode = (
+  mode?: EarTrainingMode,
+): Record<string, string> => {
+  if (isOsmdLikeMode(mode)) {
+    return pickRecordKeys(PLAYER_POSE_IMAGE_URLS, OSMD_CRITICAL_POSE_KEYS);
+  }
+  return {};
+};
+
+export const getEarTrainingBattleSecondaryEffectSpritesForMode = (
+  mode?: EarTrainingMode,
+): Record<string, string> => {
+  if (isOsmdLikeMode(mode)) {
+    return pickRecordKeys(BATTLE_EFFECT_SPRITE_URLS, OSMD_EFFECT_KEYS);
+  }
+  return {};
+};
+
+export const getEarTrainingBattleSecondaryPoseSpritesForMode = (
+  mode?: EarTrainingMode,
+): Record<string, string> => {
+  if (isOsmdLikeMode(mode)) {
+    return pickRecordKeys(PLAYER_POSE_IMAGE_URLS, OSMD_SECONDARY_POSE_KEYS);
+  }
+  return {};
+};
+
+export const getEarTrainingBattleSpriteRegistryForMode = (
+  mode?: EarTrainingMode,
+): {
+  uiSprites: Record<string, string>;
+  effectSprites: Record<string, string>;
+  poseSprites: Record<string, string>;
+  backgroundSprites: Record<string, string>;
+} => {
+  if (!isOsmdLikeMode(mode)) {
+    return {
+      uiSprites: { ...BATTLE_UI_SPRITE_URLS },
+      effectSprites: {
+        ...BATTLE_EFFECT_SPRITE_URLS,
+        magicCircle: BATTLE_MAGIC_CIRCLE_URL,
+      },
+      poseSprites: { ...PLAYER_POSE_IMAGE_URLS },
+      backgroundSprites: { ...BACKGROUND_IMAGE_URLS },
+    };
+  }
+
+  return {
+    uiSprites: { ...BATTLE_UI_SPRITE_URLS },
+    effectSprites: {
+      ...getEarTrainingBattleSecondaryEffectSpritesForMode(mode),
+    },
+    poseSprites: {
+      ...getEarTrainingBattleCriticalPoseSpritesForMode(mode),
+      ...getEarTrainingBattleSecondaryPoseSpritesForMode(mode),
+    },
+    backgroundSprites: { ...BACKGROUND_IMAGE_URLS },
+  };
+};
+
 export const getEarTrainingBattleCriticalUrls = (
   avatarUrls: readonly string[],
+  mode?: EarTrainingMode,
 ): string[] => [
   ...new Set([
     ...avatarUrls.filter(Boolean),
     ...Object.values(BATTLE_UI_SPRITE_URLS),
+    ...Object.values(getEarTrainingBattleCriticalPoseSpritesForMode(mode)),
   ]),
 ];
 
-export const getEarTrainingBattleDeferredUrls = (): string[] => [
-  ...new Set([
-    ...Object.values(BATTLE_EFFECT_SPRITE_URLS),
-    ...Object.values(BACKGROUND_IMAGE_URLS),
-    ...Object.values(PLAYER_POSE_IMAGE_URLS),
-    BATTLE_MAGIC_CIRCLE_URL,
-  ]),
-];
+export const getEarTrainingBattleSecondaryUrls = (
+  mode?: EarTrainingMode,
+): string[] => {
+  if (!isOsmdLikeMode(mode)) {
+    return [];
+  }
+  return [
+    ...new Set([
+      ...Object.values(getEarTrainingBattleSecondaryEffectSpritesForMode(mode)),
+      ...Object.values(getEarTrainingBattleSecondaryPoseSpritesForMode(mode)),
+    ]),
+  ];
+};
+
+export const getEarTrainingBattleDeferredUrls = (
+  mode?: EarTrainingMode,
+): string[] => {
+  if (!mode) {
+    return [
+      ...new Set([
+        ...Object.values(BATTLE_EFFECT_SPRITE_URLS),
+        ...Object.values(BACKGROUND_IMAGE_URLS),
+        ...Object.values(PLAYER_POSE_IMAGE_URLS),
+        BATTLE_MAGIC_CIRCLE_URL,
+      ]),
+    ];
+  }
+
+  if (isOsmdLikeMode(mode)) {
+    return [...new Set([...Object.values(BACKGROUND_IMAGE_URLS)])];
+  }
+
+  return [
+    ...new Set([
+      ...Object.values(BATTLE_EFFECT_SPRITE_URLS),
+      ...Object.values(BACKGROUND_IMAGE_URLS),
+      ...Object.values(PLAYER_POSE_IMAGE_URLS),
+      BATTLE_MAGIC_CIRCLE_URL,
+    ]),
+  ];
+};

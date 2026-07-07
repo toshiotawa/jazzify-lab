@@ -1951,6 +1951,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           callbacks={battleCallbacks}
           className="h-full w-full"
           disableCorrectSe
+          battleMode="chord_osmd"
         />
       </div>
 
