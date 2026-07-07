@@ -1,14 +1,15 @@
 import {
   easeCubicOut,
   lerp,
-  PARRY_MERGE_RADIUS_PX,
+  PARRY_MAX_RADIUS_PX,
+  PARRY_RING_BASE_SIZE,
   PARRY_RING_LINE_WIDTH,
 } from './earTrainingBattleDrawState';
 
-/** OSU! ヒット円の半径（px） */
-export const OSU_CIRCLE_INNER_RADIUS_PX = PARRY_MERGE_RADIUS_PX;
-/** OSU! アプローチ外円の開始半径（内円の 2 倍） */
-export const OSU_CIRCLE_OUTER_START_RADIUS_PX = OSU_CIRCLE_INNER_RADIUS_PX * 2;
+/** OSU! ヒット円の半径（px）。パリィ円 `PARRY_RING_BASE_SIZE` と同じ直径 */
+export const OSU_CIRCLE_INNER_RADIUS_PX = PARRY_RING_BASE_SIZE / 2;
+/** OSU! アプローチ外円の開始半径。パリィ円の最大拡大半径 */
+export const OSU_CIRCLE_OUTER_START_RADIUS_PX = PARRY_MAX_RADIUS_PX;
 /** 下からスライドイン完了までの approach 進行割合 */
 export const OSU_CIRCLE_ENTER_FRACTION = 0.2;
 /** ヒット位置より下の開始オフセット（px） */
@@ -106,10 +107,11 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
     };
   }
 
+  // 線形補間: easeOut だと早押し窓（約 -250ms）付近で見かけ上重なってしまう
   const outerRadius = lerp(
     OSU_CIRCLE_OUTER_START_RADIUS_PX,
     OSU_CIRCLE_INNER_RADIUS_PX,
-    easeCubicOut(approachT),
+    approachT,
   );
 
   return {

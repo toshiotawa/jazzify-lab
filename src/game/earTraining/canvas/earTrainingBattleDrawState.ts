@@ -245,6 +245,8 @@ export interface EarTrainingBattleDrawRuntime {
   parrySparkPool: ParrySparkSlot[];
   /** OSMD: OSU! 式アプローチ円（visualSlow 非影響） */
   osuCirclePool: OsuCircleSlot[];
+  /** chord_osmd バトルのみ OSU! 円を描画 */
+  chordOsmdBattle: boolean;
   lastParryAt: number;
   /** 小節最終音符フィニッシュ中は連続パリィでモーションをキャンセルしない */
   parryFinishLocked: boolean;

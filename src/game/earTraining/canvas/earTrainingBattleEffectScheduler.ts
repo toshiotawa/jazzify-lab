@@ -259,6 +259,9 @@ const playOsmdApproachCircleEffect = (
   command: EarTrainingBattleEffectCommand,
 ): void => {
   const { runtime, anchors, onDirty } = ctx;
+  if (!runtime.chordOsmdBattle) {
+    return;
+  }
   const approachStartMs = command.approachStartMs;
   const judgedMs = command.judgedMs;
   if (approachStartMs === undefined || judgedMs === undefined) {
@@ -281,6 +284,9 @@ const playOsmdApproachCircleBurstEffect = (
   command: EarTrainingBattleEffectCommand,
 ): void => {
   const { runtime, onDirty } = ctx;
+  if (!runtime.chordOsmdBattle) {
+    return;
+  }
   const relatedId = command.relatedEffectId;
   if (relatedId === undefined) {
     return;
@@ -305,6 +311,9 @@ const playOsmdApproachCircleDismissEffect = (
   command: EarTrainingBattleEffectCommand,
 ): void => {
   const { runtime, onDirty } = ctx;
+  if (!runtime.chordOsmdBattle) {
+    return;
+  }
   const relatedId = command.relatedEffectId;
   if (relatedId === undefined) {
     return;

@@ -98,6 +98,7 @@ const createInitialRuntime = (
   parryMotionEndTimer: null,
   parrySparkPool: createParrySparkPool(),
   osuCirclePool: createOsuCirclePool(),
+  chordOsmdBattle: false,
   lastParryAt: 0,
   parryFinishLocked: false,
 });
@@ -156,13 +157,14 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     }
     runtimeRef.current.width = width;
     runtimeRef.current.height = height;
+    runtimeRef.current.chordOsmdBattle = battleMode === 'chord_osmd';
     runtimeRef.current.staffReservedBottomY = resolveStaffReservedBottomY(
       height,
       width,
       snapshotRef.current.staffBand,
     );
     return runtimeRef.current;
-  }, []);
+  }, [battleMode]);
 
   const bindHudHitRegions = useCallback((runtime: EarTrainingBattleDrawRuntime) => {
     runtime.hudHitRegions = runtime.hudHitRegions.map(region => {
@@ -374,6 +376,12 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   }, [snapshot, applySnapshotToRuntime]);
 
   useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    runtime.chordOsmdBattle = battleMode === 'chord_osmd';
+  }, [battleMode]);
+
+  useEffect(() => {
     if (!effectCommand) return;
     if (
       !disableCorrectSe && (
@@ -434,7 +442,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
           && now < runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
         )
         || hasActiveParrySparks(runtime.parrySparkPool)
-        || hasActiveOsuCircles(runtime.osuCirclePool, now)
+        || (runtime.chordOsmdBattle && hasActiveOsuCircles(runtime.osuCirclePool, now))
         || (
           runtime.lastParryAt > 0
           && now < runtime.lastParryAt + PARRY_TOTAL_MS + 250

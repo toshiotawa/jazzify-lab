@@ -75,4 +75,15 @@ describe('computeOsuCircleTiming', () => {
     expect(state.visible).toBe(false);
     expect(state.phase).toBe('dismissed');
   });
+
+  it('早押し窓（-250ms）付近では外円が内円と重ならない', () => {
+    const beatMs = baseInput.judgedMs - baseInput.approachStartMs;
+    const earlyWindowMs = 250;
+    const state = computeOsuCircleTiming({
+      ...baseInput,
+      nowMs: baseInput.judgedMs - earlyWindowMs,
+    });
+    expect(beatMs).toBe(500);
+    expect(state.outerRadius).toBeGreaterThan(state.innerRadius + 1);
+  });
 });

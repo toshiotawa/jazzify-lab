@@ -972,7 +972,9 @@ const drawEffects = (
   });
 
   drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
-  drawOsuCircles(ctx, runtime.osuCirclePool, now);
+  if (runtime.chordOsmdBattle) {
+    drawOsuCircles(ctx, runtime.osuCirclePool, now);
+  }
 
   runtime.floatingTexts.forEach(text => {
     const t = (visualNow - text.startedAt) / text.durationMs;
