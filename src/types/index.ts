@@ -1072,6 +1072,9 @@ export interface Profile {
   preferred_locale?: 'ja' | 'en' | null;
   country?: string | null;
   signup_platform?: 'web' | 'ios' | null;
+  signup_device_category?: 'desktop' | 'mobile' | 'tablet' | null;
+  signup_os?: 'ios' | 'android' | 'windows' | 'macos' | 'other' | null;
+  signup_browser?: 'safari' | 'chrome' | 'firefox' | 'edge' | 'other' | null;
   // Stripe subscription fields
   stripe_customer_id?: string;
   rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';

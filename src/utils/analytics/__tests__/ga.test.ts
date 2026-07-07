@@ -93,9 +93,48 @@ describe('initGa dataLayer contract', () => {
     ) as IArguments | undefined;
 
     expect(signUpCommand?.[2]).toEqual({
+      device_category: 'desktop',
+      device_os: 'other',
+      device_browser: 'other',
       lp_locale: 'en',
       lp_hostname: 'en.jazzify.jp',
       lp_path: '/signup',
+      method: 'email_otp',
+    });
+  });
+
+  it('attaches device context to auth funnel events', async () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    });
+    Object.defineProperty(navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 0,
+    });
+
+    const pushed: unknown[] = [];
+    const dataLayer: unknown[] = [];
+    Object.defineProperty(dataLayer, 'push', {
+      value: (...items: unknown[]) => {
+        pushed.push(...items);
+        return pushed.length;
+      },
+    });
+    window.dataLayer = dataLayer;
+
+    const { initGa, trackEvent } = await import('@/utils/analytics/ga');
+    initGa();
+    trackEvent('sign_up_click', { method: 'email_otp' });
+
+    const signUpClickCommand = pushed.find(
+      (item) => !Array.isArray(item) && (item as IArguments)[0] === 'event' && (item as IArguments)[1] === 'sign_up_click',
+    ) as IArguments | undefined;
+
+    expect(signUpClickCommand?.[2]).toEqual({
+      device_category: 'desktop',
+      device_os: 'windows',
+      device_browser: 'chrome',
       method: 'email_otp',
     });
   });

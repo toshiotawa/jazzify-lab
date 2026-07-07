@@ -9,6 +9,7 @@ import { isIOSWebView, getNativeAuthToken, getNativeRefreshToken } from '@/utils
 import { useGeoStore } from './geoStore';
 import { resolveWebSignupCountry, resolveWebSignupPlatform } from '@/utils/signupMetadata';
 import { getStoredFirstTouch } from '@/utils/analytics/attribution';
+import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceContext';
 import { getGaClientId, trackEvent } from '@/utils/analytics/ga';
 import { MARKETING_EMAIL_OPT_IN_SOURCE } from '@/utils/marketingEmailOptIn';
 
@@ -730,6 +731,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         const initialLocale = detectPreferredLocale();
         const firstTouch = getStoredFirstTouch();
         const gaClientId = await getGaClientId();
+        const signupDevice = resolveCurrentSignupDeviceContext();
         const marketingEmailOptIn = options?.marketingEmailOptIn === true;
         const { error } = await supabase.from('profiles').insert({
           id: user.id,
@@ -741,6 +743,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           is_admin: false,
           preferred_locale: initialLocale,
           signup_platform: resolveWebSignupPlatform(),
+          signup_device_category: signupDevice.signup_device_category,
+          signup_os: signupDevice.signup_os,
+          signup_browser: signupDevice.signup_browser,
           country: signupCountry,
           first_touch_utm_source: firstTouch?.utm_source ?? null,
           first_touch_utm_medium: firstTouch?.utm_medium ?? null,

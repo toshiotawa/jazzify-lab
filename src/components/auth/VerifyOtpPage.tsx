@@ -5,6 +5,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { navigateToDashboardPath } from '@/utils/appNavigation';
+import { trackEvent } from '@/utils/analytics/ga';
 
 const VerifyOtpPage: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ const VerifyOtpPage: React.FC = () => {
 
   const searchParams = new URLSearchParams(location.search);
   const redirect = searchParams.get('redirect') || '';
+  const authMode = searchParams.get('mode') === 'signup' ? 'signup' : 'login';
 
   useEffect(() => {
     const emailFromQuery = searchParams.get('email');
@@ -37,6 +39,9 @@ const VerifyOtpPage: React.FC = () => {
 
     try {
       await verifyOtp(email, otpCode);
+      if (authMode === 'signup') {
+        trackEvent('signup_otp_verified', { method: 'email_otp' });
+      }
       navigate(redirect || navigateToDashboardPath(), { replace: true });
     } catch {
       toast.error(en ? 'OTP verification failed. Please check your code.' : 'OTP検証に失敗しました。コードを確認してください。');

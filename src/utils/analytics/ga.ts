@@ -1,3 +1,4 @@
+import { getDeviceGaParams } from '@/utils/analytics/deviceContext';
 import { detectPreferredLocale } from '@/utils/globalAudience';
 
 declare global {
@@ -13,6 +14,13 @@ const LP_CONTEXT_EVENT_NAMES = new Set([
   'sign_up',
   'tutorial_complete',
   'begin_checkout',
+]);
+
+const AUTH_FUNNEL_EVENT_NAMES = new Set([
+  'sign_up_click',
+  'signup_otp_verified',
+  'profile_wizard_view',
+  'sign_up',
 ]);
 
 const getLpEventContext = (): GaEventParams => {
@@ -68,14 +76,21 @@ export const initGa = (): void => {
   initialized = true;
 };
 
+const buildEventParams = (name: string, params?: GaEventParams): GaEventParams => {
+  const base = params ?? {};
+  const withDevice = AUTH_FUNNEL_EVENT_NAMES.has(name)
+    ? { ...getDeviceGaParams(), ...base }
+    : base;
+  return shouldAttachLpContext(name, params)
+    ? { ...getLpEventContext(), ...withDevice }
+    : withDevice;
+};
+
 export const trackEvent = (name: string, params?: GaEventParams): void => {
   if (!initialized || !window.gtag) {
     return;
   }
-  const eventParams = shouldAttachLpContext(name, params)
-    ? { ...getLpEventContext(), ...params }
-    : (params ?? {});
-  window.gtag('event', name, eventParams);
+  window.gtag('event', name, buildEventParams(name, params));
 };
 
 export const trackPageView = (path: string): void => {

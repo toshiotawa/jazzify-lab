@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { trackEvent } from '@/utils/analytics/ga';
 import {
   MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN,
   MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA,
@@ -48,6 +49,12 @@ const ProfileWizard: React.FC = () => {
   const marketingOptInText = isEnglishCopy
     ? MARKETING_EMAIL_OPT_IN_TEXT_EN
     : MARKETING_EMAIL_OPT_IN_TEXT_JA;
+
+  useEffect(() => {
+    if (!hasProfile) {
+      trackEvent('profile_wizard_view');
+    }
+  }, [hasProfile]);
 
   if (hasProfile) return null;
 

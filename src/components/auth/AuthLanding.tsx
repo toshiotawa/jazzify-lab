@@ -54,12 +54,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     }
   }, [mode, user, navigate]);
 
-  useEffect(() => {
-    if (mode === 'signup') {
-      trackEvent('sign_up_click', { method: 'email_otp' });
-    }
-  }, [mode]);
-
   // 地理情報の事前取得や国のローカル保存は行わない
 
   const isReviewAccount = email.toLowerCase().trim() === REVIEW_EMAIL;
@@ -89,6 +83,9 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
     try {
       await sendOtp(email, mode, isEnglishCopy);
+      if (mode === 'signup') {
+        trackEvent('sign_up_click', { method: 'email_otp' });
+      }
         toast.success(sendOtpSuccess, {
           title: sendOtpTitle,
           duration: 5000,
