@@ -23,6 +23,7 @@
     "clean": "rm -rf dist node_modules/.vite",
     "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install",
     "subset-lp-fonts": "node ./scripts/subset-lp-fonts.mjs",
+    "optimize-stage-cards": "node ./scripts/optimize-stage-card-images.mjs",
     "survival-voicing": "node ./scripts/survival-progression-voicings.mjs",
     "verify:node": "node ./scripts/ensure-node.mjs",
     "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs"
@@ -83,6 +84,7 @@
     "jsdom": "^27.3.0",
     "pg": "^8.20.0",
     "postcss": "^8.4.32",
+    "sharp": "^0.33.5",
     "subset-font": "^2.4.0",
     "supabase": "^2.30.4",
     "tailwindcss": "^3.4.0",

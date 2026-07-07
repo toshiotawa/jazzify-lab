@@ -65,9 +65,9 @@ const stageCardName = (stageNumber: number): string => {
 };
 
 export const stageCardRectangularPath = (stageNumber: number): string => {
-  return `/stage_cards_collection/rectangular_cards/${stageCardName(stageNumber)}_card.png`;
+  return `/stage_cards_collection/rectangular_cards/${stageCardName(stageNumber)}_card.webp`;
 };
 
 export const stageCardSquarePath = (stageNumber: number): string => {
-  return `/stage_cards_collection/square_backgrounds/${stageCardName(stageNumber)}_bg.png`;
+  return `/stage_cards_collection/square_backgrounds/${stageCardName(stageNumber)}_bg.webp`;
 };

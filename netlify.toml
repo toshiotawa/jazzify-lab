@@ -64,6 +64,11 @@
     Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
+  for = "/stage_cards_collection/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
   for = "*.wasm"
   [headers.values]
     Content-Type = "application/wasm"
