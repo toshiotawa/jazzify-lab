@@ -21,13 +21,10 @@ final class SupabaseService: Sendable {
 
     // MARK: - Auth
 
-    func sendOTP(email: String, shouldCreateUser: Bool, locale: AppLocale) async throws {
-        let redirectTo = Self.authEmailRedirectURL(locale: locale)
+    func sendOTP(email: String, shouldCreateUser: Bool) async throws {
         try await client.auth.signInWithOTP(
             email: email,
-            redirectTo: redirectTo,
-            shouldCreateUser: shouldCreateUser,
-            data: [Self.authEmailLocaleMetadataKey: .string(locale.rawValue)]
+            shouldCreateUser: shouldCreateUser
         )
     }
 
@@ -266,14 +263,9 @@ final class SupabaseService: Sendable {
     }
 
     /// Web の `supabase.auth.updateUser({ email })` と同じ経路（確認コード送信。テンプレートに `{{ .Token }}` が必要）
-    func requestEmailChange(newEmail: String, locale: AppLocale) async throws {
+    func requestEmailChange(newEmail: String) async throws {
         let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        _ = try await client.auth.update(
-            user: UserAttributes(
-                email: trimmed,
-                data: [Self.authEmailLocaleMetadataKey: .string(locale.rawValue)]
-            )
-        )
+        _ = try await client.auth.update(user: .init(email: trimmed))
     }
 
     /// メール変更の OTP 検証（`verifyOtp` type `email_change`）
@@ -1801,22 +1793,6 @@ final class SupabaseService: Sendable {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw SupabaseServiceError.serverError(statusCode: httpResponse.statusCode, message: body)
         }
-    }
-}
-
-private extension SupabaseService {
-    static let authEmailLocaleMetadataKey = "auth_email_locale"
-
-    static func authEmailRedirectURL(locale: AppLocale) -> URL {
-        var components = URLComponents(
-            url: Config.webAppBaseURL.appendingPathComponent("login/verify-otp"),
-            resolvingAgainstBaseURL: false
-        )
-        components?.queryItems = [URLQueryItem(name: "auth_locale", value: locale.rawValue)]
-        guard let url = components?.url else {
-            return Config.webAppBaseURL.appendingPathComponent("login/verify-otp")
-        }
-        return url
     }
 }
 
