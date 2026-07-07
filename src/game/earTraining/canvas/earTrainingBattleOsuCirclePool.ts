@@ -6,7 +6,6 @@ import {
 } from './earTrainingBattleOsuCircleTiming';
 
 export const OSU_CIRCLE_POOL_SIZE = 16;
-export const OSU_CIRCLE_BURST_LINGER_MS = 120;
 
 export interface OsuCircleSlot {
   active: boolean;
@@ -15,8 +14,12 @@ export interface OsuCircleSlot {
   judgedMs: number;
   centerX: number;
   targetY: number;
-  burstAtMs?: number;
   dismissed: boolean;
+}
+
+export interface OsuCircleBurstPosition {
+  centerX: number;
+  targetY: number;
 }
 
 export interface SpawnOsuCircleParams {
@@ -26,6 +29,29 @@ export interface SpawnOsuCircleParams {
   centerX: number;
   targetY: number;
 }
+
+export interface OsuApproachCircleTimingUpdate {
+  commandId: number;
+  approachStartMs: number;
+  judgedMs: number;
+}
+
+export const resyncOsuCircleTimings = (
+  pool: OsuCircleSlot[],
+  updates: readonly OsuApproachCircleTimingUpdate[],
+): number => {
+  let resynced = 0;
+  for (const update of updates) {
+    const slot = findOsuCircleByCommandId(pool, update.commandId);
+    if (!slot || slot.dismissed) {
+      continue;
+    }
+    slot.approachStartMs = update.approachStartMs;
+    slot.judgedMs = update.judgedMs;
+    resynced += 1;
+  }
+  return resynced;
+};
 
 export const createOsuCirclePool = (): OsuCircleSlot[] =>
   Array.from({ length: OSU_CIRCLE_POOL_SIZE }, (): OsuCircleSlot => ({
@@ -50,7 +76,6 @@ export const spawnOsuCircle = (
     slot.judgedMs = params.judgedMs;
     slot.centerX = params.centerX;
     slot.targetY = params.targetY;
-    slot.burstAtMs = undefined;
     slot.dismissed = false;
     return true;
   }
@@ -67,12 +92,15 @@ export const findOsuCircleByCommandId = (
 export const burstOsuCircle = (
   pool: OsuCircleSlot[],
   commandId: number,
-  nowMs: number,
-): OsuCircleSlot | null => {
+): OsuCircleBurstPosition | null => {
   const slot = findOsuCircleByCommandId(pool, commandId);
   if (!slot) return null;
-  slot.burstAtMs = nowMs;
-  return slot;
+  const position: OsuCircleBurstPosition = {
+    centerX: slot.centerX,
+    targetY: slot.targetY,
+  };
+  slot.active = false;
+  return position;
 };
 
 export const dismissOsuCircle = (
@@ -85,14 +113,10 @@ export const dismissOsuCircle = (
   return true;
 };
 
-export const pruneOsuCircles = (pool: OsuCircleSlot[], nowMs: number): void => {
+export const pruneOsuCircles = (pool: OsuCircleSlot[]): void => {
   for (const slot of pool) {
     if (!slot.active) continue;
     if (slot.dismissed) {
-      slot.active = false;
-      continue;
-    }
-    if (slot.burstAtMs !== undefined && nowMs >= slot.burstAtMs + OSU_CIRCLE_BURST_LINGER_MS) {
       slot.active = false;
     }
   }
@@ -100,21 +124,13 @@ export const pruneOsuCircles = (pool: OsuCircleSlot[], nowMs: number): void => {
 
 export const hasActiveOsuCircles = (pool: OsuCircleSlot[], nowMs: number): boolean => {
   for (const slot of pool) {
-    if (!slot.active) continue;
-    if (slot.dismissed) continue;
-    if (slot.burstAtMs !== undefined) {
-      if (nowMs < slot.burstAtMs + OSU_CIRCLE_BURST_LINGER_MS) {
-        return true;
-      }
-      continue;
-    }
+    if (!slot.active || slot.dismissed) continue;
     const timing = computeOsuCircleTiming({
       nowMs,
       approachStartMs: slot.approachStartMs,
       judgedMs: slot.judgedMs,
       centerX: slot.centerX,
       targetY: slot.targetY,
-      burstAtMs: slot.burstAtMs,
       dismissed: slot.dismissed,
     });
     if (timing.visible) {
@@ -138,32 +154,8 @@ export const drawOsuCircles = (
       judgedMs: slot.judgedMs,
       centerX: slot.centerX,
       targetY: slot.targetY,
-      burstAtMs: slot.burstAtMs,
       dismissed: slot.dismissed,
     });
-
-    if (slot.burstAtMs !== undefined) {
-      const burstAge = nowMs - slot.burstAtMs;
-      if (burstAge >= OSU_CIRCLE_BURST_LINGER_MS) continue;
-      const burstT = burstAge / OSU_CIRCLE_BURST_LINGER_MS;
-      const burstAlpha = 1 - burstT;
-      const burstScale = 1 + burstT * 0.6;
-      ctx.save();
-      ctx.globalAlpha = burstAlpha;
-      ctx.strokeStyle = OSU_CIRCLE_INNER_STROKE;
-      ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH;
-      ctx.beginPath();
-      ctx.arc(
-        slot.centerX,
-        slot.targetY,
-        timing.innerRadius * burstScale,
-        0,
-        Math.PI * 2,
-      );
-      ctx.stroke();
-      ctx.restore();
-      continue;
-    }
 
     if (!timing.visible) continue;
 

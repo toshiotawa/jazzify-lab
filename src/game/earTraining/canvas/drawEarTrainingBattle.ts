@@ -63,6 +63,9 @@ import {
   drawOsuCircles,
 } from './earTrainingBattleOsuCirclePool';
 import {
+  drawOsuCircleShatter,
+} from './earTrainingBattleOsuCircleShatterPool';
+import {
   applyWorldCameraTransform,
   computeCameraTransform,
 } from './earTrainingBattleCamera';
@@ -974,6 +977,7 @@ const drawEffects = (
   drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
   if (runtime.chordOsmdBattle) {
     drawOsuCircles(ctx, runtime.osuCirclePool, now);
+    drawOsuCircleShatter(ctx, runtime.osuCircleShatterPool, now);
   }
 
   runtime.floatingTexts.forEach(text => {

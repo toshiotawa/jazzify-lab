@@ -5,6 +5,7 @@ import {
   OSU_CIRCLE_LINE_WIDTH,
   OSU_CIRCLE_OUTER_START_RADIUS_PX,
 } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
+import { PARRY_MAX_RADIUS_PX } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 
 const baseInput = {
   approachStartMs: 1000,
@@ -14,6 +15,12 @@ const baseInput = {
 };
 
 describe('computeOsuCircleTiming', () => {
+  it('内円は従来パリィ最大半径、アプローチ外円はその2倍から開始', () => {
+    expect(OSU_CIRCLE_INNER_RADIUS_PX).toBe(PARRY_MAX_RADIUS_PX);
+    expect(OSU_CIRCLE_OUTER_START_RADIUS_PX).toBe(PARRY_MAX_RADIUS_PX * 2);
+    expect(OSU_CIRCLE_LINE_WIDTH).toBeLessThan(5);
+  });
+
   it('approachStartMs 以前は非表示', () => {
     const state = computeOsuCircleTiming({
       ...baseInput,

@@ -2,26 +2,42 @@ import {
   easeCubicOut,
   lerp,
   PARRY_MAX_RADIUS_PX,
-  PARRY_RING_BASE_SIZE,
-  PARRY_RING_LINE_WIDTH,
 } from './earTrainingBattleDrawState';
 
-/** OSU! ヒット円の半径（px）。パリィ円 `PARRY_RING_BASE_SIZE` と同じ直径 */
-export const OSU_CIRCLE_INNER_RADIUS_PX = PARRY_RING_BASE_SIZE / 2;
-/** OSU! アプローチ外円の開始半径。パリィ円の最大拡大半径 */
-export const OSU_CIRCLE_OUTER_START_RADIUS_PX = PARRY_MAX_RADIUS_PX;
-/** フレーズタイムラインと聴感のずれ補正（重なりをわずかに遅らせる） */
-export const OSU_CIRCLE_JUDGED_OFFSET_MS = 35;
+/** OSU! ヒット円の半径（px）。従来パリィ円の最大拡大半径 */
+export const OSU_CIRCLE_INNER_RADIUS_PX = PARRY_MAX_RADIUS_PX;
+/** OSU! アプローチ外円の開始半径（最大パリィ円より外側） */
+export const OSU_CIRCLE_OUTER_START_RADIUS_PX = PARRY_MAX_RADIUS_PX * 2;
+/** OSU! 円の線幅（px）。パリィリングより細く */
+export const OSU_CIRCLE_LINE_WIDTH = 3;
 /** 下からスライドイン完了までの approach 進行割合 */
 export const OSU_CIRCLE_ENTER_FRACTION = 0.2;
 /** ヒット位置より下の開始オフセット（px） */
 export const OSU_CIRCLE_ENTER_OFFSET_PX = 48;
 export const OSU_CIRCLE_INNER_STROKE = 'rgba(251, 146, 60, 0.9)';
 export const OSU_CIRCLE_OUTER_STROKE = 'rgba(255, 255, 255, 0.85)';
-export const OSU_CIRCLE_LINE_WIDTH = PARRY_RING_LINE_WIDTH;
 /** アプローチ外円の中心線半径がこの値で内円外周と接する（OSU! 同様） */
 export const getOsuCircleOverlapOuterRadiusPx = (): number =>
   OSU_CIRCLE_INNER_RADIUS_PX + OSU_CIRCLE_LINE_WIDTH;
+
+export interface OsuApproachCirclePerfTiming {
+  judgedMs: number;
+  approachStartMs: number;
+}
+
+/** フレーズ時刻と calibration 済み judged から performance.now 基準の OSU! 円タイミングを算出 */
+export const resolveOsuApproachCirclePerfTiming = (
+  judgedPhraseTimeSec: number,
+  phraseTimeSec: number,
+  approachLeadSec: number,
+  perfNowMs: number = performance.now(),
+): OsuApproachCirclePerfTiming => {
+  const judgedMs = perfNowMs + (judgedPhraseTimeSec - phraseTimeSec) * 1000;
+  return {
+    judgedMs,
+    approachStartMs: judgedMs - approachLeadSec * 1000,
+  };
+};
 
 export type OsuCirclePhase = 'hidden' | 'approach' | 'locked' | 'burst' | 'dismissed';
 

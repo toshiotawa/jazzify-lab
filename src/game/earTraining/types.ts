@@ -153,6 +153,14 @@ export interface EarTrainingBattleSceneHandle {
   /** 敵アタックゲージを React を経由せず直接更新する（高頻度更新用） */
   setEnemyAttackGaugePercent: (percent: number) => void;
   triggerEffect: (command: EarTrainingBattleEffectCommand) => void;
+  /** OSMD: 表示中 OSU! 円の judged / approach 時刻を再同期 */
+  resyncOsuApproachCircles: (
+    updates: readonly {
+      commandId: number;
+      approachStartMs: number;
+      judgedMs: number;
+    }[],
+  ) => void;
   highlightKey: (midiNote: number, active: boolean) => void;
   /** 主人公頭上のヴォイシング台詞吹き出し。null で非表示。文字列または `segments` で部分色指定。 */
   setPlayerQuote: (content: EarTrainingQuotePayload | null, options?: EarTrainingPlayerQuoteOptions) => void;

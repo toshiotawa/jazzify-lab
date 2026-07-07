@@ -48,7 +48,12 @@ import {
 import {
   createOsuCirclePool,
   hasActiveOsuCircles,
+  resyncOsuCircleTimings,
 } from '@/game/earTraining/canvas/earTrainingBattleOsuCirclePool';
+import {
+  createOsuCircleShatterPool,
+  hasActiveOsuCircleShatter,
+} from '@/game/earTraining/canvas/earTrainingBattleOsuCircleShatterPool';
 import {
   pruneExpiredEffects,
   scheduleEarTrainingBattleEffect,
@@ -98,6 +103,7 @@ const createInitialRuntime = (
   parryMotionEndTimer: null,
   parrySparkPool: createParrySparkPool(),
   osuCirclePool: createOsuCirclePool(),
+  osuCircleShatterPool: createOsuCircleShatterPool(),
   chordOsmdBattle: false,
   lastParryAt: 0,
   parryFinishLocked: false,
@@ -262,6 +268,15 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         onImpact: callbacksRef.current.onEffectImpact,
         scheduleImpact,
       }, command);
+    },
+    resyncOsuApproachCircles: (updates) => {
+      const runtime = runtimeRef.current;
+      if (!runtime || !runtime.chordOsmdBattle || updates.length === 0) {
+        return;
+      }
+      if (resyncOsuCircleTimings(runtime.osuCirclePool, updates) > 0) {
+        markDirty();
+      }
     },
     highlightKey: (_midiNote: number, _active: boolean) => {
       void _midiNote;
@@ -443,6 +458,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         )
         || hasActiveParrySparks(runtime.parrySparkPool)
         || (runtime.chordOsmdBattle && hasActiveOsuCircles(runtime.osuCirclePool, now))
+        || (runtime.chordOsmdBattle && hasActiveOsuCircleShatter(runtime.osuCircleShatterPool, now))
         || (
           runtime.lastParryAt > 0
           && now < runtime.lastParryAt + PARRY_TOTAL_MS + 250

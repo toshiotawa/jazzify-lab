@@ -45,6 +45,13 @@ import {
   pruneOsuCircles,
   spawnOsuCircle,
 } from './earTrainingBattleOsuCirclePool';
+import {
+  OSU_CIRCLE_INNER_RADIUS_PX,
+} from './earTrainingBattleOsuCircleTiming';
+import {
+  pruneOsuCircleShatter,
+  spawnOsuCircleShatter,
+} from './earTrainingBattleOsuCircleShatterPool';
 
 const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
@@ -292,17 +299,17 @@ const playOsmdApproachCircleBurstEffect = (
     return;
   }
   const now = performance.now();
-  const slot = burstOsuCircle(runtime.osuCirclePool, relatedId, now);
-  if (!slot) {
+  const position = burstOsuCircle(runtime.osuCirclePool, relatedId);
+  if (!position) {
     return;
   }
-  addImpactBurst(runtime, slot.centerX, slot.targetY, PARRY_RING_ORANGE, false, {
-    durationMs: 280,
-    size: 40,
-    scaleEnd: 1.5,
-    sparkDuration: 240,
-    sparkCount: 14,
-  });
+  spawnOsuCircleShatter(
+    runtime.osuCircleShatterPool,
+    position.centerX,
+    position.targetY,
+    OSU_CIRCLE_INNER_RADIUS_PX,
+    now,
+  );
   onDirty();
 };
 
@@ -981,7 +988,8 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
   pruneParrySparks(runtime.parrySparkPool, visualNow);
-  pruneOsuCircles(runtime.osuCirclePool, now);
+  pruneOsuCircles(runtime.osuCirclePool);
+  pruneOsuCircleShatter(runtime.osuCircleShatterPool, now);
   runtime.effects = runtime.effects.filter(effect => {
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;

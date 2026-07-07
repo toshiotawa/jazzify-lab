@@ -532,6 +532,16 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.playEnemyAttackEffect(command, false);
   }
 
+  resyncOsuApproachCircles(
+    _updates: readonly {
+      commandId: number;
+      approachStartMs: number;
+      judgedMs: number;
+    }[],
+  ): void {
+    void _updates;
+  }
+
   highlightKey(_midiNote: number, _active: boolean): void {
     void _midiNote;
     void _active;

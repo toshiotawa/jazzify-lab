@@ -19,7 +19,7 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrainingBattleLayout';
-import { OSU_CIRCLE_JUDGED_OFFSET_MS } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
+import { resolveOsuApproachCirclePerfTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -642,6 +642,41 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     state.osuCircleEffectId = undefined;
   }, [triggerBattleEffect]);
 
+  const syncActiveOsuApproachCircleTimings = useCallback(() => {
+    const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec();
+    if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
+      return;
+    }
+    const approachLeadSec = chordOsmdApproachLeadSec(resolveEffectivePracticeBpm());
+    const perfNowMs = performance.now();
+    const updates: {
+      commandId: number;
+      approachStartMs: number;
+      judgedMs: number;
+    }[] = [];
+    targetsRef.current.forEach(target => {
+      const state = runtimeByTargetIdRef.current.get(target.id);
+      if (!state || state.completed || state.failed || state.osuCircleEffectId === undefined) {
+        return;
+      }
+      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
+      const timing = resolveOsuApproachCirclePerfTiming(
+        judged,
+        phraseTimeSec,
+        approachLeadSec,
+        perfNowMs,
+      );
+      updates.push({
+        commandId: state.osuCircleEffectId,
+        approachStartMs: timing.approachStartMs,
+        judgedMs: timing.judgedMs,
+      });
+    });
+    if (updates.length > 0) {
+      phaserGameRef.current?.resyncOsuApproachCircles(updates);
+    }
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm]);
+
   const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
     pendingImpactHandlersRef.current.set(effectId, handler);
   }, []);
@@ -1095,13 +1130,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextApproachTargetIndexRef.current += 1;
         continue;
       }
-      const judgedMs = performance.now()
-        + (judged - phraseTimeSec) * 1000
-        + OSU_CIRCLE_JUDGED_OFFSET_MS;
-      const approachStartMs = judgedMs - approachLeadSec * 1000;
+      const timing = resolveOsuApproachCirclePerfTiming(
+        judged,
+        phraseTimeSec,
+        approachLeadSec,
+      );
       const effectId = triggerBattleEffect('osmdApproachCircle', {
-        approachStartMs,
-        judgedMs,
+        approachStartMs: timing.approachStartMs,
+        judgedMs: timing.judgedMs,
       });
       state.osuCircleEffectId = effectId;
       nextApproachTargetIndexRef.current += 1;
@@ -1653,7 +1689,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     timingAdjustmentMsRef.current = clamped;
     setTimingAdjustmentMs(clamped);
     saveEarTrainingOsmdTimingAdjustmentMs(clamped);
-  }, []);
+    syncActiveOsuApproachCircleTimings();
+  }, [syncActiveOsuApproachCircleTimings]);
 
   const osmdTimingAdjustmentConfig = useMemo(
     () => ({

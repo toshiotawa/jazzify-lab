@@ -3,6 +3,7 @@ import type { TutorialResolvedTextSegment } from '@/types/tutorialStyledText';
 import type { CanvasCameraRuntime } from './earTrainingBattleCamera';
 import type { EarTrainingRect } from './earTrainingBattleLayout';
 import type { OsuCircleSlot } from './earTrainingBattleOsuCirclePool';
+import type { OsuShatterSlot } from './earTrainingBattleOsuCircleShatterPool';
 
 export type CanvasCharacterMotionState = 'idle' | 'walk' | 'cast' | 'attack' | 'recover' | 'knockback' | 'dead';
 
@@ -245,6 +246,8 @@ export interface EarTrainingBattleDrawRuntime {
   parrySparkPool: ParrySparkSlot[];
   /** OSMD: OSU! 式アプローチ円（visualSlow 非影響） */
   osuCirclePool: OsuCircleSlot[];
+  /** OSMD: 正解時パリィ円の弾け散り（visualSlow 非影響） */
+  osuCircleShatterPool: OsuShatterSlot[];
   /** chord_osmd バトルのみ OSU! 円を描画 */
   chordOsmdBattle: boolean;
   lastParryAt: number;
