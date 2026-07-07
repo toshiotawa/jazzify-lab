@@ -119,10 +119,12 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   // アンマウント時の停止には猶予時間付きの stopBgm() を使うことで、
   // コース切替の unmount→remount の間に BGM が途切れるのを防ぐ。
   useEffect(() => {
-    if (!LessonMapAudio.isMuted()) {
-      void LessonMapAudio.playBgm(LESSON_MAP_BGM_URL).catch(() => { /* ignore autoplay fail */ });
+    if (LessonMapAudio.isMuted()) {
+      return undefined;
     }
+    const cancelDeferredBgm = LessonMapAudio.scheduleDeferredBgm(LESSON_MAP_BGM_URL);
     return () => {
+      cancelDeferredBgm();
       LessonMapAudio.stopBgm();
     };
   }, []);

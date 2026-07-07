@@ -232,8 +232,9 @@ const LessonPage: React.FC = () => {
 
   useEffect(() => {
     if (!open || !profile) return;
-    void LessonMapAudio.playBgm(LESSON_MAP_BGM_URL).catch(() => { /* autoplay may require interaction */ });
+    const cancelDeferredBgm = LessonMapAudio.scheduleDeferredBgm(LESSON_MAP_BGM_URL);
     return () => {
+      cancelDeferredBgm();
       LessonMapAudio.stopBgm();
     };
   }, [open, profile]);
@@ -777,6 +778,7 @@ const LessonListItem: React.FC<LessonListItemProps> = ({
           src={SURVIVAL_DEFAULT_SPRITE_PATHS.shita}
           alt=""
           className="pointer-events-none absolute left-[25px] top-1/2 z-[30] h-8 w-8 -translate-x-1/2 -translate-y-[74%] object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.55)]"
+          loading="lazy"
           draggable={false}
         />
       )}
@@ -931,7 +933,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           src={stageCardRectangularPath(currentBlock.stageNumber)}
           alt=""
           className="absolute inset-0 h-full w-full object-cover opacity-70 transition-transform duration-300 group-hover:scale-[1.02]"
-          loading="eager"
+          loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/10" />
         <div className="relative z-10 flex min-h-[132px] max-w-[560px] flex-col justify-center gap-3 p-4 sm:p-5">

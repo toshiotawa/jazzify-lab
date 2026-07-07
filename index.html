@@ -92,16 +92,31 @@
   }
   </script>
   
-  <!-- LCP image preload -->
-  <link rel="preload" as="image" href="/newLP/hero-poster-640.webp" type="image/webp" media="(max-width: 767px)" fetchpriority="high">
-  <link rel="preload" as="image" href="/newLP/hero-poster.webp" type="image/webp" media="(min-width: 768px)" fetchpriority="high">
   <script>
-    /* LP フォント preload: pathname が `/` のときのみ（appPaths.isLandingPath と同期） */
+    /* LP 専用アセット: pathname が `/` のときのみ（appPaths.isLandingPath と同期） */
     (function () {
       var path = location.pathname;
-      if (path === '/' || path === '') {
-        document.documentElement.classList.add('lp-first-paint');
-        var lpFonts = [
+      var isLanding = path === '/' || path === '';
+      if (!isLanding) {
+        document.documentElement.classList.add('app-entry-route');
+        return;
+      }
+      document.documentElement.classList.add('lp-first-paint');
+      var heroPreloads = [
+        { href: '/newLP/hero-poster-640.webp', media: '(max-width: 767px)' },
+        { href: '/newLP/hero-poster.webp', media: '(min-width: 768px)' }
+      ];
+      heroPreloads.forEach(function (item) {
+        var link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = item.href;
+        link.type = 'image/webp';
+        link.media = item.media;
+        link.fetchPriority = 'high';
+        document.head.appendChild(link);
+      });
+      var lpFonts = [
           '/fonts/lp/space-grotesk-latin-600-normal.woff2',
           '/fonts/lp/space-grotesk-latin-700-normal.woff2',
           '/fonts/lp/zen-kaku-gothic-new-latin-400-normal.woff2',
@@ -134,7 +149,6 @@
           window.addEventListener(ev, loadHeavyFonts, { once: true, passive: true });
         });
         setTimeout(loadHeavyFonts, 60000);
-      }
     })();
   </script>
 
@@ -199,6 +213,11 @@
       font-size: 1.2rem;
       color: #93c5fd;
       text-align: center;
+    }
+
+    /* /main 等: SEO 用静的 LP シェルを非表示（hero 画像の先読みを防ぐ） */
+    html.app-entry-route .lp-static-shell {
+      display: none !important;
     }
 
     /* JS 実行前でも本文が読める静的 LP シェル（React マウント時に置き換わる） */
@@ -270,10 +289,10 @@
           <p class="lp-muted">クレジットカード登録不要 / Web・iPhone対応</p>
         </header>
 
-        <figure style="margin: 2rem 0;">
+        <figure data-lp-hero style="margin: 2rem 0;">
           <picture>
             <source srcset="/newLP/hero-poster-640.webp" media="(max-width: 767px)" type="image/webp">
-            <img src="/newLP/hero-poster.webp" alt="Jazzify サバイバルモードのプレイ画面" width="1280" height="952" loading="eager" decoding="async" fetchpriority="high" style="max-width:100%;height:auto;border-radius:12px;border:1px solid #d8e0ec;">
+            <img src="/newLP/hero-poster.webp" alt="Jazzify サバイバルモードのプレイ画面" width="1280" height="952" loading="lazy" decoding="async" style="max-width:100%;height:auto;border-radius:12px;border:1px solid #d8e0ec;">
           </picture>
         </figure>
 

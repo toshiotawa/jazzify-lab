@@ -21,6 +21,7 @@ const LS_BGM_MUTE = 'lesson_map_bgm_mute_v1';
 
 const DEFAULT_BGM_URL = 'https://jazzify-cdn.com/fantasy-bgm/ab2d7f15-c19f-4222-872c-415dbc3c5638.mp3';
 const DEFAULT_BGM_VOLUME = 0.3;
+const LESSON_MAP_BGM_DEFER_MS = 8_000;
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0));
 
@@ -126,7 +127,7 @@ class LessonMapAudioImpl {
     const audio = new Audio();
     audio.src = playUrl;
     audio.loop = true;
-    audio.preload = 'auto';
+    audio.preload = 'none';
     audio.crossOrigin = 'anonymous';
     audio.volume = 0;
 
@@ -197,6 +198,48 @@ class LessonMapAudioImpl {
     if (this.bgmRequestedPlaying && !this.bgmAudio) {
       await this.playBgm().catch(() => { /* ignore */ });
     }
+  }
+
+  /** 初回表示の帯域を空けるため、操作または遅延後に BGM を開始する */
+  scheduleDeferredBgm(url: string = DEFAULT_BGM_URL): () => void {
+    let cancelled = false;
+    let started = false;
+
+    const start = (): void => {
+      if (cancelled || started || this.muted) {
+        return;
+      }
+      started = true;
+      void this.playBgm(url).catch(() => { /* ignore */ });
+    };
+
+    const onInteract = (): void => {
+      start();
+    };
+
+    const interactEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown'];
+    interactEvents.forEach((eventName) => {
+      window.addEventListener(eventName, onInteract, { once: true, passive: true });
+    });
+
+    let idleId: number | undefined;
+    if (typeof requestIdleCallback === 'function') {
+      idleId = requestIdleCallback(() => {
+        start();
+      }, { timeout: LESSON_MAP_BGM_DEFER_MS });
+    }
+    const timeoutId = window.setTimeout(start, LESSON_MAP_BGM_DEFER_MS);
+
+    return () => {
+      cancelled = true;
+      if (idleId !== undefined && typeof cancelIdleCallback === 'function') {
+        cancelIdleCallback(idleId);
+      }
+      window.clearTimeout(timeoutId);
+      interactEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, onInteract);
+      });
+    };
   }
 
   private fadeTo(audio: HTMLAudioElement, target: number, durationMs: number): void {
