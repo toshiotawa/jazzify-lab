@@ -121,17 +121,19 @@
         stylesheet.rel = 'stylesheet';
         stylesheet.href = '/fonts/lp/zen-kaku-font-faces.css';
         document.head.appendChild(stylesheet);
+        var heavyFontsLoaded = false;
         var loadHeavyFonts = function () {
+          if (heavyFontsLoaded) return;
+          heavyFontsLoaded = true;
           var heavy = document.createElement('link');
           heavy.rel = 'stylesheet';
           heavy.href = '/fonts/lp/zen-kaku-font-faces-900.css';
           document.head.appendChild(heavy);
         };
-        if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(loadHeavyFonts, { timeout: 8000 });
-        } else {
-          setTimeout(loadHeavyFonts, 3000);
-        }
+        ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function (ev) {
+          window.addEventListener(ev, loadHeavyFonts, { once: true, passive: true });
+        });
+        setTimeout(loadHeavyFonts, 60000);
       }
     })();
   </script>

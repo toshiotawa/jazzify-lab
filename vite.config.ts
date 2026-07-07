@@ -88,9 +88,6 @@ export default defineConfig(({ mode }) => {
               if (id.includes('node_modules/tonal')) {
                 return 'tonal';
               }
-              if (id.includes('node_modules/opensheetmusicdisplay')) {
-                return 'osmd';
-              }
               return undefined;
             },
           chunkFileNames: 'assets/[name]-[hash].js',

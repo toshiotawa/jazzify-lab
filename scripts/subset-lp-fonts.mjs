@@ -1,14 +1,57 @@
 #!/usr/bin/env node
 /**
- * Copies self-hosted web font files from @fontsource packages into public/fonts/lp/.
- * Run after npm install: node scripts/subset-lp-fonts.mjs
+ * LP 用フォントを public/fonts/lp/ に配置する。
+ * 日本語 Zen Kaku は landingCopy / HTML から抽出したグリフだけにサブセットする。
  */
-import { cpSync, mkdirSync, existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import subsetFont from 'subset-font';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'public', 'fonts', 'lp');
+
+const GLYPH_SAFETY =
+  '、。・「」『』（）—￥…！？♪→％＋：；'
+  + 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  + ' \n\t\u00a0';
+
+const extractStringLiterals = (text) => {
+  const values = [];
+  const patterns = [
+    /'((?:\\.|[^'\\])*)'/g,
+    /"((?:\\.|[^"\\])*)"/g,
+    /`((?:\\.|[^`\\])*)`/g,
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      values.push(match[1].replace(/\\n/g, '\n').replace(/\\t/g, '\t'));
+    }
+  }
+  return values;
+};
+
+const collectLpGlyphs = () => {
+  const glyphs = new Set([...GLYPH_SAFETY]);
+  const landingCopyPath = join(root, 'src', 'components', 'landing', 'landingCopy.ts');
+  const landingCopy = readFileSync(landingCopyPath, 'utf8');
+  for (const value of extractStringLiterals(landingCopy)) {
+    for (const char of value) {
+      glyphs.add(char);
+    }
+  }
+
+  for (const fileName of ['index.html', 'index-en.html']) {
+    const html = readFileSync(join(root, fileName), 'utf8')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '');
+    for (const char of html) {
+      glyphs.add(char);
+    }
+  }
+
+  return [...glyphs].sort((a, b) => a.codePointAt(0) - b.codePointAt(0)).join('');
+};
 
 const fontSources = [
   {
@@ -18,6 +61,7 @@ const fontSources = [
       'space-grotesk-latin-600-normal.woff2',
       'space-grotesk-latin-700-normal.woff2',
     ],
+    subset: false,
   },
   {
     dir: join(root, 'node_modules', '@fontsource', 'zen-kaku-gothic-new', 'files'),
@@ -30,14 +74,16 @@ const fontSources = [
       'zen-kaku-gothic-new-japanese-700-normal.woff2',
       'zen-kaku-gothic-new-japanese-900-normal.woff2',
     ],
+    subset: (fileName) => fileName.includes('japanese'),
   },
 ];
 
 mkdirSync(outDir, { recursive: true });
 
+const glyphText = collectLpGlyphs();
 let copied = 0;
 
-for (const { dir, packageName, files } of fontSources) {
+for (const { dir, packageName, files, subset } of fontSources) {
   if (!existsSync(dir)) {
     console.error(`Missing ${packageName}. Run: npm install`);
     process.exit(1);
@@ -49,8 +95,22 @@ for (const { dir, packageName, files } of fontSources) {
       console.error(`Missing font file: ${src}`);
       process.exit(1);
     }
-    cpSync(src, join(outDir, file));
+
+    const dest = join(outDir, file);
+    const shouldSubset = typeof subset === 'function' ? subset(file) : subset;
+    if (!shouldSubset) {
+      cpSync(src, dest);
+      copied += 1;
+      continue;
+    }
+
+    const original = readFileSync(src);
+    const subsetted = await subsetFont(original, glyphText, { targetFormat: 'woff2' });
+    writeFileSync(dest, subsetted);
     copied += 1;
+    console.log(
+      `Subset ${file}: ${(original.length / 1024).toFixed(1)} KiB -> ${(subsetted.length / 1024).toFixed(1)} KiB (${glyphText.length} glyphs)`,
+    );
   }
 }
 
@@ -70,4 +130,4 @@ if (!existsSync(zenKaku900CssSrc)) {
 }
 cpSync(zenKaku900CssSrc, zenKaku900CssDest);
 
-console.log(`Copied ${copied} font files and zen-kaku-font-faces.css to public/fonts/lp/`);
+console.log(`Prepared ${copied} font files and zen-kaku-font-faces.css in public/fonts/lp/`);
