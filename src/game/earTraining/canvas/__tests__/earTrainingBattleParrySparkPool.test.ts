@@ -1,4 +1,5 @@
 import {
+  createParryBeatSyncFromSlowPhaseMs,
   getParryEffectRadiusAtAge,
   getParryLingerAlpha,
   getParryRingScaleAtAge,
@@ -76,34 +77,39 @@ describe('earTrainingBattle visual slow', () => {
   });
 });
 
-describe('parry merge timeline', () => {
-  it('uses shared baseline radius at 251ms before per-effect jitter', () => {
+describe('parry spark radius timeline', () => {
+  it('expands only during slowPhase then holds merge radius', () => {
+    expect(getParryEffectRadiusAtAge(0)).toBeCloseTo(4);
+    expect(getParryEffectRadiusAtAge(PARRY_SLOW_PHASE_MS)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
     expect(getParryEffectRadiusAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
-    expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_RING_MERGE_SCALE);
-    expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS - 1)).toBeNull();
+    expect(getParryEffectRadiusAtAge(900)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
   });
 
-  it('matches iOS ring stroke width constant', () => {
+  it('ring scale helper remains for legacy draw path only', () => {
+    expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_RING_MERGE_SCALE);
+    expect(getParryRingScaleAtAge(PARRY_FINISH_START_MS - 1)).toBeNull();
     expect(PARRY_RING_LINE_WIDTH).toBe(5);
   });
 });
 
 describe('earTrainingBattleParrySparkPool', () => {
-  it('spawns 28 sparks for normal parry and 40 for chain parry', () => {
+  const defaultBeatSync = createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS);
+
+  it('spawns 36 sparks for normal parry and 48 for chain parry', () => {
     const pool = createParrySparkPool();
-    expect(spawnParrySparks(pool, 120, 80, 1_000, false)).toBe(28);
+    expect(spawnParrySparks(pool, 120, 80, 1_000, false, defaultBeatSync)).toBe(36);
     expect(hasActiveParrySparks(pool)).toBe(true);
 
     for (const slot of pool) {
       slot.active = false;
     }
 
-    expect(spawnParrySparks(pool, 120, 80, 2_000, true)).toBe(40);
+    expect(spawnParrySparks(pool, 120, 80, 2_000, true, defaultBeatSync)).toBe(48);
   });
 
   it('reuses inactive pool slots without allocating new objects', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 10, 10, 100, false);
+    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync);
     const firstActive = pool.find(slot => slot.active);
     expect(firstActive).toBeDefined();
     if (!firstActive) return;
@@ -111,14 +117,37 @@ describe('earTrainingBattleParrySparkPool', () => {
     pruneParrySparks(pool, 100 + PARRY_MOTION_END_MS);
     expect(firstActive.active).toBe(false);
 
-    spawnParrySparks(pool, 20, 20, 700, false);
+    spawnParrySparks(pool, 20, 20, 700, false, defaultBeatSync);
     expect(pool.some(slot => slot.active && slot.startedAt === 700)).toBe(true);
+  });
+
+  it('freezes beatSync per spawn so later parry does not retroactively move sparks', () => {
+    const pool = createParrySparkPool();
+    const shortSync = createParryBeatSyncFromSlowPhaseMs(250);
+    spawnParrySparks(pool, 100, 100, 1_000, false, shortSync);
+    const slot = pool.find(entry => entry.active);
+    expect(slot).toBeDefined();
+    if (!slot) return;
+    slot.timeOffsetMs = 0;
+    slot.radiusScale = 1;
+
+    const at200 = getParrySparkDrawState(slot, 1_200);
+    expect(at200).toBeDefined();
+    if (!at200) return;
+
+    const longSync = createParryBeatSyncFromSlowPhaseMs(800);
+    spawnParrySparks(pool, 120, 120, 1_100, false, longSync);
+    const afterSecondSpawn = getParrySparkDrawState(slot, 1_200);
+    expect(afterSecondSpawn).toBeDefined();
+    if (!afterSecondSpawn) return;
+    expect(afterSecondSpawn.x).toBeCloseTo(at200.x);
+    expect(afterSecondSpawn.y).toBeCloseTo(at200.y);
   });
 
   it('uses visualNow so sparks stay in sync during visual slow', () => {
     const pool = createParrySparkPool();
     const parryStartedAt = 1_000;
-    spawnParrySparks(pool, 100, 100, parryStartedAt, false);
+    spawnParrySparks(pool, 100, 100, parryStartedAt, false, defaultBeatSync);
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -144,7 +173,7 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('prunes sparks by visual age including time offset', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 10, 10, 100, false);
+    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync);
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -155,7 +184,7 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('uses orange color only', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 50, 50, 1_000, false);
+    spawnParrySparks(pool, 50, 50, 1_000, false, defaultBeatSync);
     const slot = pool.find(entry => entry.active);
     expect(slot).toBeDefined();
     if (!slot) return;
@@ -165,8 +194,8 @@ describe('earTrainingBattleParrySparkPool', () => {
 
   it('applies per-spark radius scale so merge distances are not identical', () => {
     const pool = createParrySparkPool();
-    spawnParrySparks(pool, 100, 100, 1_000, false);
-    const mergeTime = 1_000 + PARRY_FINISH_START_MS;
+    spawnParrySparks(pool, 100, 100, 1_000, false, defaultBeatSync);
+    const mergeTime = 1_000 + PARRY_SLOW_PHASE_MS;
     const distances = pool
       .filter(slot => slot.active)
       .map(slot => {
@@ -179,6 +208,15 @@ describe('earTrainingBattleParrySparkPool', () => {
     const min = Math.min(...distances);
     const max = Math.max(...distances);
     expect(max - min).toBeGreaterThan(2);
+  });
+
+  it('does not deactivate existing sparks when spawning again', () => {
+    const pool = createParrySparkPool();
+    spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync);
+    const firstCount = pool.filter(slot => slot.active).length;
+    spawnParrySparks(pool, 20, 20, 200, false, defaultBeatSync);
+    expect(pool.filter(slot => slot.active && slot.startedAt === 100).length).toBe(firstCount);
+    expect(pool.filter(slot => slot.active).length).toBeGreaterThan(firstCount);
   });
 });
 

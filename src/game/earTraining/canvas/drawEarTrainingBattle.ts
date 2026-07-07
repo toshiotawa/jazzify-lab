@@ -976,7 +976,7 @@ const drawEffects = (
     });
   });
 
-  drawParrySparks(ctx, runtime.parrySparkPool, visualNow, runtime.parryBeatSync);
+  drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
   if (runtime.chordOsmdBattle) {
     drawOsuCircles(ctx, runtime.osuCirclePool, now);
     drawOsuCircleShatter(ctx, runtime.osuCircleShatterPool, now);

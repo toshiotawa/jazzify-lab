@@ -20,7 +20,6 @@ import {
   PARRY_GUARD_ONLY_MS,
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HIT_MS,
-  PARRY_RING_ORANGE,
   PARRY_TOTAL_MS,
   PARRY_VISUAL_SLOW_SCALE,
 } from './earTrainingBattleDrawState';
@@ -717,7 +716,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     parryCenterY,
     now,
     isChainParry,
-    runtime.parryBeatSync.motionEndMs,
+    runtime.parryBeatSync,
   );
 
   const visuals: CanvasEffectVisual[] = [];
