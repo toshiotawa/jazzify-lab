@@ -1,8 +1,10 @@
 /**
  * メインクエスト 1-1（public/sozai/1-1.musicxml）をベースに、
- * voice 1 の pitch 音符を 1 小節前へ voice 4 ガイドとして複製する。
+ * voice 1 のタイムライン（pitch + rest）を 1 小節前へ voice 4 ガイドとして複製する。
  *
- * Usage: node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs
+ * Usage:
+ *   node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs
+ *   node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs --cue
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -10,9 +12,12 @@ import { JSDOM } from 'jsdom';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SOURCE = join(ROOT, 'public', 'sozai', '1-1.musicxml');
-const OUTPUT = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4.musicxml');
+const OUTPUT_DIM = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4.musicxml');
+const OUTPUT_CUE = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4-cue.musicxml');
 
 const GUIDE_VOICE = '4';
+const useCue = process.argv.includes('--cue');
+const OUTPUT = useCue ? OUTPUT_CUE : OUTPUT_DIM;
 
 const isElement = (node) => node.nodeType === 1;
 
@@ -42,39 +47,16 @@ const setDirectChildText = (doc, parent, localName, text) => {
   parent.appendChild(child);
 };
 
-const clonePitchNoteAsGuide = (doc, sourceNote) => {
-  const note = doc.createElement('note');
-  const pitch = getDirectChild(sourceNote, 'pitch');
-  if (pitch) {
-    note.appendChild(pitch.cloneNode(true));
-  }
-  const duration = getDirectChild(sourceNote, 'duration');
-  if (duration) {
-    note.appendChild(duration.cloneNode(true));
-  }
-  const type = getDirectChild(sourceNote, 'type');
-  if (type) {
-    note.appendChild(type.cloneNode(true));
-  }
-  const dot = getDirectChild(sourceNote, 'dot');
-  if (dot) {
-    note.appendChild(dot.cloneNode(true));
-  }
-  const beam = sourceNote.getElementsByTagName('beam');
-  for (const beamEl of beam) {
-    if (beamEl.parentElement === sourceNote) {
-      note.appendChild(beamEl.cloneNode(true));
+const appendDirectChildrenByName = (doc, sourceNote, targetNote, localName) => {
+  for (let child = sourceNote.firstElementChild; child; child = child.nextElementSibling) {
+    if (child.localName === localName) {
+      targetNote.appendChild(child.cloneNode(true));
     }
   }
-  setDirectChildText(doc, note, 'voice', GUIDE_VOICE);
-  const stem = getDirectChild(sourceNote, 'stem');
-  if (stem) {
-    note.appendChild(stem.cloneNode(true));
-  }
-  return note;
 };
 
-const collectVoiceOnePitchNotes = (measure) => {
+/** voice 1 の pitch / rest を時間順に収集（grace 除外） */
+const collectVoiceOneTimelineNotes = (measure) => {
   const notes = [];
   for (const child of measure.children) {
     if (!isElement(child) || child.localName !== 'note') {
@@ -83,19 +65,56 @@ const collectVoiceOnePitchNotes = (measure) => {
     if (getDirectChild(child, 'grace')) {
       continue;
     }
-    if (getDirectChild(child, 'rest')) {
-      continue;
-    }
-    if (!getDirectChild(child, 'pitch')) {
-      continue;
-    }
     const voice = getDirectChildText(child, 'voice');
     if (voice !== null && voice !== '1') {
+      continue;
+    }
+    const hasPitch = getDirectChild(child, 'pitch') !== null;
+    const hasRest = getDirectChild(child, 'rest') !== null;
+    if (!hasPitch && !hasRest) {
       continue;
     }
     notes.push(child);
   }
   return notes;
+};
+
+const cloneTimelineNoteAsGuide = (doc, sourceNote, asCue) => {
+  const note = doc.createElement('note');
+  const isRest = getDirectChild(sourceNote, 'rest') !== null;
+
+  if (isRest) {
+    const rest = getDirectChild(sourceNote, 'rest');
+    if (rest) {
+      note.appendChild(rest.cloneNode(true));
+    }
+  } else {
+    const pitch = getDirectChild(sourceNote, 'pitch');
+    if (pitch) {
+      note.appendChild(pitch.cloneNode(true));
+    }
+  }
+
+  appendDirectChildrenByName(doc, sourceNote, note, 'duration');
+
+  const type = getDirectChild(sourceNote, 'type');
+  if (type) {
+    const typeClone = type.cloneNode(true);
+    if (asCue && !isRest) {
+      typeClone.setAttribute('size', 'cue');
+    }
+    note.appendChild(typeClone);
+  }
+
+  appendDirectChildrenByName(doc, sourceNote, note, 'dot');
+  appendDirectChildrenByName(doc, sourceNote, note, 'beam');
+  setDirectChildText(doc, note, 'voice', GUIDE_VOICE);
+
+  if (!isRest) {
+    appendDirectChildrenByName(doc, sourceNote, note, 'stem');
+  }
+
+  return note;
 };
 
 const isFullMeasureRestOnly = (measure) => {
@@ -120,6 +139,26 @@ const removeFullMeasureRestNotes = (measure) => {
   }
 };
 
+const sumNoteDurations = (notes) => {
+  let total = 0;
+  for (const note of notes) {
+    const durationText = getDirectChildText(note, 'duration');
+    const duration = durationText ? Number.parseInt(durationText, 10) : NaN;
+    if (Number.isFinite(duration) && duration > 0) {
+      total += duration;
+    }
+  }
+  return total;
+};
+
+const createBackup = (doc, duration) => {
+  const backup = doc.createElement('backup');
+  const durationEl = doc.createElement('duration');
+  durationEl.textContent = String(duration);
+  backup.appendChild(durationEl);
+  return backup;
+};
+
 const xmlText = readFileSync(SOURCE, 'utf8');
 const dom = new JSDOM(xmlText, { contentType: 'text/xml' });
 const doc = dom.window.document;
@@ -142,19 +181,25 @@ const measures = [...part.children].filter(
 for (let i = 1; i < measures.length; i += 1) {
   const targetMeasure = measures[i];
   const guideMeasure = measures[i - 1];
-  const sourceNotes = collectVoiceOnePitchNotes(targetMeasure);
+  const sourceNotes = collectVoiceOneTimelineNotes(targetMeasure);
   if (sourceNotes.length === 0) {
     continue;
   }
 
-  if (isFullMeasureRestOnly(guideMeasure)) {
+  const guideWasFullRest = isFullMeasureRestOnly(guideMeasure);
+  if (guideWasFullRest) {
     removeFullMeasureRestNotes(guideMeasure);
+  } else {
+    const backupDuration = sumNoteDurations(sourceNotes);
+    if (backupDuration > 0) {
+      guideMeasure.appendChild(createBackup(doc, backupDuration));
+    }
   }
 
   for (const sourceNote of sourceNotes) {
-    guideMeasure.appendChild(clonePitchNoteAsGuide(doc, sourceNote));
+    guideMeasure.appendChild(cloneTimelineNoteAsGuide(doc, sourceNote, useCue));
   }
 }
 
 writeFileSync(OUTPUT, dom.serialize(), 'utf8');
-console.log(`Wrote ${OUTPUT}`);
+console.log(`Wrote ${OUTPUT}${useCue ? ' (cue)' : ' (dim)'}`);
