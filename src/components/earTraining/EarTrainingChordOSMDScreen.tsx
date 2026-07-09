@@ -622,6 +622,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       extendParryVisualSlow?: boolean;
       clearParryVisualSlow?: boolean;
       visualSlowSustainMs?: number;
+      osuCircleLayoutIndex?: number;
     } = {},
   ): number => {
     battleEffectIdRef.current += 1;
@@ -644,6 +645,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       extendParryVisualSlow: options.extendParryVisualSlow,
       clearParryVisualSlow: options.clearParryVisualSlow,
       visualSlowSustainMs: options.visualSlowSustainMs,
+      osuCircleLayoutIndex: options.osuCircleLayoutIndex,
     };
     phaserGameRef.current?.triggerEffect(command);
     return effectId;
@@ -1173,6 +1175,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       const effectId = triggerBattleEffect('osmdApproachCircle', {
         approachStartMs: timing.approachStartMs,
         judgedMs: timing.judgedMs,
+        osuCircleLayoutIndex: nextApproachTargetIndexRef.current,
       });
       state.osuCircleEffectId = effectId;
       nextApproachTargetIndexRef.current += 1;
@@ -1757,6 +1760,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       });
       state.osuCircleEffectId = undefined;
     }
+    for (const midiCount of target.midiCounts) {
+      phaserGameRef.current?.highlightKey(midiCount.midi, true);
+      scheduleTimer(() => {
+        phaserGameRef.current?.highlightKey(midiCount.midi, false);
+      }, 180);
+    }
     const nextTarget = findFirstIncompleteChordOsmdTarget(
       targetsRef.current,
       isTargetIncomplete,
@@ -1786,7 +1795,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       relatedEffectId: state.hammerEffectId,
       parryFinishOnly: isFinish,
       extendParryVisualSlow: isExtend,
-      clearParryVisualSlow: isFinish,
+      clearParryVisualSlow: false,
       visualSlowSustainMs,
       hitPhraseTimeSec,
       effectiveBpm: resolveEffectivePracticeBpm(),
@@ -1811,6 +1820,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     resolveEffectivePracticeBpm,
     resolveEffectiveTimingWindowSec,
     resolveHammerLeadMeasures,
+    scheduleTimer,
     stage.beats_per_measure,
     stage.is_swing,
     syncPracticeVoicingHints,

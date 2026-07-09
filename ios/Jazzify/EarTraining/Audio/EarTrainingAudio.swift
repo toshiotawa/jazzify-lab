@@ -88,7 +88,9 @@ final class EarTrainingAudio: NSObject {
     private var fireSePCM: AVAudioPCMBuffer?
     /// `playFireMagicSe` の連打抑止（mach 時間ベース秒）。
     private var lastFireSePlayMs: Double = 0
+    private var lastOsmdParrySePlayMs: Double = 0
     private static let fireSeThrottleMs: Double = 60
+    private static let osmdParrySeThrottleMs: Double = 32
     /// 魔法演出 SE はスライダーに加えて常にこの倍率で減衰させる（UX 要望: スライダー非依存で控えめ）。
     private static let fireSeBaseGain: Float = 0.45
     /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
@@ -678,6 +680,61 @@ final class EarTrainingAudio: NSObject {
             fireSePlayer.play()
         }
         fireSePlayer.scheduleBuffer(pcm, at: nil, options: [.interrupts], completionHandler: nil)
+    }
+
+    enum OsmdParrySeTier {
+        case normal
+        case chain
+        case finish
+    }
+
+    /// OSMD パリィ正解用の短い打撃 SE（Web Audio 合成相当）。
+    func playOsmdParrySe(tier: OsmdParrySeTier) {
+        let now = Self.machSecondsSinceReference() * 1000
+        if now - lastOsmdParrySePlayMs < Self.osmdParrySeThrottleMs {
+            return
+        }
+        lastOsmdParrySePlayMs = now
+
+        startPhraseEngineIfNeeded()
+        guard engine.isRunning else { return }
+        let format = lastFireSeFormat ?? lastPhraseFormat ?? AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)
+        guard let format, let buffer = Self.makeOsmdParrySeBuffer(format: format, tier: tier) else { return }
+
+        fireSeMixer.outputVolume = sfxVolume * 0.55
+        if !fireSePlayer.isPlaying {
+            fireSePlayer.play()
+        }
+        fireSePlayer.scheduleBuffer(buffer, at: nil, options: [.interrupts], completionHandler: nil)
+    }
+
+    private static func makeOsmdParrySeBuffer(format: AVAudioFormat, tier: OsmdParrySeTier) -> AVAudioPCMBuffer? {
+        let sampleRate = format.sampleRate
+        let (freq, decaySec, gain, noiseGain): (Double, Double, Float, Float) = {
+            switch tier {
+            case .finish:
+                return (1760, 0.09, 0.95, 0.22)
+            case .chain:
+                return (1480, 0.07, 0.82, 0.18)
+            case .normal:
+                return (1240, 0.055, 0.7, 0.14)
+            }
+        }()
+        let frameCount = AVAudioFrameCount(sampleRate * (decaySec + 0.02))
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            return nil
+        }
+        buffer.frameLength = frameCount
+        guard let channel = buffer.floatChannelData?[0] else { return nil }
+        let total = Int(frameCount)
+        for i in 0..<total {
+            let t = Double(i) / sampleRate
+            let env = t < decaySec ? Float(pow(1 - t / decaySec, 2)) : 0
+            let tone = sin(2 * Double.pi * freq * t) * Double(gain * env)
+            let noise = (Double.random(in: -1...1)) * Double(noiseGain * env)
+            channel[i] = Float(tone + noise)
+        }
+        return buffer
     }
 
     private static func machSecondsSinceReference() -> Double {

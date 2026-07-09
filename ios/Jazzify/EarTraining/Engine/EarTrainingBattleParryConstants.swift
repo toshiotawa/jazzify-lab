@@ -36,12 +36,16 @@ enum EarTrainingBattleParryConstants {
     static let lingerFadeDurationMs: Double = motionEndMs - effectFadeStartMs
     static let visualSlowDurationMs: Double = slowPhaseMs
     static let visualSlowScale: Double = 0.22
+    static let hitStopMs: Double = 64
+    static let hitStopScale: Double = 0.04
     static let slashDurationMs: Double = 240
     static let sparkPoolSize = 128
-    static let sparkColor = UIColor(red: 251 / 255, green: 146 / 255, blue: 60 / 255, alpha: 1)
-    static let parryCameraZoomTarget: CGFloat = 1.012
-    static let parryCameraZoomInSec: TimeInterval = 0.02
-    static let parryCameraZoomOutSec: TimeInterval = 0.08
+    static let sparkColor = UIColor(red: 103 / 255, green: 232 / 255, blue: 249 / 255, alpha: 1)
+    static let impactRingColor = UIColor(red: 103 / 255, green: 232 / 255, blue: 249 / 255, alpha: 0.88)
+    static let finishPunchZoomTarget: CGFloat = 1.12
+    static let finishPunchZoomInSec: TimeInterval = 0.064
+    static let finishPunchZoomHoldSec: TimeInterval = 0.048
+    static let finishPunchZoomOutSec: TimeInterval = 0.16
 
     static func easeCubicOut(_ t: Double) -> Double {
         1 - pow(1 - t, 3)
@@ -107,21 +111,28 @@ enum EarTrainingBattleParryConstants {
     static func getVisualSlowCompensation(
         now: Double,
         slowStartedAt: Double?,
-        durationMs: Double = visualSlowDurationMs
+        durationMs: Double = visualSlowDurationMs,
+        slowScale: Double = visualSlowScale
     ) -> Double {
         guard let slowStartedAt, now > slowStartedAt else { return 0 }
         let elapsed = now - slowStartedAt
         if elapsed >= durationMs {
-            return durationMs * (1 - visualSlowScale)
+            return durationMs * (1 - slowScale)
         }
-        return elapsed * (1 - visualSlowScale)
+        return elapsed * (1 - slowScale)
     }
 
     static func getVisualNow(
         now: Double,
         slowStartedAt: Double?,
-        durationMs: Double = visualSlowDurationMs
+        durationMs: Double = visualSlowDurationMs,
+        slowScale: Double = visualSlowScale
     ) -> Double {
-        now - getVisualSlowCompensation(now: now, slowStartedAt: slowStartedAt, durationMs: durationMs)
+        now - getVisualSlowCompensation(
+            now: now,
+            slowStartedAt: slowStartedAt,
+            durationMs: durationMs,
+            slowScale: slowScale
+        )
     }
 }

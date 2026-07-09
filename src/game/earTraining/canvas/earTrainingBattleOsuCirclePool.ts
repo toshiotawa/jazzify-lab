@@ -15,6 +15,7 @@ export interface OsuCircleSlot {
   centerX: number;
   targetY: number;
   dismissed: boolean;
+  layoutIndex: number;
 }
 
 export interface OsuCircleBurstPosition {
@@ -28,6 +29,7 @@ export interface SpawnOsuCircleParams {
   judgedMs: number;
   centerX: number;
   targetY: number;
+  layoutIndex?: number;
 }
 
 export interface OsuApproachCircleTimingUpdate {
@@ -62,6 +64,7 @@ export const createOsuCirclePool = (): OsuCircleSlot[] =>
     centerX: 0,
     targetY: 0,
     dismissed: false,
+    layoutIndex: 0,
   }));
 
 export const spawnOsuCircle = (
@@ -77,6 +80,7 @@ export const spawnOsuCircle = (
     slot.centerX = params.centerX;
     slot.targetY = params.targetY;
     slot.dismissed = false;
+    slot.layoutIndex = params.layoutIndex ?? 0;
     return true;
   }
   return false;
@@ -140,11 +144,37 @@ export const hasActiveOsuCircles = (pool: OsuCircleSlot[], nowMs: number): boole
   return false;
 };
 
+const resolveNextOsuCircleCommandId = (
+  pool: OsuCircleSlot[],
+  nowMs: number,
+): number | null => {
+  let nextCommandId: number | null = null;
+  let nextJudgedMs = Number.POSITIVE_INFINITY;
+  for (const slot of pool) {
+    if (!slot.active || slot.dismissed) continue;
+    if (slot.judgedMs >= nextJudgedMs) continue;
+    const timing = computeOsuCircleTiming({
+      nowMs,
+      approachStartMs: slot.approachStartMs,
+      judgedMs: slot.judgedMs,
+      centerX: slot.centerX,
+      targetY: slot.targetY,
+      dismissed: slot.dismissed,
+    });
+    if (!timing.visible) continue;
+    nextJudgedMs = slot.judgedMs;
+    nextCommandId = slot.commandId;
+  }
+  return nextCommandId;
+};
+
 export const drawOsuCircles = (
   ctx: CanvasRenderingContext2D,
   pool: OsuCircleSlot[],
   nowMs: number,
 ): void => {
+  const nextCommandId = resolveNextOsuCircleCommandId(pool, nowMs);
+
   for (const slot of pool) {
     if (!slot.active || slot.dismissed) continue;
 
@@ -159,8 +189,12 @@ export const drawOsuCircles = (
 
     if (!timing.visible) continue;
 
+    const isNext = slot.commandId === nextCommandId;
+    const emphasis = isNext ? 1 : 0.72;
+
     ctx.save();
     ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH;
+    ctx.globalAlpha = emphasis;
 
     ctx.strokeStyle = OSU_CIRCLE_INNER_STROKE;
     ctx.beginPath();
@@ -171,6 +205,14 @@ export const drawOsuCircles = (
     ctx.beginPath();
     ctx.arc(timing.centerX, timing.centerY, timing.outerRadius, 0, Math.PI * 2);
     ctx.stroke();
+
+    if (isNext) {
+      ctx.strokeStyle = 'rgba(103, 232, 249, 0.35)';
+      ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH + 1;
+      ctx.beginPath();
+      ctx.arc(timing.centerX, timing.centerY, timing.innerRadius + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }

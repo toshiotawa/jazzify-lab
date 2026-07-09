@@ -53,6 +53,8 @@ export interface EarTrainingBattleEffectCommand {
   clearParryVisualSlow?: boolean;
   /** OSMD: visualSlow 継続の最低残りミリ秒（phrase 終端まで） */
   visualSlowSustainMs?: number;
+  /** OSMD: フレーズ内 OSU! 円の決定論的配置 index */
+  osuCircleLayoutIndex?: number;
 }
 
 export interface EarTrainingBattleChordView {

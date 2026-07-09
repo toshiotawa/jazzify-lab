@@ -16,6 +16,7 @@ import type {
 } from '@/game/earTraining/types';
 import { applyIOSCanvasOptimizations, getEffectiveCanvasDpr } from '@/utils/canvasOptimizations';
 import { playFireMagicSe, preloadFireMagicSe } from '@/utils/earTrainingFireMagicSe';
+import { playOsmdParrySe, unlockOsmdParrySe } from '@/utils/earTrainingOsmdParrySe';
 import {
   earTrainingQuoteSegmentsCacheKey,
   normalizeEarTrainingQuotePayload,
@@ -314,9 +315,13 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   }), [applySnapshotToRuntime, markDirty, scheduleImpact]);
 
   useEffect(() => {
+    if (battleMode === 'chord_osmd') {
+      unlockOsmdParrySe();
+      return;
+    }
     if (disableCorrectSe) return;
     preloadFireMagicSe();
-  }, [disableCorrectSe]);
+  }, [battleMode, disableCorrectSe]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -404,7 +409,14 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
 
   useEffect(() => {
     if (!effectCommand) return;
-    if (
+    if (battleMode === 'chord_osmd' && effectCommand.kind === 'osmdHammerReflect') {
+      const tier = effectCommand.parryFinishOnly
+        ? 'finish'
+        : effectCommand.extendParryVisualSlow
+          ? 'chain'
+          : 'normal';
+      playOsmdParrySe(tier);
+    } else if (
       !disableCorrectSe && (
         effectCommand.kind === 'correct'
         || effectCommand.kind === 'voicingCast'
@@ -433,7 +445,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       onImpact: callbacksRef.current.onEffectImpact,
       scheduleImpact,
     }, effectCommand);
-  }, [disableCorrectSe, effectCommand, markDirty, scheduleImpact]);
+  }, [battleMode, disableCorrectSe, effectCommand, markDirty, scheduleImpact]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

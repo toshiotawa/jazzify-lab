@@ -110,6 +110,7 @@ final class EarTrainingBattleOsuCirclePool {
     }
 
     func update(nowMs: Double) {
+        let nextCommandId = resolveNextCommandId(nowMs: nowMs)
         for index in slots.indices {
             guard slots[index].active else { continue }
             let slot = slots[index]
@@ -127,8 +128,12 @@ final class EarTrainingBattleOsuCirclePool {
                 slots[index].outerNode.isHidden = true
                 continue
             }
+            let isNext = slot.commandId == nextCommandId
+            let alpha: CGFloat = isNext ? 0.78 : 0.5
             slots[index].innerNode.isHidden = false
             slots[index].outerNode.isHidden = false
+            slots[index].innerNode.strokeColor = UIColor(red: 251 / 255, green: 146 / 255, blue: 60 / 255, alpha: alpha)
+            slots[index].outerNode.strokeColor = UIColor(white: 1, alpha: alpha)
             slots[index].innerNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
             slots[index].outerNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
             slots[index].innerNode.path = CGPath(
@@ -150,6 +155,26 @@ final class EarTrainingBattleOsuCirclePool {
                 transform: nil
             )
         }
+    }
+
+    private func resolveNextCommandId(nowMs: Double) -> Int? {
+        var nextCommandId: Int?
+        var nextJudgedMs = Double.greatestFiniteMagnitude
+        for slot in slots where slot.active && !slot.dismissed {
+            guard slot.judgedMs < nextJudgedMs else { continue }
+            let timing = EarTrainingBattleOsuCircleTiming.compute(
+                nowMs: nowMs,
+                approachStartMs: slot.approachStartMs,
+                judgedMs: slot.judgedMs,
+                centerX: slot.centerX,
+                targetY: slot.targetY,
+                dismissed: slot.dismissed
+            )
+            guard timing.visible else { continue }
+            nextJudgedMs = slot.judgedMs
+            nextCommandId = slot.commandId
+        }
+        return nextCommandId
     }
 
     func clear() {

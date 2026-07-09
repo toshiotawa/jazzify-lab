@@ -1038,7 +1038,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 damage: nil,
                 phraseNoteCount: nil,
                 approachStartMs: timing.approachStartMs,
-                judgedMs: timing.judgedMs
+                judgedMs: timing.judgedMs,
+                osuCircleLayoutIndex: nextApproachTargetIndex
             )
             targets[nextApproachTargetIndex].osuCircleEffectId = effectId
             nextApproachTargetIndex += 1
@@ -1178,9 +1179,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             isSwing: stage.resolvedIsSwing,
             nextTargetPhraseTimeSec: nextTarget.map { resolveCalibratedTargetTimeSec($0.targetTimeSec) },
             extendParryVisualSlow: spanState.extendVisualSlow,
-            clearParryVisualSlow: spanState.isFinish,
+            clearParryVisualSlow: false,
             visualSlowSustainMs: visualSlowSustainMs
         )
+        if spanState.isFinish {
+            audio.playOsmdParrySe(tier: .finish)
+        } else if spanState.extendVisualSlow {
+            audio.playOsmdParrySe(tier: .chain)
+        } else {
+            audio.playOsmdParrySe(tier: .normal)
+        }
         if spanState.isFinish {
             parryChainAnchor = nil
         }
@@ -1480,7 +1488,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         nextTargetPhraseTimeSec: Double? = nil,
         extendParryVisualSlow: Bool = false,
         clearParryVisualSlow: Bool = false,
-        visualSlowSustainMs: Double? = nil
+        visualSlowSustainMs: Double? = nil,
+        osuCircleLayoutIndex: Int? = nil
     ) -> Int {
         battleEffectIdCounter += 1
         let id = battleEffectIdCounter
@@ -1502,7 +1511,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             nextTargetPhraseTimeSec: nextTargetPhraseTimeSec,
             extendParryVisualSlow: extendParryVisualSlow,
             clearParryVisualSlow: clearParryVisualSlow,
-            visualSlowSustainMs: visualSlowSustainMs
+            visualSlowSustainMs: visualSlowSustainMs,
+            osuCircleLayoutIndex: osuCircleLayoutIndex
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id

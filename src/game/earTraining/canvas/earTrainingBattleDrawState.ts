@@ -171,6 +171,10 @@ export const PARRY_LINGER_FADE_START_MS = PARRY_EFFECT_FADE_START_MS;
 export const PARRY_LINGER_FADE_DURATION_MS = PARRY_MOTION_END_MS - PARRY_EFFECT_FADE_START_MS;
 export const PARRY_VISUAL_SLOW_DURATION_MS = PARRY_SLOW_PHASE_MS;
 export const PARRY_VISUAL_SLOW_SCALE = 0.22;
+/** 連鎖中パリィの短いヒットストップ（長いスローは finish のみ） */
+export const PARRY_HIT_STOP_MS = 64;
+export const PARRY_HIT_STOP_SCALE = 0.04;
+export const PARRY_IMPACT_RING_COLOR = 'rgba(103, 232, 249, 0.88)';
 
 const buildDefaultParryBeatSync = (): ParryBeatSyncRuntime => ({
   slowPhaseMs: PARRY_SLOW_PHASE_MS,

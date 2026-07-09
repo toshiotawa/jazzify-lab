@@ -15,7 +15,7 @@ export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS;
 
 const NORMAL_SPARK_COUNT = 28;
 const CHAIN_SPARK_COUNT = 40;
-export const PARRY_SPARK_COLOR = '#fb923c';
+export const PARRY_SPARK_COLOR = '#67e8f9';
 
 const copyParryBeatSync = (beatSync: ParryBeatSyncRuntime): ParryBeatSyncRuntime => ({
   slowPhaseMs: beatSync.slowPhaseMs,

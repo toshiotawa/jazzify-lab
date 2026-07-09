@@ -64,6 +64,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let extendParryVisualSlow: Bool
     let clearParryVisualSlow: Bool
     let visualSlowSustainMs: Double?
+    let osuCircleLayoutIndex: Int?
 
     init(
         id: Int,
@@ -84,7 +85,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         nextTargetPhraseTimeSec: Double? = nil,
         extendParryVisualSlow: Bool = false,
         clearParryVisualSlow: Bool = false,
-        visualSlowSustainMs: Double? = nil
+        visualSlowSustainMs: Double? = nil,
+        osuCircleLayoutIndex: Int? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -105,6 +107,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         self.extendParryVisualSlow = extendParryVisualSlow
         self.clearParryVisualSlow = clearParryVisualSlow
         self.visualSlowSustainMs = visualSlowSustainMs
+        self.osuCircleLayoutIndex = osuCircleLayoutIndex
     }
 }
 
