@@ -216,6 +216,9 @@
 		F4OSMD004ENG0102 /* EarTrainingBattleOsuCircleTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD004ENG0101 /* EarTrainingBattleOsuCircleTiming.swift */; };
 		F4OSMD005ENG0102 /* EarTrainingBattleOsuCirclePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD005ENG0101 /* EarTrainingBattleOsuCirclePool.swift */; };
 		F4OSMD006ENG0102 /* EarTrainingBattleOsuCircleShatterPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD006ENG0101 /* EarTrainingBattleOsuCircleShatterPool.swift */; };
+		F4OSMD007ENG0102 /* EarTrainingBattleOsuCircleLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD007ENG0101 /* EarTrainingBattleOsuCircleLayout.swift */; };
+		F4OSMD008ENG0102 /* EarTrainingBattleOsuCircleNoteLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD008ENG0101 /* EarTrainingBattleOsuCircleNoteLabels.swift */; };
+		F4OSMD009ENG0102 /* EarTrainingBattleOsuCircleColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD009ENG0101 /* EarTrainingBattleOsuCircleColors.swift */; };
 		F2PRECC001ENG0102 /* EarTrainingSmfBinary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */; };
 		F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */; };
 		F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */; };
@@ -457,6 +460,9 @@
 		F4OSMD004ENG0101 /* EarTrainingBattleOsuCircleTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleTiming.swift; sourceTree = "<group>"; };
 		F4OSMD005ENG0101 /* EarTrainingBattleOsuCirclePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCirclePool.swift; sourceTree = "<group>"; };
 		F4OSMD006ENG0101 /* EarTrainingBattleOsuCircleShatterPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleShatterPool.swift; sourceTree = "<group>"; };
+		F4OSMD007ENG0101 /* EarTrainingBattleOsuCircleLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleLayout.swift; sourceTree = "<group>"; };
+		F4OSMD008ENG0101 /* EarTrainingBattleOsuCircleNoteLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleNoteLabels.swift; sourceTree = "<group>"; };
+		F4OSMD009ENG0101 /* EarTrainingBattleOsuCircleColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleColors.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSmfBinary.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionNotes.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionJudge.swift; sourceTree = "<group>"; };
@@ -680,6 +686,9 @@
 				F4OSMD004ENG0101 /* EarTrainingBattleOsuCircleTiming.swift */,
 				F4OSMD005ENG0101 /* EarTrainingBattleOsuCirclePool.swift */,
 				F4OSMD006ENG0101 /* EarTrainingBattleOsuCircleShatterPool.swift */,
+				F4OSMD007ENG0101 /* EarTrainingBattleOsuCircleLayout.swift */,
+				F4OSMD008ENG0101 /* EarTrainingBattleOsuCircleNoteLabels.swift */,
+				F4OSMD009ENG0101 /* EarTrainingBattleOsuCircleColors.swift */,
 				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
 				ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */,
 				PPAD002E2606021400000002 /* EarTrainingPhrasePairEngine.swift */,
@@ -1336,6 +1345,9 @@
 				F4OSMD004ENG0102 /* EarTrainingBattleOsuCircleTiming.swift in Sources */,
 				F4OSMD005ENG0102 /* EarTrainingBattleOsuCirclePool.swift in Sources */,
 				F4OSMD006ENG0102 /* EarTrainingBattleOsuCircleShatterPool.swift in Sources */,
+				F4OSMD007ENG0102 /* EarTrainingBattleOsuCircleLayout.swift in Sources */,
+				F4OSMD008ENG0102 /* EarTrainingBattleOsuCircleNoteLabels.swift in Sources */,
+				F4OSMD009ENG0102 /* EarTrainingBattleOsuCircleColors.swift in Sources */,
 				F2EE770002BB11EE0000BB02 /* EarTrainingChordOSMDGameView.swift in Sources */,
 				F2PRECC001VIE0802 /* EarTrainingOSMDScoreWebView.swift in Sources */,
 				F2PRECC001VIE0702 /* PrecisionNotesCanvasView.swift in Sources */,

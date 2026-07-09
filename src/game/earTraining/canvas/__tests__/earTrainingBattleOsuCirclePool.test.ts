@@ -25,7 +25,7 @@ describe('burstOsuCircle', () => {
       targetY: 320,
     });
     const position = burstOsuCircle(pool, 3);
-    expect(position).toEqual({ centerX: 180, targetY: 320 });
+    expect(position).toEqual({ centerX: 180, targetY: 320, colorIndex: 0 });
     expect(pool[0].active).toBe(false);
     expect(burstOsuCircle(pool, 3)).toBeNull();
   });

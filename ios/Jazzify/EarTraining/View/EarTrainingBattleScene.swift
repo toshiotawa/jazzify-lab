@@ -2216,7 +2216,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             judgedMs: judgedMs,
             centerX: position.x,
             targetY: position.y,
-            noteLabels: command.osuCircleNoteLabels ?? []
+            noteLabels: command.osuCircleNoteLabels ?? [],
+            colorIndex: command.osuCircleColorIndex ?? 0
         )
     }
 
@@ -2227,9 +2228,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let burstPosition = osuCirclePool?.burst(commandId: relatedId)
         guard let burstPosition else { return }
         osuCircleShatterPool?.spawn(
-            origin: burstPosition,
+            origin: burstPosition.point,
             ringRadius: EarTrainingBattleOsuCircleTiming.innerRadiusPx,
-            startedAtMs: CACurrentMediaTime() * 1000
+            startedAtMs: CACurrentMediaTime() * 1000,
+            colorIndex: burstPosition.colorIndex
         )
     }
 

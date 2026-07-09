@@ -1,7 +1,7 @@
 import {
   OSU_CIRCLE_LINE_WIDTH,
-  OSU_CIRCLE_STROKE_COLOR,
 } from './earTrainingBattleOsuCircleTiming';
+import { getOsuCircleInnerStroke } from './earTrainingBattleOsuCircleColors';
 
 export const OSU_SHATTER_POOL_SIZE = 128;
 export const OSU_SHATTER_DURATION_MS = 560;
@@ -9,7 +9,6 @@ export const OSU_SHATTER_FRAGMENT_COUNT = 20;
 const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.82;
 const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 180;
 const OSU_SHATTER_DRIFT_MAX_PX_PER_SEC = 340;
-const OSU_SHATTER_STROKE = OSU_CIRCLE_STROKE_COLOR;
 const OSU_SHATTER_LINE_WIDTH = OSU_CIRCLE_LINE_WIDTH + 2;
 
 export interface OsuShatterSlot {
@@ -21,6 +20,7 @@ export interface OsuShatterSlot {
   midAngle: number;
   arcSpan: number;
   ringRadius: number;
+  colorIndex: number;
   dirX: number;
   dirY: number;
   driftSpeed: number;
@@ -37,6 +37,7 @@ export const createOsuCircleShatterPool = (): OsuShatterSlot[] =>
     midAngle: 0,
     arcSpan: OSU_SHATTER_ARC_SPAN,
     ringRadius: 0,
+    colorIndex: 0,
     dirX: 0,
     dirY: 0,
     driftSpeed: 0,
@@ -49,6 +50,7 @@ export const spawnOsuCircleShatter = (
   originY: number,
   ringRadius: number,
   startedAt: number,
+  colorIndex = 0,
 ): number => {
   let spawned = 0;
   for (let index = 0; index < OSU_SHATTER_FRAGMENT_COUNT; index += 1) {
@@ -64,6 +66,7 @@ export const spawnOsuCircleShatter = (
     slot.midAngle = midAngle;
     slot.arcSpan = OSU_SHATTER_ARC_SPAN;
     slot.ringRadius = ringRadius;
+    slot.colorIndex = colorIndex;
     slot.dirX = Math.cos(midAngle);
     slot.dirY = Math.sin(midAngle);
     slot.driftSpeed = OSU_SHATTER_DRIFT_MIN_PX_PER_SEC
@@ -99,7 +102,6 @@ export const drawOsuCircleShatter = (
   nowMs: number,
 ): void => {
   ctx.save();
-  ctx.strokeStyle = OSU_SHATTER_STROKE;
   ctx.lineWidth = OSU_SHATTER_LINE_WIDTH;
   ctx.lineCap = 'round';
 
@@ -116,6 +118,7 @@ export const drawOsuCircleShatter = (
     // 序盤はほぼ不透明、後半で急に薄くなる（半透明の余韻）
     const alpha = t < 0.35 ? 1 : 1 - ((t - 0.35) / 0.65) ** 1.4;
 
+    ctx.strokeStyle = getOsuCircleInnerStroke(slot.colorIndex);
     ctx.globalAlpha = Math.max(0, alpha);
     ctx.beginPath();
     ctx.arc(

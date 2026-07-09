@@ -9,7 +9,6 @@ final class EarTrainingBattleOsuCircleShatterPool {
     static let durationMs: Double = 560
     static let fragmentCount = 20
     private static let arcSpan = (Double.pi * 2 / Double(fragmentCount)) * 0.82
-    private static let strokeColor = UIColor(red: 251 / 255, green: 146 / 255, blue: 60 / 255, alpha: 1)
     private static let lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth + 2
 
     private struct Slot {
@@ -19,6 +18,7 @@ final class EarTrainingBattleOsuCircleShatterPool {
         var originY: CGFloat = 0
         var midAngle: Double = 0
         var ringRadius: CGFloat = 0
+        var colorIndex = 0
         var dirX: CGFloat = 0
         var dirY: CGFloat = 0
         var driftSpeed: Double = 0
@@ -32,7 +32,6 @@ final class EarTrainingBattleOsuCircleShatterPool {
     init(parent: SKNode) {
         slots = (0..<Self.poolSize).map { _ in
             let node = SKShapeNode()
-            node.strokeColor = Self.strokeColor
             node.lineWidth = Self.lineWidth
             node.lineCap = .round
             node.fillColor = .clear
@@ -52,8 +51,9 @@ final class EarTrainingBattleOsuCircleShatterPool {
     }
 
     @discardableResult
-    func spawn(origin: CGPoint, ringRadius: CGFloat, startedAtMs: Double) -> Int {
+    func spawn(origin: CGPoint, ringRadius: CGFloat, startedAtMs: Double, colorIndex: Int = 0) -> Int {
         var spawned = 0
+        let strokeColor = EarTrainingBattleOsuCircleColors.innerStroke(colorIndex: colorIndex)
         for fragmentIndex in 0..<Self.fragmentCount {
             guard let slotIndex = slots.firstIndex(where: { !$0.active }) else { break }
             let midAngle = (Double.pi * 2 * Double(fragmentIndex)) / Double(Self.fragmentCount)
@@ -63,12 +63,13 @@ final class EarTrainingBattleOsuCircleShatterPool {
             slots[slotIndex].originY = origin.y
             slots[slotIndex].midAngle = midAngle
             slots[slotIndex].ringRadius = ringRadius
+            slots[slotIndex].colorIndex = colorIndex
             slots[slotIndex].dirX = CGFloat(cos(midAngle))
             slots[slotIndex].dirY = CGFloat(sin(midAngle))
             slots[slotIndex].driftSpeed = Double.random(in: 180...340)
             slots[slotIndex].spinRadPerMs = Double.random(in: -0.005...0.005)
             slots[slotIndex].node.isHidden = false
-            slots[slotIndex].node.strokeColor = Self.strokeColor
+            slots[slotIndex].node.strokeColor = strokeColor
             slots[slotIndex].node.lineWidth = Self.lineWidth
             spawned += 1
         }
@@ -102,6 +103,7 @@ final class EarTrainingBattleOsuCircleShatterPool {
                 clockwise: false
             )
             slots[index].node.path = path
+            slots[index].node.strokeColor = EarTrainingBattleOsuCircleColors.innerStroke(colorIndex: slot.colorIndex)
             slots[index].node.alpha = CGFloat(max(0, alpha))
         }
     }

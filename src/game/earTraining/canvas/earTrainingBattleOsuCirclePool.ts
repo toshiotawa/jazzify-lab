@@ -1,13 +1,16 @@
 import {
   computeOsuCircleTiming,
-  OSU_CIRCLE_INNER_STROKE,
   OSU_CIRCLE_LINE_WIDTH,
-  OSU_CIRCLE_OUTER_STROKE,
 } from './earTrainingBattleOsuCircleTiming';
+import {
+  getOsuCircleInnerStroke,
+  getOsuCircleOuterStroke,
+  OSU_CIRCLE_OUTER_LINE_WIDTH,
+} from './earTrainingBattleOsuCircleColors';
 
 export const OSU_CIRCLE_POOL_SIZE = 16;
-const OSU_NOTE_LABEL_FONT = '700 13px "Avenir Next", "Segoe UI", sans-serif';
-const OSU_NOTE_LABEL_LINE_HEIGHT = 14;
+const OSU_NOTE_LABEL_FONT = '700 17px "Avenir Next", "Segoe UI", sans-serif';
+const OSU_NOTE_LABEL_LINE_HEIGHT = 18;
 const OSU_NOTE_LABEL_COLOR = '#fff7ed';
 const OSU_NOTE_LABEL_SHADOW = 'rgba(0, 0, 0, 0.55)';
 
@@ -21,11 +24,13 @@ export interface OsuCircleSlot {
   dismissed: boolean;
   layoutIndex: number;
   noteLabels: string[];
+  colorIndex: number;
 }
 
 export interface OsuCircleBurstPosition {
   centerX: number;
   targetY: number;
+  colorIndex: number;
 }
 
 export interface SpawnOsuCircleParams {
@@ -36,6 +41,7 @@ export interface SpawnOsuCircleParams {
   targetY: number;
   layoutIndex?: number;
   noteLabels?: readonly string[];
+  colorIndex?: number;
 }
 
 export interface OsuApproachCircleTimingUpdate {
@@ -72,6 +78,7 @@ export const createOsuCirclePool = (): OsuCircleSlot[] =>
     dismissed: false,
     layoutIndex: 0,
     noteLabels: [],
+    colorIndex: 0,
   }));
 
 export const spawnOsuCircle = (
@@ -89,6 +96,7 @@ export const spawnOsuCircle = (
     slot.dismissed = false;
     slot.layoutIndex = params.layoutIndex ?? 0;
     slot.noteLabels = params.noteLabels ? Array.from(params.noteLabels) : [];
+    slot.colorIndex = params.colorIndex ?? 0;
     return true;
   }
   return false;
@@ -110,6 +118,7 @@ export const burstOsuCircle = (
   const position: OsuCircleBurstPosition = {
     centerX: slot.centerX,
     targetY: slot.targetY,
+    colorIndex: slot.colorIndex,
   };
   slot.active = false;
   return position;
@@ -223,16 +232,20 @@ export const drawOsuCircles = (
 
     const isNext = slot.commandId === nextCommandId;
     const emphasis = isNext ? 1 : 0.78;
+    const innerStroke = getOsuCircleInnerStroke(slot.colorIndex);
+    const outerStroke = getOsuCircleOuterStroke(slot.colorIndex);
 
     ctx.save();
-    ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH;
     ctx.globalAlpha = emphasis;
-    ctx.strokeStyle = OSU_CIRCLE_INNER_STROKE;
+    ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH;
+    ctx.strokeStyle = innerStroke;
     ctx.beginPath();
     ctx.arc(timing.centerX, timing.centerY, timing.innerRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.strokeStyle = OSU_CIRCLE_OUTER_STROKE;
+    ctx.globalAlpha = emphasis;
+    ctx.lineWidth = OSU_CIRCLE_OUTER_LINE_WIDTH;
+    ctx.strokeStyle = outerStroke;
     ctx.beginPath();
     ctx.arc(timing.centerX, timing.centerY, timing.outerRadius, 0, Math.PI * 2);
     ctx.stroke();

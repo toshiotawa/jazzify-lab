@@ -6,14 +6,18 @@ import UIKit
 @MainActor
 final class EarTrainingBattleOsuCirclePool {
     static let poolSize = 16
-    private static let strokeColor = UIColor(red: 251 / 255, green: 146 / 255, blue: 60 / 255, alpha: 1)
-    private static let labelFontSize: CGFloat = 13
-    private static let labelLineHeight: CGFloat = 14
+    private static let labelFontSize: CGFloat = 17
+    private static let labelLineHeight: CGFloat = 18
 
     struct TimingUpdate {
         let commandId: Int
         let approachStartMs: Double
         let judgedMs: Double
+    }
+
+    struct BurstPosition {
+        let point: CGPoint
+        let colorIndex: Int
     }
 
     private struct Slot {
@@ -25,6 +29,7 @@ final class EarTrainingBattleOsuCirclePool {
         var targetY: CGFloat = 0
         var dismissed = false
         var noteLabels: [String] = []
+        var colorIndex = 0
         let innerNode: SKShapeNode
         let outerNode: SKShapeNode
         let labelNode: SKNode
@@ -37,15 +42,13 @@ final class EarTrainingBattleOsuCirclePool {
         slots = (0..<Self.poolSize).map { _ in
             let inner = SKShapeNode(circleOfRadius: 1)
             inner.fillColor = .clear
-            inner.strokeColor = Self.strokeColor
             inner.lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth
             inner.isHidden = true
             inner.zPosition = 64
 
             let outer = SKShapeNode(circleOfRadius: 1)
             outer.fillColor = .clear
-            outer.strokeColor = Self.strokeColor
-            outer.lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth
+            outer.lineWidth = EarTrainingBattleOsuCircleColors.outerLineWidth
             outer.isHidden = true
             outer.zPosition = 64
 
@@ -75,7 +78,8 @@ final class EarTrainingBattleOsuCirclePool {
         judgedMs: Double,
         centerX: CGFloat,
         targetY: CGFloat,
-        noteLabels: [String] = []
+        noteLabels: [String] = [],
+        colorIndex: Int = 0
     ) -> Bool {
         guard let index = slots.firstIndex(where: { !$0.active }) else { return false }
         slots[index].active = true
@@ -86,6 +90,7 @@ final class EarTrainingBattleOsuCirclePool {
         slots[index].targetY = targetY
         slots[index].dismissed = false
         slots[index].noteLabels = noteLabels
+        slots[index].colorIndex = colorIndex
         rebuildLabels(at: index)
         return true
     }
@@ -103,11 +108,14 @@ final class EarTrainingBattleOsuCirclePool {
         return count
     }
 
-    func burst(commandId: Int) -> CGPoint? {
+    func burst(commandId: Int) -> BurstPosition? {
         guard let index = slots.firstIndex(where: { $0.active && $0.commandId == commandId }) else {
             return nil
         }
-        let position = CGPoint(x: slots[index].centerX, y: slots[index].targetY)
+        let position = BurstPosition(
+            point: CGPoint(x: slots[index].centerX, y: slots[index].targetY),
+            colorIndex: slots[index].colorIndex
+        )
         slots[index].active = false
         slots[index].innerNode.isHidden = true
         slots[index].outerNode.isHidden = true
@@ -144,13 +152,15 @@ final class EarTrainingBattleOsuCirclePool {
                 continue
             }
             let isNext = slot.commandId == nextCommandId
-            let alpha: CGFloat = isNext ? 1 : 0.78
+            let emphasis: CGFloat = isNext ? 1 : 0.78
+            let innerColor = EarTrainingBattleOsuCircleColors.innerStroke(colorIndex: slot.colorIndex)
+            let outerColor = EarTrainingBattleOsuCircleColors.outerStroke(colorIndex: slot.colorIndex)
             slots[index].innerNode.isHidden = false
             slots[index].outerNode.isHidden = false
             slots[index].labelNode.isHidden = slot.noteLabels.isEmpty
-            slots[index].innerNode.strokeColor = Self.strokeColor.withAlphaComponent(alpha)
-            slots[index].outerNode.strokeColor = Self.strokeColor.withAlphaComponent(alpha)
-            slots[index].labelNode.alpha = alpha
+            slots[index].innerNode.strokeColor = innerColor.withAlphaComponent(emphasis)
+            slots[index].outerNode.strokeColor = outerColor.withAlphaComponent(emphasis)
+            slots[index].labelNode.alpha = emphasis
             slots[index].innerNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
             slots[index].outerNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
             slots[index].labelNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
@@ -225,6 +235,7 @@ final class EarTrainingBattleOsuCirclePool {
             slots[index].active = false
             slots[index].dismissed = false
             slots[index].noteLabels = []
+            slots[index].colorIndex = 0
             slots[index].innerNode.isHidden = true
             slots[index].outerNode.isHidden = true
             slots[index].labelNode.isHidden = true

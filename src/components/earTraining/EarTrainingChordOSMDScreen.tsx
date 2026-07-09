@@ -21,6 +21,7 @@ import type {
 import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { resolveOsuApproachCirclePerfTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { resolveOsuCircleNoteLabels } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleNoteLabels';
+import { resolveOsuCircleColorIndex } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleColors';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -625,6 +626,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       visualSlowSustainMs?: number;
       osuCircleLayoutIndex?: number;
       osuCircleNoteLabels?: readonly string[];
+      osuCircleColorIndex?: number;
     } = {},
   ): number => {
     battleEffectIdRef.current += 1;
@@ -649,6 +651,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       visualSlowSustainMs: options.visualSlowSustainMs,
       osuCircleLayoutIndex: options.osuCircleLayoutIndex,
       osuCircleNoteLabels: options.osuCircleNoteLabels,
+      osuCircleColorIndex: options.osuCircleColorIndex,
     };
     phaserGameRef.current?.triggerEffect(command);
     return effectId;
@@ -1182,11 +1185,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         osuCircleNoteLabels: resolveOsuCircleNoteLabels(
           target.midiCounts.map(item => item.midi),
         ),
+        osuCircleColorIndex: resolveOsuCircleColorIndex(
+          target.measureNumber,
+          stage.loop_measures,
+        ),
       });
       state.osuCircleEffectId = effectId;
       nextApproachTargetIndexRef.current += 1;
     }
-  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, triggerBattleEffect]);
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, stage.loop_measures, triggerBattleEffect]);
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;

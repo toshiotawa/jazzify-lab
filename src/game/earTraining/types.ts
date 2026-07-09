@@ -57,6 +57,8 @@ export interface EarTrainingBattleEffectCommand {
   osuCircleLayoutIndex?: number;
   /** OSMD: 円中央に描く音名（低い音から） */
   osuCircleNoteLabels?: readonly string[];
+  /** OSMD: フレーズ区間に応じたパステル色 index（0〜3） */
+  osuCircleColorIndex?: number;
 }
 
 export interface EarTrainingBattleChordView {

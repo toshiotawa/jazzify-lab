@@ -290,6 +290,7 @@ const playOsmdApproachCircleEffect = (
     targetY: positioned.targetY,
     layoutIndex,
     noteLabels: command.osuCircleNoteLabels,
+    colorIndex: command.osuCircleColorIndex,
   });
   onDirty();
 };
@@ -317,6 +318,7 @@ const playOsmdApproachCircleBurstEffect = (
     position.targetY,
     OSU_CIRCLE_INNER_RADIUS_PX,
     now,
+    position.colorIndex,
   );
   onDirty();
 };

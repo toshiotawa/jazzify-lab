@@ -66,6 +66,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let visualSlowSustainMs: Double?
     let osuCircleLayoutIndex: Int?
     let osuCircleNoteLabels: [String]?
+    let osuCircleColorIndex: Int?
 
     init(
         id: Int,
@@ -88,7 +89,8 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         clearParryVisualSlow: Bool = false,
         visualSlowSustainMs: Double? = nil,
         osuCircleLayoutIndex: Int? = nil,
-        osuCircleNoteLabels: [String]? = nil
+        osuCircleNoteLabels: [String]? = nil,
+        osuCircleColorIndex: Int? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -111,6 +113,7 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         self.visualSlowSustainMs = visualSlowSustainMs
         self.osuCircleLayoutIndex = osuCircleLayoutIndex
         self.osuCircleNoteLabels = osuCircleNoteLabels
+        self.osuCircleColorIndex = osuCircleColorIndex
     }
 }
 
