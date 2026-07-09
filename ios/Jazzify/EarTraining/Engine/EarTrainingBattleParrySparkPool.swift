@@ -14,6 +14,7 @@ final class EarTrainingBattleParrySparkPool {
         var size: CGFloat = 0
         var timeOffsetMs: Double = 0
         var radiusScale: CGFloat = 1
+        var beatSync = ParryBeatSyncRuntime.default
         let node: SKShapeNode
     }
 
@@ -42,7 +43,13 @@ final class EarTrainingBattleParrySparkPool {
     }
 
     @discardableResult
-    func spawn(x: CGFloat, y: CGFloat, startedAt: TimeInterval, isChainParry: Bool) -> Int {
+    func spawn(
+        x: CGFloat,
+        y: CGFloat,
+        startedAt: TimeInterval,
+        isChainParry: Bool,
+        beatSync: ParryBeatSyncRuntime = .default
+    ) -> Int {
         let count = isChainParry ? 40 : 28
         let sizeMin: CGFloat = 1.5
         let sizeMax: CGFloat = isChainParry ? 4 : 3.5
@@ -60,36 +67,42 @@ final class EarTrainingBattleParrySparkPool {
             slots[index].size = sizeMin + CGFloat.random(in: 0...(sizeMax - sizeMin))
             slots[index].timeOffsetMs = Double.random(in: -25...25)
             slots[index].radiusScale = CGFloat.random(in: 0.88...1.12)
+            slots[index].beatSync = beatSync
             slots[index].node.isHidden = false
             spawned += 1
         }
         return spawned
     }
 
-    func update(now: TimeInterval, slowStartedAt: TimeInterval?) {
+    func update(now: TimeInterval, slowStartedAt: TimeInterval?, visualSlowDurationMs: Double) {
         let visualNow = EarTrainingBattleParryConstants.getVisualNow(
             now: now * 1000,
-            slowStartedAt: slowStartedAt.map { $0 * 1000 }
+            slowStartedAt: slowStartedAt.map { $0 * 1000 },
+            durationMs: visualSlowDurationMs
         ) / 1000
 
         for index in slots.indices {
             guard slots[index].active else { continue }
             let slot = slots[index]
             let ageMs = (visualNow - slot.parryStartedAt) * 1000 + slot.timeOffsetMs
-            if ageMs < 0 || ageMs >= EarTrainingBattleParryConstants.motionEndMs {
+            if ageMs < 0 || ageMs >= slot.beatSync.motionEndMs {
                 slots[index].active = false
                 slots[index].node.isHidden = true
                 continue
             }
 
-            let radius = EarTrainingBattleParryConstants.getParryEffectRadiusAtAge(ageMs) * slot.radiusScale
+            let radius = EarTrainingBattleParryConstants.getParryEffectRadiusAtAge(
+                ageMs,
+                beatSync: slot.beatSync
+            ) * slot.radiusScale
             let posX = slot.centerX + slot.dirX * radius
             let posY = slot.centerY + slot.dirY * radius
-            let fadeT = ageMs / EarTrainingBattleParryConstants.motionEndMs
+            let fadeT = ageMs / slot.beatSync.motionEndMs
             let alpha = EarTrainingBattleParryConstants.getParryLingerAlpha(
                 now: visualNow * 1000,
                 groupStartedAt: slot.parryStartedAt * 1000,
-                baseAlpha: 1 - fadeT * 0.4
+                baseAlpha: 1 - fadeT * 0.4,
+                beatSync: slot.beatSync
             )
             let sparkSize = max(0.6, slot.size * (1 - fadeT * 0.35) * 0.4)
 

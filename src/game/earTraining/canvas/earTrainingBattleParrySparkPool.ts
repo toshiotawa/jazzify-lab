@@ -13,10 +13,9 @@ import {
 export const PARRY_SPARK_POOL_SIZE = 512;
 export const PARRY_SPARK_DURATION_MS = PARRY_MOTION_END_MS;
 
-const NORMAL_SPARK_COUNT = 36;
-const CHAIN_SPARK_COUNT = 48;
+const NORMAL_SPARK_COUNT = 28;
+const CHAIN_SPARK_COUNT = 40;
 export const PARRY_SPARK_COLOR = '#fb923c';
-export const PARRY_SPARK_CORE_COLOR = '#fff7ed';
 
 const copyParryBeatSync = (beatSync: ParryBeatSyncRuntime): ParryBeatSyncRuntime => ({
   slowPhaseMs: beatSync.slowPhaseMs,
@@ -55,9 +54,7 @@ export interface ParrySparkDrawState {
   y: number;
   alpha: number;
   size: number;
-  glowSize: number;
   color: string;
-  coreColor: string;
 }
 
 export const createParrySparkPool = (): ParrySparkSlot[] =>
@@ -87,8 +84,8 @@ export const spawnParrySparks = (
   cursor: ParrySparkSpawnCursor,
 ): number => {
   const count = isChainParry ? CHAIN_SPARK_COUNT : NORMAL_SPARK_COUNT;
-  const sizeMin = 2;
-  const sizeMax = isChainParry ? 5.5 : 5;
+  const sizeMin = 1.5;
+  const sizeMax = isChainParry ? 4 : 3.5;
   const frozenBeatSync = copyParryBeatSync(beatSync);
   let spawned = 0;
   let scanned = 0;
@@ -139,20 +136,17 @@ export const getParrySparkDrawState = (
   const alpha = getParryLingerAlpha(
     visualNow,
     slot.parryStartedAt,
-    1 - fadeT * 0.28,
+    1 - fadeT * 0.4,
     slot.beatSync,
   );
-  const size = slot.size * (1 - fadeT * 0.22);
-  const glowSize = size * 1.55;
+  const size = Math.max(0.6, slot.size * (1 - fadeT * 0.35) * 0.4);
 
   return {
     x,
     y,
     alpha,
     size,
-    glowSize,
     color: PARRY_SPARK_COLOR,
-    coreColor: PARRY_SPARK_CORE_COLOR,
   };
 };
 
@@ -179,22 +173,10 @@ export const drawParrySparks = (
     if (!state || state.alpha <= 0) continue;
 
     ctx.save();
-    ctx.globalAlpha = state.alpha * 0.38;
-    ctx.fillStyle = state.color;
-    ctx.beginPath();
-    ctx.arc(state.x, state.y, Math.max(1, state.glowSize * 0.45), 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.globalAlpha = state.alpha;
     ctx.fillStyle = state.color;
     ctx.beginPath();
-    ctx.arc(state.x, state.y, Math.max(0.8, state.size * 0.52), 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.globalAlpha = Math.min(1, state.alpha * 1.1);
-    ctx.fillStyle = state.coreColor;
-    ctx.beginPath();
-    ctx.arc(state.x, state.y, Math.max(0.5, state.size * 0.22), 0, Math.PI * 2);
+    ctx.arc(state.x, state.y, state.size, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

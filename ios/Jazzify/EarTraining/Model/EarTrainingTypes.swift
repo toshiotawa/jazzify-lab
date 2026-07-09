@@ -32,6 +32,10 @@ enum EarTrainingBattleEffectKind: String, Sendable {
     case quotaReached
     case osmdHammer
     case osmdHammerReflect
+    case osmdApproachCircle
+    case osmdApproachCircleBurst
+    case osmdApproachCircleDismiss
+    case clearParryVisualSlow
     case osmdMeteor
 }
 
@@ -49,6 +53,17 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
     let precise: Bool
     /// 小節最終音符: 最初からフィニッシュモーション（連続パリィでもキャンセルしない）
     let parryFinishOnly: Bool
+    /// OSMD: OSU! アプローチ円の wall-clock 基準タイムスタンプ（ms）
+    let approachStartMs: Double?
+    let judgedMs: Double?
+    /// OSMD: パリィヒット時の phrase タイムライン秒
+    let hitPhraseTimeSec: Double?
+    let effectiveBpm: Double?
+    let isSwing: Bool?
+    let nextTargetPhraseTimeSec: Double?
+    let extendParryVisualSlow: Bool
+    let clearParryVisualSlow: Bool
+    let visualSlowSustainMs: Double?
 
     init(
         id: Int,
@@ -60,7 +75,16 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         relatedEffectId: Int? = nil,
         travelDurationSec: Double? = nil,
         precise: Bool = false,
-        parryFinishOnly: Bool = false
+        parryFinishOnly: Bool = false,
+        approachStartMs: Double? = nil,
+        judgedMs: Double? = nil,
+        hitPhraseTimeSec: Double? = nil,
+        effectiveBpm: Double? = nil,
+        isSwing: Bool? = nil,
+        nextTargetPhraseTimeSec: Double? = nil,
+        extendParryVisualSlow: Bool = false,
+        clearParryVisualSlow: Bool = false,
+        visualSlowSustainMs: Double? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -72,6 +96,15 @@ struct EarTrainingBattleEffectCommand: Sendable, Equatable {
         self.travelDurationSec = travelDurationSec
         self.precise = precise
         self.parryFinishOnly = parryFinishOnly
+        self.approachStartMs = approachStartMs
+        self.judgedMs = judgedMs
+        self.hitPhraseTimeSec = hitPhraseTimeSec
+        self.effectiveBpm = effectiveBpm
+        self.isSwing = isSwing
+        self.nextTargetPhraseTimeSec = nextTargetPhraseTimeSec
+        self.extendParryVisualSlow = extendParryVisualSlow
+        self.clearParryVisualSlow = clearParryVisualSlow
+        self.visualSlowSustainMs = visualSlowSustainMs
     }
 }
 

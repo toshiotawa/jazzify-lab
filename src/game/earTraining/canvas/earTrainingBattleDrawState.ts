@@ -158,11 +158,11 @@ export const PARRY_RING_BASE_SIZE = 72;
 export const PARRY_RING_LINE_WIDTH = 5;
 export const PARRY_RING_ALPHA = 0.82;
 export const PARRY_RING_ORANGE = 'rgba(251, 146, 60, 0.85)';
-export const PARRY_SPARK_TIME_OFFSET_MS = 18;
-export const PARRY_SPARK_RADIUS_SCALE_MIN = 0.85;
-export const PARRY_SPARK_RADIUS_SCALE_MAX = 1.18;
+export const PARRY_SPARK_TIME_OFFSET_MS = 25;
+export const PARRY_SPARK_RADIUS_SCALE_MIN = 0.88;
+export const PARRY_SPARK_RADIUS_SCALE_MAX = 1.12;
 export const PARRY_SPARK_START_RADIUS_PX = 4;
-export const PARRY_MERGE_RADIUS_PX = 40;
+export const PARRY_MERGE_RADIUS_PX = 34;
 export const PARRY_RING_MERGE_SCALE = (PARRY_MERGE_RADIUS_PX * 2) / PARRY_RING_BASE_SIZE;
 export const PARRY_RING_MAX_SCALE = 2.45;
 export const PARRY_MAX_RADIUS_PX = (PARRY_RING_BASE_SIZE * PARRY_RING_MAX_SCALE) / 2;
@@ -320,7 +320,7 @@ export const getParryLingerAlpha = (
   return baseAlpha * (1 - easeCubicOut(fadeT));
 };
 
-/** 花火の半径タイムライン（slowPhase 内のみ拡大、以降は合流半径で維持） */
+/** 花火の半径タイムライン（slowPhase 内は merge へ、ringExpand 内は max へ、以降維持） */
 export const getParryEffectRadiusAtAge = (
   ageMs: number,
   beatSync: ParryBeatSyncRuntime = buildDefaultParryBeatSync(),
@@ -329,7 +329,12 @@ export const getParryEffectRadiusAtAge = (
     const t = ageMs / Math.max(1, beatSync.slowPhaseMs);
     return lerp(PARRY_SPARK_START_RADIUS_PX, PARRY_MERGE_RADIUS_PX, easeCubicOut(t));
   }
-  return PARRY_MERGE_RADIUS_PX;
+  if (ageMs <= beatSync.ringExpandEndMs) {
+    const t = (ageMs - beatSync.ringExpandStartMs)
+      / Math.max(1, beatSync.ringExpandEndMs - beatSync.ringExpandStartMs);
+    return lerp(PARRY_MERGE_RADIUS_PX, PARRY_MAX_RADIUS_PX, easeCubicOut(t));
+  }
+  return PARRY_MAX_RADIUS_PX;
 };
 
 /** slowPhase 終了以前は非表示。合流サイズから拡大 */

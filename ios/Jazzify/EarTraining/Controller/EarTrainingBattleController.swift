@@ -17,12 +17,16 @@ protocol EarTrainingBattleSceneHandle: AnyObject {
     func setPartnerQuote(_ text: String?, quoteFontPoints: CGFloat?, showAdvanceCue: Bool)
     /// OSMD デモ等で飛行中のハンマーを着弾前に破棄する（`relatedEffectId` 再利用クラッシュ防止）。
     func dismissOsmdHammerEffect(effectId: Int)
+    /// OSMD: タイミング調整変更時にアプローチ円を再同期する。
+    func resyncOsuApproachCircles(updates: [(commandId: Int, approachStartMs: Double, judgedMs: Double)])
     /// 中央五線譜予約帯の下端 Y（SwiftUI 上端基準）。nil のとき帯なし（phrase 等）。
     func setStaffReservedBandBottomY(_ y: CGFloat?)
 }
 
 extension EarTrainingBattleSceneHandle {
     func dismissOsmdHammerEffect(effectId: Int) {}
+
+    func resyncOsuApproachCircles(updates: [(commandId: Int, approachStartMs: Double, judgedMs: Double)]) {}
 
     func setStaffReservedBandBottomY(_ y: CGFloat?) {}
 

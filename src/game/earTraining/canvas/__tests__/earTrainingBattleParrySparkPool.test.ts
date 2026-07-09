@@ -10,7 +10,9 @@ import {
   PARRY_LINGER_FADE_DURATION_MS,
   PARRY_MERGE_RADIUS_PX,
   PARRY_MOTION_END_MS,
+  PARRY_RING_BASE_SIZE,
   PARRY_RING_LINE_WIDTH,
+  PARRY_RING_MAX_SCALE,
   PARRY_RING_MERGE_SCALE,
   PARRY_SLOW_PHASE_MS,
   PARRY_TOTAL_MS,
@@ -78,11 +80,17 @@ describe('earTrainingBattle visual slow', () => {
 });
 
 describe('parry spark radius timeline', () => {
-  it('expands only during slowPhase then holds merge radius', () => {
-    expect(getParryEffectRadiusAtAge(0)).toBeCloseTo(4);
-    expect(getParryEffectRadiusAtAge(PARRY_SLOW_PHASE_MS)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
-    expect(getParryEffectRadiusAtAge(PARRY_FINISH_START_MS)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
-    expect(getParryEffectRadiusAtAge(900)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
+  const beatSync = createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS);
+
+  it('expands to merge during slowPhase then to max during ringExpand', () => {
+    expect(getParryEffectRadiusAtAge(0, beatSync)).toBeCloseTo(4);
+    expect(getParryEffectRadiusAtAge(PARRY_SLOW_PHASE_MS, beatSync)).toBeCloseTo(PARRY_MERGE_RADIUS_PX);
+    expect(getParryEffectRadiusAtAge(beatSync.ringExpandEndMs, beatSync)).toBeCloseTo(
+      (PARRY_RING_BASE_SIZE * PARRY_RING_MAX_SCALE) / 2,
+    );
+    expect(getParryEffectRadiusAtAge(900, beatSync)).toBeCloseTo(
+      (PARRY_RING_BASE_SIZE * PARRY_RING_MAX_SCALE) / 2,
+    );
   });
 
   it('ring scale helper remains for legacy draw path only', () => {
@@ -96,16 +104,16 @@ describe('earTrainingBattleParrySparkPool', () => {
   const defaultBeatSync = createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS);
   const spawnCursor = (): { index: number } => ({ index: 0 });
 
-  it('spawns 36 sparks for normal parry and 48 for chain parry', () => {
+  it('spawns 28 sparks for normal parry and 40 for chain parry', () => {
     const pool = createParrySparkPool();
-    expect(spawnParrySparks(pool, 120, 80, 1_000, false, defaultBeatSync, 1_000, spawnCursor())).toBe(36);
+    expect(spawnParrySparks(pool, 120, 80, 1_000, false, defaultBeatSync, 1_000, spawnCursor())).toBe(28);
     expect(hasActiveParrySparks(pool)).toBe(true);
 
     for (const slot of pool) {
       slot.active = false;
     }
 
-    expect(spawnParrySparks(pool, 120, 80, 2_000, true, defaultBeatSync, 2_000, spawnCursor())).toBe(48);
+    expect(spawnParrySparks(pool, 120, 80, 2_000, true, defaultBeatSync, 2_000, spawnCursor())).toBe(40);
   });
 
   it('reuses inactive pool slots without allocating new objects', () => {
@@ -224,10 +232,10 @@ describe('earTrainingBattleParrySparkPool', () => {
   it('always spawns a full batch while earlier visible sparks remain', () => {
     const pool = createParrySparkPool();
     const cursor = spawnCursor();
-    expect(spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync, 150, cursor)).toBe(36);
-    expect(spawnParrySparks(pool, 20, 20, 200, false, defaultBeatSync, 250, cursor)).toBe(36);
-    expect(pool.filter(slot => slot.active && slot.startedAt === 100).length).toBe(36);
-    expect(pool.filter(slot => slot.active && slot.startedAt === 200).length).toBe(36);
+    expect(spawnParrySparks(pool, 10, 10, 100, false, defaultBeatSync, 150, cursor)).toBe(28);
+    expect(spawnParrySparks(pool, 20, 20, 200, false, defaultBeatSync, 250, cursor)).toBe(28);
+    expect(pool.filter(slot => slot.active && slot.startedAt === 100).length).toBe(28);
+    expect(pool.filter(slot => slot.active && slot.startedAt === 200).length).toBe(28);
   });
 });
 

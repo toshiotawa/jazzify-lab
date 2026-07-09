@@ -170,7 +170,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var lastParryAt: TimeInterval = 0
     private var parryFinishLocked = false
     private var visualSlowStartedAt: TimeInterval?
+    private var visualSlowDurationMs: Double = EarTrainingBattleParryConstants.visualSlowDurationMs
+    private var parryBeatSync = ParryBeatSyncRuntime.default
     private var parrySparkPool: EarTrainingBattleParrySparkPool?
+    private var osuCirclePool: EarTrainingBattleOsuCirclePool?
+    private var osuCircleShatterPool: EarTrainingBattleOsuCircleShatterPool?
     /// 着弾 (HP 反映) 通知をコントローラーへ伝えるブロック。
     var onEffectImpact: ((Int) -> Void)?
 
@@ -249,17 +253,41 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     override func update(_ currentTime: TimeInterval) {
         super.update(currentTime)
         let wallNow = CACurrentMediaTime()
+        let wallNowMs = wallNow * 1000
         expireVisualSlowIfNeeded(wallNow: wallNow)
         if osmdHammerFlightsByEffectId.isEmpty == false {
             updateOsmdHammerFlights(wallNow: wallNow)
         }
-        guard let parrySparkPool, parrySparkPool.hasActiveSparks else { return }
-        parrySparkPool.update(now: wallNow, slowStartedAt: visualSlowStartedAt)
+        if let osuCirclePool, osuCirclePool.hasActiveCircles {
+            osuCirclePool.update(nowMs: wallNowMs)
+        }
+        if let osuCircleShatterPool, osuCircleShatterPool.hasActiveFragments {
+            osuCircleShatterPool.update(nowMs: wallNowMs)
+        }
+        if let parrySparkPool, parrySparkPool.hasActiveSparks {
+            parrySparkPool.update(
+                now: wallNow,
+                slowStartedAt: visualSlowStartedAt,
+                visualSlowDurationMs: visualSlowDurationMs
+            )
+        }
     }
 
     private func ensureParrySparkPool() {
         if parrySparkPool == nil {
             parrySparkPool = EarTrainingBattleParrySparkPool(parent: effectLayer)
+        }
+    }
+
+    private func ensureOsuCirclePool() {
+        if osuCirclePool == nil {
+            osuCirclePool = EarTrainingBattleOsuCirclePool(parent: effectLayer)
+        }
+    }
+
+    private func ensureOsuCircleShatterPool() {
+        if osuCircleShatterPool == nil {
+            osuCircleShatterPool = EarTrainingBattleOsuCircleShatterPool(parent: effectLayer)
         }
     }
 
@@ -307,6 +335,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         case .quotaReached: playQuotaReachedEffect()
         case .osmdHammer: playOSMDHammerEffect(command)
         case .osmdHammerReflect: playOSMDHammerReflectEffect(command)
+        case .osmdApproachCircle: playOsmdApproachCircleEffect(command)
+        case .osmdApproachCircleBurst: playOsmdApproachCircleBurstEffect(command)
+        case .osmdApproachCircleDismiss: playOsmdApproachCircleDismissEffect(command)
+        case .clearParryVisualSlow: clearParryVisualSlowEffect()
         case .osmdMeteor: playOSMDMeteorEffect(command)
         case .miss: playEnemyAttackEffect(command, heavy: false)
         case .fail: playEnemyAttackEffect(command, heavy: true)
@@ -2009,6 +2041,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
+    func resyncOsuApproachCircles(updates: [(commandId: Int, approachStartMs: Double, judgedMs: Double)]) {
+        ensureOsuCirclePool()
+        let mapped = updates.map {
+            EarTrainingBattleOsuCirclePool.TimingUpdate(
+                commandId: $0.commandId,
+                approachStartMs: $0.approachStartMs,
+                judgedMs: $0.judgedMs
+            )
+        }
+        osuCirclePool?.resyncTimings(mapped)
+    }
+
     private func showEnemyHammerThrowWave(at position: CGPoint, facingLeft: Bool) {
         let radius = Self.battleLayoutPt(28)
         let path = UIBezierPath(
@@ -2087,7 +2131,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func expireVisualSlowIfNeeded(wallNow: TimeInterval) {
         guard let started = visualSlowStartedAt else { return }
-        let durationSec = EarTrainingBattleParryConstants.visualSlowDurationMs / 1000
+        let durationSec = visualSlowDurationMs / 1000
         guard wallNow > started + durationSec else { return }
         visualSlowStartedAt = nil
         effectLayer.speed = 1
@@ -2096,7 +2140,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func visualSlowStartedAtMs(wallNowSec: TimeInterval) -> Double? {
         guard let started = visualSlowStartedAt else { return nil }
-        let durationSec = EarTrainingBattleParryConstants.visualSlowDurationMs / 1000
+        let durationSec = visualSlowDurationMs / 1000
         if wallNowSec > started + durationSec { return nil }
         return started * 1000
     }
@@ -2104,8 +2148,72 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func visualNowMs(wallNowSec: TimeInterval) -> Double {
         EarTrainingBattleParryConstants.getVisualNow(
             now: wallNowSec * 1000,
-            slowStartedAt: visualSlowStartedAtMs(wallNowSec: wallNowSec)
+            slowStartedAt: visualSlowStartedAtMs(wallNowSec: wallNowSec),
+            durationMs: visualSlowDurationMs
         )
+    }
+
+    private func clearParryVisualSlowEffect() {
+        visualSlowStartedAt = nil
+        visualSlowDurationMs = EarTrainingBattleParryConstants.visualSlowDurationMs
+        effectLayer.speed = 1
+        cameraNode.speed = 1
+    }
+
+    private func triggerParryBeatSyncEffects(_ command: EarTrainingBattleEffectCommand, now: TimeInterval) {
+        let schedule = EarTrainingBattleBeatSyncTiming.resolveParryBeatSyncScheduleOrFallback(
+            hitPhraseSec: command.hitPhraseTimeSec,
+            bpm: command.effectiveBpm
+        )
+        parryBeatSync = EarTrainingBattleParryConstants.makeParryBeatSync(from: schedule)
+        let sustainMs = command.visualSlowSustainMs ?? schedule.slowDurationMs
+
+        if command.clearParryVisualSlow {
+            clearParryVisualSlowEffect()
+        } else if command.extendParryVisualSlow, let started = visualSlowStartedAt {
+            let minEndAt = now + sustainMs / 1000
+            let currentEndAt = started + visualSlowDurationMs / 1000
+            visualSlowDurationMs = (max(currentEndAt, minEndAt) - started) * 1000
+        } else {
+            let sustain = command.visualSlowSustainMs ?? 0
+            visualSlowDurationMs = max(schedule.slowDurationMs, sustain)
+            visualSlowStartedAt = now
+            effectLayer.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
+            cameraNode.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
+        }
+    }
+
+    private func playOsmdApproachCircleEffect(_ command: EarTrainingBattleEffectCommand) {
+        guard let approachStartMs = command.approachStartMs,
+              let judgedMs = command.judgedMs else { return }
+        let anchors = battleAnchors()
+        ensureOsuCirclePool()
+        osuCirclePool?.spawn(
+            commandId: command.id,
+            approachStartMs: approachStartMs,
+            judgedMs: judgedMs,
+            centerX: anchors.player.x,
+            targetY: anchors.player.bodyY - Self.battleLayoutPt(28)
+        )
+    }
+
+    private func playOsmdApproachCircleBurstEffect(_ command: EarTrainingBattleEffectCommand) {
+        guard let relatedId = command.relatedEffectId else { return }
+        ensureOsuCirclePool()
+        ensureOsuCircleShatterPool()
+        let burstPosition = osuCirclePool?.burst(commandId: relatedId)
+        guard let burstPosition else { return }
+        osuCircleShatterPool?.spawn(
+            origin: burstPosition,
+            ringRadius: EarTrainingBattleOsuCircleTiming.innerRadiusPx,
+            startedAtMs: CACurrentMediaTime() * 1000
+        )
+    }
+
+    private func playOsmdApproachCircleDismissEffect(_ command: EarTrainingBattleEffectCommand) {
+        guard let relatedId = command.relatedEffectId else { return }
+        ensureOsuCirclePool()
+        osuCirclePool?.dismiss(commandId: relatedId)
     }
 
     private func applyOsmdHammerFlightVisual(_ flight: OsmdHammerFlight, wallNow: TimeInterval) {
@@ -2140,7 +2248,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             dismissOsmdHammerEffect(effectId: relatedId)
         }
 
-        triggerParryVisualSlow()
+        triggerParryBeatSyncEffects(command, now: now)
         scheduleParryMotion(finishOnly: command.parryFinishOnly)
         triggerParryCameraZoom()
         ensureParrySparkPool()
@@ -2148,9 +2256,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             x: parryCenterX,
             y: parryCenterY,
             startedAt: now,
-            isChainParry: isChainParry
+            isChainParry: isChainParry,
+            beatSync: parryBeatSync
         )
-        showParryOrangeRing(at: CGPoint(x: parryCenterX, y: parryCenterY))
 
         run(SKAction.sequence([
             SKAction.wait(forDuration: EarTrainingBattleParryConstants.reflectHitMs / 1000),
@@ -2192,12 +2300,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         )
     }
 
-    private func triggerParryVisualSlow() {
-        visualSlowStartedAt = CACurrentMediaTime()
-        effectLayer.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
-        cameraNode.speed = CGFloat(EarTrainingBattleParryConstants.visualSlowScale)
-    }
-
     private func triggerParryCameraZoom() {
         if cameraNode.position == .zero {
             resetCameraToCenter()
@@ -2211,35 +2313,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let zoomOut = SKAction.scale(to: 1.0, duration: EarTrainingBattleParryConstants.parryCameraZoomOutSec)
         zoomOut.timingMode = .easeInEaseOut
         cameraNode.run(SKAction.sequence([zoomIn, zoomOut]), withKey: "parry-camera-zoom")
-    }
-
-    private func showParryOrangeRing(at position: CGPoint) {
-        let ringRadius = EarTrainingBattleParryConstants.ringBaseSize / 2
-        let ring = SKShapeNode(circleOfRadius: ringRadius)
-        ring.fillColor = .clear
-        ring.strokeColor = EarTrainingBattleParryConstants.ringOrange
-        ring.lineWidth = Self.battleLayoutPt(5)
-        ring.position = position
-        ring.alpha = 0.82
-        ring.isHidden = true
-        ring.zPosition = 65
-        effectLayer.addChild(ring)
-
-        let expandDuration = (EarTrainingBattleParryConstants.ringExpandEndMs - EarTrainingBattleParryConstants.ringExpandStartMs) / 1000
-        let holdBeforeFade = max(0, (EarTrainingBattleParryConstants.effectFadeStartMs - EarTrainingBattleParryConstants.ringExpandEndMs) / 1000)
-        let fadeDuration = (EarTrainingBattleParryConstants.motionEndMs - EarTrainingBattleParryConstants.effectFadeStartMs) / 1000
-
-        ring.run(SKAction.sequence([
-            SKAction.wait(forDuration: EarTrainingBattleParryConstants.ringExpandStartMs / 1000),
-            SKAction.run {
-                ring.isHidden = false
-                ring.setScale(EarTrainingBattleParryConstants.ringMergeScale)
-            },
-            SKAction.scale(to: EarTrainingBattleParryConstants.ringMaxScale, duration: expandDuration),
-            SKAction.wait(forDuration: holdBeforeFade),
-            SKAction.fadeOut(withDuration: fadeDuration),
-            SKAction.removeFromParent(),
-        ]))
     }
 
     private func playOSMDMeteorEffect(_ command: EarTrainingBattleEffectCommand) {

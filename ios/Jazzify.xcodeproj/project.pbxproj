@@ -210,6 +210,12 @@
 		F4PARRY001ENG0102 /* EarTrainingBattleParryConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */; };
 		F4PARRY002ENG0102 /* EarTrainingBattleParrySparkPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */; };
 		F4PARRY003ENG0102 /* EarTrainingChordOsmdRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */; };
+		F4OSMD001ENG0102 /* EarTrainingChordOsmdTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD001ENG0101 /* EarTrainingChordOsmdTiming.swift */; };
+		F4OSMD002ENG0102 /* EarTrainingBattleBeatSyncTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD002ENG0101 /* EarTrainingBattleBeatSyncTiming.swift */; };
+		F4OSMD003ENG0102 /* EarTrainingChordOsmdParrySpan.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD003ENG0101 /* EarTrainingChordOsmdParrySpan.swift */; };
+		F4OSMD004ENG0102 /* EarTrainingBattleOsuCircleTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD004ENG0101 /* EarTrainingBattleOsuCircleTiming.swift */; };
+		F4OSMD005ENG0102 /* EarTrainingBattleOsuCirclePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD005ENG0101 /* EarTrainingBattleOsuCirclePool.swift */; };
+		F4OSMD006ENG0102 /* EarTrainingBattleOsuCircleShatterPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD006ENG0101 /* EarTrainingBattleOsuCircleShatterPool.swift */; };
 		F2PRECC001ENG0102 /* EarTrainingSmfBinary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */; };
 		F2PRECC001ENG0202 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */; };
 		F2PRECC001ENG0302 /* EarTrainingPrecisionJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */; };
@@ -445,6 +451,12 @@
 		F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParryConstants.swift; sourceTree = "<group>"; };
 		F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParrySparkPool.swift; sourceTree = "<group>"; };
 		F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdRhythm.swift; sourceTree = "<group>"; };
+		F4OSMD001ENG0101 /* EarTrainingChordOsmdTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdTiming.swift; sourceTree = "<group>"; };
+		F4OSMD002ENG0101 /* EarTrainingBattleBeatSyncTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleBeatSyncTiming.swift; sourceTree = "<group>"; };
+		F4OSMD003ENG0101 /* EarTrainingChordOsmdParrySpan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdParrySpan.swift; sourceTree = "<group>"; };
+		F4OSMD004ENG0101 /* EarTrainingBattleOsuCircleTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleTiming.swift; sourceTree = "<group>"; };
+		F4OSMD005ENG0101 /* EarTrainingBattleOsuCirclePool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCirclePool.swift; sourceTree = "<group>"; };
+		F4OSMD006ENG0101 /* EarTrainingBattleOsuCircleShatterPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleShatterPool.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0101 /* EarTrainingSmfBinary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSmfBinary.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0201 /* EarTrainingPrecisionNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionNotes.swift; sourceTree = "<group>"; };
 		F2PRECC001ENG0301 /* EarTrainingPrecisionJudge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionJudge.swift; sourceTree = "<group>"; };
@@ -662,6 +674,12 @@
 				F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */,
 				F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */,
 				F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */,
+				F4OSMD001ENG0101 /* EarTrainingChordOsmdTiming.swift */,
+				F4OSMD002ENG0101 /* EarTrainingBattleBeatSyncTiming.swift */,
+				F4OSMD003ENG0101 /* EarTrainingChordOsmdParrySpan.swift */,
+				F4OSMD004ENG0101 /* EarTrainingBattleOsuCircleTiming.swift */,
+				F4OSMD005ENG0101 /* EarTrainingBattleOsuCirclePool.swift */,
+				F4OSMD006ENG0101 /* EarTrainingBattleOsuCircleShatterPool.swift */,
 				D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */,
 				ADLIB001E2411EE00000001 /* EarTrainingAdlibEngine.swift */,
 				PPAD002E2606021400000002 /* EarTrainingPhrasePairEngine.swift */,
@@ -1312,6 +1330,12 @@
 				F4PARRY001ENG0102 /* EarTrainingBattleParryConstants.swift in Sources */,
 				F4PARRY002ENG0102 /* EarTrainingBattleParrySparkPool.swift in Sources */,
 				F4PARRY003ENG0102 /* EarTrainingChordOsmdRhythm.swift in Sources */,
+				F4OSMD001ENG0102 /* EarTrainingChordOsmdTiming.swift in Sources */,
+				F4OSMD002ENG0102 /* EarTrainingBattleBeatSyncTiming.swift in Sources */,
+				F4OSMD003ENG0102 /* EarTrainingChordOsmdParrySpan.swift in Sources */,
+				F4OSMD004ENG0102 /* EarTrainingBattleOsuCircleTiming.swift in Sources */,
+				F4OSMD005ENG0102 /* EarTrainingBattleOsuCirclePool.swift in Sources */,
+				F4OSMD006ENG0102 /* EarTrainingBattleOsuCircleShatterPool.swift in Sources */,
 				F2EE770002BB11EE0000BB02 /* EarTrainingChordOSMDGameView.swift in Sources */,
 				F2PRECC001VIE0802 /* EarTrainingOSMDScoreWebView.swift in Sources */,
 				F2PRECC001VIE0702 /* PrecisionNotesCanvasView.swift in Sources */,

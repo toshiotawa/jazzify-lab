@@ -15,7 +15,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     static let parryPreciseRingOnSuccess = true
     private static let osmdVoicingHintStrongSec: Double = 0.03
     private static let osmdVoicingHintMediumSec: Double = 0.07
-    private static let hammerLeadBeats: Double = 4
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
     private static let hammerImpactOffsetSec: Double = 0.3
     /// 正解連打時の statusText 更新間隔（SwiftUI 再描画抑制）
@@ -97,6 +96,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var nextActiveTargetIndex: Int = 0
     private var nextMissTargetIndex: Int = 0
     private var nextHammerTargetIndex: Int = 0
+    private var nextApproachTargetIndex: Int = 0
+    private var parryChainAnchor: EarTrainingChordOsmdParrySpanAnchor?
     private var lastInputAtByNote: [Int: Double] = [:]
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
@@ -206,6 +207,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let clamped = EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(ms)
         timingAdjustmentMs = clamped
         EarTrainingOsmdTimingAdjustment.saveTimingAdjustmentMs(clamped)
+        syncActiveOsuApproachCircleTimings()
     }
 
     private func effectivePracticeTransposeOffset() -> Int {
@@ -249,9 +251,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         )
     }
 
-    /// ターゲット拍の4拍前にハンマー投擲を開始する秒数
+    /// ターゲット拍の hammer_lead_measures 小節前にハンマー投擲を開始する秒数
     private func hammerLeadSec() -> Double {
-        60.0 / Double(max(1, resolveEffectivePracticeBpm())) * Self.hammerLeadBeats
+        EarTrainingChordOsmdTiming.hammerLeadSec(
+            bpm: Double(resolveEffectivePracticeBpm()),
+            beatsPerMeasure: stage.beatsPerMeasure,
+            leadMeasures: stage.resolvedHammerLeadMeasures
+        )
+    }
+
+    private func approachLeadSec() -> Double {
+        EarTrainingChordOsmdTiming.approachLeadSec(bpm: Double(resolveEffectivePracticeBpm()))
     }
 
     /// OSMD プレイヘッドの 1 小節あたり秒数（練習速度を反映）。
@@ -412,7 +422,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return
         }
         if targets[matchedIndex].isComplete {
-            completeTarget(at: matchedIndex)
+            completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
         }
         refreshPracticeVoicingHints()
     }
@@ -652,6 +662,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         nextActiveTargetIndex = 0
         nextMissTargetIndex = 0
         nextHammerTargetIndex = 0
+        nextApproachTargetIndex = 0
+        parryChainAnchor = nil
         completedTargetCount = 0
         failedTargetCount = 0
         runtimeCompletedTargetCount = 0
@@ -847,6 +859,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
         openJudgmentWindows(at: phraseTime)
         throwDueHammers(at: phraseTime)
+        spawnDueApproachCircles(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
         applyMusicXmlLyricQuotesIfNeeded(phraseTime: phraseTime)
@@ -999,6 +1012,80 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
+    private func spawnDueApproachCircles(at time: Double) {
+        let leadSec = approachLeadSec()
+        let wallNowMs = CACurrentMediaTime() * 1000
+        while nextApproachTargetIndex < targets.count {
+            let target = targets[nextApproachTargetIndex]
+            let judged = resolveCalibratedTargetTimeSec(target.targetTimeSec)
+            let spawnTime = judged - leadSec
+            guard time >= spawnTime else { break }
+            if targets[nextApproachTargetIndex].completed || targets[nextApproachTargetIndex].failed {
+                nextApproachTargetIndex += 1
+                continue
+            }
+            let timing = EarTrainingBattleOsuCircleTiming.resolvePerfTiming(
+                judgedPhraseTimeSec: judged,
+                phraseTimeSec: time,
+                approachLeadSec: leadSec,
+                wallNowMs: wallNowMs
+            )
+            let effectId = triggerBattleEffect(
+                kind: .osmdApproachCircle,
+                label: nil,
+                damage: nil,
+                phraseNoteCount: nil,
+                approachStartMs: timing.approachStartMs,
+                judgedMs: timing.judgedMs
+            )
+            targets[nextApproachTargetIndex].osuCircleEffectId = effectId
+            nextApproachTargetIndex += 1
+        }
+    }
+
+    private func syncActiveOsuApproachCircleTimings() {
+        guard let phraseTime = osmdPhraseTimelineSecNow() else { return }
+        let leadSec = approachLeadSec()
+        let wallNowMs = CACurrentMediaTime() * 1000
+        var updates: [(commandId: Int, approachStartMs: Double, judgedMs: Double)] = []
+        for target in targets where !target.completed && !target.failed {
+            guard let effectId = target.osuCircleEffectId else { continue }
+            let judged = resolveCalibratedTargetTimeSec(target.targetTimeSec)
+            let timing = EarTrainingBattleOsuCircleTiming.resolvePerfTiming(
+                judgedPhraseTimeSec: judged,
+                phraseTimeSec: phraseTime,
+                approachLeadSec: leadSec,
+                wallNowMs: wallNowMs
+            )
+            updates.append((effectId, timing.approachStartMs, timing.judgedMs))
+        }
+        if !updates.isEmpty {
+            scene?.resyncOsuApproachCircles(updates: updates)
+        }
+    }
+
+    private func dismissOsuCircle(for targetIndex: Int) {
+        guard targets.indices.contains(targetIndex),
+              let effectId = targets[targetIndex].osuCircleEffectId else { return }
+        triggerBattleEffect(
+            kind: .osmdApproachCircleDismiss,
+            label: nil,
+            damage: nil,
+            phraseNoteCount: nil,
+            relatedEffectId: effectId
+        )
+        targets[targetIndex].osuCircleEffectId = nil
+    }
+
+    private func clearParryVisualSlowEffect() {
+        triggerBattleEffect(kind: .clearParryVisualSlow, label: nil, damage: nil, phraseNoteCount: nil)
+    }
+
+    private func resetParryChainState() {
+        parryChainAnchor = nil
+        clearParryVisualSlowEffect()
+    }
+
     private func failExpiredTargets(at time: Double) {
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
         var changed = false
@@ -1006,8 +1093,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             let target = targets[nextMissTargetIndex]
             guard time > resolveCalibratedTargetTimeSec(target.targetTimeSec) + judgmentWindowLate else { break }
             if targets[nextMissTargetIndex].completed == false, targets[nextMissTargetIndex].failed == false {
+                dismissOsuCircle(for: nextMissTargetIndex)
                 targets[nextMissTargetIndex].failed = true
                 changed = true
+                resetParryChainState()
                 triggerFeedback(.miss)
                 statusText = isEnglishCopy ? "Miss" : "ミス"
             }
@@ -1019,7 +1108,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    private func completeTarget(at index: Int) {
+    private func completeTarget(at index: Int, hitPhraseTimeSec: Double) {
         guard targets.indices.contains(index) else { return }
         guard targets[index].completed == false, targets[index].failed == false else { return }
         targets[index].completed = true
@@ -1028,22 +1117,52 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if let incomingHammerEffectId {
             pendingImpactHandlers[incomingHammerEffectId] = nil
         }
+        if let circleEffectId = targets[index].osuCircleEffectId {
+            triggerBattleEffect(
+                kind: .osmdApproachCircleBurst,
+                label: nil,
+                damage: nil,
+                phraseNoteCount: nil,
+                relatedEffectId: circleEffectId
+            )
+            targets[index].osuCircleEffectId = nil
+        }
         let chordName = targets[index].label
         let damage = practiceMode ? 0 : stage.perCorrectNoteDamage
         let reflectRelatedId = incomingHammerEffectId
         let target = targets[index]
-        let rhythmRefs = targets.map {
-            EarTrainingChordOsmdRhythmTargetRef(
-                targetTimeSec: $0.targetTimeSec,
+        let parryTargets = targets.map {
+            EarTrainingChordOsmdParryTarget(
+                id: $0.id,
                 measureNumber: $0.measureNumber,
+                targetTimeSec: $0.targetTimeSec,
                 orderIndex: $0.orderIndex
             )
         }
-        let targetRef = EarTrainingChordOsmdRhythmTargetRef(
-            targetTimeSec: target.targetTimeSec,
+        let parryTarget = EarTrainingChordOsmdParryTarget(
+            id: target.id,
             measureNumber: target.measureNumber,
+            targetTimeSec: target.targetTimeSec,
             orderIndex: target.orderIndex
         )
+        let spanState = EarTrainingChordOsmdParrySpan.resolveSpanState(
+            targets: parryTargets,
+            target: parryTarget,
+            chainAnchor: parryChainAnchor,
+            spanMeasures: stage.resolvedHammerLeadMeasures,
+            bpm: Double(resolveEffectivePracticeBpm()),
+            beatsPerMeasure: stage.beatsPerMeasure,
+            isSwing: stage.resolvedIsSwing
+        )
+        parryChainAnchor = spanState.anchor
+        let nextTarget = targets.first(where: { !$0.completed && !$0.failed })
+        var visualSlowSustainMs: Double?
+        if let finishTarget = spanState.finishTarget, hitPhraseTimeSec.isFinite {
+            let sustainPhraseSec = resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
+                + resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
+                + Self.hammerImpactOffsetSec
+            visualSlowSustainMs = max(0, ceil((sustainPhraseSec - hitPhraseTimeSec) * 1000))
+        }
         let effectId = triggerBattleEffect(
             kind: .osmdHammerReflect,
             label: chordName,
@@ -1051,11 +1170,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             phraseNoteCount: nil,
             relatedEffectId: reflectRelatedId,
             precise: Self.parryPreciseRingOnSuccess,
-            parryFinishOnly: EarTrainingChordOsmdRhythm.isLastTargetInMeasure(
-                targets: rhythmRefs,
-                target: targetRef
-            )
+            parryFinishOnly: spanState.isFinish,
+            hitPhraseTimeSec: hitPhraseTimeSec,
+            effectiveBpm: Double(resolveEffectivePracticeBpm()),
+            isSwing: stage.resolvedIsSwing,
+            nextTargetPhraseTimeSec: nextTarget.map { resolveCalibratedTargetTimeSec($0.targetTimeSec) },
+            extendParryVisualSlow: spanState.extendVisualSlow,
+            clearParryVisualSlow: spanState.isFinish,
+            visualSlowSustainMs: visualSlowSustainMs
         )
+        if spanState.isFinish {
+            parryChainAnchor = nil
+        }
         registerBattleEffectImpact(effectId: effectId) { [weak self] in
             self?.applyEnemyDamage(damage)
         }
@@ -1071,10 +1197,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private func handleHammerImpact(targetIndex: Int) {
         guard targets.indices.contains(targetIndex) else { return }
         guard targets[targetIndex].completed == false, targets[targetIndex].reflected == false else { return }
+        dismissOsuCircle(for: targetIndex)
         if targets[targetIndex].failed == false {
             targets[targetIndex].failed = true
             updateTargetCounters(publish: false)
         }
+        resetParryChainState()
         guard practiceMode == false, tutorialNoCombat == false else { return }
         let damage = stage.missDamage
         guard damage > 0 else { return }
@@ -1168,11 +1296,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var changed = false
         for index in targets.indices {
             if targets[index].completed == false, targets[index].failed == false {
+                dismissOsuCircle(for: index)
                 targets[index].failed = true
                 changed = true
             }
         }
         if changed {
+            resetParryChainState()
             updateTargetCounters(publish: true)
         }
     }
@@ -1339,7 +1469,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         relatedEffectId: Int? = nil,
         travelDurationSec: Double? = nil,
         precise: Bool = false,
-        parryFinishOnly: Bool = false
+        parryFinishOnly: Bool = false,
+        approachStartMs: Double? = nil,
+        judgedMs: Double? = nil,
+        hitPhraseTimeSec: Double? = nil,
+        effectiveBpm: Double? = nil,
+        isSwing: Bool? = nil,
+        nextTargetPhraseTimeSec: Double? = nil,
+        extendParryVisualSlow: Bool = false,
+        clearParryVisualSlow: Bool = false,
+        visualSlowSustainMs: Double? = nil
     ) -> Int {
         battleEffectIdCounter += 1
         let id = battleEffectIdCounter
@@ -1352,7 +1491,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             relatedEffectId: relatedEffectId,
             travelDurationSec: travelDurationSec,
             precise: precise,
-            parryFinishOnly: parryFinishOnly
+            parryFinishOnly: parryFinishOnly,
+            approachStartMs: approachStartMs,
+            judgedMs: judgedMs,
+            hitPhraseTimeSec: hitPhraseTimeSec,
+            effectiveBpm: effectiveBpm,
+            isSwing: isSwing,
+            nextTargetPhraseTimeSec: nextTargetPhraseTimeSec,
+            extendParryVisualSlow: extendParryVisualSlow,
+            clearParryVisualSlow: clearParryVisualSlow,
+            visualSlowSustainMs: visualSlowSustainMs
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
@@ -1668,6 +1816,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         var completed: Bool = false
         var failed: Bool = false
         var hammerEffectId: Int?
+        var osuCircleEffectId: Int?
         var reflected: Bool = false
 
         init(
