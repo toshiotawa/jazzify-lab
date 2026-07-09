@@ -67,6 +67,10 @@ private func deepCopyElement(_ source: ChordOsmdXmlElement) -> ChordOsmdXmlEleme
 /// Web の `normalizeChordOsmdMusicXml` と同等。
 enum EarTrainingChordOsmdMusicXmlNormalizer {
     private static let timingEpsilon = 0.0005
+    /// Finale Layer 4 → MusicXML `<voice>4</voice>` ガイド音符（判定対象外・薄い色表示）
+    static let guideVoice = 4
+    /// 暗い背景 OSMD バトル用ガイド音符色（ゴースト相当の薄さ）
+    static let guideNoteColor = "#ffffff33"
 
     private struct Timing {
         var divisions: Int
@@ -206,6 +210,63 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return out
     }
 
+    private static func parseNoteVoiceNumber(_ note: ChordOsmdXmlElement) -> Int? {
+        guard let voiceText = text(in: note, localName: "voice"),
+              let parsed = Int(voiceText),
+              parsed > 0
+        else {
+            return nil
+        }
+        return parsed
+    }
+
+    static func isNonTargetVoice(_ voice: Int?) -> Bool {
+        voice == guideVoice
+    }
+
+    private static func measureHasNonStaffNormalizationVoice(_ measure: ChordOsmdXmlElement) -> Bool {
+        for ch in measure.children {
+            guard case let .element(child) = ch, child.name == "note" else { continue }
+            guard let voice = parseNoteVoiceNumber(child) else { continue }
+            if voice != 1 && voice != 2 {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 表示用 MusicXML: voice 4 の pitch 音符に薄い色を付与（Web `applyChordOsmdGuideNoteColors` と同等）。
+    static func applyGuideNoteColors(_ xmlText: String) -> String {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else { return xmlText }
+        var changed = false
+
+        func visit(_ el: ChordOsmdXmlElement) {
+            if el.name == "note",
+               directChild(el, localName: "pitch") != nil,
+               parseNoteVoiceNumber(el) == guideVoice
+            {
+                if let idx = el.attributes.firstIndex(where: { $0.name == "color" }) {
+                    if el.attributes[idx].value != guideNoteColor {
+                        el.attributes[idx].value = guideNoteColor
+                        changed = true
+                    }
+                } else {
+                    el.attributes.append((name: "color", value: guideNoteColor))
+                    changed = true
+                }
+            }
+            for ch in el.children {
+                if case let .element(child) = ch {
+                    visit(child)
+                }
+            }
+        }
+
+        visit(root)
+        guard changed else { return xmlText }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
     private static func readMeasureTiming(_ measure: ChordOsmdXmlElement, previous: Timing) -> Timing {
         guard let attributes = directChild(measure, localName: "attributes") else {
             return previous
@@ -218,6 +279,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     }
 
     private static func normalizeMeasureToExplicitTwoStaffVoices(measure: ChordOsmdXmlElement, timing: Timing) -> Bool {
+        if measureHasNonStaffNormalizationVoice(measure) { return false }
         if containsChildElement(named: "backup", in: measure) { return false }
         if containsChildElement(named: "forward", in: measure) { return false }
 
@@ -944,11 +1006,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                     }
 
                     let headStopTied = hasTieStop(on: child)
-                    var clusterMidis: [Int] = []
                     let clusterDur = duration
-                    if let m0 = midiFromNoteElement(child, keyFifths: timing.keyFifths), !headStopTied {
-                        clusterMidis.append(m0)
-                    }
 
                     var ni = ci + 1
                     while ni < children.count {
@@ -962,12 +1020,33 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         guard directChild(next, localName: "grace") == nil else { break }
                         guard directChild(next, localName: "chord") != nil else { break }
                         guard directChild(next, localName: "rest") == nil else { break }
-                        guard let nextPitch = directChild(next, localName: "pitch") else { break }
+                        guard directChild(next, localName: "pitch") != nil else { break }
+                        ni += 1
+                    }
+
+                    if isNonTargetVoice(parseNoteVoiceNumber(child)) {
+                        currentTime += clusterDur
+                        ci = ni
+                        continue
+                    }
+
+                    var clusterMidis: [Int] = []
+                    if let m0 = midiFromNoteElement(child, keyFifths: timing.keyFifths), !headStopTied {
+                        clusterMidis.append(m0)
+                    }
+
+                    var chordIndex = ci + 1
+                    while chordIndex < ni {
+                        if case .text = children[chordIndex] {
+                            chordIndex += 1
+                            continue
+                        }
+                        guard case let .element(next) = children[chordIndex], next.name == "note" else { break }
                         let chordToneStopTied = hasTieStop(on: next)
                         if let mm = midiFromNoteElement(next, keyFifths: timing.keyFifths), !chordToneStopTied {
                             clusterMidis.append(mm)
                         }
-                        ni += 1
+                        chordIndex += 1
                     }
 
                     let divisions = max(1, timing.divisions)

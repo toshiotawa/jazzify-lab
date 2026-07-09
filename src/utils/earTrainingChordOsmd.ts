@@ -67,6 +67,10 @@ export const chordOsmdApproachLeadSec = (bpm: number): number =>
   (60 / Math.max(1, bpm)) * CHORD_OSMD_APPROACH_LEAD_BEATS;
 /** ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出 */
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.3;
+/** Finale Layer 4 → MusicXML `<voice>4</voice>` ガイド音符（判定対象外・薄い色表示） */
+export const CHORD_OSMD_GUIDE_VOICE = 4;
+/** 暗い背景 OSMD バトル用ガイド音符色（ゴースト相当の薄さ） */
+export const CHORD_OSMD_GUIDE_NOTE_COLOR = '#ffffff33';
 
 export const isPhraseTimeInChordOsmdJudgmentWindow = (
   phraseTimeSec: number,
@@ -208,6 +212,60 @@ const parseStaffNumber = (value: string | null): 1 | 2 | null => {
   return null;
 };
 
+const parseNoteVoiceNumber = (noteEl: Element): number | null => {
+  const voiceText = getDirectChildText(noteEl, 'voice');
+  if (voiceText === null) {
+    return null;
+  }
+  const parsed = Number.parseInt(voiceText, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+/** voice 4 ガイド音符はハンマー・鍵盤ヒント・判定対象外 */
+export const isChordOsmdNonTargetVoice = (voice: number | null): boolean => voice === CHORD_OSMD_GUIDE_VOICE;
+
+const measureHasNonStaffNormalizationVoice = (measure: Element): boolean => {
+  for (const child of Array.from(measure.childNodes)) {
+    if (!isElementNode(child) || child.localName !== 'note') {
+      continue;
+    }
+    const voice = parseNoteVoiceNumber(child);
+    if (voice !== null && voice !== 1 && voice !== 2) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** 表示用 MusicXML: voice 4 の pitch 音符に薄い色を付与 */
+export const applyChordOsmdGuideNoteColors = (xmlText: string): string => {
+  if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
+    return xmlText;
+  }
+
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    return xmlText;
+  }
+
+  let changed = false;
+  for (const note of Array.from(doc.getElementsByTagName('note'))) {
+    if (!getDirectChild(note, 'pitch')) {
+      continue;
+    }
+    if (parseNoteVoiceNumber(note) !== CHORD_OSMD_GUIDE_VOICE) {
+      continue;
+    }
+    note.setAttribute('color', CHORD_OSMD_GUIDE_NOTE_COLOR);
+    changed = true;
+  }
+
+  if (!changed) {
+    return xmlText;
+  }
+  return new XMLSerializer().serializeToString(doc);
+};
+
 const setDirectChildText = (doc: Document, parent: Element, localName: string, text: string): void => {
   const existing = getDirectChild(parent, localName);
   if (existing) {
@@ -308,6 +366,10 @@ const normalizeMeasureToExplicitTwoStaffVoices = (
   measure: Element,
   timing: MusicXmlTimingState,
 ): boolean => {
+  if (measureHasNonStaffNormalizationVoice(measure)) {
+    return false;
+  }
+
   if (measure.getElementsByTagName('backup').length > 0 || measure.getElementsByTagName('forward').length > 0) {
     return false;
   }
@@ -899,6 +961,12 @@ export const forEachChordOsmdNoteCluster = (
         }
         clusterNotes.push(next);
         ni += 1;
+      }
+
+      if (isChordOsmdNonTargetVoice(parseNoteVoiceNumber(noteEl))) {
+        currentTime += clusterDur;
+        ci = ni;
+        continue;
       }
 
       const divisions = Math.max(1, timing.divisions);

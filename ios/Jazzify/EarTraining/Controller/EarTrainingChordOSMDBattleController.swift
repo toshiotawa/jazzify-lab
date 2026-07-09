@@ -777,8 +777,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let offset = effectivePracticeTransposeOffset()
         let rhythmXml = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(cached.baseRhythmXml, offset: offset)
         let displayXml = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(offset) == 0
-            ? cached.baseDisplayXml
-            : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(rhythmXml)
+            ? EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(cached.baseDisplayXml)
+            : EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(
+                EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(rhythmXml)
+            )
         let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(rhythmXml)
         let lyricEvents = offset == 0
             ? cached.lyricEvents

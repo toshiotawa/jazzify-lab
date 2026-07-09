@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import {
+  applyChordOsmdGuideNoteColors,
   areAllChordOsmdTargetsCompleted,
   buildChordOsmdRhythmTargets,
+  CHORD_OSMD_GUIDE_NOTE_COLOR,
   CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
   chordOsmdBeatToTargetTimeSec,
   chordOsmdNoteHitRatio,
@@ -20,6 +22,7 @@ import {
   findFirstIncompleteChordOsmdTarget,
   hasChordOsmdJudgmentWindowExpired,
   isPhraseTimeInChordOsmdJudgmentWindow,
+  isChordOsmdNonTargetVoice,
   joinScoreLyricVerseTexts,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
@@ -792,6 +795,78 @@ describe('collectChordOsmdMusicXmlAttacks — tie handling', () => {
     const attacks = collectChordOsmdMusicXmlAttacks(xml);
     expect(attacks).toHaveLength(1);
     expect(attacks[0].midis).toEqual([64]);
+  });
+});
+
+describe('voice 4 guide notes', () => {
+  it('isChordOsmdNonTargetVoice は voice 4 のみ true', () => {
+    expect(isChordOsmdNonTargetVoice(4)).toBe(true);
+    expect(isChordOsmdNonTargetVoice(1)).toBe(false);
+    expect(isChordOsmdNonTargetVoice(null)).toBe(false);
+  });
+
+  it('voice 4 のみの譜面は attacks / targets に含めない', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice></note>
+<note><pitch><step>A</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(0);
+
+    const targets = buildChordOsmdRhythmTargets(
+      {
+        id: 'phrase-guide-only',
+        stage_id: 'stage-1',
+        order_index: 0,
+        audio_url: '/phrase.mp3',
+        loop_duration_sec: 8,
+        audio_duration_sec: 8,
+        note_count: 0,
+      },
+      120,
+      4,
+      attacks,
+      true,
+    );
+    expect(targets).toHaveLength(0);
+  });
+
+  it('同小節で voice 1 と voice 4 が混在すると voice 1 のみ target', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>2</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+<backup><duration>2</duration></backup>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>2</duration><voice>4</voice></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].midis).toEqual([60]);
+
+    const targets = buildChordOsmdRhythmTargets(
+      phrase([]),
+      120,
+      4,
+      attacks,
+      true,
+    );
+    expect(targets).toHaveLength(1);
+    expect(targets[0].midiCounts).toEqual([{ midi: 60, count: 1 }]);
+  });
+
+  it('applyChordOsmdGuideNoteColors は voice 4 の pitch 音符に薄い色を付与する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice></note>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice></note>`);
+    const colored = applyChordOsmdGuideNoteColors(xml);
+    expect(colored).toContain(`color="${CHORD_OSMD_GUIDE_NOTE_COLOR}"`);
+    expect(colored.match(/color="/g)?.length).toBe(1);
+  });
+
+  it('voice 4 を含む交互 staff 小節は staff 正規化で voice を潰さない', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions><staves>2</staves></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff></note>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice><staff>1</staff></note>
+<note><pitch><step>E</step><octave>3</octave></pitch><duration>1</duration><voice>2</voice><staff>2</staff></note>`);
+    const normalized = normalizeChordOsmdMusicXml(xml);
+    expect(normalized).toContain('<voice>4</voice>');
+    expect(normalized).not.toContain('<backup>');
   });
 });
 

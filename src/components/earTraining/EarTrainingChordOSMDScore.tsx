@@ -29,7 +29,10 @@ import {
   installEarTrainingOsmdWordsLayout,
 } from '@/utils/earTrainingOsmdWordsLayout';
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
-import { readBetweenStaffDistanceStaffHeightsFromMusicXml } from '@/utils/earTrainingChordOsmd';
+import {
+  applyChordOsmdGuideNoteColors,
+  readBetweenStaffDistanceStaffHeightsFromMusicXml,
+} from '@/utils/earTrainingChordOsmd';
 import {
   clampEarTrainingOsmdUserZoom,
   EAR_TRAINING_OSMD_USER_ZOOM_MAX,
@@ -446,7 +449,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       if (!musicXmlText) {
         return null;
       }
-      return showScoreLyrics ? musicXmlText : stripLyricsFromMusicXml(musicXmlText);
+      const stripped = showScoreLyrics ? musicXmlText : stripLyricsFromMusicXml(musicXmlText);
+      return applyChordOsmdGuideNoteColors(stripped);
     },
     [musicXmlText, showScoreLyrics],
   );
