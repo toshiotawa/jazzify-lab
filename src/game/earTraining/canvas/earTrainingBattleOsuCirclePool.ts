@@ -9,8 +9,8 @@ import {
 } from './earTrainingBattleOsuCircleColors';
 
 export const OSU_CIRCLE_POOL_SIZE = 16;
-const OSU_NOTE_LABEL_FONT = '700 17px "Avenir Next", "Segoe UI", sans-serif';
-const OSU_NOTE_LABEL_LINE_HEIGHT = 18;
+const OSU_NOTE_LABEL_FONT = '700 21px "Avenir Next", "Segoe UI", sans-serif';
+const OSU_NOTE_LABEL_LINE_HEIGHT = 22;
 const OSU_NOTE_LABEL_COLOR = '#fff7ed';
 const OSU_NOTE_LABEL_SHADOW = 'rgba(0, 0, 0, 0.55)';
 

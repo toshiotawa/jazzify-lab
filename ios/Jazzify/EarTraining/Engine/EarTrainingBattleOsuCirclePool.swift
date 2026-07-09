@@ -6,8 +6,8 @@ import UIKit
 @MainActor
 final class EarTrainingBattleOsuCirclePool {
     static let poolSize = 16
-    private static let labelFontSize: CGFloat = 17
-    private static let labelLineHeight: CGFloat = 18
+    private static let labelFontSize: CGFloat = 21
+    private static let labelLineHeight: CGFloat = 22
 
     struct TimingUpdate {
         let commandId: Int
