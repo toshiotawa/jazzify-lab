@@ -69,8 +69,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     private static let timingEpsilon = 0.0005
     /// Finale Layer 4 → MusicXML `<voice>4</voice>` ガイド音符（判定対象外・薄い色表示）
     static let guideVoice = 4
-    /// 暗い背景 OSMD バトル用ガイド音符色（ゴースト相当の薄さ）
-    static let guideNoteColor = "#ffffff33"
+    /// 暗い背景 OSMD バトル用ガイド音符色（灰色・半透明）
+    static let guideNoteColor = "#90909066"
 
     private struct Timing {
         var divisions: Int

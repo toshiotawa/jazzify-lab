@@ -69,8 +69,8 @@ export const chordOsmdApproachLeadSec = (bpm: number): number =>
 export const CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC = 0.3;
 /** Finale Layer 4 → MusicXML `<voice>4</voice>` ガイド音符（判定対象外・薄い色表示） */
 export const CHORD_OSMD_GUIDE_VOICE = 4;
-/** 暗い背景 OSMD バトル用ガイド音符色（ゴースト相当の薄さ） */
-export const CHORD_OSMD_GUIDE_NOTE_COLOR = '#ffffff33';
+/** 暗い背景 OSMD バトル用ガイド音符色（灰色・半透明） */
+export const CHORD_OSMD_GUIDE_NOTE_COLOR = '#90909066';
 
 export const isPhraseTimeInChordOsmdJudgmentWindow = (
   phraseTimeSec: number,
