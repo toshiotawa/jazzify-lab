@@ -1,14 +1,16 @@
 import {
-  OSU_CIRCLE_INNER_STROKE,
   OSU_CIRCLE_LINE_WIDTH,
+  OSU_CIRCLE_STROKE_COLOR,
 } from './earTrainingBattleOsuCircleTiming';
 
-export const OSU_SHATTER_POOL_SIZE = 96;
-export const OSU_SHATTER_DURATION_MS = 420;
-export const OSU_SHATTER_FRAGMENT_COUNT = 14;
-const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.72;
-const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 140;
-const OSU_SHATTER_DRIFT_MAX_PX_PER_SEC = 260;
+export const OSU_SHATTER_POOL_SIZE = 128;
+export const OSU_SHATTER_DURATION_MS = 560;
+export const OSU_SHATTER_FRAGMENT_COUNT = 20;
+const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.82;
+const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 180;
+const OSU_SHATTER_DRIFT_MAX_PX_PER_SEC = 340;
+const OSU_SHATTER_STROKE = OSU_CIRCLE_STROKE_COLOR;
+const OSU_SHATTER_LINE_WIDTH = OSU_CIRCLE_LINE_WIDTH + 2;
 
 export interface OsuShatterSlot {
   active: boolean;
@@ -66,7 +68,7 @@ export const spawnOsuCircleShatter = (
     slot.dirY = Math.sin(midAngle);
     slot.driftSpeed = OSU_SHATTER_DRIFT_MIN_PX_PER_SEC
       + Math.random() * (OSU_SHATTER_DRIFT_MAX_PX_PER_SEC - OSU_SHATTER_DRIFT_MIN_PX_PER_SEC);
-    slot.spinRadPerMs = (Math.random() * 2 - 1) * 0.004;
+    slot.spinRadPerMs = (Math.random() * 2 - 1) * 0.005;
     spawned += 1;
   }
   return spawned;
@@ -97,8 +99,8 @@ export const drawOsuCircleShatter = (
   nowMs: number,
 ): void => {
   ctx.save();
-  ctx.strokeStyle = OSU_CIRCLE_INNER_STROKE;
-  ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH;
+  ctx.strokeStyle = OSU_SHATTER_STROKE;
+  ctx.lineWidth = OSU_SHATTER_LINE_WIDTH;
   ctx.lineCap = 'round';
 
   for (const slot of pool) {
@@ -111,9 +113,10 @@ export const drawOsuCircleShatter = (
     const cx = slot.originX + slot.dirX * drift;
     const cy = slot.originY + slot.dirY * drift;
     const spin = slot.spinRadPerMs * age;
-    const alpha = 1 - t * t;
+    // 序盤はほぼ不透明、後半で急に薄くなる（半透明の余韻）
+    const alpha = t < 0.35 ? 1 : 1 - ((t - 0.35) / 0.65) ** 1.4;
 
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.max(0, alpha);
     ctx.beginPath();
     ctx.arc(
       cx,

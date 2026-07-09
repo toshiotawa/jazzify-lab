@@ -55,6 +55,8 @@ export interface EarTrainingBattleEffectCommand {
   visualSlowSustainMs?: number;
   /** OSMD: フレーズ内 OSU! 円の決定論的配置 index */
   osuCircleLayoutIndex?: number;
+  /** OSMD: 円中央に描く音名（低い音から） */
+  osuCircleNoteLabels?: readonly string[];
 }
 
 export interface EarTrainingBattleChordView {

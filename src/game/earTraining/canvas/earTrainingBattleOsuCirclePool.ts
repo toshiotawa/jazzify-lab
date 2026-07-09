@@ -6,6 +6,10 @@ import {
 } from './earTrainingBattleOsuCircleTiming';
 
 export const OSU_CIRCLE_POOL_SIZE = 16;
+const OSU_NOTE_LABEL_FONT = '700 13px "Avenir Next", "Segoe UI", sans-serif';
+const OSU_NOTE_LABEL_LINE_HEIGHT = 14;
+const OSU_NOTE_LABEL_COLOR = '#fff7ed';
+const OSU_NOTE_LABEL_SHADOW = 'rgba(0, 0, 0, 0.55)';
 
 export interface OsuCircleSlot {
   active: boolean;
@@ -16,6 +20,7 @@ export interface OsuCircleSlot {
   targetY: number;
   dismissed: boolean;
   layoutIndex: number;
+  noteLabels: string[];
 }
 
 export interface OsuCircleBurstPosition {
@@ -30,6 +35,7 @@ export interface SpawnOsuCircleParams {
   centerX: number;
   targetY: number;
   layoutIndex?: number;
+  noteLabels?: readonly string[];
 }
 
 export interface OsuApproachCircleTimingUpdate {
@@ -65,6 +71,7 @@ export const createOsuCirclePool = (): OsuCircleSlot[] =>
     targetY: 0,
     dismissed: false,
     layoutIndex: 0,
+    noteLabels: [],
   }));
 
 export const spawnOsuCircle = (
@@ -81,6 +88,7 @@ export const spawnOsuCircle = (
     slot.targetY = params.targetY;
     slot.dismissed = false;
     slot.layoutIndex = params.layoutIndex ?? 0;
+    slot.noteLabels = params.noteLabels ? Array.from(params.noteLabels) : [];
     return true;
   }
   return false;
@@ -168,6 +176,30 @@ const resolveNextOsuCircleCommandId = (
   return nextCommandId;
 };
 
+const drawNoteLabels = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  labels: readonly string[],
+  alpha: number,
+): void => {
+  if (labels.length === 0) return;
+  const totalHeight = (labels.length - 1) * OSU_NOTE_LABEL_LINE_HEIGHT;
+  let y = centerY - totalHeight / 2;
+  ctx.font = OSU_NOTE_LABEL_FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = alpha;
+  ctx.shadowColor = OSU_NOTE_LABEL_SHADOW;
+  ctx.shadowBlur = 3;
+  ctx.fillStyle = OSU_NOTE_LABEL_COLOR;
+  for (const label of labels) {
+    ctx.fillText(label, centerX, y);
+    y += OSU_NOTE_LABEL_LINE_HEIGHT;
+  }
+  ctx.shadowBlur = 0;
+};
+
 export const drawOsuCircles = (
   ctx: CanvasRenderingContext2D,
   pool: OsuCircleSlot[],
@@ -190,12 +222,11 @@ export const drawOsuCircles = (
     if (!timing.visible) continue;
 
     const isNext = slot.commandId === nextCommandId;
-    const emphasis = isNext ? 1 : 0.72;
+    const emphasis = isNext ? 1 : 0.78;
 
     ctx.save();
     ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH;
     ctx.globalAlpha = emphasis;
-
     ctx.strokeStyle = OSU_CIRCLE_INNER_STROKE;
     ctx.beginPath();
     ctx.arc(timing.centerX, timing.centerY, timing.innerRadius, 0, Math.PI * 2);
@@ -206,14 +237,7 @@ export const drawOsuCircles = (
     ctx.arc(timing.centerX, timing.centerY, timing.outerRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    if (isNext) {
-      ctx.strokeStyle = 'rgba(103, 232, 249, 0.35)';
-      ctx.lineWidth = OSU_CIRCLE_LINE_WIDTH + 1;
-      ctx.beginPath();
-      ctx.arc(timing.centerX, timing.centerY, timing.innerRadius + 4, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
+    drawNoteLabels(ctx, timing.centerX, timing.centerY, slot.noteLabels, emphasis);
     ctx.restore();
   }
 };

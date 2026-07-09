@@ -927,7 +927,7 @@ const drawEffectVisual = (
     ctx.stroke();
   } else if (visual.kind === 'shockwave') {
     ctx.beginPath();
-    ctx.arc(0, 0, size / 2, -Math.PI / 2, Math.PI / 2);
+    ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
     ctx.strokeStyle = visual.color;
     ctx.lineWidth = 4;
     ctx.stroke();

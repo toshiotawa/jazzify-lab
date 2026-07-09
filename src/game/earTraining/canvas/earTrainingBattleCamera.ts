@@ -6,24 +6,12 @@ export interface CameraShakeState {
   amplitude: number;
 }
 
-export interface CameraPunchZoomState {
-  startedAt: number;
-  inMs: number;
-  holdMs: number;
-  outMs: number;
-  targetScale: number;
-  focusX: number;
-  focusY: number;
-}
-
 export interface CanvasCameraRuntime {
   shake: CameraShakeState | null;
-  punchZoom: CameraPunchZoomState | null;
 }
 
 export const createCameraRuntime = (): CanvasCameraRuntime => ({
   shake: null,
-  punchZoom: null,
 });
 
 const shakeNoise = (seed: number): number => {
@@ -41,41 +29,6 @@ export const triggerCameraShake = (
     durationMs,
     amplitude,
   };
-};
-
-export const triggerFinishPunchZoom = (
-  camera: CanvasCameraRuntime,
-  focusX: number,
-  focusY: number,
-  targetScale = 1.1,
-): void => {
-  camera.punchZoom = {
-    startedAt: performance.now(),
-    inMs: 64,
-    holdMs: 48,
-    outMs: 160,
-    targetScale,
-    focusX,
-    focusY,
-  };
-};
-
-const resolvePunchZoomScale = (zoom: CameraPunchZoomState, now: number): number => {
-  const elapsed = now - zoom.startedAt;
-  if (elapsed < zoom.inMs) {
-    const t = elapsed / zoom.inMs;
-    return 1 + (zoom.targetScale - 1) * easeCubicOut(t);
-  }
-  const holdEnd = zoom.inMs + zoom.holdMs;
-  if (elapsed < holdEnd) {
-    return zoom.targetScale;
-  }
-  const outElapsed = elapsed - holdEnd;
-  if (outElapsed < zoom.outMs) {
-    const t = outElapsed / zoom.outMs;
-    return zoom.targetScale + (1 - zoom.targetScale) * easeCubicOut(t);
-  }
-  return 1;
 };
 
 export interface CameraTransform {
@@ -108,18 +61,6 @@ export const computeCameraTransform = (
   scratchTransform.focusX = centerX;
   scratchTransform.focusY = centerY;
 
-  if (camera.punchZoom) {
-    const elapsed = now - camera.punchZoom.startedAt;
-    const totalMs = camera.punchZoom.inMs + camera.punchZoom.holdMs + camera.punchZoom.outMs;
-    if (elapsed < totalMs) {
-      scratchTransform.scale = resolvePunchZoomScale(camera.punchZoom, now);
-      scratchTransform.focusX = camera.punchZoom.focusX;
-      scratchTransform.focusY = camera.punchZoom.focusY;
-    } else {
-      camera.punchZoom = null;
-    }
-  }
-
   if (camera.shake) {
     const elapsed = now - camera.shake.startedAt;
     if (elapsed < camera.shake.durationMs) {
@@ -140,14 +81,10 @@ export const computeCameraTransform = (
 export const isCameraActive = (
   camera: CanvasCameraRuntime,
   now: number,
-): boolean => {
-  const shakeActive = camera.shake !== null
-    && now - camera.shake.startedAt < camera.shake.durationMs;
-  const zoomActive = camera.punchZoom !== null
-    && now - camera.punchZoom.startedAt
-      < camera.punchZoom.inMs + camera.punchZoom.holdMs + camera.punchZoom.outMs;
-  return shakeActive || zoomActive;
-};
+): boolean => (
+  camera.shake !== null
+  && now - camera.shake.startedAt < camera.shake.durationMs
+);
 
 export const applyWorldCameraTransform = (
   ctx: CanvasRenderingContext2D,

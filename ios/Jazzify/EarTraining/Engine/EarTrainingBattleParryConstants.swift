@@ -41,11 +41,6 @@ enum EarTrainingBattleParryConstants {
     static let slashDurationMs: Double = 240
     static let sparkPoolSize = 128
     static let sparkColor = UIColor(red: 103 / 255, green: 232 / 255, blue: 249 / 255, alpha: 1)
-    static let impactRingColor = UIColor(red: 103 / 255, green: 232 / 255, blue: 249 / 255, alpha: 0.88)
-    static let finishPunchZoomTarget: CGFloat = 1.12
-    static let finishPunchZoomInSec: TimeInterval = 0.064
-    static let finishPunchZoomHoldSec: TimeInterval = 0.048
-    static let finishPunchZoomOutSec: TimeInterval = 0.16
 
     static func easeCubicOut(_ t: Double) -> Double {
         1 - pow(1 - t, 3)

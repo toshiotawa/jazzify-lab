@@ -20,7 +20,6 @@ import {
   PARRY_GUARD_ONLY_MS,
   PARRY_HIT_STOP_MS,
   PARRY_HIT_STOP_SCALE,
-  PARRY_IMPACT_RING_COLOR,
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HIT_MS,
   PARRY_TOTAL_MS,
@@ -39,11 +38,9 @@ import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
   triggerCameraShake,
-  triggerFinishPunchZoom,
 } from './earTrainingBattleCamera';
 import { applyOsuCircleAnchorOffset } from './earTrainingBattleOsuCircleLayout';
 import {
-  spawnParrySparks,
   pruneParrySparks,
 } from './earTrainingBattleParrySparkPool';
 import {
@@ -292,6 +289,7 @@ const playOsmdApproachCircleEffect = (
     centerX: positioned.centerX,
     targetY: positioned.targetY,
     layoutIndex,
+    noteLabels: command.osuCircleNoteLabels,
   });
   onDirty();
 };
@@ -313,32 +311,6 @@ const playOsmdApproachCircleBurstEffect = (
   if (!position) {
     return;
   }
-  const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, {
-    kind: 'shockwave',
-    startedAt: now,
-    durationMs: 120,
-    fromX: position.centerX,
-    fromY: position.targetY,
-    toX: position.centerX,
-    toY: position.targetY,
-    color: 'rgba(103, 232, 249, 0.75)',
-    size: OSU_CIRCLE_INNER_RADIUS_PX * 2,
-    alpha: 0.9,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 0.55,
-    scaleEnd: 1.15,
-    fadeOut: true,
-  });
-  runtime.effects.push({
-    commandId: -1,
-    command: { id: -1, kind: 'osmdApproachCircleBurst' },
-    startedAt: now,
-    impactAt: now,
-    impactFired: true,
-    visuals,
-  });
   spawnOsuCircleShatter(
     runtime.osuCircleShatterPool,
     position.centerX,
@@ -651,7 +623,6 @@ const addEnemyHammerThrowWave = (
   anchors: BattleAnchors,
 ): void => {
   const startedAt = performance.now();
-  const facingLeft = anchors.player.x <= anchors.enemy.x;
   const waveX = anchors.enemy.x - 28;
   const waveY = anchors.enemy.bodyY;
   const visuals: CanvasEffectVisual[] = [];
@@ -666,8 +637,8 @@ const addEnemyHammerThrowWave = (
     color: 'rgba(255, 255, 255, 0.85)',
     size: 56,
     alpha: 0.85,
-    rotation: facingLeft ? 180 : 0,
-    rotationEnd: facingLeft ? 180 : 0,
+    rotation: 0,
+    rotationEnd: 0,
     scaleStart: 0.45,
     scaleEnd: 1.35,
     fadeOut: true,
@@ -750,46 +721,12 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   );
 
   dismissIncomingOsmdHammer(runtime, command.relatedEffectId, parryCenterX, parryCenterY);
-  const isChainParry = runtime.lastParryAt > 0 && now - runtime.lastParryAt < PARRY_TOTAL_MS;
   const finishOnly = command.parryFinishOnly === true;
   runtime.lastParryAt = now;
   triggerParryBeatSyncEffects(runtime, command, now);
   scheduleParryMotion(runtime, onDirty, finishOnly);
-  if (finishOnly) {
-    triggerFinishPunchZoom(runtime.camera, parryCenterX, parryCenterY, 1.12);
-  }
-  const sparkCursor = { index: runtime.parrySparkSpawnCursor };
-  spawnParrySparks(
-    runtime.parrySparkPool,
-    parryCenterX,
-    parryCenterY,
-    now,
-    isChainParry,
-    runtime.parryBeatSync,
-    getVisualNow(now, runtime.visualSlow),
-    sparkCursor,
-  );
-  runtime.parrySparkSpawnCursor = sparkCursor.index;
 
   const visuals: CanvasEffectVisual[] = [];
-  addVisual(visuals, {
-    kind: 'shockwave',
-    startedAt: now,
-    durationMs: 180,
-    fromX: parryCenterX,
-    fromY: parryCenterY,
-    toX: parryCenterX,
-    toY: parryCenterY,
-    color: PARRY_IMPACT_RING_COLOR,
-    size: 52,
-    alpha: 0.95,
-    rotation: 0,
-    rotationEnd: 0,
-    scaleStart: 0.35,
-    scaleEnd: 1.55,
-    fadeOut: true,
-    groupStartedAt: now,
-  });
   const slashCenterX = (parryCenterX + anchors.enemy.x) / 2;
   const slashSpan = Math.abs(anchors.enemy.x - parryCenterX) + 48;
   addVisual(visuals, {

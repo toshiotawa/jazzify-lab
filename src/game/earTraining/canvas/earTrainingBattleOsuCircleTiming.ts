@@ -14,10 +14,10 @@ export const OSU_CIRCLE_LINE_WIDTH = 3;
 export const OSU_CIRCLE_ENTER_FRACTION = 0.2;
 /** ヒット位置より下の開始オフセット（px） */
 export const OSU_CIRCLE_ENTER_OFFSET_PX = 48;
-/** OSU! 円・アプローチ円の stroke 不透明度（半透明） */
-export const OSU_CIRCLE_STROKE_ALPHA = 0.5;
-export const OSU_CIRCLE_INNER_STROKE = `rgba(251, 146, 60, ${OSU_CIRCLE_STROKE_ALPHA})`;
-export const OSU_CIRCLE_OUTER_STROKE = `rgba(255, 255, 255, ${OSU_CIRCLE_STROKE_ALPHA})`;
+/** OSU! 円は内円・外円とも不透明の単色 */
+export const OSU_CIRCLE_STROKE_COLOR = '#fb923c';
+export const OSU_CIRCLE_INNER_STROKE = OSU_CIRCLE_STROKE_COLOR;
+export const OSU_CIRCLE_OUTER_STROKE = OSU_CIRCLE_STROKE_COLOR;
 /** アプローチ外円の中心線半径がこの値で内円外周と接する（OSU! 同様） */
 export const getOsuCircleOverlapOuterRadiusPx = (): number =>
   OSU_CIRCLE_INNER_RADIUS_PX + OSU_CIRCLE_LINE_WIDTH;

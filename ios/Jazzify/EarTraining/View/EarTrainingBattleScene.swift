@@ -2064,25 +2064,15 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         osuCirclePool?.resyncTimings(mapped)
     }
 
-    private func showEnemyHammerThrowWave(at position: CGPoint, facingLeft: Bool) {
+    private func showEnemyHammerThrowWave(at position: CGPoint) {
         let radius = Self.battleLayoutPt(28)
-        let path = UIBezierPath(
-            arcCenter: .zero,
-            radius: radius,
-            startAngle: -.pi / 2,
-            endAngle: .pi / 2,
-            clockwise: true
-        )
-        let wave = SKShapeNode(path: path.cgPath)
+        let wave = SKShapeNode(circleOfRadius: radius)
         wave.fillColor = .clear
         wave.strokeColor = UIColor.white.withAlphaComponent(0.85)
         wave.lineWidth = Self.battleLayoutPt(4)
         wave.position = position
         wave.alpha = 0.85
         wave.setScale(0.45)
-        if facingLeft {
-            wave.zRotation = .pi
-        }
         wave.zPosition = 62
         effectLayer.addChild(wave)
         wave.run(SKAction.sequence([
@@ -2100,7 +2090,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let anchors = battleAnchors()
         let from = CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(28), y: anchors.enemy.bodyY)
         let to = CGPoint(x: anchors.player.x, y: anchors.player.bodyY)
-        showEnemyHammerThrowWave(at: from, facingLeft: anchors.player.x <= anchors.enemy.x)
+        showEnemyHammerThrowWave(at: from)
         let hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
         hammer.position = from
         hammer.zRotation = -18 * (.pi / 180)
@@ -2225,7 +2215,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             approachStartMs: approachStartMs,
             judgedMs: judgedMs,
             centerX: position.x,
-            targetY: position.y
+            targetY: position.y,
+            noteLabels: command.osuCircleNoteLabels ?? []
         )
     }
 
@@ -2235,12 +2226,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         ensureOsuCircleShatterPool()
         let burstPosition = osuCirclePool?.burst(commandId: relatedId)
         guard let burstPosition else { return }
-        showImpactBurst(
-            at: burstPosition,
-            color: EarTrainingBattleParryConstants.impactRingColor,
-            large: false,
-            lightSparkCount: 0
-        )
         osuCircleShatterPool?.spawn(
             origin: burstPosition,
             ringRadius: EarTrainingBattleOsuCircleTiming.innerRadiusPx,
@@ -2276,8 +2261,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let parryCenterX = anchors.player.x
         let parryCenterY = anchors.player.bodyY - Self.battleLayoutPt(28)
         let now = CACurrentMediaTime()
-        let isChainParry = lastParryAt > 0
-            && (now - lastParryAt) < (EarTrainingBattleParryConstants.totalMs / 1000)
         lastParryAt = now
 
         holdCharacterForAction(.player, state: .cast, durationMs: EarTrainingBattleParryConstants.motionEndMs)
@@ -2291,26 +2274,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         triggerParryBeatSyncEffects(command, now: now)
         scheduleParryMotion(finishOnly: command.parryFinishOnly)
-        if command.parryFinishOnly {
-            triggerFinishPunchZoom(focus: CGPoint(x: parryCenterX, y: parryCenterY))
-        }
-        ensureParrySparkPool()
-        parrySparkPool?.spawn(
-            x: parryCenterX,
-            y: parryCenterY,
-            startedAt: now,
-            isChainParry: isChainParry,
-            beatSync: parryBeatSync
-        )
-        showImpactBurst(
-            at: CGPoint(x: parryCenterX, y: parryCenterY),
-            color: EarTrainingBattleParryConstants.impactRingColor,
-            large: false,
-            lightRadius: Self.battleLayoutPt(26),
-            lightScaleEnd: 1.55,
-            lightDuration: 0.18,
-            lightSparkCount: 0
-        )
 
         run(SKAction.sequence([
             SKAction.wait(forDuration: EarTrainingBattleParryConstants.reflectHitMs / 1000),
@@ -2349,33 +2312,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         showPlayerPose(
             assetName: PlayerAvatarPoseAsset.guardDName,
             durationMs: EarTrainingBattleParryConstants.motionEndMs
-        )
-    }
-
-    private func triggerFinishPunchZoom(focus: CGPoint) {
-        if cameraNode.position == .zero {
-            resetCameraToCenter()
-        }
-        cameraNode.removeAction(forKey: "finish-punch-zoom")
-        let zoomIn = SKAction.scale(
-            to: 1.0 / EarTrainingBattleParryConstants.finishPunchZoomTarget,
-            duration: EarTrainingBattleParryConstants.finishPunchZoomInSec
-        )
-        zoomIn.timingMode = .easeOut
-        let hold = SKAction.wait(forDuration: EarTrainingBattleParryConstants.finishPunchZoomHoldSec)
-        let zoomOut = SKAction.scale(to: 1.0, duration: EarTrainingBattleParryConstants.finishPunchZoomOutSec)
-        zoomOut.timingMode = .easeInEaseOut
-        let panIn = SKAction.move(to: CGPoint(x: -focus.x * 0.04, y: -focus.y * 0.04), duration: EarTrainingBattleParryConstants.finishPunchZoomInSec)
-        panIn.timingMode = .easeOut
-        let panOut = SKAction.move(to: .zero, duration: EarTrainingBattleParryConstants.finishPunchZoomOutSec)
-        panOut.timingMode = .easeInEaseOut
-        cameraNode.run(
-            SKAction.sequence([
-                SKAction.group([zoomIn, panIn]),
-                hold,
-                SKAction.group([zoomOut, panOut]),
-            ]),
-            withKey: "finish-punch-zoom"
         )
     }
 

@@ -20,6 +20,7 @@ import type {
 } from '@/game/earTraining/types';
 import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { resolveOsuApproachCirclePerfTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
+import { resolveOsuCircleNoteLabels } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleNoteLabels';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -623,6 +624,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       clearParryVisualSlow?: boolean;
       visualSlowSustainMs?: number;
       osuCircleLayoutIndex?: number;
+      osuCircleNoteLabels?: readonly string[];
     } = {},
   ): number => {
     battleEffectIdRef.current += 1;
@@ -646,6 +648,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       clearParryVisualSlow: options.clearParryVisualSlow,
       visualSlowSustainMs: options.visualSlowSustainMs,
       osuCircleLayoutIndex: options.osuCircleLayoutIndex,
+      osuCircleNoteLabels: options.osuCircleNoteLabels,
     };
     phaserGameRef.current?.triggerEffect(command);
     return effectId;
@@ -1176,6 +1179,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         approachStartMs: timing.approachStartMs,
         judgedMs: timing.judgedMs,
         osuCircleLayoutIndex: nextApproachTargetIndexRef.current,
+        osuCircleNoteLabels: resolveOsuCircleNoteLabels(
+          target.midiCounts.map(item => item.midi),
+        ),
       });
       state.osuCircleEffectId = effectId;
       nextApproachTargetIndexRef.current += 1;

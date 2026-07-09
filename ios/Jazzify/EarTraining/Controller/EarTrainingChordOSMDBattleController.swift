@@ -1039,7 +1039,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 phraseNoteCount: nil,
                 approachStartMs: timing.approachStartMs,
                 judgedMs: timing.judgedMs,
-                osuCircleLayoutIndex: nextApproachTargetIndex
+                osuCircleLayoutIndex: nextApproachTargetIndex,
+                osuCircleNoteLabels: EarTrainingBattleOsuCircleNoteLabels.resolve(
+                    from: Array(target.midiCounts.keys)
+                )
             )
             targets[nextApproachTargetIndex].osuCircleEffectId = effectId
             nextApproachTargetIndex += 1
@@ -1489,7 +1492,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         extendParryVisualSlow: Bool = false,
         clearParryVisualSlow: Bool = false,
         visualSlowSustainMs: Double? = nil,
-        osuCircleLayoutIndex: Int? = nil
+        osuCircleLayoutIndex: Int? = nil,
+        osuCircleNoteLabels: [String]? = nil
     ) -> Int {
         battleEffectIdCounter += 1
         let id = battleEffectIdCounter
@@ -1512,7 +1516,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             extendParryVisualSlow: extendParryVisualSlow,
             clearParryVisualSlow: clearParryVisualSlow,
             visualSlowSustainMs: visualSlowSustainMs,
-            osuCircleLayoutIndex: osuCircleLayoutIndex
+            osuCircleLayoutIndex: osuCircleLayoutIndex,
+            osuCircleNoteLabels: osuCircleNoteLabels
         )
         if lastEmittedEffectId != id {
             lastEmittedEffectId = id
