@@ -9,7 +9,7 @@ export const OSU_CIRCLE_PASTEL_COLORS = [
 export const OSU_CIRCLE_COLOR_PATTERN_COUNT = OSU_CIRCLE_PASTEL_COLORS.length;
 
 /** アプローチ外円の不透明度（内円は不透明・同色） */
-export const OSU_CIRCLE_OUTER_STROKE_ALPHA = 0.38;
+export const OSU_CIRCLE_OUTER_STROKE_ALPHA = 0.55;
 
 /** アプローチ外円は内円より細く */
 export const OSU_CIRCLE_OUTER_LINE_WIDTH = 2;

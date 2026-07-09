@@ -243,10 +243,19 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }),
     [stage],
   );
-  const activeDamageConfig = useMemo(
-    () => (practiceMode || tutorialNoCombat ? NO_DAMAGE_CONFIG : damageConfig),
-    [damageConfig, practiceMode, tutorialNoCombat],
-  );
+  const activeDamageConfig = useMemo(() => {
+    if (practiceMode) {
+      return NO_DAMAGE_CONFIG;
+    }
+    if (tutorialNoCombat) {
+      return {
+        ...damageConfig,
+        miss: 0,
+        fail: 0,
+      };
+    }
+    return damageConfig;
+  }, [damageConfig, practiceMode, tutorialNoCombat]);
 
   const [statusText, setStatusText] = useState(
     () => getEarTrainingRhythmBattleStartCopy(isEnglishCopy, osmdSelfPaced),

@@ -3,7 +3,7 @@ import UIKit
 /// Web `earTrainingBattleOsuCircleColors.ts` 相当。
 enum EarTrainingBattleOsuCircleColors {
     static let patternCount = 4
-    static let outerStrokeAlpha: CGFloat = 0.38
+    static let outerStrokeAlpha: CGFloat = 0.55
     static let outerLineWidth: CGFloat = 2
 
     private static let pastelColors: [UIColor] = [

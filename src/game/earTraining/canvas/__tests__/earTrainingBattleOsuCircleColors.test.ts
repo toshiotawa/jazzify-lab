@@ -36,6 +36,6 @@ describe('getOsuCircleInnerStroke', () => {
 
 describe('getOsuCircleOuterStroke', () => {
   it('内円と同系色の半透明 rgba を返す', () => {
-    expect(getOsuCircleOuterStroke(1)).toBe('rgba(147, 197, 253, 0.38)');
+    expect(getOsuCircleOuterStroke(1)).toBe('rgba(147, 197, 253, 0.55)');
   });
 });
