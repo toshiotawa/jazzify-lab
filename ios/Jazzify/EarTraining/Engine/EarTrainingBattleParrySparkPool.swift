@@ -108,10 +108,7 @@ final class EarTrainingBattleParrySparkPool {
 
             slots[index].node.position = CGPoint(x: posX, y: posY)
             slots[index].node.alpha = CGFloat(max(0, alpha))
-            slots[index].node.path = CGPath(
-                ellipseIn: CGRect(x: -sparkSize, y: -sparkSize, width: sparkSize * 2, height: sparkSize * 2),
-                transform: nil
-            )
+            slots[index].node.setScale(sparkSize)
         }
     }
 

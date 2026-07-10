@@ -8,6 +8,7 @@ final class EarTrainingBattleOsuCirclePool {
     static let poolSize = 16
     private static let labelFontSize: CGFloat = 21
     private static let labelLineHeight: CGFloat = 22
+    private static let innerScale = EarTrainingBattleOsuCircleTiming.innerRadiusPx
 
     struct TimingUpdate {
         let commandId: Int
@@ -30,6 +31,7 @@ final class EarTrainingBattleOsuCirclePool {
         var dismissed = false
         var noteLabels: [String] = []
         var colorIndex = 0
+        var isNextTarget: Bool?
         let innerNode: SKShapeNode
         let outerNode: SKShapeNode
         let labelNode: SKNode
@@ -37,18 +39,20 @@ final class EarTrainingBattleOsuCirclePool {
 
     private var slots: [Slot]
     private let container = SKNode()
+    private var visibleSlotScratch: [Int] = []
 
     init(parent: SKNode) {
         slots = (0..<Self.poolSize).map { _ in
+            // 単位円 + setScale で半径を変える。線幅は scale で割って Web と同じ画面上の太さに保つ。
             let inner = SKShapeNode(circleOfRadius: 1)
             inner.fillColor = .clear
-            inner.lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth
+            inner.setScale(Self.innerScale)
+            inner.lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth / Self.innerScale
             inner.isHidden = true
             inner.zPosition = 64
 
             let outer = SKShapeNode(circleOfRadius: 1)
             outer.fillColor = .clear
-            outer.lineWidth = EarTrainingBattleOsuCircleColors.outerLineWidth
             outer.isHidden = true
             outer.zPosition = 64
 
@@ -91,6 +95,8 @@ final class EarTrainingBattleOsuCirclePool {
         slots[index].dismissed = false
         slots[index].noteLabels = noteLabels
         slots[index].colorIndex = colorIndex
+        slots[index].isNextTarget = nil
+        applyOuterRadius(at: index, radius: EarTrainingBattleOsuCircleTiming.outerStartRadiusPx)
         rebuildLabels(at: index)
         return true
     }
@@ -116,10 +122,8 @@ final class EarTrainingBattleOsuCirclePool {
             point: CGPoint(x: slots[index].centerX, y: slots[index].targetY),
             colorIndex: slots[index].colorIndex
         )
+        hideSlot(at: index)
         slots[index].active = false
-        slots[index].innerNode.isHidden = true
-        slots[index].outerNode.isHidden = true
-        slots[index].labelNode.isHidden = true
         return position
     }
 
@@ -128,15 +132,16 @@ final class EarTrainingBattleOsuCirclePool {
             return false
         }
         slots[index].dismissed = true
+        hideSlot(at: index)
         slots[index].active = false
-        slots[index].innerNode.isHidden = true
-        slots[index].outerNode.isHidden = true
-        slots[index].labelNode.isHidden = true
         return true
     }
 
     func update(nowMs: Double) {
-        let nextCommandId = resolveNextCommandId(nowMs: nowMs)
+        var nextCommandId: Int?
+        var nextJudgedMs = Double.greatestFiniteMagnitude
+        visibleSlotScratch.removeAll(keepingCapacity: true)
+
         for index in slots.indices {
             guard slots[index].active else { continue }
             let slot = slots[index]
@@ -149,44 +154,56 @@ final class EarTrainingBattleOsuCirclePool {
                 dismissed: slot.dismissed
             )
             if slot.dismissed || !timing.visible {
+                hideSlot(at: index)
                 slots[index].active = false
-                slots[index].innerNode.isHidden = true
-                slots[index].outerNode.isHidden = true
-                slots[index].labelNode.isHidden = true
                 continue
             }
-            let isNext = slot.commandId == nextCommandId
-            let emphasis: CGFloat = isNext ? 1 : 0.78
-            let innerColor = EarTrainingBattleOsuCircleColors.innerStroke(colorIndex: slot.colorIndex)
-            let outerColor = EarTrainingBattleOsuCircleColors.outerStroke(colorIndex: slot.colorIndex)
+            if slot.judgedMs < nextJudgedMs {
+                nextJudgedMs = slot.judgedMs
+                nextCommandId = slot.commandId
+            }
+            visibleSlotScratch.append(index)
+
+            let position = CGPoint(x: timing.centerX, y: timing.centerY)
             slots[index].innerNode.isHidden = false
             slots[index].outerNode.isHidden = false
             slots[index].labelNode.isHidden = slot.noteLabels.isEmpty
-            slots[index].innerNode.strokeColor = innerColor.withAlphaComponent(emphasis)
-            slots[index].outerNode.strokeColor = outerColor.withAlphaComponent(emphasis)
-            slots[index].labelNode.alpha = emphasis
-            slots[index].innerNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
-            slots[index].outerNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
-            slots[index].labelNode.position = CGPoint(x: timing.centerX, y: timing.centerY)
-            slots[index].innerNode.path = CGPath(
-                ellipseIn: CGRect(
-                    x: -timing.innerRadius,
-                    y: -timing.innerRadius,
-                    width: timing.innerRadius * 2,
-                    height: timing.innerRadius * 2
-                ),
-                transform: nil
-            )
-            slots[index].outerNode.path = CGPath(
-                ellipseIn: CGRect(
-                    x: -timing.outerRadius,
-                    y: -timing.outerRadius,
-                    width: timing.outerRadius * 2,
-                    height: timing.outerRadius * 2
-                ),
-                transform: nil
-            )
+            slots[index].innerNode.position = position
+            slots[index].outerNode.position = position
+            slots[index].labelNode.position = position
+            applyOuterRadius(at: index, radius: timing.outerRadius)
         }
+
+        for index in visibleSlotScratch {
+            let isNext = slots[index].commandId == nextCommandId
+            if slots[index].isNextTarget != isNext {
+                applyEmphasis(at: index, isNext: isNext)
+            }
+        }
+    }
+
+    /// `setScale` は線幅も拡大するため、画面上の stroke を Web の固定 lineWidth に合わせる。
+    private func applyOuterRadius(at index: Int, radius: CGFloat) {
+        let safeRadius = max(radius, 0.001)
+        slots[index].outerNode.setScale(safeRadius)
+        slots[index].outerNode.lineWidth = EarTrainingBattleOsuCircleColors.outerLineWidth / safeRadius
+    }
+
+    private func applyEmphasis(at index: Int, isNext: Bool) {
+        let emphasis: CGFloat = isNext ? 1 : 0.78
+        let innerColor = EarTrainingBattleOsuCircleColors.innerStroke(colorIndex: slots[index].colorIndex)
+        let outerColor = EarTrainingBattleOsuCircleColors.outerStroke(colorIndex: slots[index].colorIndex)
+        slots[index].innerNode.strokeColor = innerColor.withAlphaComponent(emphasis)
+        slots[index].outerNode.strokeColor = outerColor.withAlphaComponent(emphasis)
+        slots[index].labelNode.alpha = emphasis
+        slots[index].isNextTarget = isNext
+    }
+
+    private func hideSlot(at index: Int) {
+        slots[index].isNextTarget = nil
+        slots[index].innerNode.isHidden = true
+        slots[index].outerNode.isHidden = true
+        slots[index].labelNode.isHidden = true
     }
 
     private func rebuildLabels(at index: Int) {
@@ -214,35 +231,13 @@ final class EarTrainingBattleOsuCirclePool {
         labelNode.isHidden = false
     }
 
-    private func resolveNextCommandId(nowMs: Double) -> Int? {
-        var nextCommandId: Int?
-        var nextJudgedMs = Double.greatestFiniteMagnitude
-        for slot in slots where slot.active && !slot.dismissed {
-            guard slot.judgedMs < nextJudgedMs else { continue }
-            let timing = EarTrainingBattleOsuCircleTiming.compute(
-                nowMs: nowMs,
-                approachStartMs: slot.approachStartMs,
-                judgedMs: slot.judgedMs,
-                centerX: slot.centerX,
-                targetY: slot.targetY,
-                dismissed: slot.dismissed
-            )
-            guard timing.visible else { continue }
-            nextJudgedMs = slot.judgedMs
-            nextCommandId = slot.commandId
-        }
-        return nextCommandId
-    }
-
     func clear() {
         for index in slots.indices {
             slots[index].active = false
             slots[index].dismissed = false
             slots[index].noteLabels = []
             slots[index].colorIndex = 0
-            slots[index].innerNode.isHidden = true
-            slots[index].outerNode.isHidden = true
-            slots[index].labelNode.isHidden = true
+            hideSlot(at: index)
             slots[index].labelNode.removeAllChildren()
         }
     }

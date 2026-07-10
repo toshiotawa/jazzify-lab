@@ -18,7 +18,6 @@ final class EarTrainingBattleOsuCircleShatterPool {
         var originY: CGFloat = 0
         var midAngle: Double = 0
         var ringRadius: CGFloat = 0
-        var colorIndex = 0
         var dirX: CGFloat = 0
         var dirY: CGFloat = 0
         var driftSpeed: Double = 0
@@ -63,14 +62,28 @@ final class EarTrainingBattleOsuCircleShatterPool {
             slots[slotIndex].originY = origin.y
             slots[slotIndex].midAngle = midAngle
             slots[slotIndex].ringRadius = ringRadius
-            slots[slotIndex].colorIndex = colorIndex
             slots[slotIndex].dirX = CGFloat(cos(midAngle))
             slots[slotIndex].dirY = CGFloat(sin(midAngle))
             slots[slotIndex].driftSpeed = Double.random(in: 180...340)
             slots[slotIndex].spinRadPerMs = Double.random(in: -0.005...0.005)
-            slots[slotIndex].node.isHidden = false
-            slots[slotIndex].node.strokeColor = strokeColor
-            slots[slotIndex].node.lineWidth = Self.lineWidth
+            let startAngle = midAngle - Self.arcSpan / 2
+            let endAngle = midAngle + Self.arcSpan / 2
+            let path = CGMutablePath()
+            path.addArc(
+                center: .zero,
+                radius: ringRadius,
+                startAngle: startAngle,
+                endAngle: endAngle,
+                clockwise: false
+            )
+            let node = slots[slotIndex].node
+            node.path = path
+            node.strokeColor = strokeColor
+            node.lineWidth = Self.lineWidth
+            node.position = origin
+            node.zRotation = 0
+            node.alpha = 1
+            node.isHidden = false
             spawned += 1
         }
         return spawned
@@ -92,18 +105,8 @@ final class EarTrainingBattleOsuCircleShatterPool {
             let cy = slot.originY + slot.dirY * drift
             let spin = slot.spinRadPerMs * age
             let alpha: Double = t < 0.35 ? 1 : 1 - pow((t - 0.35) / 0.65, 1.4)
-            let startAngle = slot.midAngle - Self.arcSpan / 2 + spin
-            let endAngle = slot.midAngle + Self.arcSpan / 2 + spin
-            let path = CGMutablePath()
-            path.addArc(
-                center: CGPoint(x: cx, y: cy),
-                radius: slot.ringRadius,
-                startAngle: startAngle,
-                endAngle: endAngle,
-                clockwise: false
-            )
-            slots[index].node.path = path
-            slots[index].node.strokeColor = EarTrainingBattleOsuCircleColors.innerStroke(colorIndex: slot.colorIndex)
+            slots[index].node.position = CGPoint(x: cx, y: cy)
+            slots[index].node.zRotation = CGFloat(spin)
             slots[index].node.alpha = CGFloat(max(0, alpha))
         }
     }

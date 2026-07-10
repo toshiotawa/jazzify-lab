@@ -23,7 +23,9 @@ Web(TS) と Swift で実施済みの最適化メモ。
 - `osmdHammerReflect` 着弾の `showImpactBurst` を省略（slash + spark pool を維持）
 - `osmdHammerFlightsByEffectId` でハンマー dismiss O(1)
 - OSMD ハンマーは `getVisualNow` で毎フレーム位置更新（パリィ visualSlow 終了時に Web と同様キャッチアップ。着弾は実時間）
-- OSU! アプローチ円プール（16 スロット）+ shatter（14 破片、420ms）。**visualSlow 非影響**（wall clock）
+- OSU! アプローチ円プール（16 スロット）+ shatter（20 破片、560ms）。**visualSlow 非影響**（wall clock）
+- OSU! 円は単位円 + `setScale`（毎フレーム `CGPath` 再生成なし）。強調色は next ターゲット変化時のみ更新
+- shatter / パリィ火花も spawn 時にパス固定、更新は position / rotation / scale / alpha のみ
 - `showImpactBurst` に `lightSparkCount` オプション（他エフェクト用）
 
 ### EarTrainingBattleParrySparkPool.swift

@@ -152,4 +152,48 @@ final class EarTrainingBattleOsuCirclePoolTests: XCTestCase {
         XCTAssertTrue(pool.dismiss(commandId: 1))
         XCTAssertFalse(pool.hasActiveCircles)
     }
+
+    func testUpdateKeepsActiveCircleThroughApproachAndLockedPhases() {
+        let parent = SKNode()
+        let pool = EarTrainingBattleOsuCirclePool(parent: parent)
+        XCTAssertTrue(
+            pool.spawn(
+                commandId: 2,
+                approachStartMs: 0,
+                judgedMs: 500,
+                centerX: 120,
+                targetY: 220
+            )
+        )
+        pool.update(nowMs: 250)
+        XCTAssertTrue(pool.hasActiveCircles)
+        pool.update(nowMs: 600)
+        XCTAssertTrue(pool.hasActiveCircles)
+    }
+
+    /// setScale で線幅が膨らまないこと（ぼやけた光の再発防止）。
+    func testOuterStrokeWidthCompensatesForScale() {
+        let parent = SKNode()
+        let pool = EarTrainingBattleOsuCirclePool(parent: parent)
+        XCTAssertTrue(
+            pool.spawn(
+                commandId: 3,
+                approachStartMs: 0,
+                judgedMs: 500,
+                centerX: 100,
+                targetY: 200
+            )
+        )
+        pool.update(nowMs: 0)
+        let outer = parent.children.flatMap(\.children).compactMap { $0 as? SKShapeNode }
+            .first { $0.xScale > EarTrainingBattleOsuCircleTiming.innerRadiusPx }
+        XCTAssertNotNil(outer)
+        guard let outer else { return }
+        let screenLineWidth = outer.lineWidth * outer.xScale
+        XCTAssertEqual(
+            screenLineWidth,
+            EarTrainingBattleOsuCircleColors.outerLineWidth,
+            accuracy: 0.05
+        )
+    }
 }
