@@ -8,6 +8,16 @@ import {
 
 export const CHORD_OSMD_PHRASE_END_PADDING_SEC = 0.08;
 
+/** 24 小節 MP3 など、音源尺が loop 尺より短い場合に早終了しないための判定 */
+export const shouldFinishOsmdPhraseOnAudioEnded = (
+  phraseTimeSec: number | null,
+  phraseLoopEndSec: number,
+): boolean => (
+  phraseTimeSec !== null
+  && Number.isFinite(phraseTimeSec)
+  && phraseTimeSec + 1e-9 >= phraseLoopEndSec
+);
+
 const normalizeAudioUrl = (url: string | null | undefined): string => (
   url?.trim() ?? ''
 );

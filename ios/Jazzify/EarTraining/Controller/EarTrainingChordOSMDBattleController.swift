@@ -299,7 +299,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
         audio.onEnded = { [weak self] in
             Task { @MainActor in
-                self?.finishCurrentPhraseIfNeeded()
+                guard let self else { return }
+                let phraseTime = self.osmdPhraseTimelineSecNow() ?? self.audio.currentTimeSec
+                if phraseTime + 1e-9 >= self.resolvePhraseLoopEndSec() {
+                    self.finishCurrentPhraseIfNeeded()
+                }
             }
         }
         publishSnapshot()
@@ -867,6 +871,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         applyMusicXmlLyricQuotesIfNeeded(phraseTime: phraseTime)
 
         guard gameState == .playingPhrase else { return }
+        if phraseTime >= resolvePhraseLoopEndSec() {
+            finishCurrentPhraseIfNeeded()
+        }
+    }
+
+    private func resolvePhraseLoopEndSec() -> Double {
+        guard phrases.indices.contains(phraseIndex) else { return 0 }
         let phrase = phrases[phraseIndex]
         let lastTargetEnd = resolveCalibratedTargetTimeSec(targets.last?.targetTimeSec ?? 0)
             + resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec) + Self.hammerImpactOffsetSec
@@ -874,10 +885,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             phrase.loopDurationSec,
             speedPercent: effectivePracticeSpeedPercent()
         )
-        let safeLoopEnd = max(scaledLoopDuration, lastTargetEnd) + Self.phraseEndPaddingSec
-        if phraseTime >= safeLoopEnd {
-            finishCurrentPhraseIfNeeded()
-        }
+        return max(scaledLoopDuration, lastTargetEnd) + Self.phraseEndPaddingSec
     }
 
     private func applyMusicXmlLyricQuotesIfNeeded(phraseTime: Double) {

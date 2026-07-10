@@ -7,6 +7,7 @@ import {
   computeOsmdMeasurePlayheadState,
   countChordOsmdApproachCirclesDueFromIndex,
   countChordOsmdHammersDueFromIndex,
+  shouldFinishOsmdPhraseOnAudioEnded,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
@@ -70,6 +71,17 @@ describe('computeChordOsmdPhraseLoopEndSec', () => {
     const targets = [{ targetTimeSec: 57.6 }];
     const lastEnd = 57.6 + CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
     expect(computeChordOsmdPhraseLoopEndSec(60, targets)).toBeCloseTo(Math.max(60, lastEnd) + 0.08, 5);
+  });
+});
+
+describe('shouldFinishOsmdPhraseOnAudioEnded', () => {
+  it('24 小節 MP3 終了時点では 25 小節ループ終了扱いにしない', () => {
+    expect(shouldFinishOsmdPhraseOnAudioEnded(57.6, 60.08)).toBe(false);
+  });
+
+  it('ループ終端に達したら終了してよい', () => {
+    expect(shouldFinishOsmdPhraseOnAudioEnded(60.08, 60.08)).toBe(true);
+    expect(shouldFinishOsmdPhraseOnAudioEnded(61, 60.08)).toBe(true);
   });
 });
 

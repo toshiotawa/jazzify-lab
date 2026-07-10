@@ -76,6 +76,7 @@ import {
 import {
   computeChordOsmdActiveMeasureNumber,
   computeChordOsmdPhraseLoopEndSec,
+  shouldFinishOsmdPhraseOnAudioEnded,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
@@ -1547,7 +1548,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         }
       };
       const onEnded = (): void => {
-        finishCurrentPhrase(runId);
+        const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec() ?? null;
+        if (shouldFinishOsmdPhraseOnAudioEnded(phraseTimeSec, phraseLoopEndSecRef.current)) {
+          finishCurrentPhrase(runId);
+        }
       };
 
       if (beats <= 0) {

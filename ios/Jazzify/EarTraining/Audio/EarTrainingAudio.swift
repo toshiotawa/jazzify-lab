@@ -422,16 +422,10 @@ final class EarTrainingAudio: NSObject {
         phrasePlaybackAnchorHostTime = phraseHost
 
         let onPhraseCompleted: AVAudioPlayerNodeCompletionHandler = { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard self.playbackToken == scheduleToken else { return }
-                self.currentTimeSec = 0
-                self.phrasePlaybackAnchorHostTime = 0
-                self.stopTimeTicker()
-                self.phrasePlayer.stop()
-                self.clickPlayer.stop()
-                self.onEnded?()
-            }
+            self?.notifyScheduledPhraseBufferPlaybackEnded(
+                scheduleToken: scheduleToken,
+                restorePhraseMixerVolume: false
+            )
         }
 
         if let preparedPCM {
@@ -898,19 +892,14 @@ final class EarTrainingAudio: NSObject {
         }
 
         phrasePlayer.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard self.playbackToken == scheduleToken else { return }
-                self.phraseMixer.outputVolume = self.phraseVolume
-                self.currentTimeSec = 0
-                self.stopTimeTicker()
-                self.phrasePlayer.stop()
-                self.clickPlayer.stop()
-                self.onEnded?()
-            }
+            self?.notifyScheduledPhraseBufferPlaybackEnded(
+                scheduleToken: scheduleToken,
+                restorePhraseMixerVolume: true
+            )
         }
 
         phrasePlayer.play()
+        phrasePlaybackAnchorHostTime = mach_absolute_time()
         startTimeTickerIfNeeded()
 
         let cb = onStarted
@@ -943,19 +932,14 @@ final class EarTrainingAudio: NSObject {
         engine.prepare()
 
         phrasePlayer.scheduleBuffer(buffer, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard self.playbackToken == scheduleToken else { return }
-                self.phraseMixer.outputVolume = self.phraseVolume
-                self.currentTimeSec = 0
-                self.stopTimeTicker()
-                self.phrasePlayer.stop()
-                self.clickPlayer.stop()
-                self.onEnded?()
-            }
+            self?.notifyScheduledPhraseBufferPlaybackEnded(
+                scheduleToken: scheduleToken,
+                restorePhraseMixerVolume: true
+            )
         }
 
         phrasePlayer.play()
+        phrasePlaybackAnchorHostTime = mach_absolute_time()
         startTimeTickerIfNeeded()
 
         let cb = onStarted
@@ -984,12 +968,32 @@ final class EarTrainingAudio: NSObject {
         timeTicker = nil
     }
 
+    /// フレーズ MP3 バッファ再生完了。タイムラインは `stopPhrase()` まで継続する。
+    private func notifyScheduledPhraseBufferPlaybackEnded(
+        scheduleToken: Int,
+        restorePhraseMixerVolume: Bool
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.playbackToken == scheduleToken else { return }
+            if restorePhraseMixerVolume {
+                self.phraseMixer.outputVolume = self.phraseVolume
+            }
+            self.onEnded?()
+        }
+    }
+
     private func emitPhraseTimeIfPlaying() {
         if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
             let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
             guard sec.isFinite else { return }
             currentTimeSec = max(0, sec)
             onTimeUpdate?(currentTimeSec)
+            return
+        }
+        if let wallSec = phraseWallClockTimelineSecNowOrNil() {
+            currentTimeSec = wallSec
+            onTimeUpdate?(wallSec)
             return
         }
         guard phrasePlayer.isPlaying else { return }
@@ -1097,6 +1101,14 @@ final class EarTrainingAudio: NSObject {
             return sec.isFinite ? max(0, sec) + phraseTimelinePlaybackOffsetSec : nil
         }
         guard phrasePlayer.isPlaying else {
+            if phrasePlaybackAnchorHostTime != 0 {
+                let now = mach_absolute_time()
+                if now >= phrasePlaybackAnchorHostTime {
+                    let sec = Self.secondsFromMachHostDifference(from: phrasePlaybackAnchorHostTime, to: now)
+                    guard sec.isFinite else { return nil }
+                    return sec + phraseTimelinePlaybackOffsetSec
+                }
+            }
             return phraseTimelinePlaybackOffsetSec > 0 ? phraseTimelinePlaybackOffsetSec : nil
         }
         let anchor = phrasePlaybackAnchorHostTime
