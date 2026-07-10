@@ -178,6 +178,8 @@ export const PARRY_HIT_STOP_SCALE = 0.04;
 export const PARRY_CHAIN_SLOW_SCALE = 0.14;
 /** パリィ正解時の固定カメラズーム倍率（フレーズ長に依存しない） */
 export const PARRY_ZOOM_TARGET = 1.06;
+/** 連鎖開始から最大ズームへ到達する phrase 秒（固定速度） */
+export const PARRY_ZOOM_RAMP_SEC = 1.2;
 /** 反射ハンマーの敵到達までの飛行時間 */
 export const PARRY_REFLECT_HAMMER_MS = 240;
 
@@ -303,8 +305,6 @@ export interface EarTrainingBattleDrawRuntime {
   lastParryAt: number;
   /** 小節最終音符フィニッシュ中は連続パリィでモーションをキャンセルしない */
   parryFinishLocked: boolean;
-  /** 連鎖パリィの交互ガードポーズ用（0=guardD, 1=guardE） */
-  parryChainPoseIndex: number;
   /** パリィ BPM 同期タイムライン（描画 age 境界） */
   parryBeatSync: ParryBeatSyncRuntime;
 }

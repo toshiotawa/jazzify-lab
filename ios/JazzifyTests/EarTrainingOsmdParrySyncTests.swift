@@ -42,13 +42,22 @@ final class EarTrainingBattleBeatSyncTimingTests: XCTestCase {
         XCTAssertEqual(out, 1.75, accuracy: 1e-6)
     }
 
-    func testParryZoomScalePeaksAtMidpoint() {
-        let scale = EarTrainingBattleBeatSyncTiming.resolveParryZoomScaleAtPhraseSec(
-            currentPhraseSec: 0.5,
-            anchorPhraseSec: 0,
-            zoomOutPhraseSec: 1
+    func testParryZoomScalePeaksAtRampEnd() {
+        let mid = EarTrainingBattleBeatSyncTiming.resolveParryZoomScaleAtPhraseSec(
+            currentPhraseSec: EarTrainingBattleParryConstants.zoomRampSec / 2,
+            anchorPhraseSec: 0
         )
-        XCTAssertEqual(scale, EarTrainingBattleParryConstants.zoomTarget, accuracy: 1e-3)
+        let max = EarTrainingBattleBeatSyncTiming.resolveParryZoomScaleAtPhraseSec(
+            currentPhraseSec: EarTrainingBattleParryConstants.zoomRampSec,
+            anchorPhraseSec: 0
+        )
+        let held = EarTrainingBattleBeatSyncTiming.resolveParryZoomScaleAtPhraseSec(
+            currentPhraseSec: EarTrainingBattleParryConstants.zoomRampSec + 2,
+            anchorPhraseSec: 0
+        )
+        XCTAssertGreaterThan(mid, 1)
+        XCTAssertEqual(max, EarTrainingBattleParryConstants.zoomTarget, accuracy: 1e-3)
+        XCTAssertEqual(held, EarTrainingBattleParryConstants.zoomTarget, accuracy: 1e-3)
     }
 
     func testParryChainSlowDurationUsesPhraseInterval() {

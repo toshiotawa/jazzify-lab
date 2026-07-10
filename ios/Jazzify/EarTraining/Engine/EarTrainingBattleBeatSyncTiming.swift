@@ -138,23 +138,11 @@ enum EarTrainingBattleBeatSyncTiming {
     static func resolveParryZoomScaleAtPhraseSec(
         currentPhraseSec: Double,
         anchorPhraseSec: Double,
-        zoomOutPhraseSec: Double,
         zoomTarget: Double = EarTrainingBattleParryConstants.zoomTarget
     ) -> Double {
-        if currentPhraseSec >= zoomOutPhraseSec - beatEps { return 1 }
-        if currentPhraseSec <= anchorPhraseSec + beatEps { return 1 }
-
-        let midPhraseSec = (anchorPhraseSec + zoomOutPhraseSec) / 2
-        let zoomDelta = zoomTarget - 1
-
-        if currentPhraseSec <= midPhraseSec {
-            let span = max(beatEps, midPhraseSec - anchorPhraseSec)
-            let t = min(1, max(0, (currentPhraseSec - anchorPhraseSec) / span))
-            return 1 + zoomDelta * EarTrainingBattleParryConstants.easeCubicOut(t)
-        }
-
-        let span = max(beatEps, zoomOutPhraseSec - midPhraseSec)
-        let t = min(1, max(0, (currentPhraseSec - midPhraseSec) / span))
-        return 1 + zoomDelta * (1 - EarTrainingBattleParryConstants.easeCubicOut(t))
+        let elapsed = currentPhraseSec - anchorPhraseSec
+        if elapsed <= beatEps { return 1 }
+        let t = min(1, elapsed / EarTrainingBattleParryConstants.zoomRampSec)
+        return 1 + (zoomTarget - 1) * EarTrainingBattleParryConstants.easeCubicOut(t)
     }
 }

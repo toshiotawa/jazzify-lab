@@ -40,6 +40,7 @@ enum EarTrainingBattleParryConstants {
     static let hitStopScale: Double = 0.04
     static let chainSlowScale: Double = 0.14
     static let zoomTarget: Double = 1.06
+    static let zoomRampSec: Double = 1.2
     static let reflectHammerMs: Double = 240
     static let slashDurationMs: Double = 240
     static let sparkPoolSize = 128

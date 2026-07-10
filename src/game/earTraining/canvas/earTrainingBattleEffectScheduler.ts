@@ -26,8 +26,6 @@ import {
 } from './earTrainingBattleDrawState';
 import {
   resolveParryBeatSyncScheduleOrFallback,
-  resolveParryChainSlowDurationMs,
-  resolveParryZoomOutPhraseSec,
 } from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
@@ -64,7 +62,6 @@ const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_POSE_KEY = 'guardD';
-const PARRY_ALT_GUARD_POSE_KEY = 'guardE';
 const PARRY_FINISH_POSE_KEY = 'finish';
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const GOOD_COMPLETE_IMPACT_MS = 680;
@@ -359,18 +356,7 @@ const triggerParryBeatSyncEffects = (
   }
 
   const hitPhraseSec = command.hitPhraseTimeSec;
-  const bpm = command.effectiveBpm;
-  const isSwing = command.isSwing;
-  const zoomOutPhraseSec = hitPhraseSec !== undefined
-    && bpm !== undefined
-    && isSwing !== undefined
-    ? resolveParryZoomOutPhraseSec(
-      hitPhraseSec,
-      command.nextTargetPhraseTimeSec,
-      bpm,
-      isSwing,
-    )
-    : undefined;
+  const slowDurationMs = command.visualSlowSustainMs ?? PARRY_HIT_STOP_MS;
 
   const schedule = resolveParryBeatSyncScheduleOrFallback({
     hitPhraseSec: command.hitPhraseTimeSec,
@@ -380,10 +366,6 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
-
-  const slowDurationMs = hitPhraseSec !== undefined && zoomOutPhraseSec !== undefined
-    ? resolveParryChainSlowDurationMs(hitPhraseSec, zoomOutPhraseSec, PARRY_HIT_STOP_MS)
-    : PARRY_HIT_STOP_MS;
 
   if (command.extendParryVisualSlow && runtime.visualSlow) {
     const minEndAt = now + slowDurationMs;
@@ -400,12 +382,12 @@ const triggerParryBeatSyncEffects = (
 
   if (
     hitPhraseSec !== undefined
-    && zoomOutPhraseSec !== undefined
     && zoomFocus
+    && !command.extendParryVisualSlow
+    && runtime.camera.parryZoom === null
   ) {
     triggerParryPhraseZoom(runtime.camera, {
       anchorPhraseSec: hitPhraseSec,
-      zoomOutPhraseSec,
       hitPerfMs: now,
       focusX: zoomFocus.focusX,
       focusY: zoomFocus.focusY,
@@ -458,7 +440,6 @@ const scheduleParryMotion = (
 
   if (finishOnly) {
     runtime.parryFinishLocked = true;
-    runtime.parryChainPoseIndex = 0;
     setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS);
 
     runtime.parryMotionEndTimer = setTimeout(() => {
@@ -470,11 +451,7 @@ const scheduleParryMotion = (
     return;
   }
 
-  const guardPoseKey = runtime.parryChainPoseIndex % 2 === 0
-    ? PARRY_GUARD_POSE_KEY
-    : PARRY_ALT_GUARD_POSE_KEY;
-  runtime.parryChainPoseIndex += 1;
-  setPose(guardPoseKey, PARRY_GUARD_ONLY_MS);
+  setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_ONLY_MS);
 
   runtime.parryMotionEndTimer = setTimeout(() => {
     if (runtime.parryMotionGeneration !== generation) return;
@@ -1066,7 +1043,6 @@ export const scheduleEarTrainingBattleEffect = (
     case 'clearParryVisualSlow':
       ctx.runtime.visualSlow = null;
       clearParryZoom(ctx.runtime.camera);
-      ctx.runtime.parryChainPoseIndex = 0;
       break;
     case 'osmdMeteor':
       playOsmdMeteorEffect(ctx, command);

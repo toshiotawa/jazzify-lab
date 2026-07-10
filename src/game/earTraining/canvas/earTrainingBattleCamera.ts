@@ -15,7 +15,6 @@ export interface CameraShakeState {
 
 export interface ParryPhraseZoomState {
   anchorPhraseSec: number;
-  zoomOutPhraseSec: number;
   hitPerfMs: number;
   focusX: number;
   focusY: number;
@@ -53,7 +52,6 @@ export const triggerCameraShake = (
 
 export interface TriggerParryPhraseZoomParams {
   anchorPhraseSec: number;
-  zoomOutPhraseSec: number;
   hitPerfMs: number;
   focusX: number;
   focusY: number;
@@ -68,7 +66,6 @@ export const triggerParryPhraseZoom = (
 ): void => {
   camera.parryZoom = {
     anchorPhraseSec: params.anchorPhraseSec,
-    zoomOutPhraseSec: params.zoomOutPhraseSec,
     hitPerfMs: params.hitPerfMs,
     focusX: params.focusX,
     focusY: params.focusY,
@@ -109,7 +106,6 @@ const applyParryZoomTransform = (
   );
   const scale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, {
     anchorPhraseSec: zoom.anchorPhraseSec,
-    zoomOutPhraseSec: zoom.zoomOutPhraseSec,
     zoomTarget: zoom.zoomTarget,
   });
   if (scale <= 1 + 1e-6) {
@@ -150,16 +146,7 @@ export const computeCameraTransform = (
   }
 
   if (camera.parryZoom) {
-    const currentPhraseSec = resolvePhraseSecFromPerfAnchor(
-      camera.parryZoom.anchorPhraseSec,
-      camera.parryZoom.hitPerfMs,
-      now,
-    );
-    if (currentPhraseSec >= camera.parryZoom.zoomOutPhraseSec - 1e-6) {
-      camera.parryZoom = null;
-    } else {
-      applyParryZoomTransform(camera.parryZoom, now);
-    }
+    applyParryZoomTransform(camera.parryZoom, now);
   }
 
   return scratchTransform;
@@ -171,13 +158,7 @@ export const isCameraActive = (
 ): boolean => {
   const shakeActive = camera.shake !== null
     && now - camera.shake.startedAt < camera.shake.durationMs;
-  const zoomActive = camera.parryZoom !== null
-    && resolvePhraseSecFromPerfAnchor(
-      camera.parryZoom.anchorPhraseSec,
-      camera.parryZoom.hitPerfMs,
-      now,
-    ) < camera.parryZoom.zoomOutPhraseSec - 1e-6;
-  return shakeActive || zoomActive;
+  return shakeActive || camera.parryZoom !== null;
 };
 
 export const applyWorldCameraTransform = (

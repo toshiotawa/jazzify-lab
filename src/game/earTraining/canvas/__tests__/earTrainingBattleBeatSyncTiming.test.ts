@@ -8,7 +8,10 @@ import {
   resolveParryZoomScaleAtPhraseSec,
   resolvePhraseSecFromPerfAnchor,
 } from '@/game/earTraining/canvas/earTrainingBattleBeatSyncTiming';
-import { PARRY_ZOOM_TARGET } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
+import {
+  PARRY_ZOOM_RAMP_SEC,
+  PARRY_ZOOM_TARGET,
+} from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 
 describe('resolveBeatSyncLandingSec', () => {
   const cases: Array<{
@@ -75,20 +78,21 @@ describe('resolveParryZoomOutPhraseSec', () => {
 describe('resolveParryZoomScaleAtPhraseSec', () => {
   const params = {
     anchorPhraseSec: 0,
-    zoomOutPhraseSec: 1,
     zoomTarget: PARRY_ZOOM_TARGET,
   };
 
-  it('ramps up to midpoint and back down at next target', () => {
+  it('ramps monotonically to max and holds beyond ramp duration', () => {
     expect(resolveParryZoomScaleAtPhraseSec(0, params)).toBeCloseTo(1, 6);
-    expect(resolveParryZoomScaleAtPhraseSec(0.5, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
-    expect(resolveParryZoomScaleAtPhraseSec(1, params)).toBeCloseTo(1, 6);
-    const early = resolveParryZoomScaleAtPhraseSec(0.25, params);
-    const late = resolveParryZoomScaleAtPhraseSec(0.75, params);
-    expect(early).toBeGreaterThan(1);
-    expect(late).toBeGreaterThan(1);
+    expect(resolveParryZoomScaleAtPhraseSec(PARRY_ZOOM_RAMP_SEC / 2, params)).toBeGreaterThan(1);
+    expect(resolveParryZoomScaleAtPhraseSec(PARRY_ZOOM_RAMP_SEC, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(PARRY_ZOOM_RAMP_SEC + 2, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
+  });
+
+  it('uses fixed ramp speed regardless of short elapsed intervals', () => {
+    const early = resolveParryZoomScaleAtPhraseSec(0.1, params);
+    const later = resolveParryZoomScaleAtPhraseSec(0.2, params);
+    expect(later).toBeGreaterThan(early);
     expect(early).toBeLessThan(PARRY_ZOOM_TARGET);
-    expect(late).toBeLessThan(PARRY_ZOOM_TARGET);
   });
 });
 

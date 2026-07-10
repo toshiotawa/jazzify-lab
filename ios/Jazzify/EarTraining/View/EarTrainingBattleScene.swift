@@ -57,7 +57,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         static let correctName = "correct3"
         static let castName = "eishou"
         static let guardDName = "GuardD"
-        static let guardEName = "GuardE"
         static let finishName = "finish"
         static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
     }
@@ -170,7 +169,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var lastBuiltAvatarSignature: String?
     private var lastParryAt: TimeInterval = 0
     private var parryFinishLocked = false
-    private var parryChainPoseIndex = 0
     private var visualSlowStartedAt: TimeInterval?
     private var visualSlowDurationMs: Double = EarTrainingBattleParryConstants.visualSlowDurationMs
     private var visualSlowScale: Double = EarTrainingBattleParryConstants.visualSlowScale
@@ -223,7 +221,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private struct ParryPhraseZoomState {
         let anchorPhraseSec: Double
-        let zoomOutPhraseSec: Double
         let hitPerfSec: TimeInterval
         let focusX: CGFloat
         let focusY: CGFloat
@@ -2228,7 +2225,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         effectLayer.speed = 1
         cameraNode.speed = 1
         clearParryZoom()
-        parryChainPoseIndex = 0
     }
 
     private func clearParryZoom() {
@@ -2238,14 +2234,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func triggerParryPhraseZoom(
         anchorPhraseSec: Double,
-        zoomOutPhraseSec: Double,
         hitPerfSec: TimeInterval,
         focusX: CGFloat,
         focusY: CGFloat
     ) {
         parryZoom = ParryPhraseZoomState(
             anchorPhraseSec: anchorPhraseSec,
-            zoomOutPhraseSec: zoomOutPhraseSec,
             hitPerfSec: hitPerfSec,
             focusX: focusX,
             focusY: focusY
@@ -2254,19 +2248,15 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func applyParryZoomIfNeeded(wallNow: TimeInterval) {
         guard let parryZoom else { return }
+        let visualNowSec = visualNowMs(wallNowSec: wallNow) / 1000
         let currentPhraseSec = EarTrainingBattleBeatSyncTiming.resolvePhraseSecFromPerfAnchor(
             hitPhraseSec: parryZoom.anchorPhraseSec,
             hitPerfSec: parryZoom.hitPerfSec,
-            nowSec: wallNow
+            nowSec: visualNowSec
         )
-        if currentPhraseSec >= parryZoom.zoomOutPhraseSec - 1e-6 {
-            clearParryZoom()
-            return
-        }
         let scale = EarTrainingBattleBeatSyncTiming.resolveParryZoomScaleAtPhraseSec(
             currentPhraseSec: currentPhraseSec,
-            anchorPhraseSec: parryZoom.anchorPhraseSec,
-            zoomOutPhraseSec: parryZoom.zoomOutPhraseSec
+            anchorPhraseSec: parryZoom.anchorPhraseSec
         )
         guard scale > 1 + 1e-6 else { return }
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -2295,26 +2285,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             return
         }
 
-        let hitPhraseSec = command.hitPhraseTimeSec
-        let bpm = command.effectiveBpm
-        let zoomOutPhraseSec: Double? = {
-            guard let hitPhraseSec, let bpm else { return nil }
-            return EarTrainingBattleBeatSyncTiming.resolveParryZoomOutPhraseSec(
-                hitPhraseSec: hitPhraseSec,
-                nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
-                bpm: bpm
-            )
-        }()
-        let slowDurationMs: Double = {
-            guard let hitPhraseSec, let zoomOutPhraseSec else {
-                return EarTrainingBattleParryConstants.hitStopMs
-            }
-            return EarTrainingBattleBeatSyncTiming.resolveParryChainSlowDurationMs(
-                hitPhraseSec: hitPhraseSec,
-                zoomOutPhraseSec: zoomOutPhraseSec,
-                minDurationMs: EarTrainingBattleParryConstants.hitStopMs
-            )
-        }()
+        let slowDurationMs = command.visualSlowSustainMs ?? EarTrainingBattleParryConstants.hitStopMs
 
         if command.extendParryVisualSlow, let started = visualSlowStartedAt {
             let minEndAt = now + slowDurationMs / 1000
@@ -2328,11 +2299,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             cameraNode.speed = CGFloat(visualSlowScale)
         }
 
-        if let hitPhraseSec, let zoomOutPhraseSec {
+        if let hitPhraseSec = command.hitPhraseTimeSec,
+           !command.extendParryVisualSlow,
+           parryZoom == nil {
             let anchors = battleAnchors()
             triggerParryPhraseZoom(
                 anchorPhraseSec: hitPhraseSec,
-                zoomOutPhraseSec: zoomOutPhraseSec,
                 hitPerfSec: now,
                 focusX: anchors.player.x,
                 focusY: anchors.player.bodyY - Self.battleLayoutPt(28)
@@ -2443,7 +2415,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         if finishOnly {
             parryFinishLocked = true
-            parryChainPoseIndex = 0
             showPlayerPose(
                 assetName: PlayerAvatarPoseAsset.finishName,
                 durationMs: EarTrainingBattleParryConstants.motionEndMs
@@ -2457,12 +2428,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             return
         }
 
-        let guardPoseName = parryChainPoseIndex % 2 == 0
-            ? PlayerAvatarPoseAsset.guardDName
-            : PlayerAvatarPoseAsset.guardEName
-        parryChainPoseIndex += 1
         showPlayerPose(
-            assetName: guardPoseName,
+            assetName: PlayerAvatarPoseAsset.guardDName,
             durationMs: EarTrainingBattleParryConstants.motionEndMs
         )
     }
