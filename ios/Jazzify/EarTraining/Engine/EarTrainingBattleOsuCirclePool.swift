@@ -128,6 +128,10 @@ final class EarTrainingBattleOsuCirclePool {
             return false
         }
         slots[index].dismissed = true
+        slots[index].active = false
+        slots[index].innerNode.isHidden = true
+        slots[index].outerNode.isHidden = true
+        slots[index].labelNode.isHidden = true
         return true
     }
 

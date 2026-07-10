@@ -293,7 +293,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         audio.stopPhrase()
         audio.start()
         audio.onTimeUpdate = { [weak self] currentTime in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.handleAudioTimeUpdate(currentTime: currentTime)
             }
         }
@@ -405,7 +405,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         lastInputAtByNote[midi] = nowMs
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         guard let phraseTime = osmdPhraseTimelineSecNow() else { return }
-        handleAudioTimeUpdate(currentTime: phraseTime)
         compactActiveTargets()
 
         let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
@@ -1197,13 +1196,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             clearParryVisualSlow: false,
             visualSlowSustainMs: visualSlowSustainMs
         )
-        if spanState.isFinish {
-            audio.playOsmdParrySe(tier: .finish)
-        } else if spanState.extendVisualSlow {
-            audio.playOsmdParrySe(tier: .chain)
-        } else {
-            audio.playOsmdParrySe(tier: .normal)
-        }
         if spanState.isFinish {
             parryChainAnchor = nil
         }

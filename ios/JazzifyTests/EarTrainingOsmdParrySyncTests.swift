@@ -1,4 +1,5 @@
 import Foundation
+import SpriteKit
 
 import XCTest
 @testable import Jazzify
@@ -131,5 +132,24 @@ final class EarTrainingBattleOsuCircleTimingTests: XCTestCase {
         )
         XCTAssertFalse(state.visible)
         XCTAssertEqual(state.phase, .dismissed)
+    }
+}
+
+final class EarTrainingBattleOsuCirclePoolTests: XCTestCase {
+    func testDismissImmediatelyDeactivatesSlot() {
+        let parent = SKNode()
+        let pool = EarTrainingBattleOsuCirclePool(parent: parent)
+        XCTAssertTrue(
+            pool.spawn(
+                commandId: 1,
+                approachStartMs: 0,
+                judgedMs: 500,
+                centerX: 100,
+                targetY: 200
+            )
+        )
+        XCTAssertTrue(pool.hasActiveCircles)
+        XCTAssertTrue(pool.dismiss(commandId: 1))
+        XCTAssertFalse(pool.hasActiveCircles)
     }
 }
