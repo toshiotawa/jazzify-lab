@@ -207,16 +207,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
     private var osmdHammerFlightsByEffectId: [Int: OsmdHammerFlight] = [:]
+    private let reflectImpactActionKeyPrefix = "reflectImpact-"
 
     private struct OsmdHammerFlight {
         let effectId: Int
-        let startedAt: TimeInterval
+        var startedAt: TimeInterval
         let travelDuration: TimeInterval
         let from: CGPoint
         let to: CGPoint
         let startRotation: CGFloat
         let spinRadians: CGFloat
         let node: SKSpriteNode
+        var onImpact: (() -> Void)?
     }
 
     private struct ParryPhraseZoomState {
@@ -2106,15 +2108,58 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             to: enemyPoint,
             startRotation: hammer.zRotation,
             spinRadians: 540 * (.pi / 180),
-            node: hammer
+            node: hammer,
+            onImpact: onImpact
         )
         osmdHammerFlightsByEffectId[reflectId] = flight
         applyOsmdHammerFlightVisual(flight, wallNow: wallNow)
+        scheduleReflectHammerImpact(for: flight, wallWait: wallTravelDuration)
+    }
 
-        run(SKAction.wait(forDuration: wallTravelDuration)) { [weak self, weak hammer] in
-            hammer?.removeFromParent()
-            self?.osmdHammerFlightsByEffectId.removeValue(forKey: reflectId)
-            onImpact()
+    private func reflectImpactActionKey(for effectId: Int) -> String {
+        "\(reflectImpactActionKeyPrefix)\(effectId)"
+    }
+
+    private func scheduleReflectHammerImpact(for flight: OsmdHammerFlight, wallWait: TimeInterval) {
+        let key = reflectImpactActionKey(for: flight.effectId)
+        flight.node.removeAction(forKey: key)
+        guard wallWait > 1e-6 else {
+            completeReflectHammerImpact(effectId: flight.effectId)
+            return
+        }
+        let wait = SKAction.wait(forDuration: wallWait)
+        let impact = SKAction.run { [weak self] in
+            self?.completeReflectHammerImpact(effectId: flight.effectId)
+        }
+        flight.node.run(SKAction.sequence([wait, impact]), withKey: key)
+    }
+
+    private func completeReflectHammerImpact(effectId: Int) {
+        guard let flight = osmdHammerFlightsByEffectId.removeValue(forKey: effectId) else { return }
+        flight.node.removeAction(forKey: reflectImpactActionKey(for: effectId))
+        flight.node.removeFromParent()
+        flight.onImpact?()
+    }
+
+    private func endVisualSlowAndResyncReflectHammers(wallNow: TimeInterval) {
+        guard visualSlowStartedAt != nil else { return }
+        let oldVisualNowMs = visualNowMs(wallNowSec: wallNow)
+        visualSlowStartedAt = nil
+        visualSlowDurationMs = EarTrainingBattleParryConstants.visualSlowDurationMs
+        visualSlowScale = EarTrainingBattleParryConstants.visualSlowScale
+        effectLayer.speed = 1
+        cameraNode.speed = 1
+
+        let durationMs = EarTrainingBattleParryConstants.reflectHammerMs
+        let reflectIds = osmdHammerFlightsByEffectId.keys.filter { $0 < 0 }
+        for effectId in reflectIds {
+            guard var flight = osmdHammerFlightsByEffectId[effectId], flight.onImpact != nil else { continue }
+            let progress = min(1, max(0, (oldVisualNowMs - flight.startedAt * 1000) / durationMs))
+            flight.startedAt = wallNow - progress * (durationMs / 1000)
+            osmdHammerFlightsByEffectId[effectId] = flight
+            applyOsmdHammerFlightVisual(flight, wallNow: wallNow)
+            let remainingSec = (1 - progress) * durationMs / 1000
+            scheduleReflectHammerImpact(for: flight, wallWait: remainingSec)
         }
     }
 
@@ -2200,9 +2245,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         guard let started = visualSlowStartedAt else { return }
         let durationSec = visualSlowDurationMs / 1000
         guard wallNow > started + durationSec else { return }
-        visualSlowStartedAt = nil
-        effectLayer.speed = 1
-        cameraNode.speed = 1
+        endVisualSlowAndResyncReflectHammers(wallNow: wallNow)
     }
 
     private func visualSlowStartedAtMs(wallNowSec: TimeInterval) -> Double? {
@@ -2222,11 +2265,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func clearParryVisualSlowEffect() {
-        visualSlowStartedAt = nil
-        visualSlowDurationMs = EarTrainingBattleParryConstants.visualSlowDurationMs
-        visualSlowScale = EarTrainingBattleParryConstants.visualSlowScale
-        effectLayer.speed = 1
-        cameraNode.speed = 1
+        endVisualSlowAndResyncReflectHammers(wallNow: CACurrentMediaTime())
         clearParryZoom()
     }
 

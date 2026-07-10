@@ -344,13 +344,13 @@ const triggerParryBeatSyncEffects = (
   zoomFocus?: { focusX: number; focusY: number; centerX: number; centerY: number },
 ): void => {
   if (command.clearParryVisualSlow) {
-    runtime.visualSlow = null;
+    endVisualSlowAndResyncReflectHammers(runtime, now);
     clearParryZoom(runtime.camera);
     return;
   }
 
   if (command.parryFinishOnly) {
-    runtime.visualSlow = null;
+    endVisualSlowAndResyncReflectHammers(runtime, now);
     clearParryZoom(runtime.camera);
     return;
   }
@@ -535,6 +535,97 @@ const resolveReflectHammerWallImpactDelayMs = (
     return PARRY_REFLECT_HAMMER_MS;
   }
   return PARRY_REFLECT_HAMMER_MS / Math.max(slow.scale, 1e-6);
+};
+
+export const computeReflectHammerResyncState = (
+  oldVisualNow: number,
+  startedAt: number,
+  now: number,
+  durationMs: number = PARRY_REFLECT_HAMMER_MS,
+): { progress: number; newStartedAt: number; remainingMs: number } => {
+  const progress = Math.min(1, Math.max(0, (oldVisualNow - startedAt) / durationMs));
+  return {
+    progress,
+    newStartedAt: now - progress * durationMs,
+    remainingMs: (1 - progress) * durationMs,
+  };
+};
+
+const fireReflectHammerImpact = (
+  runtime: EarTrainingBattleDrawRuntime,
+  effect: CanvasEffectRuntime,
+): void => {
+  if (effect.impactFired) {
+    return;
+  }
+  effect.impactFired = true;
+  if (effect.impactTimeoutId !== undefined) {
+    clearTimeout(effect.impactTimeoutId);
+    effect.impactTimeoutId = undefined;
+  }
+  const callbacks = runtime.reflectImpactCallbacks;
+  if (!callbacks) {
+    return;
+  }
+  flashCharacter(runtime.enemy, 2, 70);
+  addImpactBurst(runtime, callbacks.enemyX, callbacks.enemyBodyY, '#fde68a', false, {
+    durationMs: 220,
+    size: 40,
+    scaleEnd: 1.35,
+    sparkDuration: 180,
+    sparkCount: 6,
+  });
+  showDamageText(runtime, effect.command.damage, callbacks.enemyX, callbacks.enemyBodyY);
+  callbacks.onImpact(effect.command.id);
+  callbacks.onDirty();
+};
+
+const scheduleReflectHammerImpact = (
+  runtime: EarTrainingBattleDrawRuntime,
+  effect: CanvasEffectRuntime,
+  delayMs: number,
+): void => {
+  if (effect.impactTimeoutId !== undefined) {
+    clearTimeout(effect.impactTimeoutId);
+  }
+  if (delayMs <= 0) {
+    fireReflectHammerImpact(runtime, effect);
+    return;
+  }
+  effect.impactTimeoutId = setTimeout(() => {
+    effect.impactTimeoutId = undefined;
+    fireReflectHammerImpact(runtime, effect);
+  }, delayMs);
+};
+
+export const endVisualSlowAndResyncReflectHammers = (
+  runtime: EarTrainingBattleDrawRuntime,
+  now: number,
+): void => {
+  if (!runtime.visualSlow) {
+    return;
+  }
+  const oldVisualNow = getVisualNow(now, runtime.visualSlow);
+  runtime.visualSlow = null;
+
+  for (const effect of runtime.effects) {
+    if (effect.command.kind !== 'osmdHammerReflect' || effect.impactFired) {
+      continue;
+    }
+    const { newStartedAt, remainingMs } = computeReflectHammerResyncState(
+      oldVisualNow,
+      effect.startedAt,
+      now,
+    );
+    effect.startedAt = newStartedAt;
+    effect.impactAt = newStartedAt + PARRY_REFLECT_HAMMER_MS;
+    for (const visual of effect.visuals) {
+      if (visual.kind === 'hammer') {
+        visual.startedAt = newStartedAt;
+      }
+    }
+    scheduleReflectHammerImpact(runtime, effect, remainingMs);
+  }
 };
 
 const showPlayerPoseSequence = (
@@ -748,7 +839,7 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
 };
 
 const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
-  const { runtime, anchors, onDirty, onImpact, playerTimers, snapshot, width, height } = ctx;
+  const { runtime, anchors, onDirty, playerTimers, snapshot, width, height } = ctx;
   const now = performance.now();
 
   const parryCenterX = anchors.player.x;
@@ -795,28 +886,17 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     visualNow,
   );
 
-  runtime.effects.push({
+  const effect: CanvasEffectRuntime = {
     commandId: command.id,
     command,
     startedAt: visualNow,
     impactAt: visualNow + PARRY_REFLECT_HAMMER_MS,
     impactFired: false,
     visuals,
-  });
+  };
+  runtime.effects.push(effect);
 
-  setTimeout(() => {
-    flashCharacter(runtime.enemy, 2, 70);
-    addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#fde68a', false, {
-      durationMs: 220,
-      size: 40,
-      scaleEnd: 1.35,
-      sparkDuration: 180,
-      sparkCount: 6,
-    });
-    showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
-    onImpact(command.id);
-    onDirty();
-  }, impactDelayMs);
+  scheduleReflectHammerImpact(runtime, effect, impactDelayMs);
   onDirty();
 };
 
@@ -1028,6 +1108,12 @@ export const scheduleEarTrainingBattleEffect = (
 ): void => {
   if (ctx.runtime.lastEffectId === command.id) return;
   ctx.runtime.lastEffectId = command.id;
+  ctx.runtime.reflectImpactCallbacks = {
+    onImpact: ctx.onImpact,
+    onDirty: ctx.onDirty,
+    enemyX: ctx.anchors.enemy.x,
+    enemyBodyY: ctx.anchors.enemy.bodyY,
+  };
 
   switch (command.kind) {
     case 'correct':
@@ -1052,7 +1138,7 @@ export const scheduleEarTrainingBattleEffect = (
       playOsmdHammerReflectEffect(ctx, command);
       break;
     case 'clearParryVisualSlow':
-      ctx.runtime.visualSlow = null;
+      endVisualSlowAndResyncReflectHammers(ctx.runtime, performance.now());
       clearParryZoom(ctx.runtime.camera);
       break;
     case 'osmdMeteor':
@@ -1079,7 +1165,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     runtime.visualSlow
     && now > runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
   ) {
-    runtime.visualSlow = null;
+    endVisualSlowAndResyncReflectHammers(runtime, now);
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
   pruneParrySparks(runtime.parrySparkPool, visualNow);

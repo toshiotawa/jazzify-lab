@@ -232,6 +232,8 @@ export interface CanvasEffectRuntime {
   impactFired: boolean;
   visuals: CanvasEffectVisual[];
   osmdHammerActive?: boolean;
+  /** 反射ハンマー着弾の再スケジュール用 */
+  impactTimeoutId?: ReturnType<typeof setTimeout>;
 }
 
 export interface CanvasHudHitRegion {
@@ -307,6 +309,13 @@ export interface EarTrainingBattleDrawRuntime {
   parryFinishLocked: boolean;
   /** パリィ BPM 同期タイムライン（描画 age 境界） */
   parryBeatSync: ParryBeatSyncRuntime;
+  /** 反射ハンマー着弾コールバック（スロー解除時の再同期用） */
+  reflectImpactCallbacks: {
+    onImpact: (effectId: number) => void;
+    onDirty: () => void;
+    enemyX: number;
+    enemyBodyY: number;
+  } | null;
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;

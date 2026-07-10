@@ -114,6 +114,7 @@ const createInitialRuntime = (
   lastParryAt: 0,
   parryFinishLocked: false,
   parryBeatSync: createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
+  reflectImpactCallbacks: null,
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({
