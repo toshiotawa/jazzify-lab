@@ -507,11 +507,11 @@ const launchReflectedOsmdHammer = (
   hammerSize: number,
   enemyX: number,
   enemyY: number,
-  startedAt: number,
+  visualStartedAt: number,
 ): void => {
   addVisual(visuals, {
     kind: 'hammer',
-    startedAt,
+    startedAt: visualStartedAt,
     durationMs: PARRY_REFLECT_HAMMER_MS,
     fromX: contactX,
     fromY: contactY,
@@ -526,6 +526,15 @@ const launchReflectedOsmdHammer = (
     scaleEnd: 1.05,
     imageKey: 'hammer',
   });
+};
+
+const resolveReflectHammerWallImpactDelayMs = (
+  slow: EarTrainingBattleDrawRuntime['visualSlow'],
+): number => {
+  if (!slow) {
+    return PARRY_REFLECT_HAMMER_MS;
+  }
+  return PARRY_REFLECT_HAMMER_MS / Math.max(slow.scale, 1e-6);
 };
 
 const showPlayerPoseSequence = (
@@ -773,6 +782,8 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   });
   scheduleParryMotion(runtime, onDirty, finishOnly);
 
+  const visualNow = getVisualNow(now, runtime.visualSlow);
+  const impactDelayMs = resolveReflectHammerWallImpactDelayMs(runtime.visualSlow);
   const visuals: CanvasEffectVisual[] = [];
   launchReflectedOsmdHammer(
     visuals,
@@ -781,14 +792,14 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     contact.size,
     anchors.enemy.x,
     anchors.enemy.bodyY,
-    now,
+    visualNow,
   );
 
   runtime.effects.push({
     commandId: command.id,
     command,
-    startedAt: now,
-    impactAt: now + PARRY_REFLECT_HAMMER_MS,
+    startedAt: visualNow,
+    impactAt: visualNow + PARRY_REFLECT_HAMMER_MS,
     impactFired: false,
     visuals,
   });
@@ -805,7 +816,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
     onImpact(command.id);
     onDirty();
-  }, PARRY_REFLECT_HAMMER_MS);
+  }, impactDelayMs);
   onDirty();
 };
 

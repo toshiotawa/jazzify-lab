@@ -2085,6 +2085,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func launchReflectedOsmdHammer(
         from contact: CGPoint,
         to enemyPoint: CGPoint,
+        wallNow: TimeInterval,
         onImpact: @escaping () -> Void
     ) {
         let hammer = makeEffectSprite(name: Self.enemyAttackHammerAssetName, size: Self.battleLayoutPt(76))
@@ -2092,13 +2093,15 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         hammer.zRotation = .pi
         effectLayer.addChild(hammer)
 
-        let travelDuration = EarTrainingBattleParryConstants.reflectHammerMs / 1000
-        let startedAt = CACurrentMediaTime()
-        let reflectId = -Int(startedAt * 1000)
+        let visualNowSec = visualNowMs(wallNowSec: wallNow) / 1000
+        let travelDurationVisual = EarTrainingBattleParryConstants.reflectHammerMs / 1000
+        let slowScale = visualSlowStartedAt != nil ? visualSlowScale : 1
+        let wallTravelDuration = travelDurationVisual / max(slowScale, 1e-6)
+        let reflectId = -Int(wallNow * 1000)
         let flight = OsmdHammerFlight(
             effectId: reflectId,
-            startedAt: startedAt,
-            travelDuration: travelDuration,
+            startedAt: visualNowSec,
+            travelDuration: travelDurationVisual,
             from: contact,
             to: enemyPoint,
             startRotation: hammer.zRotation,
@@ -2106,9 +2109,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             node: hammer
         )
         osmdHammerFlightsByEffectId[reflectId] = flight
-        applyOsmdHammerFlightVisual(flight, wallNow: startedAt)
+        applyOsmdHammerFlightVisual(flight, wallNow: wallNow)
 
-        run(SKAction.wait(forDuration: travelDuration)) { [weak self, weak hammer] in
+        run(SKAction.wait(forDuration: wallTravelDuration)) { [weak self, weak hammer] in
             hammer?.removeFromParent()
             self?.osmdHammerFlightsByEffectId.removeValue(forKey: reflectId)
             onImpact()
@@ -2396,7 +2399,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         launchReflectedOsmdHammer(
             from: contact,
-            to: CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(20), y: anchors.enemy.bodyY)
+            to: CGPoint(x: anchors.enemy.x - Self.battleLayoutPt(20), y: anchors.enemy.bodyY),
+            wallNow: now
         ) { [weak self] in
             guard let self else { return }
             self.flashCharacter(.enemy)
