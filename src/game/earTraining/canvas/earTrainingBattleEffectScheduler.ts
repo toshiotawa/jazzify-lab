@@ -17,16 +17,17 @@ import {
   getVisualNow,
   hexColor,
   lerp,
+  PARRY_CHAIN_SLOW_SCALE,
   PARRY_GUARD_ONLY_MS,
   PARRY_HIT_STOP_MS,
-  PARRY_HIT_STOP_SCALE,
   PARRY_MOTION_END_MS,
-  PARRY_REFLECT_HIT_MS,
+  PARRY_REFLECT_HAMMER_MS,
   PARRY_TOTAL_MS,
-  PARRY_VISUAL_SLOW_SCALE,
 } from './earTrainingBattleDrawState';
 import {
   resolveParryBeatSyncScheduleOrFallback,
+  resolveParryChainSlowDurationMs,
+  resolveParryZoomOutPhraseSec,
 } from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
@@ -37,7 +38,9 @@ import {
 import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
+  clearParryZoom,
   triggerCameraShake,
+  triggerParryPhraseZoom,
 } from './earTrainingBattleCamera';
 import { applyOsuCircleAnchorOffset } from './earTrainingBattleOsuCircleLayout';
 import {
@@ -61,19 +64,17 @@ const CORRECT_IMPACT_MS = 540;
 const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_POSE_KEY = 'guardD';
+const PARRY_ALT_GUARD_POSE_KEY = 'guardE';
 const PARRY_FINISH_POSE_KEY = 'finish';
-const PARRY_SLASH_DURATION_MS = 240;
+const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
 const PERFECT_LIGHTNING_IMPACT_MS = 470;
 const METEOR_IMPACT_MS = 980;
 const AWESOME_METEOR_START_MS = 1080;
-const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
 const SKILL_PLAYER_POSE_SEQUENCE = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'] as const;
 const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
-const HAMMER_DISMISS_FADE_MS = 280;
-const OSMD_REFLECT_HIT_DELAY_MS = PARRY_REFLECT_HIT_MS;
 const HAMMER_THROW_WAVE_DURATION_MS = 200;
 
 let visualIdCounter = 0;
@@ -343,11 +344,33 @@ const triggerParryBeatSyncEffects = (
   runtime: EarTrainingBattleDrawRuntime,
   command: EarTrainingBattleEffectCommand,
   now: number,
+  zoomFocus?: { focusX: number; focusY: number; centerX: number; centerY: number },
 ): void => {
   if (command.clearParryVisualSlow) {
     runtime.visualSlow = null;
+    clearParryZoom(runtime.camera);
     return;
   }
+
+  if (command.parryFinishOnly) {
+    runtime.visualSlow = null;
+    clearParryZoom(runtime.camera);
+    return;
+  }
+
+  const hitPhraseSec = command.hitPhraseTimeSec;
+  const bpm = command.effectiveBpm;
+  const isSwing = command.isSwing;
+  const zoomOutPhraseSec = hitPhraseSec !== undefined
+    && bpm !== undefined
+    && isSwing !== undefined
+    ? resolveParryZoomOutPhraseSec(
+      hitPhraseSec,
+      command.nextTargetPhraseTimeSec,
+      bpm,
+      isSwing,
+    )
+    : undefined;
 
   const schedule = resolveParryBeatSyncScheduleOrFallback({
     hitPhraseSec: command.hitPhraseTimeSec,
@@ -358,30 +381,38 @@ const triggerParryBeatSyncEffects = (
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
 
-  if (command.parryFinishOnly) {
-    const sustainMs = command.visualSlowSustainMs ?? schedule.slowDurationMs;
-    runtime.visualSlow = {
-      startedAt: now,
-      durationMs: Math.max(schedule.slowDurationMs, sustainMs),
-      scale: PARRY_VISUAL_SLOW_SCALE,
-      baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
-    };
-    return;
-  }
+  const slowDurationMs = hitPhraseSec !== undefined && zoomOutPhraseSec !== undefined
+    ? resolveParryChainSlowDurationMs(hitPhraseSec, zoomOutPhraseSec, PARRY_HIT_STOP_MS)
+    : PARRY_HIT_STOP_MS;
 
   if (command.extendParryVisualSlow && runtime.visualSlow) {
-    const minEndAt = now + PARRY_HIT_STOP_MS;
+    const minEndAt = now + slowDurationMs;
     const currentEndAt = runtime.visualSlow.startedAt + runtime.visualSlow.durationMs;
     runtime.visualSlow.durationMs = Math.max(currentEndAt, minEndAt) - runtime.visualSlow.startedAt;
-    return;
+  } else {
+    runtime.visualSlow = {
+      startedAt: now,
+      durationMs: slowDurationMs,
+      scale: PARRY_CHAIN_SLOW_SCALE,
+      baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
+    };
   }
 
-  runtime.visualSlow = {
-    startedAt: now,
-    durationMs: PARRY_HIT_STOP_MS,
-    scale: PARRY_HIT_STOP_SCALE,
-    baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
-  };
+  if (
+    hitPhraseSec !== undefined
+    && zoomOutPhraseSec !== undefined
+    && zoomFocus
+  ) {
+    triggerParryPhraseZoom(runtime.camera, {
+      anchorPhraseSec: hitPhraseSec,
+      zoomOutPhraseSec,
+      hitPerfMs: now,
+      focusX: zoomFocus.focusX,
+      focusY: zoomFocus.focusY,
+      centerX: zoomFocus.centerX,
+      centerY: zoomFocus.centerY,
+    });
+  }
 };
 
 export const clearParryMotionTimers = (runtime: EarTrainingBattleDrawRuntime): void => {
@@ -427,6 +458,7 @@ const scheduleParryMotion = (
 
   if (finishOnly) {
     runtime.parryFinishLocked = true;
+    runtime.parryChainPoseIndex = 0;
     setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS);
 
     runtime.parryMotionEndTimer = setTimeout(() => {
@@ -438,7 +470,11 @@ const scheduleParryMotion = (
     return;
   }
 
-  setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_ONLY_MS);
+  const guardPoseKey = runtime.parryChainPoseIndex % 2 === 0
+    ? PARRY_GUARD_POSE_KEY
+    : PARRY_ALT_GUARD_POSE_KEY;
+  runtime.parryChainPoseIndex += 1;
+  setPose(guardPoseKey, PARRY_GUARD_ONLY_MS);
 
   runtime.parryMotionEndTimer = setTimeout(() => {
     if (runtime.parryMotionGeneration !== generation) return;
@@ -462,36 +498,57 @@ const dismissIncomingOsmdHammer = (
   relatedEffectId: number | undefined,
   contactX: number,
   contactY: number,
-): void => {
-  if (relatedEffectId === undefined) return;
+  now: number,
+): { x: number; y: number; size: number } => {
+  if (relatedEffectId === undefined) {
+    return { x: contactX, y: contactY, size: 76 };
+  }
   const incoming = runtime.effectByCommandId.get(relatedEffectId);
-  if (!incoming) return;
+  if (!incoming) {
+    return { x: contactX, y: contactY, size: 76 };
+  }
   incoming.osmdHammerActive = false;
-  const now = performance.now();
   const hammerVisual = incoming.visuals.find(visual => visual.kind === 'hammer');
   if (!hammerVisual) {
     incoming.visuals = [];
-    return;
+    runtime.effectByCommandId.delete(relatedEffectId);
+    return { x: contactX, y: contactY, size: 76 };
   }
-  incoming.visuals = [{
-    id: nextVisualId(),
+  const visualNow = getVisualNow(now, runtime.visualSlow);
+  const t = getEffectProgress(hammerVisual, visualNow);
+  const x = lerp(hammerVisual.fromX, hammerVisual.toX, easeLinear(t));
+  const y = lerp(hammerVisual.fromY, hammerVisual.toY, easeLinear(t));
+  incoming.visuals = [];
+  runtime.effectByCommandId.delete(relatedEffectId);
+  return { x, y, size: hammerVisual.size };
+};
+
+const launchReflectedOsmdHammer = (
+  visuals: CanvasEffectVisual[],
+  contactX: number,
+  contactY: number,
+  hammerSize: number,
+  enemyX: number,
+  enemyY: number,
+  startedAt: number,
+): void => {
+  addVisual(visuals, {
     kind: 'hammer',
-    startedAt: now,
-    durationMs: HAMMER_DISMISS_FADE_MS,
+    startedAt,
+    durationMs: PARRY_REFLECT_HAMMER_MS,
     fromX: contactX,
     fromY: contactY,
-    toX: contactX - 36,
-    toY: contactY - 18,
+    toX: enemyX - 20,
+    toY: enemyY,
     color: '#ffffff',
-    size: hammerVisual.size,
+    size: hammerSize,
     alpha: 1,
-    rotation: hammerVisual.rotationEnd,
-    rotationEnd: hammerVisual.rotationEnd + 120,
+    rotation: 180,
+    rotationEnd: 540,
     scaleStart: 1,
-    scaleEnd: 0.82,
+    scaleEnd: 1.05,
     imageKey: 'hammer',
-    fadeOut: true,
-  }];
+  });
 };
 
 const showPlayerPoseSequence = (
@@ -722,50 +779,56 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     onDirty,
   );
 
-  dismissIncomingOsmdHammer(runtime, command.relatedEffectId, parryCenterX, parryCenterY);
+  const contact = dismissIncomingOsmdHammer(
+    runtime,
+    command.relatedEffectId,
+    parryCenterX,
+    parryCenterY,
+    now,
+  );
   const finishOnly = command.parryFinishOnly === true;
   runtime.lastParryAt = now;
-  triggerParryBeatSyncEffects(runtime, command, now);
+  triggerParryBeatSyncEffects(runtime, command, now, {
+    focusX: parryCenterX,
+    focusY: parryCenterY,
+    centerX: width / 2,
+    centerY: height / 2,
+  });
   scheduleParryMotion(runtime, onDirty, finishOnly);
 
   const visuals: CanvasEffectVisual[] = [];
-  const slashCenterX = (parryCenterX + anchors.enemy.x) / 2;
-  const slashSpan = Math.abs(anchors.enemy.x - parryCenterX) + 48;
-  addVisual(visuals, {
-    kind: 'slash',
-    startedAt: now,
-    durationMs: PARRY_SLASH_DURATION_MS,
-    fromX: slashCenterX,
-    fromY: parryCenterY,
-    toX: slashCenterX,
-    toY: parryCenterY,
-    color: 'rgba(224, 255, 255, 0.98)',
-    size: slashSpan / 1.9,
-    alpha: 1,
-    rotation: -4,
-    rotationEnd: -4,
-    scaleStart: 1,
-    scaleEnd: 1,
-    fadeOut: true,
-    groupStartedAt: now,
-  });
+  launchReflectedOsmdHammer(
+    visuals,
+    contact.x,
+    contact.y,
+    contact.size,
+    anchors.enemy.x,
+    anchors.enemy.bodyY,
+    now,
+  );
 
   runtime.effects.push({
     commandId: command.id,
     command,
     startedAt: now,
-    impactAt: now + OSMD_REFLECT_HIT_DELAY_MS,
+    impactAt: now + PARRY_REFLECT_HAMMER_MS,
     impactFired: false,
     visuals,
   });
 
   setTimeout(() => {
     flashCharacter(runtime.enemy, 2, 70);
+    addImpactBurst(runtime, anchors.enemy.x, anchors.enemy.bodyY, '#fde68a', false, {
+      durationMs: 220,
+      size: 40,
+      scaleEnd: 1.35,
+      sparkDuration: 180,
+      sparkCount: 6,
+    });
     showDamageText(runtime, command.damage, anchors.enemy.x, anchors.enemy.bodyY);
-    scheduleEnemyKnockback(ctx, 22, 160);
     onImpact(command.id);
     onDirty();
-  }, OSMD_REFLECT_HIT_DELAY_MS);
+  }, PARRY_REFLECT_HAMMER_MS);
   onDirty();
 };
 
@@ -1002,6 +1065,8 @@ export const scheduleEarTrainingBattleEffect = (
       break;
     case 'clearParryVisualSlow':
       ctx.runtime.visualSlow = null;
+      clearParryZoom(ctx.runtime.camera);
+      ctx.runtime.parryChainPoseIndex = 0;
       break;
     case 'osmdMeteor':
       playOsmdMeteorEffect(ctx, command);

@@ -1,4 +1,8 @@
-import { PARRY_VISUAL_SLOW_DURATION_MS } from './earTrainingBattleDrawState';
+import {
+  easeCubicOut,
+  PARRY_VISUAL_SLOW_DURATION_MS,
+  PARRY_ZOOM_TARGET,
+} from './earTrainingBattleDrawState';
 
 export const BEAT_SYNC_TARGET_OFFSET_SEC = 0.25;
 const BEAT_EPS = 1e-6;
@@ -107,6 +111,71 @@ export const resolveParryBeatSyncSchedule = (
     slowPhaseMs: slowDurationMs,
     ringExpandStartMs: slowDurationMs + 1,
   };
+};
+
+export interface ParryPhraseZoomParams {
+  anchorPhraseSec: number;
+  zoomOutPhraseSec: number;
+  zoomTarget?: number;
+}
+
+export const resolveParryZoomOutPhraseSec = (
+  hitPhraseSec: number,
+  nextTargetPhraseSec: number | undefined,
+  bpm: number,
+  isSwing: boolean,
+): number => {
+  if (
+    nextTargetPhraseSec !== undefined
+    && Number.isFinite(nextTargetPhraseSec)
+    && nextTargetPhraseSec > hitPhraseSec + BEAT_EPS
+  ) {
+    return nextTargetPhraseSec;
+  }
+  return resolveBeatSyncLandingSec(hitPhraseSec, bpm, isSwing);
+};
+
+export const resolvePhraseSecFromPerfAnchor = (
+  hitPhraseSec: number,
+  hitPerfMs: number,
+  nowMs: number,
+): number => hitPhraseSec + (nowMs - hitPerfMs) / 1000;
+
+export const resolveParryChainSlowDurationMs = (
+  hitPhraseSec: number,
+  zoomOutPhraseSec: number,
+  minDurationMs: number,
+): number => Math.max(
+  minDurationMs,
+  Math.round((zoomOutPhraseSec - hitPhraseSec) * 1000),
+);
+
+export const resolveParryZoomScaleAtPhraseSec = (
+  currentPhraseSec: number,
+  params: ParryPhraseZoomParams,
+): number => {
+  const zoomTarget = params.zoomTarget ?? PARRY_ZOOM_TARGET;
+  const { anchorPhraseSec, zoomOutPhraseSec } = params;
+
+  if (currentPhraseSec >= zoomOutPhraseSec - BEAT_EPS) {
+    return 1;
+  }
+  if (currentPhraseSec <= anchorPhraseSec + BEAT_EPS) {
+    return 1;
+  }
+
+  const midPhraseSec = (anchorPhraseSec + zoomOutPhraseSec) / 2;
+  const zoomDelta = zoomTarget - 1;
+
+  if (currentPhraseSec <= midPhraseSec) {
+    const span = Math.max(BEAT_EPS, midPhraseSec - anchorPhraseSec);
+    const t = Math.min(1, Math.max(0, (currentPhraseSec - anchorPhraseSec) / span));
+    return 1 + zoomDelta * easeCubicOut(t);
+  }
+
+  const span = Math.max(BEAT_EPS, zoomOutPhraseSec - midPhraseSec);
+  const t = Math.min(1, Math.max(0, (currentPhraseSec - midPhraseSec) / span));
+  return 1 + zoomDelta * (1 - easeCubicOut(t));
 };
 
 export const resolveParryBeatSyncScheduleOrFallback = (

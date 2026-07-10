@@ -3,7 +3,12 @@ import {
   phraseLandingToPerfMs,
   resolveBeatSyncLandingSec,
   resolveParryBeatSyncSchedule,
+  resolveParryChainSlowDurationMs,
+  resolveParryZoomOutPhraseSec,
+  resolveParryZoomScaleAtPhraseSec,
+  resolvePhraseSecFromPerfAnchor,
 } from '@/game/earTraining/canvas/earTrainingBattleBeatSyncTiming';
+import { PARRY_ZOOM_TARGET } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 
 describe('resolveBeatSyncLandingSec', () => {
   const cases: Array<{
@@ -54,5 +59,48 @@ describe('resolveParryBeatSyncSchedule', () => {
     });
     expect(schedule.slowDurationMs).toBe(375);
     expect(schedule.ringExpandStartMs).toBe(376);
+  });
+});
+
+describe('resolveParryZoomOutPhraseSec', () => {
+  it('uses next target phrase sec when available', () => {
+    expect(resolveParryZoomOutPhraseSec(1, 1.75, 160, false)).toBeCloseTo(1.75, 6);
+  });
+
+  it('falls back to beat-sync landing when next target is missing', () => {
+    expect(resolveParryZoomOutPhraseSec(0, undefined, 160, false)).toBeCloseTo(0.375, 6);
+  });
+});
+
+describe('resolveParryZoomScaleAtPhraseSec', () => {
+  const params = {
+    anchorPhraseSec: 0,
+    zoomOutPhraseSec: 1,
+    zoomTarget: PARRY_ZOOM_TARGET,
+  };
+
+  it('ramps up to midpoint and back down at next target', () => {
+    expect(resolveParryZoomScaleAtPhraseSec(0, params)).toBeCloseTo(1, 6);
+    expect(resolveParryZoomScaleAtPhraseSec(0.5, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(1, params)).toBeCloseTo(1, 6);
+    const early = resolveParryZoomScaleAtPhraseSec(0.25, params);
+    const late = resolveParryZoomScaleAtPhraseSec(0.75, params);
+    expect(early).toBeGreaterThan(1);
+    expect(late).toBeGreaterThan(1);
+    expect(early).toBeLessThan(PARRY_ZOOM_TARGET);
+    expect(late).toBeLessThan(PARRY_ZOOM_TARGET);
+  });
+});
+
+describe('resolveParryChainSlowDurationMs', () => {
+  it('uses phrase interval with minimum duration', () => {
+    expect(resolveParryChainSlowDurationMs(0, 0.5, 64)).toBe(500);
+    expect(resolveParryChainSlowDurationMs(0, 0.02, 64)).toBe(64);
+  });
+});
+
+describe('resolvePhraseSecFromPerfAnchor', () => {
+  it('maps performance time to phrase seconds', () => {
+    expect(resolvePhraseSecFromPerfAnchor(2, 1000, 1500)).toBeCloseTo(2.5, 6);
   });
 });

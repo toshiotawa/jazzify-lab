@@ -27,6 +27,7 @@ describe('earTrainingBattleImagePreload', () => {
   it('OSMD クリティカルにはパリィ用ポーズを含む', () => {
     const urls = getEarTrainingBattleCriticalUrls([], 'chord_osmd');
     expect(urls.some((url) => url.includes('GuardD'))).toBe(true);
+    expect(urls.some((url) => url.includes('GuardE'))).toBe(true);
     expect(urls.some((url) => url.includes('finish'))).toBe(true);
     expect(urls.some((url) => url.includes('eishou'))).toBe(true);
     expect(urls.some((url) => url.includes('fireball'))).toBe(false);

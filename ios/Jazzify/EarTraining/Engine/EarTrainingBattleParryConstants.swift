@@ -38,6 +38,9 @@ enum EarTrainingBattleParryConstants {
     static let visualSlowScale: Double = 0.22
     static let hitStopMs: Double = 64
     static let hitStopScale: Double = 0.04
+    static let chainSlowScale: Double = 0.14
+    static let zoomTarget: Double = 1.06
+    static let reflectHammerMs: Double = 240
     static let slashDurationMs: Double = 240
     static let sparkPoolSize = 128
     static let sparkColor = UIColor(red: 103 / 255, green: 232 / 255, blue: 249 / 255, alpha: 1)

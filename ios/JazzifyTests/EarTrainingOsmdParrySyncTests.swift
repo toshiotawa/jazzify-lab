@@ -32,6 +32,33 @@ final class EarTrainingBattleBeatSyncTimingTests: XCTestCase {
         )
         XCTAssertEqual(schedule.slowDurationMs, EarTrainingBattleParryConstants.slowPhaseMs)
     }
+
+    func testParryZoomOutUsesNextTarget() {
+        let out = EarTrainingBattleBeatSyncTiming.resolveParryZoomOutPhraseSec(
+            hitPhraseSec: 1,
+            nextTargetPhraseSec: 1.75,
+            bpm: 160
+        )
+        XCTAssertEqual(out, 1.75, accuracy: 1e-6)
+    }
+
+    func testParryZoomScalePeaksAtMidpoint() {
+        let scale = EarTrainingBattleBeatSyncTiming.resolveParryZoomScaleAtPhraseSec(
+            currentPhraseSec: 0.5,
+            anchorPhraseSec: 0,
+            zoomOutPhraseSec: 1
+        )
+        XCTAssertEqual(scale, EarTrainingBattleParryConstants.zoomTarget, accuracy: 1e-3)
+    }
+
+    func testParryChainSlowDurationUsesPhraseInterval() {
+        let duration = EarTrainingBattleBeatSyncTiming.resolveParryChainSlowDurationMs(
+            hitPhraseSec: 0,
+            zoomOutPhraseSec: 0.5,
+            minDurationMs: 64
+        )
+        XCTAssertEqual(duration, 500, accuracy: 1)
+    }
 }
 
 final class EarTrainingChordOsmdParrySpanTests: XCTestCase {

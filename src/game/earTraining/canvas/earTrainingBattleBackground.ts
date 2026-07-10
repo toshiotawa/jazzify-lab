@@ -298,6 +298,7 @@ export const BACKGROUND_IMAGE_URLS: Record<string, string> = {
 export const PLAYER_POSE_IMAGE_URLS: Record<string, string> = {
   correct3: '/data/correct3.webp',
   guardD: '/GuardD.webp',
+  guardE: '/GuardE.webp',
   finish: '/finish.webp',
   cast: '/data/eishou.webp',
   skill1: '/data/Frame1.webp',

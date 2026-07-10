@@ -34,7 +34,7 @@ export const EFFECT_IMAGE_URLS: Record<string, string> = {
   ...PLAYER_POSE_IMAGE_URLS,
 };
 
-const OSMD_CRITICAL_POSE_KEYS = ['guardD', 'finish', 'cast'] as const;
+const OSMD_CRITICAL_POSE_KEYS = ['guardD', 'guardE', 'finish', 'cast'] as const;
 const OSMD_SECONDARY_POSE_KEYS = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5', 'skill6'] as const;
 const OSMD_EFFECT_KEYS = ['meteor', 'fireRing', 'snowflake', 'lightning', 'cloud'] as const;
 

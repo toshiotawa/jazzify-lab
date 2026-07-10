@@ -1017,6 +1017,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     phraseEndingRef.current = true;
     stopPhraseAudio();
+    clearParryVisualSlow();
 
     let completed = 0;
     runtimeByTargetIdRef.current.forEach(state => {
@@ -1133,6 +1134,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     practiceMode,
     publishTargetStates,
     registerBattleEffectImpact,
+    clearParryVisualSlow,
     stopPhraseAudio,
     triggerBattleEffect,
     dismissOsuCircleForState,

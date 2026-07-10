@@ -971,7 +971,7 @@ const drawEffects = (
 
   runtime.effects.forEach(effect => {
     effect.visuals.forEach(visual => {
-      const effectNow = visual.kind === 'hammer' ? now : visualNow;
+      const effectNow = visualNow;
       drawEffectVisual(ctx, visual, runtime, effectNow);
     });
   });

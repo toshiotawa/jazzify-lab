@@ -113,6 +113,7 @@ const createInitialRuntime = (
   chordOsmdBattle: false,
   lastParryAt: 0,
   parryFinishLocked: false,
+  parryChainPoseIndex: 0,
   parryBeatSync: createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
 });
 

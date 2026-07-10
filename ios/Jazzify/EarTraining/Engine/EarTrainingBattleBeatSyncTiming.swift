@@ -105,4 +105,56 @@ enum EarTrainingBattleBeatSyncTiming {
             targetOffsetSec: targetOffsetSec
         )
     }
+
+    static func resolveParryZoomOutPhraseSec(
+        hitPhraseSec: Double,
+        nextTargetPhraseSec: Double?,
+        bpm: Double
+    ) -> Double {
+        if let nextTargetPhraseSec,
+           nextTargetPhraseSec.isFinite,
+           nextTargetPhraseSec > hitPhraseSec + beatEps {
+            return nextTargetPhraseSec
+        }
+        return resolveBeatSyncLandingSec(hitPhraseSec: hitPhraseSec, bpm: bpm)
+    }
+
+    static func resolvePhraseSecFromPerfAnchor(
+        hitPhraseSec: Double,
+        hitPerfSec: Double,
+        nowSec: Double
+    ) -> Double {
+        hitPhraseSec + (nowSec - hitPerfSec)
+    }
+
+    static func resolveParryChainSlowDurationMs(
+        hitPhraseSec: Double,
+        zoomOutPhraseSec: Double,
+        minDurationMs: Double
+    ) -> Double {
+        max(minDurationMs, round((zoomOutPhraseSec - hitPhraseSec) * 1000))
+    }
+
+    static func resolveParryZoomScaleAtPhraseSec(
+        currentPhraseSec: Double,
+        anchorPhraseSec: Double,
+        zoomOutPhraseSec: Double,
+        zoomTarget: Double = EarTrainingBattleParryConstants.zoomTarget
+    ) -> Double {
+        if currentPhraseSec >= zoomOutPhraseSec - beatEps { return 1 }
+        if currentPhraseSec <= anchorPhraseSec + beatEps { return 1 }
+
+        let midPhraseSec = (anchorPhraseSec + zoomOutPhraseSec) / 2
+        let zoomDelta = zoomTarget - 1
+
+        if currentPhraseSec <= midPhraseSec {
+            let span = max(beatEps, midPhraseSec - anchorPhraseSec)
+            let t = min(1, max(0, (currentPhraseSec - anchorPhraseSec) / span))
+            return 1 + zoomDelta * EarTrainingBattleParryConstants.easeCubicOut(t)
+        }
+
+        let span = max(beatEps, zoomOutPhraseSec - midPhraseSec)
+        let t = min(1, max(0, (currentPhraseSec - midPhraseSec) / span))
+        return 1 + zoomDelta * (1 - EarTrainingBattleParryConstants.easeCubicOut(t))
+    }
 }
