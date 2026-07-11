@@ -618,21 +618,19 @@ export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null
 
   if (lessonsError || !lessons) return null;
 
-  const chapterOneLessonIds = lessons
-    .filter((l) => (l.block_number ?? 1) === 1)
-    .map((l) => l.id);
+  const lessonIds = lessons.map((l) => l.id);
 
   const { getCurrentUserIdCached } = await import('./supabaseClient');
   const uid = await getCurrentUserIdCached();
   if (!uid) return null;
 
   let lastPlayedAt: string | null = null;
-  if (chapterOneLessonIds.length > 0) {
+  if (lessonIds.length > 0) {
     const { data: lastProgressRow, error: lastProgressError } = await supabase
       .from('user_lesson_requirements_progress')
       .select('updated_at')
       .eq('user_id', uid)
-      .in('lesson_id', chapterOneLessonIds)
+      .in('lesson_id', lessonIds)
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();

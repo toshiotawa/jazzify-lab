@@ -5,7 +5,6 @@ export const MAIN_QUEST_RESUME_PROMPT_SESSION_KEY = 'mq_resume_prompt_shown';
 
 export function shouldShowMainQuestResumePrompt(input: {
   lastPlayedAt: string | null;
-  nextLessonBlockNumber: number | null | undefined;
   nowMs?: number;
   sessionAlreadyShown?: boolean;
 }): boolean {
@@ -13,9 +12,6 @@ export function shouldShowMainQuestResumePrompt(input: {
     return false;
   }
   if (!input.lastPlayedAt) {
-    return false;
-  }
-  if ((input.nextLessonBlockNumber ?? 1) !== 1) {
     return false;
   }
   const lastPlayedMs = Date.parse(input.lastPlayedAt);

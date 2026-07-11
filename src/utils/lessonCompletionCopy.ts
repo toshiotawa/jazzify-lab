@@ -118,7 +118,6 @@ export type TaskClearNextStepPromptCopy = {
   heading: string;
   body: string;
   nextTask: string;
-  questList: string;
   stopForToday: string;
   showCelebrationEmoji: boolean;
 };
@@ -133,9 +132,8 @@ export const taskClearNextStepPromptCopy = (
       body: isEnglish
         ? 'Ready for the next task.'
         : '次の課題に挑戦しましょう。',
-      nextTask: isEnglish ? 'Start task' : '課題を始める',
-      questList: isEnglish ? 'View quest list' : 'クエスト一覧を見る',
-      stopForToday: isEnglish ? 'Stop for today' : '今日はここまで',
+      nextTask: isEnglish ? 'Start' : '始める',
+      stopForToday: isEnglish ? 'Cancel' : 'やめる',
       showCelebrationEmoji: false,
     };
   }
@@ -145,8 +143,7 @@ export const taskClearNextStepPromptCopy = (
       ? 'Next up — keep the momentum going.'
       : '次の課題に進みましょう。',
     nextTask: isEnglish ? 'Next task' : '次の課題へ',
-    questList: isEnglish ? 'View quest list' : 'クエスト一覧を見る',
-    stopForToday: isEnglish ? 'Stop for today' : '今日はここまで',
+    stopForToday: isEnglish ? 'Cancel' : 'やめる',
     showCelebrationEmoji: true,
   };
 };

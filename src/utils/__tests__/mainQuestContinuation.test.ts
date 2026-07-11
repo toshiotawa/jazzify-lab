@@ -50,31 +50,28 @@ describe('findFirstIncompleteRequirement', () => {
 describe('shouldShowMainQuestResumePrompt', () => {
   const now = Date.parse('2026-07-05T12:00:00.000Z');
 
-  it('returns true when chapter 1 resume is eligible after threshold', () => {
+  it('returns true when resume is eligible after threshold', () => {
     expect(
       shouldShowMainQuestResumePrompt({
         lastPlayedAt: new Date(now - MAIN_QUEST_RESUME_THRESHOLD_MS - 1).toISOString(),
-        nextLessonBlockNumber: 1,
         nowMs: now,
       }),
     ).toBe(true);
   });
 
-  it('returns false for chapter 2', () => {
+  it('returns true for chapter 2 next lesson', () => {
     expect(
       shouldShowMainQuestResumePrompt({
         lastPlayedAt: new Date(now - MAIN_QUEST_RESUME_THRESHOLD_MS - 1).toISOString(),
-        nextLessonBlockNumber: 2,
         nowMs: now,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('returns false when session already shown', () => {
     expect(
       shouldShowMainQuestResumePrompt({
         lastPlayedAt: new Date(now - MAIN_QUEST_RESUME_THRESHOLD_MS - 1).toISOString(),
-        nextLessonBlockNumber: 1,
         nowMs: now,
         sessionAlreadyShown: true,
       }),
@@ -122,11 +119,20 @@ describe('resolveJustClearedLessonSongId', () => {
 });
 
 describe('shouldShowMainQuestTaskEntryPrompt', () => {
-  it('returns true for chapter 1 main quest with autoStart and no justCleared', () => {
+  it('returns true for main quest with autoStart and no justCleared', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isMainQuest: true,
-        blockNumber: 1,
+        hasAutoStart: true,
+        hasJustCleared: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('returns true for chapter 2 main quest with autoStart', () => {
+    expect(
+      shouldShowMainQuestTaskEntryPrompt({
+        isMainQuest: true,
         hasAutoStart: true,
         hasJustCleared: false,
       }),
@@ -137,7 +143,6 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isMainQuest: true,
-        blockNumber: 1,
         hasAutoStart: true,
         hasJustCleared: true,
       }),
@@ -148,19 +153,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isMainQuest: true,
-        blockNumber: 1,
         hasAutoStart: false,
-        hasJustCleared: false,
-      }),
-    ).toBe(false);
-  });
-
-  it('returns false for chapter 2', () => {
-    expect(
-      shouldShowMainQuestTaskEntryPrompt({
-        isMainQuest: true,
-        blockNumber: 2,
-        hasAutoStart: true,
         hasJustCleared: false,
       }),
     ).toBe(false);
@@ -170,7 +163,6 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isMainQuest: false,
-        blockNumber: 1,
         hasAutoStart: true,
         hasJustCleared: false,
       }),

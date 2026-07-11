@@ -554,7 +554,6 @@ const LessonDetailPage: React.FC = () => {
       || !justClearedParam
       || justClearedConsumedRef.current
       || !lessonCourseIsMainQuest
-      || (lesson?.block_number ?? 1) !== 1
     ) {
       return;
     }
@@ -575,7 +574,6 @@ const LessonDetailPage: React.FC = () => {
     loading,
     justClearedParam,
     lessonCourseIsMainQuest,
-    lesson?.block_number,
     requirements,
     requirementsProgress,
     clearJustClearedFromUrl,
@@ -594,7 +592,6 @@ const LessonDetailPage: React.FC = () => {
     }
     if (!shouldShowMainQuestTaskEntryPrompt({
       isMainQuest: lessonCourseIsMainQuest,
-      blockNumber: lesson?.block_number,
       hasAutoStart: true,
       hasJustCleared: Boolean(justClearedParam),
     })) {
@@ -619,7 +616,6 @@ const LessonDetailPage: React.FC = () => {
     requirements,
     requirementsProgress,
     lessonCourseIsMainQuest,
-    lesson?.block_number,
     justClearedParam,
     clearAutoStartFromUrl,
   ]);
@@ -1516,8 +1512,7 @@ const LessonDetailPage: React.FC = () => {
                         }
                         setTimeout(() => {
                           const next = navigationInfo.nextLesson!;
-                          const shouldAutoStart = lessonCourseIsMainQuest
-                            && (next.block_number ?? 1) === 1;
+                          const shouldAutoStart = lessonCourseIsMainQuest;
                           window.location.hash = buildLessonDetailHash(
                             next.id,
                             shouldAutoStart ? { autoStart: true } : undefined,
@@ -1567,11 +1562,6 @@ const LessonDetailPage: React.FC = () => {
                   const task = nextTaskAfterClear;
                   setNextTaskAfterClear(null);
                   launchRequirement(task);
-                }}
-                onQuestList={() => {
-                  setShowTaskClearNextStepModal(false);
-                  setNextTaskAfterClear(null);
-                  window.location.hash = '#lessons';
                 }}
                 onStopForToday={() => {
                   setShowTaskClearNextStepModal(false);

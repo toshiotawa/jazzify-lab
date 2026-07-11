@@ -354,7 +354,7 @@ const LessonPage: React.FC = () => {
         return;
       }
     }
-    const shouldAutoStart = mqLesson != null && (mqLesson.block_number ?? 1) === 1;
+    const shouldAutoStart = mqLesson != null;
     window.location.hash = buildLessonDetailHash(
       lessonId,
       shouldAutoStart ? { autoStart: true } : undefined,

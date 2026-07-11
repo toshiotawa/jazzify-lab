@@ -1157,8 +1157,7 @@ struct LessonListView: View {
     // MARK: - Data
 
     private func shouldAutoStartMainQuestTaskEntry(for lesson: Lesson) -> Bool {
-        guard mainQuestCourse != nil else { return false }
-        return (lesson.blockNumber ?? 1) == 1
+        mainQuestCourse != nil
     }
 
     private func loadCourses() async {
@@ -1713,7 +1712,7 @@ struct LessonDetailView: View {
                     onContinue: sheetModel.nextLesson.map { next in
                         {
                             questCompletionSheet = nil
-                            if courseIsMainQuest, (next.blockNumber ?? 1) == 1 {
+                            if courseIsMainQuest {
                                 pendingAutoStartFirstRequirement = true
                             }
                             activeLesson = next
@@ -1746,10 +1745,6 @@ struct LessonDetailView: View {
                         let next = target
                         taskClearNextStepTarget = nil
                         launchRequirement(next)
-                    },
-                    onQuestList: {
-                        taskClearNextStepTarget = nil
-                        dismiss()
                     },
                     onStopForToday: {
                         taskClearNextStepTarget = nil
@@ -1969,7 +1964,6 @@ struct LessonDetailView: View {
                 if pendingAutoStartFirstRequirement {
                     pendingAutoStartFirstRequirement = false
                     if courseIsMainQuest,
-                       (activeLesson.blockNumber ?? 1) == 1,
                        pendingClearCheck == nil,
                        let firstIncomplete = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
                         showReadyToCompletePrompt = false
@@ -2659,7 +2653,6 @@ struct LessonDetailView: View {
     @MainActor
     private func evaluateTaskClearNextStepAfterGame() async {
         guard courseIsMainQuest,
-              (activeLesson.blockNumber ?? 1) == 1,
               let check = pendingClearCheck else {
             pendingClearCheck = nil
             return

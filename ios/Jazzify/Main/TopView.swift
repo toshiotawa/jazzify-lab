@@ -526,7 +526,6 @@ struct TopView: View {
             }
         } else if let progress = loadedMainQuestProgress,
                   let nextLesson = mainQuestPlayableNextLesson(progress: progress),
-                  (nextLesson.blockNumber ?? 1) == 1,
                   let lastPlayedAt = progress.lastPlayedAt,
                   MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
             await MainActor.run {

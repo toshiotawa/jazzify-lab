@@ -509,12 +509,10 @@ final class SupabaseService: Sendable {
         let nextLesson = LessonNavigationHelpers.sortLessonsByOrder(lessons)
             .first { !completedIds.contains($0.id) }
 
-        let chapterOneLessonIds = lessons
-            .filter { ($0.blockNumber ?? 1) == 1 }
-            .map(\.id)
+        let lessonIds = lessons.map(\.id)
 
         var lastPlayedAt: Date?
-        if !chapterOneLessonIds.isEmpty {
+        if !lessonIds.isEmpty {
             struct ProgressTimestampRow: Decodable {
                 let updatedAt: Date
                 enum CodingKeys: String, CodingKey {
@@ -525,7 +523,7 @@ final class SupabaseService: Sendable {
                 .from("user_lesson_requirements_progress")
                 .select("updated_at")
                 .eq("user_id", value: userId.uuidString)
-                .in("lesson_id", values: chapterOneLessonIds.map(\.uuidString))
+                .in("lesson_id", values: lessonIds.map(\.uuidString))
                 .order("updated_at", ascending: false)
                 .limit(1)
                 .execute()

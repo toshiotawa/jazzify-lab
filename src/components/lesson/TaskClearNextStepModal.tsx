@@ -10,7 +10,6 @@ export interface TaskClearNextStepModalProps {
   isEnglishCopy: boolean;
   mode?: TaskClearPromptMode;
   onNext: () => void;
-  onQuestList: () => void;
   onStopForToday: () => void;
 }
 
@@ -19,7 +18,6 @@ export const TaskClearNextStepModal: React.FC<TaskClearNextStepModalProps> = ({
   isEnglishCopy,
   mode = 'afterClear',
   onNext,
-  onQuestList,
   onStopForToday,
 }) => {
   const copy = taskClearNextStepPromptCopy(isEnglishCopy, mode);
@@ -61,13 +59,6 @@ export const TaskClearNextStepModal: React.FC<TaskClearNextStepModalProps> = ({
           >
             {copy.nextTask}
             <FaChevronRight className="h-4 w-4" aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={onQuestList}
-            className="w-full rounded-lg bg-slate-700 px-4 py-2 text-sm text-gray-300 transition-colors hover:bg-slate-600 hover:text-white"
-          >
-            {copy.questList}
           </button>
           <button
             type="button"

@@ -10,7 +10,6 @@ struct TaskClearNextStepSheet: View {
     let locale: AppLocale
     var mode: TaskClearPromptMode = .afterClear
     let onNext: () -> Void
-    let onQuestList: () -> Void
     let onStopForToday: () -> Void
 
     private var isJapanese: Bool { locale == .ja }
@@ -38,7 +37,7 @@ struct TaskClearNextStepSheet: View {
         case .afterClear:
             return isJapanese ? "次の課題へ" : "Next task"
         case .entry:
-            return isJapanese ? "課題を始める" : "Start task"
+            return isJapanese ? "始める" : "Start"
         }
     }
 
@@ -64,12 +63,8 @@ struct TaskClearNextStepSheet: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .frame(maxWidth: .infinity)
-                Button(isJapanese ? "クエスト一覧を見る" : "View quest list", action: onQuestList)
+                Button(isJapanese ? "やめる" : "Cancel", action: onStopForToday)
                     .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity)
-                Button(isJapanese ? "今日はここまで" : "Stop for today", action: onStopForToday)
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
         }

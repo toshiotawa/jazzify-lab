@@ -36,7 +36,6 @@ const MainQuestResumeModal: React.FC = () => {
         setProgress(data);
         const shouldShow = shouldShowMainQuestResumePrompt({
           lastPlayedAt: data.lastPlayedAt,
-          nextLessonBlockNumber: data.nextLesson.block_number,
           sessionAlreadyShown: readMainQuestResumeSessionShown(),
         });
         if (shouldShow && isMainQuestBlockPlayable(data.nextLesson.block_number, isPremiumMember)) {
