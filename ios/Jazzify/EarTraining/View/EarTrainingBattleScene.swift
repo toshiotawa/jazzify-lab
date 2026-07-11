@@ -2289,6 +2289,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func clearParryVisualSlowEffect() {
         endVisualSlowAndResyncReflectHammers(wallNow: CACurrentMediaTime())
         clearParryZoom()
+        clearGuardParryPresentation()
+    }
+
+    private func clearGuardParryPresentation() {
+        parryFinishLocked = false
+        restorePlayerPose()
     }
 
     private func clearParryZoom() {
@@ -2445,7 +2451,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         let poseDurationMs = command.parryFinishOnly
             ? EarTrainingBattleParryConstants.oneBeatDurationMs(bpm: command.effectiveBpm)
-            : EarTrainingBattleParryConstants.guardPoseDurationMs
+            : EarTrainingBattleParryConstants.guardPoseSustainMs
         holdCharacterForAction(.player, state: .cast, durationMs: poseDurationMs)
 
         let contact: CGPoint = {
@@ -2512,7 +2518,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         showPlayerPose(
             assetName: PlayerAvatarPoseAsset.guardDName,
-            durationMs: EarTrainingBattleParryConstants.guardPoseDurationMs
+            durationMs: EarTrainingBattleParryConstants.guardPoseSustainMs
         )
     }
 

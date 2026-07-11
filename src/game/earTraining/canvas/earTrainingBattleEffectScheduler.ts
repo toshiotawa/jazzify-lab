@@ -13,7 +13,8 @@ import {
   triggerCameraShake,
 } from './earTrainingBattleCamera';
 import {
-  JUST_PARRY_VISUAL_DURATION_MS,
+  JUST_PARRY_GUARD_GLOW_BLIP_MS,
+  JUST_PARRY_GUARD_SUSTAIN_MS,
   clearJustParryBodyGlow,
   pruneJustParryBodyGlow,
   startJustParryBodyGlow,
@@ -66,8 +67,6 @@ const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_POSE_KEY = 'guardD';
 const PARRY_FINISH_POSE_KEY = 'finish';
-/** 連続ガード間で通常立ち絵を挟む最短時間 */
-const PARRY_GUARD_STAND_BLIP_MS = 1;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
@@ -351,7 +350,7 @@ const triggerParryBeatSyncEffects = (
     endVisualSlowAndResyncReflectHammers(runtime, now);
     clearParryZoom(runtime.camera);
     clearParrySparkPool(runtime.parrySparkPool);
-    clearJustParryBodyGlow(runtime.justParryBodyGlow);
+    clearGuardParryPresentation(runtime);
     return;
   }
 
@@ -412,6 +411,58 @@ const cancelParryFinishMotion = (runtime: EarTrainingBattleDrawRuntime): void =>
   }
 };
 
+const clearGuardParryPresentation = (runtime: EarTrainingBattleDrawRuntime): void => {
+  clearJustParryBodyGlow(runtime.justParryBodyGlow);
+  if (
+    runtime.player.poseKey === PARRY_GUARD_POSE_KEY
+    || runtime.player.poseKey === PARRY_FINISH_POSE_KEY
+  ) {
+    runtime.player.poseKey = null;
+  }
+  runtime.parryFinishLocked = false;
+  cancelParryFinishMotion(runtime);
+};
+
+const scheduleGuardBodyGlow = (
+  runtime: EarTrainingBattleDrawRuntime,
+  onDirty: () => void,
+  startedAt: number,
+  blipGlow: boolean,
+): void => {
+  const startGlow = (): void => {
+    startJustParryBodyGlow(runtime.justParryBodyGlow, {
+      startedAt: performance.now(),
+      durationMs: JUST_PARRY_GUARD_SUSTAIN_MS,
+      imageKey: PARRY_GUARD_POSE_KEY,
+      flipX: false,
+    });
+    onDirty();
+  };
+
+  if (!blipGlow) {
+    startJustParryBodyGlow(runtime.justParryBodyGlow, {
+      startedAt,
+      durationMs: JUST_PARRY_GUARD_SUSTAIN_MS,
+      imageKey: PARRY_GUARD_POSE_KEY,
+      flipX: false,
+    });
+    return;
+  }
+
+  clearJustParryBodyGlow(runtime.justParryBodyGlow);
+  if (runtime.parryFinishTimer !== null) {
+    clearTimeout(runtime.parryFinishTimer);
+    runtime.parryFinishTimer = null;
+  }
+  runtime.parryMotionGeneration += 1;
+  const generation = runtime.parryMotionGeneration;
+  onDirty();
+  runtime.parryFinishTimer = setTimeout(() => {
+    if (runtime.parryMotionGeneration !== generation) return;
+    startGlow();
+  }, JUST_PARRY_GUARD_GLOW_BLIP_MS);
+};
+
 const scheduleParryMotion = (
   runtime: EarTrainingBattleDrawRuntime,
   onDirty: () => void,
@@ -425,25 +476,11 @@ const scheduleParryMotion = (
   cancelParryFinishMotion(runtime);
   runtime.parryMotionGeneration += 1;
   const generation = runtime.parryMotionGeneration;
-  const now = performance.now();
 
   const setPose = (poseKey: string | null, remainingMs: number): void => {
     runtime.player.poseKey = poseKey;
     runtime.player.poseUntil = performance.now() + remainingMs + 40;
     onDirty();
-  };
-
-  const scheduleGuardClear = (): void => {
-    runtime.parryMotionEndTimer = setTimeout(() => {
-      if (runtime.parryMotionGeneration !== generation) return;
-      runtime.player.poseKey = null;
-      onDirty();
-    }, JUST_PARRY_VISUAL_DURATION_MS);
-  };
-
-  const applyGuardPose = (): void => {
-    setPose(PARRY_GUARD_POSE_KEY, JUST_PARRY_VISUAL_DURATION_MS);
-    scheduleGuardClear();
   };
 
   if (finishOnly) {
@@ -458,24 +495,14 @@ const scheduleParryMotion = (
       if (runtime.parryMotionGeneration !== generation) return;
       runtime.player.poseKey = null;
       runtime.parryFinishLocked = false;
+      clearJustParryBodyGlow(runtime.justParryBodyGlow);
       onDirty();
     }, finishDurationMs);
     return;
   }
 
-  const isAlreadyGuard = runtime.player.poseKey === PARRY_GUARD_POSE_KEY
-    && now < runtime.player.poseUntil;
-  if (isAlreadyGuard) {
-    // 連続正解: 通常立ち絵を1msだけ経由してから再度ガード
-    setPose(null, PARRY_GUARD_STAND_BLIP_MS);
-    runtime.parryFinishTimer = setTimeout(() => {
-      if (runtime.parryMotionGeneration !== generation) return;
-      applyGuardPose();
-    }, PARRY_GUARD_STAND_BLIP_MS);
-    return;
-  }
-
-  applyGuardPose();
+  // ガードは finish / miss まで持続（連続ヒットでもポーズは切らない）
+  setPose(PARRY_GUARD_POSE_KEY, JUST_PARRY_GUARD_SUSTAIN_MS);
 };
 
 const registerTrackedEffect = (
@@ -837,7 +864,11 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
       command.justParryEffectDurationMs,
       command.effectiveBpm,
     )
-    : JUST_PARRY_VISUAL_DURATION_MS;
+    : JUST_PARRY_GUARD_SUSTAIN_MS;
+  const wasGuardGlowActive = runtime.justParryBodyGlow.active
+    && runtime.justParryBodyGlow.imageKey === PARRY_GUARD_POSE_KEY;
+  const wasGuardPose = runtime.player.poseKey === PARRY_GUARD_POSE_KEY
+    && now < runtime.player.poseUntil;
 
   holdCharacterForAction(
     runtime.player,
@@ -867,12 +898,21 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     finishOnly ? poseDurationMs : undefined,
   );
 
-  startJustParryBodyGlow(runtime.justParryBodyGlow, {
-    startedAt: now,
-    durationMs: poseDurationMs,
-    imageKey: finishOnly ? PARRY_FINISH_POSE_KEY : PARRY_GUARD_POSE_KEY,
-    flipX: false,
-  });
+  if (finishOnly) {
+    startJustParryBodyGlow(runtime.justParryBodyGlow, {
+      startedAt: now,
+      durationMs: poseDurationMs,
+      imageKey: PARRY_FINISH_POSE_KEY,
+      flipX: false,
+    });
+  } else {
+    scheduleGuardBodyGlow(
+      runtime,
+      onDirty,
+      now,
+      wasGuardGlowActive || wasGuardPose,
+    );
+  }
   spawnParrySparks(
     runtime.parrySparkPool,
     contact.x,
@@ -1152,6 +1192,8 @@ export const scheduleEarTrainingBattleEffect = (
     case 'clearParryVisualSlow':
       endVisualSlowAndResyncReflectHammers(ctx.runtime, performance.now());
       clearParryZoom(ctx.runtime.camera);
+      clearParrySparkPool(ctx.runtime.parrySparkPool);
+      clearGuardParryPresentation(ctx.runtime);
       break;
     case 'osmdMeteor':
       playOsmdMeteorEffect(ctx, command);

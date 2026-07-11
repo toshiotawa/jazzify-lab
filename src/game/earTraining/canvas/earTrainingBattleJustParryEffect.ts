@@ -3,9 +3,12 @@ import { easeCubicOut } from './earTrainingBattleDrawState';
 
 const BEAT_EPS = 1e-6;
 
-/** ガードポーズ／身体グロー尺 */
+/** ガードポーズ／身体グローの下限 */
 export const JUST_PARRY_MIN_DURATION_MS = 60;
-export const JUST_PARRY_VISUAL_DURATION_MS = 60;
+/** 連続ガードヒット時に身体グローを切る尺 */
+export const JUST_PARRY_GUARD_GLOW_BLIP_MS = 2;
+/** finish/miss まで持続させるための実質無限尺 */
+export const JUST_PARRY_GUARD_SUSTAIN_MS = 3_600_000;
 
 const JUST_PARRY_BODY_GLOW_WHITE = '#f8fafc';
 const JUST_PARRY_BODY_GLOW_CYAN = '#67e8f9';

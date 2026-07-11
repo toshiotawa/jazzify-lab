@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
   clearJustParryBodyGlow,
   createJustParryBodyGlowState,
   getJustParryBodyGlowAlpha,
   isJustParryBodyGlowActive,
+  JUST_PARRY_GUARD_GLOW_BLIP_MS,
+  JUST_PARRY_GUARD_SUSTAIN_MS,
   JUST_PARRY_MIN_DURATION_MS,
-  JUST_PARRY_VISUAL_DURATION_MS,
   pruneJustParryBodyGlow,
   resolveJustParryEffectDurationMs,
   startJustParryBodyGlow,
@@ -28,18 +29,24 @@ describe('resolveJustParryEffectDurationMs', () => {
 });
 
 describe('just parry body glow', () => {
-  it('uses guard duration of 60ms', () => {
-    expect(JUST_PARRY_VISUAL_DURATION_MS).toBe(60);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('sustains guard glow until cleared', () => {
+    expect(JUST_PARRY_GUARD_SUSTAIN_MS).toBeGreaterThan(60_000);
+    expect(JUST_PARRY_GUARD_GLOW_BLIP_MS).toBe(2);
     const state = createJustParryBodyGlowState();
     startJustParryBodyGlow(state, {
       startedAt: 1000,
-      durationMs: JUST_PARRY_VISUAL_DURATION_MS,
+      durationMs: JUST_PARRY_GUARD_SUSTAIN_MS,
       imageKey: 'guardD',
       flipX: false,
     });
-    expect(isJustParryBodyGlowActive(state, 1059)).toBe(true);
-    expect(isJustParryBodyGlowActive(state, 1060)).toBe(false);
+    expect(isJustParryBodyGlowActive(state, 1000 + 10_000)).toBe(true);
     expect(getJustParryBodyGlowAlpha(state, 1010)).toBe(1);
+    clearJustParryBodyGlow(state);
+    expect(isJustParryBodyGlowActive(state, 1010)).toBe(false);
   });
 
   it('matches finish pose duration of one beat', () => {
@@ -55,6 +62,5 @@ describe('just parry body glow', () => {
     expect(isJustParryBodyGlowActive(state, 500 + oneBeatMs - 1)).toBe(true);
     pruneJustParryBodyGlow(state, 500 + oneBeatMs);
     expect(state.active).toBe(false);
-    clearJustParryBodyGlow(state);
   });
 });

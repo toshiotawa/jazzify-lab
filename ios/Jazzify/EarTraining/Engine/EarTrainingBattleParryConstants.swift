@@ -59,6 +59,8 @@ enum EarTrainingBattleParryConstants {
     static let hitCameraShakeMs: TimeInterval = 60
     static let sparkColor = UIColor(red: 253 / 255, green: 224 / 255, blue: 71 / 255, alpha: 1)
     static let guardPoseDurationMs: Double = 60
+    /// finish / miss までガードポーズを維持するための実質無限尺
+    static let guardPoseSustainMs: Double = 3_600_000
 
     static func oneBeatDurationMs(bpm: Double?) -> Double {
         guard let bpm, bpm.isFinite, bpm > 0 else {
