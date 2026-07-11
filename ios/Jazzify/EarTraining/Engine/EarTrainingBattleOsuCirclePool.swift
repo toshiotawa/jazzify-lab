@@ -8,7 +8,8 @@ final class EarTrainingBattleOsuCirclePool {
     static let poolSize = 16
     /// 内円縮尺（2/3）に合わせたラベルサイズ
     private static let labelFontSize: CGFloat = 14
-    private static let labelLineHeight: CGFloat = 15
+    /// 横並びラベル間の余白（Web `OSU_NOTE_LABEL_GAP` 相当を縮尺）
+    private static let labelGap: CGFloat = 4
     /// 内円実寸でパスを持ち、外円だけ相対 scale する。
     /// 単位円を 80〜170 倍すると SpriteKit の stroke がぼやけて太く見えるため。
     private static let pathRadius = EarTrainingBattleOsuCircleTiming.innerRadiusPx
@@ -218,19 +219,31 @@ final class EarTrainingBattleOsuCirclePool {
             labelNode.isHidden = true
             return
         }
-        let totalHeight = CGFloat(labels.count - 1) * Self.labelLineHeight
+        var widths: [CGFloat] = []
+        widths.reserveCapacity(labels.count)
+        var totalWidth: CGFloat = 0
+        for text in labels {
+            let measured = (text as NSString).size(withAttributes: [
+                .font: UIFont(name: "AvenirNext-Bold", size: Self.labelFontSize)
+                    ?? UIFont.boldSystemFont(ofSize: Self.labelFontSize),
+            ]).width
+            widths.append(measured)
+            totalWidth += measured
+        }
+        if labels.count > 1 {
+            totalWidth += Self.labelGap * CGFloat(labels.count - 1)
+        }
+        var x = -totalWidth / 2
         for (offset, text) in labels.enumerated() {
             let label = SKLabelNode(text: text)
             label.fontName = "AvenirNext-Bold"
             label.fontSize = Self.labelFontSize
             label.fontColor = UIColor(red: 1, green: 0.969, blue: 0.929, alpha: 1)
             label.verticalAlignmentMode = .center
-            label.horizontalAlignmentMode = .center
-            label.position = CGPoint(
-                x: 0,
-                y: totalHeight / 2 - CGFloat(offset) * Self.labelLineHeight
-            )
+            label.horizontalAlignmentMode = .left
+            label.position = CGPoint(x: x, y: 0)
             labelNode.addChild(label)
+            x += widths[offset] + Self.labelGap
         }
         labelNode.isHidden = false
     }

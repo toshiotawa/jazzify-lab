@@ -100,7 +100,7 @@ struct EarTrainingTimingAdjustmentView: View {
                             .zIndex(100)
                     }
 
-                    if !bluetoothNoticeOpen, shouldShowBottomCta {
+                    if !bluetoothNoticeOpen {
                         VStack {
                             Spacer()
                             HStack {
@@ -191,10 +191,6 @@ struct EarTrainingTimingAdjustmentView: View {
             }
     }
 
-    private var shouldShowBottomCta: Bool {
-        entry == .settings || showFinishCta
-    }
-
     private var bottomCtaLabel: String {
         entry == .quest ? (isJa ? "進む" : "Continue") : (isJa ? "戻る" : "Back")
     }
@@ -209,7 +205,10 @@ struct EarTrainingTimingAdjustmentView: View {
                 await onQuestComplete?()
                 onClose()
             }
+            return
         }
+        guard let script else { return }
+        handleSceneFinished(script: script)
     }
 
     private func makeTimingHooks(

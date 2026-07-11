@@ -180,8 +180,10 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
     }
     if (showFinishCta) {
       void finalize('completed');
+      return;
     }
-  }, [entry, finalize, showFinishCta]);
+    advanceSceneImmediate();
+  }, [advanceSceneImmediate, entry, finalize, showFinishCta]);
 
   useEffect(() => {
     if (gate !== 'ready' || !script || !currentScene) return;
@@ -216,7 +218,7 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   }
 
   const bottomCtaLabel = entry === 'quest' ? copy.questAdvance : copy.settingsBack;
-  const showBottomCta = !bluetoothNoticeOpen && (entry === 'settings' || showFinishCta);
+  const showBottomCta = !bluetoothNoticeOpen;
 
   return (
     <div
