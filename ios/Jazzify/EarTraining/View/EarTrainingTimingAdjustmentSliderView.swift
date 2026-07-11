@@ -49,11 +49,6 @@ struct EarTrainingTimingAdjustmentSliderView: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, max(12, UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow?.safeAreaInsets.bottom }.first ?? 0))
-        .background(Color.black.opacity(0.88))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.orange.opacity(0.35))
-                .frame(height: 1)
-        }
+        .background(Color.clear)
     }
 }

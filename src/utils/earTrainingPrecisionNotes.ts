@@ -34,7 +34,7 @@ export interface PrecisionNote {
   durationSec: number;
   isBlackKey: boolean;
   measureNumber: number;
-  /** 2/3拍以下（スイング長8分含む）: 固定低高さ・ヒット即消滅 */
+  /** 3/4拍以下（スイング長8分含む）: 固定低高さ・ヒット即消滅 */
   isShortNote: boolean;
 }
 
@@ -116,11 +116,11 @@ const resolvePrecisionNoteTimingSec = (
 
 /**
  * ショートノーツ上限音価（四分音符比）。
- * 2/3拍（スイング長8分 = 3連符2分子）以下をショート。
- * 比較は分数の交叉乗算のみ（2/3 の浮動小数を閾値に使わない）。
+ * 3/4拍（スイング長8分）以下をショート。
+ * 比較は分数の交叉乗算のみ（3/4 の浮動小数を閾値に使わない）。
  */
-export const PRECISION_SHORT_NOTE_MAX_QUARTER_NUM = 2;
-export const PRECISION_SHORT_NOTE_MAX_QUARTER_DEN = 3;
+export const PRECISION_SHORT_NOTE_MAX_QUARTER_NUM = 3;
+export const PRECISION_SHORT_NOTE_MAX_QUARTER_DEN = 4;
 
 /** 四分音符長（quarterLength = durationSec * bpm / 60）がショート上限以下か */
 export const isPrecisionShortNoteQuarterLength = (quarterLength: number): boolean => (

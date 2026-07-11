@@ -42,7 +42,9 @@ struct EarTrainingChordOSMDGameView: View {
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
             midiSubscriptionHolder.cancel()
-            controller?.tearDown()
+            // タイミング調整は親バトル共有の SurvivalGameAudio を止めない（復帰後ピアノ無音の原因）。
+            let keepSharedAudio = tutorialHooks?.timingCalibrationMode == true
+            controller?.tearDown(stopSharedAudio: !keepSharedAudio)
         }
         .preferredColorScheme(.dark)
     }
@@ -191,6 +193,7 @@ private struct EarTrainingChordOSMDContent: View {
     /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
     @State private var scoreSizeStep: Int = 0
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
+    @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
 
     private var timingCalibrationMode: Bool {
         controller.tutorialHooks?.timingCalibrationMode == true
@@ -225,7 +228,7 @@ private struct EarTrainingChordOSMDContent: View {
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
         }
-        .sheet(isPresented: $controller.isSettingsOpen) {
+        .sheet(isPresented: $controller.isSettingsOpen, onDismiss: handleSettingsSheetDismissed) {
             let isTutorialSettings = controller.tutorialHooks != nil
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
@@ -263,12 +266,13 @@ private struct EarTrainingChordOSMDContent: View {
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
                 onLaunchTimingAdjustment: timingCalibrationMode ? nil : {
-                    controller.handleCloseSettings()
-                    timingAdjustmentLaunch = EarTrainingTimingAdjustmentReturnLaunch(
+                    controller.suspendForOverlay()
+                    pendingTimingLaunch = EarTrainingTimingAdjustmentReturnLaunch(
                         stageId: controller.stage.id,
                         lessonContext: controller.lessonContext,
                         initialPracticeMode: controller.practiceMode
                     )
+                    controller.handleCloseSettings()
                 },
                 onRestartFromBeginning: isTutorialSettings ? {
                     controller.handleCloseSettings()
@@ -278,7 +282,12 @@ private struct EarTrainingChordOSMDContent: View {
                 onExit: { controller.handleBack() }
             )
         }
-        .fullScreenCover(item: $timingAdjustmentLaunch) { launch in
+        // 子の onDisappear → tearDown → SurvivalGameAudio.stop() の後に再開する。
+        // onClose 内で start すると dismiss 後の tearDown に潰されてピアノが無音になる。
+        .fullScreenCover(item: $timingAdjustmentLaunch, onDismiss: {
+            audio.start()
+            controller.startBattle()
+        }) { launch in
             EarTrainingTimingAdjustmentView(
                 entry: .settings,
                 locale: locale,
@@ -287,10 +296,15 @@ private struct EarTrainingChordOSMDContent: View {
                 returnPracticeMode: launch.initialPracticeMode,
                 onClose: {
                     timingAdjustmentLaunch = nil
-                    controller.startBattle()
                 }
             )
         }
+    }
+
+    private func handleSettingsSheetDismissed() {
+        guard let pending = pendingTimingLaunch else { return }
+        pendingTimingLaunch = nil
+        timingAdjustmentLaunch = pending
     }
 
     private func landscapeContent(size: CGSize) -> some View {

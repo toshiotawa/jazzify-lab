@@ -341,13 +341,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    func tearDown() {
+    func tearDown(stopSharedAudio: Bool = true) {
         cancelAllTasks()
         audio.onTimeUpdate = nil
         audio.onEnded = nil
-        audio.stopDrumLoop()
-        audio.stopPhrase()
-        audio.stop()
+        if stopSharedAudio {
+            audio.stop()
+        } else {
+            audio.stopPhraseEngine()
+        }
         midiHeldKeys.removeAll()
         voicingHintIntensities = [:]
         musicXMLText = nil
@@ -364,6 +366,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     func registerMidiKeyUp(_ midi: Int) { midiHeldKeys.remove(midi) }
     func handleOpenSettings() { isSettingsOpen = true }
     func handleCloseSettings() { isSettingsOpen = false }
+
+    /// タイミング調整モード等のオーバーレイ表示前に、親バトルの再生と判定を止める。
+    func suspendForOverlay() {
+        cancelAllTasks()
+        audio.stopDrumLoop()
+        audio.stopPhrase()
+    }
 
     func handleBack() {
         cancelAllTasks()
@@ -1666,7 +1675,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
     }
 
-    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
+    private static let chordOsmdSwingLongEighthRatio = 3.0 / 4.0
 
     private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
         let beatWhole = floor(beatIndex + 1e-6)

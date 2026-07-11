@@ -80,14 +80,15 @@ const buildMinimalSmf = (events: Array<{ tick: number; kind: 'on' | 'off'; midi:
 };
 
 describe('precision short note helpers', () => {
-  it('ショート上限は四分音符の 2/3 秒換算', () => {
-    expect(precisionShortNoteMaxDurationSec(120)).toBeCloseTo(1 / 3, 5);
+  it('ショート上限は四分音符の 3/4 秒換算', () => {
+    expect(precisionShortNoteMaxDurationSec(120)).toBeCloseTo(3 / 8, 5);
   });
 
-  it('直8分・スイング長8分(2/3拍)以下をショート、4分は非ショート', () => {
+  it('直8分・スイング長8分(3/4拍)以下をショート、4分は非ショート', () => {
     expect(isPrecisionShortNoteQuarterLength(0.5)).toBe(true);
     expect(isPrecisionShortNoteQuarterLength(2 / 3)).toBe(true);
-    expect(isPrecisionShortNoteQuarterLength(3 / 4)).toBe(false);
+    expect(isPrecisionShortNoteQuarterLength(3 / 4)).toBe(true);
+    expect(isPrecisionShortNoteQuarterLength(7 / 8)).toBe(false);
     expect(isPrecisionShortNoteDuration(0.25, 120)).toBe(true);
     expect(isPrecisionShortNoteDuration(1 / 3, 120)).toBe(true);
     expect(isPrecisionShortNoteDuration(0.5, 120)).toBe(false);

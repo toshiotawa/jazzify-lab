@@ -20,7 +20,7 @@ const EarTrainingTimingAdjustmentSlider: React.FC<EarTrainingTimingAdjustmentSli
   onChange,
 }) => (
   <section
-    className="pointer-events-auto absolute inset-x-0 bottom-0 z-[35] border-t border-amber-600/40 bg-black/85 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm"
+    className="pointer-events-auto absolute inset-x-0 bottom-0 z-[35] bg-transparent px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
     aria-label={copy.sliderHeading}
   >
     <h3 className="mb-1 text-sm font-semibold text-amber-100">{copy.sliderHeading}</h3>

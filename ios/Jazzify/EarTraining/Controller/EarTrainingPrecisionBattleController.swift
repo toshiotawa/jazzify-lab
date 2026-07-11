@@ -799,6 +799,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     func handleOpenSettings() { isSettingsOpen = true }
     func handleCloseSettings() { isSettingsOpen = false }
 
+    /// タイミング調整モード等のオーバーレイ表示前に、親バトルの再生を止める。
+    func suspendForOverlay() {
+        lobbyPreloadTask?.cancel()
+        lobbyPreloadTask = nil
+        audio.stopPhrase()
+        phraseEnding = false
+    }
+
     private func effectivePracticeTransposeOffset() -> Int {
         guard practiceTransposeEnabled, practiceMode else { return 0 }
         return practiceTransposeOffset

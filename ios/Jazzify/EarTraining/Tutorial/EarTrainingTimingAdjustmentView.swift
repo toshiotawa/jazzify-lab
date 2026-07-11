@@ -77,51 +77,55 @@ struct EarTrainingTimingAdjustmentView: View {
             let scenes = script.scenes
             ZStack {
                 ZStack {
-                    if playbackReady, scenes.indices.contains(sceneIndex) {
-                        switch scenes[sceneIndex] {
-                        case .finish:
-                            EmptyView()
-                        default:
-                            timingOsmdScene(script: script, scene: scenes[sceneIndex], landscapeSize: landscapeSize)
+                    Group {
+                        if playbackReady, scenes.indices.contains(sceneIndex) {
+                            switch scenes[sceneIndex] {
+                            case .finish:
+                                EmptyView()
+                            default:
+                                timingOsmdScene(script: script, scene: scenes[sceneIndex], landscapeSize: landscapeSize)
+                            }
+                        }
+                        if scenes.indices.contains(sceneIndex), case .finish = scenes[sceneIndex], showFinishCta {
+                            Color.black
+                            Text(isJa ? "OSMDタイミング調整チュートリアル" : "OSMD Timing Adjustment Tutorial")
+                                .font(.title3.bold())
+                                .foregroundStyle(.white)
                         }
                     }
-                    if scenes.indices.contains(sceneIndex), case .finish = scenes[sceneIndex], showFinishCta {
-                        Color.black
-                        Text(isJa ? "OSMDタイミング調整チュートリアル" : "OSMD Timing Adjustment Tutorial")
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
+                    .allowsHitTesting(!bluetoothNoticeOpen)
+
+                    if bluetoothNoticeOpen {
+                        bluetoothNoticeOverlay(size: landscapeSize)
+                            .zIndex(100)
+                    }
+
+                    if !bluetoothNoticeOpen, shouldShowBottomCta {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button(action: handleBottomCta) {
+                                    Text(bottomCtaLabel)
+                                        .font(.headline.bold())
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 24)
+                                        .padding(.vertical, 14)
+                                        .background(Color.purple)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                .padding(.trailing, 16)
+                                .padding(.bottom, 16)
+                            }
+                        }
+                        .zIndex(90)
                     }
                 }
                 .frame(width: landscapeSize.width, height: landscapeSize.height)
+                .clipped()
                 .rotationEffect(.degrees(90))
                 .frame(width: portraitSize.width, height: portraitSize.height)
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
-                .allowsHitTesting(!bluetoothNoticeOpen)
-
-                if bluetoothNoticeOpen {
-                    bluetoothNoticeOverlay
-                        .zIndex(100)
-                }
-
-                if !bluetoothNoticeOpen, shouldShowBottomCta {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Button(action: handleBottomCta) {
-                                Text(bottomCtaLabel)
-                                    .font(.headline.bold())
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 14)
-                                    .background(Color.purple)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                            }
-                            .padding(.trailing, 16)
-                            .padding(.bottom, 16)
-                        }
-                    }
-                }
             }
         }
     }
@@ -151,31 +155,34 @@ struct EarTrainingTimingAdjustmentView: View {
         }
     }
 
-    private var bluetoothNoticeOverlay: some View {
+    private func bluetoothNoticeOverlay(size: CGSize) -> some View {
         Color.black.opacity(0.7)
-            .ignoresSafeArea()
-            .allowsHitTesting(true)
+            .frame(width: size.width, height: size.height)
             .overlay {
                 VStack(spacing: 16) {
                     Text(isJa ? "Bluetooth接続について" : "About Bluetooth audio")
                         .font(.title3.bold())
+                        .foregroundStyle(.white)
                     Text(isJa
                          ? "Bluetooth接続のイヤホン・ヘッドホン・MIDIキーボードでは遅延が出やすく、タイミングがずれて感じられることがあります。有線接続を推奨します。"
                          : "Bluetooth headphones, earbuds, or MIDI keyboards can add latency and make timing feel off. A wired connection is recommended.")
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
-                    Button(isJa ? "OK" : "OK") {
+                    Button {
                         bluetoothNoticeOpen = false
                         playbackReady = true
+                    } label: {
+                        Text("OK")
+                            .font(.headline.bold())
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.purple)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .contentShape(Rectangle())
                     }
-                    .font(.headline.bold())
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.purple)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
                 .padding(24)
                 .background(Color(white: 0.12))

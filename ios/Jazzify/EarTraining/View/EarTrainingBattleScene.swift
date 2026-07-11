@@ -320,6 +320,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         self.snapshot = snapshot
         lastPhraseRunId = snapshot.phraseRunId
         if let previousPhraseRunId, previousPhraseRunId != snapshot.phraseRunId {
+            clearTransientEffects()
             playerPoseToken += 1
             restorePlayerPose()
         }
@@ -337,6 +338,24 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let width = max(320, size.width)
         let floorY = floorYForHeight(height)
         drawPhraseIntro(width: width, height: height, floorY: floorY)
+    }
+
+    /// フレーズ再開時に残存するハンマー・OSU 円・一時エフェクトを破棄する。
+    private func clearTransientEffects() {
+        parrySparkPool?.clear()
+        osuCirclePool?.clear()
+        osuCircleShatterPool?.clear()
+        for flight in osmdHammerFlightsByEffectId.values {
+            flight.node.removeAllActions()
+            flight.node.removeFromParent()
+        }
+        osmdHammerFlightsByEffectId.removeAll()
+        clearParryVisualSlowEffect()
+        for child in Array(effectLayer.children) {
+            if child.children.isEmpty || child is SKSpriteNode || child is SKLabelNode || child is SKShapeNode {
+                child.removeFromParent()
+            }
+        }
     }
 
     func runEffect(_ command: EarTrainingBattleEffectCommand) {

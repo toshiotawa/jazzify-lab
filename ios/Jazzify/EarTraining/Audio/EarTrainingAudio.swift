@@ -171,6 +171,13 @@ final class EarTrainingAudio: NSObject {
 
     /// 終了時に呼ぶ。フレーズを完全停止し、ピアノ発音停止 + Survival のオーディオセッションを閉じる。
     func stop() {
+        stopPhraseEngine()
+        SurvivalGameAudio.shared.stop()
+    }
+
+    /// フレーズ／ドラム／SFX エンジンのみ停止。共有ピアノ（`SurvivalGameAudio`）は維持する。
+    /// タイミング調整モードなど、親バトルの上に重ねた子セッションの tearDown 用。
+    func stopPhraseEngine() {
         stopDrumLoop()
         stopPhrase()
         fireSePlayer.stop()
@@ -178,7 +185,6 @@ final class EarTrainingAudio: NSObject {
             engine.stop()
         }
         isPhraseEngineRunning = false
-        SurvivalGameAudio.shared.stop()
     }
 
     // MARK: - Volume

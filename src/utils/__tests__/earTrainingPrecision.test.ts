@@ -66,7 +66,7 @@ describe('earTrainingPrecisionNotes', () => {
     expect(swingNotes).toHaveLength(2);
     expect(swingNotes[0]?.startSec).toBeCloseTo(evenNotes[0]?.startSec ?? 0, 5);
     expect(swingNotes[1]?.startSec ?? 0).toBeGreaterThan(evenNotes[1]?.startSec ?? 0);
-    expect(swingNotes[1]?.startSec).toBeCloseTo((60 / 120) * (2 / 3), 5);
+    expect(swingNotes[1]?.startSec).toBeCloseTo((60 / 120) * (3 / 4), 5);
   });
 
   it('2オクターブ以内なら24半音幅に拡張する', () => {

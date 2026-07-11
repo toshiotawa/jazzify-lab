@@ -30,8 +30,8 @@ enum EarTrainingPrecisionNotes {
     private static let defaultKeyboardSpanSemitones = 24
     private static let keyboardPaddingSemitones = 2
 
-    static let shortNoteMaxQuarterNum = 2
-    static let shortNoteMaxQuarterDen = 3
+    static let shortNoteMaxQuarterNum = 3
+    static let shortNoteMaxQuarterDen = 4
     static let midiSamePitchOverlapTrimEpsilonSec: Double = 0.001
     private static let noteMinDurationSec: Double = 0.05
 
@@ -298,7 +298,7 @@ enum EarTrainingPrecisionNotes {
         return (startSec, max(0.05, endSec - startSec))
     }
 
-    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
+    private static let chordOsmdSwingLongEighthRatio = 3.0 / 4.0
 
     private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
         let beatWhole = floor(beatIndex + 1e-6)

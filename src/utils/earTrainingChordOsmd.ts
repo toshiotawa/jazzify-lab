@@ -797,8 +797,8 @@ export const collectChordOsmdMusicXmlLyrics = (
   return lyrics;
 };
 
-/** スウィング8分: 表拍 = 2/3, 裏拍 = 1/3 */
-export const CHORD_OSMD_SWING_LONG_EIGHTH_RATIO = 2 / 3;
+/** スウィング8分: 表拍 = 3/4, 裏拍 = 1/4 */
+export const CHORD_OSMD_SWING_LONG_EIGHTH_RATIO = 3 / 4;
 
 const applyChordOsmdSwingToBeatIndex = (beatIndex: number): number => {
   const beatWhole = Math.floor(beatIndex + 1e-6);

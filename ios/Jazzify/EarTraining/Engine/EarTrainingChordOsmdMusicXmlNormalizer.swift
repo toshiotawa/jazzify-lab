@@ -661,7 +661,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return nil
     }
 
-    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
+    private static let chordOsmdSwingLongEighthRatio = 3.0 / 4.0
 
     private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
         let beatWhole = floor(beatIndex + 1e-6)

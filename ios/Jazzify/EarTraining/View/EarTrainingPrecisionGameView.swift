@@ -163,6 +163,7 @@ private struct EarTrainingPrecisionGameContent: View {
     @State private var dragHeightPreview: CGFloat?
     @State private var dragStartBandHeight: CGFloat = 0
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
+    @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
 
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
@@ -216,7 +217,7 @@ private struct EarTrainingPrecisionGameContent: View {
         .onChange(of: scoreBandHeightPx) { newValue in
             EarTrainingPrecisionScorePreferences.saveHeight(newValue)
         }
-        .sheet(isPresented: $controller.isSettingsOpen) {
+        .sheet(isPresented: $controller.isSettingsOpen, onDismiss: handleSettingsSheetDismissed) {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 audio: audio,
@@ -251,12 +252,13 @@ private struct EarTrainingPrecisionGameContent: View {
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
                 onLaunchTimingAdjustment: {
-                    controller.handleCloseSettings()
-                    timingAdjustmentLaunch = EarTrainingTimingAdjustmentReturnLaunch(
+                    controller.suspendForOverlay()
+                    pendingTimingLaunch = EarTrainingTimingAdjustmentReturnLaunch(
                         stageId: controller.stage.id,
                         lessonContext: controller.lessonContext,
                         initialPracticeMode: controller.practiceMode
                     )
+                    controller.handleCloseSettings()
                 },
                 precisionAutoPlay: controller.isAdmin
                     ? EarTrainingPrecisionAutoPlayConfig(
@@ -272,7 +274,12 @@ private struct EarTrainingPrecisionGameContent: View {
                 onExit: { controller.handleBack() }
             )
         }
-        .fullScreenCover(item: $timingAdjustmentLaunch) { launch in
+        // 子の onDisappear → tearDown → SurvivalGameAudio.stop() の後に再開する。
+        // onClose 内で start すると dismiss 後の tearDown に潰されてピアノが無音になる。
+        .fullScreenCover(item: $timingAdjustmentLaunch, onDismiss: {
+            audio.start()
+            controller.startBattle()
+        }) { launch in
             EarTrainingTimingAdjustmentView(
                 entry: .settings,
                 locale: locale,
@@ -281,10 +288,15 @@ private struct EarTrainingPrecisionGameContent: View {
                 returnPracticeMode: launch.initialPracticeMode,
                 onClose: {
                     timingAdjustmentLaunch = nil
-                    controller.startBattle()
                 }
             )
         }
+    }
+
+    private func handleSettingsSheetDismissed() {
+        guard let pending = pendingTimingLaunch else { return }
+        pendingTimingLaunch = nil
+        timingAdjustmentLaunch = pending
     }
 
     private var header: some View {

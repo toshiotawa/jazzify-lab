@@ -369,17 +369,17 @@ struct TopView: View {
         if locale == .ja {
             (
                 Text(quotedTitle)
-                    .foregroundStyle(Color(hex: "fcd34d"))
+                    .foregroundColor(Color(hex: "fcd34d"))
                     .fontWeight(.semibold)
                 + Text("を完了しましょう")
-                    .foregroundStyle(Color(white: 0.82))
+                    .foregroundColor(Color(white: 0.82))
             )
         } else {
             (
                 Text("Complete ")
-                    .foregroundStyle(Color(white: 0.82))
+                    .foregroundColor(Color(white: 0.82))
                 + Text(quotedTitle)
-                    .foregroundStyle(Color(hex: "fcd34d"))
+                    .foregroundColor(Color(hex: "fcd34d"))
                     .fontWeight(.semibold)
             )
         }

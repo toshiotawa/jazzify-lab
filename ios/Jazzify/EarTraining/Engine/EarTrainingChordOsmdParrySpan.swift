@@ -24,7 +24,7 @@ struct EarTrainingChordOsmdParrySpanState: Equatable {
 
 enum EarTrainingChordOsmdParrySpan {
     private static let eps: Double = 1e-9
-    private static let swingLongEighthRatio = 2.0 / 3.0
+    private static let swingLongEighthRatio = 3.0 / 4.0
 
     static func toAnchor(_ target: EarTrainingChordOsmdParryTarget) -> EarTrainingChordOsmdParrySpanAnchor {
         EarTrainingChordOsmdParrySpanAnchor(
