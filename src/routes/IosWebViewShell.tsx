@@ -12,6 +12,9 @@ const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/Ea
 const LazyEarTrainingTutorialMain = React.lazy(
   () => import('@/components/earTraining/tutorial/EarTrainingTutorialMain'),
 );
+const LazyEarTrainingTimingAdjustmentMain = React.lazy(
+  () => import('@/components/earTraining/tutorial/EarTrainingTimingAdjustmentMain'),
+);
 const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/BalloonRushMain'));
 const LazyLessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
 
@@ -37,6 +40,8 @@ const IosWebViewShell: React.FC = () => {
         return <LazyEarTrainingMain />;
       case 'ear-training-tutorial-lesson':
         return <LazyEarTrainingTutorialMain />;
+      case 'ear-training-timing-adjustment':
+        return <LazyEarTrainingTimingAdjustmentMain />;
       case 'fantasy':
         return <LazyFantasyMain />;
       case 'survival':

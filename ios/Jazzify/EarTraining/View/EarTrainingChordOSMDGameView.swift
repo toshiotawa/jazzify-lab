@@ -190,6 +190,11 @@ private struct EarTrainingChordOSMDContent: View {
     @State private var hudHorizontalPadding: CGFloat = 16
     /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
     @State private var scoreSizeStep: Int = 0
+    @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
+
+    private var timingCalibrationMode: Bool {
+        controller.tutorialHooks?.timingCalibrationMode == true
+    }
 
     private static let containerScaleTable: [Double] = [0.80, 0.90, 1.00, 1.15, 1.30]
 
@@ -257,12 +262,33 @@ private struct EarTrainingChordOSMDContent: View {
                     appliedOffsetMs: controller.timingAdjustmentMs,
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
+                onLaunchTimingAdjustment: (isTutorialSettings || timingCalibrationMode) ? nil : {
+                    controller.handleCloseSettings()
+                    timingAdjustmentLaunch = EarTrainingTimingAdjustmentReturnLaunch(
+                        stageId: controller.stage.id,
+                        lessonContext: controller.lessonContext,
+                        initialPracticeMode: controller.practiceMode
+                    )
+                },
                 onRestartFromBeginning: isTutorialSettings ? {
                     controller.handleCloseSettings()
                     controller.startBattle()
                 } : nil,
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
+            )
+        }
+        .fullScreenCover(item: $timingAdjustmentLaunch) { launch in
+            EarTrainingTimingAdjustmentView(
+                entry: .settings,
+                locale: locale,
+                returnStageId: launch.stageId,
+                returnLessonContext: launch.lessonContext,
+                returnPracticeMode: launch.initialPracticeMode,
+                onClose: {
+                    timingAdjustmentLaunch = nil
+                    controller.startBattle()
+                }
             )
         }
     }
@@ -298,15 +324,64 @@ private struct EarTrainingChordOSMDContent: View {
 
             VStack(spacing: 0) {
                 Spacer()
-                EarTrainingPianoView(
-                    player: controller
-                )
-                    .ignoresSafeArea(.container, edges: .horizontal)
-                    .padding(.bottom, 4)
+                if timingCalibrationMode {
+                    EarTrainingTimingAdjustmentSliderView(
+                        isEnglishCopy: locale == .en,
+                        appliedOffsetMs: Binding(
+                            get: { controller.timingAdjustmentMs },
+                            set: { controller.timingAdjustmentMs = $0 }
+                        ),
+                        onChange: { controller.applyTimingAdjustmentMs($0) }
+                    )
+                } else {
+                    EarTrainingPianoView(
+                        player: controller
+                    )
+                        .ignoresSafeArea(.container, edges: .horizontal)
+                        .padding(.bottom, 4)
+                }
+            }
+
+            if timingCalibrationMode && controller.loopConfirmVisible {
+                loopConfirmOverlay
             }
 
             EarTrainingResultView(host: controller)
         }
+    }
+
+    private var loopConfirmOverlay: some View {
+        Color.black.opacity(0.6)
+            .ignoresSafeArea()
+            .overlay {
+                VStack(spacing: 16) {
+                    Text(locale == .ja ? "1ループ終了。タイミングは合いましたか？" : "Finished one loop. How does the timing feel?")
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    HStack(spacing: 12) {
+                        Button(action: { controller.retryTimingCalibrationLoop() }) {
+                            Text(locale == .ja ? "もう一度" : "Try again")
+                                .font(.headline.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color(white: 0.2))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        Button(action: { controller.handleTimingCalibrationLoopConfirmOk() }) {
+                            Text("OK")
+                                .font(.headline.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.purple)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                }
+                .padding(20)
+                .background(Color(white: 0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 24)
+            }
     }
 
     @ViewBuilder

@@ -8,7 +8,7 @@ export const applyTutorialBattleSnapshot = (
 ): EarTrainingBattleSnapshot => ({
   ...snapshot,
   hidePlayerHpBar: ui.hidePlayerHpBar,
-  hideSettingsButton: false,
+  hideSettingsButton: ui.hideSettingsButton,
   hideBackButton: ui.hideBackButton,
   hideLobbyControls: ui.hideLobby,
   hideMidiStatus: ui.hideMidiToggle,

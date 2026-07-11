@@ -62,11 +62,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     var tutorialNoCombat: Bool = false
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     private var tutorialOsmdLoopCount: Int = 0
+    private var timingCalibrationMode: Bool { tutorialHooks?.timingCalibrationMode == true }
     /// Web `scheduleOsmdTimedLinesForLoop` 相当の `DispatchWorkItem`（フレーズ再開時・終了時にキャンセル）。
     private var tutorialOsmdTimedLineWorks: [DispatchWorkItem] = []
 
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
+    @Published var loopConfirmVisible: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
     /// 設定で有効なとき、判定窓内の未押下構成音（OSMD: 距離で濃さが変わるマリーゴールド）。
     @Published private(set) var voicingHintIntensities: [Int: VoicingHintIntensity] = [:]
@@ -208,6 +210,19 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         timingAdjustmentMs = clamped
         EarTrainingOsmdTimingAdjustment.saveTimingAdjustmentMs(clamped)
         syncActiveOsuApproachCircleTimings()
+    }
+
+    func handleTimingCalibrationLoopConfirmOk() {
+        guard timingCalibrationMode, loopConfirmVisible else { return }
+        loopConfirmVisible = false
+        tutorialHooks?.onSceneComplete(nil)
+    }
+
+    func retryTimingCalibrationLoop() {
+        guard timingCalibrationMode else { return }
+        loopConfirmVisible = false
+        tutorialOsmdLoopCount = 0
+        startBattle()
     }
 
     private func effectivePracticeTransposeOffset() -> Int {
@@ -1239,6 +1254,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 audio.stopDrumLoop()
                 audio.stopPhrase()
                 failRemainingTargets()
+                if timingCalibrationMode {
+                    loopConfirmVisible = true
+                    return
+                }
                 let noteHitPercent = Int(round(Self.noteHitRatio(targets) * 100))
                 hooks.onSceneComplete(
                     EarTrainingTutorialOsmdSceneResult(noteHitPercent: noteHitPercent)

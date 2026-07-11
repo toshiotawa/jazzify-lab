@@ -12,8 +12,17 @@ enum EarTrainingTutorialScriptService {
 
 enum EarTrainingTutorialScriptBundled {
     static func load(scriptId: String) -> EarTrainingTutorialScriptPayload? {
-        guard scriptId == "developer-full-v1",
-              let url = Bundle.main.url(forResource: "ear-training-developer-full-v1.script", withExtension: "json"),
+        let resourceName: String?
+        switch scriptId {
+        case "developer-full-v1":
+            resourceName = "ear-training-developer-full-v1.script"
+        case "osmd-timing-adjustment-v1":
+            resourceName = "ear-training-osmd-timing-adjustment-v1.script"
+        default:
+            resourceName = nil
+        }
+        guard let resourceName,
+              let url = Bundle.main.url(forResource: resourceName, withExtension: "json"),
               let data = try? Data(contentsOf: url)
         else {
             return nil

@@ -55,6 +55,7 @@ export interface EarTrainingSettingsModalCopy {
   osmdTimingAdjustmentDescription: string;
   osmdTimingAdjustmentEarlier: string;
   osmdTimingAdjustmentLater: string;
+  openTimingAdjustmentMode: string;
   precisionAutoPlayHeading: string;
   precisionAutoPlayDescription: string;
   precisionAutoPlayLabel: string;
@@ -80,6 +81,7 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
           'Shift judgment, hammers, and hints relative to phrase audio (earlier: −, later: +).',
         osmdTimingAdjustmentEarlier: '(earlier)',
         osmdTimingAdjustmentLater: '(later)',
+        openTimingAdjustmentMode: 'Adjust in timing calibration mode',
         precisionAutoPlayHeading: 'Auto Play (admin)',
         precisionAutoPlayDescription:
           'Automatically plays notes at chart timing: keyboard highlight, vanish effects, and piano sound.',
@@ -103,6 +105,7 @@ export const getEarTrainingSettingsModalCopy = (isEnglish: boolean): EarTraining
           '音源に対して判定・ハンマー・ヒントを早く/遅く調整します（早く: −, 遅く: +）。',
         osmdTimingAdjustmentEarlier: '(早く)',
         osmdTimingAdjustmentLater: '(遅く)',
+        openTimingAdjustmentMode: 'タイミング調整モードで調整する',
         precisionAutoPlayHeading: 'Auto Play（管理者）',
         precisionAutoPlayDescription:
           '譜面タイミングでノーツを自動演奏します（鍵盤ハイライト・消去エフェクト・ピアノ音）。',
@@ -242,4 +245,58 @@ export const getEarTrainingRhythmBattleStartCopy = (
 /** chord_osmd 画面の読み込み中表示 */
 export const getEarTrainingRhythmBattleLoadingCopy = (isEnglish: boolean): string => (
   isEnglish ? 'Preparing battle…' : 'バトルを準備中…'
+);
+
+export interface EarTrainingTimingAdjustmentCopy {
+  title: string;
+  bluetoothNoticeTitle: string;
+  bluetoothNoticeBody: string;
+  bluetoothNoticeOk: string;
+  loopConfirmTitle: string;
+  loopConfirmOk: string;
+  loopConfirmRetry: string;
+  sliderHeading: string;
+  sliderHammerEarlyHint: string;
+  sliderAudioEarlyHint: string;
+  sliderOffsetLabel: string;
+  questAdvance: string;
+  settingsBack: string;
+}
+
+export const getEarTrainingTimingAdjustmentCopy = (
+  isEnglish: boolean,
+): EarTrainingTimingAdjustmentCopy => (
+  isEnglish
+    ? {
+        title: 'OSMD Timing Adjustment Tutorial',
+        bluetoothNoticeTitle: 'About Bluetooth audio',
+        bluetoothNoticeBody:
+          'Bluetooth headphones, earbuds, or MIDI keyboards can add latency and make timing feel off. A wired connection is recommended.',
+        bluetoothNoticeOk: 'OK',
+        loopConfirmTitle: 'Finished one loop. How does the timing feel?',
+        loopConfirmOk: 'OK',
+        loopConfirmRetry: 'Try again',
+        sliderHeading: 'Timing adjustment',
+        sliderHammerEarlyHint: 'Hammers feel early → move right (+)',
+        sliderAudioEarlyHint: 'Audio feels early → move left (−)',
+        sliderOffsetLabel: 'Offset',
+        questAdvance: 'Continue',
+        settingsBack: 'Back',
+      }
+    : {
+        title: 'OSMDタイミング調整チュートリアル',
+        bluetoothNoticeTitle: 'Bluetooth接続について',
+        bluetoothNoticeBody:
+          'Bluetooth接続のイヤホン・ヘッドホン・MIDIキーボードでは遅延が出やすく、タイミングがずれて感じられることがあります。有線接続を推奨します。',
+        bluetoothNoticeOk: 'OK',
+        loopConfirmTitle: '1ループ終了。タイミングは合いましたか？',
+        loopConfirmOk: 'OK',
+        loopConfirmRetry: 'もう一度',
+        sliderHeading: 'タイミング調整',
+        sliderHammerEarlyHint: 'ハンマーが早い → 右へ（+）',
+        sliderAudioEarlyHint: '音が早い → 左へ（−）',
+        sliderOffsetLabel: '補正量',
+        questAdvance: '進む',
+        settingsBack: '戻る',
+      }
 );

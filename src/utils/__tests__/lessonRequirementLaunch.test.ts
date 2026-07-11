@@ -52,4 +52,15 @@ describe('buildLessonRequirementLaunchHash', () => {
     expect(hash).toContain('#ear-training-lesson?');
     expect(hash).toContain('stageId=et-stage-1');
   });
+
+  it('returns osmd timing adjustment tutorial hash', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_ear_training_tutorial: true,
+      ear_training_tutorial_script_id: 'osmd-timing-adjustment-v1',
+    }));
+    expect(hash).toContain('#ear-training-timing-adjustment?');
+    expect(hash).toContain('scriptId=osmd-timing-adjustment-v1');
+    expect(hash).toContain('entry=quest');
+    expect(hash).toContain('lessonId=lesson-1');
+  });
 });

@@ -47,6 +47,8 @@ import {
 } from '@/utils/ensureBattlePianoAudio';
 import { getEarTrainingGameCopy } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { buildEarTrainingTimingAdjustmentHash } from '@/utils/earTrainingTimingAdjustmentLaunch';
+import { setAppHash } from '@/utils/appNavigation';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 import {
@@ -1150,6 +1152,22 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     syncRenderer,
   ]);
 
+  const handleLaunchTimingAdjustment = useCallback(() => {
+    const hash = buildEarTrainingTimingAdjustmentHash({
+      entry: 'settings',
+      returnContext: {
+        stageId: stage.id,
+        lessonId: lessonContext?.lessonId,
+        lessonSongId: lessonContext?.lessonSongId,
+        practiceMode,
+        clearConditions: lessonContext
+          ? JSON.stringify(lessonContext.clearConditions)
+          : undefined,
+      },
+    });
+    setAppHash(hash);
+  }, [lessonContext, practiceMode, stage.id]);
+
   const handlePrecisionAutoPlayChange = useCallback((enabled: boolean) => {
     if (!enabled) {
       autoPlaySchedulerRef.current.releaseAllActive(autoPlayCallbacksRef.current);
@@ -1598,6 +1616,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           appliedOffsetMs: timingAdjustmentMs,
           onChange: handleTimingAdjustmentChange,
         }}
+        onLaunchTimingAdjustment={handleLaunchTimingAdjustment}
         precisionAutoPlay={
           isAdmin
             ? {

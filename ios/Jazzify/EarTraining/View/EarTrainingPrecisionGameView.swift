@@ -162,6 +162,7 @@ private struct EarTrainingPrecisionGameContent: View {
     @State private var scoreBandHeightPx: CGFloat = EarTrainingPrecisionScorePreferences.initialHeight()
     @State private var dragHeightPreview: CGFloat?
     @State private var dragStartBandHeight: CGFloat = 0
+    @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
 
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
@@ -249,6 +250,14 @@ private struct EarTrainingPrecisionGameContent: View {
                     appliedOffsetMs: controller.timingAdjustmentMs,
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
+                onLaunchTimingAdjustment: {
+                    controller.handleCloseSettings()
+                    timingAdjustmentLaunch = EarTrainingTimingAdjustmentReturnLaunch(
+                        stageId: controller.stage.id,
+                        lessonContext: controller.lessonContext,
+                        initialPracticeMode: controller.practiceMode
+                    )
+                },
                 precisionAutoPlay: controller.isAdmin
                     ? EarTrainingPrecisionAutoPlayConfig(
                         enabled: controller.precisionAutoPlayEnabled,
@@ -261,6 +270,19 @@ private struct EarTrainingPrecisionGameContent: View {
                 },
                 onDismiss: { controller.handleCloseSettings() },
                 onExit: { controller.handleBack() }
+            )
+        }
+        .fullScreenCover(item: $timingAdjustmentLaunch) { launch in
+            EarTrainingTimingAdjustmentView(
+                entry: .settings,
+                locale: locale,
+                returnStageId: launch.stageId,
+                returnLessonContext: launch.lessonContext,
+                returnPracticeMode: launch.initialPracticeMode,
+                onClose: {
+                    timingAdjustmentLaunch = nil
+                    controller.startBattle()
+                }
             )
         }
     }

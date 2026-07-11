@@ -370,6 +370,8 @@ struct EarTrainingTutorialSceneHooks {
     var requiredMeasures: Int? = nil
     /// `phrase_pair_adlib` / `composite` の BGM ループ回数クリア条件。
     var requiredLoops: Int? = nil
+    /// OSMD タイミング調整チュートリアル（Great 非表示・確認モーダル・ピアノ非表示）。
+    var timingCalibrationMode: Bool = false
 }
 
 /// OSMD チュートリアル: 会話用 `drum_loop` ではなく content のフレーズ MP3（count-in 等）を補助ループ URL に使う。

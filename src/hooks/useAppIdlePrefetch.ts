@@ -8,6 +8,7 @@ const GAME_FOCUS_IDLE_PREFETCH_SKIP = new Set([
   '#lesson-detail',
   '#ear-training-lesson',
   '#ear-training-tutorial-lesson',
+  '#ear-training-timing-adjustment',
   '#survival-lesson',
   '#survival-tutorial-lesson',
   '#balloon-rush-lesson',
@@ -54,6 +55,7 @@ export const useAppIdlePrefetch = ({
     const skipBulkWarmup = shouldSkipBulkIdlePrefetch(baseHash, pathname);
     const isEarTrainingBattleRoute = baseHash === '#ear-training-lesson'
       || baseHash === '#ear-training-tutorial-lesson'
+      || baseHash === '#ear-training-timing-adjustment'
       || pathname.startsWith('/main/play/ear-training');
     const cancels: Array<() => void> = [];
 

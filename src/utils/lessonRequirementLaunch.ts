@@ -1,4 +1,6 @@
 import type { LessonRequirement } from '@/platform/supabaseLessonContent';
+import { OSMD_TIMING_ADJUSTMENT_SCRIPT_ID } from '@/components/earTraining/tutorial/buildOsmdTimingAdjustmentV1Script';
+import { buildEarTrainingTimingAdjustmentHash } from '@/utils/earTrainingTimingAdjustmentLaunch';
 import { lessonSongHasInlineComposite, resolveLessonSurvivalMapCategory } from '@/utils/survivalLessonDisplay';
 
 export type LessonRequirementLaunchInput = LessonRequirement & {
@@ -82,10 +84,19 @@ export function buildLessonRequirementLaunchHash(req: LessonRequirementLaunchInp
   }
 
   if (isEarTrainingTutorial) {
+    const scriptId = req.ear_training_tutorial_script_id ?? 'developer-full-v1';
+    if (scriptId === OSMD_TIMING_ADJUSTMENT_SCRIPT_ID) {
+      return buildEarTrainingTimingAdjustmentHash({
+        entry: 'quest',
+        lessonId: req.lesson_id,
+        lessonSongId: req.lesson_song_id ?? '',
+        clearConditions: JSON.stringify(req.clear_conditions),
+      });
+    }
     const params = new URLSearchParams();
     params.set('lessonId', req.lesson_id);
     params.set('lessonSongId', req.lesson_song_id ?? '');
-    params.set('scriptId', req.ear_training_tutorial_script_id ?? 'developer-full-v1');
+    params.set('scriptId', scriptId);
     params.set('clearConditions', JSON.stringify(req.clear_conditions));
     return `#ear-training-tutorial-lesson?${params.toString()}`;
   }

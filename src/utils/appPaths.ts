@@ -44,6 +44,7 @@ export const APP_HASH_BASES = new Set([
   '#admin-courses',
   '#ear-training-lesson',
   '#ear-training-tutorial-lesson',
+  '#ear-training-timing-adjustment',
   '#fantasy',
   '#Story',
   '#survival',

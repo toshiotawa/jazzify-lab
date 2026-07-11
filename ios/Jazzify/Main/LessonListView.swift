@@ -1488,6 +1488,14 @@ private struct EarTrainingTutorialLaunch: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// OSMD タイミング調整チュートリアル（`EarTrainingTimingAdjustmentView`）の fullScreenCover 起動コンテキスト。
+private struct EarTrainingTimingAdjustmentTutorialLaunch: Identifiable {
+    let id = UUID()
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 /// サバイバルチュートリアル（DB 駆動 `SurvivalTutorialView`）の fullScreenCover 起動コンテキスト。
 private struct SurvivalTutorialLaunch: Identifiable {
     let id = UUID()
@@ -1565,6 +1573,7 @@ struct LessonDetailView: View {
     @State private var launchDestination: LessonLaunchDestination?
     @State private var earTrainingLaunch: EarTrainingLaunch?
     @State private var earTrainingTutorialLaunch: EarTrainingTutorialLaunch?
+    @State private var earTrainingTimingAdjustmentLaunch: EarTrainingTimingAdjustmentTutorialLaunch?
     @State private var survivalTutorialLaunch: SurvivalTutorialLaunch?
     @State private var survivalLessonPrep: SurvivalLessonLaunch?
     @State private var survivalLessonLaunch: SurvivalLessonLaunch?
@@ -1771,6 +1780,11 @@ struct LessonDetailView: View {
                     reloadLessonDetailAfterGame()
                 }
             }
+            .onChange(of: earTrainingTimingAdjustmentLaunch == nil) { isNil in
+                if isNil {
+                    reloadLessonDetailAfterGame()
+                }
+            }
             .onChange(of: survivalTutorialLaunch == nil) { isNil in
                 if isNil {
                     reloadLessonDetailAfterGame()
@@ -1820,6 +1834,31 @@ struct LessonDetailView: View {
                     lessonSongId: launch.lessonSongId,
                     onClose: { earTrainingTutorialLaunch = nil },
                     onComplete: {
+                        do {
+                            _ = try await SupabaseService.shared.recordEarTrainingLessonProgress(
+                                lessonId: launch.lessonId,
+                                lessonSongId: launch.lessonSongId,
+                                rank: launch.clearConditions?.rank ?? "S",
+                                clearConditions: launch.clearConditions
+                            )
+                        } catch {
+                            await MainActor.run {
+                                alertMessage = locale == .ja
+                                    ? "進捗の保存に失敗しました。"
+                                    : "Failed to save progress."
+                            }
+                        }
+                    }
+                )
+            }
+            .fullScreenCover(item: $earTrainingTimingAdjustmentLaunch) { launch in
+                EarTrainingTimingAdjustmentView(
+                    entry: .quest,
+                    locale: locale,
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
+                    onClose: { earTrainingTimingAdjustmentLaunch = nil },
+                    onQuestComplete: {
                         do {
                             _ = try await SupabaseService.shared.recordEarTrainingLessonProgress(
                                 lessonId: launch.lessonId,
@@ -3492,10 +3531,19 @@ struct LessonDetailView: View {
         }
 
         if requirement.isEarTrainingTutorial == true {
+            let scriptId = requirement.earTrainingTutorialScriptId ?? "developer-full-v1"
+            if scriptId == "osmd-timing-adjustment-v1" {
+                earTrainingTimingAdjustmentLaunch = EarTrainingTimingAdjustmentTutorialLaunch(
+                    lessonId: activeLesson.id,
+                    lessonSongId: requirement.id,
+                    clearConditions: requirement.clearConditions
+                )
+                return
+            }
             earTrainingTutorialLaunch = EarTrainingTutorialLaunch(
                 lessonId: activeLesson.id,
                 lessonSongId: requirement.id,
-                scriptId: requirement.earTrainingTutorialScriptId ?? "developer-full-v1",
+                scriptId: scriptId,
                 clearConditions: requirement.clearConditions
             )
             return

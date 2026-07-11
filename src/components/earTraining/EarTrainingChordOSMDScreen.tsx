@@ -55,8 +55,11 @@ import {
   getEarTrainingBattleHudLabels,
   getEarTrainingGameCopy,
   getEarTrainingRhythmBattleStartCopy,
+  getEarTrainingTimingAdjustmentCopy,
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { buildEarTrainingTimingAdjustmentHash } from '@/utils/earTrainingTimingAdjustmentLaunch';
+import { setAppHash } from '@/utils/appNavigation';
 import {
   buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
@@ -137,6 +140,7 @@ import {
   scheduleOsmdTimedLinesForLoop,
   type DialogueScheduleHandle,
 } from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
+import EarTrainingTimingAdjustmentSlider from './EarTrainingTimingAdjustmentSlider';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -195,6 +199,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   tutorial,
 }) => {
   const tutorialUi = tutorial?.bindings.ui;
+  const timingCalibrationMode = tutorial?.bindings.timingCalibrationMode === true;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const tutorialOsmdLoopRef = useRef(0);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
@@ -221,6 +226,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
   const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
   const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(isEnglishCopy), [isEnglishCopy]);
+  const timingAdjustmentCopy = useMemo(
+    () => getEarTrainingTimingAdjustmentCopy(isEnglishCopy),
+    [isEnglishCopy],
+  );
   const osmdSelfPaced = useMemo(
     () => stage.mode === 'chord_osmd' && Boolean(stage.chord_voicing_self_paced),
     [stage.chord_voicing_self_paced, stage.mode],
@@ -285,6 +294,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [timingAdjustmentMs, setTimingAdjustmentMs] = useState(
     () => loadEarTrainingOsmdTimingAdjustmentMs(),
   );
+  const [loopConfirmVisible, setLoopConfirmVisible] = useState(false);
   const measureDurationSec = useMemo(
     () => (60 / Math.max(1, effectivePracticeBpm(stage.bpm, practiceMode ? practiceSpeedPercent : 100)))
       * Math.max(1, stage.beats_per_measure),
@@ -1057,6 +1067,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (tutorial) {
         tutorialOsmdLoopRef.current += 1;
         if (tutorialOsmdLoopRef.current >= tutorial.scene.requiredLoops) {
+          if (timingCalibrationMode) {
+            setLoopConfirmVisible(true);
+            return;
+          }
           const noteHitRatio = chordOsmdNoteHitRatio(
             phraseTargets,
             runtimeByTargetIdRef.current,
@@ -1758,6 +1772,41 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     syncActiveOsuApproachCircleTimings();
   }, [syncActiveOsuApproachCircleTimings]);
 
+  const restartTimingCalibrationLoop = useCallback(() => {
+    setLoopConfirmVisible(false);
+    tutorialOsmdLoopRef.current = 0;
+    startBattle();
+  }, [startBattle]);
+
+  const handleLoopConfirmOk = useCallback(() => {
+    if (!tutorial) {
+      setLoopConfirmVisible(false);
+      return;
+    }
+    setLoopConfirmVisible(false);
+    tutorial.onSceneComplete(undefined);
+  }, [tutorial]);
+
+  const handleLoopConfirmRetry = useCallback(() => {
+    restartTimingCalibrationLoop();
+  }, [restartTimingCalibrationLoop]);
+
+  const handleLaunchTimingAdjustment = useCallback(() => {
+    const hash = buildEarTrainingTimingAdjustmentHash({
+      entry: 'settings',
+      returnContext: {
+        stageId: stage.id,
+        lessonId: lessonContext?.lessonId,
+        lessonSongId: lessonContext?.lessonSongId,
+        practiceMode,
+        clearConditions: lessonContext
+          ? JSON.stringify(lessonContext.clearConditions)
+          : undefined,
+      },
+    });
+    setAppHash(hash);
+  }, [lessonContext, practiceMode, stage.id]);
+
   const osmdTimingAdjustmentConfig = useMemo(
     () => ({
       appliedOffsetMs: timingAdjustmentMs,
@@ -2182,11 +2231,49 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         />
       ) : null}
 
-      <DeferredEarTrainingPianoOverlay
-        ref={pianoOverlayRef}
-        onPianoKeyDown={handlePianoKeyDown}
-        onPianoKeyUp={handlePianoKeyUp}
-      />
+      {!timingCalibrationMode ? (
+        <DeferredEarTrainingPianoOverlay
+          ref={pianoOverlayRef}
+          onPianoKeyDown={handlePianoKeyDown}
+          onPianoKeyUp={handlePianoKeyUp}
+        />
+      ) : null}
+
+      {timingCalibrationMode ? (
+        <EarTrainingTimingAdjustmentSlider
+          copy={timingAdjustmentCopy}
+          appliedOffsetMs={timingAdjustmentMs}
+          onChange={handleTimingAdjustmentChange}
+        />
+      ) : null}
+
+      {timingCalibrationMode && loopConfirmVisible ? (
+        <div className="pointer-events-auto absolute inset-0 z-[120] flex items-center justify-center bg-black/60 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl border border-white/15 bg-slate-900 p-6 text-white shadow-xl"
+          >
+            <p className="mb-6 text-center text-base font-semibold">{timingAdjustmentCopy.loopConfirmTitle}</p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleLoopConfirmRetry}
+                className="flex-1 rounded-lg border border-white/20 bg-slate-800 py-3 text-sm font-bold hover:bg-slate-700"
+              >
+                {timingAdjustmentCopy.loopConfirmRetry}
+              </button>
+              <button
+                type="button"
+                onClick={handleLoopConfirmOk}
+                className="flex-1 rounded-lg bg-purple-600 py-3 text-sm font-bold hover:bg-purple-500"
+              >
+                {timingAdjustmentCopy.loopConfirmOk}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <EarTrainingSettingsModal
         isOpen={isSettingsOpen}
@@ -2204,6 +2291,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         practiceTranspose={tutorial ? undefined : practiceTransposeConfig}
         practiceSpeed={tutorial ? undefined : practiceSpeedConfig}
         osmdTimingAdjustment={osmdTimingAdjustmentConfig}
+        onLaunchTimingAdjustment={tutorial || timingCalibrationMode ? undefined : handleLaunchTimingAdjustment}
       />
     </div>
   );

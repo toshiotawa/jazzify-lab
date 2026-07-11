@@ -19,6 +19,8 @@ export interface EarTrainingTutorialBindings {
   setCharacterText: (text: string) => void;
   onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
   onExit: () => void;
+  /** OSMD タイミング調整チュートリアル: Great 非表示・確認モーダル・ピアノ非表示 */
+  timingCalibrationMode?: boolean;
 }
 
 export const clampTutorialPlayerHp = (

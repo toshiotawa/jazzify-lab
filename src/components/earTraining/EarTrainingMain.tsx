@@ -98,9 +98,15 @@ const EarTrainingMain: React.FC = () => {
     () => params.get('practice') === '1',
     [params],
   );
+  const restartFromTimingAdjustment = useMemo(
+    () => params.get('restart') === '1',
+    [params],
+  );
 
   const [confirmedPracticeMode, setConfirmedPracticeMode] = useState(initialPracticeMode);
-  const [earSessionNonce, setEarSessionNonce] = useState(0);
+  const [earSessionNonce, setEarSessionNonce] = useState(() => (
+    restartFromTimingAdjustment ? 1 : 0
+  ));
   const lessonClearedThisSessionRef = useRef(false);
   const assignmentStartRecordedForNonceRef = useRef<number | null>(null);
 

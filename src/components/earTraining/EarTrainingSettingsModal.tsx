@@ -55,6 +55,7 @@ interface EarTrainingSettingsModalProps {
     appliedOffsetMs: number;
     onChange: (offsetMs: number) => void;
   };
+  onLaunchTimingAdjustment?: () => void;
   precisionAutoPlay?: {
     enabled: boolean;
     onChange: (enabled: boolean) => void;
@@ -96,6 +97,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   practiceTranspose,
   practiceSpeed,
   osmdTimingAdjustment,
+  onLaunchTimingAdjustment,
   precisionAutoPlay,
 }) => {
   const isTutorialScope = scope === 'tutorial';
@@ -297,6 +299,18 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
                 <span>0ms</span>
                 <span>{OSMD_TIMING_ADJUSTMENT_MS_MAX}ms {ui.osmdTimingAdjustmentLater}</span>
               </div>
+              {onLaunchTimingAdjustment ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLaunchTimingAdjustment();
+                  }}
+                  className="mt-4 w-full rounded-lg border border-amber-500/50 bg-amber-950/40 px-3 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-900/50"
+                >
+                  {ui.openTimingAdjustmentMode}
+                </button>
+              ) : null}
             </section>
           ) : null}
 

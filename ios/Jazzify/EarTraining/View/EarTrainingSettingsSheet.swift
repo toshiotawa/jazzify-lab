@@ -52,6 +52,7 @@ struct EarTrainingSettingsSheet: View {
     var practiceTranspose: EarTrainingPracticeTransposeConfig?
     var practiceSpeed: EarTrainingPracticeSpeedConfig?
     var osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig?
+    var onLaunchTimingAdjustment: (() -> Void)?
     var precisionAutoPlay: EarTrainingPrecisionAutoPlayConfig?
     var onRestartFromBeginning: (() -> Void)?
     let onDismiss: () -> Void
@@ -95,7 +96,7 @@ struct EarTrainingSettingsSheet: View {
                 midiSection
 
                 if let osmdTimingAdjustment {
-                    osmdTimingAdjustmentSection(osmdTimingAdjustment)
+                    osmdTimingAdjustmentSection(osmdTimingAdjustment, onLaunch: onLaunchTimingAdjustment)
                 }
 
                 if let precisionAutoPlay {
@@ -289,7 +290,10 @@ struct EarTrainingSettingsSheet: View {
         .buttonStyle(.plain)
     }
 
-    private func osmdTimingAdjustmentSection(_ config: EarTrainingOsmdTimingAdjustmentConfig) -> some View {
+    private func osmdTimingAdjustmentSection(
+        _ config: EarTrainingOsmdTimingAdjustmentConfig,
+        onLaunch: (() -> Void)?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(isEnglishCopy
                  ? "Timing adjustment (judgment & effects)"
@@ -339,6 +343,20 @@ struct EarTrainingSettingsSheet: View {
                 Text("\(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsMax)ms")
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.55))
+            }
+
+            if let onLaunch {
+                Button(action: onLaunch) {
+                    Text(isEnglishCopy ? "Adjust in timing calibration mode" : "タイミング調整モードで調整する")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color(hex: "fcd34d"))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.orange.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
         }
         .padding(.horizontal, 18)
