@@ -179,8 +179,12 @@ export const PARRY_HIT_STOP_SCALE = 0.04;
 export const PARRY_CHAIN_SLOW_SCALE = 0.14;
 /** パリィ正解時の固定カメラズーム倍率（フレーズ長に依存しない） */
 export const PARRY_ZOOM_TARGET = 1.03;
-/** 反射ハンマーの敵到達までの飛行時間 */
+/** 反射ハンマーの敵到達までの飛行時間（visual 時間・旧スロー相当） */
 export const PARRY_REFLECT_HAMMER_MS = 240;
+/** 反射ハンマーの壁時計飛行時間（旧 PARRY_CHAIN_SLOW_SCALE スロー中と同じ見た目速度） */
+export const PARRY_REFLECT_HAMMER_WALL_MS = Math.round(
+  PARRY_REFLECT_HAMMER_MS / PARRY_CHAIN_SLOW_SCALE,
+);
 
 const buildDefaultParryBeatSync = (): ParryBeatSyncRuntime => ({
   slowPhaseMs: PARRY_SLOW_PHASE_MS,

@@ -13,20 +13,17 @@ import {
   easeCubicIn,
   easeLinear,
   getEffectProgress,
-  getVisualSlowCompensation,
-  getVisualNow,
   hexColor,
   lerp,
-  PARRY_CHAIN_SLOW_SCALE,
   PARRY_GUARD_ONLY_MS,
-  PARRY_HIT_STOP_MS,
   PARRY_MOTION_END_MS,
-  PARRY_REFLECT_HAMMER_MS,
+  PARRY_REFLECT_HAMMER_WALL_MS,
   PARRY_TOTAL_MS,
 } from './earTrainingBattleDrawState';
 import {
   resolveParryBeatSyncScheduleOrFallback,
-  resolveParryZoomMidPhraseSec,
+  resolveParryZoomEndPhraseSec,
+  resolveParryZoomPeakPhraseSec,
   resolveParryZoomScaleAtPhraseSec,
   resolvePhraseSecFromPerfAnchor,
 } from './earTrainingBattleBeatSyncTiming';
@@ -357,12 +354,9 @@ const triggerParryBeatSyncEffects = (
 
   if (command.parryFinishOnly) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
-    clearParryZoom(runtime.camera);
-    return;
   }
 
   const hitPhraseSec = command.hitPhraseTimeSec;
-  const slowDurationMs = command.visualSlowSustainMs ?? PARRY_HIT_STOP_MS;
 
   const schedule = resolveParryBeatSyncScheduleOrFallback({
     hitPhraseSec: command.hitPhraseTimeSec,
@@ -372,19 +366,6 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
-
-  if (command.extendParryVisualSlow && runtime.visualSlow) {
-    const minEndAt = now + slowDurationMs;
-    const currentEndAt = runtime.visualSlow.startedAt + runtime.visualSlow.durationMs;
-    runtime.visualSlow.durationMs = Math.max(currentEndAt, minEndAt) - runtime.visualSlow.startedAt;
-  } else {
-    runtime.visualSlow = {
-      startedAt: now,
-      durationMs: slowDurationMs,
-      scale: PARRY_CHAIN_SLOW_SCALE,
-      baseCompensation: getVisualSlowCompensation(now, runtime.visualSlow),
-    };
-  }
 
   if (
     hitPhraseSec !== undefined
@@ -401,14 +382,16 @@ const triggerParryBeatSyncEffects = (
       );
       startScale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, runtime.camera.parryZoom);
     }
-    const endPhraseSec = resolveParryZoomMidPhraseSec(
+    const peakPhraseSec = resolveParryZoomPeakPhraseSec(
       hitPhraseSec,
-      command.justParryEffectDurationMs,
+      command.parrySpanEndPhraseSec,
       command.effectiveBpm,
       command.isSwing,
     );
+    const endPhraseSec = resolveParryZoomEndPhraseSec(peakPhraseSec, command.effectiveBpm);
     triggerParryPhraseZoom(runtime.camera, {
       anchorPhraseSec: hitPhraseSec,
+      peakPhraseSec,
       endPhraseSec,
       hitPerfMs: now,
       focusX: zoomFocus.focusX,
@@ -514,8 +497,7 @@ const dismissIncomingOsmdHammer = (
     runtime.effectByCommandId.delete(relatedEffectId);
     return { x: contactX, y: contactY, size: 76 };
   }
-  const visualNow = getVisualNow(now, runtime.visualSlow);
-  const t = getEffectProgress(hammerVisual, visualNow);
+  const t = getEffectProgress(hammerVisual, now);
   const x = lerp(hammerVisual.fromX, hammerVisual.toX, easeLinear(t));
   const y = lerp(hammerVisual.fromY, hammerVisual.toY, easeLinear(t));
   incoming.visuals = [];
@@ -530,12 +512,12 @@ const launchReflectedOsmdHammer = (
   hammerSize: number,
   enemyX: number,
   enemyY: number,
-  visualStartedAt: number,
+  startedAt: number,
 ): void => {
   addVisual(visuals, {
     kind: 'hammer',
-    startedAt: visualStartedAt,
-    durationMs: PARRY_REFLECT_HAMMER_MS,
+    startedAt,
+    durationMs: PARRY_REFLECT_HAMMER_WALL_MS,
     fromX: contactX,
     fromY: contactY,
     toX: enemyX - 20,
@@ -551,20 +533,13 @@ const launchReflectedOsmdHammer = (
   });
 };
 
-const resolveReflectHammerWallImpactDelayMs = (
-  slow: EarTrainingBattleDrawRuntime['visualSlow'],
-): number => {
-  if (!slow) {
-    return PARRY_REFLECT_HAMMER_MS;
-  }
-  return PARRY_REFLECT_HAMMER_MS / Math.max(slow.scale, 1e-6);
-};
+const resolveReflectHammerWallImpactDelayMs = (): number => PARRY_REFLECT_HAMMER_WALL_MS;
 
 export const computeReflectHammerResyncState = (
   oldVisualNow: number,
   startedAt: number,
   now: number,
-  durationMs: number = PARRY_REFLECT_HAMMER_MS,
+  durationMs: number = PARRY_REFLECT_HAMMER_WALL_MS,
 ): { progress: number; newStartedAt: number; remainingMs: number } => {
   const progress = Math.min(1, Math.max(0, (oldVisualNow - startedAt) / durationMs));
   return {
@@ -623,32 +598,9 @@ const scheduleReflectHammerImpact = (
 
 export const endVisualSlowAndResyncReflectHammers = (
   runtime: EarTrainingBattleDrawRuntime,
-  now: number,
+  _now: number,
 ): void => {
-  if (!runtime.visualSlow) {
-    return;
-  }
-  const oldVisualNow = getVisualNow(now, runtime.visualSlow);
   runtime.visualSlow = null;
-
-  for (const effect of runtime.effects) {
-    if (effect.command.kind !== 'osmdHammerReflect' || effect.impactFired) {
-      continue;
-    }
-    const { newStartedAt, remainingMs } = computeReflectHammerResyncState(
-      oldVisualNow,
-      effect.startedAt,
-      now,
-    );
-    effect.startedAt = newStartedAt;
-    effect.impactAt = newStartedAt + PARRY_REFLECT_HAMMER_MS;
-    for (const visual of effect.visuals) {
-      if (visual.kind === 'hammer') {
-        visual.startedAt = newStartedAt;
-      }
-    }
-    scheduleReflectHammerImpact(runtime, effect, remainingMs);
-  }
 };
 
 const showPlayerPoseSequence = (
@@ -914,8 +866,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     });
   }
 
-  const visualNow = getVisualNow(now, runtime.visualSlow);
-  const impactDelayMs = resolveReflectHammerWallImpactDelayMs(runtime.visualSlow);
+  const impactDelayMs = resolveReflectHammerWallImpactDelayMs();
   const visuals: CanvasEffectVisual[] = [];
   launchReflectedOsmdHammer(
     visuals,
@@ -924,14 +875,14 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     contact.size,
     anchors.enemy.x,
     anchors.enemy.bodyY,
-    visualNow,
+    now,
   );
 
   const effect: CanvasEffectRuntime = {
     commandId: command.id,
     command,
-    startedAt: visualNow,
-    impactAt: visualNow + PARRY_REFLECT_HAMMER_MS,
+    startedAt: now,
+    impactAt: now + PARRY_REFLECT_HAMMER_WALL_MS,
     impactFired: false,
     visuals,
   };
@@ -1208,7 +1159,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
   ) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
   }
-  const visualNow = getVisualNow(now, runtime.visualSlow);
+  const visualNow = now;
   pruneOsuCircles(runtime.osuCirclePool);
   pruneOsuCircleShatter(runtime.osuCircleShatterPool, now);
   pruneJustParryEffect(runtime.justParryEffect, now);

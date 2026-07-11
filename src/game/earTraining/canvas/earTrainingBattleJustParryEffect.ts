@@ -9,12 +9,12 @@ const BEAT_EPS = 1e-6;
 export const JUST_PARRY_MIN_DURATION_MS = 120;
 export const JUST_PARRY_SPARK_BURST_MS = 200;
 export const JUST_PARRY_SPARK_COUNT = 24;
-export const JUST_PARRY_BODY_GLOW_ORANGE = '#fb923c';
-export const JUST_PARRY_BODY_GLOW_RED = '#ef4444';
-export const JUST_PARRY_SPARK_CORE = '#fff7ed';
-export const JUST_PARRY_SPARK_YELLOW = '#fbbf24';
-export const JUST_PARRY_SPARK_ORANGE = '#fb923c';
-export const JUST_PARRY_SPARK_RED = '#ef4444';
+export const JUST_PARRY_BODY_GLOW_PURPLE = '#c084fc';
+export const JUST_PARRY_BODY_GLOW_BLUE = '#60a5fa';
+export const JUST_PARRY_SPARK_CORE = '#f0f9ff';
+export const JUST_PARRY_SPARK_VIOLET = '#a78bfa';
+export const JUST_PARRY_SPARK_PURPLE = '#c084fc';
+export const JUST_PARRY_SPARK_BLUE = '#60a5fa';
 
 const JUST_PARRY_SPARK_GRAVITY = 420;
 const JUST_PARRY_SPARK_MIN_SPEED = 380;
@@ -22,9 +22,9 @@ const JUST_PARRY_SPARK_MAX_SPEED = 1180;
 const JUST_PARRY_SPARK_FRICTION = 7.5;
 const JUST_PARRY_SPARK_COLORS = [
   JUST_PARRY_SPARK_CORE,
-  JUST_PARRY_SPARK_YELLOW,
-  JUST_PARRY_SPARK_ORANGE,
-  JUST_PARRY_SPARK_RED,
+  JUST_PARRY_SPARK_VIOLET,
+  JUST_PARRY_SPARK_PURPLE,
+  JUST_PARRY_SPARK_BLUE,
 ] as const;
 
 export interface JustParrySparkStreak {
@@ -79,15 +79,16 @@ export const resolveJustParryEffectDurationMs = (
     && Number.isFinite(nextTargetPhraseSec)
     && nextTargetPhraseSec > hitPhraseTimeSec + BEAT_EPS
   ) {
-    const midpointSec = hitPhraseTimeSec + (nextTargetPhraseSec - hitPhraseTimeSec) / 2;
-    return Math.max(minDurationMs, Math.round((midpointSec - hitPhraseTimeSec) * 1000));
+    const noteDurationMs = Math.round((nextTargetPhraseSec - hitPhraseTimeSec) * 1000);
+    return Math.max(minDurationMs, noteDurationMs - 1);
   }
   if (
     fallbackEndPhraseSec !== undefined
     && Number.isFinite(fallbackEndPhraseSec)
     && fallbackEndPhraseSec > hitPhraseTimeSec + BEAT_EPS
   ) {
-    return Math.max(minDurationMs, Math.round((fallbackEndPhraseSec - hitPhraseTimeSec) * 1000));
+    const noteDurationMs = Math.round((fallbackEndPhraseSec - hitPhraseTimeSec) * 1000);
+    return Math.max(minDurationMs, noteDurationMs - 1);
   }
   return minDurationMs;
 };
@@ -314,9 +315,9 @@ const drawJustParrySparkStreak = (
 ): void => {
   const color = JUST_PARRY_SPARK_COLORS[streak.colorIndex % JUST_PARRY_SPARK_COLORS.length];
   const gradient = ctx.createLinearGradient(params.tailX, params.tailY, params.x, params.y);
-  gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
-  gradient.addColorStop(0.35, JUST_PARRY_SPARK_ORANGE);
-  gradient.addColorStop(0.72, JUST_PARRY_SPARK_YELLOW);
+  gradient.addColorStop(0, 'rgba(96, 165, 250, 0)');
+  gradient.addColorStop(0.35, JUST_PARRY_SPARK_PURPLE);
+  gradient.addColorStop(0.72, JUST_PARRY_SPARK_VIOLET);
   gradient.addColorStop(1, color);
 
   ctx.save();
@@ -380,7 +381,7 @@ const getBodyGlowCacheKey = (
   imageSrc: string,
   width: number,
   height: number,
-): string => `${imageSrc}|${Math.round(width)}|${Math.round(height)}`;
+): string => `${imageSrc}|${Math.round(width)}|${Math.round(height)}|purple-blue`;
 
 const buildBodyGlowCanvas = (
   img: HTMLImageElement,
@@ -407,9 +408,9 @@ const buildBodyGlowCanvas = (
   ctx.drawImage(img, 0, 0, width, height);
   ctx.globalCompositeOperation = 'source-in';
   const gradient = ctx.createLinearGradient(0, 0, width * 0.35, height);
-  gradient.addColorStop(0, JUST_PARRY_SPARK_YELLOW);
-  gradient.addColorStop(0.45, JUST_PARRY_BODY_GLOW_ORANGE);
-  gradient.addColorStop(1, JUST_PARRY_BODY_GLOW_RED);
+  gradient.addColorStop(0, JUST_PARRY_SPARK_VIOLET);
+  gradient.addColorStop(0.45, JUST_PARRY_BODY_GLOW_PURPLE);
+  gradient.addColorStop(1, JUST_PARRY_BODY_GLOW_BLUE);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 

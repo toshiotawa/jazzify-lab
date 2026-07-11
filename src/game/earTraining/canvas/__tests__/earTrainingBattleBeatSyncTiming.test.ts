@@ -4,8 +4,9 @@ import {
   resolveBeatSyncLandingSec,
   resolveParryBeatSyncSchedule,
   resolveParryChainSlowDurationMs,
-  resolveParryZoomMidPhraseSec,
+  resolveParryZoomEndPhraseSec,
   resolveParryZoomOutPhraseSec,
+  resolveParryZoomPeakPhraseSec,
   resolveParryZoomScaleAtPhraseSec,
   resolvePhraseSecFromPerfAnchor,
 } from '@/game/earTraining/canvas/earTrainingBattleBeatSyncTiming';
@@ -65,13 +66,19 @@ describe('resolveParryBeatSyncSchedule', () => {
   });
 });
 
-describe('resolveParryZoomMidPhraseSec', () => {
-  it('uses just parry effect duration when available', () => {
-    expect(resolveParryZoomMidPhraseSec(1, 500, 160, false)).toBeCloseTo(1.5, 6);
+describe('resolveParryZoomPeakPhraseSec', () => {
+  it('uses parry span end when available', () => {
+    expect(resolveParryZoomPeakPhraseSec(1, 4, 160, false)).toBeCloseTo(4, 6);
   });
 
-  it('falls back to beat-sync landing when duration is missing', () => {
-    expect(resolveParryZoomMidPhraseSec(0, undefined, 160, false)).toBeCloseTo(0.375, 6);
+  it('falls back to beat-sync landing when span end is missing', () => {
+    expect(resolveParryZoomPeakPhraseSec(0, undefined, 160, false)).toBeCloseTo(0.375, 6);
+  });
+});
+
+describe('resolveParryZoomEndPhraseSec', () => {
+  it('adds one beat after peak', () => {
+    expect(resolveParryZoomEndPhraseSec(1, 160)).toBeCloseTo(1.375, 6);
   });
 });
 
@@ -88,18 +95,21 @@ describe('resolveParryZoomOutPhraseSec', () => {
 describe('resolveParryZoomScaleAtPhraseSec', () => {
   const params = {
     anchorPhraseSec: 0,
-    endPhraseSec: 0.5,
+    peakPhraseSec: 2,
+    endPhraseSec: 2.375,
     zoomTarget: PARRY_ZOOM_TARGET,
     startScale: 1,
   };
 
-  it('snaps to zoom target right after hit and returns to 1 at midpoint', () => {
+  it('eases in to peak then eases out over one beat', () => {
     expect(resolveParryZoomScaleAtPhraseSec(0, params)).toBeCloseTo(1, 6);
-    expect(resolveParryZoomScaleAtPhraseSec(0.001, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
-    expect(resolveParryZoomScaleAtPhraseSec(0.25, params)).toBeLessThan(PARRY_ZOOM_TARGET);
-    expect(resolveParryZoomScaleAtPhraseSec(0.25, params)).toBeGreaterThan(1);
-    expect(resolveParryZoomScaleAtPhraseSec(0.5, params)).toBeCloseTo(1, 4);
-    expect(resolveParryZoomScaleAtPhraseSec(1, params)).toBeCloseTo(1, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(1, params)).toBeGreaterThan(1);
+    expect(resolveParryZoomScaleAtPhraseSec(1, params)).toBeLessThan(PARRY_ZOOM_TARGET);
+    expect(resolveParryZoomScaleAtPhraseSec(2, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(2.1875, params)).toBeLessThan(PARRY_ZOOM_TARGET);
+    expect(resolveParryZoomScaleAtPhraseSec(2.1875, params)).toBeGreaterThan(1);
+    expect(resolveParryZoomScaleAtPhraseSec(2.375, params)).toBeCloseTo(1, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(3, params)).toBeCloseTo(1, 4);
   });
 
   it('preserves start scale at hit when retriggering mid-chain', () => {
@@ -107,7 +117,11 @@ describe('resolveParryZoomScaleAtPhraseSec', () => {
       ...params,
       startScale: 1.02,
     })).toBeCloseTo(1.02, 4);
-    expect(resolveParryZoomScaleAtPhraseSec(0.001, {
+    expect(resolveParryZoomScaleAtPhraseSec(1, {
+      ...params,
+      startScale: 1.02,
+    })).toBeGreaterThan(1.02);
+    expect(resolveParryZoomScaleAtPhraseSec(2, {
       ...params,
       startScale: 1.02,
     })).toBeCloseTo(PARRY_ZOOM_TARGET, 4);

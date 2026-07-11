@@ -116,26 +116,32 @@ export const resolveParryBeatSyncSchedule = (
 
 export interface ParryPhraseZoomParams {
   anchorPhraseSec: number;
+  peakPhraseSec: number;
   endPhraseSec: number;
   zoomTarget?: number;
   startScale?: number;
 }
 
-export const resolveParryZoomMidPhraseSec = (
+export const resolveParryZoomPeakPhraseSec = (
   hitPhraseSec: number,
-  justParryEffectDurationMs: number | undefined,
+  parrySpanEndPhraseSec: number | undefined,
   bpm: number,
   isSwing: boolean,
 ): number => {
   if (
-    justParryEffectDurationMs !== undefined
-    && Number.isFinite(justParryEffectDurationMs)
-    && justParryEffectDurationMs > 0
+    parrySpanEndPhraseSec !== undefined
+    && Number.isFinite(parrySpanEndPhraseSec)
+    && parrySpanEndPhraseSec > hitPhraseSec + BEAT_EPS
   ) {
-    return hitPhraseSec + justParryEffectDurationMs / 1000;
+    return parrySpanEndPhraseSec;
   }
   return resolveBeatSyncLandingSec(hitPhraseSec, bpm, isSwing);
 };
+
+export const resolveParryZoomEndPhraseSec = (
+  peakPhraseSec: number,
+  bpm: number,
+): number => peakPhraseSec + beatDurationSec(bpm);
 
 export const resolveParryZoomOutPhraseSec = (
   hitPhraseSec: number,
@@ -174,19 +180,28 @@ export const resolveParryZoomScaleAtPhraseSec = (
 ): number => {
   const zoomTarget = params.zoomTarget ?? PARRY_ZOOM_TARGET;
   const startScale = params.startScale ?? 1;
-  const { anchorPhraseSec, endPhraseSec } = params;
+  const { anchorPhraseSec, peakPhraseSec, endPhraseSec } = params;
 
   if (currentPhraseSec <= anchorPhraseSec + BEAT_EPS) {
     return startScale;
   }
 
+  if (currentPhraseSec < peakPhraseSec - BEAT_EPS) {
+    const zoomInSpanSec = peakPhraseSec - anchorPhraseSec;
+    if (zoomInSpanSec <= BEAT_EPS) {
+      return zoomTarget;
+    }
+    const t = Math.min(1, (currentPhraseSec - anchorPhraseSec) / zoomInSpanSec);
+    return startScale + (zoomTarget - startScale) * easeCubicIn(t);
+  }
+
   if (currentPhraseSec < endPhraseSec - BEAT_EPS) {
-    const spanSec = endPhraseSec - anchorPhraseSec;
-    if (spanSec <= BEAT_EPS) {
+    const zoomOutSpanSec = endPhraseSec - peakPhraseSec;
+    if (zoomOutSpanSec <= BEAT_EPS) {
       return 1;
     }
-    const t = Math.min(1, (currentPhraseSec - anchorPhraseSec) / spanSec);
-    return zoomTarget - (zoomTarget - 1) * easeCubicIn(t);
+    const t = Math.min(1, (currentPhraseSec - peakPhraseSec) / zoomOutSpanSec);
+    return zoomTarget - (zoomTarget - 1) * easeCubicOut(t);
   }
 
   return 1;
