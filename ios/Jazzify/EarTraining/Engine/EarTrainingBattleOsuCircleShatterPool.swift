@@ -6,7 +6,7 @@ import UIKit
 @MainActor
 final class EarTrainingBattleOsuCircleShatterPool {
     static let poolSize = 128
-    static let durationMs: Double = 560
+    static let durationMs: Double = 380
     static let fragmentCount = 20
     private static let arcSpan = (Double.pi * 2 / Double(fragmentCount)) * 0.82
     private static let lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth + 2

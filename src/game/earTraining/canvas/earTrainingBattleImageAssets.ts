@@ -28,9 +28,9 @@ export const BATTLE_EFFECT_SPRITE_URLS: Record<string, string> = {
 };
 
 const BATTLE_PARRY_VFX_SPRITE_URLS: Record<string, string> = {
-  parryFlash: '/parry-flash.png',
-  parryRing: '/parry-ring.png',
-  parrySplash: '/parry-splash.png',
+  parryFlash: '/parry-flash.webp',
+  parryRing: '/parry-ring.webp',
+  parrySplash: '/parry-splash.webp',
 };
 
 export const EFFECT_IMAGE_URLS: Record<string, string> = {
@@ -75,10 +75,16 @@ export const getEarTrainingBattleSecondaryEffectSpritesForMode = (
   mode?: EarTrainingMode,
 ): Record<string, string> => {
   if (isOsmdLikeMode(mode)) {
-    return {
-      ...pickRecordKeys(BATTLE_EFFECT_SPRITE_URLS, OSMD_EFFECT_KEYS),
-      ...pickRecordKeys(BATTLE_PARRY_VFX_SPRITE_URLS, OSMD_PARRY_VFX_KEYS),
-    };
+    return pickRecordKeys(BATTLE_EFFECT_SPRITE_URLS, OSMD_EFFECT_KEYS);
+  }
+  return {};
+};
+
+export const getEarTrainingBattleCriticalEffectSpritesForMode = (
+  mode?: EarTrainingMode,
+): Record<string, string> => {
+  if (isOsmdLikeMode(mode)) {
+    return pickRecordKeys(BATTLE_PARRY_VFX_SPRITE_URLS, OSMD_PARRY_VFX_KEYS);
   }
   return {};
 };
@@ -115,6 +121,7 @@ export const getEarTrainingBattleSpriteRegistryForMode = (
   return {
     uiSprites: { ...BATTLE_UI_SPRITE_URLS },
     effectSprites: {
+      ...getEarTrainingBattleCriticalEffectSpritesForMode(mode),
       ...getEarTrainingBattleSecondaryEffectSpritesForMode(mode),
     },
     poseSprites: {
@@ -133,6 +140,7 @@ export const getEarTrainingBattleCriticalUrls = (
     ...avatarUrls.filter(Boolean),
     ...Object.values(BATTLE_UI_SPRITE_URLS),
     ...Object.values(getEarTrainingBattleCriticalPoseSpritesForMode(mode)),
+    ...Object.values(getEarTrainingBattleCriticalEffectSpritesForMode(mode)),
   ]),
 ];
 

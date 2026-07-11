@@ -2,9 +2,11 @@ import {
   OSU_CIRCLE_LINE_WIDTH,
 } from './earTrainingBattleOsuCircleTiming';
 import { getOsuCircleInnerStroke } from './earTrainingBattleOsuCircleColors';
+import { JUST_PARRY_SPLASH_DURATION_MS } from './earTrainingBattleJustParryEffect';
 
 export const OSU_SHATTER_POOL_SIZE = 128;
-export const OSU_SHATTER_DURATION_MS = 560;
+/** ジャストパリィ水彩レイヤーと同尺。縁崩壊がVFXより長く残らないようにする */
+export const OSU_SHATTER_DURATION_MS = JUST_PARRY_SPLASH_DURATION_MS;
 export const OSU_SHATTER_FRAGMENT_COUNT = 20;
 const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.82;
 const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 180;
