@@ -9,6 +9,23 @@ import type {
   EarTrainingBattleDrawRuntime,
 } from './earTrainingBattleDrawState';
 import {
+  clearParryZoom,
+  triggerCameraShake,
+  triggerParryPhraseZoom,
+} from './earTrainingBattleCamera';
+import {
+  clearJustParryEffect,
+  JUST_PARRY_VISUAL_DURATION_MS,
+  pruneJustParryEffect,
+  startJustParryEffect,
+} from './earTrainingBattleJustParryEffect';
+import {
+  resolveParryBeatSyncScheduleOrFallback,
+  resolveParryZoomEndPhraseSec,
+  resolveParryZoomScaleAtPhraseSec,
+  resolvePhraseSecFromPerfAnchor,
+} from './earTrainingBattleBeatSyncTiming';
+import {
   createParryBeatSyncFromSlowPhaseMs,
   easeCubicIn,
   easeLinear,
@@ -18,10 +35,8 @@ import {
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HAMMER_WALL_MS,
   PARRY_TOTAL_MS,
+  PARRY_ZOOM_TARGET,
 } from './earTrainingBattleDrawState';
-import {
-  resolveParryBeatSyncScheduleOrFallback,
-} from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
   holdCharacterForAction,
@@ -30,16 +45,6 @@ import {
 } from './earTrainingBattleCharacterMotion';
 import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
-import {
-  clearParryZoom,
-  triggerCameraShake,
-} from './earTrainingBattleCamera';
-import {
-  clearJustParryEffect,
-  JUST_PARRY_VISUAL_DURATION_MS,
-  pruneJustParryEffect,
-  startJustParryEffect,
-} from './earTrainingBattleJustParryEffect';
 import { applyOsuCircleAnchorOffset } from './earTrainingBattleOsuCircleLayout';
 import {
   burstOsuCircle,
@@ -340,6 +345,10 @@ const triggerParryBeatSyncEffects = (
   runtime: EarTrainingBattleDrawRuntime,
   command: EarTrainingBattleEffectCommand,
   now: number,
+  focusX: number,
+  focusY: number,
+  width: number,
+  height: number,
 ): void => {
   if (command.clearParryVisualSlow) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
@@ -360,6 +369,51 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
+
+  const anchorPhraseSec = command.parryZoomAnchorPhraseSec;
+  const peakPhraseSec = command.parryZoomPeakPhraseSec;
+  const bpm = command.effectiveBpm;
+  const hitPhraseSec = command.hitPhraseTimeSec;
+  if (
+    anchorPhraseSec === undefined
+    || peakPhraseSec === undefined
+    || hitPhraseSec === undefined
+    || bpm === undefined
+    || !Number.isFinite(anchorPhraseSec)
+    || !Number.isFinite(peakPhraseSec)
+    || !Number.isFinite(hitPhraseSec)
+    || !Number.isFinite(bpm)
+    || bpm <= 0
+  ) {
+    return;
+  }
+
+  const endPhraseSec = resolveParryZoomEndPhraseSec(peakPhraseSec, bpm);
+  let startScale = 1;
+  const existingZoom = runtime.camera.parryZoom;
+  if (existingZoom) {
+    const currentPhraseSec = resolvePhraseSecFromPerfAnchor(
+      existingZoom.anchorPhraseSec,
+      existingZoom.hitPerfMs,
+      now,
+    );
+    startScale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, existingZoom);
+  }
+
+  // phrase 時刻と wall clock を対応付ける（アンカー時刻 = hitPerf 時点）
+  const hitPerfMs = now - (hitPhraseSec - anchorPhraseSec) * 1000;
+  triggerParryPhraseZoom(runtime.camera, {
+    anchorPhraseSec,
+    peakPhraseSec,
+    endPhraseSec,
+    hitPerfMs,
+    focusX,
+    focusY,
+    centerX: width * 0.5,
+    centerY: height * 0.5,
+    zoomTarget: PARRY_ZOOM_TARGET,
+    startScale,
+  });
 };
 
 const resolveOneBeatDurationMs = (bpm: number | undefined): number => {
@@ -851,7 +905,15 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     now,
   );
   runtime.lastParryAt = now;
-  triggerParryBeatSyncEffects(runtime, command, now);
+  triggerParryBeatSyncEffects(
+    runtime,
+    command,
+    now,
+    anchors.player.x,
+    anchors.player.bodyY,
+    width,
+    runtime.height,
+  );
   scheduleParryMotion(
     runtime,
     onDirty,
@@ -861,8 +923,8 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
 
   startJustParryEffect(runtime.justParryEffect, {
     startedAt: now,
-    originX: parryCenterX,
-    originY: parryCenterY,
+    originX: contact.x,
+    originY: contact.y,
     seedBase: command.id,
     imageKey: finishOnly ? PARRY_FINISH_POSE_KEY : PARRY_GUARD_POSE_KEY,
     flipX: false,

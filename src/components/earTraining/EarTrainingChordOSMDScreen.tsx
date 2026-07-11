@@ -650,6 +650,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       clearParryVisualSlow?: boolean;
       visualSlowSustainMs?: number;
       justParryEffectDurationMs?: number;
+      parryZoomAnchorPhraseSec?: number;
+      parryZoomPeakPhraseSec?: number;
       osuCircleLayoutIndex?: number;
       osuCircleNoteLabels?: readonly string[];
       osuCircleColorIndex?: number;
@@ -676,6 +678,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       clearParryVisualSlow: options.clearParryVisualSlow,
       visualSlowSustainMs: options.visualSlowSustainMs,
       justParryEffectDurationMs: options.justParryEffectDurationMs,
+      parryZoomAnchorPhraseSec: options.parryZoomAnchorPhraseSec,
+      parryZoomPeakPhraseSec: options.parryZoomPeakPhraseSec,
       osuCircleLayoutIndex: options.osuCircleLayoutIndex,
       osuCircleNoteLabels: options.osuCircleNoteLabels,
       osuCircleColorIndex: options.osuCircleColorIndex,
@@ -1884,6 +1888,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         );
       }
     }
+    const parryZoomAnchorPhraseSec = Number.isFinite(spanState.anchor.targetTimeSec)
+      ? resolveCalibratedTargetTimeSec(spanState.anchor.targetTimeSec)
+      : undefined;
+    const parryZoomPeakPhraseSec = finishTarget
+      ? resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
+      : (Number.isFinite(hitPhraseTimeSec) ? hitPhraseTimeSec : undefined);
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
       damage,
@@ -1897,6 +1907,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       nextTargetPhraseTimeSec: nextTarget
         ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
         : undefined,
+      parryZoomAnchorPhraseSec,
+      parryZoomPeakPhraseSec,
     });
     if (isFinish) {
       parryChainAnchorRef.current = null;
