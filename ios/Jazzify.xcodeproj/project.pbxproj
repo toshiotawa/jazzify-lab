@@ -55,7 +55,10 @@
 		E1E2F3A4B5C60718293A51E /* EarTrainingTutorialHudSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A51D /* EarTrainingTutorialHudSupport.swift */; };
 		E1E2F3A4B5C60718293A525 /* EarTrainingTutorialDialogPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A524 /* EarTrainingTutorialDialogPlacement.swift */; };
 		E1E2F3A4B5C60718293A527 /* EarTrainingTutorialBattleWarmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A526 /* EarTrainingTutorialBattleWarmup.swift */; };
+		E1E2F3A4B5C60718293A529 /* EarTrainingTimingAdjustmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A528 /* EarTrainingTimingAdjustmentView.swift */; };
+		E1E2F3A4B5C60718293A52D /* EarTrainingTimingAdjustmentSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A52C /* EarTrainingTimingAdjustmentSliderView.swift */; };
 		E1E2F3A4B5C60718293A51A /* ear-training-developer-full-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A519 /* ear-training-developer-full-v1.script.json */; };
+		E1E2F3A4B5C60718293A52B /* ear-training-osmd-timing-adjustment-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = E1E2F3A4B5C60718293A52A /* ear-training-osmd-timing-adjustment-v1.script.json */; };
 		0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18861FA349C6ECEAA2F6CC96 /* WebViewCoordinator.swift */; };
 		03724194B6C8D5BB89CC901D /* PaymentIssueBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */; };
 		07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */; };
@@ -328,7 +331,10 @@
 		E1E2F3A4B5C60718293A51D /* EarTrainingTutorialHudSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialHudSupport.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A524 /* EarTrainingTutorialDialogPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialDialogPlacement.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A526 /* EarTrainingTutorialBattleWarmup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialBattleWarmup.swift; sourceTree = "<group>"; };
+		E1E2F3A4B5C60718293A528 /* EarTrainingTimingAdjustmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTimingAdjustmentView.swift; sourceTree = "<group>"; };
+		E1E2F3A4B5C60718293A52C /* EarTrainingTimingAdjustmentSliderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTimingAdjustmentSliderView.swift; sourceTree = "<group>"; };
 		E1E2F3A4B5C60718293A519 /* ear-training-developer-full-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ear-training-developer-full-v1.script.json"; sourceTree = "<group>"; };
+		E1E2F3A4B5C60718293A52A /* ear-training-osmd-timing-adjustment-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ear-training-osmd-timing-adjustment-v1.script.json"; sourceTree = "<group>"; };
 		C0A1B2C3D4E5F61718293A01 /* OnboardingCharacterDialogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCharacterDialogView.swift; sourceTree = "<group>"; };
 		C0A1B2C3D4E5F61718293A03 /* OnboardingNarrationCaptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingNarrationCaptionView.swift; sourceTree = "<group>"; };
 		C0A1B2C3D4E5F61718293A07 /* OnboardingDeviceConnectedBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDeviceConnectedBannerView.swift; sourceTree = "<group>"; };
@@ -1023,7 +1029,9 @@
 				E1E2F3A4B5C60718293A524 /* EarTrainingTutorialDialogPlacement.swift */,
 				E1E2F3A4B5C60718293A526 /* EarTrainingTutorialBattleWarmup.swift */,
 				E1E2F3A4B5C60718293A51D /* EarTrainingTutorialHudSupport.swift */,
+				E1E2F3A4B5C60718293A528 /* EarTrainingTimingAdjustmentView.swift */,
 				E1E2F3A4B5C60718293A519 /* ear-training-developer-full-v1.script.json */,
+				E1E2F3A4B5C60718293A52A /* ear-training-osmd-timing-adjustment-v1.script.json */,
 			);
 			path = Tutorial;
 			sourceTree = "<group>";
@@ -1206,6 +1214,7 @@
 				CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */,
 				3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */,
 				A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */,
+				E1E2F3A4B5C60718293A52C /* EarTrainingTimingAdjustmentSliderView.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -1295,6 +1304,7 @@
 				SF2BASS01BFCC03DD04EE05BR01 /* FingerBassYR 20190930.sf2 in Resources */,
 				B2C3D4E5F61718293A500E /* onboarding-v1.script.json in Resources */,
 				E1E2F3A4B5C60718293A51A /* ear-training-developer-full-v1.script.json in Resources */,
+				E1E2F3A4B5C60718293A52B /* ear-training-osmd-timing-adjustment-v1.script.json in Resources */,
 				EE7B8130A1FC4A6290A0701A /* Bravura.otf in Resources */,
 				F1FE000000FE11FE000FE002 /* fire_magic_1.mp3 in Resources */,
 				F1FE000000FE11FE000FE004 /* drumstick-count.mp3 in Resources */,
@@ -1443,6 +1453,8 @@
 				E1E2F3A4B5C60718293A525 /* EarTrainingTutorialDialogPlacement.swift in Sources */,
 				E1E2F3A4B5C60718293A527 /* EarTrainingTutorialBattleWarmup.swift in Sources */,
 				E1E2F3A4B5C60718293A51E /* EarTrainingTutorialHudSupport.swift in Sources */,
+				E1E2F3A4B5C60718293A529 /* EarTrainingTimingAdjustmentView.swift in Sources */,
+				E1E2F3A4B5C60718293A52D /* EarTrainingTimingAdjustmentSliderView.swift in Sources */,
 				C0A1B2C3D4E5F61718293A02 /* OnboardingCharacterDialogView.swift in Sources */,
 				C0A1B2C3D4E5F61718293A04 /* OnboardingNarrationCaptionView.swift in Sources */,
 				C0A1B2C3D4E5F61718293A08 /* OnboardingDeviceConnectedBannerView.swift in Sources */,
