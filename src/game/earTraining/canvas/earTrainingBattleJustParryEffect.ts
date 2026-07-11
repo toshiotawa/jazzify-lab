@@ -1,3 +1,4 @@
+import { CHARACTER_DISPLAY_SIZE } from './earTrainingBattleLayout';
 import {
   easeCubicOut,
   lerp,
@@ -21,7 +22,15 @@ const JUST_PARRY_RING_SCALE_START = 0.15;
 const JUST_PARRY_RING_SCALE_END = 1.2;
 const JUST_PARRY_SPLASH_SCALE_START = 0.35;
 const JUST_PARRY_SPLASH_SCALE_END = 1.05;
-const JUST_PARRY_SPLASH_ALPHA_START = 0.95;
+/** 透明度をやや下げて（より不透明に）見せる */
+const JUST_PARRY_FLASH_ALPHA_START = 1;
+const JUST_PARRY_RING_ALPHA_START = 1;
+const JUST_PARRY_SPLASH_ALPHA_START = 1;
+const JUST_PARRY_BODY_GLOW_WHITE = '#f8fafc';
+const JUST_PARRY_BODY_GLOW_CYAN = '#67e8f9';
+const JUST_PARRY_BODY_GLOW_BLUE = '#3b82f6';
+const JUST_PARRY_BODY_GLOW_VIOLET = '#818cf8';
+const JUST_PARRY_BODY_GLOW_INDIGO = '#1e3a8a';
 
 const easeQuadOut = (t: number): number => 1 - (1 - t) ** 2;
 
@@ -33,6 +42,8 @@ export interface JustParryEffectState {
   originY: number;
   splashAngle: number;
   splashAngleDelta: number;
+  imageKey: string;
+  flipX: boolean;
 }
 
 export const createJustParryEffectState = (): JustParryEffectState => ({
@@ -43,6 +54,8 @@ export const createJustParryEffectState = (): JustParryEffectState => ({
   originY: 0,
   splashAngle: 0,
   splashAngleDelta: 0,
+  imageKey: '',
+  flipX: false,
 });
 
 export const resolveJustParryEffectDurationMs = (
@@ -83,6 +96,8 @@ export interface StartJustParryEffectParams {
   originX: number;
   originY: number;
   seedBase: number;
+  imageKey: string;
+  flipX: boolean;
 }
 
 export const startJustParryEffect = (
@@ -96,6 +111,8 @@ export const startJustParryEffect = (
   state.originY = params.originY;
   state.splashAngle = seededRange(params.seedBase, -12, 12);
   state.splashAngleDelta = seededRange(params.seedBase + 3.7, -8, 8);
+  state.imageKey = params.imageKey;
+  state.flipX = params.flipX;
 };
 
 export const clearJustParryEffect = (state: JustParryEffectState): void => {
@@ -114,6 +131,23 @@ export const pruneJustParryEffect = (
   if (state.active && nowMs >= state.endAt) {
     clearJustParryEffect(state);
   }
+};
+
+export const getJustParryEffectAlpha = (
+  state: JustParryEffectState,
+  nowMs: number,
+): number => {
+  if (!isJustParryEffectActive(state, nowMs)) {
+    return 0;
+  }
+  const elapsed = nowMs - state.startedAt;
+  const durationMs = JUST_PARRY_VISUAL_DURATION_MS;
+  const fadeStart = durationMs * 0.72;
+  if (elapsed <= fadeStart) {
+    return 1;
+  }
+  const fadeT = (elapsed - fadeStart) / Math.max(1, durationMs - fadeStart);
+  return 1 - easeCubicOut(Math.min(1, fadeT));
 };
 
 export interface JustParryLayerDrawParams {
@@ -147,7 +181,7 @@ export const computeJustParryRingLayer = (
   const t = elapsedMs / JUST_PARRY_RING_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_RING_SCALE_START, JUST_PARRY_RING_SCALE_END, easeCubicOut(t)),
-    alpha: lerp(1, 0, easeCubicOut(t)),
+    alpha: lerp(JUST_PARRY_RING_ALPHA_START, 0, easeCubicOut(t)),
     angleDeg: 0,
   };
 };
@@ -161,7 +195,7 @@ export const computeJustParryFlashLayer = (
   const t = elapsedMs / JUST_PARRY_FLASH_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_FLASH_SCALE_START, JUST_PARRY_FLASH_SCALE_END, easeQuadOut(t)),
-    alpha: lerp(1, 0, easeQuadOut(t)),
+    alpha: lerp(JUST_PARRY_FLASH_ALPHA_START, 0, easeQuadOut(t)),
     angleDeg: 0,
   };
 };
@@ -244,4 +278,115 @@ export const drawJustParryLayers = (
       'lighter',
     );
   }
+};
+
+const bodyGlowCache = new Map<string, HTMLCanvasElement>();
+
+const getBodyGlowCacheKey = (
+  imageSrc: string,
+  width: number,
+  height: number,
+): string => `${imageSrc}|${Math.round(width)}|${Math.round(height)}|cyan-indigo`;
+
+const buildBodyGlowCanvas = (
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+): HTMLCanvasElement | null => {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const key = getBodyGlowCacheKey(img.src, width, height);
+  const cached = bodyGlowCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return null;
+  }
+
+  ctx.drawImage(img, 0, 0, width, height);
+  ctx.globalCompositeOperation = 'source-in';
+  const gradient = ctx.createLinearGradient(0, 0, width * 0.4, height);
+  gradient.addColorStop(0, JUST_PARRY_BODY_GLOW_WHITE);
+  gradient.addColorStop(0.22, JUST_PARRY_BODY_GLOW_CYAN);
+  gradient.addColorStop(0.48, JUST_PARRY_BODY_GLOW_BLUE);
+  gradient.addColorStop(0.72, JUST_PARRY_BODY_GLOW_VIOLET);
+  gradient.addColorStop(1, JUST_PARRY_BODY_GLOW_INDIGO);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+
+  bodyGlowCache.set(key, canvas);
+  return canvas;
+};
+
+export const drawJustParryBodyGlow = (
+  ctx: CanvasRenderingContext2D,
+  state: JustParryEffectState,
+  loadedImages: Map<string, HTMLImageElement>,
+  playerX: number,
+  floorY: number,
+  yOffset: number,
+  rotationDeg: number,
+  nowMs: number,
+): void => {
+  if (!isJustParryEffectActive(state, nowMs)) {
+    return;
+  }
+
+  const img = loadedImages.get(state.imageKey);
+  if (!img) {
+    return;
+  }
+
+  const alpha = getJustParryEffectAlpha(state, nowMs);
+  if (alpha <= 0) {
+    return;
+  }
+
+  const pulse = 0.88 + Math.sin((nowMs - state.startedAt) / 70) * 0.12;
+  const drawW = CHARACTER_DISPLAY_SIZE;
+  const drawH = CHARACTER_DISPLAY_SIZE;
+  const glowCanvas = buildBodyGlowCanvas(img, drawW, drawH);
+  if (!glowCanvas) {
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(playerX, floorY + yOffset);
+  ctx.rotate(rotationDeg * Math.PI / 180);
+
+  const drawX = -drawW / 2;
+  const drawY = -drawH;
+  const flip = state.flipX;
+
+  ctx.save();
+  if (flip) {
+    ctx.scale(-1, 1);
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = alpha * 0.48 * pulse;
+  ctx.drawImage(glowCanvas, flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
+  ctx.restore();
+
+  ctx.save();
+  if (flip) {
+    ctx.scale(-1, 1);
+  }
+  const rimScale = 1.06;
+  const rimW = drawW * rimScale;
+  const rimH = drawH * rimScale;
+  const rimX = (flip ? -rimW / 2 : drawX) - (rimW - drawW) * 0.5;
+  const rimY = drawY - (rimH - drawH) * 0.5;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = alpha * 0.36 * pulse;
+  ctx.drawImage(glowCanvas, rimX, rimY, rimW, rimH);
+  ctx.restore();
+
+  ctx.restore();
 };

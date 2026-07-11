@@ -7,11 +7,13 @@ import { JUST_PARRY_SPLASH_DURATION_MS } from './earTrainingBattleJustParryEffec
 export const OSU_SHATTER_POOL_SIZE = 128;
 /** ジャストパリィ水彩レイヤーと同尺。縁崩壊がVFXより長く残らないようにする */
 export const OSU_SHATTER_DURATION_MS = JUST_PARRY_SPLASH_DURATION_MS;
-export const OSU_SHATTER_FRAGMENT_COUNT = 20;
+export const OSU_SHATTER_FRAGMENT_COUNT = 12;
 const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.82;
 const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 180;
 const OSU_SHATTER_DRIFT_MAX_PX_PER_SEC = 340;
 const OSU_SHATTER_LINE_WIDTH = OSU_CIRCLE_LINE_WIDTH + 2;
+/** 縁崩壊は透明寄りにして、3レイヤーVFXを主役にする */
+const OSU_SHATTER_PEAK_ALPHA = 0.42;
 
 export interface OsuShatterSlot {
   active: boolean;
@@ -117,8 +119,9 @@ export const drawOsuCircleShatter = (
     const cx = slot.originX + slot.dirX * drift;
     const cy = slot.originY + slot.dirY * drift;
     const spin = slot.spinRadPerMs * age;
-    // 序盤はほぼ不透明、後半で急に薄くなる（半透明の余韻）
-    const alpha = t < 0.35 ? 1 : 1 - ((t - 0.35) / 0.65) ** 1.4;
+    // 序盤も半透明、後半でさらに薄くなる
+    const fade = t < 0.35 ? 1 : 1 - ((t - 0.35) / 0.65) ** 1.4;
+    const alpha = OSU_SHATTER_PEAK_ALPHA * fade;
 
     ctx.strokeStyle = getOsuCircleInnerStroke(slot.colorIndex);
     ctx.globalAlpha = Math.max(0, alpha);

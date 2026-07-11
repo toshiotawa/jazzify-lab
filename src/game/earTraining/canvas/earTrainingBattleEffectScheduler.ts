@@ -60,6 +60,8 @@ const MISS_IMPACT_MS = 520;
 const FAIL_IMPACT_MS = 700;
 const PARRY_GUARD_POSE_KEY = 'guardD';
 const PARRY_FINISH_POSE_KEY = 'finish';
+/** 連続ガード間で通常立ち絵を挟む最短時間 */
+const PARRY_GUARD_STAND_BLIP_MS = 1;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const GOOD_COMPLETE_IMPACT_MS = 680;
 const GREAT_COMPLETE_IMPACT_MS = 860;
@@ -416,11 +418,25 @@ const scheduleParryMotion = (
   cancelParryFinishMotion(runtime);
   runtime.parryMotionGeneration += 1;
   const generation = runtime.parryMotionGeneration;
+  const now = performance.now();
 
   const setPose = (poseKey: string | null, remainingMs: number): void => {
     runtime.player.poseKey = poseKey;
     runtime.player.poseUntil = performance.now() + remainingMs + 40;
     onDirty();
+  };
+
+  const scheduleGuardClear = (): void => {
+    runtime.parryMotionEndTimer = setTimeout(() => {
+      if (runtime.parryMotionGeneration !== generation) return;
+      runtime.player.poseKey = null;
+      onDirty();
+    }, PARRY_MOTION_END_MS);
+  };
+
+  const applyGuardPose = (): void => {
+    setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_ONLY_MS);
+    scheduleGuardClear();
   };
 
   if (finishOnly) {
@@ -440,13 +456,19 @@ const scheduleParryMotion = (
     return;
   }
 
-  setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_ONLY_MS);
+  const isAlreadyGuard = runtime.player.poseKey === PARRY_GUARD_POSE_KEY
+    && now < runtime.player.poseUntil;
+  if (isAlreadyGuard) {
+    // 連続正解: 通常立ち絵を1msだけ経由してから再度ガード
+    setPose(null, PARRY_GUARD_STAND_BLIP_MS);
+    runtime.parryFinishTimer = setTimeout(() => {
+      if (runtime.parryMotionGeneration !== generation) return;
+      applyGuardPose();
+    }, PARRY_GUARD_STAND_BLIP_MS);
+    return;
+  }
 
-  runtime.parryMotionEndTimer = setTimeout(() => {
-    if (runtime.parryMotionGeneration !== generation) return;
-    runtime.player.poseKey = null;
-    onDirty();
-  }, PARRY_MOTION_END_MS);
+  applyGuardPose();
 };
 
 const registerTrackedEffect = (
@@ -842,6 +864,8 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     originX: parryCenterX,
     originY: parryCenterY,
     seedBase: command.id,
+    imageKey: finishOnly ? PARRY_FINISH_POSE_KEY : PARRY_GUARD_POSE_KEY,
+    flipX: false,
   });
   triggerCameraShake(runtime.camera, 1.5, 70);
 

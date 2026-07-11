@@ -23,4 +23,8 @@ describe('spawnOsuCircleShatter', () => {
     pruneOsuCircleShatter(pool, 1000 + OSU_SHATTER_DURATION_MS);
     expect(hasActiveOsuCircleShatter(pool, 1000 + OSU_SHATTER_DURATION_MS)).toBe(false);
   });
+
+  it('破片数は12', () => {
+    expect(OSU_SHATTER_FRAGMENT_COUNT).toBe(12);
+  });
 });

@@ -22,6 +22,8 @@ const BASE_START_PARAMS: StartJustParryEffectParams = {
   originX: 120,
   originY: 172,
   seedBase: 7,
+  imageKey: 'guardD',
+  flipX: false,
 };
 
 describe('resolveJustParryEffectDurationMs', () => {
@@ -111,7 +113,7 @@ describe('just parry layer timing', () => {
   });
 
   it('shows splash only during the first 380ms', () => {
-    expect(computeJustParrySplashLayer(0, 0, 0)?.alpha).toBeCloseTo(0.95, 5);
+    expect(computeJustParrySplashLayer(0, 0, 0)?.alpha).toBeCloseTo(1, 5);
     expect(computeJustParrySplashLayer(200, 0, 0)?.alpha).toBeGreaterThan(0);
     expect(computeJustParrySplashLayer(JUST_PARRY_SPLASH_DURATION_MS)).toBeNull();
   });

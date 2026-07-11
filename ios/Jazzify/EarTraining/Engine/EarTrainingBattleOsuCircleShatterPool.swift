@@ -7,9 +7,10 @@ import UIKit
 final class EarTrainingBattleOsuCircleShatterPool {
     static let poolSize = 128
     static let durationMs: Double = 380
-    static let fragmentCount = 20
+    static let fragmentCount = 12
     private static let arcSpan = (Double.pi * 2 / Double(fragmentCount)) * 0.82
     private static let lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth + 2
+    private static let peakAlpha: Double = 0.42
 
     private struct Slot {
         var active = false
@@ -104,7 +105,10 @@ final class EarTrainingBattleOsuCircleShatterPool {
             let cx = slot.originX + slot.dirX * drift
             let cy = slot.originY + slot.dirY * drift
             let spin = slot.spinRadPerMs * age
-            let alpha: Double = t < 0.35 ? 1 : 1 - pow((t - 0.35) / 0.65, 1.4)
+            let alpha: Double = {
+                let fade = t < 0.35 ? 1.0 : 1 - pow((t - 0.35) / 0.65, 1.4)
+                return Self.peakAlpha * fade
+            }()
             slots[index].node.position = CGPoint(x: cx, y: cy)
             slots[index].node.zRotation = CGFloat(spin)
             slots[index].node.alpha = CGFloat(max(0, alpha))
