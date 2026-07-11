@@ -56,9 +56,9 @@ import {
   hasActiveOsuCircleShatter,
 } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleShatterPool';
 import {
-  createJustParryEffectState,
-  isJustParryEffectActive,
-} from '@/game/earTraining/canvas/earTrainingBattleJustParryEffect';
+  createParrySparkPool,
+  hasActiveParrySparks,
+} from '@/game/earTraining/canvas/earTrainingBattleParrySparkPool';
 import {
   pruneExpiredEffects,
   scheduleEarTrainingBattleEffect,
@@ -117,7 +117,7 @@ const createInitialRuntime = (
   parryFinishLocked: false,
   parryBeatSync: createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
   reflectImpactCallbacks: null,
-  justParryEffect: createJustParryEffectState(),
+  parrySparkPool: createParrySparkPool(),
 });
 
 const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleCanvasProps>(({
@@ -508,7 +508,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
           runtime.lastParryAt > 0
           && now < runtime.lastParryAt + PARRY_TOTAL_MS + 250
         )
-        || isJustParryEffectActive(runtime.justParryEffect, now);
+        || hasActiveParrySparks(runtime.parrySparkPool, now);
 
       if (!dirtyRef.current && !hasActiveMotion) {
         rafRef.current = 0;

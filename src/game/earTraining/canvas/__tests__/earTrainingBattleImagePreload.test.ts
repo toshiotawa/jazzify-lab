@@ -24,15 +24,15 @@ describe('earTrainingBattleImagePreload', () => {
     expect(urls.some((url) => url.includes('fireball'))).toBe(false);
   });
 
-  it('OSMD クリティカルにはパリィ用ポーズとパリィVFXを含む', () => {
+  it('OSMD クリティカルにはパリィ用ポーズを含む（3レイヤーVFXは火花に置換済み）', () => {
     const urls = getEarTrainingBattleCriticalUrls([], 'chord_osmd');
     expect(urls.some((url) => url.includes('GuardD'))).toBe(true);
     expect(urls.some((url) => url.includes('GuardE'))).toBe(true);
     expect(urls.some((url) => url.includes('finish'))).toBe(true);
     expect(urls.some((url) => url.includes('eishou'))).toBe(true);
-    expect(urls.some((url) => url.includes('parry-flash'))).toBe(true);
-    expect(urls.some((url) => url.includes('parry-ring'))).toBe(true);
-    expect(urls.some((url) => url.includes('parry-splash'))).toBe(true);
+    expect(urls.some((url) => url.includes('parry-flash'))).toBe(false);
+    expect(urls.some((url) => url.includes('parry-ring'))).toBe(false);
+    expect(urls.some((url) => url.includes('parry-splash'))).toBe(false);
     expect(urls.some((url) => url.includes('fireball'))).toBe(false);
   });
 

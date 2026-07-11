@@ -2,17 +2,17 @@ import {
   OSU_CIRCLE_LINE_WIDTH,
 } from './earTrainingBattleOsuCircleTiming';
 import { getOsuCircleInnerStroke } from './earTrainingBattleOsuCircleColors';
-import { JUST_PARRY_SPLASH_DURATION_MS } from './earTrainingBattleJustParryEffect';
+import { JUST_PARRY_VISUAL_DURATION_MS } from './earTrainingBattleJustParryEffect';
 
 export const OSU_SHATTER_POOL_SIZE = 128;
-/** ジャストパリィ水彩レイヤーと同尺。縁崩壊がVFXより長く残らないようにする */
-export const OSU_SHATTER_DURATION_MS = JUST_PARRY_SPLASH_DURATION_MS;
+/** パリィ視覚尺と同尺。縁崩壊が火花より長く残らないようにする */
+export const OSU_SHATTER_DURATION_MS = JUST_PARRY_VISUAL_DURATION_MS;
 export const OSU_SHATTER_FRAGMENT_COUNT = 12;
 const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.82;
 const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 180;
 const OSU_SHATTER_DRIFT_MAX_PX_PER_SEC = 340;
 const OSU_SHATTER_LINE_WIDTH = OSU_CIRCLE_LINE_WIDTH + 2;
-/** 縁崩壊は透明寄りにして、3レイヤーVFXを主役にする */
+/** 縁崩壊は透明寄りにして、溶接火花を主役にする */
 const OSU_SHATTER_PEAK_ALPHA = 0.42;
 
 export interface OsuShatterSlot {

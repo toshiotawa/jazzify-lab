@@ -4,7 +4,7 @@ import type { CanvasCameraRuntime } from './earTrainingBattleCamera';
 import type { EarTrainingRect } from './earTrainingBattleLayout';
 import type { OsuCircleSlot } from './earTrainingBattleOsuCirclePool';
 import type { OsuShatterSlot } from './earTrainingBattleOsuCircleShatterPool';
-import type { JustParryEffectState } from './earTrainingBattleJustParryEffect';
+import type { ParrySparkSlot } from './earTrainingBattleParrySparkPool';
 
 export type CanvasCharacterMotionState = 'idle' | 'walk' | 'cast' | 'attack' | 'recover' | 'knockback' | 'dead';
 
@@ -305,8 +305,8 @@ export interface EarTrainingBattleDrawRuntime {
     enemyX: number;
     enemyBodyY: number;
   } | null;
-  /** OSMD: ジャストパリィ風の身体発光・火花（raw wall-clock） */
-  justParryEffect: JustParryEffectState;
+  /** OSMD: パリィ溶接火花（raw wall-clock） */
+  parrySparkPool: ParrySparkSlot[];
 }
 
 export const easeCubicIn = (t: number): number => t * t * t;

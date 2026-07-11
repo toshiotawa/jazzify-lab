@@ -1,25 +1,31 @@
 import SpriteKit
 import UIKit
 
-/// Web `earTrainingBattleParrySparkPool.ts` 相当。128 スロットの粒子プール。
+/// Web `earTrainingBattleParrySparkPool.ts` 相当。溶接工場風の粒火花プール。
 @MainActor
 final class EarTrainingBattleParrySparkPool {
     private struct Slot {
         var active = false
-        var parryStartedAt: TimeInterval = 0
-        var centerX: CGFloat = 0
-        var centerY: CGFloat = 0
-        var dirX: CGFloat = 0
-        var dirY: CGFloat = 0
+        var startedAt: TimeInterval = 0
+        var durationMs: Double = 0
+        var originX: CGFloat = 0
+        var originY: CGFloat = 0
+        var vx: CGFloat = 0
+        var vy: CGFloat = 0
         var size: CGFloat = 0
-        var timeOffsetMs: Double = 0
-        var radiusScale: CGFloat = 1
-        var beatSync = ParryBeatSyncRuntime.default
+        var colorIndex = 0
         let node: SKShapeNode
     }
 
     private var slots: [Slot]
     private let container = SKNode()
+    private let colors: [UIColor] = [
+        UIColor(red: 1, green: 0.984, blue: 0.922, alpha: 1),
+        UIColor(red: 0.996, green: 0.941, blue: 0.541, alpha: 1),
+        UIColor(red: 0.992, green: 0.878, blue: 0.278, alpha: 1),
+        UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1),
+        UIColor(red: 0.992, green: 0.729, blue: 0.455, alpha: 1),
+    ]
 
     init(parent: SKNode) {
         slots = (0..<EarTrainingBattleParryConstants.sparkPoolSize).map { _ in
@@ -47,64 +53,62 @@ final class EarTrainingBattleParrySparkPool {
         x: CGFloat,
         y: CGFloat,
         startedAt: TimeInterval,
-        isChainParry: Bool,
-        beatSync: ParryBeatSyncRuntime = .default
+        isChainParry: Bool
     ) -> Int {
-        let count = isChainParry ? 40 : 28
-        let sizeMin: CGFloat = 1.5
-        let sizeMax: CGFloat = isChainParry ? 4 : 3.5
+        let count = isChainParry
+            ? EarTrainingBattleParryConstants.sparkChainCount
+            : EarTrainingBattleParryConstants.sparkCount
         var spawned = 0
 
         for index in slots.indices where spawned < count {
             guard slots[index].active == false else { continue }
-            let angle = Double.random(in: 0...(Double.pi * 2))
+            let angle = EarTrainingBattleParryConstants.sparkAngleUpBias
+                + CGFloat.random(in: -EarTrainingBattleParryConstants.sparkAngleSpread / 2
+                    ...EarTrainingBattleParryConstants.sparkAngleSpread / 2)
+            let speed = CGFloat.random(
+                in: EarTrainingBattleParryConstants.sparkSpeedMin
+                    ...EarTrainingBattleParryConstants.sparkSpeedMax
+            )
             slots[index].active = true
-            slots[index].parryStartedAt = startedAt
-            slots[index].centerX = x
-            slots[index].centerY = y
-            slots[index].dirX = CGFloat(cos(angle))
-            slots[index].dirY = CGFloat(sin(angle))
-            slots[index].size = sizeMin + CGFloat.random(in: 0...(sizeMax - sizeMin))
-            slots[index].timeOffsetMs = Double.random(in: -25...25)
-            slots[index].radiusScale = CGFloat.random(in: 0.88...1.12)
-            slots[index].beatSync = beatSync
+            slots[index].startedAt = startedAt
+            slots[index].durationMs = EarTrainingBattleParryConstants.sparkDurationMs
+                + Double.random(
+                    in: -EarTrainingBattleParryConstants.sparkDurationJitterMs
+                        ...EarTrainingBattleParryConstants.sparkDurationJitterMs
+                )
+            slots[index].originX = x
+            slots[index].originY = y
+            slots[index].vx = cos(angle) * speed
+            slots[index].vy = sin(angle) * speed
+            slots[index].size = CGFloat.random(
+                in: EarTrainingBattleParryConstants.sparkSizeMin
+                    ...EarTrainingBattleParryConstants.sparkSizeMax
+            )
+            slots[index].colorIndex = Int.random(in: 0..<colors.count)
+            slots[index].node.fillColor = colors[slots[index].colorIndex]
             slots[index].node.isHidden = false
             spawned += 1
         }
         return spawned
     }
 
-    func update(now: TimeInterval, slowStartedAt: TimeInterval?, visualSlowDurationMs: Double) {
-        let visualNow = EarTrainingBattleParryConstants.getVisualNow(
-            now: now * 1000,
-            slowStartedAt: slowStartedAt.map { $0 * 1000 },
-            durationMs: visualSlowDurationMs
-        ) / 1000
-
+    func update(now: TimeInterval) {
         for index in slots.indices {
             guard slots[index].active else { continue }
             let slot = slots[index]
-            let ageMs = (visualNow - slot.parryStartedAt) * 1000 + slot.timeOffsetMs
-            if ageMs < 0 || ageMs >= slot.beatSync.motionEndMs {
+            let ageMs = (now - slot.startedAt) * 1000
+            if ageMs < 0 || ageMs >= slot.durationMs {
                 slots[index].active = false
                 slots[index].node.isHidden = true
                 continue
             }
 
-            let radius = EarTrainingBattleParryConstants.getParryEffectRadiusAtAge(
-                ageMs,
-                beatSync: slot.beatSync
-            ) * slot.radiusScale
-            let posX = slot.centerX + slot.dirX * radius
-            let posY = slot.centerY + slot.dirY * radius
-            let fadeT = ageMs / slot.beatSync.motionEndMs
-            let alpha = EarTrainingBattleParryConstants.getParryLingerAlpha(
-                now: visualNow * 1000,
-                groupStartedAt: slot.parryStartedAt * 1000,
-                baseAlpha: 1 - fadeT * 0.4,
-                beatSync: slot.beatSync
-            )
-            let sparkSize = max(0.6, slot.size * (1 - fadeT * 0.35) * 0.4)
+            let t = ageMs / slot.durationMs
+            let gravity = EarTrainingBattleParryConstants.sparkGravity
+            let posX = slot.originX + slot.vx * ageMs
+            let posY = slot.originY + slot.vy * ageMs + 0.5 * gravity * ageMs * ageMs
+            let alpha = (1 - t) * (1 - t * 0.35)
+            let sparkSize = max(0.5, slot.size * (1 - t * 0.25))
 
             slots[index].node.position = CGPoint(x: posX, y: posY)
             slots[index].node.alpha = CGFloat(max(0, alpha))

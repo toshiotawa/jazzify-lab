@@ -13,12 +13,15 @@ import {
   triggerCameraShake,
 } from './earTrainingBattleCamera';
 import {
-  clearJustParryEffect,
-  JUST_PARRY_LAYER_OFFSET_X,
   JUST_PARRY_VISUAL_DURATION_MS,
-  pruneJustParryEffect,
-  startJustParryEffect,
 } from './earTrainingBattleJustParryEffect';
+import {
+  clearParrySparkPool,
+  PARRY_HIT_CAMERA_SHAKE_INTENSITY,
+  PARRY_HIT_CAMERA_SHAKE_MS,
+  pruneParrySparkPool,
+  spawnParrySparks,
+} from './earTrainingBattleParrySparkPool';
 import {
   resolveParryBeatSyncScheduleOrFallback,
 } from './earTrainingBattleBeatSyncTiming';
@@ -345,7 +348,7 @@ const triggerParryBeatSyncEffects = (
   if (command.clearParryVisualSlow) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
     clearParryZoom(runtime.camera);
-    clearJustParryEffect(runtime.justParryEffect);
+    clearParrySparkPool(runtime.parrySparkPool);
     return;
   }
 
@@ -851,6 +854,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     parryCenterY,
     now,
   );
+  const isChainParry = runtime.lastParryAt > 0 && now - runtime.lastParryAt < 1000;
   runtime.lastParryAt = now;
   triggerParryBeatSyncEffects(runtime, command, now);
   scheduleParryMotion(
@@ -860,15 +864,18 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     finishOnly ? finishMotionDurationMs : undefined,
   );
 
-  startJustParryEffect(runtime.justParryEffect, {
-    startedAt: now,
-    originX: contact.x + JUST_PARRY_LAYER_OFFSET_X,
-    originY: contact.y,
-    seedBase: command.id,
-    imageKey: finishOnly ? PARRY_FINISH_POSE_KEY : PARRY_GUARD_POSE_KEY,
-    flipX: false,
-  });
-  triggerCameraShake(runtime.camera, 1.5, 70);
+  spawnParrySparks(
+    runtime.parrySparkPool,
+    contact.x,
+    contact.y,
+    now,
+    isChainParry,
+  );
+  triggerCameraShake(
+    runtime.camera,
+    Math.min(width, runtime.height) * PARRY_HIT_CAMERA_SHAKE_INTENSITY,
+    PARRY_HIT_CAMERA_SHAKE_MS,
+  );
 
   const impactDelayMs = resolveReflectHammerWallImpactDelayMs();
   const visuals: CanvasEffectVisual[] = [];
@@ -1166,7 +1173,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
   const visualNow = now;
   pruneOsuCircles(runtime.osuCirclePool);
   pruneOsuCircleShatter(runtime.osuCircleShatterPool, now);
-  pruneJustParryEffect(runtime.justParryEffect, now);
+  pruneParrySparkPool(runtime.parrySparkPool, now);
   runtime.effects = runtime.effects.filter(effect => {
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;

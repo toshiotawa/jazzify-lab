@@ -44,7 +44,20 @@ enum EarTrainingBattleParryConstants {
     static let reflectHammerMs: Double = 240
     static let slashDurationMs: Double = 240
     static let sparkPoolSize = 128
-    static let sparkColor = UIColor(red: 103 / 255, green: 232 / 255, blue: 249 / 255, alpha: 1)
+    static let sparkCount = 32
+    static let sparkChainCount = 44
+    static let sparkDurationMs: Double = 280
+    static let sparkDurationJitterMs: Double = 80
+    static let sparkGravity: CGFloat = 0.0024
+    static let sparkSpeedMin: CGFloat = 0.22
+    static let sparkSpeedMax: CGFloat = 0.72
+    static let sparkAngleUpBias: CGFloat = -.pi / 2
+    static let sparkAngleSpread: CGFloat = .pi * 0.95
+    static let sparkSizeMin: CGFloat = 1.1
+    static let sparkSizeMax: CGFloat = 2.4
+    static let hitCameraShakeIntensity: CGFloat = 0.01
+    static let hitCameraShakeMs: TimeInterval = 60
+    static let sparkColor = UIColor(red: 253 / 255, green: 224 / 255, blue: 71 / 255, alpha: 1)
 
     static func easeCubicOut(_ t: Double) -> Double {
         1 - pow(1 - t, 3)

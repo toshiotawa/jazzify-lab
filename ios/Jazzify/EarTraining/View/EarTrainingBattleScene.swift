@@ -278,11 +278,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             osuCircleShatterPool.update(nowMs: wallNowMs)
         }
         if let parrySparkPool, parrySparkPool.hasActiveSparks {
-            parrySparkPool.update(
-                now: wallNow,
-                slowStartedAt: visualSlowStartedAt,
-                visualSlowDurationMs: visualSlowDurationMs
-            )
+            parrySparkPool.update(now: wallNow)
         }
         applyParryZoomIfNeeded(wallNow: wallNow)
     }
@@ -2444,6 +2440,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let parryCenterX = anchors.player.x
         let parryCenterY = anchors.player.bodyY - Self.battleLayoutPt(28)
         let now = CACurrentMediaTime()
+        let isChainParry = lastParryAt > 0 && (now - lastParryAt) < 1.0
         lastParryAt = now
 
         holdCharacterForAction(.player, state: .cast, durationMs: EarTrainingBattleParryConstants.motionEndMs)
@@ -2461,6 +2458,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         triggerParryBeatSyncEffects(command, now: now)
         scheduleParryMotion(finishOnly: command.parryFinishOnly)
+
+        ensureParrySparkPool()
+        parrySparkPool?.spawn(
+            x: contact.x,
+            y: contact.y,
+            startedAt: now,
+            isChainParry: isChainParry
+        )
+        cameraShake(
+            amplitude: min(size.width, size.height) * EarTrainingBattleParryConstants.hitCameraShakeIntensity,
+            durationMs: EarTrainingBattleParryConstants.hitCameraShakeMs
+        )
 
         launchReflectedOsmdHammer(
             from: contact,
