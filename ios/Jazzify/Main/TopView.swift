@@ -86,11 +86,13 @@ struct TopView: View {
             .sheet(isPresented: $showSubscription) {
                 SubscriptionView()
             }
-            .sheet(isPresented: $showMainQuestResumeSheet) {
+            .sheet(isPresented: $showMainQuestResumeSheet, onDismiss: {
+                MainQuestResumePreferences.markShown()
+            }) {
                 MainQuestResumeSheet(
                     locale: locale,
                     onContinue: {
-                        MainQuestResumePreferences.markShownToday()
+                        MainQuestResumePreferences.markShown()
                         showMainQuestResumeSheet = false
                         autoStartFirstQuestRequirement = true
                         if let lesson = resumeNextLesson {
@@ -98,7 +100,7 @@ struct TopView: View {
                         }
                     },
                     onLater: {
-                        MainQuestResumePreferences.markShownToday()
+                        MainQuestResumePreferences.markShown()
                         showMainQuestResumeSheet = false
                     }
                 )

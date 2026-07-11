@@ -204,6 +204,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var partnerQuoteBubbleRoot: SKNode?
     /// SwiftUI 上端基準。nil のとき五線譜予約帯なし。
     private var staffReservedBandBottomY: CGFloat?
+    private var useTimingCalibrationFloorLayout = false
     private var lastBuildSize: CGSize = .zero
     private var playerPoseToken = 0
     private var osmdHammerFlightsByEffectId: [Int: OsmdHammerFlight] = [:]
@@ -408,6 +409,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         staffReservedBandBottomY = normalized
         layoutPlayerQuoteBubble()
         layoutPartnerQuoteBubble()
+    }
+
+    func setTimingCalibrationFloorLayout(_ enabled: Bool) {
+        guard useTimingCalibrationFloorLayout != enabled else { return }
+        useTimingCalibrationFloorLayout = enabled
+        rebuildScene()
     }
 
     // MARK: - Scene rebuild
@@ -3378,7 +3385,17 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         )
     }
 
+    private static let timingAdjustmentSliderBandHeight: CGFloat = 150
+
     private func floorYForHeight(_ height: CGFloat) -> CGFloat {
+        if useTimingCalibrationFloorLayout {
+            let sliderBandTop = height - Self.timingAdjustmentSliderBandHeight
+            let visibleMidY = (Self.hudHeight + sliderBandTop) * 0.5
+            let preferredFloorY = visibleMidY - Self.characterDisplaySize * 0.35
+            let minFloorY = Self.hudHeight + 8
+            let maxFloorY = sliderBandTop - Self.characterDisplaySize * 0.9
+            return min(max(preferredFloorY, minFloorY), maxFloorY)
+        }
         let baselineFootY =
             Self.approximateEarTrainingKeyboardVisualTopFromBottom + Self.battleFloorAirAboveKeyboardKeys
         let preferredFloorY = max(baselineFootY, height * 0.15)

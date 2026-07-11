@@ -18,7 +18,7 @@ import {
   type QuoteBubbleSide,
   getDemoBubblePosition,
   getEnemyAttackGaugePosition,
-  getFloorY,
+  resolveFloorY,
   getHpBarLayout,
   getPhraseIntroY,
   getPhraseSlotViewport,
@@ -227,7 +227,7 @@ const drawBackground = (
   height: number,
   runtime: EarTrainingBattleDrawRuntime,
 ): void => {
-  drawCachedBackground(ctx, width, height, runtime.backgroundCache, runtime.loadedImages);
+  drawCachedBackground(ctx, width, height, runtime.backgroundCache, runtime.loadedImages, runtime.timingCalibrationLayout);
 };
 
 const drawHpBar = (
@@ -399,7 +399,7 @@ const drawCharacter = (
 ): void => {
   const view = side === 'player' ? runtime.player : runtime.enemy;
   updateCharacterPositions(view, now);
-  const floorY = getFloorY(runtime.height);
+  const floorY = resolveFloorY(runtime.height, runtime.timingCalibrationLayout);
   const x = view.x;
   const poseKey = view.poseKey && now < view.poseUntil ? view.poseKey : null;
   const poseImg = poseKey && side === 'player' ? runtime.loadedImages.get(poseKey) : null;
@@ -1031,7 +1031,7 @@ export const drawEarTrainingBattle = (
 
   drawHud(ctx, snapshot, runtime);
   drawEnemyAttackGauge(ctx, snapshot, runtime);
-  const floorY = getFloorY(height);
+  const floorY = resolveFloorY(height, runtime.timingCalibrationLayout);
   drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now, runtime.staffReservedBottomY, 'left');
   drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now, runtime.staffReservedBottomY, 'right');
   drawDemoBubble(ctx, snapshot, runtime);

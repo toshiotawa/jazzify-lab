@@ -150,6 +150,8 @@ export interface EarTrainingBattleSnapshot {
   hideMidiStatus?: boolean;
   /** 未指定時は予約帯なし（吹き出しは従来位置） */
   staffBand?: EarTrainingStaffBandConfig;
+  /** OSMD タイミング調整: 譜面非表示時にキャラ位置をスライダー帯基準へ */
+  timingCalibrationLayout?: boolean;
 }
 
 export interface EarTrainingBattleCallbacks {

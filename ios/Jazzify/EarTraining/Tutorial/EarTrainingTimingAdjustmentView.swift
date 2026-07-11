@@ -96,9 +96,11 @@ struct EarTrainingTimingAdjustmentView: View {
                 .rotationEffect(.degrees(90))
                 .frame(width: portraitSize.width, height: portraitSize.height)
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+                .allowsHitTesting(!bluetoothNoticeOpen)
 
                 if bluetoothNoticeOpen {
                     bluetoothNoticeOverlay
+                        .zIndex(100)
                 }
 
                 if !bluetoothNoticeOpen, shouldShowBottomCta {
@@ -152,6 +154,7 @@ struct EarTrainingTimingAdjustmentView: View {
     private var bluetoothNoticeOverlay: some View {
         Color.black.opacity(0.7)
             .ignoresSafeArea()
+            .allowsHitTesting(true)
             .overlay {
                 VStack(spacing: 16) {
                     Text(isJa ? "Bluetooth接続について" : "About Bluetooth audio")
@@ -172,6 +175,7 @@ struct EarTrainingTimingAdjustmentView: View {
                     .padding(.vertical, 14)
                     .background(Color.purple)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .contentShape(Rectangle())
                 }
                 .padding(24)
                 .background(Color(white: 0.12))

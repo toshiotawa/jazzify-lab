@@ -709,6 +709,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [clearParryVisualSlow, dismissOsuCircleForState, isEnglishCopy, syncPracticeVoicingHints, triggerFeedback]);
 
   const syncActiveOsuApproachCircleTimings = useCallback(() => {
+    if (timingCalibrationMode) {
+      return;
+    }
     const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec();
     if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
       return;
@@ -741,7 +744,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (updates.length > 0) {
       phaserGameRef.current?.resyncOsuApproachCircles(updates);
     }
-  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm]);
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, timingCalibrationMode]);
 
   const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
     pendingImpactHandlersRef.current.set(effectId, handler);
@@ -1185,6 +1188,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [handleHammerImpact, registerBattleEffectImpact, resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, resolveHammerLeadMeasures, stage.beats_per_measure, triggerBattleEffect]);
 
   const spawnDueApproachCircles = useCallback((phraseTimeSec: number) => {
+    if (timingCalibrationMode) {
+      return;
+    }
     const approachLeadSec = chordOsmdApproachLeadSec(resolveEffectivePracticeBpm());
     const phraseTargets = targetsRef.current;
     while (nextApproachTargetIndexRef.current < phraseTargets.length) {
@@ -1219,7 +1225,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       state.osuCircleEffectId = effectId;
       nextApproachTargetIndexRef.current += 1;
     }
-  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, stage.loop_measures, triggerBattleEffect]);
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, stage.loop_measures, timingCalibrationMode, triggerBattleEffect]);
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
@@ -2119,7 +2125,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     lessonProgressText,
     fixedCharacterPositions: true,
     quizRulesLine: tutorial ? undefined : clearConditionLine,
-    staffBand: EAR_TRAINING_OSMD_STAFF_BAND,
+    ...(timingCalibrationMode ? {
+      timingCalibrationLayout: true,
+    } : {
+      staffBand: EAR_TRAINING_OSMD_STAFF_BAND,
+    }),
   }, tutorialUi ?? {
     hidePlayerHpBar: false,
     hideSettingsButton: false,
@@ -2131,6 +2141,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     playerInvincible: false,
     disableEnemyAttacks: false,
     keyboardHintsDefault: false,
+  }, {
+    timingCalibrationMode,
   }), [
     canChangePracticeMode,
     clearConditionLine,
@@ -2161,6 +2173,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     startButtonLabel,
     targets.length,
     timeLabel,
+    timingCalibrationMode,
   ]);
 
   const practiceRunModeConfig = useMemo(
@@ -2226,7 +2239,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           scrollActive={scoreScrollActive}
           renderKeyValue={phraseRunId}
           isEnglishCopy={isEnglishCopy}
-          hidden={showLobbyControls}
+          hidden={showLobbyControls || timingCalibrationMode}
           scoreZClassName={showLobbyControls ? 'z-0' : 'z-10'}
         />
       ) : null}

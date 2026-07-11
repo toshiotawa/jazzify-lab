@@ -245,6 +245,7 @@ export interface CanvasHudHitRegion {
 export interface BackgroundCacheState {
   width: number;
   height: number;
+  timingCalibrationLayout: boolean;
   canvas: HTMLCanvasElement | null;
 }
 
@@ -304,6 +305,8 @@ export interface EarTrainingBattleDrawRuntime {
   osuCircleShatterPool: OsuShatterSlot[];
   /** chord_osmd バトルのみ OSU! 円を描画 */
   chordOsmdBattle: boolean;
+  /** OSMD タイミング調整: 譜面非表示時の床レイアウト */
+  timingCalibrationLayout: boolean;
   lastParryAt: number;
   /** 小節最終音符フィニッシュ中は連続パリィでモーションをキャンセルしない */
   parryFinishLocked: boolean;

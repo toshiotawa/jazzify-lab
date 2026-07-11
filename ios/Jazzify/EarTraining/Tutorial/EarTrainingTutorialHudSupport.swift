@@ -1,7 +1,7 @@
 import Foundation
 
 extension EarTrainingTutorialUiOverrides {
-    func apply(to hud: EarTrainingHudModel) -> EarTrainingHudModel {
+    func apply(to hud: EarTrainingHudModel, timingCalibrationMode: Bool = false) -> EarTrainingHudModel {
         EarTrainingHudModel(
             playerHp: hud.playerHp,
             playerMaxHp: hud.playerMaxHp,
@@ -12,7 +12,7 @@ extension EarTrainingTutorialUiOverrides {
             timeLabel: hud.timeLabel,
             hideTimeLabel: hideLobby || hud.hideTimeLabel,
             hidePlayerHpBar: hidePlayerHpBar,
-            hideSettingsButton: hideSettingsButton,
+            hideSettingsButton: timingCalibrationMode ? hideSettingsButton : false,
             hideBackButton: hideBackButton,
             enemyAttackGaugePercent: noCombat ? 0 : hud.enemyAttackGaugePercent,
             hideEnemyAttackGauge: noCombat || hideLobby || hud.hideEnemyAttackGauge,

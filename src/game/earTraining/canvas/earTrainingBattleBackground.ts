@@ -1,7 +1,7 @@
 import {
   CHARACTER_DISPLAY_SIZE,
   EFFECT_ASSET_PATH,
-  getFloorY,
+  resolveFloorY,
   HUD_HEIGHT,
   PIANO_OVERLAY_HEIGHT,
 } from './earTrainingBattleLayout';
@@ -271,8 +271,9 @@ const renderBackgroundToCanvas = (
   width: number,
   height: number,
   loadedImages: Map<string, HTMLImageElement>,
+  timingCalibrationLayout = false,
 ): void => {
-  const floorY = getFloorY(height);
+  const floorY = resolveFloorY(height, timingCalibrationLayout);
   drawJazzBarBackdrop(ctx, width, height, floorY);
   drawStageLighting(ctx, width, height, floorY);
   drawStageProp(ctx, loadedImages.get('bgDoubleBass'), width * 0.075, floorY, width * 0.12, 0.5, 1, 0.82);
@@ -315,18 +316,25 @@ export const drawCachedBackground = (
   height: number,
   cache: BackgroundCacheState,
   loadedImages: Map<string, HTMLImageElement>,
+  timingCalibrationLayout = false,
 ): void => {
-  if (!cache.canvas || cache.width !== width || cache.height !== height) {
+  if (
+    !cache.canvas
+    || cache.width !== width
+    || cache.height !== height
+    || cache.timingCalibrationLayout !== timingCalibrationLayout
+  ) {
     const offscreen = document.createElement('canvas');
     offscreen.width = width;
     offscreen.height = height;
     const offCtx = offscreen.getContext('2d');
     if (offCtx) {
-      renderBackgroundToCanvas(offCtx, width, height, loadedImages);
+      renderBackgroundToCanvas(offCtx, width, height, loadedImages, timingCalibrationLayout);
     }
     cache.canvas = offscreen;
     cache.width = width;
     cache.height = height;
+    cache.timingCalibrationLayout = timingCalibrationLayout;
   }
   if (cache.canvas) {
     ctx.drawImage(cache.canvas, 0, 0, width, height);
@@ -337,4 +345,5 @@ export const invalidateBackgroundCache = (cache: BackgroundCacheState): void => 
   cache.canvas = null;
   cache.width = 0;
   cache.height = 0;
+  cache.timingCalibrationLayout = false;
 };

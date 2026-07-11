@@ -2,13 +2,18 @@ import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import type { EarTrainingTutorialUiOverrides } from './earTrainingTutorialScriptTypes';
 import { isEarTrainingTutorialNoCombat } from './earTrainingTutorialBindings';
 
+export interface ApplyTutorialBattleSnapshotOptions {
+  timingCalibrationMode?: boolean;
+}
+
 export const applyTutorialBattleSnapshot = (
   snapshot: EarTrainingBattleSnapshot,
   ui: EarTrainingTutorialUiOverrides,
+  options?: ApplyTutorialBattleSnapshotOptions,
 ): EarTrainingBattleSnapshot => ({
   ...snapshot,
   hidePlayerHpBar: ui.hidePlayerHpBar,
-  hideSettingsButton: ui.hideSettingsButton,
+  hideSettingsButton: options?.timingCalibrationMode ? ui.hideSettingsButton : false,
   hideBackButton: ui.hideBackButton,
   hideLobbyControls: ui.hideLobby,
   hideMidiStatus: ui.hideMidiToggle,

@@ -294,14 +294,18 @@ private struct EarTrainingChordOSMDContent: View {
     }
 
     private func landscapeContent(size: CGSize) -> some View {
-        let staffBottomY = EarTrainingBattleStaffBandLayout.osmdStaffBottomY(sceneSize: size)
+        let hideScoreForTiming = timingCalibrationMode
+        let staffBottomY = hideScoreForTiming
+            ? nil
+            : EarTrainingBattleStaffBandLayout.osmdStaffBottomY(sceneSize: size)
         return ZStack {
             feedbackBackground
 
             EarTrainingChordOSMDSceneContainer(
                 driver: controller,
                 sceneSize: size,
-                staffReservedBandBottomY: staffBottomY
+                staffReservedBandBottomY: staffBottomY,
+                timingCalibrationFloorLayout: hideScoreForTiming
             )
                 .ignoresSafeArea()
 
@@ -320,7 +324,9 @@ private struct EarTrainingChordOSMDContent: View {
                 Spacer()
             }
 
-            scoreOverlay(size: size)
+            if !hideScoreForTiming {
+                scoreOverlay(size: size)
+            }
 
             VStack(spacing: 0) {
                 Spacer()
@@ -542,6 +548,7 @@ private struct EarTrainingChordOSMDSceneContainer<Driver: EarTrainingBattleScene
     let driver: Driver
     let sceneSize: CGSize
     let staffReservedBandBottomY: CGFloat?
+    let timingCalibrationFloorLayout: Bool
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -564,6 +571,7 @@ private struct EarTrainingChordOSMDSceneContainer<Driver: EarTrainingBattleScene
         }
         view.presentScene(scene)
         driver.attachScene(scene)
+        scene.setTimingCalibrationFloorLayout(timingCalibrationFloorLayout)
         context.coordinator.attach(view: view, scene: scene, driver: driver)
         return view
     }
@@ -571,7 +579,8 @@ private struct EarTrainingChordOSMDSceneContainer<Driver: EarTrainingBattleScene
     func updateUIView(_ uiView: SKView, context: Context) {
         context.coordinator.update(
             sceneSize: normalizedSceneSize(sceneSize),
-            staffReservedBandBottomY: staffReservedBandBottomY
+            staffReservedBandBottomY: staffReservedBandBottomY,
+            timingCalibrationFloorLayout: timingCalibrationFloorLayout
         )
     }
 
@@ -604,13 +613,18 @@ private struct EarTrainingChordOSMDSceneContainer<Driver: EarTrainingBattleScene
         }
 
         @MainActor
-        func update(sceneSize: CGSize, staffReservedBandBottomY: CGFloat?) {
+        func update(
+            sceneSize: CGSize,
+            staffReservedBandBottomY: CGFloat?,
+            timingCalibrationFloorLayout: Bool
+        ) {
             view?.bounds = CGRect(origin: .zero, size: sceneSize)
             guard let scene else { return }
             if scene.size != sceneSize {
                 scene.size = sceneSize
             }
             scene.setStaffReservedBandBottomY(staffReservedBandBottomY)
+            scene.setTimingCalibrationFloorLayout(timingCalibrationFloorLayout)
         }
 
         func detach() {

@@ -1037,6 +1037,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func spawnDueApproachCircles(at time: Double) {
+        guard !timingCalibrationMode else { return }
         let leadSec = approachLeadSec()
         let wallNowMs = CACurrentMediaTime() * 1000
         while nextApproachTargetIndex < targets.count {
@@ -1076,6 +1077,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func syncActiveOsuApproachCircleTimings() {
+        guard !timingCalibrationMode else { return }
         guard let phraseTime = osmdPhraseTimelineSecNow() else { return }
         let leadSec = approachLeadSec()
         let wallNowMs = CACurrentMediaTime() * 1000
@@ -1614,7 +1616,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             )
         )
         if let ui = tutorialHooks?.ui {
-            return ui.apply(to: base)
+            return ui.apply(to: base, timingCalibrationMode: timingCalibrationMode)
         }
         return base
     }

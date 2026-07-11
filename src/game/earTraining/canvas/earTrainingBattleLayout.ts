@@ -73,6 +73,20 @@ export const getPianoHeight = (): number => PIANO_OVERLAY_HEIGHT;
 export const getFloorY = (height: number): number =>
   Math.max(260, height - getPianoHeight() - FLOOR_CLEARANCE_FROM_PIANO);
 
+export const TIMING_ADJUSTMENT_SLIDER_BAND_HEIGHT = 150;
+
+export const resolveFloorY = (height: number, timingCalibrationLayout = false): number => {
+  if (!timingCalibrationLayout) {
+    return getFloorY(height);
+  }
+  const sliderBandTop = height - TIMING_ADJUSTMENT_SLIDER_BAND_HEIGHT;
+  const visibleMidY = (HUD_HEIGHT + sliderBandTop) * 0.5;
+  const preferredFloorY = visibleMidY - CHARACTER_DISPLAY_SIZE * 0.35;
+  const minFloorY = HUD_HEIGHT + 8;
+  const maxFloorY = sliderBandTop - CHARACTER_DISPLAY_SIZE * 0.9;
+  return Math.min(Math.max(preferredFloorY, minFloorY), maxFloorY);
+};
+
 export const colorForHp = (percent: number, high: number, middle: number, low: number): string => {
   if (percent > 0.5) return `#${high.toString(16).padStart(6, '0')}`;
   if (percent > 0.25) return `#${middle.toString(16).padStart(6, '0')}`;
@@ -93,8 +107,9 @@ export const getBattleAnchors = (
   height: number,
   playerX: number,
   enemyX: number,
+  timingCalibrationLayout = false,
 ): BattleAnchors => {
-  const floorY = getFloorY(height);
+  const floorY = resolveFloorY(height, timingCalibrationLayout);
   const createAnchors = (x: number): CharacterAnchors => ({
     x,
     footY: floorY,

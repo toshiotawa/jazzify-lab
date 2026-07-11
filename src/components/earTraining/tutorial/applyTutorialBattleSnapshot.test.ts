@@ -73,6 +73,13 @@ describe('applyTutorialBattleSnapshot', () => {
     expect(result.hideSettingsButton).toBe(false);
   });
 
+  it('hides the settings button only in timing calibration mode', () => {
+    const result = applyTutorialBattleSnapshot(baseSnapshot, tutorialUi, {
+      timingCalibrationMode: true,
+    });
+    expect(result.hideSettingsButton).toBe(true);
+  });
+
   it('still applies other tutorial ui overrides', () => {
     const result = applyTutorialBattleSnapshot(baseSnapshot, tutorialUi);
     expect(result.hidePlayerHpBar).toBe(true);

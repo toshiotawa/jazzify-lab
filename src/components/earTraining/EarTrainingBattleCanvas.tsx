@@ -94,7 +94,7 @@ const createInitialRuntime = (
   screenFlash: null,
   startButtonPulsePhase: 0,
   loadedImages: new Map(),
-  backgroundCache: { width: 0, height: 0, canvas: null },
+  backgroundCache: { width: 0, height: 0, timingCalibrationLayout: false, canvas: null },
   camera: createCameraRuntime(),
   structuralKey: '',
   hudLayoutKey: '',
@@ -111,6 +111,7 @@ const createInitialRuntime = (
   osuCirclePool: createOsuCirclePool(),
   osuCircleShatterPool: createOsuCircleShatterPool(),
   chordOsmdBattle: false,
+  timingCalibrationLayout: Boolean(snapshot.timingCalibrationLayout),
   lastParryAt: 0,
   parryFinishLocked: false,
   parryBeatSync: createParryBeatSyncFromSlowPhaseMs(PARRY_SLOW_PHASE_MS),
@@ -172,10 +173,11 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     runtimeRef.current.width = width;
     runtimeRef.current.height = height;
     runtimeRef.current.chordOsmdBattle = battleMode === 'chord_osmd';
+    runtimeRef.current.timingCalibrationLayout = snapshotRef.current.timingCalibrationLayout === true;
     runtimeRef.current.staffReservedBottomY = resolveStaffReservedBottomY(
       height,
       width,
-      snapshotRef.current.staffBand,
+      snapshotRef.current.timingCalibrationLayout ? undefined : snapshotRef.current.staffBand,
     );
     return runtimeRef.current;
   }, [battleMode]);
@@ -208,6 +210,12 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     const width = Math.max(320, container.clientWidth);
     const height = Math.max(480, container.clientHeight);
     const runtime = ensureRuntime(width, height);
+    runtime.timingCalibrationLayout = nextSnapshot.timingCalibrationLayout === true;
+    runtime.staffReservedBottomY = resolveStaffReservedBottomY(
+      height,
+      width,
+      nextSnapshot.timingCalibrationLayout ? undefined : nextSnapshot.staffBand,
+    );
     runtime.enemyAttackGaugePercent = nextSnapshot.enemyAttackGaugePercent;
     syncCharactersFromSnapshot(runtime, nextSnapshot, width);
 
@@ -263,7 +271,13 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       const width = Math.max(320, container.clientWidth);
       const height = Math.max(480, container.clientHeight);
       const runtime = runtimeRef.current;
-      const anchors = getBattleAnchors(width, height, runtime.player.x, runtime.enemy.x);
+      const anchors = getBattleAnchors(
+        width,
+        height,
+        runtime.player.x,
+        runtime.enemy.x,
+        runtime.timingCalibrationLayout,
+      );
       scheduleEarTrainingBattleEffect({
         runtime,
         snapshot: snapshotRef.current,
@@ -433,7 +447,13 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     const width = Math.max(320, container.clientWidth);
     const height = Math.max(480, container.clientHeight);
     const runtime = runtimeRef.current;
-    const anchors = getBattleAnchors(width, height, runtime.player.x, runtime.enemy.x);
+    const anchors = getBattleAnchors(
+      width,
+      height,
+      runtime.player.x,
+      runtime.enemy.x,
+      runtime.timingCalibrationLayout,
+    );
     scheduleEarTrainingBattleEffect({
       runtime,
       snapshot: snapshotRef.current,

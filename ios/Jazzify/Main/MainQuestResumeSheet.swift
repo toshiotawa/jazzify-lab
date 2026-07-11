@@ -31,25 +31,22 @@ struct MainQuestResumeSheet: View {
 }
 
 enum MainQuestResumePreferences {
-    private static let lastShownDayKey = "mainQuestResumeSheetLastShownDay"
+    private static let lastShownAtKey = "mainQuestResumeSheetLastShownAt"
     private static let resumeThresholdSeconds: TimeInterval = 3 * 60 * 60
 
-    private static func dayKey(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar.current
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: Calendar.current.startOfDay(for: date))
-    }
-
     static func shouldShowResumeSheet(lastPlayedAt: Date) -> Bool {
-        let isFirstLaunchToday = UserDefaults.standard.string(forKey: lastShownDayKey) != dayKey(for: Date())
-        let hoursSincePlay = Date().timeIntervalSince(lastPlayedAt) >= resumeThresholdSeconds
-        return isFirstLaunchToday || hoursSincePlay
+        let now = Date()
+        guard now.timeIntervalSince(lastPlayedAt) >= resumeThresholdSeconds else {
+            return false
+        }
+        let lastShownAt = UserDefaults.standard.object(forKey: lastShownAtKey) as? TimeInterval
+        guard let lastShownAt else {
+            return true
+        }
+        return now.timeIntervalSince(Date(timeIntervalSince1970: lastShownAt)) >= resumeThresholdSeconds
     }
 
-    static func markShownToday() {
-        UserDefaults.standard.set(dayKey(for: Date()), forKey: lastShownDayKey)
+    static func markShown() {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastShownAtKey)
     }
 }
