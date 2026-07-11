@@ -41,6 +41,7 @@ const FILES = [
   { name: '1-1_count-in.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: 'dev-mq-b1-q1-osmd-guide-voice4.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: 'dev-mq-b1-q1-osmd-guide-voice4-cue.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
+  { name: 'dev-mq-b1-q1-osmd-six-note-parry.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: '2-3.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: '2-3_count-in.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
 ];

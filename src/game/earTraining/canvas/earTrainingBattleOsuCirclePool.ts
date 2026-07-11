@@ -10,9 +10,12 @@ import {
 
 export const OSU_CIRCLE_POOL_SIZE = 16;
 const OSU_NOTE_LABEL_FONT = '700 21px "Avenir Next", "Segoe UI", sans-serif';
-const OSU_NOTE_LABEL_LINE_HEIGHT = 22;
+/** 横並びラベル間の余白（px） */
+const OSU_NOTE_LABEL_GAP = 6;
 const OSU_NOTE_LABEL_COLOR = '#fff7ed';
 const OSU_NOTE_LABEL_SHADOW = 'rgba(0, 0, 0, 0.55)';
+/** drawNoteLabels 用の幅キャッシュ（毎フレームの配列確保を避ける） */
+const scratchLabelWidths: number[] = [];
 
 export interface OsuCircleSlot {
   active: boolean;
@@ -193,18 +196,29 @@ const drawNoteLabels = (
   alpha: number,
 ): void => {
   if (labels.length === 0) return;
-  const totalHeight = (labels.length - 1) * OSU_NOTE_LABEL_LINE_HEIGHT;
-  let y = centerY - totalHeight / 2;
   ctx.font = OSU_NOTE_LABEL_FONT;
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
+  scratchLabelWidths.length = labels.length;
+  let totalWidth = 0;
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    const width = label === undefined ? 0 : ctx.measureText(label).width;
+    scratchLabelWidths[i] = width;
+    totalWidth += width;
+    if (i > 0) totalWidth += OSU_NOTE_LABEL_GAP;
+  }
+  let x = centerX - totalWidth / 2;
   ctx.globalAlpha = alpha;
   ctx.shadowColor = OSU_NOTE_LABEL_SHADOW;
   ctx.shadowBlur = 3;
   ctx.fillStyle = OSU_NOTE_LABEL_COLOR;
-  for (const label of labels) {
-    ctx.fillText(label, centerX, y);
-    y += OSU_NOTE_LABEL_LINE_HEIGHT;
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    const width = scratchLabelWidths[i] ?? 0;
+    if (label === undefined) continue;
+    ctx.fillText(label, x, centerY);
+    x += width + OSU_NOTE_LABEL_GAP;
   }
   ctx.shadowBlur = 0;
 };
