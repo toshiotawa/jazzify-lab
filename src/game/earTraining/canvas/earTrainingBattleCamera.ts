@@ -49,32 +49,6 @@ export const triggerCameraShake = (
   };
 };
 
-export interface TriggerParryPhraseZoomParams extends ParryPhraseZoomParams {
-  hitPerfMs: number;
-  focusX: number;
-  focusY: number;
-  centerX: number;
-  centerY: number;
-}
-
-export const triggerParryPhraseZoom = (
-  camera: CanvasCameraRuntime,
-  params: TriggerParryPhraseZoomParams,
-): void => {
-  camera.parryZoom = {
-    anchorPhraseSec: params.anchorPhraseSec,
-    peakPhraseSec: params.peakPhraseSec,
-    endPhraseSec: params.endPhraseSec,
-    hitPerfMs: params.hitPerfMs,
-    focusX: params.focusX,
-    focusY: params.focusY,
-    centerX: params.centerX,
-    centerY: params.centerY,
-    zoomTarget: params.zoomTarget ?? PARRY_ZOOM_TARGET,
-    startScale: params.startScale ?? 1,
-  };
-};
-
 export const clearParryZoom = (camera: CanvasCameraRuntime): void => {
   camera.parryZoom = null;
 };

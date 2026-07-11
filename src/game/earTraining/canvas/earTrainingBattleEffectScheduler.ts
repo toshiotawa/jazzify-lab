@@ -11,7 +11,6 @@ import type {
 import {
   clearParryZoom,
   triggerCameraShake,
-  triggerParryPhraseZoom,
 } from './earTrainingBattleCamera';
 import {
   clearJustParryEffect,
@@ -21,9 +20,6 @@ import {
 } from './earTrainingBattleJustParryEffect';
 import {
   resolveParryBeatSyncScheduleOrFallback,
-  resolveParryZoomEndPhraseSec,
-  resolveParryZoomScaleAtPhraseSec,
-  resolvePhraseSecFromPerfAnchor,
 } from './earTrainingBattleBeatSyncTiming';
 import {
   createParryBeatSyncFromSlowPhaseMs,
@@ -35,7 +31,6 @@ import {
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HAMMER_WALL_MS,
   PARRY_TOTAL_MS,
-  PARRY_ZOOM_TARGET,
 } from './earTrainingBattleDrawState';
 import {
   flashCharacter,
@@ -345,10 +340,6 @@ const triggerParryBeatSyncEffects = (
   runtime: EarTrainingBattleDrawRuntime,
   command: EarTrainingBattleEffectCommand,
   now: number,
-  focusX: number,
-  focusY: number,
-  width: number,
-  height: number,
 ): void => {
   if (command.clearParryVisualSlow) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
@@ -369,51 +360,6 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
-
-  const anchorPhraseSec = command.parryZoomAnchorPhraseSec;
-  const peakPhraseSec = command.parryZoomPeakPhraseSec;
-  const bpm = command.effectiveBpm;
-  const hitPhraseSec = command.hitPhraseTimeSec;
-  if (
-    anchorPhraseSec === undefined
-    || peakPhraseSec === undefined
-    || hitPhraseSec === undefined
-    || bpm === undefined
-    || !Number.isFinite(anchorPhraseSec)
-    || !Number.isFinite(peakPhraseSec)
-    || !Number.isFinite(hitPhraseSec)
-    || !Number.isFinite(bpm)
-    || bpm <= 0
-  ) {
-    return;
-  }
-
-  const endPhraseSec = resolveParryZoomEndPhraseSec(peakPhraseSec, bpm);
-  let startScale = 1;
-  const existingZoom = runtime.camera.parryZoom;
-  if (existingZoom) {
-    const currentPhraseSec = resolvePhraseSecFromPerfAnchor(
-      existingZoom.anchorPhraseSec,
-      existingZoom.hitPerfMs,
-      now,
-    );
-    startScale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, existingZoom);
-  }
-
-  // phrase 時刻と wall clock を対応付ける（アンカー時刻 = hitPerf 時点）
-  const hitPerfMs = now - (hitPhraseSec - anchorPhraseSec) * 1000;
-  triggerParryPhraseZoom(runtime.camera, {
-    anchorPhraseSec,
-    peakPhraseSec,
-    endPhraseSec,
-    hitPerfMs,
-    focusX,
-    focusY,
-    centerX: width * 0.5,
-    centerY: height * 0.5,
-    zoomTarget: PARRY_ZOOM_TARGET,
-    startScale,
-  });
 };
 
 const resolveOneBeatDurationMs = (bpm: number | undefined): number => {
@@ -905,15 +851,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     now,
   );
   runtime.lastParryAt = now;
-  triggerParryBeatSyncEffects(
-    runtime,
-    command,
-    now,
-    anchors.player.x,
-    anchors.player.bodyY,
-    width,
-    runtime.height,
-  );
+  triggerParryBeatSyncEffects(runtime, command, now);
   scheduleParryMotion(
     runtime,
     onDirty,
