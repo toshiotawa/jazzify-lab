@@ -103,6 +103,7 @@ struct EarTrainingPrecisionGameView: View {
         controller createdController: EarTrainingPrecisionBattleController,
         audioInstance: EarTrainingAudio
     ) {
+        createdController.start()
         midiSubscriptionHolder.cancel()
         midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
             let messageType = status & 0xF0
@@ -130,7 +131,6 @@ struct EarTrainingPrecisionGameView: View {
         controller = createdController
         isLoading = false
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
-        createdController.start()
         recordAssignmentStartIfNeeded()
     }
 

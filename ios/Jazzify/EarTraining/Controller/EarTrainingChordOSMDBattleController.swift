@@ -382,6 +382,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     func startBattle() {
+        audio.ensureBattlePianoReady()
         guard !phrases.isEmpty else {
             finishGameOver(message: copy.noPhrases)
             return

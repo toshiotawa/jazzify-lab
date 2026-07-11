@@ -197,7 +197,9 @@ struct EarTrainingGameView: View {
                 onExit: onClose
             )
 
-            // MIDI 入力をブリッジ
+            // MIDI 入力をブリッジ（audio.start 完了後に購読してエンジン未起動 drop を防ぐ）
+            createdController.start()
+
             midiSubscriptionHolder.cancel()
             midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
                 let messageType = status & 0xF0
@@ -224,7 +226,6 @@ struct EarTrainingGameView: View {
                 }
             }
 
-            createdController.start()
             self.audio = audioInstance
             self.controller = createdController
             self.isLoading = false

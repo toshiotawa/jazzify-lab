@@ -282,6 +282,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     }
 
     private func startCountIn() {
+        audio.ensureBattlePianoReady()
         progressSaveStarted = false
         lessonProgressStatus = nil
         enemyHp = stage.enemyHp

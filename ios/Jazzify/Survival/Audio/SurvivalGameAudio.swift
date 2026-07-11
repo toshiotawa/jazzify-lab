@@ -571,6 +571,11 @@ final class SurvivalGameAudio {
         }
     }
 
+    /// フレーズエンジン再構成前に EarTraining 側から呼ぶ。サステイン残り音を防ぐ。
+    func stopAllPianoNotesForExternalGraphRebuild() {
+        stopAllKeyboardNotes()
+    }
+
     private func stopAllRootBassNotes() {
         guard rootBassGMReady else { return }
         for midi in 0...127 {

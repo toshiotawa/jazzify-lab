@@ -149,6 +149,9 @@ struct EarTrainingChordOSMDGameView: View {
         audioInstance: EarTrainingAudio
     ) {
         midiSubscriptionHolder.cancel()
+        if createdController.gameState == .idle {
+            createdController.start()
+        }
         midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
@@ -176,9 +179,6 @@ struct EarTrainingChordOSMDGameView: View {
         self.audio = audioInstance
         self.controller = createdController
         self.isLoading = false
-        if createdController.gameState == .idle {
-            createdController.start()
-        }
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }

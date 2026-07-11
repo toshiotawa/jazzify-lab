@@ -65,14 +65,17 @@ struct EarTrainingSettingsSheet: View {
     @State private var speedDraft: Double = 100
     @State private var timingAdjustmentDraft: Double = Double(EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault)
     @State private var autoPlayDraft = false
-    @State private var masterVolume: Double = Self.loadDouble(key: Self.masterKey, fallback: 1.0)
-    @State private var musicVolume: Double = Self.loadDouble(key: Self.musicKey, fallback: 0.7)
+    @State private var masterVolume: Double = EarTrainingBattleVolumePreferences.loadDouble(
+        key: EarTrainingBattleVolumePreferences.masterKey,
+        fallback: EarTrainingBattleVolumePreferences.defaultMaster
+    )
+    @State private var musicVolume: Double = EarTrainingBattleVolumePreferences.loadDouble(
+        key: EarTrainingBattleVolumePreferences.musicKey,
+        fallback: EarTrainingBattleVolumePreferences.defaultMusic
+    )
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
     @State private var sfxVolume: Double = Double(SurvivalGameAudio.shared.sfxVolume)
     @StateObject private var midiManager = MIDIManager.shared
-
-    static let masterKey = "earTraining.master"
-    static let musicKey = "earTraining.music"
 
     var body: some View {
         ScrollView {
@@ -692,8 +695,8 @@ struct EarTrainingSettingsSheet: View {
     }
 
     private func persistAll() {
-        UserDefaults.standard.set(masterVolume, forKey: Self.masterKey)
-        UserDefaults.standard.set(musicVolume, forKey: Self.musicKey)
+        UserDefaults.standard.set(masterVolume, forKey: EarTrainingBattleVolumePreferences.masterKey)
+        UserDefaults.standard.set(musicVolume, forKey: EarTrainingBattleVolumePreferences.musicKey)
     }
 
     private func bind(_ source: Binding<Double>, apply: @escaping () -> Void) -> Binding<Double> {
@@ -706,8 +709,4 @@ struct EarTrainingSettingsSheet: View {
         )
     }
 
-    private static func loadDouble(key: String, fallback: Double) -> Double {
-        let stored = UserDefaults.standard.object(forKey: key) as? Double
-        return stored ?? fallback
-    }
 }

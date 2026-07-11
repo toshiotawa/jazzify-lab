@@ -181,6 +181,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     func startBattle() {
+        audio.ensureBattlePianoReady()
         phraseEnding = false
         progressSaveStarted = false
         lessonProgressStatus = nil

@@ -135,7 +135,7 @@ final class EarTrainingAudio: NSObject {
     private var phrasePlaybackAnchorHostTime: UInt64 = 0
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
-    private var phraseVolume: Float = 1.0
+    private var phraseVolume: Float = EarTrainingBattleVolumePreferences.defaultPhraseVolume
 
     override init() {
         super.init()
@@ -163,10 +163,16 @@ final class EarTrainingAudio: NSObject {
 
     /// 開始時に呼ぶ。Survival と同じ AVAudioSession 設定 + ピアノ準備を行うが、BGM は鳴らさない。
     func start() {
+        applyPersistedVolumes()
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         installGraphIfNeeded()
         startPhraseEngineIfNeeded()
         prepareFireMagicSeIfNeeded()
+    }
+
+    /// カウントイン / バトル開始直前に共有ピアノを再準備する（Web `ensureBattlePianoAudio` 相当）。
+    func ensureBattlePianoReady() {
+        SurvivalGameAudio.shared.start(playBackgroundMusic: false)
     }
 
     /// 終了時に呼ぶ。フレーズを完全停止し、ピアノ発音停止 + Survival のオーディオセッションを閉じる。
@@ -208,6 +214,21 @@ final class EarTrainingAudio: NSObject {
 
     private func clampedFloat(_ value: Double) -> Float {
         Float(max(0, min(1, value)))
+    }
+
+    private func applyPersistedVolumes() {
+        let volumes = EarTrainingBattleVolumePreferences.loadPersisted()
+        setVolumes(
+            master: volumes.master,
+            music: volumes.music,
+            piano: volumes.piano,
+            sfx: volumes.sfx
+        )
+    }
+
+    /// フレーズエンジン `stop()` 前に共有ピアノのサステインを止める。
+    private func stopSharedPianoBeforePhraseEngineRebuild() {
+        SurvivalGameAudio.shared.stopAllPianoNotesForExternalGraphRebuild()
     }
 
     // MARK: - Self-paced drum loop
@@ -602,6 +623,7 @@ final class EarTrainingAudio: NSObject {
 
         let wasRunning = engine.isRunning
         if wasRunning {
+            stopSharedPianoBeforePhraseEngineRebuild()
             engine.stop()
         }
 
@@ -647,6 +669,7 @@ final class EarTrainingAudio: NSObject {
 
         let wasRunning = engine.isRunning
         if wasRunning {
+            stopSharedPianoBeforePhraseEngineRebuild()
             engine.stop()
         }
 
@@ -697,6 +720,7 @@ final class EarTrainingAudio: NSObject {
 
         let wasRunning = engine.isRunning
         if wasRunning {
+            stopSharedPianoBeforePhraseEngineRebuild()
             engine.stop()
         }
 

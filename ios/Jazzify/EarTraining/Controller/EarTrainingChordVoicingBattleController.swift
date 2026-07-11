@@ -864,6 +864,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func startCountIn() {
+        audio.ensureBattlePianoReady()
         if phrases.isEmpty, !isChordVoicingCompositePhrase {
             finishGameOver(message: copy.noPhrases)
             return

@@ -281,6 +281,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
     }
 
     private func startCountIn() {
+        audio.ensureBattlePianoReady()
         guard let phrase = phrases.first else {
             finishGameOver(message: copy.noPhrases)
             return

@@ -496,6 +496,7 @@ final class EarTrainingBattleController: ObservableObject {
     // MARK: - Lifecycle / state transitions
 
     private func startCountIn() {
+        audio.ensureBattlePianoReady()
         guard !phrases.isEmpty else {
             finishGameOver(message: copy.noPhrases)
             return

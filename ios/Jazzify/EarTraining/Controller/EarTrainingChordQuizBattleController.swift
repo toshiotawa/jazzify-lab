@@ -343,6 +343,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     }
 
     func startBattle() {
+        audio.ensureBattlePianoReady()
         guard !quizQuestions.isEmpty else {
             statusText = isEnglishCopy ? "No quiz items in stage." : "出題がありません。"
             publishSnapshot()
