@@ -8,11 +8,20 @@ const BEAT_EPS = 1e-6;
 
 export const JUST_PARRY_MIN_DURATION_MS = 120;
 export const JUST_PARRY_INK_BURST_MS = 220;
-export const JUST_PARRY_INK_DROPLET_COUNT = 16;
+export const JUST_PARRY_INK_DROPLET_COUNT = 22;
+export const JUST_PARRY_INK_SPLAT_SPIKE_COUNT = 12;
+export const JUST_PARRY_INK_TENDRIL_COUNT = 8;
 export const JUST_PARRY_BODY_GLOW_BLUE = '#38bdf8';
 export const JUST_PARRY_BODY_GLOW_PURPLE = '#c084fc';
 export const JUST_PARRY_INK_BLUE = '#2563eb';
 export const JUST_PARRY_INK_PURPLE = '#9333ea';
+export const JUST_PARRY_INK_CORE_CYAN = '#67e8f9';
+
+export interface JustParryInkSatellite {
+  offsetAlong: number;
+  offsetPerp: number;
+  sizePx: number;
+}
 
 export interface JustParryInkDroplet {
   dirX: number;
@@ -21,6 +30,25 @@ export interface JustParryInkDroplet {
   sizePx: number;
   delayMs: number;
   stretch: number;
+  rotationOffset: number;
+  colorIsBlue: boolean;
+  satellites: readonly JustParryInkSatellite[];
+}
+
+export interface JustParryInkSplatSpike {
+  angleRad: number;
+  lengthFactor: number;
+  widthFactor: number;
+  colorIsBlue: boolean;
+}
+
+export interface JustParryInkTendril {
+  angleRad: number;
+  lengthPx: number;
+  widthPx: number;
+  delayMs: number;
+  colorIsBlue: boolean;
+  curveBias: number;
 }
 
 export interface JustParryEffectState {
@@ -34,7 +62,11 @@ export interface JustParryEffectState {
   contactY: number;
   imageKey: string;
   flipX: boolean;
+  axisX: number;
+  axisY: number;
   droplets: readonly JustParryInkDroplet[];
+  splatSpikes: readonly JustParryInkSplatSpike[];
+  tendrils: readonly JustParryInkTendril[];
 }
 
 export const createJustParryEffectState = (): JustParryEffectState => ({
@@ -48,7 +80,11 @@ export const createJustParryEffectState = (): JustParryEffectState => ({
   contactY: 0,
   imageKey: '',
   flipX: false,
+  axisX: 1,
+  axisY: 0,
   droplets: [],
+  splatSpikes: [],
+  tendrils: [],
 });
 
 export const resolveJustParryEffectDurationMs = (
@@ -80,40 +116,120 @@ const seededUnit = (seed: number): number => {
   return value - Math.floor(value);
 };
 
-const buildJustParryDroplets = (
+interface JustParryInkAxes {
+  axisX: number;
+  axisY: number;
+  perpX: number;
+  perpY: number;
+  baseAngleRad: number;
+}
+
+const resolveJustParryInkAxes = (
   playerBodyX: number,
   playerBodyY: number,
   contactX: number,
   contactY: number,
-  seedBase: number,
-): readonly JustParryInkDroplet[] => {
+): JustParryInkAxes => {
   const dx = contactX - playerBodyX;
   const dy = contactY - playerBodyY;
   const length = Math.hypot(dx, dy);
   const axisX = length > 1e-3 ? dx / length : 1;
   const axisY = length > 1e-3 ? dy / length : 0;
-  const perpX = -axisY;
-  const perpY = axisX;
+  return {
+    axisX,
+    axisY,
+    perpX: -axisY,
+    perpY: axisX,
+    baseAngleRad: Math.atan2(axisY, axisX),
+  };
+};
+
+const buildJustParrySatellites = (
+  seed: number,
+  sizePx: number,
+): readonly JustParryInkSatellite[] => {
+  const count = 2 + Math.floor(seededUnit(seed + 11.3) * 2);
+  const satellites: JustParryInkSatellite[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const satelliteSeed = seed + 13.7 + index * 5.9;
+    satellites.push({
+      offsetAlong: -sizePx * (0.15 + seededUnit(satelliteSeed) * 0.55),
+      offsetPerp: (seededUnit(satelliteSeed + 1.1) - 0.5) * sizePx * 0.9,
+      sizePx: 2 + seededUnit(satelliteSeed + 2.4) * sizePx * 0.35,
+    });
+  }
+  return satellites;
+};
+
+const buildJustParryDroplets = (
+  axes: JustParryInkAxes,
+  seedBase: number,
+): readonly JustParryInkDroplet[] => {
+  const { axisX, axisY, perpX, perpY, baseAngleRad } = axes;
   const droplets: JustParryInkDroplet[] = [];
 
   for (let index = 0; index < JUST_PARRY_INK_DROPLET_COUNT; index += 1) {
     const seed = seedBase + index * 17.13;
-    const along = seededUnit(seed);
-    const lateral = (seededUnit(seed + 1.7) - 0.5) * 2;
-    const dirX = axisX * 0.72 + perpX * lateral * 0.68;
-    const dirY = axisY * 0.72 + perpY * lateral * 0.68;
+    const fanT = seededUnit(seed);
+    const fanAngle = (fanT - 0.5) * 1.35 - 0.42;
+    const cos = Math.cos(fanAngle);
+    const sin = Math.sin(fanAngle);
+    const dirX = axisX * cos - perpX * sin;
+    const dirY = axisY * cos - perpY * sin + (0.18 + seededUnit(seed + 0.9) * 0.22);
     const dirLength = Math.hypot(dirX, dirY);
+    const sizePx = 4 + seededUnit(seed + 4.9) * 18;
     droplets.push({
       dirX: dirX / dirLength,
       dirY: dirY / dirLength,
-      distancePx: 24 + seededUnit(seed + 3.1) * 72,
-      sizePx: 5 + seededUnit(seed + 4.9) * 16,
-      delayMs: Math.round(seededUnit(seed + 6.2) * 36),
-      stretch: 0.8 + seededUnit(seed + 8.4) * 1.6,
+      distancePx: 28 + seededUnit(seed + 3.1) * 88,
+      sizePx,
+      delayMs: Math.round(seededUnit(seed + 6.2) * 42),
+      stretch: 1.1 + seededUnit(seed + 8.4) * 2.4,
+      rotationOffset: (seededUnit(seed + 9.6) - 0.5) * 0.5,
+      colorIsBlue: index % 2 === 0,
+      satellites: buildJustParrySatellites(seed, sizePx),
     });
   }
 
   return droplets;
+};
+
+const buildJustParrySplatSpikes = (
+  baseAngleRad: number,
+  seedBase: number,
+): readonly JustParryInkSplatSpike[] => {
+  const spikes: JustParryInkSplatSpike[] = [];
+  for (let index = 0; index < JUST_PARRY_INK_SPLAT_SPIKE_COUNT; index += 1) {
+    const seed = seedBase + index * 9.41 + 200;
+    const angleOffset = (seededUnit(seed) - 0.5) * 2.2;
+    spikes.push({
+      angleRad: baseAngleRad + angleOffset,
+      lengthFactor: 0.45 + seededUnit(seed + 1.3) * 0.85,
+      widthFactor: 0.55 + seededUnit(seed + 2.7) * 0.75,
+      colorIsBlue: index % 3 !== 1,
+    });
+  }
+  return spikes;
+};
+
+const buildJustParryTendrils = (
+  baseAngleRad: number,
+  seedBase: number,
+): readonly JustParryInkTendril[] => {
+  const tendrils: JustParryInkTendril[] = [];
+  for (let index = 0; index < JUST_PARRY_INK_TENDRIL_COUNT; index += 1) {
+    const seed = seedBase + index * 11.07 + 400;
+    const angleOffset = (seededUnit(seed) - 0.5) * 2.6;
+    tendrils.push({
+      angleRad: baseAngleRad + angleOffset,
+      lengthPx: 34 + seededUnit(seed + 1.5) * 72,
+      widthPx: 1.2 + seededUnit(seed + 2.8) * 2.8,
+      delayMs: Math.round(seededUnit(seed + 4.1) * 28),
+      colorIsBlue: index % 2 === 0,
+      curveBias: (seededUnit(seed + 5.6) - 0.5) * 0.55,
+    });
+  }
+  return tendrils;
 };
 
 export interface StartJustParryEffectParams {
@@ -133,6 +249,12 @@ export const startJustParryEffect = (
   params: StartJustParryEffectParams,
 ): void => {
   const durationMs = Math.max(JUST_PARRY_MIN_DURATION_MS, Math.round(params.durationMs));
+  const axes = resolveJustParryInkAxes(
+    params.playerBodyX,
+    params.playerBodyY,
+    params.contactX,
+    params.contactY,
+  );
   state.active = true;
   state.startedAt = params.startedAt;
   state.durationMs = durationMs;
@@ -143,18 +265,18 @@ export const startJustParryEffect = (
   state.contactY = params.contactY;
   state.imageKey = params.imageKey;
   state.flipX = params.flipX;
-  state.droplets = buildJustParryDroplets(
-    params.playerBodyX,
-    params.playerBodyY,
-    params.contactX,
-    params.contactY,
-    params.seedBase,
-  );
+  state.axisX = axes.axisX;
+  state.axisY = axes.axisY;
+  state.droplets = buildJustParryDroplets(axes, params.seedBase);
+  state.splatSpikes = buildJustParrySplatSpikes(axes.baseAngleRad, params.seedBase);
+  state.tendrils = buildJustParryTendrils(axes.baseAngleRad, params.seedBase);
 };
 
 export const clearJustParryEffect = (state: JustParryEffectState): void => {
   state.active = false;
   state.droplets = [];
+  state.splatSpikes = [];
+  state.tendrils = [];
 };
 
 export const isJustParryEffectActive = (
@@ -230,24 +352,111 @@ const buildBodyGlowCanvas = (
   return canvas;
 };
 
-const drawInkBlob = (
+const drawInkTeardrop = (
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  radiusX: number,
-  radiusY: number,
+  headRadius: number,
+  tailLength: number,
   rotationRad: number,
   color: string,
   alpha: number,
 ): void => {
+  const headX = Math.cos(rotationRad) * tailLength * 0.35;
+  const headY = Math.sin(rotationRad) * tailLength * 0.35;
+  const tailX = -Math.cos(rotationRad) * tailLength;
+  const tailY = -Math.sin(rotationRad) * tailLength;
+
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(rotationRad);
   ctx.globalAlpha = alpha;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+  ctx.arc(headX, headY, headRadius, 0, Math.PI * 2);
+  ctx.moveTo(headX + Math.cos(rotationRad + Math.PI / 2) * headRadius * 0.55, headY + Math.sin(rotationRad + Math.PI / 2) * headRadius * 0.55);
+  ctx.quadraticCurveTo(tailX * 0.45, tailY * 0.45, tailX, tailY);
+  ctx.quadraticCurveTo(tailX * 0.45, tailY * 0.45, headX + Math.cos(rotationRad - Math.PI / 2) * headRadius * 0.55, headY + Math.sin(rotationRad - Math.PI / 2) * headRadius * 0.55);
+  ctx.closePath();
   ctx.fill();
+  ctx.restore();
+};
+
+const drawInkCoreSplat = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  spikes: readonly JustParryInkSplatSpike[],
+  burstEase: number,
+  alpha: number,
+): void => {
+  const baseRadius = lerp(6, 34, burstEase);
+  const innerRadius = baseRadius * 0.28;
+
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.globalCompositeOperation = 'lighter';
+
+  ctx.globalAlpha = alpha * lerp(0.5, 0.92, burstEase);
+  ctx.fillStyle = JUST_PARRY_INK_CORE_CYAN;
+  ctx.beginPath();
+  ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  for (let index = 0; index < spikes.length; index += 1) {
+    const spike = spikes[index];
+    const next = spikes[(index + 1) % spikes.length];
+    const spikeRadius = baseRadius * spike.lengthFactor * (0.75 + burstEase * 0.45);
+    const nextRadius = baseRadius * next.lengthFactor * (0.75 + burstEase * 0.45);
+    const midAngle = (spike.angleRad + next.angleRad) / 2;
+    const midRadius = baseRadius * 0.22 * (0.6 + burstEase * 0.5);
+
+    const x1 = Math.cos(spike.angleRad) * spikeRadius;
+    const y1 = Math.sin(spike.angleRad) * spikeRadius;
+    const x2 = Math.cos(next.angleRad) * nextRadius;
+    const y2 = Math.sin(next.angleRad) * nextRadius;
+    const cpx = Math.cos(midAngle) * midRadius;
+    const cpy = Math.sin(midAngle) * midRadius;
+
+    const color = spike.colorIsBlue ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE;
+    ctx.globalAlpha = alpha * lerp(0.45, 0.88, burstEase) * spike.widthFactor;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(cpx, cpy, x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.quadraticCurveTo(cpx * 0.35, cpy * 0.35, 0, 0);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+};
+
+const drawInkTendril = (
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  tendril: JustParryInkTendril,
+  tendrilEase: number,
+  alpha: number,
+): void => {
+  const length = tendril.lengthPx * tendrilEase;
+  const endX = centerX + Math.cos(tendril.angleRad) * length;
+  const endY = centerY + Math.sin(tendril.angleRad) * length;
+  const ctrlX = centerX + Math.cos(tendril.angleRad + tendril.curveBias) * length * 0.55;
+  const ctrlY = centerY + Math.sin(tendril.angleRad + tendril.curveBias) * length * 0.55;
+  const color = tendril.colorIsBlue ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = alpha * (1 - tendrilEase * 0.25);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = tendril.widthPx * (1 - tendrilEase * 0.35);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(centerX, centerY);
+  ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
+  ctx.stroke();
   ctx.restore();
 };
 
@@ -268,70 +477,51 @@ export const drawJustParryInkSplash = (
   const elapsed = nowMs - state.startedAt;
   const burstT = Math.min(1, elapsed / JUST_PARRY_INK_BURST_MS);
   const burstEase = easeCubicOut(burstT);
-  const fromX = state.playerBodyX;
-  const fromY = state.playerBodyY - 12;
-  const toX = state.contactX;
-  const toY = state.contactY;
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const length = Math.max(1, Math.hypot(dx, dy));
-  const axisX = dx / length;
-  const axisY = dy / length;
-  const perpX = -axisY;
-  const perpY = axisX;
+  const centerX = state.contactX;
+  const centerY = state.contactY;
 
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
 
-  const segmentCount = 7;
-  for (let index = 0; index < segmentCount; index += 1) {
-    const t = (index + 0.5) / segmentCount;
-    const travel = burstEase * length * t;
-    const centerX = fromX + axisX * travel;
-    const centerY = fromY + axisY * travel;
-    const lateral = (index % 2 === 0 ? 1 : -1) * (8 + index * 2) * (1 - burstT * 0.35);
-    const blobX = centerX + perpX * lateral;
-    const blobY = centerY + perpY * lateral;
-    const radiusX = lerp(8, 22, burstEase) * (0.75 + t * 0.45);
-    const radiusY = lerp(5, 14, burstEase) * (0.8 + (1 - t) * 0.25);
-    const color = index % 2 === 0 ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE;
-    drawInkBlob(
-      ctx,
-      blobX,
-      blobY,
-      radiusX,
-      radiusY,
-      Math.atan2(axisY, axisX) + (index - 3) * 0.08,
-      color,
-      alpha * lerp(0.55, 0.95, burstEase),
-    );
-  }
+  drawInkCoreSplat(ctx, centerX, centerY, state.splatSpikes, burstEase, alpha);
 
-  const tipX = fromX + axisX * length * burstEase;
-  const tipY = fromY + axisY * length * burstEase;
-  drawInkBlob(ctx, tipX, tipY, 26 * burstEase + 6, 18 * burstEase + 4, Math.atan2(axisY, axisX), JUST_PARRY_INK_PURPLE, alpha * 0.92);
-  drawInkBlob(ctx, tipX, tipY, 16 * burstEase + 4, 12 * burstEase + 3, Math.atan2(axisY, axisX), JUST_PARRY_INK_BLUE, alpha * 0.78);
+  state.tendrils.forEach((tendril) => {
+    const localElapsed = Math.max(0, elapsed - tendril.delayMs);
+    const tendrilT = Math.min(1, localElapsed / JUST_PARRY_INK_BURST_MS);
+    const tendrilEase = easeCubicOut(tendrilT);
+    drawInkTendril(ctx, centerX, centerY, tendril, tendrilEase, alpha);
+  });
 
-  state.droplets.forEach((droplet, index) => {
+  ctx.globalCompositeOperation = 'source-over';
+  state.droplets.forEach((droplet) => {
     const localElapsed = Math.max(0, elapsed - droplet.delayMs);
     const dropletT = Math.min(1, localElapsed / JUST_PARRY_INK_BURST_MS);
     const dropletEase = easeCubicOut(dropletT);
-    const originT = 0.35 + seededUnit(state.startedAt + index) * 0.45;
-    const originX = fromX + axisX * length * originT;
-    const originY = fromY + axisY * length * originT;
-    const x = originX + droplet.dirX * droplet.distancePx * dropletEase;
-    const y = originY + droplet.dirY * droplet.distancePx * dropletEase;
-    const dropletAlpha = alpha * (1 - dropletEase * 0.35);
-    drawInkBlob(
-      ctx,
-      x,
-      y,
-      droplet.sizePx * droplet.stretch * (0.6 + dropletEase * 0.5),
-      droplet.sizePx * (0.45 + dropletEase * 0.35),
-      Math.atan2(droplet.dirY, droplet.dirX),
-      index % 2 === 0 ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE,
-      dropletAlpha,
-    );
+    const travel = droplet.distancePx * dropletEase;
+    const x = centerX + droplet.dirX * travel;
+    const y = centerY + droplet.dirY * travel;
+    const rotationRad = Math.atan2(droplet.dirY, droplet.dirX) + droplet.rotationOffset;
+    const headRadius = droplet.sizePx * (0.55 + dropletEase * 0.35);
+    const tailLength = droplet.sizePx * droplet.stretch * (0.5 + dropletEase * 0.65);
+    const dropletAlpha = alpha * (1 - dropletEase * 0.3);
+    const color = droplet.colorIsBlue ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE;
+
+    drawInkTeardrop(ctx, x, y, headRadius, tailLength, rotationRad, color, dropletAlpha);
+
+    droplet.satellites.forEach((satellite) => {
+      const satX = x + droplet.dirX * satellite.offsetAlong + (-droplet.dirY) * satellite.offsetPerp;
+      const satY = y + droplet.dirY * satellite.offsetAlong + droplet.dirX * satellite.offsetPerp;
+      const satAlpha = dropletAlpha * 0.75;
+      drawInkTeardrop(
+        ctx,
+        satX,
+        satY,
+        satellite.sizePx * 0.55,
+        satellite.sizePx * 0.9,
+        rotationRad + droplet.rotationOffset * 0.5,
+        color,
+        satAlpha,
+      );
+    });
   });
 
   ctx.restore();
@@ -382,9 +572,7 @@ export const drawJustParryBodyGlow = (
     ctx.scale(-1, 1);
   }
   ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = alpha * 0.42 * pulse;
-  ctx.drawImage(glowCanvas, flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
-  ctx.globalAlpha = alpha * 0.95;
+  ctx.globalAlpha = alpha * 0.45 * pulse;
   ctx.drawImage(glowCanvas, flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
   ctx.restore();
 

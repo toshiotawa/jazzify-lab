@@ -4,6 +4,9 @@ import {
   createJustParryEffectState,
   getJustParryEffectAlpha,
   isJustParryEffectActive,
+  JUST_PARRY_INK_DROPLET_COUNT,
+  JUST_PARRY_INK_SPLAT_SPIKE_COUNT,
+  JUST_PARRY_INK_TENDRIL_COUNT,
   JUST_PARRY_MIN_DURATION_MS,
   resolveJustParryEffectDurationMs,
   startJustParryEffect,
@@ -41,13 +44,18 @@ describe('just parry effect lifecycle', () => {
     });
 
     expect(isJustParryEffectActive(state, 1100)).toBe(true);
-    expect(state.droplets.length).toBeGreaterThan(0);
+    expect(state.droplets).toHaveLength(JUST_PARRY_INK_DROPLET_COUNT);
+    expect(state.splatSpikes).toHaveLength(JUST_PARRY_INK_SPLAT_SPIKE_COUNT);
+    expect(state.tendrils).toHaveLength(JUST_PARRY_INK_TENDRIL_COUNT);
+    expect(state.droplets[0]?.satellites.length).toBeGreaterThanOrEqual(2);
     expect(getJustParryEffectAlpha(state, 1100)).toBe(1);
     expect(isJustParryEffectActive(state, 1400)).toBe(false);
 
     clearJustParryEffect(state);
     expect(state.active).toBe(false);
     expect(state.droplets).toHaveLength(0);
+    expect(state.splatSpikes).toHaveLength(0);
+    expect(state.tendrils).toHaveLength(0);
   });
 
   it('restarts on consecutive hits', () => {
@@ -64,6 +72,7 @@ describe('just parry effect lifecycle', () => {
       seedBase: 1,
     });
     const firstDroplets = state.droplets;
+    const firstSpikes = state.splatSpikes;
 
     startJustParryEffect(state, {
       startedAt: 1200,
@@ -81,6 +90,7 @@ describe('just parry effect lifecycle', () => {
     expect(state.endAt).toBe(1700);
     expect(state.imageKey).toBe('avatar-b');
     expect(state.droplets).not.toBe(firstDroplets);
+    expect(state.splatSpikes).not.toBe(firstSpikes);
     expect(isJustParryEffectActive(state, 1600)).toBe(true);
     expect(isJustParryEffectActive(state, 1700)).toBe(false);
   });
