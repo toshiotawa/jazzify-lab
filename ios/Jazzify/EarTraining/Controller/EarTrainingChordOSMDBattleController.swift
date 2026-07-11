@@ -99,6 +99,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var nextMissTargetIndex: Int = 0
     private var nextHammerTargetIndex: Int = 0
     private var nextApproachTargetIndex: Int = 0
+    private var nextAutoCompleteTargetIndex: Int = 0
     private var parryChainAnchor: EarTrainingChordOsmdParrySpanAnchor?
     private var lastInputAtByNote: [Int: Double] = [:]
     private var phraseEnding: Bool = false
@@ -681,6 +682,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         nextMissTargetIndex = 0
         nextHammerTargetIndex = 0
         nextApproachTargetIndex = 0
+        nextAutoCompleteTargetIndex = 0
         parryChainAnchor = nil
         completedTargetCount = 0
         failedTargetCount = 0
@@ -880,6 +882,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         openJudgmentWindows(at: phraseTime)
         throwDueHammers(at: phraseTime)
         spawnDueApproachCircles(at: phraseTime)
+        autoCompleteDueTargetsInTimingCalibration(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
         applyMusicXmlLyricQuotesIfNeeded(phraseTime: phraseTime)
@@ -1037,7 +1040,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func spawnDueApproachCircles(at time: Double) {
-        guard !timingCalibrationMode else { return }
         let leadSec = approachLeadSec()
         let wallNowMs = CACurrentMediaTime() * 1000
         while nextApproachTargetIndex < targets.count {
@@ -1077,7 +1079,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func syncActiveOsuApproachCircleTimings() {
-        guard !timingCalibrationMode else { return }
         guard let phraseTime = osmdPhraseTimelineSecNow() else { return }
         let leadSec = approachLeadSec()
         let wallNowMs = CACurrentMediaTime() * 1000
@@ -1095,6 +1096,19 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
         if !updates.isEmpty {
             scene?.resyncOsuApproachCircles(updates: updates)
+        }
+    }
+
+    private func autoCompleteDueTargetsInTimingCalibration(at time: Double) {
+        guard timingCalibrationMode else { return }
+        while nextAutoCompleteTargetIndex < targets.count {
+            let judged = resolveCalibratedTargetTimeSec(targets[nextAutoCompleteTargetIndex].targetTimeSec)
+            guard time + 1e-9 >= judged else { break }
+            if targets[nextAutoCompleteTargetIndex].completed == false,
+               targets[nextAutoCompleteTargetIndex].failed == false {
+                completeTarget(at: nextAutoCompleteTargetIndex, hitPhraseTimeSec: judged)
+            }
+            nextAutoCompleteTargetIndex += 1
         }
     }
 

@@ -92,6 +92,27 @@ export const countChordOsmdApproachCirclesDueFromIndex = (
   return count;
 };
 
+/**
+ * タイミング調整モード: `startIndex` 以降で補正後判定点に到達したターゲット数（テスト用）。
+ * `resolveJudgedTargetTimeSec` は speedScaled → calibrated の変換を渡す。
+ */
+export const countChordOsmdTimingCalibrationAutoCompletesDueFromIndex = (
+  targets: readonly Pick<ChordOsmdRhythmTarget, 'targetTimeSec'>[],
+  phraseTimeSec: number,
+  startIndex: number,
+  resolveJudgedTargetTimeSec: (speedScaledTargetTimeSec: number) => number,
+): number => {
+  let count = 0;
+  for (let i = Math.max(0, startIndex); i < targets.length; i += 1) {
+    const judged = resolveJudgedTargetTimeSec(targets[i].targetTimeSec);
+    if (phraseTimeSec + 1e-9 < judged) {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+};
+
 export const computeChordOsmdScoreMaxMeasure = (
   phraseLoopDurationSec: number,
   bpm: number,

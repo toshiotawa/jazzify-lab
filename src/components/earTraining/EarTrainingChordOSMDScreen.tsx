@@ -346,8 +346,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const nextHammerTargetIndexRef = useRef(0);
   const nextApproachTargetIndexRef = useRef(0);
   const nextMissTargetIndexRef = useRef(0);
+  const nextAutoCompleteTargetIndexRef = useRef(0);
   const nextLyricQuoteIndexRef = useRef(0);
   const finishCurrentPhraseRef = useRef<(runId: number) => void>(() => undefined);
+  const autoCompleteDueTargetsInTimingCalibrationRef = useRef<(phraseTimeSec: number) => void>(
+    () => undefined,
+  );
   const replaySelfPacedPhraseClockRef = useRef<() => void>(() => undefined);
   const osmdSelfPacedRef = useRef(osmdSelfPaced);
   const practiceTransposeOffsetRef = useRef(0);
@@ -709,9 +713,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [clearParryVisualSlow, dismissOsuCircleForState, isEnglishCopy, syncPracticeVoicingHints, triggerFeedback]);
 
   const syncActiveOsuApproachCircleTimings = useCallback(() => {
-    if (timingCalibrationMode) {
-      return;
-    }
     const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec();
     if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
       return;
@@ -744,7 +745,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (updates.length > 0) {
       phaserGameRef.current?.resyncOsuApproachCircles(updates);
     }
-  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, timingCalibrationMode]);
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm]);
 
   const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
     pendingImpactHandlersRef.current.set(effectId, handler);
@@ -977,6 +978,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     nextHammerTargetIndexRef.current = 0;
     nextApproachTargetIndexRef.current = 0;
     nextMissTargetIndexRef.current = 0;
+    nextAutoCompleteTargetIndexRef.current = 0;
     nextLyricQuoteIndexRef.current = 0;
     parryChainAnchorRef.current = null;
   }, []);
@@ -1188,9 +1190,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [handleHammerImpact, registerBattleEffectImpact, resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, resolveHammerLeadMeasures, stage.beats_per_measure, triggerBattleEffect]);
 
   const spawnDueApproachCircles = useCallback((phraseTimeSec: number) => {
-    if (timingCalibrationMode) {
-      return;
-    }
     const approachLeadSec = chordOsmdApproachLeadSec(resolveEffectivePracticeBpm());
     const phraseTargets = targetsRef.current;
     while (nextApproachTargetIndexRef.current < phraseTargets.length) {
@@ -1225,7 +1224,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       state.osuCircleEffectId = effectId;
       nextApproachTargetIndexRef.current += 1;
     }
-  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, stage.loop_measures, timingCalibrationMode, triggerBattleEffect]);
+  }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, stage.loop_measures, triggerBattleEffect]);
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
@@ -1296,6 +1295,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     throwDueHammers(phraseTimeSec);
     spawnDueApproachCircles(phraseTimeSec);
+    autoCompleteDueTargetsInTimingCalibrationRef.current(phraseTimeSec);
     failExpiredTargets(phraseTimeSec);
     applyMusicXmlLyricQuotes(phraseTimeSec);
     syncPracticeVoicingHints();
@@ -1909,6 +1909,29 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     syncPracticeVoicingHints,
     triggerBattleEffect,
   ]);
+
+  const autoCompleteDueTargetsInTimingCalibration = useCallback((phraseTimeSec: number) => {
+    if (!timingCalibrationMode) {
+      return;
+    }
+    const phraseTargets = targetsRef.current;
+    while (nextAutoCompleteTargetIndexRef.current < phraseTargets.length) {
+      const target = phraseTargets[nextAutoCompleteTargetIndexRef.current];
+      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
+      if (phraseTimeSec + 1e-9 < judged) {
+        break;
+      }
+      const state = runtimeByTargetIdRef.current.get(target.id);
+      if (state && !state.completed && !state.failed) {
+        completeTarget(target, state, judged);
+      }
+      nextAutoCompleteTargetIndexRef.current += 1;
+    }
+  }, [completeTarget, resolveCalibratedTargetTimeSec, timingCalibrationMode]);
+
+  useEffect(() => {
+    autoCompleteDueTargetsInTimingCalibrationRef.current = autoCompleteDueTargetsInTimingCalibration;
+  }, [autoCompleteDueTargetsInTimingCalibration]);
 
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();

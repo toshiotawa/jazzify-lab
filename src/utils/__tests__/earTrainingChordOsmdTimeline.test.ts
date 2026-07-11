@@ -7,6 +7,7 @@ import {
   computeOsmdMeasurePlayheadState,
   countChordOsmdApproachCirclesDueFromIndex,
   countChordOsmdHammersDueFromIndex,
+  countChordOsmdTimingCalibrationAutoCompletesDueFromIndex,
   shouldFinishOsmdPhraseOnAudioEnded,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
@@ -16,6 +17,7 @@ import {
   chordOsmdApproachLeadSec,
   chordOsmdHammerLeadSec,
 } from '@/utils/earTrainingChordOsmd';
+import { resolveOsmdCalibratedTargetTimeSec } from '@/utils/earTrainingOsmdTimingAdjustment';
 
 const CBLUES_CI = 'https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_count-in.mp3';
 const DRUM_ONLY = 'https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_Drum.mp3';
@@ -167,5 +169,54 @@ describe('countChordOsmdApproachCirclesDueFromIndex', () => {
     expect(countChordOsmdApproachCirclesDueFromIndex(targets, atFirst, 0, bpm)).toBe(1);
     expect(countChordOsmdApproachCirclesDueFromIndex(targets, 9.6 - leadSec, 0, bpm)).toBe(2);
     expect(countChordOsmdApproachCirclesDueFromIndex(targets, 14.4 - leadSec, 0, bpm)).toBe(3);
+  });
+});
+
+describe('countChordOsmdTimingCalibrationAutoCompletesDueFromIndex', () => {
+  const targets = [
+    { targetTimeSec: 4.8 },
+    { targetTimeSec: 9.6 },
+    { targetTimeSec: 14.4 },
+  ];
+  const resolveJudged = (speedScaled: number): number =>
+    resolveOsmdCalibratedTargetTimeSec(speedScaled, 40);
+
+  it('補正後判定点前は 0 個', () => {
+    const judgedFirst = resolveJudged(4.8);
+    expect(
+      countChordOsmdTimingCalibrationAutoCompletesDueFromIndex(
+        targets,
+        judgedFirst - 0.01,
+        0,
+        resolveJudged,
+      ),
+    ).toBe(0);
+  });
+
+  it('補正後 0ms 到達で自動正解対象が増える', () => {
+    expect(
+      countChordOsmdTimingCalibrationAutoCompletesDueFromIndex(
+        targets,
+        resolveJudged(4.8),
+        0,
+        resolveJudged,
+      ),
+    ).toBe(1);
+    expect(
+      countChordOsmdTimingCalibrationAutoCompletesDueFromIndex(
+        targets,
+        resolveJudged(9.6),
+        0,
+        resolveJudged,
+      ),
+    ).toBe(2);
+    expect(
+      countChordOsmdTimingCalibrationAutoCompletesDueFromIndex(
+        targets,
+        resolveJudged(14.4),
+        0,
+        resolveJudged,
+      ),
+    ).toBe(3);
   });
 });
