@@ -62,10 +62,20 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   const [scriptRow, setScriptRow] = useState<Awaited<ReturnType<typeof fetchEarTrainingTutorialScript>> | null>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [showFinishCta, setShowFinishCta] = useState(false);
+  const [greatInterstitialVisible, setGreatInterstitialVisible] = useState(false);
+  const [greatInterstitialPercent, setGreatInterstitialPercent] = useState<number | null>(null);
   const [bluetoothNoticeOpen, setBluetoothNoticeOpen] = useState(true);
   const [playbackReady, setPlaybackReady] = useState(false);
   const finalizedRef = useRef(false);
   const audioUnlockedRef = useRef(false);
+  const sceneCompleteTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (sceneCompleteTimerRef.current !== null) {
+      window.clearTimeout(sceneCompleteTimerRef.current);
+      sceneCompleteTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +128,12 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
     async (kind: 'completed' | 'aborted') => {
       if (finalizedRef.current) return;
       finalizedRef.current = true;
+      if (sceneCompleteTimerRef.current !== null) {
+        window.clearTimeout(sceneCompleteTimerRef.current);
+        sceneCompleteTimerRef.current = null;
+      }
+      setGreatInterstitialVisible(false);
+      setGreatInterstitialPercent(null);
       if (kind === 'completed') {
         await onQuestCompleted?.();
       }
@@ -149,9 +165,28 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
     setShowFinishCta(false);
   }, [finalize, sceneIndex, script]);
 
-  const onTutorialSceneComplete = useCallback((_result?: EarTrainingTutorialOsmdSceneResult) => {
-    advanceSceneImmediate();
-  }, [advanceSceneImmediate]);
+  const onTutorialSceneComplete = useCallback((result?: EarTrainingTutorialOsmdSceneResult) => {
+    const completed = scenes[sceneIndex];
+    if (
+      !completed
+      || completed.type === 'dialogue_only'
+      || (
+        completed.type === 'chord_osmd'
+        && isTimingCalibrationContentRef(completed.contentRef)
+      )
+    ) {
+      advanceSceneImmediate();
+      return;
+    }
+    setGreatInterstitialPercent(result?.noteHitPercent ?? null);
+    setGreatInterstitialVisible(true);
+    sceneCompleteTimerRef.current = window.setTimeout(() => {
+      sceneCompleteTimerRef.current = null;
+      setGreatInterstitialVisible(false);
+      setGreatInterstitialPercent(null);
+      advanceSceneImmediate();
+    }, 1000);
+  }, [advanceSceneImmediate, sceneIndex, scenes]);
 
   const bindings: EarTrainingTutorialBindings = useMemo(
     () => {
@@ -272,6 +307,19 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
           </div>
         ) : null}
       </div>
+
+      {greatInterstitialVisible ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-[110] flex items-center justify-center bg-black/35"
+          aria-hidden
+        >
+          <span className="text-5xl font-black tracking-wide text-[#fde68a] [text-shadow:0_2px_0_rgb(2_6_23),0_4px_24px_rgb(2_6_23)] sm:text-6xl">
+            {greatInterstitialPercent !== null
+              ? `Great!!(${greatInterstitialPercent}%)`
+              : 'Great!!'}
+          </span>
+        </div>
+      ) : null}
 
       {bluetoothNoticeOpen ? (
         <div className="pointer-events-auto absolute inset-0 z-[130] flex items-center justify-center bg-black/70 px-4">

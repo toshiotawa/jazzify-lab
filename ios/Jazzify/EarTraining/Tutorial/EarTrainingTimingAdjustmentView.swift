@@ -23,6 +23,8 @@ struct EarTrainingTimingAdjustmentView: View {
     @State private var script: EarTrainingTutorialScriptPayload?
     @State private var sceneIndex = 0
     @State private var showFinishCta = false
+    @State private var showGreatInterstitial = false
+    @State private var greatInterstitialPercent: Int?
     @State private var bluetoothNoticeOpen = true
     @State private var playbackReady = false
 
@@ -33,6 +35,13 @@ struct EarTrainingTimingAdjustmentView: View {
     }
 
     private var isJa: Bool { locale == .ja }
+
+    private var greatInterstitialLabel: String {
+        if let greatInterstitialPercent {
+            return "Great!!(\(greatInterstitialPercent)%)"
+        }
+        return "Great!!"
+    }
 
     var body: some View {
         Group {
@@ -112,6 +121,16 @@ struct EarTrainingTimingAdjustmentView: View {
                         }
                     }
                     .allowsHitTesting(!bluetoothNoticeOpen)
+
+                    if showGreatInterstitial {
+                        Color.black.opacity(0.35)
+                            .allowsHitTesting(false)
+                        Text(greatInterstitialLabel)
+                            .font(.system(size: 44, weight: .heavy))
+                            .foregroundStyle(Color(red: 0.99, green: 0.92, blue: 0.55))
+                            .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 4)
+                            .zIndex(95)
+                    }
 
                     if bluetoothNoticeOpen {
                         bluetoothNoticeOverlay(size: landscapeSize)
@@ -305,7 +324,7 @@ struct EarTrainingTimingAdjustmentView: View {
             ui: ui,
             noCombat: ui.noCombat,
             onCharacterText: { _ in },
-            onSceneComplete: { _ in handleSceneFinished(script: script) },
+            onSceneComplete: { result in handleSceneFinished(script: script, result: result) },
             requiredSuccessfulLoops: max(1, requiredLoops),
             osmdTimedLines: timedLines,
             tutorialDrumLoopUrl: EarTrainingTutorialOsmdDrumLoopResolver.resolveTutorialOsmdDrumLoopUrl(
@@ -316,7 +335,36 @@ struct EarTrainingTimingAdjustmentView: View {
         )
     }
 
-    private func handleSceneFinished(script: EarTrainingTutorialScriptPayload) {
+    private func handleSceneFinished(
+        script: EarTrainingTutorialScriptPayload,
+        result: EarTrainingTutorialOsmdSceneResult? = nil
+    ) {
+        if script.scenes.indices.contains(sceneIndex) {
+            switch script.scenes[sceneIndex] {
+            case .dialogueOnly:
+                advanceScene(script: script)
+                return
+            case .chordOsmd(let osmd) where osmd.contentRef == "osmd-timing-adjustment":
+                advanceScene(script: script)
+                return
+            default:
+                greatInterstitialPercent = result?.noteHitPercent
+                showGreatInterstitial = true
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    showGreatInterstitial = false
+                    greatInterstitialPercent = nil
+                    advanceScene(script: script)
+                }
+                return
+            }
+        }
+        advanceScene(script: script)
+    }
+
+    private func advanceScene(script: EarTrainingTutorialScriptPayload) {
+        showGreatInterstitial = false
+        greatInterstitialPercent = nil
         let nextIndex = sceneIndex + 1
         guard script.scenes.indices.contains(nextIndex) else {
             Task {
