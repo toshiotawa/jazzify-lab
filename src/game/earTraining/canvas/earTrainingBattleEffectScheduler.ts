@@ -15,7 +15,6 @@ import {
   getEffectProgress,
   hexColor,
   lerp,
-  PARRY_GUARD_ONLY_MS,
   PARRY_MOTION_END_MS,
   PARRY_REFLECT_HAMMER_WALL_MS,
   PARRY_TOTAL_MS,
@@ -37,6 +36,7 @@ import {
 } from './earTrainingBattleCamera';
 import {
   clearJustParryEffect,
+  JUST_PARRY_VISUAL_DURATION_MS,
   pruneJustParryEffect,
   startJustParryEffect,
 } from './earTrainingBattleJustParryEffect';
@@ -431,11 +431,11 @@ const scheduleParryMotion = (
       if (runtime.parryMotionGeneration !== generation) return;
       runtime.player.poseKey = null;
       onDirty();
-    }, PARRY_MOTION_END_MS);
+    }, JUST_PARRY_VISUAL_DURATION_MS);
   };
 
   const applyGuardPose = (): void => {
-    setPose(PARRY_GUARD_POSE_KEY, PARRY_GUARD_ONLY_MS);
+    setPose(PARRY_GUARD_POSE_KEY, JUST_PARRY_VISUAL_DURATION_MS);
     scheduleGuardClear();
   };
 

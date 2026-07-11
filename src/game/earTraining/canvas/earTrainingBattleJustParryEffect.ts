@@ -8,24 +8,28 @@ const BEAT_EPS = 1e-6;
 
 export const JUST_PARRY_MIN_DURATION_MS = 120;
 export const JUST_PARRY_VISUAL_DURATION_MS = 450;
-export const JUST_PARRY_FLASH_DURATION_MS = 90;
-export const JUST_PARRY_RING_DURATION_MS = 180;
-export const JUST_PARRY_SPLASH_DURATION_MS = 380;
-export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 280;
+export const JUST_PARRY_FLASH_DURATION_MS = 140;
+export const JUST_PARRY_RING_DURATION_MS = 280;
+export const JUST_PARRY_SPLASH_DURATION_MS = 450;
+export const JUST_PARRY_FLASH_DISPLAY_SIZE_PX = 360;
+export const JUST_PARRY_RING_DISPLAY_SIZE_PX = 420;
+export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 460;
 export const JUST_PARRY_FLASH_IMAGE_KEY = 'parryFlash';
 export const JUST_PARRY_RING_IMAGE_KEY = 'parryRing';
 export const JUST_PARRY_SPLASH_IMAGE_KEY = 'parrySplash';
 
-const JUST_PARRY_FLASH_SCALE_START = 0.1;
-const JUST_PARRY_FLASH_SCALE_END = 0.8;
-const JUST_PARRY_RING_SCALE_START = 0.15;
-const JUST_PARRY_RING_SCALE_END = 1.2;
-const JUST_PARRY_SPLASH_SCALE_START = 0.35;
-const JUST_PARRY_SPLASH_SCALE_END = 1.05;
-/** 透明度をやや下げて（より不透明に）見せる */
+/** 開始から十分大きくして、flash/ring が splash に埋もれないようにする */
+const JUST_PARRY_FLASH_SCALE_START = 0.55;
+const JUST_PARRY_FLASH_SCALE_END = 1.2;
+const JUST_PARRY_RING_SCALE_START = 0.5;
+const JUST_PARRY_RING_SCALE_END = 1.4;
+const JUST_PARRY_SPLASH_SCALE_START = 0.55;
+const JUST_PARRY_SPLASH_SCALE_END = 1.25;
 const JUST_PARRY_FLASH_ALPHA_START = 1;
 const JUST_PARRY_RING_ALPHA_START = 1;
 const JUST_PARRY_SPLASH_ALPHA_START = 1;
+/** 序盤は不透明のまま、後半だけフェード（透明にしない） */
+const JUST_PARRY_ALPHA_HOLD_FRACTION = 0.45;
 const JUST_PARRY_BODY_GLOW_WHITE = '#f8fafc';
 const JUST_PARRY_BODY_GLOW_CYAN = '#67e8f9';
 const JUST_PARRY_BODY_GLOW_BLUE = '#3b82f6';
@@ -156,6 +160,18 @@ export interface JustParryLayerDrawParams {
   angleDeg: number;
 }
 
+const computeHeldFadeAlpha = (
+  t: number,
+  startAlpha: number,
+  ease: (value: number) => number,
+): number => {
+  if (t <= JUST_PARRY_ALPHA_HOLD_FRACTION) {
+    return startAlpha;
+  }
+  const fadeT = (t - JUST_PARRY_ALPHA_HOLD_FRACTION) / (1 - JUST_PARRY_ALPHA_HOLD_FRACTION);
+  return lerp(startAlpha, 0, ease(fadeT));
+};
+
 export const computeJustParrySplashLayer = (
   elapsedMs: number,
   splashAngle: number,
@@ -167,7 +183,7 @@ export const computeJustParrySplashLayer = (
   const t = elapsedMs / JUST_PARRY_SPLASH_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_SPLASH_SCALE_START, JUST_PARRY_SPLASH_SCALE_END, easeCubicOut(t)),
-    alpha: lerp(JUST_PARRY_SPLASH_ALPHA_START, 0, easeCubicOut(t)),
+    alpha: computeHeldFadeAlpha(t, JUST_PARRY_SPLASH_ALPHA_START, easeCubicOut),
     angleDeg: splashAngle + splashAngleDelta * easeCubicOut(t),
   };
 };
@@ -181,7 +197,7 @@ export const computeJustParryRingLayer = (
   const t = elapsedMs / JUST_PARRY_RING_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_RING_SCALE_START, JUST_PARRY_RING_SCALE_END, easeCubicOut(t)),
-    alpha: lerp(JUST_PARRY_RING_ALPHA_START, 0, easeCubicOut(t)),
+    alpha: computeHeldFadeAlpha(t, JUST_PARRY_RING_ALPHA_START, easeCubicOut),
     angleDeg: 0,
   };
 };
@@ -195,7 +211,7 @@ export const computeJustParryFlashLayer = (
   const t = elapsedMs / JUST_PARRY_FLASH_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_FLASH_SCALE_START, JUST_PARRY_FLASH_SCALE_END, easeQuadOut(t)),
-    alpha: lerp(JUST_PARRY_FLASH_ALPHA_START, 0, easeQuadOut(t)),
+    alpha: computeHeldFadeAlpha(t, JUST_PARRY_FLASH_ALPHA_START, easeQuadOut),
     angleDeg: 0,
   };
 };
@@ -208,11 +224,12 @@ const drawJustParryImageLayer = (
   displaySizePx: number,
   params: JustParryLayerDrawParams,
   blendMode: GlobalCompositeOperation,
+  alphaScale = 1,
 ): void => {
   const size = displaySizePx * params.scale;
   ctx.save();
   ctx.globalCompositeOperation = blendMode;
-  ctx.globalAlpha = params.alpha;
+  ctx.globalAlpha = params.alpha * alphaScale;
   ctx.translate(originX, originY);
   if (params.angleDeg !== 0) {
     ctx.rotate(params.angleDeg * Math.PI / 180);
@@ -221,6 +238,10 @@ const drawJustParryImageLayer = (
   ctx.restore();
 };
 
+/**
+ * splash → ring → flash。
+ * ring/flash は source-over で色を確保し、lighter で発光を足す（splash だけに見えないようにする）。
+ */
 export const drawJustParryLayers = (
   ctx: CanvasRenderingContext2D,
   state: JustParryEffectState,
@@ -249,7 +270,18 @@ export const drawJustParryLayers = (
       state.originY,
       JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
       splashParams,
+      'source-over',
+      0.92,
+    );
+    drawJustParryImageLayer(
+      ctx,
+      splashImg,
+      state.originX,
+      state.originY,
+      JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
+      splashParams,
       'screen',
+      0.85,
     );
   }
 
@@ -260,9 +292,20 @@ export const drawJustParryLayers = (
       ringImg,
       state.originX,
       state.originY,
-      JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
+      JUST_PARRY_RING_DISPLAY_SIZE_PX,
+      ringParams,
+      'source-over',
+      0.95,
+    );
+    drawJustParryImageLayer(
+      ctx,
+      ringImg,
+      state.originX,
+      state.originY,
+      JUST_PARRY_RING_DISPLAY_SIZE_PX,
       ringParams,
       'lighter',
+      0.8,
     );
   }
 
@@ -273,9 +316,20 @@ export const drawJustParryLayers = (
       flashImg,
       state.originX,
       state.originY,
-      JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
+      JUST_PARRY_FLASH_DISPLAY_SIZE_PX,
+      flashParams,
+      'source-over',
+      1,
+    );
+    drawJustParryImageLayer(
+      ctx,
+      flashImg,
+      state.originX,
+      state.originY,
+      JUST_PARRY_FLASH_DISPLAY_SIZE_PX,
       flashParams,
       'lighter',
+      0.9,
     );
   }
 };

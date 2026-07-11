@@ -99,32 +99,32 @@ describe('just parry layer timing', () => {
     expect(second.splashAngleDelta).toBe(first.splashAngleDelta);
   });
 
-  it('shows flash only during the first 90ms', () => {
+  it('shows flash only during the first flash window', () => {
     expect(computeJustParryFlashLayer(0)?.alpha).toBe(1);
-    expect(computeJustParryFlashLayer(45)?.alpha).toBeGreaterThan(0);
+    expect(computeJustParryFlashLayer(Math.floor(JUST_PARRY_FLASH_DURATION_MS * 0.2))?.alpha).toBe(1);
     expect(computeJustParryFlashLayer(JUST_PARRY_FLASH_DURATION_MS)).toBeNull();
     expect(computeJustParryFlashLayer(JUST_PARRY_FLASH_DURATION_MS + 1)).toBeNull();
   });
 
-  it('shows ring only during the first 180ms', () => {
+  it('shows ring only during the first ring window', () => {
     expect(computeJustParryRingLayer(0)?.alpha).toBe(1);
-    expect(computeJustParryRingLayer(90)?.alpha).toBeGreaterThan(0);
+    expect(computeJustParryRingLayer(Math.floor(JUST_PARRY_RING_DURATION_MS * 0.2))?.alpha).toBe(1);
     expect(computeJustParryRingLayer(JUST_PARRY_RING_DURATION_MS)).toBeNull();
   });
 
-  it('shows splash only during the first 380ms', () => {
+  it('shows splash for the full visual window', () => {
     expect(computeJustParrySplashLayer(0, 0, 0)?.alpha).toBeCloseTo(1, 5);
-    expect(computeJustParrySplashLayer(200, 0, 0)?.alpha).toBeGreaterThan(0);
+    expect(computeJustParrySplashLayer(200, 0, 0)?.alpha).toBe(1);
     expect(computeJustParrySplashLayer(JUST_PARRY_SPLASH_DURATION_MS)).toBeNull();
   });
 
   it('expands each layer over time', () => {
     const flashStart = computeJustParryFlashLayer(0);
-    const flashMid = computeJustParryFlashLayer(45);
+    const flashMid = computeJustParryFlashLayer(Math.floor(JUST_PARRY_FLASH_DURATION_MS * 0.5));
     const ringStart = computeJustParryRingLayer(0);
-    const ringMid = computeJustParryRingLayer(90);
+    const ringMid = computeJustParryRingLayer(Math.floor(JUST_PARRY_RING_DURATION_MS * 0.5));
     const splashStart = computeJustParrySplashLayer(0, 0, 0);
-    const splashMid = computeJustParrySplashLayer(190, 0, 0);
+    const splashMid = computeJustParrySplashLayer(Math.floor(JUST_PARRY_SPLASH_DURATION_MS * 0.5), 0, 0);
 
     expect(flashStart).not.toBeNull();
     expect(flashMid).not.toBeNull();
