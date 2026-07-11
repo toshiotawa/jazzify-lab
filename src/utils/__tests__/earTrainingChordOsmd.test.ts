@@ -1041,7 +1041,7 @@ describe('bluesy licks bundled MusicXML', () => {
 });
 
 describe('chordOsmdBeatToTargetTimeSec swing', () => {
-  it('裏拍8分（拍内0.5）を3/4拍位置にずらす', () => {
+  it('裏拍8分（拍内0.5）を2/3拍位置にずらす', () => {
     const even = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
     const swing = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);
     expect(even).toBeCloseTo(0.25, 5);
