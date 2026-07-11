@@ -58,6 +58,14 @@ enum EarTrainingBattleParryConstants {
     static let hitCameraShakeIntensity: CGFloat = 0.01
     static let hitCameraShakeMs: TimeInterval = 60
     static let sparkColor = UIColor(red: 253 / 255, green: 224 / 255, blue: 71 / 255, alpha: 1)
+    static let guardPoseDurationMs: Double = 60
+
+    static func oneBeatDurationMs(bpm: Double?) -> Double {
+        guard let bpm, bpm.isFinite, bpm > 0 else {
+            return motionEndMs
+        }
+        return max(1, (60_000 / bpm).rounded())
+    }
 
     static func easeCubicOut(_ t: Double) -> Double {
         1 - pow(1 - t, 3)

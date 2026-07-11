@@ -22,7 +22,6 @@ import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrain
 import { resolveOsuApproachCirclePhraseTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { resolveOsuCircleNoteLabels } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleNoteLabels';
 import { resolveOsuCircleColorIndex } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleColors';
-import { resolveJustParryEffectDurationMs } from '@/game/earTraining/canvas/earTrainingBattleJustParryEffect';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -1862,27 +1861,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       stage.is_swing === true,
     );
     parryChainAnchorRef.current = spanState.anchor;
-    const { isFinish, finishTarget } = spanState;
+    const { isFinish } = spanState;
     let justParryEffectDurationMs: number | undefined;
-    if (Number.isFinite(hitPhraseTimeSec)) {
-      if (isFinish) {
-        const bpm = resolveEffectivePracticeBpm();
-        justParryEffectDurationMs = Math.max(1, Math.round(60_000 / Math.max(1, bpm)));
-      } else {
-        const nextTargetSec = nextTarget
-          ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
-          : undefined;
-        const fallbackEndPhraseSec = !nextTarget && finishTarget
-          ? resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
-            + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
-            + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC
-          : undefined;
-        justParryEffectDurationMs = resolveJustParryEffectDurationMs(
-          hitPhraseTimeSec,
-          nextTargetSec,
-          fallbackEndPhraseSec,
-        );
-      }
+    if (isFinish) {
+      const bpm = resolveEffectivePracticeBpm();
+      justParryEffectDurationMs = Math.max(1, Math.round(60_000 / Math.max(1, bpm)));
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,

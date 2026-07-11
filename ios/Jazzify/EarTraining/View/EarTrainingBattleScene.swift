@@ -2443,7 +2443,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let isChainParry = lastParryAt > 0 && (now - lastParryAt) < 1.0
         lastParryAt = now
 
-        holdCharacterForAction(.player, state: .cast, durationMs: EarTrainingBattleParryConstants.motionEndMs)
+        let poseDurationMs = command.parryFinishOnly
+            ? EarTrainingBattleParryConstants.oneBeatDurationMs(bpm: command.effectiveBpm)
+            : EarTrainingBattleParryConstants.guardPoseDurationMs
+        holdCharacterForAction(.player, state: .cast, durationMs: poseDurationMs)
 
         let contact: CGPoint = {
             guard let relatedId = command.relatedEffectId else {
@@ -2457,7 +2460,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }()
 
         triggerParryBeatSyncEffects(command, now: now)
-        scheduleParryMotion(finishOnly: command.parryFinishOnly)
+        scheduleParryMotion(finishOnly: command.parryFinishOnly, command: command)
 
         ensureParrySparkPool()
         parrySparkPool?.spawn(
@@ -2488,17 +2491,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
-    private func scheduleParryMotion(finishOnly: Bool) {
+    private func scheduleParryMotion(finishOnly: Bool, command: EarTrainingBattleEffectCommand) {
         if parryFinishLocked { return }
 
         if finishOnly {
+            let finishDurationMs = EarTrainingBattleParryConstants.oneBeatDurationMs(bpm: command.effectiveBpm)
             parryFinishLocked = true
             showPlayerPose(
                 assetName: PlayerAvatarPoseAsset.finishName,
-                durationMs: EarTrainingBattleParryConstants.motionEndMs
+                durationMs: finishDurationMs
             )
             run(SKAction.sequence([
-                SKAction.wait(forDuration: EarTrainingBattleParryConstants.motionEndMs / 1000),
+                SKAction.wait(forDuration: finishDurationMs / 1000),
                 SKAction.run { [weak self] in
                     self?.parryFinishLocked = false
                 },
@@ -2508,7 +2512,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         showPlayerPose(
             assetName: PlayerAvatarPoseAsset.guardDName,
-            durationMs: EarTrainingBattleParryConstants.motionEndMs
+            durationMs: EarTrainingBattleParryConstants.guardPoseDurationMs
         )
     }
 

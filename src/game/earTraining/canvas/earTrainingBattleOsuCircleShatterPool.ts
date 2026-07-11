@@ -2,11 +2,10 @@ import {
   OSU_CIRCLE_LINE_WIDTH,
 } from './earTrainingBattleOsuCircleTiming';
 import { getOsuCircleInnerStroke } from './earTrainingBattleOsuCircleColors';
-import { JUST_PARRY_VISUAL_DURATION_MS } from './earTrainingBattleJustParryEffect';
 
 export const OSU_SHATTER_POOL_SIZE = 128;
-/** パリィ視覚尺と同尺。縁崩壊が火花より長く残らないようにする */
-export const OSU_SHATTER_DURATION_MS = JUST_PARRY_VISUAL_DURATION_MS;
+/** 縁崩壊の視覚尺（ガードポーズ尺とは独立） */
+export const OSU_SHATTER_DURATION_MS = 450;
 export const OSU_SHATTER_FRAGMENT_COUNT = 12;
 const OSU_SHATTER_ARC_SPAN = (Math.PI * 2) / OSU_SHATTER_FRAGMENT_COUNT * 0.82;
 const OSU_SHATTER_DRIFT_MIN_PX_PER_SEC = 180;
