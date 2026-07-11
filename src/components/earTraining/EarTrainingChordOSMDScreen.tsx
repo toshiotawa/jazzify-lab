@@ -1798,20 +1798,29 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [restartTimingCalibrationLoop]);
 
   const handleLaunchTimingAdjustment = useCallback(() => {
+    const tutorialReturn = tutorial?.timingReturnContext;
     const hash = buildEarTrainingTimingAdjustmentHash({
       entry: 'settings',
-      returnContext: {
-        stageId: stage.id,
-        lessonId: lessonContext?.lessonId,
-        lessonSongId: lessonContext?.lessonSongId,
-        practiceMode,
-        clearConditions: lessonContext
-          ? JSON.stringify(lessonContext.clearConditions)
-          : undefined,
-      },
+      returnContext: tutorialReturn
+        ? {
+            tutorialScriptId: tutorialReturn.scriptId,
+            tutorialSceneIndex: tutorialReturn.sceneIndex,
+            lessonId: tutorialReturn.lessonId,
+            lessonSongId: tutorialReturn.lessonSongId,
+            clearConditions: tutorialReturn.clearConditions,
+          }
+        : {
+            stageId: stage.id,
+            lessonId: lessonContext?.lessonId,
+            lessonSongId: lessonContext?.lessonSongId,
+            practiceMode,
+            clearConditions: lessonContext
+              ? JSON.stringify(lessonContext.clearConditions)
+              : undefined,
+          },
     });
     setAppHash(hash);
-  }, [lessonContext, practiceMode, stage.id]);
+  }, [lessonContext, practiceMode, stage.id, tutorial?.timingReturnContext]);
 
   const osmdTimingAdjustmentConfig = useMemo(
     () => ({
@@ -2327,7 +2336,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         practiceTranspose={tutorial ? undefined : practiceTransposeConfig}
         practiceSpeed={tutorial ? undefined : practiceSpeedConfig}
         osmdTimingAdjustment={osmdTimingAdjustmentConfig}
-        onLaunchTimingAdjustment={tutorial || timingCalibrationMode ? undefined : handleLaunchTimingAdjustment}
+        onLaunchTimingAdjustment={timingCalibrationMode ? undefined : handleLaunchTimingAdjustment}
       />
     </div>
   );

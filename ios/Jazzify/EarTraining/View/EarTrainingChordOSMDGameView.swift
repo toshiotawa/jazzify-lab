@@ -262,7 +262,7 @@ private struct EarTrainingChordOSMDContent: View {
                     appliedOffsetMs: controller.timingAdjustmentMs,
                     onChange: { controller.applyTimingAdjustmentMs($0) }
                 ),
-                onLaunchTimingAdjustment: (isTutorialSettings || timingCalibrationMode) ? nil : {
+                onLaunchTimingAdjustment: timingCalibrationMode ? nil : {
                     controller.handleCloseSettings()
                     timingAdjustmentLaunch = EarTrainingTimingAdjustmentReturnLaunch(
                         stageId: controller.stage.id,

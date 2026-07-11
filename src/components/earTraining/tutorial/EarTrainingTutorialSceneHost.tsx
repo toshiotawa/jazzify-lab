@@ -12,6 +12,7 @@ import {
   type EarTrainingTutorialScriptPayload,
 } from './earTrainingTutorialScriptTypes';
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
+import type { EarTrainingTutorialTimingReturnContext } from './earTrainingTutorialSceneConfig';
 
 const EarTrainingChordVoicingScreen = React.lazy(
   () => import('@/components/earTraining/EarTrainingChordVoicingScreen'),
@@ -36,6 +37,7 @@ interface EarTrainingTutorialSceneHostProps {
   enemy: SurvivalCharacterRow | null;
   bindings: EarTrainingTutorialBindings;
   isEnglishCopy: boolean;
+  timingReturnContext?: EarTrainingTutorialTimingReturnContext;
   onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
 }
 
@@ -45,6 +47,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
   enemy,
   bindings,
   isEnglishCopy,
+  timingReturnContext,
   onSceneComplete,
 }) => {
   const completedRef = useRef(false);
@@ -151,6 +154,7 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
             bindings,
             onSceneComplete: completeOnce,
             drumLoopUrl: osmdDrumLoopUrl,
+            timingReturnContext,
           }}
         />
       </React.Suspense>

@@ -3,12 +3,14 @@ import { OSMD_TIMING_ADJUSTMENT_SCRIPT_ID } from '@/components/earTraining/tutor
 export type EarTrainingTimingAdjustmentEntry = 'quest' | 'settings';
 
 export interface EarTrainingTimingAdjustmentReturnContext {
-  stageId: string;
+  stageId?: string;
   lessonId?: string;
   lessonSongId?: string;
   practiceMode?: boolean;
   clearConditions?: string;
   bgmUrl?: string;
+  tutorialScriptId?: string;
+  tutorialSceneIndex?: number;
 }
 
 export interface EarTrainingTimingAdjustmentLaunchParams {
@@ -36,7 +38,9 @@ export const buildEarTrainingTimingAdjustmentHash = (
   }
   const returnContext = params.returnContext;
   if (returnContext) {
-    search.set('returnStageId', returnContext.stageId);
+    if (returnContext.stageId) {
+      search.set('returnStageId', returnContext.stageId);
+    }
     if (returnContext.lessonId) {
       search.set('returnLessonId', returnContext.lessonId);
     }
@@ -52,6 +56,12 @@ export const buildEarTrainingTimingAdjustmentHash = (
     if (returnContext.bgmUrl) {
       search.set('returnBgmUrl', returnContext.bgmUrl);
     }
+    if (returnContext.tutorialScriptId) {
+      search.set('returnTutorialScriptId', returnContext.tutorialScriptId);
+    }
+    if (returnContext.tutorialSceneIndex !== undefined) {
+      search.set('returnTutorialSceneIndex', String(returnContext.tutorialSceneIndex));
+    }
   }
   return `#ear-training-timing-adjustment?${search.toString()}`;
 };
@@ -59,6 +69,29 @@ export const buildEarTrainingTimingAdjustmentHash = (
 export const parseEarTrainingTimingAdjustmentReturnHash = (
   params: URLSearchParams,
 ): string | null => {
+  const tutorialScriptId = params.get('returnTutorialScriptId');
+  if (tutorialScriptId) {
+    const search = new URLSearchParams();
+    search.set('scriptId', tutorialScriptId);
+    const lessonId = params.get('returnLessonId');
+    const lessonSongId = params.get('returnLessonSongId');
+    if (lessonId) {
+      search.set('lessonId', lessonId);
+    }
+    if (lessonSongId) {
+      search.set('lessonSongId', lessonSongId);
+    }
+    const clearConditions = params.get('returnClearConditions');
+    if (clearConditions) {
+      search.set('clearConditions', clearConditions);
+    }
+    const sceneIndexRaw = params.get('returnTutorialSceneIndex');
+    if (sceneIndexRaw) {
+      search.set('sceneIndex', sceneIndexRaw);
+    }
+    return `#ear-training-tutorial-lesson?${search.toString()}`;
+  }
+
   const stageId = params.get('returnStageId');
   if (!stageId) {
     return null;

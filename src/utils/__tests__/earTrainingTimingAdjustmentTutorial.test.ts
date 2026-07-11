@@ -58,6 +58,24 @@ describe('earTrainingTimingAdjustmentLaunch', () => {
     expect(hash).toContain('returnPractice=1');
   });
 
+  it('builds settings launch hash with tutorial return context', () => {
+    const hash = buildEarTrainingTimingAdjustmentHash({
+      entry: 'settings',
+      returnContext: {
+        tutorialScriptId: 'developer-full-v1',
+        tutorialSceneIndex: 3,
+        lessonId: 'lesson-1',
+        lessonSongId: 'song-1',
+        clearConditions: '{"count":1,"rank":"S"}',
+      },
+    });
+    expect(hash).toContain('returnTutorialScriptId=developer-full-v1');
+    expect(hash).toContain('returnTutorialSceneIndex=3');
+    expect(hash).toContain('returnLessonId=lesson-1');
+    expect(hash).toContain('returnLessonSongId=song-1');
+    expect(hash).toContain('returnClearConditions=');
+  });
+
   it('parses return hash for ear training lesson restart', () => {
     const params = new URLSearchParams({
       returnStageId: 'stage-abc',
@@ -67,5 +85,19 @@ describe('earTrainingTimingAdjustmentLaunch', () => {
     });
     const hash = parseEarTrainingTimingAdjustmentReturnHash(params);
     expect(hash).toBe('#ear-training-lesson?stageId=stage-abc&lessonId=lesson-1&lessonSongId=song-1&practice=1&restart=1');
+  });
+
+  it('parses return hash for ear training tutorial lesson restart', () => {
+    const params = new URLSearchParams({
+      returnTutorialScriptId: 'developer-full-v1',
+      returnLessonId: 'lesson-1',
+      returnLessonSongId: 'song-1',
+      returnClearConditions: '{"count":1,"rank":"S"}',
+      returnTutorialSceneIndex: '2',
+    });
+    const hash = parseEarTrainingTimingAdjustmentReturnHash(params);
+    expect(hash).toBe(
+      '#ear-training-tutorial-lesson?scriptId=developer-full-v1&lessonId=lesson-1&lessonSongId=song-1&clearConditions=%7B%22count%22%3A1%2C%22rank%22%3A%22S%22%7D&sceneIndex=2',
+    );
   });
 });

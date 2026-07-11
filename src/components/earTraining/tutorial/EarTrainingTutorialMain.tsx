@@ -21,6 +21,7 @@ const EarTrainingTutorialMain: React.FC = () => {
   const lessonId = params.lessonId ?? '';
   const lessonSongId = params.lessonSongId ?? '';
   const scriptId = params.scriptId ?? 'developer-full-v1';
+  const initialSceneIndex = Number.parseInt(params.sceneIndex ?? '0', 10);
   const clearedThisSessionRef = useRef(false);
   const assignmentStartRecordedRef = useRef(false);
   const clearConditions: ClearConditions = useMemo(() => {
@@ -30,6 +31,7 @@ const EarTrainingTutorialMain: React.FC = () => {
       return { count: 1, rank: 'S' };
     }
   }, [params.clearConditions]);
+  const clearConditionsJson = params.clearConditions ?? '{"count":1,"rank":"S"}';
 
   const handleTutorialCompleted = useCallback(async () => {
     if (!profile || !lessonId || !lessonSongId) return;
@@ -76,6 +78,8 @@ const EarTrainingTutorialMain: React.FC = () => {
       scriptId={scriptId}
       lessonId={lessonId}
       lessonSongId={lessonSongId}
+      clearConditions={clearConditionsJson}
+      initialSceneIndex={initialSceneIndex}
       embeddedFullHeight
       onPlayable={handlePlayable}
       onLessonTutorialCompleted={handleTutorialCompleted}

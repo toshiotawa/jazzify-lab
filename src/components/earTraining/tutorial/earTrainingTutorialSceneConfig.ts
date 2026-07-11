@@ -18,9 +18,18 @@ export interface EarTrainingTutorialSelfPacedConfig {
   bindings: EarTrainingTutorialBindings;
 }
 
+export interface EarTrainingTutorialTimingReturnContext {
+  scriptId: string;
+  lessonId: string;
+  lessonSongId: string;
+  clearConditions: string;
+  sceneIndex: number;
+}
+
 export interface EarTrainingTutorialOsmdConfig {
   scene: EarTrainingTutorialOsmdScene;
   bindings: EarTrainingTutorialBindings;
+  timingReturnContext?: EarTrainingTutorialTimingReturnContext;
 }
 
 export interface EarTrainingTutorialAdlibConfig {

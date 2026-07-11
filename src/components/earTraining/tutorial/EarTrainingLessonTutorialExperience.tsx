@@ -21,11 +21,14 @@ import type {
 import { useQuestCompleteJingleWhenVisible } from '@/hooks/useQuestCompleteJingle';
 import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { preloadEarTrainingTutorialBattleChunks } from './preloadEarTrainingTutorialBattleChunks';
+import type { EarTrainingTutorialTimingReturnContext } from './earTrainingTutorialSceneConfig';
 
 export interface EarTrainingLessonTutorialExperienceProps {
   scriptId?: string;
   lessonId?: string;
   lessonSongId?: string;
+  clearConditions?: string;
+  initialSceneIndex?: number;
   embeddedFullHeight?: boolean;
   onPlayable?: () => void;
   onLessonTutorialCompleted?: () => void | Promise<void>;
@@ -38,12 +41,24 @@ const isRunnableScene = (scene: EarTrainingTutorialScene): boolean => (
   scene.type !== 'finish'
 );
 
+const clampSceneIndex = (index: number, sceneCount: number): number => {
+  if (!Number.isFinite(index) || index < 0) {
+    return 0;
+  }
+  if (sceneCount <= 0) {
+    return 0;
+  }
+  return Math.min(index, sceneCount - 1);
+};
+
 export const EarTrainingLessonTutorialExperience: React.FC<
   EarTrainingLessonTutorialExperienceProps
 > = ({
   scriptId = 'developer-full-v1',
   lessonId = '',
   lessonSongId = '',
+  clearConditions = '{"count":1,"rank":"S"}',
+  initialSceneIndex = 0,
   embeddedFullHeight = false,
   onPlayable,
   onLessonTutorialCompleted,
@@ -59,7 +74,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const [gate, setGate] = useState<GateState>('loading');
   const [enemy, setEnemy] = useState<SurvivalCharacterRow | null>(null);
   const [scriptRow, setScriptRow] = useState<Awaited<ReturnType<typeof fetchEarTrainingTutorialScript>> | null>(null);
-  const [sceneIndex, setSceneIndex] = useState(0);
+  const [sceneIndex, setSceneIndex] = useState(() => clampSceneIndex(initialSceneIndex, 0));
   const [showCta, setShowCta] = useState(false);
   const [greatInterstitialVisible, setGreatInterstitialVisible] = useState(false);
   const [greatInterstitialPercent, setGreatInterstitialPercent] = useState<number | null>(null);
@@ -79,7 +94,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
         const row = await fetchEarTrainingTutorialScript(scriptId);
         if (cancelled) return;
         setScriptRow(row);
-        setSceneIndex(0);
+        setSceneIndex(clampSceneIndex(initialSceneIndex, row.script.scenes.length));
         setGate('ready');
         onPlayable?.();
         void unlockTutorialAudio();
@@ -103,7 +118,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
     return () => {
       cancelled = true;
     };
-  }, [scriptId, onPlayable]);
+  }, [initialSceneIndex, scriptId, onPlayable]);
 
   useEffect(() => () => {
     if (sceneCompleteTimerRef.current !== null) {
@@ -127,6 +142,19 @@ export const EarTrainingLessonTutorialExperience: React.FC<
   const script = scriptRow?.script ?? null;
   const scenes = script?.scenes ?? [];
   const currentScene = scenes[sceneIndex] ?? null;
+
+  const timingReturnContext: EarTrainingTutorialTimingReturnContext | undefined = useMemo(() => {
+    if (!lessonId || !lessonSongId) {
+      return undefined;
+    }
+    return {
+      scriptId,
+      lessonId,
+      lessonSongId,
+      clearConditions,
+      sceneIndex,
+    };
+  }, [clearConditions, lessonId, lessonSongId, sceneIndex, scriptId]);
 
   useEffect(() => {
     if (gate !== 'ready' || !script) return;
@@ -313,6 +341,7 @@ export const EarTrainingLessonTutorialExperience: React.FC<
             enemy={enemy}
             bindings={bindingsWithAdvance}
             isEnglishCopy={isEnglishCopy}
+            timingReturnContext={timingReturnContext}
             onSceneComplete={onTutorialSceneComplete}
           />
         ) : null}
