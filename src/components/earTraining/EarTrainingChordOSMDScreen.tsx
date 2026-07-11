@@ -1865,19 +1865,24 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const { isFinish, finishTarget } = spanState;
     let justParryEffectDurationMs: number | undefined;
     if (Number.isFinite(hitPhraseTimeSec)) {
-      const nextTargetSec = nextTarget
-        ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
-        : undefined;
-      const fallbackEndPhraseSec = !nextTarget && finishTarget
-        ? resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
-          + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
-          + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC
-        : undefined;
-      justParryEffectDurationMs = resolveJustParryEffectDurationMs(
-        hitPhraseTimeSec,
-        nextTargetSec,
-        fallbackEndPhraseSec,
-      );
+      if (isFinish) {
+        const bpm = resolveEffectivePracticeBpm();
+        justParryEffectDurationMs = Math.max(1, Math.round(60_000 / Math.max(1, bpm)));
+      } else {
+        const nextTargetSec = nextTarget
+          ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
+          : undefined;
+        const fallbackEndPhraseSec = !nextTarget && finishTarget
+          ? resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
+            + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
+            + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC
+          : undefined;
+        justParryEffectDurationMs = resolveJustParryEffectDurationMs(
+          hitPhraseTimeSec,
+          nextTargetSec,
+          fallbackEndPhraseSec,
+        );
+      }
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,

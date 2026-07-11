@@ -360,17 +360,25 @@ const triggerParryBeatSyncEffects = (
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
 };
 
-const resolveFinishParryMotionDurationMs = (
-  motionDurationMs: number | undefined,
-): number => {
-  if (
-    motionDurationMs === undefined
-    || !Number.isFinite(motionDurationMs)
-    || motionDurationMs <= 0
-  ) {
+const resolveOneBeatDurationMs = (bpm: number | undefined): number => {
+  if (bpm === undefined || !Number.isFinite(bpm) || bpm <= 0) {
     return PARRY_MOTION_END_MS;
   }
-  return Math.max(PARRY_MOTION_END_MS, Math.round(motionDurationMs));
+  return Math.max(1, Math.round(60_000 / bpm));
+};
+
+const resolveFinishParryMotionDurationMs = (
+  motionDurationMs: number | undefined,
+  bpm: number | undefined,
+): number => {
+  if (
+    motionDurationMs !== undefined
+    && Number.isFinite(motionDurationMs)
+    && motionDurationMs > 0
+  ) {
+    return Math.round(motionDurationMs);
+  }
+  return resolveOneBeatDurationMs(bpm);
 };
 
 export const clearParryMotionTimers = (runtime: EarTrainingBattleDrawRuntime): void => {
@@ -416,7 +424,10 @@ const scheduleParryMotion = (
   };
 
   if (finishOnly) {
-    const finishDurationMs = resolveFinishParryMotionDurationMs(motionDurationMs);
+    const finishDurationMs = resolveFinishParryMotionDurationMs(
+      motionDurationMs,
+      undefined,
+    );
     runtime.parryFinishLocked = true;
     setPose(PARRY_FINISH_POSE_KEY, finishDurationMs);
 
@@ -793,7 +804,10 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   const parryCenterY = anchors.player.bodyY - 28;
   const finishOnly = command.parryFinishOnly === true;
   const finishMotionDurationMs = finishOnly
-    ? resolveFinishParryMotionDurationMs(command.justParryEffectDurationMs)
+    ? resolveFinishParryMotionDurationMs(
+      command.justParryEffectDurationMs,
+      command.effectiveBpm,
+    )
     : PARRY_TOTAL_MS;
 
   holdCharacterForAction(
@@ -820,10 +834,12 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     runtime,
     onDirty,
     finishOnly,
-    finishOnly ? command.justParryEffectDurationMs : undefined,
+    finishOnly ? finishMotionDurationMs : undefined,
   );
 
-  const durationMs = command.justParryEffectDurationMs;
+  const durationMs = finishOnly
+    ? finishMotionDurationMs
+    : command.justParryEffectDurationMs;
   if (durationMs !== undefined && durationMs > 0) {
     const poseKey = runtime.player.poseKey && now < runtime.player.poseUntil
       ? runtime.player.poseKey
