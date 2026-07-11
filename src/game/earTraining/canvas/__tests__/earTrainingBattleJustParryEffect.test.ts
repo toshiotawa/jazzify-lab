@@ -1,45 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearJustParryEffect,
+  computeJustParryFlashLayer,
+  computeJustParryRingLayer,
+  computeJustParrySplashLayer,
   createJustParryEffectState,
-  getJustParryEffectAlpha,
   isJustParryEffectActive,
+  JUST_PARRY_FLASH_DURATION_MS,
   JUST_PARRY_MIN_DURATION_MS,
-  JUST_PARRY_SPARK_COUNT,
+  JUST_PARRY_RING_DURATION_MS,
+  JUST_PARRY_SPLASH_DURATION_MS,
+  JUST_PARRY_VISUAL_DURATION_MS,
   pruneJustParryEffect,
   resolveJustParryEffectDurationMs,
   startJustParryEffect,
-  type JustParrySparkStreak,
   type StartJustParryEffectParams,
 } from '@/game/earTraining/canvas/earTrainingBattleJustParryEffect';
 
 const BASE_START_PARAMS: StartJustParryEffectParams = {
   startedAt: 1000,
-  durationMs: 400,
   originX: 120,
   originY: 172,
-  contactX: 180,
-  contactY: 170,
-  imageKey: 'avatar',
-  flipX: false,
   seedBase: 7,
-};
-
-const computeSparkPosition = (
-  streak: JustParrySparkStreak,
-  originX: number,
-  originY: number,
-  elapsedMs: number,
-): { x: number; y: number } => {
-  const localElapsed = Math.max(0, elapsedMs - streak.delayMs);
-  const t = localElapsed / 1000;
-  const frictionIntegral = streak.friction > 1e-6
-    ? (1 - Math.exp(-streak.friction * t)) / streak.friction
-    : t;
-  return {
-    x: originX + streak.vx * frictionIntegral,
-    y: originY + streak.vy * frictionIntegral + 0.5 * 420 * t * t,
-  };
 };
 
 describe('resolveJustParryEffectDurationMs', () => {
@@ -59,108 +41,102 @@ describe('resolveJustParryEffectDurationMs', () => {
 });
 
 describe('just parry effect lifecycle', () => {
-  it('starts active and expires on raw wall clock', () => {
+  it('starts active and expires on fixed visual duration', () => {
     const state = createJustParryEffectState();
     startJustParryEffect(state, BASE_START_PARAMS);
 
     expect(isJustParryEffectActive(state, 1100)).toBe(true);
-    expect(state.streaks.length).toBeGreaterThanOrEqual(JUST_PARRY_SPARK_COUNT);
-    expect(getJustParryEffectAlpha(state, 1100)).toBe(1);
-    expect(isJustParryEffectActive(state, 1400)).toBe(false);
+    expect(state.endAt).toBe(BASE_START_PARAMS.startedAt + JUST_PARRY_VISUAL_DURATION_MS);
+    expect(isJustParryEffectActive(state, BASE_START_PARAMS.startedAt + JUST_PARRY_VISUAL_DURATION_MS - 1)).toBe(true);
+    expect(isJustParryEffectActive(state, BASE_START_PARAMS.startedAt + JUST_PARRY_VISUAL_DURATION_MS)).toBe(false);
 
     clearJustParryEffect(state);
     expect(state.active).toBe(false);
-    expect(state.streaks).toHaveLength(0);
   });
 
   it('restarts on consecutive hits', () => {
     const state = createJustParryEffectState();
-    startJustParryEffect(state, {
-      ...BASE_START_PARAMS,
-      durationMs: 300,
-      imageKey: 'avatar-a',
-      seedBase: 1,
-    });
-    const firstStreaks = state.streaks;
+    startJustParryEffect(state, BASE_START_PARAMS);
+    const firstAngle = state.splashAngle;
 
     startJustParryEffect(state, {
       ...BASE_START_PARAMS,
       startedAt: 1200,
-      durationMs: 500,
       originX: 125,
       originY: 170,
-      contactX: 190,
-      contactY: 168,
-      imageKey: 'avatar-b',
-      flipX: true,
       seedBase: 2,
     });
 
     expect(state.startedAt).toBe(1200);
-    expect(state.endAt).toBe(1700);
-    expect(state.imageKey).toBe('avatar-b');
-    expect(state.streaks).not.toBe(firstStreaks);
+    expect(state.endAt).toBe(1200 + JUST_PARRY_VISUAL_DURATION_MS);
+    expect(state.splashAngle).not.toBe(firstAngle);
     expect(isJustParryEffectActive(state, 1600)).toBe(true);
-    expect(isJustParryEffectActive(state, 1700)).toBe(false);
+    expect(isJustParryEffectActive(state, 1650)).toBe(false);
   });
 
   it('prunes expired effect', () => {
     const state = createJustParryEffectState();
     startJustParryEffect(state, BASE_START_PARAMS);
 
-    pruneJustParryEffect(state, 1399);
+    pruneJustParryEffect(state, BASE_START_PARAMS.startedAt + JUST_PARRY_VISUAL_DURATION_MS - 1);
     expect(state.active).toBe(true);
 
-    pruneJustParryEffect(state, 1400);
+    pruneJustParryEffect(state, BASE_START_PARAMS.startedAt + JUST_PARRY_VISUAL_DURATION_MS);
     expect(state.active).toBe(false);
-    expect(state.streaks).toHaveLength(0);
   });
 });
 
-describe('just parry precomputed spark params', () => {
+describe('just parry layer timing', () => {
   it('is deterministic for the same seed', () => {
     const first = createJustParryEffectState();
     const second = createJustParryEffectState();
     startJustParryEffect(first, BASE_START_PARAMS);
     startJustParryEffect(second, BASE_START_PARAMS);
 
-    expect(second.streaks).toEqual(first.streaks);
+    expect(second.splashAngle).toBe(first.splashAngle);
+    expect(second.splashAngleDelta).toBe(first.splashAngleDelta);
   });
 
-  it('assigns velocities and color indices within expected ranges', () => {
-    const state = createJustParryEffectState();
-    startJustParryEffect(state, BASE_START_PARAMS);
-
-    state.streaks.forEach((streak) => {
-      const speed = Math.hypot(streak.vx, streak.vy);
-      expect(speed).toBeGreaterThanOrEqual(200);
-      expect(speed).toBeLessThanOrEqual(1250);
-      expect(streak.colorIndex).toBeGreaterThanOrEqual(0);
-      expect(streak.colorIndex).toBeLessThan(4);
-      expect(streak.lengthPx).toBeGreaterThanOrEqual(4);
-      expect(streak.lengthPx).toBeLessThanOrEqual(24);
-    });
+  it('shows flash only during the first 90ms', () => {
+    expect(computeJustParryFlashLayer(0)?.alpha).toBe(1);
+    expect(computeJustParryFlashLayer(45)?.alpha).toBeGreaterThan(0);
+    expect(computeJustParryFlashLayer(JUST_PARRY_FLASH_DURATION_MS)).toBeNull();
+    expect(computeJustParryFlashLayer(JUST_PARRY_FLASH_DURATION_MS + 1)).toBeNull();
   });
 
-  it('follows friction-based motion over elapsed time', () => {
-    const state = createJustParryEffectState();
-    startJustParryEffect(state, BASE_START_PARAMS);
-    const streak = state.streaks[0];
-    if (!streak) {
-      throw new Error('expected streak');
+  it('shows ring only during the first 180ms', () => {
+    expect(computeJustParryRingLayer(0)?.alpha).toBe(1);
+    expect(computeJustParryRingLayer(90)?.alpha).toBeGreaterThan(0);
+    expect(computeJustParryRingLayer(JUST_PARRY_RING_DURATION_MS)).toBeNull();
+  });
+
+  it('shows splash only during the first 380ms', () => {
+    expect(computeJustParrySplashLayer(0, 0, 0)?.alpha).toBeCloseTo(0.95, 5);
+    expect(computeJustParrySplashLayer(200, 0, 0)?.alpha).toBeGreaterThan(0);
+    expect(computeJustParrySplashLayer(JUST_PARRY_SPLASH_DURATION_MS)).toBeNull();
+  });
+
+  it('expands each layer over time', () => {
+    const flashStart = computeJustParryFlashLayer(0);
+    const flashMid = computeJustParryFlashLayer(45);
+    const ringStart = computeJustParryRingLayer(0);
+    const ringMid = computeJustParryRingLayer(90);
+    const splashStart = computeJustParrySplashLayer(0, 0, 0);
+    const splashMid = computeJustParrySplashLayer(190, 0, 0);
+
+    expect(flashStart).not.toBeNull();
+    expect(flashMid).not.toBeNull();
+    expect(ringStart).not.toBeNull();
+    expect(ringMid).not.toBeNull();
+    expect(splashStart).not.toBeNull();
+    expect(splashMid).not.toBeNull();
+
+    if (!flashStart || !flashMid || !ringStart || !ringMid || !splashStart || !splashMid) {
+      throw new Error('expected layer params');
     }
 
-    const atStart = computeSparkPosition(streak, state.originX, state.originY, 0);
-    expect(atStart.x).toBe(state.originX);
-    expect(atStart.y).toBe(state.originY);
-
-    const later = computeSparkPosition(
-      streak,
-      state.originX,
-      state.originY,
-      streak.delayMs + 120,
-    );
-    expect(later.y).toBeGreaterThan(atStart.y);
-    expect(later.x).not.toBe(atStart.x);
+    expect(flashMid.scale).toBeGreaterThan(flashStart.scale);
+    expect(ringMid.scale).toBeGreaterThan(ringStart.scale);
+    expect(splashMid.scale).toBeGreaterThan(splashStart.scale);
   });
 });

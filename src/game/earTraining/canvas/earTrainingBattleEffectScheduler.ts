@@ -837,25 +837,13 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     finishOnly ? finishMotionDurationMs : undefined,
   );
 
-  const durationMs = finishOnly
-    ? finishMotionDurationMs
-    : command.justParryEffectDurationMs;
-  if (durationMs !== undefined && durationMs > 0) {
-    const poseKey = runtime.player.poseKey && now < runtime.player.poseUntil
-      ? runtime.player.poseKey
-      : null;
-    startJustParryEffect(runtime.justParryEffect, {
-      startedAt: now,
-      durationMs,
-      originX: parryCenterX,
-      originY: parryCenterY,
-      contactX: contact.x,
-      contactY: contact.y,
-      imageKey: poseKey ?? runtime.player.avatarUrl,
-      flipX: runtime.player.flipX && !poseKey,
-      seedBase: command.id,
-    });
-  }
+  startJustParryEffect(runtime.justParryEffect, {
+    startedAt: now,
+    originX: parryCenterX,
+    originY: parryCenterY,
+    seedBase: command.id,
+  });
+  triggerCameraShake(runtime.camera, 1.5, 70);
 
   const impactDelayMs = resolveReflectHammerWallImpactDelayMs();
   const visuals: CanvasEffectVisual[] = [];

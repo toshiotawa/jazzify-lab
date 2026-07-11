@@ -27,6 +27,12 @@ export const BATTLE_EFFECT_SPRITE_URLS: Record<string, string> = {
   cloud: `${EFFECT_ASSET_PATH}effect-cloud-transparent.webp`,
 };
 
+const BATTLE_PARRY_VFX_SPRITE_URLS: Record<string, string> = {
+  parryFlash: '/parry-flash.png',
+  parryRing: '/parry-ring.png',
+  parrySplash: '/parry-splash.png',
+};
+
 export const EFFECT_IMAGE_URLS: Record<string, string> = {
   ...BATTLE_EFFECT_SPRITE_URLS,
   ...BATTLE_UI_SPRITE_URLS,
@@ -37,6 +43,7 @@ export const EFFECT_IMAGE_URLS: Record<string, string> = {
 const OSMD_CRITICAL_POSE_KEYS = ['guardD', 'guardE', 'finish', 'cast'] as const;
 const OSMD_SECONDARY_POSE_KEYS = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5', 'skill6'] as const;
 const OSMD_EFFECT_KEYS = ['meteor', 'fireRing', 'snowflake', 'lightning', 'cloud'] as const;
+const OSMD_PARRY_VFX_KEYS = ['parryFlash', 'parryRing', 'parrySplash'] as const;
 
 const isOsmdLikeMode = (mode?: EarTrainingMode): boolean =>
   mode === 'chord_osmd' || mode === 'chord_precision';
@@ -68,7 +75,10 @@ export const getEarTrainingBattleSecondaryEffectSpritesForMode = (
   mode?: EarTrainingMode,
 ): Record<string, string> => {
   if (isOsmdLikeMode(mode)) {
-    return pickRecordKeys(BATTLE_EFFECT_SPRITE_URLS, OSMD_EFFECT_KEYS);
+    return {
+      ...pickRecordKeys(BATTLE_EFFECT_SPRITE_URLS, OSMD_EFFECT_KEYS),
+      ...pickRecordKeys(BATTLE_PARRY_VFX_SPRITE_URLS, OSMD_PARRY_VFX_KEYS),
+    };
   }
   return {};
 };

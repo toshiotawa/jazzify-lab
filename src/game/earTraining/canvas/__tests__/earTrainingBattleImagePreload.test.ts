@@ -33,10 +33,13 @@ describe('earTrainingBattleImagePreload', () => {
     expect(urls.some((url) => url.includes('fireball'))).toBe(false);
   });
 
-  it('OSMD secondary はフレーズ終了エフェクトとスキルポーズのみ', () => {
+  it('OSMD secondary はフレーズ終了エフェクトとスキルポーズとパリィVFXを含む', () => {
     const urls = getEarTrainingBattleSecondaryUrls('chord_osmd');
     expect(urls.some((url) => url.includes('meteor'))).toBe(true);
     expect(urls.some((url) => url.includes('Frame2'))).toBe(true);
+    expect(urls.some((url) => url.includes('parry-flash'))).toBe(true);
+    expect(urls.some((url) => url.includes('parry-ring'))).toBe(true);
+    expect(urls.some((url) => url.includes('parry-splash'))).toBe(true);
     expect(urls.some((url) => url.includes('GuardD'))).toBe(false);
   });
 

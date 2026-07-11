@@ -55,8 +55,7 @@ import {
   updateCharacterPositions,
 } from './earTrainingBattleCharacterMotion';
 import {
-  drawJustParryBodyGlow,
-  drawJustParrySparks,
+  drawJustParryLayers,
 } from './earTrainingBattleJustParryEffect';
 import {
   drawOsuCircles,
@@ -1027,17 +1026,7 @@ export const drawEarTrainingBattle = (
   drawBackground(ctx, width, height, runtime);
   drawCharacter(ctx, runtime, 'player', visualNow);
   const floorY = resolveFloorY(height, runtime.timingCalibrationLayout);
-  drawJustParryBodyGlow(
-    ctx,
-    runtime.justParryEffect,
-    runtime.loadedImages,
-    runtime.player.x,
-    floorY,
-    runtime.player.yOffset,
-    runtime.player.rotation,
-    now,
-  );
-  drawJustParrySparks(ctx, runtime.justParryEffect, now);
+  drawJustParryLayers(ctx, runtime.justParryEffect, runtime.loadedImages, now);
   drawCharacter(ctx, runtime, 'enemy', visualNow);
   drawPhraseIntro(ctx, runtime, visualNow);
   drawEffects(ctx, runtime, visualNow, now);

@@ -1,4 +1,3 @@
-import { CHARACTER_DISPLAY_SIZE } from './earTrainingBattleLayout';
 import {
   easeCubicOut,
   lerp,
@@ -7,65 +6,43 @@ import {
 const BEAT_EPS = 1e-6;
 
 export const JUST_PARRY_MIN_DURATION_MS = 120;
-export const JUST_PARRY_SPARK_BURST_MS = 200;
-export const JUST_PARRY_SPARK_COUNT = 24;
-export const JUST_PARRY_BODY_GLOW_PURPLE = '#c084fc';
-export const JUST_PARRY_BODY_GLOW_BLUE = '#60a5fa';
-export const JUST_PARRY_SPARK_CORE = '#f0f9ff';
-export const JUST_PARRY_SPARK_VIOLET = '#a78bfa';
-export const JUST_PARRY_SPARK_PURPLE = '#c084fc';
-export const JUST_PARRY_SPARK_BLUE = '#60a5fa';
+export const JUST_PARRY_VISUAL_DURATION_MS = 450;
+export const JUST_PARRY_FLASH_DURATION_MS = 90;
+export const JUST_PARRY_RING_DURATION_MS = 180;
+export const JUST_PARRY_SPLASH_DURATION_MS = 380;
+export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 200;
+export const JUST_PARRY_FLASH_IMAGE_KEY = 'parryFlash';
+export const JUST_PARRY_RING_IMAGE_KEY = 'parryRing';
+export const JUST_PARRY_SPLASH_IMAGE_KEY = 'parrySplash';
 
-const JUST_PARRY_SPARK_GRAVITY = 420;
-const JUST_PARRY_SPARK_MIN_SPEED = 380;
-const JUST_PARRY_SPARK_MAX_SPEED = 1180;
-const JUST_PARRY_SPARK_FRICTION = 7.5;
-const JUST_PARRY_SPARK_COLORS = [
-  JUST_PARRY_SPARK_CORE,
-  JUST_PARRY_SPARK_VIOLET,
-  JUST_PARRY_SPARK_PURPLE,
-  JUST_PARRY_SPARK_BLUE,
-] as const;
+const JUST_PARRY_FLASH_SCALE_START = 0.1;
+const JUST_PARRY_FLASH_SCALE_END = 0.8;
+const JUST_PARRY_RING_SCALE_START = 0.15;
+const JUST_PARRY_RING_SCALE_END = 1.2;
+const JUST_PARRY_SPLASH_SCALE_START = 0.35;
+const JUST_PARRY_SPLASH_SCALE_END = 1.05;
+const JUST_PARRY_SPLASH_ALPHA_START = 0.95;
 
-export interface JustParrySparkStreak {
-  vx: number;
-  vy: number;
-  lengthPx: number;
-  delayMs: number;
-  colorIndex: number;
-  friction: number;
-}
+const easeQuadOut = (t: number): number => 1 - (1 - t) ** 2;
 
 export interface JustParryEffectState {
   active: boolean;
   startedAt: number;
   endAt: number;
-  durationMs: number;
   originX: number;
   originY: number;
-  contactX: number;
-  contactY: number;
-  imageKey: string;
-  flipX: boolean;
-  axisX: number;
-  axisY: number;
-  streaks: readonly JustParrySparkStreak[];
+  splashAngle: number;
+  splashAngleDelta: number;
 }
 
 export const createJustParryEffectState = (): JustParryEffectState => ({
   active: false,
   startedAt: 0,
   endAt: 0,
-  durationMs: 0,
   originX: 0,
   originY: 0,
-  contactX: 0,
-  contactY: 0,
-  imageKey: '',
-  flipX: false,
-  axisX: 1,
-  axisY: 0,
-  streaks: [],
+  splashAngle: 0,
+  splashAngleDelta: 0,
 });
 
 export const resolveJustParryEffectDurationMs = (
@@ -98,94 +75,13 @@ const seededUnit = (seed: number): number => {
   return value - Math.floor(value);
 };
 
-interface JustParrySparkAxes {
-  axisX: number;
-  axisY: number;
-  perpX: number;
-  perpY: number;
-  baseAngleRad: number;
-}
-
-const resolveJustParrySparkAxes = (
-  originX: number,
-  originY: number,
-  contactX: number,
-  contactY: number,
-): JustParrySparkAxes => {
-  const dx = contactX - originX;
-  const dy = contactY - originY;
-  const length = Math.hypot(dx, dy);
-  const axisX = length > 1e-3 ? dx / length : 1;
-  const axisY = length > 1e-3 ? dy / length : 0;
-  return {
-    axisX,
-    axisY,
-    perpX: -axisY,
-    perpY: axisX,
-    baseAngleRad: Math.atan2(axisY, axisX),
-  };
-};
-
-const buildJustParrySparkStreaks = (
-  axes: JustParrySparkAxes,
-  seedBase: number,
-): readonly JustParrySparkStreak[] => {
-  const { axisX, axisY, perpX, perpY, baseAngleRad } = axes;
-  const streaks: JustParrySparkStreak[] = [];
-
-  for (let index = 0; index < JUST_PARRY_SPARK_COUNT; index += 1) {
-    const seed = seedBase + index * 19.37;
-    const fanT = seededUnit(seed);
-    const fanAngle = (fanT - 0.5) * 1.8 - 0.35;
-    const cos = Math.cos(fanAngle);
-    const sin = Math.sin(fanAngle);
-    const dirX = axisX * cos - perpX * sin;
-    const dirY = axisY * cos - perpY * sin + (seededUnit(seed + 0.7) - 0.5) * 0.45;
-    const dirLength = Math.hypot(dirX, dirY);
-    const normDirX = dirX / dirLength;
-    const normDirY = dirY / dirLength;
-    const speed = lerp(
-      JUST_PARRY_SPARK_MIN_SPEED,
-      JUST_PARRY_SPARK_MAX_SPEED,
-      seededUnit(seed + 2.4),
-    );
-    streaks.push({
-      vx: normDirX * speed,
-      vy: normDirY * speed,
-      lengthPx: 6 + seededUnit(seed + 4.8) * 18,
-      delayMs: Math.round(seededUnit(seed + 6.1) * 18),
-      colorIndex: Math.floor(seededUnit(seed + 8.3) * JUST_PARRY_SPARK_COLORS.length),
-      friction: 5.5 + seededUnit(seed + 9.9) * 4,
-    });
-  }
-
-  // 追加の放射状ショートストリーク（全方位）
-  for (let index = 0; index < 4; index += 1) {
-    const seed = seedBase + index * 31.11 + 900;
-    const angle = baseAngleRad + (seededUnit(seed) - 0.5) * Math.PI * 0.5;
-    const speed = JUST_PARRY_SPARK_MIN_SPEED * (0.55 + seededUnit(seed + 1.2) * 0.35);
-    streaks.push({
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      lengthPx: 4 + seededUnit(seed + 3.4) * 10,
-      delayMs: 0,
-      colorIndex: Math.floor(seededUnit(seed + 5.6) * JUST_PARRY_SPARK_COLORS.length),
-      friction: 8 + seededUnit(seed + 7.1) * 3,
-    });
-  }
-
-  return streaks;
-};
+const seededRange = (seed: number, min: number, max: number): number =>
+  min + seededUnit(seed) * (max - min);
 
 export interface StartJustParryEffectParams {
   startedAt: number;
-  durationMs: number;
   originX: number;
   originY: number;
-  contactX: number;
-  contactY: number;
-  imageKey: string;
-  flipX: boolean;
   seedBase: number;
 }
 
@@ -193,31 +89,17 @@ export const startJustParryEffect = (
   state: JustParryEffectState,
   params: StartJustParryEffectParams,
 ): void => {
-  const durationMs = Math.max(JUST_PARRY_MIN_DURATION_MS, Math.round(params.durationMs));
-  const axes = resolveJustParrySparkAxes(
-    params.originX,
-    params.originY,
-    params.contactX,
-    params.contactY,
-  );
   state.active = true;
   state.startedAt = params.startedAt;
-  state.durationMs = durationMs;
-  state.endAt = params.startedAt + durationMs;
+  state.endAt = params.startedAt + JUST_PARRY_VISUAL_DURATION_MS;
   state.originX = params.originX;
   state.originY = params.originY;
-  state.contactX = params.contactX;
-  state.contactY = params.contactY;
-  state.imageKey = params.imageKey;
-  state.flipX = params.flipX;
-  state.axisX = axes.axisX;
-  state.axisY = axes.axisY;
-  state.streaks = buildJustParrySparkStreaks(axes, params.seedBase);
+  state.splashAngle = seededRange(params.seedBase, -12, 12);
+  state.splashAngleDelta = seededRange(params.seedBase + 3.7, -8, 8);
 };
 
 export const clearJustParryEffect = (state: JustParryEffectState): void => {
   state.active = false;
-  state.streaks = [];
 };
 
 export const isJustParryEffectActive = (
@@ -234,252 +116,132 @@ export const pruneJustParryEffect = (
   }
 };
 
-export const getJustParryEffectAlpha = (
-  state: JustParryEffectState,
-  nowMs: number,
-): number => {
-  if (!isJustParryEffectActive(state, nowMs)) {
-    return 0;
-  }
-  const elapsed = nowMs - state.startedAt;
-  const fadeStart = state.durationMs * 0.72;
-  if (elapsed <= fadeStart) {
-    return 1;
-  }
-  const fadeT = (elapsed - fadeStart) / Math.max(1, state.durationMs - fadeStart);
-  return 1 - easeCubicOut(Math.min(1, fadeT));
-};
-
-interface JustParrySparkDrawParams {
-  x: number;
-  y: number;
-  tailX: number;
-  tailY: number;
-  streakAlpha: number;
+export interface JustParryLayerDrawParams {
+  scale: number;
+  alpha: number;
+  angleDeg: number;
 }
 
-const computeSparkVelocity = (
-  streak: JustParrySparkStreak,
-  t: number,
-): { vx: number; vy: number } => {
-  const decay = Math.exp(-streak.friction * t);
+export const computeJustParrySplashLayer = (
+  elapsedMs: number,
+  splashAngle: number,
+  splashAngleDelta: number,
+): JustParryLayerDrawParams | null => {
+  if (elapsedMs < 0 || elapsedMs >= JUST_PARRY_SPLASH_DURATION_MS) {
+    return null;
+  }
+  const t = elapsedMs / JUST_PARRY_SPLASH_DURATION_MS;
   return {
-    vx: streak.vx * decay,
-    vy: streak.vy * decay + JUST_PARRY_SPARK_GRAVITY * t,
+    scale: lerp(JUST_PARRY_SPLASH_SCALE_START, JUST_PARRY_SPLASH_SCALE_END, easeCubicOut(t)),
+    alpha: lerp(JUST_PARRY_SPLASH_ALPHA_START, 0, easeCubicOut(t)),
+    angleDeg: splashAngle + splashAngleDelta * easeCubicOut(t),
   };
 };
 
-const computeJustParrySparkDrawParams = (
-  streak: JustParrySparkStreak,
+export const computeJustParryRingLayer = (
+  elapsedMs: number,
+): JustParryLayerDrawParams | null => {
+  if (elapsedMs < 0 || elapsedMs >= JUST_PARRY_RING_DURATION_MS) {
+    return null;
+  }
+  const t = elapsedMs / JUST_PARRY_RING_DURATION_MS;
+  return {
+    scale: lerp(JUST_PARRY_RING_SCALE_START, JUST_PARRY_RING_SCALE_END, easeCubicOut(t)),
+    alpha: lerp(1, 0, easeCubicOut(t)),
+    angleDeg: 0,
+  };
+};
+
+export const computeJustParryFlashLayer = (
+  elapsedMs: number,
+): JustParryLayerDrawParams | null => {
+  if (elapsedMs < 0 || elapsedMs >= JUST_PARRY_FLASH_DURATION_MS) {
+    return null;
+  }
+  const t = elapsedMs / JUST_PARRY_FLASH_DURATION_MS;
+  return {
+    scale: lerp(JUST_PARRY_FLASH_SCALE_START, JUST_PARRY_FLASH_SCALE_END, easeQuadOut(t)),
+    alpha: lerp(1, 0, easeQuadOut(t)),
+    angleDeg: 0,
+  };
+};
+
+const drawJustParryImageLayer = (
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
   originX: number,
   originY: number,
-  elapsedMs: number,
-  alpha: number,
-): JustParrySparkDrawParams | null => {
-  const localElapsed = Math.max(0, elapsedMs - streak.delayMs);
-  const t = localElapsed / 1000;
-  if (t <= 0) {
-    return null;
-  }
-
-  const { vx, vy } = computeSparkVelocity(streak, t);
-  const speed = Math.hypot(vx, vy);
-  if (speed < 8) {
-    return null;
-  }
-
-  const frictionIntegral = streak.friction > 1e-6
-    ? (1 - Math.exp(-streak.friction * t)) / streak.friction
-    : t;
-  const x = originX + streak.vx * frictionIntegral;
-  const y = originY + streak.vy * frictionIntegral + 0.5 * JUST_PARRY_SPARK_GRAVITY * t * t;
-  const lineLength = streak.lengthPx * Math.min(1.8, 0.35 + speed / 520);
-  const normVx = vx / speed;
-  const normVy = vy / speed;
-  const travelT = Math.min(1, localElapsed / JUST_PARRY_SPARK_BURST_MS);
-  const streakAlpha = alpha * (1 - travelT * 0.55);
-
-  return {
-    x,
-    y,
-    tailX: x - normVx * lineLength,
-    tailY: y - normVy * lineLength,
-    streakAlpha,
-  };
-};
-
-const drawJustParrySparkStreak = (
-  ctx: CanvasRenderingContext2D,
-  streak: JustParrySparkStreak,
-  params: JustParrySparkDrawParams,
+  displaySizePx: number,
+  params: JustParryLayerDrawParams,
+  blendMode: GlobalCompositeOperation,
 ): void => {
-  const color = JUST_PARRY_SPARK_COLORS[streak.colorIndex % JUST_PARRY_SPARK_COLORS.length];
-  const gradient = ctx.createLinearGradient(params.tailX, params.tailY, params.x, params.y);
-  gradient.addColorStop(0, 'rgba(96, 165, 250, 0)');
-  gradient.addColorStop(0.35, JUST_PARRY_SPARK_PURPLE);
-  gradient.addColorStop(0.72, JUST_PARRY_SPARK_VIOLET);
-  gradient.addColorStop(1, color);
-
+  const size = displaySizePx * params.scale;
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = params.streakAlpha;
-  ctx.strokeStyle = gradient;
-  ctx.lineWidth = 1.4 + streak.lengthPx * 0.06;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(params.tailX, params.tailY);
-  ctx.lineTo(params.x, params.y);
-  ctx.stroke();
-
-  ctx.globalAlpha = params.streakAlpha * 0.85;
-  ctx.fillStyle = JUST_PARRY_SPARK_CORE;
-  ctx.beginPath();
-  ctx.arc(params.x, params.y, 1.2 + streak.lengthPx * 0.04, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.globalCompositeOperation = blendMode;
+  ctx.globalAlpha = params.alpha;
+  ctx.translate(originX, originY);
+  if (params.angleDeg !== 0) {
+    ctx.rotate(params.angleDeg * Math.PI / 180);
+  }
+  ctx.drawImage(img, -size / 2, -size / 2, size, size);
   ctx.restore();
 };
 
-export const drawJustParrySparks = (
-  ctx: CanvasRenderingContext2D,
-  state: JustParryEffectState,
-  nowMs: number,
-): void => {
-  if (!isJustParryEffectActive(state, nowMs)) {
-    return;
-  }
-
-  const alpha = getJustParryEffectAlpha(state, nowMs);
-  if (alpha <= 0) {
-    return;
-  }
-
-  const elapsed = nowMs - state.startedAt;
-
-  ctx.save();
-
-  for (let index = 0; index < state.streaks.length; index += 1) {
-    const streak = state.streaks[index];
-    const drawParams = computeJustParrySparkDrawParams(
-      streak,
-      state.originX,
-      state.originY,
-      elapsed,
-      alpha,
-    );
-    if (!drawParams) {
-      continue;
-    }
-    drawJustParrySparkStreak(ctx, streak, drawParams);
-  }
-
-  ctx.restore();
-};
-
-const bodyGlowCache = new Map<string, HTMLCanvasElement>();
-
-const getBodyGlowCacheKey = (
-  imageSrc: string,
-  width: number,
-  height: number,
-): string => `${imageSrc}|${Math.round(width)}|${Math.round(height)}|purple-blue`;
-
-const buildBodyGlowCanvas = (
-  img: HTMLImageElement,
-  width: number,
-  height: number,
-): HTMLCanvasElement | null => {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  const key = getBodyGlowCacheKey(img.src, width, height);
-  const cached = bodyGlowCache.get(key);
-  if (cached) {
-    return cached;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    return null;
-  }
-
-  ctx.drawImage(img, 0, 0, width, height);
-  ctx.globalCompositeOperation = 'source-in';
-  const gradient = ctx.createLinearGradient(0, 0, width * 0.35, height);
-  gradient.addColorStop(0, JUST_PARRY_SPARK_VIOLET);
-  gradient.addColorStop(0.45, JUST_PARRY_BODY_GLOW_PURPLE);
-  gradient.addColorStop(1, JUST_PARRY_BODY_GLOW_BLUE);
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-
-  bodyGlowCache.set(key, canvas);
-  return canvas;
-};
-
-export const drawJustParryBodyGlow = (
+export const drawJustParryLayers = (
   ctx: CanvasRenderingContext2D,
   state: JustParryEffectState,
   loadedImages: Map<string, HTMLImageElement>,
-  playerX: number,
-  floorY: number,
-  yOffset: number,
-  rotationDeg: number,
   nowMs: number,
 ): void => {
   if (!isJustParryEffectActive(state, nowMs)) {
     return;
   }
 
-  const img = loadedImages.get(state.imageKey);
-  if (!img) {
-    return;
+  const elapsed = nowMs - state.startedAt;
+  const splashImg = loadedImages.get(JUST_PARRY_SPLASH_IMAGE_KEY);
+  const ringImg = loadedImages.get(JUST_PARRY_RING_IMAGE_KEY);
+  const flashImg = loadedImages.get(JUST_PARRY_FLASH_IMAGE_KEY);
+
+  const splashParams = computeJustParrySplashLayer(
+    elapsed,
+    state.splashAngle,
+    state.splashAngleDelta,
+  );
+  if (splashImg && splashParams && splashParams.alpha > 0) {
+    drawJustParryImageLayer(
+      ctx,
+      splashImg,
+      state.originX,
+      state.originY,
+      JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
+      splashParams,
+      'screen',
+    );
   }
 
-  const alpha = getJustParryEffectAlpha(state, nowMs);
-  if (alpha <= 0) {
-    return;
+  const ringParams = computeJustParryRingLayer(elapsed);
+  if (ringImg && ringParams && ringParams.alpha > 0) {
+    drawJustParryImageLayer(
+      ctx,
+      ringImg,
+      state.originX,
+      state.originY,
+      JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
+      ringParams,
+      'lighter',
+    );
   }
 
-  const pulse = 0.88 + Math.sin((nowMs - state.startedAt) / 70) * 0.12;
-  const drawW = CHARACTER_DISPLAY_SIZE;
-  const drawH = CHARACTER_DISPLAY_SIZE;
-  const glowCanvas = buildBodyGlowCanvas(img, drawW, drawH);
-  if (!glowCanvas) {
-    return;
+  const flashParams = computeJustParryFlashLayer(elapsed);
+  if (flashImg && flashParams && flashParams.alpha > 0) {
+    drawJustParryImageLayer(
+      ctx,
+      flashImg,
+      state.originX,
+      state.originY,
+      JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
+      flashParams,
+      'lighter',
+    );
   }
-
-  ctx.save();
-  ctx.translate(playerX, floorY + yOffset);
-  ctx.rotate(rotationDeg * Math.PI / 180);
-
-  const drawX = -drawW / 2;
-  const drawY = -drawH;
-  const flip = state.flipX;
-
-  ctx.save();
-  if (flip) {
-    ctx.scale(-1, 1);
-  }
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = alpha * 0.45 * pulse;
-  ctx.drawImage(glowCanvas, flip ? -drawW / 2 : drawX, drawY, drawW, drawH);
-  ctx.restore();
-
-  ctx.save();
-  if (flip) {
-    ctx.scale(-1, 1);
-  }
-  const rimScale = 1.06;
-  const rimW = drawW * rimScale;
-  const rimH = drawH * rimScale;
-  const rimX = (flip ? -rimW / 2 : drawX) - (rimW - drawW) * 0.5;
-  const rimY = drawY - (rimH - drawH) * 0.5;
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = alpha * 0.34 * pulse;
-  ctx.drawImage(glowCanvas, rimX, rimY, rimW, rimH);
-  ctx.restore();
-
-  ctx.restore();
 };
