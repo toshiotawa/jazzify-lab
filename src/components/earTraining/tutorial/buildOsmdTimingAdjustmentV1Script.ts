@@ -71,7 +71,28 @@ export const buildOsmdTimingAdjustmentV1Script = (): EarTrainingTutorialScriptPa
       requiredLoops: 1,
       timedLines: [],
     },
+    {
+      type: 'dialogue_only',
+      lineIntervalSeconds: 4,
+      lines: [
+        {
+          speaker: 'partner',
+          ja: 'タイミングの調整、できたかのう。',
+          en: 'Looks like you have the timing dialed in.',
+        },
+        {
+          speaker: 'player',
+          ja: 'うん、ずれる感じが減った！',
+          en: 'Yeah — it feels less off now!',
+        },
+        {
+          speaker: 'partner',
+          ja: 'よし。これで本番でも合わせやすくなるぞ。',
+          en: 'Good. That will help you lock in during real stages.',
+        },
+      ],
+    },
     { type: 'finish' },
   ],
-  finish: { showCta: true },
+  finish: { showCta: false },
 });

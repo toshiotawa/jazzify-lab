@@ -131,8 +131,12 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
     }
     const nextScene = script.scenes[nextIndex];
     if (nextScene?.type === 'finish') {
-      setSceneIndex(nextIndex);
-      setShowFinishCta(showTutorialFinishCta(script, nextScene));
+      if (showTutorialFinishCta(script, nextScene)) {
+        setSceneIndex(nextIndex);
+        setShowFinishCta(true);
+        return;
+      }
+      void finalize('completed');
       return;
     }
     setSceneIndex(nextIndex);
@@ -276,7 +280,7 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
         <button
           type="button"
           onClick={handleBottomCta}
-          className="pointer-events-auto absolute bottom-[max(16px,env(safe-area-inset-bottom))] right-[max(16px,env(safe-area-inset-right))] z-[125] rounded-xl bg-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg hover:bg-purple-500"
+          className="pointer-events-auto absolute right-[max(12px,env(safe-area-inset-right))] top-[max(12px,env(safe-area-inset-top))] z-[125] rounded-xl bg-purple-600 px-6 py-3 text-sm font-bold text-white shadow-lg hover:bg-purple-500"
         >
           {bottomCtaLabel}
         </button>

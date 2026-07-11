@@ -377,24 +377,31 @@ private struct EarTrainingChordOSMDContent: View {
                 VStack(spacing: 16) {
                     Text(locale == .ja ? "1ループ終了。タイミングは合いましたか？" : "Finished one loop. How does the timing feel?")
                         .font(.headline)
+                        .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                     HStack(spacing: 12) {
                         Button(action: { controller.retryTimingCalibrationLoop() }) {
                             Text(locale == .ja ? "もう一度" : "Try again")
                                 .font(.headline.bold())
+                                .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                                 .background(Color(white: 0.2))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         Button(action: { controller.handleTimingCalibrationLoopConfirmOk() }) {
                             Text("OK")
                                 .font(.headline.bold())
+                                .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                                 .background(Color.purple)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(20)

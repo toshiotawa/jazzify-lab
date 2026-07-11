@@ -82,8 +82,19 @@ struct EarTrainingTimingAdjustmentView: View {
                             switch scenes[sceneIndex] {
                             case .finish:
                                 EmptyView()
-                            default:
+                            case .dialogueOnly(let dialogue):
+                                EarTrainingTutorialDialogueBattleView(
+                                    drumLoopUrl: script.audioTracks?.drum_loop?.url,
+                                    locale: locale,
+                                    lines: dialogue.lines,
+                                    intervalSeconds: dialogue.lineIntervalSeconds ?? 4,
+                                    fixedLandscapeSize: landscapeSize,
+                                    onComplete: { handleSceneFinished(script: script) }
+                                )
+                            case .chordOsmd:
                                 timingOsmdScene(script: script, scene: scenes[sceneIndex], landscapeSize: landscapeSize)
+                            default:
+                                EmptyView()
                             }
                         }
                         if scenes.indices.contains(sceneIndex), case .finish = scenes[sceneIndex], showFinishCta {
@@ -102,7 +113,6 @@ struct EarTrainingTimingAdjustmentView: View {
 
                     if !bluetoothNoticeOpen {
                         VStack {
-                            Spacer()
                             HStack {
                                 Spacer()
                                 Button(action: handleBottomCta) {
@@ -115,8 +125,9 @@ struct EarTrainingTimingAdjustmentView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
                                 .padding(.trailing, 16)
-                                .padding(.bottom, 16)
+                                .padding(.top, 16)
                             }
+                            Spacer()
                         }
                         .zIndex(90)
                     }
@@ -240,12 +251,21 @@ struct EarTrainingTimingAdjustmentView: View {
             return
         }
         let nextScene = script.scenes[nextIndex]
-        sceneIndex = nextIndex
         if case .finish = nextScene {
-            showFinishCta = script.finish?.showCta ?? true
-        } else {
-            showFinishCta = false
+            let needsCta = script.finish?.showCta ?? true
+            if needsCta {
+                sceneIndex = nextIndex
+                showFinishCta = true
+            } else {
+                Task {
+                    await onQuestComplete?()
+                    onClose()
+                }
+            }
+            return
         }
+        sceneIndex = nextIndex
+        showFinishCta = false
     }
 }
 

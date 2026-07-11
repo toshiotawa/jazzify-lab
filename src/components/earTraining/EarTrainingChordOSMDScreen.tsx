@@ -2290,19 +2290,19 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
             aria-modal="true"
             className="w-full max-w-md rounded-xl border border-white/15 bg-slate-900 p-6 text-white shadow-xl"
           >
-            <p className="mb-6 text-center text-base font-semibold">{timingAdjustmentCopy.loopConfirmTitle}</p>
+            <p className="mb-6 text-center text-base font-semibold text-white">{timingAdjustmentCopy.loopConfirmTitle}</p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 onClick={handleLoopConfirmRetry}
-                className="flex-1 rounded-lg border border-white/20 bg-slate-800 py-3 text-sm font-bold hover:bg-slate-700"
+                className="flex-1 rounded-lg border border-white/20 bg-slate-800 py-3 text-sm font-bold text-white hover:bg-slate-700"
               >
                 {timingAdjustmentCopy.loopConfirmRetry}
               </button>
               <button
                 type="button"
                 onClick={handleLoopConfirmOk}
-                className="flex-1 rounded-lg bg-purple-600 py-3 text-sm font-bold hover:bg-purple-500"
+                className="flex-1 rounded-lg bg-purple-600 py-3 text-sm font-bold text-white hover:bg-purple-500"
               >
                 {timingAdjustmentCopy.loopConfirmOk}
               </button>

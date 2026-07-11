@@ -14,8 +14,11 @@ describe('buildOsmdTimingAdjustmentV1Script', () => {
     expect(isEarTrainingTutorialScriptPayload(script)).toBe(true);
     expect(script.ui.showExitButton).toBe(false);
     expect(script.ui.hideSettingsButton).toBe(true);
-    expect(script.scenes).toHaveLength(2);
+    expect(script.finish?.showCta).toBe(false);
+    expect(script.scenes).toHaveLength(3);
     expect(script.scenes[0]?.type).toBe('chord_osmd');
+    expect(script.scenes[1]?.type).toBe('dialogue_only');
+    expect(script.scenes[2]?.type).toBe('finish');
     if (script.scenes[0]?.type === 'chord_osmd') {
       expect(script.scenes[0].requiredLoops).toBe(1);
     }
