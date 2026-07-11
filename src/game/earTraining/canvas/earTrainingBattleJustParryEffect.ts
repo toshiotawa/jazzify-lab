@@ -11,25 +11,25 @@ export const JUST_PARRY_VISUAL_DURATION_MS = 450;
 export const JUST_PARRY_FLASH_DURATION_MS = 140;
 export const JUST_PARRY_RING_DURATION_MS = 280;
 export const JUST_PARRY_SPLASH_DURATION_MS = 450;
-export const JUST_PARRY_FLASH_DISPLAY_SIZE_PX = 360;
-export const JUST_PARRY_RING_DISPLAY_SIZE_PX = 420;
-export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 460;
+export const JUST_PARRY_FLASH_DISPLAY_SIZE_PX = 300;
+export const JUST_PARRY_RING_DISPLAY_SIZE_PX = 340;
+export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 360;
 export const JUST_PARRY_FLASH_IMAGE_KEY = 'parryFlash';
 export const JUST_PARRY_RING_IMAGE_KEY = 'parryRing';
 export const JUST_PARRY_SPLASH_IMAGE_KEY = 'parrySplash';
 
-/** 開始から十分大きくして、flash/ring が splash に埋もれないようにする */
-const JUST_PARRY_FLASH_SCALE_START = 0.55;
-const JUST_PARRY_FLASH_SCALE_END = 1.2;
-const JUST_PARRY_RING_SCALE_START = 0.5;
-const JUST_PARRY_RING_SCALE_END = 1.4;
-const JUST_PARRY_SPLASH_SCALE_START = 0.55;
-const JUST_PARRY_SPLASH_SCALE_END = 1.25;
-const JUST_PARRY_FLASH_ALPHA_START = 1;
-const JUST_PARRY_RING_ALPHA_START = 1;
-const JUST_PARRY_SPLASH_ALPHA_START = 1;
-/** 序盤は不透明のまま、後半だけフェード（透明にしない） */
-const JUST_PARRY_ALPHA_HOLD_FRACTION = 0.45;
+/** 直前より少し控えめなサイズ・不透明度（視認性は維持） */
+const JUST_PARRY_FLASH_SCALE_START = 0.42;
+const JUST_PARRY_FLASH_SCALE_END = 1.05;
+const JUST_PARRY_RING_SCALE_START = 0.4;
+const JUST_PARRY_RING_SCALE_END = 1.25;
+const JUST_PARRY_SPLASH_SCALE_START = 0.42;
+const JUST_PARRY_SPLASH_SCALE_END = 1.12;
+const JUST_PARRY_FLASH_ALPHA_START = 0.88;
+const JUST_PARRY_RING_ALPHA_START = 0.9;
+const JUST_PARRY_SPLASH_ALPHA_START = 0.85;
+/** 序盤は高めのαを維持し、後半でフェード */
+const JUST_PARRY_ALPHA_HOLD_FRACTION = 0.32;
 const JUST_PARRY_BODY_GLOW_WHITE = '#f8fafc';
 const JUST_PARRY_BODY_GLOW_CYAN = '#67e8f9';
 const JUST_PARRY_BODY_GLOW_BLUE = '#3b82f6';
@@ -271,7 +271,7 @@ export const drawJustParryLayers = (
       JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
       splashParams,
       'source-over',
-      0.92,
+      0.78,
     );
     drawJustParryImageLayer(
       ctx,
@@ -281,7 +281,7 @@ export const drawJustParryLayers = (
       JUST_PARRY_SPLASH_DISPLAY_SIZE_PX,
       splashParams,
       'screen',
-      0.85,
+      0.72,
     );
   }
 
@@ -295,7 +295,7 @@ export const drawJustParryLayers = (
       JUST_PARRY_RING_DISPLAY_SIZE_PX,
       ringParams,
       'source-over',
-      0.95,
+      0.82,
     );
     drawJustParryImageLayer(
       ctx,
@@ -305,7 +305,7 @@ export const drawJustParryLayers = (
       JUST_PARRY_RING_DISPLAY_SIZE_PX,
       ringParams,
       'lighter',
-      0.8,
+      0.65,
     );
   }
 
@@ -319,7 +319,7 @@ export const drawJustParryLayers = (
       JUST_PARRY_FLASH_DISPLAY_SIZE_PX,
       flashParams,
       'source-over',
-      1,
+      0.88,
     );
     drawJustParryImageLayer(
       ctx,
@@ -329,7 +329,7 @@ export const drawJustParryLayers = (
       JUST_PARRY_FLASH_DISPLAY_SIZE_PX,
       flashParams,
       'lighter',
-      0.9,
+      0.75,
     );
   }
 };
