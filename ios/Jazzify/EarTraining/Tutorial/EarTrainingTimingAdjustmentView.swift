@@ -91,8 +91,15 @@ struct EarTrainingTimingAdjustmentView: View {
                                     fixedLandscapeSize: landscapeSize,
                                     onComplete: { handleSceneFinished(script: script) }
                                 )
-                            case .chordOsmd:
-                                timingOsmdScene(script: script, scene: scenes[sceneIndex], landscapeSize: landscapeSize)
+                                .id("timing-dialogue-\(sceneIndex)")
+                            case .chordOsmd(let osmdScene):
+                                timingOsmdScene(
+                                    script: script,
+                                    scene: scenes[sceneIndex],
+                                    landscapeSize: landscapeSize,
+                                    timingCalibrationMode: osmdScene.contentRef == "osmd-timing-adjustment"
+                                )
+                                .id("timing-osmd-\(sceneIndex)-\(osmdScene.contentRef)")
                             default:
                                 EmptyView()
                             }
@@ -145,21 +152,30 @@ struct EarTrainingTimingAdjustmentView: View {
     private func timingOsmdScene(
         script: EarTrainingTutorialScriptPayload,
         scene: EarTrainingTutorialScene,
-        landscapeSize: CGSize
+        landscapeSize: CGSize,
+        timingCalibrationMode: Bool
     ) -> some View {
         if case .chordOsmd(let osmdScene) = scene,
            let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
             content: script.content,
             contentRef: osmdScene.contentRef,
-            keyboardHintsScriptDefault: false,
+            keyboardHintsScriptDefault: uiOverrides(for: osmdScene.contentRef).keyboardHintsDefault,
             locale: locale
            ) {
+            let ui = uiOverrides(for: osmdScene.contentRef)
             EarTrainingChordOSMDGameView(
                 source: .embedded(stage),
                 lessonContext: nil,
                 locale: locale,
                 initialPracticeMode: false,
-                tutorialHooks: makeTimingHooks(script: script, requiredLoops: osmdScene.requiredLoops),
+                tutorialHooks: makeOsmdHooks(
+                    script: script,
+                    contentRef: osmdScene.contentRef,
+                    requiredLoops: osmdScene.requiredLoops,
+                    timedLines: osmdScene.timedLines,
+                    timingCalibrationMode: timingCalibrationMode,
+                    ui: ui
+                ),
                 hostedLandscapeSize: landscapeSize,
                 onClose: onClose
             )
@@ -206,12 +222,14 @@ struct EarTrainingTimingAdjustmentView: View {
         entry == .quest ? (isJa ? "進む" : "Continue") : (isJa ? "戻る" : "Back")
     }
 
-    /// 進むは chord_osmd 中のみ。会話シーン以降は出さない（設定の戻るは常時可）
+    /// 進むはタイミング調整 OSMD 中のみ。続く MQ 1-1 OSMD では出さない（設定の戻るは常時可）
     private var shouldShowBottomCta: Bool {
         if entry == .settings { return true }
         if showFinishCta { return true }
         guard let script, script.scenes.indices.contains(sceneIndex) else { return false }
-        if case .chordOsmd = script.scenes[sceneIndex] { return true }
+        if case .chordOsmd(let osmd) = script.scenes[sceneIndex] {
+            return osmd.contentRef == "osmd-timing-adjustment"
+        }
         return false
     }
 
@@ -231,22 +249,70 @@ struct EarTrainingTimingAdjustmentView: View {
         handleSceneFinished(script: script)
     }
 
-    private func makeTimingHooks(
+    private func uiOverrides(for contentRef: String) -> EarTrainingTutorialUiOverrides {
+        switch contentRef {
+        case "osmd-timing-adjustment":
+            return EarTrainingTutorialUiOverrides(
+                hidePlayerHpBar: true,
+                hideSettingsButton: true,
+                hideBackButton: true,
+                hideLobby: true,
+                hideMidiToggle: true,
+                hidePhraseIntroQuota: true,
+                showExitButton: false,
+                playerInvincible: true,
+                disableEnemyAttacks: true,
+                keyboardHintsDefault: false
+            )
+        case "mq-b1-q1-osmd-normal":
+            return EarTrainingTutorialUiOverrides(
+                hidePlayerHpBar: false,
+                hideSettingsButton: false,
+                hideBackButton: true,
+                hideLobby: false,
+                hideMidiToggle: false,
+                hidePhraseIntroQuota: false,
+                showExitButton: false,
+                playerInvincible: false,
+                disableEnemyAttacks: false,
+                keyboardHintsDefault: true
+            )
+        default:
+            return EarTrainingTutorialUiOverrides(
+                hidePlayerHpBar: true,
+                hideSettingsButton: true,
+                hideBackButton: true,
+                hideLobby: true,
+                hideMidiToggle: true,
+                hidePhraseIntroQuota: true,
+                showExitButton: false,
+                playerInvincible: true,
+                disableEnemyAttacks: true,
+                keyboardHintsDefault: true
+            )
+        }
+    }
+
+    private func makeOsmdHooks(
         script: EarTrainingTutorialScriptPayload,
-        requiredLoops: Int
+        contentRef: String,
+        requiredLoops: Int,
+        timedLines: [EarTrainingTutorialOsmdTimedLine]?,
+        timingCalibrationMode: Bool,
+        ui: EarTrainingTutorialUiOverrides
     ) -> EarTrainingTutorialSceneHooks {
         EarTrainingTutorialSceneHooks(
-            ui: script.ui,
-            noCombat: script.ui.noCombat,
+            ui: ui,
+            noCombat: ui.noCombat,
             onCharacterText: { _ in },
             onSceneComplete: { _ in handleSceneFinished(script: script) },
             requiredSuccessfulLoops: max(1, requiredLoops),
-            osmdTimedLines: [],
+            osmdTimedLines: timedLines,
             tutorialDrumLoopUrl: EarTrainingTutorialOsmdDrumLoopResolver.resolveTutorialOsmdDrumLoopUrl(
                 content: script.content,
-                contentRef: "osmd-timing-adjustment"
+                contentRef: contentRef
             ),
-            timingCalibrationMode: true
+            timingCalibrationMode: timingCalibrationMode
         )
     }
 

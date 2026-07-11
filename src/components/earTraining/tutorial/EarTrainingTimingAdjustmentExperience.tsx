@@ -5,7 +5,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getEarTrainingTimingAdjustmentCopy } from '@/utils/earTrainingUiCopy';
 import type { EarTrainingTimingAdjustmentEntry } from '@/utils/earTrainingTimingAdjustmentLaunch';
-import { OSMD_TIMING_ADJUSTMENT_SCRIPT_ID } from '@/components/earTraining/tutorial/buildOsmdTimingAdjustmentV1Script';
+import {
+  OSMD_TIMING_ADJUSTMENT_CONTENT_REF,
+  OSMD_TIMING_ADJUSTMENT_SCRIPT_ID,
+  isTimingCalibrationContentRef,
+  resolveTimingAdjustmentSceneUi,
+  timingCalibrationUi,
+} from '@/components/earTraining/tutorial/buildOsmdTimingAdjustmentV1Script';
 import type { EarTrainingTutorialBindings } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
 import {
   EarTrainingTutorialSceneHost,
@@ -148,28 +154,32 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   }, [advanceSceneImmediate]);
 
   const bindings: EarTrainingTutorialBindings = useMemo(
-    () => ({
-      ui: script?.ui ?? {
-        hidePlayerHpBar: true,
-        hideSettingsButton: true,
-        hideBackButton: true,
-        hideLobby: true,
-        hideMidiToggle: true,
-        hidePhraseIntroQuota: true,
-        showExitButton: false,
-        playerInvincible: true,
-        disableEnemyAttacks: true,
-        keyboardHintsDefault: false,
-      },
+    () => {
+      const sceneUi =
+        currentScene?.type === 'chord_osmd'
+          ? resolveTimingAdjustmentSceneUi(currentScene.contentRef)
+          : (script?.ui ?? timingCalibrationUi());
+      return {
+        ui: sceneUi,
+        isEnglishCopy,
+        setCharacterText: noopSetCharacterText,
+        onSceneComplete: onTutorialSceneComplete,
+        onExit: () => {
+          void finalize('aborted');
+        },
+        timingCalibrationMode:
+          currentScene?.type === 'chord_osmd'
+          && isTimingCalibrationContentRef(currentScene.contentRef),
+      };
+    },
+    [
+      currentScene,
+      finalize,
       isEnglishCopy,
-      setCharacterText: noopSetCharacterText,
-      onSceneComplete: onTutorialSceneComplete,
-      onExit: () => {
-        void finalize('aborted');
-      },
-      timingCalibrationMode: true,
-    }),
-    [finalize, isEnglishCopy, noopSetCharacterText, onTutorialSceneComplete, script?.ui],
+      noopSetCharacterText,
+      onTutorialSceneComplete,
+      script?.ui,
+    ],
   );
 
   const handleBluetoothOk = useCallback(() => {
@@ -222,12 +232,15 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   }
 
   const bottomCtaLabel = entry === 'quest' ? copy.questAdvance : copy.settingsBack;
-  /** 進むは chord_osmd 中のみ。会話シーン以降は出さない（設定の戻るは常時可） */
+  /** 進むはタイミング調整 OSMD 中のみ。続く MQ 1-1 OSMD では出さない */
   const showBottomCta =
     !bluetoothNoticeOpen
     && (
       entry === 'settings'
-      || currentScene.type === 'chord_osmd'
+      || (
+        currentScene.type === 'chord_osmd'
+        && currentScene.contentRef === OSMD_TIMING_ADJUSTMENT_CONTENT_REF
+      )
       || showFinishCta
     );
 
