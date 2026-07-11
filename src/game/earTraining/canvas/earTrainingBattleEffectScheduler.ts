@@ -40,6 +40,11 @@ import {
   triggerCameraShake,
   triggerParryPhraseZoom,
 } from './earTrainingBattleCamera';
+import {
+  clearJustParryEffect,
+  pruneJustParryEffect,
+  startJustParryEffect,
+} from './earTrainingBattleJustParryEffect';
 import { applyOsuCircleAnchorOffset } from './earTrainingBattleOsuCircleLayout';
 import {
   pruneParrySparks,
@@ -346,6 +351,7 @@ const triggerParryBeatSyncEffects = (
   if (command.clearParryVisualSlow) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
     clearParryZoom(runtime.camera);
+    clearJustParryEffect(runtime.justParryEffect);
     return;
   }
 
@@ -873,6 +879,24 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
   });
   scheduleParryMotion(runtime, onDirty, finishOnly);
 
+  const durationMs = command.justParryEffectDurationMs;
+  if (durationMs !== undefined && durationMs > 0) {
+    const poseKey = runtime.player.poseKey && now < runtime.player.poseUntil
+      ? runtime.player.poseKey
+      : null;
+    startJustParryEffect(runtime.justParryEffect, {
+      startedAt: now,
+      durationMs,
+      playerBodyX: anchors.player.x,
+      playerBodyY: anchors.player.bodyY,
+      contactX: contact.x,
+      contactY: contact.y,
+      imageKey: poseKey ?? runtime.player.avatarUrl,
+      flipX: runtime.player.flipX && !poseKey,
+      seedBase: command.id,
+    });
+  }
+
   const visualNow = getVisualNow(now, runtime.visualSlow);
   const impactDelayMs = resolveReflectHammerWallImpactDelayMs(runtime.visualSlow);
   const visuals: CanvasEffectVisual[] = [];
@@ -1171,6 +1195,7 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
   pruneParrySparks(runtime.parrySparkPool, visualNow);
   pruneOsuCircles(runtime.osuCirclePool);
   pruneOsuCircleShatter(runtime.osuCircleShatterPool, now);
+  pruneJustParryEffect(runtime.justParryEffect, now);
   runtime.effects = runtime.effects.filter(effect => {
     const keepUntil = effect.visuals.reduce((max, visual) => {
       const visualEnd = visual.startedAt + visual.durationMs;

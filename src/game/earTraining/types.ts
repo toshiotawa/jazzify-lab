@@ -53,6 +53,8 @@ export interface EarTrainingBattleEffectCommand {
   clearParryVisualSlow?: boolean;
   /** OSMD: visualSlow 継続の最低残りミリ秒（phrase 終端まで） */
   visualSlowSustainMs?: number;
+  /** OSMD: ジャストパリィ風の青紫発光・墨飛沫の持続ミリ秒（visualSlow 非干渉） */
+  justParryEffectDurationMs?: number;
   /** OSMD: フレーズ内 OSU! 円の決定論的配置 index */
   osuCircleLayoutIndex?: number;
   /** OSMD: 円中央に描く音名（低い音から） */

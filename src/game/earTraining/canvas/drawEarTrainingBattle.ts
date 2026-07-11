@@ -68,6 +68,10 @@ import {
   computeCameraTransform,
 } from './earTrainingBattleCamera';
 import {
+  drawJustParryBodyGlow,
+  drawJustParryInkSplash,
+} from './earTrainingBattleJustParryEffect';
+import {
   drawCachedBackground,
 } from './earTrainingBattleBackground';
 
@@ -1026,6 +1030,18 @@ export const drawEarTrainingBattle = (
   applyWorldCameraTransform(ctx, cameraTransform);
   drawBackground(ctx, width, height, runtime);
   drawCharacter(ctx, runtime, 'player', visualNow);
+  const floorY = resolveFloorY(height, runtime.timingCalibrationLayout);
+  drawJustParryBodyGlow(
+    ctx,
+    runtime.justParryEffect,
+    runtime.loadedImages,
+    runtime.player.x,
+    floorY,
+    runtime.player.yOffset,
+    runtime.player.rotation,
+    now,
+  );
+  drawJustParryInkSplash(ctx, runtime.justParryEffect, now);
   drawCharacter(ctx, runtime, 'enemy', visualNow);
   drawPhraseIntro(ctx, runtime, visualNow);
   drawEffects(ctx, runtime, visualNow, now);
@@ -1033,7 +1049,6 @@ export const drawEarTrainingBattle = (
 
   drawHud(ctx, snapshot, runtime);
   drawEnemyAttackGauge(ctx, snapshot, runtime);
-  const floorY = resolveFloorY(height, runtime.timingCalibrationLayout);
   drawQuoteBubble(ctx, runtime.playerQuote, runtime.player.x, floorY, now, runtime.staffReservedBottomY, 'left');
   drawQuoteBubble(ctx, runtime.partnerQuote, runtime.enemy.x, floorY, now, runtime.staffReservedBottomY, 'right');
   drawDemoBubble(ctx, snapshot, runtime);

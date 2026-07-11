@@ -22,6 +22,7 @@ import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrain
 import { resolveOsuApproachCirclePhraseTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { resolveOsuCircleNoteLabels } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleNoteLabels';
 import { resolveOsuCircleColorIndex } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleColors';
+import { resolveJustParryEffectDurationMs } from '@/game/earTraining/canvas/earTrainingBattleJustParryEffect';
 import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import {
@@ -648,6 +649,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       extendParryVisualSlow?: boolean;
       clearParryVisualSlow?: boolean;
       visualSlowSustainMs?: number;
+      justParryEffectDurationMs?: number;
       osuCircleLayoutIndex?: number;
       osuCircleNoteLabels?: readonly string[];
       osuCircleColorIndex?: number;
@@ -673,6 +675,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       extendParryVisualSlow: options.extendParryVisualSlow,
       clearParryVisualSlow: options.clearParryVisualSlow,
       visualSlowSustainMs: options.visualSlowSustainMs,
+      justParryEffectDurationMs: options.justParryEffectDurationMs,
       osuCircleLayoutIndex: options.osuCircleLayoutIndex,
       osuCircleNoteLabels: options.osuCircleNoteLabels,
       osuCircleColorIndex: options.osuCircleColorIndex,
@@ -1861,11 +1864,27 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     parryChainAnchorRef.current = spanState.anchor;
     const { isFinish, extendVisualSlow: isExtend, finishTarget } = spanState;
     let visualSlowSustainMs: number | undefined;
+    let justParryEffectDurationMs: number | undefined;
     if (Number.isFinite(hitPhraseTimeSec) && finishTarget) {
       const sustainPhraseSec = resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
         + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
         + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
       visualSlowSustainMs = Math.max(0, Math.ceil((sustainPhraseSec - hitPhraseTimeSec) * 1000));
+    }
+    if (Number.isFinite(hitPhraseTimeSec)) {
+      const nextTargetSec = nextTarget
+        ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
+        : undefined;
+      const fallbackEndPhraseSec = !nextTarget && finishTarget
+        ? resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
+          + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
+          + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC
+        : undefined;
+      justParryEffectDurationMs = resolveJustParryEffectDurationMs(
+        hitPhraseTimeSec,
+        nextTargetSec,
+        fallbackEndPhraseSec,
+      );
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
@@ -1875,6 +1894,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       extendParryVisualSlow: isExtend,
       clearParryVisualSlow: false,
       visualSlowSustainMs,
+      justParryEffectDurationMs,
       hitPhraseTimeSec,
       effectiveBpm: resolveEffectivePracticeBpm(),
       isSwing: stage.is_swing === true,
