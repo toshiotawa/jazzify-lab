@@ -14,6 +14,7 @@ import {
 } from './earTrainingBattleCamera';
 import {
   clearJustParryEffect,
+  JUST_PARRY_LAYER_OFFSET_X,
   JUST_PARRY_VISUAL_DURATION_MS,
   pruneJustParryEffect,
   startJustParryEffect,
@@ -861,7 +862,7 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
 
   startJustParryEffect(runtime.justParryEffect, {
     startedAt: now,
-    originX: contact.x,
+    originX: contact.x + JUST_PARRY_LAYER_OFFSET_X,
     originY: contact.y,
     seedBase: command.id,
     imageKey: finishOnly ? PARRY_FINISH_POSE_KEY : PARRY_GUARD_POSE_KEY,

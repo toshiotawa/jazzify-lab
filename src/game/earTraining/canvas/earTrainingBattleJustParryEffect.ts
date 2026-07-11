@@ -11,9 +11,10 @@ export const JUST_PARRY_VISUAL_DURATION_MS = 450;
 export const JUST_PARRY_FLASH_DURATION_MS = 140;
 export const JUST_PARRY_RING_DURATION_MS = 280;
 export const JUST_PARRY_SPLASH_DURATION_MS = 450;
-export const JUST_PARRY_FLASH_DISPLAY_SIZE_PX = 300;
-export const JUST_PARRY_RING_DISPLAY_SIZE_PX = 340;
-export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 360;
+export const JUST_PARRY_LAYER_OFFSET_X = 28;
+export const JUST_PARRY_FLASH_DISPLAY_SIZE_PX = 246;
+export const JUST_PARRY_RING_DISPLAY_SIZE_PX = 278;
+export const JUST_PARRY_SPLASH_DISPLAY_SIZE_PX = 295;
 export const JUST_PARRY_FLASH_IMAGE_KEY = 'parryFlash';
 export const JUST_PARRY_RING_IMAGE_KEY = 'parryRing';
 export const JUST_PARRY_SPLASH_IMAGE_KEY = 'parrySplash';
@@ -25,11 +26,7 @@ const JUST_PARRY_RING_SCALE_START = 0.4;
 const JUST_PARRY_RING_SCALE_END = 1.25;
 const JUST_PARRY_SPLASH_SCALE_START = 0.42;
 const JUST_PARRY_SPLASH_SCALE_END = 1.12;
-const JUST_PARRY_FLASH_ALPHA_START = 0.88;
-const JUST_PARRY_RING_ALPHA_START = 0.9;
-const JUST_PARRY_SPLASH_ALPHA_START = 0.85;
-/** 序盤は高めのαを維持し、後半でフェード */
-const JUST_PARRY_ALPHA_HOLD_FRACTION = 0.32;
+const JUST_PARRY_LAYER_ALPHA_START = 1;
 const JUST_PARRY_BODY_GLOW_WHITE = '#f8fafc';
 const JUST_PARRY_BODY_GLOW_CYAN = '#67e8f9';
 const JUST_PARRY_BODY_GLOW_BLUE = '#3b82f6';
@@ -160,17 +157,11 @@ export interface JustParryLayerDrawParams {
   angleDeg: number;
 }
 
-const computeHeldFadeAlpha = (
+const computeFadeOutAlpha = (
   t: number,
   startAlpha: number,
   ease: (value: number) => number,
-): number => {
-  if (t <= JUST_PARRY_ALPHA_HOLD_FRACTION) {
-    return startAlpha;
-  }
-  const fadeT = (t - JUST_PARRY_ALPHA_HOLD_FRACTION) / (1 - JUST_PARRY_ALPHA_HOLD_FRACTION);
-  return lerp(startAlpha, 0, ease(fadeT));
-};
+): number => lerp(startAlpha, 0, ease(t));
 
 export const computeJustParrySplashLayer = (
   elapsedMs: number,
@@ -183,7 +174,7 @@ export const computeJustParrySplashLayer = (
   const t = elapsedMs / JUST_PARRY_SPLASH_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_SPLASH_SCALE_START, JUST_PARRY_SPLASH_SCALE_END, easeCubicOut(t)),
-    alpha: computeHeldFadeAlpha(t, JUST_PARRY_SPLASH_ALPHA_START, easeCubicOut),
+    alpha: computeFadeOutAlpha(t, JUST_PARRY_LAYER_ALPHA_START, easeCubicOut),
     angleDeg: splashAngle + splashAngleDelta * easeCubicOut(t),
   };
 };
@@ -197,7 +188,7 @@ export const computeJustParryRingLayer = (
   const t = elapsedMs / JUST_PARRY_RING_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_RING_SCALE_START, JUST_PARRY_RING_SCALE_END, easeCubicOut(t)),
-    alpha: computeHeldFadeAlpha(t, JUST_PARRY_RING_ALPHA_START, easeCubicOut),
+    alpha: computeFadeOutAlpha(t, JUST_PARRY_LAYER_ALPHA_START, easeCubicOut),
     angleDeg: 0,
   };
 };
@@ -211,7 +202,7 @@ export const computeJustParryFlashLayer = (
   const t = elapsedMs / JUST_PARRY_FLASH_DURATION_MS;
   return {
     scale: lerp(JUST_PARRY_FLASH_SCALE_START, JUST_PARRY_FLASH_SCALE_END, easeQuadOut(t)),
-    alpha: computeHeldFadeAlpha(t, JUST_PARRY_FLASH_ALPHA_START, easeQuadOut),
+    alpha: computeFadeOutAlpha(t, JUST_PARRY_LAYER_ALPHA_START, easeQuadOut),
     angleDeg: 0,
   };
 };

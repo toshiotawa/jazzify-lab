@@ -100,21 +100,27 @@ describe('just parry layer timing', () => {
   });
 
   it('shows flash only during the first flash window', () => {
-    expect(computeJustParryFlashLayer(0)?.alpha).toBeCloseTo(0.88, 5);
-    expect(computeJustParryFlashLayer(Math.floor(JUST_PARRY_FLASH_DURATION_MS * 0.2))?.alpha).toBeCloseTo(0.88, 5);
+    const flashStart = computeJustParryFlashLayer(0);
+    const flashMid = computeJustParryFlashLayer(Math.floor(JUST_PARRY_FLASH_DURATION_MS * 0.5));
+    expect(flashStart?.alpha).toBeCloseTo(1, 5);
+    expect(flashMid?.alpha).toBeLessThan(1);
     expect(computeJustParryFlashLayer(JUST_PARRY_FLASH_DURATION_MS)).toBeNull();
     expect(computeJustParryFlashLayer(JUST_PARRY_FLASH_DURATION_MS + 1)).toBeNull();
   });
 
   it('shows ring only during the first ring window', () => {
-    expect(computeJustParryRingLayer(0)?.alpha).toBeCloseTo(0.9, 5);
-    expect(computeJustParryRingLayer(Math.floor(JUST_PARRY_RING_DURATION_MS * 0.2))?.alpha).toBeCloseTo(0.9, 5);
+    const ringStart = computeJustParryRingLayer(0);
+    const ringMid = computeJustParryRingLayer(Math.floor(JUST_PARRY_RING_DURATION_MS * 0.5));
+    expect(ringStart?.alpha).toBeCloseTo(1, 5);
+    expect(ringMid?.alpha).toBeLessThan(1);
     expect(computeJustParryRingLayer(JUST_PARRY_RING_DURATION_MS)).toBeNull();
   });
 
   it('shows splash for the full visual window', () => {
-    expect(computeJustParrySplashLayer(0, 0, 0)?.alpha).toBeCloseTo(0.85, 5);
-    expect(computeJustParrySplashLayer(Math.floor(JUST_PARRY_SPLASH_DURATION_MS * 0.2), 0, 0)?.alpha).toBeCloseTo(0.85, 5);
+    const splashStart = computeJustParrySplashLayer(0, 0, 0);
+    const splashMid = computeJustParrySplashLayer(Math.floor(JUST_PARRY_SPLASH_DURATION_MS * 0.5), 0, 0);
+    expect(splashStart?.alpha).toBeCloseTo(1, 5);
+    expect(splashMid?.alpha).toBeLessThan(1);
     expect(computeJustParrySplashLayer(JUST_PARRY_SPLASH_DURATION_MS)).toBeNull();
   });
 
