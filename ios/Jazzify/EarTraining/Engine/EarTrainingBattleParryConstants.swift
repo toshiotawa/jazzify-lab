@@ -41,7 +41,12 @@ enum EarTrainingBattleParryConstants {
     static let chainSlowScale: Double = 0.14
     static let zoomTarget: Double = 1.06
     static let zoomRampSec: Double = 1.2
-    static let reflectHammerMs: Double = 240
+    /// Web `JUST_PARRY_GUARD_GLOW_BLIP_MS`
+    static let guardGlowBlipMs: Double = 2
+    /// Web `PARRY_REFLECT_HAMMER_MS`
+    static let reflectHammerMs: Double = 120
+    /// Web `PARRY_REFLECT_HAMMER_WALL_MS`（壁時計・着弾まで固定）
+    static let reflectHammerWallMs: Double = (reflectHammerMs / chainSlowScale).rounded()
     static let slashDurationMs: Double = 240
     static let sparkPoolSize = 128
     static let sparkCount = 32

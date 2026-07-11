@@ -62,27 +62,24 @@ final class EarTrainingBattleParrySparkPool {
 
         for index in slots.indices where spawned < count {
             guard slots[index].active == false else { continue }
+            let angleSpreadHalf = EarTrainingBattleParryConstants.sparkAngleSpread / 2
             let angle = EarTrainingBattleParryConstants.sparkAngleUpBias
-                + CGFloat.random(in: -EarTrainingBattleParryConstants.sparkAngleSpread / 2
-                    ...EarTrainingBattleParryConstants.sparkAngleSpread / 2)
+                + CGFloat.random(in: -angleSpreadHalf...angleSpreadHalf)
             let speed = CGFloat.random(
-                in: EarTrainingBattleParryConstants.sparkSpeedMin
-                    ...EarTrainingBattleParryConstants.sparkSpeedMax
+                in: EarTrainingBattleParryConstants.sparkSpeedMin...EarTrainingBattleParryConstants.sparkSpeedMax
             )
             slots[index].active = true
             slots[index].startedAt = startedAt
             slots[index].durationMs = EarTrainingBattleParryConstants.sparkDurationMs
                 + Double.random(
-                    in: -EarTrainingBattleParryConstants.sparkDurationJitterMs
-                        ...EarTrainingBattleParryConstants.sparkDurationJitterMs
+                    in: -EarTrainingBattleParryConstants.sparkDurationJitterMs...EarTrainingBattleParryConstants.sparkDurationJitterMs
                 )
             slots[index].originX = x
             slots[index].originY = y
             slots[index].vx = cos(angle) * speed
             slots[index].vy = sin(angle) * speed
             slots[index].size = CGFloat.random(
-                in: EarTrainingBattleParryConstants.sparkSizeMin
-                    ...EarTrainingBattleParryConstants.sparkSizeMax
+                in: EarTrainingBattleParryConstants.sparkSizeMin...EarTrainingBattleParryConstants.sparkSizeMax
             )
             slots[index].colorIndex = Int.random(in: 0..<colors.count)
             slots[index].node.fillColor = colors[slots[index].colorIndex]

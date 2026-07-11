@@ -6,8 +6,9 @@ import UIKit
 @MainActor
 final class EarTrainingBattleOsuCirclePool {
     static let poolSize = 16
-    private static let labelFontSize: CGFloat = 21
-    private static let labelLineHeight: CGFloat = 22
+    /// 内円縮尺（2/3）に合わせたラベルサイズ
+    private static let labelFontSize: CGFloat = 14
+    private static let labelLineHeight: CGFloat = 15
     /// 内円実寸でパスを持ち、外円だけ相対 scale する。
     /// 単位円を 80〜170 倍すると SpriteKit の stroke がぼやけて太く見えるため。
     private static let pathRadius = EarTrainingBattleOsuCircleTiming.innerRadiusPx

@@ -213,6 +213,7 @@
 		F4PARRY001ENG0102 /* EarTrainingBattleParryConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */; };
 		F4PARRY002ENG0102 /* EarTrainingBattleParrySparkPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */; };
 		F4PARRY003ENG0102 /* EarTrainingChordOsmdRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */; };
+		F4PARRY004ENG0102 /* EarTrainingBattleJustParryBodyGlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4PARRY004ENG0101 /* EarTrainingBattleJustParryBodyGlow.swift */; };
 		F4OSMD001ENG0102 /* EarTrainingChordOsmdTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD001ENG0101 /* EarTrainingChordOsmdTiming.swift */; };
 		F4OSMD002ENG0102 /* EarTrainingBattleBeatSyncTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD002ENG0101 /* EarTrainingBattleBeatSyncTiming.swift */; };
 		F4OSMD003ENG0102 /* EarTrainingChordOsmdParrySpan.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4OSMD003ENG0101 /* EarTrainingChordOsmdParrySpan.swift */; };
@@ -460,6 +461,7 @@
 		F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParryConstants.swift; sourceTree = "<group>"; };
 		F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParrySparkPool.swift; sourceTree = "<group>"; };
 		F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdRhythm.swift; sourceTree = "<group>"; };
+		F4PARRY004ENG0101 /* EarTrainingBattleJustParryBodyGlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleJustParryBodyGlow.swift; sourceTree = "<group>"; };
 		F4OSMD001ENG0101 /* EarTrainingChordOsmdTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdTiming.swift; sourceTree = "<group>"; };
 		F4OSMD002ENG0101 /* EarTrainingBattleBeatSyncTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleBeatSyncTiming.swift; sourceTree = "<group>"; };
 		F4OSMD003ENG0101 /* EarTrainingChordOsmdParrySpan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdParrySpan.swift; sourceTree = "<group>"; };
@@ -685,6 +687,7 @@
 				F2EE770004FF11EE0000FF01 /* EarTrainingOsmdTimingAdjustment.swift */,
 				F4PARRY001ENG0101 /* EarTrainingBattleParryConstants.swift */,
 				F4PARRY002ENG0101 /* EarTrainingBattleParrySparkPool.swift */,
+				F4PARRY004ENG0101 /* EarTrainingBattleJustParryBodyGlow.swift */,
 				F4PARRY003ENG0101 /* EarTrainingChordOsmdRhythm.swift */,
 				F4OSMD001ENG0101 /* EarTrainingChordOsmdTiming.swift */,
 				F4OSMD002ENG0101 /* EarTrainingBattleBeatSyncTiming.swift */,
@@ -1348,6 +1351,7 @@
 				F2EE770004FF11EE0000FF02 /* EarTrainingOsmdTimingAdjustment.swift in Sources */,
 				F4PARRY001ENG0102 /* EarTrainingBattleParryConstants.swift in Sources */,
 				F4PARRY002ENG0102 /* EarTrainingBattleParrySparkPool.swift in Sources */,
+				F4PARRY004ENG0102 /* EarTrainingBattleJustParryBodyGlow.swift in Sources */,
 				F4PARRY003ENG0102 /* EarTrainingChordOsmdRhythm.swift in Sources */,
 				F4OSMD001ENG0102 /* EarTrainingChordOsmdTiming.swift in Sources */,
 				F4OSMD002ENG0102 /* EarTrainingBattleBeatSyncTiming.swift in Sources */,

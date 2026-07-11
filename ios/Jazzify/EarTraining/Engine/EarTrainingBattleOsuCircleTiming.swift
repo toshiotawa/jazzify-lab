@@ -4,11 +4,13 @@ import QuartzCore
 
 /// Web `earTrainingBattleOsuCircleTiming.ts` 相当。
 enum EarTrainingBattleOsuCircleTiming {
-    static let innerRadiusPx = EarTrainingBattleParryConstants.maxRadiusPx
-    static let outerStartRadiusPx = EarTrainingBattleParryConstants.maxRadiusPx * 2
+    /// iOS バトルキャラ縮尺（`EarTrainingBattleScene.battleCharacterVisualScale`）に合わせる
+    private static let visualScale: CGFloat = 2.0 / 3.0
+    static let innerRadiusPx = EarTrainingBattleParryConstants.maxRadiusPx * visualScale
+    static let outerStartRadiusPx = EarTrainingBattleParryConstants.maxRadiusPx * 2 * visualScale
     static let lineWidth: CGFloat = 3
     static let enterFraction: Double = 0.2
-    static let enterOffsetPx: CGFloat = 48
+    static let enterOffsetPx: CGFloat = 48 * visualScale
     static let strokeAlpha: CGFloat = 0.5
 
     enum Phase: Equatable {
