@@ -86,7 +86,6 @@ import {
 import {
   buildChordOsmdRhythmTargets,
   CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT,
-  resolveChordOsmdParrySpanEndSec,
   resolveChordOsmdParrySpanState,
   type ChordOsmdParrySpanAnchor,
   areAllChordOsmdTargetsCompleted,
@@ -651,7 +650,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       clearParryVisualSlow?: boolean;
       visualSlowSustainMs?: number;
       justParryEffectDurationMs?: number;
-      parrySpanEndPhraseSec?: number;
       osuCircleLayoutIndex?: number;
       osuCircleNoteLabels?: readonly string[];
       osuCircleColorIndex?: number;
@@ -678,7 +676,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       clearParryVisualSlow: options.clearParryVisualSlow,
       visualSlowSustainMs: options.visualSlowSustainMs,
       justParryEffectDurationMs: options.justParryEffectDurationMs,
-      parrySpanEndPhraseSec: options.parrySpanEndPhraseSec,
       osuCircleLayoutIndex: options.osuCircleLayoutIndex,
       osuCircleNoteLabels: options.osuCircleNoteLabels,
       osuCircleColorIndex: options.osuCircleColorIndex,
@@ -1867,7 +1864,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     parryChainAnchorRef.current = spanState.anchor;
     const { isFinish, finishTarget } = spanState;
     let justParryEffectDurationMs: number | undefined;
-    let parrySpanEndPhraseSec: number | undefined;
     if (Number.isFinite(hitPhraseTimeSec)) {
       const nextTargetSec = nextTarget
         ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
@@ -1882,15 +1878,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextTargetSec,
         fallbackEndPhraseSec,
       );
-      parrySpanEndPhraseSec = resolveCalibratedTargetTimeSec(
-        resolveChordOsmdParrySpanEndSec(
-          spanState.anchor,
-          leadMeasures,
-          resolveEffectivePracticeBpm(),
-          stage.beats_per_measure,
-          stage.is_swing === true,
-        ),
-      );
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,
@@ -1899,7 +1886,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       parryFinishOnly: isFinish,
       clearParryVisualSlow: false,
       justParryEffectDurationMs,
-      parrySpanEndPhraseSec,
       hitPhraseTimeSec,
       effectiveBpm: resolveEffectivePracticeBpm(),
       isSwing: stage.is_swing === true,

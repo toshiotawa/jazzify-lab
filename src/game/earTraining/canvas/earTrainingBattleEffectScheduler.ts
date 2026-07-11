@@ -22,10 +22,6 @@ import {
 } from './earTrainingBattleDrawState';
 import {
   resolveParryBeatSyncScheduleOrFallback,
-  resolveParryZoomEndPhraseSec,
-  resolveParryZoomPeakPhraseSec,
-  resolveParryZoomScaleAtPhraseSec,
-  resolvePhraseSecFromPerfAnchor,
 } from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
@@ -38,7 +34,6 @@ import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
 import {
   clearParryZoom,
   triggerCameraShake,
-  triggerParryPhraseZoom,
 } from './earTrainingBattleCamera';
 import {
   clearJustParryEffect,
@@ -343,7 +338,6 @@ const triggerParryBeatSyncEffects = (
   runtime: EarTrainingBattleDrawRuntime,
   command: EarTrainingBattleEffectCommand,
   now: number,
-  zoomFocus?: { focusX: number; focusY: number; centerX: number; centerY: number },
 ): void => {
   if (command.clearParryVisualSlow) {
     endVisualSlowAndResyncReflectHammers(runtime, now);
@@ -356,8 +350,6 @@ const triggerParryBeatSyncEffects = (
     endVisualSlowAndResyncReflectHammers(runtime, now);
   }
 
-  const hitPhraseSec = command.hitPhraseTimeSec;
-
   const schedule = resolveParryBeatSyncScheduleOrFallback({
     hitPhraseSec: command.hitPhraseTimeSec,
     hitPerfMs: now,
@@ -366,41 +358,19 @@ const triggerParryBeatSyncEffects = (
     nextTargetPhraseSec: command.nextTargetPhraseTimeSec,
   });
   runtime.parryBeatSync = createParryBeatSyncFromSlowPhaseMs(schedule.slowPhaseMs);
+};
 
+const resolveFinishParryMotionDurationMs = (
+  motionDurationMs: number | undefined,
+): number => {
   if (
-    hitPhraseSec !== undefined
-    && zoomFocus
-    && command.effectiveBpm !== undefined
-    && command.isSwing !== undefined
+    motionDurationMs === undefined
+    || !Number.isFinite(motionDurationMs)
+    || motionDurationMs <= 0
   ) {
-    let startScale = 1;
-    if (runtime.camera.parryZoom) {
-      const currentPhraseSec = resolvePhraseSecFromPerfAnchor(
-        runtime.camera.parryZoom.anchorPhraseSec,
-        runtime.camera.parryZoom.hitPerfMs,
-        now,
-      );
-      startScale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, runtime.camera.parryZoom);
-    }
-    const peakPhraseSec = resolveParryZoomPeakPhraseSec(
-      hitPhraseSec,
-      command.parrySpanEndPhraseSec,
-      command.effectiveBpm,
-      command.isSwing,
-    );
-    const endPhraseSec = resolveParryZoomEndPhraseSec(peakPhraseSec, command.effectiveBpm);
-    triggerParryPhraseZoom(runtime.camera, {
-      anchorPhraseSec: hitPhraseSec,
-      peakPhraseSec,
-      endPhraseSec,
-      hitPerfMs: now,
-      focusX: zoomFocus.focusX,
-      focusY: zoomFocus.focusY,
-      centerX: zoomFocus.centerX,
-      centerY: zoomFocus.centerY,
-      startScale,
-    });
+    return PARRY_MOTION_END_MS;
   }
+  return Math.max(PARRY_MOTION_END_MS, Math.round(motionDurationMs));
 };
 
 export const clearParryMotionTimers = (runtime: EarTrainingBattleDrawRuntime): void => {
@@ -429,6 +399,7 @@ const scheduleParryMotion = (
   runtime: EarTrainingBattleDrawRuntime,
   onDirty: () => void,
   finishOnly: boolean,
+  motionDurationMs?: number,
 ): void => {
   if (runtime.parryFinishLocked) {
     return;
@@ -445,15 +416,16 @@ const scheduleParryMotion = (
   };
 
   if (finishOnly) {
+    const finishDurationMs = resolveFinishParryMotionDurationMs(motionDurationMs);
     runtime.parryFinishLocked = true;
-    setPose(PARRY_FINISH_POSE_KEY, PARRY_MOTION_END_MS);
+    setPose(PARRY_FINISH_POSE_KEY, finishDurationMs);
 
     runtime.parryMotionEndTimer = setTimeout(() => {
       if (runtime.parryMotionGeneration !== generation) return;
       runtime.player.poseKey = null;
       runtime.parryFinishLocked = false;
       onDirty();
-    }, PARRY_MOTION_END_MS);
+    }, finishDurationMs);
     return;
   }
 
@@ -814,16 +786,20 @@ const playOsmdHammerEffect = (ctx: EffectSchedulerContext, command: EarTrainingB
 };
 
 const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
-  const { runtime, anchors, onDirty, playerTimers, snapshot, width, height } = ctx;
+  const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
   const now = performance.now();
 
   const parryCenterX = anchors.player.x;
   const parryCenterY = anchors.player.bodyY - 28;
+  const finishOnly = command.parryFinishOnly === true;
+  const finishMotionDurationMs = finishOnly
+    ? resolveFinishParryMotionDurationMs(command.justParryEffectDurationMs)
+    : PARRY_TOTAL_MS;
 
   holdCharacterForAction(
     runtime.player,
     'cast',
-    PARRY_TOTAL_MS,
+    finishMotionDurationMs,
     snapshot,
     runtime.enemy.x,
     width,
@@ -838,15 +814,14 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     parryCenterY,
     now,
   );
-  const finishOnly = command.parryFinishOnly === true;
   runtime.lastParryAt = now;
-  triggerParryBeatSyncEffects(runtime, command, now, {
-    focusX: parryCenterX,
-    focusY: parryCenterY,
-    centerX: width / 2,
-    centerY: height / 2,
-  });
-  scheduleParryMotion(runtime, onDirty, finishOnly);
+  triggerParryBeatSyncEffects(runtime, command, now);
+  scheduleParryMotion(
+    runtime,
+    onDirty,
+    finishOnly,
+    finishOnly ? command.justParryEffectDurationMs : undefined,
+  );
 
   const durationMs = command.justParryEffectDurationMs;
   if (durationMs !== undefined && durationMs > 0) {

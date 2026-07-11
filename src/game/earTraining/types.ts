@@ -55,8 +55,6 @@ export interface EarTrainingBattleEffectCommand {
   visualSlowSustainMs?: number;
   /** OSMD: ジャストパリィ風の青紫発光・火花の持続ミリ秒（壁時計） */
   justParryEffectDurationMs?: number;
-  /** OSMD: パリィスパン終端 phrase 秒（ズームイン完了地点） */
-  parrySpanEndPhraseSec?: number;
   /** OSMD: フレーズ内 OSU! 円の決定論的配置 index */
   osuCircleLayoutIndex?: number;
   /** OSMD: 円中央に描く音名（低い音から） */
