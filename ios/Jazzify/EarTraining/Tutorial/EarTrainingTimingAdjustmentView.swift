@@ -111,7 +111,7 @@ struct EarTrainingTimingAdjustmentView: View {
                             .zIndex(100)
                     }
 
-                    if !bluetoothNoticeOpen {
+                    if !bluetoothNoticeOpen, shouldShowBottomCta {
                         VStack {
                             HStack {
                                 Spacer()
@@ -204,6 +204,15 @@ struct EarTrainingTimingAdjustmentView: View {
 
     private var bottomCtaLabel: String {
         entry == .quest ? (isJa ? "進む" : "Continue") : (isJa ? "戻る" : "Back")
+    }
+
+    /// 進むは chord_osmd 中のみ。会話シーン以降は出さない（設定の戻るは常時可）
+    private var shouldShowBottomCta: Bool {
+        if entry == .settings { return true }
+        if showFinishCta { return true }
+        guard let script, script.scenes.indices.contains(sceneIndex) else { return false }
+        if case .chordOsmd = script.scenes[sceneIndex] { return true }
+        return false
     }
 
     private func handleBottomCta() {

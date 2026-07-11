@@ -222,7 +222,14 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   }
 
   const bottomCtaLabel = entry === 'quest' ? copy.questAdvance : copy.settingsBack;
-  const showBottomCta = !bluetoothNoticeOpen;
+  /** 進むは chord_osmd 中のみ。会話シーン以降は出さない（設定の戻るは常時可） */
+  const showBottomCta =
+    !bluetoothNoticeOpen
+    && (
+      entry === 'settings'
+      || currentScene.type === 'chord_osmd'
+      || showFinishCta
+    );
 
   return (
     <div
