@@ -178,7 +178,7 @@ export const PARRY_HIT_STOP_SCALE = 0.04;
 /** 連鎖正解中の描画スロー（次ターゲットまで継続） */
 export const PARRY_CHAIN_SLOW_SCALE = 0.14;
 /** パリィ正解時の固定カメラズーム倍率（フレーズ長に依存しない） */
-export const PARRY_ZOOM_TARGET = 1.06;
+export const PARRY_ZOOM_TARGET = 1.03;
 /** 反射ハンマーの敵到達までの飛行時間 */
 export const PARRY_REFLECT_HAMMER_MS = 240;
 

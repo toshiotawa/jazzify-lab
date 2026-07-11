@@ -1,4 +1,5 @@
 import {
+  easeCubicIn,
   easeCubicOut,
   PARRY_VISUAL_SLOW_DURATION_MS,
   PARRY_ZOOM_TARGET,
@@ -115,7 +116,6 @@ export const resolveParryBeatSyncSchedule = (
 
 export interface ParryPhraseZoomParams {
   anchorPhraseSec: number;
-  midPhraseSec: number;
   endPhraseSec: number;
   zoomTarget?: number;
   startScale?: number;
@@ -174,28 +174,19 @@ export const resolveParryZoomScaleAtPhraseSec = (
 ): number => {
   const zoomTarget = params.zoomTarget ?? PARRY_ZOOM_TARGET;
   const startScale = params.startScale ?? 1;
-  const { anchorPhraseSec, midPhraseSec, endPhraseSec } = params;
+  const { anchorPhraseSec, endPhraseSec } = params;
 
   if (currentPhraseSec <= anchorPhraseSec + BEAT_EPS) {
     return startScale;
   }
 
-  if (currentPhraseSec < midPhraseSec - BEAT_EPS) {
-    const spanSec = midPhraseSec - anchorPhraseSec;
-    if (spanSec <= BEAT_EPS) {
-      return zoomTarget;
-    }
-    const t = Math.min(1, (currentPhraseSec - anchorPhraseSec) / spanSec);
-    return startScale + (zoomTarget - startScale) * easeCubicOut(t);
-  }
-
   if (currentPhraseSec < endPhraseSec - BEAT_EPS) {
-    const spanSec = endPhraseSec - midPhraseSec;
+    const spanSec = endPhraseSec - anchorPhraseSec;
     if (spanSec <= BEAT_EPS) {
       return 1;
     }
-    const t = Math.min(1, (currentPhraseSec - midPhraseSec) / spanSec);
-    return zoomTarget - (zoomTarget - 1) * easeCubicOut(t);
+    const t = Math.min(1, (currentPhraseSec - anchorPhraseSec) / spanSec);
+    return zoomTarget - (zoomTarget - 1) * easeCubicIn(t);
   }
 
   return 1;

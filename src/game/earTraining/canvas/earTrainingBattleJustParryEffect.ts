@@ -307,29 +307,6 @@ const computeJustParrySparkDrawParams = (
   };
 };
 
-const drawJustParryImpactFlash = (
-  ctx: CanvasRenderingContext2D,
-  originX: number,
-  originY: number,
-  burstEase: number,
-  alpha: number,
-): void => {
-  const radius = lerp(8, 42, burstEase);
-  const gradient = ctx.createRadialGradient(originX, originY, 0, originX, originY, radius);
-  gradient.addColorStop(0, `rgba(255, 247, 237, ${alpha * 0.95})`);
-  gradient.addColorStop(0.35, `rgba(251, 191, 36, ${alpha * 0.72})`);
-  gradient.addColorStop(0.72, `rgba(251, 146, 60, ${alpha * 0.38})`);
-  gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.arc(originX, originY, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-};
-
 const drawJustParrySparkStreak = (
   ctx: CanvasRenderingContext2D,
   streak: JustParrySparkStreak,
@@ -376,11 +353,8 @@ export const drawJustParrySparks = (
   }
 
   const elapsed = nowMs - state.startedAt;
-  const burstT = Math.min(1, elapsed / JUST_PARRY_SPARK_BURST_MS);
-  const burstEase = easeCubicOut(burstT);
 
   ctx.save();
-  drawJustParryImpactFlash(ctx, state.originX, state.originY, burstEase, alpha);
 
   for (let index = 0; index < state.streaks.length; index += 1) {
     const streak = state.streaks[index];

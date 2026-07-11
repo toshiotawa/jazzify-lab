@@ -88,28 +88,29 @@ describe('resolveParryZoomOutPhraseSec', () => {
 describe('resolveParryZoomScaleAtPhraseSec', () => {
   const params = {
     anchorPhraseSec: 0,
-    midPhraseSec: 0.5,
-    endPhraseSec: 1,
+    endPhraseSec: 0.5,
     zoomTarget: PARRY_ZOOM_TARGET,
     startScale: 1,
   };
 
-  it('ramps in to max at midpoint and out to 1 at end', () => {
+  it('snaps to zoom target right after hit and returns to 1 at midpoint', () => {
     expect(resolveParryZoomScaleAtPhraseSec(0, params)).toBeCloseTo(1, 6);
+    expect(resolveParryZoomScaleAtPhraseSec(0.001, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(0.25, params)).toBeLessThan(PARRY_ZOOM_TARGET);
     expect(resolveParryZoomScaleAtPhraseSec(0.25, params)).toBeGreaterThan(1);
-    expect(resolveParryZoomScaleAtPhraseSec(0.5, params)).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
-    expect(resolveParryZoomScaleAtPhraseSec(0.75, params)).toBeLessThan(PARRY_ZOOM_TARGET);
+    expect(resolveParryZoomScaleAtPhraseSec(0.5, params)).toBeCloseTo(1, 4);
     expect(resolveParryZoomScaleAtPhraseSec(1, params)).toBeCloseTo(1, 4);
-    expect(resolveParryZoomScaleAtPhraseSec(1.5, params)).toBeCloseTo(1, 4);
   });
 
-  it('preserves start scale when retriggering mid-chain', () => {
-    const midChain = resolveParryZoomScaleAtPhraseSec(0.25, {
+  it('preserves start scale at hit when retriggering mid-chain', () => {
+    expect(resolveParryZoomScaleAtPhraseSec(0, {
       ...params,
-      startScale: 1.03,
-    });
-    expect(midChain).toBeGreaterThan(1.03);
-    expect(midChain).toBeLessThan(PARRY_ZOOM_TARGET);
+      startScale: 1.02,
+    })).toBeCloseTo(1.02, 4);
+    expect(resolveParryZoomScaleAtPhraseSec(0.001, {
+      ...params,
+      startScale: 1.02,
+    })).toBeCloseTo(PARRY_ZOOM_TARGET, 4);
   });
 });
 

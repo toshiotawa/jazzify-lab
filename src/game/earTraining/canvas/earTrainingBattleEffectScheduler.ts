@@ -27,7 +27,6 @@ import {
 import {
   resolveParryBeatSyncScheduleOrFallback,
   resolveParryZoomMidPhraseSec,
-  resolveParryZoomOutPhraseSec,
   resolveParryZoomScaleAtPhraseSec,
   resolvePhraseSecFromPerfAnchor,
 } from './earTrainingBattleBeatSyncTiming';
@@ -402,21 +401,14 @@ const triggerParryBeatSyncEffects = (
       );
       startScale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, runtime.camera.parryZoom);
     }
-    const midPhraseSec = resolveParryZoomMidPhraseSec(
+    const endPhraseSec = resolveParryZoomMidPhraseSec(
       hitPhraseSec,
       command.justParryEffectDurationMs,
       command.effectiveBpm,
       command.isSwing,
     );
-    const endPhraseSec = resolveParryZoomOutPhraseSec(
-      hitPhraseSec,
-      command.nextTargetPhraseTimeSec,
-      command.effectiveBpm,
-      command.isSwing,
-    );
     triggerParryPhraseZoom(runtime.camera, {
       anchorPhraseSec: hitPhraseSec,
-      midPhraseSec,
       endPhraseSec,
       hitPerfMs: now,
       focusX: zoomFocus.focusX,

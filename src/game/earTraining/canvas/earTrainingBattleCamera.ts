@@ -63,7 +63,6 @@ export const triggerParryPhraseZoom = (
 ): void => {
   camera.parryZoom = {
     anchorPhraseSec: params.anchorPhraseSec,
-    midPhraseSec: params.midPhraseSec,
     endPhraseSec: params.endPhraseSec,
     hitPerfMs: params.hitPerfMs,
     focusX: params.focusX,
@@ -111,7 +110,6 @@ const applyParryZoomTransform = (
   }
   const scale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, {
     anchorPhraseSec: zoom.anchorPhraseSec,
-    midPhraseSec: zoom.midPhraseSec,
     endPhraseSec: zoom.endPhraseSec,
     zoomTarget: zoom.zoomTarget,
     startScale: zoom.startScale,
@@ -119,7 +117,8 @@ const applyParryZoomTransform = (
   if (scale <= 1 + 1e-6) {
     return;
   }
-  const zoomT = (scale - 1) / Math.max(1e-6, zoom.zoomTarget - 1);
+  const zoomTarget = zoom.zoomTarget ?? PARRY_ZOOM_TARGET;
+  const zoomT = (scale - 1) / Math.max(1e-6, zoomTarget - 1);
   scratchTransform.focusX = zoom.centerX + (zoom.focusX - zoom.centerX) * zoomT;
   scratchTransform.focusY = zoom.centerY + (zoom.focusY - zoom.centerY) * zoomT;
   scratchTransform.scale = scale;
