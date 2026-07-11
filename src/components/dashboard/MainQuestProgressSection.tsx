@@ -12,6 +12,21 @@ import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 
+const formatQuotedQuestTitle = (title: string, isEnglishCopy: boolean): string =>
+  isEnglishCopy ? `"${title}"` : `「${title}」`;
+
+const MainQuestProgressBar: React.FC<{ percent: number }> = ({ percent }) => {
+  const width = `${Math.max(0, Math.min(100, percent))}%`;
+  return (
+    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-900/70">
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-cyan-600"
+        style={{ width }}
+      />
+    </div>
+  );
+};
+
 const MainQuestProgressSection: React.FC = () => {
   const [progress, setProgress] = useState<MainQuestProgress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +82,10 @@ const MainQuestProgressSection: React.FC = () => {
     nextLesson != null
     && isMainQuestBlockPlayable(nextLesson.block_number, isPremiumMember);
   const allCompleted = completedLessons >= progress.totalLessons;
+  const progressPercent = progress.totalLessons > 0
+    ? Math.round((completedLessons / progress.totalLessons) * 100)
+    : 0;
+  const quotedNextLessonTitle = formatQuotedQuestTitle(nextLessonDisplayTitle, isEnglishCopy);
 
   const handlePlay = () => {
     if (!nextLesson || !nextLessonPlayable) {
@@ -93,6 +112,13 @@ const MainQuestProgressSection: React.FC = () => {
           <h3 className="text-base font-extrabold">{sectionTitle}</h3>
         </div>
 
+        <div className="mb-3 flex items-center gap-2">
+          <MainQuestProgressBar percent={progressPercent} />
+          <span className="shrink-0 text-xs font-semibold tabular-nums text-cyan-300">
+            {progressPercent}%
+          </span>
+        </div>
+
         <div className="min-w-0">
           {allCompleted ? (
             <p className="text-emerald-400 font-medium text-sm">
@@ -103,9 +129,9 @@ const MainQuestProgressSection: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-300 truncate sm:whitespace-normal">
                   {isEnglishCopy ? (
-                    <>Complete <span className="text-cyan-400 font-semibold">{nextLessonDisplayTitle}</span></>
+                    <>Complete <span className="text-amber-300 font-semibold">{quotedNextLessonTitle}</span></>
                   ) : (
-                    <><span className="text-cyan-400 font-semibold">{nextLessonDisplayTitle}</span>を完了しましょう</>
+                    <><span className="text-amber-300 font-semibold">{quotedNextLessonTitle}</span>を完了しましょう</>
                   )}
                 </p>
               </div>

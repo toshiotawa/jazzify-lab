@@ -244,6 +244,11 @@ struct TopView: View {
                         .foregroundStyle(.white)
                 }
 
+                mainQuestProgressRow(
+                    completed: progress.completedLessons,
+                    total: progress.totalLessons
+                )
+
                 Group {
                     if progress.completedLessons >= progress.totalLessons {
                         Text(locale == .ja
@@ -254,11 +259,8 @@ struct TopView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else if let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(locale == .ja
-                                 ? "\(nextLesson.localizedTitle(locale))を完了しましょう"
-                                 : "Complete \(nextLesson.localizedTitle(locale))")
+                            mainQuestNextLessonPrompt(nextLesson: nextLesson)
                                 .font(.subheadline)
-                                .foregroundStyle(.cyan)
                                 .lineLimit(2)
 
                             Button {
@@ -322,6 +324,65 @@ struct TopView: View {
         if appState.isPremium { return raw }
         let bn = raw.blockNumber ?? 1
         return bn <= MainQuestFreeTier.maxFreeBlockNumber ? raw : nil
+    }
+
+    private func mainQuestProgressPercent(completed: Int, total: Int) -> Int {
+        guard total > 0 else { return 0 }
+        return Int((Double(completed) / Double(total) * 100).rounded())
+    }
+
+    private func mainQuestProgressRow(completed: Int, total: Int) -> some View {
+        let percent = mainQuestProgressPercent(completed: completed, total: total)
+        return HStack(spacing: 8) {
+            mainQuestProgressBar(fraction: Double(percent) / 100.0)
+            Text("\(percent)%")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .foregroundStyle(Color(hex: "67e8f9"))
+        }
+    }
+
+    private func mainQuestProgressBar(fraction: Double) -> some View {
+        GeometryReader { geometry in
+            let clamped = min(max(fraction, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.black.opacity(0.48))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "22d3ee"), Color(hex: "0891b2")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geometry.size.width * clamped)
+            }
+        }
+        .frame(height: 5)
+    }
+
+    @ViewBuilder
+    private func mainQuestNextLessonPrompt(nextLesson: Lesson) -> some View {
+        let title = nextLesson.localizedTitle(locale)
+        let quotedTitle = locale == .ja ? "「\(title)」" : "\"\(title)\""
+        if locale == .ja {
+            (
+                Text(quotedTitle)
+                    .foregroundStyle(Color(hex: "fcd34d"))
+                    .fontWeight(.semibold)
+                + Text("を完了しましょう")
+                    .foregroundStyle(Color(white: 0.82))
+            )
+        } else {
+            (
+                Text("Complete ")
+                    .foregroundStyle(Color(white: 0.82))
+                + Text(quotedTitle)
+                    .foregroundStyle(Color(hex: "fcd34d"))
+                    .fontWeight(.semibold)
+            )
+        }
     }
 
     // MARK: - Stats
