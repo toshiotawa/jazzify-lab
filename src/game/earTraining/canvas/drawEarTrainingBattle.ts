@@ -55,8 +55,9 @@ import {
   updateCharacterPositions,
 } from './earTrainingBattleCharacterMotion';
 import {
-  drawParrySparks,
-} from './earTrainingBattleParrySparkPool';
+  drawJustParryBodyGlow,
+  drawJustParrySparks,
+} from './earTrainingBattleJustParryEffect';
 import {
   drawOsuCircles,
 } from './earTrainingBattleOsuCirclePool';
@@ -67,10 +68,6 @@ import {
   applyWorldCameraTransform,
   computeCameraTransform,
 } from './earTrainingBattleCamera';
-import {
-  drawJustParryBodyGlow,
-  drawJustParryInkSplash,
-} from './earTrainingBattleJustParryEffect';
 import {
   drawCachedBackground,
 } from './earTrainingBattleBackground';
@@ -980,7 +977,6 @@ const drawEffects = (
     });
   });
 
-  drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
   if (runtime.chordOsmdBattle) {
     if (runtime.phraseTimelineSec !== null) {
       drawOsuCircles(ctx, runtime.osuCirclePool, runtime.phraseTimelineSec);
@@ -1041,7 +1037,7 @@ export const drawEarTrainingBattle = (
     runtime.player.rotation,
     now,
   );
-  drawJustParryInkSplash(ctx, runtime.justParryEffect, now);
+  drawJustParrySparks(ctx, runtime.justParryEffect, now);
   drawCharacter(ctx, runtime, 'enemy', visualNow);
   drawPhraseIntro(ctx, runtime, visualNow);
   drawEffects(ctx, runtime, visualNow, now);

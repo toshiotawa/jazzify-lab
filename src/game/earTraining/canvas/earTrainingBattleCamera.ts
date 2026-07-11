@@ -5,6 +5,7 @@ import {
 import {
   resolveParryZoomScaleAtPhraseSec,
   resolvePhraseSecFromPerfAnchor,
+  type ParryPhraseZoomParams,
 } from './earTrainingBattleBeatSyncTiming';
 
 export interface CameraShakeState {
@@ -13,14 +14,12 @@ export interface CameraShakeState {
   amplitude: number;
 }
 
-export interface ParryPhraseZoomState {
-  anchorPhraseSec: number;
+export interface ParryPhraseZoomState extends ParryPhraseZoomParams {
   hitPerfMs: number;
   focusX: number;
   focusY: number;
   centerX: number;
   centerY: number;
-  zoomTarget: number;
 }
 
 export interface CanvasCameraRuntime {
@@ -50,14 +49,12 @@ export const triggerCameraShake = (
   };
 };
 
-export interface TriggerParryPhraseZoomParams {
-  anchorPhraseSec: number;
+export interface TriggerParryPhraseZoomParams extends ParryPhraseZoomParams {
   hitPerfMs: number;
   focusX: number;
   focusY: number;
   centerX: number;
   centerY: number;
-  zoomTarget?: number;
 }
 
 export const triggerParryPhraseZoom = (
@@ -66,12 +63,15 @@ export const triggerParryPhraseZoom = (
 ): void => {
   camera.parryZoom = {
     anchorPhraseSec: params.anchorPhraseSec,
+    midPhraseSec: params.midPhraseSec,
+    endPhraseSec: params.endPhraseSec,
     hitPerfMs: params.hitPerfMs,
     focusX: params.focusX,
     focusY: params.focusY,
     centerX: params.centerX,
     centerY: params.centerY,
     zoomTarget: params.zoomTarget ?? PARRY_ZOOM_TARGET,
+    startScale: params.startScale ?? 1,
   };
 };
 
@@ -96,6 +96,7 @@ const scratchTransform: CameraTransform = {
 };
 
 const applyParryZoomTransform = (
+  camera: CanvasCameraRuntime,
   zoom: ParryPhraseZoomState,
   now: number,
 ): void => {
@@ -104,9 +105,16 @@ const applyParryZoomTransform = (
     zoom.hitPerfMs,
     now,
   );
+  if (currentPhraseSec >= zoom.endPhraseSec - 1e-6) {
+    camera.parryZoom = null;
+    return;
+  }
   const scale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, {
     anchorPhraseSec: zoom.anchorPhraseSec,
+    midPhraseSec: zoom.midPhraseSec,
+    endPhraseSec: zoom.endPhraseSec,
     zoomTarget: zoom.zoomTarget,
+    startScale: zoom.startScale,
   });
   if (scale <= 1 + 1e-6) {
     return;
@@ -146,7 +154,7 @@ export const computeCameraTransform = (
   }
 
   if (camera.parryZoom) {
-    applyParryZoomTransform(camera.parryZoom, now);
+    applyParryZoomTransform(camera, camera.parryZoom, now);
   }
 
   return scratchTransform;

@@ -47,10 +47,6 @@ import {
   type EarTrainingBattleDrawRuntime,
 } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
-  createParrySparkPool,
-  hasActiveParrySparks,
-} from '@/game/earTraining/canvas/earTrainingBattleParrySparkPool';
-import {
   createOsuCirclePool,
   hasActiveOsuCircles,
   resyncOsuCircleTimings,
@@ -112,8 +108,6 @@ const createInitialRuntime = (
   parryMotionGeneration: 0,
   parryFinishTimer: null,
   parryMotionEndTimer: null,
-  parrySparkPool: createParrySparkPool(),
-  parrySparkSpawnCursor: 0,
   osuCirclePool: createOsuCirclePool(),
   osuCircleShatterPool: createOsuCircleShatterPool(),
   phraseTimelineSec: null,
@@ -508,7 +502,6 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
           runtime.visualSlow !== null
           && now < runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
         )
-        || hasActiveParrySparks(runtime.parrySparkPool)
         || (runtime.chordOsmdBattle && runtime.phraseTimelineSec !== null && hasActiveOsuCircles(runtime.osuCirclePool, runtime.phraseTimelineSec))
         || (runtime.chordOsmdBattle && hasActiveOsuCircleShatter(runtime.osuCircleShatterPool, now))
         || (

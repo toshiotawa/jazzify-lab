@@ -179,8 +179,6 @@ export const PARRY_HIT_STOP_SCALE = 0.04;
 export const PARRY_CHAIN_SLOW_SCALE = 0.14;
 /** パリィ正解時の固定カメラズーム倍率（フレーズ長に依存しない） */
 export const PARRY_ZOOM_TARGET = 1.06;
-/** 連鎖開始から最大ズームへ到達する phrase 秒（固定速度） */
-export const PARRY_ZOOM_RAMP_SEC = 1.2;
 /** 反射ハンマーの敵到達までの飛行時間 */
 export const PARRY_REFLECT_HAMMER_MS = 240;
 
@@ -250,22 +248,6 @@ export interface BackgroundCacheState {
   canvas: HTMLCanvasElement | null;
 }
 
-export interface ParrySparkSlot {
-  active: boolean;
-  startedAt: number;
-  durationMs: number;
-  parryStartedAt: number;
-  centerX: number;
-  centerY: number;
-  dirX: number;
-  dirY: number;
-  size: number;
-  timeOffsetMs: number;
-  radiusScale: number;
-  /** 生成時の BPM 同期タイムライン（連続パリィで共有 beatSync が変わっても影響しない） */
-  beatSync: ParryBeatSyncRuntime;
-}
-
 export interface EarTrainingBattleDrawRuntime {
   width: number;
   height: number;
@@ -297,9 +279,6 @@ export interface EarTrainingBattleDrawRuntime {
   parryMotionGeneration: number;
   parryFinishTimer: ReturnType<typeof setTimeout> | null;
   parryMotionEndTimer: ReturnType<typeof setTimeout> | null;
-  parrySparkPool: ParrySparkSlot[];
-  /** 花火プールのラウンドロビン割当（連続パリィで新規 spawn と既存表示を両立） */
-  parrySparkSpawnCursor: number;
   /** OSMD: 描画フレーム時点の phrase タイムライン秒（OSU! 円用） */
   phraseTimelineSec: number | null;
   /** OSMD: OSU! 式アプローチ円（phrase タイムライン駆動） */
@@ -322,7 +301,7 @@ export interface EarTrainingBattleDrawRuntime {
     enemyX: number;
     enemyBodyY: number;
   } | null;
-  /** OSMD: ジャストパリィ風の青紫発光・墨飛沫（raw wall-clock） */
+  /** OSMD: ジャストパリィ風の身体発光・火花（raw wall-clock） */
   justParryEffect: JustParryEffectState;
 }
 

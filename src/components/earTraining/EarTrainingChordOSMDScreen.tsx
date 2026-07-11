@@ -1865,12 +1865,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const { isFinish, extendVisualSlow: isExtend, finishTarget } = spanState;
     let visualSlowSustainMs: number | undefined;
     let justParryEffectDurationMs: number | undefined;
-    if (Number.isFinite(hitPhraseTimeSec) && finishTarget) {
-      const sustainPhraseSec = resolveCalibratedTargetTimeSec(finishTarget.targetTimeSec)
-        + resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC)
-        + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
-      visualSlowSustainMs = Math.max(0, Math.ceil((sustainPhraseSec - hitPhraseTimeSec) * 1000));
-    }
     if (Number.isFinite(hitPhraseTimeSec)) {
       const nextTargetSec = nextTarget
         ? resolveCalibratedTargetTimeSec(nextTarget.targetTimeSec)
@@ -1885,6 +1879,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextTargetSec,
         fallbackEndPhraseSec,
       );
+      visualSlowSustainMs = justParryEffectDurationMs;
     }
     const effectId = triggerBattleEffect('osmdHammerReflect', {
       label: target.label,

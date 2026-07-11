@@ -7,53 +7,33 @@ import {
 const BEAT_EPS = 1e-6;
 
 export const JUST_PARRY_MIN_DURATION_MS = 120;
-export const JUST_PARRY_INK_BURST_MS = 220;
-export const JUST_PARRY_INK_DROPLET_COUNT = 22;
-export const JUST_PARRY_INK_TENDRIL_COUNT = 8;
-export const JUST_PARRY_INK_TEXTURE_VARIANT_COUNT = 4;
-export const JUST_PARRY_INK_CORE_BLOB_MIN_COUNT = 3;
-export const JUST_PARRY_INK_CORE_BLOB_MAX_COUNT = 5;
-export const JUST_PARRY_BODY_GLOW_BLUE = '#38bdf8';
-export const JUST_PARRY_BODY_GLOW_PURPLE = '#c084fc';
-export const JUST_PARRY_INK_BLUE = '#2563eb';
-export const JUST_PARRY_INK_PURPLE = '#9333ea';
-export const JUST_PARRY_INK_CORE_CYAN = '#67e8f9';
+export const JUST_PARRY_SPARK_BURST_MS = 200;
+export const JUST_PARRY_SPARK_COUNT = 24;
+export const JUST_PARRY_BODY_GLOW_ORANGE = '#fb923c';
+export const JUST_PARRY_BODY_GLOW_RED = '#ef4444';
+export const JUST_PARRY_SPARK_CORE = '#fff7ed';
+export const JUST_PARRY_SPARK_YELLOW = '#fbbf24';
+export const JUST_PARRY_SPARK_ORANGE = '#fb923c';
+export const JUST_PARRY_SPARK_RED = '#ef4444';
 
-const JUST_PARRY_INK_GRAVITY = 1900;
-const JUST_PARRY_INK_TEXTURE_SIZE = 64;
-const JUST_PARRY_INK_TEXTURE_HALF = JUST_PARRY_INK_TEXTURE_SIZE / 2;
-const JUST_PARRY_INK_DROPLET_MIN_SPEED = 250;
-const JUST_PARRY_INK_DROPLET_MAX_SPEED = 900;
-const JUST_PARRY_INK_DROPLET_STRETCH_SPEED_REF = 700;
-const JUST_PARRY_INK_DROPLET_STRETCH_MIN = 1;
-const JUST_PARRY_INK_DROPLET_STRETCH_MAX = 2.2;
+const JUST_PARRY_SPARK_GRAVITY = 420;
+const JUST_PARRY_SPARK_MIN_SPEED = 380;
+const JUST_PARRY_SPARK_MAX_SPEED = 1180;
+const JUST_PARRY_SPARK_FRICTION = 7.5;
+const JUST_PARRY_SPARK_COLORS = [
+  JUST_PARRY_SPARK_CORE,
+  JUST_PARRY_SPARK_YELLOW,
+  JUST_PARRY_SPARK_ORANGE,
+  JUST_PARRY_SPARK_RED,
+] as const;
 
-export interface JustParryInkDroplet {
+export interface JustParrySparkStreak {
   vx: number;
   vy: number;
-  sizePx: number;
-  delayMs: number;
-  textureIndex: number;
-  spinRadPerSec: number;
-  colorIsBlue: boolean;
-}
-
-export interface JustParryInkCoreBlob {
-  offsetX: number;
-  offsetY: number;
-  rotationRad: number;
-  scaleFactor: number;
-  textureIndex: number;
-  colorIsBlue: boolean;
-}
-
-export interface JustParryInkTendril {
-  angleRad: number;
   lengthPx: number;
-  widthPx: number;
   delayMs: number;
-  colorIsBlue: boolean;
-  curveBias: number;
+  colorIndex: number;
+  friction: number;
 }
 
 export interface JustParryEffectState {
@@ -61,17 +41,15 @@ export interface JustParryEffectState {
   startedAt: number;
   endAt: number;
   durationMs: number;
-  playerBodyX: number;
-  playerBodyY: number;
+  originX: number;
+  originY: number;
   contactX: number;
   contactY: number;
   imageKey: string;
   flipX: boolean;
   axisX: number;
   axisY: number;
-  droplets: readonly JustParryInkDroplet[];
-  coreBlobs: readonly JustParryInkCoreBlob[];
-  tendrils: readonly JustParryInkTendril[];
+  streaks: readonly JustParrySparkStreak[];
 }
 
 export const createJustParryEffectState = (): JustParryEffectState => ({
@@ -79,17 +57,15 @@ export const createJustParryEffectState = (): JustParryEffectState => ({
   startedAt: 0,
   endAt: 0,
   durationMs: 0,
-  playerBodyX: 0,
-  playerBodyY: 0,
+  originX: 0,
+  originY: 0,
   contactX: 0,
   contactY: 0,
   imageKey: '',
   flipX: false,
   axisX: 1,
   axisY: 0,
-  droplets: [],
-  coreBlobs: [],
-  tendrils: [],
+  streaks: [],
 });
 
 export const resolveJustParryEffectDurationMs = (
@@ -121,7 +97,7 @@ const seededUnit = (seed: number): number => {
   return value - Math.floor(value);
 };
 
-interface JustParryInkAxes {
+interface JustParrySparkAxes {
   axisX: number;
   axisY: number;
   perpX: number;
@@ -129,14 +105,14 @@ interface JustParryInkAxes {
   baseAngleRad: number;
 }
 
-const resolveJustParryInkAxes = (
-  playerBodyX: number,
-  playerBodyY: number,
+const resolveJustParrySparkAxes = (
+  originX: number,
+  originY: number,
   contactX: number,
   contactY: number,
-): JustParryInkAxes => {
-  const dx = contactX - playerBodyX;
-  const dy = contactY - playerBodyY;
+): JustParrySparkAxes => {
+  const dx = contactX - originX;
+  const dy = contactY - originY;
   const length = Math.hypot(dx, dy);
   const axisX = length > 1e-3 ? dx / length : 1;
   const axisY = length > 1e-3 ? dy / length : 0;
@@ -149,96 +125,62 @@ const resolveJustParryInkAxes = (
   };
 };
 
-const buildJustParryDroplets = (
-  axes: JustParryInkAxes,
+const buildJustParrySparkStreaks = (
+  axes: JustParrySparkAxes,
   seedBase: number,
-): readonly JustParryInkDroplet[] => {
-  const { axisX, axisY, perpX, perpY } = axes;
-  const droplets: JustParryInkDroplet[] = [];
+): readonly JustParrySparkStreak[] => {
+  const { axisX, axisY, perpX, perpY, baseAngleRad } = axes;
+  const streaks: JustParrySparkStreak[] = [];
 
-  for (let index = 0; index < JUST_PARRY_INK_DROPLET_COUNT; index += 1) {
-    const seed = seedBase + index * 17.13;
+  for (let index = 0; index < JUST_PARRY_SPARK_COUNT; index += 1) {
+    const seed = seedBase + index * 19.37;
     const fanT = seededUnit(seed);
-    const fanAngle = (fanT - 0.5) * 1.35 - 0.42;
+    const fanAngle = (fanT - 0.5) * 1.8 - 0.35;
     const cos = Math.cos(fanAngle);
     const sin = Math.sin(fanAngle);
     const dirX = axisX * cos - perpX * sin;
-    const dirY = axisY * cos - perpY * sin + (0.18 + seededUnit(seed + 0.9) * 0.22);
+    const dirY = axisY * cos - perpY * sin + (seededUnit(seed + 0.7) - 0.5) * 0.45;
     const dirLength = Math.hypot(dirX, dirY);
     const normDirX = dirX / dirLength;
     const normDirY = dirY / dirLength;
-    const sizePx = 4 + seededUnit(seed + 4.9) * 18;
-    const sizeNorm = (sizePx - 4) / 18;
-    const baseSpeed = lerp(
-      JUST_PARRY_INK_DROPLET_MAX_SPEED,
-      JUST_PARRY_INK_DROPLET_MIN_SPEED,
-      sizeNorm,
+    const speed = lerp(
+      JUST_PARRY_SPARK_MIN_SPEED,
+      JUST_PARRY_SPARK_MAX_SPEED,
+      seededUnit(seed + 2.4),
     );
-    const speed = baseSpeed + (seededUnit(seed + 3.1) - 0.5) * 80;
-    droplets.push({
+    streaks.push({
       vx: normDirX * speed,
       vy: normDirY * speed,
-      sizePx,
-      delayMs: Math.round(seededUnit(seed + 6.2) * 42),
-      textureIndex: Math.floor(seededUnit(seed + 10.2) * JUST_PARRY_INK_TEXTURE_VARIANT_COUNT),
-      spinRadPerSec: (seededUnit(seed + 9.6) - 0.5) * 4,
-      colorIsBlue: index % 2 === 0,
+      lengthPx: 6 + seededUnit(seed + 4.8) * 18,
+      delayMs: Math.round(seededUnit(seed + 6.1) * 18),
+      colorIndex: Math.floor(seededUnit(seed + 8.3) * JUST_PARRY_SPARK_COLORS.length),
+      friction: 5.5 + seededUnit(seed + 9.9) * 4,
     });
   }
 
-  return droplets;
-};
-
-const buildJustParryCoreBlobs = (
-  seedBase: number,
-): readonly JustParryInkCoreBlob[] => {
-  const count = JUST_PARRY_INK_CORE_BLOB_MIN_COUNT
-    + Math.floor(seededUnit(seedBase + 500.7) * (JUST_PARRY_INK_CORE_BLOB_MAX_COUNT - JUST_PARRY_INK_CORE_BLOB_MIN_COUNT + 1));
-  const coreRadius = 34;
-  const blobs: JustParryInkCoreBlob[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const seed = seedBase + index * 9.41 + 200;
-    const offsetDist = coreRadius * (0.3 + seededUnit(seed) * 0.3);
-    const offsetAngle = seededUnit(seed + 1.3) * Math.PI * 2;
-    blobs.push({
-      offsetX: Math.cos(offsetAngle) * offsetDist,
-      offsetY: Math.sin(offsetAngle) * offsetDist,
-      rotationRad: seededUnit(seed + 2.7) * Math.PI * 2,
-      scaleFactor: 0.55 + seededUnit(seed + 3.9) * 0.75,
-      textureIndex: Math.floor(seededUnit(seed + 4.5) * JUST_PARRY_INK_TEXTURE_VARIANT_COUNT),
-      colorIsBlue: index % 3 !== 1,
+  // 追加の放射状ショートストリーク（全方位）
+  for (let index = 0; index < 4; index += 1) {
+    const seed = seedBase + index * 31.11 + 900;
+    const angle = baseAngleRad + (seededUnit(seed) - 0.5) * Math.PI * 0.5;
+    const speed = JUST_PARRY_SPARK_MIN_SPEED * (0.55 + seededUnit(seed + 1.2) * 0.35);
+    streaks.push({
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      lengthPx: 4 + seededUnit(seed + 3.4) * 10,
+      delayMs: 0,
+      colorIndex: Math.floor(seededUnit(seed + 5.6) * JUST_PARRY_SPARK_COLORS.length),
+      friction: 8 + seededUnit(seed + 7.1) * 3,
     });
   }
 
-  return blobs;
-};
-
-const buildJustParryTendrils = (
-  baseAngleRad: number,
-  seedBase: number,
-): readonly JustParryInkTendril[] => {
-  const tendrils: JustParryInkTendril[] = [];
-  for (let index = 0; index < JUST_PARRY_INK_TENDRIL_COUNT; index += 1) {
-    const seed = seedBase + index * 11.07 + 400;
-    const angleOffset = (seededUnit(seed) - 0.5) * 2.6;
-    tendrils.push({
-      angleRad: baseAngleRad + angleOffset,
-      lengthPx: 34 + seededUnit(seed + 1.5) * 72,
-      widthPx: 1.2 + seededUnit(seed + 2.8) * 2.8,
-      delayMs: Math.round(seededUnit(seed + 4.1) * 28),
-      colorIsBlue: index % 2 === 0,
-      curveBias: (seededUnit(seed + 5.6) - 0.5) * 0.55,
-    });
-  }
-  return tendrils;
+  return streaks;
 };
 
 export interface StartJustParryEffectParams {
   startedAt: number;
   durationMs: number;
-  playerBodyX: number;
-  playerBodyY: number;
+  originX: number;
+  originY: number;
   contactX: number;
   contactY: number;
   imageKey: string;
@@ -251,9 +193,9 @@ export const startJustParryEffect = (
   params: StartJustParryEffectParams,
 ): void => {
   const durationMs = Math.max(JUST_PARRY_MIN_DURATION_MS, Math.round(params.durationMs));
-  const axes = resolveJustParryInkAxes(
-    params.playerBodyX,
-    params.playerBodyY,
+  const axes = resolveJustParrySparkAxes(
+    params.originX,
+    params.originY,
     params.contactX,
     params.contactY,
   );
@@ -261,24 +203,20 @@ export const startJustParryEffect = (
   state.startedAt = params.startedAt;
   state.durationMs = durationMs;
   state.endAt = params.startedAt + durationMs;
-  state.playerBodyX = params.playerBodyX;
-  state.playerBodyY = params.playerBodyY;
+  state.originX = params.originX;
+  state.originY = params.originY;
   state.contactX = params.contactX;
   state.contactY = params.contactY;
   state.imageKey = params.imageKey;
   state.flipX = params.flipX;
   state.axisX = axes.axisX;
   state.axisY = axes.axisY;
-  state.droplets = buildJustParryDroplets(axes, params.seedBase);
-  state.coreBlobs = buildJustParryCoreBlobs(params.seedBase);
-  state.tendrils = buildJustParryTendrils(axes.baseAngleRad, params.seedBase);
+  state.streaks = buildJustParrySparkStreaks(axes, params.seedBase);
 };
 
 export const clearJustParryEffect = (state: JustParryEffectState): void => {
   state.active = false;
-  state.droplets = [];
-  state.coreBlobs = [];
-  state.tendrils = [];
+  state.streaks = [];
 };
 
 export const isJustParryEffectActive = (
@@ -309,6 +247,157 @@ export const getJustParryEffectAlpha = (
   }
   const fadeT = (elapsed - fadeStart) / Math.max(1, state.durationMs - fadeStart);
   return 1 - easeCubicOut(Math.min(1, fadeT));
+};
+
+interface JustParrySparkDrawParams {
+  x: number;
+  y: number;
+  tailX: number;
+  tailY: number;
+  streakAlpha: number;
+}
+
+const computeSparkVelocity = (
+  streak: JustParrySparkStreak,
+  t: number,
+): { vx: number; vy: number } => {
+  const decay = Math.exp(-streak.friction * t);
+  return {
+    vx: streak.vx * decay,
+    vy: streak.vy * decay + JUST_PARRY_SPARK_GRAVITY * t,
+  };
+};
+
+const computeJustParrySparkDrawParams = (
+  streak: JustParrySparkStreak,
+  originX: number,
+  originY: number,
+  elapsedMs: number,
+  alpha: number,
+): JustParrySparkDrawParams | null => {
+  const localElapsed = Math.max(0, elapsedMs - streak.delayMs);
+  const t = localElapsed / 1000;
+  if (t <= 0) {
+    return null;
+  }
+
+  const { vx, vy } = computeSparkVelocity(streak, t);
+  const speed = Math.hypot(vx, vy);
+  if (speed < 8) {
+    return null;
+  }
+
+  const frictionIntegral = streak.friction > 1e-6
+    ? (1 - Math.exp(-streak.friction * t)) / streak.friction
+    : t;
+  const x = originX + streak.vx * frictionIntegral;
+  const y = originY + streak.vy * frictionIntegral + 0.5 * JUST_PARRY_SPARK_GRAVITY * t * t;
+  const lineLength = streak.lengthPx * Math.min(1.8, 0.35 + speed / 520);
+  const normVx = vx / speed;
+  const normVy = vy / speed;
+  const travelT = Math.min(1, localElapsed / JUST_PARRY_SPARK_BURST_MS);
+  const streakAlpha = alpha * (1 - travelT * 0.55);
+
+  return {
+    x,
+    y,
+    tailX: x - normVx * lineLength,
+    tailY: y - normVy * lineLength,
+    streakAlpha,
+  };
+};
+
+const drawJustParryImpactFlash = (
+  ctx: CanvasRenderingContext2D,
+  originX: number,
+  originY: number,
+  burstEase: number,
+  alpha: number,
+): void => {
+  const radius = lerp(8, 42, burstEase);
+  const gradient = ctx.createRadialGradient(originX, originY, 0, originX, originY, radius);
+  gradient.addColorStop(0, `rgba(255, 247, 237, ${alpha * 0.95})`);
+  gradient.addColorStop(0.35, `rgba(251, 191, 36, ${alpha * 0.72})`);
+  gradient.addColorStop(0.72, `rgba(251, 146, 60, ${alpha * 0.38})`);
+  gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(originX, originY, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+};
+
+const drawJustParrySparkStreak = (
+  ctx: CanvasRenderingContext2D,
+  streak: JustParrySparkStreak,
+  params: JustParrySparkDrawParams,
+): void => {
+  const color = JUST_PARRY_SPARK_COLORS[streak.colorIndex % JUST_PARRY_SPARK_COLORS.length];
+  const gradient = ctx.createLinearGradient(params.tailX, params.tailY, params.x, params.y);
+  gradient.addColorStop(0, 'rgba(239, 68, 68, 0)');
+  gradient.addColorStop(0.35, JUST_PARRY_SPARK_ORANGE);
+  gradient.addColorStop(0.72, JUST_PARRY_SPARK_YELLOW);
+  gradient.addColorStop(1, color);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = params.streakAlpha;
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = 1.4 + streak.lengthPx * 0.06;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(params.tailX, params.tailY);
+  ctx.lineTo(params.x, params.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = params.streakAlpha * 0.85;
+  ctx.fillStyle = JUST_PARRY_SPARK_CORE;
+  ctx.beginPath();
+  ctx.arc(params.x, params.y, 1.2 + streak.lengthPx * 0.04, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+};
+
+export const drawJustParrySparks = (
+  ctx: CanvasRenderingContext2D,
+  state: JustParryEffectState,
+  nowMs: number,
+): void => {
+  if (!isJustParryEffectActive(state, nowMs)) {
+    return;
+  }
+
+  const alpha = getJustParryEffectAlpha(state, nowMs);
+  if (alpha <= 0) {
+    return;
+  }
+
+  const elapsed = nowMs - state.startedAt;
+  const burstT = Math.min(1, elapsed / JUST_PARRY_SPARK_BURST_MS);
+  const burstEase = easeCubicOut(burstT);
+
+  ctx.save();
+  drawJustParryImpactFlash(ctx, state.originX, state.originY, burstEase, alpha);
+
+  for (let index = 0; index < state.streaks.length; index += 1) {
+    const streak = state.streaks[index];
+    const drawParams = computeJustParrySparkDrawParams(
+      streak,
+      state.originX,
+      state.originY,
+      elapsed,
+      alpha,
+    );
+    if (!drawParams) {
+      continue;
+    }
+    drawJustParrySparkStreak(ctx, streak, drawParams);
+  }
+
+  ctx.restore();
 };
 
 const bodyGlowCache = new Map<string, HTMLCanvasElement>();
@@ -344,343 +433,14 @@ const buildBodyGlowCanvas = (
   ctx.drawImage(img, 0, 0, width, height);
   ctx.globalCompositeOperation = 'source-in';
   const gradient = ctx.createLinearGradient(0, 0, width * 0.35, height);
-  gradient.addColorStop(0, JUST_PARRY_BODY_GLOW_BLUE);
-  gradient.addColorStop(0.55, '#818cf8');
-  gradient.addColorStop(1, JUST_PARRY_BODY_GLOW_PURPLE);
+  gradient.addColorStop(0, JUST_PARRY_SPARK_YELLOW);
+  gradient.addColorStop(0.45, JUST_PARRY_BODY_GLOW_ORANGE);
+  gradient.addColorStop(1, JUST_PARRY_BODY_GLOW_RED);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
   bodyGlowCache.set(key, canvas);
   return canvas;
-};
-
-type InkSplashTextureGrid = readonly [
-  readonly [HTMLCanvasElement | null, HTMLCanvasElement | null],
-  readonly [HTMLCanvasElement | null, HTMLCanvasElement | null],
-  readonly [HTMLCanvasElement | null, HTMLCanvasElement | null],
-  readonly [HTMLCanvasElement | null, HTMLCanvasElement | null],
-];
-
-let inkSplashTextureCache: InkSplashTextureGrid | null = null;
-
-const drawInkBlobShape = (
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  baseRadius: number,
-  seed: number,
-): void => {
-  const pointCount = 8 + Math.floor(seededUnit(seed + 1.7) * 5);
-  const angleStep = (Math.PI * 2) / pointCount;
-
-  ctx.beginPath();
-  for (let pointIndex = 0; pointIndex < pointCount; pointIndex += 1) {
-    const angle = pointIndex * angleStep;
-    const nextAngle = (pointIndex + 1) * angleStep;
-    const radius = baseRadius * (0.55 + seededUnit(seed + 2.1 + pointIndex * 3.3) * 0.45);
-    const nextRadius = baseRadius * (0.55 + seededUnit(seed + 2.1 + ((pointIndex + 1) % pointCount) * 3.3) * 0.45);
-    const x = centerX + Math.cos(angle) * radius;
-    const y = centerY + Math.sin(angle) * radius;
-    const nextX = centerX + Math.cos(nextAngle) * nextRadius;
-    const nextY = centerY + Math.sin(nextAngle) * nextRadius;
-    const midAngle = (angle + nextAngle) / 2;
-    const midRadius = (radius + nextRadius) * 0.5;
-    const cpx = centerX + Math.cos(midAngle) * midRadius;
-    const cpy = centerY + Math.sin(midAngle) * midRadius;
-
-    if (pointIndex === 0) {
-      ctx.moveTo(x, y);
-    }
-    ctx.quadraticCurveTo(cpx, cpy, nextX, nextY);
-  }
-  ctx.closePath();
-};
-
-const buildInkSplashTexture = (
-  variantIndex: number,
-  colorIsBlue: boolean,
-): HTMLCanvasElement | null => {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = JUST_PARRY_INK_TEXTURE_SIZE;
-  canvas.height = JUST_PARRY_INK_TEXTURE_SIZE;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    return null;
-  }
-
-  const seed = variantIndex * 97.13 + (colorIsBlue ? 11.7 : 53.9);
-  const center = JUST_PARRY_INK_TEXTURE_HALF;
-  const baseRadius = JUST_PARRY_INK_TEXTURE_HALF * 0.42;
-  const color = colorIsBlue ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE;
-
-  const gradient = ctx.createRadialGradient(center, center, 0, center, center, baseRadius * 1.15);
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(0.72, color);
-  gradient.addColorStop(1, color);
-  ctx.fillStyle = gradient;
-  ctx.globalAlpha = 1;
-  drawInkBlobShape(ctx, center, center, baseRadius, seed);
-  ctx.fill();
-
-  ctx.globalAlpha = 0.85;
-  drawInkBlobShape(ctx, center, center, baseRadius * 1.05, seed + 4.2);
-  ctx.fill();
-
-  const satelliteCount = 3 + Math.floor(seededUnit(seed + 20.5) * 3);
-  ctx.fillStyle = color;
-  for (let satelliteIndex = 0; satelliteIndex < satelliteCount; satelliteIndex += 1) {
-    const satelliteSeed = seed + 24.3 + satelliteIndex * 6.7;
-    const satelliteAngle = seededUnit(satelliteSeed) * Math.PI * 2;
-    const satelliteDist = baseRadius * (0.85 + seededUnit(satelliteSeed + 1.2) * 0.55);
-    const satelliteRadius = 1.5 + seededUnit(satelliteSeed + 2.4) * 4.5;
-    const satelliteX = center + Math.cos(satelliteAngle) * satelliteDist;
-    const satelliteY = center + Math.sin(satelliteAngle) * satelliteDist;
-    ctx.globalAlpha = 0.75 + seededUnit(satelliteSeed + 3.1) * 0.2;
-    ctx.beginPath();
-    ctx.arc(satelliteX, satelliteY, satelliteRadius, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  return canvas;
-};
-
-const getInkSplashTextures = (): InkSplashTextureGrid | null => {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  if (inkSplashTextureCache) {
-    return inkSplashTextureCache;
-  }
-
-  const textures: [
-    [HTMLCanvasElement | null, HTMLCanvasElement | null],
-    [HTMLCanvasElement | null, HTMLCanvasElement | null],
-    [HTMLCanvasElement | null, HTMLCanvasElement | null],
-    [HTMLCanvasElement | null, HTMLCanvasElement | null],
-  ] = [
-    [null, null],
-    [null, null],
-    [null, null],
-    [null, null],
-  ];
-
-  for (let variantIndex = 0; variantIndex < JUST_PARRY_INK_TEXTURE_VARIANT_COUNT; variantIndex += 1) {
-    textures[variantIndex][0] = buildInkSplashTexture(variantIndex, true);
-    textures[variantIndex][1] = buildInkSplashTexture(variantIndex, false);
-  }
-
-  inkSplashTextureCache = textures;
-  return inkSplashTextureCache;
-};
-
-interface JustParryDropletDrawParams {
-  x: number;
-  y: number;
-  rotationRad: number;
-  stretchX: number;
-  dropletAlpha: number;
-}
-
-const computeJustParryDropletDrawParams = (
-  droplet: JustParryInkDroplet,
-  contactX: number,
-  contactY: number,
-  elapsedMs: number,
-  alpha: number,
-): JustParryDropletDrawParams | null => {
-  const localElapsed = Math.max(0, elapsedMs - droplet.delayMs);
-  const t = localElapsed / 1000;
-  if (t <= 0) {
-    return null;
-  }
-
-  const x = contactX + droplet.vx * t;
-  const y = contactY + droplet.vy * t + 0.5 * JUST_PARRY_INK_GRAVITY * t * t;
-  const instantVy = droplet.vy + JUST_PARRY_INK_GRAVITY * t;
-  const speed = Math.hypot(droplet.vx, instantVy);
-  const speedNorm = Math.min(1, speed / JUST_PARRY_INK_DROPLET_STRETCH_SPEED_REF);
-  const stretchX = lerp(
-    JUST_PARRY_INK_DROPLET_STRETCH_MIN,
-    JUST_PARRY_INK_DROPLET_STRETCH_MAX,
-    speedNorm,
-  );
-  const travelT = Math.min(1, localElapsed / JUST_PARRY_INK_BURST_MS);
-  const dropletAlpha = alpha * (1 - travelT * 0.3);
-
-  return {
-    x,
-    y,
-    rotationRad: Math.atan2(instantVy, droplet.vx) + droplet.spinRadPerSec * t,
-    stretchX,
-    dropletAlpha,
-  };
-};
-
-const drawInkCoreBlobs = (
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  coreBlobs: readonly JustParryInkCoreBlob[],
-  burstEase: number,
-  alpha: number,
-): void => {
-  const textures = getInkSplashTextures();
-  const baseRadius = lerp(6, 34, burstEase);
-  const innerRadius = baseRadius * 0.28;
-
-  ctx.save();
-  ctx.translate(centerX, centerY);
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.globalAlpha = alpha * lerp(0.5, 0.92, burstEase);
-  ctx.fillStyle = JUST_PARRY_INK_CORE_CYAN;
-  ctx.beginPath();
-  ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  if (!textures) {
-    return;
-  }
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
-
-  for (let index = 0; index < coreBlobs.length; index += 1) {
-    const blob = coreBlobs[index];
-    const texture = textures[blob.textureIndex][blob.colorIsBlue ? 0 : 1];
-    if (!texture) {
-      continue;
-    }
-
-    const blobSize = baseRadius * blob.scaleFactor * (0.75 + burstEase * 0.45) * 2.2;
-    const offsetScale = burstEase;
-    const drawX = centerX + blob.offsetX * offsetScale;
-    const drawY = centerY + blob.offsetY * offsetScale;
-
-    ctx.save();
-    ctx.translate(drawX, drawY);
-    ctx.rotate(blob.rotationRad);
-    ctx.globalAlpha = alpha * lerp(0.45, 0.88, burstEase);
-    ctx.drawImage(
-      texture,
-      -blobSize / 2,
-      -blobSize / 2,
-      blobSize,
-      blobSize,
-    );
-    ctx.restore();
-  }
-
-  ctx.restore();
-};
-
-const drawInkTendril = (
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  tendril: JustParryInkTendril,
-  tendrilEase: number,
-  alpha: number,
-): void => {
-  const length = tendril.lengthPx * tendrilEase;
-  const endX = centerX + Math.cos(tendril.angleRad) * length;
-  const endY = centerY + Math.sin(tendril.angleRad) * length;
-  const ctrlX = centerX + Math.cos(tendril.angleRad + tendril.curveBias) * length * 0.55;
-  const ctrlY = centerY + Math.sin(tendril.angleRad + tendril.curveBias) * length * 0.55;
-  const color = tendril.colorIsBlue ? JUST_PARRY_INK_BLUE : JUST_PARRY_INK_PURPLE;
-
-  ctx.save();
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = alpha * (1 - tendrilEase * 0.25);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = tendril.widthPx * (1 - tendrilEase * 0.35);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(centerX, centerY);
-  ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
-  ctx.stroke();
-  ctx.restore();
-};
-
-export const drawJustParryInkSplash = (
-  ctx: CanvasRenderingContext2D,
-  state: JustParryEffectState,
-  nowMs: number,
-): void => {
-  if (!isJustParryEffectActive(state, nowMs)) {
-    return;
-  }
-
-  const alpha = getJustParryEffectAlpha(state, nowMs);
-  if (alpha <= 0) {
-    return;
-  }
-
-  const textures = getInkSplashTextures();
-  const elapsed = nowMs - state.startedAt;
-  const burstT = Math.min(1, elapsed / JUST_PARRY_INK_BURST_MS);
-  const burstEase = easeCubicOut(burstT);
-  const centerX = state.contactX;
-  const centerY = state.contactY;
-
-  ctx.save();
-
-  drawInkCoreBlobs(ctx, centerX, centerY, state.coreBlobs, burstEase, alpha);
-
-  state.tendrils.forEach((tendril) => {
-    const localElapsed = Math.max(0, elapsed - tendril.delayMs);
-    const tendrilT = Math.min(1, localElapsed / JUST_PARRY_INK_BURST_MS);
-    const tendrilEase = easeCubicOut(tendrilT);
-    drawInkTendril(ctx, centerX, centerY, tendril, tendrilEase, alpha);
-  });
-
-  ctx.globalCompositeOperation = 'source-over';
-
-  if (!textures) {
-    ctx.restore();
-    return;
-  }
-
-  for (let index = 0; index < state.droplets.length; index += 1) {
-    const droplet = state.droplets[index];
-    const drawParams = computeJustParryDropletDrawParams(
-      droplet,
-      centerX,
-      centerY,
-      elapsed,
-      alpha,
-    );
-    if (!drawParams) {
-      continue;
-    }
-
-    const texture = textures[droplet.textureIndex][droplet.colorIsBlue ? 0 : 1];
-    if (!texture) {
-      continue;
-    }
-
-    const drawSize = droplet.sizePx;
-
-    ctx.save();
-    ctx.translate(drawParams.x, drawParams.y);
-    ctx.rotate(drawParams.rotationRad);
-    ctx.scale(drawParams.stretchX, 1);
-    ctx.globalAlpha = drawParams.dropletAlpha;
-    ctx.drawImage(
-      texture,
-      -drawSize / 2,
-      -drawSize / 2,
-      drawSize,
-      drawSize,
-    );
-    ctx.restore();
-  }
-
-  ctx.restore();
 };
 
 export const drawJustParryBodyGlow = (

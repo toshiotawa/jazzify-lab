@@ -26,6 +26,10 @@ import {
 } from './earTrainingBattleDrawState';
 import {
   resolveParryBeatSyncScheduleOrFallback,
+  resolveParryZoomMidPhraseSec,
+  resolveParryZoomOutPhraseSec,
+  resolveParryZoomScaleAtPhraseSec,
+  resolvePhraseSecFromPerfAnchor,
 } from './earTrainingBattleBeatSyncTiming';
 import {
   flashCharacter,
@@ -46,9 +50,6 @@ import {
   startJustParryEffect,
 } from './earTrainingBattleJustParryEffect';
 import { applyOsuCircleAnchorOffset } from './earTrainingBattleOsuCircleLayout';
-import {
-  pruneParrySparks,
-} from './earTrainingBattleParrySparkPool';
 import {
   burstOsuCircle,
   dismissOsuCircle,
@@ -389,16 +390,40 @@ const triggerParryBeatSyncEffects = (
   if (
     hitPhraseSec !== undefined
     && zoomFocus
-    && !command.extendParryVisualSlow
-    && runtime.camera.parryZoom === null
+    && command.effectiveBpm !== undefined
+    && command.isSwing !== undefined
   ) {
+    let startScale = 1;
+    if (runtime.camera.parryZoom) {
+      const currentPhraseSec = resolvePhraseSecFromPerfAnchor(
+        runtime.camera.parryZoom.anchorPhraseSec,
+        runtime.camera.parryZoom.hitPerfMs,
+        now,
+      );
+      startScale = resolveParryZoomScaleAtPhraseSec(currentPhraseSec, runtime.camera.parryZoom);
+    }
+    const midPhraseSec = resolveParryZoomMidPhraseSec(
+      hitPhraseSec,
+      command.justParryEffectDurationMs,
+      command.effectiveBpm,
+      command.isSwing,
+    );
+    const endPhraseSec = resolveParryZoomOutPhraseSec(
+      hitPhraseSec,
+      command.nextTargetPhraseTimeSec,
+      command.effectiveBpm,
+      command.isSwing,
+    );
     triggerParryPhraseZoom(runtime.camera, {
       anchorPhraseSec: hitPhraseSec,
+      midPhraseSec,
+      endPhraseSec,
       hitPerfMs: now,
       focusX: zoomFocus.focusX,
       focusY: zoomFocus.focusY,
       centerX: zoomFocus.centerX,
       centerY: zoomFocus.centerY,
+      startScale,
     });
   }
 };
@@ -887,8 +912,8 @@ const playOsmdHammerReflectEffect = (ctx: EffectSchedulerContext, command: EarTr
     startJustParryEffect(runtime.justParryEffect, {
       startedAt: now,
       durationMs,
-      playerBodyX: anchors.player.x,
-      playerBodyY: anchors.player.bodyY,
+      originX: parryCenterX,
+      originY: parryCenterY,
       contactX: contact.x,
       contactY: contact.y,
       imageKey: poseKey ?? runtime.player.avatarUrl,
@@ -1192,7 +1217,6 @@ export const pruneExpiredEffects = (runtime: EarTrainingBattleDrawRuntime, now: 
     endVisualSlowAndResyncReflectHammers(runtime, now);
   }
   const visualNow = getVisualNow(now, runtime.visualSlow);
-  pruneParrySparks(runtime.parrySparkPool, visualNow);
   pruneOsuCircles(runtime.osuCirclePool);
   pruneOsuCircleShatter(runtime.osuCircleShatterPool, now);
   pruneJustParryEffect(runtime.justParryEffect, now);
