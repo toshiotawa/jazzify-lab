@@ -24,7 +24,7 @@ Web(TS) と Swift で実施済みの最適化メモ。
 - `osmdHammerFlightsByEffectId` でハンマー dismiss O(1)
 - OSMD ハンマーは `getVisualNow` で毎フレーム位置更新（パリィ visualSlow 終了時に Web と同様キャッチアップ。着弾は実時間）
 - OSU! アプローチ円プール（16 スロット）+ shatter（20 破片、560ms）。**visualSlow 非影響**（wall clock）
-- OSU! 円は単位円 + `setScale`（毎フレーム `CGPath` 再生成なし）。強調色は next ターゲット変化時のみ更新
+- OSU! 円は内円実寸パス + 外円の相対 `setScale`（毎フレーム `CGPath` 再生成なし）。単位円の過大 scale による線のぼやけを避け、Web 同等の細い stroke を維持。強調色は next ターゲット変化時のみ更新
 - shatter / パリィ火花も spawn 時にパス固定、更新は position / rotation / scale / alpha のみ
 - `showImpactBurst` に `lightSparkCount` オプション（他エフェクト用）
 

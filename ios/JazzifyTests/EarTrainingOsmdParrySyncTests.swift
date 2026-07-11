@@ -171,7 +171,7 @@ final class EarTrainingBattleOsuCirclePoolTests: XCTestCase {
         XCTAssertTrue(pool.hasActiveCircles)
     }
 
-    /// setScale で線幅が膨らまないこと（ぼやけた光の再発防止）。
+    /// 外円の相対 scale でも画面上の線幅が Web 固定値になること。
     func testOuterStrokeWidthCompensatesForScale() {
         let parent = SKNode()
         let pool = EarTrainingBattleOsuCirclePool(parent: parent)
@@ -185,15 +185,23 @@ final class EarTrainingBattleOsuCirclePoolTests: XCTestCase {
             )
         )
         pool.update(nowMs: 0)
-        let outer = parent.children.flatMap(\.children).compactMap { $0 as? SKShapeNode }
-            .first { $0.xScale > EarTrainingBattleOsuCircleTiming.innerRadiusPx }
+        let shapes = parent.children.flatMap(\.children).compactMap { $0 as? SKShapeNode }
+        let outer = shapes.first { $0.xScale > 1.01 }
+        let inner = shapes.first { abs($0.xScale - 1) < 0.01 && $0.lineWidth > 0 }
         XCTAssertNotNil(outer)
-        guard let outer else { return }
+        XCTAssertNotNil(inner)
+        guard let outer, let inner else { return }
         let screenLineWidth = outer.lineWidth * outer.xScale
         XCTAssertEqual(
             screenLineWidth,
             EarTrainingBattleOsuCircleColors.outerLineWidth,
             accuracy: 0.05
         )
+        XCTAssertEqual(
+            inner.lineWidth,
+            EarTrainingBattleOsuCircleTiming.lineWidth,
+            accuracy: 0.05
+        )
+        XCTAssertEqual(outer.xScale, 2, accuracy: 0.05)
     }
 }

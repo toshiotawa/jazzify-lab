@@ -8,7 +8,9 @@ final class EarTrainingBattleOsuCirclePool {
     static let poolSize = 16
     private static let labelFontSize: CGFloat = 21
     private static let labelLineHeight: CGFloat = 22
-    private static let innerScale = EarTrainingBattleOsuCircleTiming.innerRadiusPx
+    /// 内円実寸でパスを持ち、外円だけ相対 scale する。
+    /// 単位円を 80〜170 倍すると SpriteKit の stroke がぼやけて太く見えるため。
+    private static let pathRadius = EarTrainingBattleOsuCircleTiming.innerRadiusPx
 
     struct TimingUpdate {
         let commandId: Int
@@ -43,16 +45,17 @@ final class EarTrainingBattleOsuCirclePool {
 
     init(parent: SKNode) {
         slots = (0..<Self.poolSize).map { _ in
-            // 単位円 + setScale で半径を変える。線幅は scale で割って Web と同じ画面上の太さに保つ。
-            let inner = SKShapeNode(circleOfRadius: 1)
+            // 内円は実寸パス（scale=1）で Web と同じ細い stroke。外円は相対 scale のみ。
+            let inner = SKShapeNode(circleOfRadius: Self.pathRadius)
             inner.fillColor = .clear
-            inner.setScale(Self.innerScale)
-            inner.lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth / Self.innerScale
+            inner.glowWidth = 0
+            inner.lineWidth = EarTrainingBattleOsuCircleTiming.lineWidth
             inner.isHidden = true
             inner.zPosition = 64
 
-            let outer = SKShapeNode(circleOfRadius: 1)
+            let outer = SKShapeNode(circleOfRadius: Self.pathRadius)
             outer.fillColor = .clear
+            outer.glowWidth = 0
             outer.isHidden = true
             outer.zPosition = 64
 
@@ -182,11 +185,11 @@ final class EarTrainingBattleOsuCirclePool {
         }
     }
 
-    /// `setScale` は線幅も拡大するため、画面上の stroke を Web の固定 lineWidth に合わせる。
+    /// 外円は pathRadius 基準の相対 scale。`setScale` は線幅も拡大するため割って Web 固定幅に合わせる。
     private func applyOuterRadius(at index: Int, radius: CGFloat) {
-        let safeRadius = max(radius, 0.001)
-        slots[index].outerNode.setScale(safeRadius)
-        slots[index].outerNode.lineWidth = EarTrainingBattleOsuCircleColors.outerLineWidth / safeRadius
+        let scale = max(radius, 0.001) / Self.pathRadius
+        slots[index].outerNode.setScale(scale)
+        slots[index].outerNode.lineWidth = EarTrainingBattleOsuCircleColors.outerLineWidth / scale
     }
 
     private func applyEmphasis(at index: Int, isNext: Bool) {
