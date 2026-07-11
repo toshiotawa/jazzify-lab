@@ -299,7 +299,9 @@ export interface EarTrainingBattleDrawRuntime {
   parrySparkPool: ParrySparkSlot[];
   /** 花火プールのラウンドロビン割当（連続パリィで新規 spawn と既存表示を両立） */
   parrySparkSpawnCursor: number;
-  /** OSMD: OSU! 式アプローチ円（visualSlow 非影響） */
+  /** OSMD: 描画フレーム時点の phrase タイムライン秒（OSU! 円用） */
+  phraseTimelineSec: number | null;
+  /** OSMD: OSU! 式アプローチ円（phrase タイムライン駆動） */
   osuCirclePool: OsuCircleSlot[];
   /** OSMD: 正解時パリィ円の弾け散り（visualSlow 非影響） */
   osuCircleShatterPool: OsuShatterSlot[];

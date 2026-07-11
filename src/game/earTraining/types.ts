@@ -34,9 +34,9 @@ export interface EarTrainingBattleEffectCommand {
   originPoint?: EarTrainingBattleEffectOriginPoint;
   relatedEffectId?: number;
   travelDurationSec?: number;
-  /** OSMD: OSU! アプローチ円の performance.now 基準タイムスタンプ */
-  approachStartMs?: number;
-  judgedMs?: number;
+  /** OSMD: OSU! アプローチ円の phrase タイムライン秒 */
+  approachStartPhraseSec?: number;
+  judgedPhraseSec?: number;
   /** 小節最終音符: 最初からフィニッシュモーション（連続パリィでもキャンセルしない） */
   parryFinishOnly?: boolean;
   /** OSMD: パリィヒット時の phrase タイムライン秒 */
@@ -180,8 +180,8 @@ export interface EarTrainingBattleSceneHandle {
   resyncOsuApproachCircles: (
     updates: readonly {
       commandId: number;
-      approachStartMs: number;
-      judgedMs: number;
+      approachStartPhraseSec: number;
+      judgedPhraseSec: number;
     }[],
   ) => void;
   highlightKey: (midiNote: number, active: boolean) => void;

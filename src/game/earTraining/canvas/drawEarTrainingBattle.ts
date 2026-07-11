@@ -978,7 +978,9 @@ const drawEffects = (
 
   drawParrySparks(ctx, runtime.parrySparkPool, visualNow);
   if (runtime.chordOsmdBattle) {
-    drawOsuCircles(ctx, runtime.osuCirclePool, now);
+    if (runtime.phraseTimelineSec !== null) {
+      drawOsuCircles(ctx, runtime.osuCirclePool, runtime.phraseTimelineSec);
+    }
     drawOsuCircleShatter(ctx, runtime.osuCircleShatterPool, now);
   }
 

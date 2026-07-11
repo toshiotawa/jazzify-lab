@@ -19,7 +19,7 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrainingBattleLayout';
-import { resolveOsuApproachCirclePerfTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
+import { resolveOsuApproachCirclePhraseTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { resolveOsuCircleNoteLabels } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleNoteLabels';
 import { resolveOsuCircleColorIndex } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleColors';
 import { useGameStore } from '@/stores/gameStore';
@@ -638,8 +638,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       phraseNoteCount?: number;
       relatedEffectId?: number;
       travelDurationSec?: number;
-      approachStartMs?: number;
-      judgedMs?: number;
+      approachStartPhraseSec?: number;
+      judgedPhraseSec?: number;
       parryFinishOnly?: boolean;
       hitPhraseTimeSec?: number;
       effectiveBpm?: number;
@@ -663,8 +663,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       phraseNoteCount: options.phraseNoteCount,
       relatedEffectId: options.relatedEffectId,
       travelDurationSec: options.travelDurationSec,
-      approachStartMs: options.approachStartMs,
-      judgedMs: options.judgedMs,
+      approachStartPhraseSec: options.approachStartPhraseSec,
+      judgedPhraseSec: options.judgedPhraseSec,
       parryFinishOnly: options.parryFinishOnly,
       hitPhraseTimeSec: options.hitPhraseTimeSec,
       effectiveBpm: options.effectiveBpm,
@@ -713,16 +713,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   }, [clearParryVisualSlow, dismissOsuCircleForState, isEnglishCopy, syncPracticeVoicingHints, triggerFeedback]);
 
   const syncActiveOsuApproachCircleTimings = useCallback(() => {
-    const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec();
-    if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
-      return;
-    }
     const approachLeadSec = chordOsmdApproachLeadSec(resolveEffectivePracticeBpm());
-    const perfNowMs = performance.now();
     const updates: {
       commandId: number;
-      approachStartMs: number;
-      judgedMs: number;
+      approachStartPhraseSec: number;
+      judgedPhraseSec: number;
     }[] = [];
     targetsRef.current.forEach(target => {
       const state = runtimeByTargetIdRef.current.get(target.id);
@@ -730,16 +725,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         return;
       }
       const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
-      const timing = resolveOsuApproachCirclePerfTiming(
-        judged,
-        phraseTimeSec,
-        approachLeadSec,
-        perfNowMs,
-      );
+      const timing = resolveOsuApproachCirclePhraseTiming(judged, approachLeadSec);
       updates.push({
         commandId: state.osuCircleEffectId,
-        approachStartMs: timing.approachStartMs,
-        judgedMs: timing.judgedMs,
+        approachStartPhraseSec: timing.approachStartPhraseSec,
+        judgedPhraseSec: timing.judgedPhraseSec,
       });
     });
     if (updates.length > 0) {
@@ -1204,14 +1194,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nextApproachTargetIndexRef.current += 1;
         continue;
       }
-      const timing = resolveOsuApproachCirclePerfTiming(
-        judged,
-        phraseTimeSec,
-        approachLeadSec,
-      );
+      const timing = resolveOsuApproachCirclePhraseTiming(judged, approachLeadSec);
       const effectId = triggerBattleEffect('osmdApproachCircle', {
-        approachStartMs: timing.approachStartMs,
-        judgedMs: timing.judgedMs,
+        approachStartPhraseSec: timing.approachStartPhraseSec,
+        judgedPhraseSec: timing.judgedPhraseSec,
         osuCircleLayoutIndex: nextApproachTargetIndexRef.current,
         osuCircleNoteLabels: resolveOsuCircleNoteLabels(
           target.midiCounts.map(item => item.midi),
@@ -2223,6 +2209,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const scoreScrollActive = scoreTimelineArmed
     && (gameState === 'countIn' || gameState === 'playingPhrase');
 
+  const getPhraseTimelineSec = useCallback(
+    () => phrasePlayerRef.current?.getPhraseTimelineSec() ?? null,
+    [],
+  );
+
   const battleCallbacks = useMemo(() => ({
     onStart: startBattle,
     onBack,
@@ -2259,6 +2250,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           className="h-full w-full"
           disableCorrectSe
           battleMode="chord_osmd"
+          getPhraseTimelineSec={getPhraseTimelineSec}
         />
       </div>
 

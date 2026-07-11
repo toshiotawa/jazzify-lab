@@ -271,9 +271,9 @@ const playOsmdApproachCircleEffect = (
   if (!runtime.chordOsmdBattle) {
     return;
   }
-  const approachStartMs = command.approachStartMs;
-  const judgedMs = command.judgedMs;
-  if (approachStartMs === undefined || judgedMs === undefined) {
+  const approachStartPhraseSec = command.approachStartPhraseSec;
+  const judgedPhraseSec = command.judgedPhraseSec;
+  if (approachStartPhraseSec === undefined || judgedPhraseSec === undefined) {
     return;
   }
   const centerX = anchors.player.x;
@@ -282,8 +282,8 @@ const playOsmdApproachCircleEffect = (
   const positioned = applyOsuCircleAnchorOffset(centerX, targetY, layoutIndex);
   spawnOsuCircle(runtime.osuCirclePool, {
     commandId: command.id,
-    approachStartMs,
-    judgedMs,
+    approachStartPhraseSec,
+    judgedPhraseSec,
     centerX: positioned.centerX,
     targetY: positioned.targetY,
     layoutIndex,

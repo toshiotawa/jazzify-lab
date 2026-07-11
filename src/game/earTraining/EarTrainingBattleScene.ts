@@ -535,8 +535,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   resyncOsuApproachCircles(
     _updates: readonly {
       commandId: number;
-      approachStartMs: number;
-      judgedMs: number;
+      approachStartPhraseSec: number;
+      judgedPhraseSec: number;
     }[],
   ): void {
     void _updates;

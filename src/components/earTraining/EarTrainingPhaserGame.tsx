@@ -16,6 +16,7 @@ interface EarTrainingPhaserGameProps {
   className?: string;
   /** true のとき炎魔法 SE のプリロード・再生を行わない（OSMD リズムバトル等） */
   disableCorrectSe?: boolean;
+  getPhraseTimelineSec?: () => number | null;
 }
 
 const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTrainingPhaserGameProps>(({

@@ -20,6 +20,7 @@ interface EarTrainingBattleRendererProps {
   className?: string;
   disableCorrectSe?: boolean;
   battleMode?: EarTrainingMode;
+  getPhraseTimelineSec?: () => number | null;
 }
 
 const EarTrainingBattleRenderer = forwardRef<EarTrainingBattleSceneHandle, EarTrainingBattleRendererProps>((props, ref) => {

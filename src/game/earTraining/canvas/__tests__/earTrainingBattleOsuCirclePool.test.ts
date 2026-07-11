@@ -4,13 +4,13 @@ import {
   resyncOsuCircleTimings,
   spawnOsuCircle,
 } from '@/game/earTraining/canvas/earTrainingBattleOsuCirclePool';
-import { resolveOsuApproachCirclePerfTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
+import { resolveOsuApproachCirclePhraseTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 
-describe('resolveOsuApproachCirclePerfTiming', () => {
-  it('calibration 済み judged と phrase 時刻から perf 基準タイミングを算出する', () => {
-    const timing = resolveOsuApproachCirclePerfTiming(2.04, 1.54, 0.6, 1000);
-    expect(timing.judgedMs).toBe(1500);
-    expect(timing.approachStartMs).toBe(900);
+describe('resolveOsuApproachCirclePhraseTiming', () => {
+  it('calibration 済み judged と approach lead から phrase 基準タイミングを算出する', () => {
+    const timing = resolveOsuApproachCirclePhraseTiming(2.04, 0.6);
+    expect(timing.judgedPhraseSec).toBe(2.04);
+    expect(timing.approachStartPhraseSec).toBeCloseTo(1.44, 5);
   });
 });
 
@@ -19,8 +19,8 @@ describe('burstOsuCircle', () => {
     const pool = createOsuCirclePool();
     spawnOsuCircle(pool, {
       commandId: 3,
-      approachStartMs: 1000,
-      judgedMs: 1500,
+      approachStartPhraseSec: 1.0,
+      judgedPhraseSec: 1.5,
       centerX: 180,
       targetY: 320,
     });
@@ -36,18 +36,18 @@ describe('resyncOsuCircleTimings', () => {
     const pool = createOsuCirclePool();
     spawnOsuCircle(pool, {
       commandId: 7,
-      approachStartMs: 1000,
-      judgedMs: 1600,
+      approachStartPhraseSec: 1.0,
+      judgedPhraseSec: 1.6,
       centerX: 100,
       targetY: 200,
     });
     const resynced = resyncOsuCircleTimings(pool, [{
       commandId: 7,
-      approachStartMs: 1100,
-      judgedMs: 1700,
+      approachStartPhraseSec: 1.1,
+      judgedPhraseSec: 1.7,
     }]);
     expect(resynced).toBe(1);
-    expect(pool[0].approachStartMs).toBe(1100);
-    expect(pool[0].judgedMs).toBe(1700);
+    expect(pool[0].approachStartPhraseSec).toBe(1.1);
+    expect(pool[0].judgedPhraseSec).toBe(1.7);
   });
 });

@@ -18,34 +18,29 @@ export const OSU_CIRCLE_ENTER_OFFSET_PX = 48;
 export const getOsuCircleOverlapOuterRadiusPx = (): number =>
   OSU_CIRCLE_INNER_RADIUS_PX + OSU_CIRCLE_LINE_WIDTH;
 
-export interface OsuApproachCirclePerfTiming {
-  judgedMs: number;
-  approachStartMs: number;
+export interface OsuApproachCirclePhraseTiming {
+  judgedPhraseSec: number;
+  approachStartPhraseSec: number;
 }
 
-/** フレーズ時刻と calibration 済み judged から performance.now 基準の OSU! 円タイミングを算出 */
-export const resolveOsuApproachCirclePerfTiming = (
+/** calibration 済み judged から phrase タイムライン基準の OSU! 円タイミングを算出 */
+export const resolveOsuApproachCirclePhraseTiming = (
   judgedPhraseTimeSec: number,
-  phraseTimeSec: number,
   approachLeadSec: number,
-  perfNowMs: number = performance.now(),
-): OsuApproachCirclePerfTiming => {
-  const judgedMs = perfNowMs + (judgedPhraseTimeSec - phraseTimeSec) * 1000;
-  return {
-    judgedMs,
-    approachStartMs: judgedMs - approachLeadSec * 1000,
-  };
-};
+): OsuApproachCirclePhraseTiming => ({
+  judgedPhraseSec: judgedPhraseTimeSec,
+  approachStartPhraseSec: judgedPhraseTimeSec - approachLeadSec,
+});
 
 export type OsuCirclePhase = 'hidden' | 'approach' | 'locked' | 'burst' | 'dismissed';
 
 export interface OsuCircleTimingInput {
-  nowMs: number;
-  approachStartMs: number;
-  judgedMs: number;
+  nowPhraseSec: number;
+  approachStartPhraseSec: number;
+  judgedPhraseSec: number;
   centerX: number;
   targetY: number;
-  burstAtMs?: number;
+  burstAtPhraseSec?: number;
   dismissed?: boolean;
 }
 
@@ -62,12 +57,12 @@ const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
 
 export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTimingState => {
   const {
-    nowMs,
-    approachStartMs,
-    judgedMs,
+    nowPhraseSec,
+    approachStartPhraseSec,
+    judgedPhraseSec,
     centerX,
     targetY,
-    burstAtMs,
+    burstAtPhraseSec,
     dismissed = false,
   } = input;
 
@@ -82,7 +77,7 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
     };
   }
 
-  if (burstAtMs !== undefined && nowMs >= burstAtMs) {
+  if (burstAtPhraseSec !== undefined && nowPhraseSec >= burstAtPhraseSec) {
     return {
       visible: false,
       phase: 'burst',
@@ -93,7 +88,7 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
     };
   }
 
-  if (nowMs < approachStartMs) {
+  if (nowPhraseSec < approachStartPhraseSec) {
     return {
       visible: false,
       phase: 'hidden',
@@ -104,9 +99,9 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
     };
   }
 
-  const beatMs = judgedMs - approachStartMs;
-  const approachT = beatMs > 0
-    ? clamp01((nowMs - approachStartMs) / beatMs)
+  const beatSec = judgedPhraseSec - approachStartPhraseSec;
+  const approachT = beatSec > 0
+    ? clamp01((nowPhraseSec - approachStartPhraseSec) / beatSec)
     : 1;
   const enterT = clamp01(approachT / OSU_CIRCLE_ENTER_FRACTION);
   const centerY = lerp(
@@ -117,7 +112,7 @@ export const computeOsuCircleTiming = (input: OsuCircleTimingInput): OsuCircleTi
 
   const overlapOuterRadiusPx = getOsuCircleOverlapOuterRadiusPx();
 
-  if (nowMs >= judgedMs) {
+  if (nowPhraseSec >= judgedPhraseSec) {
     return {
       visible: true,
       phase: 'locked',

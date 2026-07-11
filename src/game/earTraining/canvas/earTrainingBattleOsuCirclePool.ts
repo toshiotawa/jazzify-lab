@@ -17,8 +17,8 @@ const OSU_NOTE_LABEL_SHADOW = 'rgba(0, 0, 0, 0.55)';
 export interface OsuCircleSlot {
   active: boolean;
   commandId: number;
-  approachStartMs: number;
-  judgedMs: number;
+  approachStartPhraseSec: number;
+  judgedPhraseSec: number;
   centerX: number;
   targetY: number;
   dismissed: boolean;
@@ -35,8 +35,8 @@ export interface OsuCircleBurstPosition {
 
 export interface SpawnOsuCircleParams {
   commandId: number;
-  approachStartMs: number;
-  judgedMs: number;
+  approachStartPhraseSec: number;
+  judgedPhraseSec: number;
   centerX: number;
   targetY: number;
   layoutIndex?: number;
@@ -46,8 +46,8 @@ export interface SpawnOsuCircleParams {
 
 export interface OsuApproachCircleTimingUpdate {
   commandId: number;
-  approachStartMs: number;
-  judgedMs: number;
+  approachStartPhraseSec: number;
+  judgedPhraseSec: number;
 }
 
 export const resyncOsuCircleTimings = (
@@ -60,8 +60,8 @@ export const resyncOsuCircleTimings = (
     if (!slot || slot.dismissed) {
       continue;
     }
-    slot.approachStartMs = update.approachStartMs;
-    slot.judgedMs = update.judgedMs;
+    slot.approachStartPhraseSec = update.approachStartPhraseSec;
+    slot.judgedPhraseSec = update.judgedPhraseSec;
     resynced += 1;
   }
   return resynced;
@@ -71,8 +71,8 @@ export const createOsuCirclePool = (): OsuCircleSlot[] =>
   Array.from({ length: OSU_CIRCLE_POOL_SIZE }, (): OsuCircleSlot => ({
     active: false,
     commandId: -1,
-    approachStartMs: 0,
-    judgedMs: 0,
+    approachStartPhraseSec: 0,
+    judgedPhraseSec: 0,
     centerX: 0,
     targetY: 0,
     dismissed: false,
@@ -89,8 +89,8 @@ export const spawnOsuCircle = (
     if (slot.active) continue;
     slot.active = true;
     slot.commandId = params.commandId;
-    slot.approachStartMs = params.approachStartMs;
-    slot.judgedMs = params.judgedMs;
+    slot.approachStartPhraseSec = params.approachStartPhraseSec;
+    slot.judgedPhraseSec = params.judgedPhraseSec;
     slot.centerX = params.centerX;
     slot.targetY = params.targetY;
     slot.dismissed = false;
@@ -143,13 +143,13 @@ export const pruneOsuCircles = (pool: OsuCircleSlot[]): void => {
   }
 };
 
-export const hasActiveOsuCircles = (pool: OsuCircleSlot[], nowMs: number): boolean => {
+export const hasActiveOsuCircles = (pool: OsuCircleSlot[], nowPhraseSec: number): boolean => {
   for (const slot of pool) {
     if (!slot.active || slot.dismissed) continue;
     const timing = computeOsuCircleTiming({
-      nowMs,
-      approachStartMs: slot.approachStartMs,
-      judgedMs: slot.judgedMs,
+      nowPhraseSec,
+      approachStartPhraseSec: slot.approachStartPhraseSec,
+      judgedPhraseSec: slot.judgedPhraseSec,
       centerX: slot.centerX,
       targetY: slot.targetY,
       dismissed: slot.dismissed,
@@ -163,23 +163,23 @@ export const hasActiveOsuCircles = (pool: OsuCircleSlot[], nowMs: number): boole
 
 const resolveNextOsuCircleCommandId = (
   pool: OsuCircleSlot[],
-  nowMs: number,
+  nowPhraseSec: number,
 ): number | null => {
   let nextCommandId: number | null = null;
-  let nextJudgedMs = Number.POSITIVE_INFINITY;
+  let nextJudgedPhraseSec = Number.POSITIVE_INFINITY;
   for (const slot of pool) {
     if (!slot.active || slot.dismissed) continue;
-    if (slot.judgedMs >= nextJudgedMs) continue;
+    if (slot.judgedPhraseSec >= nextJudgedPhraseSec) continue;
     const timing = computeOsuCircleTiming({
-      nowMs,
-      approachStartMs: slot.approachStartMs,
-      judgedMs: slot.judgedMs,
+      nowPhraseSec,
+      approachStartPhraseSec: slot.approachStartPhraseSec,
+      judgedPhraseSec: slot.judgedPhraseSec,
       centerX: slot.centerX,
       targetY: slot.targetY,
       dismissed: slot.dismissed,
     });
     if (!timing.visible) continue;
-    nextJudgedMs = slot.judgedMs;
+    nextJudgedPhraseSec = slot.judgedPhraseSec;
     nextCommandId = slot.commandId;
   }
   return nextCommandId;
@@ -212,17 +212,17 @@ const drawNoteLabels = (
 export const drawOsuCircles = (
   ctx: CanvasRenderingContext2D,
   pool: OsuCircleSlot[],
-  nowMs: number,
+  nowPhraseSec: number,
 ): void => {
-  const nextCommandId = resolveNextOsuCircleCommandId(pool, nowMs);
+  const nextCommandId = resolveNextOsuCircleCommandId(pool, nowPhraseSec);
 
   for (const slot of pool) {
     if (!slot.active || slot.dismissed) continue;
 
     const timing = computeOsuCircleTiming({
-      nowMs,
-      approachStartMs: slot.approachStartMs,
-      judgedMs: slot.judgedMs,
+      nowPhraseSec,
+      approachStartPhraseSec: slot.approachStartPhraseSec,
+      judgedPhraseSec: slot.judgedPhraseSec,
       centerX: slot.centerX,
       targetY: slot.targetY,
       dismissed: slot.dismissed,

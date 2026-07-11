@@ -72,6 +72,8 @@ interface EarTrainingBattleCanvasProps {
   className?: string;
   disableCorrectSe?: boolean;
   battleMode?: EarTrainingMode;
+  /** OSMD: 描画フレームごとに最新 phrase タイムライン秒を取得 */
+  getPhraseTimelineSec?: () => number | null;
 }
 
 const createInitialRuntime = (
@@ -110,6 +112,7 @@ const createInitialRuntime = (
   parrySparkSpawnCursor: 0,
   osuCirclePool: createOsuCirclePool(),
   osuCircleShatterPool: createOsuCircleShatterPool(),
+  phraseTimelineSec: null,
   chordOsmdBattle: false,
   timingCalibrationLayout: Boolean(snapshot.timingCalibrationLayout),
   lastParryAt: 0,
@@ -125,6 +128,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   className,
   disableCorrectSe = true,
   battleMode,
+  getPhraseTimelineSec,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -139,9 +143,11 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
   const impactTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const hudHitRegionsRef = useRef<EarTrainingBattleDrawRuntime['hudHitRegions']>([]);
   const deferredImagesScheduledRef = useRef(false);
+  const getPhraseTimelineSecRef = useRef(getPhraseTimelineSec);
 
   snapshotRef.current = snapshot;
   callbacksRef.current = callbacks;
+  getPhraseTimelineSecRef.current = getPhraseTimelineSec;
 
   const scheduleDrawFrame = useCallback(() => {
     if (rafRef.current !== 0) return;
@@ -480,6 +486,8 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
         return;
       }
 
+      runtime.phraseTimelineSec = getPhraseTimelineSecRef.current?.() ?? null;
+
       const hasActiveMotion =
         runtime.player.motionState === 'walk'
         || runtime.enemy.motionState === 'walk'
@@ -496,7 +504,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
           && now < runtime.visualSlow.startedAt + runtime.visualSlow.durationMs
         )
         || hasActiveParrySparks(runtime.parrySparkPool)
-        || (runtime.chordOsmdBattle && hasActiveOsuCircles(runtime.osuCirclePool, now))
+        || (runtime.chordOsmdBattle && runtime.phraseTimelineSec !== null && hasActiveOsuCircles(runtime.osuCirclePool, runtime.phraseTimelineSec))
         || (runtime.chordOsmdBattle && hasActiveOsuCircleShatter(runtime.osuCircleShatterPool, now))
         || (
           runtime.lastParryAt > 0
