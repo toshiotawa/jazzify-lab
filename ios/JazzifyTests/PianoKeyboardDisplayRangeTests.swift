@@ -72,4 +72,57 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
         PianoKeyboardDisplayPreferences.save(.full88Keys)
         XCTAssertEqual(PianoKeyboardDisplayPreferences.load(), .full88Keys)
     }
+
+    func testCodeRunProgressionDisplayRangeSwitchesBetweenFitAndFull88() {
+        let chords = [
+            SurvivalResolvedChord(
+                id: "code-run:c",
+                root: "C",
+                quality: .progression,
+                midiNotes: [60, 64, 67],
+                pitchClasses: [0, 4, 7],
+                displayName: "C"
+            ),
+            SurvivalResolvedChord(
+                id: "code-run:e",
+                root: "E",
+                quality: .progression,
+                midiNotes: [64, 68, 71],
+                pitchClasses: [4, 8, 11],
+                displayName: "E"
+            ),
+        ]
+
+        let fitRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            in: chords,
+            displayMode: .questionRangeFit
+        )
+        let fullRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            in: chords,
+            displayMode: .full88Keys
+        )
+
+        XCTAssertEqual(fitRange.minMidi, 59)
+        XCTAssertEqual(fitRange.maxMidi, 72)
+        XCTAssertEqual(fullRange, .full88)
+        XCTAssertNotEqual(fitRange, fullRange)
+    }
+
+    func testCodeRunRandomDisplayRangeSwitchesBetweenFitAndFull88() {
+        let allowedChords = ["C", "D", "E"]
+
+        let fitRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            fromChordIds: allowedChords,
+            displayMode: .questionRangeFit
+        )
+        let fullRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            fromChordIds: allowedChords,
+            displayMode: .full88Keys
+        )
+
+        XCTAssertEqual(fitRange.minMidi, 59)
+        XCTAssertEqual(fitRange.maxMidi, 72)
+        XCTAssertEqual(fullRange, .full88)
+        XCTAssertNotEqual(fitRange, fullRange)
+    }
 }

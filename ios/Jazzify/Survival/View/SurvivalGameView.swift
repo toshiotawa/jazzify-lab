@@ -981,6 +981,106 @@ private extension SupabaseService {
     }
 }
 
+private struct SurvivalCodeRunSettingsSheet: View {
+    let locale: AppLocale
+    let hintMode: Bool
+    let onApplyHintModeAndRestart: ((Bool) -> Void)?
+    let onClose: () -> Void
+
+    @StateObject private var midiManager = MIDIManager.shared
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    if let onApplyHintModeAndRestart {
+                        Button(action: { onApplyHintModeAndRestart(!hintMode); onClose() }) {
+                            Text(hintMode ? (locale == .ja ? "本番で再開" : "Restart Performance") : (locale == .ja ? "HINTで再開" : "Restart with HINT"))
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    SurvivalAudioVolumeSection(
+                        locale: locale,
+                        title: locale == .ja ? "音量" : "Audio volume"
+                    )
+                    PianoKeyboardDisplayModeSection(
+                        displayMode: $keyboardDisplayMode,
+                        isEnglishCopy: locale == .en
+                    )
+                    midiSettingsSection
+                    Button(locale == .ja ? "閉じる" : "Close", action: onClose)
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(20)
+            }
+            .navigationTitle(locale == .ja ? "コードラン設定" : "Code Run Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear { midiManager.refreshDevices() }
+        }
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .presentationDetents([.medium, .large])
+    }
+
+    private var midiSettingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label(locale == .ja ? "MIDI キーボード" : "MIDI Keyboard", systemImage: "pianokeys")
+                    .font(.headline)
+                Spacer()
+                Button(locale == .ja ? "再検出" : "Rescan") {
+                    midiManager.refreshDevices()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if midiManager.availableDevices.isEmpty {
+                Text(locale == .ja ? "接続中の MIDI デバイスがありません。" : "No MIDI devices are connected.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(midiManager.availableDevices, id: \.uniqueID) { device in
+                        midiDeviceRow(device)
+                    }
+                }
+            }
+        }
+    }
+
+    private func midiDeviceRow(_ device: MIDIDeviceInfo) -> some View {
+        Button {
+            midiManager.selectDevice(uniqueID: device.uniqueID)
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    if !device.manufacturer.isEmpty {
+                        Text(device.manufacturer)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if midiManager.selectedDeviceID == device.uniqueID {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(12)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct SurvivalCodeRunGameContent: View {
     let stage: SurvivalStageDefinition
     let hintMode: Bool
@@ -1034,17 +1134,41 @@ private struct SurvivalCodeRunGameContent: View {
         } else {
             self.keyboardScrollAnchorMidi = nil
         }
+        let initialKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+        _keyboardDisplayMode = State(initialValue: initialKeyboardDisplayMode)
+        _chordPadDisplayRange = State(
+            initialValue: Self.resolvedKeyboardDisplayRange(
+                isRandomStage: randomStage,
+                allowedChords: stage.allowedChords,
+                progressionChords: resolvedChords,
+                displayMode: initialKeyboardDisplayMode
+            )
+        )
     }
 
-    private func resolvedKeyboardDisplayRange(for mode: PianoKeyboardDisplayMode) -> PianoStagePitchRange {
+    private static func resolvedKeyboardDisplayRange(
+        isRandomStage: Bool,
+        allowedChords: [String],
+        progressionChords: [SurvivalResolvedChord],
+        displayMode: PianoKeyboardDisplayMode
+    ) -> PianoStagePitchRange {
         if isRandomStage {
             return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
-                fromChordIds: stage.allowedChords,
-                displayMode: mode
+                fromChordIds: allowedChords,
+                displayMode: displayMode
             )
         }
         return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
             in: progressionChords,
+            displayMode: displayMode
+        )
+    }
+
+    private func resolvedKeyboardDisplayRange(for mode: PianoKeyboardDisplayMode) -> PianoStagePitchRange {
+        Self.resolvedKeyboardDisplayRange(
+            isRandomStage: isRandomStage,
+            allowedChords: stage.allowedChords,
+            progressionChords: progressionChords,
             displayMode: mode
         )
     }
@@ -1072,8 +1196,8 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var assignmentStartRecorded = false
     @State private var frameTick: UInt = 0
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    @State private var chordPadDisplayRange = PianoStagePitchRange.full88
     @StateObject private var frameClock = SurvivalCodeRunFrameClock()
-    @StateObject private var midiManager = MIDIManager.shared
     @EnvironmentObject private var appState: AppState
 
     private let audio = SurvivalAudioController()
@@ -1111,11 +1235,11 @@ private struct SurvivalCodeRunGameContent: View {
                     gameCanvas(size: canvasSize, letterboxed: isPad)
                     SurvivalJoystickRepresentable(
                         hitMask: .full,
-                        isInteractive: status == .playing
+                        isInteractive: status == .playing && !showSettings
                     ) { analog in
                         inputX = max(-1, min(1, analog.dx))
                     }
-                    .allowsHitTesting(status == .playing)
+                    .allowsHitTesting(status == .playing && !showSettings)
                     chordBadges
                         .padding(.top, SurvivalCodeRunNativeLayout.chordBadgeTopPadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1126,10 +1250,12 @@ private struct SurvivalCodeRunGameContent: View {
                 .overlay(alignment: .topTrailing) { statusBadges }
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
-                    displayRange: resolvedKeyboardDisplayRange(for: keyboardDisplayMode),
+                    displayRange: chordPadDisplayRange,
                     onPress: noteOn,
                     onRelease: noteOff
                 )
+                .equatable()
+                .id("\(chordPadDisplayRange.minMidi)-\(chordPadDisplayRange.maxMidi)")
                 .frame(height: keyboardHeight)
             }
             .background(Color.black)
@@ -1139,6 +1265,14 @@ private struct SurvivalCodeRunGameContent: View {
             SurvivalCodeRunDisplayLinkDriver(frameClock: frameClock)
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .onChange(of: keyboardDisplayMode) { newMode in
+            refreshChordPadDisplayRange(for: newMode)
+        }
+        .onChange(of: showSettings) { isOpen in
+            if isOpen {
+                inputX = 0
+            }
+        }
         .onReceive(frameClock.publisher) { dt in
             tick(deltaTime: dt)
         }
@@ -1161,7 +1295,21 @@ private struct SurvivalCodeRunGameContent: View {
             midiSubscriptionHolder.cancel()
             audio.stop()
         }
-        .sheet(isPresented: $showSettings) { settingsSheet }
+        .sheet(isPresented: $showSettings) {
+            SurvivalCodeRunSettingsSheet(
+                locale: locale,
+                hintMode: hintMode,
+                onApplyHintModeAndRestart: onApplyHintModeAndRestart,
+                onClose: { showSettings = false }
+            )
+        }
+    }
+
+    private func refreshChordPadDisplayRange(for mode: PianoKeyboardDisplayMode) {
+        let nextRange = resolvedKeyboardDisplayRange(for: mode)
+        if nextRange != chordPadDisplayRange {
+            chordPadDisplayRange = nextRange
+        }
     }
 
     private var chordPadSnapshot: SurvivalChordPadSnapshot {
@@ -1279,95 +1427,6 @@ private struct SurvivalCodeRunGameContent: View {
         .frame(minWidth: minWidth, maxWidth: maxWidth)
         .padding(.horizontal, primary ? 12 : 6)
         .padding(.vertical, primary ? 6 : 4)
-    }
-
-    private var settingsSheet: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 18) {
-                    if let onApplyHintModeAndRestart {
-                        Button(action: { onApplyHintModeAndRestart(!hintMode); showSettings = false }) {
-                            Text(hintMode ? (locale == .ja ? "本番で再開" : "Restart Performance") : (locale == .ja ? "HINTで再開" : "Restart with HINT"))
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    SurvivalAudioVolumeSection(
-                        locale: locale,
-                        title: locale == .ja ? "音量" : "Audio volume"
-                    )
-                    PianoKeyboardDisplayModeSection(
-                        displayMode: $keyboardDisplayMode,
-                        isEnglishCopy: locale == .en
-                    )
-                    midiSettingsSection
-                    Button(locale == .ja ? "閉じる" : "Close") { showSettings = false }
-                        .frame(maxWidth: .infinity)
-                }
-                .padding(20)
-            }
-            .navigationTitle(locale == .ja ? "コードラン設定" : "Code Run Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear { midiManager.refreshDevices() }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private var midiSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label(locale == .ja ? "MIDI キーボード" : "MIDI Keyboard", systemImage: "pianokeys")
-                    .font(.headline)
-                Spacer()
-                Button(locale == .ja ? "再検出" : "Rescan") {
-                    midiManager.refreshDevices()
-                }
-                .buttonStyle(.bordered)
-            }
-
-            if midiManager.availableDevices.isEmpty {
-                Text(locale == .ja ? "接続中の MIDI デバイスがありません。" : "No MIDI devices are connected.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(midiManager.availableDevices, id: \.uniqueID) { device in
-                        midiDeviceRow(device)
-                    }
-                }
-            }
-        }
-    }
-
-    private func midiDeviceRow(_ device: MIDIDeviceInfo) -> some View {
-        Button {
-            midiManager.selectDevice(uniqueID: device.uniqueID)
-        } label: {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(device.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    if !device.manufacturer.isEmpty {
-                        Text(device.manufacturer)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                if midiManager.selectedDeviceID == device.uniqueID {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-            }
-            .padding(12)
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain)
     }
 
     @ViewBuilder private var resultOverlay: some View {
@@ -1561,7 +1620,7 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func tick(deltaTime: TimeInterval) {
-        guard isViewActive, status == .playing else { return }
+        guard isViewActive, status == .playing, !showSettings else { return }
         let dt = min(1.0 / 20.0, max(0, deltaTime))
         elapsed += dt
         let step = CGFloat(dt * 60)
