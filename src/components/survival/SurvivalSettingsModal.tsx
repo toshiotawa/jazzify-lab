@@ -13,6 +13,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { WebKeyboardDisplayModeSection } from '@/components/settings/WebKeyboardDisplayModeSection';
 
 const SURVIVAL_SETTINGS_KEY = 'survival_display_settings';
 
@@ -388,6 +389,8 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
               {isEnglishCopy ? 'Volume of background music' : '背景音楽の音量'}
             </p>
           </div>
+
+          <WebKeyboardDisplayModeSection isEnglishCopy={isEnglishCopy} />
 
           {/* 区切り線 */}
           <div className="border-t border-gray-600 pt-4">

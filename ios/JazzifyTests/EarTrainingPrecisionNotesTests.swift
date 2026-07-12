@@ -32,11 +32,10 @@ final class EarTrainingPrecisionNotesTests: XCTestCase {
         XCTAssertEqual(result.notes[2].midi, 67)
     }
 
-    func testKeyboardRangeExpandsToTwoOctavesWhenNotesAreNarrow() {
+    func testKeyboardRangeUsesWhiteKeyPadding() {
         let range = EarTrainingPrecisionNotes.resolveKeyboardRange(noteMidis: [60, 67])
-        XCTAssertGreaterThanOrEqual(range.maxMidi - range.minMidi + 1, 24)
-        XCTAssertLessThanOrEqual(range.minMidi, 60)
-        XCTAssertGreaterThanOrEqual(range.maxMidi, 67)
+        XCTAssertEqual(range.minMidi, 59)
+        XCTAssertEqual(range.maxMidi, 69)
     }
 
     func testQuarterNotesAreNotShortNotes() {

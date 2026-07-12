@@ -5,6 +5,7 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { normalizeWebKeyboardDisplayMode } from '@/utils/webKeyboardDisplayRange';
 import type { GameSettings } from '@/types';
 
 const defaultSettings: GameSettings = {
@@ -41,6 +42,7 @@ const defaultSettings: GameSettings = {
   practiceGuide: 'key',
   performanceMode: 'standard',
   voiceSensitivity: 5,
+  webKeyboardDisplayMode: 'questionRangeFit',
 };
 
 const validateSettings = (
@@ -103,6 +105,8 @@ const validateSettings = (
     errors.push('ピアノの高さは80-300pxの範囲で設定してください');
     normalized.pianoHeight = Math.max(80, Math.min(300, normalized.pianoHeight));
   }
+
+  normalized.webKeyboardDisplayMode = normalizeWebKeyboardDisplayMode(normalized.webKeyboardDisplayMode);
 
   return {
     valid: errors.length === 0,

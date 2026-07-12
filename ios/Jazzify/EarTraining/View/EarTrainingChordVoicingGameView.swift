@@ -190,7 +190,7 @@ private struct EarTrainingChordVoicingContent: View {
     let fixedLandscapeSize: CGSize?
     let onClose: () -> Void
 
-    private static let pianoOverlayHeight: CGFloat = 76 + PianoKeyboardScrollGeometry.earTrainingScrollBarHeight
+    private static let pianoOverlayHeight: CGFloat = 76 + 4
 
     /// 複合フレーズは練習モード非対応（Web と同様）。レッスン経由でも設定シートに出さない。
     private var stageRunModeConfig: EarTrainingStageRunModeConfig? {
@@ -209,6 +209,7 @@ private struct EarTrainingChordVoicingContent: View {
     }
 
     @State private var hudHorizontalPadding: CGFloat = 16
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
 
     var body: some View {
         Group {
@@ -234,6 +235,7 @@ private struct EarTrainingChordVoicingContent: View {
             }
         }
         .ignoresSafeArea()
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
         }
@@ -296,7 +298,10 @@ private struct EarTrainingChordVoicingContent: View {
                 Spacer()
                 EarTrainingPianoView(
                     player: controller,
-                    scrollAnchorMidi: EarTrainingKeyboardScroll.scrollAnchorMidi(for: controller.stage)
+                    displayRange: EarTrainingKeyboardScroll.resolvedDisplayRange(
+                        for: controller.stage,
+                        displayMode: keyboardDisplayMode
+                    )
                 )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)

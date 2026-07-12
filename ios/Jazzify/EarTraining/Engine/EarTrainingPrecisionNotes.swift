@@ -132,29 +132,22 @@ enum EarTrainingPrecisionNotes {
     }
 
     static func resolveKeyboardRange(noteMidis: [Int]) -> EarTrainingPrecisionKeyboardRange {
-        guard !noteMidis.isEmpty else {
+        let resolved = PianoKeyboardScrollGeometry.resolveDisplayKeyboardRange(
+            noteMidis: noteMidis,
+            displayMode: .questionRangeFit
+        )
+        if noteMidis.isEmpty {
             return EarTrainingPrecisionKeyboardRange(minMidi: 60, maxMidi: 83)
         }
-        var minNote = noteMidis[0]
-        var maxNote = noteMidis[0]
-        for midi in noteMidis.dropFirst() {
-            if midi < minNote { minNote = midi }
-            if midi > maxNote { maxNote = midi }
-        }
+        return EarTrainingPrecisionKeyboardRange(minMidi: resolved.minMidi, maxMidi: resolved.maxMidi)
+    }
 
-        var minMidi = minNote - keyboardPaddingSemitones
-        var maxMidi = maxNote + keyboardPaddingSemitones
-        let span = maxMidi - minMidi + 1
-        if span < defaultKeyboardSpanSemitones {
-            let center = Double(minNote + maxNote) / 2.0
-            let halfSpan = defaultKeyboardSpanSemitones / 2
-            minMidi = Int(center.rounded()) - halfSpan
-            maxMidi = minMidi + defaultKeyboardSpanSemitones - 1
-        }
-        return EarTrainingPrecisionKeyboardRange(
-            minMidi: max(21, minMidi),
-            maxMidi: min(108, maxMidi)
+    static func resolveDisplayKeyboardRange(noteMidis: [Int]) -> EarTrainingPrecisionKeyboardRange {
+        let resolved = PianoKeyboardScrollGeometry.resolveDisplayKeyboardRange(
+            noteMidis: noteMidis,
+            displayMode: PianoKeyboardDisplayPreferences.load()
         )
+        return EarTrainingPrecisionKeyboardRange(minMidi: resolved.minMidi, maxMidi: resolved.maxMidi)
     }
 
     static func isNoteInGuideWindow(

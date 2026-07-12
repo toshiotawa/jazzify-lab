@@ -2,7 +2,6 @@ import SwiftUI
 import UIKit
 
 private extension Color {
-    /// `base` から `toward` へ線形補間（`t=1` で toward）。Web の globalAlpha オーバーレイに近い見え方。
     static func earTrainingLerp(from base: Color, toward: Color, t: CGFloat) -> Color {
         let u1 = UIColor(base)
         let u2 = UIColor(toward)
@@ -25,144 +24,16 @@ private extension Color {
 
 private let earTrainingPianoNoteNameLabels = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
-private func earTrainingPianoIsBlackKey(_ midi: Int) -> Bool {
-    PianoKeyboardScrollGeometry.isBlackKey(midi)
-}
-
-/// iPhone 横スクロール時の白鍵ズーム段階（大＝21 ≈3オクターブ表示、小＝35 ≈5オクターブ表示）。
-enum EarTrainingPianoLayout {
-    static let fullWhiteKeyCount = 52
-    static let visibleWhiteKeySteps = [21, 25, 29, 35]
-    static let defaultVisibleWhiteKeys = 21
-
-    static func clampedVisibleWhiteKeys(_ value: Int) -> Int {
-        guard let first = visibleWhiteKeySteps.first else { return defaultVisibleWhiteKeys }
-        if visibleWhiteKeySteps.contains(value) { return value }
-        return first
-    }
-
-    static func shrunkVisibleWhiteKeys(after current: Int) -> Int {
-        steppedVisibleWhiteKeys(after: current, direction: 1)
-    }
-
-    static func enlargedVisibleWhiteKeys(after current: Int) -> Int {
-        steppedVisibleWhiteKeys(after: current, direction: -1)
-    }
-
-    static func canShrinkKeys(after current: Int) -> Bool {
-        guard let index = visibleWhiteKeySteps.firstIndex(of: clampedVisibleWhiteKeys(current)) else {
-            return false
-        }
-        return index < visibleWhiteKeySteps.count - 1
-    }
-
-    static func canEnlargeKeys(after current: Int) -> Bool {
-        guard let index = visibleWhiteKeySteps.firstIndex(of: clampedVisibleWhiteKeys(current)) else {
-            return false
-        }
-        return index > 0
-    }
-
-    private static func steppedVisibleWhiteKeys(after current: Int, direction: Int) -> Int {
-        let clamped = clampedVisibleWhiteKeys(current)
-        guard let index = visibleWhiteKeySteps.firstIndex(of: clamped) else {
-            return defaultVisibleWhiteKeys
-        }
-        let nextIndex = index + direction
-        guard visibleWhiteKeySteps.indices.contains(nextIndex) else {
-            return clamped
-        }
-        return visibleWhiteKeySteps[nextIndex]
-    }
-
-    static func whiteKeyWidth(
-        viewportWidth: CGFloat,
-        visibleWhiteKeys: Int,
-        fitsFullKeyboard: Bool,
-        whiteKeyCount: Int
-    ) -> CGFloat {
-        let width = max(1, viewportWidth)
-        if fitsFullKeyboard {
-            return max(1, width / CGFloat(max(whiteKeyCount, 1)))
-        }
-        let keys = CGFloat(max(clampedVisibleWhiteKeys(visibleWhiteKeys), 1))
-        return width / keys
-    }
-
-    static func totalKeyboardWidth(
-        viewportWidth: CGFloat,
-        visibleWhiteKeys: Int,
-        fitsFullKeyboard: Bool,
-        whiteKeyCount: Int
-    ) -> CGFloat {
-        if fitsFullKeyboard {
-            return max(1, viewportWidth)
-        }
-        let keyWidth = whiteKeyWidth(
-            viewportWidth: viewportWidth,
-            visibleWhiteKeys: visibleWhiteKeys,
-            fitsFullKeyboard: false,
-            whiteKeyCount: whiteKeyCount
-        )
-        return CGFloat(whiteKeyCount) * keyWidth
-    }
-}
-
-enum EarTrainingPianoPreferences {
-    private static let visibleWhiteKeysKey = "earTraining.piano.visibleWhiteKeys"
-
-    static func loadVisibleWhiteKeys() -> Int {
-        let stored = UserDefaults.standard.integer(forKey: visibleWhiteKeysKey)
-        if stored == 0 {
-            return EarTrainingPianoLayout.defaultVisibleWhiteKeys
-        }
-        return EarTrainingPianoLayout.clampedVisibleWhiteKeys(stored)
-    }
-
-    static func saveVisibleWhiteKeys(_ value: Int) {
-        UserDefaults.standard.set(
-            EarTrainingPianoLayout.clampedVisibleWhiteKeys(value),
-            forKey: visibleWhiteKeysKey
-        )
-    }
-}
-
-/// `UIKitHorizontalScrollView` の `contentToken` 用。ヒント件数だけでは出題切替を検知できないため内容全体をハッシュする。
-enum EarTrainingPianoScrollContentToken {
-    static func hash(
-        midiHeldKeys: Set<Int>,
-        voicingHintsByMidi: [Int: VoicingHintState],
-        voicingHintIntensitiesByMidi: [Int: VoicingHintIntensity]?,
-        visibleWhiteKeys: Int,
-        viewportWidth: CGFloat,
-        totalWidth: CGFloat
-    ) -> AnyHashable {
-        var hasher = Hasher()
-        hasher.combine(midiHeldKeys)
-        hasher.combine(voicingHintsByMidi)
-        if let voicingHintIntensitiesByMidi {
-            hasher.combine(voicingHintIntensitiesByMidi)
-        }
-        hasher.combine(visibleWhiteKeys)
-        hasher.combine(viewportWidth)
-        hasher.combine(totalWidth)
-        return hasher.finalize()
-    }
-}
-
 private struct EarTrainingPianoKeyboardLayout {
     let whiteMidiNotes: [Int]
     let blackMidiNotes: [Int]
     let whiteMidiIndexByMidi: [Int: Int]
 
-    static let fullRange = EarTrainingPianoKeyboardLayout(
-        firstMidi: PianoKeyboardScrollGeometry.firstMidi,
-        lastMidi: PianoKeyboardScrollGeometry.lastMidi
-    )
-
-    private init(firstMidi: Int, lastMidi: Int) {
+    init(displayRange: PianoStagePitchRange) {
+        let firstMidi = displayRange.minMidi
+        let lastMidi = displayRange.maxMidi
         let midiRange = firstMidi...lastMidi
-        let whites = midiRange.filter { !earTrainingPianoIsBlackKey($0) }
+        let whites = midiRange.filter { !PianoKeyboardScrollGeometry.isBlackKey($0) }
         var indexByMidi: [Int: Int] = [:]
         indexByMidi.reserveCapacity(whites.count)
         for (index, midi) in whites.enumerated() {
@@ -170,256 +41,43 @@ private struct EarTrainingPianoKeyboardLayout {
         }
 
         self.whiteMidiNotes = whites
-        self.blackMidiNotes = midiRange.filter { earTrainingPianoIsBlackKey($0) }
+        self.blackMidiNotes = midiRange.filter { PianoKeyboardScrollGeometry.isBlackKey($0) }
         self.whiteMidiIndexByMidi = indexByMidi
     }
 }
 
-/// 耳コピバトル ゲーム画面の鍵盤。A0〜C8（88鍵）。iPhone は横スクロール＋上部音域スクロールバー（5鍵刻みボタン）。
+/// 耳コピバトル ゲーム画面の鍵盤。表示レンジ全体を画面幅へフィットさせる。
 struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
     @ObservedObject var player: Player
-    let scrollAnchorMidi: Int?
-    @State private var visibleWhiteKeys = EarTrainingPianoPreferences.loadVisibleWhiteKeys()
-    @State private var scrollOffsetX: CGFloat = 0
-    @State private var scrollTargetX: CGFloat?
-
-    init(player: Player, scrollAnchorMidi: Int? = nil) {
-        self.player = player
-        self.scrollAnchorMidi = scrollAnchorMidi
-    }
+    let displayRange: PianoStagePitchRange
 
     private let keyboardHeight: CGFloat = 76
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
-    private let zoomControlHitSize: CGFloat = 44
-    private let zoomControlIconWidth: CGFloat = 28
-    private let zoomControlIconHeight: CGFloat = 26
-
-    private var chromeHeight: CGFloat {
-        keyboardHeight + (Self.fitsFullKeyboard ? 0 : PianoKeyboardScrollGeometry.earTrainingScrollBarHeight)
-    }
-
-    private var effectiveScrollAnchorMidi: Int? {
-        scrollAnchorMidi ?? player.keyboardScrollAnchorMidi
-    }
 
     var body: some View {
         GeometryReader { proxy in
-            let fitsFullKeyboard = Self.fitsFullKeyboard
-            let needsScroll = !fitsFullKeyboard
-            let keyboardLayout = EarTrainingPianoKeyboardLayout.fullRange
+            let keyboardLayout = EarTrainingPianoKeyboardLayout(displayRange: displayRange)
             let whites = keyboardLayout.whiteMidiNotes
-            let viewportWidth = proxy.size.width
-            let whiteKeyWidth = EarTrainingPianoLayout.whiteKeyWidth(
-                viewportWidth: viewportWidth,
-                visibleWhiteKeys: visibleWhiteKeys,
-                fitsFullKeyboard: fitsFullKeyboard,
-                whiteKeyCount: whites.count
-            )
+            let viewportWidth = max(1, proxy.size.width)
+            let whiteKeyCount = max(1, whites.count)
+            let whiteKeyWidth = viewportWidth / CGFloat(whiteKeyCount)
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
-            let totalWidth = EarTrainingPianoLayout.totalKeyboardWidth(
-                viewportWidth: viewportWidth,
-                visibleWhiteKeys: visibleWhiteKeys,
-                fitsFullKeyboard: fitsFullKeyboard,
-                whiteKeyCount: whites.count
-            )
-            let maxScrollOffsetX = PianoKeyboardScrollGeometry.maxScrollOffset(
-                contentWidth: totalWidth,
-                viewportWidth: viewportWidth
-            )
+            let totalWidth = viewportWidth
 
-            VStack(spacing: 0) {
-                if needsScroll {
-                    PianoRangeScrollBar(
-                        barHeight: PianoKeyboardScrollGeometry.earTrainingScrollBarHeight,
-                        scrollOffsetX: scrollOffsetX,
-                        maxScrollOffsetX: maxScrollOffsetX,
-                        whiteKeyWidth: whiteKeyWidth,
-                        onScrollOffsetXChange: { scrollOffsetX = $0 }
-                    )
-                }
-
-                ZStack(alignment: .topLeading) {
-                    Group {
-                        if fitsFullKeyboard {
-                            keyboardStack(
-                                keyboardLayout: keyboardLayout,
-                                whites: whites,
-                                whiteKeyWidth: whiteKeyWidth,
-                                blackKeyWidth: blackKeyWidth,
-                                blackKeyHeight: blackKeyHeight,
-                                totalWidth: totalWidth
-                            )
-                            .frame(height: keyboardHeight)
-                        } else {
-                            UIKitHorizontalScrollView(
-                                contentSize: CGSize(width: totalWidth, height: keyboardHeight),
-                                scrollOffsetX: $scrollOffsetX,
-                                scrollTargetX: $scrollTargetX,
-                                isUserScrollingEnabled: false,
-                                delaysContentTouches: true,
-                                contentToken: scrollContentToken(
-                                    viewportWidth: viewportWidth,
-                                    totalWidth: totalWidth
-                                )
-                            ) {
-                                keyboardStack(
-                                    keyboardLayout: keyboardLayout,
-                                    whites: whites,
-                                    whiteKeyWidth: whiteKeyWidth,
-                                    blackKeyWidth: blackKeyWidth,
-                                    blackKeyHeight: blackKeyHeight,
-                                    totalWidth: totalWidth
-                                )
-                            }
-                            .frame(height: keyboardHeight)
-                        }
-                    }
-
-                    if needsScroll {
-                        zoomControls
-                            .padding(.leading, 6)
-                            .padding(.top, 4)
-                    }
-                }
-                .frame(height: keyboardHeight)
-                .background(Color.black.opacity(0.55))
-            }
-            .onAppear {
-                queueScrollAnchor(
-                    viewportWidth: viewportWidth,
-                    totalWidth: totalWidth,
-                    whiteKeyWidth: whiteKeyWidth,
-                    keyboardLayout: keyboardLayout
-                )
-            }
-            .onChange(of: scrollAnchorMidi) { _ in
-                queueScrollAnchor(
-                    viewportWidth: viewportWidth,
-                    totalWidth: totalWidth,
-                    whiteKeyWidth: whiteKeyWidth,
-                    keyboardLayout: keyboardLayout
-                )
-            }
-            .onChange(of: player.keyboardScrollAnchorMidi) { _ in
-                queueScrollAnchor(
-                    viewportWidth: viewportWidth,
-                    totalWidth: totalWidth,
-                    whiteKeyWidth: whiteKeyWidth,
-                    keyboardLayout: keyboardLayout
-                )
-            }
-            .onChange(of: visibleWhiteKeys) { _ in
-                queuePreservedScrollOnZoom(
-                    viewportWidth: viewportWidth,
-                    totalWidth: totalWidth,
-                    whiteKeyWidth: whiteKeyWidth,
-                    keyboardLayout: keyboardLayout
-                )
-            }
-        }
-        .frame(height: chromeHeight)
-    }
-
-    private var zoomControls: some View {
-        VStack(spacing: 8) {
-            zoomControlButton(
-                symbol: "plus",
-                isEnabled: EarTrainingPianoLayout.canEnlargeKeys(after: visibleWhiteKeys),
-                accessibilityLabel: "鍵盤を拡大 / Enlarge keyboard"
-            ) {
-                let next = EarTrainingPianoLayout.enlargedVisibleWhiteKeys(after: visibleWhiteKeys)
-                visibleWhiteKeys = next
-                EarTrainingPianoPreferences.saveVisibleWhiteKeys(next)
-            }
-            zoomControlButton(
-                symbol: "minus",
-                isEnabled: EarTrainingPianoLayout.canShrinkKeys(after: visibleWhiteKeys),
-                accessibilityLabel: "鍵盤を縮小 / Shrink keyboard"
-            ) {
-                let next = EarTrainingPianoLayout.shrunkVisibleWhiteKeys(after: visibleWhiteKeys)
-                visibleWhiteKeys = next
-                EarTrainingPianoPreferences.saveVisibleWhiteKeys(next)
-            }
-        }
-        .padding(4)
-        .background(Color.black.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-
-    private func zoomControlButton(
-        symbol: String,
-        isEnabled: Bool,
-        accessibilityLabel: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.35))
-                .frame(width: zoomControlIconWidth, height: zoomControlIconHeight)
-                .frame(minWidth: zoomControlHitSize, minHeight: zoomControlHitSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private func scrollContentToken(viewportWidth: CGFloat, totalWidth: CGFloat) -> AnyHashable {
-        EarTrainingPianoScrollContentToken.hash(
-            midiHeldKeys: player.midiHeldKeys,
-            voicingHintsByMidi: player.voicingHintsByMidi,
-            voicingHintIntensitiesByMidi: player.voicingHintIntensitiesByMidi,
-            visibleWhiteKeys: visibleWhiteKeys,
-            viewportWidth: viewportWidth,
-            totalWidth: totalWidth
-        )
-    }
-
-    private func queueScrollAnchor(
-        viewportWidth: CGFloat,
-        totalWidth: CGFloat,
-        whiteKeyWidth: CGFloat,
-        keyboardLayout: EarTrainingPianoKeyboardLayout
-    ) {
-        guard !Self.fitsFullKeyboard else { return }
-        let targetX: CGFloat
-        if let anchorMidi = effectiveScrollAnchorMidi {
-            targetX = PianoKeyboardScrollGeometry.trailingScrollOffsetX(
-                anchorWhiteMidi: anchorMidi,
+            keyboardStack(
+                keyboardLayout: keyboardLayout,
+                whites: whites,
                 whiteKeyWidth: whiteKeyWidth,
-                viewportWidth: viewportWidth,
-                contentWidth: totalWidth,
-                whiteMidiIndexByMidi: keyboardLayout.whiteMidiIndexByMidi
+                blackKeyWidth: blackKeyWidth,
+                blackKeyHeight: blackKeyHeight,
+                totalWidth: totalWidth
             )
-        } else {
-            targetX = PianoKeyboardScrollGeometry.centerScrollOffsetX(
-                anchorMidi: PianoKeyboardScrollGeometry.fallbackCenterMidi,
-                whiteKeyWidth: whiteKeyWidth,
-                viewportWidth: viewportWidth,
-                contentWidth: totalWidth,
-                whiteMidiIndexByMidi: keyboardLayout.whiteMidiIndexByMidi
-            )
+            .frame(width: totalWidth, height: keyboardHeight)
+            .background(Color.black.opacity(0.55))
         }
-        scrollTargetX = targetX
-    }
-
-    private func queuePreservedScrollOnZoom(
-        viewportWidth: CGFloat,
-        totalWidth: CGFloat,
-        whiteKeyWidth: CGFloat,
-        keyboardLayout: EarTrainingPianoKeyboardLayout
-    ) {
-        guard !Self.fitsFullKeyboard else { return }
-        scrollTargetX = PianoKeyboardScrollGeometry.preservedScrollOffsetXOnZoom(
-            currentScrollOffsetX: scrollOffsetX,
-            viewportWidth: viewportWidth,
-            whiteKeyWidth: whiteKeyWidth,
-            contentWidth: totalWidth,
-            whiteMidiIndexByMidi: keyboardLayout.whiteMidiIndexByMidi
-        )
+        .frame(height: keyboardHeight)
     }
 
     @ViewBuilder
@@ -481,10 +139,6 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
         return (CGFloat(idx) + 1) * whiteKeyWidth
     }
 
-    private static var fitsFullKeyboard: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
-    }
-
     private static func shouldLabelC(midi: Int) -> Bool {
         let pc = ((midi % 12) + 12) % 12
         return pc == 0
@@ -502,9 +156,7 @@ private struct EarTrainingPianoKeyButton: View {
     let label: String
     let isBlack: Bool
     let isMidiHeld: Bool
-    /// OSMD バトル: 判定距離別マリーゴールド濃さ。指定時は `voicingHint` より優先。
     let voicingHintIntensity: VoicingHintIntensity?
-    /// 練習モード時のヴォイシング構成音ヒント。`nil` ならヒント表示なし。
     let voicingHint: VoicingHintState?
     let width: CGFloat
     let height: CGFloat

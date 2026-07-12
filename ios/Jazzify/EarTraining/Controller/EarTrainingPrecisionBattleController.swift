@@ -329,8 +329,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             practiceSpeedPercent: practiceSpeedPercent,
             classificationBpm: classificationBpm
         )
-        keyboardRange = EarTrainingPrecisionNotes.resolveKeyboardRange(noteMidis: calibrated.map(\.midi))
         precisionNotes = calibrated
+        refreshKeyboardDisplayRangeForPreferencesChange()
         runtimeStates = EarTrainingPrecisionJudge.createRuntimeStates(notes: calibrated)
         autoPlayScheduler.setNotes(calibrated)
         autoPlayScheduler.reset()
@@ -343,6 +343,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             ? EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(phraseLoopEndSec, speedPercent: practiceSpeedPercent)
             : phraseLoopEndSec)
         refreshMaxOsmdMeasure()
+    }
+
+    func refreshKeyboardDisplayRangeForPreferencesChange() {
+        keyboardRange = EarTrainingPrecisionNotes.resolveDisplayKeyboardRange(
+            noteMidis: precisionNotes.map(\.midi)
+        )
     }
 
     private func beginPhrasePlayback(phrase: EarTrainingPhraseDetail) {

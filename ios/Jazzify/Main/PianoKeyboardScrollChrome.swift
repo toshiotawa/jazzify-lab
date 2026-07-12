@@ -126,6 +126,83 @@ enum PianoKeyboardScrollGeometry {
             whiteMidiIndexByMidi: whiteMidiIndexByMidi
         )
     }
+
+    private static let whiteKeyInset = 1
+
+    static func whiteKeyIndexAtOrBelow(_ midi: Int, whites: [Int]) -> Int {
+        var index = 0
+        for (candidateIndex, whiteMidi) in whites.enumerated() where whiteMidi <= midi {
+            index = candidateIndex
+        }
+        return index
+    }
+
+    static func whiteKeyIndexAtOrAbove(_ midi: Int, whites: [Int]) -> Int {
+        for (candidateIndex, whiteMidi) in whites.enumerated() where whiteMidi >= midi {
+            return candidateIndex
+        }
+        return max(0, whites.count - 1)
+    }
+
+    static func whiteStrictlyBelow(_ midi: Int, whites: [Int]) -> Int? {
+        for white in whites.reversed() where white < midi {
+            return white
+        }
+        return nil
+    }
+
+    static func whiteStrictlyAbove(_ midi: Int, whites: [Int]) -> Int? {
+        for white in whites where white > midi {
+            return white
+        }
+        return nil
+    }
+
+    /// 最低音より厳密に低い直近白鍵、最高音より厳密に高い直近白鍵を表示端にする。
+    static func expandMidiRangeWithWhiteKeyPadding(
+        minNoteMidi: Int,
+        maxNoteMidi: Int,
+        insetWhiteKeys: Int = whiteKeyInset,
+        rangeFirstMidi: Int = firstMidi,
+        rangeLastMidi: Int = lastMidi
+    ) -> PianoStagePitchRange {
+        let whites = whiteMidiNotes(first: rangeFirstMidi, last: rangeLastMidi)
+        guard !whites.isEmpty else {
+            return PianoStagePitchRange(
+                minMidi: max(rangeFirstMidi, minNoteMidi),
+                maxMidi: min(rangeLastMidi, maxNoteMidi)
+            )
+        }
+
+        let minMidi = whiteStrictlyBelow(minNoteMidi, whites: whites)
+            ?? whites[whiteKeyIndexAtOrBelow(minNoteMidi, whites: whites)]
+        let maxMidi = whiteStrictlyAbove(maxNoteMidi, whites: whites)
+            ?? whites[whiteKeyIndexAtOrAbove(maxNoteMidi, whites: whites)]
+
+        return PianoStagePitchRange(
+            minMidi: max(rangeFirstMidi, minMidi),
+            maxMidi: min(rangeLastMidi, maxMidi)
+        )
+    }
+
+    static func resolveDisplayKeyboardRange(
+        noteMidis: [Int],
+        displayMode: PianoKeyboardDisplayMode
+    ) -> PianoStagePitchRange {
+        if displayMode == .full88Keys {
+            return .full88
+        }
+        guard !noteMidis.isEmpty else {
+            return .full88
+        }
+        var minNote = noteMidis[0]
+        var maxNote = noteMidis[0]
+        for midi in noteMidis.dropFirst() {
+            if midi < minNote { minNote = midi }
+            if midi > maxNote { maxNote = midi }
+        }
+        return expandMidiRangeWithWhiteKeyPadding(minNoteMidi: minNote, maxNoteMidi: maxNote)
+    }
 }
 
 /// 鍵盤直上の音域スクロールバー（左右ボタンで横スクロール）。

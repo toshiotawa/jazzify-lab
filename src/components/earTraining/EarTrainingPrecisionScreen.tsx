@@ -92,7 +92,6 @@ import {
   resolveOsmdCalibratedTargetTimeSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
-import { isIOSWebView } from '@/utils/iosbridge';
 import {
   buildPrecisionNotesFromMusicXml,
   calibratePrecisionNotes,
@@ -441,7 +440,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     });
     const displayRange = resolvePrecisionDisplayKeyboardRange(
       calibratedNotes.map(note => note.midi),
-      !isIOSWebView(),
+      settings.webKeyboardDisplayMode ?? 'questionRangeFit',
     );
     setPrecisionNotes(calibratedNotes);
     setKeyboardRange(displayRange);
@@ -461,6 +460,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     stage.bpm,
     syncRenderer,
     practiceTransposeEnabled,
+    settings.webKeyboardDisplayMode,
   ]);
 
   const loadPrecisionMidi = useCallback(async (

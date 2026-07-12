@@ -22,7 +22,8 @@ import { EAR_TRAINING_OSMD_STAFF_BAND } from '@/game/earTraining/canvas/earTrain
 import { resolveOsuApproachCirclePhraseTiming } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleTiming';
 import { resolveOsuCircleNoteLabels } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleNoteLabels';
 import { resolveOsuCircleColorIndex } from '@/game/earTraining/canvas/earTrainingBattleOsuCircleColors';
-import { useGameStore } from '@/stores/gameStore';
+import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
+import { collectMidisFromMusicXmlText, computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import {
   MIDIController,
@@ -66,6 +67,7 @@ import {
   resolveEarTrainingEnemyAvatarFromBattleSourceKey,
 } from '@/utils/earTrainingBattleAvatar';
 import { useAuthStore } from '@/stores/authStore';
+import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import {
@@ -1723,6 +1725,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     () => (baseMusicXmlText ? readKeyFifthsFromMusicXml(baseMusicXmlText) : 0),
     [baseMusicXmlText],
   );
+  const stageMidiMidis = useMemo(() => {
+    const midis = computeEarTrainingStageMidiMidis(stage);
+    if (!baseMusicXmlText) {
+      return midis;
+    }
+    return [...midis, ...collectMidisFromMusicXmlText(baseMusicXmlText)];
+  }, [baseMusicXmlText, stage]);
+  const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);
   const originalKeyName = useMemo(
     () => (baseMusicXmlText ? fifthsToPreferredKeyName(originalKeyFifths) : '—'),
     [baseMusicXmlText, originalKeyFifths],
@@ -2270,6 +2280,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       {!timingCalibrationMode ? (
         <DeferredEarTrainingPianoOverlay
           ref={pianoOverlayRef}
+          minMidi={keyboardRange.minMidi}
+          maxMidi={keyboardRange.maxMidi}
           onPianoKeyDown={handlePianoKeyDown}
           onPianoKeyUp={handlePianoKeyUp}
         />

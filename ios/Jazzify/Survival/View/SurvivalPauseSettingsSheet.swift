@@ -150,6 +150,7 @@ struct SurvivalPauseSettingsSheet: View {
     @State private var survivalStaffSliderValue: Double = 0
     @StateObject private var midiManager = MIDIManager.shared
     @State private var hintDraft: Bool = false
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
 
     private var isEnglishCopy: Bool { locale == .en }
 
@@ -206,6 +207,12 @@ struct SurvivalPauseSettingsSheet: View {
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
+
+                PianoKeyboardDisplayModeSection(
+                    displayMode: $keyboardDisplayMode,
+                    isEnglishCopy: isEnglishCopy
+                )
+                .padding(.horizontal, 18)
 
                 staffSizeSection
 

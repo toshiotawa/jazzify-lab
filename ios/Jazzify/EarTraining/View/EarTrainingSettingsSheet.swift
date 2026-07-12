@@ -75,6 +75,7 @@ struct EarTrainingSettingsSheet: View {
     )
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
     @State private var sfxVolume: Double = Double(SurvivalGameAudio.shared.sfxVolume)
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @StateObject private var midiManager = MIDIManager.shared
 
     var body: some View {
@@ -96,6 +97,10 @@ struct EarTrainingSettingsSheet: View {
                 }
 
                 volumeBlock
+                PianoKeyboardDisplayModeSection(
+                    displayMode: $keyboardDisplayMode,
+                    isEnglishCopy: isEnglishCopy
+                )
                 midiSection
 
                 if let osmdTimingAdjustment {
@@ -697,6 +702,7 @@ struct EarTrainingSettingsSheet: View {
     private func persistAll() {
         UserDefaults.standard.set(masterVolume, forKey: EarTrainingBattleVolumePreferences.masterKey)
         UserDefaults.standard.set(musicVolume, forKey: EarTrainingBattleVolumePreferences.musicKey)
+        PianoKeyboardDisplayPreferences.save(keyboardDisplayMode)
     }
 
     private func bind(_ source: Binding<Double>, apply: @escaping () -> Void) -> Binding<Double> {

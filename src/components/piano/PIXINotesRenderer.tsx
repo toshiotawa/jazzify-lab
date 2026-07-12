@@ -45,6 +45,8 @@ interface RendererSettings {
 interface PIXINotesRendererProps {
   width: number;
   height: number;
+  minMidi?: number;
+  maxMidi?: number;
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
 }
@@ -209,6 +211,8 @@ export class PIXINotesRendererInstance {
   private keyGeometries = new Map<number, KeyGeometry>();
   private whiteKeyOrder: number[] = [];
   private blackKeyOrder: number[] = [];
+  private displayMinMidi = MIN_MIDI;
+  private displayMaxMidi = MAX_MIDI;
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
   private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
@@ -321,6 +325,20 @@ export class PIXINotesRendererInstance {
     this.height = height;
     this.settings.hitLineY = height - this.settings.pianoHeight;
     this.configureCanvasSize(width, height);
+    this.recalculateKeyLayout();
+    this.backgroundNeedsUpdate = true;
+    this.requestRender();
+  }
+
+  setKeyboardRange(minMidi: number, maxMidi: number): void {
+    if (this.destroyed) return;
+    const nextMin = Math.max(MIN_MIDI, Math.min(MAX_MIDI, Math.round(minMidi)));
+    const nextMax = Math.max(nextMin, Math.min(MAX_MIDI, Math.round(maxMidi)));
+    if (this.displayMinMidi === nextMin && this.displayMaxMidi === nextMax) {
+      return;
+    }
+    this.displayMinMidi = nextMin;
+    this.displayMaxMidi = nextMax;
     this.recalculateKeyLayout();
     this.backgroundNeedsUpdate = true;
     this.requestRender();
@@ -521,8 +539,19 @@ export class PIXINotesRendererInstance {
     this.canvas.width = Math.max(1, Math.floor(width * this.pixelRatio));
     this.canvas.height = Math.max(1, Math.floor(height * this.pixelRatio));
     this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
-    this.settings.noteWidth = width / TOTAL_WHITE_KEYS - 2;
+    const whiteKeyCount = this.countWhiteKeysInDisplayRange();
+    this.settings.noteWidth = width / Math.max(1, whiteKeyCount) - 2;
     this.refreshCachedBounds();
+  }
+
+  private countWhiteKeysInDisplayRange(): number {
+    let count = 0;
+    for (let midi = this.displayMinMidi; midi <= this.displayMaxMidi; midi += 1) {
+      if (!BLACK_KEY_OFFSETS.has(((midi % 12) + 12) % 12)) {
+        count += 1;
+      }
+    }
+    return Math.max(1, count);
   }
 
   private refreshCachedBounds(): void {
@@ -598,10 +627,11 @@ export class PIXINotesRendererInstance {
     this.keyGeometries.clear();
     this.whiteKeyOrder = [];
     this.blackKeyOrder = [];
-    const whiteWidth = this.width / TOTAL_WHITE_KEYS;
+    const whiteKeyCount = this.countWhiteKeysInDisplayRange();
+    const whiteWidth = this.width / whiteKeyCount;
     let whiteIndex = 0;
-    for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi += 1) {
-      const isBlack = BLACK_KEY_OFFSETS.has(midi % 12);
+    for (let midi = this.displayMinMidi; midi <= this.displayMaxMidi; midi += 1) {
+      const isBlack = BLACK_KEY_OFFSETS.has(((midi % 12) + 12) % 12);
       if (!isBlack) {
         const geometry: KeyGeometry = {
           midi,
@@ -616,8 +646,8 @@ export class PIXINotesRendererInstance {
       }
     }
     const blackHeight = this.settings.pianoHeight * 0.6;
-    for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi += 1) {
-      if (!BLACK_KEY_OFFSETS.has(midi % 12)) continue;
+    for (let midi = this.displayMinMidi; midi <= this.displayMaxMidi; midi += 1) {
+      if (!BLACK_KEY_OFFSETS.has(((midi % 12) + 12) % 12)) continue;
       const prev = this.findAdjacentWhite(midi, -1);
       const next = this.findAdjacentWhite(midi, 1);
       if (!prev || !next) continue;
@@ -638,8 +668,8 @@ export class PIXINotesRendererInstance {
 
   private findAdjacentWhite(midi: number, direction: 1 | -1): KeyGeometry | null {
     let cursor = midi + direction;
-    while (cursor >= MIN_MIDI && cursor <= MAX_MIDI) {
-      const isBlack = BLACK_KEY_OFFSETS.has(cursor % 12);
+    while (cursor >= this.displayMinMidi && cursor <= this.displayMaxMidi) {
+      const isBlack = BLACK_KEY_OFFSETS.has(((cursor % 12) + 12) % 12);
       if (!isBlack) {
         return this.keyGeometries.get(cursor) ?? null;
       }
@@ -1538,6 +1568,8 @@ export class PIXINotesRendererInstance {
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
+  minMidi = MIN_MIDI,
+  maxMidi = MAX_MIDI,
   onReady,
   className
 }) => {
@@ -1550,6 +1582,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       return;
     }
     const renderer = new PIXINotesRendererInstance(canvas, width, height);
+    renderer.setKeyboardRange(minMidi, maxMidi);
     rendererRef.current = renderer;
     onReady?.(renderer);
     return () => {
@@ -1562,6 +1595,10 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   useEffect(() => {
     rendererRef.current?.resize(width, height);
   }, [width, height]);
+
+  useEffect(() => {
+    rendererRef.current?.setKeyboardRange(minMidi, maxMidi);
+  }, [minMidi, maxMidi]);
 
   return (
     <canvas

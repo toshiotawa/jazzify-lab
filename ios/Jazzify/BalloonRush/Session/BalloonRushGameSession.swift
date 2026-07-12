@@ -67,6 +67,7 @@ final class BalloonRushGameSession: SurvivalPlaySession {
             chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
             chordPadHintPendingOpacity: loop.keyboardHintPendingOpacity(),
             chordPadScrollAnchorMidi: nil,
+            chordPadDisplayRange: loop.keyboardDisplayRange,
             now: CACurrentMediaTime()
         )
         uiForward = viewModel.objectWillChange.sink { [weak self] _ in

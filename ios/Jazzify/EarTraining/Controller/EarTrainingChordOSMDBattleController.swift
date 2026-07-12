@@ -74,6 +74,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     @Published private(set) var voicingHintIntensities: [Int: VoicingHintIntensity] = [:]
     /// MusicXML / 判定ターゲット由来の鍵盤スクロールアンカー（白鍵 MIDI）。無いときは C4 中央へフォールバック。
     @Published private(set) var keyboardScrollAnchorMidi: Int?
+    @Published private(set) var keyboardDisplayRange: PianoStagePitchRange
 
     var scoreScrollActive: Bool {
         scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase)
@@ -169,6 +170,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         self.timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.loadTimingAdjustmentMs()
         self.stageFallbackKeyboardScrollAnchorMidi = EarTrainingKeyboardScroll.scrollAnchorMidi(for: stage)
         self.keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+        self.keyboardDisplayRange = EarTrainingKeyboardScroll.resolvedDisplayRange(for: stage)
     }
 
     func applyPracticeModeAndRestart(_ value: Bool) {
@@ -829,15 +831,31 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         rhythmAttacks = attacks
         phraseLyricEvents = lyricEvents
         scoreErrorText = nil
-        applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(attacks))
+        applyKeyboardScrollAnchor(maxMidi: Self.maxMidiFromAttacks(attacks), attacks: attacks)
     }
 
-    private func applyKeyboardScrollAnchor(maxMidi: Int?) {
+    private func applyKeyboardScrollAnchor(maxMidi: Int?, attacks: [ChordOsmdMusicXmlAttack] = []) {
         if let maxMidi {
             keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
         } else {
             keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
         }
+        refreshKeyboardDisplayRange(attacks: attacks)
+    }
+
+    func refreshKeyboardDisplayRangeForPreferencesChange() {
+        refreshKeyboardDisplayRange(attacks: rhythmAttacks)
+    }
+
+    private func refreshKeyboardDisplayRange(attacks: [ChordOsmdMusicXmlAttack]) {
+        var midis = EarTrainingKeyboardScroll.allPitchMidis(in: stage)
+        for attack in attacks {
+            midis.append(contentsOf: attack.midis)
+        }
+        keyboardDisplayRange = PianoKeyboardScrollGeometry.resolveDisplayKeyboardRange(
+            noteMidis: midis,
+            displayMode: PianoKeyboardDisplayPreferences.load()
+        )
     }
 
     /// 鍵盤スクロールは MusicXML 譜面の音域を優先し、パース済みアタックが無いときだけ判定ターゲットへフォールバックする。

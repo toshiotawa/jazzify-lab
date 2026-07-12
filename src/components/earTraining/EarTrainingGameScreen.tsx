@@ -20,7 +20,8 @@ import type {
   EarTrainingBattleSceneHandle,
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
-import { useGameStore } from '@/stores/gameStore';
+import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
+import { computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import {
   markAudioUserInteraction,
@@ -55,6 +56,7 @@ import {
   EAR_TRAINING_PLAYER_AVATAR_URL,
 } from '@/utils/constants';
 import { useAuthStore } from '@/stores/authStore';
+import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 
@@ -216,6 +218,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
     [stage.phrases],
   );
+  const stageMidiMidis = useMemo(() => computeEarTrainingStageMidiMidis(stage), [stage]);
+  const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);
   const damageConfig = useMemo(
     () => ({
       perCorrectNote: stage.per_correct_note_damage,
@@ -1064,6 +1068,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
       <DeferredEarTrainingPianoOverlay
         ref={pianoOverlayRef}
+        minMidi={keyboardRange.minMidi}
+        maxMidi={keyboardRange.maxMidi}
         onPianoKeyDown={handlePianoKeyDown}
         onPianoKeyUp={handlePianoKeyUp}
       />

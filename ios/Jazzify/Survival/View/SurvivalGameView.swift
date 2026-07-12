@@ -1036,6 +1036,19 @@ private struct SurvivalCodeRunGameContent: View {
         }
     }
 
+    private func resolvedKeyboardDisplayRange(for mode: PianoKeyboardDisplayMode) -> PianoStagePitchRange {
+        if isRandomStage {
+            return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                fromChordIds: stage.allowedChords,
+                displayMode: mode
+            )
+        }
+        return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            in: progressionChords,
+            displayMode: mode
+        )
+    }
+
     @State private var mapSpec = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil)
     @State private var player = SurvivalCodeRunNativePlayer()
     @State private var enemies = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil).enemies()
@@ -1048,7 +1061,6 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var jumpFeedbackEffect: SurvivalCodeRunJumpFeedbackEffect?
     @State private var completedPitchClasses: Set<Int> = []
     @State private var heldKeys: Set<Int> = []
-    @State private var visibleWhiteKeys = SurvivalChordPadPreferences.loadVisibleWhiteKeys()
     @State private var showSettings = false
     @State private var showResult = false
     @State private var submittedClear = false
@@ -1059,6 +1071,7 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var isViewActive = false
     @State private var assignmentStartRecorded = false
     @State private var frameTick: UInt = 0
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @StateObject private var frameClock = SurvivalCodeRunFrameClock()
     @StateObject private var midiManager = MIDIManager.shared
     @EnvironmentObject private var appState: AppState
@@ -1113,11 +1126,7 @@ private struct SurvivalCodeRunGameContent: View {
                 .overlay(alignment: .topTrailing) { statusBadges }
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
-                    visibleWhiteKeys: visibleWhiteKeys,
-                    onVisibleWhiteKeysChange: { next in
-                        visibleWhiteKeys = next
-                        SurvivalChordPadPreferences.saveVisibleWhiteKeys(next)
-                    },
+                    displayRange: resolvedKeyboardDisplayRange(for: keyboardDisplayMode),
                     onPress: noteOn,
                     onRelease: noteOff
                 )
@@ -1129,6 +1138,7 @@ private struct SurvivalCodeRunGameContent: View {
         .background {
             SurvivalCodeRunDisplayLinkDriver(frameClock: frameClock)
         }
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onReceive(frameClock.publisher) { dt in
             tick(deltaTime: dt)
         }
@@ -1286,6 +1296,10 @@ private struct SurvivalCodeRunGameContent: View {
                     SurvivalAudioVolumeSection(
                         locale: locale,
                         title: locale == .ja ? "音量" : "Audio volume"
+                    )
+                    PianoKeyboardDisplayModeSection(
+                        displayMode: $keyboardDisplayMode,
+                        isEnglishCopy: locale == .en
                     )
                     midiSettingsSection
                     Button(locale == .ja ? "閉じる" : "Close") { showSettings = false }
@@ -2058,7 +2072,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
     @StateObject private var blockBossIntroUIModel = SurvivalBlockBossIntroUIModel()
     @StateObject private var playDialogueUIModel = SurvivalStagePlayDialogueUIModel()
     @State private var hudHeight: CGFloat = 72
-    @State private var chordPadVisibleWhiteKeys = SurvivalChordPadPreferences.loadVisibleWhiteKeys()
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
 
     private var vm: SurvivalViewModel { session.viewModel }
 
@@ -2253,6 +2267,10 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                 resultOverlay
             }
         }
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .onChange(of: keyboardDisplayMode) { newMode in
+            refreshKeyboardDisplayRangeForMode(newMode)
+        }
         .onChange(of: ObjectIdentifier(session)) { _ in
             stageIntroUIModel.cancelAll()
             blockBossIntroUIModel.cancelAll()
@@ -2297,6 +2315,16 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
             stageIntroUIModel.cancelAll()
             blockBossIntroUIModel.cancelAll()
             playDialogueUIModel.cancelAll()
+        }
+    }
+
+    private func refreshKeyboardDisplayRangeForMode(_ mode: PianoKeyboardDisplayMode) {
+        if let survivalSession = session as? SurvivalGameSession {
+            survivalSession.gameLoop.refreshKeyboardDisplayRange(displayMode: mode)
+            vm.syncKeyboardScrollAnchor(from: survivalSession.gameLoop)
+        } else if let balloonSession = session as? BalloonRushGameSession {
+            balloonSession.gameLoop.refreshKeyboardDisplayRange(displayMode: mode)
+            vm.updateChordPadDisplayRange(balloonSession.gameLoop.keyboardDisplayRange)
         }
     }
 
@@ -2375,13 +2403,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
                 isEnabled: vm.uiSnapshot.phase == .playing && !vm.isPaused,
                 scrollAnchorMidi: vm.chordPadScrollAnchorMidi
             ),
-            visibleWhiteKeys: chordPadVisibleWhiteKeys,
-            onVisibleWhiteKeysChange: { newValue in
-                let clamped = SurvivalChordPadLayout.clampedVisibleWhiteKeys(newValue)
-                guard clamped != chordPadVisibleWhiteKeys else { return }
-                chordPadVisibleWhiteKeys = clamped
-                SurvivalChordPadPreferences.saveVisibleWhiteKeys(clamped)
-            },
+            displayRange: vm.chordPadDisplayRange,
             onPress: { session.chordPadNoteOn($0, velocity: 100) },
             onRelease: { session.chordPadNoteOff($0) }
         )

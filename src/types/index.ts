@@ -234,6 +234,9 @@ export interface GameSettings {
   
   /** 音声認識の感度 (1-10, デフォルト5) */
   voiceSensitivity: number;
+
+  /** 鍵盤表示: 出題音域フィット / 88鍵盤（全モード共通） */
+  webKeyboardDisplayMode?: 'questionRangeFit' | 'full88';
 }
 
 // ===== 採点システム =====

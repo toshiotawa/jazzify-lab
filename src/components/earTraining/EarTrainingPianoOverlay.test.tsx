@@ -8,9 +8,11 @@ vi.mock('@/components/piano/PIXINotesRenderer', () => ({
 }));
 
 describe('EarTrainingPianoOverlay', () => {
-  it('mount 時に Pixi 鍵盤を表示する', async () => {
+    it('mount 時に Pixi 鍵盤を表示する', async () => {
     render(
       <EarTrainingPianoOverlay
+        minMidi={59}
+        maxMidi={69}
         onPianoKeyDown={() => undefined}
         onPianoKeyUp={() => undefined}
       />,

@@ -28,6 +28,7 @@ final class BalloonRushGameLoop {
     private let randomChordOverrides: [String: SurvivalResolvedChord]
     private let isProgression: Bool
     let productionHintModes: ResolvedProductionHintModes
+    private(set) var keyboardDisplayRange: PianoStagePitchRange = .full88
 
     init(
         stage: BalloonRushStageDefinition,
@@ -71,6 +72,22 @@ final class BalloonRushGameLoop {
 
         resetBalloons()
         jajii = SurvivalJajiiEngine.makeInitial(playerX: player.x, playerY: player.y)
+        refreshKeyboardDisplayRange()
+    }
+
+    func refreshKeyboardDisplayRange(displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()) {
+        if isProgression {
+            keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                in: progressionChords,
+                displayMode: displayMode
+            )
+        } else {
+            let ids = allowedChordIds.isEmpty ? ["Dm7"] : allowedChordIds
+            keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                fromChordIds: ids,
+                displayMode: displayMode
+            )
+        }
     }
 
     /// ヒントモード、または本番の鍵盤フェード中は B 列（index 1）。

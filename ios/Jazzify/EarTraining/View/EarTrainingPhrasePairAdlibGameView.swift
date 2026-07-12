@@ -178,6 +178,7 @@ private struct EarTrainingPhrasePairAdlibContent: View {
     }
 
     @State private var hudHorizontalPadding: CGFloat = 16
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
 
     var body: some View {
         GeometryReader { proxy in
@@ -194,6 +195,7 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
         }
         .ignoresSafeArea()
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
         }
@@ -243,7 +245,10 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                 Spacer()
                 EarTrainingPianoView(
                     player: controller,
-                    scrollAnchorMidi: EarTrainingKeyboardScroll.scrollAnchorMidi(for: controller.stage)
+                    displayRange: EarTrainingKeyboardScroll.resolvedDisplayRange(
+                        for: controller.stage,
+                        displayMode: keyboardDisplayMode
+                    )
                 )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)

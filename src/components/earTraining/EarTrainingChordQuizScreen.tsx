@@ -24,7 +24,8 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { createEarTrainingChordVoicingStaffBand } from '@/game/earTraining/canvas/earTrainingBattleLayout';
-import { useGameStore } from '@/stores/gameStore';
+import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
+import { computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import {
   MIDIController,
@@ -64,6 +65,7 @@ import {
   resolveEarTrainingEnemyAvatarFromBattleSourceKey,
 } from '@/utils/earTrainingBattleAvatar';
 import { useAuthStore } from '@/stores/authStore';
+import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
@@ -243,6 +245,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     () => buildEarTrainingChordQuizQuestions(stage),
     [stage],
   );
+  const stageMidiMidis = useMemo(() => computeEarTrainingStageMidiMidis(stage), [stage]);
+  const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);
   const quizOrder = tutorial
     ? (tutorial.scene.order === 'progression' ? 'sequential' : 'random')
     : (stage.quiz_question_order === 'sequential' ? 'sequential' : 'random');
@@ -1298,6 +1302,8 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
       <DeferredEarTrainingPianoOverlay
         ref={pianoOverlayRef}
+        minMidi={keyboardRange.minMidi}
+        maxMidi={keyboardRange.maxMidi}
         onPianoKeyDown={handlePianoKeyDown}
         onPianoKeyUp={handlePianoKeyUp}
       />

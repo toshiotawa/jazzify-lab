@@ -184,9 +184,10 @@ private struct EarTrainingChordQuizContent: View {
     let fixedLandscapeSize: CGSize?
     let onClose: () -> Void
 
-    private static let pianoOverlayHeight: CGFloat = 76 + PianoKeyboardScrollGeometry.earTrainingScrollBarHeight
+    private static let pianoOverlayHeight: CGFloat = 76 + 4
 
     @State private var hudHorizontalPadding: CGFloat = 16
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @State private var gaugeTicker = EarTrainingChordQuizGaugeTicker()
 
     var body: some View {
@@ -213,6 +214,7 @@ private struct EarTrainingChordQuizContent: View {
             }
         }
         .ignoresSafeArea()
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
             gaugeTicker.start(controller: controller)
@@ -281,7 +283,10 @@ private struct EarTrainingChordQuizContent: View {
                 Spacer()
                 EarTrainingPianoView(
                     player: controller,
-                    scrollAnchorMidi: EarTrainingKeyboardScroll.scrollAnchorMidi(for: controller.stage)
+                    displayRange: EarTrainingKeyboardScroll.resolvedDisplayRange(
+                        for: controller.stage,
+                        displayMode: keyboardDisplayMode
+                    )
                 )
                     .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 4)

@@ -190,6 +190,7 @@ private struct EarTrainingChordOSMDContent: View {
     let fixedLandscapeSize: CGSize?
 
     @State private var hudHorizontalPadding: CGFloat = 16
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     /// OSMD 譜面コンテナの拡縮ステップ（-2 ... +2、`containerScaleTable` のインデックスは step + 2）。
     @State private var scoreSizeStep: Int = 0
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
@@ -225,6 +226,10 @@ private struct EarTrainingChordOSMDContent: View {
             }
         }
         .ignoresSafeArea()
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .onChange(of: keyboardDisplayMode) { _ in
+            controller.refreshKeyboardDisplayRangeForPreferencesChange()
+        }
         .onAppear {
             hudHorizontalPadding = Self.resolveHudHorizontalPadding()
         }
@@ -355,7 +360,8 @@ private struct EarTrainingChordOSMDContent: View {
                     )
                 } else {
                     EarTrainingPianoView(
-                        player: controller
+                        player: controller,
+                        displayRange: controller.keyboardDisplayRange
                     )
                         .ignoresSafeArea(.container, edges: .horizontal)
                         .padding(.bottom, 4)

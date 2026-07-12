@@ -98,6 +98,8 @@ import {
 } from './survivalFirstBlockStage';
 import { getBlockForStage } from './descent/descentBlocks';
 import { buildProgressionChordDefinitions, resolveProgressionStaffVoicingStaves } from '@/utils/survivalProgressionChords';
+import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
+import { computeSurvivalSessionMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import {
   computeSurvivalKeyboardScrollAnchor,
   maxPitchMidiFromPhraseDefinition,
@@ -1169,11 +1171,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
-  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   const survivalKeyboardScrollAnchorMidiRef = useRef<number | null>(null);
-  const applyPianoHorizontalScrollRef = useRef<() => void>(() => {
-    // 代入は各レンダーで上書き
-  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(loadSurvivalDisplaySettings);
   
@@ -1226,47 +1224,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     stageDefinition?.stageNumber,
   ]);
 
-  survivalKeyboardScrollAnchorMidiRef.current = survivalKeyboardScrollAnchorMidi;
-
-  const applyPianoHorizontalScroll = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    const container = pianoScrollRef.current;
-    if (!container) return;
-    const rawWidth = gameAreaRef.current?.clientWidth ?? window.innerWidth;
-    const gameAreaWidth = Math.max(1, rawWidth);
-    const adjustedThreshold = 1100;
-    const forceScrollOnIos = isIOSWebView() && gameAreaWidth < 1400;
-    if (gameAreaWidth >= adjustedThreshold && !forceScrollOnIos) {
-      return;
-    }
-    const scrollWidth = container.scrollWidth;
-    const clientWidth = container.clientWidth;
-    if (scrollWidth <= clientWidth) return;
-
-    const firstMidi = 21;
-    const span = 88;
-    const anchor = survivalKeyboardScrollAnchorMidiRef.current;
-    let scrollTarget: number;
-    if (anchor !== null) {
-      scrollTarget = (scrollWidth * (anchor + 1 - firstMidi)) / span - clientWidth;
-    } else {
-      const centerMidi = 60;
-      scrollTarget = (scrollWidth * (centerMidi - firstMidi)) / span - clientWidth / 2;
-    }
-    const maxScroll = Math.max(0, scrollWidth - clientWidth);
-    container.scrollLeft = Math.max(0, Math.min(scrollTarget, maxScroll));
-  }, []);
-
-  applyPianoHorizontalScrollRef.current = applyPianoHorizontalScroll;
-
-  useLayoutEffect(() => {
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        applyPianoHorizontalScroll();
+  const survivalSessionMidiMidis = useMemo(() => {
+    if (isPhraseMode) {
+      const compositeSources = compositePhraseSourcePhrasesRef.current;
+      if (compositeSources.length > 0) {
+        return computeSurvivalSessionMidiMidis({ kind: 'phrases', phrases: compositeSources });
+      }
+      return computeSurvivalSessionMidiMidis({
+        kind: 'phrase',
+        phrase: phraseDefinitionRef.current,
       });
+    }
+    if (isProgressionStage) {
+      const chords = buildProgressionChordDefinitions(stageDefinition?.chordProgression);
+      return computeSurvivalSessionMidiMidis({ kind: 'progression', chords });
+    }
+    return computeSurvivalSessionMidiMidis({
+      kind: 'random',
+      allowedChordIds: config.allowedChords,
     });
-    return () => cancelAnimationFrame(id);
-  }, [survivalKeyboardScrollAnchorMidi, applyPianoHorizontalScroll]);
+  }, [
+    config.allowedChords,
+    isPhraseMode,
+    isProgressionStage,
+    phraseUiTick,
+    stageDefinition?.chordProgression,
+    stageDefinition?.stageNumber,
+  ]);
+  const keyboardRange = useResolvedWebKeyboardRange(survivalSessionMidiMidis);
+
+  survivalKeyboardScrollAnchorMidiRef.current = survivalKeyboardScrollAnchorMidi;
 
   // ビューポートサイズ（Canvasラッパーを計測して設定）
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
@@ -1725,12 +1712,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         });
       }
 
-      renderer.setTouchActionMode('pan-x');
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          applyPianoHorizontalScrollRef.current();
-        });
-      });
+      renderer.setTouchActionMode('none');
     }
   }, [settings.noteNameStyle, settings.simpleDisplayMode, survivalMidi]);
 
@@ -6388,21 +6370,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // ピアノ幅計算（ファンタジーモードと同じロジック）
+  // ピアノ幅（表示レンジ全体を画面幅へフィット）
   const calculatePianoWidth = () => {
     const rawWidth = gameAreaRef.current?.clientWidth ?? window.innerWidth;
-    const gameAreaWidth = Math.max(1, rawWidth);
-    const adjustedThreshold = 1100;
-    const VISIBLE_WHITE_KEYS = 14;
-    const TOTAL_WHITE_KEYS = 52;
-    // iOS ネイティブでは画面が広くても全鍵を1画面に詰めると鍵が細すぎるため、横スクロールを優先する
-    const forceScrollOnIos = isIOSWebView() && gameAreaWidth < 1400;
-
-    if (gameAreaWidth >= adjustedThreshold && !forceScrollOnIos) {
-      return { width: gameAreaWidth, needsScroll: false };
-    }
-    const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-    return { width: Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth), needsScroll: true };
+    return Math.max(1, rawWidth);
   };
 
   return (
@@ -7040,44 +7011,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         style={{ height: `${pianoHeight}px` }}
       >
         {(() => {
-          const { width: pixiWidth, needsScroll } = calculatePianoWidth();
-          
-          if (needsScroll) {
-            return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'none',
-                  scrollBehavior: 'auto',
-                  width: '100%',
-                  touchAction: 'pan-x',
-                  overscrollBehavior: 'contain'
-                }}
-                ref={(el) => {
-                  pianoScrollRef.current = el;
-                }}
-              >
-                <PIXINotesRenderer
-                  width={pixiWidth}
-                  height={pianoHeight}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          } else {
-            return (
-              <div className="absolute inset-0 overflow-hidden">
-                <PIXINotesRenderer
-                  width={pixiWidth}
-                  height={pianoHeight}
-                  onReady={handlePixiReady}
-                  className="w-full h-full"
-                />
-              </div>
-            );
-          }
+          const pixiWidth = calculatePianoWidth();
+
+          return (
+            <div className="absolute inset-0 overflow-hidden">
+              <PIXINotesRenderer
+                width={pixiWidth}
+                height={pianoHeight}
+                minMidi={keyboardRange.minMidi}
+                maxMidi={keyboardRange.maxMidi}
+                onReady={handlePixiReady}
+                className="w-full h-full"
+              />
+            </div>
+          );
         })()}
       </div>
     );

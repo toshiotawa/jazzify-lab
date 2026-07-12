@@ -149,16 +149,62 @@ enum SurvivalPhraseKeyboardScroll {
         return maxValue
     }
 
+    static func minPitchMidi(in phrase: SurvivalPhraseDefinition) -> Int? {
+        var minValue: Int?
+        for chord in phrase.chords {
+            for note in chord.notes {
+                if minValue == nil || note.pitchMidi < minValue! {
+                    minValue = note.pitchMidi
+                }
+            }
+        }
+        return minValue
+    }
+
     /// 複合フレーズ: ソース全フレーズの最高 MIDI。
     static func maxPitchMidi(in phrases: [SurvivalPhraseDefinition]) -> Int? {
         var maxValue: Int?
         for phrase in phrases {
-            guard let v = maxPitchMidi(in: phrase) else { continue }
-            if maxValue == nil || v > maxValue! {
-                maxValue = v
+            guard let value = maxPitchMidi(in: phrase) else { continue }
+            if maxValue == nil || value > maxValue! {
+                maxValue = value
             }
         }
         return maxValue
+    }
+
+    /// 複合フレーズ: ソース全フレーズの最低 MIDI。
+    static func minPitchMidi(in phrases: [SurvivalPhraseDefinition]) -> Int? {
+        var minValue: Int?
+        for phrase in phrases {
+            guard let value = minPitchMidi(in: phrase) else { continue }
+            if minValue == nil || value < minValue! {
+                minValue = value
+            }
+        }
+        return minValue
+    }
+
+    static func pitchRange(in phrase: SurvivalPhraseDefinition) -> PianoStagePitchRange? {
+        guard let maxMidi = maxPitchMidi(in: phrase),
+              let minMidi = minPitchMidi(in: phrase) else {
+            return nil
+        }
+        return PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: minMidi,
+            maxNoteMidi: maxMidi
+        )
+    }
+
+    static func pitchRange(in phrases: [SurvivalPhraseDefinition]) -> PianoStagePitchRange? {
+        guard let maxMidi = maxPitchMidi(in: phrases),
+              let minMidi = minPitchMidi(in: phrases) else {
+            return nil
+        }
+        return PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: minMidi,
+            maxNoteMidi: maxMidi
+        )
     }
 
     /// フレーズ最高音が右端に来るとタップしづらいため、白鍵1つ分だけ右端を空ける。
@@ -182,6 +228,10 @@ enum SurvivalPhraseKeyboardScroll {
         chord.midiNotes.max()
     }
 
+    static func minPitchMidi(in chord: SurvivalResolvedChord) -> Int? {
+        chord.midiNotes.min()
+    }
+
     /// コード進行ステージ全体のボイシング最大 MIDI。
     static func maxPitchMidi(in chords: [SurvivalResolvedChord]) -> Int? {
         var maxValue: Int?
@@ -193,6 +243,50 @@ enum SurvivalPhraseKeyboardScroll {
             }
         }
         return maxValue
+    }
+
+    static func minPitchMidi(in chords: [SurvivalResolvedChord]) -> Int? {
+        var minValue: Int?
+        for chord in chords {
+            for note in chord.midiNotes {
+                if minValue == nil || note < minValue! {
+                    minValue = note
+                }
+            }
+        }
+        return minValue
+    }
+
+    static func pitchRange(in chords: [SurvivalResolvedChord]) -> PianoStagePitchRange? {
+        guard let maxMidi = maxPitchMidi(in: chords),
+              let minMidi = minPitchMidi(in: chords) else {
+            return nil
+        }
+        return PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: minMidi,
+            maxNoteMidi: maxMidi
+        )
+    }
+
+    static func pitchRange(fromChordIds allowedChordIds: [String]) -> PianoStagePitchRange? {
+        var minValue: Int?
+        var maxValue: Int?
+        for id in allowedChordIds {
+            guard let chord = SurvivalChordResolver.resolve(id: id) else { continue }
+            for midi in chord.midiNotes {
+                if minValue == nil || midi < minValue! {
+                    minValue = midi
+                }
+                if maxValue == nil || midi > maxValue! {
+                    maxValue = midi
+                }
+            }
+        }
+        guard let minMidi = minValue, let maxMidi = maxValue else { return nil }
+        return PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: minMidi,
+            maxNoteMidi: maxMidi
+        )
     }
 
     /// 鍵盤 HINT 用 MIDI 集合（`midiNotes` 直値）。
@@ -212,6 +306,54 @@ enum SurvivalPhraseKeyboardScroll {
             }
         }
         return maxValue
+    }
+
+    static func resolvedDisplayRange(
+        in phrase: SurvivalPhraseDefinition,
+        displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    ) -> PianoStagePitchRange {
+        switch displayMode {
+        case .full88Keys:
+            return .full88
+        case .questionRangeFit:
+            return pitchRange(in: phrase) ?? .full88
+        }
+    }
+
+    static func resolvedDisplayRange(
+        in phrases: [SurvivalPhraseDefinition],
+        displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    ) -> PianoStagePitchRange {
+        switch displayMode {
+        case .full88Keys:
+            return .full88
+        case .questionRangeFit:
+            return pitchRange(in: phrases) ?? .full88
+        }
+    }
+
+    static func resolvedDisplayRange(
+        in chords: [SurvivalResolvedChord],
+        displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    ) -> PianoStagePitchRange {
+        switch displayMode {
+        case .full88Keys:
+            return .full88
+        case .questionRangeFit:
+            return pitchRange(in: chords) ?? .full88
+        }
+    }
+
+    static func resolvedDisplayRange(
+        fromChordIds allowedChordIds: [String],
+        displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    ) -> PianoStagePitchRange {
+        switch displayMode {
+        case .full88Keys:
+            return .full88
+        case .questionRangeFit:
+            return pitchRange(fromChordIds: allowedChordIds) ?? .full88
+        }
     }
 }
 

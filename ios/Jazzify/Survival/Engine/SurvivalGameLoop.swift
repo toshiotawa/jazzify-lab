@@ -43,6 +43,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
     /// 狭い鍵盤で trailing アンカーにスクロールする MIDI（白鍵）。フレーズはロード確定後にセット。
     private(set) var keyboardScrollAnchorMidi: Int?
+    private(set) var keyboardDisplayRange: PianoStagePitchRange = .full88
 
     private var compositePhraseRuntime: SurvivalCompositePhraseRuntimeState?
     private var compositePhraseKeyFifths: Int = 0
@@ -169,6 +170,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
         let slots: [SurvivalCodeSlot]
         let stageKeyboardScrollMidi: Int?
+        let stageKeyboardDisplayRange: PianoStagePitchRange
         switch mode.stageKind {
         case let .progression(chords):
             self.progressionChords = chords
@@ -179,6 +181,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             } else {
                 stageKeyboardScrollMidi = nil
             }
+            stageKeyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(in: chords)
         case let .random(allowedChords):
             self.progressionChords = []
             self.progressionIndex = 0
@@ -196,9 +199,11 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             } else {
                 stageKeyboardScrollMidi = nil
             }
+            stageKeyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(fromChordIds: allowedChords)
         }
 
         keyboardScrollAnchorMidi = stage.mapCategory == .phrases ? nil : stageKeyboardScrollMidi
+        keyboardDisplayRange = stage.mapCategory == .phrases ? .full88 : stageKeyboardDisplayRange
         var player = SurvivalGameEngine.createStageInitialPlayer(
             profile: profile,
             hintMode: mode.hintMode,
@@ -270,6 +275,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         } else {
             keyboardScrollAnchorMidi = nil
         }
+        keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(in: chords)
     }
 
     /// チュートリアルのシーン用セッション切替時だけ、見た目の位置と向きを引き継ぐ。
@@ -290,6 +296,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         } else {
             keyboardScrollAnchorMidi = nil
         }
+        keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(in: phrase)
     }
 
     func loadCompositePhraseRuntime(sourcePhrases: [SurvivalPhraseDefinition], keyFifths: Int) {
@@ -302,6 +309,32 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
         } else {
             keyboardScrollAnchorMidi = nil
+        }
+        keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(in: sourcePhrases)
+    }
+
+    /// 鍵盤表示モード設定変更時に、ステージ音域から表示レンジだけ再解決する。
+    func refreshKeyboardDisplayRange(displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()) {
+        if stage.mapCategory == .phrases {
+            if let phrase = phraseDefinition {
+                keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(in: phrase, displayMode: displayMode)
+            } else if let composite = compositePhraseRuntime {
+                keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                    in: composite.sourcePhrases,
+                    displayMode: displayMode
+                )
+            }
+            return
+        }
+        if !progressionChords.isEmpty {
+            keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(in: progressionChords, displayMode: displayMode)
+            return
+        }
+        if case let .random(allowedChords) = mode.stageKind {
+            keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                fromChordIds: allowedChords,
+                displayMode: displayMode
+            )
         }
     }
 

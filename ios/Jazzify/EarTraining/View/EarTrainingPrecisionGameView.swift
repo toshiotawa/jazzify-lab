@@ -164,6 +164,7 @@ private struct EarTrainingPrecisionGameContent: View {
     @State private var dragStartBandHeight: CGFloat = 0
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
 
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
@@ -206,6 +207,10 @@ private struct EarTrainingPrecisionGameContent: View {
                     transportBar
                 }
             }
+        }
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .onChange(of: keyboardDisplayMode) { _ in
+            controller.refreshKeyboardDisplayRangeForPreferencesChange()
         }
         .onChange(of: controller.musicXMLText) { xml in
             guard let xml else { return }

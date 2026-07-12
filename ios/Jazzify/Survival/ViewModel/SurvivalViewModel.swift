@@ -20,6 +20,7 @@ final class SurvivalViewModel: ObservableObject {
     @Published private(set) var chordPadHintPendingOpacity: CGFloat = 1
     @Published private(set) var phraseStaffSnapshot: SurvivalPhraseStaffSnapshot?
     @Published private(set) var chordPadScrollAnchorMidi: Int?
+    @Published private(set) var chordPadDisplayRange: PianoStagePitchRange = .full88
 
     private var lastBossHudPublishAt: TimeInterval = 0
 
@@ -31,6 +32,7 @@ final class SurvivalViewModel: ObservableObject {
         chordPadCompletedHintMidis: Set<Int>,
         chordPadHintPendingOpacity: CGFloat,
         chordPadScrollAnchorMidi: Int?,
+        chordPadDisplayRange: PianoStagePitchRange,
         now: TimeInterval
     ) {
         self.uiSnapshot = uiSnapshot
@@ -40,6 +42,7 @@ final class SurvivalViewModel: ObservableObject {
         self.chordPadCompletedHintMidis = chordPadCompletedHintMidis
         self.chordPadHintPendingOpacity = chordPadHintPendingOpacity
         self.chordPadScrollAnchorMidi = chordPadScrollAnchorMidi
+        self.chordPadDisplayRange = chordPadDisplayRange
         self.lastBossHudPublishAt = now
     }
 
@@ -79,6 +82,16 @@ final class SurvivalViewModel: ObservableObject {
         let nextScrollAnchor = gameLoop.keyboardScrollAnchorMidi
         if nextScrollAnchor != chordPadScrollAnchorMidi {
             chordPadScrollAnchorMidi = nextScrollAnchor
+        }
+        let nextDisplayRange = gameLoop.keyboardDisplayRange
+        if nextDisplayRange != chordPadDisplayRange {
+            chordPadDisplayRange = nextDisplayRange
+        }
+    }
+
+    func updateChordPadDisplayRange(_ range: PianoStagePitchRange) {
+        if range != chordPadDisplayRange {
+            chordPadDisplayRange = range
         }
     }
 
@@ -168,6 +181,7 @@ final class SurvivalViewModel: ObservableObject {
         chordPadHintPendingOpacity = gameLoop.currentKeyboardHintPendingOpacity()
         syncPhraseStaff(from: gameLoop)
         chordPadScrollAnchorMidi = gameLoop.keyboardScrollAnchorMidi
+        chordPadDisplayRange = gameLoop.keyboardDisplayRange
         isPaused = false
         clearMidiHeldKeys()
         resetClearReportState()

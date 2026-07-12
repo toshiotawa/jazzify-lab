@@ -8,6 +8,8 @@ const LazyEarTrainingPianoOverlay = React.lazy(
 export type { EarTrainingPianoOverlayHandle };
 
 interface DeferredEarTrainingPianoOverlayProps {
+  minMidi: number;
+  maxMidi: number;
   onPianoKeyDown: (note: number) => void;
   onPianoKeyUp: (note: number) => void;
 }

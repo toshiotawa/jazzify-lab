@@ -69,15 +69,13 @@ describe('earTrainingPrecisionNotes', () => {
     expect(swingNotes[1]?.startSec).toBeCloseTo((60 / 120) * (2 / 3), 5);
   });
 
-  it('2オクターブ以内なら24半音幅に拡張する', () => {
+  it('両端1白鍵の余白を付ける', () => {
     const range = resolvePrecisionKeyboardRange([60, 67]);
-    expect(range.maxMidi - range.minMidi + 1).toBeGreaterThanOrEqual(24);
-    expect(range.minMidi).toBeLessThanOrEqual(60);
-    expect(range.maxMidi).toBeGreaterThanOrEqual(67);
+    expect(range).toEqual({ minMidi: 59, maxMidi: 69 });
   });
 
-  it('Web版は88鍵フルレンジを返す', () => {
-    const range = resolvePrecisionDisplayKeyboardRange([60, 67], true);
+  it('88鍵表示設定ではフルレンジを返す', () => {
+    const range = resolvePrecisionDisplayKeyboardRange([60, 67], 'full88');
     expect(range).toEqual(PRECISION_FULL_KEYBOARD_RANGE);
   });
 

@@ -102,6 +102,8 @@
 		KBDSC004E2606031400000004 /* EarTrainingKeyboardScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */; };
 		KBDSC005E2606031400000005 /* PianoKeyboardScrollChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */; };
 		PKBTH002E2606041400000002 /* PianoKeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = PKBTH001E2606041400000001 /* PianoKeyboardTheme.swift */; };
+		PKDPR002E2606071400000002 /* PianoKeyboardDisplayPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = PKDPR001E2606071400000001 /* PianoKeyboardDisplayPreferences.swift */; };
+		PKDMS002E2606071400000004 /* PianoKeyboardDisplayModeSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = PKDMS001E2606071400000003 /* PianoKeyboardDisplayModeSection.swift */; };
 		KBDSC006E2606031400000006 /* UIKitHorizontalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = KBDSC003E2606031400000003 /* UIKitHorizontalScrollView.swift */; };
 		2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB42EB0BEA73D79132F739 /* SettingsView.swift */; };
 		2CE30418294A3B0591792525 /* EarTrainingChordVoicingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E5A6EF97E9BFC937455373 /* EarTrainingChordVoicingEngine.swift */; };
@@ -374,6 +376,8 @@
 		KBDSC001E2606031400000001 /* EarTrainingKeyboardScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingKeyboardScroll.swift; sourceTree = "<group>"; };
 		KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollChrome.swift; sourceTree = "<group>"; };
 		PKBTH001E2606041400000001 /* PianoKeyboardTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardTheme.swift; sourceTree = "<group>"; };
+		PKDPR001E2606071400000001 /* PianoKeyboardDisplayPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardDisplayPreferences.swift; sourceTree = "<group>"; };
+		PKDMS001E2606071400000003 /* PianoKeyboardDisplayModeSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardDisplayModeSection.swift; sourceTree = "<group>"; };
 		KBDSC003E2606031400000003 /* UIKitHorizontalScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitHorizontalScrollView.swift; sourceTree = "<group>"; };
 		20B499E74ABA90E85BD71290 /* Jazzify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Jazzify.entitlements; sourceTree = "<group>"; };
 		2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonMapAudio.swift; sourceTree = "<group>"; };
@@ -1195,6 +1199,8 @@
 				1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */,
 				KBDSC002E2606031400000002 /* PianoKeyboardScrollChrome.swift */,
 				PKBTH001E2606041400000001 /* PianoKeyboardTheme.swift */,
+				PKDPR001E2606071400000001 /* PianoKeyboardDisplayPreferences.swift */,
+				PKDMS001E2606071400000003 /* PianoKeyboardDisplayModeSection.swift */,
 				KBDSC003E2606031400000003 /* UIKitHorizontalScrollView.swift */,
 			);
 			path = Main;
@@ -1572,6 +1578,8 @@
 				2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */,
 				KBDSC005E2606031400000005 /* PianoKeyboardScrollChrome.swift in Sources */,
 				PKBTH002E2606041400000002 /* PianoKeyboardTheme.swift in Sources */,
+				PKDPR002E2606071400000002 /* PianoKeyboardDisplayPreferences.swift in Sources */,
+				PKDMS002E2606071400000004 /* PianoKeyboardDisplayModeSection.swift in Sources */,
 				KBDSC006E2606031400000006 /* UIKitHorizontalScrollView.swift in Sources */,
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,
 				0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */,

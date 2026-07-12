@@ -5,16 +5,17 @@ import {
   parseMusicXmlNoteElementToMidi,
 } from '@/utils/earTrainingChordOsmd';
 import { scalePracticeTargetTimeSec } from '@/utils/earTrainingPracticeSpeed';
+import {
+  expandMidiRangeWithWhiteKeyPadding,
+  FULL_88_KEYBOARD_RANGE,
+  type WebKeyboardDisplayMode,
+} from '@/utils/webKeyboardDisplayRange';
 
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
-const DEFAULT_KEYBOARD_SPAN_SEMITONES = 24;
-const KEYBOARD_PADDING_SEMITONES = 2;
+const KEYBOARD_PADDING_WHITE_KEYS = 1;
 
 /** 88鍵フルレンジ（A0〜C8） */
-export const PRECISION_FULL_KEYBOARD_RANGE: PrecisionKeyboardRange = {
-  minMidi: 21,
-  maxMidi: 108,
-};
+export const PRECISION_FULL_KEYBOARD_RANGE: PrecisionKeyboardRange = FULL_88_KEYBOARD_RANGE;
 
 /** 練習ガイド表示: 判定窓の先読み秒 */
 export const PRECISION_GUIDE_LEAD_SEC = 0.5;
@@ -236,28 +237,18 @@ export const resolvePrecisionKeyboardRange = (
       maxNote = midi;
     }
   }
-
-  let minMidi = minNote - KEYBOARD_PADDING_SEMITONES;
-  let maxMidi = maxNote + KEYBOARD_PADDING_SEMITONES;
-  const span = maxMidi - minMidi + 1;
-  if (span < DEFAULT_KEYBOARD_SPAN_SEMITONES) {
-    const center = (minNote + maxNote) / 2;
-    const halfSpan = Math.floor(DEFAULT_KEYBOARD_SPAN_SEMITONES / 2);
-    minMidi = Math.round(center) - halfSpan;
-    maxMidi = minMidi + DEFAULT_KEYBOARD_SPAN_SEMITONES - 1;
-  }
-  return {
-    minMidi: Math.max(21, minMidi),
-    maxMidi: Math.min(108, maxMidi),
-  };
+  return expandMidiRangeWithWhiteKeyPadding(minNote, maxNote, KEYBOARD_PADDING_WHITE_KEYS);
 };
 
-/** Web 版などフル鍵盤表示時は 88 鍵、それ以外はノーツ音域から算出 */
+/** 設定に応じて出題音域フィットまたは 88 鍵を返す */
 export const resolvePrecisionDisplayKeyboardRange = (
   noteMidis: readonly number[],
-  useFullKeyboard: boolean,
+  displayMode: WebKeyboardDisplayMode,
 ): PrecisionKeyboardRange => {
-  if (useFullKeyboard) {
+  if (displayMode === 'full88') {
+    return PRECISION_FULL_KEYBOARD_RANGE;
+  }
+  if (noteMidis.length === 0) {
     return PRECISION_FULL_KEYBOARD_RANGE;
   }
   return resolvePrecisionKeyboardRange(noteMidis);

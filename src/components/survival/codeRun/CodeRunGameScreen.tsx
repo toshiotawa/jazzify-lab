@@ -17,6 +17,8 @@ import {
 import { applySurvivalVoicingHintsWithOpacity, computeKeyboardHintOpacity } from '@/utils/survivalStaffHintOpacity';
 import type { ProductionHintMode } from '@/types';
 import { fetchSurvivalRunMap } from '@/platform/supabaseSurvival';
+import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
+import { computeSurvivalSessionMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { PIXINotesRenderer, type PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import type { DifficultyConfig, PlayerStats, SpecialSkills, AcquiredMagics, SurvivalCharacter, SurvivalDifficulty, SurvivalGameResult } from '../SurvivalTypes';
 import type { StageDefinition } from '../SurvivalStageDefinitions';
@@ -203,6 +205,13 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       : buildProgressionChordDefinitions(stageDefinition.chordProgression ?? [])),
     [isRandomStage, stageDefinition.chordProgression],
   );
+  const sessionMidiMidis = useMemo(
+    () => (isRandomStage
+      ? computeSurvivalSessionMidiMidis({ kind: 'random', allowedChordIds: randomAllowedChords })
+      : computeSurvivalSessionMidiMidis({ kind: 'progression', chords: progressionChords })),
+    [isRandomStage, progressionChords, randomAllowedChords],
+  );
+  const keyboardRange = useResolvedWebKeyboardRange(sessionMidiMidis);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
   const currentChordIndexRef = useRef(0);
   const [randomCurrentChord, setRandomCurrentChord] = useState<CodeRunActiveChord | null>(null);
@@ -640,7 +649,14 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
             'linear-gradient(180deg, rgba(42,28,18,0.55) 0%, rgba(12,8,18,0.95) 28%), repeating-linear-gradient(90deg, rgba(60,40,28,0.12) 0, rgba(60,40,28,0.12) 2px, transparent 2px, transparent 14px)',
         }}
       >
-        <PIXINotesRenderer width={pianoSize.width} height={pianoSize.height} onReady={handlePixiReady} className="h-full w-full" />
+        <PIXINotesRenderer
+          width={pianoSize.width}
+          height={pianoSize.height}
+          minMidi={keyboardRange.minMidi}
+          maxMidi={keyboardRange.maxMidi}
+          onReady={handlePixiReady}
+          className="h-full w-full"
+        />
       </div>
 
       {result && (

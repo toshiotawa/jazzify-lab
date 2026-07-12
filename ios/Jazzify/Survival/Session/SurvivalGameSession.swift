@@ -78,6 +78,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
             chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
             chordPadHintPendingOpacity: loop.currentKeyboardHintPendingOpacity(),
             chordPadScrollAnchorMidi: loop.keyboardScrollAnchorMidi,
+            chordPadDisplayRange: loop.keyboardDisplayRange,
             now: now
         )
         self.viewModel = vm

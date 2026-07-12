@@ -20,7 +20,8 @@ import type {
   EarTrainingBattleSnapshot,
 } from '@/game/earTraining/types';
 import { createEarTrainingChordVoicingStaffBand } from '@/game/earTraining/canvas/earTrainingBattleLayout';
-import { useGameStore } from '@/stores/gameStore';
+import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
+import { computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import {
   MIDIController,
@@ -64,6 +65,7 @@ import {
   resolveEarTrainingEnemyAvatarFromBattleSourceKey,
 } from '@/utils/earTrainingBattleAvatar';
 import { useAuthStore } from '@/stores/authStore';
+import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import { getPhrasePairStepQuoteDisplayText } from '@/utils/earTrainingPhrasePairQuote';
@@ -162,6 +164,8 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     () => bootstrap?.patternsByGroupId ?? {},
     [bootstrap?.patternsByGroupId],
   );
+  const stageMidiMidis = useMemo(() => computeEarTrainingStageMidiMidis(stage), [stage]);
+  const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);
   const loopDurationSec = bootstrap?.loopDurationSec ?? 4;
 
   const [statusText, setStatusText] = useState(copy.idlePrompt);
@@ -1131,6 +1135,8 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
 
       <DeferredEarTrainingPianoOverlay
         ref={pianoOverlayRef}
+        minMidi={keyboardRange.minMidi}
+        maxMidi={keyboardRange.maxMidi}
         onPianoKeyDown={handlePianoKeyDown}
         onPianoKeyUp={handlePianoKeyUp}
       />
