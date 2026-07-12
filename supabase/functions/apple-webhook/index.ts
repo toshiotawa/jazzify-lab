@@ -23,6 +23,14 @@ interface AppleNotification {
   };
 }
 
+interface AppleTransactionInfo {
+  appAccountToken?: string;
+  originalTransactionId?: string;
+  expiresDate?: number;
+  productId?: string;
+  offerDiscountType?: string;
+}
+
 function decodeJWSPayload(jws: string): Record<string, unknown> {
   const parts = jws.split(".");
   if (parts.length !== 3) throw new Error("Invalid JWS");
@@ -36,10 +44,6 @@ const UUID_RE =
 /** App Store の年額サブスク Product ID（iOS Config.iapYearlyProductID と一致させる） */
 const APPLE_YEARLY_PRODUCT_ID = "jp.jazzify.premium.yearly";
 
-/**
- * Apple の Product ID からプラン種別を判定する。
- * Product ID が無い場合は null を返し、呼び出し側で既存値を維持する。
- */
 function planCodeForAppleProduct(productId: string | undefined): string | null {
   if (!productId) return null;
   return productId === APPLE_YEARLY_PRODUCT_ID ? "core_yearly" : "core_monthly";
@@ -50,28 +54,25 @@ function normalizeUuidString(value: string): string | null {
   return UUID_RE.test(lower) ? lower : null;
 }
 
-function rankForSubscription(provider: string, entitlementState: EntitlementState): string {
-  if (
-    entitlementState === "active" ||
-    entitlementState === "payment_issue_with_access" ||
-    entitlementState === "cancelled_but_active_until_end"
-  ) {
-    return provider === "lemon" ? "standard_global" : "standard";
-  }
-  return "free";
+function isAppleFreeTrialOffer(transactionInfo: AppleTransactionInfo | undefined): boolean {
+  return transactionInfo?.offerDiscountType === "FREE_TRIAL";
 }
 
 function mapAppleNotification(
   notificationType: string,
   subtype: string | undefined,
   expiresDateMs: number | undefined,
+  isFreeTrial: boolean,
+  nowMs: number = Date.now(),
 ): { status: string; entitlementState: EntitlementState; trialUsed?: boolean } {
   const periodEndMs = expiresDateMs ?? 0;
-  const periodStillActive = expiresDateMs !== undefined && periodEndMs > Date.now();
+  const periodStillActive = expiresDateMs !== undefined && periodEndMs > nowMs;
 
   switch (notificationType) {
     case "SUBSCRIBED":
-      if (subtype === "INITIAL_BUY") return { status: "active", entitlementState: "active" };
+      if (subtype === "INITIAL_BUY" && isFreeTrial) {
+        return { status: "trial", entitlementState: "active", trialUsed: true };
+      }
       return { status: "active", entitlementState: "active" };
     case "DID_RENEW":
       return { status: "active", entitlementState: "active" };
@@ -99,6 +100,45 @@ function mapAppleNotification(
       return { status: "trial", entitlementState: "active", trialUsed: true };
     default:
       return { status: "active", entitlementState: "active" };
+  }
+}
+
+function nextAppleTrialUsed(
+  existingTrialUsed: boolean,
+  mappedTrialUsed: boolean | undefined,
+): boolean {
+  if (existingTrialUsed) {
+    return true;
+  }
+  return mappedTrialUsed === true;
+}
+
+function rankForSubscription(provider: string, entitlementState: EntitlementState): string {
+  if (
+    entitlementState === "active" ||
+    entitlementState === "payment_issue_with_access" ||
+    entitlementState === "cancelled_but_active_until_end"
+  ) {
+    return provider === "lemon" ? "standard_global" : "standard";
+  }
+  return "free";
+}
+
+async function recordUserMilestoneSafe(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  milestone: "trial_start",
+): Promise<void> {
+  try {
+    const { error } = await supabase.rpc("record_user_milestone", {
+      p_user_id: userId,
+      p_milestone: milestone,
+    });
+    if (error) {
+      /* analytics must not block webhook processing */
+    }
+  } catch {
+    /* analytics must not block webhook processing */
   }
 }
 
@@ -201,18 +241,19 @@ Deno.serve(async (req: Request) => {
     const notification = decodeJWSPayload(signedPayload) as unknown as AppleNotification;
     const { notificationType, subtype, data } = notification;
 
-    let transactionInfo: Record<string, unknown> = {};
+    let transactionInfo: AppleTransactionInfo = {};
     if (data?.signedTransactionInfo) {
-      transactionInfo = decodeJWSPayload(data.signedTransactionInfo);
+      transactionInfo = decodeJWSPayload(data.signedTransactionInfo) as AppleTransactionInfo;
     }
 
-    const appAccountTokenRaw = transactionInfo.appAccountToken as string | undefined;
+    const appAccountTokenRaw = transactionInfo.appAccountToken;
     const appAccountToken = appAccountTokenRaw
       ? normalizeUuidString(appAccountTokenRaw)
       : null;
-    const originalTransactionId = transactionInfo.originalTransactionId as string | undefined;
-    const expiresDate = transactionInfo.expiresDate as number | undefined;
-    const productId = transactionInfo.productId as string | undefined;
+    const originalTransactionId = transactionInfo.originalTransactionId;
+    const expiresDate = transactionInfo.expiresDate;
+    const productId = transactionInfo.productId;
+    const isFreeTrial = isAppleFreeTrialOffer(transactionInfo);
 
     await supabase.from("subscription_events").insert({
       user_id: appAccountToken,
@@ -228,18 +269,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const mapped = mapAppleNotification(notificationType, subtype, expiresDate);
+    const mapped = mapAppleNotification(notificationType, subtype, expiresDate, isFreeTrial);
 
-    // plan_code: 取引情報の Product ID を最優先。欠落時は既存値を維持する。
     let planCode = planCodeForAppleProduct(productId);
+    const { data: existingSub } = await supabase
+      .from("subscriptions")
+      .select("plan_code, trial_used, trial_used_at")
+      .eq("user_id", appAccountToken)
+      .maybeSingle();
+
     if (!planCode) {
-      const { data: existingSub } = await supabase
-        .from("subscriptions")
-        .select("plan_code")
-        .eq("user_id", appAccountToken)
-        .maybeSingle();
       planCode = existingSub?.plan_code ?? "core_monthly";
     }
+
+    const existingTrialUsed = existingSub?.trial_used === true;
+    const nextTrialUsed = nextAppleTrialUsed(existingTrialUsed, mapped.trialUsed);
+    const trialBecameUsed = nextTrialUsed && !existingTrialUsed;
 
     const upsertData: Record<string, unknown> = {
       user_id: appAccountToken,
@@ -248,6 +293,7 @@ Deno.serve(async (req: Request) => {
       plan_code: planCode,
       status: mapped.status,
       entitlement_state: mapped.entitlementState,
+      trial_used: nextTrialUsed,
       updated_at: new Date().toISOString(),
     };
 
@@ -255,14 +301,18 @@ Deno.serve(async (req: Request) => {
       upsertData.current_period_ends_at = new Date(expiresDate).toISOString();
     }
 
-    if (mapped.trialUsed !== undefined) {
-      upsertData.trial_used = mapped.trialUsed;
+    if (trialBecameUsed) {
+      upsertData.trial_used_at = new Date().toISOString();
     }
 
     await supabase.from("subscriptions").upsert(upsertData, { onConflict: "user_id" });
 
     const rank = rankForSubscription("apple", mapped.entitlementState);
     await supabase.from("profiles").update({ rank }).eq("id", appAccountToken);
+
+    if (trialBecameUsed) {
+      await recordUserMilestoneSafe(supabase, appAccountToken, "trial_start");
+    }
 
     return new Response(JSON.stringify({ received: true, status: mapped.status }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
