@@ -29,16 +29,16 @@ const centers = {
 };
 
 describe('computeOsmdWindowStartMeasureNumber', () => {
-  it('4 小節窓では最終表示小節到達時に窓開始小節を返す', () => {
+  it('4 小節窓・2 小節ステップでは小節 3 到達で窓開始 3', () => {
     expect(computeOsmdWindowStartMeasureNumber(1, 4)).toBe(1);
     expect(computeOsmdWindowStartMeasureNumber(2, 4)).toBe(1);
-    expect(computeOsmdWindowStartMeasureNumber(3, 4)).toBe(1);
-    expect(computeOsmdWindowStartMeasureNumber(4, 4)).toBe(4);
-    expect(computeOsmdWindowStartMeasureNumber(5, 4)).toBe(4);
+    expect(computeOsmdWindowStartMeasureNumber(3, 4)).toBe(3);
+    expect(computeOsmdWindowStartMeasureNumber(4, 4)).toBe(3);
+    expect(computeOsmdWindowStartMeasureNumber(5, 4)).toBe(5);
     expect(computeOsmdWindowStartMeasureNumber(7, 4)).toBe(7);
   });
 
-  it('3 小節窓（iOS）では小節 3 到達で窓開始 3', () => {
+  it('3 小節窓（iOS）でも 2 小節ステップで小節 3 到達時に窓開始 3', () => {
     expect(computeOsmdWindowStartMeasureNumber(1, 3)).toBe(1);
     expect(computeOsmdWindowStartMeasureNumber(2, 3)).toBe(1);
     expect(computeOsmdWindowStartMeasureNumber(3, 3)).toBe(3);
@@ -87,9 +87,9 @@ describe('computeOsmdWindowFitScale', () => {
 });
 
 describe('computeOsmdWindowJumpScrollOffset', () => {
-  it('窓 1（小節 1-3）はオフセット 0', () => {
+  it('窓 1（小節 1-2）はオフセット 0', () => {
     expect(computeOsmdWindowJumpScrollOffset({
-      activeMeasureNumber: 3,
+      activeMeasureNumber: 2,
       measureBoundsByNumber: bounds,
       measureCentersByNumber: centers,
       effectiveScale: 1,
@@ -98,20 +98,28 @@ describe('computeOsmdWindowJumpScrollOffset', () => {
     })).toEqual({ offsetPx: 0, xPos: 10 });
   });
 
-  it('小節 4 到達で窓開始 4 の左端へジャンプする', () => {
+  it('小節 3 到達で窓開始 3 の左端へジャンプする', () => {
     const result = computeOsmdWindowJumpScrollOffset({
-      activeMeasureNumber: 4,
+      activeMeasureNumber: 3,
       measureBoundsByNumber: bounds,
       measureCentersByNumber: centers,
       effectiveScale: 1,
       scoreWidth: 700,
       viewportWidth: 400,
     });
-    expect(result.xPos).toBe(400);
-    expect(result.offsetPx).toBe(300);
+    expect(result.xPos).toBe(220);
+    expect(result.offsetPx).toBe(220);
   });
 
-  it('小節 5 も同じ窓（開始 4）のオフセット', () => {
+  it('小節 4 も同じ窓（開始 3）のオフセット', () => {
+    const m3 = computeOsmdWindowJumpScrollOffset({
+      activeMeasureNumber: 3,
+      measureBoundsByNumber: bounds,
+      measureCentersByNumber: centers,
+      effectiveScale: 1,
+      scoreWidth: 700,
+      viewportWidth: 400,
+    });
     const m4 = computeOsmdWindowJumpScrollOffset({
       activeMeasureNumber: 4,
       measureBoundsByNumber: bounds,
@@ -120,15 +128,8 @@ describe('computeOsmdWindowJumpScrollOffset', () => {
       scoreWidth: 700,
       viewportWidth: 400,
     });
-    const m5 = computeOsmdWindowJumpScrollOffset({
-      activeMeasureNumber: 5,
-      measureBoundsByNumber: bounds,
-      measureCentersByNumber: centers,
-      effectiveScale: 1,
-      scoreWidth: 700,
-      viewportWidth: 400,
-    });
-    expect(m5.offsetPx).toBe(m4.offsetPx);
+    expect(m4.offsetPx).toBe(m3.offsetPx);
+    expect(m4.xPos).toBe(220);
   });
 });
 

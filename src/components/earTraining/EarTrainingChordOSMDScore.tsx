@@ -275,6 +275,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       maxMeasureNumber,
       viewportWidth: viewportWidthPx,
       minVisibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
+      stepMeasures: scrollLayout.fitWindow.stepMeasures,
     }) * userZoom
     : computeOsmdEffectiveScaleForMeasure({
       cssScale: cssScaleForLayout,
@@ -685,6 +686,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         scoreWidth: layout.scoreWidth,
         viewportWidth: viewport.clientWidth,
         visibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
+        stepMeasures: scrollLayout.fitWindow.stepMeasures,
       }));
     } else if (scrollLayout.fitActiveMeasureWidth) {
       const reachEnd = computeOsmdReachEndJumpScrollOffset({

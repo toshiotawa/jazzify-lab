@@ -453,6 +453,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         let fitWindowEnabled = layout.fitWindow != nil
         let fitWindowMinVisible = layout.fitWindow?.minVisibleMeasures
             ?? EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS
+        let fitWindowStep = layout.fitWindow?.stepMeasures
+            ?? EarTrainingOsmdScoreScroll.windowStepMeasures
         return htmlTemplate
             .replacingOccurrences(of: "__PLAYHEAD_PX__", with: String(format: "%.10g", Double(layout.playheadPx)))
             .replacingOccurrences(of: "__ANCHOR_TO_MEASURE_LEFT__", with: layout.anchorToMeasureLeft ? "true" : "false")
@@ -463,6 +465,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             )
             .replacingOccurrences(of: "__FIT_WINDOW_ENABLED__", with: fitWindowEnabled ? "true" : "false")
             .replacingOccurrences(of: "__FIT_WINDOW_MIN_VISIBLE__", with: String(fitWindowMinVisible))
+            .replacingOccurrences(of: "__FIT_WINDOW_STEP__", with: String(fitWindowStep))
             .replacingOccurrences(
                 of: "__WINDOW_DENSE_FALLBACK_SCALE__",
                 with: String(format: "%.10g", Double(EarTrainingOsmdScoreScroll.windowDenseFallbackScale))
@@ -565,6 +568,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const MIN_FIT_SCALE = __MIN_FIT_SCALE__;
           const FIT_WINDOW_ENABLED = __FIT_WINDOW_ENABLED__;
           const FIT_WINDOW_MIN_VISIBLE = __FIT_WINDOW_MIN_VISIBLE__;
+          const FIT_WINDOW_STEP = __FIT_WINDOW_STEP__;
           const WINDOW_DENSE_FALLBACK_SCALE = __WINDOW_DENSE_FALLBACK_SCALE__;
           const WINDOW_DENSE_FALLBACK_MEASURES = __WINDOW_DENSE_FALLBACK_MEASURES__;
           let osmd = null;
@@ -1075,9 +1079,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function computeWindowStartMeasureNumber(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
-            const safeVisible = Math.max(2, Math.floor(FIT_WINDOW_MIN_VISIBLE || 4));
-            const stride = safeVisible - 1;
-            return 1 + Math.floor((mn - 1) / stride) * stride;
+            const safeStep = Math.max(1, Math.floor(FIT_WINDOW_STEP || 2));
+            return 1 + Math.floor((mn - 1) / safeStep) * safeStep;
           }
 
           function computeWindowMeasureSpanWidth(windowStart, visibleMeasures) {
@@ -1101,9 +1104,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               return 1;
             }
             const safeVisible = Math.max(2, Math.floor(visibleMeasures));
-            const stride = safeVisible - 1;
+            const safeStep = Math.max(1, Math.floor(FIT_WINDOW_STEP || 2));
             let maxWindowWidth = 0;
-            for (let windowStart = 1; windowStart <= maxMeasureNumber; windowStart += stride) {
+            for (let windowStart = 1; windowStart <= maxMeasureNumber; windowStart += safeStep) {
               const spanWidth = computeWindowMeasureSpanWidth(windowStart, visibleMeasures);
               if (spanWidth !== null && spanWidth > maxWindowWidth) {
                 maxWindowWidth = spanWidth;

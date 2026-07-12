@@ -145,9 +145,10 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertEqual(highlight.widthPx, 120)
     }
 
-    func testWindowStartMeasureNumber_usesLastVisibleMeasureStride() {
-        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 3, visibleMeasures: 4), 1)
-        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 4, visibleMeasures: 4), 4)
+    func testWindowStartMeasureNumber_usesTwoMeasureStep() {
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 2, visibleMeasures: 4), 1)
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 3, visibleMeasures: 4), 3)
+        XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 4, visibleMeasures: 4), 3)
         XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 2, visibleMeasures: 3), 1)
         XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 3, visibleMeasures: 3), 3)
     }

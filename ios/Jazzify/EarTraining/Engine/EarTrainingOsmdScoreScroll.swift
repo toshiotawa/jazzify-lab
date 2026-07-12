@@ -2,6 +2,7 @@ import CoreGraphics
 
 struct EarTrainingOsmdFitWindowConfig: Equatable {
     var minVisibleMeasures: Int
+    var stepMeasures: Int
 }
 
 struct EarTrainingOsmdScrollLayout: Equatable {
@@ -15,7 +16,8 @@ struct EarTrainingOsmdScrollLayout: Equatable {
         anchorToMeasureLeft: true,
         fitActiveMeasureWidth: false,
         fitWindow: EarTrainingOsmdFitWindowConfig(
-            minVisibleMeasures: EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS
+            minVisibleMeasures: EarTrainingOsmdScoreScroll.windowMinVisibleMeasuresIOS,
+            stepMeasures: EarTrainingOsmdScoreScroll.windowStepMeasures
         )
     )
     static let precision = EarTrainingOsmdScrollLayout(
@@ -31,6 +33,7 @@ enum EarTrainingOsmdScoreScroll {
     static let precisionMinFitScale: CGFloat = 0.35
     static let windowMinVisibleMeasuresWeb = 4
     static let windowMinVisibleMeasuresIOS = 3
+    static let windowStepMeasures = 2
     static let windowDenseFallbackScale: CGFloat = 0.5
     static let windowDenseFallbackMeasures = 2
 
@@ -98,12 +101,12 @@ enum EarTrainingOsmdScoreScroll {
 
     static func windowStartMeasureNumber(
         activeMeasureNumber: Int,
-        visibleMeasures: Int = windowMinVisibleMeasuresWeb
+        visibleMeasures: Int = windowMinVisibleMeasuresWeb,
+        stepMeasures: Int = windowStepMeasures
     ) -> Int {
         let measureNumber = max(1, activeMeasureNumber)
-        let safeVisible = max(2, visibleMeasures)
-        let stride = safeVisible - 1
-        return 1 + (measureNumber - 1) / stride * stride
+        let safeStep = max(1, stepMeasures)
+        return 1 + (measureNumber - 1) / safeStep * safeStep
     }
 
     static func resolveScrollAnchorX(

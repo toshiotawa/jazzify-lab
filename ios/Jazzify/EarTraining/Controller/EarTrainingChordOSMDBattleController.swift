@@ -636,7 +636,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
 
         targets = preparedTargets
-        applyKeyboardScrollAnchor(maxMidi: Self.resolveKeyboardScrollMaxMidi(attacks: xmlAttacks, targets: preparedTargets))
+        applyKeyboardScrollAnchor(
+            maxMidi: Self.resolveKeyboardScrollMaxMidi(attacks: xmlAttacks, targets: preparedTargets),
+            attacks: xmlAttacks
+        )
         resetPhraseRuntimeState()
         let initialMeasureNumber = max(1, targets.first?.measureNumber ?? 1)
 
@@ -847,9 +850,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         refreshKeyboardDisplayRange(attacks: rhythmAttacks)
     }
 
-    private func refreshKeyboardDisplayRange(attacks: [ChordOsmdMusicXmlAttack]) {
+    private func refreshKeyboardDisplayRange(attacks: [ChordOsmdMusicXmlAttack] = []) {
+        let effectiveAttacks = attacks.isEmpty ? rhythmAttacks : attacks
         var midis = EarTrainingKeyboardScroll.allPitchMidis(in: stage)
-        for attack in attacks {
+        for attack in effectiveAttacks {
             midis.append(contentsOf: attack.midis)
         }
         keyboardDisplayRange = PianoKeyboardScrollGeometry.resolveDisplayKeyboardRange(
@@ -1458,6 +1462,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     }
 
     private func finishGameOver(message: String) {
+        guard gameState != .gameOver else { return }
+        pendingImpactHandlers.removeAll()
         cancelAllTasks(keepsAudio: true)
         audio.stopDrumLoop()
         audio.stopPhrase()
