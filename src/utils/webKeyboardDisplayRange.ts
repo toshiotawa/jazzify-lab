@@ -24,6 +24,13 @@ const KEYBOARD_FIRST_MIDI = 21;
 const KEYBOARD_LAST_MIDI = 108;
 const WHITE_KEY_INSET = 1;
 
+/** PC/タブレットの出題音域フィット時に確保する最低表示幅（2オクターブ） */
+export const MIN_DISPLAY_SPAN_SEMITONES = 24;
+
+export interface WebKeyboardDisplayRangeOptions {
+  ensureMinTwoOctaves?: boolean;
+}
+
 export const isPianoBlackKey = (midi: number): boolean => {
   switch (((midi % 12) + 12) % 12) {
     case 1:
@@ -130,6 +137,95 @@ export const expandMidiRangeWithWhiteKeyPadding = (
   };
 };
 
+const alignRangeEndsToWhiteKeys = (
+  minMidi: number,
+  maxMidi: number,
+  whites: readonly number[],
+  firstMidi: number,
+  lastMidi: number,
+): WebKeyboardRange => {
+  let min = minMidi;
+  let max = maxMidi;
+
+  if (isPianoBlackKey(min)) {
+    min = whiteStrictlyBelow(min, whites)
+      ?? whites[whiteKeyIndexAtOrBelow(min, whites)]
+      ?? firstMidi;
+  }
+  if (isPianoBlackKey(max)) {
+    max = whiteStrictlyAbove(max, whites)
+      ?? whites[whiteKeyIndexAtOrAbove(max, whites)]
+      ?? lastMidi;
+  }
+
+  return {
+    minMidi: Math.max(firstMidi, min),
+    maxMidi: Math.min(lastMidi, max),
+  };
+};
+
+/** 表示レンジが最低幅未満なら出題中心で対称拡大し、88鍵端でクランプする。 */
+export const ensureMinimumDisplaySpan = (
+  range: WebKeyboardRange,
+  minSpanSemitones: number = MIN_DISPLAY_SPAN_SEMITONES,
+  firstMidi: number = KEYBOARD_FIRST_MIDI,
+  lastMidi: number = KEYBOARD_LAST_MIDI,
+): WebKeyboardRange => {
+  if (range.maxMidi - range.minMidi >= minSpanSemitones) {
+    return range;
+  }
+
+  const whites = whiteMidiNotesInRange(firstMidi, lastMidi);
+  const center = (range.minMidi + range.maxMidi) / 2;
+  let targetMin = Math.round(center - minSpanSemitones / 2);
+  let targetMax = targetMin + minSpanSemitones;
+
+  if (targetMin < firstMidi) {
+    const shift = firstMidi - targetMin;
+    targetMin = firstMidi;
+    targetMax = Math.min(lastMidi, targetMax + shift);
+  }
+  if (targetMax > lastMidi) {
+    const shift = targetMax - lastMidi;
+    targetMax = lastMidi;
+    targetMin = Math.max(firstMidi, targetMin - shift);
+  }
+
+  let aligned = alignRangeEndsToWhiteKeys(targetMin, targetMax, whites, firstMidi, lastMidi);
+  if (aligned.maxMidi - aligned.minMidi >= minSpanSemitones) {
+    return aligned;
+  }
+
+  const deficit = minSpanSemitones - (aligned.maxMidi - aligned.minMidi);
+  let extraMin = 0;
+  let extraMax = 0;
+  let remaining = deficit;
+  const roomBelow = aligned.minMidi - firstMidi;
+  const roomAbove = lastMidi - aligned.maxMidi;
+
+  const tryExpandBelow = (amount: number): void => {
+    const can = Math.min(roomBelow - extraMin, amount);
+    extraMin += can;
+    remaining -= can;
+  };
+
+  const tryExpandAbove = (amount: number): void => {
+    const can = Math.min(roomAbove - extraMax, amount);
+    extraMax += can;
+    remaining -= can;
+  };
+
+  tryExpandBelow(Math.floor(remaining / 2));
+  tryExpandAbove(remaining);
+  tryExpandBelow(remaining);
+
+  targetMin = aligned.minMidi - extraMin;
+  targetMax = aligned.maxMidi + extraMax;
+
+  aligned = alignRangeEndsToWhiteKeys(targetMin, targetMax, whites, firstMidi, lastMidi);
+  return aligned;
+};
+
 export const absorbMidiIntoRange = (
   current: WebKeyboardRange | null,
   midi: number,
@@ -146,6 +242,7 @@ export const absorbMidiIntoRange = (
 export const resolveWebKeyboardDisplayRange = (
   noteMidis: readonly number[],
   mode: WebKeyboardDisplayMode,
+  options?: WebKeyboardDisplayRangeOptions,
 ): WebKeyboardRange => {
   if (mode === 'full88') {
     return FULL_88_KEYBOARD_RANGE;
@@ -164,7 +261,11 @@ export const resolveWebKeyboardDisplayRange = (
       maxNote = midi;
     }
   }
-  return expandMidiRangeWithWhiteKeyPadding(minNote, maxNote);
+  let range = expandMidiRangeWithWhiteKeyPadding(minNote, maxNote);
+  if (options?.ensureMinTwoOctaves === true) {
+    range = ensureMinimumDisplaySpan(range);
+  }
+  return range;
 };
 
 const parseVoicingMidi = (noteName: string): number | null => {

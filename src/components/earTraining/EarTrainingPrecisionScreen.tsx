@@ -21,6 +21,7 @@ import type {
   PrecisionLessonRank,
 } from '@/types';
 import { useGameStore } from '@/stores/gameStore';
+import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { cn } from '@/utils/cn';
@@ -163,6 +164,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   );
   const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
   const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
+  const ensureMinTwoOctaves = useMemo(() => {
+    const { signup_device_category: category } = resolveCurrentSignupDeviceContext();
+    return category !== 'mobile';
+  }, []);
 
   const phrases = useMemo(
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
@@ -441,6 +446,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     const displayRange = resolvePrecisionDisplayKeyboardRange(
       calibratedNotes.map(note => note.midi),
       settings.webKeyboardDisplayMode ?? 'questionRangeFit',
+      { ensureMinTwoOctaves },
     );
     setPrecisionNotes(calibratedNotes);
     setKeyboardRange(displayRange);
@@ -461,6 +467,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     syncRenderer,
     practiceTransposeEnabled,
     settings.webKeyboardDisplayMode,
+    ensureMinTwoOctaves,
   ]);
 
   const loadPrecisionMidi = useCallback(async (

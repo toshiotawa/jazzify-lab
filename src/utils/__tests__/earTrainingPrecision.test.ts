@@ -79,6 +79,11 @@ describe('earTrainingPrecisionNotes', () => {
     expect(range).toEqual(PRECISION_FULL_KEYBOARD_RANGE);
   });
 
+  it('PC/タブレット向けに最低2オクターブを確保する', () => {
+    const range = resolvePrecisionDisplayKeyboardRange([60, 67], 'questionRangeFit', { ensureMinTwoOctaves: true });
+    expect(range.maxMidi - range.minMidi).toBeGreaterThanOrEqual(24);
+  });
+
   it('移調済みMusicXMLからoffset無しで正しいmidiを生成する', () => {
     const transposed = applyPracticeTransposeToMusicXml(MINIMAL_XML, 2);
     const { notes: withOffset } = buildPrecisionNotesFromMusicXml(MINIMAL_XML, 120, 4, 2);

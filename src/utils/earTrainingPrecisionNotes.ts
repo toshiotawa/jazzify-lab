@@ -6,9 +6,11 @@ import {
 } from '@/utils/earTrainingChordOsmd';
 import { scalePracticeTargetTimeSec } from '@/utils/earTrainingPracticeSpeed';
 import {
+  ensureMinimumDisplaySpan,
   expandMidiRangeWithWhiteKeyPadding,
   FULL_88_KEYBOARD_RANGE,
   type WebKeyboardDisplayMode,
+  type WebKeyboardDisplayRangeOptions,
 } from '@/utils/webKeyboardDisplayRange';
 
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
@@ -244,6 +246,7 @@ export const resolvePrecisionKeyboardRange = (
 export const resolvePrecisionDisplayKeyboardRange = (
   noteMidis: readonly number[],
   displayMode: WebKeyboardDisplayMode,
+  options?: WebKeyboardDisplayRangeOptions,
 ): PrecisionKeyboardRange => {
   if (displayMode === 'full88') {
     return PRECISION_FULL_KEYBOARD_RANGE;
@@ -251,7 +254,11 @@ export const resolvePrecisionDisplayKeyboardRange = (
   if (noteMidis.length === 0) {
     return PRECISION_FULL_KEYBOARD_RANGE;
   }
-  return resolvePrecisionKeyboardRange(noteMidis);
+  let range = resolvePrecisionKeyboardRange(noteMidis);
+  if (options?.ensureMinTwoOctaves === true) {
+    range = ensureMinimumDisplaySpan(range);
+  }
+  return range;
 };
 
 /** 練習モード: 判定ライン付近に来た pending ノーツの鍵盤ガイド対象か */
