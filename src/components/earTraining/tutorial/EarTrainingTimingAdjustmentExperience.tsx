@@ -66,6 +66,7 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   const [greatInterstitialPercent, setGreatInterstitialPercent] = useState<number | null>(null);
   const [bluetoothNoticeOpen, setBluetoothNoticeOpen] = useState(true);
   const [playbackReady, setPlaybackReady] = useState(false);
+  const [osmdBattleReady, setOsmdBattleReady] = useState(false);
   const finalizedRef = useRef(false);
   const audioUnlockedRef = useRef(false);
   const sceneCompleteTimerRef = useRef<number | null>(null);
@@ -85,7 +86,19 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
         const row = await fetchEarTrainingTutorialScript(OSMD_TIMING_ADJUSTMENT_SCRIPT_ID);
         if (cancelled) return;
         setScriptRow(row);
-        setSceneIndex(0);
+        const startIndex =
+          entry === 'settings'
+            ? Math.max(
+              0,
+              row.script.scenes.findIndex(
+                (scene) => (
+                  scene.type === 'chord_osmd'
+                  && isTimingCalibrationContentRef(scene.contentRef)
+                ),
+              ),
+            )
+            : 0;
+        setSceneIndex(startIndex);
         setGate('ready');
         void unlockTutorialAudio();
         const characters = await fetchSurvivalCharacters();
@@ -101,7 +114,7 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [entry]);
 
   useEffect(() => {
     const unlockOnce = (): void => {
@@ -118,6 +131,10 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   const script = scriptRow?.script ?? null;
   const scenes = script?.scenes ?? [];
   const currentScene = scenes[sceneIndex] ?? null;
+
+  useEffect(() => {
+    setOsmdBattleReady(false);
+  }, [sceneIndex]);
 
   useEffect(() => {
     if (gate !== 'ready' || !script) return;
@@ -188,6 +205,10 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
     }, 1000);
   }, [advanceSceneImmediate, sceneIndex, scenes]);
 
+  const handleOsmdBattleReady = useCallback(() => {
+    setOsmdBattleReady(true);
+  }, []);
+
   const bindings: EarTrainingTutorialBindings = useMemo(
     () => {
       const sceneUi =
@@ -205,11 +226,13 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
         timingCalibrationMode:
           currentScene?.type === 'chord_osmd'
           && isTimingCalibrationContentRef(currentScene.contentRef),
+        onBattleReady: handleOsmdBattleReady,
       };
     },
     [
       currentScene,
       finalize,
+      handleOsmdBattleReady,
       isEnglishCopy,
       noopSetCharacterText,
       onTutorialSceneComplete,
@@ -267,16 +290,17 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   }
 
   const bottomCtaLabel = entry === 'quest' ? copy.questAdvance : copy.settingsBack;
-  /** 進むはタイミング調整 OSMD 中のみ。続く MQ 1-1 OSMD では出さない */
+  /** 進むはタイミング調整 OSMD が読み込み完了してから。続く MQ 1-1 OSMD では出さない */
   const showBottomCta =
     !bluetoothNoticeOpen
+    && !showFinishCta
     && (
       entry === 'settings'
       || (
         currentScene.type === 'chord_osmd'
         && currentScene.contentRef === OSMD_TIMING_ADJUSTMENT_CONTENT_REF
+        && osmdBattleReady
       )
-      || showFinishCta
     );
 
   return (
@@ -302,8 +326,16 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
         ) : null}
 
         {currentScene.type === 'finish' && showFinishCta ? (
-          <div className="flex h-full w-full items-center justify-center bg-black px-6 text-center text-white">
-            <p className="text-lg font-semibold">{copy.title}</p>
+          <div className="flex h-full w-full items-center justify-center bg-black/50 px-6 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                void finalize('completed');
+              }}
+              className="rounded-xl bg-purple-600 px-8 py-4 text-base font-bold text-white shadow-lg hover:bg-purple-500"
+            >
+              {copy.questComplete}
+            </button>
           </div>
         ) : null}
       </div>

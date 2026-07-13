@@ -13,6 +13,8 @@ struct EarTrainingChordOSMDGameView: View {
     var tutorialHooks: EarTrainingTutorialSceneHooks?
     var hostedLandscapeSize: CGSize?
     var prewarmOsmdPack: EarTrainingTutorialPrewarmedOsmdPack?
+    /// バトル準備完了時（タイミング調整の「進む」表示用）
+    var onReady: (() -> Void)? = nil
     let onClose: () -> Void
 
     @State private var controller: EarTrainingChordOSMDBattleController?
@@ -180,6 +182,7 @@ struct EarTrainingChordOSMDGameView: View {
         self.controller = createdController
         self.isLoading = false
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
+        onReady?()
     }
 }
 

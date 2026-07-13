@@ -11,6 +11,7 @@ struct MainQuestResumeSheet: View {
         VStack(spacing: 20) {
             Text(isJapanese ? "メインクエストを再開しますか？" : "Resume Main Quest?")
                 .font(.title3.bold())
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
                 Button(
@@ -26,7 +27,10 @@ struct MainQuestResumeSheet: View {
             }
         }
         .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium])
+        .presentationBackground(Color(hex: "0f172a"))
+        .preferredColorScheme(.dark)
     }
 }
 

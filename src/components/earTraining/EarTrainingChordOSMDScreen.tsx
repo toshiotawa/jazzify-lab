@@ -214,6 +214,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const raw = tutorial.drumLoopUrl?.trim();
     return raw && raw.length > 0 ? raw : CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL;
   }, [tutorial]);
+  useEffect(() => {
+    if (!timingCalibrationMode) {
+      return;
+    }
+    tutorial?.bindings.onBattleReady?.();
+  }, [timingCalibrationMode, tutorial]);
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);

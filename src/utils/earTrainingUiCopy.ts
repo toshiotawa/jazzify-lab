@@ -260,6 +260,7 @@ export interface EarTrainingTimingAdjustmentCopy {
   sliderAudioEarlyHint: string;
   sliderOffsetLabel: string;
   questAdvance: string;
+  questComplete: string;
   settingsBack: string;
 }
 
@@ -281,6 +282,7 @@ export const getEarTrainingTimingAdjustmentCopy = (
         sliderAudioEarlyHint: 'Audio feels early → move left (−)',
         sliderOffsetLabel: 'Offset',
         questAdvance: 'Continue',
+        questComplete: 'Complete',
         settingsBack: 'Back',
       }
     : {
@@ -297,6 +299,7 @@ export const getEarTrainingTimingAdjustmentCopy = (
         sliderAudioEarlyHint: '音が早い → 左へ（−）',
         sliderOffsetLabel: '補正量',
         questAdvance: '進む',
+        questComplete: '完了する',
         settingsBack: '戻る',
       }
 );

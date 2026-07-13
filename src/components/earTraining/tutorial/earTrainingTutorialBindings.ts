@@ -21,6 +21,8 @@ export interface EarTrainingTutorialBindings {
   onExit: () => void;
   /** OSMD タイミング調整チュートリアル: Great 非表示・確認モーダル・ピアノ非表示 */
   timingCalibrationMode?: boolean;
+  /** タイミング調整 OSMD のバトル UI が読み込み完了したとき（進むボタン表示用） */
+  onBattleReady?: () => void;
 }
 
 export const clampTutorialPlayerHp = (

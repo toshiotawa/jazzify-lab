@@ -14,28 +14,29 @@ describe('buildOsmdTimingAdjustmentV1Script', () => {
     expect(isEarTrainingTutorialScriptPayload(script)).toBe(true);
     expect(script.ui.showExitButton).toBe(false);
     expect(script.ui.hideSettingsButton).toBe(true);
-    expect(script.finish?.showCta).toBe(false);
-    expect(script.scenes).toHaveLength(6);
-    expect(script.scenes[0]?.type).toBe('chord_osmd');
-    expect(script.scenes[1]?.type).toBe('dialogue_only');
-    expect(script.scenes[2]?.type).toBe('chord_osmd');
-    expect(script.scenes[3]?.type).toBe('chord_osmd');
+    expect(script.finish?.showCta).toBe(true);
+    expect(script.scenes).toHaveLength(8);
+    expect(script.scenes[0]?.type).toBe('dialogue_only');
+    expect(script.scenes[1]?.type).toBe('chord_osmd');
+    expect(script.scenes[2]?.type).toBe('dialogue_only');
+    expect(script.scenes[3]?.type).toBe('dialogue_only');
     expect(script.scenes[4]?.type).toBe('dialogue_only');
-    expect(script.scenes[5]?.type).toBe('finish');
-    if (script.scenes[0]?.type === 'chord_osmd') {
-      expect(script.scenes[0].requiredLoops).toBe(1);
-      expect(script.scenes[0].contentRef).toBe('osmd-timing-adjustment');
+    expect(script.scenes[5]?.type).toBe('chord_osmd');
+    expect(script.scenes[6]?.type).toBe('dialogue_only');
+    expect(script.scenes[7]?.type).toBe('finish');
+    if (script.scenes[0]?.type === 'dialogue_only') {
+      expect(script.scenes[0].lines[0]?.ja).toBe('ようこそJazzifyへ！');
+      expect(script.scenes[0].lines[0]?.en).toBe('Welcome to Jazzify!');
     }
-    if (script.scenes[2]?.type === 'chord_osmd') {
-      expect(script.scenes[2].contentRef).toBe('mq-b1-q1-osmd');
-      expect(script.scenes[2].timedLines.length).toBe(24);
+    if (script.scenes[1]?.type === 'chord_osmd') {
+      expect(script.scenes[1].requiredLoops).toBe(1);
+      expect(script.scenes[1].contentRef).toBe('osmd-timing-adjustment');
     }
-    if (script.scenes[3]?.type === 'chord_osmd') {
-      expect(script.scenes[3].contentRef).toBe('mq-b1-q1-osmd-normal');
-      expect(script.scenes[3].timedLines.length).toBe(0);
+    if (script.scenes[5]?.type === 'chord_osmd') {
+      expect(script.scenes[5].contentRef).toBe('mq-b1-q1-osmd');
+      expect(script.scenes[5].timedLines.length).toBe(24);
     }
     expect(script.content['mq-b1-q1-osmd']?.stage.slug).toBe('mq-b1-q1-osmd');
-    expect(script.content['mq-b1-q1-osmd-normal']?.stage.enemy_hp).toBe(40);
     expect(script.content['mq-b1-q1-osmd']?.phrases?.[0]?.music_xml_url).toContain('1-1.musicxml');
     const content = script.content['osmd-timing-adjustment'];
     expect(content?.stage.bpm).toBe(100);

@@ -23,10 +23,11 @@ struct QuestReadyToCompleteSheet: View {
                 .font(.system(size: 44))
             Text(heading)
                 .font(.title3.bold())
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
             Text(bodyText)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
                 Button(isJapanese ? "クエストを完了する" : "Complete this quest", action: onComplete)
@@ -39,6 +40,9 @@ struct QuestReadyToCompleteSheet: View {
             }
         }
         .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium])
+        .presentationBackground(Color(hex: "0f172a"))
+        .preferredColorScheme(.dark)
     }
 }

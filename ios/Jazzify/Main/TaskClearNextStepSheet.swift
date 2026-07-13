@@ -49,10 +49,11 @@ struct TaskClearNextStepSheet: View {
             }
             Text(heading)
                 .font(.title3.bold())
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
             Text(bodyText)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
             Text(nextTaskTitle)
                 .font(.subheadline.weight(.semibold))
@@ -69,6 +70,9 @@ struct TaskClearNextStepSheet: View {
             }
         }
         .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium])
+        .presentationBackground(Color(hex: "0f172a"))
+        .preferredColorScheme(.dark)
     }
 }

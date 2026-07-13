@@ -55,10 +55,11 @@ struct QuestCompletionSheet: View {
                 .font(.system(size: 44))
             Text(heading)
                 .font(.title3.bold())
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
             Text(bodyText)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
             if let next = model.nextLesson,
                model.kind != .chapterCompleteOnly,
@@ -90,6 +91,9 @@ struct QuestCompletionSheet: View {
             }
         }
         .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium])
+        .presentationBackground(Color(hex: "0f172a"))
+        .preferredColorScheme(.dark)
     }
 }

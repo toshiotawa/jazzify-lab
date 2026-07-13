@@ -27,6 +27,7 @@ struct EarTrainingTimingAdjustmentView: View {
     @State private var greatInterstitialPercent: Int?
     @State private var bluetoothNoticeOpen = true
     @State private var playbackReady = false
+    @State private var osmdBattleReady = false
 
     private enum Gate {
         case loading
@@ -115,9 +116,19 @@ struct EarTrainingTimingAdjustmentView: View {
                         }
                         if scenes.indices.contains(sceneIndex), case .finish = scenes[sceneIndex], showFinishCta {
                             Color.black
-                            Text(isJa ? "OSMDタイミング調整チュートリアル" : "OSMD Timing Adjustment Tutorial")
-                                .font(.title3.bold())
-                                .foregroundStyle(.white)
+                            Button(isJa ? "完了する" : "Complete") {
+                                Task {
+                                    await onQuestComplete?()
+                                    onClose()
+                                }
+                            }
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 16)
+                            .background(Color(red: 0.58, green: 0.20, blue: 0.92))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
                         }
                     }
                     .allowsHitTesting(!bluetoothNoticeOpen)
@@ -196,6 +207,11 @@ struct EarTrainingTimingAdjustmentView: View {
                     ui: ui
                 ),
                 hostedLandscapeSize: landscapeSize,
+                onReady: timingCalibrationMode
+                    ? {
+                        osmdBattleReady = true
+                    }
+                    : nil,
                 onClose: onClose
             )
         }
@@ -241,13 +257,13 @@ struct EarTrainingTimingAdjustmentView: View {
         entry == .quest ? (isJa ? "進む" : "Continue") : (isJa ? "戻る" : "Back")
     }
 
-    /// 進むはタイミング調整 OSMD 中のみ。続く MQ 1-1 OSMD では出さない（設定の戻るは常時可）
+    /// 進むはタイミング調整 OSMD の読み込み完了後のみ。完了 CTA は中央ボタンを使う
     private var shouldShowBottomCta: Bool {
         if entry == .settings { return true }
-        if showFinishCta { return true }
+        if showFinishCta { return false }
         guard let script, script.scenes.indices.contains(sceneIndex) else { return false }
         if case .chordOsmd(let osmd) = script.scenes[sceneIndex] {
-            return osmd.contentRef == "osmd-timing-adjustment"
+            return osmd.contentRef == "osmd-timing-adjustment" && osmdBattleReady
         }
         return false
     }
@@ -255,13 +271,6 @@ struct EarTrainingTimingAdjustmentView: View {
     private func handleBottomCta() {
         if entry == .settings {
             onClose()
-            return
-        }
-        if showFinishCta {
-            Task {
-                await onQuestComplete?()
-                onClose()
-            }
             return
         }
         guard let script else { return }
@@ -282,19 +291,6 @@ struct EarTrainingTimingAdjustmentView: View {
                 playerInvincible: true,
                 disableEnemyAttacks: true,
                 keyboardHintsDefault: false
-            )
-        case "mq-b1-q1-osmd-normal":
-            return EarTrainingTutorialUiOverrides(
-                hidePlayerHpBar: false,
-                hideSettingsButton: false,
-                hideBackButton: true,
-                hideLobby: false,
-                hideMidiToggle: false,
-                hidePhraseIntroQuota: false,
-                showExitButton: false,
-                playerInvincible: false,
-                disableEnemyAttacks: false,
-                keyboardHintsDefault: true
             )
         default:
             return EarTrainingTutorialUiOverrides(
@@ -365,6 +361,7 @@ struct EarTrainingTimingAdjustmentView: View {
     private func advanceScene(script: EarTrainingTutorialScriptPayload) {
         showGreatInterstitial = false
         greatInterstitialPercent = nil
+        osmdBattleReady = false
         let nextIndex = sceneIndex + 1
         guard script.scenes.indices.contains(nextIndex) else {
             Task {
