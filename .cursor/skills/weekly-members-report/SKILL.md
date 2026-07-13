@@ -78,7 +78,7 @@ npm run ga:week
 ## Caveats to always mention
 
 - `profiles.rank` と `subscriptions.status` がズレることがある（例: Apple 解約予約中は `rank=standard` かつ `status=canceled`）。利用可否の正本は `entitlement_state`
-- iOS は `signup_device_*` / `first_touch_*` / `user_assignment_starts` が薄いことが多い
+- iOS は `first_touch_*` / `user_assignment_starts` が薄いことが多い（`signup_device_*` はネイティブ登録で保存する）。iOS DL 経路の投稿別比較は ASC Campaign Link 集計（個別ユーザー紐づけ不可）
 - GA `sign_up` 帰属の `(not set)` と DB UTM `(none)` は別物。混同しない
 - GA `platform` は現状 web 中心。ネイティブ登録は Supabase `signup_platform` で見る
 - `midi_connected` / `quest_*` が GA で 0 でも DB クリアは存在する

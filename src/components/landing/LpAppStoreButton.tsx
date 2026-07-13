@@ -1,5 +1,5 @@
-import React from 'react';
-import { JAZZIFY_APP_STORE_URL } from '@/components/landing/landingLinks';
+import React, { useMemo } from 'react';
+import { buildAppStoreCampaignUrlFromFirstTouch } from '@/utils/analytics/appStoreCampaignUrl';
 
 const AppleLogoIcon: React.FC = () => (
   <svg
@@ -31,15 +31,20 @@ export const LpAppStoreButton: React.FC<LpAppStoreButtonProps> = ({
   ariaLabel,
   className = '',
   size = 'sm',
-}) => (
-  <a
-    href={JAZZIFY_APP_STORE_URL}
-    target="_blank"
-    rel="noopener noreferrer"
-    aria-label={ariaLabel}
-    className={`lp-btn-outline ${SIZE_CLASSES[size]} ${className}`.trim()}
-  >
-    <AppleLogoIcon />
-    <span>{label}</span>
-  </a>
-);
+}) => {
+  // first_touch はアプリ初期化時に1回だけ捕捉されるため、マウント時の読み取りで十分。
+  const href = useMemo(() => buildAppStoreCampaignUrlFromFirstTouch(), []);
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={ariaLabel}
+      className={`lp-btn-outline ${SIZE_CLASSES[size]} ${className}`.trim()}
+    >
+      <AppleLogoIcon />
+      <span>{label}</span>
+    </a>
+  );
+};

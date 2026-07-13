@@ -1,6 +1,12 @@
 import Foundation
+import UIKit
 
 enum SignupMetadata {
+    struct DeviceContext {
+        let category: String
+        let os: String
+    }
+
     private static let isoCountryCodes: Set<String> = [
         "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
         "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW", "BY", "BZ",
@@ -38,5 +44,11 @@ enum SignupMetadata {
             return nil
         }
         return upper
+    }
+
+    /// Web の `signup_device_category` / `signup_os` と揃える。ネイティブなので browser は保存しない。
+    static func resolveSignupDeviceContext() -> DeviceContext {
+        let category = UIDevice.current.userInterfaceIdiom == .pad ? "tablet" : "mobile"
+        return DeviceContext(category: category, os: "ios")
     }
 }

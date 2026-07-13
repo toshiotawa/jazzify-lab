@@ -99,6 +99,8 @@ final class SupabaseService: Sendable {
             let preferred_locale: String
             let is_admin: Bool = false
             let signup_platform: String = "ios"
+            let signup_device_category: String
+            let signup_os: String
             let country: String?
             let ga_client_id: String
             let marketing_email_opt_in: Bool
@@ -107,6 +109,7 @@ final class SupabaseService: Sendable {
             let marketing_email_opt_in_text: String?
         }
 
+        let device = SignupMetadata.resolveSignupDeviceContext()
         try await client
             .from("profiles")
             .insert(NewProfile(
@@ -114,6 +117,8 @@ final class SupabaseService: Sendable {
                 email: email,
                 nickname: nickname,
                 preferred_locale: locale.rawValue,
+                signup_device_category: device.category,
+                signup_os: device.os,
                 country: SignupMetadata.resolveSignupCountry(),
                 ga_client_id: AnalyticsClientID.current(),
                 marketing_email_opt_in: marketingEmailOptIn,
