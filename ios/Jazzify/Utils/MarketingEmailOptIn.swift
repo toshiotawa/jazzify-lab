@@ -3,13 +3,13 @@ import Foundation
 /// メルマガ許諾チェックボックスの表示文言・同意証跡。
 /// Web版 `src/utils/marketingEmailOptIn.ts` と内容を揃える。
 enum MarketingEmailOptIn {
-    static let labelJa = "無料PDF「Bluesy Licks 5選」と、Jazzifyの練習ヒントをメールで受け取る"
-    static let labelEn = "Get the free \"5 Bluesy Licks\" PDF and Jazzify practice tips by email"
+    static let labelJa = "無料PDF「Bluesy Licks 5選」と、Jazzifyからの練習ヒント・お知らせをメールで受け取る"
+    static let labelEn = "Get the free \"5 Bluesy Licks\" PDF plus Jazzify practice tips and updates by email"
 
     static let descriptionJa =
-        "登録後、PDFと3日間の練習メールをお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。"
+        "登録後、特典PDFに加え、練習のヒントやサービスに関するお知らせをお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。"
     static let descriptionEn =
-        "After signing up, we'll email you the PDF and a 3-day practice series. Unsubscribe anytime. You can sign up without checking this box."
+        "After signing up, we'll email you the PDF, practice tips, and product updates. Unsubscribe anytime. You can sign up without checking this box."
 
     static func label(locale: AppLocale) -> String {
         locale == .ja ? labelJa : labelEn
