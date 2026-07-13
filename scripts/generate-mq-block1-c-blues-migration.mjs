@@ -313,10 +313,10 @@ const mqB1Q1OsmdScript = {
       lines: [
         { speaker: 'partner', ja: 'よし。ドとソで返事ができたのう。', en: 'Good. You answered with Do and Sol.' },
         { speaker: 'player', ja: 'ちょっと音で会話してる感じがした！', en: 'It felt like talking with sound!' },
-        { speaker: 'partner', ja: '次は、まねるだけではない。', en: "Next, you won't only copy." },
-        { speaker: 'player', ja: 'じゃあ、どうするの？', en: 'So what do I do?' },
-        { speaker: 'partner', ja: 'ドとソだけで、自分の返事を弾くのじゃ。', en: 'Answer in your own way with just Do and Sol.' },
-        { speaker: 'player', ja: '次は、ドとソで自由にアドリブしよう。', en: 'Next up: ad-lib with Do and Sol.' },
+        { speaker: 'partner', ja: '次は、コードの響きを覚える番じゃ。', en: 'Next, we learn chord colors.' },
+        { speaker: 'player', ja: 'コードって、たくさんの音？', en: 'Chords — lots of notes?' },
+        { speaker: 'partner', ja: 'いや、まずは2音だけでよい。C7、F7、G7じゃ。', en: 'No — two notes are enough. C7, F7, and G7.' },
+        { speaker: 'player', ja: '次は、2音コードに挑戦しよう。', en: 'Next up: two-note chords.' },
       ],
     },
     { type: 'finish' },
@@ -332,17 +332,20 @@ const mqB1Q2SurvivalScript = {
   ui: survivalTutorialUi,
   scenarioOverrides: survivalScenarioAlwaysStaff,
   content: {
-    'mq-b1-q2-random': {
+    'mq-b1-q2-prog': {
       stage: {
         name: '2音コード',
         nameEn: 'Two-note chords',
-        stageType: 'random',
+        stageType: 'progression',
         mapCategory: 'lesson',
         chordDisplayName: 'C7 / F7 / G7',
         chordDisplayNameEn: 'C7 / F7 / G7',
         lessonOnly: true,
       },
-      randomChordPoolEasy: [
+      chordProgression: [
+        guideChordDef('C7'),
+        guideChordDef('F7'),
+        guideChordDef('G7'),
         guideChordDef('C7'),
         guideChordDef('F7'),
         guideChordDef('G7'),
@@ -364,10 +367,9 @@ const mqB1Q2SurvivalScript = {
       ],
     },
     {
-      type: 'random_battle',
-      contentRef: 'mq-b1-q2-random',
-      questionCount: 3,
-      hardQuestions: false,
+      type: 'progression_battle',
+      contentRef: 'mq-b1-q2-prog',
+      loopCount: 6,
       introDelaySeconds: 3,
       dialogue: {
         intro: { ja: 'C7、F7、G7の2音を覚えるのじゃ。', en: 'Learn the two-note C7, F7, and G7 shapes.' },
@@ -381,8 +383,8 @@ const mqB1Q2SurvivalScript = {
       lines: [
         { speaker: 'jajii', ja: 'よし。コードの響きが見えてきたのう。', en: 'Good. You can hear the chord colors now.' },
         { speaker: 'fai', ja: '2音だけでも、けっこう雰囲気出るね。', en: 'Two notes still feel pretty jazzy.' },
-        { speaker: 'jajii', ja: '次は、C7とF7をすばやく見分けて弾くのじゃ。', en: 'Next, tell C7 and F7 apart and play them quickly.' },
-        { speaker: 'fai', ja: 'C7とF7のコードランに進もう。', en: 'On to the C7/F7 chord run.' },
+        { speaker: 'jajii', ja: '次は、Cブルースの流れを通して見るのじゃ。', en: 'Next, watch the C blues chord flow from start to finish.' },
+        { speaker: 'fai', ja: 'Cブルースのコード進行に進もう。', en: 'On to the C blues chord progression.' },
       ],
     },
     { type: 'finish' },

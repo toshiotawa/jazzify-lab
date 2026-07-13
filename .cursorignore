@@ -2,6 +2,7 @@
 
 # 依存関係
 node_modules/
+jazzify-ga-report/node_modules/
 
 # ビルド成果物
 dist/
@@ -13,10 +14,20 @@ build/
 .parcel-cache/
 node_modules/.cache/
 node_modules/.vite/
+tmp-ear-training-build/
 
 # カバレッジ
 coverage/
 
+# 大容量アセット（ゲーム用画像・音声）
+public/
+assets-src/
+scripts/data/
+
+# Git オブジェクト（インデックス不要）
+.git/
+
 # Xcodeユーザー固有ファイル（バイナリ・自動生成）
 ios/Jazzify.xcodeproj/xcuserdata/
 ios/Jazzify.xcodeproj/project.xcworkspace/xcuserdata/
+ios/Jazzify/DerivedData/

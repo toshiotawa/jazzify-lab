@@ -36,6 +36,10 @@ describe('buildOsmdTimingAdjustmentV1Script', () => {
       expect(script.scenes[5].contentRef).toBe('mq-b1-q1-osmd');
       expect(script.scenes[5].timedLines.length).toBe(24);
     }
+    if (script.scenes[6]?.type === 'dialogue_only') {
+      expect(script.scenes[6].lines.some((line) => line.ja.includes('2音コード'))).toBe(true);
+      expect(script.scenes[6].lines.some((line) => line.ja.includes('アドリブ'))).toBe(false);
+    }
     expect(script.content['mq-b1-q1-osmd']?.stage.slug).toBe('mq-b1-q1-osmd');
     expect(script.content['mq-b1-q1-osmd']?.phrases?.[0]?.music_xml_url).toContain('1-1.musicxml');
     const content = script.content['osmd-timing-adjustment'];

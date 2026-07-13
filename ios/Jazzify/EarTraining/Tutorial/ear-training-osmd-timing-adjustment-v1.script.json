@@ -526,23 +526,23 @@
         },
         {
           "speaker": "partner",
-          "ja": "次は、まねるだけではない。",
-          "en": "Next, you won't only copy."
+          "ja": "次は、コードの響きを覚える番じゃ。",
+          "en": "Next, we learn chord colors."
         },
         {
           "speaker": "player",
-          "ja": "じゃあ、どうするの？",
-          "en": "So what do I do?"
+          "ja": "コードって、たくさんの音？",
+          "en": "Chords — lots of notes?"
         },
         {
           "speaker": "partner",
-          "ja": "ドとソだけで、自分の返事を弾くのじゃ。",
-          "en": "Answer in your own way with just Do and Sol."
+          "ja": "いや、まずは2音だけでよい。C7、F7、G7じゃ。",
+          "en": "No — two notes are enough. C7, F7, and G7."
         },
         {
           "speaker": "player",
-          "ja": "次は、ドとソで自由にアドリブしよう。",
-          "en": "Next up: ad-lib with Do and Sol."
+          "ja": "次は、2音コードに挑戦しよう。",
+          "en": "Next up: two-note chords."
         }
       ]
     },

@@ -1,0 +1,23 @@
+{
+  "name": "jazzify-ga-report",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jazzify GA4 Data API local reports",
+  "type": "module",
+  "scripts": {
+    "ga:daily": "tsx src/ga-daily.ts",
+    "ga:acquisition": "tsx src/ga-acquisition.ts",
+    "ga:events": "tsx src/ga-events.ts",
+    "ga:week": "tsx src/ga-week.ts",
+    "ga:report": "tsx src/ga-report.ts"
+  },
+  "dependencies": {
+    "@google-analytics/data": "^6.1.0",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
+}
