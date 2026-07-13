@@ -1586,6 +1586,7 @@ struct LessonDetailView: View {
     @State private var navigationState: LessonNavigationState?
     @State private var isNavigating = false
     @State private var showSubscriptionSheet = false
+    @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
     @State private var showReadyToCompletePrompt = false
@@ -1695,7 +1696,12 @@ struct LessonDetailView: View {
                     }
             }
             .sheet(isPresented: $showSubscriptionSheet) {
-                SubscriptionView()
+                SubscriptionView(entry: subscriptionEntry)
+                    .onDisappear {
+                        if subscriptionEntry == .chapterComplete {
+                            subscriptionEntry = .default
+                        }
+                    }
             }
     }
 
@@ -1727,12 +1733,7 @@ struct LessonDetailView: View {
                             activeLesson = next
                         }
                     },
-                    onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
-                        ? {
-                            questCompletionSheet = nil
-                            showSubscriptionSheet = true
-                        }
-                        : nil
+                    onPremium: nil
                 )
             }
             .sheet(isPresented: $showReadyToCompletePrompt) {
@@ -3057,6 +3058,14 @@ struct LessonDetailView: View {
             guard kind != .none else { return }
             if activeLesson.orderIndex == 0, let userId = appState.profile?.id {
                 AnalyticsTracker.trackTutorialComplete(userId: userId, tutorialName: "first_quest")
+            }
+            if kind == .chapterCompletePremiumUpsell {
+                await MainActor.run {
+                    navigationState = navState
+                    subscriptionEntry = .chapterComplete
+                    showSubscriptionSheet = true
+                }
+                return
             }
             await MainActor.run {
                 navigationState = navState

@@ -15,6 +15,7 @@ import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
 import { trackEvent } from '@/utils/analytics/ga';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import type { PaywallSource } from '@/utils/analytics/paywallSource';
+import { resolveWebPaywallCopy } from '@/utils/webPaywallCopy';
 
 interface WebPaywallModalProps {
   open: boolean;
@@ -29,24 +30,12 @@ const formatUsdReferenceLine = (jpyAmount: number, usdRate: number): string =>
 const formatUsdReferenceSuffix = (jpyAmount: number, usdRate: number): string =>
   `(≈ $${jpyAmountToApproxUsdWhole(jpyAmount, usdRate)} USD)`;
 
-const COPY = {
+const PRICE_COPY = {
   ja: {
-    headline: 'ジャズの練習を、ここから先へ。',
-    subheadline: 'Jazzify Premiumで、全コース・全ステージ・学習記録を開放。',
-    mainQuestHeadline: '今のステージの続きはPremiumで解放されます。',
-    mainQuestSubheadline: '7日間無料で、第2章のCブルースの続きがプレイできます。',
-    features: [
-      '初心者向けメインクエストを最後まで進められる',
-      'アドリブ・両手ヴォイシングなど目的別に練習できる',
-      'サバイバル全ステージで反復練習できる',
-      '学習記録で成長を確認できる',
-    ],
     priceMonthly: '月額 ¥3,980',
     priceYearly: '年額 ¥34,800（月あたり ¥2,900）',
     priceSavingsAmount: '年額なら年間 ¥12,960 お得',
     priceSavingsMonths: '約3ヶ月分お得',
-    ctaTrial: '7日間無料で始める',
-    ctaSubscribe: 'プレミアムに加入する',
     footnote: '次の画面で月額・年額を選択できます。いつでも解約できます。',
     dismiss: 'あとで',
     loginRequired: 'ログインが必要です',
@@ -56,23 +45,11 @@ const COPY = {
     close: '閉じる',
   },
   en: {
-    headline: 'Take your jazz practice further.',
-    subheadline: 'Unlock all courses, stages, and learning records with Jazzify Premium.',
-    mainQuestHeadline: 'Continue this stage with Premium.',
-    mainQuestSubheadline: 'Start a 7-day free trial and play Chapter 2 — C Blues and beyond.',
-    features: [
-      'Finish the beginner Main Quest from start to end',
-      'Practice by goal—improv, two-hand voicings, and more',
-      'Drill every Survival stage tier',
-      'Track your progress with learning records',
-    ],
     priceMonthly: 'Monthly ¥3,980',
     priceYearly: 'Yearly ¥34,800',
     priceYearlyPerMonth: '¥2,900 per month',
     priceSavingsAmount: 'Save ¥12,960 a year vs monthly',
     priceSavingsMonths: 'About 3 months free vs monthly',
-    ctaTrial: 'Start 7-day free trial',
-    ctaSubscribe: 'Subscribe to Premium',
     footnote: 'Choose monthly or yearly on the next screen. Cancel anytime.',
     dismiss: 'Later',
     loginRequired: 'You need to log in first.',
@@ -117,14 +94,8 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
   const [error, setError] = useState<string | null>(null);
 
   const trialUsed = profile?.lemon_trial_used === true;
-  const baseCopy = isEnglishCopy ? COPY.en : COPY.ja;
-  const copy = source === 'main_quest'
-    ? {
-        ...baseCopy,
-        headline: baseCopy.mainQuestHeadline,
-        subheadline: baseCopy.mainQuestSubheadline,
-      }
-    : baseCopy;
+  const copy = resolveWebPaywallCopy(source, isEnglishCopy, trialUsed);
+  const priceCopy = isEnglishCopy ? PRICE_COPY.en : PRICE_COPY.ja;
   const usdRate = useJpyUsdRate(isEnglishCopy, open);
 
   useEffect(() => {
@@ -137,7 +108,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
 
   const handleCheckout = useCallback(async () => {
     if (!profile) {
-      setError(copy.loginRequired);
+      setError(priceCopy.loginRequired);
       return;
     }
 
@@ -166,25 +137,23 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
       } else {
         const errBody = await response.json().catch(() => ({}));
         setError(
-          (errBody as { error?: string }).error ?? copy.checkoutFailed,
+          (errBody as { error?: string }).error ?? priceCopy.checkoutFailed,
         );
       }
     } catch {
-      setError(copy.error);
+      setError(priceCopy.error);
     } finally {
       setLoading(false);
     }
-  }, [profile, copy.loginRequired, copy.checkoutFailed, copy.error]);
+  }, [profile, priceCopy.loginRequired, priceCopy.checkoutFailed, priceCopy.error]);
 
   if (!open) return null;
-
-  const ctaLabel = trialUsed ? copy.ctaSubscribe : copy.ctaTrial;
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
       <button
         type="button"
-        aria-label={copy.close}
+        aria-label={priceCopy.close}
         className="absolute inset-0 bg-black/75 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -195,7 +164,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
       >
         <button
           type="button"
-          aria-label={copy.close}
+          aria-label={priceCopy.close}
           className="absolute top-3 right-3 p-1.5 rounded-full text-gray-500 hover:text-gray-300 hover:bg-slate-800/80 transition-colors"
           onClick={onClose}
         >
@@ -243,38 +212,38 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
             <>
               <PriceRow
                 icon={<FaCalendarAlt className="w-4 h-4" aria-hidden="true" />}
-                label={COPY.en.priceMonthly}
+                label={PRICE_COPY.en.priceMonthly}
                 sublabel={formatUsdReferenceLine(PREMIUM_PRICING_JPY.monthly, usdRate)}
               />
               <PriceRow
                 icon={<FaCrown className="w-4 h-4 text-amber-400/90" aria-hidden="true" />}
-                label={COPY.en.priceYearly}
+                label={PRICE_COPY.en.priceYearly}
                 sublabel={formatUsdReferenceLine(PREMIUM_PRICING_JPY.yearly, usdRate)}
               />
               <p className="pl-7 text-xs text-gray-400">
-                {COPY.en.priceYearlyPerMonth}
+                {PRICE_COPY.en.priceYearlyPerMonth}
                 {` ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlyPerMonth, usdRate)}`}
               </p>
               <div className="flex flex-wrap gap-2 pl-7">
                 <SavingsBadge
-                  label={`${COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlySavings, usdRate)}`}
+                  label={`${PRICE_COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlySavings, usdRate)}`}
                 />
-                <SavingsBadge label={COPY.en.priceSavingsMonths} />
+                <SavingsBadge label={PRICE_COPY.en.priceSavingsMonths} />
               </div>
             </>
           ) : (
             <>
               <PriceRow
                 icon={<FaCalendarAlt className="w-4 h-4" aria-hidden="true" />}
-                label={COPY.ja.priceMonthly}
+                label={PRICE_COPY.ja.priceMonthly}
               />
               <PriceRow
                 icon={<FaCrown className="w-4 h-4 text-amber-400/90" aria-hidden="true" />}
-                label={COPY.ja.priceYearly}
+                label={PRICE_COPY.ja.priceYearly}
               />
               <div className="flex flex-wrap gap-2 pl-7">
-                <SavingsBadge label={COPY.ja.priceSavingsAmount} />
-                <SavingsBadge label={COPY.ja.priceSavingsMonths} />
+                <SavingsBadge label={PRICE_COPY.ja.priceSavingsAmount} />
+                <SavingsBadge label={PRICE_COPY.ja.priceSavingsMonths} />
               </div>
             </>
           )}
@@ -292,12 +261,12 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
         >
           <FaMusic className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 text-center">
-            {loading ? copy.processing : ctaLabel}
+            {loading ? priceCopy.processing : copy.ctaLabel}
           </span>
           {!loading && <FaArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />}
         </button>
 
-        <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">{copy.footnote}</p>
+        <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">{priceCopy.footnote}</p>
 
         <div className="text-center mt-3">
           <button
@@ -306,7 +275,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
             onClick={onClose}
             disabled={loading}
           >
-            {copy.dismiss}
+            {priceCopy.dismiss}
           </button>
         </div>
       </div>

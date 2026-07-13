@@ -1,5 +1,6 @@
 export type PaywallSource =
   | 'main_quest'
+  | 'chapter_complete'
   | 'dashboard'
   | 'lesson_list'
   | 'survival'

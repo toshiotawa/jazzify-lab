@@ -84,6 +84,7 @@ import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuatio
 import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
 import { lessonDetailPath } from '@/utils/appNavigation';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
+import type { PaywallSource } from '@/utils/analytics/paywallSource';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
 import { SurvivalRequirementDetailLines } from '@/components/lesson/SurvivalRequirementDetailLines';
@@ -320,13 +321,9 @@ const LessonDetailPage: React.FC = () => {
           }
           const lessonBlockNum = lessonData.block_number ?? 1;
           if (course.is_main_course === true && !isMainQuestBlockPlayable(lessonBlockNum, isPremiumMember)) {
-            pushToast(
-              isEnglishCopy
-                ? 'Main Quest chapters 2+ require Premium.'
-                : 'メインクエスト第2チャプター以降はプレミアムが必要です。',
-              'warning',
-            );
-            window.location.hash = '#lessons';
+            setPaywallSource('main_quest');
+            setPaywallRedirectToLessonsOnClose(true);
+            setShowPaywall(true);
             return;
           }
           setLessonCourseIsMainQuest(isMainQuestCourse);
@@ -477,6 +474,8 @@ const LessonDetailPage: React.FC = () => {
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
   const [questCompletionModalKind, setQuestCompletionModalKind] = useState<QuestCompletionModalKind>('none');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallSource, setPaywallSource] = useState<PaywallSource>('main_quest');
+  const [paywallRedirectToLessonsOnClose, setPaywallRedirectToLessonsOnClose] = useState(false);
   const [showReadyToCompletePrompt, setShowReadyToCompletePrompt] = useState(false);
   const [showTaskClearNextStepModal, setShowTaskClearNextStepModal] = useState(false);
   const [nextTaskAfterClear, setNextTaskAfterClear] = useState<LessonRequirement | null>(null);
@@ -766,8 +765,16 @@ const LessonDetailPage: React.FC = () => {
             sortLessonsByOrder(courseLessons),
             freshNavInfo,
           );
-          setQuestCompletionModalKind(modalKind);
-          setShowNextLessonPrompt(modalKind !== 'none');
+          if (modalKind === 'chapterCompletePremiumUpsell') {
+            setQuestCompletionModalKind('none');
+            setShowNextLessonPrompt(false);
+            setPaywallSource('chapter_complete');
+            setPaywallRedirectToLessonsOnClose(false);
+            setShowPaywall(true);
+          } else {
+            setQuestCompletionModalKind(modalKind);
+            setShowNextLessonPrompt(modalKind !== 'none');
+          }
           if (lesson.order_index === 0 && modalKind !== 'none' && profile) {
             recordUserMilestoneFireAndForget(profile.id, 'first_success');
             trackEvent('tutorial_complete', { tutorial_name: 'first_quest' });
@@ -1491,7 +1498,8 @@ const LessonDetailPage: React.FC = () => {
               </button>
             </div>
 
-            {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none' ? (
+            {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none'
+              && questCompletionModalKind !== 'chapterCompletePremiumUpsell' ? (
               <QuestCompletionModal
                 kind={questCompletionModalKind}
                 currentLesson={lesson}
@@ -1518,15 +1526,6 @@ const LessonDetailPage: React.FC = () => {
                             shouldAutoStart ? { autoStart: true } : undefined,
                           );
                         }, 100);
-                      }
-                    : undefined
-                }
-                onPremium={
-                  questCompletionModalKind === 'chapterCompletePremiumUpsell'
-                    ? () => {
-                        setShowNextLessonPrompt(false);
-                        setQuestCompletionModalKind('none');
-                        setShowPaywall(true);
                       }
                     : undefined
                 }
@@ -1571,9 +1570,15 @@ const LessonDetailPage: React.FC = () => {
             ) : null}
             <WebPaywallModal
               open={showPaywall}
-              onClose={() => setShowPaywall(false)}
+              onClose={() => {
+                setShowPaywall(false);
+                if (paywallRedirectToLessonsOnClose) {
+                  setPaywallRedirectToLessonsOnClose(false);
+                  window.location.hash = '#lessons';
+                }
+              }}
               isEnglishCopy={isEnglishCopy}
-              source="main_quest"
+              source={paywallSource}
             />
           </div>
         </div>

@@ -1,7 +1,13 @@
 import SwiftUI
 import StoreKit
 
+enum SubscriptionEntry {
+    case `default`
+    case chapterComplete
+}
+
 struct SubscriptionView: View {
+    var entry: SubscriptionEntry = .default
     @EnvironmentObject var appState: AppState
     @StateObject private var store = StoreManager.shared
     @Environment(\.dismiss) private var dismiss
@@ -117,7 +123,8 @@ struct SubscriptionView: View {
                 if appState.canShowIAP,
                    !appState.isPremium,
                    let userId = appState.profile?.id {
-                    AnalyticsTracker.trackPaywallView(userId: userId, source: "subscription_sheet")
+                    let source = entry == .chapterComplete ? "chapter_complete" : "subscription_sheet"
+                    AnalyticsTracker.trackPaywallView(userId: userId, source: source)
                 }
             }
             .task(id: introEligibilityTaskID) {
@@ -546,31 +553,76 @@ struct SubscriptionView: View {
 
     private var purchaseHeaderSection: some View {
         VStack(spacing: 16) {
-            VStack(spacing: 8) {
-                Text(locale == .ja ? "もっと弾ける。もっと続く。" : "Play more. Keep going.")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-
-                Text(locale == .ja
-                     ? "Jazzify Premiumで、全クエスト・ゲームモード・学習記録を開放"
-                     : "Unlock all quests, game modes, and learning records with Jazzify Premium")
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
-                    .multilineTextAlignment(.center)
+            if entry == .chapterComplete {
+                chapterCompleteHeaderSection
+            } else {
+                defaultPurchaseHeaderSection
             }
-            .padding(.top, 8)
 
-            VStack(spacing: 8) {
-                featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエスト全チャプター・目的別コースなどすべてのクエスト" : "All Main Quest chapters, topic courses, and quests")
-                featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
-                featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
+            if entry == .chapterComplete {
+                chapterCompleteFeatureSection
+            } else {
+                defaultFeatureSection
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.06))
-            .cornerRadius(12)
         }
+    }
+
+    private var defaultPurchaseHeaderSection: some View {
+        VStack(spacing: 8) {
+            Text(locale == .ja ? "もっと弾ける。もっと続く。" : "Play more. Keep going.")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+
+            Text(locale == .ja
+                 ? "Jazzify Premiumで、全クエスト・ゲームモード・学習記録を開放"
+                 : "Unlock all quests, game modes, and learning records with Jazzify Premium")
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 8)
+    }
+
+    private var chapterCompleteHeaderSection: some View {
+        VStack(spacing: 8) {
+            Text(locale == .ja ? "第1チャプタークリア！" : "Chapter 1 complete!")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+
+            Text(locale == .ja
+                 ? "Cブルースでアドリブする第一歩を習得しました。"
+                 : "You took your first step improvising over C Blues.")
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 8)
+    }
+
+    private var defaultFeatureSection: some View {
+        VStack(spacing: 8) {
+            featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエスト全チャプター・目的別コースなどすべてのクエスト" : "All Main Quest chapters, topic courses, and quests")
+            featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
+            featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.06))
+        .cornerRadius(12)
+    }
+
+    private var chapterCompleteFeatureSection: some View {
+        VStack(spacing: 8) {
+            featureRow(icon: "waveform.path", text: locale == .ja ? "使える音を増やす" : "Expand the notes you can use")
+            featureRow(icon: "music.quarternote.3", text: locale == .ja ? "コードに合わせて弾く" : "Play along with the changes")
+            featureRow(icon: "text.quote", text: locale == .ja ? "実践的なフレーズを身につける" : "Build practical phrases")
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.06))
+        .cornerRadius(12)
     }
 
     private var planSelectionSection: some View {
@@ -821,6 +873,13 @@ struct SubscriptionView: View {
             return locale == .ja ? "プランを確認する" : "Review Plan"
         }
 
+        if entry == .chapterComplete {
+            if showIntroPaywallDetails, let offer = product.subscription?.introductoryOffer {
+                return chapterCompleteIntroTrialCTA(offer)
+            }
+            return locale == .ja ? "次のチャプターへ進む" : "Continue to the next chapter"
+        }
+
         if showIntroPaywallDetails, let offer = product.subscription?.introductoryOffer {
             return introTrialCTA(offer)
         }
@@ -849,6 +908,12 @@ struct SubscriptionView: View {
             return locale == .ja
                 ? "価格と無料トライアルの有無はApp Storeの確認画面で表示されます。"
                 : "Pricing and free trial availability will be shown on the App Store confirmation screen."
+        }
+
+        if entry == .chapterComplete && !showIntroPaywallDetails {
+            return locale == .ja
+                ? "次のチャプターで使える音を増やし、コードに合わせて弾けるようになります。"
+                : "In the next chapter, expand your notes and play along with the changes."
         }
 
         if showIntroPaywallDetails {
@@ -913,6 +978,38 @@ struct SubscriptionView: View {
             return value == 1 ? "1-year free" : "\(value)-year free"
         @unknown default:
             return "Free trial"
+        }
+    }
+
+    /// 第1章完了後のトライアル対象者向けCTA
+    private func chapterCompleteIntroTrialCTA(_ offer: Product.SubscriptionOffer) -> String {
+        let unit = offer.period.unit
+        let value = offer.period.value
+        if locale == .ja {
+            switch unit {
+            case .day:
+                return "\(value)日間無料で第2チャプターを始める"
+            case .week:
+                return value == 1 ? "1週間無料で第2チャプターを始める" : "\(value)週間無料で第2チャプターを始める"
+            case .month:
+                return value == 1 ? "1か月無料で第2チャプターを始める" : "\(value)か月無料で第2チャプターを始める"
+            case .year:
+                return value == 1 ? "1年無料で第2チャプターを始める" : "\(value)年無料で第2チャプターを始める"
+            @unknown default:
+                return "無料で第2チャプターを始める"
+            }
+        }
+        switch unit {
+        case .day:
+            return value == 1 ? "Start Chapter 2 free for 1 day" : "Start Chapter 2 free for \(value) days"
+        case .week:
+            return value == 1 ? "Start Chapter 2 free for 1 week" : "Start Chapter 2 free for \(value) weeks"
+        case .month:
+            return value == 1 ? "Start Chapter 2 free for 1 month" : "Start Chapter 2 free for \(value) months"
+        case .year:
+            return value == 1 ? "Start Chapter 2 free for 1 year" : "Start Chapter 2 free for \(value) years"
+        @unknown default:
+            return "Start Chapter 2 free"
         }
     }
 
