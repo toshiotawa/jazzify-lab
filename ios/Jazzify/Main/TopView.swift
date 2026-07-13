@@ -13,6 +13,7 @@ struct TopView: View {
     @State private var showSubscription = false
     @State private var showMainQuestResumeSheet = false
     @State private var resumeNextLesson: Lesson?
+    @State private var pendingResumeAfterUpdateNotice = false
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -104,6 +105,16 @@ struct TopView: View {
                         showMainQuestResumeSheet = false
                     }
                 )
+            }
+            .onChange(of: appState.appUpdateNotice) { notice in
+                guard notice == nil, pendingResumeAfterUpdateNotice else { return }
+                pendingResumeAfterUpdateNotice = false
+                showMainQuestResumeSheet = true
+            }
+            .onChange(of: appState.isAppUpdateCheckComplete) { complete in
+                guard complete, pendingResumeAfterUpdateNotice, appState.appUpdateNotice == nil else { return }
+                pendingResumeAfterUpdateNotice = false
+                showMainQuestResumeSheet = true
             }
         }
     }
@@ -593,7 +604,12 @@ struct TopView: View {
                   MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
             await MainActor.run {
                 resumeNextLesson = nextLesson
-                showMainQuestResumeSheet = true
+                // アップデート案内の取得・表示と同時に出すと片方の sheet が即閉じる
+                if !appState.isAppUpdateCheckComplete || appState.appUpdateNotice != nil {
+                    pendingResumeAfterUpdateNotice = true
+                } else {
+                    showMainQuestResumeSheet = true
+                }
             }
         }
     }

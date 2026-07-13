@@ -11,10 +11,11 @@ final class AppState: ObservableObject {
     @Published var appUpdateNotice: AppUpdateNotice?
     @Published var locale: AppLocale
     @Published var pendingMainQuestAutoStart = false
+    /// アップデート案内の取得が終わるまで Top の再開シートなどを抑止する
+    @Published private(set) var isAppUpdateCheckComplete = false
     @Published private(set) var lastBillingCheckedAt: Date?
 
     private var periodEndTimer: Task<Void, Never>?
-    private var didRequestAppUpdateNotice = false
 
     private static let staleTTL: TimeInterval = 300
     private static let refreshThrottle: TimeInterval = 60
@@ -35,7 +36,9 @@ final class AppState: ObservableObject {
 
     func bootstrap() async {
         AnalyticsTracker.trackFirstOpenIfNeeded()
-        startAppUpdateNoticeRefreshIfNeeded()
+
+        // 取得は認証と並列でよいが、sheet への反映は authState 確定後にする
+        async let pendingNotice = loadAppUpdateNoticeIfNeeded()
 
         do {
             let session = try await supabase.client.auth.session
@@ -44,15 +47,14 @@ final class AppState: ObservableObject {
 
             if let fetchedProfile = try await supabase.fetchProfileIfExists(userId: userId) {
                 await activateAuthenticatedState(userId: userId, profile: fetchedProfile)
-                return
+            } else {
+                store.setCurrentUserId(userId)
+                self.profile = nil
+                self.billingStatus = nil
+                self.lastBillingCheckedAt = nil
+                self.profileSetupError = nil
+                self.authState = .profileSetupRequired(userId, email)
             }
-
-            store.setCurrentUserId(userId)
-            self.profile = nil
-            self.billingStatus = nil
-            self.lastBillingCheckedAt = nil
-            self.profileSetupError = nil
-            self.authState = .profileSetupRequired(userId, email)
         } catch {
             store.setCurrentUserId(nil)
             self.profile = nil
@@ -63,38 +65,47 @@ final class AppState: ObservableObject {
             self.locale = Config.appLocale
             self.authState = .unauthenticated
         }
+
+        // authState 切替アニメと同時に sheet を出すと即座に閉じるため、ルート確定後に案内する
+        let pending = await pendingNotice
+        try? await Task.sleep(nanoseconds: 350_000_000)
+        if let pending {
+            appUpdateNotice = AppUpdateNotice(
+                latestVersion: pending.latestVersion,
+                currentVersion: pending.currentVersion,
+                title: pending.release.localizedTitle(locale),
+                message: pending.release.localizedMessage(locale)
+            )
+        }
+        isAppUpdateCheckComplete = true
     }
 
     func dismissAppUpdateNotice() {
         appUpdateNotice = nil
     }
 
-    private func startAppUpdateNoticeRefreshIfNeeded() {
-        guard !didRequestAppUpdateNotice else { return }
-        didRequestAppUpdateNotice = true
-
-        Task { [weak self] in
-            await self?.refreshAppUpdateNotice()
-        }
+    private struct PendingAppUpdateNotice: Sendable {
+        let latestVersion: String
+        let currentVersion: String
+        let release: AppReleaseVersionRow
     }
 
-    private func refreshAppUpdateNotice() async {
-        guard let currentVersion = Self.currentAppVersion() else { return }
+    private func loadAppUpdateNoticeIfNeeded() async -> PendingAppUpdateNotice? {
+        guard let currentVersion = Self.currentAppVersion() else { return nil }
 
         do {
             guard let release = try await supabase.fetchActiveAppReleaseVersion(platform: Self.appReleasePlatform),
                   Self.isVersion(release.latestVersion, newerThan: currentVersion) else {
-                return
+                return nil
             }
 
-            appUpdateNotice = AppUpdateNotice(
+            return PendingAppUpdateNotice(
                 latestVersion: release.latestVersion,
                 currentVersion: currentVersion,
-                title: release.localizedTitle(locale),
-                message: release.localizedMessage(locale)
+                release: release
             )
         } catch {
-            appUpdateNotice = nil
+            return nil
         }
     }
 

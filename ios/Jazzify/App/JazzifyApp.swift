@@ -37,6 +37,8 @@ struct JazzifyApp: App {
 struct RootView: View {
     @EnvironmentObject var appState: AppState
     @State private var onboardingLaunch: OnboardingLaunchRequest?
+    /// ObservableObject 経由の `$appState.appUpdateNotice` だと、課金更新などの再描画で sheet が落ちることがあるためローカルにミラーする
+    @State private var presentedAppUpdateNotice: AppUpdateNotice?
 
     var body: some View {
         Group {
@@ -54,11 +56,19 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: appState.authState)
-        .sheet(item: $appState.appUpdateNotice) { notice in
+        .onChange(of: appState.appUpdateNotice) { notice in
+            presentedAppUpdateNotice = notice
+        }
+        .sheet(item: $presentedAppUpdateNotice, onDismiss: {
+            if appState.appUpdateNotice != nil {
+                appState.dismissAppUpdateNotice()
+            }
+        }) { notice in
             AppUpdateModal(
                 notice: notice,
                 locale: appState.locale,
                 onDismiss: {
+                    presentedAppUpdateNotice = nil
                     appState.dismissAppUpdateNotice()
                 }
             )
