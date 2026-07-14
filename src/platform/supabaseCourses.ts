@@ -147,6 +147,10 @@ export async function fetchCoursesForLessonList({
           title_en,
           order_index,
           block_number,
+          block_name,
+          block_name_en,
+          block_description,
+          block_description_en,
           course_id
         )
       `)
