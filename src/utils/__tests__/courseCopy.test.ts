@@ -8,9 +8,9 @@ describe('courseDisplayTitle', () => {
     ).toBe('English');
   });
 
-  it('英語モードでも title_en が空なら title にフォールバックする', () => {
-    expect(courseDisplayTitle({ title: '日本語', title_en: null }, true)).toBe('日本語');
-    expect(courseDisplayTitle({ title: '日本語' }, true)).toBe('日本語');
+  it('英語モードで title_en が空なら空文字', () => {
+    expect(courseDisplayTitle({ title: '日本語', title_en: null }, true)).toBe('');
+    expect(courseDisplayTitle({ title: '日本語' }, true)).toBe('');
   });
 
   it('日本語モードでは常に title を返す', () => {
@@ -30,10 +30,10 @@ describe('courseDisplayDescription', () => {
     ).toBe('A');
   });
 
-  it('英語モードで description_en が無いときは description にフォールバックする', () => {
+  it('英語モードで description_en が無いときは undefined', () => {
     expect(
       courseDisplayDescription({ title: 't', description: 'あ' }, true),
-    ).toBe('あ');
+    ).toBeUndefined();
   });
 
   it('日本語モードでは description を返す', () => {

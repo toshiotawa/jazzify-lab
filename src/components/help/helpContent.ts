@@ -9,6 +9,7 @@ export interface HelpConnectionExampleCopy {
 export interface HelpIosMidiCopy {
   pageTitle: string;
   helmetTitle: string;
+  seoDescription: string;
   backButtonLabel: string;
   backButtonAria: string;
   intro: string;
@@ -34,6 +35,7 @@ export interface HelpKeyboardModelCopy {
 export interface HelpMidiKeyboardChoiceCopy {
   pageTitle: string;
   helmetTitle: string;
+  seoDescription: string;
   backButtonLabel: string;
   backButtonAria: string;
   conclusionHeading: string;
@@ -59,6 +61,8 @@ export interface HelpMidiKeyboardChoiceCopy {
 const HELP_IOS_MIDI_JA: HelpIosMidiCopy = {
   pageTitle: 'iPhone/iPad での MIDI 機器利用について',
   helmetTitle: 'iPhone/iPad での MIDI 接続 — Jazzify',
+  seoDescription:
+    'iPhone/iPadでMIDIキーボードをJazzifyに接続する方法。Lightning端子・USB Type-C端子それぞれの接続手順と注意点を解説します。',
   backButtonLabel: '← 戻る',
   backButtonAria: '前のページに戻る',
   intro:
@@ -115,6 +119,8 @@ const HELP_IOS_MIDI_JA: HelpIosMidiCopy = {
 const HELP_IOS_MIDI_EN: HelpIosMidiCopy = {
   pageTitle: 'Using MIDI Devices on iPhone / iPad',
   helmetTitle: 'MIDI on iPhone / iPad — Jazzify',
+  seoDescription:
+    'How to connect a MIDI keyboard to Jazzify on iPhone or iPad. Lightning and USB Type-C connection steps and tips.',
   backButtonLabel: '← Back',
   backButtonAria: 'Go back to the previous page',
   intro:
@@ -172,6 +178,8 @@ const HELP_IOS_MIDI_EN: HelpIosMidiCopy = {
 const HELP_MIDI_KEYBOARD_CHOICE_JA: HelpMidiKeyboardChoiceCopy = {
   pageTitle: 'MIDIキーボードの選び方',
   helmetTitle: 'MIDIキーボードの選び方 — Jazzify',
+  seoDescription:
+    'Jazzifyで使うMIDIキーボードの選び方。小型キーボードとフルサイズの違い、おすすめモデルと注意点を紹介します。',
   backButtonLabel: '← 戻る',
   backButtonAria: '前のページに戻る',
   conclusionHeading: 'まず結論',
@@ -226,6 +234,8 @@ const HELP_MIDI_KEYBOARD_CHOICE_JA: HelpMidiKeyboardChoiceCopy = {
 const HELP_MIDI_KEYBOARD_CHOICE_EN: HelpMidiKeyboardChoiceCopy = {
   pageTitle: 'Choosing a MIDI Keyboard',
   helmetTitle: 'Choosing a MIDI Keyboard — Jazzify',
+  seoDescription:
+    'How to choose a MIDI keyboard for Jazzify. Compact vs full-size keyboards, recommended models, and buying tips.',
   backButtonLabel: '← Back',
   backButtonAria: 'Go back to the previous page',
   conclusionHeading: 'Quick Answer',

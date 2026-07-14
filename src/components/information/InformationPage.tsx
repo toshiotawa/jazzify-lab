@@ -3,6 +3,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
+import {
+  announcementDisplayContent,
+  announcementDisplayLinkText,
+  announcementDisplayTitle,
+  filterAnnouncementsForLocale,
+} from '@/utils/announcementCopy';
 import { mdToHtml } from '@/utils/markdown';
 import { FaBell, FaExternalLinkAlt, FaChevronDown } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -38,7 +44,7 @@ const InformationPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await fetchActiveAnnouncements(locale);
-      setAnnouncements(data);
+      setAnnouncements(filterAnnouncementsForLocale(data, isEnglishCopy));
     } catch (e: unknown) {
       toast.error(isEnglishCopy ? 'Failed to load updates' : 'お知らせの読み込みに失敗しました');
     } finally {
@@ -132,7 +138,7 @@ const InformationPage: React.FC = () => {
                     >
                       <div className="flex-1 min-w-0">
                         <h2 className="text-lg font-semibold mb-1 truncate pr-4">
-                          {(isEnglishCopy && announcement.title_en) ? announcement.title_en : announcement.title}
+                          {announcementDisplayTitle(announcement, isEnglishCopy)}
                         </h2>
                         <div className="text-sm text-gray-500">
                           {new Date(announcement.created_at).toLocaleDateString(
@@ -154,7 +160,7 @@ const InformationPage: React.FC = () => {
                           className="text-gray-300 mb-4 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
                           dangerouslySetInnerHTML={{
                             __html: mdToHtml(
-                              (isEnglishCopy && announcement.content_en) ? announcement.content_en : announcement.content,
+                              announcementDisplayContent(announcement, isEnglishCopy),
                             ),
                           }}
                         />
@@ -168,9 +174,12 @@ const InformationPage: React.FC = () => {
                           >
                             <FaExternalLinkAlt className="w-4 h-4" />
                             <span>
-                              {(isEnglishCopy && announcement.link_text_en)
-                                ? announcement.link_text_en
-                                : announcement.link_text || (isEnglishCopy ? 'View Details' : '詳細を見る')}
+                              {announcementDisplayLinkText(
+                                announcement,
+                                isEnglishCopy,
+                                'View Details',
+                                '詳細を見る',
+                              )}
                             </span>
                           </a>
                         )}

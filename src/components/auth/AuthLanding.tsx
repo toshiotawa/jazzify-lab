@@ -6,6 +6,8 @@ import { navigateToDashboardPath } from '@/utils/appNavigation';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { trackEvent } from '@/utils/analytics/ga';
+import PublicPageHelmet from '@/components/seo/PublicPageHelmet';
+import { getAuthLandingSeo } from '@/components/auth/authSeo';
 
 interface AuthLandingProps {
   mode: 'signup' | 'login';
@@ -25,6 +27,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const authSeo = getAuthLandingSeo(mode, isEnglishCopy);
   const tablistLabel = isEnglishCopy ? 'Authentication mode' : '認証切替';
   const tabSignupLabel = isEnglishCopy ? 'Sign Up' : '会員登録';
   const tabLoginLabel = isEnglishCopy ? 'Log In' : 'ログイン';
@@ -132,6 +135,11 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
   return (
     <div className="min-h-screen overflow-y-auto bg-gradient-to-br from-slate-900 to-black text-white">
+      <PublicPageHelmet
+        title={authSeo.title}
+        description={authSeo.description}
+        htmlLang={isEnglishCopy ? 'en' : 'ja'}
+      />
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="max-w-md w-full space-y-8">
           {/* タブ切り替え */}

@@ -58,7 +58,7 @@ const Header: React.FC = () => {
       <button
         className="md:hidden p-2 text-white hover:text-blue-300 transition-colors"
         onClick={() => setMenuOpen(!menuOpen)}
-        aria-label="メニュー"
+        aria-label={isEnglishCopy ? 'Menu' : 'メニュー'}
       >
         {menuOpen ? <FaTimes size={20} /> : <FaBars size={20} />}
       </button>

@@ -3,6 +3,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
+import {
+  announcementDisplayContent,
+  announcementDisplayLinkText,
+  announcementDisplayTitle,
+  filterAnnouncementsForLocale,
+} from '@/utils/announcementCopy';
 import { mdToHtml } from '@/utils/markdown';
 import {
   FaBell,
@@ -56,7 +62,8 @@ const Dashboard: React.FC = () => {
     promises.push(
       fetchActiveAnnouncements(isEnglishCopy ? 'en' : 'ja')
         .then((announcementsData) => {
-          const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
+          const localizedAnnouncements = filterAnnouncementsForLocale(announcementsData, isEnglishCopy);
+          const sortedAnnouncements = localizedAnnouncements.sort((a: Announcement, b: Announcement) => {
             if (a.priority !== b.priority) {
               return a.priority - b.priority;
             }
@@ -190,17 +197,13 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
                   <h4 className="font-semibold mb-2">
-                    {isEnglishCopy && latestAnnouncement.title_en
-                      ? latestAnnouncement.title_en
-                      : latestAnnouncement.title}
+                    {announcementDisplayTitle(latestAnnouncement, isEnglishCopy)}
                   </h4>
                   <div
                     className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
                     dangerouslySetInnerHTML={{
                       __html: mdToHtml(
-                        isEnglishCopy && latestAnnouncement.content_en
-                          ? latestAnnouncement.content_en
-                          : latestAnnouncement.content,
+                        announcementDisplayContent(latestAnnouncement, isEnglishCopy),
                       ),
                     }}
                   />
@@ -214,9 +217,12 @@ const Dashboard: React.FC = () => {
                     >
                       <FaExternalLinkAlt className="w-3 h-3" />
                       <span>
-                        {isEnglishCopy && latestAnnouncement.link_text_en
-                          ? latestAnnouncement.link_text_en
-                          : latestAnnouncement.link_text || (isEnglishCopy ? 'Open link' : 'リンクを開く')}
+                        {announcementDisplayLinkText(
+                          latestAnnouncement,
+                          isEnglishCopy,
+                          'Open link',
+                          'リンクを開く',
+                        )}
                       </span>
                     </a>
                   )}

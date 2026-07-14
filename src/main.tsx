@@ -21,7 +21,7 @@ import { isLandingPath } from '@/utils/appPaths';
 import { captureFirstTouch } from '@/utils/analytics/attribution';
 import { initGa } from '@/utils/analytics/ga';
 import { initWebVitalsRum } from '@/utils/analytics/webVitals';
-import { syncPreferredLocaleFromUrl } from '@/utils/globalAudience';
+import { syncPreferredLocaleFromUrl, detectPreferredLocale } from '@/utils/globalAudience';
 
 // ローディング画面を非表示にする
 const hideLoading = () => {
@@ -34,16 +34,17 @@ const hideLoading = () => {
 };
 
 // エラー表示関数（簡素化）
-const showError = (error: any) => {
+const showError = (error: unknown) => {
+  const isEnglishCopy = detectPreferredLocale() === 'en';
   const loadingElement = document.getElementById('loading');
   if (loadingElement) {
     loadingElement.innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center;">
         <div style="color: #ef4444; font-size: 60px; margin-bottom: 24px;">⚠️</div>
-        <h2 style="color: #ef4444; margin-bottom: 24px; font-size: 28px;">読み込みエラー</h2>
+        <h2 style="color: #ef4444; margin-bottom: 24px; font-size: 28px;">${isEnglishCopy ? 'Loading error' : '読み込みエラー'}</h2>
         <div style="background: #1f2937; padding: 24px; border-radius: 10px; margin-bottom: 24px; max-width: 700px;">
-          <p style="color: #ffffff; margin-bottom: 12px; font-size: 18px;">詳細情報:</p>
-          <pre style="color: #93c5fd; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">${error.toString()}</pre>
+          <p style="color: #ffffff; margin-bottom: 12px; font-size: 18px;">${isEnglishCopy ? 'Details:' : '詳細情報:'}</p>
+          <pre style="color: #93c5fd; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5;">${String(error)}</pre>
           <br>
           <p style="color: #9ca3af; font-size: 14px; line-height: 1.5;">
             Environment: ${window.location.hostname}<br>
@@ -52,7 +53,7 @@ const showError = (error: any) => {
           </p>
         </div>
         <button onclick="window.location.reload()" style="background: #3b82f6; color: white; padding: 16px 32px; border: none; border-radius: 8px; cursor: pointer; font-size: 18px;">
-          再読み込み
+          ${isEnglishCopy ? 'Reload' : '再読み込み'}
         </button>
       </div>
     `;
@@ -72,7 +73,9 @@ window.addEventListener('unhandledrejection', (event) => {
     showDebugInfo(`JSON読み込みエラー: ${event.reason.message}`, true);
     
     // より分かりやすいエラーメッセージ
-    const userFriendlyError = new Error('楽曲ファイルの読み込みに失敗しました。ファイルが正しく配置されているか確認してください。');
+    const userFriendlyError = detectPreferredLocale() === 'en'
+      ? new Error('Failed to load a song file. Please check that files are deployed correctly.')
+      : new Error('楽曲ファイルの読み込みに失敗しました。ファイルが正しく配置されているか確認してください。');
     showError(userFriendlyError);
   } else {
     showDebugInfo(`Unhandled Promise Rejection: ${event.reason}`, true);

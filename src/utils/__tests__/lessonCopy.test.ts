@@ -25,8 +25,8 @@ describe('lessonDisplayTitle', () => {
     ).toBe('EN Title');
   });
 
-  it('英語でも title_en が無ければ title', () => {
-    expect(lessonDisplayTitle(baseLesson, true)).toBe('日本語タイトル');
+  it('英語でも title_en が無ければ空文字', () => {
+    expect(lessonDisplayTitle(baseLesson, true)).toBe('');
   });
 
   it('クエスト番号プレフィックスを除去する', () => {
@@ -56,6 +56,10 @@ describe('lessonDisplayDescription', () => {
     expect(
       lessonDisplayDescription({ ...baseLesson, description_en: 'EN body' }, true),
     ).toBe('EN body');
+  });
+
+  it('英語で description_en が無ければ空文字', () => {
+    expect(lessonDisplayDescription(baseLesson, true)).toBe('');
   });
 });
 
@@ -154,8 +158,8 @@ describe('lessonDisplayBlockName', () => {
     ).toBe('No. 1');
   });
 
-  it('英語で block_name_en が無ければ block_name', () => {
-    expect(lessonDisplayBlockName(baseLesson, true)).toBe('第1番');
+  it('英語で block_name_en が無く日本語 block_name があっても Block N', () => {
+    expect(lessonDisplayBlockName(baseLesson, true)).toBe('Block 2');
   });
 
   it('英語でチュートリアルブロックは block_name_en が無くても Tutorial とする', () => {

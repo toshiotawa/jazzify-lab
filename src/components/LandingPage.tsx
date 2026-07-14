@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Helmet } from 'react-helmet-async';
-import { getWindow } from '@/platform';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getLandingCopy } from '@/components/landing/landingCopy';
+import PublicPageHelmet from '@/components/seo/PublicPageHelmet';
 import { LpHeader } from '@/components/landing/sections/LpHeader';
 import { LpHero } from '@/components/landing/sections/LpHero';
 import { LpDemoPlaceholder } from '@/components/landing/sections/LpDemoPlaceholder';
@@ -98,39 +97,13 @@ const LandingPage: React.FC = () => {
     };
   }, [shouldRenderDemo]);
 
-  const siteOrigin = useMemo(() => {
-    try {
-      return getWindow().location.origin;
-    } catch {
-      return 'https://jazzify.jp';
-    }
-  }, []);
-
-  const helmetOgLocale = isEnglishLanding ? 'en_US' : 'ja_JP';
-  const helmetOgLocaleAlternate = isEnglishLanding ? 'ja_JP' : 'en_US';
-
   return (
     <div className="lp-root flex h-screen flex-col overflow-hidden">
-      <Helmet htmlAttributes={{ lang: isEnglishLanding ? 'en' : 'ja' }}>
-        <title>{copy.seo.title}</title>
-        <meta name="description" content={copy.seo.description} />
-        <link rel="canonical" href={`${siteOrigin}/`} />
-        <link rel="alternate" hrefLang="ja" href="https://jazzify.jp/" />
-        <link rel="alternate" hrefLang="en" href="https://en.jazzify.jp/" />
-        <link rel="alternate" hrefLang="x-default" href="https://jazzify.jp/" />
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="Jazzify" />
-        <meta property="og:title" content={copy.seo.title} />
-        <meta property="og:description" content={copy.seo.description} />
-        <meta property="og:url" content={`${siteOrigin}/`} />
-        <meta property="og:locale" content={helmetOgLocale} />
-        <meta property="og:locale:alternate" content={helmetOgLocaleAlternate} />
-        <meta property="og:image" content={`${siteOrigin}/newLP/hero-poster.webp`} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={copy.seo.title} />
-        <meta name="twitter:description" content={copy.seo.description} />
-        <meta name="twitter:image" content={`${siteOrigin}/newLP/hero-poster.webp`} />
-      </Helmet>
+      <PublicPageHelmet
+        title={copy.seo.title}
+        description={copy.seo.description}
+        htmlLang={isEnglishLanding ? 'en' : 'ja'}
+      />
 
       <div className="relative flex-1 overflow-y-auto overflow-x-hidden" ref={scrollRef} style={{ background: 'var(--lp-bg)' }}>
         <LpHeader />

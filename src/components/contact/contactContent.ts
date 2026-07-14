@@ -3,6 +3,7 @@ export type ContactLocale = 'ja' | 'en';
 export interface ContactPageCopy {
   pageTitle: string;
   helmetTitle: string;
+  seoDescription: string;
   backButtonLabel: string;
   backButtonAria: string;
   intro: string;
@@ -17,6 +18,7 @@ const CONTACT_COPY: Record<ContactLocale, ContactPageCopy> = {
   ja: {
     pageTitle: 'お問い合わせ',
     helmetTitle: 'お問い合わせ — Jazzify',
+    seoDescription: 'Jazzifyへのお問い合わせフォーム。ご質問・ご要望はこちらからお送りください。',
     backButtonLabel: '← 戻る',
     backButtonAria: '前のページに戻る',
     intro: 'ご質問・ご要望などありましたら、以下のフォームからお送りください。（プレースホルダー）',
@@ -29,6 +31,7 @@ const CONTACT_COPY: Record<ContactLocale, ContactPageCopy> = {
   en: {
     pageTitle: 'Contact',
     helmetTitle: 'Contact — Jazzify',
+    seoDescription: 'Contact Jazzify. Send questions or feedback using our contact form.',
     backButtonLabel: '← Back',
     backButtonAria: 'Go back to the previous page',
     intro: 'If you have questions or feedback, please send us a message using the form below.',

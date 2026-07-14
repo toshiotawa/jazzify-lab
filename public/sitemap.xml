@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://jazzify.jp/</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/"/>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/"/>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/signup</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/signup"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/signup"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/signup"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/signup</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/signup"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/signup"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/signup"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/help/ios-midi</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/help/ios-midi"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/help/ios-midi"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/help/ios-midi"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/help/ios-midi</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/help/ios-midi"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/help/ios-midi"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/help/ios-midi"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/help/midi-keyboard-choice</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/help/midi-keyboard-choice"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/help/midi-keyboard-choice"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/help/midi-keyboard-choice"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/help/midi-keyboard-choice</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/help/midi-keyboard-choice"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/help/midi-keyboard-choice"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/help/midi-keyboard-choice"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/contact</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/contact"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/contact"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/contact"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/contact</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/contact"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/contact"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/contact"/>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/terms</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/terms"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/terms"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/terms"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/terms</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/terms"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/terms"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/terms"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/privacy"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/privacy"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/privacy"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/privacy"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://jazzify.jp/legal/tokushoho</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/legal/tokushoho"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/legal/tokushoho"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/legal/tokushoho"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://en.jazzify.jp/legal/tokushoho</loc>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://jazzify.jp/legal/tokushoho"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://en.jazzify.jp/legal/tokushoho"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://jazzify.jp/legal/tokushoho"/>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+</urlset>

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
 import SiteFooter from '@/components/common/SiteFooter';
 import { useNavigate } from 'react-router-dom';
 import { getTermsContent, type TermsVariant } from '@/components/legal/termsContent';
+import { getTermsPageSeo } from '@/components/legal/termsSeo';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import PublicPageHelmet from '@/components/seo/PublicPageHelmet';
 
 export interface TermsPageProps {
   variant?: TermsVariant;
@@ -20,10 +21,12 @@ const TermsPage: React.FC<TermsPageProps> = ({ variant = 'web' }) => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const locale = isEnglishCopy ? 'en' : 'ja';
   const termsContent = getTermsContent({
     variant,
-    locale: isEnglishCopy ? 'en' : 'ja',
+    locale,
   });
+  const seo = getTermsPageSeo(variant, locale);
   const backButtonLabel = isEnglishCopy ? '← Back' : '← 戻る';
   const backButtonAria = isEnglishCopy ? 'Go back to the previous page' : '前のページに戻る';
   const pageTitle =
@@ -45,16 +48,15 @@ const TermsPage: React.FC<TermsPageProps> = ({ variant = 'web' }) => {
         </p>
       );
 
-  const helmetTitle =
-    variant === 'ios'
-      ? (isEnglishCopy ? 'Terms of Service (iOS) — Jazzify' : '利用規約（iOSアプリ版）— Jazzify')
-      : (isEnglishCopy ? 'Terms of Service — Jazzify' : '利用規約 — Jazzify');
+  const helmetTitle = seo.title;
 
   return (
     <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <Helmet>
-        <title>{helmetTitle}</title>
-      </Helmet>
+      <PublicPageHelmet
+        title={helmetTitle}
+        description={seo.description}
+        htmlLang={locale}
+      />
       <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
         <div className="container mx-auto px-6 py-3">
           <button

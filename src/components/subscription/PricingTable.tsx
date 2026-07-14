@@ -8,6 +8,9 @@ import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
+import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
+import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
+import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
 
 type PlanKey = 'free' | 'premium';
 
@@ -61,6 +64,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
   const { billingPayload } = useBillingAwareMembership(localeCode);
+  const usdRate = useJpyUsdRate(isEnglishCopy, true);
   const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
 
   const isIOS = isIOSWebView();
@@ -134,6 +138,13 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     );
   }
 
+  const formatUsdSuffix = (jpyAmount: number): string | null => {
+    if (!isEnglishCopy || usdRate === null) {
+      return null;
+    }
+    return `(≈ $${jpyAmountToApproxUsdWhole(jpyAmount, usdRate)} USD)`;
+  };
+
   const plans = PLANS.map(plan => ({
     ...plan,
     name:
@@ -205,7 +216,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               </p>
               <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
                 {isEnglishCopy
-                  ? 'Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via Lemon Squeezy.'
+                  ? `Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via Lemon Squeezy. Billing currency is JPY.${usdRate !== null ? ` Approx. $${jpyAmountToApproxUsdWhole(PREMIUM_PRICING_JPY.monthly, usdRate)} USD/month for reference.` : ''}`
                   : '初回は7日間の無料トライアルのあと、月額3,980円（税込）または年額34,800円（税込）が Lemon Squeezy 経由で課金されます。'}
               </p>
             </div>
@@ -235,10 +246,15 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                         <span className="text-xs text-gray-400 font-normal">{plan.priceSuffix}</span>
                       )}
                     </div>
+                    {plan.key === 'premium' && formatUsdSuffix(PREMIUM_PRICING_JPY.monthly) && (
+                      <div className="text-xs text-slate-400 mt-1">
+                        {formatUsdSuffix(PREMIUM_PRICING_JPY.monthly)}
+                      </div>
+                    )}
                     {plan.key === 'premium' && (
                       <div className="text-xs text-amber-200/90 mt-1">
                         {isEnglishCopy
-                          ? 'Or ¥34,800 / year (tax included)'
+                          ? `Or ¥34,800 / year (tax included)${formatUsdSuffix(PREMIUM_PRICING_JPY.yearly) ? ` ${formatUsdSuffix(PREMIUM_PRICING_JPY.yearly)}` : ''}`
                           : '年額 ¥34,800（税込）も選べます'}
                       </div>
                     )}

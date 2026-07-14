@@ -1,13 +1,14 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
 import SiteFooter from '@/components/common/SiteFooter';
 import { useNavigate } from 'react-router-dom';
 import { getPrivacyPageCopy } from '@/components/legal/privacyContent';
+import { getPrivacyPageSeo } from '@/components/legal/privacySeo';
 import type { PrivacyVariant } from '@/components/legal/privacyContent';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import type { TermsLocale } from '@/components/legal/termsContent';
+import PublicPageHelmet from '@/components/seo/PublicPageHelmet';
 
 const renderParagraphWithEmail = (text: string, key: string): React.ReactNode => {
   const marker = 'toshiotawa@me.com';
@@ -39,21 +40,21 @@ const PrivacyPage: React.FC<PrivacyPageProps> = ({ variant = 'web' }) => {
   });
   const locale: TermsLocale = isEnglishCopy ? 'en' : 'ja';
   const copy = getPrivacyPageCopy({ variant, locale });
+  const seo = getPrivacyPageSeo(variant, locale);
 
   const backButtonLabel = isEnglishCopy ? '← Back' : '← 戻る';
   const backButtonAria = isEnglishCopy ? 'Go back to the previous page' : '前のページに戻る';
   const lastUpdatedLabel = isEnglishCopy ? 'Last updated:' : '最終更新日:';
 
-  const helmetTitle =
-    variant === 'ios'
-      ? (isEnglishCopy ? 'Privacy Policy (iOS) — Jazzify' : 'プライバシーポリシー（iOSアプリ版）— Jazzify')
-      : (isEnglishCopy ? 'Privacy Policy — Jazzify' : 'プライバシーポリシー — Jazzify');
+  const helmetTitle = seo.title;
 
   return (
     <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <Helmet>
-        <title>{helmetTitle}</title>
-      </Helmet>
+      <PublicPageHelmet
+        title={helmetTitle}
+        description={seo.description}
+        htmlLang={locale}
+      />
       <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
         <div className="container mx-auto px-6 py-3">
           <button

@@ -1,4 +1,5 @@
 import type { EarTrainingStage, FantasyStage, Lesson } from '@/types';
+import { hasNonEmptyEnglishField } from '@/utils/localeField';
 
 /** DB 上のチュートリアルブロック既定名（block_name_en 未設定時の英語 UI 用） */
 const TUTORIAL_LESSON_BLOCK_NAME_JA = 'チュートリアル';
@@ -77,28 +78,40 @@ export const stripQuestTitlePrefix = (title: string, isEnglish: boolean): string
   return title.replace(pattern, '').trim();
 };
 
+const hasEnglishLessonTitle = (lesson: Pick<Lesson, 'title_en'>): boolean =>
+  hasNonEmptyEnglishField(lesson.title_en);
+
 export const lessonDisplayTitle = (lesson: LessonLocalized, isEnglish: boolean): string => {
-  const raw = isEnglish && lesson.title_en ? lesson.title_en : lesson.title;
-  return stripQuestTitlePrefix(raw, isEnglish);
+  if (isEnglish) {
+    const en = lesson.title_en?.trim();
+    return en ? stripQuestTitlePrefix(en, true) : '';
+  }
+  return stripQuestTitlePrefix(lesson.title, false);
 };
 
 export const lessonDisplayDescription = (lesson: LessonLocalized, isEnglish: boolean): string => {
-  if (isEnglish && lesson.description_en) {
-    return lesson.description_en;
+  if (isEnglish) {
+    return lesson.description_en?.trim() ?? '';
   }
   return lesson.description ?? '';
 };
 
 export const lessonDisplayBlockName = (lesson: LessonLocalized, isEnglish: boolean): string => {
   const blockNumber = lesson.block_number ?? 1;
-  if (isEnglish && lesson.block_name_en) {
-    return lesson.block_name_en;
-  }
-  if (lesson.block_name) {
-    if (isEnglish && lesson.block_name === TUTORIAL_LESSON_BLOCK_NAME_JA) {
+  if (isEnglish) {
+    if (lesson.block_name_en?.trim()) {
+      return lesson.block_name_en.trim();
+    }
+    if (lesson.block_name === TUTORIAL_LESSON_BLOCK_NAME_JA) {
       return TUTORIAL_LESSON_BLOCK_NAME_EN;
     }
+    return `Block ${blockNumber}`;
+  }
+  if (lesson.block_name) {
     return lesson.block_name;
   }
-  return isEnglish ? `Block ${blockNumber}` : `ブロック ${blockNumber}`;
+  return `ブロック ${blockNumber}`;
 };
+
+export const filterLessonsForEnglishUi = <T extends Pick<Lesson, 'title_en'>>(lessons: T[]): T[] =>
+  lessons.filter((lesson) => hasEnglishLessonTitle(lesson));

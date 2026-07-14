@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
-import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
 import SiteFooter from '@/components/common/SiteFooter';
 import { getHelpIosMidiCopy } from '@/components/help/helpContent';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import PublicPageHelmet from '@/components/seo/PublicPageHelmet';
 
 const diagramBoxClass =
   'font-mono text-sm bg-slate-800/80 p-3 rounded border border-white/10 whitespace-pre-wrap my-3';
@@ -88,9 +88,11 @@ const HelpIosMidi: React.FC = () => {
 
   return (
     <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-      <Helmet>
-        <title>{copy.helmetTitle}</title>
-      </Helmet>
+      <PublicPageHelmet
+        title={copy.helmetTitle}
+        description={copy.seoDescription}
+        htmlLang={isEnglishCopy ? 'en' : 'ja'}
+      />
       <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
         <div className="container mx-auto px-6 py-3">
           <button

@@ -6,7 +6,7 @@ import { fetchUserLessonProgressAll, LessonProgressBasic } from '@/platform/supa
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
+import { courseDisplayDescription, courseDisplayTitle, filterCoursesForEnglishUi } from '@/utils/courseCopy';
 import { lessonDisplayBlockName, lessonDisplayDescription, lessonDisplayTitle } from '@/utils/lessonCopy';
 import {
   COURSE_DIFFICULTY_TIER_ORDER,
@@ -218,6 +218,11 @@ const LessonPage: React.FC = () => {
   const { effectiveRank, isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const [showPaywall, setShowPaywall] = useState(false);
 
+  const visibleSpecificCourses = useMemo(
+    () => (isEnglishCopy ? filterCoursesForEnglishUi(specificCourses) : specificCourses),
+    [isEnglishCopy, specificCourses],
+  );
+
   useEffect(() => {
     if (!open) return;
     const hash = window.location.hash;
@@ -325,7 +330,7 @@ const LessonPage: React.FC = () => {
   );
 
   const coursesByTier = useMemo(() => {
-    const sorted = sortCoursesByDifficultyThenOrder(specificCourses);
+    const sorted = sortCoursesByDifficultyThenOrder(visibleSpecificCourses);
     const map = new Map<CourseDifficultyTier, Course[]>();
     for (const tier of COURSE_DIFFICULTY_TIER_ORDER) {
       map.set(tier, []);
@@ -338,7 +343,7 @@ const LessonPage: React.FC = () => {
       }
     }
     return map;
-  }, [specificCourses]);
+  }, [visibleSpecificCourses]);
 
   const openCourse = useCallback((courseId: string) => {
     window.location.hash = `#course?id=${courseId}`;
@@ -493,7 +498,7 @@ const LessonPage: React.FC = () => {
             <AllSpecificCoursesView
               isEnglishCopy={isEnglishCopy}
               coursesByTier={coursesByTier}
-              coursesCount={specificCourses.length}
+              coursesCount={visibleSpecificCourses.length}
               loading={loading}
               renderCourseCard={course => renderCourseCard(course)}
             />
@@ -520,7 +525,7 @@ const LessonPage: React.FC = () => {
 
               <SpecificCoursesSection
                 isEnglishCopy={isEnglishCopy}
-                courses={pickMainQuestPreviewCourses(specificCourses)}
+                courses={pickMainQuestPreviewCourses(visibleSpecificCourses)}
                 renderCourseCard={course => renderCourseCard(course, true)}
                 onSeeAll={() => { window.location.hash = '#lessons?view=courses'; }}
               />

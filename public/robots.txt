@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /main/
 
-# サービス要約（AI・要約ツール向けの補助情報）
-# https://jazzify.jp/llms.txt
+Sitemap: https://jazzify.jp/sitemap.xml
+Sitemap: https://en.jazzify.jp/sitemap.xml

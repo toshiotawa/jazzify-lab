@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { FaLock, FaCheck, FaPlay } from 'react-icons/fa';
 import { Lesson } from '@/types';
-import { lessonDisplayTitle } from '@/utils/lessonCopy';
+import { lessonDisplayTitle, filterLessonsForEnglishUi } from '@/utils/lessonCopy';
 import { cn } from '@/utils/cn';
 
 export interface LessonListPanelItemState {
@@ -35,7 +35,8 @@ export const LessonListPanel: React.FC<LessonListPanelProps> = ({
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const grouped = groupLessonsByBlock(lessons);
+  const visibleLessons = isEnglishCopy ? filterLessonsForEnglishUi(lessons) : lessons;
+  const grouped = groupLessonsByBlock(visibleLessons);
 
   useEffect(() => {
     if (!selectedLessonId) return;
