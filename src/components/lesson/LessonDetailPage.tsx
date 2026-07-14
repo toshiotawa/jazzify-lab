@@ -766,11 +766,8 @@ const LessonDetailPage: React.FC = () => {
             freshNavInfo,
           );
           if (modalKind === 'chapterCompletePremiumUpsell') {
-            setQuestCompletionModalKind('none');
-            setShowNextLessonPrompt(false);
-            setPaywallSource('chapter_complete');
-            setPaywallRedirectToLessonsOnClose(false);
-            setShowPaywall(true);
+            setQuestCompletionModalKind(modalKind);
+            setShowNextLessonPrompt(true);
           } else {
             setQuestCompletionModalKind(modalKind);
             setShowNextLessonPrompt(modalKind !== 'none');
@@ -1498,8 +1495,7 @@ const LessonDetailPage: React.FC = () => {
               </button>
             </div>
 
-            {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none'
-              && questCompletionModalKind !== 'chapterCompletePremiumUpsell' ? (
+            {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none' ? (
               <QuestCompletionModal
                 kind={questCompletionModalKind}
                 currentLesson={lesson}
@@ -1508,6 +1504,9 @@ const LessonDetailPage: React.FC = () => {
                 onStay={() => {
                   setShowNextLessonPrompt(false);
                   setQuestCompletionModalKind('none');
+                  if (questCompletionModalKind === 'chapterCompletePremiumUpsell') {
+                    window.location.hash = '#lessons';
+                  }
                 }}
                 onContinue={
                   navigationInfo?.nextLesson
@@ -1526,6 +1525,17 @@ const LessonDetailPage: React.FC = () => {
                             shouldAutoStart ? { autoStart: true } : undefined,
                           );
                         }, 100);
+                      }
+                    : undefined
+                }
+                onPremium={
+                  questCompletionModalKind === 'chapterCompletePremiumUpsell'
+                    ? () => {
+                        setShowNextLessonPrompt(false);
+                        setQuestCompletionModalKind('none');
+                        setPaywallSource('chapter_complete');
+                        setPaywallRedirectToLessonsOnClose(false);
+                        setShowPaywall(true);
                       }
                     : undefined
                 }

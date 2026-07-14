@@ -5,7 +5,7 @@ import {
   buildAppStoreCampaignUrlFromFirstTouch,
 } from '@/utils/analytics/appStoreCampaignUrl';
 
-const BASE = 'https://apps.apple.com/us/app/jazzify/id6761457001';
+const BASE = 'https://apps.apple.com/app/apple-store/id6761457001';
 const FIRST_TOUCH_STORAGE_KEY = 'jazzify_first_touch';
 
 describe('appStoreCampaignUrl', () => {

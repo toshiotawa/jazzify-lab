@@ -1723,7 +1723,13 @@ struct LessonDetailView: View {
                 QuestCompletionSheet(
                     model: sheetModel,
                     locale: locale,
-                    onStay: { questCompletionSheet = nil },
+                    onStay: {
+                        let shouldReturnHome = sheetModel.kind == .chapterCompletePremiumUpsell
+                        questCompletionSheet = nil
+                        if shouldReturnHome {
+                            dismiss()
+                        }
+                    },
                     onContinue: sheetModel.nextLesson.map { next in
                         {
                             questCompletionSheet = nil
@@ -1733,7 +1739,13 @@ struct LessonDetailView: View {
                             activeLesson = next
                         }
                     },
-                    onPremium: nil
+                    onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
+                        ? {
+                            questCompletionSheet = nil
+                            subscriptionEntry = .chapterComplete
+                            showSubscriptionSheet = true
+                        }
+                        : nil
                 )
             }
             .sheet(isPresented: $showReadyToCompletePrompt) {
@@ -3058,14 +3070,6 @@ struct LessonDetailView: View {
             guard kind != .none else { return }
             if activeLesson.orderIndex == 0, let userId = appState.profile?.id {
                 AnalyticsTracker.trackTutorialComplete(userId: userId, tutorialName: "first_quest")
-            }
-            if kind == .chapterCompletePremiumUpsell {
-                await MainActor.run {
-                    navigationState = navState
-                    subscriptionEntry = .chapterComplete
-                    showSubscriptionSheet = true
-                }
-                return
             }
             await MainActor.run {
                 navigationState = navState

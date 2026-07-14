@@ -79,6 +79,17 @@ const collectVoiceOneTimelineNotes = (measure) => {
   return notes;
 };
 
+const isWholeOrMeasureRest = (sourceNote) => {
+  const rest = getDirectChild(sourceNote, 'rest');
+  if (!rest) {
+    return false;
+  }
+  if (rest.getAttribute('measure') === 'yes') {
+    return true;
+  }
+  return getDirectChildText(sourceNote, 'type') === 'whole';
+};
+
 const cloneTimelineNoteAsGuide = (doc, sourceNote, asCue) => {
   const note = doc.createElement('note');
   const isRest = getDirectChild(sourceNote, 'rest') !== null;
@@ -87,6 +98,10 @@ const cloneTimelineNoteAsGuide = (doc, sourceNote, asCue) => {
     const rest = getDirectChild(sourceNote, 'rest');
     if (rest) {
       note.appendChild(rest.cloneNode(true));
+    }
+    // 豆譜の全休符は表示しない（タイミングは duration で保持）
+    if (isWholeOrMeasureRest(sourceNote)) {
+      note.setAttribute('print-object', 'no');
     }
   } else {
     const pitch = getDirectChild(sourceNote, 'pitch');

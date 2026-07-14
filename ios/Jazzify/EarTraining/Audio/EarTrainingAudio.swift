@@ -21,6 +21,31 @@ struct EarTrainingScheduledCountInPhrase: Sendable {
 /// - フレーズ音量 = `musicVolume * masterVolume` を `phraseMixer` に反映
 /// - コードヴォイシングのカウントインクリックは同一エンジン上の短いPCMバッファで再生する
 final class EarTrainingAudio: NSObject {
+    /// 画面録画再構成後にフレーズ再開に失敗したとき（コントローラが一時停止扱いにできる）。
+    static let phrasePlaybackSuspendedAfterCaptureNotification = Notification.Name(
+        "EarTrainingAudio.phrasePlaybackSuspendedAfterCapture"
+    )
+
+    /// 画面録画時はハードウェア優先レート（多くは 48 kHz）へ追従する。未確定時は 48 kHz。
+    static func preferredHardwareSampleRate(fromSessionSampleRate rate: Double) -> Double {
+        rate > 0 ? rate : 48_000
+    }
+
+    static func preferredHardwareSampleRate(session: AVAudioSession = .sharedInstance()) -> Double {
+        preferredHardwareSampleRate(fromSessionSampleRate: session.sampleRate)
+    }
+
+    /// 共有 AVAudioSession の現行サンプルレートに合わせたステレオ PCM 形式。
+    static func preferredOutputFormat(session: AVAudioSession = .sharedInstance()) -> AVAudioFormat {
+        let rate = preferredHardwareSampleRate(session: session)
+        return AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2)!
+    }
+
+    static func preferredOutputFormat(sampleRate: Double) -> AVAudioFormat {
+        let rate = preferredHardwareSampleRate(fromSessionSampleRate: sampleRate)
+        return AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2)!
+    }
+
     /// 周期的に通知される再生時刻 (秒)。停止中は 0。
     private(set) var currentTimeSec: Double = 0
 
@@ -110,6 +135,8 @@ final class EarTrainingAudio: NSObject {
     private var preparedForImmediatePlaybackURL: URL?
     /// キャッシュ上のローカルファイル（PCM 事前デコードに失敗した場合の `scheduleFile` フォールバック用）。
     private var preparedLocalFileURL: URL?
+    /// 再生中フレーズのローカルファイル（画面録画再構成後のオフセット再開用。`stopPhrase` まで保持）。
+    private var activePhraseLocalFileURL: URL?
     /// `preparePhraseForImmediatePlayback` で事前デコードしたフレーズ PCM（短いループ前提）。
     /// 再生直前のディスク読込レイテンシを排除し、`scheduleBuffer(at:)` の予約ホスト時刻取りこぼし（フレーズ遅延スタート）を防ぐ。
     /// 長尺・デコード失敗時は nil で、`preparedLocalFileURL` からの `scheduleFile` にフォールバックする。
@@ -253,9 +280,10 @@ final class EarTrainingAudio: NSObject {
     /// 事前に `prepareDrumLoop` で用意した PCM を `.loops` で再生する。
     func startDrumLoop() {
         guard let pcm = drumPCM else { return }
+        let outputPCM = pcmBufferForOutput(pcm)
         startPhraseEngineIfNeeded()
         drumPlayer.stop()
-        drumPlayer.scheduleBuffer(pcm, at: nil, options: [.loops], completionHandler: nil)
+        drumPlayer.scheduleBuffer(outputPCM, at: nil, options: [.loops], completionHandler: nil)
         drumPlayer.play()
         isDrumLoopActive = true
         drumLoopAnchorHostTime = mach_absolute_time()
@@ -296,6 +324,7 @@ final class EarTrainingAudio: NSObject {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
+        activePhraseLocalFileURL = nil
 
         do {
             let local = try await cache.localFileURL(for: url)
@@ -347,6 +376,7 @@ final class EarTrainingAudio: NSObject {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
+        activePhraseLocalFileURL = local
 
         let scheduleToken = playbackToken
 
@@ -416,6 +446,7 @@ final class EarTrainingAudio: NSObject {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
+        activePhraseLocalFileURL = local
 
         clickPlayer.stop()
         phrasePlayer.stop()
@@ -454,7 +485,13 @@ final class EarTrainingAudio: NSObject {
         }
 
         if let preparedPCM {
-            phrasePlayer.scheduleBuffer(preparedPCM, at: phraseWhen, options: [], completionCallbackType: .dataPlayedBack, completionHandler: onPhraseCompleted)
+            phrasePlayer.scheduleBuffer(
+                pcmBufferForOutput(preparedPCM),
+                at: phraseWhen,
+                options: [],
+                completionCallbackType: .dataPlayedBack,
+                completionHandler: onPhraseCompleted
+            )
         } else if let fallbackFile {
             phrasePlayer.scheduleFile(fallbackFile, at: phraseWhen, completionCallbackType: .dataPlayedBack, completionHandler: onPhraseCompleted)
         } else {
@@ -491,6 +528,7 @@ final class EarTrainingAudio: NSObject {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
+        activePhraseLocalFileURL = nil
         playbackToken += 1
         let token = playbackToken
 
@@ -502,6 +540,7 @@ final class EarTrainingAudio: NSObject {
                 await MainActor.run {
                     guard self.playbackToken == token else { return }
                     self.loadedPhraseURL = url
+                    self.activePhraseLocalFileURL = local
                     self.stopPhrasePlaybackOnly()
                     self.ensureGraph(for: file.processingFormat)
                     self.schedulePhrase(file: file, scheduleToken: token, onStarted: onStarted)
@@ -520,6 +559,7 @@ final class EarTrainingAudio: NSObject {
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
+        activePhraseLocalFileURL = nil
         playbackToken += 1
         phraseTimelinePlaybackOffsetSec = 0
         phraseMixer.outputVolume = phraseVolume
@@ -536,8 +576,7 @@ final class EarTrainingAudio: NSObject {
         startPhraseEngineIfNeeded()
 
         if lastPhraseFormat == nil {
-            let fmt = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
-            ensureGraph(for: fmt)
+            ensurePhraseGraphConnected()
         }
 
         guard let pcm = clickPCM else { return }
@@ -553,7 +592,7 @@ final class EarTrainingAudio: NSObject {
     private func installGraphIfNeeded() {
         guard !isGraphInstalled else { return }
 
-        let defaultFormat = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
+        let outputFormat = Self.preferredOutputFormat()
         engine.attach(phrasePlayer)
         engine.attach(phraseTimePitch)
         engine.attach(clickPlayer)
@@ -564,22 +603,22 @@ final class EarTrainingAudio: NSObject {
         engine.attach(fireSeMixer)
         engine.attach(masterMixer)
         engine.attach(limiter)
-        engine.connect(phrasePlayer, to: phraseTimePitch, format: defaultFormat)
-        engine.connect(phraseTimePitch, to: phraseMixer, format: defaultFormat)
-        engine.connect(clickPlayer, to: phraseMixer, format: defaultFormat)
+        engine.connect(phrasePlayer, to: phraseTimePitch, format: outputFormat)
+        engine.connect(phraseTimePitch, to: phraseMixer, format: outputFormat)
+        engine.connect(clickPlayer, to: phraseMixer, format: outputFormat)
         engine.connect(phraseMixer, to: masterMixer, format: nil)
-        engine.connect(drumPlayer, to: drumMixer, format: defaultFormat)
+        engine.connect(drumPlayer, to: drumMixer, format: outputFormat)
         engine.connect(drumMixer, to: masterMixer, format: nil)
-        engine.connect(fireSePlayer, to: fireSeMixer, format: defaultFormat)
+        engine.connect(fireSePlayer, to: fireSeMixer, format: outputFormat)
         engine.connect(fireSeMixer, to: masterMixer, format: nil)
         engine.connect(masterMixer, to: limiter, format: nil)
         engine.connect(limiter, to: engine.mainMixerNode, format: nil)
         configurePeakLimiter(limiter)
 
-        lastPhraseFormat = defaultFormat
-        lastDrumFormat = defaultFormat
-        lastFireSeFormat = defaultFormat
-        rebuildClickBuffer(for: defaultFormat)
+        lastPhraseFormat = outputFormat
+        lastDrumFormat = outputFormat
+        lastFireSeFormat = outputFormat
+        rebuildClickBuffer(for: outputFormat)
         phraseMixer.outputVolume = phraseVolume
         drumMixer.outputVolume = phraseVolume
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
@@ -587,6 +626,37 @@ final class EarTrainingAudio: NSObject {
 
         isGraphInstalled = true
         applyPhraseTimeStretch()
+    }
+
+    /// 共有 AVAudioSession の現行サンプルレートへフレーズ系ノードを再接続する。
+    private func ensurePhraseGraphConnected() {
+        installGraphIfNeeded()
+
+        let outputFormat = Self.preferredOutputFormat()
+        if lastPhraseFormat?.isEqual(outputFormat) == true {
+            phraseMixer.outputVolume = phraseVolume
+            return
+        }
+
+        let wasRunning = engine.isRunning
+        if wasRunning {
+            stopSharedPianoBeforePhraseEngineRebuild()
+            engine.stop()
+        }
+
+        engine.disconnectNodeInput(phraseMixer)
+        engine.disconnectNodeInput(phraseTimePitch)
+        engine.connect(phrasePlayer, to: phraseTimePitch, format: outputFormat)
+        engine.connect(phraseTimePitch, to: phraseMixer, format: outputFormat)
+        engine.connect(clickPlayer, to: phraseMixer, format: outputFormat)
+
+        lastPhraseFormat = outputFormat
+        rebuildClickBuffer(for: outputFormat)
+        phraseMixer.outputVolume = phraseVolume
+
+        if wasRunning || isPhraseEngineRunning {
+            try? engine.start()
+        }
     }
 
     private var phrasePlaybackSpeedRatio: Float {
@@ -613,33 +683,8 @@ final class EarTrainingAudio: NSObject {
         AudioUnitSetParameter(au, PeakLimiterParameter.decayTime, kAudioUnitScope_Global, 0, 0.05, 0)
     }
 
-    private func ensureGraph(for format: AVAudioFormat) {
-        installGraphIfNeeded()
-
-        if lastPhraseFormat?.isEqual(format) == true {
-            phraseMixer.outputVolume = phraseVolume
-            return
-        }
-
-        let wasRunning = engine.isRunning
-        if wasRunning {
-            stopSharedPianoBeforePhraseEngineRebuild()
-            engine.stop()
-        }
-
-        engine.disconnectNodeInput(phraseMixer)
-        engine.disconnectNodeInput(phraseTimePitch)
-        engine.connect(phrasePlayer, to: phraseTimePitch, format: format)
-        engine.connect(phraseTimePitch, to: phraseMixer, format: format)
-        engine.connect(clickPlayer, to: phraseMixer, format: format)
-
-        lastPhraseFormat = format
-        rebuildClickBuffer(for: format)
-        phraseMixer.outputVolume = phraseVolume
-
-        if wasRunning || isPhraseEngineRunning {
-            try? engine.start()
-        }
+    private func ensureGraph(for _: AVAudioFormat) {
+        ensurePhraseGraphConnected()
     }
 
     /// 火炎 SE 用バッファをバンドルから読み込む。失敗してもサイレントで無視する。
@@ -659,10 +704,11 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
-    private func ensureFireSeGraph(for format: AVAudioFormat) {
+    private func ensureFireSeGraph(for _: AVAudioFormat) {
         installGraphIfNeeded()
 
-        if lastFireSeFormat?.isEqual(format) == true {
+        let outputFormat = Self.preferredOutputFormat()
+        if lastFireSeFormat?.isEqual(outputFormat) == true {
             fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
             return
         }
@@ -674,9 +720,9 @@ final class EarTrainingAudio: NSObject {
         }
 
         engine.disconnectNodeInput(fireSeMixer)
-        engine.connect(fireSePlayer, to: fireSeMixer, format: format)
+        engine.connect(fireSePlayer, to: fireSeMixer, format: outputFormat)
 
-        lastFireSeFormat = format
+        lastFireSeFormat = outputFormat
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
 
         if wasRunning || isPhraseEngineRunning {
@@ -700,7 +746,7 @@ final class EarTrainingAudio: NSObject {
         if !fireSePlayer.isPlaying {
             fireSePlayer.play()
         }
-        fireSePlayer.scheduleBuffer(pcm, at: nil, options: [.interrupts], completionHandler: nil)
+        fireSePlayer.scheduleBuffer(pcmBufferForOutput(pcm), at: nil, options: [.interrupts], completionHandler: nil)
     }
 
     private static func machSecondsSinceReference() -> Double {
@@ -710,10 +756,11 @@ final class EarTrainingAudio: NSObject {
         return nanos / 1_000_000_000
     }
 
-    private func ensureDrumGraph(for format: AVAudioFormat) {
+    private func ensureDrumGraph(for _: AVAudioFormat) {
         installGraphIfNeeded()
 
-        if lastDrumFormat?.isEqual(format) == true {
+        let outputFormat = Self.preferredOutputFormat()
+        if lastDrumFormat?.isEqual(outputFormat) == true {
             drumMixer.outputVolume = phraseVolume
             return
         }
@@ -725,9 +772,9 @@ final class EarTrainingAudio: NSObject {
         }
 
         engine.disconnectNodeInput(drumMixer)
-        engine.connect(drumPlayer, to: drumMixer, format: format)
+        engine.connect(drumPlayer, to: drumMixer, format: outputFormat)
 
-        lastDrumFormat = format
+        lastDrumFormat = outputFormat
         drumMixer.outputVolume = phraseVolume
 
         if wasRunning || isPhraseEngineRunning {
@@ -792,36 +839,125 @@ final class EarTrainingAudio: NSObject {
 
     /// 画面録画 ON/OFF 後、SurvivalGameAudio の共有セッション再構成完了を受けてフレーズエンジンを clean restart する。
     private func reconfigureAfterScreenCaptureTransition() {
-        guard isPhraseEngineRunning || isDrumLoopActive || phrasePlayer.isPlaying else { return }
+        let wasPhraseActive = (phrasePlayer.isPlaying || phrasePlaybackAnchorHostTime != 0) && loadedPhraseURL != nil
+        guard isPhraseEngineRunning || isDrumLoopActive || wasPhraseActive else { return }
 
         let resumeDrum = isDrumLoopActive
+        let resumeTimelineSec = wasPhraseActive
+            ? (phraseWallClockTimelineSecNowOrNil() ?? max(0, phraseJudgmentTimelineSecNow()))
+            : nil
+        let resumePhraseURL = loadedPhraseURL
 
         if engine.isRunning {
+            stopSharedPianoBeforePhraseEngineRebuild()
             engine.stop()
         }
         isPhraseEngineRunning = false
 
+        phrasePlayer.stop()
+        clickPlayer.stop()
+        phrasePlaybackAnchorHostTime = 0
+
         reconnectGraphAfterCaptureTransition()
         startPhraseEngineIfNeeded()
+
         if resumeDrum {
             startDrumLoop()
         }
+
+        if wasPhraseActive,
+           let url = resumePhraseURL,
+           let offset = resumeTimelineSec,
+           !resumePhrasePlaybackFromOffset(url: url, timelineOffsetSec: offset) {
+            NotificationCenter.default.post(
+                name: Self.phrasePlaybackSuspendedAfterCaptureNotification,
+                object: self
+            )
+        }
     }
 
-    /// 画面キャプチャ遷移後にキャッシュ済み format 接続を強制再適用する。
+    /// 画面キャプチャ遷移後に現行ハードウェアサンプルレートへグラフを再接続する。
     private func reconnectGraphAfterCaptureTransition() {
-        if let phraseFormat = lastPhraseFormat {
-            lastPhraseFormat = nil
-            ensureGraph(for: phraseFormat)
+        ensurePhraseGraphConnected()
+        ensureDrumGraph(for: Self.preferredOutputFormat())
+        ensureFireSeGraph(for: Self.preferredOutputFormat())
+        reconvertCachedPCMSamplesToOutputFormatIfNeeded()
+    }
+
+    /// キャッシュ済み PCM を現行出力レートへ揃える（サンプルレート遷移後の再開用）。
+    private func reconvertCachedPCMSamplesToOutputFormatIfNeeded() {
+        if let drum = drumPCM {
+            drumPCM = pcmBufferForOutput(drum)
         }
-        if let drumFormat = lastDrumFormat {
-            lastDrumFormat = nil
-            ensureDrumGraph(for: drumFormat)
+        if let fire = fireSePCM {
+            fireSePCM = pcmBufferForOutput(fire)
         }
-        if let fireSeFormat = lastFireSeFormat {
-            lastFireSeFormat = nil
-            ensureFireSeGraph(for: fireSeFormat)
+    }
+
+    /// 出力グラフ形式へ PCM を変換する。既に一致していればそのまま返す。
+    private func pcmBufferForOutput(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+        let outputFormat = Self.preferredOutputFormat()
+        if buffer.format.isEqual(outputFormat) {
+            return buffer
         }
+        return Self.convertBuffer(buffer, to: outputFormat) ?? buffer
+    }
+
+    /// 画面録画再構成後、同一タイムライン位置からフレーズを再開する。
+    @discardableResult
+    private func resumePhrasePlaybackFromOffset(url: URL, timelineOffsetSec: Double) -> Bool {
+        guard loadedPhraseURL == url else { return false }
+
+        let localURL = activePhraseLocalFileURL ?? cache.cachedLocalFileURLIfPresent(for: url)
+        guard let local = localURL else { return false }
+
+        let safeOffset = max(0, timelineOffsetSec)
+        let bufferOffsetSec = EarTrainingPracticeSpeed.practiceBufferOffsetSec(
+            timelineOffsetSec: safeOffset,
+            speedPercent: Int(phrasePlaybackSpeedPercent)
+        )
+        let scheduleToken = playbackToken
+
+        phraseTimelinePlaybackOffsetSec = safeOffset
+        phraseMixer.outputVolume = phraseVolume
+
+        let nowHost = mach_absolute_time()
+        let leadHost = AVAudioTime.hostTime(forSeconds: Self.practiceSeekLeadInSec)
+        let phraseHost = nowHost &+ leadHost
+        let phraseWhen = AVAudioTime(hostTime: phraseHost)
+        phrasePlaybackAnchorHostTime = phraseHost
+
+        ensurePhraseGraphConnected()
+        startPhraseEngineIfNeeded()
+        engine.prepare()
+
+        if let file = try? AVAudioFile(forReading: local) {
+            let sampleRate = file.processingFormat.sampleRate
+            guard sampleRate > 0 else { return false }
+            let startFrame = AVAudioFramePosition(bufferOffsetSec * sampleRate)
+            let totalFrames = file.length
+            let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
+            let remainingFrames = totalFrames - clampedStart
+            guard remainingFrames > 0 else { return false }
+
+            phrasePlayer.play()
+            phrasePlayer.scheduleSegment(
+                file,
+                startingFrame: clampedStart,
+                frameCount: AVAudioFrameCount(remainingFrames),
+                at: phraseWhen,
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
+                self?.notifyScheduledPhraseBufferPlaybackEnded(
+                    scheduleToken: scheduleToken,
+                    restorePhraseMixerVolume: true
+                )
+            }
+            startTimeTickerIfNeeded()
+            return true
+        }
+
+        return false
     }
 
     private func handleEngineConfigurationChange() {
@@ -904,7 +1040,12 @@ final class EarTrainingAudio: NSObject {
 
         engine.prepare()
 
-        phrasePlayer.scheduleBuffer(buffer, at: nil, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
+        phrasePlayer.scheduleBuffer(
+            pcmBufferForOutput(buffer),
+            at: nil,
+            options: [],
+            completionCallbackType: .dataPlayedBack
+        ) { [weak self] _ in
             self?.notifyScheduledPhraseBufferPlaybackEnded(
                 scheduleToken: scheduleToken,
                 restorePhraseMixerVolume: true
@@ -1158,7 +1299,12 @@ final class EarTrainingAudio: NSObject {
             }
 
             phrasePlayer.play()
-            phrasePlayer.scheduleBuffer(slice, at: phraseWhen, options: [], completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            phrasePlayer.scheduleBuffer(
+                pcmBufferForOutput(slice),
+                at: phraseWhen,
+                options: [],
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     guard self.playbackToken == scheduleToken else { return }

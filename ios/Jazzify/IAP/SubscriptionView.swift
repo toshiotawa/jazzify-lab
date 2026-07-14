@@ -586,14 +586,14 @@ struct SubscriptionView: View {
 
     private var chapterCompleteHeaderSection: some View {
         VStack(spacing: 8) {
-            Text(locale == .ja ? "第1チャプタークリア！" : "Chapter 1 complete!")
+            Text(locale == .ja ? "メインクエストの続きを開放" : "Unlock the rest of Main Quest")
                 .font(.title2.bold())
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
 
             Text(locale == .ja
-                 ? "Cブルースでアドリブする第一歩を習得しました。"
-                 : "You took your first step improvising over C Blues.")
+                 ? "コードの響きをつかんで、アドリブを続けよう。次はCブルースのコードをつかむチャプターへ進みます。"
+                 : "Keep improvising by learning chord colors. Next up: Get a Grip on C Blues Chords.")
                 .font(.subheadline)
                 .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
@@ -615,9 +615,10 @@ struct SubscriptionView: View {
 
     private var chapterCompleteFeatureSection: some View {
         VStack(spacing: 8) {
-            featureRow(icon: "waveform.path", text: locale == .ja ? "使える音を増やす" : "Expand the notes you can use")
-            featureRow(icon: "music.quarternote.3", text: locale == .ja ? "コードに合わせて弾く" : "Play along with the changes")
-            featureRow(icon: "text.quote", text: locale == .ja ? "実践的なフレーズを身につける" : "Build practical phrases")
+            featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエストの全チャプター" : "All Main Quest chapters")
+            featureRow(icon: "waveform.path", text: locale == .ja ? "ブルースで使える音・リズム・コードを段階的に習得" : "Learn blues notes, rhythm, and chords step by step")
+            featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "サバイバルで繰り返し実践" : "Practice repeatedly in Survival")
+            featureRow(icon: "chart.bar.fill", text: locale == .ja ? "学習記録を保存" : "Save your learning records")
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -912,8 +913,25 @@ struct SubscriptionView: View {
 
         if entry == .chapterComplete && !showIntroPaywallDetails {
             return locale == .ja
-                ? "次のチャプターで使える音を増やし、コードに合わせて弾けるようになります。"
-                : "In the next chapter, expand your notes and play along with the changes."
+                ? "無料トライアルは利用済みです。購入時に年額\(displayPrice)が請求されます。"
+                : "Your free trial has already been used. You will be charged \(displayPrice)/year at purchase."
+        }
+
+        if entry == .chapterComplete && showIntroPaywallDetails {
+            if locale == .ja {
+                switch periodUnit {
+                case .year:
+                    return "本日のお支払いはありません。7日後から年額\(displayPrice)。いつでもApp Storeで解約できます。"
+                default:
+                    return "本日のお支払いはありません。7日後から月額\(displayPrice)。いつでもApp Storeで解約できます。"
+                }
+            }
+            switch periodUnit {
+            case .year:
+                return "No charge today. \(displayPrice)/year after 7 days. Cancel anytime in the App Store."
+            default:
+                return "No charge today. \(displayPrice)/month after 7 days. Cancel anytime in the App Store."
+            }
         }
 
         if showIntroPaywallDetails {
@@ -988,28 +1006,28 @@ struct SubscriptionView: View {
         if locale == .ja {
             switch unit {
             case .day:
-                return "\(value)日間無料で第2チャプターを始める"
+                return "\(value)日間無料で次のチャプターを始める"
             case .week:
-                return value == 1 ? "1週間無料で第2チャプターを始める" : "\(value)週間無料で第2チャプターを始める"
+                return value == 1 ? "1週間無料で次のチャプターを始める" : "\(value)週間無料で次のチャプターを始める"
             case .month:
-                return value == 1 ? "1か月無料で第2チャプターを始める" : "\(value)か月無料で第2チャプターを始める"
+                return value == 1 ? "1か月無料で次のチャプターを始める" : "\(value)か月無料で次のチャプターを始める"
             case .year:
-                return value == 1 ? "1年無料で第2チャプターを始める" : "\(value)年無料で第2チャプターを始める"
+                return value == 1 ? "1年無料で次のチャプターを始める" : "\(value)年無料で次のチャプターを始める"
             @unknown default:
-                return "無料で第2チャプターを始める"
+                return "無料で次のチャプターを始める"
             }
         }
         switch unit {
         case .day:
-            return value == 1 ? "Start Chapter 2 free for 1 day" : "Start Chapter 2 free for \(value) days"
+            return value == 1 ? "Start the next chapter free for 1 day" : "Start the next chapter free for \(value) days"
         case .week:
-            return value == 1 ? "Start Chapter 2 free for 1 week" : "Start Chapter 2 free for \(value) weeks"
+            return value == 1 ? "Start the next chapter free for 1 week" : "Start the next chapter free for \(value) weeks"
         case .month:
-            return value == 1 ? "Start Chapter 2 free for 1 month" : "Start Chapter 2 free for \(value) months"
+            return value == 1 ? "Start the next chapter free for 1 month" : "Start the next chapter free for \(value) months"
         case .year:
-            return value == 1 ? "Start Chapter 2 free for 1 year" : "Start Chapter 2 free for \(value) years"
+            return value == 1 ? "Start the next chapter free for 1 year" : "Start the next chapter free for \(value) years"
         @unknown default:
-            return "Start Chapter 2 free"
+            return "Start the next chapter free"
         }
     }
 

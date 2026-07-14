@@ -108,7 +108,7 @@
       </attributes>
       <sound tempo="120"/>
       
-    <note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="2" width="162">
       <attributes>
@@ -190,7 +190,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="4" width="162">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -247,7 +247,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="6" width="233">
       <print new-system="yes">
@@ -339,7 +339,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="8" width="193">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -418,7 +418,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="10" width="208">
       <print new-system="yes">
@@ -475,7 +475,7 @@
         <voice>1</voice>
         <type>half</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="12" width="168">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -562,7 +562,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="14" width="168">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -654,7 +654,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="16" width="192">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -733,7 +733,7 @@
         <voice>1</voice>
         <type>quarter</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="18" width="192">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -819,7 +819,7 @@
         <voice>1</voice>
         <type>half</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="20" width="199">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -900,7 +900,7 @@
         <voice>1</voice>
         <type>half</type>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="22" width="199">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -1006,7 +1006,7 @@
         <stem default-y="5">up</stem>
         <beam number="1">end</beam>
       </note>
-    <backup><duration>8</duration></backup><note><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
+    <backup><duration>8</duration></backup><note print-object="no"><rest measure="yes"/><duration>8</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="24" width="227">
       <harmony default-y="32" font-family="Arial" font-size="13.1">

@@ -41,7 +41,7 @@ describe('buildOsmdTimingAdjustmentV1Script', () => {
       expect(script.scenes[6].lines.some((line) => line.ja.includes('アドリブ'))).toBe(false);
     }
     expect(script.content['mq-b1-q1-osmd']?.stage.slug).toBe('mq-b1-q1-osmd');
-    expect(script.content['mq-b1-q1-osmd']?.phrases?.[0]?.music_xml_url).toContain('1-1.musicxml');
+    expect(script.content['mq-b1-q1-osmd']?.phrases?.[0]?.music_xml_url).toContain('guide-voice4-cue.musicxml');
     const content = script.content['osmd-timing-adjustment'];
     expect(content?.stage.bpm).toBe(100);
     expect(content?.stage.loop_measures).toBe(25);

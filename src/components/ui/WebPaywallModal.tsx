@@ -253,6 +253,12 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
           <p className="text-red-400 text-xs text-center mb-3">{error}</p>
         )}
 
+        {copy.trialUsedNotice ? (
+          <p className="text-xs text-amber-200/90 text-center mb-3 leading-relaxed">
+            {copy.trialUsedNotice}
+          </p>
+        ) : null}
+
         <button
           type="button"
           className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black transition-all duration-200 shadow-lg shadow-amber-900/30 hover:shadow-amber-500/25 disabled:opacity-60 flex items-center justify-center gap-2"
@@ -266,7 +272,9 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
           {!loading && <FaArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />}
         </button>
 
-        <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">{priceCopy.footnote}</p>
+        <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">
+          {copy.ctaFootnote ?? priceCopy.footnote}
+        </p>
 
         <div className="text-center mt-3">
           <button

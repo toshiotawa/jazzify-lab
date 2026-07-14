@@ -1,5 +1,7 @@
-import { JAZZIFY_APP_STORE_URL } from '@/components/landing/landingLinks';
 import { getStoredFirstTouch, type FirstTouchData } from '@/utils/analytics/attribution';
+
+const APP_STORE_LISTING_BASE =
+  'https://apps.apple.com/app/apple-store/id6761457001';
 
 /** Apple Campaign Links の ct 最大長（安全側）。 */
 const CAMPAIGN_TOKEN_MAX_LENGTH = 40;
@@ -69,7 +71,7 @@ const resolveProviderToken = (explicit?: string | null): string | null => {
  */
 export const buildAppStoreCampaignUrl = (
   params: AppStoreCampaignParams = {},
-  baseUrl: string = JAZZIFY_APP_STORE_URL,
+  baseUrl: string = APP_STORE_LISTING_BASE,
 ): string => {
   const url = new URL(baseUrl);
   url.searchParams.set('mt', '8');

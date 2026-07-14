@@ -2,7 +2,7 @@
   "version": 1,
   "audioTracks": {
     "drum_loop": {
-      "url": "https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_count-in.mp3",
+      "url": "https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_Drum.mp3",
       "volume": 0.5
     }
   },
@@ -88,7 +88,7 @@
           "order_index": 0,
           "title": "Cブルース・ドとソ",
           "title_en": "C Blues Do/Sol",
-          "music_xml_url": "https://jazzify-cdn.com/sozai/1-1.musicxml?v=20260623",
+          "music_xml_url": "https://jazzify-cdn.com/sozai/dev-mq-b1-q1-osmd-guide-voice4-cue.musicxml?v=202607141330",
           "audio_url": "https://jazzify-cdn.com/sozai/Cblues_24bars_100BPM_count-in.mp3?v=20260623",
           "loop_duration_sec": 60,
           "audio_duration_sec": 60,

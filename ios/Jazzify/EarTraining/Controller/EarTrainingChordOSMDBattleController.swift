@@ -134,6 +134,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private var countdownTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
     private var phrasePrepareTask: Task<Void, Never>?
+    private var capturePhraseSuspendedObserver: NSObjectProtocol?
     private var lastRankStorage: EarTrainingRank?
     private var runtimeCompletedTargetCount: Int = 0
     private var runtimeFailedTargetCount: Int = 0
@@ -324,6 +325,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 }
             }
         }
+        capturePhraseSuspendedObserver = NotificationCenter.default.addObserver(
+            forName: EarTrainingAudio.phrasePlaybackSuspendedAfterCaptureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.handlePhraseSuspendedAfterScreenCapture()
+            }
+        }
         publishSnapshot()
         scheduleLobbyMusicXMLPreload()
         guard tutorialHooks?.ui.hideLobby == true else { return }
@@ -345,6 +355,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
     func tearDown(stopSharedAudio: Bool = true) {
         cancelAllTasks()
+        if let capturePhraseSuspendedObserver {
+            NotificationCenter.default.removeObserver(capturePhraseSuspendedObserver)
+            self.capturePhraseSuspendedObserver = nil
+        }
         audio.onTimeUpdate = nil
         audio.onEnded = nil
         if stopSharedAudio {
@@ -1631,6 +1645,34 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         phrasePrepareTask?.cancel(); phrasePrepareTask = nil
         if !keepsAudio {
             audio.stopPhrase()
+        }
+    }
+
+    /// 画面録画再構成でフレーズ即時再開に失敗したとき。キャッシュから再 prepare してオフセット再開を試みる。
+    private func handlePhraseSuspendedAfterScreenCapture() {
+        guard gameState == .countIn || gameState == .playingPhrase else { return }
+        guard phrases.indices.contains(phraseIndex) else { return }
+        let phrase = phrases[phraseIndex]
+        guard let audioURL = URL(string: phrase.audioUrl.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            audio.stopPhrase()
+            return
+        }
+        let resumeOffset = osmdPhraseTimelineSecNow() ?? max(0, audio.currentTimeSec)
+        phrasePrepareTask?.cancel()
+        phrasePrepareTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let prepared = await self.audio.preparePhraseForImmediatePlayback(url: audioURL)
+            guard !Task.isCancelled, prepared else {
+                self.audio.stopPhrase()
+                return
+            }
+            let resumed = self.audio.playPreparedPhraseFromTimelineOffset(
+                url: audioURL,
+                timelineOffsetSec: resumeOffset
+            )
+            if !resumed {
+                self.audio.stopPhrase()
+            }
         }
     }
 

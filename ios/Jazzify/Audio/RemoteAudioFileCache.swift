@@ -11,6 +11,17 @@ final class RemoteAudioFileCache: @unchecked Sendable {
         self.subdirectory = subdirectory
     }
 
+    /// キャッシュ済みならローカル URL を同期的に返す。未ダウンロードなら nil。
+    func cachedLocalFileURLIfPresent(for remote: URL) -> URL? {
+        if remote.isFileURL {
+            return FileManager.default.fileExists(atPath: remote.path) ? remote : nil
+        }
+        let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(subdirectory, isDirectory: true)
+        let destination = root.appendingPathComponent(Self.cacheFileName(for: remote))
+        return FileManager.default.fileExists(atPath: destination.path) ? destination : nil
+    }
+
     func localFileURL(for remote: URL) async throws -> URL {
         if remote.isFileURL {
             guard FileManager.default.fileExists(atPath: remote.path) else {
