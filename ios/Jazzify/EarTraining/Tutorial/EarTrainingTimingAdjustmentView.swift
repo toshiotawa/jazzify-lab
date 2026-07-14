@@ -74,6 +74,12 @@ struct EarTrainingTimingAdjustmentView: View {
                 gate = .failed
             }
         }
+        .onChange(of: showFinishCta) { visible in
+            // 通常の耳コピチュートリアルと同様、クエスト課題の完了 CTA 表示時にクリアジングルを鳴らす
+            if visible, entry == .quest {
+                QuestJinglePlayer.playComplete()
+            }
+        }
     }
 
     @ViewBuilder

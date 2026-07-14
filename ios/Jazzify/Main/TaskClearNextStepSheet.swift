@@ -72,7 +72,7 @@ struct TaskClearNextStepSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium])
-        .presentationBackground(Color(hex: "0f172a"))
+        .jazzifyPresentationBackground(Color(hex: "0f172a"))
         .preferredColorScheme(.dark)
     }
 }

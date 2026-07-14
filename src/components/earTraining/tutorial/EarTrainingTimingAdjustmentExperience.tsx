@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchSurvivalCharacters, type SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useQuestCompleteJingleWhenVisible } from '@/hooks/useQuestCompleteJingle';
 import { getEarTrainingTimingAdjustmentCopy } from '@/utils/earTrainingUiCopy';
 import type { EarTrainingTimingAdjustmentEntry } from '@/utils/earTrainingTimingAdjustmentLaunch';
 import {
@@ -70,6 +71,9 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   const finalizedRef = useRef(false);
   const audioUnlockedRef = useRef(false);
   const sceneCompleteTimerRef = useRef<number | null>(null);
+
+  // 通常の耳コピチュートリアルと同様、クエスト課題の完了 CTA 表示時にクリアジングルを鳴らす
+  useQuestCompleteJingleWhenVisible(entry === 'quest' && showFinishCta);
 
   useEffect(() => () => {
     if (sceneCompleteTimerRef.current !== null) {

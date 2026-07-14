@@ -1,5 +1,19 @@
 import SwiftUI
 
+extension View {
+    /// Deployment target は iOS 16.0。`presentationBackground` は 16.4+ のため、それ未満は本体背景で代替する。
+    @ViewBuilder
+    func jazzifyPresentationBackground(_ color: Color) -> some View {
+        if #available(iOS 16.4, *) {
+            self
+                .background(color)
+                .presentationBackground(color)
+        } else {
+            self.background(color)
+        }
+    }
+}
+
 struct QuestCompletionSheet: View {
     let model: QuestCompletionSheetModel
     let locale: AppLocale
@@ -93,7 +107,7 @@ struct QuestCompletionSheet: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.medium])
-        .presentationBackground(Color(hex: "0f172a"))
+        .jazzifyPresentationBackground(Color(hex: "0f172a"))
         .preferredColorScheme(.dark)
     }
 }

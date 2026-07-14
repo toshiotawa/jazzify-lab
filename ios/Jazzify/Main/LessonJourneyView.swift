@@ -333,7 +333,7 @@ struct LessonJourneyView: View {
                 )
                 .presentationDetents([.fraction(0.4), .medium])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(Color(hex: "0f172a"))
+                .jazzifyPresentationBackground(Color(hex: "0f172a"))
                 .preferredColorScheme(.dark)
             }
         }
