@@ -95,7 +95,7 @@ await access(resolve(outputRoot, 'index.html'));
 await access(resolve(outputRoot, '404.html'));
 const redirects = await readFile(resolve(outputRoot, '../_redirects'), 'utf8');
 assert(
-  redirects.includes('/blog/*  /blog/404.html  404  Host=en.jazzify.jp'),
+  redirects.includes('https://en.jazzify.jp/blog/*  /blog/404.html  404'),
   'Netlify blog 404 rule is missing from dist/_redirects',
 );
 

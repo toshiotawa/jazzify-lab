@@ -1,2 +1,2 @@
 # Blog static files are served by shadowing; unmatched English blog paths use the Astro 404 page.
-/blog/*  /blog/404.html  404  Host=en.jazzify.jp
+https://en.jazzify.jp/blog/*  /blog/404.html  404
