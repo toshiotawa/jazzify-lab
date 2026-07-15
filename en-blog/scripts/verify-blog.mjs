@@ -98,13 +98,14 @@ assert(
   redirects.includes('https://en.jazzify.jp/blog/*  /blog/404.html  404'),
   'Netlify blog 404 rule is missing from dist/_redirects',
 );
+const netlifyConfig = await readFile(resolve(import.meta.dirname, '../../netlify.toml'), 'utf8');
 assert(
-  redirects.includes('https://en.jazzify.jp/       /index-en.html  200!'),
-  'Netlify English root rule is missing from dist/_redirects',
+  /\[\[redirects\]\]\s+from = "https:\/\/en\.jazzify\.jp\/"\s+to = "\/index-en\.html"\s+status = 200\s+force = true/.test(netlifyConfig),
+  'Forced Netlify English root rule is missing from netlify.toml',
 );
 assert(
-  redirects.includes('https://en.jazzify.jp/*      /index-en.html  200'),
-  'Netlify English SPA fallback is missing from dist/_redirects',
+  /\[\[redirects\]\]\s+from = "https:\/\/en\.jazzify\.jp\/\*"\s+to = "\/index-en\.html"\s+status = 200/.test(netlifyConfig),
+  'Netlify English SPA fallback is missing from netlify.toml',
 );
 
 const canonicals = new Set();

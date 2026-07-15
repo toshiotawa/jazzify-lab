@@ -157,7 +157,17 @@
   to = "/assets/:splat"
   status = 200
 
-# en.jazzify.jp のルーティングは public/_redirects で定義し、このTOMLより先に評価する。
+# en.jazzify.jp: 英語HTMLを汎用SPAフォールバックより先に評価する。
+[[redirects]]
+  from = "https://en.jazzify.jp/"
+  to = "/index-en.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "https://en.jazzify.jp/*"
+  to = "/index-en.html"
+  status = 200
 
 # SPAのキャッチオールリダイレクト（assetsを除くすべてのパス）
 [[redirects]]
