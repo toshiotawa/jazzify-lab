@@ -99,7 +99,7 @@ assert(
   'Netlify blog 404 rule is missing from dist/_redirects',
 );
 assert(
-  redirects.includes('https://en.jazzify.jp/       /index-en.html  200'),
+  redirects.includes('https://en.jazzify.jp/       /index-en.html  200!'),
   'Netlify English root rule is missing from dist/_redirects',
 );
 assert(

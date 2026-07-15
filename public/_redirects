@@ -2,5 +2,5 @@
 https://en.jazzify.jp/blog/*  /blog/404.html  404
 
 # English host routes must precede the generic SPA fallback from netlify.toml.
-https://en.jazzify.jp/       /index-en.html  200
+https://en.jazzify.jp/       /index-en.html  200!
 https://en.jazzify.jp/*      /index-en.html  200
