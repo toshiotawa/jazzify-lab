@@ -93,6 +93,11 @@ assert(
 
 await access(resolve(outputRoot, 'index.html'));
 await access(resolve(outputRoot, '404.html'));
+const redirects = await readFile(resolve(outputRoot, '../_redirects'), 'utf8');
+assert(
+  redirects.includes('/blog/*  /blog/404.html  404  Host=en.jazzify.jp'),
+  'Netlify blog 404 rule is missing from dist/_redirects',
+);
 
 const canonicals = new Set();
 for (const slug of slugs) {
