@@ -1,0 +1,14 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { BLOG_ORIGIN, BLOG_PATH, DEFAULT_OG_IMAGE } from '../lib/blog';
+
+const title = 'Page Not Found | Jazzify Blog';
+const description = 'The Jazzify Blog page you requested could not be found.';
+const canonical = `${BLOG_ORIGIN}${BLOG_PATH}404/`;
+---
+
+<BaseLayout {title} {description} {canonical} ogImage={DEFAULT_OG_IMAGE} robots="noindex,nofollow">
+  <h1 class="page-heading">Page not found</h1>
+  <p class="page-intro">The article may have moved or the URL may be incorrect.</p>
+  <p><a href={BLOG_PATH}>Browse all Jazzify articles</a></p>
+</BaseLayout>

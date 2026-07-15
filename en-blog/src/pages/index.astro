@@ -1,0 +1,29 @@
+---
+import { getCollection } from 'astro:content';
+import ArticleCard from '../components/ArticleCard.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { BLOG_ORIGIN, BLOG_PATH, CATEGORIES, DEFAULT_OG_IMAGE, categoryPath } from '../lib/blog';
+
+const posts = (await getCollection('blog')).sort((left, right) =>
+  left.data.title.localeCompare(right.data.title),
+);
+const title = 'Jazz Piano Guides, Theory, and Listening | Jazzify Blog';
+const description =
+  'Practical jazz piano guides covering chords, voicings, improvisation, albums, artists, and effective practice.';
+const canonical = `${BLOG_ORIGIN}${BLOG_PATH}`;
+---
+
+<BaseLayout {title} {description} {canonical} ogImage={DEFAULT_OG_IMAGE}>
+  <h1 class="page-heading">Learn jazz by listening, understanding, and playing.</h1>
+  <p class="page-intro">42 practical guides from Jazzify for jazz pianists and curious listeners.</p>
+
+  <nav class="site-nav" aria-label="Article categories">
+    {CATEGORIES.map((category) => (
+      <a href={categoryPath(category.slug)}>{category.label}</a>
+    ))}
+  </nav>
+
+  <ul class="article-list">
+    {posts.map((post) => <li><ArticleCard {post} /></li>)}
+  </ul>
+</BaseLayout>

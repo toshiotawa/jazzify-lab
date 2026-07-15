@@ -1,0 +1,15 @@
+---
+import { BLOG_PATH, CATEGORIES, categoryPath } from '../lib/blog';
+---
+
+<header class="site-header">
+  <div class="site-shell site-header__inner">
+    <a class="brand" href={BLOG_PATH}>Jazzify Blog</a>
+    <nav class="site-nav" aria-label="Blog navigation">
+      {CATEGORIES.map((category) => (
+        <a href={categoryPath(category.slug)}>{category.label}</a>
+      ))}
+      <a href="https://en.jazzify.jp/">Try Jazzify</a>
+    </nav>
+  </div>
+</header>

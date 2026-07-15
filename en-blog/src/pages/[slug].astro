@@ -1,0 +1,84 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCollection, render } from 'astro:content';
+import ArticleCard from '../components/ArticleCard.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { BLOG_ORIGIN, articlePath, categoryPath } from '../lib/blog';
+
+interface Props {
+  post: CollectionEntry<'blog'>;
+}
+
+export const getStaticPaths = async () => {
+  const posts = await getCollection('blog');
+  return posts.map((post) => ({ params: { slug: post.data.slug }, props: { post } }));
+};
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const allPosts = await getCollection('blog');
+const relatedPosts = post.data.relatedSlugs.flatMap((slug) => {
+  const related = allPosts.find((candidate) => candidate.data.slug === slug);
+  return related ? [related] : [];
+});
+const canonical = `${BLOG_ORIGIN}${articlePath(post.data.slug)}`;
+const categoryUrl = `${BLOG_ORIGIN}${categoryPath(post.data.category)}`;
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.data.title,
+    description: post.data.description,
+    mainEntityOfPage: canonical,
+    image: post.data.ogImage,
+    datePublished: post.data.publishedAt.toISOString(),
+    dateModified: post.data.updatedAt.toISOString(),
+    author: { '@type': 'Person', name: post.data.author },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Jazzify',
+      url: BLOG_ORIGIN,
+    },
+    articleSection: post.data.categoryLabel,
+    keywords: post.data.tags.join(', '),
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Blog', item: `${BLOG_ORIGIN}/blog/` },
+      { '@type': 'ListItem', position: 2, name: post.data.categoryLabel, item: categoryUrl },
+      { '@type': 'ListItem', position: 3, name: post.data.title, item: canonical },
+    ],
+  },
+];
+---
+
+<BaseLayout
+  title={`${post.data.title} | Jazzify`}
+  description={post.data.description}
+  {canonical}
+  ogImage={post.data.ogImage}
+  ogType="article"
+  publishedAt={post.data.publishedAt}
+  updatedAt={post.data.updatedAt}
+  {jsonLd}
+>
+  <article class="article">
+    <a href={categoryPath(post.data.category)}>{post.data.categoryLabel}</a>
+    <h1>{post.data.title}</h1>
+    <p class="article-meta">
+      By {post.data.author} · Published <time datetime={post.data.publishedAt.toISOString()}>{post.data.publishedAt.toLocaleDateString('en-US')}</time>
+    </p>
+    <div class="article-content"><Content /></div>
+
+    <section class="related-articles" aria-labelledby="related-heading">
+      <h2 id="related-heading">Related articles</h2>
+      <ul class="article-list">
+        {relatedPosts.map((relatedPost) => (
+          <li><ArticleCard post={relatedPost} headingLevel="h3" /></li>
+        ))}
+      </ul>
+    </section>
+  </article>
+</BaseLayout>

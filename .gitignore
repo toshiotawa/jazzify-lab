@@ -11,6 +11,7 @@ pnpm-debug.log*
 dist/
 build/
 .vite/
+en-blog/.astro/
 
 # Environment variables
 .env
@@ -155,4 +156,4 @@ tmp-ear-training-build/
 # *.wasm
 
 # Large JSON files (except sample data)
-# Keep small sample files for development 
+# Keep small sample files for development

@@ -4,3 +4,4 @@ Disallow: /main/
 
 Sitemap: https://jazzify.jp/sitemap.xml
 Sitemap: https://en.jazzify.jp/sitemap.xml
+Sitemap: https://en.jazzify.jp/blog/sitemap-index.xml

@@ -4,9 +4,14 @@
   "description": "Jazz Learning Game - Music game with piano and guitar modes",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "en-blog"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:app && npm run build:blog",
+    "build:app": "vite build --mode production",
+    "build:blog": "npm run build --workspace en-blog",
     "build:prod": "vite build --mode production",
     "build:perf": "vite build --mode production --logLevel warn",
     "build:fast": "vite build --mode production",
@@ -20,6 +25,10 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
+    "check:blog": "npm run check --workspace en-blog",
+    "verify:blog": "npm run verify --workspace en-blog --",
+    "import:en-blog": "npm run import --workspace en-blog --",
+    "upload:en-blog-media": "node ./scripts/upload-en-blog-media-r2.mjs",
     "clean": "rm -rf dist node_modules/.vite",
     "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install",
     "subset-lp-fonts": "node ./scripts/subset-lp-fonts.mjs",
@@ -97,6 +106,6 @@
     "wrangler": "^3.114.17"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   }
 }

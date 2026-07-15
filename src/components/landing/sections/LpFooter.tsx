@@ -16,7 +16,8 @@ const scrollToSection = (event: React.MouseEvent<HTMLAnchorElement>, id: string)
 };
 
 export const LpFooter: React.FC = () => {
-  const copy = getLandingCopy(shouldUseEnglishCopy());
+  const isEnglishCopy = shouldUseEnglishCopy();
+  const copy = getLandingCopy(isEnglishCopy);
 
   return (
     <footer
@@ -99,6 +100,14 @@ export const LpFooter: React.FC = () => {
               >
                 {copy.footer.loginLink}
               </Link>
+              {isEnglishCopy && (
+                <a
+                  href="/blog/"
+                  className="block transition-colors hover:text-[var(--lp-gold-deep)]"
+                >
+                  Blog
+                </a>
+              )}
             </nav>
           </div>
 

@@ -47,7 +47,7 @@ describe('earTrainingPrecisionScorePreferences', () => {
     expect(loadPrecisionScoreBandHeightPx()).toBeNull();
   });
 
-  it('default constant matches legacy band height', () => {
-    expect(PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX).toBe(128);
+  it('default constant matches the expanded score band height', () => {
+    expect(PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX).toBe(144);
   });
 });

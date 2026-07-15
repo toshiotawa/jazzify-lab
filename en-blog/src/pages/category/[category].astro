@@ -1,0 +1,46 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { getCollection } from 'astro:content';
+import ArticleCard from '../../components/ArticleCard.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import {
+  BLOG_ORIGIN,
+  CATEGORIES,
+  DEFAULT_OG_IMAGE,
+  categoryPath,
+  type BlogCategory,
+} from '../../lib/blog';
+
+interface Props {
+  category: BlogCategory;
+  label: string;
+  posts: CollectionEntry<'blog'>[];
+}
+
+export const getStaticPaths = async () => {
+  const allPosts = await getCollection('blog');
+  return CATEGORIES.map((category) => ({
+    params: { category: category.slug },
+    props: {
+      category: category.slug,
+      label: category.label,
+      posts: allPosts
+        .filter((post) => post.data.category === category.slug)
+        .sort((left, right) => left.data.title.localeCompare(right.data.title)),
+    },
+  }));
+};
+
+const { category, label, posts } = Astro.props;
+const title = `${label} | Jazzify Blog`;
+const description = `Explore Jazzify's ${label.toLowerCase()} for practical jazz learning and listening.`;
+const canonical = `${BLOG_ORIGIN}${categoryPath(category)}`;
+---
+
+<BaseLayout {title} {description} {canonical} ogImage={DEFAULT_OG_IMAGE}>
+  <h1 class="page-heading">{label}</h1>
+  <p class="page-intro">{posts.length} articles</p>
+  <ul class="article-list">
+    {posts.map((post) => <li><ArticleCard {post} /></li>)}
+  </ul>
+</BaseLayout>

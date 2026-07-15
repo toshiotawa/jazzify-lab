@@ -1,0 +1,17 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import { articlePath } from '../lib/blog';
+
+interface Props {
+  post: CollectionEntry<'blog'>;
+  headingLevel?: 'h2' | 'h3';
+}
+
+const { post, headingLevel = 'h2' } = Astro.props;
+const Heading = headingLevel;
+---
+
+<article class="article-card">
+  <Heading><a href={articlePath(post.data.slug)}>{post.data.title}</a></Heading>
+  <p>{post.data.description}</p>
+</article>

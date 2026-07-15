@@ -3,6 +3,11 @@ import {
 } from '@/utils/prefetchEarTrainingScreenChunks';
 import type { LessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 
+vi.mock('@/utils/ensureBattlePianoAudio', () => ({
+  preloadBattleGmPiano: vi.fn(),
+  preloadBattleCountInClick: vi.fn(),
+}));
+
 const progressRow = (
   lessonSongId: string,
   isCompleted: boolean,
