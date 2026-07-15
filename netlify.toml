@@ -157,19 +157,7 @@
   to = "/assets/:splat"
   status = 200
 
-# en.jazzify.jp: 英語 SEO 用静的 HTML（assets リダイレクトより後、SPA キャッチオールより前）
-# /blog/* の404は public/_redirects で定義し、このTOMLより先に評価する。
-[[redirects]]
-  from = "/"
-  to = "/index-en.html"
-  status = 200
-  conditions = { Host = ["en.jazzify.jp"] }
-
-[[redirects]]
-  from = "/*"
-  to = "/index-en.html"
-  status = 200
-  conditions = { Host = ["en.jazzify.jp"] }
+# en.jazzify.jp のルーティングは public/_redirects で定義し、このTOMLより先に評価する。
 
 # SPAのキャッチオールリダイレクト（assetsを除くすべてのパス）
 [[redirects]]

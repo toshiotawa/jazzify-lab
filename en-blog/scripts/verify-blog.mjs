@@ -98,6 +98,14 @@ assert(
   redirects.includes('https://en.jazzify.jp/blog/*  /blog/404.html  404'),
   'Netlify blog 404 rule is missing from dist/_redirects',
 );
+assert(
+  redirects.includes('https://en.jazzify.jp/       /index-en.html  200'),
+  'Netlify English root rule is missing from dist/_redirects',
+);
+assert(
+  redirects.includes('https://en.jazzify.jp/*      /index-en.html  200'),
+  'Netlify English SPA fallback is missing from dist/_redirects',
+);
 
 const canonicals = new Set();
 for (const slug of slugs) {
