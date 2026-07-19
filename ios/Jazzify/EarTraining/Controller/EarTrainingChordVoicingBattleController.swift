@@ -117,7 +117,8 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private let supabase = SupabaseService.shared
     private weak var scene: EarTrainingBattleSceneHandle?
 
-    private var lastInputAt: TimeInterval = 0
+    /// MIDI ノート単位のクールダウン（グローバルだと同時押しの後続音が落ちる）。
+    private var lastInputAtByNote: [Int: Double] = [:]
     private var failTimerTask: Task<Void, Never>?
     private var transitionTimerTask: Task<Void, Never>?
     private var countdownTask: Task<Void, Never>?
@@ -458,9 +459,9 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     }
 
     private func handleNoteInput(midi: Int) {
-        let now = CACurrentMediaTime() * 1000
-        if now - lastInputAt < Self.inputCooldownMs { return }
-        lastInputAt = now
+        let nowMs = CACurrentMediaTime() * 1000
+        if let last = lastInputAtByNote[midi], nowMs - last < Self.inputCooldownMs { return }
+        lastInputAtByNote[midi] = nowMs
 
         let allowEarlyCountIn = gameState == .countIn && countInEarlyInputActive
         guard gameState == .playingPhrase || allowEarlyCountIn else { return }

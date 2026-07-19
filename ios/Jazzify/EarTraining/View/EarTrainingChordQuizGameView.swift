@@ -321,7 +321,8 @@ private struct EarTrainingChordQuizContent: View {
         let layout = EarTrainingChordVoicingStaffLayout.buildQuizGroups(
             active: controller.displayedStaffActiveQuestion,
             preview: controller.displayedStaffPreviewQuestion,
-            hideChordNames: controller.stage.resolvedHideChordNamesInBattle
+            hideChordNames: controller.stage.resolvedHideChordNamesInBattle,
+            activeChordId: controller.activeChord?.id
         )
         let hideNotes = controller.stage.resolvedQuizHideUnpressedNotationInBattle(practiceMode: controller.practiceMode)
         let keyFifths = controller.displayedStaffActiveQuestion?.keyFifths ?? controller.stage.keyFifths ?? 0

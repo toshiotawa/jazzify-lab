@@ -390,7 +390,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
-  const lastInputAtRef = useRef(0);
+  const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
   const progressSaveStartedRef = useRef(false);
   const allChordsCompletedAtRef = useRef(false);
   const enemyAttackGaugePercentRef = useRef(0);
@@ -1811,10 +1811,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();
-    if (now - lastInputAtRef.current < INPUT_COOLDOWN_MS) {
+    const midiNote = Math.round(note);
+    const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
+    if (now - lastInputAt < INPUT_COOLDOWN_MS) {
       return;
     }
-    lastInputAtRef.current = now;
+    lastInputAtByNoteRef.current.set(midiNote, now);
     if (isChordVoicingCompositePhrase) {
       if (gameStateRef.current !== 'playingPhrase') {
         return;

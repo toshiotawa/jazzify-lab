@@ -103,7 +103,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
     private var quizEnded: Bool = false
     private var progressSaveStarted: Bool = false
     private var quizStartDate: Date?
-    private var lastInputAt: TimeInterval = 0
+    /// MIDI ノート単位のクールダウン（グローバルだと同時押しの後続音が落ちる）。
+    private var lastInputAtByNote: [Int: Double] = [:]
     private var phraseIntroSeq: Int = 0
     private var quotaCelebrationFired: Bool = false
     private var staffShiftQueue: [(Int, Int)] = []
@@ -521,10 +522,10 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
 
     private func handleNoteInput(midi: Int) {
         let now = CACurrentMediaTime()
-        if (now - lastInputAt) * 1000 < Self.inputCooldownMs {
+        if let last = lastInputAtByNote[midi], (now - last) * 1000 < Self.inputCooldownMs {
             return
         }
-        lastInputAt = now
+        lastInputAtByNote[midi] = now
         guard gameState == .playingPhrase,
               quizEnded != true else { return }
         guard let currentAttempt = attempt, let chord = activeChord else { return }

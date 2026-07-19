@@ -169,9 +169,15 @@ extension EarTrainingChordVoicingStaffLayout {
     static func buildQuizGroups(
         active: EarTrainingChordQuiz.Question?,
         preview: EarTrainingChordQuiz.Question?,
-        hideChordNames: Bool = false
+        hideChordNames: Bool = false,
+        activeChordId: UUID? = nil
     ) -> (groups: [GroupInput], denseCurrentMeasureLayout: Bool) {
-        var groups = quizGroups(for: active, measureOffset: 0, hideChordNames: hideChordNames)
+        var groups = quizGroups(
+            for: active,
+            measureOffset: 0,
+            hideChordNames: hideChordNames,
+            activeChordId: activeChordId
+        )
         if let preview, preview.id != active?.id {
             groups.append(contentsOf: quizGroups(for: preview, measureOffset: 1, hideChordNames: hideChordNames))
         }
@@ -222,14 +228,25 @@ extension EarTrainingChordVoicingStaffLayout {
     private static func quizGroups(
         for question: EarTrainingChordQuiz.Question?,
         measureOffset: Int,
-        hideChordNames: Bool
+        hideChordNames: Bool,
+        activeChordId: UUID? = nil
     ) -> [GroupInput] {
         guard let question else { return [] }
         return question.chords.enumerated().map { index, chord in
             let voicing = chord.voicing ?? []
+            let showName: Bool
+            if hideChordNames {
+                showName = false
+            } else if measureOffset == 1 {
+                showName = index == 0
+            } else if let activeChordId {
+                showName = chord.id == activeChordId
+            } else {
+                showName = index == 0
+            }
             return GroupInput(
                 id: chord.id,
-                chordName: !hideChordNames && index == 0 ? chord.chordName : "",
+                chordName: showName ? chord.chordName : "",
                 voicing: voicing,
                 voicingStaves: chord.voicingStaves ?? [],
                 measureOffset: measureOffset,

@@ -80,9 +80,9 @@ describe('twoHandVoicingBlock3IiValtICourse', () => {
     expect(items[1]?.chordName).toBe('G7alt');
     expect(items[2]?.chordName).toBe('CM7');
     expect(items.map((item) => item.measureNumber)).toEqual([
-      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
-      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
-      1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3,
+      1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4,
+      5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8,
+      9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12,
     ]);
     expect(resolveIiValtIQuizLoopMeasures(summary)).toBe(3);
   });

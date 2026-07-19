@@ -417,9 +417,10 @@ export const buildQuizItemsForLesson = (
 ): QuizItemSpec[] => {
   const progression = getLessonProgressionChords(lesson, form);
   if (lesson.isSummary) {
+    // II-V-I を1問にまとめる（% だと機能別に潰れて表示と判定が乖離する）
     return progression.map((chordEntry, orderIndex) => ({
       orderIndex,
-      measureNumber: (orderIndex % CHORDS_PER_KEY_II_VI) + 1,
+      measureNumber: Math.floor(orderIndex / CHORDS_PER_KEY_II_VI) + 1,
       chordName: chordEntry.name,
       notes: [...chordEntry.voicing_names],
       keyFifths: chordEntry.key_fifths,

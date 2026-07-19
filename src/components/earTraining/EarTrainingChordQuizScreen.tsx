@@ -202,15 +202,23 @@ const buildQuestionStaffGroups = (
   question: EarTrainingChordQuizQuestion | null,
   measureOffset: 0 | 1,
   hideChordNames: boolean,
+  activeChordId: string | null = null,
 ): ChordVoicingStaffGroup[] => (
-  question?.chords.map((chord, index) => ({
-    id: chord.id,
-    chordName: !hideChordNames && index === 0 ? chord.chord_name : '',
-    voicing: chord.voicing ?? [],
-    voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
-    measureOffset,
-    isRest: (chord.voicing?.length ?? 0) === 0,
-  })) ?? []
+  question?.chords.map((chord, index) => {
+    const showName = !hideChordNames && (
+      measureOffset === 1
+        ? index === 0
+        : (activeChordId != null ? chord.id === activeChordId : index === 0)
+    );
+    return {
+      id: chord.id,
+      chordName: showName ? chord.chord_name : '',
+      voicing: chord.voicing ?? [],
+      voicingStaves: chord.voicing_staves ?? EMPTY_STAVES,
+      measureOffset,
+      isRest: (chord.voicing?.length ?? 0) === 0,
+    };
+  }) ?? []
 );
 
 const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
@@ -299,7 +307,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const attemptRef = useRef<EarTrainingChordVoicingAttempt | null>(null);
   const gameStateRef = useRef<EarTrainingGameState>('idle');
   const correctCountRef = useRef(0);
-  const lastInputAtRef = useRef(0);
+  const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
   const progressSaveStartedRef = useRef(false);
   const quizTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -777,10 +785,11 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
   const handleNoteInput = useCallback((midiNote: number) => {
     const nowTs = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (nowTs - lastInputAtRef.current < INPUT_COOLDOWN_MS) {
+    const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
+    if (nowTs - lastInputAt < INPUT_COOLDOWN_MS) {
       return;
     }
-    lastInputAtRef.current = nowTs;
+    lastInputAtByNoteRef.current.set(midiNote, nowTs);
     if (gameStateRef.current !== 'playingPhrase') {
       return;
     }
@@ -1021,7 +1030,12 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const showKeyboardTargetHints = practiceMode || stage.show_keyboard_hints_in_battle === true;
 
   const staffVoicingGroups = useMemo((): ChordVoicingStaffGroup[] => {
-    const activeGroups = buildQuestionStaffGroups(displayedActiveQuestion, 0, hideChordNamesInBattle);
+    const activeGroups = buildQuestionStaffGroups(
+      displayedActiveQuestion,
+      0,
+      hideChordNamesInBattle,
+      activeChord?.id ?? null,
+    );
     if (!displayedPreviewQuestion || displayedPreviewQuestion.id === displayedActiveQuestion?.id) {
       return activeGroups;
     }
@@ -1029,7 +1043,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       ...activeGroups,
       ...buildQuestionStaffGroups(displayedPreviewQuestion, 1, hideChordNamesInBattle),
     ];
-  }, [displayedActiveQuestion, displayedPreviewQuestion, hideChordNamesInBattle]);
+  }, [activeChord?.id, displayedActiveQuestion, displayedPreviewQuestion, hideChordNamesInBattle]);
 
   const staffDenseCurrentMeasureLayout = useMemo(() => {
     const currentNoteTotal = getQuestionNoteTotal(displayedActiveQuestion);

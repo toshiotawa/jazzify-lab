@@ -336,7 +336,7 @@ export const buildMinorIiViQuizItems = (
   if (progressionSpec.isSummary) {
     return progressionChords.map((chordEntry, orderIndex) => ({
       orderIndex,
-      measureNumber: (orderIndex % CHORDS_PER_KEY) + 1,
+      measureNumber: Math.floor(orderIndex / CHORDS_PER_KEY) + 1,
       chordName: chordEntry.name,
       notes: [...chordEntry.voicing_names],
       keyFifths: chordEntry.key_fifths,

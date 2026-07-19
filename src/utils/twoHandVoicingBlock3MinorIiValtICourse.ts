@@ -310,7 +310,7 @@ export const buildMinorIiValtIQuizItems = (
         const chordSpec = keySet.chords[chordIndex];
         items.push({
           orderIndex,
-          measureNumber: (orderIndex % SUMMARY_LOOP_MEASURES) + 1,
+          measureNumber: Math.floor(orderIndex / SUMMARY_LOOP_MEASURES) + 1,
           chordName: chordSpec.symbol,
           notes: [...chordSpec.notes],
           keyFifths: keySet.keyFifths,
