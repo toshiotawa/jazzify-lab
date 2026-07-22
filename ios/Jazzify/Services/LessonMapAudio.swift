@@ -32,7 +32,11 @@ final class LessonMapAudio {
         get { userDefaults.bool(forKey: mutedKey) }
         set {
             userDefaults.set(newValue, forKey: mutedKey)
-            queuePlayer.volume = effectiveVolume()
+            if newValue {
+                stopImmediately()
+            } else {
+                queuePlayer.volume = effectiveVolume()
+            }
         }
     }
 

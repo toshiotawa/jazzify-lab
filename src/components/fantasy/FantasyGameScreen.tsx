@@ -2368,6 +2368,11 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
             updateSettings({ rootSoundVolume: newSettings.rootSoundVolume });
             FantasySoundManager.setRootVolume(newSettings.rootSoundVolume);
           }
+
+          // BGM音量はモーダル内で即時反映済み。永続化のため gameStore にも書く。
+          if (newSettings.bgmVolume !== undefined) {
+            updateSettings({ bgmVolume: newSettings.bgmVolume });
+          }
         }}
         midiDeviceId={settings.selectedMidiDevice}
         volume={settings.midiVolume}

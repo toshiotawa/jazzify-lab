@@ -24,6 +24,7 @@ import type { DifficultyConfig, PlayerStats, SpecialSkills, AcquiredMagics, Surv
 import type { StageDefinition } from '../SurvivalStageDefinitions';
 import SurvivalGameOver from '../SurvivalGameOver';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, type SurvivalDisplaySettings } from '../SurvivalSettingsModal';
+import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 import CodeRunCanvas from './CodeRunCanvas';
 import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
 import {
@@ -185,8 +186,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(() => loadSurvivalDisplaySettings());
-  const [bgmVolume, setBgmVolume] = useState(0.3);
-  const bgmVolumeRef = useRef(0.3);
+  const [bgmVolume, setBgmVolume] = useState(() => SurvivalMapAudio.getBgmVolume());
+  const bgmVolumeRef = useRef(SurvivalMapAudio.getBgmVolume());
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentBgmUrlRef = useRef<string | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);

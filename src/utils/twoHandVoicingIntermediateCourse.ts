@@ -453,8 +453,9 @@ export const buildVoicingPhrasesForLesson = (
       orderIndex: chordIndex,
       chordName: chordSpec.displayName,
       measureNumber: chordIndex + 1,
-      startTimeSec: chordIndex * SEC_PER_MEASURE_AT_100,
-      endTimeSec: (chordIndex + 1) * SEC_PER_MEASURE_AT_100,
+      // 浮動小数の累積誤差を避け、2.4 * n を 0.1 秒単位に丸める
+      startTimeSec: Number((chordIndex * SEC_PER_MEASURE_AT_100).toFixed(1)),
+      endTimeSec: Number(((chordIndex + 1) * SEC_PER_MEASURE_AT_100).toFixed(1)),
       notes: [...chordSpec.notes],
       keyFifths: set.keyFifths,
     }));

@@ -552,7 +552,6 @@ const LessonDetailPage: React.FC = () => {
       loading
       || !justClearedParam
       || justClearedConsumedRef.current
-      || !lessonCourseIsMainQuest
     ) {
       return;
     }
@@ -568,13 +567,19 @@ const LessonDetailPage: React.FC = () => {
       setTaskClearPromptMode('afterClear');
       setNextTaskAfterClear(nextIncomplete);
       setShowTaskClearNextStepModal(true);
+      return;
+    }
+
+    // 最後の課題クリア後: クエスト完了導線を出す（目的別コース含む）
+    if (requirements.length > 0 && lessonProgress?.completed !== true) {
+      setShowReadyToCompletePrompt(true);
     }
   }, [
     loading,
     justClearedParam,
-    lessonCourseIsMainQuest,
     requirements,
     requirementsProgress,
+    lessonProgress?.completed,
     clearJustClearedFromUrl,
   ]);
 

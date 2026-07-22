@@ -235,6 +235,7 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 import { playTutorialChordPreview } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -1056,11 +1057,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ステージモード: 残り30秒パワーアップ済みフラグ
   const stagePowerUpTriggeredRef = useRef(false);
 
-  // BGM制御用refs
+  // BGM制御用refs（音量は SurvivalMapAudio / localStorage から復元）
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentBgmUrlRef = useRef<string | null>(null);
-  const [bgmVolume, setBgmVolume] = useState<number>(0.3);
-  const bgmVolumeRef = useRef<number>(0.3);
+  const [bgmVolume, setBgmVolume] = useState<number>(() => SurvivalMapAudio.getBgmVolume());
+  const bgmVolumeRef = useRef<number>(SurvivalMapAudio.getBgmVolume());
 
   const stopAllSurvivalBackgroundMusic = useCallback(() => {
     if (bgmAudioRef.current) {

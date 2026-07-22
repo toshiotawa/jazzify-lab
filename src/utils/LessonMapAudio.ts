@@ -87,6 +87,10 @@ class LessonMapAudioImpl {
   setMuted(muted: boolean): void {
     this.muted = muted;
     writeStored(LS_BGM_MUTE, muted ? '1' : '0');
+    if (muted) {
+      void this.stopBgmImmediately();
+      return;
+    }
     if (this.bgmAudio) {
       this.bgmAudio.volume = this.effectiveBgmVolume();
     }

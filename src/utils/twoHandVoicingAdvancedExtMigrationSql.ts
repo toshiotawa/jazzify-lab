@@ -321,6 +321,7 @@ const appendAdvancedVoicingStageSql = (
     'ON CONFLICT (id) DO UPDATE SET',
     '  audio_url = EXCLUDED.audio_url,',
     '  loop_duration_sec = EXCLUDED.loop_duration_sec,',
+    '  key_fifths = EXCLUDED.key_fifths,',
     '  updated_at = now();',
     '',
   );

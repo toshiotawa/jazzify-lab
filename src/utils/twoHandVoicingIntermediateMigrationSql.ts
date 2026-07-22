@@ -2,6 +2,7 @@
  * 両手ヴォイシングコース(中級) Supabase マイグレーション SQL 生成。
  */
 import { buildDrop2IIVIABADemoScript } from '@/components/survival/tutorial/buildDrop2IIVIABADemoScript';
+import { buildDrop2IIVIBABDemoScript } from '@/components/survival/tutorial/buildDrop2IIVIBABDemoScript';
 import {
   TWO_HAND_VOICING_BGM_URL,
   TWO_HAND_VOICING_BLOCK_META,
@@ -76,11 +77,15 @@ const QUEST1_PLACEHOLDER_DEMO_SCRIPT = (blockNumber: number): string => sqlJson(
   finish: { showCta: true },
 });
 
-const quest1DemoScriptJson = (lesson: TwoHandVoicingLessonSpec): string => (
-  lesson.lessonKey === 'b1-q1'
-    ? sqlJson(buildDrop2IIVIABADemoScript())
-    : QUEST1_PLACEHOLDER_DEMO_SCRIPT(lesson.blockNumber)
-);
+const quest1DemoScriptJson = (lesson: TwoHandVoicingLessonSpec): string => {
+  if (lesson.lessonKey === 'b1-q1') {
+    return sqlJson(buildDrop2IIVIABADemoScript());
+  }
+  if (lesson.lessonKey === 'b2-q1') {
+    return sqlJson(buildDrop2IIVIBABDemoScript());
+  }
+  return QUEST1_PLACEHOLDER_DEMO_SCRIPT(lesson.blockNumber);
+};
 
 const appendSurvivalStageSql = (
   lines: string[],
@@ -195,6 +200,7 @@ const appendVoicingStageSql = (
   const form = TWO_HAND_VOICING_BLOCK_META[lesson.blockNumber].form;
   const stageKey = `${getLessonKey(lesson)}-voicing`;
   const phrases = buildVoicingPhrasesForLesson(lesson, form);
+  const stageKeyFifths = phrases[0]?.keyFifths ?? 0;
 
   lines.push(
     'INSERT INTO public.ear_training_stages (',
@@ -209,9 +215,9 @@ const appendVoicingStageSql = (
     `  ${sqlString(`thvi-voicing-${lesson.lessonKey}`)},`,
     `  ${sqlString(voicingBattleTitleJa(lesson.titleJa))},`,
     `  ${sqlString(`Ear training: ${lesson.titleEn}`)},`,
-    `  ${sqlString('BPM100・3ループ以内に II-V-I を弾きましょう。')},`,
-    `  ${sqlString('Play II-V-I within 3 loops at 100 BPM.')},`,
-    '  100, 0, 4, 4, 4, 3,',
+    `  ${sqlString('BPM100・最大3ループで II-V-I を弾きましょう（マイナスワン音源は6ループ分）。')},`,
+    `  ${sqlString('Play II-V-I within 3 loops at 100 BPM (minus-one audio spans 6 loops).')},`,
+    `  100, ${stageKeyFifths}, 4, 4, 4, 3,`,
     '  4, 180, 100, 90,',
     '  2, 12, 18, 24, 3, 30, 0, 2,',
     "  'blue_club', true, 'chord_voicing', true",
@@ -221,6 +227,7 @@ const appendVoicingStageSql = (
     '  title_en = EXCLUDED.title_en,',
     '  description = EXCLUDED.description,',
     '  description_en = EXCLUDED.description_en,',
+    '  key_fifths = EXCLUDED.key_fifths,',
     '  max_loops_per_phrase = EXCLUDED.max_loops_per_phrase,',
     '  count_in_beats = EXCLUDED.count_in_beats,',
     '  time_limit_sec = EXCLUDED.time_limit_sec,',
@@ -251,6 +258,7 @@ const appendVoicingStageSql = (
       'ON CONFLICT (id) DO UPDATE SET',
       '  audio_url = EXCLUDED.audio_url,',
       '  loop_duration_sec = EXCLUDED.loop_duration_sec,',
+      '  key_fifths = EXCLUDED.key_fifths,',
       '  updated_at = now();',
       '',
     );
@@ -274,6 +282,8 @@ const appendVoicingStageSql = (
         ')',
         'ON CONFLICT (id) DO UPDATE SET',
         '  chord_name = EXCLUDED.chord_name,',
+        '  start_time_sec = EXCLUDED.start_time_sec,',
+        '  end_time_sec = EXCLUDED.end_time_sec,',
         '  voicing = EXCLUDED.voicing,',
         '  voicing_staves = EXCLUDED.voicing_staves;',
       );

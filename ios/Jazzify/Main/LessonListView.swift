@@ -2704,8 +2704,8 @@ struct LessonDetailView: View {
 
     @MainActor
     private func evaluateTaskClearNextStepAfterGame() async {
-        guard courseIsMainQuest,
-              let check = pendingClearCheck else {
+        // メインクエスト・目的別コースの両方で課題クリア後モーダルを出す
+        guard let check = pendingClearCheck else {
             pendingClearCheck = nil
             return
         }
@@ -2734,6 +2734,12 @@ struct LessonDetailView: View {
             showReadyToCompletePrompt = false
             taskClearPromptMode = .afterClear
             taskClearNextStepTarget = next
+            return
+        }
+
+        // 最後の課題クリア後はクエスト完了導線
+        if !sortedRequirements.isEmpty {
+            showReadyToCompletePrompt = true
         }
     }
 

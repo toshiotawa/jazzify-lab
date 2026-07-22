@@ -74,6 +74,19 @@ describe('twoHandVoicingIntermediateCourse', () => {
     ]);
   });
 
+  it('フレーズ chord 時刻は 2.4 秒刻みで丸められる', () => {
+    const lesson = TWO_HAND_VOICING_LESSONS.find((entry) => entry.lessonKey === 'b2-q1');
+    expect(lesson).toBeDefined();
+    if (!lesson) {
+      return;
+    }
+    const phrases = buildVoicingPhrasesForLesson(lesson, 'bab');
+    expect(phrases).toHaveLength(2);
+    expect(phrases[0]?.keyFifths).toBe(0);
+    expect(phrases[1]?.keyFifths).toBe(-1);
+    expect(phrases[0]?.chords.map((chord) => chord.endTimeSec)).toEqual([2.4, 4.8, 7.2, 9.6]);
+  });
+
   it('耳コピフレーズは各 4 小節 × 2 フレーズ', () => {
     const lesson = TWO_HAND_VOICING_LESSONS.find((entry) => entry.lessonKey === 'b2-q3');
     expect(lesson).toBeDefined();

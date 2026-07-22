@@ -237,6 +237,9 @@ const LessonPage: React.FC = () => {
 
   useEffect(() => {
     if (!open || !profile) return;
+    if (LessonMapAudio.isMuted()) {
+      return undefined;
+    }
     const cancelDeferredBgm = LessonMapAudio.scheduleDeferredBgm(LESSON_MAP_BGM_URL);
     return () => {
       cancelDeferredBgm();
