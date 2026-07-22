@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var isDeleting = false
     @State private var deleteError: String?
     @State private var showMIDISettings = false
+    @State private var rotateScreen180 = ScreenRotationPreferences.load()
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -26,6 +27,7 @@ struct SettingsView: View {
                     }
                     accountSection
                     languageSection
+                    displaySection
                     midiSection
                     subscriptionSection
                     supportSection
@@ -121,6 +123,28 @@ struct SettingsView: View {
             .foregroundStyle(.white)
         } header: {
             Text(locale == .ja ? "言語設定" : "Language")
+        }
+        .listRowBackground(Color(hex: "1e293b"))
+    }
+
+    private var displaySection: some View {
+        Section {
+            Toggle(isOn: $rotateScreen180) {
+                Text(locale == .ja ? "画面を180°回転" : "Rotate screen 180°")
+                    .foregroundStyle(.white)
+            }
+            .tint(.purple)
+            .onChange(of: rotateScreen180) { enabled in
+                ScreenRotationPreferences.save(enabled)
+            }
+        } header: {
+            Text(locale == .ja ? "画面表示" : "Display")
+        } footer: {
+            Text(
+                locale == .ja
+                    ? "端末を上下反転して使うときに有効にしてください。充電ケーブルを上にしたり、MIDI 鍵盤を手前に置いたりする用途向けです。"
+                    : "Turn this on when using the device upside down, for example with the charging cable at the top or a MIDI keyboard in front of you."
+            )
         }
         .listRowBackground(Color(hex: "1e293b"))
     }

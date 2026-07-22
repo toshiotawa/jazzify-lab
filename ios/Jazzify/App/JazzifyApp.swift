@@ -36,6 +36,7 @@ struct JazzifyApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
     @State private var onboardingLaunch: OnboardingLaunchRequest?
     /// ObservableObject 経由の `$appState.appUpdateNotice` だと、課金更新などの再描画で sheet が落ちることがあるためローカルにミラーする
     @State private var presentedAppUpdateNotice: AppUpdateNotice?
@@ -77,6 +78,16 @@ struct RootView: View {
             OnboardingView(locale: appState.locale, onClose: {
                 onboardingLaunch = nil
             })
+        }
+        .onAppear {
+            ScreenRotationApplier.shared.applyCurrentPreference()
+        }
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active else { return }
+            ScreenRotationApplier.shared.applyCurrentPreference()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .screenRotation180DidChange)) { _ in
+            ScreenRotationApplier.shared.applyCurrentPreference()
         }
     }
 }
