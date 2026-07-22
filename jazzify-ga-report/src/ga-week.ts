@@ -1,8 +1,14 @@
-import { analyticsDataClient, exitWithError, GA_PROPERTY } from "./client.js";
+import {
+  analyticsDataClient,
+  exitWithError,
+  GA_PROPERTY,
+  GA_SITE,
+  logGaHeader,
+} from "./client.js";
 
 const RANGE = [{ startDate: "7daysAgo", endDate: "yesterday" }] as const;
 
-const KEY_EVENTS = [
+const JAZZIFY_KEY_EVENTS = [
   "sign_up",
   "sign_up_click",
   "trial_start",
@@ -36,7 +42,7 @@ async function report(
 }
 
 async function main(): Promise<void> {
-  console.log("GA4 週次レポート（7daysAgo 〜 yesterday）");
+  logGaHeader("GA4 週次レポート（7daysAgo 〜 yesterday）");
 
   await report("daily (date / users / sessions / pageViews / keyEvents)", {
     property: GA_PROPERTY,
@@ -84,19 +90,39 @@ async function main(): Promise<void> {
     orderBys: [{ metric: { metricName: "activeUsers" }, desc: true }],
   });
 
-  await report("key events (eventCount / users)", {
-    property: GA_PROPERTY,
-    dateRanges: [...RANGE],
-    dimensions: [{ name: "eventName" }],
-    metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
-    dimensionFilter: {
-      filter: {
-        fieldName: "eventName",
-        inListFilter: { values: [...KEY_EVENTS] },
+  if (GA_SITE === "jazzpianodays") {
+    await report("top pages (path / pageViews / users)", {
+      property: GA_PROPERTY,
+      dateRanges: [...RANGE],
+      dimensions: [{ name: "pagePath" }],
+      metrics: [{ name: "screenPageViews" }, { name: "activeUsers" }],
+      orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+      limit: 25,
+    });
+
+    await report("top events (eventCount / users)", {
+      property: GA_PROPERTY,
+      dateRanges: [...RANGE],
+      dimensions: [{ name: "eventName" }],
+      metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+      limit: 25,
+    });
+  } else {
+    await report("key events (eventCount / users)", {
+      property: GA_PROPERTY,
+      dateRanges: [...RANGE],
+      dimensions: [{ name: "eventName" }],
+      metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+      dimensionFilter: {
+        filter: {
+          fieldName: "eventName",
+          inListFilter: { values: [...JAZZIFY_KEY_EVENTS] },
+        },
       },
-    },
-    orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
-  });
+      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+    });
+  }
 
   await report(
     "acquisition top25 (source / medium / campaign / content / sessions / users / keyEvents)",
@@ -119,28 +145,30 @@ async function main(): Promise<void> {
     },
   );
 
-  await report(
-    "sign_up by source (source / medium / campaign / content / events / users)",
-    {
-      property: GA_PROPERTY,
-      dateRanges: [...RANGE],
-      dimensions: [
-        { name: "sessionSource" },
-        { name: "sessionMedium" },
-        { name: "sessionCampaignName" },
-        { name: "sessionManualAdContent" },
-      ],
-      metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
-      dimensionFilter: {
-        filter: {
-          fieldName: "eventName",
-          stringFilter: { value: "sign_up" },
+  if (GA_SITE === "jazzify") {
+    await report(
+      "sign_up by source (source / medium / campaign / content / events / users)",
+      {
+        property: GA_PROPERTY,
+        dateRanges: [...RANGE],
+        dimensions: [
+          { name: "sessionSource" },
+          { name: "sessionMedium" },
+          { name: "sessionCampaignName" },
+          { name: "sessionManualAdContent" },
+        ],
+        metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
+        dimensionFilter: {
+          filter: {
+            fieldName: "eventName",
+            stringFilter: { value: "sign_up" },
+          },
         },
+        orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
+        limit: 20,
       },
-      orderBys: [{ metric: { metricName: "eventCount" }, desc: true }],
-      limit: 20,
-    },
-  );
+    );
+  }
 }
 
 main().catch((error: unknown) => {

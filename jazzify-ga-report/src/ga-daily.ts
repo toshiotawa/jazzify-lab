@@ -1,4 +1,9 @@
-import { analyticsDataClient, exitWithError, GA_PROPERTY } from "./client.js";
+import {
+  analyticsDataClient,
+  exitWithError,
+  GA_PROPERTY,
+  logGaHeader,
+} from "./client.js";
 
 async function main(): Promise<void> {
   const [response] = await analyticsDataClient.runReport({
@@ -34,7 +39,7 @@ async function main(): Promise<void> {
       keyEvents: Number(row.metricValues?.[3]?.value ?? 0),
     })) ?? [];
 
-  console.log("GA4 日次概況（直近7日 / yesterdayまで）");
+  logGaHeader("GA4 日次概況（直近7日 / yesterdayまで）");
   console.table(rows);
 }
 

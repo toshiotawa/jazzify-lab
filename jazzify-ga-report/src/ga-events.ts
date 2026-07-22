@@ -1,6 +1,12 @@
-import { analyticsDataClient, exitWithError, GA_PROPERTY } from "./client.js";
+import {
+  analyticsDataClient,
+  exitWithError,
+  GA_PROPERTY,
+  GA_SITE,
+  logGaHeader,
+} from "./client.js";
 
-const TARGET_EVENTS = [
+const JAZZIFY_EVENTS = [
   "sign_up",
   "sign_up_click",
   "trial_start",
@@ -24,14 +30,18 @@ async function main(): Promise<void> {
     ],
     dimensions: [{ name: "eventName" }],
     metrics: [{ name: "eventCount" }, { name: "totalUsers" }],
-    dimensionFilter: {
-      filter: {
-        fieldName: "eventName",
-        inListFilter: {
-          values: [...TARGET_EVENTS],
-        },
-      },
-    },
+    ...(GA_SITE === "jazzify"
+      ? {
+          dimensionFilter: {
+            filter: {
+              fieldName: "eventName",
+              inListFilter: {
+                values: [...JAZZIFY_EVENTS],
+              },
+            },
+          },
+        }
+      : {}),
     orderBys: [
       {
         metric: {
@@ -40,6 +50,7 @@ async function main(): Promise<void> {
         desc: true,
       },
     ],
+    limit: GA_SITE === "jazzpianodays" ? 50 : undefined,
   });
 
   const rows =
@@ -49,7 +60,11 @@ async function main(): Promise<void> {
       totalUsers: Number(row.metricValues?.[1]?.value ?? 0),
     })) ?? [];
 
-  console.log("GA4 イベント別（直近30日）");
+  logGaHeader(
+    GA_SITE === "jazzpianodays"
+      ? "GA4 イベント別（直近30日 / 上位50）"
+      : "GA4 イベント別（直近30日）",
+  );
   console.table(rows);
 
   if (rows.length === 0) {

@@ -42,7 +42,7 @@ Copy and track:
 実行順:
 
 1. `scripts/analytics/weekly_members_overview.sql` — 会員・有料・端末・地域・UTM・マイルストーン
-2. `scripts/analytics/weekly_main_quest_assignments.sql` — 第1章クエスト/課題クリア・脱落・MIDI
+2. `scripts/analytics/weekly_main_quest_assignments.sql` — 無料枠(block1)クリア・ペイウォール・MIDI
 3. 必要なら既存の `weekly_funnel.sql` / `weekly_funnel_by_platform.sql`
 
 **MCP 注意**: 複数ステートメントは末尾結果だけ返ることがある。コメント区切りの **1 SELECT ずつ**実行する。
@@ -54,19 +54,21 @@ cd jazzify-ga-report
 npm run ga:week
 ```
 
-前提: `.env` の `GA_PROPERTY_ID`、ADC（`gcloud auth application-default login`）。  
-期間は `7daysAgo`〜`yesterday`（当日なし）。
+前提: `.env` の `GA_PROPERTY_ID`（Jazzify）、ADC（`gcloud auth application-default login`）。  
+期間は `7daysAgo`〜`yesterday`（当日なし）。  
+Jazz Piano Days（`GA_PROPERTY_ID_JAZZPIANODAYS` / `ga:jpd:*`）は週次に含めない。
 
 ### 3. 定義（毎回同じ解釈）
 
-- **Q1/Q2/Q3 クリア** = そのクエスト内の **いずれか1課題** クリア（`lesson` × completed progress）
+- **無料メインクエスト** = `block_number <= 1` のみ（`src/utils/mainQuestFreeTier.ts` の `MAIN_QUEST_FREE_MAX_BLOCK_NUMBER = 1`）。第2ブロック以降は有料ロック
+- **無料枠クリア** = block 1 内の **いずれか1課題** クリア（現状は「1-1. ドとソをまねしよう」1本）
 - **課題クリア** = `lesson_songs` 単位の `is_completed`
-- **第1章完走** = Q3 課題まで（現状 3-2 / 3-3）
+- **無料ファネルの次段** = 無料枠クリア → `free_tier_wall_view` → checkout / trial / paid。**block 2+ クリアは無料離脱指標に使わない**（有料会員の進捗）
 - **有効サブスク増加** = 期間内に作られた `subscriptions` で `status in ('active','trial','grace','billing_retry')`。補助: `entitlement_state in ('active','payment_issue_with_access','cancelled_but_active_until_end')`（Apple 解約予約中で `status=canceled` でも期間内はこちらでカウント）
 - **新規からの課金定着** = 期間内 `auth.users` かつ有効サブスク/paid milestone
 - **MIDI**: 開始ログがあるユーザーのみ信頼。ログなしは「不明」
 
-課題タイトル固定の脱落クエリ（`1-1.` 等）はマスタ変更時に SQL を更新する。
+課題タイトル固定のクエリはマスタ変更時に SQL を更新する。
 
 ### 4. 出力
 

@@ -1,4 +1,9 @@
-import { analyticsDataClient, exitWithError, GA_PROPERTY } from "./client.js";
+import {
+  analyticsDataClient,
+  exitWithError,
+  GA_PROPERTY,
+  logGaHeader,
+} from "./client.js";
 
 async function main(): Promise<void> {
   const [response] = await analyticsDataClient.runReport({
@@ -42,7 +47,7 @@ async function main(): Promise<void> {
       keyEvents: Number(row.metricValues?.[2]?.value ?? 0),
     })) ?? [];
 
-  console.log("GA4 流入別（直近30日 / sessions上位50）");
+  logGaHeader("GA4 流入別（直近30日 / sessions上位50）");
   console.table(rows);
 }
 

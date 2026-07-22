@@ -13,7 +13,7 @@ Supabase MCP (`execute_sql`) または SQL Editor で実行する。
 | `weekly_funnel_by_platform.sql` | signup_platform 別マイルストーン |
 | `weekly_funnel_by_device.sql` | device 別マイルストーン |
 | `weekly_members_overview.sql` | 新規会員・有料・端末・地域・UTM |
-| `weekly_main_quest_assignments.sql` | メインクエスト第1章・クエスト/課題クリア |
+| `weekly_main_quest_assignments.sql` | 無料枠(block1)クリア・ペイウォール・MIDI |
 
 エージェント向け手順は `.cursor/skills/weekly-members-report/SKILL.md`。  
 GA4 CLI は `jazzify-ga-report`（`npm run ga:week`）。
