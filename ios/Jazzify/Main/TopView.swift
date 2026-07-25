@@ -11,9 +11,12 @@ struct TopView: View {
     @State private var mainQuestLessonToOpen: Lesson?
     @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
+    @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var showMainQuestResumeSheet = false
     @State private var resumeNextLesson: Lesson?
+    @State private var resumePremiumUpsell = false
     @State private var pendingResumeAfterUpdateNotice = false
+    @State private var pendingSubscriptionAfterResume = false
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -31,7 +34,10 @@ struct TopView: View {
                         mainQuestCard
                         profileCard
                         if !appState.isPremium {
-                            Button { showSubscription = true } label: {
+                            Button {
+                                subscriptionEntry = .dashboard
+                                showSubscription = true
+                            } label: {
                                 membershipBanner
                             }
                         }
@@ -71,6 +77,7 @@ struct TopView: View {
                                 .task {
                                     await MainActor.run {
                                         mainQuestLessonToOpen = nil
+                                        subscriptionEntry = .dashboard
                                         showSubscription = true
                                     }
                                 }
@@ -85,13 +92,19 @@ struct TopView: View {
                 }
             }
             .sheet(isPresented: $showSubscription) {
-                SubscriptionView()
+                SubscriptionView(entry: subscriptionEntry)
             }
             .sheet(isPresented: $showMainQuestResumeSheet, onDismiss: {
                 MainQuestResumePreferences.markShown()
+                if pendingSubscriptionAfterResume {
+                    pendingSubscriptionAfterResume = false
+                    subscriptionEntry = .resumeModal
+                    showSubscription = true
+                }
             }) {
                 MainQuestResumeSheet(
                     locale: locale,
+                    premiumUpsell: resumePremiumUpsell,
                     onContinue: {
                         MainQuestResumePreferences.markShown()
                         showMainQuestResumeSheet = false
@@ -99,6 +112,11 @@ struct TopView: View {
                         if let lesson = resumeNextLesson {
                             mainQuestLessonToOpen = lesson
                         }
+                    },
+                    onPremium: {
+                        MainQuestResumePreferences.markShown()
+                        pendingSubscriptionAfterResume = true
+                        showMainQuestResumeSheet = false
                     },
                     onLater: {
                         MainQuestResumePreferences.markShown()
@@ -305,6 +323,7 @@ struct TopView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
                             Button {
+                                subscriptionEntry = .dashboard
                                 showSubscription = true
                             } label: {
                                 HStack(spacing: 6) {
@@ -599,16 +618,23 @@ struct TopView: View {
                 mainQuestLessonToOpen = nextLesson
             }
         } else if let progress = loadedMainQuestProgress,
-                  let nextLesson = mainQuestPlayableNextLesson(progress: progress),
+                  let rawNext = progress.nextLesson,
                   let lastPlayedAt = progress.lastPlayedAt,
                   MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
-            await MainActor.run {
-                resumeNextLesson = nextLesson
-                // アップデート案内の取得・表示と同時に出すと片方の sheet が即閉じる
-                if !appState.isAppUpdateCheckComplete || appState.appUpdateNotice != nil {
-                    pendingResumeAfterUpdateNotice = true
-                } else {
-                    showMainQuestResumeSheet = true
+            let playable = MainQuestFreeTier.isBlockPlayable(
+                isPremium: appState.isPremium,
+                blockNumber: rawNext.blockNumber ?? 1
+            )
+            let shouldShowResume = playable || !appState.isPremium
+            if shouldShowResume {
+                await MainActor.run {
+                    resumeNextLesson = rawNext
+                    resumePremiumUpsell = !playable && !appState.isPremium
+                    if !appState.isAppUpdateCheckComplete || appState.appUpdateNotice != nil {
+                        pendingResumeAfterUpdateNotice = true
+                    } else {
+                        showMainQuestResumeSheet = true
+                    }
                 }
             }
         }

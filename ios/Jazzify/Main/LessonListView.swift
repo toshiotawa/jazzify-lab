@@ -12,6 +12,7 @@ struct LessonListView: View {
     @State private var isLoading = true
     @State private var showLessonInfo = false
     @State private var showSubscription = false
+    @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var showingAllCourses = false
     @State private var selectedMainQuestBlockNumber: Int?
     @State private var journeyCourse: JourneyCourseLaunch?
@@ -165,7 +166,7 @@ struct LessonListView: View {
                 }
             }
             .sheet(isPresented: $showSubscription) {
-                SubscriptionView()
+                SubscriptionView(entry: subscriptionEntry)
             }
             .sheet(isPresented: $showLessonInfo) {
                 FeatureInfoModal(
@@ -410,7 +411,7 @@ struct LessonListView: View {
             continueCard(state, onContinue: onContinue)
 
             if !appState.isPremium {
-                mainQuestFreeTierUpsellBanner()
+                mainQuestFreeTierUpsellBanner(state: state)
             }
 
             if UIDevice.current.userInterfaceIdiom == .pad {
@@ -481,17 +482,23 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
-    private func mainQuestFreeTierUpsellBanner() -> some View {
-        Button {
+    private func mainQuestFreeTierUpsellBanner(state: MainQuestViewState) -> some View {
+        let block1Completed = state.blocks.first { $0.blockNumber == 1 }?.isCompleted ?? false
+        return Button {
+            subscriptionEntry = .lessonList
             showSubscription = true
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill")
                     .foregroundStyle(.yellow)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(locale == .ja
-                         ? "フリープランはメインクエスト第1チャプターまでプレイできます"
-                         : "Free plan: Main Quest chapter 1 only")
+                    Text(block1Completed
+                         ? (locale == .ja
+                            ? "第1チャプターをクリアしました。タップして第2チャプターを開く →"
+                            : "Chapter 1 complete. Tap to unlock Chapter 2 with Premium →")
+                         : (locale == .ja
+                            ? "フリープランはメインクエスト第1チャプターまでプレイできます"
+                            : "Free plan: Main Quest chapter 1 only"))
                         .font(.caption.bold())
                         .foregroundStyle(.white)
                     Text(locale == .ja
@@ -626,7 +633,10 @@ struct LessonListView: View {
                 Task {
                     let premium = await appState.ensureFreshBilling()
                     if !premium {
-                        await MainActor.run { showSubscription = true }
+                        await MainActor.run {
+                            subscriptionEntry = .mainQuest
+                            showSubscription = true
+                        }
                     }
                 }
                 return
@@ -831,7 +841,10 @@ struct LessonListView: View {
                 Task {
                     let premium = await appState.ensureFreshBilling()
                     if !premium {
-                        await MainActor.run { showSubscription = true }
+                        await MainActor.run {
+                            subscriptionEntry = .mainQuest
+                            showSubscription = true
+                        }
                     }
                 }
                 return
@@ -1139,6 +1152,7 @@ struct LessonListView: View {
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
+                    subscriptionEntry = .lessonList
                     showSubscription = true
                     return
                 }
@@ -2737,9 +2751,22 @@ struct LessonDetailView: View {
             return
         }
 
-        // 最後の課題クリア後はクエスト完了導線
+        // 最後の課題クリア後: 無料枠 block1 最終なら完了シートへ直行、それ以外は確認シート
         if !sortedRequirements.isEmpty {
-            showReadyToCompletePrompt = true
+            let skipReadyModal = navigationState.map {
+                LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+                    isMainQuest: courseIsMainQuest,
+                    isPremium: appState.isPremium,
+                    currentBlockNumber: activeLesson.blockNumber ?? 1,
+                    nextLessonBlockNumber: $0.nextLesson?.blockNumber,
+                    nextBlockedReason: $0.nextBlockedReason
+                )
+            } ?? false
+            if skipReadyModal {
+                await completeLesson()
+            } else {
+                showReadyToCompletePrompt = true
+            }
         }
     }
 
@@ -2812,11 +2839,29 @@ struct LessonDetailView: View {
                         )
                     }
 
-                    showReadyToCompletePrompt = LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
-                        hasRequirements: !sortedRequirements.isEmpty,
-                        allRequirementsCompleted: allRequirementsCompleted,
-                        isLessonCompleted: isLessonCompleted
-                    )
+                    showReadyToCompletePrompt = {
+                        guard let navigationState else {
+                            return LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                                hasRequirements: !sortedRequirements.isEmpty,
+                                allRequirementsCompleted: allRequirementsCompleted,
+                                isLessonCompleted: isLessonCompleted
+                            )
+                        }
+                        if LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+                            isMainQuest: courseIsMainQuest,
+                            isPremium: appState.isPremium,
+                            currentBlockNumber: activeLesson.blockNumber ?? 1,
+                            nextLessonBlockNumber: navigationState.nextLesson?.blockNumber,
+                            nextBlockedReason: navigationState.nextBlockedReason
+                        ) {
+                            return false
+                        }
+                        return LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
+                            hasRequirements: !sortedRequirements.isEmpty,
+                            allRequirementsCompleted: allRequirementsCompleted,
+                            isLessonCompleted: isLessonCompleted
+                        )
+                    }()
                 }
             } else {
                 requirementProgress = []
@@ -2996,7 +3041,10 @@ struct LessonDetailView: View {
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
-                    await MainActor.run { showSubscriptionSheet = true }
+                    await MainActor.run {
+                        subscriptionEntry = .mainQuest
+                        showSubscriptionSheet = true
+                    }
                 }
             }
             return
@@ -3171,7 +3219,10 @@ struct LessonDetailView: View {
                 Task {
                     let premium = await appState.ensureFreshBilling()
                     if !premium {
-                        await MainActor.run { showSubscriptionSheet = true }
+                        await MainActor.run {
+                            subscriptionEntry = .mainQuest
+                            showSubscriptionSheet = true
+                        }
                     }
                 }
             }
@@ -3329,7 +3380,10 @@ struct LessonDetailView: View {
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
-                    await MainActor.run { showSubscriptionSheet = true }
+                    await MainActor.run {
+                        subscriptionEntry = .mainQuest
+                        showSubscriptionSheet = true
+                    }
                 }
             }
             return

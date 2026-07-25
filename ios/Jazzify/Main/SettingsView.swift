@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var showSubscription = false
+    @State private var subscriptionEntry: SubscriptionEntry = .accountModal
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
     @State private var deleteError: String?
@@ -42,7 +43,7 @@ struct SettingsView: View {
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showSubscription) {
-                SubscriptionView()
+                SubscriptionView(entry: subscriptionEntry)
             }
             .sheet(isPresented: $showMIDISettings) {
                 MIDISettingsView()

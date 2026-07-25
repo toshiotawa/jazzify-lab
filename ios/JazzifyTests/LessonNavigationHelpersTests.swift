@@ -182,4 +182,40 @@ final class LessonNavigationHelpersTests: XCTestCase {
             )
         )
     }
+
+    func testShouldSkipReadyPromptForFreeTierBlock1PremiumUpsell() {
+        XCTAssertTrue(
+            LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+                isMainQuest: true,
+                isPremium: false,
+                currentBlockNumber: 1,
+                nextLessonBlockNumber: 2,
+                nextBlockedReason: .premiumRequired
+            )
+        )
+    }
+
+    func testShouldNotSkipReadyPromptForPremiumMember() {
+        XCTAssertFalse(
+            LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+                isMainQuest: true,
+                isPremium: true,
+                currentBlockNumber: 1,
+                nextLessonBlockNumber: 2,
+                nextBlockedReason: .premiumRequired
+            )
+        )
+    }
+
+    func testShouldNotSkipReadyPromptWhenNextBlockIsStillBlock1() {
+        XCTAssertFalse(
+            LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+                isMainQuest: true,
+                isPremium: false,
+                currentBlockNumber: 1,
+                nextLessonBlockNumber: 1,
+                nextBlockedReason: .sequentialLock
+            )
+        )
+    }
 }

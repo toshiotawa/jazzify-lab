@@ -4,6 +4,30 @@ import StoreKit
 enum SubscriptionEntry {
     case `default`
     case chapterComplete
+    case mainQuest
+    case lessonList
+    case dashboard
+    case resumeModal
+    case accountModal
+
+    var analyticsSource: String {
+        switch self {
+        case .default:
+            return "subscription_sheet"
+        case .chapterComplete:
+            return "chapter_complete"
+        case .mainQuest:
+            return "main_quest"
+        case .lessonList:
+            return "lesson_list"
+        case .dashboard:
+            return "dashboard"
+        case .resumeModal:
+            return "resume_modal"
+        case .accountModal:
+            return "account_modal"
+        }
+    }
 }
 
 struct SubscriptionView: View {
@@ -14,6 +38,8 @@ struct SubscriptionView: View {
     @State private var introEligibleProductIDs: Set<String> = []
     @State private var introEligibilityChecked = false
     @State private var selectedPlanID: String?
+    @State private var didTrackPaywallView = false
+    @State private var didTrackPaywallDismiss = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -76,6 +102,17 @@ struct SubscriptionView: View {
         return found
     }
 
+    private func trackPaywallDismissIfNeeded() {
+        guard didTrackPaywallView,
+              !didTrackPaywallDismiss,
+              appState.canShowIAP,
+              !appState.isPremium,
+              let userId = appState.profile?.id
+        else { return }
+        didTrackPaywallDismiss = true
+        AnalyticsTracker.trackPaywallDismiss(userId: userId, source: entry.analyticsSource)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -123,9 +160,12 @@ struct SubscriptionView: View {
                 if appState.canShowIAP,
                    !appState.isPremium,
                    let userId = appState.profile?.id {
-                    let source = entry == .chapterComplete ? "chapter_complete" : "subscription_sheet"
-                    AnalyticsTracker.trackPaywallView(userId: userId, source: source)
+                    didTrackPaywallView = true
+                    AnalyticsTracker.trackPaywallView(userId: userId, source: entry.analyticsSource)
                 }
+            }
+            .onDisappear {
+                trackPaywallDismissIfNeeded()
             }
             .task(id: introEligibilityTaskID) {
                 introEligibilityChecked = false

@@ -200,6 +200,19 @@ enum LessonNavigationHelpers {
         hasRequirements && allRequirementsCompleted && !isLessonCompleted
     }
 
+    /// 無料枠 block1 最終クエスト: ReadyToComplete を挟まず完了シートへ直行するか
+    static func shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+        isMainQuest: Bool,
+        isPremium: Bool,
+        currentBlockNumber: Int,
+        nextLessonBlockNumber: Int?,
+        nextBlockedReason: NavigationBlockedReason?
+    ) -> Bool {
+        guard isMainQuest, !isPremium, currentBlockNumber == 1 else { return false }
+        guard let nextLessonBlockNumber, nextLessonBlockNumber > 1 else { return false }
+        return nextBlockedReason == .premiumRequired
+    }
+
     static func nextLesson(
         after currentLesson: Lesson,
         in sortedLessons: [Lesson]

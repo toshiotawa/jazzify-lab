@@ -2,25 +2,46 @@ import SwiftUI
 
 struct MainQuestResumeSheet: View {
     let locale: AppLocale
+    let premiumUpsell: Bool
     let onContinue: () -> Void
+    let onPremium: () -> Void
     let onLater: () -> Void
 
     private var isJapanese: Bool { locale == .ja }
 
     var body: some View {
         VStack(spacing: 20) {
-            Text(isJapanese ? "メインクエストを再開しますか？" : "Resume Main Quest?")
+            Text(isJapanese
+                 ? (premiumUpsell ? "プレミアムでメインクエストを続ける" : "メインクエストを再開しますか？")
+                 : (premiumUpsell ? "Continue Main Quest with Premium" : "Resume Main Quest?"))
                 .font(.title3.bold())
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
+
+            if premiumUpsell {
+                Text(isJapanese
+                     ? "第1チャプターをクリアしました。第2チャプター以降はプレミアムでプレイできます。"
+                     : "You cleared Chapter 1. Unlock Premium to play Chapter 2 and beyond.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+            }
+
             VStack(spacing: 12) {
-                Button(
-                    isJapanese ? "続きから再開" : "Resume",
-                    action: onContinue
-                )
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
+                if premiumUpsell {
+                    Button(isJapanese ? "プレミアムを見る" : "See Premium plans", action: onPremium)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Button(
+                        isJapanese ? "続きから再開" : "Resume",
+                        action: onContinue
+                    )
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
+                }
                 Button(isJapanese ? "あとで" : "Later", action: onLater)
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)

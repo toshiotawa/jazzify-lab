@@ -40,6 +40,13 @@ enum AnalyticsTracker {
         recordMilestone(userId: userId, milestone: "free_tier_wall_view", source: source)
     }
 
+    static func trackPaywallDismiss(userId: UUID, source: String) {
+        sendGa4Event(name: "paywall_dismiss", params: [
+            "source": source,
+            "platform": "ios",
+        ])
+    }
+
     static func trackBeginCheckout(userId: UUID) {
         sendGa4Event(name: "begin_checkout", params: ["platform": "ios"])
         recordMilestone(userId: userId, milestone: "checkout_click")
