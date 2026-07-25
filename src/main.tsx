@@ -23,6 +23,35 @@ import { initGa } from '@/utils/analytics/ga';
 import { initWebVitalsRum } from '@/utils/analytics/webVitals';
 import { syncPreferredLocaleFromUrl, detectPreferredLocale } from '@/utils/globalAudience';
 
+const scheduleDeferredGaInit = (): void => {
+  const run = (): void => {
+    initGa();
+  };
+  if (document.readyState === 'complete') {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run);
+    } else {
+      setTimeout(run, 0);
+    }
+    return;
+  }
+  window.addEventListener('load', () => {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run);
+    } else {
+      run();
+    }
+  }, { once: true });
+};
+
+const preloadLandingChunks = async (): Promise<void> => {
+  const { preloadRouteModule } = await import('@/routes/appRouteLoader');
+  await Promise.all([
+    preloadRouteModule('landing'),
+    import('@/components/LandingPage'),
+  ]);
+};
+
 // ローディング画面を非表示にする
 const hideLoading = () => {
   if (isLandingPath(window.location.pathname)) return;
@@ -91,7 +120,7 @@ const initializeApp = async () => {
   try {
     syncPreferredLocaleFromUrl();
     captureFirstTouch();
-    initGa();
+    scheduleDeferredGaInit();
     initWebVitalsRum();
     showDebugInfo('Starting initialization...');
     
@@ -100,6 +129,11 @@ const initializeApp = async () => {
       throw new Error('Root element not found');
     }
     showDebugInfo('Root element found');
+
+    if (isLandingPath(window.location.pathname)) {
+      showDebugInfo('Preloading landing chunks...');
+      await preloadLandingChunks();
+    }
     
     // React アプリケーションの初期化（StrictModeを削除）
     showDebugInfo('Creating React root...');

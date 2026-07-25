@@ -13,20 +13,29 @@ import {
   resolveAppRouteKind,
   type AppRouteKind,
 } from '@/routes/routeKinds';
+import {
+  getPreloadedRouteModule,
+  loadRouteModule,
+} from '@/routes/appRouteLoader';
+
+interface LoadedRouteModule {
+  kind: AppRouteKind;
+  Component: React.ComponentType<{ authReady?: boolean }>;
+}
+
+const buildLoadedRoute = (kind: AppRouteKind): LoadedRouteModule | null => {
+  const module = getPreloadedRouteModule(kind);
+  if (!module) {
+    return null;
+  }
+  return { kind, Component: module.default };
+};
 
 const PageFallback: React.FC = () => (
   <div className="w-full min-h-screen flex items-center justify-center text-white">
     Loading...
   </div>
 );
-
-const loadRouteModule = (kind: AppRouteKind) =>
-  import('@/routes/appRouteLoader').then((module) => module.loadRouteModule(kind));
-
-interface LoadedRouteModule {
-  kind: AppRouteKind;
-  Component: React.ComponentType<{ authReady?: boolean }>;
-}
 
 const App: React.FC = () => {
   const location = useLocation();
@@ -35,11 +44,19 @@ const App: React.FC = () => {
   const authBootstrapStartedRef = useRef(false);
   const pathname = normalizePathname(location.pathname);
   const routeKind = useMemo(() => resolveAppRouteKind(pathname), [pathname]);
-  const [loadedRoute, setLoadedRoute] = useState<LoadedRouteModule | null>(null);
+  const [loadedRoute, setLoadedRoute] = useState<LoadedRouteModule | null>(() =>
+    buildLoadedRoute(routeKind),
+  );
   const shouldLoadAppAssets = isAppPath(pathname);
   useAppStylesheets(shouldLoadAppAssets);
 
   useEffect(() => {
+    const cached = buildLoadedRoute(routeKind);
+    if (cached) {
+      setLoadedRoute(cached);
+      return;
+    }
+
     let cancelled = false;
     setLoadedRoute(null);
     void loadRouteModule(routeKind).then((module) => {

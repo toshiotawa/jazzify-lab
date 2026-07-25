@@ -68,6 +68,7 @@ export const LpHero: React.FC = () => {
     if (!video || shouldDeferHeroVideo()) return;
 
     let cancelled = false;
+    let observer: IntersectionObserver | null = null;
 
     const injectSourcesAndPlay = (): void => {
       if (cancelled || video.querySelector('source')) return;
@@ -94,17 +95,26 @@ export const LpHero: React.FC = () => {
       }
     };
 
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        scheduleLoad();
-        observer.disconnect();
-      }
-    }, { threshold: 0, rootMargin: '0px' });
+    const startObserving = (): void => {
+      if (cancelled) return;
+      observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          scheduleLoad();
+          observer?.disconnect();
+        }
+      }, { threshold: 0, rootMargin: '0px' });
+      observer.observe(video);
+    };
 
-    observer.observe(video);
+    if (document.readyState === 'complete') {
+      startObserving();
+    } else {
+      window.addEventListener('load', startObserving, { once: true });
+    }
+
     return () => {
       cancelled = true;
-      observer.disconnect();
+      observer?.disconnect();
     };
   }, []);
 

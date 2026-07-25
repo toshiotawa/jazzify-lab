@@ -75,7 +75,7 @@
 
 .lp-display-hero {
   font-family: var(--lp-font-body);
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: -0.045em;
   line-height: 1.18;
   color: var(--lp-ink);
@@ -574,6 +574,8 @@
 .lp-viral-tweet-embed {
   display: flex;
   justify-content: center;
+  min-height: 560px;
+  overflow: hidden;
 }
 
 .lp-viral-tweet-translation-text {

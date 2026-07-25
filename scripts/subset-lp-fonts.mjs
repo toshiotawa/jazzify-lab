@@ -69,10 +69,8 @@ const fontSources = [
     files: [
       'zen-kaku-gothic-new-latin-400-normal.woff2',
       'zen-kaku-gothic-new-latin-700-normal.woff2',
-      'zen-kaku-gothic-new-latin-900-normal.woff2',
       'zen-kaku-gothic-new-japanese-400-normal.woff2',
       'zen-kaku-gothic-new-japanese-700-normal.woff2',
-      'zen-kaku-gothic-new-japanese-900-normal.woff2',
     ],
     subset: (fileName) => fileName.includes('japanese'),
   },
@@ -121,13 +119,5 @@ if (!existsSync(zenKakuCssSrc)) {
   process.exit(1);
 }
 cpSync(zenKakuCssSrc, zenKakuCssDest);
-
-const zenKaku900CssSrc = join(root, 'src', 'zenKakuFontFaces900.css');
-const zenKaku900CssDest = join(outDir, 'zen-kaku-font-faces-900.css');
-if (!existsSync(zenKaku900CssSrc)) {
-  console.error(`Missing font CSS: ${zenKaku900CssSrc}`);
-  process.exit(1);
-}
-cpSync(zenKaku900CssSrc, zenKaku900CssDest);
 
 console.log(`Prepared ${copied} font files and zen-kaku-font-faces.css in public/fonts/lp/`);
