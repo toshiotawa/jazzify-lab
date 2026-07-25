@@ -120,10 +120,7 @@ final class LessonMapAudio {
     }
 
     private func configureAudioSession() {
-        let session = AVAudioSession.sharedInstance()
-        // .ambient を使うことで他アプリの音声をミュートしない (ゲーム音声用途)
-        try? session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
-        try? session.setActive(true, options: [])
+        AppAudioSession.shared.configure()
     }
 
     private var fadeTimer: Timer?

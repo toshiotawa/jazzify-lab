@@ -829,7 +829,7 @@ final class EarTrainingAudio: NSObject {
             self?.resumePhraseEngineAfterForeground()
         }
         survivalCaptureObserver = center.addObserver(
-            forName: SurvivalGameAudio.didReconfigureForCaptureNotification,
+            forName: SurvivalGameAudio.didReconfigureAudioGraphNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in

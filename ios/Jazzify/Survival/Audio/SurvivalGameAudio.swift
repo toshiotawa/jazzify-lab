@@ -13,12 +13,6 @@ private let kSoundBankDefaultProgram: UInt8 = 0
 private let kRootBassPlaybackOctaveShift = 0
 /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
 private let kMasterHeadroomGain: Float = 0.7
-/// 通常プレイ時の IO バッファ（20ms）。鍵盤 / 正解ルート / デモプレイの低レイテンシを維持する。
-private let kNormalIOBufferDuration: TimeInterval = 0.02
-/// 画面録画・ミラーリング中のみ要求する IO バッファ（40ms）。録画 CPU 負荷下のアンダーラン耐性向上。
-private let kCapturedIOBufferDuration: TimeInterval = 0.04
-/// 画面キャプチャ遷移後、オーディオ経路が落ち着くまで待つ秒数。
-private let kCaptureReconfigureDelay: TimeInterval = 0.15
 /// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
 private enum PeakLimiterParameter {
     static let attackTime: AudioUnitParameterID = 0
@@ -35,8 +29,8 @@ private enum PeakLimiterParameter {
 final class SurvivalGameAudio {
     static let shared = SurvivalGameAudio()
 
-    /// 画面キャプチャ遷移後の AVAudioSession 再構成完了。EarTrainingAudio 等の共有セッション利用側が追随する。
-    static let didReconfigureForCaptureNotification = Notification.Name("SurvivalGameAudio.didReconfigureForCapture")
+    /// AppAudioSession 再構成後に EarTrainingAudio 等の共有セッション利用側が追随する。
+    static let didReconfigureAudioGraphNotification = Notification.Name("SurvivalGameAudio.didReconfigureAudioGraph")
 
     /// SE 種別 (WEB 版 `FantasySoundManager` の代表ケース)
     enum SoundEffect {
@@ -115,10 +109,7 @@ final class SurvivalGameAudio {
     private var interruptionObserver: NSObjectProtocol?
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
-    private var captureObserver: NSObjectProtocol?
-    /// `configureAudioSession(force:)` で最後に要求した IO バッファ。冪等ガード用。
-    private var lastAppliedIOBufferDuration: TimeInterval?
-    private var captureReconfigureWorkItem: DispatchWorkItem?
+    private var appAudioSessionObserver: NSObjectProtocol?
 
     private init() {
         engine.attach(sampler)
@@ -149,7 +140,7 @@ final class SurvivalGameAudio {
     /// - Parameter playBackgroundMusic: false にすると BGM 起動をスキップする。耳コピバトルなど
     ///   フレーズ MP3 を主役に流すモードで使用する。
     func start(playBackgroundMusic: Bool = true) {
-        configureAudioSession()
+        AppAudioSession.shared.configure()
         // `preparePianoIfNeeded()` 内でも engine を起動する。下の呼び出しは冪等ガードのため二重でも安全。
         preparePianoIfNeeded()
         prepareRootBassGMBankIfNeeded()
@@ -189,7 +180,7 @@ final class SurvivalGameAudio {
 
         isStopping = false
 
-        configureAudioSession()
+        AppAudioSession.shared.configure()
         startEngineIfNeeded()
         prepareKeyboardGMBankIfNeeded()
 
@@ -457,36 +448,6 @@ final class SurvivalGameAudio {
 
     // MARK: - Private
 
-    /// 画面録画・ミラーリング中かどうかに応じた IO バッファ要求値。
-    private var preferredIOBufferDuration: TimeInterval {
-        UIScreen.main.isCaptured ? kCapturedIOBufferDuration : kNormalIOBufferDuration
-    }
-
-    /// AVAudioSession を構成する。同一設定が既に適用済みならスキップ（I/O 再起動グリッチ防止）。
-    /// - Parameter force: true のときキャプチャ遷移などで必ず再適用する。
-    private func configureAudioSession(force: Bool = false) {
-        let session = AVAudioSession.sharedInstance()
-        let targetBuffer = preferredIOBufferDuration
-
-        let categoryMatches = session.category == .playback
-        let optionsMatch = session.categoryOptions.contains(.mixWithOthers)
-        let modeMatches = session.mode == .default
-        let bufferMatches = lastAppliedIOBufferDuration == targetBuffer
-
-        if !force, categoryMatches, optionsMatch, modeMatches, bufferMatches {
-            return
-        }
-
-        try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-        // 44.1 kHz 固定は画面録画 (48 kHz) 時のリサンプル負荷でアンダーランを起こしやすい。
-        // ハードウェア優先レート (多くの端末は 48 kHz) に追従させる。
-        // 非録画時は 20ms で鍵盤 / 正解ルート / デモプレイの低レイテンシを維持する。
-        // 録画中のみ 40ms へ緩め、CPU 負荷下のアンダーラン（「ガガガ」）を抑える。
-        try? session.setPreferredIOBufferDuration(targetBuffer)
-        lastAppliedIOBufferDuration = targetBuffer
-        try? session.setActive(true, options: [])
-    }
-
     private func configurePeakLimiter(_ limiter: AVAudioUnitEffect) {
         let au = limiter.audioUnit
         AudioUnitSetParameter(au, PeakLimiterParameter.preGain, kAudioUnitScope_Global, 0, 0, 0)
@@ -625,31 +586,19 @@ final class SurvivalGameAudio {
         ) { [weak self] _ in
             self?.reactivateAudioAfterForeground()
         }
-        captureObserver = center.addObserver(
-            forName: UIScreen.capturedDidChangeNotification,
+        appAudioSessionObserver = center.addObserver(
+            forName: AppAudioSession.didReconfigureNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleScreenCaptureChange()
+            self?.reconfigureAfterAudioSessionTransition()
         }
     }
 
-    /// 画面録画 ON/OFF 時にオーディオ経路の再構成を待ってからエンジンを clean restart する。
-    private func handleScreenCaptureChange() {
-        captureReconfigureWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            self?.reconfigureAfterScreenCaptureTransition()
-        }
-        captureReconfigureWorkItem = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + kCaptureReconfigureDelay, execute: work)
-    }
-
-    /// キャプチャ遷移後: セッション再適用 → エンジン stop/start → BGM 復帰 → 完了通知。
-    private func reconfigureAfterScreenCaptureTransition() {
-        // 共有 AVAudioSession は Ear Training 等でも使うため、常に再構成してから通知する。
-        configureAudioSession(force: true)
+    /// AppAudioSession 再構成後: エンジン stop/start → BGM 復帰 → 完了通知。
+    private func reconfigureAfterAudioSessionTransition() {
         defer {
-            NotificationCenter.default.post(name: Self.didReconfigureForCaptureNotification, object: self)
+            NotificationCenter.default.post(name: Self.didReconfigureAudioGraphNotification, object: self)
         }
 
         guard !isStopping else { return }
@@ -696,7 +645,7 @@ final class SurvivalGameAudio {
     private func reactivateAudioAfterForeground() {
         guard !isStopping else { return }
         guard isEngineStarted || currentBgmUrl != nil || isPianoPrepared else { return }
-        configureAudioSession()
+        AppAudioSession.shared.configure()
         startEngineIfNeeded()
         if currentBgmUrl != nil {
             playBgm()
