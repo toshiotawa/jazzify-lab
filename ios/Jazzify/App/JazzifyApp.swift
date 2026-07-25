@@ -73,13 +73,20 @@ struct RootView: View {
                     appState.dismissAppUpdateNotice()
                 }
             )
+            .onAppear {
+                ScreenRotationApplier.shared.applyCurrentPreference()
+            }
         }
         .fullScreenCover(item: $onboardingLaunch) { _ in
             OnboardingView(locale: appState.locale, onClose: {
                 onboardingLaunch = nil
             })
+            .onAppear {
+                ScreenRotationApplier.shared.applyCurrentPreference()
+            }
         }
         .onAppear {
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
             ScreenRotationApplier.shared.applyCurrentPreference()
         }
         .onChange(of: scenePhase) { phase in
@@ -87,6 +94,9 @@ struct RootView: View {
             ScreenRotationApplier.shared.applyCurrentPreference()
         }
         .onReceive(NotificationCenter.default.publisher(for: .screenRotation180DidChange)) { _ in
+            ScreenRotationApplier.shared.applyCurrentPreference()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
             ScreenRotationApplier.shared.applyCurrentPreference()
         }
     }

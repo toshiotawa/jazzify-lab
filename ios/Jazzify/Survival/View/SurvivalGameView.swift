@@ -1010,6 +1010,14 @@ private struct SurvivalCodeRunSettingsSheet: View {
                         displayMode: $keyboardDisplayMode,
                         isEnglishCopy: locale == .en
                     )
+                    ScreenRotation180Toggle(
+                        locale: locale,
+                        tint: .yellow,
+                        labelColor: .primary,
+                        footerColor: .secondary
+                    )
+                    .padding(12)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     midiSettingsSection
                     Button(locale == .ja ? "閉じる" : "Close", action: onClose)
                         .frame(maxWidth: .infinity)
@@ -1018,7 +1026,10 @@ private struct SurvivalCodeRunSettingsSheet: View {
             }
             .navigationTitle(locale == .ja ? "コードラン設定" : "Code Run Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .onAppear { midiManager.refreshDevices() }
+            .onAppear {
+                midiManager.refreshDevices()
+                ScreenRotationApplier.shared.applyCurrentPreference()
+            }
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .presentationDetents([.medium, .large])

@@ -48,7 +48,7 @@ struct EarTrainingTimingAdjustmentSliderView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
-        .padding(.bottom, max(12, UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow?.safeAreaInsets.bottom }.first ?? 0))
+        .padding(.bottom, max(12, ScreenRotationApplier.keyWindowEffectiveInsets().bottom))
         .background(Color.clear)
     }
 }

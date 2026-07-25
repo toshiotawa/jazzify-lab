@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import WebKit
 
 final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
@@ -112,6 +113,23 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
         }
     }
 
+    func updateNativeSafeAreaInsets() {
+        let insets = ScreenRotationApplier.keyWindowEffectiveInsets()
+        let js = """
+        (function(){
+          var i={top:\(insets.top),right:\(insets.right),bottom:\(insets.bottom),left:\(insets.left)};
+          if(typeof window.__applyNativeSafeAreaInsets==='function'){
+            window.__applyNativeSafeAreaInsets(i.top,i.right,i.bottom,i.left);
+          } else {
+            window.__NATIVE_SAFE_AREA_INSETS__=i;
+          }
+        })();
+        """
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+
     // MARK: - WKNavigationDelegate
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -124,6 +142,7 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        updateNativeSafeAreaInsets()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.sendMIDIDeviceList()
             self?.sendSelectedDeviceID()

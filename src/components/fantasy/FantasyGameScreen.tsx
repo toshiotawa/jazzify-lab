@@ -29,7 +29,7 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName } from '@/utils/glob
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { isIOSWebView, requestWebPlaybackAudioSession } from '@/utils/iosbridge';
+import { isIOSWebView, iosSafeAreaInsetTopCss, requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 
 /** 親が再マウント直後に同一ユーザージェスチャー内で `startGame` を呼ぶためのハンドル（iOS WKWebView 向け） */
 export interface FantasyGameScreenHandle {
@@ -1820,7 +1820,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
       `${fitAllKeys ? 'h-full' : 'min-h-[var(--dvh,100dvh)]'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`
     )}>
       {/* ===== ヘッダー ===== */}
-      <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px', paddingTop: isIOSWebView() ? 'max(48px, env(safe-area-inset-top, 48px))' : 'max(4px, env(safe-area-inset-top))' }}>
+      <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px', paddingTop: isIOSWebView() ? `max(48px, ${iosSafeAreaInsetTopCss('48px')})` : 'max(4px, env(safe-area-inset-top))' }}>
         {isDailyChallenge ? (
           <div className="flex items-center justify-between px-1">
             <div className="text-sm font-sans text-white">

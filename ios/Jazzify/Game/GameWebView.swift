@@ -134,11 +134,21 @@ struct GameWebView: View {
             coordinator.midiManager = MIDIManager.shared
             midiBridge = MIDIBridge(midiManager: MIDIManager.shared, coordinator: coordinator)
             OrientationManager.shared.lock(mode.preferredOrientations)
+            ScreenRotationApplier.shared.applyCurrentPreference()
+            coordinator.updateNativeSafeAreaInsets()
         }
         .onDisappear {
             midiBridge?.detach()
             midiBridge = nil
             OrientationManager.shared.unlock()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .screenRotation180DidChange)) { _ in
+            ScreenRotationApplier.shared.applyCurrentPreference()
+            coordinator.updateNativeSafeAreaInsets()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+            ScreenRotationApplier.shared.applyCurrentPreference()
+            coordinator.updateNativeSafeAreaInsets()
         }
         .onChange(of: coordinator.shouldDismiss) { shouldDismiss in
             if shouldDismiss {
@@ -220,6 +230,7 @@ struct WebViewRepresentable: UIViewRepresentable {
             injectAuthTokens(webView: webView, accessToken: access, refreshToken: refresh)
         }
         injectViewportHeight(webView: webView)
+        injectNativeSafeAreaInsets(webView: webView)
 
         webView.load(URLRequest(url: url))
         return webView
@@ -242,6 +253,25 @@ struct WebViewRepresentable: UIViewRepresentable {
             window.__NATIVE_AUTH_TOKEN__ = \(accessLit);
             window.__NATIVE_REFRESH_TOKEN__ = \(refreshLit);
             """,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        webView.configuration.userContentController.addUserScript(script)
+    }
+
+    private func injectNativeSafeAreaInsets(webView: WKWebView) {
+        let insets = ScreenRotationApplier.keyWindowEffectiveInsets()
+        let source = """
+        (function(){
+          window.__applyNativeSafeAreaInsets = function(top, right, bottom, left) {
+            window.__NATIVE_SAFE_AREA_INSETS__ = { top: top, right: right, bottom: bottom, left: left };
+            window.dispatchEvent(new Event('nativeSafeAreaInsetsChanged'));
+          };
+          window.__applyNativeSafeAreaInsets(\(insets.top), \(insets.right), \(insets.bottom), \(insets.left));
+        })();
+        """
+        let script = WKUserScript(
+            source: source,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )

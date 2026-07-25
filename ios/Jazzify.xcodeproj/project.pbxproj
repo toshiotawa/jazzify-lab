@@ -51,6 +51,7 @@
 		1FFF709FE12CB241EF3EC40C /* SurvivalTutorialV3DrumLoopSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D70439934A24FE058C33F20 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */; };
 		21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 381E12BED6CB73533234D66B /* クエスト完了.mp3 */; };
 		24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12AAB7776B432313249D043C /* FantasyStage.swift */; };
+		25EFE7F9B8BA144F9C728898 /* ScreenRotation180Toggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76D371097DA4FCC0586D82B /* ScreenRotation180Toggle.swift */; };
 		263120ABA003B822014A4AE8 /* SurvivalTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F88B72737D75E9015FDB9C02 /* SurvivalTutorialView.swift */; };
 		271E4AA704F4A1ADE6622B8B /* EarTrainingAdlibBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97333D04BAA4BF86172C550D /* EarTrainingAdlibBattleController.swift */; };
 		27A4550A949D84C243F30015 /* SurvivalPhraseStaffSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1651D19CFE8A7AE2F990B03 /* SurvivalPhraseStaffSnapshot.swift */; };
@@ -470,6 +471,7 @@
 		A43BC0A05D209E54BAAB95B5 /* SurvivalRunPrepSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRunPrepSheet.swift; sourceTree = "<group>"; };
 		A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSettingsSheet.swift; sourceTree = "<group>"; };
 		A4FF09CB883DC0DE9465A711 /* EarTrainingTutorialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialView.swift; sourceTree = "<group>"; };
+		A76D371097DA4FCC0586D82B /* ScreenRotation180Toggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRotation180Toggle.swift; sourceTree = "<group>"; };
 		A88FE49722A0680190C68352 /* EarTrainingTutorialDialogueBattleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialDialogueBattleView.swift; sourceTree = "<group>"; };
 		AB4F8FD0D649041D48EFB28E /* SurvivalPlaySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPlaySession.swift; sourceTree = "<group>"; };
 		ABD2CCB36C97C4D4043E82F9 /* SurvivalScenarioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioController.swift; sourceTree = "<group>"; };
@@ -1023,6 +1025,7 @@
 				6F8BFE37B198C035761B13AD /* Config.swift */,
 				F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */,
 				710661B97325754204CE9621 /* OrientationManager.swift */,
+				A76D371097DA4FCC0586D82B /* ScreenRotation180Toggle.swift */,
 				F62F09F10B51411169A9AB54 /* ScreenRotationApplier.swift */,
 				6A9C1591815401587CD1FDD1 /* ScreenRotationPreferences.swift */,
 			);
@@ -1513,6 +1516,7 @@
 				94C146835E10F5E6F75844BA /* QuestReadyToCompleteSheet.swift in Sources */,
 				4B717F97871B7B6B06082BC8 /* QuestStageCardAssets.swift in Sources */,
 				DDE97362E5FE0DE0E45766F5 /* RemoteAudioFileCache.swift in Sources */,
+				25EFE7F9B8BA144F9C728898 /* ScreenRotation180Toggle.swift in Sources */,
 				38E9B6ED9BB90848D3E83056 /* ScreenRotationApplier.swift in Sources */,
 				7FC19B00C680C4C54197B045 /* ScreenRotationPreferences.swift in Sources */,
 				2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */,
@@ -1677,7 +1681,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1760,7 +1764,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
