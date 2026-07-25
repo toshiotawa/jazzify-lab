@@ -409,13 +409,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         progressSaveStarted = false
         lessonProgressStatus = nil
         pendingImpactHandlers.removeAll()
-        battleEffectIdCounter = 0
+        // phraseRunId / phraseIntroSeq / battleEffectIdCounter は 0 に戻さない。
+        // EarTrainingBattleScene は phraseRunId の変化で clearTransientEffects()（osu! 円含む）を呼ぶため、
+        // 巻き戻すと 1 ループ目のやり直しで runId が 1→1 のままになり円が残る。
         lastEmittedEffectId = -1
         enemyHp = stage.enemyHp
         playerHp = stage.playerHp
         phraseIndex = 0
-        phraseRunId = 0
-        phraseIntroSeq = 0
         totalCompletedTargets = 0
         totalJudgedTargets = 0
         lastRankStorage = nil
