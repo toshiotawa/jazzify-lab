@@ -70,6 +70,7 @@ import {
   cleanupLessonNavigationCache,
   clearNavigationCacheForCourse,
   getQuestCompletionModalKind,
+  shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell,
   sortLessonsByOrder,
   buildLessonDetailHash,
   type LessonNavigationInfo,
@@ -481,6 +482,24 @@ const LessonDetailPage: React.FC = () => {
   const [nextTaskAfterClear, setNextTaskAfterClear] = useState<LessonRequirement | null>(null);
   const [taskClearPromptMode, setTaskClearPromptMode] = useState<TaskClearPromptMode>('afterClear');
   const justClearedConsumedRef = useRef(false);
+  const handleCompleteRef = useRef<(() => Promise<void>) | null>(null);
+
+  const skipReadyModalForFreeTierPremiumUpsell = useMemo(
+    () => shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell({
+      isMainQuest: lessonCourseIsMainQuest,
+      isPremiumMember,
+      currentBlockNumber: lesson?.block_number ?? 1,
+      nextLessonBlockNumber: navigationInfo?.nextLesson?.block_number ?? null,
+      nextBlockedReason: navigationInfo?.nextBlockedReason ?? null,
+    }),
+    [
+      lessonCourseIsMainQuest,
+      isPremiumMember,
+      lesson?.block_number,
+      navigationInfo?.nextLesson?.block_number,
+      navigationInfo?.nextBlockedReason,
+    ],
+  );
 
   const clearAutoStartFromUrl = useCallback(() => {
     if (!lessonId) {
@@ -532,13 +551,23 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
     setShowReadyToCompletePrompt(
-      shouldShowQuestReadyToCompletePrompt({
-        hasRequirements: requirements.length > 0,
-        allRequirementsCompleted,
-        isLessonCompleted: lessonProgress?.completed === true,
-      }),
+      skipReadyModalForFreeTierPremiumUpsell
+        ? false
+        : shouldShowQuestReadyToCompletePrompt({
+          hasRequirements: requirements.length > 0,
+          allRequirementsCompleted,
+          isLessonCompleted: lessonProgress?.completed === true,
+        }),
     );
-  }, [loading, requirements.length, allRequirementsCompleted, lessonProgress?.completed, lessonId, showTaskClearNextStepModal]);
+  }, [
+    loading,
+    requirements.length,
+    allRequirementsCompleted,
+    lessonProgress?.completed,
+    lessonId,
+    showTaskClearNextStepModal,
+    skipReadyModalForFreeTierPremiumUpsell,
+  ]);
 
   useEffect(() => {
     justClearedConsumedRef.current = false;
@@ -570,9 +599,13 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
 
-    // 最後の課題クリア後: クエスト完了導線を出す（目的別コース含む）
+    // 最後の課題クリア後: 無料枠 block1 最終なら完了モーダルへ直行、それ以外は確認モーダル
     if (requirements.length > 0 && lessonProgress?.completed !== true) {
-      setShowReadyToCompletePrompt(true);
+      if (skipReadyModalForFreeTierPremiumUpsell) {
+        void handleCompleteRef.current?.();
+      } else {
+        setShowReadyToCompletePrompt(true);
+      }
     }
   }, [
     loading,
@@ -581,6 +614,7 @@ const LessonDetailPage: React.FC = () => {
     requirementsProgress,
     lessonProgress?.completed,
     clearJustClearedFromUrl,
+    skipReadyModalForFreeTierPremiumUpsell,
   ]);
 
   useEffect(() => {
@@ -796,8 +830,7 @@ const LessonDetailPage: React.FC = () => {
       setCompleting(false);
     }
   };
-
-
+  handleCompleteRef.current = handleComplete;
 
   const handleClose = () => {
     window.location.hash = '#lessons';

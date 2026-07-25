@@ -506,4 +506,22 @@ export function getQuestCompletionModalKind(
   }
 
   return 'none';
-} 
+}
+
+/** 無料枠 block1 最終クエスト: ReadyToComplete を挟まず完了モーダルへ直行するか */
+export function shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(input: {
+  isMainQuest: boolean;
+  isPremiumMember: boolean;
+  currentBlockNumber: number;
+  nextLessonBlockNumber: number | null;
+  nextBlockedReason: NavigationBlockedReason | null;
+}): boolean {
+  return (
+    input.isMainQuest
+    && !input.isPremiumMember
+    && input.currentBlockNumber === 1
+    && input.nextLessonBlockNumber !== null
+    && input.nextLessonBlockNumber > 1
+    && input.nextBlockedReason === 'premium_required'
+  );
+}

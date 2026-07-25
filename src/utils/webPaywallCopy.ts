@@ -75,7 +75,7 @@ const COPY = {
 } as const;
 
 const isChapterOrientedSource = (source: PaywallSource): boolean =>
-  source === 'main_quest' || source === 'chapter_complete';
+  source === 'main_quest' || source === 'chapter_complete' || source === 'resume_modal';
 
 export function resolveWebPaywallCopy(
   source: PaywallSource,
@@ -85,7 +85,7 @@ export function resolveWebPaywallCopy(
   const base = isEnglishCopy ? COPY.en : COPY.ja;
   const chapterOriented = isChapterOrientedSource(source);
 
-  if (source === 'chapter_complete') {
+  if (source === 'chapter_complete' || source === 'resume_modal') {
     return {
       headline: base.chapterCompleteHeadline,
       subheadline: trialUsed

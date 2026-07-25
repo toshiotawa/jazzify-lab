@@ -106,6 +106,11 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
     recordUserMilestoneFireAndForget(profile.id, 'free_tier_wall_view', source);
   }, [open, profile, source]);
 
+  const handleDismiss = useCallback(() => {
+    trackEvent('paywall_dismiss', { source });
+    onClose();
+  }, [onClose, source]);
+
   const handleCheckout = useCallback(async () => {
     if (!profile) {
       setError(priceCopy.loginRequired);
@@ -155,7 +160,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
         type="button"
         aria-label={priceCopy.close}
         className="absolute inset-0 bg-black/75 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={handleDismiss}
       />
       <div
         role="dialog"
@@ -166,7 +171,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
           type="button"
           aria-label={priceCopy.close}
           className="absolute top-3 right-3 p-1.5 rounded-full text-gray-500 hover:text-gray-300 hover:bg-slate-800/80 transition-colors"
-          onClick={onClose}
+          onClick={handleDismiss}
         >
           <FaTimes className="w-3.5 h-3.5" />
         </button>
@@ -280,7 +285,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
           <button
             type="button"
             className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
-            onClick={onClose}
+            onClick={handleDismiss}
             disabled={loading}
           >
             {priceCopy.dismiss}

@@ -816,6 +816,7 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
     block.blockNumber === selectedBlockNumber && block.isUnlocked
   )) ?? currentBlock;
   const nextLesson = nextLessonForContinue(summary);
+  const block1Completed = summary.blocks.find((block) => block.blockNumber === 1)?.isCompleted ?? false;
   const selectedBlockStartLessonId = useMemo(() => {
     const lesson = selectedBlock
       ? findDeepestUnlockedLesson(
@@ -911,9 +912,13 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
           onClick={() => onShowPaywall()}
         >
           <span className="font-semibold block">
-            {isEnglishCopy
-              ? 'Free plan: Main Quest chapter 1 only. Tap for Premium.'
-              : 'フリープランはメインクエスト第1チャプターまでです。タップしてプレミアムへ →'}
+            {block1Completed
+              ? (isEnglishCopy
+                ? 'Chapter 1 complete. Tap to unlock Chapter 2 with Premium →'
+                : '第1チャプターをクリアしました。タップして第2チャプターを開く →')
+              : (isEnglishCopy
+                ? 'Free plan: Main Quest chapter 1 only. Tap for Premium.'
+                : 'フリープランはメインクエスト第1チャプターまでです。タップしてプレミアムへ →')}
           </span>
         </button>
       )}

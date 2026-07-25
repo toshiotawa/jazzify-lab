@@ -6,6 +6,7 @@ import {
   getNavigationErrorMessage,
   getQuestCompletionModalKind,
   isLastLessonInBlock,
+  shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell,
   sortLessonsByOrder,
   type LessonNavigationInfo,
   type NavigationBlockedReason,
@@ -288,5 +289,31 @@ describe('getQuestCompletionModalKind', () => {
         navInfo(lesson('b', 1, 1), false),
       ),
     ).toBe('none');
+  });
+});
+
+describe('shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell', () => {
+  it('returns true for free main quest block1 last quest before premium block', () => {
+    expect(
+      shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell({
+        isMainQuest: true,
+        isPremiumMember: false,
+        currentBlockNumber: 1,
+        nextLessonBlockNumber: 2,
+        nextBlockedReason: 'premium_required',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false for premium members', () => {
+    expect(
+      shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell({
+        isMainQuest: true,
+        isPremiumMember: true,
+        currentBlockNumber: 1,
+        nextLessonBlockNumber: 2,
+        nextBlockedReason: 'premium_required',
+      }),
+    ).toBe(false);
   });
 });

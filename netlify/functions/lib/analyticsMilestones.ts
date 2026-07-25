@@ -17,6 +17,7 @@ export const recordUserMilestoneForUser = async (
   const { error } = await supabase.rpc('record_user_milestone', {
     p_user_id: userId,
     p_milestone: milestone,
+    p_source: null,
   });
   if (error) {
     throw error;

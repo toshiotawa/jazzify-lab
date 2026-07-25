@@ -22,6 +22,7 @@ import type { MarketingEmailKey } from './lib/marketingEmails';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DRIP_WINDOW_MS = 7 * DAY_MS;
+const FREE_CLEARED_NUDGE_AFTER_DAYS = 2;
 const BATCH_LIMIT = 1000;
 
 const DRIP_SEQUENCE: ReadonlyArray<{ key: MarketingEmailKey; afterDays: number }> = [
@@ -40,8 +41,98 @@ interface DripProfileRow {
   marketing_email_opt_in_at: string;
 }
 
+interface NudgeProfileRow {
+  id: string;
+  email: string;
+  preferred_locale: string | null;
+  country: string | null;
+  signup_platform: string | null;
+  created_at: string;
+}
+
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;
+
+const fetchMainQuestBlock1LessonIds = async (
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+): Promise<string[]> => {
+  const { data: course, error: courseError } = await supabase
+    .from('courses')
+    .select('id')
+    .eq('is_main_course', true)
+    .eq('is_visible', true)
+    .eq('is_developer_only', false)
+    .limit(1)
+    .maybeSingle();
+  if (courseError || !course?.id) {
+    return [];
+  }
+
+  const { data: lessons, error: lessonsError } = await supabase
+    .from('lessons')
+    .select('id')
+    .eq('course_id', course.id)
+    .eq('block_number', 1);
+  if (lessonsError) {
+    return [];
+  }
+
+  return (lessons ?? [])
+    .map((row) => row.id)
+    .filter(isNonEmptyString);
+};
+
+const fetchBlock1FullyCompletedUserIds = async (
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+  lessonIds: readonly string[],
+): Promise<Set<string>> => {
+  if (lessonIds.length === 0) {
+    return new Set();
+  }
+
+  const { data: progress, error } = await supabase
+    .from('user_lesson_progress')
+    .select('user_id, lesson_id')
+    .eq('completed', true)
+    .in('lesson_id', [...lessonIds]);
+  if (error) {
+    return new Set();
+  }
+
+  const counts = new Map<string, number>();
+  for (const row of progress ?? []) {
+    if (!isNonEmptyString(row.user_id)) {
+      continue;
+    }
+    counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
+  }
+
+  const required = lessonIds.length;
+  const completed = new Set<string>();
+  for (const [userId, count] of counts) {
+    if (count >= required) {
+      completed.add(userId);
+    }
+  }
+  return completed;
+};
+
+const fetchActiveSubscriptionUserIds = async (
+  supabase: ReturnType<typeof getSupabaseServiceClient>,
+): Promise<Set<string>> => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('user_id')
+    .in('entitlement_state', ['active', 'cancelled_but_active_until_end']);
+  if (error) {
+    return new Set();
+  }
+  return new Set(
+    (data ?? [])
+      .map((row) => row.user_id)
+      .filter(isNonEmptyString),
+  );
+};
 
 export const handler = async () => {
   const supabase = getSupabaseServiceClient();
@@ -86,22 +177,21 @@ export const handler = async () => {
     .filter(isNonEmptyString);
 
   const allUserIds = Array.from(new Set([...dripProfiles.map((p) => p.id), ...trialUserIds]));
-  if (allUserIds.length === 0) {
-    return { statusCode: 200, body: JSON.stringify({ processed: 0 }) };
-  }
 
-  const { data: sends, error: sendsError } = await supabase
-    .from('marketing_email_sends')
-    .select('user_id, email_key')
-    .in('user_id', allUserIds);
-  if (sendsError) {
-    return { statusCode: 500, body: JSON.stringify({ error: sendsError.message }) };
-  }
   const sentKeys = new Map<string, Set<string>>();
-  for (const row of sends ?? []) {
-    const set = sentKeys.get(row.user_id) ?? new Set<string>();
-    set.add(row.email_key);
-    sentKeys.set(row.user_id, set);
+  if (allUserIds.length > 0) {
+    const { data: sends, error: sendsError } = await supabase
+      .from('marketing_email_sends')
+      .select('user_id, email_key')
+      .in('user_id', allUserIds);
+    if (sendsError) {
+      return { statusCode: 500, body: JSON.stringify({ error: sendsError.message }) };
+    }
+    for (const row of sends ?? []) {
+      const set = sentKeys.get(row.user_id) ?? new Set<string>();
+      set.add(row.email_key);
+      sentKeys.set(row.user_id, set);
+    }
   }
   const trialStarted = new Set(trialUserIds);
 
@@ -148,6 +238,77 @@ export const handler = async () => {
         platform: resolveMarketingPlatform(profile.signup_platform),
       });
       results[`${profile.id}:trial_start`] = result;
+    }
+  }
+
+  // free_cleared_nudge: 登録2日後・block1完走・未課金・未送信（オプトイン済みのみ）
+  const twoDaysAgoIso = new Date(nowMs - FREE_CLEARED_NUDGE_AFTER_DAYS * DAY_MS).toISOString();
+  const { data: nudgeProfilesRaw, error: nudgeProfilesError } = await supabase
+    .from('profiles')
+    .select('id, email, preferred_locale, country, signup_platform, created_at')
+    .eq('marketing_email_opt_in', true)
+    .lte('created_at', twoDaysAgoIso)
+    .gte('created_at', MARKETING_EMAIL_RELEASE_CUTOFF)
+    .limit(BATCH_LIMIT);
+  if (nudgeProfilesError) {
+    return { statusCode: 500, body: JSON.stringify({ error: nudgeProfilesError.message }) };
+  }
+
+  const nudgeProfiles = (nudgeProfilesRaw ?? []).filter(
+    (row): row is NudgeProfileRow =>
+      isNonEmptyString(row.id) &&
+      isNonEmptyString(row.email) &&
+      isNonEmptyString(row.created_at),
+  );
+
+  if (nudgeProfiles.length > 0) {
+    const block1LessonIds = await fetchMainQuestBlock1LessonIds(supabase);
+    const block1CompletedUserIds = await fetchBlock1FullyCompletedUserIds(supabase, block1LessonIds);
+    const activeSubscriptionUserIds = await fetchActiveSubscriptionUserIds(supabase);
+
+    const nudgePendingIds = nudgeProfiles
+      .map((profile) => profile.id)
+      .filter((id) => !sentKeys.get(id)?.has('free_cleared_nudge'));
+
+    if (nudgePendingIds.length > 0) {
+      const { data: existingNudgeSends, error: existingNudgeSendsError } = await supabase
+        .from('marketing_email_sends')
+        .select('user_id, email_key')
+        .in('user_id', nudgePendingIds)
+        .eq('email_key', 'free_cleared_nudge');
+      if (existingNudgeSendsError) {
+        return { statusCode: 500, body: JSON.stringify({ error: existingNudgeSendsError.message }) };
+      }
+      for (const row of existingNudgeSends ?? []) {
+        const set = sentKeys.get(row.user_id) ?? new Set<string>();
+        set.add(row.email_key);
+        sentKeys.set(row.user_id, set);
+      }
+    }
+
+    for (const profile of nudgeProfiles) {
+      const elapsedDays = (nowMs - Date.parse(profile.created_at)) / DAY_MS;
+      if (elapsedDays < FREE_CLEARED_NUDGE_AFTER_DAYS) {
+        continue;
+      }
+      if (sentKeys.get(profile.id)?.has('free_cleared_nudge')) {
+        continue;
+      }
+      if (!block1CompletedUserIds.has(profile.id)) {
+        continue;
+      }
+      if (activeSubscriptionUserIds.has(profile.id)) {
+        continue;
+      }
+
+      const result = await claimAndSendMarketingEmail(supabase, 'free_cleared_nudge', {
+        userId: profile.id,
+        email: profile.email,
+        locale: resolveMarketingLocale(profile.preferred_locale, profile.country),
+        includeTrialCta: !trialStarted.has(profile.id),
+        platform: resolveMarketingPlatform(profile.signup_platform),
+      });
+      results[`${profile.id}:free_cleared_nudge`] = result;
     }
   }
 

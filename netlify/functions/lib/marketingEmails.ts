@@ -343,6 +343,62 @@ const buildDay3Body = (ctx: MarketingEmailBuildContext): string => {
   return parts.join('');
 };
 
+const buildFreeClearedNudgeBody = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    const trialBlock = ctx.includeTrialCta
+      ? (ctx.platform === 'ios'
+        ? paragraph(
+            '第2チャプター以降をプレイするには、Jazzifyアプリの「設定 → サブスクリプション」から7日間の無料トライアルを始められます。',
+          )
+        : paragraph(
+            `第2チャプター以降をプレイするには、7日間の無料トライアルでメインクエストの続きを開けます。${trackedLink(ctx, 'cta_trial', MARKETING_EMAIL_PATHS.account, '無料トライアルを見てみる')}`,
+          ))
+      : (ctx.platform === 'ios'
+        ? paragraph(
+            '第2チャプター以降をプレイするには、Jazzifyアプリの「設定 → サブスクリプション」からプレミアムに加入できます。',
+          )
+        : paragraph(
+            `第2チャプター以降をプレイするには、プレミアムでメインクエストの続きを開けます。${trackedLink(ctx, 'cta_premium', MARKETING_EMAIL_PATHS.account, 'プレミアムを見る')}`,
+          ));
+
+    return [
+      paragraph('メインクエスト第1チャプターをクリアしましたね。お疲れさまでした。'),
+      paragraph(
+        'ここまで来ると、「音を聴いて反応する」感覚が少しずつ身についてきているはずです。次はCブルースのコードをつかむ第2チャプターへ進み、さらにアドリブの幅を広げていきましょう。',
+      ),
+      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'クエスト一覧を開く'),
+      trialBlock,
+      paragraph('分からないことや不具合があれば、このメールにそのまま返信してください。'),
+    ].join('');
+  }
+
+  const trialBlock = ctx.includeTrialCta
+    ? (ctx.platform === 'ios'
+      ? paragraph(
+          'To play Chapter 2 and beyond, open the Jazzify app and go to Settings → Subscriptions to start your 7-day free trial.',
+        )
+      : paragraph(
+          `To continue Main Quest, start a 7-day free trial and unlock Chapter 2. ${trackedLink(ctx, 'cta_trial', MARKETING_EMAIL_PATHS.account, 'See the free trial')}`,
+        ))
+    : (ctx.platform === 'ios'
+      ? paragraph(
+          'To play Chapter 2 and beyond, open the Jazzify app and go to Settings → Subscriptions.',
+        )
+      : paragraph(
+          `Continue Main Quest with Premium. ${trackedLink(ctx, 'cta_premium', MARKETING_EMAIL_PATHS.account, 'See Premium')}`,
+        ));
+
+  return [
+    paragraph('You cleared Main Quest Chapter 1 — nice work.'),
+    paragraph(
+      'By now, listening and reacting on the keys should feel a little more natural. Next up: Chapter 2, where you get a grip on C Blues chords and expand your improvising.',
+    ),
+    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Open the quest list'),
+    trialBlock,
+    paragraph('Questions or bugs? Just reply to this email — we read every message.'),
+  ].join('');
+};
+
 const buildTrialStartBody = (ctx: MarketingEmailBuildContext): string => {
   if (ctx.locale === 'ja') {
     return [
@@ -432,6 +488,13 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     titleJa: 'トライアル、ここから始めましょう',
     titleEn: 'Welcome to your trial',
     buildBody: (ctx) => buildTrialStartBody(ctx),
+  },
+  free_cleared_nudge: {
+    subjectJa: '第1チャプタークリアおめでとう。第2チャプターへ進みましょう',
+    subjectEn: 'Chapter 1 cleared — ready for Chapter 2?',
+    titleJa: '第2チャプターへ進む',
+    titleEn: 'Continue to Chapter 2',
+    buildBody: (ctx) => buildFreeClearedNudgeBody(ctx),
   },
 };
 

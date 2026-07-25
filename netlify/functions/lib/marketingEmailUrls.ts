@@ -1,4 +1,4 @@
-export type MarketingEmailKey = 'day0' | 'day1' | 'day2' | 'day3' | 'trial_start';
+export type MarketingEmailKey = 'day0' | 'day1' | 'day2' | 'day3' | 'trial_start' | 'free_cleared_nudge';
 export type MarketingEmailLocale = 'ja' | 'en';
 
 export const MARKETING_EMAIL_PATHS = {

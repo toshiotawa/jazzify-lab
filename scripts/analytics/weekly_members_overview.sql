@@ -145,3 +145,45 @@ SELECT
 FROM auth.users u
 LEFT JOIN public.user_milestones m ON m.user_id = u.id
 WHERE u.created_at >= now() - interval '7 days';
+
+-- ============================================================
+-- H. サーバー milestone 整合チェック（再発検知）
+-- ============================================================
+SELECT
+  count(*) FILTER (
+    WHERE s.trial_used = true AND m.trial_start_at IS NULL
+  ) AS trial_used_missing_trial_start_at,
+  count(*) FILTER (
+    WHERE s.entitlement_state IN ('active', 'cancelled_but_active_until_end')
+      AND s.status <> 'expired'
+      AND m.paid_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM public.billing_invoices bi WHERE bi.user_id = s.user_id
+      )
+  ) AS active_sub_with_invoice_missing_paid_at
+FROM public.subscriptions s
+LEFT JOIN public.user_milestones m ON m.user_id = s.user_id;
+
+-- ============================================================
+-- I. marketing_email_opt_in 率（全プロフィール）
+-- ============================================================
+SELECT
+  count(*) AS profiles_total,
+  count(*) FILTER (WHERE p.marketing_email_opt_in = true) AS opt_in,
+  round(
+    100.0 * count(*) FILTER (WHERE p.marketing_email_opt_in = true) / nullif(count(*), 0),
+    1
+  ) AS opt_in_pct
+FROM public.profiles p;
+
+SELECT
+  coalesce(p.signup_platform, '(null)') AS signup_platform,
+  count(*) AS profiles,
+  count(*) FILTER (WHERE p.marketing_email_opt_in = true) AS opt_in,
+  round(
+    100.0 * count(*) FILTER (WHERE p.marketing_email_opt_in = true) / nullif(count(*), 0),
+    1
+  ) AS opt_in_pct
+FROM public.profiles p
+GROUP BY 1
+ORDER BY profiles DESC;

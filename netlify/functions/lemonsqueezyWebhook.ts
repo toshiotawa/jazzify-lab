@@ -310,7 +310,7 @@ const mirrorSubscriptionEntitlement = async (
     user_email: null,
   });
 
-  return { received: true, status: mirrorColumns.status };
+  return { received: true, status: mirrorColumns.status, trialBecameUsed: mirror.trialBecameUsed };
 };
 
 export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => {
@@ -456,10 +456,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       source,
     );
 
-    if (
-      eventName === 'subscription_created'
-      && String(attrs.status ?? '').toLowerCase() === 'on_trial'
-    ) {
+    if (result.trialBecameUsed === true) {
       await recordUserMilestoneForUserSafe(supabase, userId, 'trial_start');
     }
 
