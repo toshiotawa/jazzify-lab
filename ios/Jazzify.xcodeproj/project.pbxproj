@@ -162,6 +162,7 @@
 		7FC19B00C680C4C54197B045 /* ScreenRotationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9C1591815401587CD1FDD1 /* ScreenRotationPreferences.swift */; };
 		809DF71D453828E9409EA113 /* AppReleaseVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A3841554CFAB32D1715AB1 /* AppReleaseVersion.swift */; };
 		8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = D1E8E57E80A86CD8B5085935 /* onboarding-v1.script.json */; };
+		85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */ = {isa = PBXBuildFile; fileRef = 3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */; };
 		86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88453408DE12301997E620A /* MarketingEmailOptIn.swift */; };
 		88BF5507F33E2B9151249B69 /* EarTrainingChordOSMDBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A2408B86EDFD3C9580B10 /* EarTrainingChordOSMDBattleController.swift */; };
 		89FAEA77448F4B9C8274E9E1 /* SurvivalTutorialV3LineRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C534FAFEEA1C8A565DD844F6 /* SurvivalTutorialV3LineRouter.swift */; };
@@ -341,6 +342,7 @@
 		3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingEngine.swift; sourceTree = "<group>"; };
 		3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3BCF2CFB04DF8268354F4DCB /* TutorialScriptInterpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorialScriptInterpreter.swift; sourceTree = "<group>"; };
+		3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */ = {isa = PBXFileReference; lastKnownFileType = folder; name = stage_cards_collection; path = ../public/stage_cards_collection; sourceTree = SOURCE_ROOT; };
 		3F025416B60CF0EC0AB90A07 /* EarTrainingPhrasePairEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairEngine.swift; sourceTree = "<group>"; };
 		3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestResumeSheet.swift; sourceTree = "<group>"; };
 		3F6053A6DDDCFD5A65983AEC /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
@@ -648,6 +650,7 @@
 			children = (
 				0741AA8AD13E97DF1BCFC3AD /* ios */,
 				0DAF2951F237E172998BF69A /* Jazzify */,
+				3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */,
 				D3C90A55DC4CE468656D6ABD /* Products */,
 			);
 			sourceTree = "<group>";
@@ -1353,6 +1356,7 @@
 				F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */,
 				8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */,
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
+				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
 				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
 			);

@@ -30,14 +30,11 @@ targets:
         excludes:
           # Tutorial/ に同一ファイルがあり bundle 複製で build が失敗するため
           - EarTraining/Tutorial/ear-training-developer-full-v1.script.json
-    resources:
-      - path: Jazzify/Assets.xcassets
-      # QuestStageCards は ~120MB のため Asset Catalog ではなく Web と共有の PNG を bundle 直置き
+      # QuestStageCards は ~120MB のため Asset Catalog ではなく Web と共有の PNG を folder reference で bundle 直置き
+      # (Bundle.main.url(..., subdirectory:) で読むため階層を保持する folder 指定が必須)
       - path: ../public/stage_cards_collection
         type: folder
-      - path: Jazzify/Resources/piano
-        type: folder
-      - path: Jazzify/Resources/UprightPianoKW-small-bright-20190703.sf2
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app
