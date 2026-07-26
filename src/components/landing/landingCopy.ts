@@ -45,6 +45,14 @@ interface LandingDemoCopy {
   lazyPlaceholder: string;
 }
 
+interface LandingPromoVideoCopy {
+  eyebrow: string;
+  heading: string;
+  sub: string[];
+  playLabel: string;
+  videoAlt: string;
+}
+
 interface LandingPainCopy {
   heading: string[];
   cards: string[];
@@ -225,6 +233,7 @@ interface LandingCopy {
   seo: LandingSeoCopy;
   header: LandingHeaderCopy;
   hero: LandingHeroCopy;
+  promoVideo: LandingPromoVideoCopy;
   demo: LandingDemoCopy;
   pain: LandingPainCopy;
   solution: LandingSolutionCopy;
@@ -282,6 +291,15 @@ const COPY_JA: LandingCopy = {
     note: 'クレジットカード登録不要 / Web・iPhone・iPad対応 / 画面鍵盤でも一部体験OK',
     videoAlt: 'Jazzify サバイバルモードのプレイ映像',
     videoBadge: 'コードを弾く → キャラが動く',
+  },
+  promoVideo: {
+    eyebrow: 'PROMO VIDEO',
+    heading: 'Jazzifyの世界を、90秒で。',
+    sub: [
+      'ゲーム感覚でジャズピアノを学ぶ様子を、音声付きでご覧ください。',
+    ],
+    playLabel: '動画を再生',
+    videoAlt: 'Jazzify 宣伝動画',
   },
   demo: {
     eyebrow: 'DEMO PLAY',
@@ -638,6 +656,15 @@ const COPY_EN: LandingCopy = {
     note: 'No credit card required / Works on Web, iPhone & iPad / On-screen keys for some exercises',
     videoAlt: 'Jazzify Survival mode gameplay video',
     videoBadge: 'Play a chord → your character moves',
+  },
+  promoVideo: {
+    eyebrow: 'PROMO VIDEO',
+    heading: 'See Jazzify in 90 seconds.',
+    sub: [
+      'Watch how jazz piano practice feels like a game — with sound.',
+    ],
+    playLabel: 'Play video',
+    videoAlt: 'Jazzify promotional video',
   },
   demo: {
     eyebrow: 'DEMO PLAY',

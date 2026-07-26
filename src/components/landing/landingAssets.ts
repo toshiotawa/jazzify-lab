@@ -58,3 +58,30 @@ export const getLpMainQuestShot = (english: boolean): LandingResponsiveImage => 
 export const getLpCoursesShot = (english: boolean): LandingResponsiveImage => (
   english ? LP_COURSES_SHOT_EN : LP_COURSES_SHOT_JA
 );
+
+const PROMO_CDN_BASE = 'https://jazzify-cdn.com/promo';
+
+export interface LandingPromoVideoAssets {
+  src1080: string;
+  src720: string;
+  poster: string;
+  posterMobile: string;
+}
+
+const LP_PROMO_JA: LandingPromoVideoAssets = {
+  src1080: `${PROMO_CDN_BASE}/jazzify-promo-ja-1080.mp4`,
+  src720: `${PROMO_CDN_BASE}/jazzify-promo-ja-720.mp4`,
+  poster: '/newLP/promo-poster-ja.webp',
+  posterMobile: '/newLP/promo-poster-ja-960.webp',
+};
+
+const LP_PROMO_EN: LandingPromoVideoAssets = {
+  src1080: `${PROMO_CDN_BASE}/jazzify-promo-en-1080.mp4`,
+  src720: `${PROMO_CDN_BASE}/jazzify-promo-en-720.mp4`,
+  poster: '/newLP/promo-poster-en.webp',
+  posterMobile: '/newLP/promo-poster-en-960.webp',
+};
+
+export const getPromoVideo = (english: boolean): LandingPromoVideoAssets => (
+  english ? LP_PROMO_EN : LP_PROMO_JA
+);

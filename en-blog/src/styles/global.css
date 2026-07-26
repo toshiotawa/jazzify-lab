@@ -60,6 +60,23 @@ a:hover { color: #f2c977; }
 .blog-cta { display: block; margin-block: 2.5rem; border-radius: 0.9rem; outline-offset: 0.25rem; }
 .blog-cta:hover img { filter: brightness(1.08); }
 .related-articles { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+.promo-video { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+.promo-video h2 { margin: 0 0 0.75rem; font-size: clamp(1.65rem, 4vw, 2.25rem); line-height: 1.25; }
+.promo-video__lead { margin: 0 0 1.5rem; color: var(--muted); }
+.promo-video__stage { overflow: hidden; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface); }
+.promo-video__play {
+  position: relative; display: block; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer;
+}
+.promo-video__play img { display: block; width: 100%; height: auto; }
+.promo-video__play-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(16, 13, 11, 0.35);
+}
+.promo-video__play-label {
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.35rem; border-radius: 999px;
+  background: rgba(215, 169, 83, 0.92); color: #1b1713; font-weight: 700;
+}
+.promo-video__play:hover .promo-video__play-label { filter: brightness(1.06); }
+.promo-video__player { display: block; width: 100%; height: auto; }
 @media (max-width: 40rem) {
   .site-header__inner, .site-footer__inner { align-items: flex-start; flex-direction: column; }
   .page-main { padding-top: 2rem; }

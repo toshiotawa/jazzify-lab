@@ -4,6 +4,7 @@ import { getLandingCopy } from '@/components/landing/landingCopy';
 import PublicPageHelmet from '@/components/seo/PublicPageHelmet';
 import { LpHeader } from '@/components/landing/sections/LpHeader';
 import { LpHero } from '@/components/landing/sections/LpHero';
+import { LpPromoVideo } from '@/components/landing/sections/LpPromoVideo';
 import { LpDemoPlaceholder } from '@/components/landing/sections/LpDemoPlaceholder';
 import { LpPain } from '@/components/landing/sections/LpPain';
 import { LpSolution } from '@/components/landing/sections/LpSolution';
@@ -108,6 +109,7 @@ const LandingPage: React.FC = () => {
       <div className="relative flex-1 overflow-y-auto overflow-x-hidden" ref={scrollRef} style={{ background: 'var(--lp-bg)' }}>
         <LpHeader />
         <LpHero />
+        <LpPromoVideo />
 
         <div id="demo" className="scroll-mt-20 lp-dark" style={{ background: 'var(--lp-night-2)' }}>
           {shouldRenderDemo ? (

@@ -1,0 +1,104 @@
+---
+interface Props {
+  slug: string;
+  category: string;
+}
+
+const { slug, category } = Astro.props;
+
+const PROMO_CDN = 'https://jazzify-cdn.com/promo';
+const src1080 = `${PROMO_CDN}/jazzify-promo-en-1080.mp4`;
+const src720 = `${PROMO_CDN}/jazzify-promo-en-720.mp4`;
+const poster = '/newLP/promo-poster-en.webp';
+const posterMobile = '/newLP/promo-poster-en-960.webp';
+---
+
+<section class="promo-video" aria-labelledby="promo-video-heading">
+  <h2 id="promo-video-heading">See Jazzify in action</h2>
+  <p class="promo-video__lead">Watch how jazz piano practice feels like a game — with sound.</p>
+  <div
+    class="promo-video__stage"
+    data-promo-video
+    data-article-slug={slug}
+    data-article-category={category}
+    data-src-1080={src1080}
+    data-src-720={src720}
+  >
+    <button
+      type="button"
+      class="promo-video__play"
+      data-promo-video-play
+      aria-label="Play Jazzify promotional video"
+    >
+      <picture>
+        <source srcset={posterMobile} media="(max-width: 767px)" type="image/webp" />
+        <img
+          src={poster}
+          alt="Jazzify promotional video thumbnail"
+          width={1920}
+          height={1080}
+          loading="lazy"
+          decoding="async"
+        />
+      </picture>
+      <span class="promo-video__play-overlay" aria-hidden="true">
+        <span class="promo-video__play-label">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+          Play video
+        </span>
+      </span>
+    </button>
+    <video
+      class="promo-video__player"
+      controls
+      playsinline
+      preload="none"
+      poster={poster}
+      aria-label="Jazzify promotional video"
+      hidden
+    ></video>
+  </div>
+</section>
+
+<script is:inline>
+  const initPromoVideo = () => {
+    document.querySelectorAll('[data-promo-video]').forEach((container) => {
+      if (!(container instanceof HTMLElement)) return;
+      if (container.dataset.promoVideoReady === 'true') return;
+      container.dataset.promoVideoReady = 'true';
+
+      const playButton = container.querySelector('[data-promo-video-play]');
+      const video = container.querySelector('.promo-video__player');
+      if (!(playButton instanceof HTMLButtonElement) || !(video instanceof HTMLVideoElement)) return;
+
+      playButton.addEventListener('click', () => {
+        if (!video.querySelector('source')) {
+          const src = window.matchMedia('(max-width: 767px)').matches
+            ? container.dataset.src720
+            : container.dataset.src1080;
+          if (!src) return;
+          const source = document.createElement('source');
+          source.src = src;
+          source.type = 'video/mp4';
+          video.appendChild(source);
+          video.load();
+        }
+
+        playButton.hidden = true;
+        video.hidden = false;
+        void video.play().catch(() => {
+          playButton.hidden = false;
+          video.hidden = true;
+        });
+      });
+    });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPromoVideo, { once: true });
+  } else {
+    initPromoVideo();
+  }
+</script>

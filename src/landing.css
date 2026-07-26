@@ -466,6 +466,21 @@
   position: relative;
 }
 
+.lp-promo-play {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  text-align: inherit;
+}
+.lp-promo-play-overlay {
+  background: rgba(14, 22, 38, 0.35);
+}
+.lp-promo-video video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 /* 1) 後ろから出てくる（縮小+ぼかし→等倍） */
 [data-animate~="from-behind"] {
   transform: scale(0.97);

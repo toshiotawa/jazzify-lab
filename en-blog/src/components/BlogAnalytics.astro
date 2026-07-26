@@ -31,6 +31,16 @@ const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
           link_text: target.getAttribute('aria-label') || '',
         });
       });
+      document.addEventListener('play', (event) => {
+        const video = event.target;
+        if (!(video instanceof HTMLVideoElement)) return;
+        const container = video.closest('[data-promo-video]');
+        if (!(container instanceof HTMLElement)) return;
+        window.gtag('event', 'blog_promo_video_play', {
+          article_slug: container.dataset.articleSlug,
+          article_category: container.dataset.articleCategory,
+        });
+      }, true);
     }
   </script>
 )}

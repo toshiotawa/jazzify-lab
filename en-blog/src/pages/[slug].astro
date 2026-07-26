@@ -2,6 +2,7 @@
 import type { CollectionEntry } from 'astro:content';
 import { getCollection, render } from 'astro:content';
 import ArticleCard from '../components/ArticleCard.astro';
+import PromoVideo from '../components/PromoVideo.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { BLOG_ORIGIN, articlePath, categoryPath } from '../lib/blog';
 
@@ -71,6 +72,8 @@ const jsonLd = [
       By {post.data.author} · Published <time datetime={post.data.publishedAt.toISOString()}>{post.data.publishedAt.toLocaleDateString('en-US')}</time>
     </p>
     <div class="article-content"><Content /></div>
+
+    <PromoVideo slug={post.data.slug} category={post.data.category} />
 
     <section class="related-articles" aria-labelledby="related-heading">
       <h2 id="related-heading">Related articles</h2>
