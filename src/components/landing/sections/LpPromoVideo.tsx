@@ -111,7 +111,7 @@ export const LpPromoVideo: React.FC = () => {
         </div>
 
         <div className="lp-shot-stage max-w-4xl mx-auto" data-animate="from-behind">
-          <div className="lp-shot lp-promo-video relative">
+          <div className={`lp-shot lp-promo-video relative${isPlaying ? ' is-playing' : ''}`}>
             <video
               ref={videoRef}
               src={videoSrc}
