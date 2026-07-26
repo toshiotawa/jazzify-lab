@@ -21,6 +21,10 @@ export const LpPromoVideo: React.FC = () => {
     () => (window.matchMedia('(max-width: 767px)').matches ? promo.posterMobile : promo.poster),
     [promo.poster, promo.posterMobile],
   );
+  const videoSrc = useMemo(
+    () => (window.matchMedia('(max-width: 767px)').matches ? promo.src720 : promo.src1080),
+    [promo.src720, promo.src1080],
+  );
 
   useEffect(() => {
     if (!isPlaying) {
@@ -66,31 +70,18 @@ export const LpPromoVideo: React.FC = () => {
     };
   }, [isPlaying, locale]);
 
-  const handleVideoPlay = (): void => {
+  const handlePlayButtonClick = (): void => {
     const video = videoRef.current;
     if (!video) {
       return;
     }
 
-    if (!video.querySelector('source')) {
-      video.pause();
-      const src = window.matchMedia('(max-width: 767px)').matches ? promo.src720 : promo.src1080;
-      const source = document.createElement('source');
-      source.src = src;
-      source.type = 'video/mp4';
-      video.appendChild(source);
-      video.load();
-      void video.play().then(() => {
-        setIsPlaying(true);
-        if (sessionRef.current.onPlay()) {
-          trackEvent('lp_promo_video_play', { locale });
-        }
-      }).catch(() => {
-        // User gesture context may be lost after load; rare on explicit play click.
-      });
-      return;
-    }
+    void video.play().catch(() => {
+      // Playback failure leaves the poster and play button available for retry.
+    });
+  };
 
+  const handleVideoPlay = (): void => {
     setIsPlaying(true);
     if (sessionRef.current.onPlay()) {
       trackEvent('lp_promo_video_play', { locale });
@@ -120,9 +111,10 @@ export const LpPromoVideo: React.FC = () => {
         </div>
 
         <div className="lp-shot-stage max-w-4xl mx-auto" data-animate="from-behind">
-          <div className={`lp-shot lp-promo-video relative${isPlaying ? ' is-playing' : ''}`}>
+          <div className="lp-shot lp-promo-video relative">
             <video
               ref={videoRef}
+              src={videoSrc}
               controls
               playsInline
               preload="none"
@@ -132,17 +124,16 @@ export const LpPromoVideo: React.FC = () => {
               onPlay={handleVideoPlay}
             />
             {!isPlaying ? (
-              <div className="lp-promo-mock-controls" aria-hidden="true">
-                <span className="lp-promo-mock-play">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </span>
-                <span className="lp-promo-mock-track">
-                  <span className="lp-promo-mock-progress" />
-                </span>
-                <span className="lp-promo-mock-time">0:00</span>
-              </div>
+              <button
+                type="button"
+                className="lp-promo-play-icon"
+                onClick={handlePlayButtonClick}
+                aria-label={isEnglish ? 'Play video' : '動画を再生'}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
             ) : null}
           </div>
         </div>
