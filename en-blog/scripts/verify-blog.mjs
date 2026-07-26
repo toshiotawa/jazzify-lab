@@ -138,6 +138,18 @@ const analyticsSource = await readFile(
   'utf8',
 );
 assert(analyticsSource.includes("window.gtag('event', 'blog_cta_click'"), 'CTA analytics event is missing');
+assert(
+  analyticsSource.includes("window.gtag('event', 'blog_promo_video_play'"),
+  'Promo video play analytics event is missing',
+);
+assert(
+  analyticsSource.includes("window.gtag('event', 'blog_promo_video_complete'"),
+  'Promo video complete analytics event is missing',
+);
+assert(
+  analyticsSource.includes("window.gtag('event', 'blog_promo_video_abandon'"),
+  'Promo video abandon analytics event is missing',
+);
 if (expectedMeasurementId) {
   const indexHtml = await readFile(resolve(outputRoot, 'index.html'), 'utf8');
   assert(indexHtml.includes(expectedMeasurementId), 'Built blog is missing VITE_GA_MEASUREMENT_ID');

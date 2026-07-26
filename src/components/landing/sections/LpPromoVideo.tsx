@@ -1,15 +1,66 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getPromoVideo } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { trackEvent } from '@/utils/analytics/ga';
+import {
+  createPromoVideoSession,
+  watchProgressPercent,
+  watchSeconds,
+} from '@/utils/analytics/promoVideoEvents';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 export const LpPromoVideo: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy();
+  const locale = isEnglish ? 'en' : 'ja';
   const copy = getLandingCopy(isEnglish);
   const promo = getPromoVideo(isEnglish);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const sessionRef = useRef(createPromoVideoSession());
   const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    const session = sessionRef.current;
+
+    const baseParams = () => ({
+      locale,
+      progress_percent: watchProgressPercent(video.currentTime, video.duration),
+      watch_seconds: watchSeconds(video.currentTime),
+    });
+
+    const fireAbandon = (): void => {
+      if (!session.onAbandon()) {
+        return;
+      }
+      trackEvent('lp_promo_video_abandon', baseParams());
+    };
+
+    const onEnded = (): void => {
+      if (!session.onComplete()) {
+        return;
+      }
+      trackEvent('lp_promo_video_complete', {
+        locale,
+        progress_percent: 100,
+        watch_seconds: watchSeconds(video.duration || video.currentTime),
+      });
+    };
+
+    video.addEventListener('ended', onEnded);
+    window.addEventListener('pagehide', fireAbandon);
+
+    return () => {
+      fireAbandon();
+      video.removeEventListener('ended', onEnded);
+      window.removeEventListener('pagehide', fireAbandon);
+    };
+  }, [isPlaying, locale]);
 
   const handlePlay = (): void => {
     const video = videoRef.current;
@@ -28,7 +79,9 @@ export const LpPromoVideo: React.FC = () => {
 
     void video.play().then(() => {
       setIsPlaying(true);
-      trackEvent('lp_promo_video_play', { locale: isEnglish ? 'en' : 'ja' });
+      if (sessionRef.current.onPlay()) {
+        trackEvent('lp_promo_video_play', { locale });
+      }
     }).catch(() => {
       // Autoplay policy should not apply after explicit user click.
     });
