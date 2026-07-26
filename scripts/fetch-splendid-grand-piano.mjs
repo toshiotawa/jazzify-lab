@@ -3,8 +3,10 @@
  * smplr の SplendidGrandPiano サンプルを public/ 配下へ self-host するための取得スクリプト。
  *
  * 外部 CDN (GitHub Pages) をランタイム依存にしないため、サンプルはリポジトリへ取り込んで
- * 自ドメインから配信する。ファイル名は smplr が組み立てる URL と一致させる必要があるので、
- * 空白と `#` を含む元の名前をそのまま使う (smplr 側で %20 / %23 にエスケープされる)。
+ * 自ドメインから配信する。
+ *
+ * Netlify はデプロイファイル名に `#` / `?` を許可しないため、ローカル保存時は `#` を `s`
+ * に置換する (例: `MF C#1.m4a` → `MF Cs1.m4a`)。ランタイム側も同じ規則で URL を書き換える。
  *
  * 音源: AKAI が 2000 年代初頭にパブリックドメインとして公開した Steinway サンプル。
  * 帰属表示の義務はない。
@@ -23,7 +25,10 @@ const CONCURRENCY = 8;
 
 const sampleNames = [...new Set(LAYERS.flatMap((layer) => layer.samples.map(([, name]) => name)))];
 
-/** smplr の loadAudioBuffer と同じエスケープ規則。 */
+/** Netlify 向けに `#` を sharp の慣例 `s` へ置換したローカルファイル名。 */
+const toLocalName = (name) => name.replace(/#/g, 's');
+
+/** 上流 CDN 向け。smplr の loadAudioBuffer と同じエスケープ規則。 */
 const toRemoteUrl = (name) =>
   `${REMOTE_BASE}/${name}.${FORMAT}`.replace(/#/g, '%23').replace(/ /g, '%20');
 
@@ -37,7 +42,7 @@ const alreadyDownloaded = async (filePath) => {
 };
 
 const fetchOne = async (name) => {
-  const filePath = path.join(OUT_DIR, `${name}.${FORMAT}`);
+  const filePath = path.join(OUT_DIR, `${toLocalName(name)}.${FORMAT}`);
   if (await alreadyDownloaded(filePath)) return 0;
 
   const response = await fetch(toRemoteUrl(name));

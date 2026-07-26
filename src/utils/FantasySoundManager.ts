@@ -42,7 +42,8 @@ import { Sf2RootNotePlayer, resolveSurvivalCodeRunRootMidi } from '@/utils/sf2Ro
 import { progressionBassRootName } from '@/utils/chord-utils';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
-import { SplendidGrandPiano, CacheStorage, type StopFn } from 'smplr';
+import { SplendidGrandPiano, CacheStorage, type StopFn, type Storage } from 'smplr';
+import { toNetlifySafePianoSampleUrl } from '@/utils/splendidPianoSampleUrl';
 import * as Tone from 'tone';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
@@ -63,6 +64,14 @@ const SPLENDID_PIANO_MAX_VOLUME = 110;
 const GM_REVERB_WET_GAIN = 0.1;
 /** リバーブ IR の長さ(秒)。モバイルの畳み込みコストを抑えるため短めにする。 */
 const GM_REVERB_IR_SECONDS = 1.4;
+
+/** CacheStorage の手前で sharp 記号の URL を Netlify 向けファイル名へ書き換える。 */
+const createSplendidPianoStorage = (): Storage => {
+  const cache = new CacheStorage();
+  return {
+    fetch: (url: string) => cache.fetch(toNetlifySafePianoSampleUrl(url)),
+  };
+};
 
 interface LoadedAudio {
   /** プリロード済みのベース Audio インスタンス（再生には clone する） */
@@ -1347,7 +1356,8 @@ export class FantasySoundManager {
       formats: SPLENDID_PIANO_FORMATS,
       destination,
       // 226 個のサンプルを毎回取り直さないよう CacheStorage に載せる。
-      storage: new CacheStorage(),
+      // `#` → `s` の書き換えもここで行う (Netlify のファイル名制約)。
+      storage: createSplendidPianoStorage(),
       volume: Math.round(this.gmPianoVolume * SPLENDID_PIANO_MAX_VOLUME),
     });
 
