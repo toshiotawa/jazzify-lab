@@ -67,7 +67,7 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   const [greatInterstitialPercent, setGreatInterstitialPercent] = useState<number | null>(null);
   const [bluetoothNoticeOpen, setBluetoothNoticeOpen] = useState(true);
   const [playbackReady, setPlaybackReady] = useState(false);
-  const [osmdBattleReady, setOsmdBattleReady] = useState(false);
+  const [battleReadySceneIndex, setBattleReadySceneIndex] = useState<number | null>(null);
   const finalizedRef = useRef(false);
   const audioUnlockedRef = useRef(false);
   const sceneCompleteTimerRef = useRef<number | null>(null);
@@ -135,10 +135,6 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   const script = scriptRow?.script ?? null;
   const scenes = script?.scenes ?? [];
   const currentScene = scenes[sceneIndex] ?? null;
-
-  useEffect(() => {
-    setOsmdBattleReady(false);
-  }, [sceneIndex]);
 
   useEffect(() => {
     if (gate !== 'ready' || !script) return;
@@ -210,8 +206,8 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
   }, [advanceSceneImmediate, sceneIndex, scenes]);
 
   const handleOsmdBattleReady = useCallback(() => {
-    setOsmdBattleReady(true);
-  }, []);
+    setBattleReadySceneIndex(sceneIndex);
+  }, [sceneIndex]);
 
   const bindings: EarTrainingTutorialBindings = useMemo(
     () => {
@@ -303,7 +299,7 @@ export const EarTrainingTimingAdjustmentExperience: React.FC<
       || (
         currentScene.type === 'chord_osmd'
         && currentScene.contentRef === OSMD_TIMING_ADJUSTMENT_CONTENT_REF
-        && osmdBattleReady
+        && battleReadySceneIndex === sceneIndex
       )
     );
 
