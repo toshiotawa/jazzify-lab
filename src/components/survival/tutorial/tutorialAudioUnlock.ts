@@ -5,7 +5,7 @@ import { playNote, stopNote } from '@/utils/MidiController';
 
 const TUTORIAL_PREVIEW_NOTE_MS = 420;
 
-type TutorialPreviewAudioMode = 'gm' | 'fm' | 'legend';
+type TutorialPreviewAudioMode = 'gm' | 'legend';
 
 async function resolveTutorialPreviewAudioMode(
   waitInit?: Promise<void>,
@@ -23,9 +23,6 @@ async function resolveTutorialPreviewAudioMode(
     if (FantasySoundManager.isGmAudioRunning()) {
       return 'gm';
     }
-    if (FantasySoundManager.isFMSynthReady()) {
-      return 'fm';
-    }
     if (FantasySoundManager.isGMReady()) {
       return 'gm';
     }
@@ -39,10 +36,6 @@ function playTutorialPreviewNote(midi: number, mode: TutorialPreviewAudioMode): 
   if (mode === 'gm') {
     void playNote(midi, 90);
     window.setTimeout(() => stopNote(midi), TUTORIAL_PREVIEW_NOTE_MS);
-    return;
-  }
-  if (mode === 'fm') {
-    FantasySoundManager.playFMNote(midi, 0.85);
     return;
   }
   FantasySoundManager.playTutorialBgmDemoNote(
@@ -102,20 +95,12 @@ function playDemoSustainNote(midi: number, mode: TutorialPreviewAudioMode): void
     void playNote(midi, 90);
     return;
   }
-  if (mode === 'fm') {
-    FantasySoundManager.playFMNote(midi, 0.85);
-    return;
-  }
   FantasySoundManager.playTutorialBgmDemoNote(midi, 8, 0.75);
 }
 
 function stopDemoSustainNote(midi: number, mode: TutorialPreviewAudioMode): void {
   if (mode === 'gm' || mode === 'legend') {
     stopNote(midi);
-    return;
-  }
-  if (mode === 'fm') {
-    FantasySoundManager.stopFMNote(midi);
   }
 }
 

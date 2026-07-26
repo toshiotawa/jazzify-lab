@@ -42,36 +42,9 @@ import { Sf2RootNotePlayer, resolveSurvivalCodeRunRootMidi } from '@/utils/sf2Ro
 import { progressionBassRootName } from '@/utils/chord-utils';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
-import { SplendidGrandPiano, CacheStorage, type StopFn, type Storage } from 'smplr';
-import { toNetlifySafePianoSampleUrl } from '@/utils/splendidPianoSampleUrl';
 import * as Tone from 'tone';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
-
-/**
- * self-host した SplendidGrandPiano サンプルの配置先。
- * `npm run fetch:piano-samples` で取得する。
- */
-const SPLENDID_PIANO_SAMPLE_PATH = 'piano/splendid';
-/** ブラウザ間で単一形式に揃える。ogg を混ぜると Safari が再生できない。 */
-const SPLENDID_PIANO_FORMATS = ['m4a'];
-/**
- * smplr の出力ボリューム上限 (MIDI 0-127 スケール)。
- * 差し替え前の MusyngKite + volumeBoost 経路と体感音量を揃えるための調整値。
- */
-const SPLENDID_PIANO_MAX_VOLUME = 110;
-/** うっすらとした残響。0 でドライのみ。上げすぎると和音が濁る。 */
-const GM_REVERB_WET_GAIN = 0.1;
-/** リバーブ IR の長さ(秒)。モバイルの畳み込みコストを抑えるため短めにする。 */
-const GM_REVERB_IR_SECONDS = 1.4;
-
-/** CacheStorage の手前で sharp 記号の URL を Netlify 向けファイル名へ書き換える。 */
-const createSplendidPianoStorage = (): Storage => {
-  const cache = new CacheStorage();
-  return {
-    fetch: (url: string) => cache.fetch(toNetlifySafePianoSampleUrl(url)),
-  };
-};
 
 interface LoadedAudio {
   /** プリロード済みのベース Audio インスタンス（再生には clone する） */
@@ -131,36 +104,16 @@ export class FantasySoundManager {
   private static readonly GM_PIANO_LOAD_TIMEOUT_MS = 15000;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - GM音源 + 合成音フォールバック
-  private bassSynth: any | null = null;           // 合成音（フォールバック用）
-  private gmAcousticPiano: Soundfont.Player | null = null;  // GM音源アコースティックピアノ
-  private gmElectricPiano: Soundfont.Player | null = null;  // GM音源エレクトリックピアノ
-  private gmPianoReady = false;                             // GM音源読み込み完了フラグ
+  // ベース音関連フィールド - GM音源
+  private gmAcousticPiano: Soundfont.Player | null = null;
+  private gmPianoReady = false;
   private gmAudioContext: AudioContext | null = null;
-  /**
-   * 鍵盤演奏用のマルチベロシティ・ピアノ (smplr / SplendidGrandPiano)。
-   * MusyngKite はレイヤー 1 枚で電子音的に聞こえるため、読み込み完了後は鍵盤経路だけこちらへ切り替える。
-   * ロードは非同期なので、完了までは従来の MusyngKite が鳴る。
-   */
-  private splendidPiano: SplendidGrandPiano | null = null;
-  private splendidLoadPromise: Promise<void> | null = null;
-  /** smplr で鳴っている音の停止関数。ノート番号ごとに 1 声。 */
-  private activeSplendidNotes: Map<number, StopFn> = new Map();
-  /**
-   * サステインペダル状態。SplendidGrandPiano のプリセットは ccRange を持たず
-   * smplr の setCC(64) ではダンパーが効かないため、保持はアプリ側で行う。
-   */
+  /** サステインペダル状態。MusyngKite は CC64 非対応のためアプリ側で保持する。 */
   private sustainPedalDown = false;
   private sustainHeldNotes: Set<number> = new Set();
-  // ミックスバランス（0.0 = アコースティックのみ、1.0 = エレクトリックのみ、0.5 = 半々）
-  private gmMixBalance = 0.4;  // アコースティック60% + エレクトリック40%
-  // アクティブなノート（停止用に追跡）
-  private activeGMNotes: Map<number, { acoustic?: any; electric?: any; gainNode?: GainNode }> = new Map();
+  private activeGMNotes: Map<number, { acoustic?: { stop?: () => void }; gainNode?: GainNode }> = new Map();
   private gmPendingStops: Set<number> = new Set();
   private gmMasterGain: GainNode | null = null;
-  private gmDryGain: GainNode | null = null;
-  private gmWetGain: GainNode | null = null;
-  private gmConvolver: ConvolverNode | null = null;
   /** GM ノートオフ時のゲインリリース（即 disconnect によるクリック／グリッサンドのプチ音を抑える） */
   private static readonly GM_NOTE_RELEASE_SEC = 0.038;
   private static readonly ROOT_TRIANGLE_FALLBACK_PEAK_GAIN = 1.25;
@@ -170,7 +123,6 @@ export class FantasySoundManager {
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
-  private bassInitialized = false; // 合成音は即座に初期化完了
 
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
@@ -224,9 +176,6 @@ export class FantasySoundManager {
   /**
    * レジェンドモード「音源なし」時のデモBGM用。
    * MidiController の play/stop と同一音高で競合しないよう、専用シンセで再生する。
-   * GM の playBgmNote 経路も activeGMNotes を使わない。音色は Soundfont の electric_piano_1（未ロード時は FM 等）。
-   */
-  /**
    * @param volume01 レジェンド設定の BGM 音量（0〜1）。`settings.bgmVolume` を渡す。
    */
   public static playTutorialBgmDemoNote(midiNote: number, durationSec: number, volume01 = 0.7): void {
@@ -251,21 +200,6 @@ export class FantasySoundManager {
   /** MIDI サステインペダル (CC64)。踏んでいる間は離鍵を保留する。 */
   public static setSustainPedal(isDown: boolean): void {
     return this.instance._setSustainPedal(isDown);
-  }
-
-  // FM合成音フォールバックが利用可能かどうか（CDN不要・即時利用可）
-  public static isFMSynthReady(): boolean {
-    return this.instance.bassInitialized && this.instance.bassSynth !== null;
-  }
-
-  // FM合成音でMIDIノートを即時再生（GM/Sampler未準備時のフォールバック）
-  public static playFMNote(midiNote: number, velocity: number = 1.0) {
-    return this.instance._playFMNote(midiNote, velocity);
-  }
-
-  // FM合成音のノートを停止
-  public static stopFMNote(midiNote: number) {
-    return this.instance._stopFMNote(midiNote);
   }
 
   // 全AudioContextを resume（ゲーム開始前に呼ぶ）
@@ -399,42 +333,6 @@ export class FantasySoundManager {
       this._setupSeContextAndBuffers(baseUrl).catch(() => {
         // SE buffer setup failed - ignored
       });
-
-      // 🎹 ピアノ音源システム
-      // GM / smplr が読み込まれるまでのフォールバックとして合成音を用意する
-      const Tone = window.Tone as unknown as typeof import('tone');
-      if (Tone) {
-        // ピアノ風合成音シンセサイザー（FM合成）
-        try {
-          // FM合成でピアノに近い音色を実現
-          // ピアノは打弦楽器のため、素早いアタックと自然な減衰が特徴
-          this.bassSynth = new (Tone as any).FMSynth({
-            harmonicity: 3,           // 倍音の関係（ピアノらしさに重要）
-            modulationIndex: 10,      // FM変調の深さ
-            oscillator: {
-              type: 'sine'            // キャリア波形
-            },
-            envelope: {
-              attack: 0.001,          // 非常に素早いアタック（打鍵感）
-              decay: 0.5,             // 自然な減衰
-              sustain: 0.1,           // 低いサステイン（ピアノらしさ）
-              release: 1.2            // 長めのリリース（残響感）
-            },
-            modulation: {
-              type: 'square'          // モジュレーター波形（倍音を豊かに）
-            },
-            modulationEnvelope: {
-              attack: 0.002,
-              decay: 0.2,
-              sustain: 0.2,
-              release: 0.5
-            }
-          }).toDestination();
-          this.bassInitialized = true;
-        } catch {
-          // BassSynth creation failed - ignored
-        }
-      }
 
       // GM音源: _startGMLoad() で既に並列読込中 → 完了を待つ
       await gmPromise;
@@ -599,7 +497,7 @@ export class FantasySoundManager {
     return null;
   }
 
-  // 🎸 ルート音再生: GM アコースティック + エレピのワンショット（メイン演奏の activeGMNotes とは別経路）。未準備時は三角波。
+  // 🎸 ルート音再生: GM アコースティックのワンショット（メイン演奏の activeGMNotes とは別経路）。未準備時は三角波。
   private _playRootNote(rootName: string) {
     if (!this.isInited || !this.bassEnabled) return;
 
@@ -610,14 +508,14 @@ export class FantasySoundManager {
     if (n.midi == null) return;
 
     this._ensureContextsRunning();
-    if (this.gmPianoReady && this.gmAudioContext && this.gmAcousticPiano && this.gmElectricPiano) {
+    if (this.gmPianoReady && this.gmAudioContext && this.gmAcousticPiano) {
       this._playCorrectRootGMOneShot(n.midi);
       return;
     }
     this._playRootTriangleOscillator(n.midi);
   }
 
-  /** 正解ルート専用: Soundfont の acoustic_grand + electric_piano_1 を短く重ね、鍵盤用 GM マップと干渉させない */
+  /** 正解ルート専用: Soundfont acoustic_grand を短く再生。鍵盤用 GM マップと干渉させない */
   private _playCorrectRootGMOneShot(midiNote: number): void {
     if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) return;
 
@@ -632,9 +530,7 @@ export class FantasySoundManager {
       const eff = this.bassVolume;
       const velocity = Math.max(0.22, Math.min(1, 0.28 + eff * 0.92));
       const volumeBoost = 9.0;
-      const baseGain = velocity * volumeBoost * Math.max(eff, 0.09);
-      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
-      const electricGain = this.gmElectricPiano ? baseGain * this.gmMixBalance : 0;
+      const acousticGain = velocity * volumeBoost * Math.max(eff, 0.09);
 
       const noteGain = ctx.createGain();
       noteGain.gain.value = 1.0;
@@ -654,15 +550,7 @@ export class FantasySoundManager {
           gain: acousticGain,
           duration: totalDuration,
           destination: noteGain
-        } as any));
-      }
-
-      if (this.gmElectricPiano && electricGain > 0) {
-        startedVoices.push(this.gmElectricPiano.play(midiNote.toString(), currentTime, {
-          gain: electricGain,
-          duration: totalDuration,
-          destination: noteGain
-        } as any));
+        } as Parameters<Soundfont.Player['play']>[2]));
       }
 
       getWindow().setTimeout(() => {
@@ -808,40 +696,8 @@ export class FantasySoundManager {
   private activeRootGain: GainNode | null = null;
   private codeRunRootPlayer: Sf2RootNotePlayer | null = null;
   private codeRunRootLoadPromise: Promise<void> | null = null;
-  
-  // FM合成音でMIDIノートを即時再生（フォールバック用）
-  private _playFMNote(midiNote: number, velocity: number = 1.0) {
-    if (!this.bassInitialized || !this.bassSynth) return;
-    try {
-      const Tone = (window as any).Tone;
-      if (!Tone) return;
-      if (Tone.context?.state !== 'running') {
-        Tone.start?.().catch(() => {});
-      }
-      const noteName = Tone.Frequency(midiNote, 'midi').toNote();
-      const dbValue = velocity === 0 ? -Infinity : Math.log10(velocity) * 20;
-      const effectiveDb = dbValue + Math.log10(Math.max(this.gmPianoVolume, 0.01)) * 20;
-      (this.bassSynth.volume as any).value = effectiveDb;
-      this.bassSynth.triggerAttack(noteName, undefined, velocity);
-      this.activeFMNotes.add(midiNote);
-    } catch { /* ignore */ }
-  }
 
-  private _stopFMNote(midiNote: number) {
-    if (!this.bassInitialized || !this.bassSynth) return;
-    if (!this.activeFMNotes.has(midiNote)) return;
-    try {
-      const Tone = (window as any).Tone;
-      if (!Tone) return;
-      const noteName = Tone.Frequency(midiNote, 'midi').toNote();
-      this.bassSynth.triggerRelease(noteName);
-      this.activeFMNotes.delete(midiNote);
-    } catch { /* ignore */ }
-  }
-
-  private activeFMNotes: Set<number> = new Set();
-
-  /** レジェンド用デモBGM（ピアノ入力と独立した FM・PolySynth＝エレピ風） */
+  /** レジェンド用デモBGM（ピアノ入力と独立した PolySynth） */
   private legendBgmGuideSynth: Tone.PolySynth<Tone.FMSynth> | null = null;
 
   // 全AudioContextをresume（ゲーム開始前の呼び出し推奨）
@@ -914,46 +770,26 @@ export class FantasySoundManager {
         return;
       }
       
-      this._stopGMNote(midiNote);
+      this._stopGMNoteImmediate(midiNote);
       this.gmPendingStops.delete(midiNote);
-
-      // マルチベロシティ音源が読み込めていれば鍵盤はそちらで鳴らす。
-      if (this.splendidPiano) {
-        this._playSplendidNote(midiNote, velocity);
-        if (this.gmPendingStops.has(midiNote)) {
-          this.gmPendingStops.delete(midiNote);
-          this._stopGMNote(midiNote);
-        }
-        return;
-      }
 
       const ctx = this.gmAudioContext;
       const currentTime = ctx.currentTime;
       const volumeBoost = 8.0;
-      const baseGain = velocity * volumeBoost * this.gmPianoVolume;
-      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
-      const electricGain = baseGain * this.gmMixBalance;
+      const acousticGain = velocity * volumeBoost * this.gmPianoVolume;
       
       const noteGain = ctx.createGain();
       noteGain.gain.value = 1.0;
       noteGain.connect(this.gmMasterGain || ctx.destination);
       
-      const activeNodes: { acoustic?: any; electric?: any; gainNode?: GainNode } = { gainNode: noteGain };
+      const activeNodes: { acoustic?: { stop?: () => void }; gainNode?: GainNode } = { gainNode: noteGain };
       
       if (acousticGain > 0) {
         activeNodes.acoustic = this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
           gain: acousticGain,
           duration: 10.0,
           destination: noteGain
-        } as any);
-      }
-      
-      if (this.gmElectricPiano && electricGain > 0) {
-        activeNodes.electric = this.gmElectricPiano.play(midiNote.toString(), currentTime, {
-          gain: electricGain,
-          duration: 10.0,
-          destination: noteGain
-        } as any);
+        } as Parameters<Soundfont.Player['play']>[2]);
       }
       
       this.activeGMNotes.set(midiNote, activeNodes);
@@ -969,32 +805,28 @@ export class FantasySoundManager {
   }
 
   private _releaseAllGmNotes(): void {
-    // ペダルを踏んだまま画面遷移しても残らないよう、保留を先に解除する。
     this.sustainPedalDown = false;
-    for (const midiNote of [...this.activeSplendidNotes.keys()]) {
-      this._releaseSplendidNote(midiNote);
-    }
     this.sustainHeldNotes.clear();
     for (const midiNote of [...this.activeGMNotes.keys()]) {
-      this._stopGMNote(midiNote);
+      this._stopGMNoteImmediate(midiNote);
     }
     this.gmPendingStops.clear();
   }
 
   // GM音源のノートを停止（ゲインを短くランプしてから stop／切断でクリックノイズを低減）
   private _stopGMNote(midiNote: number) {
-    if (this.activeSplendidNotes.has(midiNote)) {
-      if (this.sustainPedalDown) {
-        this.sustainHeldNotes.add(midiNote);
-        return;
-      }
-      this._releaseSplendidNote(midiNote);
+    if (this.sustainPedalDown && this.activeGMNotes.has(midiNote)) {
+      this.sustainHeldNotes.add(midiNote);
       return;
     }
+    this._stopGMNoteImmediate(midiNote);
+  }
+
+  private _stopGMNoteImmediate(midiNote: number): void {
+    this.sustainHeldNotes.delete(midiNote);
 
     const activeNodes = this.activeGMNotes.get(midiNote);
     if (!activeNodes) {
-      // _playGMNote がまだ resume() を待っている場合に備え、ペンディング登録
       this.gmPendingStops.add(midiNote);
       return;
     }
@@ -1006,8 +838,7 @@ export class FantasySoundManager {
 
     if (!ctx || !gainNode) {
       try {
-        if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
-        if (activeNodes.electric?.stop) activeNodes.electric.stop();
+        activeNodes.acoustic?.stop?.();
         gainNode?.disconnect();
       } catch { /* ignore */ }
       return;
@@ -1024,8 +855,7 @@ export class FantasySoundManager {
     const cleanupMs = Math.ceil(releaseSec * 1000) + 24;
     getWindow().setTimeout(() => {
       try {
-        if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
-        if (activeNodes.electric?.stop) activeNodes.electric.stop();
+        activeNodes.acoustic?.stop?.();
         gainNode.disconnect();
       } catch { /* ignore */ }
     }, cleanupMs);
@@ -1044,9 +874,7 @@ export class FantasySoundManager {
       const currentTime = ctx.currentTime;
       const safeDuration = Math.max(0.04, Math.min(durationSec, 16));
       const volumeBoost = 8.0;
-      const baseGain = velocity * volumeBoost * this.gmPianoVolume;
-      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
-      const electricGain = baseGain * this.gmMixBalance;
+      const acousticGain = velocity * volumeBoost * this.gmPianoVolume;
 
       const noteGain = ctx.createGain();
       noteGain.gain.value = 1.0;
@@ -1066,15 +894,7 @@ export class FantasySoundManager {
           gain: acousticGain,
           duration: totalDuration,
           destination: noteGain
-        } as any));
-      }
-
-      if (this.gmElectricPiano && electricGain > 0) {
-        startedVoices.push(this.gmElectricPiano.play(midiNote.toString(), currentTime, {
-          gain: electricGain,
-          duration: totalDuration,
-          destination: noteGain
-        } as any));
+        } as Parameters<Soundfont.Player['play']>[2]));
       }
 
       getWindow().setTimeout(() => {
@@ -1085,61 +905,6 @@ export class FantasySoundManager {
           } catch {
             /* ignore */
           }
-        }
-      }, totalDuration * 1000 + 100);
-    } catch {
-      // BGM note playback error - ignore
-    }
-  }
-
-  /** レジェンド音源なしガイド用: GM electric_piano_1 のみ（アコギ層なし） */
-  private _playBgmGMNoteElectricPianoOnly(
-    midiNote: number,
-    velocity: number,
-    durationSec: number
-  ): void {
-    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmElectricPiano) {
-      return;
-    }
-
-    try {
-      const ctx = this.gmAudioContext;
-      if (ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
-      }
-
-      const currentTime = ctx.currentTime;
-      const safeDuration = Math.max(0.04, Math.min(durationSec, 16));
-      const volumeBoost = 8.0;
-      const electricGain = velocity * volumeBoost * this.gmPianoVolume;
-
-      const noteGain = ctx.createGain();
-      noteGain.gain.value = 1.0;
-      noteGain.connect(this.gmMasterGain || ctx.destination);
-
-      const releaseSec = Math.min(0.08, Math.max(0.02, safeDuration * 0.42));
-      const releaseStart = currentTime + Math.max(0, safeDuration - releaseSec);
-      noteGain.gain.setValueAtTime(1.0, currentTime);
-      noteGain.gain.setValueAtTime(1.0, releaseStart);
-      noteGain.gain.linearRampToValueAtTime(0, currentTime + safeDuration);
-
-      const totalDuration = safeDuration + 0.06;
-      let electricVoice: unknown = null;
-
-      if (electricGain > 0) {
-        electricVoice = this.gmElectricPiano.play(midiNote.toString(), currentTime, {
-          gain: electricGain,
-          duration: totalDuration,
-          destination: noteGain
-        } as any);
-      }
-
-      getWindow().setTimeout(() => {
-        try {
-          (electricVoice as { stop?: () => void })?.stop?.();
-          noteGain.disconnect();
-        } catch {
-          /* ignore */
         }
       }, totalDuration * 1000 + 100);
     } catch {
@@ -1205,9 +970,7 @@ export class FantasySoundManager {
     }
   }
 
-  /**
-   * レジェンド音源なしガイド: GM electric_piano_1 を優先。未ロード時は従来の混合GM → FM。
-   */
+  /** レジェンド音源なしガイド: GM acoustic を優先。未ロード時は専用シンセ。 */
   private _playTutorialBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
     const bgm = Math.max(0, Math.min(1, volume01));
     const midi = Math.max(0.001, Math.min(1, this.gmPianoVolume));
@@ -1216,10 +979,6 @@ export class FantasySoundManager {
       return;
     }
     this._ensureContextsRunning();
-    if (this.gmPianoReady && this.gmElectricPiano) {
-      this._playBgmGMNoteElectricPianoOnly(midiNote, 0.63 * vBlend, durationSec);
-      return;
-    }
     if (FantasySoundManager.isGMReady()) {
       this._playBgmGMNote(midiNote, 0.63 * vBlend, durationSec);
       return;
@@ -1236,28 +995,9 @@ export class FantasySoundManager {
   // GM音源のピアノ音量を設定（0-1）
   private _setGMPianoVolume(volume: number) {
     this.gmPianoVolume = Math.max(0, Math.min(1, volume));
-    if (this.splendidPiano) {
-      // smplr はノートごとの gain ではなく出力チャンネルで音量を持つ。
-      this.splendidPiano.output.volume = Math.round(
-        this.gmPianoVolume * SPLENDID_PIANO_MAX_VOLUME
-      );
-    }
   }
 
-  private _createReverbImpulse(context: AudioContext, duration = 1.8, decay = 2.5): AudioBuffer {
-    const sampleRate = context.sampleRate;
-    const length = Math.floor(sampleRate * duration);
-    const impulse = context.createBuffer(2, length, sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
-      const data = impulse.getChannelData(ch);
-      for (let i = 0; i < length; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-      }
-    }
-    return impulse;
-  }
-
-  // GM音源（Acoustic + Electric Piano）の読み込み
+  // GM音源（Acoustic Piano）の読み込み
   private async _loadGMPiano(): Promise<void> {
     if (this.gmPianoReady && this.gmAcousticPiano) {
       return;
@@ -1276,149 +1016,29 @@ export class FantasySoundManager {
         }
       };
       disconnectQuiet(this.gmMasterGain);
-      disconnectQuiet(this.gmDryGain);
-      disconnectQuiet(this.gmWetGain);
-      disconnectQuiet(this.gmConvolver);
       this.gmMasterGain = null;
-      this.gmDryGain = null;
-      this.gmWetGain = null;
-      this.gmConvolver = null;
       this.gmAcousticPiano = null;
-      this.gmElectricPiano = null;
       this.gmPianoReady = false;
-      // gmMasterGain を作り直すため、そこへ出力していた smplr も破棄して張り直す。
-      this._disposeSplendidPiano();
 
       this.gmMasterGain = this.gmAudioContext.createGain();
-      this.gmDryGain = this.gmAudioContext.createGain();
-      this.gmWetGain = this.gmAudioContext.createGain();
-      this.gmConvolver = this.gmAudioContext.createConvolver();
+      this.gmMasterGain.connect(this.gmAudioContext.destination);
 
-      // ドライ直結だとサンプルの素の減衰しか聞こえず電子音的になるため、薄いリバーブを並列で足す。
-      this.gmConvolver.buffer = this._createReverbImpulse(
-        this.gmAudioContext,
-        GM_REVERB_IR_SECONDS
-      );
-      this.gmDryGain.gain.value = 1;
-      this.gmWetGain.gain.value = GM_REVERB_WET_GAIN;
-      this.gmMasterGain.connect(this.gmDryGain);
-      this.gmDryGain.connect(this.gmAudioContext.destination);
-      this.gmMasterGain.connect(this.gmWetGain);
-      this.gmWetGain.connect(this.gmConvolver);
-      this.gmConvolver.connect(this.gmAudioContext.destination);
-
-      // 鍵盤用のマルチベロシティ音源は MusyngKite と並行で読み込む。
-      // 待たずに進めることで、従来どおり軽い音源で先に演奏を開始できる。
-      this._startSplendidPianoLoad();
-
-      const soundfontOptions: any = {
+      const soundfontOptions = {
         soundfont: 'MusyngKite',
         format: 'mp3',
         destination: this.gmMasterGain
       };
 
-      const [acoustic, electric] = await Promise.all([
-        Soundfont.instrument(
-          this.gmAudioContext,
-          'acoustic_grand_piano',
-          soundfontOptions
-        ),
-        Soundfont.instrument(
-          this.gmAudioContext,
-          'electric_piano_1',
-          soundfontOptions
-        )
-      ]);
+      const acoustic = await Soundfont.instrument(
+        this.gmAudioContext,
+        'acoustic_grand_piano',
+        soundfontOptions
+      );
       
       this.gmAcousticPiano = acoustic;
-      this.gmElectricPiano = electric;
       this.gmPianoReady = true;
     } catch {
       this.gmPianoReady = false;
-    }
-  }
-
-  /**
-   * 鍵盤用マルチベロシティピアノを読み込む。呼び出し元は完了を待たない。
-   * 失敗しても MusyngKite 経路がそのまま残るため、鍵盤が無音になることはない。
-   */
-  private _startSplendidPianoLoad(): void {
-    if (this.splendidLoadPromise || this.splendidPiano) return;
-    const ctx = this.gmAudioContext;
-    const destination = this.gmMasterGain;
-    if (!ctx || !destination) return;
-
-    const piano = SplendidGrandPiano(ctx, {
-      baseUrl: buildPublicAssetUrl(
-        import.meta.env.BASE_URL || '/',
-        SPLENDID_PIANO_SAMPLE_PATH
-      ),
-      formats: SPLENDID_PIANO_FORMATS,
-      destination,
-      // 226 個のサンプルを毎回取り直さないよう CacheStorage に載せる。
-      // `#` → `s` の書き換えもここで行う (Netlify のファイル名制約)。
-      storage: createSplendidPianoStorage(),
-      volume: Math.round(this.gmPianoVolume * SPLENDID_PIANO_MAX_VOLUME),
-    });
-
-    this.splendidLoadPromise = piano.ready
-      .then(() => {
-        this.splendidPiano = piano;
-      })
-      .catch(() => {
-        try {
-          piano.dispose();
-        } catch {
-          /* ignore */
-        }
-      })
-      .finally(() => {
-        this.splendidLoadPromise = null;
-      });
-  }
-
-  private _disposeSplendidPiano(): void {
-    for (const stop of this.activeSplendidNotes.values()) {
-      try {
-        stop();
-      } catch {
-        /* ignore */
-      }
-    }
-    this.activeSplendidNotes.clear();
-    this.sustainHeldNotes.clear();
-    this.sustainPedalDown = false;
-    try {
-      this.splendidPiano?.dispose();
-    } catch {
-      /* ignore */
-    }
-    this.splendidPiano = null;
-    this.splendidLoadPromise = null;
-  }
-
-  private _playSplendidNote(midiNote: number, velocity: number): void {
-    const piano = this.splendidPiano;
-    if (!piano) return;
-    // ペダル保持中の再打鍵では前の音が停止されずに残るため、停止関数を失う前に解放しておく。
-    this._releaseSplendidNote(midiNote);
-    const stop = piano.start({
-      note: midiNote,
-      velocity: Math.max(1, Math.min(127, Math.round(velocity * 127))),
-    });
-    this.activeSplendidNotes.set(midiNote, stop);
-  }
-
-  /** ペダル状態を無視して即座に離鍵する。 */
-  private _releaseSplendidNote(midiNote: number): void {
-    const stop = this.activeSplendidNotes.get(midiNote);
-    this.activeSplendidNotes.delete(midiNote);
-    this.sustainHeldNotes.delete(midiNote);
-    if (!stop) return;
-    try {
-      stop();
-    } catch {
-      /* ignore */
     }
   }
 
@@ -1431,26 +1051,13 @@ export class FantasySoundManager {
     this.sustainPedalDown = isDown;
     if (isDown) return;
     for (const midiNote of [...this.sustainHeldNotes]) {
-      this._releaseSplendidNote(midiNote);
+      this._stopGMNoteImmediate(midiNote);
     }
     this.sustainHeldNotes.clear();
   }
 
   private _setRootVolume(v: number) {
     this.bassVolume = v;
-    
-    // 合成音の音量を調整
-    if (this.bassSynth) {
-      // dB変換 + 補正（合成音は少し控えめに）
-      const dbValue = v === 0 ? -Infinity : Math.log10(v) * 20 - 3;
-      try {
-        (this.bassSynth.volume as any).value = dbValue;
-      } catch {
-        // Synth volume set error - ignored
-      }
-    }
-    
-    // ルート音用ベースシンセの音量も同期
     this._syncRootBassVolume();
   }
 

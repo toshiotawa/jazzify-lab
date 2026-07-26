@@ -14,8 +14,6 @@ private let kSoundBankDefaultProgram: UInt8 = 0
 private let kRootBassPlaybackOctaveShift = 0
 /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
 private let kMasterHeadroomGain: Float = 0.7
-/// 鍵盤ピアノの残響量 (0-100)。ドライ直結だと電子音的に聞こえるため薄く空気感だけ足す。
-private let kPianoReverbWetDryMix: Float = 8
 /// MIDI サステインペダルのコントロールチェンジ番号。
 private let kSustainPedalController: UInt8 = 64
 /// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
@@ -68,8 +66,6 @@ final class SurvivalGameAudio {
     private let sfxMixer = AVAudioMixerNode()
     /// ピアノ音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let pianoMixer = AVAudioMixerNode()
-    /// 鍵盤ピアノ専用のごく薄いリバーブ。AUReverb2 はルックアヘッドを持たないため遅延は増えない。
-    private let pianoReverb = AVAudioUnitReverb()
     private let rootBassMixer = AVAudioMixerNode()
     /// SFX 専用ピークリミッター。AUPeakLimiter のルックアヘッドで数 ms の遅延が生じるため、
     /// 鍵盤 / 正解ルートは mainMixer へ直結し、タイミング重視の SE のみ通す。
@@ -124,7 +120,6 @@ final class SurvivalGameAudio {
         engine.attach(sampler)
         engine.attach(sfxMixer)
         engine.attach(pianoMixer)
-        engine.attach(pianoReverb)
         engine.attach(rootBassSampler)
         engine.attach(keyboardGrandSampler)
         engine.attach(rootBassMixer)
@@ -132,10 +127,7 @@ final class SurvivalGameAudio {
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: limiter, format: nil)
         engine.connect(limiter, to: engine.mainMixerNode, format: nil)
-        pianoReverb.loadFactoryPreset(.mediumRoom)
-        pianoReverb.wetDryMix = kPianoReverbWetDryMix
-        engine.connect(keyboardGrandSampler, to: pianoReverb, format: nil)
-        engine.connect(pianoReverb, to: pianoMixer, format: nil)
+        engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
         // 正解ルート音は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
         // Web 版 `_playRootNote` の master gain (0.3 + effectiveVolume * 0.7) 相当を
