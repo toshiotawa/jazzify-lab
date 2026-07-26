@@ -14,7 +14,6 @@ vi.mock('@/utils/FantasySoundManager', () => ({
 vi.mock('@/utils/MidiController', () => ({
   initializeAudioSystem: vi.fn(() => Promise.resolve()),
   updateGlobalVolume: vi.fn(),
-  warmupIOSBattleSoundFonts: vi.fn(),
 }));
 
 vi.mock('@/utils/iosbridge', () => ({

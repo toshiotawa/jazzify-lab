@@ -2,7 +2,6 @@ import { useGameStore } from '@/stores/gameStore';
 import {
   initializeAudioSystem,
   updateGlobalVolume,
-  warmupIOSBattleSoundFonts,
 } from '@/utils/MidiController';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { isIOSWebView } from '@/utils/iosbridge';
@@ -28,7 +27,6 @@ const doEnsureSurvivalBattleAudio = async (): Promise<void> => {
 
   FantasySoundManager.setRootVolume(rootVol);
   FantasySoundManager.enableRootSound(true);
-  warmupIOSBattleSoundFonts();
   FantasySoundManager.preloadCorrectRootBassSoundFont().catch(() => undefined);
 
   if (isIOSWebView()) {

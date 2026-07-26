@@ -3,7 +3,6 @@ import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import {
   initializeAudioSystem,
   updateGlobalVolume,
-  warmupIOSBattleSoundFonts,
 } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
 
@@ -44,7 +43,6 @@ export const ensureBattlePianoAudio = async (
 
   FantasySoundManager.setRootVolume(rootVol);
   FantasySoundManager.enableRootSound(false);
-  warmupIOSBattleSoundFonts();
 
   if (isIOSWebView()) {
     await FantasySoundManager.init(seVol, rootVol, true).catch(() => undefined);

@@ -228,12 +228,14 @@ final class MIDIManager: ObservableObject {
         }
     }
 
+    /// Note On/Off に加えて Control Change (0xB0) も購読者へ流す。サステインペダル (CC64) を
+    /// オーディオ側で扱うため。既存の購読者は 0x90 / 0x80 以外を無視するので影響しない。
     nonisolated private func dispatchMIDI1ChannelVoice(word: UInt32) {
         let status = UInt8((word >> 16) & 0xFF)
         let data1 = UInt8((word >> 8) & 0xFF)
         let data2 = UInt8(word & 0xFF)
         let messageType = status & 0xF0
-        guard messageType == 0x90 || messageType == 0x80 else { return }
+        guard messageType == 0x90 || messageType == 0x80 || messageType == 0xB0 else { return }
         deliverChannelVoice(status: status, data1: data1, data2: data2)
     }
 

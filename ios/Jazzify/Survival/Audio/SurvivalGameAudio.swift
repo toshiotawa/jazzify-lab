@@ -3,8 +3,9 @@ import AVFoundation
 import AudioToolbox
 import UIKit
 
-/// アプリ同梱 SF2（`public/UprightPianoKW-small-bright-20190703.sf2` と同一）
-private let kPianoSoundBankResourceName = "UprightPianoKW-small-bright-20190703"
+/// アプリ同梱の鍵盤ピアノ SF2（FreePats "Upright Piano KW" フル版 / CC0）。
+/// 全 132 ゾーンが pan ±500 の L/R ペアでステレオ、velRange 0-80 / 81-127 の 2 レイヤー構成。
+private let kPianoSoundBankResourceName = "UprightPianoKW-20220221"
 /// 正解ルート音用 SF2（`public/FingerBassYR 20190930.sf2` と同一）
 private let kRootBassSoundBankResourceName = "FingerBassYR 20190930"
 /// 同梱 SF2 のデフォルト melodic program。
@@ -13,6 +14,10 @@ private let kSoundBankDefaultProgram: UInt8 = 0
 private let kRootBassPlaybackOctaveShift = 0
 /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
 private let kMasterHeadroomGain: Float = 0.7
+/// 鍵盤ピアノの残響量 (0-100)。ドライ直結だと電子音的に聞こえるため薄く空気感だけ足す。
+private let kPianoReverbWetDryMix: Float = 8
+/// MIDI サステインペダルのコントロールチェンジ番号。
+private let kSustainPedalController: UInt8 = 64
 /// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
 private enum PeakLimiterParameter {
     static let attackTime: AudioUnitParameterID = 0
@@ -63,6 +68,8 @@ final class SurvivalGameAudio {
     private let sfxMixer = AVAudioMixerNode()
     /// ピアノ音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let pianoMixer = AVAudioMixerNode()
+    /// 鍵盤ピアノ専用のごく薄いリバーブ。AUReverb2 はルックアヘッドを持たないため遅延は増えない。
+    private let pianoReverb = AVAudioUnitReverb()
     private let rootBassMixer = AVAudioMixerNode()
     /// SFX 専用ピークリミッター。AUPeakLimiter のルックアヘッドで数 ms の遅延が生じるため、
     /// 鍵盤 / 正解ルートは mainMixer へ直結し、タイミング重視の SE のみ通す。
@@ -110,11 +117,14 @@ final class SurvivalGameAudio {
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
     private var appAudioSessionObserver: NSObjectProtocol?
+    /// サステインペダル (CC64) 用の MIDI 購読。各 GameView に同じ処理を撒かずここへ集約する。
+    private var sustainPedalSubscription: MIDISubscription?
 
     private init() {
         engine.attach(sampler)
         engine.attach(sfxMixer)
         engine.attach(pianoMixer)
+        engine.attach(pianoReverb)
         engine.attach(rootBassSampler)
         engine.attach(keyboardGrandSampler)
         engine.attach(rootBassMixer)
@@ -122,7 +132,10 @@ final class SurvivalGameAudio {
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: limiter, format: nil)
         engine.connect(limiter, to: engine.mainMixerNode, format: nil)
-        engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
+        pianoReverb.loadFactoryPreset(.mediumRoom)
+        pianoReverb.wetDryMix = kPianoReverbWetDryMix
+        engine.connect(keyboardGrandSampler, to: pianoReverb, format: nil)
+        engine.connect(pianoReverb, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
         // 正解ルート音は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
         // Web 版 `_playRootNote` の master gain (0.3 + effectiveVolume * 0.7) 相当を
@@ -145,6 +158,7 @@ final class SurvivalGameAudio {
         preparePianoIfNeeded()
         prepareRootBassGMBankIfNeeded()
         startEngineIfNeeded()
+        subscribeSustainPedalIfNeeded()
         if playBackgroundMusic {
             playBgm()
         } else {
@@ -158,6 +172,7 @@ final class SurvivalGameAudio {
         // MIDI コールバック (背景スレッド) がこの直後に `pianoNoteOnRealtime` を呼んでも
         // `isStopping` / `isEngineStarted` で早期 return する。
         isStopping = true
+        unsubscribeSustainPedal()
         stopBgm()
         stopAllKeyboardNotes()
         stopAllRootBassNotes()
@@ -514,7 +529,7 @@ final class SurvivalGameAudio {
 
     private func performKeyboardNoteOn(midi: Int, velocity: Int) {
         let n = UInt8(clamping: max(0, min(127, midi)))
-        let vel = UInt8(max(1, min(127, velocity)))
+        let vel = PianoVelocityCurve.map(velocity)
         keyboardGrandSampler.stopNote(n, onChannel: 0)
         keyboardGrandSampler.startNote(n, withVelocity: vel, onChannel: 0)
     }
@@ -526,9 +541,42 @@ final class SurvivalGameAudio {
 
     private func stopAllKeyboardNotes() {
         guard keyboardGMReady else { return }
+        // ペダルを踏んだまま画面を抜けると鳴り続けるため、先にダンパーを上げる。
+        keyboardGrandSampler.sendController(kSustainPedalController, withValue: 0, onChannel: 0)
         for midi in 0...127 {
             let n = UInt8(clamping: midi)
             keyboardGrandSampler.stopNote(n, onChannel: 0)
+        }
+    }
+
+    /// MIDI キーボードのサステインペダルを AUSampler のダンパーへ渡す。
+    /// AUSampler 側がノート保持と解放を行うため、アプリ側でノートを溜める必要はない。
+    private func setPianoSustainPedal(isDown: Bool) {
+        guard !isStopping, isEngineStarted, engine.isRunning, keyboardGMReady else { return }
+        keyboardGrandSampler.sendController(
+            kSustainPedalController,
+            withValue: isDown ? 127 : 0,
+            onChannel: 0
+        )
+    }
+
+    /// `MIDIManager` は MainActor 分離のため、購読の登録／解除は main へ載せる。
+    /// 画面遷移時の 1 回だけなので遅延は問題にならない。
+    private func subscribeSustainPedalIfNeeded() {
+        Task { @MainActor [weak self] in
+            guard let self, self.sustainPedalSubscription == nil else { return }
+            self.sustainPedalSubscription = MIDIManager.shared.subscribe { [weak self] status, data1, data2 in
+                guard status & 0xF0 == 0xB0, data1 == kSustainPedalController else { return }
+                self?.setPianoSustainPedal(isDown: data2 >= 64)
+            }
+        }
+    }
+
+    private func unsubscribeSustainPedal() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.sustainPedalSubscription?.cancel()
+            self.sustainPedalSubscription = nil
         }
     }
 

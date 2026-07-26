@@ -98,6 +98,14 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# ピアノサンプル（ファイル名固定・内容不変）。22MB あるため長期キャッシュを効かせる。
+[[headers]]
+  for = "/piano/splendid/*"
+  [headers.values]
+    Content-Type = "audio/mp4"
+    Accept-Ranges = "bytes"
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "*.wasm"
   [headers.values]

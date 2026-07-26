@@ -229,7 +229,7 @@ import {
 import { resolveProductionHintModes } from '@/utils/resolveProductionHintModes';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
-import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume, warmupIOSBattleSoundFonts } from '@/utils/MidiController';
+import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
 import { VoiceInputController } from '@/utils/VoiceInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
@@ -1453,7 +1453,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const initPromise = (async () => {
         try {
           if (isIOSWebView()) {
-            warmupIOSBattleSoundFonts();
             const seVol = settings.soundEffectVolume ?? 0.8;
             const rootVol = settings.rootSoundVolume ?? 0.7;
             FantasySoundManager.setRootVolume(rootVol);

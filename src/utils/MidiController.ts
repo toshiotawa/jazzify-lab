@@ -12,10 +12,8 @@ import type {
   ToneStatic,
   MidiControllerOptions
 } from '@/types';
-import { buildPublicAssetUrl } from '@/utils/questJingleAssets';
 import { isIOSWebView, requestWebPlaybackAudioSession } from '@/utils/iosbridge';
 import { FantasySoundManager } from './FantasySoundManager';
-import { Sf2RootNotePlayer, type Sf2Playback } from '@/utils/sf2RootNotePlayer';
 
 // ToneSamplerインターフェースを拡張
 interface ToneSampler {
@@ -37,15 +35,8 @@ const LIGHT_SAMPLER_URLS: Record<string, string> = {
   A3: 'A3.mp3',
   C4: 'C4.mp3'
 };
-const IOS_PIANO_SF2_RELATIVE = 'UprightPianoKW-small-bright-20190703.sf2';
-const IOS_PIANO_MIDI_NOTES = Array.from({ length: 88 }, (_, index) => 21 + index);
-
 // アクティブなノートを追跡するSet
 const activeNotes = new Set<string>();
-const iosPianoActiveNotes = new Map<number, Sf2Playback>();
-let iosPianoAudioContext: AudioContext | null = null;
-let iosPianoPlayer: Sf2RootNotePlayer | null = null;
-let iosPianoLoadPromise: Promise<void> | null = null;
 let globalMidiVolume = 0.8;
 // サスティン状態（フォールバック用）
 let sustainOn = false;
@@ -134,56 +125,6 @@ const disposeSampler = (sampler: ToneSampler | null): void => {
 // 排他ロック: 並行呼び出しでも初期化は1回だけ実行される
 let audioInitPromise: Promise<void> | null = null;
 
-const ensureIOSPianoAudioContext = (): AudioContext | null => {
-  if (!isIOSWebView()) return null;
-  if (!iosPianoAudioContext) {
-    try {
-      iosPianoAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
-    } catch {
-      return null;
-    }
-  }
-  return iosPianoAudioContext;
-};
-
-export const preloadIOSPianoSoundFont = (): Promise<void> => {
-  if (!isIOSWebView()) return Promise.resolve();
-  if (iosPianoPlayer?.ready) return Promise.resolve();
-  if (iosPianoLoadPromise) return iosPianoLoadPromise;
-
-  const ctx = ensureIOSPianoAudioContext();
-  if (!ctx) return Promise.resolve();
-  const baseUrl = import.meta.env.BASE_URL || '/';
-  const url = buildPublicAssetUrl(baseUrl, IOS_PIANO_SF2_RELATIVE);
-  const player = iosPianoPlayer ?? new Sf2RootNotePlayer(ctx);
-  iosPianoPlayer = player;
-  iosPianoLoadPromise = player.load(url, IOS_PIANO_MIDI_NOTES).catch(() => {
-    // iOS SF2 が読めない場合は既存フォールバックへ任せる
-  }).finally(() => {
-    iosPianoLoadPromise = null;
-  });
-  return iosPianoLoadPromise;
-};
-
-export const warmupIOSBattleSoundFonts = (): void => {
-  if (!isIOSWebView()) return;
-  preloadIOSPianoSoundFont().catch(() => {});
-};
-
-const playIOSPianoSoundFontNote = (note: number, velocity: number): boolean => {
-  if (!isIOSWebView()) return false;
-  if (!iosPianoPlayer?.ready) {
-    preloadIOSPianoSoundFont().catch(() => {});
-    return false;
-  }
-  const existing = iosPianoActiveNotes.get(note);
-  existing?.stop(0.025);
-  const voice = iosPianoPlayer.start(note, Math.max(0.02, velocity * globalMidiVolume));
-  if (!voice) return false;
-  iosPianoActiveNotes.set(note, voice);
-  return true;
-};
-
 /**
  * 音声システムの初期化（遅延最適化設定付き）
  * 複数箇所から同時に呼ばれても安全（Promiseベースのシングルトン）
@@ -201,9 +142,8 @@ const doInitializeAudioSystem = async (): Promise<void> => {
     
     await detectUserInteraction();
     requestWebPlaybackAudioSession();
+    // iOS WebView は鍵盤も GM/smplr 経路で鳴らすため、Tone.js のフォールバックは読み込まない。
     if (isIOSWebView()) {
-      warmupIOSBattleSoundFonts();
-      await preloadIOSPianoSoundFont();
       audioSystemInitialized = true;
       return;
     }
@@ -274,10 +214,6 @@ const doInitializeAudioSystem = async (): Promise<void> => {
 export const playNote = async (note: number, velocity: number = 127): Promise<void> => {
   try {
     const normalizedVelocity = velocity / 127; // 0〜1 に正規化
-    if (playIOSPianoSoundFontNote(note, normalizedVelocity)) {
-      activeNotes.add(note.toString());
-      return;
-    }
 
     // 🎹 GM音源を優先使用（高品質なピアノ音）
     if (FantasySoundManager.isGMReady()) {
@@ -334,14 +270,6 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
  */
 export const stopNote = (note: number): void => {
   try {
-    const iosVoice = iosPianoActiveNotes.get(note);
-    if (iosVoice) {
-      iosVoice.stop();
-      iosPianoActiveNotes.delete(note);
-      activeNotes.delete(note.toString());
-      return;
-    }
-
     // 🎹 GM音源のノートを停止
     if (FantasySoundManager.isGMReady()) {
       FantasySoundManager.stopGMNote(note);
@@ -568,7 +496,10 @@ export class MIDIController {
       // CC64: サスティンペダル
         if (controllerNumber === 64) {
           try {
-            if (controllerValue >= 64) {
+            const isDown = controllerValue >= 64;
+            // GM/smplr 経路のダンパー。フォールバック経路と状態を揃える。
+            FantasySoundManager.setSustainPedal(isDown);
+            if (isDown) {
               sustainOn = true;
             } else {
               sustainOn = false;

@@ -70,7 +70,7 @@ interface PreparedSf2Zone {
   readonly loopEndSec: number;
 }
 
-export interface Sf2Playback {
+interface Sf2Playback {
   stop: (releaseSec?: number) => void;
 }
 

@@ -42,9 +42,27 @@ import { Sf2RootNotePlayer, resolveSurvivalCodeRunRootMidi } from '@/utils/sf2Ro
 import { progressionBassRootName } from '@/utils/chord-utils';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
+import { SplendidGrandPiano, CacheStorage, type StopFn } from 'smplr';
 import * as Tone from 'tone';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
+
+/**
+ * self-host した SplendidGrandPiano サンプルの配置先。
+ * `npm run fetch:piano-samples` で取得する。
+ */
+const SPLENDID_PIANO_SAMPLE_PATH = 'piano/splendid';
+/** ブラウザ間で単一形式に揃える。ogg を混ぜると Safari が再生できない。 */
+const SPLENDID_PIANO_FORMATS = ['m4a'];
+/**
+ * smplr の出力ボリューム上限 (MIDI 0-127 スケール)。
+ * 差し替え前の MusyngKite + volumeBoost 経路と体感音量を揃えるための調整値。
+ */
+const SPLENDID_PIANO_MAX_VOLUME = 110;
+/** うっすらとした残響。0 でドライのみ。上げすぎると和音が濁る。 */
+const GM_REVERB_WET_GAIN = 0.1;
+/** リバーブ IR の長さ(秒)。モバイルの畳み込みコストを抑えるため短めにする。 */
+const GM_REVERB_IR_SECONDS = 1.4;
 
 interface LoadedAudio {
   /** プリロード済みのベース Audio インスタンス（再生には clone する） */
@@ -106,13 +124,25 @@ export class FantasySoundManager {
   // ─────────────────────────────────────────────
   // ベース音関連フィールド - GM音源 + 合成音フォールバック
   private bassSynth: any | null = null;           // 合成音（フォールバック用）
-  private pianoSampler: any | null = null;        // Salamander Piano サンプラー（Tone.js）
-  private pianoSamplerReady = false;              // Tone.jsサンプラー読み込み完了フラグ
-  private usePianoSampler = true;                 // ピアノサンプラーを優先使用
   private gmAcousticPiano: Soundfont.Player | null = null;  // GM音源アコースティックピアノ
   private gmElectricPiano: Soundfont.Player | null = null;  // GM音源エレクトリックピアノ
   private gmPianoReady = false;                             // GM音源読み込み完了フラグ
   private gmAudioContext: AudioContext | null = null;
+  /**
+   * 鍵盤演奏用のマルチベロシティ・ピアノ (smplr / SplendidGrandPiano)。
+   * MusyngKite はレイヤー 1 枚で電子音的に聞こえるため、読み込み完了後は鍵盤経路だけこちらへ切り替える。
+   * ロードは非同期なので、完了までは従来の MusyngKite が鳴る。
+   */
+  private splendidPiano: SplendidGrandPiano | null = null;
+  private splendidLoadPromise: Promise<void> | null = null;
+  /** smplr で鳴っている音の停止関数。ノート番号ごとに 1 声。 */
+  private activeSplendidNotes: Map<number, StopFn> = new Map();
+  /**
+   * サステインペダル状態。SplendidGrandPiano のプリセットは ccRange を持たず
+   * smplr の setCC(64) ではダンパーが効かないため、保持はアプリ側で行う。
+   */
+  private sustainPedalDown = false;
+  private sustainHeldNotes: Set<number> = new Set();
   // ミックスバランス（0.0 = アコースティックのみ、1.0 = エレクトリックのみ、0.5 = 半々）
   private gmMixBalance = 0.4;  // アコースティック60% + エレクトリック40%
   // アクティブなノート（停止用に追跡）
@@ -207,6 +237,11 @@ export class FantasySoundManager {
   /** チュートリアル遷移などで溜まった GM ノートをすべて解放 */
   public static releaseAllGmNotes(): void {
     return this.instance._releaseAllGmNotes();
+  }
+
+  /** MIDI サステインペダル (CC64)。踏んでいる間は離鍵を保留する。 */
+  public static setSustainPedal(isDown: boolean): void {
+    return this.instance._setSustainPedal(isDown);
   }
 
   // FM合成音フォールバックが利用可能かどうか（CDN不要・即時利用可）
@@ -356,12 +391,11 @@ export class FantasySoundManager {
         // SE buffer setup failed - ignored
       });
 
-      // 🎹 ピアノ音源システム（ハイブリッド）
-      // Phase 1: 合成音で即座に利用可能（フォールバック）
-      // Phase 2: バックグラウンドでSalamanderサンプラーを読み込み
+      // 🎹 ピアノ音源システム
+      // GM / smplr が読み込まれるまでのフォールバックとして合成音を用意する
       const Tone = window.Tone as unknown as typeof import('tone');
       if (Tone) {
-        // Phase 1: ピアノ風合成音シンセサイザー（FM合成）
+        // ピアノ風合成音シンセサイザー（FM合成）
         try {
           // FM合成でピアノに近い音色を実現
           // ピアノは打弦楽器のため、素早いアタックと自然な減衰が特徴
@@ -391,12 +425,6 @@ export class FantasySoundManager {
         } catch {
           // BassSynth creation failed - ignored
         }
-
-        // Phase 2: Salamander Piano サンプラー（バックグラウンド読み込み）
-        // 6つの基準音（C2-C7）から全音域を補間
-        this._loadPianoSampler(Tone, baseUrl).catch(() => {
-          // Piano sampler load skipped
-        });
       }
 
       // GM音源: _startGMLoad() で既に並列読込中 → 完了を待つ
@@ -879,7 +907,17 @@ export class FantasySoundManager {
       
       this._stopGMNote(midiNote);
       this.gmPendingStops.delete(midiNote);
-      
+
+      // マルチベロシティ音源が読み込めていれば鍵盤はそちらで鳴らす。
+      if (this.splendidPiano) {
+        this._playSplendidNote(midiNote, velocity);
+        if (this.gmPendingStops.has(midiNote)) {
+          this.gmPendingStops.delete(midiNote);
+          this._stopGMNote(midiNote);
+        }
+        return;
+      }
+
       const ctx = this.gmAudioContext;
       const currentTime = ctx.currentTime;
       const volumeBoost = 8.0;
@@ -922,6 +960,12 @@ export class FantasySoundManager {
   }
 
   private _releaseAllGmNotes(): void {
+    // ペダルを踏んだまま画面遷移しても残らないよう、保留を先に解除する。
+    this.sustainPedalDown = false;
+    for (const midiNote of [...this.activeSplendidNotes.keys()]) {
+      this._releaseSplendidNote(midiNote);
+    }
+    this.sustainHeldNotes.clear();
     for (const midiNote of [...this.activeGMNotes.keys()]) {
       this._stopGMNote(midiNote);
     }
@@ -930,6 +974,15 @@ export class FantasySoundManager {
 
   // GM音源のノートを停止（ゲインを短くランプしてから stop／切断でクリックノイズを低減）
   private _stopGMNote(midiNote: number) {
+    if (this.activeSplendidNotes.has(midiNote)) {
+      if (this.sustainPedalDown) {
+        this.sustainHeldNotes.add(midiNote);
+        return;
+      }
+      this._releaseSplendidNote(midiNote);
+      return;
+    }
+
     const activeNodes = this.activeGMNotes.get(midiNote);
     if (!activeNodes) {
       // _playGMNote がまだ resume() を待っている場合に備え、ペンディング登録
@@ -1174,6 +1227,12 @@ export class FantasySoundManager {
   // GM音源のピアノ音量を設定（0-1）
   private _setGMPianoVolume(volume: number) {
     this.gmPianoVolume = Math.max(0, Math.min(1, volume));
+    if (this.splendidPiano) {
+      // smplr はノートごとの gain ではなく出力チャンネルで音量を持つ。
+      this.splendidPiano.output.volume = Math.round(
+        this.gmPianoVolume * SPLENDID_PIANO_MAX_VOLUME
+      );
+    }
   }
 
   private _createReverbImpulse(context: AudioContext, duration = 1.8, decay = 2.5): AudioBuffer {
@@ -1218,13 +1277,30 @@ export class FantasySoundManager {
       this.gmAcousticPiano = null;
       this.gmElectricPiano = null;
       this.gmPianoReady = false;
+      // gmMasterGain を作り直すため、そこへ出力していた smplr も破棄して張り直す。
+      this._disposeSplendidPiano();
 
       this.gmMasterGain = this.gmAudioContext.createGain();
       this.gmDryGain = this.gmAudioContext.createGain();
       this.gmWetGain = this.gmAudioContext.createGain();
       this.gmConvolver = this.gmAudioContext.createConvolver();
 
-      this.gmMasterGain.connect(this.gmAudioContext.destination);
+      // ドライ直結だとサンプルの素の減衰しか聞こえず電子音的になるため、薄いリバーブを並列で足す。
+      this.gmConvolver.buffer = this._createReverbImpulse(
+        this.gmAudioContext,
+        GM_REVERB_IR_SECONDS
+      );
+      this.gmDryGain.gain.value = 1;
+      this.gmWetGain.gain.value = GM_REVERB_WET_GAIN;
+      this.gmMasterGain.connect(this.gmDryGain);
+      this.gmDryGain.connect(this.gmAudioContext.destination);
+      this.gmMasterGain.connect(this.gmWetGain);
+      this.gmWetGain.connect(this.gmConvolver);
+      this.gmConvolver.connect(this.gmAudioContext.destination);
+
+      // 鍵盤用のマルチベロシティ音源は MusyngKite と並行で読み込む。
+      // 待たずに進めることで、従来どおり軽い音源で先に演奏を開始できる。
+      this._startSplendidPianoLoad();
 
       const soundfontOptions: any = {
         soundfont: 'MusyngKite',
@@ -1253,28 +1329,101 @@ export class FantasySoundManager {
     }
   }
 
-  // 🎹 ピアノサンプラーで任意のノートを再生（将来の拡張用）
-  public static async playPianoNote(noteName: string, duration: string = '4n') {
-    return this.instance._playPianoNote(noteName, duration);
+  /**
+   * 鍵盤用マルチベロシティピアノを読み込む。呼び出し元は完了を待たない。
+   * 失敗しても MusyngKite 経路がそのまま残るため、鍵盤が無音になることはない。
+   */
+  private _startSplendidPianoLoad(): void {
+    if (this.splendidLoadPromise || this.splendidPiano) return;
+    const ctx = this.gmAudioContext;
+    const destination = this.gmMasterGain;
+    if (!ctx || !destination) return;
+
+    const piano = SplendidGrandPiano(ctx, {
+      baseUrl: buildPublicAssetUrl(
+        import.meta.env.BASE_URL || '/',
+        SPLENDID_PIANO_SAMPLE_PATH
+      ),
+      formats: SPLENDID_PIANO_FORMATS,
+      destination,
+      // 226 個のサンプルを毎回取り直さないよう CacheStorage に載せる。
+      storage: new CacheStorage(),
+      volume: Math.round(this.gmPianoVolume * SPLENDID_PIANO_MAX_VOLUME),
+    });
+
+    this.splendidLoadPromise = piano.ready
+      .then(() => {
+        this.splendidPiano = piano;
+      })
+      .catch(() => {
+        try {
+          piano.dispose();
+        } catch {
+          /* ignore */
+        }
+      })
+      .finally(() => {
+        this.splendidLoadPromise = null;
+      });
   }
 
-  private async _playPianoNote(noteName: string, duration: string = '4n') {
-    if (!this.pianoSamplerReady || !this.pianoSampler) {
-      return;
+  private _disposeSplendidPiano(): void {
+    for (const stop of this.activeSplendidNotes.values()) {
+      try {
+        stop();
+      } catch {
+        /* ignore */
+      }
     }
-    
-    const Tone = window.Tone as unknown as typeof import('tone');
-    if (!Tone) return;
-    
-    let t = Tone.now();
-    if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
-    this.lastRootStart = t;
-    
+    this.activeSplendidNotes.clear();
+    this.sustainHeldNotes.clear();
+    this.sustainPedalDown = false;
     try {
-      this.pianoSampler.triggerAttackRelease(noteName, duration, t);
+      this.splendidPiano?.dispose();
     } catch {
-      // Piano note playback error - ignored
+      /* ignore */
     }
+    this.splendidPiano = null;
+    this.splendidLoadPromise = null;
+  }
+
+  private _playSplendidNote(midiNote: number, velocity: number): void {
+    const piano = this.splendidPiano;
+    if (!piano) return;
+    // ペダル保持中の再打鍵では前の音が停止されずに残るため、停止関数を失う前に解放しておく。
+    this._releaseSplendidNote(midiNote);
+    const stop = piano.start({
+      note: midiNote,
+      velocity: Math.max(1, Math.min(127, Math.round(velocity * 127))),
+    });
+    this.activeSplendidNotes.set(midiNote, stop);
+  }
+
+  /** ペダル状態を無視して即座に離鍵する。 */
+  private _releaseSplendidNote(midiNote: number): void {
+    const stop = this.activeSplendidNotes.get(midiNote);
+    this.activeSplendidNotes.delete(midiNote);
+    this.sustainHeldNotes.delete(midiNote);
+    if (!stop) return;
+    try {
+      stop();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * サステインペダル (CC64)。踏んでいる間は離鍵を保留し、離した時点でまとめて解放する。
+   * MIDI イベント単位の呼び出しなので毎フレーム実行される経路ではない。
+   */
+  private _setSustainPedal(isDown: boolean): void {
+    if (this.sustainPedalDown === isDown) return;
+    this.sustainPedalDown = isDown;
+    if (isDown) return;
+    for (const midiNote of [...this.sustainHeldNotes]) {
+      this._releaseSplendidNote(midiNote);
+    }
+    this.sustainHeldNotes.clear();
   }
 
   private _setRootVolume(v: number) {
@@ -1290,9 +1439,6 @@ export class FantasySoundManager {
         // Synth volume set error - ignored
       }
     }
-    
-    // ピアノサンプラーの音量も同期
-    this._syncPianoSamplerVolume();
     
     // ルート音用ベースシンセの音量も同期
     this._syncRootBassVolume();
@@ -1416,69 +1562,6 @@ export class FantasySoundManager {
       } catch {}
     } catch {
       // unlock failed - ignored
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // Piano Sampler setup (Salamander Grand Piano)
-  private async _loadPianoSampler(Tone: typeof import('tone'), baseUrl: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        const pianoPath = `${baseUrl}sounds/piano/`;
-        
-        // Tone.Sampler: 6つの基準音から全音域を自動補間
-        // C2-C7 の6サンプルで約380KB（軽量）
-        const sampler = new (Tone as any).Sampler({
-          urls: {
-            C2: 'C2.mp3',
-            C3: 'C3.mp3',
-            C4: 'C4.mp3',
-            C5: 'C5.mp3',
-            C6: 'C6.mp3',
-            C7: 'C7.mp3',
-          },
-          baseUrl: pianoPath,
-          onload: () => {
-            this.pianoSampler = sampler;
-            this.pianoSamplerReady = true;
-            // 音量を合成音と同じレベルに設定
-            this._syncPianoSamplerVolume();
-            resolve();
-          },
-          onerror: (err: Error) => {
-            this.usePianoSampler = false;
-            reject(err);
-          },
-          // 音質とパフォーマンスのバランス設定
-          attack: 0,           // 即座にアタック
-          release: 0.5,        // 適度なリリース
-        }).toDestination();
-        
-        // タイムアウト設定（5秒で合成音にフォールバック）
-        setTimeout(() => {
-          if (!this.pianoSamplerReady) {
-            this.usePianoSampler = false;
-            reject(new Error('Piano sampler load timeout'));
-          }
-        }, 5000);
-        
-      } catch (e) {
-        this.usePianoSampler = false;
-        reject(e);
-      }
-    });
-  }
-
-  // ピアノサンプラーの音量を同期
-  private _syncPianoSamplerVolume(): void {
-    if (this.pianoSampler) {
-      // dB変換（合成音と同じロジック）
-      const dbValue = this.bassVolume === 0 ? -Infinity : Math.log10(this.bassVolume) * 20;
-      try {
-        (this.pianoSampler.volume as any).value = dbValue;
-      } catch {
-        // Piano sampler volume sync error - ignored
-      }
     }
   }
 
