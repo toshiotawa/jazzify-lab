@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getPromoVideo } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { trackEvent } from '@/utils/analytics/ga';
@@ -17,6 +17,10 @@ export const LpPromoVideo: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const sessionRef = useRef(createPromoVideoSession());
   const [isPlaying, setIsPlaying] = useState(false);
+  const posterSrc = useMemo(
+    () => (window.matchMedia('(max-width: 767px)').matches ? promo.posterMobile : promo.poster),
+    [promo.poster, promo.posterMobile],
+  );
 
   useEffect(() => {
     if (!isPlaying) {
@@ -62,29 +66,35 @@ export const LpPromoVideo: React.FC = () => {
     };
   }, [isPlaying, locale]);
 
-  const handlePlay = (): void => {
+  const handleVideoPlay = (): void => {
     const video = videoRef.current;
     if (!video) {
       return;
     }
 
     if (!video.querySelector('source')) {
+      video.pause();
       const src = window.matchMedia('(max-width: 767px)').matches ? promo.src720 : promo.src1080;
       const source = document.createElement('source');
       source.src = src;
       source.type = 'video/mp4';
       video.appendChild(source);
       video.load();
+      void video.play().then(() => {
+        setIsPlaying(true);
+        if (sessionRef.current.onPlay()) {
+          trackEvent('lp_promo_video_play', { locale });
+        }
+      }).catch(() => {
+        // User gesture context may be lost after load; rare on explicit play click.
+      });
+      return;
     }
 
-    void video.play().then(() => {
-      setIsPlaying(true);
-      if (sessionRef.current.onPlay()) {
-        trackEvent('lp_promo_video_play', { locale });
-      }
-    }).catch(() => {
-      // Autoplay policy should not apply after explicit user click.
-    });
+    setIsPlaying(true);
+    if (sessionRef.current.onPlay()) {
+      trackEvent('lp_promo_video_play', { locale });
+    }
   };
 
   return (
@@ -110,52 +120,30 @@ export const LpPromoVideo: React.FC = () => {
         </div>
 
         <div className="lp-shot-stage max-w-4xl mx-auto" data-animate="from-behind">
-          <div className="lp-shot lp-promo-video relative">
-            {!isPlaying ? (
-              <button
-                type="button"
-                className="lp-promo-play relative block w-full group cursor-pointer"
-                onClick={handlePlay}
-                aria-label={copy.promoVideo.playLabel}
-              >
-                <picture>
-                  <source
-                    srcSet={promo.posterMobile}
-                    media="(max-width: 767px)"
-                    type="image/webp"
-                  />
-                  <img
-                    src={promo.poster}
-                    alt={copy.promoVideo.videoAlt}
-                    width={1920}
-                    height={1080}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-auto block"
-                  />
-                </picture>
-                <span
-                  className="lp-promo-play-overlay absolute inset-0 flex items-center justify-center"
-                  aria-hidden="true"
-                >
-                  <span className="lp-btn-gold px-10 py-5 text-lg sm:text-xl shadow-2xl group-hover:scale-105 transition-transform inline-flex items-center">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5 mr-2" fill="currentColor">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                    {copy.promoVideo.playLabel}
-                  </span>
-                </span>
-              </button>
-            ) : null}
+          <div className={`lp-shot lp-promo-video relative${isPlaying ? ' is-playing' : ''}`}>
             <video
               ref={videoRef}
-              controls={isPlaying}
+              controls
               playsInline
               preload="none"
-              poster={promo.poster}
-              className={isPlaying ? 'w-full h-auto block' : 'sr-only'}
+              poster={posterSrc}
+              className="w-full h-auto block"
               aria-label={copy.promoVideo.videoAlt}
+              onPlay={handleVideoPlay}
             />
+            {!isPlaying ? (
+              <div className="lp-promo-mock-controls" aria-hidden="true">
+                <span className="lp-promo-mock-play">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </span>
+                <span className="lp-promo-mock-track">
+                  <span className="lp-promo-mock-progress" />
+                </span>
+                <span className="lp-promo-mock-time">0:00</span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

@@ -466,19 +466,59 @@
   position: relative;
 }
 
-.lp-promo-play {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  text-align: inherit;
-}
-.lp-promo-play-overlay {
-  background: rgba(14, 22, 38, 0.35);
-}
 .lp-promo-video video {
   display: block;
   width: 100%;
   height: auto;
+}
+.lp-promo-video:not(.is-playing) video::-webkit-media-controls-enclosure,
+.lp-promo-video:not(.is-playing) video::-webkit-media-controls-panel {
+  display: none;
+}
+.lp-promo-mock-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem 0.65rem;
+  background: linear-gradient(transparent, rgba(8, 12, 22, 0.82));
+  pointer-events: none;
+}
+.lp-promo-mock-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: rgba(255, 255, 255, 0.92);
+}
+.lp-promo-mock-play svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.lp-promo-mock-track {
+  flex: 1;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.lp-promo-mock-progress {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.55);
+}
+.lp-promo-mock-time {
+  min-width: 2.25rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: right;
 }
 
 /* 1) 後ろから出てくる（縮小+ぼかし→等倍） */

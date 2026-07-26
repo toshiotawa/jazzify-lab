@@ -49,7 +49,6 @@ interface LandingPromoVideoCopy {
   eyebrow: string;
   heading: string;
   sub: string[];
-  playLabel: string;
   videoAlt: string;
 }
 
@@ -298,7 +297,6 @@ const COPY_JA: LandingCopy = {
     sub: [
       'ゲーム感覚でジャズピアノを学ぶ様子を、音声付きでご覧ください。',
     ],
-    playLabel: '動画を再生',
     videoAlt: 'Jazzify 宣伝動画',
   },
   demo: {
@@ -663,7 +661,6 @@ const COPY_EN: LandingCopy = {
     sub: [
       'Watch how jazz piano practice feels like a game — with sound.',
     ],
-    playLabel: 'Play video',
     videoAlt: 'Jazzify promotional video',
   },
   demo: {
