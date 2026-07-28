@@ -106,6 +106,8 @@ export function resolveWebPaywallCopy(
         : base.mainQuestSubheadlineTrial,
       features: base.features,
       ctaLabel: trialUsed ? base.ctaSubscribeChapter : base.ctaTrialChapter,
+      trialUsedNotice: trialUsed ? base.trialUsedNotice : undefined,
+      ctaFootnote: trialUsed ? undefined : base.trialCtaFootnote,
     };
   }
 
@@ -116,5 +118,7 @@ export function resolveWebPaywallCopy(
     ctaLabel: trialUsed
       ? (chapterOriented ? base.ctaSubscribeChapter : base.ctaSubscribeGeneric)
       : (chapterOriented ? base.ctaTrialChapter : base.ctaTrialGeneric),
+    trialUsedNotice: trialUsed ? base.trialUsedNotice : undefined,
+    ctaFootnote: trialUsed ? undefined : base.trialCtaFootnote,
   };
 }

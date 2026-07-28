@@ -85,6 +85,13 @@ struct SubscriptionView: View {
         hasAnyProduct && selectedProduct != nil && !introEligibilityChecked
     }
 
+    private var showsStickyPurchaseBar: Bool {
+        appState.canShowIAP
+            && !appState.isPremium
+            && hasAnyProduct
+            && selectedProduct != nil
+    }
+
     /// サブスクリプショングループ内に検証済みトランザクションが存在するか
     private func hasTransactionHistory(inGroup groupID: String, cache: inout [String: Bool]) async -> Bool {
         if let cached = cache[groupID] {
@@ -107,10 +114,10 @@ struct SubscriptionView: View {
               !didTrackPaywallDismiss,
               appState.canShowIAP,
               !appState.isPremium,
-              let userId = appState.profile?.id
+              appState.profile != nil
         else { return }
         didTrackPaywallDismiss = true
-        AnalyticsTracker.trackPaywallDismiss(userId: userId, source: entry.analyticsSource)
+        AnalyticsTracker.trackPaywallDismiss(source: entry.analyticsSource)
     }
 
     var body: some View {
@@ -140,6 +147,11 @@ struct SubscriptionView: View {
                         legalSection
                     }
                     .padding()
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if showsStickyPurchaseBar, let product = selectedProduct {
+                        stickyPurchaseBar(for: product)
+                    }
                 }
             }
             .navigationTitle(locale == .ja ? "サブスクリプション" : "Subscriptions")
@@ -475,49 +487,8 @@ struct SubscriptionView: View {
                 appleLinkedToOtherAccountSection
             }
 
-            if hasAnyProduct, let product = selectedProduct {
+            if hasAnyProduct, selectedProduct != nil {
                 planSelectionSection
-
-                VStack(spacing: 10) {
-                    Text(purchaseSubtitle(for: product))
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.95))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Button {
-                    if let userId = appState.profile?.id {
-                        AnalyticsTracker.trackBeginCheckout(userId: userId)
-                    }
-                    Task {
-                        try? await store.purchase(product)
-                        await appState.refreshBillingStatus()
-                    }
-                } label: {
-                    Group {
-                        switch store.purchaseState {
-                        case .purchasing:
-                            ProgressView()
-                                .tint(.white)
-                        default:
-                            HStack(spacing: 8) {
-                                Image(systemName: "music.note")
-                                Text(purchaseButtonTitle(for: product))
-                                .font(.headline)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.subheadline.bold())
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Self.paywallAccent)
-                .disabled(store.purchaseState == .purchasing)
 
                 Button {
                     Task {
@@ -588,6 +559,65 @@ struct SubscriptionView: View {
         }
         .onAppear {
             ensureDefaultPlanSelection()
+        }
+    }
+
+    private func stickyPurchaseBar(for product: Product) -> some View {
+        VStack(spacing: 10) {
+            Text(purchaseSubtitle(for: product))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.9))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                if let userId = appState.profile?.id {
+                    AnalyticsTracker.trackBeginCheckout(userId: userId)
+                }
+                Task {
+                    try? await store.purchase(product)
+                    await appState.refreshBillingStatus()
+                }
+            } label: {
+                Group {
+                    switch store.purchaseState {
+                    case .purchasing:
+                        ProgressView()
+                            .tint(.white)
+                    default:
+                        HStack(spacing: 8) {
+                            Image(systemName: "music.note")
+                            Text(purchaseButtonTitle(for: product))
+                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline.bold())
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Self.paywallAccent)
+            .disabled(store.purchaseState == .purchasing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+        .background(
+            LinearGradient(
+                colors: [Color(hex: "0f172a").opacity(0.96), .black.opacity(0.98)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .bottom)
+        )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 1)
         }
     }
 

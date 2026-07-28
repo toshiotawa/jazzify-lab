@@ -27,21 +27,43 @@ describe('resolveWebPaywallCopy', () => {
     expect(copy.ctaFootnote).toBeUndefined();
   });
 
-  it('returns main_quest trial-aware CTA', () => {
-    expect(resolveWebPaywallCopy('main_quest', false, false).ctaLabel).toBe(
-      '7日間無料で第2チャプターを始める',
+  it('returns main_quest trial-aware CTA with footnote', () => {
+    const trialCopy = resolveWebPaywallCopy('main_quest', false, false);
+    expect(trialCopy.ctaLabel).toBe('7日間無料で第2チャプターを始める');
+    expect(trialCopy.ctaFootnote).toBe(
+      '本日のお支払いはありません。7日後から年額¥34,800。いつでもキャンセルできます。',
     );
-    expect(resolveWebPaywallCopy('main_quest', false, true).ctaLabel).toBe(
-      '次のチャプターへ進む',
+    expect(trialCopy.trialUsedNotice).toBeUndefined();
+
+    const usedCopy = resolveWebPaywallCopy('main_quest', false, true);
+    expect(usedCopy.ctaLabel).toBe('次のチャプターへ進む');
+    expect(usedCopy.ctaFootnote).toBeUndefined();
+    expect(usedCopy.trialUsedNotice).toBe(
+      '無料トライアルは利用済みです。購入時に年額¥34,800が請求されます。',
     );
   });
 
-  it('returns generic dashboard copy', () => {
-    expect(resolveWebPaywallCopy('dashboard', false, false).ctaLabel).toBe(
-      '7日間無料で始める',
+  it('returns generic dashboard trial footnote and notice', () => {
+    const trialCopy = resolveWebPaywallCopy('dashboard', false, false);
+    expect(trialCopy.ctaLabel).toBe('7日間無料で始める');
+    expect(trialCopy.ctaFootnote).toBe(
+      '本日のお支払いはありません。7日後から年額¥34,800。いつでもキャンセルできます。',
     );
-    expect(resolveWebPaywallCopy('dashboard', false, true).ctaLabel).toBe(
-      'すべてのクエストを解放する',
+    expect(trialCopy.trialUsedNotice).toBeUndefined();
+
+    const usedCopy = resolveWebPaywallCopy('dashboard', false, true);
+    expect(usedCopy.ctaLabel).toBe('すべてのクエストを解放する');
+    expect(usedCopy.ctaFootnote).toBeUndefined();
+    expect(usedCopy.trialUsedNotice).toBe(
+      '無料トライアルは利用済みです。購入時に年額¥34,800が請求されます。',
+    );
+  });
+
+  it('returns english trial footnote for lesson_list', () => {
+    const copy = resolveWebPaywallCopy('lesson_list', true, false);
+    expect(copy.ctaLabel).toBe('Start 7-day free trial');
+    expect(copy.ctaFootnote).toBe(
+      'No charge today. ¥34,800/year after 7 days. Cancel anytime.',
     );
   });
 });

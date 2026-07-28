@@ -37,11 +37,13 @@ const PRICE_COPY = {
     priceSavingsAmount: '年額なら年間 ¥12,960 お得',
     priceSavingsMonths: '約3ヶ月分お得',
     footnote: '次の画面で月額・年額を選択できます。いつでも解約できます。',
+    trialBadge: '7日間無料',
     dismiss: 'あとで',
     loginRequired: 'ログインが必要です',
     checkoutFailed: 'チェックアウトの起動に失敗しました',
     error: 'エラーが発生しました',
     processing: '処理中...',
+    redirecting: 'チェックアウトへ移動中...',
     close: '閉じる',
   },
   en: {
@@ -51,21 +53,30 @@ const PRICE_COPY = {
     priceSavingsAmount: 'Save ¥12,960 a year vs monthly',
     priceSavingsMonths: 'About 3 months free vs monthly',
     footnote: 'Choose monthly or yearly on the next screen. Cancel anytime.',
+    trialBadge: '7-day free trial',
     dismiss: 'Later',
     loginRequired: 'You need to log in first.',
     checkoutFailed: 'Failed to open checkout',
     error: 'An error occurred',
     processing: 'Processing...',
+    redirecting: 'Redirecting to checkout...',
     close: 'Close',
   },
 } as const;
 
 interface SavingsBadgeProps {
   label: string;
+  tone?: 'amber' | 'green';
 }
 
-const SavingsBadge: React.FC<SavingsBadgeProps> = ({ label }) => (
-  <span className="inline-flex rounded-full border border-amber-500/45 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
+const SavingsBadge: React.FC<SavingsBadgeProps> = ({ label, tone = 'amber' }) => (
+  <span
+    className={
+      tone === 'green'
+        ? 'inline-flex rounded-full border border-emerald-500/45 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200'
+        : 'inline-flex rounded-full border border-amber-500/45 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200'
+    }
+  >
     {label}
   </span>
 );
@@ -91,15 +102,23 @@ const PriceRow: React.FC<PriceRowProps> = ({ icon, label, sublabel }) => (
 const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy, source }) => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const trialUsed = profile?.lemon_trial_used === true;
   const copy = resolveWebPaywallCopy(source, isEnglishCopy, trialUsed);
   const priceCopy = isEnglishCopy ? PRICE_COPY.en : PRICE_COPY.ja;
   const usdRate = useJpyUsdRate(isEnglishCopy, open);
+  const checkoutBusy = loading || redirecting;
 
   useEffect(() => {
-    if (!open || !profile) {
+    if (!open) {
+      setLoading(false);
+      setRedirecting(false);
+      setError(null);
+      return;
+    }
+    if (!profile) {
       return;
     }
     trackEvent('paywall_view', { source });
@@ -107,13 +126,18 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
   }, [open, profile, source]);
 
   const handleDismiss = useCallback(() => {
+    if (redirecting) {
+      return;
+    }
     trackEvent('paywall_dismiss', { source });
     onClose();
-  }, [onClose, source]);
+  }, [onClose, redirecting, source]);
 
   const handleCheckout = useCallback(async () => {
-    if (!profile) {
-      setError(priceCopy.loginRequired);
+    if (!profile || redirecting) {
+      if (!profile) {
+        setError(priceCopy.loginRequired);
+      }
       return;
     }
 
@@ -138,19 +162,20 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
 
       if (response.ok) {
         const { url } = await response.json();
+        setRedirecting(true);
         window.location.href = url;
-      } else {
-        const errBody = await response.json().catch(() => ({}));
-        setError(
-          (errBody as { error?: string }).error ?? priceCopy.checkoutFailed,
-        );
+        return;
       }
+      const errBody = await response.json().catch(() => ({}));
+      setError(
+        (errBody as { error?: string }).error ?? priceCopy.checkoutFailed,
+      );
     } catch {
       setError(priceCopy.error);
     } finally {
       setLoading(false);
     }
-  }, [profile, priceCopy.loginRequired, priceCopy.checkoutFailed, priceCopy.error]);
+  }, [profile, redirecting, priceCopy.loginRequired, priceCopy.checkoutFailed, priceCopy.error]);
 
   if (!open) return null;
 
@@ -230,6 +255,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
                 {` ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlyPerMonth, usdRate)}`}
               </p>
               <div className="flex flex-wrap gap-2 pl-7">
+                {!trialUsed && <SavingsBadge label={PRICE_COPY.en.trialBadge} tone="green" />}
                 <SavingsBadge
                   label={`${PRICE_COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlySavings, usdRate)}`}
                 />
@@ -247,6 +273,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
                 label={PRICE_COPY.ja.priceYearly}
               />
               <div className="flex flex-wrap gap-2 pl-7">
+                {!trialUsed && <SavingsBadge label={PRICE_COPY.ja.trialBadge} tone="green" />}
                 <SavingsBadge label={PRICE_COPY.ja.priceSavingsAmount} />
                 <SavingsBadge label={PRICE_COPY.ja.priceSavingsMonths} />
               </div>
@@ -255,7 +282,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
         </div>
 
         {error && (
-          <p className="text-red-400 text-xs text-center mb-3">{error}</p>
+          <p role="alert" className="text-red-400 text-xs text-center mb-3">{error}</p>
         )}
 
         {copy.trialUsedNotice ? (
@@ -268,13 +295,17 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
           type="button"
           className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black transition-all duration-200 shadow-lg shadow-amber-900/30 hover:shadow-amber-500/25 disabled:opacity-60 flex items-center justify-center gap-2"
           onClick={() => void handleCheckout()}
-          disabled={loading}
+          disabled={checkoutBusy}
         >
           <FaMusic className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span className="flex-1 text-center">
-            {loading ? priceCopy.processing : copy.ctaLabel}
+            {redirecting
+              ? priceCopy.redirecting
+              : loading
+                ? priceCopy.processing
+                : copy.ctaLabel}
           </span>
-          {!loading && <FaArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />}
+          {!checkoutBusy && <FaArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />}
         </button>
 
         <p className="text-[11px] text-gray-500 text-center mt-3 leading-relaxed">
@@ -284,9 +315,9 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
         <div className="text-center mt-3">
           <button
             type="button"
-            className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+            className="text-xs text-gray-500 hover:text-gray-400 transition-colors disabled:opacity-50"
             onClick={handleDismiss}
-            disabled={loading}
+            disabled={checkoutBusy}
           >
             {priceCopy.dismiss}
           </button>

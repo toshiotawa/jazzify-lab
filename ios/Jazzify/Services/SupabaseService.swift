@@ -143,10 +143,24 @@ final class SupabaseService: Sendable {
     }
 
     func recordUserMilestone(userId: UUID, milestone: String, source: String? = nil) async throws {
+        // p_source は nil でも明示 null で送る（encodeIfPresent だとキー欠落し PostgREST オーバーロード衝突しうる）
         struct MilestoneParams: Encodable {
             let p_user_id: UUID
             let p_milestone: String
             let p_source: String?
+
+            enum CodingKeys: String, CodingKey {
+                case p_user_id
+                case p_milestone
+                case p_source
+            }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(p_user_id, forKey: .p_user_id)
+                try container.encode(p_milestone, forKey: .p_milestone)
+                try container.encode(p_source, forKey: .p_source)
+            }
         }
 
         try await client
