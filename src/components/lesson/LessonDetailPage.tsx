@@ -79,7 +79,7 @@ import {
 import QuestCompletionModal from '@/components/lesson/QuestCompletionModal';
 import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteModal';
 import TaskClearNextStepModal from '@/components/lesson/TaskClearNextStepModal';
-import { shouldShowQuestReadyToCompletePrompt, findFirstIncompleteRequirement } from '@/utils/lessonRequirementProgress';
+import { shouldShowQuestReadyToCompletePrompt, findNextIncompleteRequirements } from '@/utils/lessonRequirementProgress';
 import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
 import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
 import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
@@ -501,6 +501,11 @@ const LessonDetailPage: React.FC = () => {
     ],
   );
 
+  const nextIncompleteRequirements = useMemo(
+    () => findNextIncompleteRequirements(requirements, requirementsProgress),
+    [requirements, requirementsProgress],
+  );
+
   const clearAutoStartFromUrl = useCallback(() => {
     if (!lessonId) {
       return;
@@ -585,16 +590,16 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
 
-    const nextIncomplete = findFirstIncompleteRequirement<LessonRequirement>(
+    const { nextRequired } = findNextIncompleteRequirements<LessonRequirement>(
       requirements,
       requirementsProgress,
     );
     justClearedConsumedRef.current = true;
     clearJustClearedFromUrl();
 
-    if (nextIncomplete) {
+    if (nextRequired) {
       setTaskClearPromptMode('afterClear');
-      setNextTaskAfterClear(nextIncomplete);
+      setNextTaskAfterClear(nextRequired);
       setShowTaskClearNextStepModal(true);
       return;
     }
@@ -636,16 +641,16 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
 
-    const firstIncomplete = findFirstIncompleteRequirement(
+    const { nextRequired } = findNextIncompleteRequirements(
       requirements,
       requirementsProgress,
     );
     autoStartConsumedRef.current = true;
     clearAutoStartFromUrl();
 
-    if (firstIncomplete) {
+    if (nextRequired) {
       setTaskClearPromptMode('entry');
-      setNextTaskAfterClear(firstIncomplete);
+      setNextTaskAfterClear(nextRequired);
       setShowTaskClearNextStepModal(true);
     }
   }, [
@@ -1582,11 +1587,39 @@ const LessonDetailPage: React.FC = () => {
             {showReadyToCompletePrompt && !showNextLessonPrompt && !showTaskClearNextStepModal ? (
               <QuestReadyToCompleteModal
                 isEnglishCopy={isEnglishCopy}
+                hasOptionalRemaining={Boolean(nextIncompleteRequirements.nextOptional)}
+                optionalTaskTitle={
+                  nextIncompleteRequirements.nextOptional
+                    ? lessonSongDisplayTitle(
+                      {
+                        title: nextIncompleteRequirements.nextOptional.title ?? null,
+                        title_en: nextIncompleteRequirements.nextOptional.title_en ?? null,
+                      },
+                      isEnglishCopy,
+                    ) || practiceCopy.taskFallback(
+                      requirements.findIndex(
+                        (r) => r.lesson_song_id === nextIncompleteRequirements.nextOptional?.lesson_song_id,
+                      ) + 1,
+                    )
+                    : undefined
+                }
                 onComplete={() => {
                   setShowReadyToCompletePrompt(false);
                   void handleComplete();
                 }}
                 onLater={() => setShowReadyToCompletePrompt(false)}
+                onTryOptionalTask={
+                  nextIncompleteRequirements.nextOptional
+                    ? () => {
+                        const optionalTask = nextIncompleteRequirements.nextOptional;
+                        if (!optionalTask) {
+                          return;
+                        }
+                        setShowReadyToCompletePrompt(false);
+                        launchRequirement(optionalTask);
+                      }
+                    : undefined
+                }
               />
             ) : null}
             {showTaskClearNextStepModal && nextTaskAfterClear ? (

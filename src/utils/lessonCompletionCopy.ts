@@ -99,18 +99,38 @@ export type QuestReadyToCompletePromptCopy = {
   body: string;
   complete: string;
   later: string;
+  tryOptionalTask?: string;
+};
+
+export type QuestReadyToCompletePromptOptions = {
+  hasOptionalRemaining?: boolean;
 };
 
 export const questReadyToCompletePromptCopy = (
   isEnglish: boolean,
-): QuestReadyToCompletePromptCopy => ({
-  heading: isEnglish ? 'Quest ready to complete!' : 'クエスト完了です！',
-  body: isEnglish
-    ? 'All practice tasks are complete. Ready to finish this quest!'
-    : '全ての課題が完了しました、クエスト完了です！',
-  complete: isEnglish ? 'Complete this quest' : 'クエストを完了する',
-  later: isEnglish ? 'Later' : 'あとで',
-});
+  options?: QuestReadyToCompletePromptOptions,
+): QuestReadyToCompletePromptCopy => {
+  if (options?.hasOptionalRemaining) {
+    return {
+      heading: isEnglish ? 'Quest ready to complete!' : 'クエスト完了できます！',
+      body: isEnglish
+        ? 'All required tasks are complete. Remaining tasks are optional — you can finish the quest without clearing them.'
+        : '必修の課題はすべてクリアしました。残りはおまけ課題なので、クリアしなくても次に進めます。',
+      complete: isEnglish ? 'Complete this quest' : 'クエストを完了する',
+      later: isEnglish ? 'Later' : 'あとで',
+      tryOptionalTask: isEnglish ? 'Try optional task' : 'おまけ課題に挑戦',
+    };
+  }
+
+  return {
+    heading: isEnglish ? 'Quest ready to complete!' : 'クエスト完了です！',
+    body: isEnglish
+      ? 'All practice tasks are complete. Ready to finish this quest!'
+      : '全ての課題が完了しました、クエスト完了です！',
+    complete: isEnglish ? 'Complete this quest' : 'クエストを完了する',
+    later: isEnglish ? 'Later' : 'あとで',
+  };
+};
 
 export type TaskClearPromptMode = 'afterClear' | 'entry';
 

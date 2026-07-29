@@ -3,16 +3,23 @@ import { questReadyToCompletePromptCopy } from '@/utils/lessonCompletionCopy';
 
 export interface QuestReadyToCompleteModalProps {
   isEnglishCopy: boolean;
+  hasOptionalRemaining?: boolean;
+  optionalTaskTitle?: string;
   onComplete: () => void;
   onLater: () => void;
+  onTryOptionalTask?: () => void;
 }
 
 export const QuestReadyToCompleteModal: React.FC<QuestReadyToCompleteModalProps> = ({
   isEnglishCopy,
+  hasOptionalRemaining = false,
+  optionalTaskTitle,
   onComplete,
   onLater,
+  onTryOptionalTask,
 }) => {
-  const copy = questReadyToCompletePromptCopy(isEnglishCopy);
+  const copy = questReadyToCompletePromptCopy(isEnglishCopy, { hasOptionalRemaining });
+  const showOptionalTaskButton = hasOptionalRemaining && onTryOptionalTask && copy.tryOptionalTask;
 
   return (
     <div
@@ -39,6 +46,9 @@ export const QuestReadyToCompleteModal: React.FC<QuestReadyToCompleteModalProps>
             {copy.heading}
           </h3>
           <p className="mt-2 text-sm text-gray-300">{copy.body}</p>
+          {optionalTaskTitle && showOptionalTaskButton ? (
+            <p className="mt-1 text-sm font-medium text-blue-300">{optionalTaskTitle}</p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3">
           <button
@@ -48,6 +58,15 @@ export const QuestReadyToCompleteModal: React.FC<QuestReadyToCompleteModalProps>
           >
             {copy.complete}
           </button>
+          {showOptionalTaskButton ? (
+            <button
+              type="button"
+              onClick={onTryOptionalTask}
+              className="w-full rounded-lg bg-slate-700 px-4 py-3 text-sm font-medium text-gray-200 transition-colors hover:bg-slate-600 hover:text-white"
+            >
+              {copy.tryOptionalTask}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onLater}

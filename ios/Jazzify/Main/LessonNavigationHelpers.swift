@@ -213,6 +213,53 @@ enum LessonNavigationHelpers {
         return nextBlockedReason == .premiumRequired
     }
 
+    static func isClearRequiredLessonSong(_ requirement: LessonSong) -> Bool {
+        requirement.isClearRequired != false
+    }
+
+    /// Web `isLegendOnlyLessonRequirement` と同等 — レジェンド（曲）課題は非表示。
+    static func isLegendOnlyLessonRequirement(_ requirement: LessonSong) -> Bool {
+        guard requirement.songId != nil else { return false }
+        return requirement.isFantasy == false
+            && requirement.isSurvival != true
+            && requirement.isSurvivalTutorial != true
+            && requirement.isEarTraining != true
+            && requirement.isEarTrainingTutorial != true
+            && requirement.isBalloonRush != true
+    }
+
+    static func areAllClearRequiredCompleted(
+        _ requirements: [LessonSong],
+        isCompleted: (LessonSong) -> Bool
+    ) -> Bool {
+        let required = requirements.filter {
+            isClearRequiredLessonSong($0) && !isLegendOnlyLessonRequirement($0)
+        }
+        if required.isEmpty { return true }
+        return required.allSatisfy { isCompleted($0) }
+    }
+
+    static func splitNextIncompleteRequirements(
+        _ requirements: [LessonSong],
+        isCompleted: (LessonSong) -> Bool
+    ) -> (required: LessonSong?, optional: LessonSong?) {
+        var nextRequired: LessonSong?
+        var nextOptional: LessonSong?
+
+        for requirement in requirements {
+            if isLegendOnlyLessonRequirement(requirement) { continue }
+            if isCompleted(requirement) { continue }
+            if isClearRequiredLessonSong(requirement) {
+                if nextRequired == nil { nextRequired = requirement }
+            } else if nextOptional == nil {
+                nextOptional = requirement
+            }
+            if nextRequired != nil && nextOptional != nil { break }
+        }
+
+        return (nextRequired, nextOptional)
+    }
+
     static func nextLesson(
         after currentLesson: Lesson,
         in sortedLessons: [Lesson]

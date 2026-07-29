@@ -218,4 +218,86 @@ final class LessonNavigationHelpersTests: XCTestCase {
             )
         )
     }
+
+    func testAreAllClearRequiredCompletedIgnoresOptionalTasks() {
+        let requiredId = UUID()
+        let optionalId = UUID()
+        let required = makeRequirement(id: requiredId, orderIndex: 0, isClearRequired: true)
+        let optional = makeRequirement(id: optionalId, orderIndex: 1, isClearRequired: false)
+        let completedIds: Set<UUID> = [requiredId]
+
+        XCTAssertTrue(
+            LessonNavigationHelpers.areAllClearRequiredCompleted([required, optional]) { requirement in
+                completedIds.contains(requirement.id)
+            }
+        )
+    }
+
+    func testAreAllClearRequiredCompletedReturnsFalseWhenRequiredIncomplete() {
+        let required = makeRequirement(id: UUID(), orderIndex: 0, isClearRequired: true)
+        let optional = makeRequirement(id: UUID(), orderIndex: 1, isClearRequired: false)
+
+        XCTAssertFalse(
+            LessonNavigationHelpers.areAllClearRequiredCompleted([required, optional]) { _ in false }
+        )
+    }
+
+    func testSplitNextIncompleteRequirementsPrefersRequiredOverOptional() {
+        let required = makeRequirement(id: UUID(), orderIndex: 0, isClearRequired: true)
+        let optional = makeRequirement(id: UUID(), orderIndex: 1, isClearRequired: false)
+
+        let split = LessonNavigationHelpers.splitNextIncompleteRequirements([required, optional]) { _ in false }
+
+        XCTAssertEqual(split.required?.id, required.id)
+        XCTAssertEqual(split.optional?.id, optional.id)
+    }
+
+    func testSplitNextIncompleteRequirementsReturnsOptionalWhenRequiredDone() {
+        let requiredId = UUID()
+        let optionalId = UUID()
+        let required = makeRequirement(id: requiredId, orderIndex: 0, isClearRequired: true)
+        let optional = makeRequirement(id: optionalId, orderIndex: 1, isClearRequired: false)
+        let completedIds: Set<UUID> = [requiredId]
+
+        let split = LessonNavigationHelpers.splitNextIncompleteRequirements([required, optional]) { requirement in
+            completedIds.contains(requirement.id)
+        }
+
+        XCTAssertNil(split.required)
+        XCTAssertEqual(split.optional?.id, optional.id)
+    }
+
+    private func makeRequirement(id: UUID, orderIndex: Int, isClearRequired: Bool) -> LessonSong {
+        LessonSong(
+            id: id,
+            lessonId: UUID(),
+            songId: nil,
+            fantasyStageId: nil,
+            earTrainingStageId: nil,
+            isBalloonRush: nil,
+            balloonRushStageId: nil,
+            isFantasy: false,
+            isSurvival: true,
+            isSurvivalTutorial: nil,
+            survivalTutorialScriptId: nil,
+            isEarTraining: nil,
+            isEarTrainingTutorial: nil,
+            earTrainingTutorialScriptId: nil,
+            survivalStageNumber: 1,
+            survivalMapCategory: "lesson",
+            survivalCompositeConfig: nil,
+            survivalRandomChords: nil,
+            survivalLessonOverrides: nil,
+            overrideProductionStaffHintMode: nil,
+            overrideProductionKeyboardHintMode: nil,
+            clearConditions: nil,
+            isClearRequired: isClearRequired,
+            orderIndex: orderIndex,
+            title: "Task",
+            titleEn: nil,
+            fantasyStage: nil,
+            earTrainingStage: nil,
+            balloonRushStage: nil
+        )
+    }
 }

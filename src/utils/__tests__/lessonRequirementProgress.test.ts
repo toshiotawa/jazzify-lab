@@ -1,5 +1,6 @@
 import {
   areAllClearRequiredLessonSongsCompleted,
+  findNextIncompleteRequirements,
   isLessonSongRequirementCompleted,
   lessonSongUsesLessonSongIdForProgress,
   shouldShowQuestReadyToCompletePrompt,
@@ -62,6 +63,50 @@ describe('areAllClearRequiredLessonSongsCompleted', () => {
       { id: 'opt', song_id: null, is_ear_training_tutorial: true, is_clear_required: false },
     ];
     expect(areAllClearRequiredLessonSongsCompleted(requirements, [])).toBe(false);
+  });
+});
+
+describe('findNextIncompleteRequirements', () => {
+  it('必修が残っていれば nextRequired を返し任意はスキップしない', () => {
+    const requirements = [
+      { lesson_song_id: 'req-1', song_id: null, is_ear_training_tutorial: true, is_clear_required: true },
+      { lesson_song_id: 'opt-1', song_id: null, is_ear_training_tutorial: true, is_clear_required: false },
+      { lesson_song_id: 'req-2', song_id: null, is_ear_training_tutorial: true, is_clear_required: true },
+    ];
+    const progress = [
+      baseProgress({ lesson_song_id: 'req-1', song_id: 'req-1' }),
+    ];
+    const result = findNextIncompleteRequirements(requirements, progress);
+    expect(result.nextRequired?.lesson_song_id).toBe('req-2');
+    expect(result.nextOptional?.lesson_song_id).toBe('opt-1');
+  });
+
+  it('必修が全て完了なら nextRequired は undefined で nextOptional を返す', () => {
+    const requirements = [
+      { lesson_song_id: 'req-1', song_id: null, is_ear_training_tutorial: true, is_clear_required: true },
+      { lesson_song_id: 'opt-1', song_id: null, is_ear_training_tutorial: true, is_clear_required: false },
+    ];
+    const progress = [
+      baseProgress({ lesson_song_id: 'req-1', song_id: 'req-1' }),
+    ];
+    const result = findNextIncompleteRequirements(requirements, progress);
+    expect(result.nextRequired).toBeUndefined();
+    expect(result.nextOptional?.lesson_song_id).toBe('opt-1');
+  });
+
+  it('レジェンド専用課題は nextRequired / nextOptional ともに除外する', () => {
+    const requirements = [
+      {
+        lesson_song_id: 'legend-1',
+        song_id: 'song-legend',
+        is_fantasy: false,
+        is_clear_required: true,
+      },
+      { lesson_song_id: 'req-1', song_id: null, is_ear_training_tutorial: true, is_clear_required: true },
+    ];
+    const result = findNextIncompleteRequirements(requirements, []);
+    expect(result.nextRequired?.lesson_song_id).toBe('req-1');
+    expect(result.nextOptional).toBeUndefined();
   });
 });
 

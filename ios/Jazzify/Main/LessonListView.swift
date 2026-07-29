@@ -1636,11 +1636,13 @@ struct LessonDetailView: View {
     }
 
     private var allRequirementsCompleted: Bool {
-        guard !sortedRequirements.isEmpty else {
-            return true
+        LessonNavigationHelpers.areAllClearRequiredCompleted(sortedRequirements) { requirement in
+            progress(for: requirement)?.isCompleted == true
         }
+    }
 
-        return sortedRequirements.allSatisfy { requirement in
+    private var nextIncompleteRequirements: (required: LessonSong?, optional: LessonSong?) {
+        LessonNavigationHelpers.splitNextIncompleteRequirements(sortedRequirements) { requirement in
             progress(for: requirement)?.isCompleted == true
         }
     }
@@ -1660,13 +1662,7 @@ struct LessonDetailView: View {
 
     /// Web `isLegendOnlyLessonRequirement` と同等 — レジェンド（曲）課題は非表示。
     private func isLegendOnlyLessonRequirement(_ requirement: LessonSong) -> Bool {
-        guard requirement.songId != nil else { return false }
-        return requirement.isFantasy == false
-            && requirement.isSurvival != true
-            && requirement.isSurvivalTutorial != true
-            && requirement.isEarTraining != true
-            && requirement.isEarTrainingTutorial != true
-            && requirement.isBalloonRush != true
+        LessonNavigationHelpers.isLegendOnlyLessonRequirement(requirement)
     }
 
     private var currentVideo: LessonVideoResource? {
@@ -1765,11 +1761,19 @@ struct LessonDetailView: View {
             .sheet(isPresented: $showReadyToCompletePrompt) {
                 QuestReadyToCompleteSheet(
                     locale: locale,
+                    hasOptionalRemaining: nextIncompleteRequirements.optional != nil,
+                    optionalTaskTitle: nextIncompleteRequirements.optional?.localizedTitle(locale),
                     onComplete: {
                         showReadyToCompletePrompt = false
                         Task { await completeLesson() }
                     },
-                    onLater: { showReadyToCompletePrompt = false }
+                    onLater: { showReadyToCompletePrompt = false },
+                    onTryOptionalTask: nextIncompleteRequirements.optional.map { optionalTask in
+                        {
+                            showReadyToCompletePrompt = false
+                            launchRequirement(optionalTask)
+                        }
+                    }
                 )
             }
             .sheet(item: $taskClearNextStepTarget) { target in
@@ -2031,10 +2035,10 @@ struct LessonDetailView: View {
                     pendingAutoStartFirstRequirement = false
                     if courseIsMainQuest,
                        pendingClearCheck == nil,
-                       let firstIncomplete = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
+                       let nextRequired = nextIncompleteRequirements.required {
                         showReadyToCompletePrompt = false
                         taskClearPromptMode = .entry
-                        taskClearNextStepTarget = firstIncomplete
+                        taskClearNextStepTarget = nextRequired
                     }
                 }
             }
@@ -2744,10 +2748,10 @@ struct LessonDetailView: View {
 
         guard isPlayedRequirementCompleted() else { return }
 
-        if let next = sortedRequirements.first(where: { progress(for: $0)?.isCompleted != true }) {
+        if let nextRequired = nextIncompleteRequirements.required {
             showReadyToCompletePrompt = false
             taskClearPromptMode = .afterClear
-            taskClearNextStepTarget = next
+            taskClearNextStepTarget = nextRequired
             return
         }
 

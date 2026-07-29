@@ -4,6 +4,7 @@ import {
   lessonCompletionButtonCopy,
   lessonCompletionCalloutCopy,
   lessonCompletionSectionTitle,
+  questReadyToCompletePromptCopy,
   resolveLessonCompletionState,
 } from '@/utils/lessonCompletionCopy';
 
@@ -93,5 +94,21 @@ describe('lessonCompletionBlockedToastCopy', () => {
   it('toast 文言を返す', () => {
     expect(lessonCompletionBlockedToastCopy(false)).toContain('実習課題');
     expect(lessonCompletionBlockedToastCopy(true)).toContain('practice tasks');
+  });
+});
+
+describe('questReadyToCompletePromptCopy', () => {
+  it('任意課題が残る場合は完了可能の案内とおまけ課題ボタンを返す', () => {
+    const copy = questReadyToCompletePromptCopy(false, { hasOptionalRemaining: true });
+    expect(copy.heading).toBe('クエスト完了できます！');
+    expect(copy.body).toContain('おまけ課題');
+    expect(copy.tryOptionalTask).toBe('おまけ課題に挑戦');
+  });
+
+  it('全課題完了時は従来の文言を返す', () => {
+    const copy = questReadyToCompletePromptCopy(false);
+    expect(copy.heading).toBe('クエスト完了です！');
+    expect(copy.body).toContain('全ての課題が完了しました');
+    expect(copy.tryOptionalTask).toBeUndefined();
   });
 });

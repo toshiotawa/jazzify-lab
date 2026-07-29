@@ -80,21 +80,53 @@ export interface RequirementWithLessonSongId {
   is_balloon_rush?: boolean;
   is_ear_training?: boolean;
   is_ear_training_tutorial?: boolean;
+  is_clear_required?: boolean;
 }
 
+export interface NextIncompleteRequirements<T> {
+  nextRequired: T | undefined;
+  nextOptional: T | undefined;
+}
+
+const isRequirementIncomplete = (
+  req: RequirementWithLessonSongId,
+  progress: readonly LessonSongProgressMatch[],
+): boolean => {
+  const reqProgress = progress.find(
+    (p) => p.lesson_song_id === req.lesson_song_id,
+  );
+  return !reqProgress?.is_completed;
+};
+
 /**
- * クエスト内の最初の未完了課題を返す（レジェンド専用課題は除外）。
+ * クエスト内の未完了課題を必修・任意に分けて返す（レジェンド専用課題は除外）。
+ * requirements は order_index 順に並んでいる前提で、各カテゴリの最初の1件を返す。
  */
-export const findFirstIncompleteRequirement = <T extends RequirementWithLessonSongId>(
+export const findNextIncompleteRequirements = <T extends RequirementWithLessonSongId>(
   requirements: readonly T[],
   progress: readonly LessonSongProgressMatch[],
-): T | undefined =>
-  requirements.find((req) => {
+): NextIncompleteRequirements<T> => {
+  let nextRequired: T | undefined;
+  let nextOptional: T | undefined;
+
+  for (const req of requirements) {
     if (isLegendOnlyLessonRequirement(req)) {
-      return false;
+      continue;
     }
-    const reqProgress = progress.find(
-      (p) => p.lesson_song_id === req.lesson_song_id,
-    );
-    return !reqProgress?.is_completed;
-  });
+    if (!isRequirementIncomplete(req, progress)) {
+      continue;
+    }
+    if (isClearRequiredLessonSong(req)) {
+      if (!nextRequired) {
+        nextRequired = req;
+      }
+    } else if (!nextOptional) {
+      nextOptional = req;
+    }
+    if (nextRequired && nextOptional) {
+      break;
+    }
+  }
+
+  return { nextRequired, nextOptional };
+};

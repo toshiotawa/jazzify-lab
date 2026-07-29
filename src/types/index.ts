@@ -973,7 +973,7 @@ export interface LessonSong {
   /** 本番鍵盤ヒント上書き（NULL = ステージ既定） */
   override_production_keyboard_hint_mode?: ProductionHintMode | null;
   clear_conditions?: ClearConditions;
-  /** false のとき課題詳細に「クリア必須ではない」注意書きを表示する。クエスト完了可否には使わない */
+  /** false のとき任意課題（課題詳細に注意書きを表示。クエスト完了判定からは除外される） */
   is_clear_required?: boolean;
   order_index?: number;
   title?: string | null;

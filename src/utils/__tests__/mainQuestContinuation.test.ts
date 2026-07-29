@@ -1,5 +1,5 @@
 import {
-  findFirstIncompleteRequirement,
+  findNextIncompleteRequirements,
   type LessonSongProgressMatch,
   type RequirementWithLessonSongId,
 } from '@/utils/lessonRequirementProgress';
@@ -10,21 +10,23 @@ import {
 import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
 import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
 
-describe('findFirstIncompleteRequirement', () => {
+describe('findNextIncompleteRequirements', () => {
   const requirements: RequirementWithLessonSongId[] = [
     {
       lesson_song_id: 'ls-1',
       song_id: null,
       is_survival_tutorial: true,
+      is_clear_required: true,
     },
     {
       lesson_song_id: 'ls-2',
       song_id: null,
       is_survival: true,
+      is_clear_required: true,
     },
   ];
 
-  it('returns the first requirement without completed progress', () => {
+  it('returns the first incomplete required requirement', () => {
     const progress: LessonSongProgressMatch[] = [
       {
         is_completed: true,
@@ -33,17 +35,20 @@ describe('findFirstIncompleteRequirement', () => {
       },
     ];
 
-    const result = findFirstIncompleteRequirement(requirements, progress);
-    expect(result?.lesson_song_id).toBe('ls-2');
+    const result = findNextIncompleteRequirements(requirements, progress);
+    expect(result.nextRequired?.lesson_song_id).toBe('ls-2');
+    expect(result.nextOptional).toBeUndefined();
   });
 
-  it('returns undefined when all requirements are completed', () => {
+  it('returns undefined required when all requirements are completed', () => {
     const progress: LessonSongProgressMatch[] = [
       { is_completed: true, song_id: 'ls-1', lesson_song_id: 'ls-1' },
       { is_completed: true, song_id: 'ls-2', lesson_song_id: 'ls-2' },
     ];
 
-    expect(findFirstIncompleteRequirement(requirements, progress)).toBeUndefined();
+    const result = findNextIncompleteRequirements(requirements, progress);
+    expect(result.nextRequired).toBeUndefined();
+    expect(result.nextOptional).toBeUndefined();
   });
 });
 
