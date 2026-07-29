@@ -44,6 +44,9 @@ export const coursePath = (courseId: string): string =>
 /** レッスン一覧 path route */
 export const lessonsListPath = (): string => `${APP_BASE_PATH}/lessons`;
 
+/** 目的別コース一覧 path route */
+export const coursesListPath = (): string => `${APP_BASE_PATH}/courses`;
+
 /** ダッシュボード path route */
 export const dashboardPath = (): string => `${APP_BASE_PATH}/dashboard`;
 
@@ -60,6 +63,8 @@ export const hashToAppPath = (hash: string): string | null => {
       return dashboardPath();
     case '#lessons':
       return `${lessonsListPath()}${search}`;
+    case '#courses':
+      return coursesListPath();
     case '#course': {
       const id = params.get('id');
       if (!id) return null;

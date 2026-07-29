@@ -25,6 +25,7 @@ const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard')
 const AccountPage = React.lazy(() => import('@/components/ui/AccountModal'));
 const MypagePage = React.lazy(() => import('@/components/ui/MypageModal'));
 const LessonPage = React.lazy(() => import('@/components/lesson/LessonPage'));
+const CourseListPage = React.lazy(() => import('@/components/lesson/CourseListPage'));
 const CoursePage = React.lazy(() => import('@/components/lesson/CoursePage'));
 const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
 const InformationPage = React.lazy(() => import('@/components/information/InformationPage'));
@@ -95,6 +96,7 @@ const AppShell: React.FC = () => {
         '#pricing',
         '#plan-comparison',
         '#lessons',
+        '#courses',
         '#course',
         '#lesson-detail',
         '#information',
@@ -113,6 +115,7 @@ const AppShell: React.FC = () => {
         '/main/pricing',
         '/main/plan-comparison',
         '/main/lessons',
+        '/main/courses',
         '/main/courses/',
         '/main/information',
         '/main/achievements',
@@ -215,6 +218,14 @@ const AppShell: React.FC = () => {
               element={
                 <React.Suspense fallback={<LoadingScreen />}>
                   <LessonDetailPage />
+                </React.Suspense>
+              }
+            />
+            <Route
+              path="courses"
+              element={
+                <React.Suspense fallback={<LoadingScreen />}>
+                  <CourseListPage />
                 </React.Suspense>
               }
             />

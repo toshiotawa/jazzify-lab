@@ -27,6 +27,15 @@ struct MainTabView: View {
                     }
                     .tag(Tab.lessons)
 
+                CourseListView()
+                    .tabItem {
+                        Label(
+                            locale == .ja ? "コース" : "Courses",
+                            systemImage: "square.grid.2x2.fill"
+                        )
+                    }
+                    .tag(Tab.courses)
+
                 SurvivalView()
                     .tabItem {
                         Label(
@@ -47,7 +56,7 @@ struct MainTabView: View {
             }
             .tint(.purple)
             .onChange(of: selectedTab) { newTab in
-                if newTab != .lessons {
+                if newTab != .lessons && newTab != .courses {
                     LessonMapAudio.shared.stop()
                 }
             }
@@ -61,6 +70,7 @@ struct MainTabView: View {
 enum Tab: Hashable {
     case top
     case lessons
+    case courses
     case survival
     case settings
 }

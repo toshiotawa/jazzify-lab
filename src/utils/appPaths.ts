@@ -20,6 +20,7 @@ export const normalizePathname = (path: string): string =>
 export const APP_HASH_BASES = new Set([
   '#dashboard',
   '#lessons',
+  '#courses',
   '#course',
   '#lesson-detail',
   '#information',

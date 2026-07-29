@@ -5,7 +5,6 @@ import WebKit
 
 struct LessonListView: View {
     @EnvironmentObject var appState: AppState
-    @State private var courses: [Course] = []
     @State private var mainQuestCourse: Course?
     @State private var lessonsMap: [UUID: [Lesson]] = [:]
     @State private var progressMap: [UUID: Set<UUID>] = [:]
@@ -13,12 +12,8 @@ struct LessonListView: View {
     @State private var showLessonInfo = false
     @State private var showSubscription = false
     @State private var subscriptionEntry: SubscriptionEntry = .default
-    @State private var showingAllCourses = false
     @State private var selectedMainQuestBlockNumber: Int?
-    @State private var journeyCourse: JourneyCourseLaunch?
     @State private var lessonToOpen: Lesson?
-    /// マップを閉じたあと進捗を同期する対象（一覧で再 fetch するコース）
-    @State private var lastJourneyCourseId: UUID?
     @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
     @State private var chapterScrollTargetY: CGFloat?
     @State private var chapterScrollAnimated = false
@@ -30,16 +25,11 @@ struct LessonListView: View {
 
     private var locale: AppLocale { appState.locale }
 
-    /// クエスト一覧・マップ画面でのみ BGM を再開（詳細・マップ push 中は鳴らさない）。
+    /// クエスト一覧画面でのみ BGM を再開（詳細 push 中は鳴らさない）。
     private func resumeQuestBgmIfEligible() {
-        guard journeyCourse == nil, lessonToOpen == nil else { return }
+        guard lessonToOpen == nil else { return }
         guard !LessonMapAudio.shared.isMuted else { return }
         LessonMapAudio.shared.play()
-    }
-
-    private struct JourneyCourseLaunch: Identifiable {
-        let id: UUID
-        let course: Course
     }
 
     var body: some View {
@@ -50,7 +40,7 @@ struct LessonListView: View {
                 if isLoading {
                     ProgressView()
                         .tint(.purple)
-                } else if courses.isEmpty && mainQuestCourse == nil {
+                } else if mainQuestCourse == nil {
                     VStack(spacing: 12) {
                         Image(systemName: "book.closed")
                             .font(.system(size: 48))
@@ -66,23 +56,18 @@ struct LessonListView: View {
                                     PaymentIssueBannerView(kind: bannerKind, locale: locale)
                                 }
 
-                                if showingAllCourses {
-                                    allSpecificCoursesContent
-                                } else {
-                                    if let mainQuest = mainQuestState {
-                                        mainQuestDashboard(
-                                            mainQuest,
-                                            onContinue: {
-                                                continueMainQuest(mainQuest)
-                                                if UIDevice.current.userInterfaceIdiom != .pad {
-                                                    withAnimation(.easeInOut(duration: 0.24)) {
-                                                        pageProxy.scrollTo("mainQuestDetail", anchor: .top)
-                                                    }
+                                if let mainQuest = mainQuestState {
+                                    mainQuestDashboard(
+                                        mainQuest,
+                                        onContinue: {
+                                            continueMainQuest(mainQuest)
+                                            if UIDevice.current.userInterfaceIdiom != .pad {
+                                                withAnimation(.easeInOut(duration: 0.24)) {
+                                                    pageProxy.scrollTo("mainQuestDetail", anchor: .top)
                                                 }
                                             }
-                                        )
-                                    }
-                                    specificCoursesPreview
+                                        }
+                                    )
                                 }
                             }
                             .padding()
@@ -104,27 +89,6 @@ struct LessonListView: View {
             }
             .navigationDestination(
                 isPresented: Binding(
-                    get: { journeyCourse != nil },
-                    set: { if !$0 { journeyCourse = nil } }
-                )
-            ) {
-                if let launch = journeyCourse {
-                    LessonJourneyView(
-                        course: launch.course,
-                        lessons: lessonsMap[launch.course.id] ?? [],
-                        completedLessonIds: progressMap[launch.course.id] ?? [],
-                        onCompletedIdsChanged: { ids in
-                            progressMap[launch.course.id] = ids
-                        },
-                        onLessonsUpdated: { lessons in
-                            lessonsMap[launch.course.id] = lessons
-                        }
-                    )
-                    .id(launch.course.id)
-                }
-            }
-            .navigationDestination(
-                isPresented: Binding(
                     get: { lessonToOpen != nil },
                     set: { if !$0 { lessonToOpen = nil } }
                 )
@@ -136,15 +100,7 @@ struct LessonListView: View {
                     )
                 }
             }
-            .onChange(of: journeyCourse == nil) { isNil in
-                guard isNil, let courseId = lastJourneyCourseId else { return }
-                lastJourneyCourseId = nil
-                Task { await reloadProgressForCourse(courseId: courseId) }
-            }
             .onChange(of: lessonToOpen?.id) { _ in
-                resumeQuestBgmIfEligible()
-            }
-            .onChange(of: journeyCourse?.id) { _ in
                 resumeQuestBgmIfEligible()
             }
             .toolbar {
@@ -296,111 +252,6 @@ struct LessonListView: View {
             completedLessons: completedIds.intersection(Set(lessons.map(\.id))).count,
             totalLessons: lessons.count
         )
-    }
-
-    private var allSpecificCoursesContent: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Button {
-                    showingAllCourses = false
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(Color(hex: "c4b5fd"))
-                        .frame(width: 34, height: 34)
-                        .background(Color.black.opacity(0.25), in: Circle())
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(locale == .ja ? "目的別コース" : "Specific Courses")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                    Text(locale == .ja ? "メインクエスト以外のコース" : "Focused courses outside the main quest")
-                        .font(.caption)
-                        .foregroundStyle(Color(hex: "c4b5fd").opacity(0.8))
-                }
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            ForEach(CourseDifficultyTier.displayOrder, id: \.rawValue) { tier in
-                let tierCourses = courses.filter { $0.resolvedDifficultyTier == tier }
-                if !tierCourses.isEmpty {
-                    Text(tier.sectionTitle(locale: locale))
-                        .font(.subheadline.bold())
-                        .foregroundStyle(Color.purple.opacity(0.9))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 4)
-                        .padding(.top, 4)
-                    ForEach(tierCourses) { course in
-                        courseRow(course)
-                    }
-                }
-            }
-        }
-    }
-
-    private var specificCoursesPreview: some View {
-        Group {
-            if !courses.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    sectionHeader(
-                        icon: "sparkles",
-                        title: locale == .ja ? "目的別コース" : "Specific Courses"
-                    )
-
-                    Button {
-                        showingAllCourses = true
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .center, spacing: 8) {
-                                Text(locale == .ja ? "すべてのコースを見る" : "Browse all courses")
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.leading)
-                                Spacer(minLength: 8)
-                                Image(systemName: "chevron.right.circle.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(Color(hex: "fde68a"))
-                            }
-                            Text(locale == .ja
-                                 ? "レベル別・テーマ別のコース一覧へ進みます。"
-                                 : "Open the full catalog of topic-based quests by level.")
-                                .font(.subheadline)
-                                .foregroundStyle(Color(hex: "e9d5ff").opacity(0.9))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(hex: "5b21b6").opacity(0.45),
-                                            Color(hex: "86198f").opacity(0.35),
-                                            Color(hex: "b45309").opacity(0.22),
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color(hex: "fde68a").opacity(0.42), lineWidth: 2)
-                                )
-                        )
-                        .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
-                    }
-                    .buttonStyle(.plain)
-
-                    ForEach(MainQuestPreviewCourses.pick(from: courses)) { course in
-                        courseRow(course, compact: true)
-                    }
-                }
-                .padding(12)
-                .background(questPanelBackground)
-            }
-        }
     }
 
     private func mainQuestDashboard(
@@ -1096,78 +947,6 @@ struct LessonListView: View {
         return value?.replacingOccurrences(of: "\n", with: " ")
     }
 
-    // MARK: - Course Row
-
-    private func courseRow(_ course: Course, compact: Bool = false) -> some View {
-        Button {
-            handleCourseTap(course)
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(course.localizedTitle(locale))
-                        .font(.headline)
-                        .foregroundStyle(.white)
-
-                    if let desc = course.localizedDescription(locale) {
-                        Text(desc)
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                            .lineLimit(2)
-                    }
-                }
-
-                Spacer()
-
-                if let lessons = lessonsMap[course.id],
-                   let completed = progressMap[course.id],
-                   lessons.count > 0 {
-                    let total = lessons.count
-                    let done = min(completed.count, total)
-                    let percent = Int((Double(done) / Double(total) * 100).rounded())
-                    Text("\(percent)%")
-                        .font(.caption.bold())
-                        .foregroundStyle(progressColor(percent: percent))
-                        .padding(.trailing, 4)
-                }
-
-                if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
-                    Image(systemName: "lock.fill")
-                        .foregroundStyle(.purple)
-                } else {
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.gray)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(compact ? 12 : 16)
-            .background(Color(hex: "1e293b"), in: RoundedRectangle(cornerRadius: 12))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func handleCourseTap(_ course: Course) {
-        let courseLocksForNonPremium = course.premiumOnly == true && course.isTutorial != true
-        if courseLocksForNonPremium {
-            Task {
-                let premium = await appState.ensureFreshBilling()
-                if !premium {
-                    subscriptionEntry = .lessonList
-                    showSubscription = true
-                    return
-                }
-                openJourney(for: course)
-            }
-            return
-        }
-        openJourney(for: course)
-    }
-
-    private func openJourney(for course: Course) {
-        lastJourneyCourseId = course.id
-        journeyCourse = JourneyCourseLaunch(id: course.id, course: course)
-    }
-
     // MARK: - Data
 
     private func shouldAutoStartMainQuestTaskEntry(for lesson: Lesson) -> Bool {
@@ -1178,20 +957,8 @@ struct LessonListView: View {
         isLoading = true
         do {
             let allCourses = try await SupabaseService.shared.fetchCourses()
-            let audienceFilter = locale == .en ? "global" : "japan"
-            let filtered = allCourses.filter { course in
-                let a = course.audience ?? "both"
-                return a == "both" || a == audienceFilter
-            }
             mainQuestCourse = allCourses.first(where: { $0.isMainCourse == true })
-            courses = filtered.filter { $0.isMainCourse != true }.sorted { a, b in
-                let ta = a.resolvedDifficultyTier.sortIndex
-                let tb = b.resolvedDifficultyTier.sortIndex
-                if ta != tb { return ta < tb }
-                return a.orderIndex < b.orderIndex
-            }
         } catch {
-            courses = []
             mainQuestCourse = nil
         }
         isLoading = false
@@ -1200,7 +967,8 @@ struct LessonListView: View {
 
     private func prefetchAllCourseProgress() async {
         let userId = appState.profile?.id
-        let targetCourses = ([mainQuestCourse].compactMap { $0 } + courses)
+        guard let mainCourse = mainQuestCourse else { return }
+        let targetCourses = [mainCourse]
 
         await withTaskGroup(of: (UUID, [Lesson]).self) { group in
             for course in targetCourses {
@@ -1225,50 +993,11 @@ struct LessonListView: View {
 
         guard let userId else { return }
 
-        let priorityCount = min(8, targetCourses.count)
-        let prioritySlice = Array(targetCourses.prefix(priorityCount))
-        let restSlice = Array(targetCourses.dropFirst(priorityCount))
-
-        for course in prioritySlice {
-            if let progress = try? await SupabaseService.shared.fetchLessonProgress(
-                courseId: course.id,
-                userId: userId
-            ) {
-                progressMap[course.id] = Set(progress.filter(\.completed).map(\.lessonId))
-            }
-        }
-
-        let rest = restSlice
-        let backgroundUserId = userId
-        Task(priority: .background) {
-            for course in rest {
-                if let progress = try? await SupabaseService.shared.fetchLessonProgress(
-                    courseId: course.id,
-                    userId: backgroundUserId
-                ) {
-                    let completed = Set(progress.filter(\.completed).map(\.lessonId))
-                    await MainActor.run {
-                        progressMap[course.id] = completed
-                    }
-                }
-            }
-        }
-    }
-
-    private func progressColor(percent: Int) -> Color {
-        if percent >= 100 { return .green }
-        if percent > 0 { return .purple }
-        return .gray
-    }
-
-    private func reloadProgressForCourse(courseId: UUID) async {
-        guard let userId = appState.profile?.id else { return }
-        do {
-            let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: courseId, userId: userId)
-            let completedIds = Set(progress.filter(\.completed).map(\.lessonId))
-            progressMap[courseId] = completedIds
-        } catch {
-            // keep existing progress on failure
+        if let progress = try? await SupabaseService.shared.fetchLessonProgress(
+            courseId: mainCourse.id,
+            userId: userId
+        ) {
+            progressMap[mainCourse.id] = Set(progress.filter(\.completed).map(\.lessonId))
         }
     }
 }
