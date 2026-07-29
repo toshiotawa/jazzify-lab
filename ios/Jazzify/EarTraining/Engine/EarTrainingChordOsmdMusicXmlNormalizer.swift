@@ -948,7 +948,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     }
 
     /// Web `collectChordOsmdMusicXmlAttacks` と同等（`<chord/>`・`<backup>` を考慮）。
-    static func collectChordOsmdMusicXmlAttacks(_ xmlText: String) -> [ChordOsmdMusicXmlAttack] {
+    /// `targetVoice` 指定時はその voice のクラスタのみ収集する（未指定時は voice 4 ガイドのみ除外）。
+    static func collectChordOsmdMusicXmlAttacks(_ xmlText: String, targetVoice: Int? = nil) -> [ChordOsmdMusicXmlAttack] {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
         let measures = measuresInPartsFirst(from: root)
         var attacks: [ChordOsmdMusicXmlAttack] = []
@@ -1024,7 +1025,14 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         ni += 1
                     }
 
-                    if isNonTargetVoice(parseNoteVoiceNumber(child)) {
+                    let noteVoice = parseNoteVoiceNumber(child)
+                    if let targetVoice {
+                        if noteVoice != targetVoice {
+                            currentTime += clusterDur
+                            ci = ni
+                            continue
+                        }
+                    } else if isNonTargetVoice(noteVoice) {
                         currentTime += clusterDur
                         ci = ni
                         continue

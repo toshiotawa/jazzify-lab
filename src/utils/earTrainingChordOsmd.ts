@@ -111,6 +111,12 @@ export interface ChordOsmdMusicXmlAttack {
   midis: readonly number[];
 }
 
+/** MusicXML アタック収集オプション。未指定時は voice 4 ガイドのみ除外（従来どおり）。 */
+export interface CollectChordOsmdAttacksOptions {
+  /** 指定時、この voice のクラスタのみターゲット化 */
+  readonly targetVoice?: number;
+}
+
 /** MusicXML 1 番（verse 1）歌詞の表示タイミング（フレーズ冒頭 0 秒基準・Audio と同じ BPM 換算） */
 export interface ChordOsmdLyricEvent {
   targetTimeSec: number;
@@ -841,7 +847,9 @@ export const chordOsmdBeatToTargetTimeSec = chordOsmdLyricTargetTimeSec;
 export const forEachChordOsmdNoteCluster = (
   musicXmlText: string,
   onCluster: (ctx: ChordOsmdNoteClusterContext) => void,
+  options?: CollectChordOsmdAttacksOptions,
 ): void => {
+  const targetVoice = options?.targetVoice;
   if (typeof DOMParser === 'undefined') {
     return;
   }
@@ -963,7 +971,14 @@ export const forEachChordOsmdNoteCluster = (
         ni += 1;
       }
 
-      if (isChordOsmdNonTargetVoice(parseNoteVoiceNumber(noteEl))) {
+      const noteVoice = parseNoteVoiceNumber(noteEl);
+      if (targetVoice !== undefined) {
+        if (noteVoice !== targetVoice) {
+          currentTime += clusterDur;
+          ci = ni;
+          continue;
+        }
+      } else if (isChordOsmdNonTargetVoice(noteVoice)) {
         currentTime += clusterDur;
         ci = ni;
         continue;
@@ -988,7 +1003,10 @@ export const forEachChordOsmdNoteCluster = (
 };
 
 /** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>`・タイ続き `tie/tied type="stop"` を考慮）。OSMD 判定の正とする。 */
-export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmdMusicXmlAttack[] => {
+export const collectChordOsmdMusicXmlAttacks = (
+  musicXmlText: string,
+  options?: CollectChordOsmdAttacksOptions,
+): ChordOsmdMusicXmlAttack[] => {
   const attacks: ChordOsmdMusicXmlAttack[] = [];
   forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes, timing }) => {
     const clusterMidis: number[] = [];
@@ -1019,7 +1037,7 @@ export const collectChordOsmdMusicXmlAttacks = (musicXmlText: string): ChordOsmd
         midis: clusterMidis,
       });
     }
-  });
+  }, options);
   return attacks;
 };
 

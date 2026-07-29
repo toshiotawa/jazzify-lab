@@ -10,6 +10,7 @@ enum EarTrainingMode: String, Codable, Sendable {
     case chordPrecision = "chord_precision"
     case adlib
     case phrasePairAdlib = "phrase_pair_adlib"
+    case adlibCallResponse = "adlib_call_response"
 
     /// レッスン課題カード用（Web `formatEarTrainingModeLabel` と同値）
     func lessonDisplayLabel(locale: AppLocale) -> String {
@@ -29,6 +30,8 @@ enum EarTrainingMode: String, Codable, Sendable {
             return ja ? "アドリブ" : "Ad lib"
         case .phrasePairAdlib:
             return ja ? "フレーズペアアドリブ" : "Phrase pair ad lib"
+        case .adlibCallResponse:
+            return ja ? "アドリブコール&レスポンス" : "Ad lib call & response"
         }
     }
 }
@@ -196,7 +199,7 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
             return isEnglish
                 ? "Achieve 70% or more GOOD notes."
                 : "GOOD率70%以上でクリア"
-        case .chordVoicing, .phrase, .adlib, .phrasePairAdlib:
+        case .chordVoicing, .phrase, .adlib, .phrasePairAdlib, .adlibCallResponse:
             return isEnglish
                 ? "Reduce the enemy HP to 0 within the time limit."
                 : "制限時間以内に敵HPを0にする"

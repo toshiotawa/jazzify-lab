@@ -364,7 +364,7 @@ struct EarTrainingStage: Codable, Identifiable, Sendable {
             return isEnglish
                 ? "Achieve 70% or more GOOD notes."
                 : "GOOD率70%以上でクリア"
-        case .chordVoicing, .phrase, .adlib, .phrasePairAdlib:
+        case .chordVoicing, .phrase, .adlib, .phrasePairAdlib, .adlibCallResponse:
             return isEnglish
                 ? "Reduce the enemy HP to 0 within the time limit."
                 : "制限時間以内に敵HPを0にする"

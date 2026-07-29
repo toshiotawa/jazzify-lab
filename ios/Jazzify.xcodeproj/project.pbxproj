@@ -56,6 +56,9 @@
 		25EFE7F9B8BA144F9C728898 /* ScreenRotation180Toggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76D371097DA4FCC0586D82B /* ScreenRotation180Toggle.swift */; };
 		263120ABA003B822014A4AE8 /* SurvivalTutorialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F88B72737D75E9015FDB9C02 /* SurvivalTutorialView.swift */; };
 		271E4AA704F4A1ADE6622B8B /* EarTrainingAdlibBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97333D04BAA4BF86172C550D /* EarTrainingAdlibBattleController.swift */; };
+		5B0F2C0C5A6618939C42270A /* EarTrainingAdlibCallResponseBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682B949DFA2F8A925BDBE126 /* EarTrainingAdlibCallResponseBattleController.swift */; };
+		3C0B418F441726D3D2B3C00B /* EarTrainingAdlibCallResponseGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129E03D23810E889A334B19F /* EarTrainingAdlibCallResponseGameView.swift */; };
+		D7E13A31344BEA02CC89CF4B /* EarTrainingAdlibCallResponseTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7794B78CB5EDC0CC21828ADB /* EarTrainingAdlibCallResponseTargets.swift */; };
 		27A4550A949D84C243F30015 /* SurvivalPhraseStaffSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1651D19CFE8A7AE2F990B03 /* SurvivalPhraseStaffSnapshot.swift */; };
 		27EB0324B53BF34B532ED2FF /* SurvivalSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F455CBC113D3CCEBB89D8BA0 /* SurvivalSimulation.swift */; };
 		284CFF5C6B5540D6CFF63CA3 /* LessonJourneyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */; };
@@ -306,6 +309,9 @@
 		1873118CEEB8C7B4341EDE19 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		18861FA349C6ECEAA2F6CC96 /* WebViewCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewCoordinator.swift; sourceTree = "<group>"; };
 		191FF03B025D871BFAAA0242 /* EarTrainingAdlibEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibEngine.swift; sourceTree = "<group>"; };
+		7794B78CB5EDC0CC21828ADB /* EarTrainingAdlibCallResponseTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseTargets.swift; sourceTree = "<group>"; };
+		682B949DFA2F8A925BDBE126 /* EarTrainingAdlibCallResponseBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseBattleController.swift; sourceTree = "<group>"; };
+		129E03D23810E889A334B19F /* EarTrainingAdlibCallResponseGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseGameView.swift; sourceTree = "<group>"; };
 		1CDF2724B35A78FD3FF93002 /* EarTrainingTutorialHudSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialHudSupport.swift; sourceTree = "<group>"; };
 		1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitVerticalScrollView.swift; sourceTree = "<group>"; };
 		1E5121DF8D9AF826FD2C1FB5 /* EarTrainingCompositePhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCompositePhraseEngine.swift; sourceTree = "<group>"; };
@@ -684,6 +690,7 @@
 		25F1FE436717D9B1D982DE79 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				7794B78CB5EDC0CC21828ADB /* EarTrainingAdlibCallResponseTargets.swift */,
 				191FF03B025D871BFAAA0242 /* EarTrainingAdlibEngine.swift */,
 				ADB585305FC51693521FC279 /* EarTrainingBattleBeatSyncTiming.swift */,
 				D235B58DC036F1F82F4CC6BC /* EarTrainingBattleJustParryBodyGlow.swift */,
@@ -928,6 +935,7 @@
 			isa = PBXGroup;
 			children = (
 				97333D04BAA4BF86172C550D /* EarTrainingAdlibBattleController.swift */,
+				682B949DFA2F8A925BDBE126 /* EarTrainingAdlibCallResponseBattleController.swift */,
 				7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */,
 				268A2408B86EDFD3C9580B10 /* EarTrainingChordOSMDBattleController.swift */,
 				FE10747A26971D22D12815D9 /* EarTrainingChordQuizBattleController.swift */,
@@ -1201,6 +1209,7 @@
 			isa = PBXGroup;
 			children = (
 				FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */,
+				129E03D23810E889A334B19F /* EarTrainingAdlibCallResponseGameView.swift */,
 				B0B46A79F7124C072C392D85 /* EarTrainingAdlibGameView.swift */,
 				B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */,
 				E075719D977A4B41BEA20EA2 /* EarTrainingBattleStaffBandLayout.swift */,
@@ -1372,6 +1381,9 @@
 				7630C3DB245018D47061B814 /* ContactView.swift in Sources */,
 				54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */,
 				271E4AA704F4A1ADE6622B8B /* EarTrainingAdlibBattleController.swift in Sources */,
+				5B0F2C0C5A6618939C42270A /* EarTrainingAdlibCallResponseBattleController.swift in Sources */,
+				3C0B418F441726D3D2B3C00B /* EarTrainingAdlibCallResponseGameView.swift in Sources */,
+				D7E13A31344BEA02CC89CF4B /* EarTrainingAdlibCallResponseTargets.swift in Sources */,
 				313B3DBAAAABE002683E6475 /* EarTrainingAdlibEngine.swift in Sources */,
 				2D01D88234B2EEBB9970662E /* EarTrainingAdlibGameView.swift in Sources */,
 				4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */,

@@ -30,6 +30,8 @@ function formatEarTrainingModeLabel(
         return 'Ad lib';
       case 'phrase_pair_adlib':
         return 'Phrase pair ad lib';
+      case 'adlib_call_response':
+        return 'Ad lib call & response';
       default:
         return 'Battle mode';
     }
@@ -49,6 +51,8 @@ function formatEarTrainingModeLabel(
       return 'アドリブ';
     case 'phrase_pair_adlib':
       return 'フレーズペアアドリブ';
+    case 'adlib_call_response':
+      return 'アドリブコール&レスポンス';
     default:
       return 'バトルモード';
   }

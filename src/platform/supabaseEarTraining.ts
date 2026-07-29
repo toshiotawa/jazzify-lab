@@ -122,6 +122,9 @@ const normalizeEarTrainingMode = (raw: unknown): EarTrainingStage['mode'] => {
   if (raw === 'phrase_pair_adlib') {
     return 'phrase_pair_adlib';
   }
+  if (raw === 'adlib_call_response') {
+    return 'adlib_call_response';
+  }
   return 'phrase';
 };
 

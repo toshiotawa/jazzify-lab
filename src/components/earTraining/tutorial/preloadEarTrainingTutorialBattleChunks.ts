@@ -61,6 +61,8 @@ const importBattleScreenForMode = (mode: EarTrainingMode): Promise<unknown> => {
   switch (mode) {
     case 'chord_osmd':
       return import('@/components/earTraining/EarTrainingChordOSMDScreen');
+    case 'adlib_call_response':
+      return import('@/components/earTraining/EarTrainingAdlibCallResponseScreen');
     case 'chord_precision':
       return import('@/components/earTraining/EarTrainingPrecisionScreen');
     case 'chord_quiz':

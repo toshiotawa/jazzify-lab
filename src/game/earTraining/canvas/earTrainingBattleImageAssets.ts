@@ -39,7 +39,7 @@ const OSMD_SECONDARY_POSE_KEYS = ['skill1', 'skill2', 'skill3', 'skill4', 'skill
 const OSMD_EFFECT_KEYS = ['meteor', 'fireRing', 'snowflake', 'lightning', 'cloud'] as const;
 
 const isOsmdLikeMode = (mode?: EarTrainingMode): boolean =>
-  mode === 'chord_osmd' || mode === 'chord_precision';
+  mode === 'chord_osmd' || mode === 'chord_precision' || mode === 'adlib_call_response';
 
 const pickRecordKeys = (
   source: Record<string, string>,

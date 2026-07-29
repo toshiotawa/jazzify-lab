@@ -850,6 +850,28 @@ describe('voice 4 guide notes', () => {
     expect(targets[0].midiCounts).toEqual([{ midi: 60, count: 1 }]);
   });
 
+  it('targetVoice:1 指定時は voice 1 のみ収集し voice 2/3 を除外する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>2</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+<note><chord/><pitch><step>E</step><alter>-1</alter><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+<backup><duration>2</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>2</duration><voice>2</voice></note>
+<backup><duration>2</duration></backup>
+<note><pitch><step>B</step><alter>-1</alter><octave>4</octave></pitch><duration>2</duration><voice>3</voice></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml, { targetVoice: 1 });
+    expect(attacks).toHaveLength(1);
+    expect(attacks[0].midis).toEqual([60, 63]);
+  });
+
+  it('targetVoice 未指定時は従来どおり voice 2 も収集する', () => {
+    const xml = miniChordOsmdScorePartwise(`<attributes><divisions>2</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+<backup><duration>2</duration></backup>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>2</duration><voice>2</voice></note>`);
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks).toHaveLength(2);
+  });
+
   it('applyChordOsmdGuideNoteColors は voice 4 の pitch 音符に薄い色を付与する', () => {
     const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions></attributes>
 <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice></note>

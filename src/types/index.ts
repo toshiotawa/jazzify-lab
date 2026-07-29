@@ -727,7 +727,8 @@ export type EarTrainingMode =
   | 'chord_osmd'
   | 'chord_precision'
   | 'adlib'
-  | 'phrase_pair_adlib';
+  | 'phrase_pair_adlib'
+  | 'adlib_call_response';
 
 /** 精密モード(chord_precision)の5段階ランク */
 export type PrecisionLessonRank = 'D' | 'C' | 'B' | 'A' | 'S';

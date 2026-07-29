@@ -74,6 +74,14 @@ struct EarTrainingGameView: View {
                     initialPracticeMode: initialPracticeMode,
                     onClose: onClose
                 )
+            } else if resolvedMode == .adlibCallResponse {
+                EarTrainingAdlibCallResponseGameView(
+                    source: .id(stageId),
+                    lessonContext: lessonContext,
+                    locale: locale,
+                    initialPracticeMode: initialPracticeMode,
+                    onClose: onClose
+                )
             } else if let controller = controller, let audio = audio {
                 EarTrainingGameContent(
                     controller: controller,
@@ -169,6 +177,12 @@ struct EarTrainingGameView: View {
             }
             if stageDetail.resolvedMode == .phrasePairAdlib {
                 self.resolvedMode = .phrasePairAdlib
+                self.isLoading = false
+                recordAssignmentStartIfNeeded()
+                return
+            }
+            if stageDetail.resolvedMode == .adlibCallResponse {
+                self.resolvedMode = .adlibCallResponse
                 self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return

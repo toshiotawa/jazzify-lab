@@ -38,6 +38,7 @@ const EarTrainingChordOSMDScreen = React.lazy(() => import('./EarTrainingChordOS
 const EarTrainingPrecisionScreen = React.lazy(() => import('./EarTrainingPrecisionScreen'));
 const EarTrainingAdlibScreen = React.lazy(() => import('./EarTrainingAdlibScreen'));
 const EarTrainingPhrasePairAdlibScreen = React.lazy(() => import('./EarTrainingPhrasePairAdlibScreen'));
+const EarTrainingAdlibCallResponseScreen = React.lazy(() => import('./EarTrainingAdlibCallResponseScreen'));
 
 const defaultClearConditions: ClearConditions = {
   count: 1,
@@ -326,6 +327,22 @@ const EarTrainingMain: React.FC = () => {
     return (
       <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
         <EarTrainingChordOSMDScreen
+          stage={stage}
+          enemy={enemy}
+          lessonContext={lessonContext}
+          initialPracticeMode={effectivePracticeMode}
+          onLessonStageClear={handleLessonStageClear}
+          onBack={handleBack}
+          {...lessonRestartProps}
+        />
+      </React.Suspense>
+    );
+  }
+
+  if (stage.mode === 'adlib_call_response') {
+    return (
+      <React.Suspense key={`${stage.id}-${earSessionNonce}`} fallback={<LoadingScreen message={mainCopy.preparing} />}>
+        <EarTrainingAdlibCallResponseScreen
           stage={stage}
           enemy={enemy}
           lessonContext={lessonContext}
