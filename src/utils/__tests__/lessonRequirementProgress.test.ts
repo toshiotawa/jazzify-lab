@@ -25,6 +25,16 @@ describe('lessonSongUsesLessonSongIdForProgress', () => {
       }),
     ).toBe(true);
   });
+
+  it('動画視聴課題は lesson_songs.id で進捗を照合する', () => {
+    expect(
+      lessonSongUsesLessonSongIdForProgress({
+        id: 'ls-video',
+        song_id: null,
+        is_video_lesson: true,
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('isLessonSongRequirementCompleted', () => {

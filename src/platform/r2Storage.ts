@@ -284,6 +284,37 @@ export async function uploadLessonVideo(file: File, lessonId: string): Promise<{
   return { url: `${PUBLIC_URL}/${key}`, key, contentType, size: file.size, fileName };
 }
 
+/** 動画視聴課題ステージ用アセット（ja / en） */
+export async function uploadVideoLessonAsset(
+  file: File,
+  slug: string,
+  locale: 'ja' | 'en',
+): Promise<{ url: string; key: string; contentType: string; size: number; fileName: string; }> {
+  checkFileSize(file, MAX_LESSON_VIDEO_SIZE, '動画視聴課題');
+
+  const client = getR2Client();
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const safeExt = ['mp4', 'mov', 'webm', 'm4v'].includes(ext) ? ext : 'mp4';
+  const contentType = file.type || (safeExt === 'mov' ? 'video/quicktime' : safeExt === 'webm' ? 'video/webm' : 'video/mp4');
+  const safeSlug = slug.trim().replace(/[^a-zA-Z0-9_-]+/g, '-') || 'stage';
+  const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
+  const key = `video-lessons/${safeSlug}/${locale}/${fileName}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: contentType,
+    CacheControl: 'public, max-age=31536000',
+  });
+
+  await client.send(command);
+
+  return { url: `${PUBLIC_URL}/${key}`, key, contentType, size: file.size, fileName };
+}
+
 export async function deleteLessonVideoByKey(r2Key: string): Promise<void> {
   const client = getR2Client();
   const command = new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: r2Key });

@@ -108,6 +108,7 @@ const AppShell: React.FC = () => {
         '#ear-training-lesson',
         '#ear-training-tutorial-lesson',
         '#ear-training-timing-adjustment',
+        '#video-lesson',
       ]);
       const allowedPathPrefixes = [
         '/main/dashboard',
@@ -126,6 +127,7 @@ const AppShell: React.FC = () => {
         '/main/play/ear-training',
         '/main/play/ear-training-tutorial',
         '/main/play/ear-training-timing-adjustment',
+        '/main/play/video-lesson',
         '/main/play/lesson',
       ];
       const pathAllowed = allowedPathPrefixes.some((prefix) =>

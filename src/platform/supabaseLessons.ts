@@ -24,6 +24,10 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
             id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
             production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
           ),
+          video_lesson_stage:video_lesson_stages (
+            id, slug, title, title_en, video_url, video_url_en,
+            duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
+          ),
           ear_training_stage:ear_training_stages (
             *,
             chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -97,6 +101,10 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
           id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
           production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
         ),
+        video_lesson_stage:video_lesson_stages (
+          id, slug, title, title_en, video_url, video_url_en,
+          duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
+        ),
         ear_training_stage:ear_training_stages (
           *,
           chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -129,6 +137,10 @@ const LESSON_DETAIL_SELECT = `
     balloon_rush_stage:balloon_rush_stages (
       id, slug, title, title_en, time_limit_sec, pop_quota, stage_type,
       production_staff_hint_mode, production_keyboard_hint_mode, hide_chord_names_in_battle
+    ),
+    video_lesson_stage:video_lesson_stages (
+      id, slug, title, title_en, video_url, video_url_en,
+      duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
     ),
     ear_training_stage:ear_training_stages (
       id,
@@ -729,6 +741,76 @@ export async function removeBalloonRushStageFromLesson(lessonId: string, lessonS
 
   if (error) {
     console.error(`Error removing balloon rush stage from lesson ${lessonId}:`, error);
+    throw error;
+  }
+}
+
+type VideoLessonSongData = {
+  lesson_id: string;
+  video_lesson_stage_id: string;
+  clear_conditions?: ClearConditions;
+  is_clear_required?: boolean;
+  title?: string | null;
+  title_en?: string | null;
+};
+
+/**
+ * レッスンに動画視聴ステージを追加します。
+ */
+export async function addVideoLessonStageToLesson(data: VideoLessonSongData): Promise<LessonSong> {
+  const { data: existingItems } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('order_index')
+    .eq('lesson_id', data.lesson_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextOrderIndex = existingItems && existingItems.length > 0
+    ? (existingItems[0].order_index || 0) + 1
+    : 0;
+
+  const { data: result, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .insert({
+      lesson_id: data.lesson_id,
+      song_id: null,
+      fantasy_stage_id: null,
+      is_fantasy: false,
+      is_video_lesson: true,
+      video_lesson_stage_id: data.video_lesson_stage_id,
+      clear_conditions: data.clear_conditions ?? { count: 1, rank: 'S' },
+      is_clear_required: data.is_clear_required ?? true,
+      title: data.title ?? null,
+      title_en: data.title_en ?? null,
+      order_index: nextOrderIndex,
+    })
+    .select(`
+      *,
+      video_lesson_stage:video_lesson_stages (
+        id, slug, title, title_en, video_url, video_url_en,
+        duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
+      )
+    `)
+    .single();
+
+  if (error) {
+    console.error('Error adding video lesson stage to lesson:', error);
+    throw error;
+  }
+
+  return result as LessonSong;
+}
+
+export async function removeVideoLessonStageFromLesson(lessonId: string, lessonSongId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .delete()
+    .eq('lesson_id', lessonId)
+    .eq('id', lessonSongId)
+    .eq('is_video_lesson', true);
+
+  if (error) {
+    console.error(`Error removing video lesson stage from lesson ${lessonId}:`, error);
     throw error;
   }
 }

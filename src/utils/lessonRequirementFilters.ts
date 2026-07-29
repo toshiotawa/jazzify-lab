@@ -7,6 +7,7 @@ export const isLegendOnlyLessonRequirement = (req: {
   is_ear_training?: boolean | null;
   is_ear_training_tutorial?: boolean | null;
   is_balloon_rush?: boolean | null;
+  is_video_lesson?: boolean | null;
 }): boolean =>
   Boolean(req.song_id)
   && !req.is_fantasy
@@ -14,4 +15,5 @@ export const isLegendOnlyLessonRequirement = (req: {
   && !req.is_survival_tutorial
   && !req.is_ear_training
   && !req.is_ear_training_tutorial
-  && req.is_balloon_rush !== true;
+  && req.is_balloon_rush !== true
+  && req.is_video_lesson !== true;

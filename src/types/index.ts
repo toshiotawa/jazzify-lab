@@ -664,7 +664,7 @@ export interface LessonContext {
   lessonId: string;
   lessonSongId: string; // lesson_songs.id（進捗記録用）
   clearConditions: ClearConditions;
-  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush';
+  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson';
 }
 
 export type EarTrainingGameState =
@@ -943,6 +943,41 @@ export interface BalloonRushStageRow {
   hide_chord_names_in_battle?: boolean;
 }
 
+/** 動画視聴課題ステージ（同一行に ja/en の R2 mp4 URL） */
+export interface VideoLessonStage {
+  id: string;
+  slug: string;
+  title: string;
+  title_en?: string | null;
+  description?: string | null;
+  description_en?: string | null;
+  video_url: string;
+  video_url_en?: string | null;
+  duration_sec?: number | null;
+  duration_en_sec?: number | null;
+  thumbnail_url?: string | null;
+  thumbnail_url_en?: string | null;
+  required_watch_ratio: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** `lesson_songs` からネスト取得する `video_lesson_stages` 行（一覧・詳細表示用） */
+export interface VideoLessonStageRow {
+  id: string;
+  slug: string;
+  title: string;
+  title_en?: string | null;
+  video_url?: string;
+  video_url_en?: string | null;
+  duration_sec?: number | null;
+  duration_en_sec?: number | null;
+  thumbnail_url?: string | null;
+  thumbnail_url_en?: string | null;
+  required_watch_ratio?: number;
+}
+
 export interface LessonSong {
   id: string;
   lesson_id: string;
@@ -952,6 +987,9 @@ export interface LessonSong {
   is_balloon_rush?: boolean;
   balloon_rush_stage_id?: string | null;
   balloon_rush_stage?: BalloonRushStageRow | null;
+  is_video_lesson?: boolean;
+  video_lesson_stage_id?: string | null;
+  video_lesson_stage?: VideoLessonStageRow | null;
   is_fantasy: boolean;
   is_survival?: boolean;
   is_survival_tutorial?: boolean;

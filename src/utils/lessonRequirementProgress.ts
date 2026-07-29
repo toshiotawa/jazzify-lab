@@ -10,6 +10,7 @@ export interface LessonSongProgressKeySource {
   is_balloon_rush?: boolean;
   is_ear_training?: boolean;
   is_ear_training_tutorial?: boolean;
+  is_video_lesson?: boolean;
   is_clear_required?: boolean;
 }
 
@@ -27,7 +28,8 @@ export const lessonSongUsesLessonSongIdForProgress = (
   || req.is_survival_tutorial === true
   || req.is_balloon_rush === true
   || req.is_ear_training === true
-  || req.is_ear_training_tutorial === true;
+  || req.is_ear_training_tutorial === true
+  || req.is_video_lesson === true;
 
 export const isClearRequiredLessonSong = (req: { is_clear_required?: boolean }): boolean =>
   req.is_clear_required !== false;
@@ -80,6 +82,7 @@ export interface RequirementWithLessonSongId {
   is_balloon_rush?: boolean;
   is_ear_training?: boolean;
   is_ear_training_tutorial?: boolean;
+  is_video_lesson?: boolean;
   is_clear_required?: boolean;
 }
 

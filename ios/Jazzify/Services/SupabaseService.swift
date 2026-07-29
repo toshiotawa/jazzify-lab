@@ -411,6 +411,19 @@ final class SupabaseService: Sendable {
                     production_keyboard_hint_mode,
                     hide_chord_names_in_battle
                 ),
+                videoLessonStage:video_lesson_stages (
+                    id,
+                    slug,
+                    title,
+                    title_en,
+                    video_url,
+                    video_url_en,
+                    duration_sec,
+                    duration_en_sec,
+                    thumbnail_url,
+                    thumbnail_url_en,
+                    required_watch_ratio
+                ),
                 earTrainingStage:ear_training_stages (*)
             )
             """)
@@ -1601,6 +1614,22 @@ final class SupabaseService: Sendable {
             .execute()
             .value
         return result
+    }
+
+    /// 動画視聴課題クリア時のレッスン要件進捗更新。
+    /// Web `sourceType: 'video_lesson'` と等価。`p_rank` は常に `"S"`。
+    @discardableResult
+    func recordVideoLessonProgress(
+        lessonId: UUID,
+        lessonSongId: UUID,
+        clearConditions: LessonClearConditions?
+    ) async throws -> Bool {
+        try await recordEarTrainingLessonProgress(
+            lessonId: lessonId,
+            lessonSongId: lessonSongId,
+            rank: "S",
+            clearConditions: clearConditions
+        )
     }
 
     func recordEarTrainingTutorialOsmdSceneResult(

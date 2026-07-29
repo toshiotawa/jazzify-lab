@@ -1260,6 +1260,15 @@ private struct BalloonRushLessonLaunch: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// 動画視聴課題（ネイティブ `VideoLessonView`）の起動コンテキスト。
+private struct VideoLessonLaunch: Identifiable {
+    let id = UUID()
+    let stage: VideoLessonStageSummary
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 /// 風船ラッシュ開始前の準備シート用。
 private struct BalloonRushPrepContext: Identifiable {
     let id = UUID()
@@ -1322,6 +1331,7 @@ struct LessonDetailView: View {
     @State private var survivalLessonLaunch: SurvivalLessonLaunch?
     @State private var balloonRushPrep: BalloonRushPrepContext?
     @State private var balloonRushLessonLaunch: BalloonRushLessonLaunch?
+    @State private var videoLessonLaunch: VideoLessonLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1560,6 +1570,11 @@ struct LessonDetailView: View {
                     reloadLessonDetailAfterGame()
                 }
             }
+            .onChange(of: videoLessonLaunch == nil) { isNil in
+                if isNil {
+                    reloadLessonDetailAfterGame()
+                }
+            }
     }
 
     @ViewBuilder
@@ -1739,6 +1754,18 @@ struct LessonDetailView: View {
                     productionHintModes: launch.productionHintModes,
                     appliedRandomChords: launch.appliedRandomChords,
                     onClose: { balloonRushLessonLaunch = nil }
+                )
+            }
+            .fullScreenCover(item: $videoLessonLaunch) { launch in
+                VideoLessonView(
+                    stage: launch.stage,
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
+                    clearConditions: launch.clearConditions,
+                    locale: locale,
+                    onClose: { _ in
+                        videoLessonLaunch = nil
+                    }
                 )
             }
     }
@@ -2062,6 +2089,36 @@ struct LessonDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 2)
                 }
+            }
+
+            if requirement.isVideoLesson == true, let vs = requirement.videoLessonStage {
+                let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
+                let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
+                let ratio = Int(round(vs.effectiveRequiredWatchRatio * 100))
+                let durationHint: String? = {
+                    let sec = locale == .en
+                        ? (vs.durationEnSec ?? vs.durationSec)
+                        : vs.durationSec
+                    guard let sec, sec > 0 else { return nil }
+                    let minutes = max(1, Int((sec / 60.0).rounded()))
+                    return locale == .ja ? "約\(minutes)分" : "about \(minutes) min"
+                }()
+                let taskBody = durationHint.map {
+                    locale == .ja ? "動画視聴・\($0)" : "Video watch · \($0)"
+                } ?? (locale == .ja ? "動画視聴" : "Video watch")
+                let clearBody = locale == .ja
+                    ? "\(ratio)%以上視聴して完了ボタンを押す"
+                    : "watch at least \(ratio)% then tap Complete"
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(taskPrefix): \(taskBody)")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text("\(clearPrefix): \(clearBody)")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
             }
 
             // 本日の進捗表示（日数課題の場合）
@@ -3010,6 +3067,9 @@ struct LessonDetailView: View {
         if requirement.isBalloonRush == true, let br = requirement.balloonRushStage {
             return "\(index + 1). \(br.localizedTitle(locale))"
         }
+        if requirement.isVideoLesson == true, let vs = requirement.videoLessonStage {
+            return "\(index + 1). \(vs.localizedTitle(locale))"
+        }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
     }
 
@@ -3064,6 +3124,9 @@ struct LessonDetailView: View {
             return earTrainingStageTitle
         }
         if requirement.isBalloonRush == true, let slug = requirement.balloonRushStage?.slug, !slug.isEmpty {
+            return slug
+        }
+        if requirement.isVideoLesson == true, let slug = requirement.videoLessonStage?.slug, !slug.isEmpty {
             return slug
         }
         return requirement.id.uuidString
@@ -3316,6 +3379,26 @@ struct LessonDetailView: View {
             return
         }
 
+        if requirement.isVideoLesson == true {
+            guard let stage = requirement.videoLessonStage else {
+                alertMessage = locale == .ja
+                    ? "動画視聴ステージが設定されていません。"
+                    : "Video lesson stage is not configured."
+                return
+            }
+            guard stage.resolvedVideoURL(locale: locale) != nil else {
+                alertMessage = locale == .ja ? "動画 URL がありません。" : "Video URL is missing."
+                return
+            }
+            LessonMapAudio.shared.stopImmediately()
+            videoLessonLaunch = VideoLessonLaunch(
+                stage: stage,
+                lessonId: activeLesson.id,
+                lessonSongId: requirement.id,
+                clearConditions: requirement.clearConditions
+            )
+            return
+        }
 
         if requirement.isFantasy {
             guard let stageId = requirement.fantasyStage?.id ?? requirement.fantasyStageId else {

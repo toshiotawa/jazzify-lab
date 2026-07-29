@@ -2,10 +2,14 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, EarTrainingStage, type LessonMediaLocaleScope, type LessonSong } from '@/types';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, updateLessonSongClearRequired, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addSurvivalTutorialToLesson, addEarTrainingStageToLesson, addEarTrainingTutorialToLesson, removeEarTrainingStageFromLesson, addBalloonRushStageToLesson, removeBalloonRushStageFromLesson, addVideoLessonStageToLesson, removeVideoLessonStageFromLesson, updateLessonSongClearRequired, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
 import { fetchBalloonRushStagesForLessonAdmin } from '@/platform/supabaseBalloonRush';
+import {
+  createVideoLessonStage,
+  fetchVideoLessonStagesForLessonAdmin,
+} from '@/platform/supabaseVideoLesson';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon, FaSkull } from 'react-icons/fa';
@@ -21,7 +25,8 @@ import {
 import { rebuildDescentBlocks } from '@/components/survival/descent/descentBlocks';
 import { rebuildDescentLayouts } from '@/components/survival/descent/descentLayout';
 import { SURVIVAL_MAP_CATEGORIES, type SurvivalMapCategory } from '@/components/survival/SurvivalTypes';
-import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
+import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey, uploadVideoLessonAsset } from '@/platform/r2Storage';
+import type { VideoLessonStage } from '@/types';
 import {
   COURSE_DIFFICULTY_LABELS,
   COURSE_DIFFICULTY_TIER_ORDER,
@@ -63,12 +68,13 @@ import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters'
 type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number' | 'block_name'>;
 
 type ContentFormData = {
-  content_type: 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial' | 'balloon_rush';
+  content_type: 'fantasy' | 'survival' | 'survival_tutorial' | 'ear_training' | 'ear_training_tutorial' | 'balloon_rush' | 'video_lesson';
   survival_tutorial_script_id?: string;
   ear_training_tutorial_script_id?: string;
   fantasy_stage_id?: string;
   ear_training_stage_id?: string;
   balloon_rush_stage_id?: string;
+  video_lesson_stage_id?: string;
   clear_conditions: ClearConditions;
   is_clear_required: boolean;
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
@@ -92,6 +98,14 @@ export const LessonManager: React.FC = () => {
   const [availableBalloonRushStages, setAvailableBalloonRushStages] = useState<
     Array<{ id: string; slug: string; title: string; stageType: BalloonRushStageType }>
   >([]);
+  const [availableVideoLessonStages, setAvailableVideoLessonStages] = useState<VideoLessonStage[]>([]);
+  const [videoLessonCreateMode, setVideoLessonCreateMode] = useState(false);
+  const [videoLessonNewSlug, setVideoLessonNewSlug] = useState('');
+  const [videoLessonNewTitle, setVideoLessonNewTitle] = useState('');
+  const [videoLessonNewTitleEn, setVideoLessonNewTitleEn] = useState('');
+  const [videoLessonJaFile, setVideoLessonJaFile] = useState<File | null>(null);
+  const [videoLessonEnFile, setVideoLessonEnFile] = useState<File | null>(null);
+  const [videoLessonRequiredRatio, setVideoLessonRequiredRatio] = useState(0.9);
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
   const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
@@ -201,11 +215,12 @@ export const LessonManager: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [coursesData, fantasyStagesData, earTrainingStagesData, balloonRushRows] = await Promise.all([
+      const [coursesData, fantasyStagesData, earTrainingStagesData, balloonRushRows, videoLessonRows] = await Promise.all([
         fetchCoursesSimple({ includeHidden: true, includeDeveloperCourses: true }),
         fetchFantasyStages(),
         fetchEarTrainingStages({ includeInactive: true, includeDemo: true, includePhraseDetails: true }),
         fetchBalloonRushStagesForLessonAdmin(),
+        fetchVideoLessonStagesForLessonAdmin(),
       ]);
       setCourses(coursesData);
       setAvailableFantasyStages(fantasyStagesData);
@@ -218,6 +233,7 @@ export const LessonManager: React.FC = () => {
           stageType: s.stageType,
         })),
       );
+      setAvailableVideoLessonStages(videoLessonRows);
 
       const sortedPick = sortCoursesByDifficultyThenOrder(coursesData);
       if (!selectedCourseId || !coursesData.some(c => c.id === selectedCourseId)) {
@@ -471,6 +487,7 @@ export const LessonManager: React.FC = () => {
       override_repeat_transposition_mode: null,
       override_start_key: null,
       balloon_rush_stage_id: '',
+      video_lesson_stage_id: '',
     });
     setSurvivalPickKey('');
     setSurvivalTaskMode('stage_ref');
@@ -478,6 +495,13 @@ export const LessonManager: React.FC = () => {
     setSurvivalLessonOverrides(emptySurvivalLessonOverrides());
     setSurvivalRandomChords(emptySurvivalLessonRandomChords());
     setProductionHintOverrides(emptyProductionHintOverrides());
+    setVideoLessonCreateMode(false);
+    setVideoLessonNewSlug('');
+    setVideoLessonNewTitle('');
+    setVideoLessonNewTitleEn('');
+    setVideoLessonJaFile(null);
+    setVideoLessonEnFile(null);
+    setVideoLessonRequiredRatio(0.9);
     contentDialogRef.current?.showModal();
   };
   
@@ -624,6 +648,61 @@ export const LessonManager: React.FC = () => {
           clear_conditions: formData.clear_conditions,
           is_clear_required: formData.is_clear_required,
         });
+      } else if (formData.content_type === 'video_lesson') {
+        let stageId = formData.video_lesson_stage_id?.trim() ?? '';
+        if (videoLessonCreateMode) {
+          const slug = videoLessonNewSlug.trim();
+          const title = videoLessonNewTitle.trim();
+          if (!slug || !title || !videoLessonJaFile) {
+            throw new Error('新規動画ステージには slug・タイトル・日本語動画が必要です');
+          }
+          const readDuration = (file: File): Promise<number | null> =>
+            new Promise((resolve) => {
+              const url = URL.createObjectURL(file);
+              const video = document.createElement('video');
+              video.preload = 'metadata';
+              video.onloadedmetadata = () => {
+                const d = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
+                URL.revokeObjectURL(url);
+                resolve(d);
+              };
+              video.onerror = () => {
+                URL.revokeObjectURL(url);
+                resolve(null);
+              };
+              video.src = url;
+            });
+          const jaUpload = await uploadVideoLessonAsset(videoLessonJaFile, slug, 'ja');
+          const jaDuration = await readDuration(videoLessonJaFile);
+          let enUrl: string | null = null;
+          let enDuration: number | null = null;
+          if (videoLessonEnFile) {
+            const enUpload = await uploadVideoLessonAsset(videoLessonEnFile, slug, 'en');
+            enUrl = enUpload.url;
+            enDuration = await readDuration(videoLessonEnFile);
+          }
+          const created = await createVideoLessonStage({
+            slug,
+            title,
+            title_en: videoLessonNewTitleEn.trim() || null,
+            video_url: jaUpload.url,
+            video_url_en: enUrl,
+            duration_sec: jaDuration,
+            duration_en_sec: enDuration,
+            required_watch_ratio: videoLessonRequiredRatio,
+          });
+          setAvailableVideoLessonStages(prev => [...prev, created].sort((a, b) => a.slug.localeCompare(b.slug)));
+          stageId = created.id;
+        }
+        if (!stageId) {
+          throw new Error('動画視聴ステージが選択されていません');
+        }
+        newLessonSong = await addVideoLessonStageToLesson({
+          lesson_id: selectedLesson.id,
+          video_lesson_stage_id: stageId,
+          clear_conditions: formData.clear_conditions,
+          is_clear_required: formData.is_clear_required,
+        });
       } else {
         throw new Error('コンテンツが選択されていません');
       }
@@ -643,6 +722,7 @@ export const LessonManager: React.FC = () => {
         ear_training_tutorial: '耳コピバトルチュートリアルを追加しました。',
         ear_training: 'バトルモードステージを追加しました。',
         balloon_rush: '風船ラッシュステージを追加しました。',
+        video_lesson: '動画視聴課題を追加しました。',
       };
       toast.success(contentTypeMessages[formData.content_type]);
       
@@ -686,10 +766,13 @@ export const LessonManager: React.FC = () => {
     isSurvival?: boolean,
     isEarTraining?: boolean,
     isBalloonRush?: boolean,
+    isVideoLesson?: boolean,
   ) => {
     if (!selectedCourseId) return;
     
-    const confirmMessage = isBalloonRush
+    const confirmMessage = isVideoLesson
+      ? 'この動画視聴課題をレッスンから削除しますか？'
+      : isBalloonRush
       ? 'この風船ラッシュ課題をレッスンから削除しますか？'
       : isEarTraining ? 'このバトルモードステージをレッスンから削除しますか？'
         : isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
@@ -698,7 +781,9 @@ export const LessonManager: React.FC = () => {
     
     if (window.confirm(confirmMessage)) {
       try {
-        if (isBalloonRush) {
+        if (isVideoLesson) {
+          await removeVideoLessonStageFromLesson(lessonId, lessonSongId);
+        } else if (isBalloonRush) {
           await removeBalloonRushStageFromLesson(lessonId, lessonSongId);
         } else if (isEarTraining) {
           await removeEarTrainingStageFromLesson(lessonId, lessonSongId);
@@ -719,7 +804,8 @@ export const LessonManager: React.FC = () => {
         );
         
         toast.success(
-          isBalloonRush ? '風船ラッシュ課題を削除しました。'
+          isVideoLesson ? '動画視聴課題を削除しました。'
+          : isBalloonRush ? '風船ラッシュ課題を削除しました。'
           : isEarTraining ? 'バトルモードステージを削除しました。'
             : isSurvival ? 'サバイバルステージを削除しました。'
             : isFantasy ? 'ファンタジーステージを削除しました。'
@@ -1310,6 +1396,32 @@ export const LessonManager: React.FC = () => {
                                   </div>
                                 );
                               }
+                              if (ls.is_video_lesson) {
+                                const st = ls.video_lesson_stage;
+                                return (
+                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div>
+                                      <FaMusic className="inline-block mr-2 text-violet-300" />
+                                      <span className="font-medium">{st?.title || '動画視聴'}</span>
+                                      <span className="text-xs text-violet-300 ml-2">[動画視聴]</span>
+                                      <span className="text-xs text-gray-400 ml-2">
+                                        [{st?.slug || 'slug?'}]
+                                        {ls.clear_conditions?.requires_days
+                                          ? ` (${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間)`
+                                          : ` (${ls.clear_conditions?.count || 1}回)`}
+                                      </span>
+                                      {renderClearRequiredToggle(lesson.id, ls)}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.id, false, false, false, true)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              }
                               if (ls.is_survival_tutorial) {
                                 return (
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
@@ -1563,6 +1675,15 @@ export const LessonManager: React.FC = () => {
                   />
                   <span className="ml-2">風船ラッシュ</span>
                 </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...registerContent('content_type')}
+                    value="video_lesson"
+                    className="radio radio-primary"
+                  />
+                  <span className="ml-2">動画視聴</span>
+                </label>
               </div>
             </div>
             <div>
@@ -1659,6 +1780,92 @@ export const LessonManager: React.FC = () => {
                   value={productionHintOverrides}
                   onChange={setProductionHintOverrides}
                 />
+              </div>
+            ) : watchContent && watchContent('content_type') === 'video_lesson' ? (
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={videoLessonCreateMode}
+                    onChange={(e) => setVideoLessonCreateMode(e.target.checked)}
+                  />
+                  <span className="text-sm">新規ステージを作成して追加</span>
+                </label>
+                {videoLessonCreateMode ? (
+                  <div className="space-y-3 rounded-lg border border-slate-600 p-3">
+                    <div>
+                      <label className="label"><span className="label-text">slug *</span></label>
+                      <input
+                        type="text"
+                        className="input input-bordered w-full"
+                        value={videoLessonNewSlug}
+                        onChange={(e) => setVideoLessonNewSlug(e.target.value)}
+                        placeholder="video-lesson-example-01"
+                      />
+                    </div>
+                    <div>
+                      <label className="label"><span className="label-text">タイトル（日本語）*</span></label>
+                      <input
+                        type="text"
+                        className="input input-bordered w-full"
+                        value={videoLessonNewTitle}
+                        onChange={(e) => setVideoLessonNewTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label"><span className="label-text">タイトル（英語）</span></label>
+                      <input
+                        type="text"
+                        className="input input-bordered w-full"
+                        value={videoLessonNewTitleEn}
+                        onChange={(e) => setVideoLessonNewTitleEn(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label"><span className="label-text">日本語動画 (mp4) *</span></label>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        className="file-input file-input-bordered w-full"
+                        onChange={(e) => setVideoLessonJaFile(e.target.files?.[0] ?? null)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label"><span className="label-text">英語動画 (mp4)</span></label>
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        className="file-input file-input-bordered w-full"
+                        onChange={(e) => setVideoLessonEnFile(e.target.files?.[0] ?? null)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label"><span className="label-text">必要視聴率</span></label>
+                      <input
+                        type="number"
+                        className="input input-bordered w-full"
+                        min={0.5}
+                        max={1}
+                        step={0.05}
+                        value={videoLessonRequiredRatio}
+                        onChange={(e) => setVideoLessonRequiredRatio(Number(e.target.value) || 0.9)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <label className="label"><span className="label-text">動画視聴ステージ *</span></label>
+                    <select {...registerContent('video_lesson_stage_id')} className="select select-bordered w-full">
+                      <option value="">-- ステージを選択してください --</option>
+                      {availableVideoLessonStages.map(stage => (
+                        <option key={stage.id} value={stage.id}>
+                          {stage.title} ({stage.slug})
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                )}
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
@@ -1895,7 +2102,7 @@ export const LessonManager: React.FC = () => {
             
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeContentDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalTaskMode === 'stage_ref' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id')) || (watchContent('content_type') === 'balloon_rush' && !watchContent('balloon_rush_stage_id'))}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalTaskMode === 'stage_ref' && survivalPickKey === '') || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id')) || (watchContent('content_type') === 'balloon_rush' && !watchContent('balloon_rush_stage_id')) || (watchContent('content_type') === 'video_lesson' && !videoLessonCreateMode && !watchContent('video_lesson_stage_id'))}>
                 {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>

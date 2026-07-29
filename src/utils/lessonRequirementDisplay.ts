@@ -157,3 +157,52 @@ export const buildBalloonRushLessonRequirementDisplay = (
     clearLine: `${clearPrefix}: ${body}`,
   };
 };
+
+type VideoLessonRequirementLines = {
+  taskTypeLine: string;
+  clearLine: string;
+};
+
+type VideoLessonStageSnapshot = {
+  duration_sec?: number | null;
+  duration_en_sec?: number | null;
+  required_watch_ratio?: number | null;
+};
+
+const formatApproxDurationMinutes = (
+  durationSec: number | null | undefined,
+  isEnglish: boolean,
+): string | null => {
+  if (typeof durationSec !== 'number' || !(durationSec > 0)) {
+    return null;
+  }
+  const minutes = Math.max(1, Math.round(durationSec / 60));
+  return isEnglish ? `about ${minutes} min` : `約${minutes}分`;
+};
+
+export const buildVideoLessonRequirementDisplay = (
+  stage: VideoLessonStageSnapshot | null | undefined,
+  isEnglish: boolean,
+): VideoLessonRequirementLines => {
+  const taskTypePrefix = isEnglish ? 'Task type' : '課題タイプ';
+  const clearPrefix = isEnglish ? 'Clear' : 'クリア条件';
+  const durationHint = formatApproxDurationMinutes(
+    isEnglish
+      ? (stage?.duration_en_sec ?? stage?.duration_sec)
+      : stage?.duration_sec,
+    isEnglish,
+  );
+  const taskTypeBody = durationHint
+    ? (isEnglish ? `Video watch · ${durationHint}` : `動画視聴・${durationHint}`)
+    : (isEnglish ? 'Video watch' : '動画視聴');
+  const ratioRaw = stage?.required_watch_ratio;
+  const ratio = typeof ratioRaw === 'number' && Number.isFinite(ratioRaw) ? ratioRaw : 0.9;
+  const percent = Math.round(Math.min(1, Math.max(0.5, ratio)) * 100);
+  const clearBody = isEnglish
+    ? `watch at least ${percent}% then tap Complete`
+    : `${percent}%以上視聴して完了ボタンを押す`;
+  return {
+    taskTypeLine: `${taskTypePrefix}: ${taskTypeBody}`,
+    clearLine: `${clearPrefix}: ${clearBody}`,
+  };
+};

@@ -242,6 +242,63 @@ struct BalloonRushStageSummary: Codable, Identifiable, Sendable {
     }
 }
 
+struct VideoLessonStageSummary: Codable, Identifiable, Sendable {
+    let id: UUID
+    let slug: String?
+    let title: String
+    let titleEn: String?
+    let videoUrl: String?
+    let videoUrlEn: String?
+    let durationSec: Double?
+    let durationEnSec: Double?
+    let thumbnailUrl: String?
+    let thumbnailUrlEn: String?
+    let requiredWatchRatio: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug, title
+        case titleEn = "title_en"
+        case videoUrl = "video_url"
+        case videoUrlEn = "video_url_en"
+        case durationSec = "duration_sec"
+        case durationEnSec = "duration_en_sec"
+        case thumbnailUrl = "thumbnail_url"
+        case thumbnailUrlEn = "thumbnail_url_en"
+        case requiredWatchRatio = "required_watch_ratio"
+    }
+
+    func localizedTitle(_ locale: AppLocale) -> String {
+        if locale == .en {
+            let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? title : en
+        }
+        return title
+    }
+
+    func resolvedVideoURL(locale: AppLocale) -> URL? {
+        let ja = videoUrl?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let en = videoUrlEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if locale == .en, !en.isEmpty {
+            return URL(string: en)
+        }
+        guard !ja.isEmpty else { return nil }
+        return URL(string: ja)
+    }
+
+    func resolvedLocaleKey(locale: AppLocale) -> String {
+        let en = videoUrlEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if locale == .en, !en.isEmpty {
+            return "en"
+        }
+        return "ja"
+    }
+
+    var effectiveRequiredWatchRatio: Double {
+        let r = requiredWatchRatio ?? 0.9
+        return min(1, max(0.5, r))
+    }
+}
+
 struct LessonSong: Codable, Identifiable, Sendable {
     let id: UUID
     let lessonId: UUID
@@ -250,6 +307,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let earTrainingStageId: UUID?
     let isBalloonRush: Bool?
     let balloonRushStageId: UUID?
+    let isVideoLesson: Bool?
+    let videoLessonStageId: UUID?
     let isFantasy: Bool
     let isSurvival: Bool?
     let isSurvivalTutorial: Bool?
@@ -275,6 +334,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let fantasyStage: FantasyStage?
     let earTrainingStage: EarTrainingStage?
     let balloonRushStage: BalloonRushStageSummary?
+    let videoLessonStage: VideoLessonStageSummary?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -286,6 +346,9 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case isBalloonRush = "is_balloon_rush"
         case balloonRushStageId = "balloon_rush_stage_id"
         case balloonRushStage = "balloon_rush_stage"
+        case isVideoLesson = "is_video_lesson"
+        case videoLessonStageId = "video_lesson_stage_id"
+        case videoLessonStage
         case isFantasy = "is_fantasy"
         case isSurvival = "is_survival"
         case isSurvivalTutorial = "is_survival_tutorial"

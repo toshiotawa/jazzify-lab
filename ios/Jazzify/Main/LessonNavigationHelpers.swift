@@ -226,6 +226,7 @@ enum LessonNavigationHelpers {
             && requirement.isEarTraining != true
             && requirement.isEarTrainingTutorial != true
             && requirement.isBalloonRush != true
+            && requirement.isVideoLesson != true
     }
 
     static func areAllClearRequiredCompleted(

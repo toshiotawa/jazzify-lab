@@ -44,6 +44,23 @@ describe('buildLessonRequirementLaunchHash', () => {
     expect(hash).toBeNull();
   });
 
+  it('returns video lesson hash', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_video_lesson: true,
+      video_lesson_stage_id: 'vl-stage-1',
+    }));
+    expect(hash).toContain('#video-lesson?');
+    expect(hash).toContain('stageId=vl-stage-1');
+    expect(hash).toContain('lessonSongId=ls-1');
+  });
+
+  it('returns null for video lesson without stage id', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_video_lesson: true,
+    }));
+    expect(hash).toBeNull();
+  });
+
   it('returns ear training lesson hash', () => {
     const hash = buildLessonRequirementLaunchHash(baseReq({
       is_ear_training: true,
