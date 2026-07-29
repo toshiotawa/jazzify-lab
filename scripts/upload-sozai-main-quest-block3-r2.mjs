@@ -1,10 +1,10 @@
 /**
- * メインクエスト Block2（モチーフ）用 sozai を R2 の `sozai/` にアップロード。
+ * メインクエスト Ch4/Ch5 (mq-b3 / mq-b4) sozai を R2 の `sozai/` にアップロード。
  *
  * Usage:
- *   node scripts/upload-sozai-main-quest-block2-r2.mjs
- *   node scripts/upload-sozai-main-quest-block2-r2.mjs --dry-run
- *   node scripts/upload-sozai-main-quest-block2-r2.mjs --s3
+ *   node scripts/upload-sozai-main-quest-block3-r2.mjs
+ *   node scripts/upload-sozai-main-quest-block3-r2.mjs --dry-run
+ *   node scripts/upload-sozai-main-quest-block3-r2.mjs --s3
  */
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
@@ -32,22 +32,26 @@ const BUCKET =
   'jazzify-assets';
 const CLOUDFLARE_ACCOUNT_ID = r2AccountIdFrom(envR2);
 
-/** @type {readonly { name: string; contentType: string }[]} */
-const FILES = [
-  { name: 'mq-b2-domifa.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-domifa_count-in.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-domifa.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
-  { name: 'mq-b2-domifa-guide-voice4-cue.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
-  { name: 'mq-b2-soshido.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-soshido_count-in.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-soshido.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
-  { name: 'mq-b2-soshido-guide-voice4-cue.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
-  { name: 'mq-b2-motif.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-motif.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
-  { name: 'mq-b2-c-blues-12bars-100bpm.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-motif-demo-silent.mp3', contentType: 'audio/mpeg' },
-  { name: 'mq-b2-motif-playalong-silent.mp3', contentType: 'audio/mpeg' },
+const BASES = [
+  'mq-b3-4-1-2',
+  'mq-b3-4-1-3',
+  'mq-b3-4-1-4',
+  'mq-b3-4-2-2',
+  'mq-b3-4-2-4',
+  'mq-b4-5-1-1',
+  'mq-b4-5-2-2',
+  'mq-b4-5-2-4',
+  'mq-b4-5-3-2',
+  'mq-b4-5-3-3',
 ];
+
+/** @type {readonly { name: string; contentType: string }[]} */
+const FILES = BASES.flatMap((base) => [
+  { name: `${base}.mp3`, contentType: 'audio/mpeg' },
+  { name: `${base}.musicxml`, contentType: 'application/vnd.recordare.musicxml+xml' },
+  { name: `${base}-guide-voice4-cue.musicxml`, contentType: 'application/vnd.recordare.musicxml+xml' },
+  { name: `${base}-precision.musicxml`, contentType: 'application/vnd.recordare.musicxml+xml' },
+]);
 
 /** @type {S3Client | null} */
 let s3 = null;

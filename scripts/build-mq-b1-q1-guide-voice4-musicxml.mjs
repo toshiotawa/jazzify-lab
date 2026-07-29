@@ -1,23 +1,38 @@
 /**
- * メインクエスト 1-1（public/sozai/1-1.musicxml）をベースに、
  * voice 1 のタイムライン（pitch + rest）を 1 小節前へ voice 4 ガイドとして複製する。
  *
  * Usage:
  *   node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs
  *   node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs --cue
+ *   node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs --cue \
+ *     --source public/sozai/mq-b2-domifa.musicxml \
+ *     --output public/sozai/mq-b2-domifa-guide-voice4-cue.musicxml
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { JSDOM } from 'jsdom';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const SOURCE = join(ROOT, 'public', 'sozai', '1-1.musicxml');
-const OUTPUT_DIM = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4.musicxml');
-const OUTPUT_CUE = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4-cue.musicxml');
+const DEFAULT_SOURCE = join(ROOT, 'public', 'sozai', '1-1.musicxml');
+const DEFAULT_OUTPUT_DIM = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4.musicxml');
+const DEFAULT_OUTPUT_CUE = join(ROOT, 'public', 'sozai', 'dev-mq-b1-q1-osmd-guide-voice4-cue.musicxml');
 
 const GUIDE_VOICE = '4';
 const useCue = process.argv.includes('--cue');
-const OUTPUT = useCue ? OUTPUT_CUE : OUTPUT_DIM;
+
+const readArg = (flag) => {
+  const index = process.argv.indexOf(flag);
+  if (index === -1 || index + 1 >= process.argv.length) {
+    return null;
+  }
+  return process.argv[index + 1];
+};
+
+const SOURCE = resolve(ROOT, readArg('--source') ?? DEFAULT_SOURCE);
+const OUTPUT = resolve(
+  ROOT,
+  readArg('--output') ?? (useCue ? DEFAULT_OUTPUT_CUE : DEFAULT_OUTPUT_DIM),
+);
 
 const isElement = (node) => node.nodeType === 1;
 
