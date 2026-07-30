@@ -29,6 +29,7 @@
 		0EE545899F373B98B102C556 /* UprightPianoKW-20220221.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = EBA08E7C00D54AE2C234C953 /* UprightPianoKW-20220221.sf2 */; };
 		0F3F7E08B059686FB938164B /* SurvivalStaffOverlayLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ECCBD6262FA0D7BF5AA6C86 /* SurvivalStaffOverlayLayout.swift */; };
 		0FD918D7197C061E71DA139C /* SurvivalChordPadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */; };
+		10341AFE546C003CFEE5CC5F /* VideoLessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD87642E2E6E630A3A8B31CF /* VideoLessonView.swift */; };
 		113523707C66472EDCE989B7 /* SurvivalStatusEffectEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */; };
 		1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */; };
 		14241C0D8895B74B08685B49 /* OnboardingNarrationCaptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B1E725373981D74C37B0D30 /* OnboardingNarrationCaptionView.swift */; };
@@ -514,6 +515,7 @@
 		CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameAudio.swift; sourceTree = "<group>"; };
 		CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPianoView.swift; sourceTree = "<group>"; };
 		CC1E3D4D83BE3875118FF483 /* ear-training-developer-full-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ear-training-developer-full-v1.script.json"; sourceTree = "<group>"; };
+		CD87642E2E6E630A3A8B31CF /* VideoLessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoLessonView.swift; sourceTree = "<group>"; };
 		CE37C824003D0142D6E454EB /* PianoKeyboardDisplayModeSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardDisplayModeSection.swift; sourceTree = "<group>"; };
 		CF7628682E3A1A524E570D3F /* EarTrainingChordOsmdRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdRhythm.swift; sourceTree = "<group>"; };
 		D0D52543D5D2C698BD559C23 /* SurvivalDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentLayout.swift; sourceTree = "<group>"; };
@@ -630,6 +632,7 @@
 				52F3EEB711395BE727225146 /* Survival */,
 				65D97025C43E5830F6CD87B0 /* Tutorial */,
 				1B851A15B1DCC78F498322F6 /* Utils */,
+				D794A3240DAB3F4655F7DF7B /* VideoLesson */,
 				B4665837C213B33E7EA39A7E /* Assets.xcassets */,
 				C6E97E7B4C255D270BD5BC8C /* Info.plist */,
 				20B499E74ABA90E85BD71290 /* Jazzify.entitlements */,
@@ -1157,6 +1160,14 @@
 			path = Runtime;
 			sourceTree = "<group>";
 		};
+		D794A3240DAB3F4655F7DF7B /* VideoLesson */ = {
+			isa = PBXGroup;
+			children = (
+				CD87642E2E6E630A3A8B31CF /* VideoLessonView.swift */,
+			);
+			path = VideoLesson;
+			sourceTree = "<group>";
+		};
 		EA23E157886D174245FE7025 /* Engine */ = {
 			isa = PBXGroup;
 			children = (
@@ -1611,6 +1622,7 @@
 				52AAB3616339CF1EFA59581A /* UIKitHorizontalScrollView.swift in Sources */,
 				2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */,
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,
+				10341AFE546C003CFEE5CC5F /* VideoLessonView.swift in Sources */,
 				0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
