@@ -69,16 +69,40 @@ enum QuestStageCardAssetNames {
         return rectangular ? "\(baseName)_card" : "\(baseName)_bg"
     }
 
-    static func uiImage(stageNumber: Int, rectangular: Bool) -> UIImage? {
+    /// デコード済み UIImage の在メモリキャッシュ。
+    /// 章タップごとに body から同期読み込みされるためキャッシュ必須。
+    /// メモリ警告時は NSCache が自動で解放する。
+    private static let imageCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 48 * 1024 * 1024
+        return cache
+    }()
+
+    static func cachedImage(stageNumber: Int, rectangular: Bool) -> UIImage? {
         let name = imageName(stageNumber: stageNumber, rectangular: rectangular)
-        return uiImage(named: name, rectangular: rectangular)
+        let key = NSString(string: name)
+        if let cached = imageCache.object(forKey: key) {
+            return cached
+        }
+        guard let image = loadImage(named: name, rectangular: rectangular) else {
+            return nil
+        }
+        imageCache.setObject(image, forKey: key, cost: estimatedCost(of: image))
+        return image
     }
 
-    static func uiImage(named name: String, rectangular: Bool) -> UIImage? {
+    private static func loadImage(named name: String, rectangular: Bool) -> UIImage? {
         let subdirectory = rectangular ? rectangularSubdirectory : squareSubdirectory
         guard let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: subdirectory) else {
             return nil
         }
         return UIImage(contentsOfFile: url.path)
+    }
+
+    private static func estimatedCost(of image: UIImage) -> Int {
+        guard let cgImage = image.cgImage else {
+            return 1024 * 1024
+        }
+        return cgImage.bytesPerRow * cgImage.height
     }
 }

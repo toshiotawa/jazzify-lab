@@ -1156,16 +1156,13 @@ private struct QuestStageArtwork: View {
     let stageNumber: Int
     let rectangular: Bool
 
-    @State private var loadedImage: UIImage?
-
-    private var assetName: String {
-        QuestStageCardAssetNames.imageName(stageNumber: stageNumber, rectangular: rectangular)
-    }
-
     var body: some View {
         ZStack {
-            if let loadedImage {
-                Image(uiImage: loadedImage)
+            if let image = QuestStageCardAssetNames.cachedImage(
+                stageNumber: stageNumber,
+                rectangular: rectangular
+            ) {
+                Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
             } else {
@@ -1174,10 +1171,6 @@ private struct QuestStageArtwork: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .id(assetName)
-        .onAppear { reloadImage() }
-        .onChange(of: stageNumber) { _ in reloadImage() }
-        .onChange(of: rectangular) { _ in reloadImage() }
     }
 
     @ViewBuilder
@@ -1196,10 +1189,6 @@ private struct QuestStageArtwork: View {
             .foregroundStyle(Color(hex: "c4b5fd").opacity(0.65))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: rectangular ? .trailing : .center)
             .padding(rectangular ? 20 : 0)
-    }
-
-    private func reloadImage() {
-        loadedImage = QuestStageCardAssetNames.uiImage(stageNumber: stageNumber, rectangular: rectangular)
     }
 }
 
