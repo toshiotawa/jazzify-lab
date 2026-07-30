@@ -216,6 +216,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let startRotation: CGFloat
         let spinRadians: CGFloat
         let node: SKSpriteNode
+        /// プレイヤー反撃ハンマー。フレーズ切替時も着弾まで生存させる。
+        let isReflect: Bool
         var onImpact: (() -> Void)?
     }
 
@@ -337,17 +339,28 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     /// フレーズ再開時に残存するハンマー・OSU 円・一時エフェクトを破棄する。
+    /// 反撃ハンマー（`isReflect`）は Web Canvas 同様、着弾まで飛行を継続する。
     private func clearTransientEffects() {
         parrySparkPool?.clear()
         osuCirclePool?.clear()
         osuCircleShatterPool?.clear()
-        for flight in osmdHammerFlightsByEffectId.values {
+        var preservedReflectFlights: [Int: OsmdHammerFlight] = [:]
+        for (effectId, flight) in osmdHammerFlightsByEffectId {
+            if flight.isReflect {
+                preservedReflectFlights[effectId] = flight
+                continue
+            }
+            removeAction(forKey: reflectImpactActionKey(for: effectId))
             flight.node.removeAllActions()
             flight.node.removeFromParent()
         }
-        osmdHammerFlightsByEffectId.removeAll()
+        osmdHammerFlightsByEffectId = preservedReflectFlights
         clearParryVisualSlowEffect()
+        let preservedNodes = Set(preservedReflectFlights.values.map(\.node))
         for child in Array(effectLayer.children) {
+            if preservedNodes.contains(where: { $0 === child }) {
+                continue
+            }
             if child.children.isEmpty || child is SKSpriteNode || child is SKLabelNode || child is SKShapeNode {
                 child.removeFromParent()
             }
@@ -2169,6 +2182,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             startRotation: hammer.zRotation,
             spinRadians: 540 * (.pi / 180),
             node: hammer,
+            isReflect: true,
             onImpact: onImpact
         )
         osmdHammerFlightsByEffectId[reflectId] = flight
@@ -2182,7 +2196,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func scheduleReflectHammerImpact(for flight: OsmdHammerFlight, wallWait: TimeInterval) {
         let key = reflectImpactActionKey(for: flight.effectId)
-        flight.node.removeAction(forKey: key)
+        removeAction(forKey: key)
         guard wallWait > 1e-6 else {
             completeReflectHammerImpact(effectId: flight.effectId)
             return
@@ -2191,12 +2205,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let impact = SKAction.run { [weak self] in
             self?.completeReflectHammerImpact(effectId: flight.effectId)
         }
-        flight.node.run(SKAction.sequence([wait, impact]), withKey: key)
+        run(SKAction.sequence([wait, impact]), withKey: key)
     }
 
     private func completeReflectHammerImpact(effectId: Int) {
         guard let flight = osmdHammerFlightsByEffectId.removeValue(forKey: effectId) else { return }
-        flight.node.removeAction(forKey: reflectImpactActionKey(for: effectId))
+        removeAction(forKey: reflectImpactActionKey(for: effectId))
         flight.node.removeFromParent()
         flight.onImpact?()
     }
@@ -2260,7 +2274,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             to: to,
             startRotation: hammer.zRotation,
             spinRadians: 900 * (.pi / 180),
-            node: hammer
+            node: hammer,
+            isReflect: false
         )
         osmdHammerFlightsByEffectId[command.id] = flight
         applyOsmdHammerFlightVisual(flight, wallNow: startedAt)

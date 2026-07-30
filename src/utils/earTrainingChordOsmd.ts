@@ -34,10 +34,10 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
   return true;
 };
 
-/** OSMD リズム耳コピ：ターゲットより早い入力の受付幅（250ms）。 */
-export const CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC = 0.25;
-/** OSMD リズム耳コピ：ターゲットより遅い入力の受付幅・遅れミス確定（300ms）。 */
-export const CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC = 0.3;
+/** OSMD リズム耳コピ：ターゲットより早い入力の受付幅（120ms）。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC = 0.12;
+/** OSMD リズム耳コピ：ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC = 0.15;
 /** @deprecated `CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC` を使用 */
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC;
 import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTimingAdjustment';
@@ -87,6 +87,34 @@ export const hasChordOsmdJudgmentWindowExpired = (
   judgedTargetTimeSec: number,
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
 ): boolean => phraseTimeSec > judgedTargetTimeSec + lateSec;
+
+export const pickNearestChordOsmdTargetIndex = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  canMatchTarget: (index: number) => boolean,
+  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): number | null => {
+  let bestIndex: number | null = null;
+  let bestAbsDelta = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < targetCount; index += 1) {
+    if (!canMatchTarget(index)) {
+      continue;
+    }
+    const judged = resolveJudgedTargetTimeSec(index);
+    const delta = phraseTimeSec - judged;
+    if (delta < -earlySec || delta > lateSec) {
+      continue;
+    }
+    const absDelta = Math.abs(delta);
+    if (absDelta < bestAbsDelta) {
+      bestAbsDelta = absDelta;
+      bestIndex = index;
+    }
+  }
+  return bestIndex;
+};
 
 const SAME_TARGET_EPSILON_SEC = 0.0005;
 const SAME_TARGET_BEAT_EPSILON = 0.0005;

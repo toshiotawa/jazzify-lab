@@ -21,6 +21,9 @@ import {
   earTrainingOsmdUsesScoreTargets,
   findFirstIncompleteChordOsmdTarget,
   hasChordOsmdJudgmentWindowExpired,
+  CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  pickNearestChordOsmdTargetIndex,
   isPhraseTimeInChordOsmdJudgmentWindow,
   isChordOsmdNonTargetVoice,
   joinScoreLyricVerseTexts,
@@ -1124,16 +1127,16 @@ describe('areAllChordOsmdTargetsCompleted', () => {
 });
 
 describe('chord osmd asymmetric judgment window', () => {
-  it('早め250ms・遅れ300msの非対称窓で入力を受け付ける', () => {
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.3, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.301, 0)).toBe(false);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.25, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.251, 0)).toBe(false);
+  it('早め120ms・遅れ150msの非対称窓で入力を受け付ける', () => {
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.15, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.151, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.12, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.121, 0)).toBe(false);
   });
 
-  it('遅れミスはターゲット+300ms超過で確定', () => {
-    expect(hasChordOsmdJudgmentWindowExpired(0.3, 0)).toBe(false);
-    expect(hasChordOsmdJudgmentWindowExpired(0.301, 0)).toBe(true);
+  it('遅れミスはターゲット+150ms超過で確定', () => {
+    expect(hasChordOsmdJudgmentWindowExpired(0.15, 0)).toBe(false);
+    expect(hasChordOsmdJudgmentWindowExpired(0.151, 0)).toBe(true);
   });
 });
 
@@ -1271,5 +1274,51 @@ describe('chord osmd parry span finish', () => {
       targets2, targets2[4], toChordOsmdParrySpanAnchor(targets2[0]), 2, BPM, BEATS, false,
     );
     expect(finish.isFinish).toBe(true);
+  });
+});
+
+describe('pickNearestChordOsmdTargetIndex', () => {
+  it('窓内の複数候補から判定点に最も近い index を選ぶ', () => {
+    const judgedTimes = [0, 0.5];
+    const canMatch = [true, true];
+    expect(pickNearestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.48,
+      (index) => judgedTimes[index],
+      (index) => canMatch[index],
+    )).toBe(1);
+  });
+
+  it('窓外の候補は選ばない', () => {
+    const judgedTimes = [0, 1];
+    const canMatch = [true, true];
+    expect(pickNearestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.05,
+      (index) => judgedTimes[index],
+      (index) => canMatch[index],
+    )).toBe(0);
+  });
+
+  it('canMatchTarget が false の候補は無視する', () => {
+    const judgedTimes = [0, 0.1];
+    const canMatch = [false, true];
+    expect(pickNearestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.08,
+      (index) => judgedTimes[index],
+      (index) => canMatch[index],
+    )).toBe(1);
+  });
+});
+
+describe('CHORD_OSMD judgment window constants', () => {
+  it('early 120ms / late 150ms', () => {
+    expect(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC).toBe(0.12);
+    expect(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC).toBe(0.15);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.14, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.16, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.11, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.13, 0)).toBe(false);
   });
 });

@@ -99,6 +99,7 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   hasChordOsmdJudgmentWindowExpired,
+  pickNearestChordOsmdTargetIndex,
   isPhraseTimeInChordOsmdJudgmentWindow,
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
@@ -1991,27 +1992,40 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
     const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
-    for (const target of targetsRef.current) {
-      const state = runtimeByTargetIdRef.current.get(target.id);
-      if (!state || state.completed || state.failed) {
-        continue;
-      }
-      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
-      if (!isPhraseTimeInChordOsmdJudgmentWindow(phraseT, judged, earlyW, lateW)) {
-        continue;
-      }
-      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
-      if (!nextRemaining) {
-        continue;
-      }
-      state.remainingCounts = nextRemaining;
-      if (practiceModeRef.current) {
-        syncPracticeVoicingHints();
-      }
-      if (chordOsmdTargetIsComplete(nextRemaining)) {
-        completeTarget(target, state, phraseT);
-      }
+    const phraseTargets = targetsRef.current;
+    const matchedIndex = pickNearestChordOsmdTargetIndex(
+      phraseTargets.length,
+      phraseT,
+      (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
+      (index) => {
+        const target = phraseTargets[index];
+        const state = runtimeByTargetIdRef.current.get(target.id);
+        if (!state || state.completed || state.failed) {
+          return false;
+        }
+        return (state.remainingCounts.get(midiNote) ?? 0) > 0;
+      },
+      earlyW,
+      lateW,
+    );
+    if (matchedIndex === null) {
       return;
+    }
+    const target = phraseTargets[matchedIndex];
+    const state = runtimeByTargetIdRef.current.get(target.id);
+    if (!state) {
+      return;
+    }
+    const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
+    if (!nextRemaining) {
+      return;
+    }
+    state.remainingCounts = nextRemaining;
+    if (practiceModeRef.current) {
+      syncPracticeVoicingHints();
+    }
+    if (chordOsmdTargetIsComplete(nextRemaining)) {
+      completeTarget(target, state, phraseT);
     }
   }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 

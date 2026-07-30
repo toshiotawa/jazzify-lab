@@ -1,10 +1,10 @@
 import XCTest
 @testable import Jazzify
 
-/// WEB `CHORD_OSMD_JUDGMENT_*` と iOS `EarTrainingChordOSMDBattleController` の判定窓ロジック（純粋関数テスト用）。
+/// WEB `CHORD_OSMD_JUDGMENT_*` と iOS `EarTrainingChordOsmdTiming` の判定窓ロジック（純粋関数テスト用）。
 private enum OsmdJudgmentTiming {
-    static let windowEarlySec = 0.25
-    static let windowLateSec = 0.3
+    static let windowEarlySec = EarTrainingChordOsmdTiming.judgmentWindowEarlySec
+    static let windowLateSec = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     static let offsetSec = 0.04
 
     static func judgedCenter(targetTimeSec: Double) -> Double {
@@ -70,11 +70,10 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
 
     func testJudgmentWindowMatchesWebOffsetAndWidth() {
         let targetTimeSec = 0.0
-        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.21, targetTimeSec: targetTimeSec))
-        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.22, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.29, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.30, targetTimeSec: targetTimeSec))
-        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.301, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.08, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.09, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.19, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.191, targetTimeSec: targetTimeSec))
         XCTAssertEqual(OsmdJudgmentTiming.judgedCenter(targetTimeSec: 1.0), 1.04)
     }
 
@@ -84,8 +83,32 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
 
     func testActiveTargetPruneUsesOffsetPlusWindow() {
         let targetTimeSec = 1.0
-        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.34, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.341, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.19, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.191, targetTimeSec: targetTimeSec))
+    }
+
+    func testPickNearestTargetIndexPrefersClosestJudgedTime() {
+        let judgedTimes = [0.0, 0.5]
+        let canMatch = [true, true]
+        let picked = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+            targetCount: judgedTimes.count,
+            phraseTimeSec: 0.48,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { canMatch[$0] }
+        )
+        XCTAssertEqual(picked, 1)
+    }
+
+    func testPickNearestTargetIndexSkipsOutsideWindow() {
+        let judgedTimes = [0.0, 1.0]
+        let canMatch = [true, true]
+        let picked = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+            targetCount: judgedTimes.count,
+            phraseTimeSec: 0.05,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { canMatch[$0] }
+        )
+        XCTAssertEqual(picked, 0)
     }
 
     private func makeOsmdStage(

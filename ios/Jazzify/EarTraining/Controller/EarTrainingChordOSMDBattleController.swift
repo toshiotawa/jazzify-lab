@@ -7,10 +7,10 @@ import os.log
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject {
-    /// ターゲットより早い入力の受付幅（250ms）。
-    private static let judgmentWindowEarlySec: Double = 0.25
-    /// ターゲットより遅い入力の受付幅・遅れミス確定（300ms）。
-    private static let judgmentWindowLateSec: Double = 0.3
+    /// ターゲットより早い入力の受付幅（120ms）。
+    private static let judgmentWindowEarlySec: Double = EarTrainingChordOsmdTiming.judgmentWindowEarlySec
+    /// ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。
+    private static let judgmentWindowLateSec: Double = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
     private static let osmdVoicingHintStrongSec: Double = 0.03
@@ -451,18 +451,25 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
 
         let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
-        var matchedIndex: Int?
-        for index in targets.indices {
-            guard targets[index].completed == false, targets[index].failed == false else { continue }
-            let judged = resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
-            let delta = phraseTime - judged
-            guard delta >= -judgmentWindowEarly, delta <= judgmentWindowLate else { continue }
-            if targets[index].consume(midi: midi) {
-                matchedIndex = index
-                break
-            }
-        }
+        let matchedIndex = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+            targetCount: targets.count,
+            phraseTimeSec: phraseTime,
+            judgedTargetTimeSec: { [self] index in
+                resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
+            },
+            canMatchTarget: { [self] index in
+                guard targets[index].completed == false, targets[index].failed == false else { return false }
+                guard let count = targets[index].remainingMidiCounts[midi], count > 0 else { return false }
+                return true
+            },
+            earlySec: judgmentWindowEarly,
+            lateSec: judgmentWindowLate
+        )
         guard let matchedIndex else {
+            refreshPracticeVoicingHints()
+            return
+        }
+        guard targets[matchedIndex].consume(midi: midi) else {
             refreshPracticeVoicingHints()
             return
         }

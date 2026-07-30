@@ -85,7 +85,7 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   hasChordOsmdJudgmentWindowExpired,
-  isPhraseTimeInChordOsmdJudgmentWindow,
+  pickNearestChordOsmdTargetIndex,
   normalizeChordOsmdMusicXml,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
@@ -1604,21 +1604,31 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     }
     const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
     const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
-    for (const target of targetsRef.current) {
-      const state = runtimeByTargetIdRef.current.get(target.id);
-      if (!state || state.completed || state.failed) {
-        continue;
-      }
-      const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
-      if (!isPhraseTimeInChordOsmdJudgmentWindow(phraseT, judged, earlyW, lateW)) {
-        continue;
-      }
-      if (!matchesAdlibCallResponseTarget(target, midiNote)) {
-        continue;
-      }
-      completeTarget(target, state, phraseT);
+    const phraseTargets = targetsRef.current;
+    const matchedIndex = pickNearestChordOsmdTargetIndex(
+      phraseTargets.length,
+      phraseT,
+      (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
+      (index) => {
+        const target = phraseTargets[index];
+        const state = runtimeByTargetIdRef.current.get(target.id);
+        if (!state || state.completed || state.failed) {
+          return false;
+        }
+        return matchesAdlibCallResponseTarget(target, midiNote);
+      },
+      earlyW,
+      lateW,
+    );
+    if (matchedIndex === null) {
       return;
     }
+    const target = phraseTargets[matchedIndex];
+    const state = runtimeByTargetIdRef.current.get(target.id);
+    if (!state) {
+      return;
+    }
+    completeTarget(target, state, phraseT);
   }, [completeTarget, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
 
   useEffect(() => {

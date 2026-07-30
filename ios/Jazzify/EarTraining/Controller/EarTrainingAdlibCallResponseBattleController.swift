@@ -8,10 +8,10 @@ import os.log
 /// 楽譜表示・remainingCounts 消化型の和音判定は行わない（Web `earTrainingAdlibCallResponse.ts` 相当）。
 @MainActor
 final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
-    /// ターゲットより早い入力の受付幅（250ms）。
-    private static let judgmentWindowEarlySec: Double = 0.25
-    /// ターゲットより遅い入力の受付幅・遅れミス確定（300ms）。
-    private static let judgmentWindowLateSec: Double = 0.3
+    /// ターゲットより早い入力の受付幅（120ms）。
+    private static let judgmentWindowEarlySec: Double = EarTrainingChordOsmdTiming.judgmentWindowEarlySec
+    /// ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。
+    private static let judgmentWindowLateSec: Double = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
@@ -350,16 +350,24 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
 
         let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
-        for index in targets.indices {
-            guard targets[index].completed == false, targets[index].failed == false else { continue }
-            let judged = resolveCalibratedTargetTimeSec(targets[index].base.targetTimeSec)
-            let delta = phraseTime - judged
-            guard delta >= -judgmentWindowEarly, delta <= judgmentWindowLate else { continue }
-            guard EarTrainingAdlibCallResponseTargets.matches(targets[index].base, midi: midi) else { continue }
-            completeTarget(at: index, hitPhraseTimeSec: phraseTime)
+        let matchedIndex = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+            targetCount: targets.count,
+            phraseTimeSec: phraseTime,
+            judgedTargetTimeSec: { [self] index in
+                resolveCalibratedTargetTimeSec(targets[index].base.targetTimeSec)
+            },
+            canMatchTarget: { [self] index in
+                guard targets[index].completed == false, targets[index].failed == false else { return false }
+                return EarTrainingAdlibCallResponseTargets.matches(targets[index].base, midi: midi)
+            },
+            earlySec: judgmentWindowEarly,
+            lateSec: judgmentWindowLate
+        )
+        guard let matchedIndex else {
             refreshPracticeVoicingHints()
             return
         }
+        completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
         refreshPracticeVoicingHints()
     }
 
