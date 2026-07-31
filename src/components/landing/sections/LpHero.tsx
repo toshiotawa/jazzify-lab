@@ -134,7 +134,26 @@ export const LpHero: React.FC = () => {
               <p key={paragraph}>{paragraph}</p>
             ))}
           </div>
-          <div className="mt-8 flex flex-wrap gap-4">
+          {/* Mobile: 登録を主CTA（デモは副）。Desktop: デモ体験を主CTAのまま。 */}
+          <div className="mt-8 flex flex-wrap gap-4 md:hidden">
+            <Link to="/signup" className="lp-btn-gold px-8 py-4 text-lg">
+              {copy.hero.signupCta}
+            </Link>
+            <LpAppStoreButton
+              label={copy.hero.appStoreCta}
+              ariaLabel={copy.footer.appStoreAria}
+              size="md"
+            />
+            <button
+              type="button"
+              className="lp-btn-outline px-8 py-4 text-lg"
+              aria-label={copy.hero.demoCta}
+              onClick={scrollToDemo}
+            >
+              {copy.hero.demoCta}
+            </button>
+          </div>
+          <div className="mt-8 hidden flex-wrap gap-4 md:flex">
             <button
               type="button"
               className="lp-btn-gold px-8 py-4 text-lg"
