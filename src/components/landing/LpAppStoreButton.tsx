@@ -19,6 +19,8 @@ interface LpAppStoreButtonProps {
   ariaLabel: string;
   className?: string;
   size?: 'sm' | 'md';
+  /** primary = 金ボタン（iOS向け主CTA）、secondary = outline */
+  emphasis?: 'primary' | 'secondary';
 }
 
 const SIZE_CLASSES: Record<NonNullable<LpAppStoreButtonProps['size']>, string> = {
@@ -26,11 +28,17 @@ const SIZE_CLASSES: Record<NonNullable<LpAppStoreButtonProps['size']>, string> =
   md: 'px-8 py-4 text-lg gap-2',
 };
 
+const EMPHASIS_CLASSES: Record<NonNullable<LpAppStoreButtonProps['emphasis']>, string> = {
+  primary: 'lp-btn-gold',
+  secondary: 'lp-btn-outline',
+};
+
 export const LpAppStoreButton: React.FC<LpAppStoreButtonProps> = ({
   label,
   ariaLabel,
   className = '',
   size = 'sm',
+  emphasis = 'secondary',
 }) => {
   const href = buildAppStoreCampaignUrlFromFirstTouch();
 
@@ -40,7 +48,7 @@ export const LpAppStoreButton: React.FC<LpAppStoreButtonProps> = ({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={ariaLabel}
-      className={`lp-btn-outline ${SIZE_CLASSES[size]} ${className}`.trim()}
+      className={`${EMPHASIS_CLASSES[emphasis]} ${SIZE_CLASSES[size]} ${className}`.trim()}
     >
       <AppleLogoIcon />
       <span>{label}</span>

@@ -2,12 +2,28 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LpAppStoreButton } from '@/components/landing/LpAppStoreButton';
 import { getLandingCopy } from '@/components/landing/landingCopy';
+import {
+  resolveLpHeroCtaVariant,
+  type LpHeroCtaVariant,
+} from '@/components/landing/lpHeroCtaVariant';
+import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceContext';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 const HERO_POSTER_SRC = '/newLP/hero-poster.webp';
 const HERO_POSTER_MOBILE_SRC = '/newLP/hero-poster-640.webp';
 const HERO_VIDEO_WEBM = '/newLP/hero.webm';
 const HERO_VIDEO_MP4 = '/newLP/hero.mp4';
+/** Tailwind `md` と同じ。幅変更時だけ CTA を差し替える。 */
+const DESKTOP_WIDTH_QUERY = '(min-width: 768px)';
+
+const readHeroCtaVariant = (): LpHeroCtaVariant => {
+  if (typeof window === 'undefined') {
+    return 'desktop';
+  }
+  const isDesktopWidth = window.matchMedia(DESKTOP_WIDTH_QUERY).matches;
+  const { signup_os } = resolveCurrentSignupDeviceContext();
+  return resolveLpHeroCtaVariant(isDesktopWidth, signup_os);
+};
 
 interface NetworkConnectionInfo {
   saveData?: boolean;
@@ -62,6 +78,22 @@ export const LpHero: React.FC = () => {
   const copy = getLandingCopy(shouldUseEnglishCopy());
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoActive, setVideoActive] = useState(false);
+  const [ctaVariant, setCtaVariant] = useState<LpHeroCtaVariant>(readHeroCtaVariant);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const mq = window.matchMedia(DESKTOP_WIDTH_QUERY);
+    const syncVariant = (): void => {
+      setCtaVariant(readHeroCtaVariant());
+    };
+    syncVariant();
+    mq.addEventListener('change', syncVariant);
+    return () => {
+      mq.removeEventListener('change', syncVariant);
+    };
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -134,42 +166,68 @@ export const LpHero: React.FC = () => {
               <p key={paragraph}>{paragraph}</p>
             ))}
           </div>
-          {/* Mobile: 登録を主CTA（デモは副）。Desktop: デモ体験を主CTAのまま。 */}
-          <div className="mt-8 flex flex-wrap gap-4 md:hidden">
-            <Link to="/signup" className="lp-btn-gold px-8 py-4 text-lg">
-              {copy.hero.signupCta}
-            </Link>
-            <LpAppStoreButton
-              label={copy.hero.appStoreCta}
-              ariaLabel={copy.footer.appStoreAria}
-              size="md"
-            />
-            <button
-              type="button"
-              className="lp-btn-outline px-8 py-4 text-lg"
-              aria-label={copy.hero.demoCta}
-              onClick={scrollToDemo}
-            >
-              {copy.hero.demoCta}
-            </button>
-          </div>
-          <div className="mt-8 hidden flex-wrap gap-4 md:flex">
-            <button
-              type="button"
-              className="lp-btn-gold px-8 py-4 text-lg"
-              aria-label={copy.hero.demoCta}
-              onClick={scrollToDemo}
-            >
-              {copy.hero.demoCta}
-            </button>
-            <LpAppStoreButton
-              label={copy.hero.appStoreCta}
-              ariaLabel={copy.footer.appStoreAria}
-              size="md"
-            />
-            <Link to="/signup" className="lp-btn-outline px-8 py-4 text-lg">
-              {copy.hero.signupCta}
-            </Link>
+          <div className="mt-8 flex flex-wrap gap-4">
+            {ctaVariant === 'ios' && (
+              <>
+                <LpAppStoreButton
+                  label={copy.hero.appStoreCta}
+                  ariaLabel={copy.footer.appStoreAria}
+                  size="md"
+                  emphasis="primary"
+                />
+                <Link to="/signup" className="lp-btn-outline px-8 py-4 text-lg">
+                  {copy.hero.signupCta}
+                </Link>
+                <button
+                  type="button"
+                  className="lp-btn-outline px-8 py-4 text-lg"
+                  aria-label={copy.hero.demoCta}
+                  onClick={scrollToDemo}
+                >
+                  {copy.hero.demoCta}
+                </button>
+              </>
+            )}
+            {ctaVariant === 'mobileWeb' && (
+              <>
+                <Link to="/signup" className="lp-btn-gold px-8 py-4 text-lg">
+                  {copy.hero.signupCta}
+                </Link>
+                <LpAppStoreButton
+                  label={copy.hero.appStoreCta}
+                  ariaLabel={copy.footer.appStoreAria}
+                  size="md"
+                />
+                <button
+                  type="button"
+                  className="lp-btn-outline px-8 py-4 text-lg"
+                  aria-label={copy.hero.demoCta}
+                  onClick={scrollToDemo}
+                >
+                  {copy.hero.demoCta}
+                </button>
+              </>
+            )}
+            {ctaVariant === 'desktop' && (
+              <>
+                <button
+                  type="button"
+                  className="lp-btn-gold px-8 py-4 text-lg"
+                  aria-label={copy.hero.demoCta}
+                  onClick={scrollToDemo}
+                >
+                  {copy.hero.demoCta}
+                </button>
+                <LpAppStoreButton
+                  label={copy.hero.appStoreCta}
+                  ariaLabel={copy.footer.appStoreAria}
+                  size="md"
+                />
+                <Link to="/signup" className="lp-btn-outline px-8 py-4 text-lg">
+                  {copy.hero.signupCta}
+                </Link>
+              </>
+            )}
           </div>
           <p className="lp-note mt-4" style={{ color: 'var(--lp-ink-muted)' }}>
             {copy.hero.note}
