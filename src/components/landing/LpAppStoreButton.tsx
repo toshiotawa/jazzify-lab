@@ -1,5 +1,5 @@
 import React from 'react';
-import { JAZZIFY_APP_STORE_URL } from '@/components/landing/landingLinks';
+import { buildAppStoreCampaignUrlFromFirstTouch } from '@/utils/analytics/appStoreCampaignUrl';
 
 const AppleLogoIcon: React.FC = () => (
   <svg
@@ -32,9 +32,11 @@ export const LpAppStoreButton: React.FC<LpAppStoreButtonProps> = ({
   className = '',
   size = 'sm',
 }) => {
+  const href = buildAppStoreCampaignUrlFromFirstTouch();
+
   return (
     <a
-      href={JAZZIFY_APP_STORE_URL}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={ariaLabel}

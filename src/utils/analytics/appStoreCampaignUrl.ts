@@ -3,6 +3,9 @@ import { getStoredFirstTouch, type FirstTouchData } from '@/utils/analytics/attr
 const APP_STORE_LISTING_BASE =
   'https://apps.apple.com/app/apple-store/id6761457001';
 
+/** App Store Connect のプロバイダトークン（Jazzify）。env 未設定時のフォールバック。 */
+const DEFAULT_APP_STORE_PROVIDER_TOKEN = '128644431';
+
 /** Apple Campaign Links の ct 最大長（安全側）。 */
 const CAMPAIGN_TOKEN_MAX_LENGTH = 40;
 
@@ -11,7 +14,7 @@ export interface AppStoreCampaignParams {
   utm_medium?: string | null;
   utm_campaign?: string | null;
   utm_content?: string | null;
-  /** App Store Connect のプロバイダトークン。未指定時は env を参照。 */
+  /** App Store Connect のプロバイダトークン。未指定時は env / 既定値を参照。 */
   providerToken?: string | null;
 }
 
@@ -52,20 +55,28 @@ export const buildAppStoreCampaignToken = (
   return joined.slice(0, CAMPAIGN_TOKEN_MAX_LENGTH).replace(/_+$/g, '');
 };
 
-const resolveProviderToken = (explicit?: string | null): string | null => {
+const resolveProviderToken = (explicit?: string | null): string => {
   const fromArg = sanitizeCampaignSegment(explicit);
   if (fromArg) {
     return fromArg;
   }
   const fromEnv = import.meta.env.VITE_APP_STORE_PROVIDER_TOKEN;
-  return sanitizeCampaignSegment(typeof fromEnv === 'string' ? fromEnv : null);
+  return (
+    sanitizeCampaignSegment(typeof fromEnv === 'string' ? fromEnv : null) ??
+    DEFAULT_APP_STORE_PROVIDER_TOKEN
+  );
+};
+
+const LP_IOS_FALLBACK_PARAMS: AppStoreCampaignParams = {
+  utm_source: 'lp',
+  utm_campaign: 'ios',
 };
 
 /**
  * App Store Campaign Link を生成する。
  * - mt=8（App Store）は常に付与
- * - ct は UTM から生成（無ければ省略）
- * - pt は providerToken または VITE_APP_STORE_PROVIDER_TOKEN（無ければ省略）
+ * - ct は UTM から生成（無ければ省略。LPボタンは FromFirstTouch 経由で lp_ios フォールバック）
+ * - pt は providerToken → VITE_APP_STORE_PROVIDER_TOKEN → 既定トークン
  *
  * 注意: これは ASC のキャンペーン別 DL 集計用。個別ユーザーへの紐づけはできない。
  */
@@ -75,11 +86,7 @@ export const buildAppStoreCampaignUrl = (
 ): string => {
   const url = new URL(baseUrl);
   url.searchParams.set('mt', '8');
-
-  const providerToken = resolveProviderToken(params.providerToken);
-  if (providerToken) {
-    url.searchParams.set('pt', providerToken);
-  }
+  url.searchParams.set('pt', resolveProviderToken(params.providerToken));
 
   const campaignToken = buildAppStoreCampaignToken(params);
   if (campaignToken) {
@@ -89,12 +96,27 @@ export const buildAppStoreCampaignUrl = (
   return url.toString();
 };
 
+/**
+ * LP 着地時の first_touch UTM から App Store Campaign Link を作る。
+ * UTM が無い場合は ct=lp_ios（従来の固定リンクと同等のラベル）。
+ */
 export const buildAppStoreCampaignUrlFromFirstTouch = (
   firstTouch: FirstTouchData | null = getStoredFirstTouch(),
 ): string => {
   if (!firstTouch) {
-    return buildAppStoreCampaignUrl();
+    return buildAppStoreCampaignUrl(LP_IOS_FALLBACK_PARAMS);
   }
+
+  const campaignToken = buildAppStoreCampaignToken({
+    utm_source: firstTouch.utm_source,
+    utm_campaign: firstTouch.utm_campaign,
+    utm_content: firstTouch.utm_content,
+  });
+
+  if (!campaignToken) {
+    return buildAppStoreCampaignUrl(LP_IOS_FALLBACK_PARAMS);
+  }
+
   return buildAppStoreCampaignUrl({
     utm_source: firstTouch.utm_source,
     utm_medium: firstTouch.utm_medium,

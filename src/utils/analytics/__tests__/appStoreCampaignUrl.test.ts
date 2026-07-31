@@ -69,11 +69,11 @@ describe('appStoreCampaignUrl', () => {
   });
 
   describe('buildAppStoreCampaignUrl', () => {
-    it('always sets mt=8', () => {
+    it('always sets mt=8 and default provider token', () => {
       const url = new URL(buildAppStoreCampaignUrl({}, BASE));
       expect(url.searchParams.get('mt')).toBe('8');
       expect(url.searchParams.get('ct')).toBeNull();
-      expect(url.searchParams.get('pt')).toBeNull();
+      expect(url.searchParams.get('pt')).toBe('128644431');
     });
 
     it('adds ct from UTM and pt from explicit provider token', () => {
@@ -119,12 +119,33 @@ describe('appStoreCampaignUrl', () => {
       const url = new URL(buildAppStoreCampaignUrlFromFirstTouch());
       expect(url.searchParams.get('ct')).toBe('x_parry01_cta');
       expect(url.searchParams.get('mt')).toBe('8');
+      expect(url.searchParams.get('pt')).toBe('128644431');
     });
 
-    it('falls back to base campaign url without ct when no first touch', () => {
+    it('falls back to ct=lp_ios when no first touch', () => {
       const url = new URL(buildAppStoreCampaignUrlFromFirstTouch(null));
       expect(url.searchParams.get('mt')).toBe('8');
-      expect(url.searchParams.get('ct')).toBeNull();
+      expect(url.searchParams.get('ct')).toBe('lp_ios');
+      expect(url.searchParams.get('pt')).toBe('128644431');
+    });
+
+    it('falls back to ct=lp_ios when first touch has no UTM', () => {
+      window.localStorage.setItem(
+        FIRST_TOUCH_STORAGE_KEY,
+        JSON.stringify({
+          utm_source: null,
+          utm_medium: null,
+          utm_campaign: null,
+          utm_content: null,
+          utm_term: null,
+          referrer: 'https://www.google.com/',
+          landing_path: '/',
+          captured_at: '2026-07-13T00:00:00.000Z',
+        }),
+      );
+
+      const url = new URL(buildAppStoreCampaignUrlFromFirstTouch());
+      expect(url.searchParams.get('ct')).toBe('lp_ios');
     });
   });
 });
