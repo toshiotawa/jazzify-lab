@@ -6,6 +6,20 @@ struct ChordOsmdMusicXmlAttack: Equatable, Sendable {
     /// 小節内の拍位置（先頭拍を 1）。四分音符グリッド。
     let beatStartInMeasure: Double
     let midis: [Int]
+    /// MusicXML `<step>`+`<alter>`/`<accidental>` 由来の音名（オクターブなし）。`midis` と同順。
+    let spellings: [String]
+
+    init(
+        measureNumber: Int,
+        beatStartInMeasure: Double,
+        midis: [Int],
+        spellings: [String] = []
+    ) {
+        self.measureNumber = measureNumber
+        self.beatStartInMeasure = beatStartInMeasure
+        self.midis = midis
+        self.spellings = spellings
+    }
 }
 
 /// MusicXML 1 番歌詞をフレーズ時間軸（秒）に載せた表示イベント（Web `ChordOsmdLyricEvent` と同等）。
@@ -1039,8 +1053,12 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                     }
 
                     var clusterMidis: [Int] = []
-                    if let m0 = midiFromNoteElement(child, keyFifths: timing.keyFifths), !headStopTied {
+                    var clusterSpellings: [String] = []
+                    if !headStopTied,
+                       let m0 = midiFromNoteElement(child, keyFifths: timing.keyFifths)
+                    {
                         clusterMidis.append(m0)
+                        clusterSpellings.append(pitchClassSpelling(from: child) ?? "")
                     }
 
                     var chordIndex = ci + 1
@@ -1051,8 +1069,11 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         }
                         guard case let .element(next) = children[chordIndex], next.name == "note" else { break }
                         let chordToneStopTied = hasTieStop(on: next)
-                        if let mm = midiFromNoteElement(next, keyFifths: timing.keyFifths), !chordToneStopTied {
+                        if !chordToneStopTied,
+                           let mm = midiFromNoteElement(next, keyFifths: timing.keyFifths)
+                        {
                             clusterMidis.append(mm)
+                            clusterSpellings.append(pitchClassSpelling(from: next) ?? "")
                         }
                         chordIndex += 1
                     }
@@ -1066,7 +1087,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                             ChordOsmdMusicXmlAttack(
                                 measureNumber: measureNumber,
                                 beatStartInMeasure: beatStartInMeasure,
-                                midis: clusterMidis
+                                midis: clusterMidis,
+                                spellings: clusterSpellings
                             )
                         )
                     }
@@ -1203,7 +1225,32 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return 0
     }
 
-    private static func midiFromNoteElement(_ note: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
+    /// Web `formatMusicXmlPitchClassSpelling` 相当。
+    static func formatPitchClassSpelling(step: String, alter: Int) -> String {
+        let normalized = step.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard normalized.count == 1 else { return normalized }
+        if alter == 0 { return normalized }
+        if alter > 0 {
+            return normalized + String(repeating: "#", count: min(2, alter))
+        }
+        return normalized + String(repeating: "b", count: min(2, -alter))
+    }
+
+    private static func pitchClassSpelling(from note: ChordOsmdXmlElement) -> String? {
+        guard let pitch = directChild(note, localName: "pitch") else { return nil }
+        guard let stepRaw = text(in: pitch, localName: "step")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              stepRaw.count == 1
+        else {
+            return nil
+        }
+        let stepUpper = String(stepRaw.prefix(1)).uppercased()
+        let baseMap: Set<String> = ["C", "D", "E", "F", "G", "A", "B"]
+        guard baseMap.contains(stepUpper) else { return nil }
+        let alter = resolvePitchAlter(pitch: pitch, note: note)
+        return formatPitchClassSpelling(step: stepUpper, alter: alter)
+    }
+
+    private static func midiFromNoteElement(_ note: ChordOsmdXmlElement, keyFifths _: Int) -> Int? {
         guard let pitch = directChild(note, localName: "pitch") else { return nil }
         guard let stepRaw = text(in: pitch, localName: "step")?.trimmingCharacters(in: .whitespacesAndNewlines),
               stepRaw.count == 1

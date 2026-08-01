@@ -1119,7 +1119,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 judgedMs: timing.judgedMs,
                 osuCircleLayoutIndex: nextApproachTargetIndex,
                 osuCircleNoteLabels: EarTrainingBattleOsuCircleNoteLabels.resolve(
-                    from: Array(target.midiCounts.keys)
+                    from: Array(target.midiCounts.keys),
+                    musicXmlSpellings: target.noteSpellings
                 ),
                 osuCircleColorIndex: EarTrainingBattleOsuCircleColors.resolveColorIndex(
                     measureNumber: target.measureNumber,
@@ -1768,7 +1769,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         attacks: [ChordOsmdMusicXmlAttack],
         transposeOffset: Int = 0,
         isSwing: Bool = false
-    ) -> [(id: UUID, label: String, targetTimeSec: Double, measureNumber: Int, midiCounts: [Int: Int])] {
+    ) -> [(
+        id: UUID,
+        label: String,
+        targetTimeSec: Double,
+        measureNumber: Int,
+        midiCounts: [Int: Int],
+        noteSpellings: [String]
+    )] {
         var measureLabels: [Int: String] = [:]
         var playableMeasures = Set<Int>()
         var disabledMeasures = Set<Int>()
@@ -1822,6 +1830,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             for midi in attack.midis {
                 midiCounts[midi, default: 0] += 1
             }
+            let noteSpellings = EarTrainingBattleOsuCircleNoteLabels.uniqueSpellings(
+                midis: attack.midis,
+                spellings: attack.spellings
+            )
             let targetTimeSec = chordOsmdAttackTargetTimeSec(
                 measureNumber: attack.measureNumber,
                 beatStartInMeasure: attack.beatStartInMeasure,
@@ -1838,7 +1850,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                 label: measureLabels[attack.measureNumber] ?? "—",
                 targetTimeSec: targetTimeSec,
                 measureNumber: attack.measureNumber,
-                midiCounts: midiCounts
+                midiCounts: midiCounts,
+                noteSpellings: noteSpellings
             )
         }
     }
@@ -1868,6 +1881,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                     targetTimeSec: draft.targetTimeSec,
                     measureNumber: draft.measureNumber,
                     midiCounts: draft.midiCounts,
+                    noteSpellings: draft.noteSpellings,
                     orderIndex: index
                 )
             }
@@ -1894,6 +1908,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             let time = chordStartTime(chord, beatDuration: beatDuration, beatsPerMeasure: beatsPerMeasure)
             let measure = max(1, chord.measureNumber ?? Int(floor(time / (beatDuration * Double(max(1, beatsPerMeasure))))) + 1)
 
+            var noteSpellings: [String] = []
             if !attacks.isEmpty, let beatOff = chord.beatOffset,
                let xmlMerged = EarTrainingChordOsmdMusicXmlNormalizer.mergeMidisFromXmlAttacks(
                    attacks,
@@ -1902,6 +1917,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                )
             {
                 midiCounts = xmlMerged
+                noteSpellings = Self.mergeSpellingsFromXmlAttacks(
+                    attacks,
+                    measureNumber: measure,
+                    beatOffset: beatOff
+                )
             }
 
             if let lastIndex = result.indices.last,
@@ -1911,7 +1931,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                     chord.chordName,
                     semitones: transposeOffset
                 )
-                result[lastIndex].merge(label: transposedName, midiCounts: midiCounts)
+                result[lastIndex].merge(
+                    label: transposedName,
+                    midiCounts: midiCounts,
+                    noteSpellings: noteSpellings
+                )
             } else {
                 result.append(
                     RhythmTarget(
@@ -1923,12 +1947,35 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
                         targetTimeSec: time,
                         measureNumber: measure,
                         midiCounts: midiCounts,
+                        noteSpellings: noteSpellings,
                         orderIndex: result.count
                     )
                 )
             }
         }
         return result
+    }
+
+    private static func mergeSpellingsFromXmlAttacks(
+        _ attacks: [ChordOsmdMusicXmlAttack],
+        measureNumber: Int,
+        beatOffset: Double
+    ) -> [String] {
+        var byMidi: [Int: String] = [:]
+        for attack in attacks where attack.measureNumber == measureNumber {
+            if abs(attack.beatStartInMeasure - beatOffset) >= 0.01 {
+                continue
+            }
+            let n = min(attack.midis.count, attack.spellings.count)
+            guard n > 0 else { continue }
+            for index in 0..<n {
+                let midi = attack.midis[index]
+                let spelling = attack.spellings[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !spelling.isEmpty, byMidi[midi] == nil else { continue }
+                byMidi[midi] = spelling
+            }
+        }
+        return byMidi.keys.sorted().compactMap { byMidi[$0] }
     }
 
     private static func chordStartTime(
@@ -1953,6 +2000,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         let measureNumber: Int
         let orderIndex: Int
         var midiCounts: [Int: Int]
+        var noteSpellings: [String]
         var remainingMidiCounts: [Int: Int]
         var completed: Bool = false
         var failed: Bool = false
@@ -1966,6 +2014,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             targetTimeSec: Double,
             measureNumber: Int,
             midiCounts: [Int: Int],
+            noteSpellings: [String] = [],
             orderIndex: Int
         ) {
             self.id = id
@@ -1974,6 +2023,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             self.measureNumber = measureNumber
             self.orderIndex = orderIndex
             self.midiCounts = midiCounts
+            self.noteSpellings = noteSpellings
             self.remainingMidiCounts = midiCounts
         }
 
@@ -1987,13 +2037,20 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             return true
         }
 
-        mutating func merge(label nextLabel: String, midiCounts nextCounts: [Int: Int]) {
+        mutating func merge(
+            label nextLabel: String,
+            midiCounts nextCounts: [Int: Int],
+            noteSpellings nextSpellings: [String] = []
+        ) {
             if label != nextLabel, !label.contains(nextLabel) {
                 label += " / \(nextLabel)"
             }
             for (midi, count) in nextCounts {
                 midiCounts[midi, default: 0] += count
                 remainingMidiCounts[midi, default: 0] += count
+            }
+            if noteSpellings.isEmpty, !nextSpellings.isEmpty {
+                noteSpellings = nextSpellings
             }
         }
     }

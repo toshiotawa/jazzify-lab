@@ -2340,18 +2340,29 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
               let judgedMs = command.judgedMs else { return }
         let anchors = battleAnchors()
         ensureOsuCirclePool()
-        let baseY = anchors.player.bodyY - Self.battleLayoutPt(28)
+        // iPhone では鍵盤に音名が隠れやすいので、基準を下げすぎない。
+        let baseY: CGFloat
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            baseY = anchors.player.bodyY
+        } else {
+            baseY = anchors.player.bodyY - Self.battleLayoutPt(28)
+        }
         let position = EarTrainingBattleOsuCircleLayout.apply(
             centerX: anchors.player.x,
             targetY: baseY,
             layoutIndex: command.osuCircleLayoutIndex ?? 0
+        )
+        let clampedY = EarTrainingBattleOsuCircleLayout.clampTargetYAboveKeyboard(
+            position.y,
+            keyboardTopFromBottom: Self.approximateEarTrainingKeyboardVisualTopFromBottom,
+            minClearanceAboveKeyboard: EarTrainingBattleOsuCircleTiming.outerStartRadiusPx * 0.55 + 12
         )
         osuCirclePool?.spawn(
             commandId: command.id,
             approachStartMs: approachStartMs,
             judgedMs: judgedMs,
             centerX: position.x,
-            targetY: position.y,
+            targetY: clampedY,
             noteLabels: command.osuCircleNoteLabels ?? [],
             colorIndex: command.osuCircleColorIndex ?? 0
         )

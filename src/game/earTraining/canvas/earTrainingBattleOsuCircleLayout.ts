@@ -16,6 +16,23 @@ const LAYOUT_PATTERN: readonly OsuCircleAnchorOffset[] = [
   { offsetX: 0, offsetY: -18 },
 ];
 
+/** Canvas Y 下向き。鍵盤に隠れないよう targetY の上限（下端方向）を抑える。 */
+export const clampOsuCircleTargetYAbovePiano = (
+  targetY: number,
+  viewportHeight: number,
+  pianoOverlayHeight: number,
+  minClearanceAbovePiano: number,
+): number => {
+  if (!(viewportHeight > 0) || !(pianoOverlayHeight >= 0) || !(minClearanceAbovePiano >= 0)) {
+    return targetY;
+  }
+  const maxY = viewportHeight - pianoOverlayHeight - minClearanceAbovePiano;
+  if (!(maxY > 0)) {
+    return targetY;
+  }
+  return Math.min(targetY, maxY);
+};
+
 export const resolveOsuCircleAnchorOffset = (layoutIndex: number): OsuCircleAnchorOffset => {
   const safeIndex = Math.max(0, Math.floor(layoutIndex));
   return LAYOUT_PATTERN[safeIndex % LAYOUT_PATTERN.length];

@@ -25,6 +25,18 @@ final class EarTrainingChordOsmdNaturalPitchTests: XCTestCase {
         """
     }
 
+    func testBbSpellingIsPreservedNotASharp() {
+        let xml = singleNoteXml(fifths: -1, step: "B", alter: "-1")
+        let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(xml)
+        XCTAssertEqual(attacks.count, 1)
+        XCTAssertEqual(attacks[0].midis, [70])
+        XCTAssertEqual(attacks[0].spellings, ["Bb"])
+        XCTAssertEqual(
+            EarTrainingBattleOsuCircleNoteLabels.resolve(from: attacks[0].midis, musicXmlSpellings: attacks[0].spellings),
+            ["Bb"]
+        )
+    }
+
     func testFMajorBNaturalWithoutAlterIsMidi71() {
         let xml = singleNoteXml(fifths: -1, step: "B")
         let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(xml)

@@ -47,7 +47,11 @@ import {
 } from './earTrainingBattleCharacterMotion';
 import type { CharacterMotionTimers } from './earTrainingBattleCharacterMotion';
 import type { EarTrainingBattleSnapshot } from '@/game/earTraining/types';
-import { applyOsuCircleAnchorOffset } from './earTrainingBattleOsuCircleLayout';
+import { PIANO_OVERLAY_HEIGHT } from './earTrainingBattleLayout';
+import {
+  applyOsuCircleAnchorOffset,
+  clampOsuCircleTargetYAbovePiano,
+} from './earTrainingBattleOsuCircleLayout';
 import {
   burstOsuCircle,
   dismissOsuCircle,
@@ -56,6 +60,7 @@ import {
 } from './earTrainingBattleOsuCirclePool';
 import {
   OSU_CIRCLE_INNER_RADIUS_PX,
+  OSU_CIRCLE_OUTER_START_RADIUS_PX,
 } from './earTrainingBattleOsuCircleTiming';
 import {
   pruneOsuCircleShatter,
@@ -284,12 +289,19 @@ const playOsmdApproachCircleEffect = (
   const targetY = anchors.player.bodyY - 28;
   const layoutIndex = command.osuCircleLayoutIndex ?? 0;
   const positioned = applyOsuCircleAnchorOffset(centerX, targetY, layoutIndex);
+  // 鍵盤オーバーレイに音名が隠れないよう、円中心の下方向を抑える。
+  const clampedTargetY = clampOsuCircleTargetYAbovePiano(
+    positioned.targetY,
+    ctx.height,
+    PIANO_OVERLAY_HEIGHT,
+    OSU_CIRCLE_OUTER_START_RADIUS_PX * 0.55 + 12,
+  );
   spawnOsuCircle(runtime.osuCirclePool, {
     commandId: command.id,
     approachStartPhraseSec,
     judgedPhraseSec,
     centerX: positioned.centerX,
-    targetY: positioned.targetY,
+    targetY: clampedTargetY,
     layoutIndex,
     noteLabels: command.osuCircleNoteLabels,
     colorIndex: command.osuCircleColorIndex,

@@ -2,8 +2,17 @@ const PITCH_CLASS_NAMES = [
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
 ] as const;
 
-/** MIDI → オクターブなし音名。低い音から順に並べる。 */
-export const resolveOsuCircleNoteLabels = (midis: readonly number[]): string[] => {
+/**
+ * OSU 円の音名。MusicXML 由来の spellings があればそれを優先し、
+ * 無いときだけ MIDI → シャープ固定名にフォールバックする。
+ */
+export const resolveOsuCircleNoteLabels = (
+  midis: readonly number[],
+  musicXmlSpellings?: readonly string[] | null,
+): string[] => {
+  if (musicXmlSpellings && musicXmlSpellings.length > 0) {
+    return Array.from(musicXmlSpellings);
+  }
   const unique = new Set<number>();
   for (const midi of midis) {
     if (!Number.isFinite(midi)) continue;

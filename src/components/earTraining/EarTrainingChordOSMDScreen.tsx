@@ -1212,6 +1212,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         osuCircleLayoutIndex: nextApproachTargetIndexRef.current,
         osuCircleNoteLabels: resolveOsuCircleNoteLabels(
           target.midiCounts.map(item => item.midi),
+          target.noteSpellings,
         ),
         osuCircleColorIndex: resolveOsuCircleColorIndex(
           target.measureNumber,

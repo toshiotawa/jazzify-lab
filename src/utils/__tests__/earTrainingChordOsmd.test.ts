@@ -921,6 +921,21 @@ describe('collectChordOsmdMusicXmlAttacks accidentals', () => {
       <time><beats>4</beats><beat-type>4</beat-type></time>
     </attributes>`;
 
+  it('Bb の MusicXML spelling を A# ではなく Bb として保持する', () => {
+    const xml = `
+      <score-partwise><part><measure number="1">
+        ${fMajorHeader}
+        <note>
+          <pitch><step>B</step><alter>-1</alter><octave>4</octave></pitch>
+          <duration>1</duration>
+          <type>quarter</type>
+        </note>
+      </measure></part></score-partwise>`;
+    const attacks = collectChordOsmdMusicXmlAttacks(xml);
+    expect(attacks[0].midis).toEqual([70]);
+    expect(attacks[0].spellings).toEqual(['Bb']);
+  });
+
   it('`<accidental>natural</accidental>` のみ（`<alter>` なし）を B♮ として解釈する', () => {
     const xml = `
       <score-partwise><part><measure number="1">

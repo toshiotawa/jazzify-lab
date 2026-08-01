@@ -137,6 +137,8 @@ export interface ChordOsmdMusicXmlAttack {
   /** 小節内の拍位置（先頭拍を 1）。四分音符グリッド。 */
   beatStartInMeasure: number;
   midis: readonly number[];
+  /** MusicXML `<step>`+`<alter>`/`<accidental>` 由来の音名（オクターブなし）。`midis` と同順。 */
+  spellings?: readonly string[];
 }
 
 /** MusicXML アタック収集オプション。未指定時は voice 4 ガイドのみ除外（従来どおり）。 */
@@ -189,6 +191,8 @@ export interface ChordOsmdRhythmTarget {
   targetTimeSec: number;
   measureNumber: number;
   midiCounts: readonly ChordOsmdMidiCount[];
+  /** MusicXML 由来の音名（低い MIDI 順・重複なし）。無いときは MIDI→シャープ固定で表示。 */
+  noteSpellings?: readonly string[];
 }
 
 export type ChordOsmdTargetVisualState = 'idle' | 'active' | 'completed' | 'failed';
@@ -666,7 +670,39 @@ const resolveMusicXmlPitchAlter = (pitch: Element, noteEl: Element): number => {
   return 0;
 };
 
-const noteElementToMidi = (noteEl: Element, keyFifths: number): number | null => {
+/** MusicXML の step + alter をオクターブなし音名にする（例: B + -1 → Bb）。 */
+const formatMusicXmlPitchClassSpelling = (step: string, alter: number): string => {
+  const normalized = step.trim().toUpperCase();
+  if (normalized.length !== 1) {
+    return normalized;
+  }
+  if (!Number.isFinite(alter) || alter === 0) {
+    return normalized;
+  }
+  if (alter > 0) {
+    return `${normalized}${'#'.repeat(Math.min(2, Math.trunc(alter)))}`;
+  }
+  return `${normalized}${'b'.repeat(Math.min(2, Math.trunc(-alter)))}`;
+};
+
+const noteElementToPitchClassSpelling = (noteEl: Element): string | null => {
+  const pitch = getDirectChild(noteEl, 'pitch');
+  if (!pitch) {
+    return null;
+  }
+  const stepRaw = getDirectChildText(pitch, 'step');
+  const step = stepRaw?.trim().toUpperCase();
+  if (!step || step.length !== 1) {
+    return null;
+  }
+  if (MUSIC_XML_STEP_TO_SEMITONE[step] === undefined) {
+    return null;
+  }
+  const alter = resolveMusicXmlPitchAlter(pitch, noteEl);
+  return formatMusicXmlPitchClassSpelling(step, alter);
+};
+
+const noteElementToMidi = (noteEl: Element, _keyFifths: number): number | null => {
   const pitch = getDirectChild(noteEl, 'pitch');
   if (!pitch) {
     return null;
@@ -690,6 +726,29 @@ const noteElementToMidi = (noteEl: Element, keyFifths: number): number | null =>
   }
   const alter = resolveMusicXmlPitchAlter(pitch, noteEl);
   return (octave + 1) * 12 + semitoneBase + alter;
+};
+
+/** アタック内 midis/spellings から、低い MIDI 順の重複なし音名を作る。 */
+const uniqueChordOsmdAttackSpellings = (
+  midis: readonly number[],
+  spellings?: readonly string[] | null,
+): string[] => {
+  if (!spellings || spellings.length === 0) {
+    return [];
+  }
+  const byMidi = new Map<number, string>();
+  const n = Math.min(midis.length, spellings.length);
+  for (let i = 0; i < n; i += 1) {
+    const midi = Math.round(midis[i]);
+    const spelling = spellings[i]?.trim();
+    if (!Number.isFinite(midi) || !spelling || byMidi.has(midi)) {
+      continue;
+    }
+    byMidi.set(midi, spelling);
+  }
+  return Array.from(byMidi.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, spelling]) => spelling);
 };
 
 const selectMusicXmlMeasures = (doc: Document): Element[] => {
@@ -1038,31 +1097,31 @@ export const collectChordOsmdMusicXmlAttacks = (
   const attacks: ChordOsmdMusicXmlAttack[] = [];
   forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes, timing }) => {
     const clusterMidis: number[] = [];
-    const head = clusterNotes[0];
-    if (head && getDirectChild(head, 'pitch') && !noteHasTieStop(head)) {
-      const midi0 = noteElementToMidi(head, timing.keyFifths);
-      if (midi0 !== null) {
-        clusterMidis.push(midi0);
+    const clusterSpellings: string[] = [];
+    const pushNote = (noteEl: Element): void => {
+      if (!getDirectChild(noteEl, 'pitch') || noteHasTieStop(noteEl)) {
+        return;
       }
+      const midi = noteElementToMidi(noteEl, timing.keyFifths);
+      if (midi === null) {
+        return;
+      }
+      clusterMidis.push(midi);
+      clusterSpellings.push(noteElementToPitchClassSpelling(noteEl) ?? '');
+    };
+    const head = clusterNotes[0];
+    if (head) {
+      pushNote(head);
     }
     for (let i = 1; i < clusterNotes.length; i += 1) {
-      const next = clusterNotes[i];
-      if (!getDirectChild(next, 'pitch')) {
-        continue;
-      }
-      if (noteHasTieStop(next)) {
-        continue;
-      }
-      const mm = noteElementToMidi(next, timing.keyFifths);
-      if (mm !== null) {
-        clusterMidis.push(mm);
-      }
+      pushNote(clusterNotes[i]);
     }
     if (clusterMidis.length > 0) {
       attacks.push({
         measureNumber,
         beatStartInMeasure,
         midis: clusterMidis,
+        spellings: clusterSpellings,
       });
     }
   }, options);
@@ -1240,6 +1299,41 @@ const mergeMidisFromXmlAttacks = (
     return null;
   }
   return merged;
+};
+
+const mergeSpellingsFromXmlAttacks = (
+  attacks: readonly ChordOsmdMusicXmlAttack[],
+  measureNumber: number,
+  beatOffset: number,
+): Map<number, string> | null => {
+  const byMidi = new Map<number, string>();
+  let matched = false;
+  for (const attack of attacks) {
+    if (attack.measureNumber !== measureNumber) {
+      continue;
+    }
+    if (Math.abs(attack.beatStartInMeasure - beatOffset) >= XML_ATTACK_BEAT_MATCH_EPS) {
+      continue;
+    }
+    matched = true;
+    const spellings = attack.spellings;
+    if (!spellings || spellings.length === 0) {
+      continue;
+    }
+    const n = Math.min(attack.midis.length, spellings.length);
+    for (let i = 0; i < n; i += 1) {
+      const midi = Math.round(attack.midis[i]);
+      const spelling = spellings[i]?.trim();
+      if (!Number.isFinite(midi) || !spelling || byMidi.has(midi)) {
+        continue;
+      }
+      byMidi.set(midi, spelling);
+    }
+  }
+  if (!matched || byMidi.size === 0) {
+    return null;
+  }
+  return byMidi;
 };
 
 const chordStartTimeSec = (
@@ -1517,6 +1611,7 @@ const buildChordOsmdRhythmTargetsFromScore = (
       beatsPerMeasure,
       isSwing,
     );
+    const noteSpellings = uniqueChordOsmdAttackSpellings(attack.midis, attack.spellings);
     return {
       id: `${scoreTargetId(attack.measureNumber, attack.beatStartInMeasure)}:${orderIndex}`,
       label: measureLabels.get(attack.measureNumber) ?? '—',
@@ -1524,6 +1619,7 @@ const buildChordOsmdRhythmTargetsFromScore = (
       targetTimeSec,
       measureNumber: attack.measureNumber,
       midiCounts: midiCountArray(attackMidiCounts(attack.midis)),
+      ...(noteSpellings.length > 0 ? { noteSpellings } : {}),
     };
   });
 };
@@ -1586,9 +1682,14 @@ export const buildChordOsmdRhythmTargets = (
       return a.chord.order_index - b.chord.order_index;
     });
 
-  const targets: Array<ChordOsmdRhythmTarget & { beatOffset: number | null; mutableCounts: Map<number, number> }> = [];
+  const targets: Array<ChordOsmdRhythmTarget & {
+    beatOffset: number | null;
+    mutableCounts: Map<number, number>;
+    mutableSpellings: Map<number, string>;
+  }> = [];
   for (const item of sorted) {
     const counts = new Map<number, number>();
+    const spellingsByMidi = new Map<number, string>();
     addMidiCounts(counts, item.chord.voicing);
     if (attacks && attacks.length > 0 && item.beatOffset !== null) {
       const xmlCounts = mergeMidisFromXmlAttacks(attacks, item.measureNumber, item.beatOffset);
@@ -1597,6 +1698,12 @@ export const buildChordOsmdRhythmTargets = (
         xmlCounts.forEach((count, midi) => {
           counts.set(midi, count);
         });
+        const xmlSpellings = mergeSpellingsFromXmlAttacks(attacks, item.measureNumber, item.beatOffset);
+        if (xmlSpellings) {
+          xmlSpellings.forEach((spelling, midi) => {
+            spellingsByMidi.set(midi, spelling);
+          });
+        }
       }
     }
     if (counts.size === 0) {
@@ -1615,10 +1722,22 @@ export const buildChordOsmdRhythmTargets = (
       counts.forEach((count, midi) => {
         last.mutableCounts.set(midi, (last.mutableCounts.get(midi) ?? 0) + count);
       });
+      spellingsByMidi.forEach((spelling, midi) => {
+        if (!last.mutableSpellings.has(midi)) {
+          last.mutableSpellings.set(midi, spelling);
+        }
+      });
       last.midiCounts = midiCountArray(last.mutableCounts);
+      const mergedSpellings = Array.from(last.mutableSpellings.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, spelling]) => spelling);
+      last.noteSpellings = mergedSpellings.length > 0 ? mergedSpellings : undefined;
       continue;
     }
 
+    const noteSpellings = Array.from(spellingsByMidi.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, spelling]) => spelling);
     targets.push({
       id: item.chord.id,
       label: transposedChordName,
@@ -1627,11 +1746,18 @@ export const buildChordOsmdRhythmTargets = (
       measureNumber: item.measureNumber,
       beatOffset: item.beatOffset,
       midiCounts: midiCountArray(counts),
+      ...(noteSpellings.length > 0 ? { noteSpellings } : {}),
       mutableCounts: counts,
+      mutableSpellings: spellingsByMidi,
     });
   }
 
-  return targets.map(({ beatOffset: _beatOffset, mutableCounts: _mutableCounts, ...target }) => target);
+  return targets.map(({
+    beatOffset: _beatOffset,
+    mutableCounts: _mutableCounts,
+    mutableSpellings: _mutableSpellings,
+    ...target
+  }) => target);
 };
 
 export const createChordOsmdRemainingCounts = (
