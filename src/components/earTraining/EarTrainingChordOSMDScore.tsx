@@ -94,6 +94,8 @@ interface ApplyPlayheadDomParams {
   phraseTimelineSec: number;
   activeMeasureNumber: number;
   animating: boolean;
+  /** 小節端へ向かうトランジションの予約。一時停止で取り消せるよう呼び出し側が保持する。 */
+  pendingTransitionRafRef: React.MutableRefObject<number | null>;
 }
 
 const applyPlayheadDom = ({
@@ -104,6 +106,7 @@ const applyPlayheadDom = ({
   phraseTimelineSec,
   activeMeasureNumber,
   animating,
+  pendingTransitionRafRef,
 }: ApplyPlayheadDomParams): void => {
   const progress = computeOsmdMeasurePlayheadProgress({
     phraseTimelineSec,
@@ -113,6 +116,12 @@ const applyPlayheadDom = ({
   });
   const leftPx = progress * highlightWidthPx;
   const inCountInPhase = phraseTimelineSec < 0;
+
+  // 直前フレームで予約したトランジションが後から発火すると小節端まで走ってしまう。
+  if (pendingTransitionRafRef.current !== null) {
+    cancelAnimationFrame(pendingTransitionRafRef.current);
+    pendingTransitionRafRef.current = null;
+  }
 
   if (!animating || inCountInPhase) {
     playhead.style.transition = 'none';
@@ -125,7 +134,8 @@ const applyPlayheadDom = ({
   playhead.style.transition = 'none';
   playhead.style.left = `${leftPx}px`;
   void playhead.offsetWidth;
-  requestAnimationFrame(() => {
+  pendingTransitionRafRef.current = requestAnimationFrame(() => {
+    pendingTransitionRafRef.current = null;
     playhead.style.transition = `left ${remainingMs}ms linear`;
     playhead.style.left = `${highlightWidthPx}px`;
   });
@@ -245,6 +255,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const scoreRef = useRef<HTMLDivElement | null>(null);
   const measureHighlightRef = useRef<HTMLDivElement | null>(null);
   const measurePlayheadRef = useRef<HTMLDivElement | null>(null);
+  const playheadTransitionRafRef = useRef<number | null>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -349,6 +360,13 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     applyHighlightLeftWithManual(measureHighlightBaseLeftPxRef.current, clampedOffsetPx);
   }, [applyHighlightLeftWithManual, applyScoreTransform]);
 
+  useEffect(() => () => {
+    if (playheadTransitionRafRef.current !== null) {
+      cancelAnimationFrame(playheadTransitionRafRef.current);
+      playheadTransitionRafRef.current = null;
+    }
+  }, []);
+
   const applyPlayheadFromParams = useCallback((params: OsmdPlayheadSyncParams): void => {
     const highlight = measureHighlightRef.current;
     const playhead = measurePlayheadRef.current;
@@ -377,6 +395,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       phraseTimelineSec: params.phraseTimelineSec,
       activeMeasureNumber: params.activeMeasureNumber,
       animating: params.animating,
+      pendingTransitionRafRef: playheadTransitionRafRef,
     });
   }, [applyScoreTransform, countInDurationSec, hidden, measureDurationSec, musicXmlText, scrollActive, scrollLayout]);
 
@@ -800,6 +819,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       phraseTimelineSec: phraseTimelineSec ?? (activeMeasureNumber - 1) * Math.max(1e-6, measureDurationSec),
       activeMeasureNumber,
       animating: playheadAnimating ?? scrollActive,
+      pendingTransitionRafRef: playheadTransitionRafRef,
     });
   }, [
     activeMeasureNumber,
