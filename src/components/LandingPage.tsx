@@ -9,6 +9,8 @@ import { LpDemoPlaceholder } from '@/components/landing/sections/LpDemoPlacehold
 import { LpPain } from '@/components/landing/sections/LpPain';
 import { LpSolution } from '@/components/landing/sections/LpSolution';
 import { LpMainQuest } from '@/components/landing/sections/LpMainQuest';
+import { LpRoadmap } from '@/components/landing/sections/LpRoadmap';
+import { LpBeforeAfter } from '@/components/landing/sections/LpBeforeAfter';
 import { LpCourses } from '@/components/landing/sections/LpCourses';
 import { LpModes } from '@/components/landing/sections/LpModes';
 import { LpPlatforms } from '@/components/landing/sections/LpPlatforms';
@@ -128,6 +130,8 @@ const LandingPage: React.FC = () => {
         <LpPain />
         <LpSolution />
         <LpMainQuest />
+        <LpRoadmap />
+        <LpBeforeAfter />
         <LpCourses />
         <LpModes />
         <LpPlatforms />

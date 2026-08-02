@@ -3,24 +3,6 @@ import { getLpMainQuestShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
-const StepArrow: React.FC = () => (
-  <svg
-    className="w-4 h-4 mx-auto my-1"
-    viewBox="0 0 16 16"
-    fill="none"
-    aria-hidden="true"
-    style={{ color: 'var(--lp-blue)' }}
-  >
-    <path
-      d="M8 3v8M8 11l-3.5-3.5M8 11l3.5-3.5"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
 export const LpMainQuest: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglish);
@@ -48,24 +30,7 @@ export const LpMainQuest: React.FC = () => {
               ))}
             </div>
 
-            <div className="flex flex-col items-center">
-              {copy.mainQuest.steps.map((step, index) => (
-                <React.Fragment key={step}>
-                  <div className="lp-pill w-full justify-start px-4 py-2.5">
-                    <span
-                      className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold shrink-0"
-                      style={{ background: 'var(--lp-blue)', color: '#ffffff' }}
-                    >
-                      {index + 1}
-                    </span>
-                    <span>{step}</span>
-                  </div>
-                  {index < copy.mainQuest.steps.length - 1 ? <StepArrow /> : null}
-                </React.Fragment>
-              ))}
-            </div>
-
-            <p className="lp-pill lp-pill-gold mt-6 w-full justify-center text-center">
+            <p className="lp-pill lp-pill-gold w-full justify-center text-center">
               {copy.mainQuest.note}
             </p>
           </div>

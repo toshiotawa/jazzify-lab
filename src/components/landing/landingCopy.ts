@@ -72,9 +72,33 @@ interface LandingSolutionCopy {
 interface LandingMainQuestCopy {
   heading: string;
   body: string[];
-  steps: string[];
   note: string;
   imageAlt: string;
+}
+
+export interface LandingRoadmapStep {
+  /** メインクエストの章番号。目的別コースなど章に紐づかない段は null */
+  blockNumber: number | null;
+  chapter: string;
+  title: string;
+  description: string;
+}
+
+interface LandingRoadmapCopy {
+  eyebrow: string;
+  heading: string;
+  body: string[];
+  steps: LandingRoadmapStep[];
+  freeBadge: string;
+  note: string;
+}
+
+interface LandingBeforeAfterCopy {
+  heading: string;
+  beforeLabel: string;
+  beforeItems: string[];
+  afterLabel: string;
+  afterItems: string[];
 }
 
 interface LandingCourseItem {
@@ -237,6 +261,8 @@ interface LandingCopy {
   pain: LandingPainCopy;
   solution: LandingSolutionCopy;
   mainQuest: LandingMainQuestCopy;
+  roadmap: LandingRoadmapCopy;
+  beforeAfter: LandingBeforeAfterCopy;
   courses: LandingCoursesCopy;
   modes: LandingModesCopy;
   platforms: LandingPlatformsCopy;
@@ -252,6 +278,7 @@ interface LandingCopy {
 
 const NAV_JA: LandingNavLink[] = [
   { id: 'features', label: '特徴' },
+  { id: 'roadmap', label: '学習の流れ' },
   { id: 'courses', label: 'コース' },
   { id: 'modes', label: 'モード' },
   { id: 'pricing', label: '料金' },
@@ -260,6 +287,7 @@ const NAV_JA: LandingNavLink[] = [
 
 const NAV_EN: LandingNavLink[] = [
   { id: 'features', label: 'Features' },
+  { id: 'roadmap', label: 'Roadmap' },
   { id: 'courses', label: 'Courses' },
   { id: 'modes', label: 'Modes' },
   { id: 'pricing', label: 'Pricing' },
@@ -279,10 +307,10 @@ const COPY_JA: LandingCopy = {
     logoAlt: 'Jazzify ロゴ',
   },
   hero: {
-    titleLines: ['ジャズピアノを、', 'ゲームのように', '弾いて覚える。'],
+    titleLines: ['ジャズを、', '知っているだけの人から', '弾ける人へ。'],
     subtitle: [
-      'Jazzifyは、MIDIキーボードをつないで遊ぶ、ジャズピアノ学習サービスです。',
-      'コード、リズム、耳コピ、アドリブを、実際に鍵盤を弾きながら身につけます。',
+      '「次に何を練習すればいいか」で迷わなくなり、覚えた音を自分の演奏で使えるようになる。',
+      'MIDIキーボードをつないで、画面に沿って弾きながら進むジャズピアノ学習サービスです。',
     ],
     demoCta: '1分だけ体験する',
     signupCta: '無料で始める',
@@ -349,15 +377,81 @@ const COPY_JA: LandingCopy = {
     ],
   },
   mainQuest: {
-    heading: 'まずは、Cブルースから。',
+    heading: 'メインクエストで、迷わず進む。',
     body: [
       'メインクエストは、ジャズ初心者が順番に進める一本道のコースです。',
-      '最初から難しい理論を詰め込むのではなく、少ない音でアドリブするところから始め、コード、リズム、ブルース進行へと少しずつ進んでいきます。',
+      '最初から難しい理論を詰め込むのではなく、2つの音から始め、コード、アドリブ、ブルース通し演奏へと少しずつ進んでいきます。',
       '「次に何を練習すればいいか」で迷わず、実際に弾きながらジャズの基本を身につけます。',
     ],
-    steps: ['少ない音でアドリブ', 'コードを弾く', 'リズムに合わせる', 'ブルース進行へ'],
     note: '最初のゴールは、Cブルースを1曲とおして演奏すること。',
     imageAlt: 'メインクエストのチャプター画面',
+  },
+  roadmap: {
+    eyebrow: 'LEARNING PATH',
+    heading: '迷わず進める、一本道のコース。',
+    body: [
+      'メインクエストは、ジャズ初心者が順番に進める一本道です。',
+      '日数は決まっていません。次に何を練習すればいいかは、常に画面が示します。',
+    ],
+    steps: [
+      {
+        blockNumber: 1,
+        chapter: '第1章',
+        title: 'ドとソでジャズの返事',
+        description:
+          '聴こえた短いフレーズを、2つの音だけで弾き返す。ジャズの「返事」の感覚を体で覚えます。',
+      },
+      {
+        blockNumber: 2,
+        chapter: '第2章',
+        title: 'Cブルースのコードをつかむ',
+        description: 'ブルースで使うコードを、考えずに押さえられるまで練習します。',
+      },
+      {
+        blockNumber: 3,
+        chapter: '第3章',
+        title: 'Cブルース：モチーフでアドリブ',
+        description: '覚えた音を使って、伴奏の上に自分のフレーズを乗せます。',
+      },
+      {
+        blockNumber: 4,
+        chapter: '第4章',
+        title: 'Cブルース 左手コンピング',
+        description: '左手でリズムを支えながら、右手を自由に動かせるようになります。',
+      },
+      {
+        blockNumber: 5,
+        chapter: '第5章',
+        title: 'Jazzify Blues',
+        description: 'テーマ→アドリブ→テーマで、Cブルースを1曲通して演奏します。',
+      },
+      {
+        blockNumber: null,
+        chapter: 'その先',
+        title: '目的別コースで伸ばす',
+        description:
+          '両手ヴォイシング、耳コピ、コードランなど、テーマごとに力を伸ばせます。',
+      },
+    ],
+    freeBadge: '無料',
+    note: '最初のゴールは、Cブルースを1曲とおして演奏すること。そこまでの道筋が、メインクエストに組み込まれています。',
+  },
+  beforeAfter: {
+    heading: '練習の仕方が変わると、演奏が変わる。',
+    beforeLabel: 'Before',
+    beforeItems: [
+      '今日やる課題が決まっていない',
+      '練習しても、正しく弾けているか判断できない',
+      '覚えた音を伴奏の中で試す場面がない',
+      'クリアした練習が、演奏技術として積み上がらない',
+    ],
+    afterLabel: 'After',
+    afterItems: [
+      '今日やる課題が決まっている',
+      '音を弾くと、その場で判定される',
+      '覚えた音を伴奏の中で試せる',
+      'クリアした課題が、自分の演奏技術として積み上がる',
+    ],
   },
   courses: {
     heading: '目的別に、鍛える。',
@@ -643,10 +737,10 @@ const COPY_EN: LandingCopy = {
     logoAlt: 'Jazzify logo',
   },
   hero: {
-    titleLines: ['Learn jazz piano', 'by playing it', 'like a game.'],
+    titleLines: ['From knowing jazz', 'to playing it', 'on the keys.'],
     subtitle: [
-      'Jazzify is a jazz piano learning service you play with a MIDI keyboard.',
-      'Build chords, rhythm, ear training, and improvisation by actually playing the keys.',
+      'Stop wondering what to practice next. Start using the notes you learn in your own playing.',
+      'Connect a MIDI keyboard and progress by playing along with on-screen prompts.',
     ],
     demoCta: 'Try the 1-minute demo',
     signupCta: 'Start for free',
@@ -713,15 +807,81 @@ const COPY_EN: LandingCopy = {
     ],
   },
   mainQuest: {
-    heading: 'It starts with the C blues.',
+    heading: 'The Main Quest keeps you moving forward.',
     body: [
       'The Main Quest is a single guided path for jazz beginners.',
-      'Instead of front-loading difficult theory, you start by improvising with just a few notes, then move gradually through chords, rhythm, and the blues progression.',
+      'Instead of front-loading difficult theory, you start with just two notes, then move gradually through chords, improvisation, and playing a full blues.',
       'No more wondering what to practice next — you learn the fundamentals of jazz by playing them.',
     ],
-    steps: ['Improvise with a few notes', 'Play chords', 'Lock into rhythm', 'On to the blues progression'],
     note: 'Your first goal: play a full C blues, start to finish.',
     imageAlt: 'Main Quest chapter screen',
+  },
+  roadmap: {
+    eyebrow: 'LEARNING PATH',
+    heading: 'One clear path. No guesswork.',
+    body: [
+      'The Main Quest is a single guided path for jazz beginners.',
+      'There is no fixed timeline. The screen always tells you what to practice next.',
+    ],
+    steps: [
+      {
+        blockNumber: 1,
+        chapter: 'Chapter 1',
+        title: 'Call and response with Do and Sol',
+        description:
+          'Echo short phrases with just two notes. Feel jazz call-and-response in your hands.',
+      },
+      {
+        blockNumber: 2,
+        chapter: 'Chapter 2',
+        title: 'Grasp the C blues chords',
+        description: 'Practice until you can grab blues chords without thinking.',
+      },
+      {
+        blockNumber: 3,
+        chapter: 'Chapter 3',
+        title: 'C blues: motif improvisation',
+        description: 'Use the notes you know to build your own phrases over the backing track.',
+      },
+      {
+        blockNumber: 4,
+        chapter: 'Chapter 4',
+        title: 'C blues: left-hand comping',
+        description: 'Keep the rhythm with your left hand while your right hand moves freely.',
+      },
+      {
+        blockNumber: 5,
+        chapter: 'Chapter 5',
+        title: 'Jazzify Blues',
+        description: 'Play a full C blues: theme → improvisation → theme.',
+      },
+      {
+        blockNumber: null,
+        chapter: 'Beyond',
+        title: 'Grow with goal-based courses',
+        description:
+          'Two-hand voicings, ear training, chord runs, and more — one theme at a time.',
+      },
+    ],
+    freeBadge: 'Free',
+    note: 'Your first goal is to play a full C blues. The Main Quest builds that path step by step.',
+  },
+  beforeAfter: {
+    heading: 'Change how you practice, and your playing changes.',
+    beforeLabel: 'Before',
+    beforeItems: [
+      "You don't know what to practice today",
+      "You can't tell if you're playing correctly",
+      'You have no place to try the notes you learned over a backing track',
+      'Completed drills never become real playing skills',
+    ],
+    afterLabel: 'After',
+    afterItems: [
+      "Today's lesson is already decided",
+      'Every note gets instant feedback',
+      'You can try the notes you learned over a backing track',
+      'Every cleared quest becomes part of your playing',
+    ],
   },
   courses: {
     heading: 'Train with purpose.',
