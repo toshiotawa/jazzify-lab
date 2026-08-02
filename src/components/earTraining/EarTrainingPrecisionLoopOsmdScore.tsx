@@ -29,6 +29,7 @@ interface EarTrainingPrecisionLoopOsmdScoreProps {
   fillParent?: boolean;
   manualScrollEnabled?: boolean;
   showScoreLyrics?: boolean;
+  drawMeasureNumbers?: boolean;
   scrollLayout?: OsmdScrollLayout;
 }
 
@@ -50,6 +51,7 @@ const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
   fillParent = false,
   manualScrollEnabled = false,
   showScoreLyrics = false,
+  drawMeasureNumbers = false,
   scrollLayout,
 }, ref) {
   const scoreHandlesRef = useRef<Map<number, EarTrainingChordOSMDScoreHandle>>(new Map());
@@ -94,6 +96,7 @@ const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
               fillParent={fillParent}
               manualScrollEnabled={manualScrollEnabled && isActive}
               showScoreLyrics={showScoreLyrics}
+              drawMeasureNumbers={drawMeasureNumbers}
               scrollLayout={scrollLayout}
             />
           </div>

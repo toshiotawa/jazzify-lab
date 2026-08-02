@@ -252,6 +252,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [loopCycleIndex, setLoopCycleIndex] = useState(0);
   const [loopActiveSemitone, setLoopActiveSemitone] = useState(0);
   const [loopPreloadProgress, setLoopPreloadProgress] = useState<string | null>(null);
+  const [loopPreloadReady, setLoopPreloadReady] = useState(false);
   const [loopScoreXmlBySemitone, setLoopScoreXmlBySemitone] = useState<Map<number, string>>(new Map());
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
@@ -315,6 +316,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const loopCycleWindowSizeRef = useRef(2);
   const lastLoopCycleIndexRef = useRef(-1);
   const loopTransposeDirectionRef = useRef<LoopTransposeDirection>('down');
+  const loopStartMeasureRef = useRef(1);
+  const loopEndMeasureRef = useRef(Math.max(1, stage.loop_measures));
 
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
@@ -329,6 +332,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
   useEffect(() => { loopEnabledRef.current = loopEnabled; }, [loopEnabled]);
   useEffect(() => { loopTransposeDirectionRef.current = loopTransposeDirection; }, [loopTransposeDirection]);
+  useEffect(() => { loopStartMeasureRef.current = loopStartMeasure; }, [loopStartMeasure]);
+  useEffect(() => { loopEndMeasureRef.current = loopEndMeasure; }, [loopEndMeasure]);
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
   useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
@@ -535,6 +540,96 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     lastSeekSliderUiUpdateMsRef.current = now;
     setSeekSliderSec(phraseTimeSec);
   }, []);
+
+  const beginLoopSessionFromPreloadedBuffers = useCallback((runId: number): void => {
+    const player = phrasePlayerRef.current;
+    const buffersBySemitone = loopBuffersRef.current;
+    if (!player || buffersBySemitone.size === 0) {
+      return;
+    }
+    const loopWindow = loopWindowRef.current;
+    const primingOffsetSec = resolvePhraseBufferPrimingOffsetSec([...buffersBySemitone.values()]);
+    const loopStartBufferSec = scaleScoreSecToProcessedBufferSec(
+      loopWindow.startSec,
+      practiceSpeedPercentRef.current,
+    );
+    phraseLoopDurationSecRef.current = loopWindow.durationSec;
+    phraseLoopEndSecRef.current = loopWindow.durationSec;
+    setPhraseDurationSec(loopWindow.durationSec);
+    refreshMaxOsmdMeasure();
+    lastLoopCycleIndexRef.current = -1;
+    applyLoopCycleTransition(0);
+
+    setScoreTimelineArmed(true);
+    activeMeasureNumberRef.current = loopWindow.startMeasure;
+    setActiveMeasureNumber(loopWindow.startMeasure);
+    phraseTimeSecRef.current = 0;
+    updateSeekSliderUi(0, true);
+    syncPlayheadForTimeline(0, false);
+    gameStateRef.current = 'countIn';
+    setGameState('countIn');
+
+    player.startLoopSession({
+      buffersBySemitone,
+      semitoneForCycle: (cycleIndex) => loopSemitoneForCycle(
+        cycleIndex,
+        loopTransposeDirectionRef.current,
+      ),
+      loopStartSec: loopStartBufferSec,
+      loopDurationSec: scaleScoreSecToProcessedBufferSec(
+        loopWindow.durationSec,
+        practiceSpeedPercentRef.current,
+      ),
+      loopPrimingOffsetSec: primingOffsetSec,
+      phraseGain: settings.musicVolume * settings.masterVolume,
+      countInBeats: stage.count_in_beats,
+      bpm: resolveEffectivePracticeBpm(),
+      beatGain: settings.musicVolume * settings.masterVolume,
+      onPhraseStarted: () => {
+        if (phraseRunIdRef.current !== runId) {
+          return;
+        }
+        gameStateRef.current = 'playingPhrase';
+        setGameState('playingPhrase');
+      },
+    });
+  }, [
+    applyLoopCycleTransition,
+    refreshMaxOsmdMeasure,
+    resolveEffectivePracticeBpm,
+    settings.masterVolume,
+    settings.musicVolume,
+    stage.count_in_beats,
+    syncPlayheadForTimeline,
+    updateSeekSliderUi,
+  ]);
+
+  const applyLoopRangeAndRestart = useCallback((): void => {
+    if (!loopEnabledRef.current) {
+      return;
+    }
+    const localMeasureDurationSec = (60 / Math.max(1, effectivePracticeBpm(
+      stage.bpm,
+      practiceSpeedPercentRef.current,
+    ))) * Math.max(1, stage.beats_per_measure);
+    const loopWindow = resolveLoopWindow({
+      startMeasure: loopStartMeasureRef.current,
+      endMeasure: loopEndMeasureRef.current,
+      measureDurationSec: localMeasureDurationSec,
+    });
+    loopWindowRef.current = loopWindow;
+    loopCycleWindowSizeRef.current = loopCycleWindowSize(loopWindow.durationSec);
+    lastLoopCycleIndexRef.current = -1;
+
+    if (loopBuffersRef.current.size === 0) {
+      return;
+    }
+
+    markAudioUserInteraction();
+    const runId = phraseRunIdRef.current;
+    phrasePlayerRef.current?.stop();
+    beginLoopSessionFromPreloadedBuffers(runId);
+  }, [beginLoopSessionFromPreloadedBuffers, stage.beats_per_measure, stage.bpm]);
 
   const rebuildPrecisionNotes = useCallback((xmlText: string | null): void => {
     const classificationBpm = resolveEffectivePracticeBpm();
@@ -1016,13 +1111,25 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       }
 
       if (loopEnabledRef.current) {
-        setLoopPreloadProgress(isEnglishCopy ? 'Preparing loop practice…' : 'ループ練習を準備中…');
-        try {
-          const loopWindow = resolveLoopWindow({
-          startMeasure: loopStartMeasure,
-          endMeasure: loopEndMeasure,
-          measureDurationSec,
+        setLoopPreloadProgress(
+          isEnglishCopy ? 'Loading… Preparing loop practice' : '読み込み中… ループ練習を準備しています',
+        );
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 0);
         });
+        if (phraseRunIdRef.current !== runId) {
+          return;
+        }
+        try {
+          const localMeasureDurationSec = (60 / Math.max(1, effectivePracticeBpm(
+            stage.bpm,
+            practiceSpeedPercentRef.current,
+          ))) * Math.max(1, stage.beats_per_measure);
+          const loopWindow = resolveLoopWindow({
+            startMeasure: loopStartMeasureRef.current,
+            endMeasure: loopEndMeasureRef.current,
+            measureDurationSec: localMeasureDurationSec,
+          });
         loopWindowRef.current = loopWindow;
         loopCycleWindowSizeRef.current = loopCycleWindowSize(loopWindow.durationSec);
         lastLoopCycleIndexRef.current = -1;
@@ -1061,8 +1168,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             onProgress: ({ completed, total }) => {
               setLoopPreloadProgress(
                 isEnglishCopy
-                  ? `Audio ${completed}/${total}, Score ${scoreXmlBySemitone.size}/${scoreXmlBySemitone.size}`
-                  : `音声 ${completed}/${total}、譜面 ${scoreXmlBySemitone.size}/${scoreXmlBySemitone.size}`,
+                  ? `Loading… Audio ${completed}/${total}`
+                  : `読み込み中… 音声 ${completed}/${total}`,
               );
             },
           },
@@ -1071,49 +1178,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           return;
         }
         loopBuffersRef.current = buffersBySemitone;
-        const primingOffsetSec = resolvePhraseBufferPrimingOffsetSec([...buffersBySemitone.values()]);
-        const loopStartBufferSec = scaleScoreSecToProcessedBufferSec(
-          loopWindow.startSec,
-          practiceSpeedPercentRef.current,
-        );
-        phraseLoopDurationSecRef.current = loopWindow.durationSec;
-        phraseLoopEndSecRef.current = loopWindow.durationSec;
-        setPhraseDurationSec(loopWindow.durationSec);
-        refreshMaxOsmdMeasure();
-        applyLoopCycleTransition(0);
+        setLoopPreloadReady(true);
         setLoopPreloadProgress(null);
 
-        setScoreTimelineArmed(true);
-        activeMeasureNumberRef.current = loopWindow.startMeasure;
-        setActiveMeasureNumber(loopWindow.startMeasure);
-        phraseTimeSecRef.current = 0;
-        updateSeekSliderUi(0, true);
-        syncPlayheadForTimeline(0, false);
-
-        player.startLoopSession({
-          buffersBySemitone,
-          semitoneForCycle: (cycleIndex) => loopSemitoneForCycle(
-            cycleIndex,
-            loopTransposeDirectionRef.current,
-          ),
-          loopStartSec: loopStartBufferSec,
-          loopDurationSec: scaleScoreSecToProcessedBufferSec(
-            loopWindow.durationSec,
-            practiceSpeedPercentRef.current,
-          ),
-          loopPrimingOffsetSec: primingOffsetSec,
-          phraseGain: settings.musicVolume * settings.masterVolume,
-          countInBeats: stage.count_in_beats,
-          bpm: resolveEffectivePracticeBpm(),
-          beatGain: settings.musicVolume * settings.masterVolume,
-          onPhraseStarted: () => {
-            if (phraseRunIdRef.current !== runId) {
-              return;
-            }
-            gameStateRef.current = 'playingPhrase';
-            setGameState('playingPhrase');
-          },
-        });
+        beginLoopSessionFromPreloadedBuffers(runId);
         } catch {
           setLoopPreloadProgress(null);
           setGameState('idle');
@@ -1189,7 +1257,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       });
     })();
   }, [
+    beginLoopSessionFromPreloadedBuffers,
     ensurePhrasePlayer,
+    isEnglishCopy,
     loadMusicXml,
     loadPrecisionMidi,
     phrase,
@@ -1685,8 +1755,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             hidden={false}
             scoreZClassName="z-10"
             fillParent
-            manualScrollEnabled={practiceMode && gameState === 'paused'}
+            manualScrollEnabled={practiceMode && (gameState === 'paused' || (loopEnabled && showLobby))}
             showScoreLyrics={stage.show_score_lyrics_in_battle === true}
+            drawMeasureNumbers
             scrollLayout={OSMD_SCROLL_LAYOUT_PRECISION}
           />
         ) : musicXmlText ? (
@@ -1704,8 +1775,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             scoreZClassName="z-10"
             useImperativePlayhead
             fillParent
-            manualScrollEnabled={practiceMode && gameState === 'paused'}
+            manualScrollEnabled={practiceMode && (gameState === 'paused' || (loopEnabled && showLobby))}
             showScoreLyrics={stage.show_score_lyrics_in_battle === true}
+            drawMeasureNumbers={loopEnabled}
             scrollLayout={OSMD_SCROLL_LAYOUT_PRECISION}
           />
         ) : (
@@ -1815,39 +1887,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             {loopEnabled ? (
               <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-300">
                 <label className="flex items-center gap-1">
-                  {isEnglishCopy ? 'Loop start' : '開始小節'}
-                  <input
-                    type="number"
-                    min={1}
-                    max={loopEndMeasure}
-                    value={loopStartMeasure}
-                    disabled={!canChangePracticeMode}
-                    className="w-14 rounded bg-slate-800 px-2 py-1"
-                    onChange={(event) => {
-                      const next = Math.max(1, Math.min(loopEndMeasure, Number(event.target.value) || 1));
-                      setLoopStartMeasure(next);
-                    }}
-                  />
-                </label>
-                <label className="flex items-center gap-1">
-                  {isEnglishCopy ? 'Loop end' : '終了小節'}
-                  <input
-                    type="number"
-                    min={loopStartMeasure}
-                    max={maxLoopMeasure}
-                    value={loopEndMeasure}
-                    disabled={!canChangePracticeMode}
-                    className="w-14 rounded bg-slate-800 px-2 py-1"
-                    onChange={(event) => {
-                      const next = Math.max(
-                        loopStartMeasure,
-                        Math.min(maxLoopMeasure, Number(event.target.value) || loopStartMeasure),
-                      );
-                      setLoopEndMeasure(next);
-                    }}
-                  />
-                </label>
-                <label className="flex items-center gap-1">
                   {isEnglishCopy ? 'Transpose' : '移調'}
                   <select
                     value={loopTransposeDirection}
@@ -1867,8 +1906,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         ) : null}
 
         {loopPreloadProgress ? (
-          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/85 px-6 text-center text-sm text-slate-200">
-            {loopPreloadProgress}
+          <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-slate-950/85 px-6 text-center text-sm text-slate-200">
+            <div
+              className="h-8 w-8 animate-spin rounded-full border-2 border-slate-500 border-t-emerald-400"
+              aria-hidden
+            />
+            <p>{loopPreloadProgress}</p>
           </div>
         ) : null}
 
@@ -1918,6 +1961,49 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             </div>
           ) : null}
           <div className="flex items-center gap-2">
+            {loopEnabled ? (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-slate-300">
+                <label className="flex items-center gap-1">
+                  {isEnglishCopy ? 'A' : '開始'}
+                  <input
+                    type="number"
+                    min={1}
+                    max={loopEndMeasure}
+                    value={loopStartMeasure}
+                    className="w-12 rounded bg-slate-800 px-1.5 py-1 text-center"
+                    onChange={(event) => {
+                      const next = Math.max(1, Math.min(loopEndMeasure, Number(event.target.value) || 1));
+                      setLoopStartMeasure(next);
+                    }}
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  {isEnglishCopy ? 'B' : '終了'}
+                  <input
+                    type="number"
+                    min={loopStartMeasure}
+                    max={maxLoopMeasure}
+                    value={loopEndMeasure}
+                    className="w-12 rounded bg-slate-800 px-1.5 py-1 text-center"
+                    onChange={(event) => {
+                      const next = Math.max(
+                        loopStartMeasure,
+                        Math.min(maxLoopMeasure, Number(event.target.value) || loopStartMeasure),
+                      );
+                      setLoopEndMeasure(next);
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="rounded bg-slate-800 px-2 py-1 text-xs text-white disabled:opacity-40"
+                  disabled={!loopPreloadReady}
+                  onClick={applyLoopRangeAndRestart}
+                >
+                  {isEnglishCopy ? 'Apply range' : '範囲再設定'}
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"

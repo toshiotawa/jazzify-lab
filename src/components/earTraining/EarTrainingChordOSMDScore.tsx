@@ -72,6 +72,8 @@ interface EarTrainingChordOSMDScoreProps {
   showScoreLyrics?: boolean;
   /** スクロールのアンカー・1小節フィット設定。省略時はリズムバトル既定。 */
   scrollLayout?: OsmdScrollLayout;
+  /** true のとき全小節に小節番号を描画する。 */
+  drawMeasureNumbers?: boolean;
 }
 
 export interface OsmdPlayheadSyncParams {
@@ -204,6 +206,19 @@ const relaxOsmdCompactTightSpacingForBattle = (
   }
 };
 
+/** 全小節に小節番号を出す（OSMD の MeasureNumberLabelOffset = 1 相当）。 */
+const applyOsmdMeasureNumberRules = (osmd: OpenSheetMusicDisplay): void => {
+  const zoomable = osmd as OpenSheetMusicDisplay & {
+    EngravingRules?: { MeasureNumberLabelOffset?: number };
+    rules?: { MeasureNumberLabelOffset?: number };
+  };
+  const rules = zoomable.EngravingRules ?? zoomable.rules;
+  if (!rules) {
+    return;
+  }
+  rules.MeasureNumberLabelOffset = 1;
+};
+
 const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandle, EarTrainingChordOSMDScoreProps>(
   function EarTrainingChordOSMDScore({
   musicXmlText,
@@ -223,6 +238,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   manualScrollEnabled = false,
   showScoreLyrics = false,
   scrollLayout = OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
+  drawMeasureNumbers = false,
 }, ref) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreContentRef = useRef<HTMLDivElement | null>(null);
@@ -536,7 +552,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       drawComposer: false,
       drawLyricist: false,
       drawPartNames: false,
-      drawMeasureNumbers: false,
+      drawMeasureNumbers,
       drawingParameters: 'compacttight',
       renderSingleHorizontalStaffline: true,
       pageFormat: 'Endless',
@@ -552,6 +568,9 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       const osmd = new OpenSheetMusicDisplay(score, options);
       osmdRef.current = osmd;
       enableEarTrainingOsmdWordsLayoutRules(osmd);
+      if (drawMeasureNumbers) {
+        applyOsmdMeasureNumberRules(osmd);
+      }
       await osmd.load(osmdDisplayMusicXml);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
       const viewportEl = viewportRef.current;
@@ -597,6 +616,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       setIsRendering(false);
     }
   }, [
+    drawMeasureNumbers,
     isEnglishCopy,
     musicXmlText,
     mobileLandscapeOsmdShrink,
