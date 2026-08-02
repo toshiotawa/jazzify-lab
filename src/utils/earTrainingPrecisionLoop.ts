@@ -22,6 +22,7 @@ export interface BuildLoopWindowNotesParams {
   windowSize: number;
   loopWindow: PrecisionLoopWindow;
   direction: LoopTransposeDirection;
+  baseSemitone?: number;
   resolveCalibratedStartSec?: (startSec: number) => number;
 }
 
@@ -47,12 +48,13 @@ export const resolveLoopWindow = (params: {
 export const loopSemitoneForCycle = (
   cycleIndex: number,
   direction: LoopTransposeDirection,
+  baseSemitone = 0,
 ): number => {
-  if (direction === 'none') {
-    return 0;
-  }
   const safeCycle = Math.max(0, Math.trunc(cycleIndex));
-  const raw = direction === 'down' ? -safeCycle : safeCycle;
+  const step = direction === 'none'
+    ? 0
+    : (direction === 'down' ? -safeCycle : safeCycle);
+  const raw = baseSemitone + step;
   let wrapped = ((raw % 12) + 12) % 12;
   if (wrapped > 6 || (wrapped === 6 && raw < 0)) {
     wrapped -= 12;
@@ -62,11 +64,15 @@ export const loopSemitoneForCycle = (
 
 export const loopPracticeUniqueSemitones = (
   direction: LoopTransposeDirection,
+  baseSemitone = 0,
 ): readonly number[] => {
+  if (direction === 'none') {
+    return [loopSemitoneForCycle(0, direction, baseSemitone)];
+  }
   const seen = new Set<number>();
   const result: number[] = [];
   for (let cycle = 0; cycle < 12; cycle += 1) {
-    const semitone = loopSemitoneForCycle(cycle, direction);
+    const semitone = loopSemitoneForCycle(cycle, direction, baseSemitone);
     if (seen.has(semitone)) {
       continue;
     }
@@ -106,6 +112,7 @@ export const buildLoopWindowNotes = ({
   windowSize,
   loopWindow,
   direction,
+  baseSemitone = 0,
   resolveCalibratedStartSec = (value) => value,
 }: BuildLoopWindowNotesParams): PrecisionNote[] => {
   const safeCycle = Math.max(0, Math.trunc(cycleIndex));
@@ -114,7 +121,7 @@ export const buildLoopWindowNotes = ({
 
   for (let offset = 0; offset < safeWindowSize; offset += 1) {
     const cycle = safeCycle + offset;
-    const semitone = loopSemitoneForCycle(cycle, direction);
+    const semitone = loopSemitoneForCycle(cycle, direction, baseSemitone);
     const baseNotes = notesBySemitone.get(semitone) ?? [];
     const globalCycleOffsetSec = cycle * loopWindow.durationSec;
 

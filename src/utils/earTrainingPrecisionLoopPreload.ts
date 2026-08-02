@@ -18,6 +18,7 @@ export interface BuildPrecisionNotesBySemitoneParams {
   beatsPerMeasure: number;
   isSwing: boolean;
   direction: LoopTransposeDirection;
+  baseSemitone?: number;
   resolveCalibratedStartSec: (startSec: number) => number;
   practiceMode: boolean;
   practiceSpeedPercent: number;
@@ -27,7 +28,7 @@ export interface BuildPrecisionNotesBySemitoneParams {
 export const buildPrecisionNotesBySemitone = (
   params: BuildPrecisionNotesBySemitoneParams,
 ): Map<number, PrecisionNote[]> => {
-  const semitones = loopPracticeUniqueSemitones(params.direction);
+  const semitones = loopPracticeUniqueSemitones(params.direction, params.baseSemitone ?? 0);
   const result = new Map<number, PrecisionNote[]>();
 
   for (const semitone of semitones) {

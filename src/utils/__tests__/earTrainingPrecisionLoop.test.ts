@@ -40,6 +40,11 @@ describe('earTrainingPrecisionLoop', () => {
     expect(loopSemitoneForCycle(7, 'none')).toBe(0);
   });
 
+  it('loopSemitoneForCycle: 基準キー付き', () => {
+    expect(loopSemitoneForCycle(0, 'none', 3)).toBe(3);
+    expect(loopSemitoneForCycle(2, 'down', 3)).toBe(1);
+  });
+
   it('resolveLoopWindow: 小節番号を秒に変換する', () => {
     const window = resolveLoopWindow({
       startMeasure: 2,
@@ -87,12 +92,14 @@ describe('earTrainingPrecisionLoop', () => {
     expect(built[0]?.startSec).toBeCloseTo(4.5, 5);
   });
 
-  it('loopPracticeUniqueSemitones: 移調なしは原調1件だけ読み込む', () => {
+  it('loopPracticeUniqueSemitones: 移調なしは基準キー1件だけ読み込む', () => {
     expect(loopPracticeUniqueSemitones('none')).toEqual([0]);
+    expect(loopPracticeUniqueSemitones('none', 3)).toEqual([3]);
   });
 
   it('loopPracticeUniqueSemitones: 12キー分の半音セット', () => {
     expect(loopPracticeUniqueSemitones('down')).toHaveLength(12);
+    expect(loopPracticeUniqueSemitones('down', 3)).toHaveLength(12);
   });
 
   it('loopActiveMeasureNumber: ループ開始小節を加算する', () => {
