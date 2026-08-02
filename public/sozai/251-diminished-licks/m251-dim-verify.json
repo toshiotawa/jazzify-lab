@@ -1,0 +1,842 @@
+{
+  "m251-dim-st1-c-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-c-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-db-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-db-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-d-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-d-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-eb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-eb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-e-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-e-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-f-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-f-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-gb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-gb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-g-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-g-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-ab-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-ab-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-a-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-a-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-bb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-bb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st1-b-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st1-b-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st2-c-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-c-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-db-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-db-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-d-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-d-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-eb-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-eb-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-e-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-e-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-f-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-f-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-gb-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-gb-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-g-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-g-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-ab-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-ab-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-a-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-a-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-bb-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-bb-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st2-b-osmd": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "osmd"
+  },
+  "m251-dim-st2-b-precision": {
+    "voice1": 118,
+    "voice4": 118,
+    "mode": "precision"
+  },
+  "m251-dim-st3-c-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-c-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-db-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-db-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-d-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-d-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-eb-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-eb-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-e-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-e-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-f-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-f-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-gb-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-gb-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-g-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-g-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-ab-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-ab-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-a-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-a-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-bb-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-bb-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st3-b-osmd": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "osmd"
+  },
+  "m251-dim-st3-b-precision": {
+    "voice1": 112,
+    "voice4": 112,
+    "mode": "precision"
+  },
+  "m251-dim-st4-c-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-c-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-db-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-db-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-d-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-d-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-eb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-eb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-e-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-e-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-f-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-f-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-gb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-gb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-g-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-g-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-ab-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-ab-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-a-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-a-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-bb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-bb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st4-b-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st4-b-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st5-c-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-c-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-db-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-db-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-d-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-d-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-eb-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-eb-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-e-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-e-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-f-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-f-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-gb-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-gb-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-g-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-g-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-ab-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-ab-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-a-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-a-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-bb-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-bb-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st5-b-osmd": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "osmd"
+  },
+  "m251-dim-st5-b-precision": {
+    "voice1": 100,
+    "voice4": 100,
+    "mode": "precision"
+  },
+  "m251-dim-st6-c-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-c-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-db-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-db-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-d-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-d-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-eb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-eb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-e-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-e-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-f-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-f-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-gb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-gb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-g-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-g-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-ab-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-ab-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-a-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-a-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-bb-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-bb-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st6-b-osmd": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "osmd"
+  },
+  "m251-dim-st6-b-precision": {
+    "voice1": 104,
+    "voice4": 104,
+    "mode": "precision"
+  },
+  "m251-dim-st7-c-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-c-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-db-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-db-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-d-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-d-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-eb-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-eb-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-e-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-e-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-f-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-f-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-gb-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-gb-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-g-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-g-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-ab-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-ab-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-a-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-a-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-bb-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-bb-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  },
+  "m251-dim-st7-b-osmd": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "osmd"
+  },
+  "m251-dim-st7-b-precision": {
+    "voice1": 106,
+    "voice4": 106,
+    "mode": "precision"
+  }
+}
