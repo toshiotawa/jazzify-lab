@@ -1,0 +1,602 @@
+{
+  "m251-s2-st1-c-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-c-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-db-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-db-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-d-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-d-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-eb-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-eb-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-e-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-e-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-f-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-f-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-gb-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-gb-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-g-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-g-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-ab-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-ab-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-a-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-a-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-bb-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-bb-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st1-b-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st1-b-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-c-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-c-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-db-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-db-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-d-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-d-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-eb-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-eb-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-e-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-e-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-f-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-f-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-gb-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-gb-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-g-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-g-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-ab-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-ab-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-a-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-a-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-bb-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-bb-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st2-b-osmd": {
+    "voice1": 72,
+    "voice4": 72,
+    "mode": "osmd"
+  },
+  "m251-s2-st2-b-precision": {
+    "voice1": 72,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-c-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-c-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-db-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-db-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-d-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-d-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-eb-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-eb-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-e-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-e-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-f-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-f-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-gb-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-gb-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-g-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-g-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-ab-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-ab-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-a-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-a-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-bb-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-bb-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st3-b-osmd": {
+    "voice1": 78,
+    "voice4": 78,
+    "mode": "osmd"
+  },
+  "m251-s2-st3-b-precision": {
+    "voice1": 78,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-c-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-c-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-db-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-db-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-d-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-d-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-eb-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-eb-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-e-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-e-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-f-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-f-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-gb-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-gb-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-g-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-g-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-ab-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-ab-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-a-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-a-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-bb-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-bb-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st4-b-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st4-b-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-c-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-c-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-db-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-db-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-d-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-d-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-eb-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-eb-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-e-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-e-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-f-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-f-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-gb-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-gb-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-g-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-g-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-ab-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-ab-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-a-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-a-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-bb-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-bb-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  },
+  "m251-s2-st5-b-osmd": {
+    "voice1": 74,
+    "voice4": 74,
+    "mode": "osmd"
+  },
+  "m251-s2-st5-b-precision": {
+    "voice1": 74,
+    "voice4": 0,
+    "mode": "precision"
+  }
+}
