@@ -69,6 +69,26 @@ interface PlayPreparedChordVoicingPhraseParams {
   onEnded?: () => void;
 }
 
+export interface PrepareAllSemitonesProgress {
+  completed: number;
+  total: number;
+  semitone: number;
+}
+
+export interface StartLoopSessionParams {
+  buffersBySemitone: ReadonlyMap<number, AudioBuffer>;
+  semitoneForCycle: (cycleIndex: number) => number;
+  loopStartSec: number;
+  loopDurationSec: number;
+  loopPrimingOffsetSec?: number;
+  phraseGain?: number;
+  countInBeats: number;
+  bpm: number;
+  beatGain: number;
+  onPhraseStarted?: () => void;
+  onEnded?: () => void;
+}
+
 export const CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC = 0.28;
 const COUNT_IN_CLICK_GAIN = 0.82;
 const COUNT_IN_FIRST_CLICK_GAIN = 1;
@@ -107,6 +127,17 @@ export class EarTrainingChordVoicingPhrasePlayer {
   private pendingTimeouts: number[] = [];
   private pausedTimelineSec = 0;
   private isPaused = false;
+  private loopSessionActive = false;
+  private loopAnchorCtxTime: number | null = null;
+  private loopDurationSec = 0;
+  private loopStartSec = 0;
+  private loopPrimingOffsetSec = 0;
+  private loopBuffersBySemitone: Map<number, AudioBuffer> | null = null;
+  private loopSemitoneForCycle: ((cycleIndex: number) => number) | null = null;
+  private loopOnEnded: (() => void) | null = null;
+  private loopScheduleGen = 0;
+  private readonly scheduledLoopCycles = new Set<number>();
+  private readonly loopSources = new Set<AudioBufferSourceNode>();
 
   constructor(options: EarTrainingChordVoicingPhrasePlayerOptions = {}) {
     this.options = options;
@@ -227,10 +258,37 @@ export class EarTrainingChordVoicingPhrasePlayer {
     }
   }
 
+  private stopLoopSourcesOnly(): void {
+    for (const source of this.loopSources) {
+      source.onended = null;
+      try {
+        source.stop(0);
+      } catch {
+        // 既に停止済み
+      }
+    }
+    this.loopSources.clear();
+    this.scheduledLoopCycles.clear();
+  }
+
+  private resetLoopSessionState(): void {
+    this.loopSessionActive = false;
+    this.loopAnchorCtxTime = null;
+    this.loopDurationSec = 0;
+    this.loopStartSec = 0;
+    this.loopPrimingOffsetSec = 0;
+    this.loopBuffersBySemitone = null;
+    this.loopSemitoneForCycle = null;
+    this.loopOnEnded = null;
+    this.loopScheduleGen += 1;
+    this.stopLoopSourcesOnly();
+  }
+
   stop(): void {
     this.generation += 1;
     this.clearPendingTimeouts();
     this.stopPhraseSourceOnly();
+    this.resetLoopSessionState();
     this.phraseStartCtxTime = null;
     this.phraseBufferDurationSec = 0;
     this.phraseEnded = false;
@@ -249,6 +307,10 @@ export class EarTrainingChordVoicingPhrasePlayer {
     this.generation += 1;
     this.clearPendingTimeouts();
     this.stopPhraseSourceOnly();
+    if (this.loopSessionActive) {
+      this.stopLoopSourcesOnly();
+      this.loopScheduleGen += 1;
+    }
     return this.pausedTimelineSec;
   }
 
@@ -291,11 +353,213 @@ export class EarTrainingChordVoicingPhrasePlayer {
    * `AudioContext.currentTime` とスケジュールしたフレーズ頭の差（秒）。
    */
   getPhraseTimelineSec(): number | null {
+    if (this.loopSessionActive) {
+      return this.getLoopTimelineSec();
+    }
     if (this.phraseStartCtxTime === null || !this.ctx) {
       return null;
     }
     const delta = this.ctx.currentTime - this.phraseStartCtxTime;
     return Number.isFinite(delta) ? delta : null;
+  }
+
+  isLoopSessionActive(): boolean {
+    return this.loopSessionActive;
+  }
+
+  getLoopTimelineSec(): number | null {
+    if (!this.loopSessionActive || this.loopAnchorCtxTime === null || !this.ctx) {
+      return null;
+    }
+    const delta = this.ctx.currentTime - this.loopAnchorCtxTime;
+    return Number.isFinite(delta) ? delta : null;
+  }
+
+  async prepareAllSemitones(
+    url: string,
+    semitones: readonly number[],
+    options: {
+      speedPercent?: number;
+      onProgress?: (progress: PrepareAllSemitonesProgress) => void;
+    } = {},
+  ): Promise<Map<number, AudioBuffer>> {
+    const ctx = this.createCtx();
+    const speedPercent = clampPracticeSpeedPercent(options.speedPercent ?? this.playbackSpeedPercent);
+    const raw = await this.decodeRawBuffer(ctx, url);
+    const result = new Map<number, AudioBuffer>();
+    const total = semitones.length;
+
+    for (let index = 0; index < semitones.length; index += 1) {
+      const semitone = semitones[index] ?? 0;
+      const cacheKey = buildPhrasePrepareCacheKey(url, semitone, speedPercent);
+      let promise = this.preparedByCacheKey.get(cacheKey);
+      if (!promise) {
+        promise = processOfflinePhraseBuffer(raw, { semitones: semitone, speedPercent });
+        this.preparedByCacheKey.set(cacheKey, promise);
+      }
+      const buffer = await promise;
+      result.set(semitone, buffer);
+      options.onProgress?.({ completed: index + 1, total, semitone });
+    }
+
+    return result;
+  }
+
+  startLoopSession(params: StartLoopSessionParams): void {
+    const ctx = this.createCtx();
+    const master = this.masterGain;
+    const phraseOut = this.phraseGain;
+    if (!master || !phraseOut) {
+      return;
+    }
+
+    this.stop();
+    const scheduleGen = this.generation;
+    const phraseGainLinear = Math.max(0, Math.min(1, params.phraseGain ?? 1));
+    const loopDurationSec = Math.max(1e-6, params.loopDurationSec);
+    const loopStartSec = Math.max(0, params.loopStartSec);
+    const loopPrimingOffsetSec = Math.max(0, params.loopPrimingOffsetSec ?? 0);
+
+    this.loopSessionActive = true;
+    this.loopDurationSec = loopDurationSec;
+    this.loopStartSec = loopStartSec;
+    this.loopPrimingOffsetSec = loopPrimingOffsetSec;
+    this.loopBuffersBySemitone = new Map(params.buffersBySemitone);
+    this.loopSemitoneForCycle = params.semitoneForCycle;
+    this.loopOnEnded = params.onEnded ?? null;
+    this.loopScheduleGen = scheduleGen;
+    this.phraseEnded = false;
+    this.isPaused = false;
+
+    void ctx.resume().then(async () => {
+      if (scheduleGen !== this.generation) {
+        return;
+      }
+      phraseOut.gain.value = phraseGainLinear;
+
+      const beats = clampCountInBeats(params.countInBeats);
+      let phraseStart = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
+
+      if (beats > 0) {
+        let clickBuffer: AudioBuffer;
+        try {
+          clickBuffer = await this.ensureCountInClickBuffer(ctx);
+        } catch {
+          this.resetLoopSessionState();
+          return;
+        }
+        if (scheduleGen !== this.generation) {
+          return;
+        }
+
+        const bpm = Math.max(20, Math.min(400, params.bpm));
+        const safeGain = Math.max(0, Math.min(1, params.beatGain));
+        const spb = 60 / bpm;
+        const firstClick = ctx.currentTime + CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
+        phraseStart = firstClick + beats * spb;
+
+        for (let i = 0; i < beats; i += 1) {
+          const clickGain = i === 0 ? COUNT_IN_FIRST_CLICK_GAIN : COUNT_IN_CLICK_GAIN;
+          scheduleClickBuffer(ctx, clickBuffer, firstClick + i * spb, safeGain * clickGain, master);
+        }
+
+        if (params.onPhraseStarted) {
+          const delayMs = Math.max(0, Math.ceil((phraseStart - ctx.currentTime) * 1000));
+          const timer = window.setTimeout(() => {
+            if (scheduleGen !== this.generation) {
+              return;
+            }
+            params.onPhraseStarted?.();
+          }, delayMs);
+          this.pendingTimeouts.push(timer);
+        }
+      } else if (params.onPhraseStarted) {
+        const delayMs = Math.max(0, Math.ceil((phraseStart - ctx.currentTime) * 1000));
+        const timer = window.setTimeout(() => {
+          if (scheduleGen !== this.generation) {
+            return;
+          }
+          params.onPhraseStarted?.();
+        }, delayMs);
+        this.pendingTimeouts.push(timer);
+      }
+
+      this.loopAnchorCtxTime = phraseStart;
+      this.phraseStartCtxTime = phraseStart;
+      this.phraseBufferDurationSec = Number.POSITIVE_INFINITY;
+      this.ensureLoopCyclesScheduled(0, 2);
+    }).catch(() => {
+      this.resetLoopSessionState();
+    });
+  }
+
+  private ensureLoopCyclesScheduled(fromCycle: number, throughCycle: number): void {
+    if (!this.loopSessionActive || !this.ctx || !this.phraseGain || !this.loopSemitoneForCycle) {
+      return;
+    }
+    const scheduleGen = this.loopScheduleGen;
+    const ctx = this.ctx;
+    const phraseOut = this.phraseGain;
+    const anchor = this.loopAnchorCtxTime;
+    if (anchor === null) {
+      return;
+    }
+
+    for (let cycleIndex = fromCycle; cycleIndex <= throughCycle; cycleIndex += 1) {
+      if (this.scheduledLoopCycles.has(cycleIndex)) {
+        continue;
+      }
+      const semitone = this.loopSemitoneForCycle(cycleIndex);
+      const buffer = this.loopBuffersBySemitone?.get(semitone);
+      if (!buffer) {
+        continue;
+      }
+
+      const when = anchor + cycleIndex * this.loopDurationSec;
+      const bufferOffsetSec = Math.min(
+        Math.max(0, this.loopStartSec + this.loopPrimingOffsetSec),
+        Math.max(0, buffer.duration - 1e-6),
+      );
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(phraseOut);
+      this.loopSources.add(source);
+      this.scheduledLoopCycles.add(cycleIndex);
+
+      source.onended = () => {
+        if (scheduleGen !== this.loopScheduleGen) {
+          return;
+        }
+        this.loopSources.delete(source);
+        this.scheduledLoopCycles.delete(cycleIndex);
+        this.ensureLoopCyclesScheduled(cycleIndex + 1, cycleIndex + 3);
+      };
+
+      try {
+        source.start(when, bufferOffsetSec, this.loopDurationSec);
+      } catch {
+        this.loopSources.delete(source);
+        this.scheduledLoopCycles.delete(cycleIndex);
+        if (cycleIndex === 0) {
+          this.loopOnEnded?.();
+        }
+      }
+    }
+  }
+
+  resumeLoopSessionFromTimelineSec(timelineSec: number): void {
+    if (!this.loopSessionActive || !this.ctx || !this.phraseGain) {
+      return;
+    }
+    const safeTimeline = Math.max(0, timelineSec);
+    this.stopLoopSourcesOnly();
+    this.loopScheduleGen += 1;
+    this.loopAnchorCtxTime = this.ctx.currentTime - safeTimeline;
+    this.phraseStartCtxTime = this.loopAnchorCtxTime;
+    this.phraseEnded = false;
+    this.isPaused = false;
+    const startCycle = Math.floor(safeTimeline / this.loopDurationSec);
+    this.ensureLoopCyclesScheduled(startCycle, startCycle + 2);
   }
 
   hasEnded(): boolean {

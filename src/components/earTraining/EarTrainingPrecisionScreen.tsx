@@ -10,6 +10,9 @@ import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingChordOSMDScore, {
   type EarTrainingChordOSMDScoreHandle,
 } from './EarTrainingChordOSMDScore';
+import EarTrainingPrecisionLoopOsmdScore, {
+  type EarTrainingPrecisionLoopOsmdScoreHandle,
+} from './EarTrainingPrecisionLoopOsmdScore';
 import PrecisionNotesRenderer, {
   type PrecisionNotesRendererInstance,
 } from '@/components/piano/PrecisionNotesRenderer';
@@ -69,6 +72,7 @@ import {
   applyPracticeTransposeToMusicXml,
   clampPracticeTransposeOffset,
   fifthsToPreferredKeyName,
+  getPracticeTransposeTargetKeyName,
   readKeyFifthsFromMusicXml,
 } from '@/utils/earTrainingPracticeTranspose';
 import {
@@ -119,6 +123,25 @@ import {
   saveEarTrainingPrecisionAutoPlayEnabled,
   type PrecisionAutoPlayCallbacks,
 } from '@/utils/earTrainingPrecisionAutoPlay';
+import {
+  buildLoopWindowNotes,
+  globalToLoopPosition,
+  loopCycleWindowSize,
+  loopOsmdTimelineSec,
+  loopPracticeUniqueSemitones,
+  loopSemitoneForCycle,
+  resolveLoopWindow,
+  scaleScoreSecToProcessedBufferSec,
+  type LoopTransposeDirection,
+  type PrecisionLoopWindow,
+} from '@/utils/earTrainingPrecisionLoop';
+import { buildPrecisionNotesBySemitone } from '@/utils/earTrainingPrecisionLoopPreload';
+import {
+  isPrecisionLoopPracticeRunMode,
+  isPrecisionPracticeRunMode,
+  type PrecisionRunMode,
+} from '@/utils/earTrainingPrecisionRunMode';
+import { resolvePhraseBufferPrimingOffsetSec } from '@/utils/earTrainingPhrasePitchShiftPriming';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -130,24 +153,38 @@ interface EarTrainingPrecisionScreenProps {
   stage: EarTrainingStage;
   lessonContext: EarTrainingLessonContext | null;
   initialPracticeMode: boolean;
+  initialRunMode?: PrecisionRunMode;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  onRunModeRestartFromSettings?: (nextRunMode: PrecisionRunMode) => void;
   earMidi: GameMidiBindings;
 }
 
 const INPUT_COOLDOWN_MS = 20;
 const PIANO_HEIGHT = 96;
-const TRANSPORT_HEIGHT = 72;
+const TRANSPORT_HEIGHT = 112;
 const SEEK_SLIDER_UI_UPDATE_INTERVAL_MS = 200;
+
+const resolveInitialRunMode = (
+  initialRunMode: PrecisionRunMode | undefined,
+  initialPracticeMode: boolean,
+): PrecisionRunMode => {
+  if (initialRunMode) {
+    return initialRunMode;
+  }
+  return initialPracticeMode ? 'practice' : 'performance';
+};
 
 const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   stage,
   lessonContext,
   initialPracticeMode,
+  initialRunMode,
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  onRunModeRestartFromSettings,
   earMidi,
 }) => {
   const { settings, updateSettings } = useGameStore();
@@ -175,8 +212,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   );
   const phrase = phrases[0] ?? null;
 
-  const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
-  const practiceModeRef = useRef(initialPracticeMode);
+  const [runMode, setRunMode] = useState<PrecisionRunMode>(
+    () => resolveInitialRunMode(initialRunMode, initialPracticeMode),
+  );
+  const runModeRef = useRef(runMode);
+  const practiceMode = isPrecisionPracticeRunMode(runMode);
+  const loopEnabled = isPrecisionLoopPracticeRunMode(runMode);
+  const practiceModeRef = useRef(practiceMode);
+  const loopEnabledRef = useRef(loopEnabled);
   const [gameState, setGameState] = useState<EarTrainingGameState | 'paused'>('idle');
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [baseMusicXmlText, setBaseMusicXmlText] = useState<string | null>(null);
@@ -203,8 +246,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [seekPreviewSec, setSeekPreviewSec] = useState(0);
   const [isSeekDragging, setIsSeekDragging] = useState(false);
   const [phraseDurationSec, setPhraseDurationSec] = useState(1);
+  const [loopStartMeasure, setLoopStartMeasure] = useState(1);
+  const [loopEndMeasure, setLoopEndMeasure] = useState(() => Math.max(1, stage.loop_measures));
+  const [loopTransposeDirection, setLoopTransposeDirection] = useState<LoopTransposeDirection>('down');
+  const [loopCycleIndex, setLoopCycleIndex] = useState(0);
+  const [loopActiveSemitone, setLoopActiveSemitone] = useState(0);
+  const [loopPreloadProgress, setLoopPreloadProgress] = useState<string | null>(null);
+  const [loopScoreXmlBySemitone, setLoopScoreXmlBySemitone] = useState<Map<number, string>>(new Map());
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
+  const loopOsmdScoreRef = useRef<EarTrainingPrecisionLoopOsmdScoreHandle | null>(null);
   const maxOsmdMeasureRef = useRef(1);
   const [notesViewportSize, setNotesViewportSize] = useState({ width: 390, height: 400 });
   const [scoreBandHeightPx, setScoreBandHeightPx] = useState(() => {
@@ -254,6 +305,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     onNoteOff: () => undefined,
   });
   const autoPlayHoldCountRef = useRef<Map<number, number>>(new Map());
+  const loopBuffersRef = useRef<Map<number, AudioBuffer>>(new Map());
+  const notesBySemitoneRef = useRef<Map<number, PrecisionNote[]>>(new Map());
+  const loopWindowRef = useRef<PrecisionLoopWindow>(resolveLoopWindow({
+    startMeasure: 1,
+    endMeasure: Math.max(1, stage.loop_measures),
+    measureDurationSec: 2,
+  }));
+  const loopCycleWindowSizeRef = useRef(2);
+  const lastLoopCycleIndexRef = useRef(-1);
+  const loopTransposeDirectionRef = useRef<LoopTransposeDirection>('down');
 
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
@@ -264,7 +325,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, [practiceMode]);
 
   useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  useEffect(() => { runModeRef.current = runMode; }, [runMode]);
   useEffect(() => { practiceModeRef.current = practiceMode; }, [practiceMode]);
+  useEffect(() => { loopEnabledRef.current = loopEnabled; }, [loopEnabled]);
+  useEffect(() => { loopTransposeDirectionRef.current = loopTransposeDirection; }, [loopTransposeDirection]);
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
   useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
@@ -360,25 +424,82 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     );
   }, [resolveEffectivePracticeBpm, stage.beats_per_measure, stage.loop_measures]);
 
-  const syncPlayheadForTimeline = useCallback((phraseTimeSec: number, animating?: boolean): void => {
-    const measureNumber = computeOsmdActiveMeasureFromTimeline(
-      phraseTimeSec,
-      measureDurationSec,
-      maxOsmdMeasureRef.current,
+  const applyLoopCycleTransition = useCallback((cycleIndex: number): void => {
+    const semitone = loopSemitoneForCycle(cycleIndex, loopTransposeDirectionRef.current);
+    const windowNotes = buildLoopWindowNotes({
+      notesBySemitone: notesBySemitoneRef.current,
+      cycleIndex,
+      windowSize: loopCycleWindowSizeRef.current,
+      loopWindow: loopWindowRef.current,
+      direction: loopTransposeDirectionRef.current,
+      resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
+    });
+    runtimeStatesRef.current = createPrecisionRuntimeStates(windowNotes);
+    notesRef.current = windowNotes;
+    setPrecisionNotes(windowNotes);
+    const displayRange = resolvePrecisionDisplayKeyboardRange(
+      windowNotes.map(note => note.midi),
+      settings.webKeyboardDisplayMode ?? 'questionRangeFit',
+      { ensureMinTwoOctaves },
     );
+    setKeyboardRange(displayRange);
+    setLoopCycleIndex(cycleIndex);
+    setLoopActiveSemitone(semitone);
+    notesRendererRef.current?.setNotes(windowNotes);
+    notesRendererRef.current?.setKeyboardRange(displayRange.minMidi, displayRange.maxMidi);
+    notesRendererRef.current?.setRuntimeStates(runtimeStatesRef.current);
+    autoPlaySchedulerRef.current.setNotes(windowNotes);
+    autoPlaySchedulerRef.current.reset();
+  }, [
+    ensureMinTwoOctaves,
+    resolveCalibratedTargetTimeSec,
+    settings.webKeyboardDisplayMode,
+  ]);
+
+  const syncPlayheadForTimeline = useCallback((phraseTimeSec: number, animating?: boolean): void => {
     const isAnimating = animating ?? (
       gameStateRef.current === 'countIn' || gameStateRef.current === 'playingPhrase'
     );
+    let measureNumber: number;
+    let timelineForOsmd = phraseTimeSec;
+
+    if (loopEnabledRef.current && phraseTimeSec >= 0) {
+      const { localSec, cycleIndex } = globalToLoopPosition(
+        phraseTimeSec,
+        loopWindowRef.current.durationSec,
+      );
+      if (cycleIndex !== lastLoopCycleIndexRef.current) {
+        lastLoopCycleIndexRef.current = cycleIndex;
+        applyLoopCycleTransition(cycleIndex);
+      }
+      const osmdTimeline = loopOsmdTimelineSec(
+        localSec,
+        measureDurationSec,
+        loopWindowRef.current,
+      );
+      measureNumber = osmdTimeline.measureNumber;
+      timelineForOsmd = osmdTimeline.phraseTimelineSec;
+    } else {
+      measureNumber = computeOsmdActiveMeasureFromTimeline(
+        phraseTimeSec,
+        measureDurationSec,
+        maxOsmdMeasureRef.current,
+      );
+    }
+
     if (measureNumber !== activeMeasureNumberRef.current) {
       activeMeasureNumberRef.current = measureNumber;
       setActiveMeasureNumber(measureNumber);
     }
-    osmdScoreRef.current?.syncPlayhead({
-      phraseTimelineSec: phraseTimeSec,
+    const scoreHandle = loopEnabledRef.current
+      ? loopOsmdScoreRef.current
+      : osmdScoreRef.current;
+    scoreHandle?.syncPlayhead({
+      phraseTimelineSec: timelineForOsmd,
       activeMeasureNumber: measureNumber,
       animating: isAnimating,
     });
-  }, [measureDurationSec]);
+  }, [applyLoopCycleTransition, measureDurationSec]);
 
   const ensurePhrasePlayer = useCallback((): EarTrainingChordVoicingPhrasePlayer => {
     if (!phrasePlayerRef.current) {
@@ -628,7 +749,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       || gameStateRef.current === 'countIn';
     if (wasPlayingBeforeSeekRef.current) {
       const player = phrasePlayerRef.current;
-      if (player && preparedRef.current) {
+      if (player && (preparedRef.current || player.isLoopSessionActive())) {
         const pausedAt = player.pause();
         gameStateRef.current = 'paused';
         setGameState('paused');
@@ -656,6 +777,22 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setIsSeekDragging(false);
     const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
     const player = phrasePlayerRef.current;
+    if (loopEnabledRef.current && player?.isLoopSessionActive()) {
+      resetRuntimeStatesForSeekTime(clamped);
+      updateSeekSliderUi(clamped, true);
+      syncRenderer(clamped);
+      hasSyncedPhraseStartPlayheadRef.current = clamped >= 0;
+      syncPlayheadForTimeline(clamped, resumePlayback);
+      if (resumePlayback) {
+        player.resumeLoopSessionFromTimelineSec(clamped);
+        gameStateRef.current = 'playingPhrase';
+        setGameState('playingPhrase');
+      } else {
+        gameStateRef.current = 'paused';
+        setGameState('paused');
+      }
+      return;
+    }
     const prepared = preparedRef.current;
     if (!player || !prepared) {
       phraseTimeSecRef.current = clamped;
@@ -720,7 +857,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     } else if (!hasSyncedPhraseStartPlayheadRef.current) {
       hasSyncedPhraseStartPlayheadRef.current = true;
       syncPlayheadForTimeline(phraseTimeSec, true);
-    } else {
+    } else if (!loopEnabledRef.current) {
       const nextMeasure = computeOsmdActiveMeasureFromTimeline(
         phraseTimeSec,
         measureDurationSec,
@@ -738,6 +875,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           animating: true,
         });
       }
+    } else {
+      syncPlayheadForTimeline(phraseTimeSec, true);
     }
     const newlyMissed = markExpiredPrecisionNotesAsMiss(
       notesRef.current,
@@ -790,7 +929,11 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     updateSeekSliderUi(phraseTimeSec);
     syncRendererTime(phraseTimeSec);
-    if (state === 'playingPhrase' && phraseTimeSec >= phraseLoopEndSecRef.current) {
+    if (
+      !loopEnabledRef.current
+      && state === 'playingPhrase'
+      && phraseTimeSec >= phraseLoopEndSecRef.current
+    ) {
       finishPhraseRef.current();
     }
   }, [
@@ -871,6 +1014,113 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         setGameState('idle');
         return;
       }
+
+      if (loopEnabledRef.current) {
+        setLoopPreloadProgress(isEnglishCopy ? 'Preparing loop practice…' : 'ループ練習を準備中…');
+        try {
+          const loopWindow = resolveLoopWindow({
+          startMeasure: loopStartMeasure,
+          endMeasure: loopEndMeasure,
+          measureDurationSec,
+        });
+        loopWindowRef.current = loopWindow;
+        loopCycleWindowSizeRef.current = loopCycleWindowSize(loopWindow.durationSec);
+        lastLoopCycleIndexRef.current = -1;
+
+        const rawXmlUrl = phrase.music_xml_url?.trim() ?? '';
+        const baseXml = getCachedEarTrainingMusicXml(rawXmlUrl) ?? xmlText;
+
+        const notesBySemitone = buildPrecisionNotesBySemitone({
+          xmlText: baseXml,
+          midiData: baseMidiDataRef.current,
+          bpm: stage.bpm,
+          beatsPerMeasure: stage.beats_per_measure,
+          isSwing: stage.is_swing === true,
+          direction: loopTransposeDirectionRef.current,
+          resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
+          practiceMode: true,
+          practiceSpeedPercent: practiceSpeedPercentRef.current,
+          classificationBpm: resolveEffectivePracticeBpm(),
+        });
+        notesBySemitoneRef.current = notesBySemitone;
+
+        const scoreXmlEntries = loopPracticeUniqueSemitones(loopTransposeDirectionRef.current);
+        const scoreXmlBySemitone = new Map<number, string>();
+        for (const semitone of scoreXmlEntries) {
+          scoreXmlBySemitone.set(semitone, applyPracticeTransposeToMusicXml(baseXml, semitone));
+        }
+        setLoopScoreXmlBySemitone(scoreXmlBySemitone);
+
+        const semitones = loopPracticeUniqueSemitones(loopTransposeDirectionRef.current);
+        player.setPlaybackSpeedPercent(practiceSpeedPercentRef.current);
+        const buffersBySemitone = await player.prepareAllSemitones(
+          toCdnProxyUrl(phrase.audio_url),
+          semitones,
+          {
+            speedPercent: practiceSpeedPercentRef.current,
+            onProgress: ({ completed, total }) => {
+              setLoopPreloadProgress(
+                isEnglishCopy
+                  ? `Audio ${completed}/${total}, Score ${scoreXmlBySemitone.size}/${scoreXmlBySemitone.size}`
+                  : `音声 ${completed}/${total}、譜面 ${scoreXmlBySemitone.size}/${scoreXmlBySemitone.size}`,
+              );
+            },
+          },
+        );
+        if (phraseRunIdRef.current !== runId) {
+          return;
+        }
+        loopBuffersRef.current = buffersBySemitone;
+        const primingOffsetSec = resolvePhraseBufferPrimingOffsetSec([...buffersBySemitone.values()]);
+        const loopStartBufferSec = scaleScoreSecToProcessedBufferSec(
+          loopWindow.startSec,
+          practiceSpeedPercentRef.current,
+        );
+        phraseLoopDurationSecRef.current = loopWindow.durationSec;
+        phraseLoopEndSecRef.current = loopWindow.durationSec;
+        setPhraseDurationSec(loopWindow.durationSec);
+        refreshMaxOsmdMeasure();
+        applyLoopCycleTransition(0);
+        setLoopPreloadProgress(null);
+
+        setScoreTimelineArmed(true);
+        activeMeasureNumberRef.current = loopWindow.startMeasure;
+        setActiveMeasureNumber(loopWindow.startMeasure);
+        phraseTimeSecRef.current = 0;
+        updateSeekSliderUi(0, true);
+        syncPlayheadForTimeline(0, false);
+
+        player.startLoopSession({
+          buffersBySemitone,
+          semitoneForCycle: (cycleIndex) => loopSemitoneForCycle(
+            cycleIndex,
+            loopTransposeDirectionRef.current,
+          ),
+          loopStartSec: loopStartBufferSec,
+          loopDurationSec: scaleScoreSecToProcessedBufferSec(
+            loopWindow.durationSec,
+            practiceSpeedPercentRef.current,
+          ),
+          loopPrimingOffsetSec: primingOffsetSec,
+          phraseGain: settings.musicVolume * settings.masterVolume,
+          countInBeats: stage.count_in_beats,
+          bpm: resolveEffectivePracticeBpm(),
+          beatGain: settings.musicVolume * settings.masterVolume,
+          onPhraseStarted: () => {
+            if (phraseRunIdRef.current !== runId) {
+              return;
+            }
+            gameStateRef.current = 'playingPhrase';
+            setGameState('playingPhrase');
+          },
+        });
+        } catch {
+          setLoopPreloadProgress(null);
+          setGameState('idle');
+        }
+        return;
+      }
+
       rebuildPrecisionNotes(xmlText);
       if (notesRef.current.length === 0) {
         setGameState('idle');
@@ -1096,6 +1346,19 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     () => (baseMusicXmlText ? fifthsToPreferredKeyName(originalKeyFifths) : '—'),
     [baseMusicXmlText, originalKeyFifths],
   );
+  const loopCurrentKeyName = useMemo(
+    () => getPracticeTransposeTargetKeyName(originalKeyFifths, loopActiveSemitone),
+    [loopActiveSemitone, originalKeyFifths],
+  );
+  const maxLoopMeasure = Math.max(stage.loop_measures, loopEndMeasure, 1);
+
+  const handleRunModeSelection = useCallback((nextRunMode: PrecisionRunMode) => {
+    if (onRunModeRestartFromSettings) {
+      onRunModeRestartFromSettings(nextRunMode);
+      return;
+    }
+    setRunMode(nextRunMode);
+  }, [onRunModeRestartFromSettings]);
 
   const practiceTransposeConfig = useMemo(
     () => (
@@ -1224,7 +1487,30 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
   const togglePause = useCallback(() => {
     const player = phrasePlayerRef.current;
-    if (!player || !preparedRef.current) {
+    if (!player) {
+      return;
+    }
+    if (loopEnabledRef.current && player.isLoopSessionActive()) {
+      if (gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn') {
+        const pausedAt = player.pause();
+        gameStateRef.current = 'paused';
+        setGameState('paused');
+        updateSeekSliderUi(pausedAt, true);
+        syncRenderer(pausedAt);
+        syncPlayheadForTimeline(pausedAt, false);
+        return;
+      }
+      if (gameStateRef.current === 'paused') {
+        const offset = seekSliderSecRef.current;
+        hasSyncedPhraseStartPlayheadRef.current = offset >= 0;
+        syncPlayheadForTimeline(offset, true);
+        player.resumeLoopSessionFromTimelineSec(offset);
+        gameStateRef.current = 'playingPhrase';
+        setGameState('playingPhrase');
+      }
+      return;
+    }
+    if (!preparedRef.current) {
       return;
     }
     if (gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn') {
@@ -1384,7 +1670,26 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       </header>
 
       <div className="relative shrink-0 overflow-hidden" style={{ height: scoreBandHeightPx }}>
-        {musicXmlText ? (
+        {loopEnabled && loopScoreXmlBySemitone.size > 0 ? (
+          <EarTrainingPrecisionLoopOsmdScore
+            ref={loopOsmdScoreRef}
+            scoreXmlBySemitone={loopScoreXmlBySemitone}
+            activeSemitone={loopActiveSemitone}
+            scoreErrorText={scoreErrorText}
+            activeMeasureNumber={activeMeasureNumber}
+            measureDurationSec={measureDurationSec}
+            countInDurationSec={countInDurationSec}
+            scrollActive={scoreScrollActive}
+            renderKeyValue={phraseRunId}
+            isEnglishCopy={isEnglishCopy}
+            hidden={false}
+            scoreZClassName="z-10"
+            fillParent
+            manualScrollEnabled={practiceMode && gameState === 'paused'}
+            showScoreLyrics={stage.show_score_lyrics_in_battle === true}
+            scrollLayout={OSMD_SCROLL_LAYOUT_PRECISION}
+          />
+        ) : musicXmlText ? (
           <EarTrainingChordOSMDScore
             ref={osmdScoreRef}
             musicXmlText={musicXmlText}
@@ -1453,9 +1758,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
               {isEnglishCopy ? 'Precision Mode' : '精密モード'}
             </div>
             <div className="text-sm text-slate-300">
-              {practiceMode
-                ? (isEnglishCopy ? 'Practice: transpose & speed available.' : '練習モード: 移調・速度変更が可能です。')
-                : (isEnglishCopy ? 'Performance: 70%+ GOOD to clear.' : '本番モード: GOOD率70%以上でクリア。')}
+              {runMode === 'loopPractice'
+                ? (isEnglishCopy
+                  ? 'Loop practice: transpose each loop while A-B repeats.'
+                  : 'ループ練習: A-B区間をループし、周ごとに移調します。')
+                : practiceMode
+                  ? (isEnglishCopy ? 'Practice: transpose & speed available.' : '練習モード: 移調・速度変更が可能です。')
+                  : (isEnglishCopy ? 'Performance: 70%+ GOOD to clear.' : '本番モード: GOOD率70%以上でクリア。')}
             </div>
             <div className="text-xs text-slate-400">{originalKeyName}</div>
             <div className="flex items-center gap-2 text-xs">
@@ -1479,21 +1788,87 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             >
               {gameState === 'idle' ? 'START' : 'RETRY'}
             </button>
-            {lessonContext ? (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={practiceMode}
-                  disabled={!canChangePracticeMode || !onPracticeModeRestartFromSettings}
-                  onChange={(event) => {
-                    const next = event.target.checked;
-                    setPracticeMode(next);
-                    onPracticeModeRestartFromSettings?.(next);
-                  }}
-                />
-                {isEnglishCopy ? 'Practice mode' : '練習モード'}
-              </label>
+            {canChangePracticeMode ? (
+              <div className="flex flex-col items-center gap-2 text-sm">
+                <div className="flex flex-wrap justify-center gap-2">
+                  {([
+                    ['performance', isEnglishCopy ? 'Performance' : '本番'],
+                    ['practice', isEnglishCopy ? 'Practice' : '練習'],
+                    ['loopPractice', isEnglishCopy ? 'Loop practice' : 'ループ練習'],
+                  ] as const).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      disabled={!canChangePracticeMode}
+                      className={cn(
+                        'rounded-lg px-3 py-1.5',
+                        runMode === mode ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-white',
+                      )}
+                      onClick={() => handleRunModeSelection(mode)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : null}
+            {loopEnabled ? (
+              <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-300">
+                <label className="flex items-center gap-1">
+                  {isEnglishCopy ? 'Loop start' : '開始小節'}
+                  <input
+                    type="number"
+                    min={1}
+                    max={loopEndMeasure}
+                    value={loopStartMeasure}
+                    disabled={!canChangePracticeMode}
+                    className="w-14 rounded bg-slate-800 px-2 py-1"
+                    onChange={(event) => {
+                      const next = Math.max(1, Math.min(loopEndMeasure, Number(event.target.value) || 1));
+                      setLoopStartMeasure(next);
+                    }}
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  {isEnglishCopy ? 'Loop end' : '終了小節'}
+                  <input
+                    type="number"
+                    min={loopStartMeasure}
+                    max={maxLoopMeasure}
+                    value={loopEndMeasure}
+                    disabled={!canChangePracticeMode}
+                    className="w-14 rounded bg-slate-800 px-2 py-1"
+                    onChange={(event) => {
+                      const next = Math.max(
+                        loopStartMeasure,
+                        Math.min(maxLoopMeasure, Number(event.target.value) || loopStartMeasure),
+                      );
+                      setLoopEndMeasure(next);
+                    }}
+                  />
+                </label>
+                <label className="flex items-center gap-1">
+                  {isEnglishCopy ? 'Transpose' : '移調'}
+                  <select
+                    value={loopTransposeDirection}
+                    disabled={!canChangePracticeMode}
+                    className="rounded bg-slate-800 px-2 py-1"
+                    onChange={(event) => {
+                      setLoopTransposeDirection(event.target.value === 'up' ? 'up' : 'down');
+                    }}
+                  >
+                    <option value="down">{isEnglishCopy ? 'Half-step down' : '半音下降'}</option>
+                    <option value="up">{isEnglishCopy ? 'Half-step up' : '半音上昇'}</option>
+                  </select>
+                </label>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {loopPreloadProgress ? (
+          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-950/85 px-6 text-center text-sm text-slate-200">
+            {loopPreloadProgress}
           </div>
         ) : null}
 
@@ -1528,12 +1903,26 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           className="relative z-40 shrink-0 border-t border-slate-800 bg-slate-950/95 px-3 py-2"
           style={{ height: TRANSPORT_HEIGHT }}
         >
+          {loopEnabled ? (
+            <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+              <span>
+                {isEnglishCopy ? 'Loop' : '周回'}
+                {' '}
+                {loopCycleIndex + 1}
+              </span>
+              <span>
+                {isEnglishCopy ? 'Key' : 'キー'}
+                {' '}
+                {loopCurrentKeyName}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <button
               type="button"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
               onClick={() => seekBySeconds(-1)}
-              disabled={!preparedRef.current}
+              disabled={!preparedRef.current && !phrasePlayerRef.current?.isLoopSessionActive()}
               aria-label={isEnglishCopy ? 'Back 1 second' : '1秒戻る'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
@@ -1565,7 +1954,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
               type="button"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white disabled:opacity-40"
               onClick={() => seekBySeconds(1)}
-              disabled={!preparedRef.current}
+              disabled={!preparedRef.current && !phrasePlayerRef.current?.isLoopSessionActive()}
               aria-label={isEnglishCopy ? 'Forward 1 second' : '1秒進む'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
@@ -1591,7 +1980,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
               onPointerCancel={(event) => {
                 endSeekInteraction(Number(event.currentTarget.value));
               }}
-              disabled={!preparedRef.current}
+              disabled={!preparedRef.current && !phrasePlayerRef.current?.isLoopSessionActive()}
             />
           </div>
         </div>

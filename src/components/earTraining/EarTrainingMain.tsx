@@ -24,6 +24,11 @@ import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import { useGameMidiSession } from '@/hooks/useGameMidiSession';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
+import {
+  isPrecisionPracticeRunMode,
+  precisionRunModeFromPracticeParam,
+  type PrecisionRunMode,
+} from '@/utils/earTrainingPrecisionRunMode';
 interface EarTrainingLessonContext {
   lessonId: string;
   lessonSongId: string;
@@ -95,15 +100,20 @@ const EarTrainingMain: React.FC = () => {
       bgmUrl: bgmUrlRaw && bgmUrlRaw.length > 0 ? bgmUrlRaw : null,
     };
   }, [params]);
-  const initialPracticeMode = useMemo(
-    () => params.get('practice') === '1',
+  const initialRunMode = useMemo(
+    () => precisionRunModeFromPracticeParam(params.get('practice')),
     [params],
+  );
+  const initialPracticeMode = useMemo(
+    () => isPrecisionPracticeRunMode(initialRunMode),
+    [initialRunMode],
   );
   const restartFromTimingAdjustment = useMemo(
     () => params.get('restart') === '1',
     [params],
   );
 
+  const [confirmedRunMode, setConfirmedRunMode] = useState<PrecisionRunMode>(initialRunMode);
   const [confirmedPracticeMode, setConfirmedPracticeMode] = useState(initialPracticeMode);
   const [earSessionNonce, setEarSessionNonce] = useState(() => (
     restartFromTimingAdjustment ? 1 : 0
@@ -113,17 +123,26 @@ const EarTrainingMain: React.FC = () => {
 
   useEffect(() => {
     if (lessonContext) {
+      setConfirmedRunMode(initialRunMode);
       setConfirmedPracticeMode(initialPracticeMode);
       setEarSessionNonce(0);
       lessonClearedThisSessionRef.current = false;
     }
-  }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, lessonContext]);
+  }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, initialRunMode, lessonContext]);
 
-  const effectivePracticeMode = lessonContext ? confirmedPracticeMode : initialPracticeMode;
+  const effectiveRunMode = lessonContext ? confirmedRunMode : initialRunMode;
+  const effectivePracticeMode = isPrecisionPracticeRunMode(effectiveRunMode);
   const earMidi = useGameMidiSession('battle');
 
   const handlePracticeModeRestartFromSettings = useCallback((nextPracticeMode: boolean) => {
     setConfirmedPracticeMode(nextPracticeMode);
+    setConfirmedRunMode(nextPracticeMode ? 'practice' : 'performance');
+    setEarSessionNonce(n => n + 1);
+  }, []);
+
+  const handleRunModeRestartFromSettings = useCallback((nextRunMode: PrecisionRunMode) => {
+    setConfirmedRunMode(nextRunMode);
+    setConfirmedPracticeMode(isPrecisionPracticeRunMode(nextRunMode));
     setEarSessionNonce(n => n + 1);
   }, []);
 
@@ -361,10 +380,14 @@ const EarTrainingMain: React.FC = () => {
         <EarTrainingPrecisionScreen
           stage={stage}
           lessonContext={lessonContext}
+          initialRunMode={effectiveRunMode}
           initialPracticeMode={effectivePracticeMode}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
           earMidi={earMidi}
+          onRunModeRestartFromSettings={
+            lessonContext ? handleRunModeRestartFromSettings : undefined
+          }
           {...lessonRestartProps}
         />
       </React.Suspense>
