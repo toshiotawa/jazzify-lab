@@ -190,6 +190,11 @@ enum EarTrainingPrecisionNotes {
             let durationSec = timing.durationSec
             var indexInCluster = 0
             for noteElement in context.clusterNotes {
+                let voice = EarTrainingChordOsmdMusicXmlNormalizer.parseNoteVoiceNumber(noteElement)
+                if EarTrainingChordOsmdMusicXmlNormalizer.isNonTargetVoice(voice) {
+                    indexInCluster += 1
+                    continue
+                }
                 if EarTrainingPrecisionMusicXmlClusterWalker.hasTieStop(on: noteElement) {
                     indexInCluster += 1
                     continue

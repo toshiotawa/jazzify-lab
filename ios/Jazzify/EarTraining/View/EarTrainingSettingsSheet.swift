@@ -97,6 +97,9 @@ struct EarTrainingSettingsSheet: View {
                 }
 
                 volumeBlock
+                if !isTutorialScope {
+                    displayRotationSection
+                }
                 PianoKeyboardDisplayModeSection(
                     displayMode: $keyboardDisplayMode,
                     isEnglishCopy: isEnglishCopy
@@ -165,6 +168,7 @@ struct EarTrainingSettingsSheet: View {
         }
         .onAppear {
             midiManager.refreshDevices()
+            ScreenRotationApplier.shared.applyCurrentPreference()
             if let stageRunMode {
                 practiceDraft = stageRunMode.practiceMode
             }
@@ -548,6 +552,25 @@ struct EarTrainingSettingsSheet: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private var displayRotationSection: some View {
+        ScreenRotation180Toggle(
+            locale: isEnglishCopy ? .en : .ja,
+            tint: .yellow,
+            labelColor: .white,
+            footerColor: .white.opacity(0.65)
+        )
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
     }
 

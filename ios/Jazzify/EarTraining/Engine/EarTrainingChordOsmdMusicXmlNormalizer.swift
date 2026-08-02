@@ -224,7 +224,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return out
     }
 
-    private static func parseNoteVoiceNumber(_ note: ChordOsmdXmlElement) -> Int? {
+    static func parseNoteVoiceNumber(_ note: ChordOsmdXmlElement) -> Int? {
         guard let voiceText = text(in: note, localName: "voice"),
               let parsed = Int(voiceText),
               parsed > 0
@@ -1010,7 +1010,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         continue
                     }
 
-                    guard let pitch = directChild(child, localName: "pitch") else {
+                    guard directChild(child, localName: "pitch") != nil else {
                         ci += 1
                         continue
                     }

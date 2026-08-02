@@ -28,6 +28,13 @@ struct EarTrainingResultView<Host: EarTrainingLobbyPresentable>: View {
                             .foregroundColor(.white.opacity(0.86))
                     }
                     practiceToggle
+                    if host.practiceMode, let description = host.lobbyPracticeModeDescription {
+                        Text(description)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Button(action: { host.startBattle() }) {
                         Text(host.startButtonLabel)
                             .font(.system(size: 17, weight: .heavy))

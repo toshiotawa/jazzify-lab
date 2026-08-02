@@ -144,3 +144,59 @@ final class EarTrainingChordQuizTests: XCTestCase {
         XCTAssertEqual(questions[2].chords.count, 2)
     }
 }
+
+final class EarTrainingStageDetailNormalizationTests: XCTestCase {
+    func testNormalizePreservesTimingAndScoreDisplayFields() {
+        let stage = EarTrainingStageDetail(
+            id: UUID(),
+            slug: "m251-s2-st1-c-osmd",
+            title: "Test",
+            titleEn: nil,
+            description: nil,
+            descriptionEn: nil,
+            bpm: 120,
+            beatsPerMeasure: 4,
+            beatType: 4,
+            loopMeasures: 33,
+            maxLoopsPerPhrase: 4,
+            countInBeats: 0,
+            timeLimitSec: 600,
+            playerHp: 150,
+            enemyHp: 7_200,
+            perCorrectNoteDamage: 50,
+            goodCompletionDamage: 0,
+            greatCompletionDamage: 0,
+            perfectCompletionDamage: 0,
+            missDamage: 5,
+            failDamage: 0,
+            perfectMaxMisses: 0,
+            greatMaxMisses: 2,
+            backgroundTheme: "blue_club",
+            isActive: true,
+            mode: .chordOSMD,
+            keyFifths: 0,
+            phrases: nil,
+            chordVoicingSelfPaced: nil,
+            quizDurationSeconds: nil,
+            quizQuestionOrder: nil,
+            quizShowNotationInBattle: nil,
+            hideChordNamesInBattle: nil,
+            quizRequiredCorrectCount: nil,
+            showKeyboardHintsInBattle: false,
+            osmdTargetsFromScore: true,
+            practiceTranspose: false,
+            showScoreLyricsInBattle: true,
+            isSwing: true,
+            hammerLeadMeasures: 2,
+            chordQuizItems: nil,
+            chordVoicingCompositePhrase: nil,
+            compositePhraseBootstrap: nil
+        )
+
+        let normalized = SupabaseService.normalizeStageDetail(stage)
+
+        XCTAssertEqual(normalized.resolvedHammerLeadMeasures, 2)
+        XCTAssertTrue(normalized.resolvedIsSwing)
+        XCTAssertTrue(normalized.resolvedShowScoreLyricsInBattle)
+    }
+}

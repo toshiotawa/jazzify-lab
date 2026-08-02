@@ -55,6 +55,8 @@ protocol EarTrainingLobbyPresentable: ObservableObject {
     var isEnglishCopy: Bool { get }
     /// コードクイズ: ロビーモーダルに常時表示するルール文（他モードは nil）
     var quizRulesLine: String? { get }
+    /// 練習モード選択時の説明文（精密モードループ練習など）
+    var lobbyPracticeModeDescription: String? { get }
 
     func startBattle()
     func handleBack()
@@ -67,4 +69,6 @@ extension EarTrainingLobbyPresentable {
 
     /// ロビーのモード切替（右）。通常は `練習` / Practice。
     var lobbyPracticeModeLabel: String { hudLabels.practiceMode }
+
+    var lobbyPracticeModeDescription: String? { nil }
 }

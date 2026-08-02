@@ -1225,7 +1225,7 @@ final class SupabaseService: Sendable {
     chord_quiz_items:ear_training_chord_quiz_items (*)
     """
 
-    private static func normalizeStageDetail(_ raw: EarTrainingStageDetail) -> EarTrainingStageDetail {
+    static func normalizeStageDetail(_ raw: EarTrainingStageDetail) -> EarTrainingStageDetail {
         EarTrainingStageDetail(
             id: raw.id,
             slug: raw.slug,
@@ -1264,6 +1264,9 @@ final class SupabaseService: Sendable {
             showKeyboardHintsInBattle: raw.showKeyboardHintsInBattle,
             osmdTargetsFromScore: raw.osmdTargetsFromScore,
             practiceTranspose: raw.practiceTranspose,
+            showScoreLyricsInBattle: raw.showScoreLyricsInBattle,
+            isSwing: raw.isSwing,
+            hammerLeadMeasures: raw.hammerLeadMeasures,
             chordQuizItems: raw.sortedChordQuizItems(),
             chordVoicingCompositePhrase: raw.chordVoicingCompositePhrase,
             compositePhraseBootstrap: raw.compositePhraseBootstrap,
@@ -1371,6 +1374,9 @@ final class SupabaseService: Sendable {
             showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
             osmdTargetsFromScore: detail.osmdTargetsFromScore,
             practiceTranspose: detail.practiceTranspose,
+            showScoreLyricsInBattle: detail.showScoreLyricsInBattle,
+            isSwing: detail.isSwing,
+            hammerLeadMeasures: detail.hammerLeadMeasures,
             chordQuizItems: detail.chordQuizItems,
             chordVoicingCompositePhrase: detail.chordVoicingCompositePhrase,
             compositePhraseBootstrap: bootstrap,
@@ -1569,6 +1575,9 @@ final class SupabaseService: Sendable {
             showKeyboardHintsInBattle: detail.showKeyboardHintsInBattle,
             osmdTargetsFromScore: detail.osmdTargetsFromScore,
             practiceTranspose: detail.practiceTranspose,
+            showScoreLyricsInBattle: detail.showScoreLyricsInBattle,
+            isSwing: detail.isSwing,
+            hammerLeadMeasures: detail.hammerLeadMeasures,
             chordQuizItems: detail.chordQuizItems,
             chordVoicingCompositePhrase: detail.chordVoicingCompositePhrase,
             compositePhraseBootstrap: detail.compositePhraseBootstrap,

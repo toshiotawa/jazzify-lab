@@ -20,6 +20,30 @@ final class EarTrainingPrecisionNotesTests: XCTestCase {
     </score-partwise>
     """
 
+    private let guideVoiceXML = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise>
+      <part>
+        <measure number="1">
+          <attributes>
+            <divisions>1</divisions>
+            <time><beats>4</beats><beat-type>4</beat-type></time>
+            <key><fifths>0</fifths></key>
+          </attributes>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration><voice>1</voice><type>quarter</type>
+          </note>
+          <backup><duration>1</duration></backup>
+          <note>
+            <pitch><step>E</step><octave>4</octave></pitch>
+            <duration>1</duration><voice>4</voice><type size="cue">quarter</type>
+          </note>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
     func testBuildFromMusicXmlCreatesOneNotePerPitch() {
         let result = EarTrainingPrecisionNotes.buildFromMusicXml(
             musicXmlText: minimalXML,
@@ -30,6 +54,17 @@ final class EarTrainingPrecisionNotesTests: XCTestCase {
         XCTAssertEqual(result.notes[0].midi, 60)
         XCTAssertEqual(result.notes[1].midi, 64)
         XCTAssertEqual(result.notes[2].midi, 67)
+    }
+
+    func testBuildFromMusicXmlExcludesVoiceFourGuideNotes() {
+        let displayXML = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(guideVoiceXML)
+        XCTAssertTrue(displayXML.contains("<voice>4</voice>"))
+        let result = EarTrainingPrecisionNotes.buildFromMusicXml(
+            musicXmlText: displayXML,
+            bpm: 120,
+            beatsPerMeasure: 4
+        )
+        XCTAssertEqual(result.notes.map(\.midi), [60])
     }
 
     func testKeyboardRangeUsesWhiteKeyPadding() {

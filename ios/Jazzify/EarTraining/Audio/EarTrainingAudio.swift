@@ -161,6 +161,18 @@ final class EarTrainingAudio: NSObject {
     /// （`phrasePlayer.play()` 直後〜フレーズ実再生まで、`sampleTime` にカウントイン分が混ざるのを避けるため）
     private var phrasePlaybackAnchorHostTime: UInt64 = 0
 
+    /// 精密モード練習ループセッション状態。
+    private var loopSessionActive = false
+    private var loopDurationSec: Double = 0
+    private var loopStartSec: Double = 0
+    private var loopAnchorHostTime: UInt64 = 0
+    private var loopScheduleGen: Int = 0
+    private var scheduledLoopCycles: Set<Int> = []
+    private var loopSemitoneForCycle: ((Int) -> Int)?
+    private var loopPreparedPCM: AVAudioPCMBuffer?
+    private var loopPreparedLocalFileURL: URL?
+    private var loopPreparedFormat: AVAudioFormat?
+
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
     private var phraseVolume: Float = EarTrainingBattleVolumePreferences.defaultPhraseVolume
 
@@ -556,6 +568,7 @@ final class EarTrainingAudio: NSObject {
 
     /// フレーズ MP3 を停止し、再生時刻を 0 に戻す。
     func stopPhrase() {
+        resetLoopSessionState()
         preparedForImmediatePlaybackURL = nil
         preparedLocalFileURL = nil
         preparedPhrasePCM = nil
@@ -568,6 +581,320 @@ final class EarTrainingAudio: NSObject {
         stopTimeTicker()
         currentTimeSec = 0
         phrasePlaybackAnchorHostTime = 0
+    }
+
+    func isLoopSessionActive() -> Bool {
+        loopSessionActive
+    }
+
+    /// ループセッション中のグローバルタイムライン秒。未確立なら nil。カウントイン中は負の秒。
+    func loopTimelineSecNowOrNil() -> Double? {
+        guard loopSessionActive, loopAnchorHostTime != 0 else { return nil }
+        return Self.loopTimelineSec(fromAnchor: loopAnchorHostTime, nowHostTime: mach_absolute_time())
+    }
+
+    /// ループアンカーからの経過秒。アンカーが未来のときは負の秒を返す（テスト可能な純粋計算）。
+    static func loopTimelineSec(fromAnchor anchorHostTime: UInt64, nowHostTime: UInt64) -> Double? {
+        guard anchorHostTime != 0 else { return nil }
+        if nowHostTime < anchorHostTime {
+            let sec = -secondsFromMachHostDifference(from: nowHostTime, to: anchorHostTime)
+            return sec.isFinite ? sec : nil
+        }
+        let elapsed = secondsFromMachHostDifference(from: anchorHostTime, to: nowHostTime)
+        return elapsed.isFinite ? elapsed : nil
+    }
+
+    /// 精密モード練習: A-B 区間を無限ループ再生する。
+    func startPhraseLoopSession(
+        url: URL,
+        loopStartSec windowStartSec: Double,
+        loopDurationSec windowDurationSec: Double,
+        countInBeats: Int,
+        bpm: Int,
+        semitoneForCycle: @escaping (Int) -> Int,
+        onPhraseStarted: (() -> Void)? = nil
+    ) -> Bool {
+        guard preparedForImmediatePlaybackURL == url,
+              loadedPhraseURL == url,
+              let local = preparedLocalFileURL
+        else {
+            return false
+        }
+
+        let preparedPCM = preparedPhrasePCM
+        let phraseFormat: AVAudioFormat
+        if let preparedPCM {
+            phraseFormat = preparedPCM.format
+        } else if let file = try? AVAudioFile(forReading: local) {
+            phraseFormat = file.processingFormat
+        } else {
+            return false
+        }
+
+        resetLoopSessionState()
+        let scheduleToken = playbackToken
+        loopScheduleGen = scheduleToken
+        loopSessionActive = true
+        loopDurationSec = max(1e-6, windowDurationSec)
+        loopStartSec = max(0, windowStartSec)
+        loopSemitoneForCycle = semitoneForCycle
+        loopPreparedPCM = preparedPCM
+        loopPreparedLocalFileURL = local
+        loopPreparedFormat = phraseFormat
+        scheduledLoopCycles.removeAll()
+
+        activePhraseLocalFileURL = local
+        stopPhrasePlaybackOnly()
+        ensureGraph(for: phraseFormat)
+        startPhraseEngineIfNeeded()
+
+        guard let pcm = clickPCM else {
+            resetLoopSessionState()
+            return false
+        }
+
+        let leadInSec = 0.28
+        let safeBpm = max(1, bpm)
+        let beatDurationSec = max(0.1, 60.0 / Double(safeBpm))
+        let safeBeats = max(0, countInBeats)
+        let phraseStartDelaySec = leadInSec + beatDurationSec * Double(safeBeats)
+
+        clickPlayer.stop()
+        phrasePlayer.stop()
+        engine.prepare()
+        clickPlayer.play()
+        phrasePlayer.play()
+
+        let nowHost = mach_absolute_time()
+        let leadHost = AVAudioTime.hostTime(forSeconds: leadInSec)
+        let beatHost = AVAudioTime.hostTime(forSeconds: beatDurationSec)
+
+        var clickIndex: UInt64 = 0
+        while clickIndex < UInt64(safeBeats) {
+            let hostTime = nowHost &+ leadHost &+ beatHost &* clickIndex
+            let when = AVAudioTime(hostTime: hostTime)
+            let clickBuf: AVAudioPCMBuffer = {
+                if clickIndex == 0, let loud = clickPCMFirstBeat { return loud }
+                return pcm
+            }()
+            clickPlayer.scheduleBuffer(clickBuf, at: when, options: [], completionHandler: nil)
+            clickIndex &+= 1
+        }
+
+        let phraseHost = nowHost &+ leadHost &+ beatHost &* UInt64(safeBeats)
+        loopAnchorHostTime = phraseHost
+        phrasePlaybackAnchorHostTime = phraseHost
+        phraseTimelinePlaybackOffsetSec = 0
+
+        applyLoopCyclePitch(cycleIndex: 0, scheduleGen: scheduleToken)
+        ensureLoopCyclesScheduled(fromCycle: 0, throughCycle: 2, scheduleGen: scheduleToken)
+
+        startTimeTickerIfNeeded()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + phraseStartDelaySec) { [weak self] in
+            guard let self else { return }
+            guard self.playbackToken == scheduleToken else { return }
+            onPhraseStarted?()
+        }
+        return true
+    }
+
+    func resumeLoopSessionFromTimelineSec(_ timelineSec: Double) {
+        guard loopSessionActive else { return }
+        let safeTimeline = max(0, timelineSec)
+        playbackToken += 1
+        let scheduleToken = playbackToken
+        loopScheduleGen = scheduleToken
+        phrasePlayer.stop()
+        clickPlayer.stop()
+        scheduledLoopCycles.removeAll()
+
+        let nowHost = mach_absolute_time()
+        let timelineHost = AVAudioTime.hostTime(forSeconds: safeTimeline)
+        loopAnchorHostTime = nowHost &- timelineHost
+        phrasePlaybackAnchorHostTime = loopAnchorHostTime
+        phraseTimelinePlaybackOffsetSec = 0
+
+        if let format = loopPreparedFormat {
+            ensureGraph(for: format)
+            startPhraseEngineIfNeeded()
+            engine.prepare()
+            phrasePlayer.play()
+        }
+
+        let startCycle = Int(floor(safeTimeline / loopDurationSec))
+        applyLoopCyclePitch(cycleIndex: startCycle, scheduleGen: scheduleToken)
+        ensureLoopCyclesScheduled(fromCycle: startCycle, throughCycle: startCycle + 2, scheduleGen: scheduleToken)
+        startTimeTickerIfNeeded()
+    }
+
+    private func resetLoopSessionState() {
+        loopSessionActive = false
+        loopDurationSec = 0
+        loopStartSec = 0
+        loopAnchorHostTime = 0
+        loopScheduleGen += 1
+        scheduledLoopCycles.removeAll()
+        loopSemitoneForCycle = nil
+        loopPreparedPCM = nil
+        loopPreparedLocalFileURL = nil
+        loopPreparedFormat = nil
+    }
+
+    private func applyLoopCyclePitch(cycleIndex: Int, scheduleGen: Int) {
+        guard let semitoneForCycle = loopSemitoneForCycle else { return }
+        let semitone = semitoneForCycle(cycleIndex)
+        let cycleStartGlobalSec = Double(cycleIndex) * loopDurationSec
+        let delaySec = max(0, cycleStartGlobalSec - (loopTimelineSecNowOrNil() ?? 0))
+        if delaySec <= 0.001 {
+            phrasePitchSemitones = Float(semitone)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delaySec) { [weak self] in
+            guard let self else { return }
+            guard self.loopScheduleGen == scheduleGen else { return }
+            self.phrasePitchSemitones = Float(semitone)
+        }
+    }
+
+    private func ensureLoopCyclesScheduled(fromCycle: Int, throughCycle: Int, scheduleGen: Int) {
+        guard loopSessionActive,
+              loopScheduleGen == scheduleGen,
+              let semitoneForCycle = loopSemitoneForCycle,
+              loopAnchorHostTime != 0
+        else {
+            return
+        }
+
+        let ratio = Double(phrasePlaybackSpeedRatio)
+        let speedPercent = Int(phrasePlaybackSpeedPercent)
+
+        for cycleIndex in fromCycle...throughCycle {
+            if scheduledLoopCycles.contains(cycleIndex) {
+                continue
+            }
+
+            let cycleStartGlobalSec = Double(cycleIndex) * loopDurationSec
+            let elapsedInCycleSec: Double
+            if let globalSec = loopTimelineSecNowOrNil() {
+                if globalSec < 0 {
+                    elapsedInCycleSec = 0
+                } else {
+                    elapsedInCycleSec = max(0, globalSec - cycleStartGlobalSec)
+                }
+            } else {
+                elapsedInCycleSec = 0
+            }
+            if elapsedInCycleSec >= loopDurationSec - 1e-6 {
+                continue
+            }
+
+            let cycleHostOffset = AVAudioTime.hostTime(forSeconds: cycleStartGlobalSec)
+            let cycleHost = loopAnchorHostTime &+ cycleHostOffset
+            let nowHost = mach_absolute_time()
+            let whenHost = nowHost > cycleHost ? nowHost : cycleHost
+            let when = AVAudioTime(hostTime: whenHost)
+
+            let bufferOffsetSec = EarTrainingPracticeSpeed.practiceBufferOffsetSec(
+                timelineOffsetSec: loopStartSec + elapsedInCycleSec,
+                speedPercent: speedPercent
+            )
+            let playDurationSec = EarTrainingPracticeSpeed.practiceBufferOffsetSec(
+                timelineOffsetSec: loopDurationSec - elapsedInCycleSec,
+                speedPercent: speedPercent
+            )
+            guard playDurationSec > 1e-6 else { continue }
+
+            let scheduled = scheduleLoopCycleBuffer(
+                bufferOffsetSec: bufferOffsetSec,
+                playDurationSec: playDurationSec,
+                at: when,
+                cycleIndex: cycleIndex,
+                scheduleGen: scheduleGen
+            )
+            if scheduled {
+                scheduledLoopCycles.insert(cycleIndex)
+                applyLoopCyclePitch(cycleIndex: cycleIndex, scheduleGen: scheduleGen)
+            }
+        }
+    }
+
+    private func scheduleLoopCycleBuffer(
+        bufferOffsetSec: Double,
+        playDurationSec: Double,
+        at when: AVAudioTime,
+        cycleIndex: Int,
+        scheduleGen: Int
+    ) -> Bool {
+        if let preparedPCM = loopPreparedPCM, let format = loopPreparedFormat {
+            let sampleRate = format.sampleRate
+            guard sampleRate > 0 else { return false }
+            let startFrame = AVAudioFramePosition(bufferOffsetSec * sampleRate)
+            let totalFrames = AVAudioFramePosition(preparedPCM.frameLength)
+            let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
+            let maxPlayFrames = AVAudioFramePosition(playDurationSec * sampleRate)
+            let remainingFrames = min(totalFrames - clampedStart, maxPlayFrames)
+            guard remainingFrames > 0,
+                  let slice = Self.slicePCMBuffer(
+                    preparedPCM,
+                    startingFrame: clampedStart,
+                    frameCount: AVAudioFrameCount(remainingFrames)
+                  )
+            else {
+                return false
+            }
+
+            phrasePlayer.scheduleBuffer(
+                pcmBufferForOutput(slice),
+                at: when,
+                options: [],
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard self.loopScheduleGen == scheduleGen else { return }
+                    self.scheduledLoopCycles.remove(cycleIndex)
+                    self.ensureLoopCyclesScheduled(
+                        fromCycle: cycleIndex + 1,
+                        throughCycle: cycleIndex + 3,
+                        scheduleGen: scheduleGen
+                    )
+                }
+            }
+            return true
+        }
+
+        if let local = loopPreparedLocalFileURL, let file = try? AVAudioFile(forReading: local) {
+            let sampleRate = file.processingFormat.sampleRate
+            guard sampleRate > 0 else { return false }
+            let startFrame = AVAudioFramePosition(bufferOffsetSec * sampleRate)
+            let totalFrames = file.length
+            let clampedStart = min(max(0, startFrame), max(0, totalFrames - 1))
+            let maxPlayFrames = AVAudioFramePosition(playDurationSec * sampleRate)
+            let remainingFrames = min(totalFrames - clampedStart, maxPlayFrames)
+            guard remainingFrames > 0 else { return false }
+
+            phrasePlayer.scheduleSegment(
+                file,
+                startingFrame: clampedStart,
+                frameCount: AVAudioFrameCount(remainingFrames),
+                at: when,
+                completionCallbackType: .dataPlayedBack
+            ) { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard self.loopScheduleGen == scheduleGen else { return }
+                    self.scheduledLoopCycles.remove(cycleIndex)
+                    self.ensureLoopCyclesScheduled(
+                        fromCycle: cycleIndex + 1,
+                        throughCycle: cycleIndex + 3,
+                        scheduleGen: scheduleGen
+                    )
+                }
+            }
+            return true
+        }
+        return false
     }
 
     /// コードヴォイシングバトルのカウントイン（同一 `AVAudioEngine` 上の短いクリック）。
@@ -1098,6 +1425,11 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func emitPhraseTimeIfPlaying() {
+        if loopSessionActive, let loopSec = loopTimelineSecNowOrNil() {
+            currentTimeSec = loopSec
+            onTimeUpdate?(loopSec)
+            return
+        }
         if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
             let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
             guard sec.isFinite else { return }
@@ -1210,6 +1542,9 @@ final class EarTrainingAudio: NSObject {
 
     /// OSMD バトル用。WEB `getPhraseTimelineSec()` と同じ wall-clock 秒（スケール済みターゲット時刻と整合）。
     func phraseWallClockTimelineSecNowOrNil() -> Double? {
+        if loopSessionActive, let loopSec = loopTimelineSecNowOrNil() {
+            return loopSec + phraseTimelinePlaybackOffsetSec
+        }
         if isDrumLoopActive, drumLoopAnchorHostTime != 0, !phrasePlayer.isPlaying {
             let sec = Self.secondsFromMachHostDifference(from: drumLoopAnchorHostTime, to: mach_absolute_time())
             return sec.isFinite ? max(0, sec) + phraseTimelinePlaybackOffsetSec : nil
@@ -1384,6 +1719,8 @@ final class EarTrainingAudio: NSObject {
     /// 一時停止（呼び出し側がタイムライン秒を保存すること）。
     func pausePhrasePlayback() {
         playbackToken += 1
+        loopScheduleGen += 1
+        scheduledLoopCycles.removeAll()
         phrasePlayer.stop()
         clickPlayer.stop()
         stopTimeTicker()

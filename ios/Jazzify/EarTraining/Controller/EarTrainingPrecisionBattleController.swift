@@ -21,8 +21,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     @Published private(set) var statusText: String
     @Published private(set) var lessonProgressStatus: EarTrainingLessonProgressStatus?
     @Published var practiceMode: Bool
-    @Published var practiceTransposeOffset: Int = 0
+    @Published var loopBaseSemitone: Int = 0
     @Published var practiceSpeedPercent: Int = 100
+    @Published var loopStartMeasure: Int = 1
+    @Published var loopEndMeasure: Int
+    @Published var loopTransposeDirection: EarTrainingLoopTransposeDirection = .none
+    @Published private(set) var loopCycleIndex: Int = 0
+    @Published private(set) var loopActiveSemitone: Int = 0
+    @Published private(set) var loopScoreXmlBySemitone: [Int: String] = [:]
     @Published var timingAdjustmentMs: Int = EarTrainingOsmdTimingAdjustment.timingAdjustmentMsDefault
     @Published private(set) var practiceOriginalKeyFifths: Int = 0
     @Published private(set) var practiceOriginalKeyName: String = "—"
@@ -71,6 +77,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     private var nextLyricIndex = 0
     private var baseMusicXmlText: String?
     private var baseMidiData: Data?
+    private var notesBySemitone: [Int: [EarTrainingPrecisionNote]] = [:]
+    private var loopWindow: EarTrainingPrecisionLoopWindow
+    private var loopCycleWindowSize: Int = 2
+    private var lastLoopCycleIndex: Int = -1
     private var phraseLoopEndSec: Double = 0
     private var phraseEnding = false
     private var progressSaveStarted = false
@@ -112,6 +122,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         self.hudLabels = EarTrainingBattleHudLabels.make(isEnglish: isEnglishCopy)
         self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
         self.practiceMode = initialPracticeMode
+        self.loopEndMeasure = max(1, stage.loopMeasures)
+        self.loopWindow = EarTrainingPrecisionLoop.resolveLoopWindow(
+            startMeasure: 1,
+            endMeasure: max(1, stage.loopMeasures),
+            measureDurationSec: 60.0 / Double(max(1, stage.bpm)) * Double(max(1, stage.beatsPerMeasure))
+        )
         self.timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.loadTimingAdjustmentMs()
         if isAdmin {
             self.precisionAutoPlayEnabled = EarTrainingPrecisionAutoPlayPreferences.loadEnabled()
@@ -192,6 +208,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         autoPlayHoldCount.removeAll()
         autoPlayScheduler.reset()
         hasSyncedPhraseStartPlayhead = false
+        if !practiceMode {
+            notesBySemitone = [:]
+            loopScoreXmlBySemitone = [:]
+            lastLoopCycleIndex = -1
+        }
         phraseRunId += 1
         let runId = phraseRunId
 
@@ -204,8 +225,16 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             guard let self, self.phraseRunId == runId else { return }
             await self.preparePhraseAssets(phrase: phrase, runId: runId)
             guard self.phraseRunId == runId else { return }
+            if self.practiceMode, let baseXml = self.baseMusicXmlText {
+                self.buildLoopPracticeCaches(baseXml: baseXml)
+                self.refreshLoopWindow()
+            }
             self.rebuildPrecisionNotes()
-            self.beginPhrasePlayback(phrase: phrase)
+            if self.practiceMode {
+                self.beginLoopPlaybackFromPrepared()
+            } else {
+                self.beginPhrasePlayback(phrase: phrase)
+            }
         }
     }
 
@@ -283,37 +312,232 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         }
     }
 
+    var maxLoopMeasure: Int {
+        max(stage.loopMeasures, loopEndMeasure, 1)
+    }
+
+    var loopWindowDurationSec: Double {
+        max(1, loopWindow.durationSec)
+    }
+
+    var loopCurrentKeyName: String {
+        EarTrainingMusicXmlTransposer.targetKeyName(
+            originalFifths: practiceOriginalKeyFifths,
+            semitoneOffset: loopActiveSemitone
+        )
+    }
+
+    var loopBaseKeyOptions: [(offset: Int, label: String)] {
+        (EarTrainingPrecisionLoop.loopBaseSemitoneMin...EarTrainingPrecisionLoop.loopBaseSemitoneMax).map { offset in
+            (
+                offset,
+                EarTrainingMusicXmlTransposer.targetKeyName(
+                    originalFifths: practiceOriginalKeyFifths,
+                    semitoneOffset: offset
+                )
+            )
+        }
+    }
+
+    private func refreshLoopWindow() {
+        loopWindow = EarTrainingPrecisionLoop.resolveLoopWindow(
+            startMeasure: loopStartMeasure,
+            endMeasure: loopEndMeasure,
+            measureDurationSec: effectiveMeasureDurationSec
+        )
+        loopCycleWindowSize = EarTrainingPrecisionLoop.loopCycleWindowSize(durationSec: loopWindow.durationSec)
+    }
+
+    private func loopCycleBaseSec(_ globalSec: Double) -> Double {
+        guard practiceMode else { return 0 }
+        let durationSec = max(1e-6, loopWindow.durationSec)
+        return floor(max(0, globalSec) / durationSec) * durationSec
+    }
+
+    private func applyLoopCycleTransition(cycleIndex: Int) {
+        let semitone = EarTrainingPrecisionLoop.loopSemitoneForCycle(
+            cycleIndex,
+            direction: loopTransposeDirection,
+            baseSemitone: loopBaseSemitone
+        )
+        let windowNotes = EarTrainingPrecisionLoop.buildLoopWindowNotes(
+            notesBySemitone: notesBySemitone,
+            cycleIndex: cycleIndex,
+            windowSize: loopCycleWindowSize,
+            loopWindow: loopWindow,
+            direction: loopTransposeDirection,
+            baseSemitone: loopBaseSemitone,
+            resolveCalibratedStartSec: resolveCalibratedTargetTimeSec
+        )
+        precisionNotes = windowNotes
+        runtimeStates = EarTrainingPrecisionJudge.createRuntimeStates(notes: windowNotes)
+        keyboardRange = resolveLoopCycleKeyboardRange(semitone: semitone, windowNotes: windowNotes)
+        autoPlayScheduler.setNotes(windowNotes)
+        autoPlayScheduler.reset()
+        loopCycleIndex = cycleIndex
+        loopActiveSemitone = semitone
+        lastLoopCycleIndex = cycleIndex
+        osmdCoordinator?.setActiveScoreSlot(semitone: semitone)
+    }
+
+    private func resolveLoopCycleKeyboardRange(
+        semitone: Int,
+        windowNotes: [EarTrainingPrecisionNote]
+    ) -> EarTrainingPrecisionKeyboardRange {
+        let windowMidis = windowNotes.map(\.midi)
+        if !windowMidis.isEmpty {
+            return EarTrainingPrecisionNotes.resolveDisplayKeyboardRange(noteMidis: windowMidis)
+        }
+        if let cycleNotes = notesBySemitone[semitone], !cycleNotes.isEmpty {
+            let loopMidis = cycleNotes.filter { note in
+                let noteEndSec = note.startSec + note.durationSec
+                return noteEndSec > loopWindow.startSec + 1e-9 && note.startSec < loopWindow.endSec - 1e-9
+            }.map(\.midi)
+            if !loopMidis.isEmpty {
+                return EarTrainingPrecisionNotes.resolveDisplayKeyboardRange(noteMidis: loopMidis)
+            }
+        }
+        return keyboardRange
+    }
+
+    private func buildLoopPracticeCaches(baseXml: String) {
+        let classificationBpm = resolveEffectivePracticeBpm()
+        notesBySemitone = EarTrainingPrecisionLoop.buildPrecisionNotesBySemitone(
+            xmlText: baseMidiData == nil ? baseXml : nil,
+            midiData: baseMidiData,
+            bpm: stage.bpm,
+            beatsPerMeasure: stage.beatsPerMeasure,
+            isSwing: stage.resolvedIsSwing,
+            direction: loopTransposeDirection,
+            baseSemitone: loopBaseSemitone,
+            resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
+            practiceMode: true,
+            practiceSpeedPercent: practiceSpeedPercent,
+            classificationBpm: classificationBpm
+        )
+
+        var xmlBySemitone: [Int: String] = [:]
+        let stripLyrics = !stage.resolvedShowScoreLyricsInBattle
+        for semitone in EarTrainingPrecisionLoop.loopPracticeUniqueSemitones(
+            direction: loopTransposeDirection,
+            baseSemitone: loopBaseSemitone
+        ) {
+            let transposed = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(baseXml, offset: semitone)
+            xmlBySemitone[semitone] = stripLyrics
+                ? EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(transposed)
+                : transposed
+        }
+        loopScoreXmlBySemitone = xmlBySemitone
+        if let activeXml = xmlBySemitone[loopBaseSemitone] ?? xmlBySemitone.values.first {
+            musicXMLText = activeXml
+        }
+    }
+
+    func applyLoopRangeAndRestart() {
+        guard practiceMode else { return }
+        let needed = EarTrainingPrecisionLoop.loopPracticeUniqueSemitones(
+            direction: loopTransposeDirection,
+            baseSemitone: loopBaseSemitone
+        )
+        let canReuse = needed.allSatisfy { semitone in
+            guard let notes = notesBySemitone[semitone], !notes.isEmpty,
+                  loopScoreXmlBySemitone[semitone] != nil else {
+                return false
+            }
+            return true
+        }
+        if !canReuse {
+            startBattle()
+            return
+        }
+        refreshLoopWindow()
+        lastLoopCycleIndex = -1
+        phraseDurationSec = max(1, loopWindow.durationSec)
+        refreshMaxOsmdMeasure()
+        beginLoopPlaybackFromPrepared()
+    }
+
+    private func beginLoopPlaybackFromPrepared() {
+        guard let url = preparedPhraseURL else { return }
+        gameState = .countIn
+        scoreTimelineArmed = true
+        audio.phrasePlaybackSpeedPercent = Float(practiceSpeedPercent)
+        audio.phraseTimelinePlaybackOffsetSec = 0
+        lastLoopCycleIndex = -1
+        applyLoopCycleTransition(cycleIndex: 0)
+        activeMeasureNumber = loopWindow.startMeasure
+        syncPlayheadForTimeline(0, animating: false)
+        updateSeekSliderUi(phraseTimeSec: 0, force: true)
+
+        let started = audio.startPhraseLoopSession(
+            url: url,
+            loopStartSec: loopWindow.startSec,
+            loopDurationSec: loopWindow.durationSec,
+            countInBeats: stage.countInBeats,
+            bpm: stage.bpm,
+            semitoneForCycle: { [weak self] cycle in
+                guard let self else { return 0 }
+                return EarTrainingPrecisionLoop.loopSemitoneForCycle(
+                    cycle,
+                    direction: self.loopTransposeDirection,
+                    baseSemitone: self.loopBaseSemitone
+                )
+            },
+            onPhraseStarted: { [weak self] in
+                self?.gameState = .playingPhrase
+            }
+        )
+        if !started {
+            scoreErrorText = isEnglishCopy ? "Could not start loop playback." : "ループ再生を開始できませんでした"
+        }
+        osmdCoordinator?.prepareScoreSlots(
+            xmlBySemitone: loopScoreXmlBySemitone,
+            activeSemitone: loopActiveSemitone,
+            renderKey: phraseRunId,
+            transposeDirection: loopTransposeDirection,
+            baseSemitone: loopBaseSemitone,
+            cycleIndex: loopCycleIndex
+        )
+    }
+
     private func applyDisplayMusicXml() {
         guard let base = baseMusicXmlText else {
             musicXMLText = nil
+            loopScoreXmlBySemitone = [:]
             return
         }
-        let offset = practiceTransposeEnabled && practiceMode ? practiceTransposeOffset : 0
+        practiceOriginalKeyFifths = EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: base)
+        practiceOriginalKeyName = EarTrainingMusicXmlTransposer.preferredKeyName(fifths: practiceOriginalKeyFifths)
+
+        if practiceMode, !loopScoreXmlBySemitone.isEmpty {
+            musicXMLText = loopScoreXmlBySemitone[loopBaseSemitone] ?? loopScoreXmlBySemitone.values.first
+            return
+        }
+
+        let offset = practiceMode ? loopBaseSemitone : 0
         let transposed = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(base, offset: offset)
-        // 歌詞ON（stage.resolvedShowScoreLyricsInBattle）のときは OSMD 標準歌詞を残す。既定は除去してノーツ部テキストのみ。
         musicXMLText = stage.resolvedShowScoreLyricsInBattle
             ? transposed
             : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(transposed)
-        if practiceTransposeEnabled {
-            practiceOriginalKeyFifths = EarTrainingMusicXmlTransposer.readKeyFifths(fromMusicXml: base)
-            practiceOriginalKeyName = EarTrainingMusicXmlTransposer.preferredKeyName(fifths: practiceOriginalKeyFifths)
-        }
-    }
-
-    private var practiceTransposeEnabled: Bool {
-        stage.resolvedPracticeTranspose
     }
 
     private func rebuildPrecisionNotes() {
+        if practiceMode, !notesBySemitone.isEmpty, let base = baseMusicXmlText {
+            refreshLoopWindow()
+            applyLoopCycleTransition(cycleIndex: max(0, loopCycleIndex))
+            phraseDurationSec = max(1, loopWindow.durationSec)
+            refreshMaxOsmdMeasure()
+            return
+        }
+
         let classificationBpm = resolveEffectivePracticeBpm()
         var builtNotes: [EarTrainingPrecisionNote] = []
 
         if let midiData = baseMidiData {
-            let offset = practiceTransposeEnabled && practiceMode ? practiceTransposeOffset : 0
-            if let result = try? EarTrainingPrecisionMidi.buildFromMidi(data: midiData, bpm: stage.bpm, transposeOffset: offset) {
+            if let result = try? EarTrainingPrecisionMidi.buildFromMidi(data: midiData, bpm: stage.bpm, transposeOffset: 0) {
                 builtNotes = result.notes
             }
-        } else if let xml = musicXMLText {
+        } else if let xml = baseMusicXmlText {
             builtNotes = EarTrainingPrecisionNotes.buildFromMusicXml(
                 musicXmlText: xml,
                 bpm: stage.bpm,
@@ -340,7 +564,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         let loopDuration = currentPhrase?.loopDurationSec ?? 0
         phraseLoopEndSec = max(loopDuration, lastStart + lastDur + 0.25)
         phraseDurationSec = max(1, practiceMode
-            ? EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(phraseLoopEndSec, speedPercent: practiceSpeedPercent)
+            ? loopWindow.durationSec
             : phraseLoopEndSec)
         refreshMaxOsmdMeasure()
     }
@@ -355,20 +579,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         guard let url = preparedPhraseURL else { return }
         gameState = .countIn
         scoreTimelineArmed = true
-        audio.phrasePitchSemitones = Float(effectivePracticeTransposeOffset())
-        audio.phrasePlaybackSpeedPercent = Float(practiceMode ? practiceSpeedPercent : 100)
+        audio.phrasePitchSemitones = 0
+        audio.phrasePlaybackSpeedPercent = 100
         audio.phraseTimelinePlaybackOffsetSec = 0
-
-        if let paused = pausedTimelineSec, practiceMode, paused > 0 {
-            _ = audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: paused) { [weak self] in
-                self?.gameState = .playingPhrase
-            }
-            hasSyncedPhraseStartPlayhead = true
-            syncPlayheadForTimeline(paused, animating: true)
-            pausedTimelineSec = nil
-            updateSeekSliderUi(phraseTimeSec: paused, force: true)
-            return
-        }
 
         syncPlayheadForTimeline(0, animating: false)
 
@@ -384,19 +597,45 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
     private func handleAudioTimeUpdate() {
         guard gameState == .countIn || gameState == .playingPhrase else { return }
-        guard let phraseTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
+
+        let phraseTime: Double
+        if practiceMode, audio.isLoopSessionActive() {
+            guard let loopTime = audio.loopTimelineSecNowOrNil() else { return }
+            phraseTime = loopTime
+        } else {
+            guard let wallTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
+            phraseTime = wallTime
+        }
 
         let previousMeasure = activeMeasureNumber
-        updateActiveMeasure(for: max(0, phraseTime))
+        let previousCycle = lastLoopCycleIndex
+
         if phraseTime < 0 {
             hasSyncedPhraseStartPlayhead = false
             syncPlayheadForTimeline(phraseTime, animating: true)
         } else if !hasSyncedPhraseStartPlayhead {
             hasSyncedPhraseStartPlayhead = true
             syncPlayheadForTimeline(phraseTime, animating: true)
-        } else if activeMeasureNumber != previousMeasure {
-            syncPlayheadForTimeline(phraseTime, animating: true)
+        } else if practiceMode, audio.isLoopSessionActive() || !notesBySemitone.isEmpty {
+            let position = EarTrainingPrecisionLoop.globalToLoopPosition(
+                phraseTime,
+                durationSec: loopWindow.durationSec
+            )
+            let osmdTimeline = EarTrainingPrecisionLoop.loopOsmdTimelineSec(
+                localSec: position.localSec,
+                measureDurationSec: effectiveMeasureDurationSec,
+                loopWindow: loopWindow
+            )
+            if osmdTimeline.measureNumber != previousMeasure || position.cycleIndex != previousCycle {
+                syncPlayheadForTimeline(phraseTime, animating: true)
+            }
+        } else {
+            updateActiveMeasure(for: max(0, phraseTime))
+            if activeMeasureNumber != previousMeasure {
+                syncPlayheadForTimeline(phraseTime, animating: true)
+            }
         }
+
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
         _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
             notes: precisionNotes,
@@ -407,6 +646,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         processAutoPlayIfNeeded(phraseTimeSec: phraseTime)
         applyLyricsIfNeeded(phraseTimeSec: phraseTime)
         updateHiddenNotesAtEnd(phraseTimeSec: phraseTime)
+
+        if practiceMode, audio.isLoopSessionActive() {
+            updateSeekSliderUi(phraseTimeSec: phraseTime)
+            return
+        }
+
         updateSeekSliderUi(phraseTimeSec: max(0, phraseTime))
 
         if phraseTime >= phraseLoopEndSec - 0.05 {
@@ -451,11 +696,37 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     private func syncPlayheadForTimeline(_ phraseTimeSec: Double, animating: Bool? = nil) {
-        updateActiveMeasure(for: max(0, phraseTimeSec))
         let isAnimating = animating ?? playheadAnimating
+        var measureNumber: Int
+        var timelineForOsmd = phraseTimeSec
+
+        if practiceMode, phraseTimeSec >= 0, audio.isLoopSessionActive() || !notesBySemitone.isEmpty {
+            let position = EarTrainingPrecisionLoop.globalToLoopPosition(
+                phraseTimeSec,
+                durationSec: loopWindow.durationSec
+            )
+            if position.cycleIndex != lastLoopCycleIndex {
+                lastLoopCycleIndex = position.cycleIndex
+                applyLoopCycleTransition(cycleIndex: position.cycleIndex)
+            }
+            let osmdTimeline = EarTrainingPrecisionLoop.loopOsmdTimelineSec(
+                localSec: position.localSec,
+                measureDurationSec: effectiveMeasureDurationSec,
+                loopWindow: loopWindow
+            )
+            measureNumber = osmdTimeline.measureNumber
+            timelineForOsmd = osmdTimeline.phraseTimelineSec
+        } else {
+            updateActiveMeasure(for: max(0, phraseTimeSec))
+            measureNumber = activeMeasureNumber
+        }
+
+        if measureNumber != activeMeasureNumber {
+            activeMeasureNumber = measureNumber
+        }
         osmdCoordinator?.syncPlayhead(
-            phraseTimelineSec: phraseTimeSec,
-            activeMeasureNumber: activeMeasureNumber,
+            phraseTimelineSec: timelineForOsmd,
+            activeMeasureNumber: measureNumber,
             measureDurationSec: effectiveMeasureDurationSec,
             animating: isAnimating
         )
@@ -665,7 +936,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         seekInteractionActive = true
         wasPlayingBeforeSeekInteraction = gameState == .playingPhrase || gameState == .countIn
         if wasPlayingBeforeSeekInteraction {
-            pausedTimelineSec = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
+            pausedTimelineSec = audio.loopTimelineSecNowOrNil()
+                ?? audio.phraseWallClockTimelineSecNowOrNil()
+                ?? (loopCycleBaseSec(seekSliderSec) + seekSliderSec)
             audio.pausePhrasePlayback()
             gameState = .paused
             if let paused = pausedTimelineSec {
@@ -676,39 +949,62 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
 
     func updateSeekPreview(_ targetSec: Double) {
         guard practiceMode, seekInteractionActive else { return }
-        let clamped = max(0, min(phraseDurationSec, targetSec))
+        let clamped = max(0, min(loopWindow.durationSec, targetSec))
         seekSliderSec = clamped
     }
 
     func commitSeekPosition(_ targetSec: Double, resumePlayback: Bool) {
-        guard practiceMode, let url = preparedPhraseURL else {
+        guard practiceMode else {
             seekInteractionActive = false
             return
         }
-        let clamped = max(0, min(phraseDurationSec, targetSec))
+        let clampedLocal = max(0, min(loopWindow.durationSec, targetSec))
         seekInteractionActive = false
-        resetRuntimeStatesForSeekTime(clamped)
-        pausedTimelineSec = clamped
-        updateSeekSliderUi(phraseTimeSec: clamped, force: true)
-        hasSyncedPhraseStartPlayhead = clamped >= 0
-        syncPlayheadForTimeline(clamped, animating: resumePlayback)
+
+        let globalBase = loopCycleBaseSec(pausedTimelineSec ?? audio.loopTimelineSecNowOrNil() ?? seekSliderSec)
+        let clampedGlobal = globalBase + clampedLocal
+
+        resetRuntimeStatesForSeekTime(clampedGlobal)
+        pausedTimelineSec = clampedGlobal
+        updateSeekSliderUi(phraseTimeSec: clampedGlobal, force: true)
+        hasSyncedPhraseStartPlayhead = clampedGlobal >= 0
+        syncPlayheadForTimeline(clampedGlobal, animating: resumePlayback)
 
         if resumePlayback {
-            audio.stopPhrase()
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
-                self.gameState = .playingPhrase
-                self.scoreTimelineArmed = true
-                let started = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: clamped) { [weak self] in
-                    self?.gameState = .playingPhrase
-                }
-                if started, let timeline = self.audio.phraseWallClockTimelineSecNowOrNil() {
-                    self.syncPlayheadForTimeline(timeline, animating: true)
+            if audio.isLoopSessionActive() {
+                audio.resumeLoopSessionFromTimelineSec(clampedGlobal)
+                gameState = .playingPhrase
+                scoreTimelineArmed = true
+            } else if let url = preparedPhraseURL {
+                audio.stopPhrase()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+                    self.gameState = .playingPhrase
+                    self.scoreTimelineArmed = true
+                    if self.audio.startPhraseLoopSession(
+                        url: url,
+                        loopStartSec: self.loopWindow.startSec,
+                        loopDurationSec: self.loopWindow.durationSec,
+                        countInBeats: 0,
+                        bpm: self.stage.bpm,
+                        semitoneForCycle: { cycle in
+                            EarTrainingPrecisionLoop.loopSemitoneForCycle(
+                                cycle,
+                                direction: self.loopTransposeDirection,
+                                baseSemitone: self.loopBaseSemitone
+                            )
+                        },
+                        onPhraseStarted: { [weak self] in
+                            self?.gameState = .playingPhrase
+                        }
+                    ) {
+                        self.audio.resumeLoopSessionFromTimelineSec(clampedGlobal)
+                    }
                 }
             }
         } else {
-            audio.stopPhrase()
+            audio.pausePhrasePlayback()
             gameState = .paused
         }
     }
@@ -721,30 +1017,47 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     func togglePause() {
         guard practiceMode else { return }
         if gameState == .playingPhrase || gameState == .countIn {
-            pausedTimelineSec = audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec
+            pausedTimelineSec = audio.loopTimelineSecNowOrNil()
+                ?? audio.phraseWallClockTimelineSecNowOrNil()
+                ?? (loopCycleBaseSec(seekSliderSec) + seekSliderSec)
             audio.pausePhrasePlayback()
             gameState = .paused
             let paused = pausedTimelineSec ?? seekSliderSec
             updateSeekSliderUi(phraseTimeSec: paused, force: true)
             syncPlayheadForTimeline(paused, animating: false)
         } else if gameState == .paused {
-            guard let url = preparedPhraseURL else { return }
-            let offset = pausedTimelineSec ?? seekSliderSec
+            let offset = pausedTimelineSec ?? (loopCycleBaseSec(seekSliderSec) + seekSliderSec)
             hasSyncedPhraseStartPlayhead = offset >= 0
             syncPlayheadForTimeline(offset, animating: true)
-            audio.stopPhrase()
             gameState = .playingPhrase
             scoreTimelineArmed = true
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
-                let started = self.audio.playPreparedPhraseFromTimelineOffset(url: url, timelineOffsetSec: offset) { [weak self] in
-                    self?.gameState = .playingPhrase
+            if audio.isLoopSessionActive() {
+                audio.resumeLoopSessionFromTimelineSec(offset)
+            } else if let url = preparedPhraseURL {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    _ = await self.audio.preparePhraseForImmediatePlayback(url: url)
+                    if self.audio.startPhraseLoopSession(
+                        url: url,
+                        loopStartSec: self.loopWindow.startSec,
+                        loopDurationSec: self.loopWindow.durationSec,
+                        countInBeats: 0,
+                        bpm: self.stage.bpm,
+                        semitoneForCycle: { cycle in
+                            EarTrainingPrecisionLoop.loopSemitoneForCycle(
+                                cycle,
+                                direction: self.loopTransposeDirection,
+                                baseSemitone: self.loopBaseSemitone
+                            )
+                        },
+                        onPhraseStarted: { [weak self] in
+                            self?.gameState = .playingPhrase
+                        }
+                    ) {
+                        self.audio.resumeLoopSessionFromTimelineSec(offset)
+                    }
+                    self.updateSeekSliderUi(phraseTimeSec: offset, force: true)
                 }
-                if started, let timeline = self.audio.phraseWallClockTimelineSecNowOrNil() {
-                    self.syncPlayheadForTimeline(timeline, animating: true)
-                }
-                self.updateSeekSliderUi(phraseTimeSec: offset, force: true)
             }
         }
     }
@@ -754,11 +1067,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
     }
 
     func seekBySeconds(delta: Double) {
-        let base = gameState == .playingPhrase || gameState == .countIn
-            ? (audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec)
-            : (pausedTimelineSec ?? seekSliderSec)
+        let currentGlobal = gameState == .playingPhrase || gameState == .countIn
+            ? (audio.loopTimelineSecNowOrNil() ?? audio.phraseWallClockTimelineSecNowOrNil() ?? seekSliderSec)
+            : (pausedTimelineSec ?? (loopCycleBaseSec(seekSliderSec) + seekSliderSec))
         let resume = gameState == .playingPhrase || gameState == .countIn
-        commitSeekPosition(base + delta, resumePlayback: resume)
+        let targetLocal = (currentGlobal - loopCycleBaseSec(currentGlobal)) + delta
+        commitSeekPosition(targetLocal, resumePlayback: resume)
     }
 
     private func updateSeekSliderUi(phraseTimeSec: Double, force: Bool = false) {
@@ -767,14 +1081,20 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             return
         }
         lastSeekSliderUiUpdate = now
-        seekSliderSec = phraseTimeSec
+        if practiceMode {
+            seekSliderSec = phraseTimeSec - loopCycleBaseSec(phraseTimeSec)
+        } else {
+            seekSliderSec = phraseTimeSec
+        }
     }
 
     func applyPracticeModeAndRestart(_ value: Bool) {
         practiceMode = value
         if !value {
-            practiceTransposeOffset = 0
+            loopBaseSemitone = 0
             practiceSpeedPercent = 100
+            notesBySemitone = [:]
+            loopScoreXmlBySemitone = [:]
             audio.phrasePitchSemitones = 0
             audio.phrasePlaybackSpeedPercent = 100
         }
@@ -783,16 +1103,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         startBattle()
     }
 
-    func applyPracticePlaybackAndRestart(offset: Int, speedPercent: Int) {
+    func applyPracticePlaybackAndRestart(speedPercent: Int) {
         guard practiceMode else { return }
         practiceSpeedPercent = EarTrainingPracticeSpeed.clampPracticeSpeedPercent(speedPercent)
-        if stage.resolvedPracticeTranspose {
-            practiceTransposeOffset = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(offset)
-        }
-        audio.phrasePitchSemitones = Float(effectivePracticeTransposeOffset())
         audio.phrasePlaybackSpeedPercent = Float(practiceSpeedPercent)
-        applyDisplayMusicXml()
-        rebuildPrecisionNotes()
+        if let baseXml = baseMusicXmlText {
+            buildLoopPracticeCaches(baseXml: baseXml)
+        }
         isSettingsOpen = false
         startBattle()
     }
@@ -812,11 +1129,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         lobbyPreloadTask = nil
         audio.stopPhrase()
         phraseEnding = false
-    }
-
-    private func effectivePracticeTransposeOffset() -> Int {
-        guard practiceTransposeEnabled, practiceMode else { return 0 }
-        return practiceTransposeOffset
     }
 
     private func resolveEffectivePracticeBpm() -> Int {
@@ -924,13 +1236,22 @@ extension EarTrainingPrecisionBattleController: EarTrainingLobbyPresentable {
     func setPracticeModeFromLobby(_ value: Bool) {
         practiceMode = value
         if !value {
-            practiceTransposeOffset = 0
+            loopBaseSemitone = 0
             practiceSpeedPercent = 100
+            notesBySemitone = [:]
+            loopScoreXmlBySemitone = [:]
             audio.phrasePitchSemitones = 0
             audio.phrasePlaybackSpeedPercent = 100
         }
         applyDisplayMusicXml()
         rebuildPrecisionNotes()
+    }
+
+    var lobbyPracticeModeDescription: String? {
+        guard practiceMode else { return nil }
+        return isEnglishCopy
+            ? "Practice: loop the A-B section; optional transpose each loop."
+            : "練習モード: A-B区間をループし、周ごとに移調できます。"
     }
 }
 

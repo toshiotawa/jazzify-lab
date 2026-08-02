@@ -278,6 +278,9 @@
 		F37CC0E92DB50C43CD5F4A1B /* SurvivalItemEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588D18E5F6FAC4B051836B8E /* SurvivalItemEngine.swift */; };
 		F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B3CF3FB27C5189D6A521AE12 /* fire_magic_1.mp3 */; };
 		F6C846CDCB5B49491273FA00 /* EarTrainingPrecisionMidi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BBE5A49757C0B62C14A75D /* EarTrainingPrecisionMidi.swift */; };
+		A1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift */; };
+		D1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */; };
+		E1E2F3D4C5B6A7988776650B /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1E2F3D4C5B6A7988776650C /* XCTest.framework */; };
 		F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44BB606E44E08242A371BE80 /* BillingService.swift */; };
 		F8F637556726711A82399A73 /* SurvivalInputBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7EA654B4F135FB53EDF52E /* SurvivalInputBuffer.swift */; };
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
@@ -318,6 +321,10 @@
 		1E61246F5E583E2666BE252D /* EarTrainingPracticeSpeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPracticeSpeed.swift; sourceTree = "<group>"; };
 		20B499E74ABA90E85BD71290 /* Jazzify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Jazzify.entitlements; sourceTree = "<group>"; };
 		22BBE5A49757C0B62C14A75D /* EarTrainingPrecisionMidi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionMidi.swift; sourceTree = "<group>"; };
+		B1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionLoop.swift; sourceTree = "<group>"; };
+		C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionLoopTests.swift; sourceTree = "<group>"; };
+		E1E2F3D4C5B6A79887766501 /* JazzifyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JazzifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E1E2F3D4C5B6A7988776650C /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		22BD2D3BC73DAEB9E0A13AFE /* SurvivalLessonRandomChords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonRandomChords.swift; sourceTree = "<group>"; };
 		235F56B9C1F187793F59B3A1 /* EarTrainingChordOsmdMusicXmlNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdMusicXmlNormalizer.swift; sourceTree = "<group>"; };
 		256267E5F9D8CF6132FCF6BD /* EarTrainingBattleVolumePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleVolumePreferences.swift; sourceTree = "<group>"; };
@@ -653,9 +660,27 @@
 			children = (
 				0741AA8AD13E97DF1BCFC3AD /* ios */,
 				0DAF2951F237E172998BF69A /* Jazzify */,
+				E1E2F3D4C5B6A79887766505 /* JazzifyTests */,
+				E1E2F3D4C5B6A7988776650D /* Frameworks */,
 				3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */,
 				D3C90A55DC4CE468656D6ABD /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		E1E2F3D4C5B6A79887766505 /* JazzifyTests */ = {
+			isa = PBXGroup;
+			children = (
+				C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */,
+			);
+			path = JazzifyTests;
+			sourceTree = "<group>";
+		};
+		E1E2F3D4C5B6A7988776650D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E1E2F3D4C5B6A7988776650C /* XCTest.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		16963DFD05E194E9B5451257 /* Models */ = {
@@ -728,6 +753,7 @@
 				44DEF600A486B942E974D7E6 /* EarTrainingPrecisionAutoPlay.swift */,
 				38AF9321EE48DB6D19734AB9 /* EarTrainingPrecisionJudge.swift */,
 				22BBE5A49757C0B62C14A75D /* EarTrainingPrecisionMidi.swift */,
+				B1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift */,
 				81C4E01D2F88EA67FEB01625 /* EarTrainingPrecisionNotes.swift */,
 				F792C2360E901E7B7F9B0B81 /* EarTrainingSmfBinary.swift */,
 			);
@@ -1148,6 +1174,7 @@
 			isa = PBXGroup;
 			children = (
 				DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */,
+				E1E2F3D4C5B6A79887766501 /* JazzifyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1295,7 +1322,42 @@
 			productReference = DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E1E2F3D4C5B6A79887766502 /* JazzifyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E1E2F3D4C5B6A79887766508 /* Build configuration list for PBXNativeTarget "JazzifyTests" */;
+			buildPhases = (
+				E1E2F3D4C5B6A79887766503 /* Sources */,
+				E1E2F3D4C5B6A79887766504 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E1E2F3D4C5B6A79887766507 /* PBXTargetDependency */,
+			);
+			name = JazzifyTests;
+			productName = JazzifyTests;
+			productReference = E1E2F3D4C5B6A79887766501 /* JazzifyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		E1E2F3D4C5B6A79887766506 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 21A49B4467817A918BEB7F91 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E500BA83C6EE4C666A3895FC;
+			remoteInfo = Jazzify;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		E1E2F3D4C5B6A79887766507 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E500BA83C6EE4C666A3895FC /* Jazzify */;
+			targetProxy = E1E2F3D4C5B6A79887766506 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		21A49B4467817A918BEB7F91 /* Project object */ = {
@@ -1323,6 +1385,7 @@
 			projectRoot = "";
 			targets = (
 				E500BA83C6EE4C666A3895FC /* Jazzify */,
+				E1E2F3D4C5B6A79887766502 /* JazzifyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -1449,6 +1512,7 @@
 				A86D17721C4645DB32DA6E6B /* EarTrainingPrecisionGameView.swift in Sources */,
 				C38CA0CC58A4DA784B1D540E /* EarTrainingPrecisionJudge.swift in Sources */,
 				F6C846CDCB5B49491273FA00 /* EarTrainingPrecisionMidi.swift in Sources */,
+				A1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift in Sources */,
 				7BE8039E67CAD2562C8CDAA1 /* EarTrainingPrecisionNotes.swift in Sources */,
 				D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */,
 				53EDBDC25339FD88006E14DF /* EarTrainingSettingsSheet.swift in Sources */,
@@ -1619,6 +1683,28 @@
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,
 				10341AFE546C003CFEE5CC5F /* VideoLessonView.swift in Sources */,
 				0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E1E2F3D4C5B6A79887766504 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E1E2F3D4C5B6A7988776650B /* XCTest.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E1E2F3D4C5B6A79887766503 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1798,6 +1884,50 @@
 			};
 			name = Release;
 		};
+		E1E2F3D4C5B6A79887766509 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.appTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jazzify.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Jazzify";
+			};
+			name = Debug;
+		};
+		E1E2F3D4C5B6A7988776650A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.appTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jazzify.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Jazzify";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1815,6 +1945,15 @@
 			buildConfigurations = (
 				78211611C4AE20F1D5D6D8A2 /* Debug */,
 				1BE852376D8B542CA0C676A3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E1E2F3D4C5B6A79887766508 /* Build configuration list for PBXNativeTarget "JazzifyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E1E2F3D4C5B6A79887766509 /* Debug */,
+				E1E2F3D4C5B6A7988776650A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

@@ -1,7 +1,7 @@
 import SwiftUI
 
 private let precisionPianoHeight: CGFloat = 96
-private let precisionTransportHeight: CGFloat = 72
+private let precisionTransportHeight: CGFloat = 120
 
 struct EarTrainingPrecisionGameView: View {
     let source: EarTrainingStageSource
@@ -165,48 +165,64 @@ private struct EarTrainingPrecisionGameContent: View {
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    @State private var openTransportDropdown: TransportDropdownKind?
 
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
 
     var body: some View {
-        GeometryReader { proxy in
-            let screenHeight = proxy.size.height
-            VStack(spacing: 0) {
-                header
-                scoreBand(screenHeight: screenHeight)
-                ZStack {
-                    PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
+        ZStack {
+            GeometryReader { proxy in
+                let screenHeight = proxy.size.height
+                VStack(spacing: 0) {
+                    header
+                    scoreBand(screenHeight: screenHeight)
+                    ZStack {
+                        PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
 
-                    if !controller.showLobbyControls && !controller.activeLyricText.isEmpty {
-                        VStack {
-                            Spacer()
-                            Text(controller.activeLyricText)
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color(hex: "0f172a").opacity(0.45))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .padding(.bottom, precisionPianoHeight + 24)
-                                .padding(.horizontal, 16)
+                        if !controller.showLobbyControls && !controller.activeLyricText.isEmpty {
+                            VStack {
+                                Spacer()
+                                Text(controller.activeLyricText)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.white)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color(hex: "0f172a").opacity(0.45))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    .padding(.bottom, precisionPianoHeight + 24)
+                                    .padding(.horizontal, 16)
+                            }
+                            .allowsHitTesting(false)
                         }
-                        .allowsHitTesting(false)
-                    }
 
-                    EarTrainingResultView(host: controller)
-                        .zIndex(10)
-                }
-                .overlay(alignment: .top) {
-                    scoreBandHeightDragHandle(screenHeight: screenHeight)
-                        .offset(y: -Self.scoreBandGripHeight / 2)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if controller.practiceMode {
-                    transportBar
+                        EarTrainingResultView(host: controller)
+                            .zIndex(10)
+                    }
+                    .overlay(alignment: .top) {
+                        scoreBandHeightDragHandle(screenHeight: screenHeight)
+                            .offset(y: -Self.scoreBandGripHeight / 2)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if controller.practiceMode {
+                        transportBar
+                    }
                 }
             }
+
+            if let dropdown = openTransportDropdown {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        openTransportDropdown = nil
+                    }
+
+                transportDropdownPanel(for: dropdown)
+            }
+        }
+        .onAppear {
+            ScreenRotationApplier.shared.applyCurrentPreference()
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onChange(of: keyboardDisplayMode) { _ in
@@ -236,20 +252,11 @@ private struct EarTrainingPrecisionGameContent: View {
                         }
                     )
                 },
-                practiceTranspose: controller.stage.resolvedPracticeTranspose
-                    ? EarTrainingPracticeTransposeConfig(
-                        enabled: true,
-                        practiceMode: controller.practiceMode,
-                        originalKeyFifths: controller.practiceOriginalKeyFifths,
-                        originalKeyName: controller.practiceOriginalKeyName,
-                        appliedOffset: controller.practiceTransposeOffset
-                    )
-                    : nil,
                 practiceSpeed: EarTrainingPracticeSpeedConfig(
                     practiceMode: controller.practiceMode,
                     appliedSpeedPercent: controller.practiceSpeedPercent,
-                    onApplyAndRestart: { offset, speed in
-                        controller.applyPracticePlaybackAndRestart(offset: offset, speedPercent: speed)
+                    onApplyAndRestart: { _, speed in
+                        controller.applyPracticePlaybackAndRestart(speedPercent: speed)
                     }
                 ),
                 osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig(
@@ -356,13 +363,20 @@ private struct EarTrainingPrecisionGameContent: View {
                     activeMeasureNumber: controller.activeMeasureNumber,
                     measureDurationSec: controller.effectiveMeasureDurationSec,
                     musicXMLText: musicXMLText,
+                    scoreXmlBySemitone: controller.loopScoreXmlBySemitone,
+                    activeSemitone: controller.loopActiveSemitone,
+                    loopTransposeDirection: controller.loopTransposeDirection,
+                    loopBaseSemitone: controller.loopBaseSemitone,
+                    loopCycleIndex: controller.loopCycleIndex,
+                    drawMeasureNumbers: controller.practiceMode,
                     renderKey: controller.phraseRunId,
                     playheadController: controller,
                     zoom: osmdZoom,
                     scrollLayout: .precision,
                     countInDurationSec: controller.countInDurationSec,
                     maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
-                    manualScrollEnabled: controller.practiceMode && controller.gameState == .paused
+                    manualScrollEnabled: controller.practiceMode
+                        && (controller.gameState == .paused || controller.showLobbyControls)
                 )
             } else {
                 Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
@@ -428,6 +442,50 @@ private struct EarTrainingPrecisionGameContent: View {
 
     private var transportBar: some View {
         VStack(spacing: 8) {
+            HStack {
+                Text(locale == .ja ? "周回 \(controller.loopCycleIndex + 1)" : "Loop \(controller.loopCycleIndex + 1)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+                Spacer()
+                Text(locale == .ja ? "キー \(controller.loopCurrentKeyName)" : "Key \(controller.loopCurrentKeyName)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+
+            HStack(spacing: 6) {
+                transportDropdownTrigger(
+                    label: locale == .ja ? "開始" : "A",
+                    value: "\(controller.loopStartMeasure)",
+                    kind: .loopStart
+                )
+                transportDropdownTrigger(
+                    label: locale == .ja ? "終了" : "B",
+                    value: "\(controller.loopEndMeasure)",
+                    kind: .loopEnd
+                )
+                transportDropdownTrigger(
+                    label: locale == .ja ? "キー" : "Key",
+                    value: controller.loopBaseKeyOptions.first(where: { $0.offset == controller.loopBaseSemitone })?.label
+                        ?? controller.loopCurrentKeyName,
+                    kind: .key
+                )
+                transportDropdownTrigger(
+                    label: locale == .ja ? "移調" : "Tr.",
+                    value: loopTransposeDirectionLabel(controller.loopTransposeDirection),
+                    kind: .transpose
+                )
+                Button(locale == .ja ? "再設定" : "Apply") {
+                    openTransportDropdown = nil
+                    controller.applyLoopRangeAndRestart()
+                }
+                .font(.caption.bold())
+                .foregroundStyle(.black)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(Color.yellow)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
             HStack(spacing: 12) {
                 transportIconButton(
                     accessibilityLabel: locale == .ja ? "1秒戻る" : "Back 1 second"
@@ -476,7 +534,7 @@ private struct EarTrainingPrecisionGameContent: View {
                         controller.updateSeekPreview(newValue)
                     }
                 ),
-                in: 0...max(1, controller.phraseDurationSec),
+                in: 0...max(1, controller.loopWindowDurationSec),
                 onEditingChanged: { editing in
                     if editing {
                         if !isSeekDragging {
@@ -498,6 +556,167 @@ private struct EarTrainingPrecisionGameContent: View {
         .background(Color(hex: "020617").opacity(0.95))
     }
 
+    private func loopTransposeDirectionLabel(_ direction: EarTrainingLoopTransposeDirection) -> String {
+        switch direction {
+        case .down:
+            return locale == .ja ? "半音下降" : "Down"
+        case .up:
+            return locale == .ja ? "半音上昇" : "Up"
+        case .none:
+            return locale == .ja ? "移調なし" : "None"
+        }
+    }
+
+    private func transportDropdownTrigger(label: String, value: String, kind: TransportDropdownKind) -> some View {
+        Button {
+            openTransportDropdown = openTransportDropdown == kind ? nil : kind
+        } label: {
+            HStack(spacing: 3) {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.7))
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .frame(minHeight: 28)
+            .background(Color.white.opacity(openTransportDropdown == kind ? 0.2 : 0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func transportDropdownPanel(for kind: TransportDropdownKind) -> some View {
+        VStack(spacing: 0) {
+            Text(transportDropdownTitle(for: kind))
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+            Divider()
+                .overlay(Color.white.opacity(0.15))
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    switch kind {
+                    case .loopStart:
+                        ForEach(1...controller.maxLoopMeasure, id: \.self) { measure in
+                            transportDropdownRow(
+                                title: locale == .ja ? "小節 \(measure)" : "M\(measure)",
+                                selected: controller.loopStartMeasure == measure
+                            ) {
+                                controller.loopStartMeasure = measure
+                                if controller.loopEndMeasure < measure {
+                                    controller.loopEndMeasure = measure
+                                }
+                                openTransportDropdown = nil
+                            }
+                        }
+                    case .loopEnd:
+                        ForEach(1...controller.maxLoopMeasure, id: \.self) { measure in
+                            transportDropdownRow(
+                                title: locale == .ja ? "小節 \(measure)" : "M\(measure)",
+                                selected: controller.loopEndMeasure == measure
+                            ) {
+                                controller.loopEndMeasure = measure
+                                if controller.loopStartMeasure > measure {
+                                    controller.loopStartMeasure = measure
+                                }
+                                openTransportDropdown = nil
+                            }
+                        }
+                    case .key:
+                        ForEach(controller.loopBaseKeyOptions, id: \.offset) { option in
+                            transportDropdownRow(
+                                title: option.label,
+                                selected: controller.loopBaseSemitone == option.offset
+                            ) {
+                                controller.loopBaseSemitone = EarTrainingMusicXmlTransposer.clampPracticeTransposeOffset(option.offset)
+                                openTransportDropdown = nil
+                            }
+                        }
+                    case .transpose:
+                        transportDropdownRow(
+                            title: locale == .ja ? "半音下降" : "Half-step down",
+                            selected: controller.loopTransposeDirection == .down
+                        ) {
+                            controller.loopTransposeDirection = .down
+                            openTransportDropdown = nil
+                        }
+                        transportDropdownRow(
+                            title: locale == .ja ? "半音上昇" : "Half-step up",
+                            selected: controller.loopTransposeDirection == .up
+                        ) {
+                            controller.loopTransposeDirection = .up
+                            openTransportDropdown = nil
+                        }
+                        transportDropdownRow(
+                            title: locale == .ja ? "移調なし" : "No transpose",
+                            selected: controller.loopTransposeDirection == .none
+                        ) {
+                            controller.loopTransposeDirection = .none
+                            openTransportDropdown = nil
+                        }
+                    }
+                }
+            }
+            .frame(maxHeight: 220)
+        }
+        .frame(maxWidth: min(320, UIScreen.main.bounds.width - 48))
+        .background(Color(hex: "0f172a"))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 12, x: 0, y: 4)
+    }
+
+    private func transportDropdownTitle(for kind: TransportDropdownKind) -> String {
+        switch kind {
+        case .loopStart:
+            return locale == .ja ? "開始小節" : "Loop start"
+        case .loopEnd:
+            return locale == .ja ? "終了小節" : "Loop end"
+        case .key:
+            return locale == .ja ? "キー" : "Key"
+        case .transpose:
+            return locale == .ja ? "移調" : "Transpose"
+        }
+    }
+
+    private func transportDropdownRow(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                Spacer()
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.caption.bold())
+                        .foregroundStyle(.yellow)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(selected ? Color.white.opacity(0.08) : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func transportIconButton<Icon: View>(
         accessibilityLabel: String,
         action: @escaping () -> Void,
@@ -512,6 +731,15 @@ private struct EarTrainingPrecisionGameContent: View {
         }
         .accessibilityLabel(accessibilityLabel)
     }
+}
+
+// MARK: - Transport dropdown
+
+private enum TransportDropdownKind: Equatable {
+    case loopStart
+    case loopEnd
+    case key
+    case transpose
 }
 
 // MARK: - Precision score preferences
