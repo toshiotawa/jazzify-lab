@@ -297,4 +297,41 @@ describe('EarTrainingChordVoicingPhrasePlayer', () => {
     expect(player.getPhraseTimelineSec()).toBeCloseTo(-0.05, 5);
     player.dispose();
   });
+
+  it('resumeLoopSessionFromTimelineSec: 周回途中から再開するとバッファも途中から鳴る', async () => {
+    vi.useFakeTimers();
+    const { player, mockCtx } = makePlayer();
+    const createdSources: MockBufferSourceNode[] = [];
+    mockCtx.createBufferSource = vi.fn((): MockBufferSourceNode => {
+      const source = new MockBufferSourceNode();
+      createdSources.push(source);
+      return source;
+    });
+    mockCtx.currentTime = 0;
+    player.startLoopSession({
+      buffersBySemitone: new Map([[0, fakePhraseBuffer]]),
+      semitoneForCycle: () => 0,
+      loopStartSec: 2,
+      loopDurationSec: 4,
+      phraseGain: 1,
+      countInBeats: 0,
+      bpm: 60,
+      beatGain: 1,
+    });
+    await flushPromises();
+
+    const anchor = CHORD_VOICING_PHRASE_PLAYER_LEAD_IN_SEC;
+    expect(createdSources[0].start).toHaveBeenCalledWith(anchor, 2, 4);
+
+    const scheduledBeforeResume = createdSources.length;
+    mockCtx.currentTime = anchor + 5;
+    expect(player.pause()).toBeCloseTo(5, 5);
+    player.resumeLoopSessionFromTimelineSec(5);
+
+    // 周回1の1秒地点から再開: 開始は即時、バッファは 2 + 1 秒目、残り 3 秒だけ鳴らす。
+    const resumed = createdSources[scheduledBeforeResume];
+    expect(resumed.start).toHaveBeenCalledWith(anchor + 5, 3, 3);
+    expect(player.getLoopTimelineSec()).toBeCloseTo(5, 5);
+    player.dispose();
+  });
 });

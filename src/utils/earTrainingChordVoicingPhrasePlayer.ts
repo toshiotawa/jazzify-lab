@@ -515,9 +515,16 @@ export class EarTrainingChordVoicingPhrasePlayer {
         continue;
       }
 
-      const when = anchor + cycleIndex * this.loopDurationSec;
+      const cycleStart = anchor + cycleIndex * this.loopDurationSec;
+      // 途中再開・シーク時は周回の頭が過去になる。経過分だけバッファ内を進めて残りだけ鳴らす。
+      const elapsedInCycleSec = Math.max(0, ctx.currentTime - cycleStart);
+      if (elapsedInCycleSec >= this.loopDurationSec) {
+        continue;
+      }
+      const when = Math.max(ctx.currentTime, cycleStart);
+      const playDurationSec = this.loopDurationSec - elapsedInCycleSec;
       const bufferOffsetSec = Math.min(
-        Math.max(0, this.loopStartSec + this.loopPrimingOffsetSec),
+        Math.max(0, this.loopStartSec + this.loopPrimingOffsetSec + elapsedInCycleSec),
         Math.max(0, buffer.duration - 1e-6),
       );
       const source = ctx.createBufferSource();
@@ -536,7 +543,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
       };
 
       try {
-        source.start(when, bufferOffsetSec, this.loopDurationSec);
+        source.start(when, bufferOffsetSec, playDurationSec);
       } catch {
         this.loopSources.delete(source);
         this.scheduledLoopCycles.delete(cycleIndex);

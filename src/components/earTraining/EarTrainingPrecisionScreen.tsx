@@ -131,7 +131,6 @@ import {
   loopPracticeUniqueSemitones,
   loopSemitoneForCycle,
   resolveLoopWindow,
-  scaleScoreSecToProcessedBufferSec,
   type LoopTransposeDirection,
   type PrecisionLoopWindow,
 } from '@/utils/earTrainingPrecisionLoop';
@@ -165,6 +164,15 @@ const INPUT_COOLDOWN_MS = 20;
 const PIANO_HEIGHT = 96;
 const TRANSPORT_HEIGHT = 112;
 const SEEK_SLIDER_UI_UPDATE_INTERVAL_MS = 200;
+/** ループ内シークが次の周回（＝別キー）へ飛ばないよう末尾に残す余白。 */
+const LOOP_SEEK_TAIL_MARGIN_SEC = 0.02;
+
+const parseLoopTransposeDirection = (value: string): LoopTransposeDirection => {
+  if (value === 'up' || value === 'none') {
+    return value;
+  }
+  return 'down';
+};
 
 const resolveInitialRunMode = (
   initialRunMode: PrecisionRunMode | undefined,
@@ -252,7 +260,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [loopCycleIndex, setLoopCycleIndex] = useState(0);
   const [loopActiveSemitone, setLoopActiveSemitone] = useState(0);
   const [loopPreloadProgress, setLoopPreloadProgress] = useState<string | null>(null);
-  const [loopPreloadReady, setLoopPreloadReady] = useState(false);
   const [loopScoreXmlBySemitone, setLoopScoreXmlBySemitone] = useState<Map<number, string>>(new Map());
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
@@ -318,6 +325,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const loopTransposeDirectionRef = useRef<LoopTransposeDirection>('down');
   const loopStartMeasureRef = useRef(1);
   const loopEndMeasureRef = useRef(Math.max(1, stage.loop_measures));
+  const loopPreparedDirectionRef = useRef<LoopTransposeDirection | null>(null);
+  const startBattleRef = useRef<() => void>(() => undefined);
 
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
@@ -531,6 +540,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     syncRendererStates();
   }, [syncRendererStates, syncRendererTime]);
 
+  /** ループ中はシークバーを周回内の位置で扱うため、グローバル秒から周回頭の秒を求める。 */
+  const loopCycleBaseSec = useCallback((globalSec: number): number => {
+    if (!loopEnabledRef.current) {
+      return 0;
+    }
+    const durationSec = Math.max(1e-6, loopWindowRef.current.durationSec);
+    return Math.floor(Math.max(0, globalSec) / durationSec) * durationSec;
+  }, []);
+
   const updateSeekSliderUi = useCallback((phraseTimeSec: number, force = false): void => {
     seekSliderSecRef.current = phraseTimeSec;
     const now = performance.now();
@@ -538,8 +556,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     lastSeekSliderUiUpdateMsRef.current = now;
-    setSeekSliderSec(phraseTimeSec);
-  }, []);
+    setSeekSliderSec(phraseTimeSec - loopCycleBaseSec(phraseTimeSec));
+  }, [loopCycleBaseSec]);
 
   const beginLoopSessionFromPreloadedBuffers = useCallback((runId: number): void => {
     const player = phrasePlayerRef.current;
@@ -549,10 +567,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     const loopWindow = loopWindowRef.current;
     const primingOffsetSec = resolvePhraseBufferPrimingOffsetSec([...buffersBySemitone.values()]);
-    const loopStartBufferSec = scaleScoreSecToProcessedBufferSec(
-      loopWindow.startSec,
-      practiceSpeedPercentRef.current,
-    );
     phraseLoopDurationSecRef.current = loopWindow.durationSec;
     phraseLoopEndSecRef.current = loopWindow.durationSec;
     setPhraseDurationSec(loopWindow.durationSec);
@@ -575,11 +589,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         cycleIndex,
         loopTransposeDirectionRef.current,
       ),
-      loopStartSec: loopStartBufferSec,
-      loopDurationSec: scaleScoreSecToProcessedBufferSec(
-        loopWindow.durationSec,
-        practiceSpeedPercentRef.current,
-      ),
+      // 実効BPMに速度が織り込まれているため、ループ窓の秒はそのまま処理済みバッファの秒になる。
+      loopStartSec: loopWindow.startSec,
+      loopDurationSec: loopWindow.durationSec,
       loopPrimingOffsetSec: primingOffsetSec,
       phraseGain: settings.musicVolume * settings.masterVolume,
       countInBeats: stage.count_in_beats,
@@ -608,6 +620,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (!loopEnabledRef.current) {
       return;
     }
+    const direction = loopTransposeDirectionRef.current;
+    const canReusePreload = loopBuffersRef.current.size > 0
+      && loopPreparedDirectionRef.current === direction;
+
+    // 移調の有無・種類が変わった場合は全キー分（または原調1件）を読み直す。
+    if (!canReusePreload) {
+      startBattleRef.current();
+      return;
+    }
+
     const localMeasureDurationSec = (60 / Math.max(1, effectivePracticeBpm(
       stage.bpm,
       practiceSpeedPercentRef.current,
@@ -620,10 +642,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     loopWindowRef.current = loopWindow;
     loopCycleWindowSizeRef.current = loopCycleWindowSize(loopWindow.durationSec);
     lastLoopCycleIndexRef.current = -1;
-
-    if (loopBuffersRef.current.size === 0) {
-      return;
-    }
 
     markAudioUserInteraction();
     const runId = phraseRunIdRef.current;
@@ -851,28 +869,34 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         updateSeekSliderUi(pausedAt, true);
         syncRenderer(pausedAt);
         syncPlayheadForTimeline(pausedAt, false);
-        setSeekPreviewSec(pausedAt);
+        setSeekPreviewSec(pausedAt - loopCycleBaseSec(pausedAt));
       }
     } else {
-      setSeekPreviewSec(seekSliderSecRef.current);
+      const currentSec = seekSliderSecRef.current;
+      setSeekPreviewSec(currentSec - loopCycleBaseSec(currentSec));
     }
-  }, [syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
+  }, [loopCycleBaseSec, syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
 
+  /** targetSec はシークバー上の値（ループ中は周回内の秒）。 */
   const updateSeekPreview = useCallback((targetSec: number): void => {
     if (!isSeekDraggingRef.current) {
       return;
     }
-    const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
-    seekSliderSecRef.current = clamped;
-    setSeekPreviewSec(clamped);
+    setSeekPreviewSec(Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec)));
   }, []);
 
+  /** targetSec はグローバルなフレーズタイムライン秒。 */
   const commitSeekPosition = useCallback((targetSec: number, resumePlayback: boolean): void => {
     isSeekDraggingRef.current = false;
     setIsSeekDragging(false);
-    const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
     const player = phrasePlayerRef.current;
     if (loopEnabledRef.current && player?.isLoopSessionActive()) {
+      const durationSec = Math.max(1e-6, loopWindowRef.current.durationSec);
+      const cycleBase = loopCycleBaseSec(seekSliderSecRef.current);
+      const clamped = Math.min(
+        Math.max(targetSec, cycleBase),
+        cycleBase + Math.max(0, durationSec - LOOP_SEEK_TAIL_MARGIN_SEC),
+      );
       resetRuntimeStatesForSeekTime(clamped);
       updateSeekSliderUi(clamped, true);
       syncRenderer(clamped);
@@ -888,6 +912,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       }
       return;
     }
+    const clamped = Math.max(0, Math.min(phraseLoopEndSecRef.current, targetSec));
     const prepared = preparedRef.current;
     if (!player || !prepared) {
       phraseTimeSecRef.current = clamped;
@@ -917,6 +942,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       setGameState('paused');
     }
   }, [
+    loopCycleBaseSec,
     resetRuntimeStatesForSeekTime,
     settings.masterVolume,
     settings.musicVolume,
@@ -925,9 +951,11 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     updateSeekSliderUi,
   ]);
 
+  /** targetSec はシークバー上の値（ループ中は周回内の秒）。 */
   const endSeekInteraction = useCallback((targetSec: number): void => {
-    commitSeekPosition(targetSec, wasPlayingBeforeSeekRef.current);
-  }, [commitSeekPosition]);
+    const cycleBase = loopCycleBaseSec(seekSliderSecRef.current);
+    commitSeekPosition(cycleBase + targetSec, wasPlayingBeforeSeekRef.current);
+  }, [commitSeekPosition, loopCycleBaseSec]);
 
   const seekBySeconds = useCallback((deltaSec: number): void => {
     const base = gameStateRef.current === 'playingPhrase' || gameStateRef.current === 'countIn'
@@ -1178,7 +1206,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           return;
         }
         loopBuffersRef.current = buffersBySemitone;
-        setLoopPreloadReady(true);
+        loopPreparedDirectionRef.current = loopTransposeDirectionRef.current;
         setLoopPreloadProgress(null);
 
         beginLoopSessionFromPreloadedBuffers(runId);
@@ -1276,6 +1304,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     stage.loop_measures,
     practiceTransposeEnabled,
   ]);
+
+  useEffect(() => {
+    startBattleRef.current = startBattle;
+  }, [startBattle]);
 
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();
@@ -1884,24 +1916,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
                 </div>
               </div>
             ) : null}
-            {loopEnabled ? (
-              <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-300">
-                <label className="flex items-center gap-1">
-                  {isEnglishCopy ? 'Transpose' : '移調'}
-                  <select
-                    value={loopTransposeDirection}
-                    disabled={!canChangePracticeMode}
-                    className="rounded bg-slate-800 px-2 py-1"
-                    onChange={(event) => {
-                      setLoopTransposeDirection(event.target.value === 'up' ? 'up' : 'down');
-                    }}
-                  >
-                    <option value="down">{isEnglishCopy ? 'Half-step down' : '半音下降'}</option>
-                    <option value="up">{isEnglishCopy ? 'Half-step up' : '半音上昇'}</option>
-                  </select>
-                </label>
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -1994,13 +2008,27 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
                     }}
                   />
                 </label>
+                <label className="flex items-center gap-1">
+                  {isEnglishCopy ? 'Transpose' : '移調'}
+                  <select
+                    value={loopTransposeDirection}
+                    className="rounded bg-slate-800 px-1.5 py-1"
+                    onChange={(event) => {
+                      setLoopTransposeDirection(parseLoopTransposeDirection(event.target.value));
+                    }}
+                  >
+                    <option value="down">{isEnglishCopy ? 'Half-step down' : '半音下降'}</option>
+                    <option value="up">{isEnglishCopy ? 'Half-step up' : '半音上昇'}</option>
+                    <option value="none">{isEnglishCopy ? 'No transpose' : '移調なし'}</option>
+                  </select>
+                </label>
                 <button
                   type="button"
                   className="rounded bg-slate-800 px-2 py-1 text-xs text-white disabled:opacity-40"
-                  disabled={!loopPreloadReady}
+                  disabled={Boolean(loopPreloadProgress)}
                   onClick={applyLoopRangeAndRestart}
                 >
-                  {isEnglishCopy ? 'Apply range' : '範囲再設定'}
+                  {isEnglishCopy ? 'Apply' : '再設定'}
                 </button>
               </div>
             ) : null}

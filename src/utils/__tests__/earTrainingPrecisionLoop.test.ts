@@ -7,7 +7,6 @@ import {
   loopPracticeUniqueSemitones,
   loopSemitoneForCycle,
   resolveLoopWindow,
-  scaleScoreSecToProcessedBufferSec,
 } from '@/utils/earTrainingPrecisionLoop';
 import type { PrecisionNote } from '@/utils/earTrainingPrecisionNotes';
 
@@ -34,6 +33,11 @@ describe('earTrainingPrecisionLoop', () => {
   it('loopSemitoneForCycle: 上昇方向', () => {
     expect(loopSemitoneForCycle(1, 'up')).toBe(1);
     expect(loopSemitoneForCycle(7, 'up')).toBe(-5);
+  });
+
+  it('loopSemitoneForCycle: 移調なしは常に原調', () => {
+    expect(loopSemitoneForCycle(0, 'none')).toBe(0);
+    expect(loopSemitoneForCycle(7, 'none')).toBe(0);
   });
 
   it('resolveLoopWindow: 小節番号を秒に変換する', () => {
@@ -83,6 +87,10 @@ describe('earTrainingPrecisionLoop', () => {
     expect(built[0]?.startSec).toBeCloseTo(4.5, 5);
   });
 
+  it('loopPracticeUniqueSemitones: 移調なしは原調1件だけ読み込む', () => {
+    expect(loopPracticeUniqueSemitones('none')).toEqual([0]);
+  });
+
   it('loopPracticeUniqueSemitones: 12キー分の半音セット', () => {
     expect(loopPracticeUniqueSemitones('down')).toHaveLength(12);
   });
@@ -95,10 +103,5 @@ describe('earTrainingPrecisionLoop', () => {
     });
     expect(loopActiveMeasureNumber(0, 2, loopWindow, 8)).toBe(3);
     expect(loopActiveMeasureNumber(2.1, 2, loopWindow, 8)).toBe(4);
-  });
-
-  it('scaleScoreSecToProcessedBufferSec: 50% で2倍', () => {
-    expect(scaleScoreSecToProcessedBufferSec(4, 50)).toBe(8);
-    expect(scaleScoreSecToProcessedBufferSec(4, 100)).toBe(4);
   });
 });
