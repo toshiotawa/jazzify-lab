@@ -47,6 +47,12 @@ function deriveBillingCapabilities(
   };
 }
 
+function billingAmountUsdForPlanCode(planCode: string): number | null {
+  if (planCode === "core_monthly") return 24.99;
+  if (planCode === "core_yearly") return 199;
+  return null;
+}
+
 function billingAmountJpyForPlanCode(planCode: string): number | null {
   if (planCode === "core_monthly") return 3980;
   if (planCode === "core_yearly") return 34800;
@@ -56,6 +62,11 @@ function billingAmountJpyForPlanCode(planCode: string): number | null {
 function nextBillingAmountJpy(planCode: string, pendingPlanCode: string | null): number | null {
   const effectivePlanCode = pendingPlanCode ?? planCode;
   return billingAmountJpyForPlanCode(effectivePlanCode);
+}
+
+function nextBillingAmountUsd(planCode: string, pendingPlanCode: string | null): number | null {
+  const effectivePlanCode = pendingPlanCode ?? planCode;
+  return billingAmountUsdForPlanCode(effectivePlanCode);
 }
 
 async function hasLemonBillingHistory(
@@ -96,6 +107,7 @@ function buildBillingResponse(
   pendingCancelEffectiveAt: string | null = null,
   pendingCancelScheduled: boolean = false,
   hasLemonBillingHistoryFlag: boolean = false,
+  billingCurrency: "JPY" | "USD" = "JPY",
 ) {
   const caps = deriveBillingCapabilities(
     provider,
@@ -118,9 +130,13 @@ function buildBillingResponse(
     pending_plan_code: pendingPlanCode,
     pending_plan_effective_at: pendingPlanEffectiveAt,
     pending_cancel_effective_at: pendingCancelEffectiveAt,
-    next_billing_amount_jpy: hideNextBilling
+    next_billing_amount_jpy: hideNextBilling || billingCurrency === "USD"
       ? null
       : nextBillingAmountJpy(planCode, pendingPlanCode),
+    next_billing_amount_usd: hideNextBilling || billingCurrency === "JPY"
+      ? null
+      : nextBillingAmountUsd(planCode, pendingPlanCode),
+    billing_currency: billingCurrency,
     can_change_plan: caps.can_change_plan,
     can_resume: caps.can_resume,
     can_manage_payment: caps.can_manage_payment,
@@ -172,6 +188,20 @@ Deno.serve(async (req: Request) => {
 
     const lemonBillingHistory = await hasLemonBillingHistory(supabase, user.id);
 
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("billing_currency, preferred_locale")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const billingCurrency: "JPY" | "USD" = profileRow?.billing_currency === "USD"
+      ? "USD"
+      : profileRow?.billing_currency === "JPY"
+        ? "JPY"
+        : profileRow?.preferred_locale === "en"
+          ? "USD"
+          : "JPY";
+
     if (!subscription) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -194,6 +224,7 @@ Deno.serve(async (req: Request) => {
           null,
           false,
           lemonBillingHistory,
+          billingCurrency,
         )), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -214,6 +245,7 @@ Deno.serve(async (req: Request) => {
         null,
         false,
         lemonBillingHistory,
+        billingCurrency,
       )), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -234,6 +266,7 @@ Deno.serve(async (req: Request) => {
       pendingCancelScheduled ? subscription.pending_cancel_effective_at ?? null : null,
       pendingCancelScheduled,
       lemonBillingHistory,
+      billingCurrency,
     )), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

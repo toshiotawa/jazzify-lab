@@ -1,9 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { getLandingCopy, type LandingPricingPlan } from '@/components/landing/landingCopy';
-import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
 
 const CheckIcon: React.FC = () => (
   <svg
@@ -28,10 +26,9 @@ const CheckIcon: React.FC = () => (
 interface PricingCardProps {
   plan: LandingPricingPlan;
   emphasized: boolean;
-  usdRate: number | null;
 }
 
-const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) => (
+const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized }) => (
   <div
     className="lp-card p-8 flex flex-col relative"
     style={emphasized ? { border: '2px solid var(--lp-gold)' } : undefined}
@@ -53,11 +50,6 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) 
           {plan.priceSuffix}
         </span>
       )}
-      {usdRate !== null && plan.jpyAmount !== null && (
-        <p className="text-xs mt-1" style={{ color: 'var(--lp-ink-muted)' }}>
-          ≈ ${jpyAmountToApproxUsdWhole(plan.jpyAmount, usdRate)} USD
-        </p>
-      )}
     </div>
 
     {plan.highlights.length > 0 && (
@@ -69,11 +61,6 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) 
             style={{ color: 'var(--lp-gold-deep)' }}
           >
             {highlight.text}
-            {usdRate !== null && highlight.jpyAmount !== null && (
-              <span className="font-normal">
-                {` (≈ $${jpyAmountToApproxUsdWhole(highlight.jpyAmount, usdRate)} USD)`}
-              </span>
-            )}
           </p>
         ))}
       </div>
@@ -100,28 +87,9 @@ const PricingCard: React.FC<PricingCardProps> = ({ plan, emphasized, usdRate }) 
 export const LpPricing: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglish);
-  const sectionRef = useRef<HTMLElement | null>(null);
-  const [fetchRate, setFetchRate] = useState(false);
-  const usdRate = useJpyUsdRate(isEnglish, fetchRate);
-
-  useEffect(() => {
-    const target = sectionRef.current;
-    if (!target || !isEnglish) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setFetchRate(true);
-        observer.disconnect();
-      }
-    }, { threshold: 0, rootMargin: '0px' });
-
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [isEnglish]);
 
   return (
     <section
-      ref={sectionRef}
       id="pricing"
       className="py-20 sm:py-28 scroll-mt-20"
       style={{ background: 'var(--lp-surface)' }}
@@ -149,9 +117,9 @@ export const LpPricing: React.FC = () => {
           className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch"
           data-animate="alt-cards"
         >
-          <PricingCard plan={copy.pricing.free} emphasized={false} usdRate={usdRate} />
-          <PricingCard plan={copy.pricing.monthly} emphasized={false} usdRate={usdRate} />
-          <PricingCard plan={copy.pricing.yearly} emphasized usdRate={usdRate} />
+          <PricingCard plan={copy.pricing.free} emphasized={false} />
+          <PricingCard plan={copy.pricing.monthly} emphasized={false} />
+          <PricingCard plan={copy.pricing.yearly} emphasized />
         </div>
 
         <div

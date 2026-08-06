@@ -1,7 +1,10 @@
 import type { PaymentIssueBannerVariant } from '@/utils/paymentIssueBanner';
 import { resolvePaymentIssueBanner } from '@/utils/paymentIssueBanner';
 import { deriveBillingCapabilities } from '../../netlify/functions/lib/lemonSubscriptionGuard';
-import { billingAmountJpyForPlanCode } from '@/utils/premiumPricing';
+import {
+  billingAmountForPlanCode,
+} from '@/utils/premiumPricing';
+import type { BillingCurrency } from '@/utils/billingCurrency';
 
 export interface BillingStatusPayload {
   provider: string;
@@ -15,6 +18,8 @@ export interface BillingStatusPayload {
   pending_plan_effective_at: string | null;
   pending_cancel_effective_at: string | null;
   next_billing_amount_jpy: number | null;
+  next_billing_amount_usd: number | null;
+  billing_currency: BillingCurrency;
   can_change_plan: boolean;
   can_resume: boolean;
   can_manage_payment: boolean;
@@ -60,9 +65,20 @@ function beginBillingStatusRefresh(): number {
   return fetchGeneration;
 }
 
-function nextBillingAmountJpy(planCode: string, pendingPlanCode: string | null): number | null {
+function nextBillingAmountForCurrency(
+  planCode: string,
+  pendingPlanCode: string | null,
+  currency: BillingCurrency,
+): number | null {
   const effectivePlanCode = pendingPlanCode ?? planCode;
-  return billingAmountJpyForPlanCode(effectivePlanCode);
+  return billingAmountForPlanCode(effectivePlanCode, currency);
+}
+
+function resolveBillingCurrency(raw: Partial<BillingStatusPayload>): BillingCurrency {
+  if (raw.billing_currency === 'USD' || raw.billing_currency === 'JPY') {
+    return raw.billing_currency;
+  }
+  return 'JPY';
 }
 
 /** billing-status 未デプロイ時など can_* が欠けるレスポンスを正規化する */
@@ -79,6 +95,13 @@ export function normalizeBillingStatusPayload(
     pendingCancelScheduled,
   );
   const planCode = raw.plan_code ?? 'unknown';
+  const billingCurrency = resolveBillingCurrency(raw);
+  const hideNextBilling = raw.entitlement_state === 'expired'
+    || pendingCancelScheduled
+    || raw.entitlement_state === 'cancelled_but_active_until_end';
+  const nextAmount = hideNextBilling
+    ? null
+    : nextBillingAmountForCurrency(planCode, pendingPlanCode, billingCurrency);
   return {
     provider: raw.provider,
     status: raw.status,
@@ -90,12 +113,13 @@ export function normalizeBillingStatusPayload(
     pending_plan_code: pendingPlanCode,
     pending_plan_effective_at: raw.pending_plan_effective_at ?? null,
     pending_cancel_effective_at: raw.pending_cancel_effective_at ?? null,
-    next_billing_amount_jpy: raw.next_billing_amount_jpy
-      ?? (raw.entitlement_state === 'expired'
-        || pendingCancelScheduled
-        || raw.entitlement_state === 'cancelled_but_active_until_end'
-        ? null
-        : nextBillingAmountJpy(planCode, pendingPlanCode)),
+    next_billing_amount_jpy: billingCurrency === 'USD'
+      ? null
+      : raw.next_billing_amount_jpy ?? nextAmount,
+    next_billing_amount_usd: billingCurrency === 'JPY'
+      ? null
+      : raw.next_billing_amount_usd ?? nextAmount,
+    billing_currency: billingCurrency,
     can_change_plan: raw.can_change_plan ?? derived.can_change_plan,
     can_resume: raw.can_resume ?? derived.can_resume,
     can_manage_payment: raw.can_manage_payment ?? derived.can_manage_payment,
@@ -130,6 +154,7 @@ export function applyOptimisticBillingAfterResume(
     pending_plan_effective_at: current.pending_plan_effective_at,
     pending_cancel_effective_at: null as string | null,
     has_lemon_billing_history: current.has_lemon_billing_history,
+    billing_currency: current.billing_currency,
   };
   if (clearedScheduledCancel) {
     return normalizeBillingStatusPayload({
@@ -189,6 +214,8 @@ export async function fetchBillingStatusPayload(
     pending_plan_effective_at: raw.pending_plan_effective_at,
     pending_cancel_effective_at: raw.pending_cancel_effective_at,
     next_billing_amount_jpy: raw.next_billing_amount_jpy,
+    next_billing_amount_usd: raw.next_billing_amount_usd,
+    billing_currency: raw.billing_currency,
     can_change_plan: raw.can_change_plan,
     can_resume: raw.can_resume,
     can_manage_payment: raw.can_manage_payment,
@@ -221,4 +248,16 @@ export function bannerVariantFromPayload(
     return null;
   }
   return resolvePaymentIssueBanner(payload.provider, payload.entitlement_state);
+}
+
+export function nextBillingAmountFromPayload(
+  payload: BillingStatusPayload | null,
+): number | null {
+  if (!payload) {
+    return null;
+  }
+  if (payload.billing_currency === 'USD') {
+    return payload.next_billing_amount_usd;
+  }
+  return payload.next_billing_amount_jpy;
 }

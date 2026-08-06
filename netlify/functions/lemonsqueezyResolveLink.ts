@@ -5,7 +5,12 @@ import {
   type CheckoutCountryCode,
   type CheckoutLocale,
 } from './lib/lemonCheckoutDefaults';
-import { resolveCheckoutVariants } from './lib/lemonPlanCatalog';
+import {
+  readLemonStoreIdFromProcessEnv,
+  resolveCheckoutVariants,
+  resolveProfileBillingCurrency,
+  type BillingCurrency,
+} from './lib/lemonPlanCatalog';
 
 interface NetlifyEvent {
   httpMethod: string;
@@ -55,11 +60,15 @@ const createCheckout = async (params: {
   trial: boolean;
   country: CheckoutCountryCode;
   locale: CheckoutLocale;
+  billingCurrency: BillingCurrency;
 }): Promise<string> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
-  const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
+  const storeId = readLemonStoreIdFromProcessEnv(params.billingCurrency);
   const siteUrl = ensureEnv('SITE_URL');
-  const { monthlyVariantId, yearlyVariantId } = resolveCheckoutVariants(params.trial);
+  const { monthlyVariantId, yearlyVariantId } = resolveCheckoutVariants(
+    params.trial,
+    params.billingCurrency,
+  );
 
   const enabledVariants = [
     Number(monthlyVariantId),
@@ -150,9 +159,12 @@ interface LemonCustomersListResponse {
   }>;
 }
 
-const resolveCustomerIdByEmail = async (email: string): Promise<string | null> => {
+const resolveCustomerIdByEmail = async (
+  email: string,
+  billingCurrency: BillingCurrency,
+): Promise<string | null> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
-  const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
+  const storeId = readLemonStoreIdFromProcessEnv(billingCurrency);
   const url = new URL('https://api.lemonsqueezy.com/v1/customers');
   url.searchParams.set('filter[store_id]', storeId);
   url.searchParams.set('filter[email]', email);
@@ -193,7 +205,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const userEmail = auth.data.user.email ?? auth.data.user.user_metadata?.email ?? '';
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('email, rank, lemon_customer_id, lemon_trial_used, country, preferred_locale')
+      .select('email, rank, lemon_customer_id, lemon_trial_used, country, preferred_locale, billing_currency')
       .eq('id', userId)
       .single();
 
@@ -217,14 +229,26 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       };
     }
 
+    const billingCurrency = resolveProfileBillingCurrency({
+      billing_currency: typeof profile.billing_currency === 'string' ? profile.billing_currency : null,
+      preferred_locale: profile.preferred_locale,
+    });
+    if (profile.billing_currency !== billingCurrency) {
+      await supabase.from('profiles').update({ billing_currency: billingCurrency }).eq('id', userId);
+    }
+
     let trial = true;
     if (profile.lemon_trial_used === true) {
       trial = false;
     } else {
-      const existingCustomerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
+      const existingCustomerId = profile.lemon_customer_id
+        || (await resolveCustomerIdByEmail(email, billingCurrency));
       if (existingCustomerId) {
         trial = false;
-        await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
+        await supabase.from('profiles').update({
+          lemon_trial_used: true,
+          lemon_customer_id: existingCustomerId,
+        }).eq('id', userId);
       }
     }
     const checkoutDefaults = resolveCheckoutDefaults({
@@ -238,6 +262,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
       trial,
       country: checkoutDefaults.country,
       locale: checkoutDefaults.locale,
+      billingCurrency,
     });
     const via: LinkVia = 'checkout';
 

@@ -17,8 +17,16 @@ export function formatInvoiceAmountLabel(
   currency: string | null,
 ): string | null {
   if (amountMajorUnits === null) return null;
-  if (currency?.toUpperCase() === 'JPY') {
+  const upper = currency?.toUpperCase() ?? '';
+  if (upper === 'JPY') {
     return `¥${amountMajorUnits.toLocaleString('ja-JP')}`;
+  }
+  if (upper === 'USD') {
+    const hasFraction = Math.abs(amountMajorUnits % 1) > 0.001;
+    const formatted = hasFraction
+      ? amountMajorUnits.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : amountMajorUnits.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    return `$${formatted}`;
   }
   return `${amountMajorUnits}`;
 }

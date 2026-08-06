@@ -1037,9 +1037,9 @@ const COPY_EN: LandingCopy = {
     },
     monthly: {
       name: 'Premium Monthly',
-      price: '¥3,980',
-      jpyAmount: 3980,
-      priceSuffix: '/month (tax incl.)',
+      price: '$24.99',
+      jpyAmount: null,
+      priceSuffix: '/month',
       badge: null,
       highlights: [],
       features: ['All courses', 'All game modes', 'Focused courses', 'Progress tracking & titles'],
@@ -1047,13 +1047,13 @@ const COPY_EN: LandingCopy = {
     },
     yearly: {
       name: 'Premium Yearly',
-      price: '¥34,800',
-      jpyAmount: 34800,
-      priceSuffix: '/year (tax incl.)',
+      price: '$199',
+      jpyAmount: null,
+      priceSuffix: '/year',
       badge: 'Best value',
       highlights: [
-        { text: '¥2,900 per month', jpyAmount: 2900 },
-        { text: 'Save ¥12,960 a year vs monthly', jpyAmount: 12960 },
+        { text: '$16.58 per month', jpyAmount: null },
+        { text: 'Save $100.88 a year vs monthly', jpyAmount: null },
       ],
       features: ['All courses', 'All game modes', 'Focused courses', 'Progress tracking & titles'],
       cta: 'Start yearly plan',
@@ -1061,7 +1061,7 @@ const COPY_EN: LandingCopy = {
     notes: [
       'Cancel anytime. After cancellation, you keep access until the end of the period you have paid for.',
       'New users receive a 7-day free trial.',
-      'Prices are charged in Japanese yen (JPY). USD amounts are approximate, based on daily exchange rates, and shown for reference only.',
+      'Prices are charged in US dollars (USD).',
     ],
   },
   faq: {

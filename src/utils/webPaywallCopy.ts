@@ -1,4 +1,6 @@
 import type { PaywallSource } from '@/utils/analytics/paywallSource';
+import type { BillingCurrency } from '@/utils/billingCurrency';
+import { PREMIUM_PRICING_JPY, PREMIUM_PRICING_USD } from '@/utils/premiumPricing';
 
 export interface WebPaywallResolvedCopy {
   headline: string;
@@ -8,6 +10,31 @@ export interface WebPaywallResolvedCopy {
   trialUsedNotice?: string;
   ctaFootnote?: string;
 }
+
+const yearlyPricePhrase = (currency: BillingCurrency, isEnglishCopy: boolean): string => {
+  if (currency === 'USD') {
+    return isEnglishCopy ? `$${PREMIUM_PRICING_USD.yearly}/year` : `$${PREMIUM_PRICING_USD.yearly}/年`;
+  }
+  return isEnglishCopy
+    ? `¥${PREMIUM_PRICING_JPY.yearly.toLocaleString('en-US')}/year`
+    : `年額¥${PREMIUM_PRICING_JPY.yearly.toLocaleString('ja-JP')}`;
+};
+
+const trialUsedNoticeFor = (currency: BillingCurrency, isEnglishCopy: boolean): string => {
+  const yearly = yearlyPricePhrase(currency, isEnglishCopy);
+  if (isEnglishCopy) {
+    return `Your free trial has already been used. You will be charged ${yearly} at purchase.`;
+  }
+  return `無料トライアルは利用済みです。購入時に${yearly}が請求されます。`;
+};
+
+const trialCtaFootnoteFor = (currency: BillingCurrency, isEnglishCopy: boolean): string => {
+  const yearly = yearlyPricePhrase(currency, isEnglishCopy);
+  if (isEnglishCopy) {
+    return `No charge today. ${yearly} after 7 days. Cancel anytime.`;
+  }
+  return `本日のお支払いはありません。7日後から${yearly}。いつでもキャンセルできます。`;
+};
 
 const COPY = {
   ja: {
@@ -38,8 +65,6 @@ const COPY = {
     ctaTrialChapterComplete: '7日間無料で次のチャプターを始める',
     ctaSubscribeGeneric: 'すべてのクエストを解放する',
     ctaSubscribeChapter: '次のチャプターへ進む',
-    trialUsedNotice: '無料トライアルは利用済みです。購入時に年額¥34,800が請求されます。',
-    trialCtaFootnote: '本日のお支払いはありません。7日後から年額¥34,800。いつでもキャンセルできます。',
   },
   en: {
     headline: 'Take your jazz practice further.',
@@ -69,8 +94,6 @@ const COPY = {
     ctaTrialChapterComplete: 'Start the next chapter free for 7 days',
     ctaSubscribeGeneric: 'Unlock all quests',
     ctaSubscribeChapter: 'Continue to the next chapter',
-    trialUsedNotice: 'Your free trial has already been used. You will be charged ¥34,800/year at purchase.',
-    trialCtaFootnote: 'No charge today. ¥34,800/year after 7 days. Cancel anytime.',
   },
 } as const;
 
@@ -81,9 +104,12 @@ export function resolveWebPaywallCopy(
   source: PaywallSource,
   isEnglishCopy: boolean,
   trialUsed: boolean,
+  billingCurrency: BillingCurrency = 'JPY',
 ): WebPaywallResolvedCopy {
   const base = isEnglishCopy ? COPY.en : COPY.ja;
   const chapterOriented = isChapterOrientedSource(source);
+  const trialUsedNotice = trialUsed ? trialUsedNoticeFor(billingCurrency, isEnglishCopy) : undefined;
+  const trialCtaFootnote = trialUsed ? undefined : trialCtaFootnoteFor(billingCurrency, isEnglishCopy);
 
   if (source === 'chapter_complete' || source === 'resume_modal') {
     return {
@@ -93,8 +119,8 @@ export function resolveWebPaywallCopy(
         : base.chapterCompleteSubheadlineTrial,
       features: base.chapterCompleteFeatures,
       ctaLabel: trialUsed ? base.ctaSubscribeChapter : base.ctaTrialChapterComplete,
-      trialUsedNotice: trialUsed ? base.trialUsedNotice : undefined,
-      ctaFootnote: trialUsed ? undefined : base.trialCtaFootnote,
+      trialUsedNotice,
+      ctaFootnote: trialCtaFootnote,
     };
   }
 
@@ -106,8 +132,8 @@ export function resolveWebPaywallCopy(
         : base.mainQuestSubheadlineTrial,
       features: base.features,
       ctaLabel: trialUsed ? base.ctaSubscribeChapter : base.ctaTrialChapter,
-      trialUsedNotice: trialUsed ? base.trialUsedNotice : undefined,
-      ctaFootnote: trialUsed ? undefined : base.trialCtaFootnote,
+      trialUsedNotice,
+      ctaFootnote: trialCtaFootnote,
     };
   }
 
@@ -118,7 +144,7 @@ export function resolveWebPaywallCopy(
     ctaLabel: trialUsed
       ? (chapterOriented ? base.ctaSubscribeChapter : base.ctaSubscribeGeneric)
       : (chapterOriented ? base.ctaTrialChapter : base.ctaTrialGeneric),
-    trialUsedNotice: trialUsed ? base.trialUsedNotice : undefined,
-    ctaFootnote: trialUsed ? undefined : base.trialCtaFootnote,
+    trialUsedNotice,
+    ctaFootnote: trialCtaFootnote,
   };
 }

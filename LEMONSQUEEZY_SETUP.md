@@ -214,6 +214,102 @@ curl -s "https://api.lemonsqueezy.com/v1/variants?filter[product_id]=YOUR_PRODUC
 
 ---
 
+## USD ストア（英語圏ユーザー向け）
+
+`profiles.preferred_locale = 'en'` で登録したユーザー（Web の en.jazzify.jp、iOS で英語圏と判定されたユーザー含む）向けの **別ストア** です。通貨は USD、既存 JPY 加入者には影響しません。
+
+### 対象ユーザーと通貨の決まり方
+
+| 条件 | billing_currency | 使うストア |
+|------|------------------|-----------|
+| `preferred_locale = 'en'` かつ Lemon 未加入 | USD | USD ストア |
+| `preferred_locale = 'ja'` かつ Lemon 未加入 | JPY | JPY ストア |
+| 既に Lemon 課金履歴あり（JPY 加入・トライアル含む） | JPY（固定） | JPY ストア |
+
+DB カラム `profiles.billing_currency` に保存され、Checkout（`lemonsqueezyResolveLink`）で参照されます。
+
+### Step USD-1: USD ストアで Product / Variant を作成
+
+JPY ストアと **同じ Premium 商品構成** で 4 variant を作成します。
+
+| Lemon ダッシュボードでの設定 | env 変数 | 価格 | トライアル |
+|------------------------------|----------|------|-----------|
+| Premium Monthly | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_USD` | **$24.99 / month** | なし |
+| Premium Monthly（Trial） | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL_USD` | **$24.99 / month** | **7日無料** |
+| Premium Yearly | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_USD` | **$199 / year** | なし |
+| Premium Yearly（Trial） | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL_USD` | **$199 / year** | **7日無料** |
+
+**Variant ID の確認方法**
+
+1. Lemon Squeezy → **Products** → Premium 商品を開く
+2. 各 Variant の行をクリック → URL 末尾の数値、または API の `variants/{id}` が ID
+3. 4 つすべて Netlify の Environment variables に設定（**1 つでも欠けると Checkout が 500 エラー**）
+
+### 各 env 変数の詳細
+
+#### `LEMONSQUEEZY_VARIANT_ID_PREMIUM_USD`（月額・trial なし）
+
+- **価格**: $24.99 / month（USD）
+- **Checkout**: `lemon_trial_used = true` のユーザー、または USD ストアに同一メールの customer が既にある場合
+- **プラン変更**: 年額 → 月額への切替予約（`lemonsqueezyChangePlan`）で使用
+- **Webhook**: `variant_id` から `plan_code = core_monthly` にマップ
+
+#### `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL_USD`（月額・7日 trial あり）
+
+- **価格**: 7 日間 $0 → 以降 $24.99 / month
+- **Checkout**: 初回加入可能ユーザー（trial 未使用）が Checkout で **月額** を選んだ場合
+- **Lemon 設定**: Variant の Subscription → Free trial = **7 days**
+- **Webhook**: trial 開始時に `lemon_trial_used` を true に更新
+
+#### `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_USD`（年額・trial なし）
+
+- **価格**: $199 / year（月換算 $16.58、月額比 $100.88 お得）
+- **Checkout**: trial 使用済みユーザーの Checkout、**デフォルトで選択される variant**（年額が最初に表示）
+- **プラン変更**: 月額 → 年額への切替予約で使用
+- **Webhook**: `plan_code = core_yearly` にマップ
+
+#### `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL_USD`（年額・7日 trial あり）
+
+- **価格**: 7 日間 $0 → 以降 $199 / year
+- **Checkout**: 初回加入可能ユーザーが Checkout で **年額** を選んだ場合（推奨プラン）
+- **Lemon 設定**: Free trial = **7 days**
+- **表示**: en.jazzify.jp LP / Web ペイウォールの「$199/year after 7 days」と一致させる
+
+### Checkout での variant 選択ロジック（参考）
+
+```
+trial 対象ユーザー（初回）:
+  enabled_variants = [PREMIUM_TRIAL_USD, PREMIUM_YEARLY_TRIAL_USD]
+  デフォルト選択   = PREMIUM_YEARLY_TRIAL_USD（年額）
+
+trial 非対象ユーザー:
+  enabled_variants = [PREMIUM_USD, PREMIUM_YEARLY_USD]
+  デフォルト選択   = PREMIUM_YEARLY_USD（年額）
+```
+
+実装: `netlify/functions/lib/lemonPlanCatalog.ts` の `resolveCheckoutVariants(trial, 'USD')`
+
+### Step USD-2: USD ストア用 Webhook
+
+- **Callback URL**: JPY と同じ `https://YOUR_SITE.netlify.app/.netlify/functions/lemonsqueezyWebhook`
+- **Signing secret** → `LEMONSQUEEZY_WEBHOOK_SECRET_USD`（JPY 用 `_WEBHOOK_SECRET` とは別）
+- 署名検証は JPY / USD 両シークレットを試行（どちらか一致すれば OK）
+
+### Step USD-3: Netlify 環境変数（USD 分）
+
+| 変数名 | 必須 | 説明 |
+|--------|------|------|
+| `LEMONSQUEEZY_STORE_ID_USD` | ✅ | USD ストア ID |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_USD` | ✅ | 月額 $24.99（trial なし） |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL_USD` | ✅ | 月額 $24.99（7日 trial） |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_USD` | ✅ | 年額 $199（trial なし） |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL_USD` | ✅ | 年額 $199（7日 trial） |
+| `LEMONSQUEEZY_WEBHOOK_SECRET_USD` | ✅ | USD ストア Webhook 署名 |
+
+> **API キーは共通**: `LEMONSQUEEZY_API_KEY` は JPY / USD どちらのストアも同じアカウント内なら 1 つで可。
+
+---
+
 ## Phase 2: 環境変数設定
 
 ### Step 6: Netlify 環境変数設定
@@ -393,7 +489,13 @@ supabase/migrations/
 | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL` | テスト用バリアントID | トライアル付き月額 |
 | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY` | テスト用バリアントID | 通常年額 |
 | `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL` | テスト用バリアントID | トライアル付き年額 |
-| `LEMONSQUEEZY_WEBHOOK_SECRET` | テスト用シークレット | Webhook署名検証 |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | テスト用シークレット | JPYストア Webhook署名検証 |
+| `LEMONSQUEEZY_STORE_ID_USD` | USDストアID | 英語圏ユーザー向け USD ストア（`billing_currency=USD`） |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_USD` | 必須 | 月額 **$24.99/月**・trial なし。trial 済 Checkout・月額プラン変更用 |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL_USD` | 必須 | 月額 **$24.99/月**・**7日無料** trial。初回 Checkout（月額選択時） |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_USD` | 必須 | 年額 **$199/年**・trial なし。trial 済 Checkout・年額プラン変更用・Checkout デフォルト |
+| `LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL_USD` | 必須 | 年額 **$199/年**・**7日無料** trial。初回 Checkout（年額選択時・推奨） |
+| `LEMONSQUEEZY_WEBHOOK_SECRET_USD` | 必須 | USD ストア Webhook 署名（URL は JPY と同一 `lemonsqueezyWebhook`） |
 | `SUPABASE_URL` | 既存 | Supabase接続 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 既存 | Supabase管理者権限 |
 | `SITE_URL` | 既存 | リダイレクト先URL |

@@ -3,9 +3,8 @@ import {
   isPendingCancelScheduled,
 } from './lib/lemonSubscriptionGuard';
 import {
-  buildLemonVariantIdLists,
-  isTrialVariant,
-  readLemonPlanCatalogFromProcessEnv,
+  buildCombinedLemonVariantIdLists,
+  isTrialVariantAnyStore,
 } from './lib/lemonPlanCatalog';
 import { rankForSubscription } from './lib/lemonSubscriptionMapping';
 import { buildSubscriptionMirror } from './lib/lemonSubscriptionMirror';
@@ -34,8 +33,7 @@ const CLEAR_PENDING_CANCEL_FIELDS = {
   pending_cancel_attempts: 0,
 } as const;
 
-const getVariantIdLists = () =>
-  buildLemonVariantIdLists(readLemonPlanCatalogFromProcessEnv());
+const getVariantIdLists = () => buildCombinedLemonVariantIdLists();
 
 const mirrorResumedSubscription = async (
   supabase: SupabaseClient,
@@ -59,7 +57,7 @@ const mirrorResumedSubscription = async (
       typeof existing.provider_updated_at === 'string' ? existing.provider_updated_at : null,
   } : null, {
     variantPlanCode,
-    variantIsTrial: isTrialVariant(attrs.variant_id),
+    variantIsTrial: isTrialVariantAnyStore(attrs.variant_id),
     nowMs: Date.now(),
   });
 

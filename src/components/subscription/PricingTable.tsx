@@ -8,9 +8,14 @@ import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
-import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
-import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
-import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
+import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
+import {
+  PREMIUM_PRICING_JPY,
+  PREMIUM_PRICING_USD,
+  formatAmountForCurrency,
+  formatUsdAmount,
+} from '@/utils/premiumPricing';
+import type { BillingCurrency } from '@/utils/billingCurrency';
 
 type PlanKey = 'free' | 'premium';
 
@@ -22,26 +27,8 @@ interface PlanColumn {
   badge?: string;
   badgeClass?: string;
   headerClass?: string;
+  yearlyNote?: string;
 }
-
-const PLANS: PlanColumn[] = [
-  {
-    key: 'free',
-    name: 'Free',
-    price: '¥0',
-    priceSuffix: '',
-    headerClass: 'bg-slate-800',
-  },
-  {
-    key: 'premium',
-    name: 'Premium',
-    price: '¥3,980',
-    priceSuffix: '/月（税込）',
-    badge: 'おすすめ',
-    badgeClass: 'bg-primary-500 text-white',
-    headerClass: 'bg-slate-800 border-t-2 border-primary-500',
-  },
-];
 
 interface FeatureRow {
   label: string;
@@ -52,10 +39,60 @@ interface Props {
   mode?: 'checkout' | 'view';
 }
 
+const buildPlans = (
+  isEnglishCopy: boolean,
+  billingCurrency: BillingCurrency,
+): PlanColumn[] => {
+  if (billingCurrency === 'USD') {
+    return [
+      {
+        key: 'free',
+        name: isEnglishCopy ? 'Free' : 'フリー',
+        price: '$0',
+        priceSuffix: '',
+        headerClass: 'bg-slate-800',
+      },
+      {
+        key: 'premium',
+        name: isEnglishCopy ? 'Premium' : 'プレミアム',
+        price: formatUsdAmount(PREMIUM_PRICING_USD.monthly),
+        priceSuffix: isEnglishCopy ? ' / month' : ' / 月',
+        badge: isEnglishCopy ? 'Recommended' : 'おすすめ',
+        badgeClass: 'bg-primary-500 text-white',
+        headerClass: 'bg-slate-800 border-t-2 border-primary-500',
+        yearlyNote: isEnglishCopy
+          ? `Or ${formatUsdAmount(PREMIUM_PRICING_USD.yearly)} / year`
+          : `年額 ${formatUsdAmount(PREMIUM_PRICING_USD.yearly)} も選べます`,
+      },
+    ];
+  }
+
+  return [
+    {
+      key: 'free',
+      name: isEnglishCopy ? 'Free' : 'フリー',
+      price: '¥0',
+      priceSuffix: '',
+      headerClass: 'bg-slate-800',
+    },
+    {
+      key: 'premium',
+      name: isEnglishCopy ? 'Premium' : 'プレミアム',
+      price: formatAmountForCurrency(PREMIUM_PRICING_JPY.monthly, 'JPY'),
+      priceSuffix: isEnglishCopy ? ' / month (tax included)' : '/月（税込）',
+      badge: isEnglishCopy ? 'Recommended' : 'おすすめ',
+      badgeClass: 'bg-primary-500 text-white',
+      headerClass: 'bg-slate-800 border-t-2 border-primary-500',
+      yearlyNote: isEnglishCopy
+        ? `Or ${formatAmountForCurrency(PREMIUM_PRICING_JPY.yearly, 'JPY')} / year (tax included)`
+        : '年額 ¥34,800（税込）も選べます',
+    },
+  ];
+};
+
 const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const [loading, setLoading] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
@@ -64,10 +101,19 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
   const { billingPayload } = useBillingAwareMembership(localeCode);
-  const usdRate = useJpyUsdRate(isEnglishCopy, true);
+  const billingCurrency = resolveDisplayBillingCurrency({
+    profileBillingCurrency: profile?.billing_currency
+      ?? billingPayload?.billing_currency
+      ?? null,
+    isEnglishCopy,
+  });
   const showAppleBillingNotice = hasNonExpiredBillingProvider(billingPayload, 'apple');
 
   const isIOS = isIOSWebView();
+  const plans = useMemo(
+    () => buildPlans(isEnglishCopy, billingCurrency),
+    [isEnglishCopy, billingCurrency],
+  );
 
   const featureRows = useMemo((): FeatureRow[] => [
     {
@@ -138,28 +184,13 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     );
   }
 
-  const formatUsdSuffix = (jpyAmount: number): string | null => {
-    if (!isEnglishCopy || usdRate === null) {
-      return null;
-    }
-    return `(≈ $${jpyAmountToApproxUsdWhole(jpyAmount, usdRate)} USD)`;
-  };
-
-  const plans = PLANS.map(plan => ({
-    ...plan,
-    name:
-      plan.key === 'free'
-        ? (isEnglishCopy ? 'Free' : 'フリー')
-        : (isEnglishCopy ? 'Premium' : 'プレミアム'),
-    priceSuffix:
-      plan.key === 'free'
-        ? ''
-        : (isEnglishCopy ? ' / month (tax included)' : '/月（税込）'),
-    badge:
-      plan.key === 'premium'
-        ? (isEnglishCopy ? 'Recommended' : 'おすすめ')
-        : null,
-  }));
+  const billingDescription = billingCurrency === 'USD'
+    ? (isEnglishCopy
+      ? `Eligible users get a 7-day free trial, then Premium is billed at ${formatUsdAmount(PREMIUM_PRICING_USD.monthly)}/month or ${formatUsdAmount(PREMIUM_PRICING_USD.yearly)}/year via Lemon Squeezy. Billing currency is USD.`
+      : `初回は7日間の無料トライアルのあと、月額${formatUsdAmount(PREMIUM_PRICING_USD.monthly)}または年額${formatUsdAmount(PREMIUM_PRICING_USD.yearly)}が Lemon Squeezy 経由で課金されます。`)
+    : (isEnglishCopy
+      ? `Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via Lemon Squeezy. Billing currency is JPY.`
+      : '初回は7日間の無料トライアルのあと、月額3,980円（税込）または年額34,800円（税込）が Lemon Squeezy 経由で課金されます。');
 
   const handlePlanSelect = async (plan: 'premium') => {
     if (!profile) {
@@ -215,15 +246,12 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                   : 'フリー会員はメインクエスト第1チャプターまで・統計・サバイバル閲覧などをご利用いただけます。'}
               </p>
               <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
-                {isEnglishCopy
-                  ? `Eligible users get a 7-day free trial, then Premium is billed at ¥3,980/month or ¥34,800/year (tax included) via Lemon Squeezy. Billing currency is JPY.${usdRate !== null ? ` Approx. $${jpyAmountToApproxUsdWhole(PREMIUM_PRICING_JPY.monthly, usdRate)} USD/month for reference.` : ''}`
-                  : '初回は7日間の無料トライアルのあと、月額3,980円（税込）または年額34,800円（税込）が Lemon Squeezy 経由で課金されます。'}
+                {billingDescription}
               </p>
             </div>
 
             <div className="px-4 sm:px-6 py-6 overflow-x-auto">
           <table className="w-full border-collapse min-w-[520px]">
-            {/* プランヘッダー */}
             <thead>
               <tr>
                 <th className="p-3 text-left bg-slate-900/90 border border-slate-700/80 min-w-[140px]">
@@ -246,16 +274,9 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                         <span className="text-xs text-gray-400 font-normal">{plan.priceSuffix}</span>
                       )}
                     </div>
-                    {plan.key === 'premium' && formatUsdSuffix(PREMIUM_PRICING_JPY.monthly) && (
-                      <div className="text-xs text-slate-400 mt-1">
-                        {formatUsdSuffix(PREMIUM_PRICING_JPY.monthly)}
-                      </div>
-                    )}
-                    {plan.key === 'premium' && (
+                    {plan.key === 'premium' && plan.yearlyNote && (
                       <div className="text-xs text-amber-200/90 mt-1">
-                        {isEnglishCopy
-                          ? `Or ¥34,800 / year (tax included)${formatUsdSuffix(PREMIUM_PRICING_JPY.yearly) ? ` ${formatUsdSuffix(PREMIUM_PRICING_JPY.yearly)}` : ''}`
-                          : '年額 ¥34,800（税込）も選べます'}
+                        {plan.yearlyNote}
                       </div>
                     )}
                     {plan.key !== 'free' && (
@@ -268,7 +289,6 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               </tr>
             </thead>
 
-            {/* 機能行 */}
             <tbody>
               {featureRows.map((feature, idx) => (
                 <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-900/50' : 'bg-slate-800/30'}>
@@ -286,11 +306,10 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                 </tr>
               ))}
 
-              {/* 選択ボタン行 */}
               {mode === 'checkout' && (
                 <tr>
                   <td className="p-3 border border-slate-700/80 bg-slate-900/90" />
-                  {PLANS.map((plan) => (
+                  {plans.map((plan) => (
                     <td key={plan.key} className="p-4 border border-slate-700/80 text-center bg-slate-900/90">
                       {plan.key === 'free' ? (
                         <button type="button" className="btn btn-outline btn-sm w-full opacity-60" disabled>
@@ -301,11 +320,8 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                           type="button"
                           className="btn btn-primary btn-sm w-full rounded-full"
                           onClick={() => void handlePlanSelect(plan.key as 'premium')}
-                          disabled={loading === plan.key}
                         >
-                          {loading === plan.key
-                            ? (isEnglishCopy ? 'Processing...' : '処理中...')
-                            : (isEnglishCopy ? 'Select' : '選択する')}
+                          {isEnglishCopy ? 'Select' : '選択する'}
                         </button>
                       )}
                     </td>

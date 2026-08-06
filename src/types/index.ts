@@ -1114,6 +1114,7 @@ export interface Profile {
   twitter_handle?: string;
   next_season_xp_multiplier?: number;
   preferred_locale?: 'ja' | 'en' | null;
+  billing_currency?: 'JPY' | 'USD' | null;
   country?: string | null;
   signup_platform?: 'web' | 'ios' | null;
   signup_device_category?: 'desktop' | 'mobile' | 'tablet' | null;

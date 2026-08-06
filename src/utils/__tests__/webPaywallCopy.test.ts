@@ -59,11 +59,26 @@ describe('resolveWebPaywallCopy', () => {
     );
   });
 
-  it('returns english trial footnote for lesson_list', () => {
-    const copy = resolveWebPaywallCopy('lesson_list', true, false);
+  it('returns english JPY trial footnote for lesson_list', () => {
+    const copy = resolveWebPaywallCopy('lesson_list', true, false, 'JPY');
     expect(copy.ctaLabel).toBe('Start 7-day free trial');
     expect(copy.ctaFootnote).toBe(
       'No charge today. ¥34,800/year after 7 days. Cancel anytime.',
+    );
+  });
+
+  it('returns english USD trial footnote for lesson_list', () => {
+    const copy = resolveWebPaywallCopy('lesson_list', true, false, 'USD');
+    expect(copy.ctaLabel).toBe('Start 7-day free trial');
+    expect(copy.ctaFootnote).toBe(
+      'No charge today. $199/year after 7 days. Cancel anytime.',
+    );
+  });
+
+  it('returns english USD trial-used notice', () => {
+    const copy = resolveWebPaywallCopy('dashboard', true, true, 'USD');
+    expect(copy.trialUsedNotice).toBe(
+      'Your free trial has already been used. You will be charged $199/year at purchase.',
     );
   });
 });

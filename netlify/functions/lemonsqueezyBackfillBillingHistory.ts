@@ -16,8 +16,8 @@ import {
   upsertBillingHistorySubscription,
   upsertBillingInvoice,
 } from './lib/lemonBillingPersistence';
+import { buildCombinedLemonVariantIdLists } from './lib/lemonPlanCatalog';
 import {
-  buildLemonVariantIdLists,
   planCodeForLemonVariant,
 } from './lib/lemonVariantPlanCode';
 
@@ -32,15 +32,7 @@ interface BackfillBody {
   dry_run?: boolean;
 }
 
-const getVariantIdLists = () =>
-  buildLemonVariantIdLists({
-    premium: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM,
-    premiumTrial: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL,
-    premiumYearly: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY,
-    premiumYearlyTrial: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL,
-    standardGlobal: process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL,
-    standardGlobalTrial: process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL,
-  });
+const getVariantIdLists = () => buildCombinedLemonVariantIdLists();
 
 const collectSubscriptionIdsFromEvents = async (
   supabase: SupabaseClient,

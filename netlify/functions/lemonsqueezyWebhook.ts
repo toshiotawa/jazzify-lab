@@ -16,7 +16,10 @@ import {
   buildLemonVariantIdLists,
   planCodeForLemonVariant,
 } from './lib/lemonVariantPlanCode';
-import { isTrialVariant } from './lib/lemonPlanCatalog';
+import {
+  buildCombinedLemonVariantIdLists,
+  isTrialVariantAnyStore,
+} from './lib/lemonPlanCatalog';
 import { rankForSubscription } from './lib/lemonSubscriptionMapping';
 import {
   buildSubscriptionMirror,
@@ -125,8 +128,7 @@ const timingSafeEqual = (a: string, b: string): boolean => {
   return result === 0;
 };
 
-const verifySignature = (rawBody: string | Buffer, signature: string | undefined): boolean => {
-  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+const verifySignature = (rawBody: string | Buffer, signature: string | undefined, secret: string): boolean => {
   if (!secret || !signature) return false;
   const hmac = createHmac('sha256', secret);
   hmac.update(typeof rawBody === 'string' ? rawBody : Buffer.from(rawBody));
@@ -134,15 +136,15 @@ const verifySignature = (rawBody: string | Buffer, signature: string | undefined
   return timingSafeEqual(digest, signature);
 };
 
-const getVariantIdLists = () =>
-  buildLemonVariantIdLists({
-    premium: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM,
-    premiumTrial: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL,
-    premiumYearly: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY,
-    premiumYearlyTrial: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL,
-    standardGlobal: process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL,
-    standardGlobalTrial: process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL,
-  });
+const verifyWebhookSignature = (rawBody: string | Buffer, signature: string | undefined): boolean => {
+  const secrets = [
+    process.env.LEMONSQUEEZY_WEBHOOK_SECRET,
+    process.env.LEMONSQUEEZY_WEBHOOK_SECRET_USD,
+  ].filter((secret): secret is string => Boolean(secret));
+  return secrets.some((secret) => verifySignature(rawBody, signature, secret));
+};
+
+const getVariantIdLists = () => buildCombinedLemonVariantIdLists();
 
 const resolveUserId = async (
   supabase: SupabaseClient,
@@ -243,7 +245,7 @@ const mirrorSubscriptionEntitlement = async (
 
   const mirror = buildSubscriptionMirror(source.attrs, existing, {
     variantPlanCode,
-    variantIsTrial: isTrialVariant(source.attrs.variant_id),
+    variantIsTrial: isTrialVariantAnyStore(source.attrs.variant_id),
     nowMs: Date.now(),
   });
 
@@ -324,7 +326,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const rawBody = event.isBase64Encoded ? Buffer.from(event.body ?? '', 'base64') : (event.body ?? '');
 
     try {
-      const verified = verifySignature(rawBody, typeof signature === 'string' ? signature : undefined);
+      const verified = verifyWebhookSignature(rawBody, typeof signature === 'string' ? signature : undefined);
       if (!verified) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid signature' }) };
       }

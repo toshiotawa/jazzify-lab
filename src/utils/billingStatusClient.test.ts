@@ -34,6 +34,22 @@ describe('normalizeBillingStatusPayload', () => {
     expect(payload.can_change_plan).toBe(false);
     expect(payload.can_cancel_pending_plan_change).toBe(true);
     expect(payload.next_billing_amount_jpy).toBe(34800);
+    expect(payload.billing_currency).toBe('JPY');
+  });
+
+  it('derives USD next billing amount when billing_currency is USD', () => {
+    const payload = normalizeBillingStatusPayload({
+      provider: 'lemon',
+      status: 'active',
+      entitlement_state: 'active',
+      plan_code: 'core_monthly',
+      billing_currency: 'USD',
+      trial_used: false,
+      current_period_ends_at: '2026-07-12T00:00:00.000Z',
+    });
+    expect(payload.next_billing_amount_jpy).toBeNull();
+    expect(payload.next_billing_amount_usd).toBe(24.99);
+    expect(payload.billing_currency).toBe('USD');
   });
 
   it('derives resume when cancellation is scheduled', () => {

@@ -118,7 +118,7 @@ const WEB_TOKUSHOHO_EN: TokushohoPageCopy = {
     { label: 'URL', value: 'https://en.jazzify.jp/', href: 'https://en.jazzify.jp/' },
     {
       label: 'Price',
-      value: 'Premium plan: ¥3,980/month (tax included) or ¥34,800/year (tax included). Billing currency is JPY.',
+      value: 'Premium plan: ¥3,980/month (tax included) or ¥34,800/year (tax included) for Japan; $24.99/month or $199/year for English/global users. Billing currency depends on your account region.',
     },
     {
       label: 'Fees other than product price',

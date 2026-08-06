@@ -8,10 +8,13 @@ import {
   FaCalendarAlt,
   FaCrown,
 } from 'react-icons/fa';
-import { useJpyUsdRate } from '@/hooks/useJpyUsdRate';
 import { useAuthStore } from '@/stores/authStore';
-import { jpyAmountToApproxUsdWhole } from '@/utils/jpyToUsdApprox';
-import { PREMIUM_PRICING_JPY } from '@/utils/premiumPricing';
+import {
+  PREMIUM_PRICING_JPY,
+  PREMIUM_PRICING_USD,
+  formatUsdAmount,
+} from '@/utils/premiumPricing';
+import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
 import { trackEvent } from '@/utils/analytics/ga';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import type { PaywallSource } from '@/utils/analytics/paywallSource';
@@ -23,12 +26,6 @@ interface WebPaywallModalProps {
   isEnglishCopy: boolean;
   source: PaywallSource;
 }
-
-const formatUsdReferenceLine = (jpyAmount: number, usdRate: number): string =>
-  `≈ $${jpyAmountToApproxUsdWhole(jpyAmount, usdRate)} USD`;
-
-const formatUsdReferenceSuffix = (jpyAmount: number, usdRate: number): string =>
-  `(≈ $${jpyAmountToApproxUsdWhole(jpyAmount, usdRate)} USD)`;
 
 const PRICE_COPY = {
   ja: {
@@ -46,11 +43,27 @@ const PRICE_COPY = {
     redirecting: 'チェックアウトへ移動中...',
     close: '閉じる',
   },
-  en: {
+  enJpy: {
     priceMonthly: 'Monthly ¥3,980',
     priceYearly: 'Yearly ¥34,800',
     priceYearlyPerMonth: '¥2,900 per month',
     priceSavingsAmount: 'Save ¥12,960 a year vs monthly',
+    priceSavingsMonths: 'About 3 months free vs monthly',
+    footnote: 'Choose monthly or yearly on the next screen. Cancel anytime.',
+    trialBadge: '7-day free trial',
+    dismiss: 'Later',
+    loginRequired: 'You need to log in first.',
+    checkoutFailed: 'Failed to open checkout',
+    error: 'An error occurred',
+    processing: 'Processing...',
+    redirecting: 'Redirecting to checkout...',
+    close: 'Close',
+  },
+  enUsd: {
+    priceMonthly: `Monthly ${formatUsdAmount(PREMIUM_PRICING_USD.monthly)}`,
+    priceYearly: `Yearly ${formatUsdAmount(PREMIUM_PRICING_USD.yearly)}`,
+    priceYearlyPerMonth: `${formatUsdAmount(PREMIUM_PRICING_USD.yearlyPerMonth)} per month`,
+    priceSavingsAmount: `Save ${formatUsdAmount(PREMIUM_PRICING_USD.yearlySavings)} a year vs monthly`,
     priceSavingsMonths: 'About 3 months free vs monthly',
     footnote: 'Choose monthly or yearly on the next screen. Cancel anytime.',
     trialBadge: '7-day free trial',
@@ -105,10 +118,17 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const billingCurrency = resolveDisplayBillingCurrency({
+    profileBillingCurrency: profile?.billing_currency ?? null,
+    isEnglishCopy,
+  });
   const trialUsed = profile?.lemon_trial_used === true;
-  const copy = resolveWebPaywallCopy(source, isEnglishCopy, trialUsed);
-  const priceCopy = isEnglishCopy ? PRICE_COPY.en : PRICE_COPY.ja;
-  const usdRate = useJpyUsdRate(isEnglishCopy, open);
+  const copy = resolveWebPaywallCopy(source, isEnglishCopy, trialUsed, billingCurrency);
+  const priceCopy = !isEnglishCopy
+    ? PRICE_COPY.ja
+    : billingCurrency === 'USD'
+      ? PRICE_COPY.enUsd
+      : PRICE_COPY.enJpy;
   const checkoutBusy = loading || redirecting;
 
   useEffect(() => {
@@ -141,9 +161,13 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
       return;
     }
 
+    const checkoutValue = billingCurrency === 'USD'
+      ? PREMIUM_PRICING_USD.monthly
+      : PREMIUM_PRICING_JPY.monthly;
+
     trackEvent('begin_checkout', {
-      currency: 'JPY',
-      value: PREMIUM_PRICING_JPY.monthly,
+      currency: billingCurrency,
+      value: checkoutValue,
       plan: 'premium',
     });
     recordUserMilestoneFireAndForget(profile.id, 'checkout_click');
@@ -175,7 +199,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
     } finally {
       setLoading(false);
     }
-  }, [profile, redirecting, priceCopy.loginRequired, priceCopy.checkoutFailed, priceCopy.error]);
+  }, [profile, redirecting, priceCopy.loginRequired, priceCopy.checkoutFailed, priceCopy.error, billingCurrency]);
 
   if (!open) return null;
 
@@ -238,28 +262,25 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
         </ul>
 
         <div className="mb-5 rounded-xl border border-slate-600/80 bg-slate-800/40 px-4 py-3.5 space-y-3">
-          {isEnglishCopy && usdRate !== null ? (
+          {isEnglishCopy ? (
             <>
               <PriceRow
                 icon={<FaCalendarAlt className="w-4 h-4" aria-hidden="true" />}
-                label={PRICE_COPY.en.priceMonthly}
-                sublabel={formatUsdReferenceLine(PREMIUM_PRICING_JPY.monthly, usdRate)}
+                label={priceCopy.priceMonthly}
               />
               <PriceRow
                 icon={<FaCrown className="w-4 h-4 text-amber-400/90" aria-hidden="true" />}
-                label={PRICE_COPY.en.priceYearly}
-                sublabel={formatUsdReferenceLine(PREMIUM_PRICING_JPY.yearly, usdRate)}
+                label={priceCopy.priceYearly}
               />
-              <p className="pl-7 text-xs text-gray-400">
-                {PRICE_COPY.en.priceYearlyPerMonth}
-                {` ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlyPerMonth, usdRate)}`}
-              </p>
+              {'priceYearlyPerMonth' in priceCopy && (
+                <p className="pl-7 text-xs text-gray-400">
+                  {priceCopy.priceYearlyPerMonth}
+                </p>
+              )}
               <div className="flex flex-wrap gap-2 pl-7">
-                {!trialUsed && <SavingsBadge label={PRICE_COPY.en.trialBadge} tone="green" />}
-                <SavingsBadge
-                  label={`${PRICE_COPY.en.priceSavingsAmount} ${formatUsdReferenceSuffix(PREMIUM_PRICING_JPY.yearlySavings, usdRate)}`}
-                />
-                <SavingsBadge label={PRICE_COPY.en.priceSavingsMonths} />
+                {!trialUsed && <SavingsBadge label={priceCopy.trialBadge} tone="green" />}
+                <SavingsBadge label={priceCopy.priceSavingsAmount} />
+                <SavingsBadge label={priceCopy.priceSavingsMonths} />
               </div>
             </>
           ) : (

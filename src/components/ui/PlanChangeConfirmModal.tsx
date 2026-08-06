@@ -3,15 +3,19 @@ import { createPortal } from 'react-dom';
 import { FaTimes } from 'react-icons/fa';
 import {
   formatBillingAmountLabel,
+  formatAmountForCurrency,
   planIntervalLabel,
   PREMIUM_PRICING_JPY,
+  PREMIUM_PRICING_USD,
 } from '@/utils/premiumPricing';
+import type { BillingCurrency } from '@/utils/billingCurrency';
 
 export interface PlanChangeConfirmModalProps {
   open: boolean;
   target: 'monthly' | 'yearly';
   periodEndLabel: string | null;
   isEnglishCopy: boolean;
+  billingCurrency?: BillingCurrency;
   loading: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -22,6 +26,7 @@ const PlanChangeConfirmModal: React.FC<PlanChangeConfirmModalProps> = ({
   target,
   periodEndLabel,
   isEnglishCopy,
+  billingCurrency = 'JPY',
   loading,
   onClose,
   onConfirm,
@@ -35,6 +40,7 @@ const PlanChangeConfirmModal: React.FC<PlanChangeConfirmModalProps> = ({
   const nextBillingLabel = formatBillingAmountLabel(
     targetPlanCode,
     isEnglishCopy ? 'en' : 'ja',
+    billingCurrency,
   );
   const periodEnd = periodEndLabel ?? (isEnglishCopy ? 'your next renewal date' : '次回更新日');
 
@@ -96,9 +102,13 @@ const PlanChangeConfirmModal: React.FC<PlanChangeConfirmModalProps> = ({
         </div>
 
         <p className="mt-3 text-xs text-gray-500">
-          {isEnglishCopy
-            ? `Amounts shown in JPY (¥${PREMIUM_PRICING_JPY.monthly.toLocaleString('en-US')} / month, ¥${PREMIUM_PRICING_JPY.yearly.toLocaleString('en-US')} / year). Receipts follow Lemon Squeezy.`
-            : '表示金額は円建てです。決済・領収書は Lemon Squeezy 上の表示に従います。'}
+          {billingCurrency === 'USD'
+            ? (isEnglishCopy
+              ? `Amounts shown in USD (${formatAmountForCurrency(PREMIUM_PRICING_USD.monthly, 'USD')} / month, ${formatAmountForCurrency(PREMIUM_PRICING_USD.yearly, 'USD')} / year). Receipts follow Lemon Squeezy.`
+              : `表示金額は米ドル建てです。決済・領収書は Lemon Squeezy 上の表示に従います。`)
+            : (isEnglishCopy
+              ? `Amounts shown in JPY (¥${PREMIUM_PRICING_JPY.monthly.toLocaleString('en-US')} / month, ¥${PREMIUM_PRICING_JPY.yearly.toLocaleString('en-US')} / year). Receipts follow Lemon Squeezy.`
+              : '表示金額は円建てです。決済・領収書は Lemon Squeezy 上の表示に従います。')}
         </p>
 
         <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">

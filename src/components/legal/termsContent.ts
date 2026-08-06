@@ -233,7 +233,7 @@ const webTermsEn: TermsArticle[] = [
     id: 'fees',
     title: 'Article 6 (Fees)',
     paragraphs: [
-      'The only paid plan of the Service is the Premium Plan, and the fee is ¥3,980 per month (tax included) or ¥34,800 per year (tax included).',
+      'The only paid plan of the Service is the Premium Plan. Fees are ¥3,980 per month (tax included) or ¥34,800 per year (tax included) for Japan, or $24.99 per month or $199 per year for English/global users, depending on your account billing currency.',
       'Eligible first-time subscribers may be granted a seven-day free trial period (the “Trial”) for either the monthly or annual plan. Some users may not be eligible.',
       'Fees are displayed on the application screen, checkout screen, or by other means specified by the Company.',
       'The Company may change fees when necessary. In such cases, the Company shall notify users in advance by reasonable means of the effective date and content of the change.',
@@ -677,7 +677,7 @@ const webHighlightsJa: string[] = [
 
 const webHighlightsEn: string[] = [
   'The Service is a web-based platform for jazz learning support.',
-  'The only paid plan is Premium at ¥3,980 per month (tax included) or ¥34,800 per year (tax included). Eligible first-time subscribers may receive a seven-day free trial.',
+  'The only paid plan is Premium at ¥3,980 per month (tax included) or ¥34,800 per year (tax included) for Japan, or $24.99 per month or $199 per year for English/global users. Eligible first-time subscribers may receive a seven-day free trial.',
   'Payment is processed through Lemon Squeezy or other designated processors; after any trial, monthly plans renew every month and annual plans renew every year. Cancel before the next renewal as instructed.',
   'Live streaming and video uploads are generally permitted (Article 9), including Premium content.',
   'Prohibited conduct, disclaimers, and personal data handling are governed by these Terms and the Privacy Policy.',

@@ -1,4 +1,7 @@
-import { noTrialVariantForPlanCode } from './lib/lemonPlanCatalog';
+import {
+  currencyForVariantId,
+  noTrialVariantForPlanCode,
+} from './lib/lemonPlanCatalog';
 import {
   assertSubscriptionActionAllowed,
   isPendingCancelScheduled,
@@ -144,7 +147,8 @@ export const handler = async (event: NetlifyEvent) => {
     }
 
     const fromVariantId = attrs.variant_id != null ? String(attrs.variant_id) : null;
-    const pendingProviderVariantId = noTrialVariantForPlanCode(nextPlanCode);
+    const billingCurrency = currencyForVariantId(fromVariantId) ?? 'JPY';
+    const pendingProviderVariantId = noTrialVariantForPlanCode(nextPlanCode, billingCurrency);
 
     const { error: updateError } = await supabase
       .from('subscriptions')

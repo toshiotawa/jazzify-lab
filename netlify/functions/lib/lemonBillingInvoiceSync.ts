@@ -3,8 +3,8 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildCombinedLemonVariantIdLists } from './lemonPlanCatalog';
 import {
-  buildLemonVariantIdLists,
   planCodeForLemonVariant,
 } from './lemonVariantPlanCode';
 import {
@@ -23,15 +23,7 @@ import {
   fetchLemonSubscriptionInvoices,
 } from './lemonNetlifyCommon';
 
-const getVariantIdLists = () =>
-  buildLemonVariantIdLists({
-    premium: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM,
-    premiumTrial: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL,
-    premiumYearly: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY,
-    premiumYearlyTrial: process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_YEARLY_TRIAL,
-    standardGlobal: process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL,
-    standardGlobalTrial: process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL,
-  });
+const getVariantIdLists = () => buildCombinedLemonVariantIdLists();
 
 export const addSubscriptionId = (ids: Set<string>, value: unknown): void => {
   if (value === null || value === undefined || value === '') return;

@@ -22,7 +22,8 @@ import PlanChangeConfirmModal from '@/components/ui/PlanChangeConfirmModal';
 import CancelSubscriptionConfirmModal from '@/components/ui/CancelSubscriptionConfirmModal';
 import { getPlanIntervalLabel } from '@/utils/membershipDisplay';
 import { formatBillingAmountLabel } from '@/utils/premiumPricing';
-import { applyOptimisticBillingAfterResume } from '@/utils/billingStatusClient';
+import { applyOptimisticBillingAfterResume, nextBillingAmountFromPayload } from '@/utils/billingStatusClient';
+import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
 import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 /**
  * #account ハッシュまたは /main/account で表示されるアカウントページ
@@ -259,10 +260,18 @@ const AccountPage: React.FC = () => {
   const pendingIntervalLabel = pendingPlanCode
     ? getPlanIntervalLabel(pendingPlanCode, localeCode)
     : null;
-  const nextBillingLabel = billingPayload?.next_billing_amount_jpy != null
+  const billingCurrency = resolveDisplayBillingCurrency({
+    profileBillingCurrency: profile?.billing_currency
+      ?? billingPayload?.billing_currency
+      ?? null,
+    isEnglishCopy,
+  });
+  const nextBillingAmount = nextBillingAmountFromPayload(billingPayload);
+  const nextBillingLabel = nextBillingAmount != null
     ? formatBillingAmountLabel(
-      pendingPlanCode ?? billingPayload.plan_code,
+      pendingPlanCode ?? billingPayload?.plan_code ?? 'unknown',
       localeCode,
+      billingCurrency,
     )
     : null;
   const showChangeToYearly = canChangePlan && billingPayload?.plan_code === 'core_monthly';
@@ -969,6 +978,7 @@ const AccountPage: React.FC = () => {
         target={planChangeTarget ?? 'yearly'}
         periodEndLabel={periodEndLabel}
         isEnglishCopy={isEnglishCopy}
+        billingCurrency={billingCurrency}
         loading={billingActionLoading === 'change_monthly' || billingActionLoading === 'change_yearly'}
         onClose={() => setPlanChangeTarget(null)}
         onConfirm={() => void confirmPlanChange()}
