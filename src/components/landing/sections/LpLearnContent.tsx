@@ -3,7 +3,7 @@ import { getLpCoursesShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
-export const LpCourses: React.FC = () => {
+export const LpLearnContent: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglish);
   const coursesShot = getLpCoursesShot(isEnglish);
@@ -15,24 +15,20 @@ export const LpCourses: React.FC = () => {
       style={{ background: 'var(--lp-surface)' }}
     >
       <div className="lp-container">
-        <div className="grid md:grid-cols-12 gap-8 md:gap-12 items-start mb-12">
-          <div className="md:col-span-5">
-            <h2
-              className="lp-section-title text-2xl sm:text-3xl"
-              data-animate="from-behind"
-            >
-              {copy.courses.heading}
-            </h2>
-          </div>
+        <h2
+          className="lp-section-title text-2xl sm:text-3xl text-center mb-6"
+          data-animate="from-behind"
+        >
+          {copy.courses.heading}
+        </h2>
 
-          <div
-            className="lp-section-lead md:col-span-7 space-y-4"
-            style={{ color: 'var(--lp-ink-muted)' }}
-          >
-            {copy.courses.body.map((paragraph) => (
-              <p key={paragraph}>{paragraph}</p>
-            ))}
-          </div>
+        <div
+          className="lp-section-lead max-w-2xl mx-auto text-center space-y-4 mb-12"
+          style={{ color: 'var(--lp-ink-muted)' }}
+        >
+          {copy.courses.body.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
         </div>
 
         <div className="lp-shot-stage max-w-3xl mx-auto mb-12" data-animate="from-behind">
@@ -57,7 +53,7 @@ export const LpCourses: React.FC = () => {
         </div>
 
         <div
-          className="grid sm:grid-cols-2 gap-6 max-w-4xl mx-auto"
+          className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto"
           data-animate="alt-cards"
         >
           {copy.courses.items.map((item) => (

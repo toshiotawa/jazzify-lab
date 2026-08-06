@@ -107,14 +107,31 @@ export const LpPricing: React.FC = () => {
           {copy.pricing.heading}
         </h2>
         <p
-          className="lp-section-lead text-center mb-14 max-w-2xl mx-auto mt-4"
+          className="lp-section-lead text-center mb-10 max-w-2xl mx-auto mt-4"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.pricing.lead}
         </p>
 
         <div
-          className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch"
+          className="lp-card p-8 sm:p-10 max-w-2xl mx-auto mb-10 text-center"
+          data-animate="from-behind"
+        >
+          <div
+            className="lp-section-lead space-y-3"
+            style={{ color: 'var(--lp-ink-muted)' }}
+          >
+            {copy.pricing.freeIntro.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          <Link to="/signup" className="lp-btn-gold px-10 py-4 text-lg mt-6 inline-block">
+            {copy.pricing.free.cta}
+          </Link>
+        </div>
+
+        <div
+          className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch mb-10"
           data-animate="alt-cards"
         >
           <PricingCard plan={copy.pricing.free} emphasized={false} />
@@ -123,7 +140,19 @@ export const LpPricing: React.FC = () => {
         </div>
 
         <div
-          className="lp-note text-center mt-10 space-y-1"
+          className="lp-card p-8 max-w-2xl mx-auto mb-10"
+          data-animate="from-behind"
+        >
+          <h3 className="lp-subtitle text-lg mb-4">{copy.pricing.trial.heading}</h3>
+          <div className="space-y-2" style={{ color: 'var(--lp-ink-muted)' }}>
+            {copy.pricing.trial.body.map((paragraph) => (
+              <p key={paragraph} className="lp-card-body">{paragraph}</p>
+            ))}
+          </div>
+        </div>
+
+        <div
+          className="lp-note text-center space-y-1"
           style={{ color: 'var(--lp-ink-muted)' }}
         >
           {copy.pricing.notes.map((note) => (

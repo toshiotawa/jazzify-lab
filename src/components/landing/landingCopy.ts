@@ -133,12 +133,6 @@ interface LandingModesCopy {
   viralTweet: LandingViralTweetCopy;
 }
 
-interface LandingSkillsCopy {
-  heading: string;
-  body: string[];
-  items: string[];
-}
-
 interface LandingPlatformCard {
   title: string;
   description: string;
@@ -170,14 +164,6 @@ interface LandingDeveloperCopy {
   photoAlt: string;
 }
 
-interface LandingFreeTierCopy {
-  heading: string;
-  body: string[];
-  checks: string[];
-  cta: string;
-  note: string;
-}
-
 interface LandingPricingHighlight {
   text: string;
   jpyAmount: number | null;
@@ -194,14 +180,29 @@ export interface LandingPricingPlan {
   cta: string;
 }
 
+interface LandingPricingTrialCopy {
+  heading: string;
+  body: string[];
+}
+
 interface LandingPricingCopy {
   eyebrow: string;
   heading: string;
   lead: string;
+  freeIntro: string[];
+  trial: LandingPricingTrialCopy;
   free: LandingPricingPlan;
   monthly: LandingPricingPlan;
   yearly: LandingPricingPlan;
   notes: string[];
+}
+
+interface LandingFitCopy {
+  heading: string;
+  forYouHeading: string;
+  forYouItems: string[];
+  notForYouHeading: string;
+  notForYouItems: string[];
 }
 
 interface LandingFaqInlineLink {
@@ -266,30 +267,21 @@ interface LandingCopy {
   courses: LandingCoursesCopy;
   modes: LandingModesCopy;
   platforms: LandingPlatformsCopy;
-  skills: LandingSkillsCopy;
   requirements: LandingRequirementsCopy;
   developer: LandingDeveloperCopy;
-  freeTier: LandingFreeTierCopy;
   pricing: LandingPricingCopy;
+  fit: LandingFitCopy;
   faq: LandingFaqCopy;
   finalCta: LandingFinalCtaCopy;
   footer: LandingFooterCopy;
 }
 
 const NAV_JA: LandingNavLink[] = [
-  { id: 'features', label: '特徴' },
-  { id: 'roadmap', label: '学習の流れ' },
-  { id: 'courses', label: 'コース' },
-  { id: 'modes', label: 'モード' },
   { id: 'pricing', label: '料金' },
   { id: 'faq', label: 'FAQ' },
 ];
 
 const NAV_EN: LandingNavLink[] = [
-  { id: 'features', label: 'Features' },
-  { id: 'roadmap', label: 'Roadmap' },
-  { id: 'courses', label: 'Courses' },
-  { id: 'modes', label: 'Modes' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'faq', label: 'FAQ' },
 ];
@@ -307,15 +299,15 @@ const COPY_JA: LandingCopy = {
     logoAlt: 'Jazzify ロゴ',
   },
   hero: {
-    titleLines: ['ジャズを、', '知っているだけの人から', '弾ける人へ。'],
+    titleLines: ['はじめての', 'ジャズブルースを', '理論に迷わず弾く。'],
     subtitle: [
-      '「次に何を練習すればいいか」で迷わなくなり、覚えた音を自分の演奏で使えるようになる。',
-      'MIDIキーボードをつないで、画面に沿って弾きながら進むジャズピアノ学習サービスです。',
+      '鍵盤の位置やコードは分かる。でも、アドリブになると何を弾けばいいか分からない。',
+      'Jazzifyは、あなたが実際に弾いた音を聞き取り、コード・リズム・アドリブを弾きながら進めます。',
     ],
-    demoCta: '1分だけ体験する',
+    demoCta: 'インタラクティブデモを試す',
     signupCta: '無料で始める',
     appStoreCta: 'App Storeでダウンロード',
-    note: 'クレジットカード登録不要 / Web・iPhone・iPad対応 / 画面鍵盤でも一部体験OK',
+    note: '無料登録はクレジットカード不要 / 画面鍵盤またはMIDIキーボードで体験',
     videoAlt: 'Jazzify サバイバルモードのプレイ映像',
     videoBadge: 'コードを弾く → キャラが動く',
   },
@@ -335,7 +327,7 @@ const COPY_JA: LandingCopy = {
       '画面の鍵盤でも、MIDIキーボードでもプレイできます。',
     ],
     startButton: 'デモプレイを始める',
-    finishCta: '無料登録して続きをプレイする',
+    finishCta: '無料で始める',
     midiLabel: 'MIDIキーボードを使う（任意）',
     midiHelper: '未接続でも、画面の鍵盤をタップ・クリックして体験できます。',
     loading: 'デモを読み込み中...',
@@ -343,98 +335,86 @@ const COPY_JA: LandingCopy = {
     lazyPlaceholder: 'この位置までスクロールするとデモを読み込みます。',
   },
   pain: {
-    heading: ['ジャズを始めたい。', 'でも、何から練習すればいいのか分からない。'],
+    heading: ['理論は分かる。', 'でも、手が動かない。'],
     cards: [
-      '教則本を買っても、説明ばかりで手が動かない。',
-      'YouTubeを見ても、内容がバラバラで迷ってしまう。',
-      'コードやスケールを覚えても、曲の中で使えない。',
-      'アドリブになると、何を弾いていいか分からない。',
+      'コードは知っているのに、曲の中で使えない。',
+      'レッスン動画は見るが、次に何を練習すればいいか分からない。',
+      'アドリブになると、手が止まってしまう。',
+      'スケールの反復だけでは、音楽を弾いている実感がない。',
     ],
-    body: [
-      'ジャズは自由な音楽です。しかし、自由に弾けるようになるまでの練習は、多くの人にとって分かりにくく、続けにくいものでした。',
-      'Jazzifyは、その練習をゲームとして作り直します。',
-    ],
+    body: [],
   },
   solution: {
-    heading: '読むだけではなく、弾いて進む。',
-    body: [
-      'Jazzifyでは、画面の指示に合わせて実際に鍵盤を弾きます。正しいコードを弾く。リズムに合わせる。聴こえたフレーズを弾き返す。限られた音だけでアドリブする。',
-      '理解したつもりで終わらず、弾けたことを確認しながら先へ進みます。',
-    ],
+    heading: '弾いて、反応をもらい、音楽の中で練習する。',
+    body: [],
     values: [
       {
-        title: '実際に鍵盤を弾いて進む',
-        description: '読むだけ・見るだけでは先に進めません。弾けたら次へ、が基本ルールです。',
+        title: '本物の鍵盤を弾く',
+        description: 'MIDIキーボードを接続するか、画面鍵盤から始められます。',
       },
       {
-        title: 'その場で正誤や反応が分かる',
-        description: '弾いた音にゲームが即座に反応。できているかを自分で判断する必要がありません。',
+        title: '即座にフィードバック',
+        description: 'Jazzifyが弾いた音を認識し、その場で反応します。',
       },
       {
-        title: '反復練習をゲームとして続けられる',
-        description: '単調になりがちな反復練習を、クリアしたくなるステージとして設計しています。',
+        title: '音楽の中で反復',
+        description: 'コード、リズム、フレーズを、プレイ可能な課題の中で繰り返します。',
       },
     ],
   },
   mainQuest: {
-    heading: 'メインクエストで、迷わず進む。',
+    heading: '最初の到達点：Cブルースを通して演奏する。',
     body: [
-      'メインクエストは、ジャズ初心者が順番に進める一本道のコースです。',
-      '最初から難しい理論を詰め込むのではなく、2つの音から始め、コード、アドリブ、ブルース通し演奏へと少しずつ進んでいきます。',
-      '「次に何を練習すればいいか」で迷わず、実際に弾きながらジャズの基本を身につけます。',
+      'メインクエストは、最初の成功体験までの一本道です。',
+      '日数の約束はしません。次に何を練習すればいいかは、常に画面が示します。',
     ],
     note: '最初のゴールは、Cブルースを1曲とおして演奏すること。',
     imageAlt: 'メインクエストのチャプター画面',
   },
   roadmap: {
-    eyebrow: 'LEARNING PATH',
-    heading: '迷わず進める、一本道のコース。',
-    body: [
-      'メインクエストは、ジャズ初心者が順番に進める一本道です。',
-      '日数は決まっていません。次に何を練習すればいいかは、常に画面が示します。',
-    ],
+    eyebrow: 'FIRST GOAL',
+    heading: 'Cブルースまでの道筋',
+    body: [],
     steps: [
       {
         blockNumber: 1,
-        chapter: '第1章',
-        title: 'ドとソでジャズの返事',
-        description:
-          '聴こえた短いフレーズを、2つの音だけで弾き返す。ジャズの「返事」の感覚を体で覚えます。',
+        chapter: 'ステップ1',
+        title: '1〜2音でアドリブする',
+        description: '少ない音から、伴奏の上で自分のフレーズを試します。',
       },
       {
         blockNumber: 2,
-        chapter: '第2章',
-        title: 'Cブルースのコードをつかむ',
-        description: 'ブルースで使うコードを、考えずに押さえられるまで練習します。',
+        chapter: 'ステップ2',
+        title: '必要なコードを押さえる',
+        description: 'ブルースで使うコードを、考えずに出せるまで練習します。',
       },
       {
         blockNumber: 3,
-        chapter: '第3章',
-        title: 'Cブルース：モチーフでアドリブ',
-        description: '覚えた音を使って、伴奏の上に自分のフレーズを乗せます。',
+        chapter: 'ステップ3',
+        title: 'リズムに乗る',
+        description: '伴奏に合わせて、手を止めずに弾き続けます。',
       },
       {
         blockNumber: 4,
-        chapter: '第4章',
-        title: 'Cブルース 左手コンピング',
-        description: '左手でリズムを支えながら、右手を自由に動かせるようになります。',
+        chapter: 'ステップ4',
+        title: 'ブルース進行を追う',
+        description: 'フォームに沿って、コードとフレーズをつなげます。',
       },
       {
         blockNumber: 5,
-        chapter: '第5章',
-        title: 'Jazzify Blues',
-        description: 'テーマ→アドリブ→テーマで、Cブルースを1曲通して演奏します。',
+        chapter: 'ステップ5',
+        title: '最初から最後まで通して演奏する',
+        description: 'テーマ→アドリブ→テーマで、Cブルースを1曲演奏します。',
       },
       {
         blockNumber: null,
         chapter: 'その先',
         title: '目的別コースで伸ばす',
-        description:
-          '両手ヴォイシング、耳コピ、コードランなど、テーマごとに力を伸ばせます。',
+        description: '両手ヴォイシング、耳コピ、コードランなど、テーマごとに力を伸ばせます。',
       },
     ],
     freeBadge: '無料',
-    note: '最初のゴールは、Cブルースを1曲とおして演奏すること。そこまでの道筋が、メインクエストに組み込まれています。',
+    note: '',
   },
   beforeAfter: {
     heading: '練習の仕方が変わると、演奏が変わる。',
@@ -454,40 +434,42 @@ const COPY_JA: LandingCopy = {
     ],
   },
   courses: {
-    heading: '目的別に、鍛える。',
+    heading: '学べる内容',
     body: [
       'メインクエストで基本を身につけたら、目的に合わせたコースでさらに練習できます。',
-      '両手ヴォイシング、アドリブ、コード基礎、耳コピなど、ジャズピアノに必要な力をテーマごとに鍛えられます。',
     ],
     items: [
       {
-        title: '両手ヴォイシングコース',
-        description: '両手で響きのあるコードを弾く練習。伴奏やソロピアノに必要なヴォイシングを身につけます。',
+        title: 'コード基礎',
+        description: 'ジャズで使うコードを、反射的に押さえられるまで鍛えます。',
       },
       {
-        title: 'アドリブコース',
-        description: '限られた音から始めて、少しずつ自分のフレーズを作る力を育てます。',
+        title: 'リズムとタイム',
+        description: '伴奏に乗り、手を止めずに弾き続ける力を身につけます。',
       },
       {
-        title: 'コード基礎コース',
-        description: 'ジャズでよく使うコードフォームを、反射的に押さえられるまで練習します。',
+        title: '耳コピ',
+        description: '聴こえた音やフレーズを鍵盤で弾き返し、耳と手をつなぎます。',
       },
       {
-        title: '耳コピコース',
-        description: '聴こえた音や短いフレーズを鍵盤で弾き返し、耳と手のつながりを鍛えます。',
+        title: 'アドリブ',
+        description: '限られた音から始めて、自分のフレーズを作る力を育てます。',
+      },
+      {
+        title: '両手ヴォイシング',
+        description: '両手で響きのあるコードを弾く。伴奏やソロピアノに必要なヴォイシングを身につけます。',
       },
     ],
     imageAlt: '目的別コースのクエストマップ画面',
   },
   modes: {
-    eyebrow: 'GAME MODES',
-    heading: '同じ練習でも、遊び方が変わる。',
+    eyebrow: 'HOW IT WORKS',
+    heading: '同じ練習を、ゲームとして続ける。',
     chordRun: {
       title: 'コードラン',
       tagline: 'コードを弾いて、走る・跳ぶ。',
       description: [
-        'コードを弾くと、キャラクターが走り、ジャンプします。',
-        'コードフォームを考え込まずに出せるまで、ゲーム感覚で繰り返し練習できます。',
+        'コードフォームを、ゲーム感覚で反復練習します。',
       ],
       imageAlt: 'コードランモードのプレイ画面',
     },
@@ -495,8 +477,7 @@ const COPY_JA: LandingCopy = {
       title: 'サバイバル',
       tagline: '正しい音で戦い、生き残る。',
       description: [
-        '正しい音やコードを弾いて敵に攻撃し、制限時間を生き残るモードです。',
-        '反復練習を単調な作業で終わらせず、集中して続けられる形にします。',
+        '正しい音やコードを弾いて、制限時間を生き残ります。',
       ],
       imageAlt: 'サバイバルモードのプレイ画面',
     },
@@ -504,19 +485,16 @@ const COPY_JA: LandingCopy = {
       title: 'バトル',
       tagline: '聴いて、弾き返す。',
       description: [
-        '相手が演奏した音やフレーズを聴き、同じように鍵盤で弾き返します。',
-        'ジャズに必要な「聴いて反応する力」を鍛えます。',
+        '聴こえたフレーズを鍵盤で弾き返し、耳と手を鍛えます。',
       ],
       imageAlt: 'バトルモードのプレイ画面',
     },
     viralTweet: {},
   },
   platforms: {
-    heading: 'Webでも、iPhone/iPadでも。',
+    heading: '始めるのに必要なもの',
     body: [
-      'Jazzifyは、PCブラウザでもiPhone/iPadアプリでも使えます。',
-      'MIDIキーボードを接続すれば、画面の指示に合わせて実際に弾きながら練習できます。',
-      'まずは画面上の鍵盤でも、一部の課題を体験できます。',
+      'JazzifyはWebブラウザとiPhone/iPadアプリで使えます。同じアカウントで、コースや進行状況を続けられます。',
     ],
     cards: [
       {
@@ -538,20 +516,7 @@ const COPY_JA: LandingCopy = {
       },
     ],
     appStoreCta: 'App Storeでダウンロード',
-    webCta: 'Webで無料体験する',
-  },
-  skills: {
-    heading: 'バラバラだった練習を、「ジャズを弾く力」につなげる。',
-    body: [
-      'Jazzifyで練習するのは、知識だけではありません。それぞれの力を別々に覚えるのではなく、演奏しながら結びつけていきます。',
-    ],
-    items: [
-      'コードをすぐ押さえる力',
-      'リズムを止めない力',
-      '聴いて反応する力',
-      'フレーズを覚えて使う力',
-      '少ない音からアドリブする力',
-    ],
+    webCta: '無料で始める',
   },
   requirements: {
     heading: 'MIDIキーボードをつなげば、すぐに始められます。',
@@ -574,24 +539,21 @@ const COPY_JA: LandingCopy = {
     role: 'Jazzify 開発者 / ジャズピアニスト',
     photoAlt: '開発者 ジャズクラブでの演奏風景',
   },
-  freeTier: {
-    heading: 'まずは無料で、実際に弾いてみてください。',
-    body: [
-      '無料登録後、MIDIキーボードを接続し、Jazzifyの基本的な練習を体験できます。',
-      '料金を払う前に、次のことを確認できます。',
-    ],
-    checks: [
-      '自分の機材で接続できるか',
-      'ゲーム形式の練習が自分に合うか',
-      '本当に続けられそうか',
-    ],
-    cta: '無料で始める',
-    note: 'クレジットカード登録不要',
-  },
   pricing: {
     eyebrow: 'PRICING',
     heading: '料金',
     lead: '無料で試して、必要になったらプレミアムへ。',
+    freeIntro: [
+      '無料登録後、MIDIキーボードを接続し、Jazzifyの基本的な練習を体験できます。',
+      'クレジットカード登録は不要です。',
+    ],
+    trial: {
+      heading: '7日間無料トライアル',
+      body: [
+        'プレミアムの手続きを開始したときに、7日間の無料トライアルが始まります（WebのCheckoutまたはApp Store）。',
+        '無料登録だけではトライアルは開始されません。トライアル開始時には支払い方法の登録が必要です。',
+      ],
+    },
     free: {
       name: 'フリー',
       price: '¥0',
@@ -599,7 +561,7 @@ const COPY_JA: LandingCopy = {
       priceSuffix: '',
       badge: null,
       highlights: [],
-      features: ['基本体験（メインクエスト第1チャプター）', 'MIDIキーボードの接続確認', '画面鍵盤での一部体験'],
+      features: ['基本体験（メインクエスト第1章）', 'MIDIキーボードの接続確認', '画面鍵盤での一部体験'],
       cta: '無料で始める',
     },
     monthly: {
@@ -627,44 +589,34 @@ const COPY_JA: LandingCopy = {
     },
     notes: [
       'いつでも解約できます。解約後も、支払済み期間の終了までは利用できます。',
-      '初回登録時には7日間の無料トライアルが付与されます。',
+      'WebとiOSで同じアカウントを使えますが、課金はどちらか一方のみです（Webで購読中はiOSの課金画面は表示されず、その逆も同様）。',
+    ],
+  },
+  fit: {
+    heading: '向いている人・向いていない人',
+    forYouHeading: 'Jazzifyが向いている人',
+    forYouItems: [
+      '鍵盤の位置はおおまかに分かる',
+      'コード記号から弾いたり、アドリブしたい',
+      'MIDI対応のキーボードまたは電子ピアノを持っている（または購入予定）',
+      '長い動画より、弾きながら学ぶ方が合う',
+    ],
+    notForYouHeading: 'Jazzifyが向いていない人',
+    notForYouItems: [
+      'クラシックのテクニックを一から学びたい',
+      '鍵盤の位置をゼロから覚える必要がある',
+      'MIDI非対応の生ピアノしかない',
     ],
   },
   faq: {
     heading: 'よくある質問',
     items: [
       {
-        question: '初心者でも使えますか？',
-        answer: [
-          '基本的な鍵盤の位置が分かれば始められます。',
-          'ただし、クラシックピアノの基礎や読譜を一から教えるサービスではありません。ピアノ経験が少ない人でも、コードやアドリブを少しずつ学べるように設計しています。',
-        ],
-      },
-      {
         question: '楽譜が読めなくても使えますか？',
         answer: [
           '使えます。',
           '鍵盤表示や音を使った課題も多く、すべての練習で楽譜を読む必要はありません。必要な場面では、少しずつ楽譜にも慣れられるようになっています。',
         ],
-      },
-      {
-        question: '生ピアノで使えますか？',
-        answer: [
-          'MIDI出力に対応していない生ピアノだけでは、演奏を認識できません。',
-          'MIDI対応の電子ピアノまたはMIDIキーボードが必要です。',
-        ],
-      },
-      {
-        question: 'スマートフォンだけでも利用できますか？',
-        answer: [
-          '一部の課題は画面鍵盤でも体験できます。',
-          '本格的に練習する場合は、MIDIキーボードの接続を推奨します。iPhone・iPadではiOSアプリからUSB経由でMIDIキーボードを接続できます。接続方法は「',
-        ],
-        inlineLink: {
-          to: HELP_IOS_MIDI_PATH,
-          label: 'iPhone/iPadでMIDIを使う',
-          suffix: '」をご覧ください。',
-        },
       },
       {
         question: 'iPhone/iPadでMIDIを使えますか？',
@@ -686,6 +638,13 @@ const COPY_JA: LandingCopy = {
         ],
       },
       {
+        question: 'WebとiOSで同じアカウントを使えますか？',
+        answer: [
+          'はい。同じアカウントでWebとiOSのどちらからもログインできます。コースや進行状況も引き継がれます。',
+          'ただし、課金はWeb（Checkout）とiOS（App Store）のどちらか一方のみです。一方で購読中は、もう一方から新たに課金することはできません。',
+        ],
+      },
+      {
         question: 'ジャズ経験者にも役立ちますか？',
         answer: [
           'コードフォーム、耳コピ、フレーズ、リズムなどをゲーム形式で反復したい人には役立ちます。',
@@ -701,11 +660,11 @@ const COPY_JA: LandingCopy = {
       'まずは一つの音を弾く。次に、コードを一つ覚える。そして、音楽に合わせて鳴らしてみる。',
       '小さな成功を積み重ねれば、ジャズは「難しい音楽」から、自分で演奏できる音楽に変わります。',
     ],
-    cta: '無料でJazzifyを始める',
-    note: 'クレジットカード登録不要 / Web・iPhone・iPad対応 / 画面鍵盤でも一部体験OK',
+    cta: '無料で始める',
+    note: '無料登録はクレジットカード不要 / 画面鍵盤またはMIDIキーボードで体験',
   },
   footer: {
-    blurb: 'ジャズピアノを、ゲームのように弾いて覚える学習サービス。',
+    blurb: 'ジャズピアノを、ゲームのように弾いて覚える学習サービス。理論は分かるがアドリブで手が止まる人向け。',
     serviceHeading: 'サービス',
     signupLink: '新規登録',
     loginLink: 'ログイン',
@@ -737,17 +696,17 @@ const COPY_EN: LandingCopy = {
     logoAlt: 'Jazzify logo',
   },
   hero: {
-    titleLines: ['From knowing jazz', 'to playing it', 'on the keys.'],
+    titleLines: ['Play your first', 'jazz blues', 'without the theory maze.'],
     subtitle: [
-      'Stop wondering what to practice next. Start using the notes you learn in your own playing.',
-      'Connect a MIDI keyboard and progress by playing along with on-screen prompts.',
+      'For pianists who know the notes and chords but freeze when it\u2019s time to improvise.',
+      'Jazzify guides you through chords, rhythm, and improvisation by listening to what you actually play.',
     ],
-    demoCta: 'Try the 1-minute demo',
+    demoCta: 'Try the interactive demo',
     signupCta: 'Start for free',
     appStoreCta: 'Download on the App Store',
-    note: 'No credit card required / Works on Web, iPhone & iPad / On-screen keys for some exercises',
+    note: 'No credit card required for free signup / Use on-screen keys or connect a MIDI keyboard',
     videoAlt: 'Jazzify Survival mode gameplay video',
-    videoBadge: 'Play a chord → your character moves',
+    videoBadge: 'Play a chord \u2192 your character moves',
   },
   promoVideo: {
     eyebrow: 'PROMO VIDEO',
@@ -765,7 +724,7 @@ const COPY_EN: LandingCopy = {
       'Play with the on-screen keyboard or your MIDI keyboard.',
     ],
     startButton: 'Start the demo',
-    finishCta: 'Sign up free and keep playing',
+    finishCta: 'Start for free',
     midiLabel: 'Use a MIDI keyboard (optional)',
     midiHelper: 'No device? You can tap or click the on-screen keys.',
     loading: 'Loading demo...',
@@ -773,98 +732,86 @@ const COPY_EN: LandingCopy = {
     lazyPlaceholder: 'The demo loads when you scroll here.',
   },
   pain: {
-    heading: ['You want to start jazz.', "But you don't know what to practice first."],
+    heading: ['You understand the theory.', 'But your hands still don\u2019t know what to play.'],
     cards: [
-      'Method books are all explanation — your hands never move.',
-      'YouTube lessons are scattered, and you get lost.',
-      "You memorize chords and scales, but can't use them in songs.",
-      "When it's time to improvise, you don't know what to play.",
+      'You know some chords, but cannot use them in a song.',
+      'You watch lessons, but do not know what to practice next.',
+      'When improvisation starts, your hands freeze.',
+      'Repeating scales does not feel like making music.',
     ],
-    body: [
-      'Jazz is free music. But the practice it takes to play freely has been confusing and hard to sustain for most people.',
-      'Jazzify rebuilds that practice as a game.',
-    ],
+    body: [],
   },
   solution: {
-    heading: "Don't just read. Play your way forward.",
-    body: [
-      'In Jazzify, you play real keys along with on-screen prompts. Play the right chord. Lock into the rhythm. Echo the phrase you just heard. Improvise with a limited set of notes.',
-      "You don't stop at understanding — you confirm you can play it, then move on.",
-    ],
+    heading: 'Play, get feedback, and practice inside music.',
+    body: [],
     values: [
       {
-        title: 'Progress by actually playing',
-        description: "Reading and watching won't move you forward. Play it, then advance — that's the rule.",
+        title: 'Play real keys',
+        description: 'Connect a MIDI keyboard or begin with the on-screen keyboard.',
       },
       {
-        title: 'Instant feedback on every note',
-        description: 'The game reacts to what you play, so you never have to judge yourself.',
+        title: 'Get instant feedback',
+        description: 'Jazzify recognizes what you play and responds immediately.',
       },
       {
-        title: 'Repetition that feels like a game',
-        description: 'Drills that would feel tedious become stages you want to clear.',
+        title: 'Practice inside music',
+        description: 'Repeat chords, rhythm, and phrases in playable challenges.',
       },
     ],
   },
   mainQuest: {
-    heading: 'The Main Quest keeps you moving forward.',
+    heading: 'Your first goal: play a complete C blues.',
     body: [
-      'The Main Quest is a single guided path for jazz beginners.',
-      'Instead of front-loading difficult theory, you start with just two notes, then move gradually through chords, improvisation, and playing a full blues.',
-      'No more wondering what to practice next — you learn the fundamentals of jazz by playing them.',
+      'The Main Quest is a single path to your first success.',
+      'We don\u2019t promise a timeline. The screen always tells you what to practice next.',
     ],
     note: 'Your first goal: play a full C blues, start to finish.',
     imageAlt: 'Main Quest chapter screen',
   },
   roadmap: {
-    eyebrow: 'LEARNING PATH',
-    heading: 'One clear path. No guesswork.',
-    body: [
-      'The Main Quest is a single guided path for jazz beginners.',
-      'There is no fixed timeline. The screen always tells you what to practice next.',
-    ],
+    eyebrow: 'FIRST GOAL',
+    heading: 'The path to your C blues',
+    body: [],
     steps: [
       {
         blockNumber: 1,
-        chapter: 'Chapter 1',
-        title: 'Call and response with Do and Sol',
-        description:
-          'Echo short phrases with just two notes. Feel jazz call-and-response in your hands.',
+        chapter: 'Step 1',
+        title: 'Improvise with one or two notes',
+        description: 'Start with a small set of notes and try your own phrases over the backing track.',
       },
       {
         blockNumber: 2,
-        chapter: 'Chapter 2',
-        title: 'Grasp the C blues chords',
+        chapter: 'Step 2',
+        title: 'Add essential chords',
         description: 'Practice until you can grab blues chords without thinking.',
       },
       {
         blockNumber: 3,
-        chapter: 'Chapter 3',
-        title: 'C blues: motif improvisation',
-        description: 'Use the notes you know to build your own phrases over the backing track.',
+        chapter: 'Step 3',
+        title: 'Lock into the rhythm',
+        description: 'Stay with the groove and keep your hands moving.',
       },
       {
         blockNumber: 4,
-        chapter: 'Chapter 4',
-        title: 'C blues: left-hand comping',
-        description: 'Keep the rhythm with your left hand while your right hand moves freely.',
+        chapter: 'Step 4',
+        title: 'Follow the blues form',
+        description: 'Connect chords and phrases through the blues progression.',
       },
       {
         blockNumber: 5,
-        chapter: 'Chapter 5',
-        title: 'Jazzify Blues',
-        description: 'Play a full C blues: theme → improvisation → theme.',
+        chapter: 'Step 5',
+        title: 'Play from start to finish',
+        description: 'Play a full C blues: theme \u2192 improvisation \u2192 theme.',
       },
       {
         blockNumber: null,
         chapter: 'Beyond',
         title: 'Grow with goal-based courses',
-        description:
-          'Two-hand voicings, ear training, chord runs, and more — one theme at a time.',
+        description: 'Two-hand voicings, ear training, chord runs, and more \u2014 one theme at a time.',
       },
     ],
     freeBadge: 'Free',
-    note: 'Your first goal is to play a full C blues. The Main Quest builds that path step by step.',
+    note: '',
   },
   beforeAfter: {
     heading: 'Change how you practice, and your playing changes.',
@@ -884,39 +831,41 @@ const COPY_EN: LandingCopy = {
     ],
   },
   courses: {
-    heading: 'Train with purpose.',
+    heading: 'What you can learn',
     body: [
       'Once you have the basics from the Main Quest, keep going with courses built around specific goals.',
-      'Train the skills jazz piano demands — two-hand voicings, improvisation, chord fundamentals, and ear training — one theme at a time.',
     ],
     items: [
       {
-        title: 'Two-Hand Voicings',
-        description: 'Practice rich, two-handed chords. Build the voicings you need for comping and solo piano.',
+        title: 'Chord fundamentals',
+        description: 'Drill the chord shapes jazz uses most, until you can grab them reflexively.',
+      },
+      {
+        title: 'Rhythm and time',
+        description: 'Stay with the groove and keep your hands moving over the backing track.',
+      },
+      {
+        title: 'Ear training',
+        description: 'Echo notes and short phrases on the keys, connecting your ears to your hands.',
       },
       {
         title: 'Improvisation',
         description: 'Start with a limited set of notes and grow your ability to create your own phrases.',
       },
       {
-        title: 'Chord Fundamentals',
-        description: 'Drill the chord shapes jazz uses most, until you can grab them reflexively.',
-      },
-      {
-        title: 'Ear Training',
-        description: 'Echo notes and short phrases on the keys, connecting your ears to your hands.',
+        title: 'Two-handed voicings',
+        description: 'Practice rich, two-handed chords. Build the voicings you need for comping and solo piano.',
       },
     ],
     imageAlt: 'Quest map screen for focused courses',
   },
   modes: {
-    eyebrow: 'GAME MODES',
-    heading: 'Same practice, different ways to play.',
+    eyebrow: 'HOW IT WORKS',
+    heading: 'Keep practicing by playing the game.',
     chordRun: {
       title: 'Chord Run',
       tagline: 'Play chords to run and jump.',
       description: [
-        'Every chord you play makes your character run and jump.',
         'Repeat chord shapes in a game until you can play them without thinking.',
       ],
       imageAlt: 'Chord Run mode gameplay screen',
@@ -925,8 +874,7 @@ const COPY_EN: LandingCopy = {
       title: 'Survival',
       tagline: 'Play the right notes. Survive.',
       description: [
-        'Attack enemies by playing the right notes and chords, and survive until time runs out.',
-        'Repetition stays focused and fun instead of turning into a chore.',
+        'Play the right notes and chords to survive until time runs out.',
       ],
       imageAlt: 'Survival mode gameplay screen',
     },
@@ -934,8 +882,7 @@ const COPY_EN: LandingCopy = {
       title: 'Battle',
       tagline: 'Listen, then play it back.',
       description: [
-        'Listen to the notes and phrases your opponent plays, then play them back on the keys.',
-        'Train the listen-and-respond reflexes that jazz demands.',
+        'Listen to a phrase, then play it back on the keys.',
       ],
       imageAlt: 'Battle mode gameplay screen',
     },
@@ -945,11 +892,9 @@ const COPY_EN: LandingCopy = {
     },
   },
   platforms: {
-    heading: 'Works on Web, iPhone, and iPad.',
+    heading: 'What you need to get started',
     body: [
-      'Use Jazzify in your PC browser or on the iPhone/iPad app.',
-      'Connect a MIDI keyboard and practice by actually playing along with on-screen prompts.',
-      'You can also try some exercises with the on-screen keyboard first.',
+      'Use Jazzify in your PC browser or on the iPhone/iPad app. Pick up your courses and progress with the same account.',
     ],
     cards: [
       {
@@ -971,20 +916,7 @@ const COPY_EN: LandingCopy = {
       },
     ],
     appStoreCta: 'Download on the App Store',
-    webCta: 'Try free on the Web',
-  },
-  skills: {
-    heading: 'Connect scattered practice into the ability to play jazz.',
-    body: [
-      "What you build in Jazzify isn't just knowledge. Instead of learning each skill in isolation, you connect them while you play.",
-    ],
-    items: [
-      'Grab chords instantly',
-      'Keep the rhythm going',
-      'Hear and respond',
-      'Remember and use phrases',
-      'Improvise from a few notes',
-    ],
+    webCta: 'Start for free',
   },
   requirements: {
     heading: 'Connect a MIDI keyboard and start right away.',
@@ -1007,27 +939,24 @@ const COPY_EN: LandingCopy = {
     role: 'Jazzify Developer / Jazz Pianist',
     photoAlt: 'The developer performing at a jazz club',
   },
-  freeTier: {
-    heading: 'Start free — and actually play.',
-    body: [
-      'After free registration, connect your MIDI keyboard and try Jazzify\u2019s core practice experience.',
-      'Before paying anything, you can confirm:',
-    ],
-    checks: [
-      'Your gear connects properly',
-      'Game-style practice suits you',
-      'You can really stick with it',
-    ],
-    cta: 'Start for free',
-    note: 'No credit card required',
-  },
   pricing: {
     eyebrow: 'PRICING',
     heading: 'Pricing',
     lead: 'Try it free. Upgrade to Premium when you need more.',
+    freeIntro: [
+      'After free registration, connect your MIDI keyboard and try Jazzify\u2019s core practice experience.',
+      'No credit card required.',
+    ],
+    trial: {
+      heading: '7-day free trial',
+      body: [
+        'The 7-day free trial starts when you begin a Premium subscription (Web checkout or App Store).',
+        'It does not start at free signup. A payment method is required when the trial begins.',
+      ],
+    },
     free: {
       name: 'Free',
-      price: '¥0',
+      price: '$0',
       jpyAmount: null,
       priceSuffix: '',
       badge: null,
@@ -1060,45 +989,35 @@ const COPY_EN: LandingCopy = {
     },
     notes: [
       'Cancel anytime. After cancellation, you keep access until the end of the period you have paid for.',
-      'New users receive a 7-day free trial.',
+      'You can use the same account on Web and iOS, but billing is exclusive to one platform (if you subscribe on Web, iOS billing is unavailable, and vice versa).',
       'Prices are charged in US dollars (USD).',
+    ],
+  },
+  fit: {
+    heading: 'Is Jazzify for you?',
+    forYouHeading: 'Jazzify is for you if:',
+    forYouItems: [
+      'You already know where the notes are.',
+      'You want to improvise or play from chord symbols.',
+      'You own a MIDI-compatible keyboard or digital piano.',
+      'You prefer learning by playing rather than watching long videos.',
+    ],
+    notForYouHeading: 'Jazzify may not be for you if:',
+    notForYouItems: [
+      'You are looking for classical technique lessons.',
+      'You need to learn basic keyboard geography from zero.',
+      'You only have an acoustic piano without MIDI.',
     ],
   },
   faq: {
     heading: 'Frequently asked questions',
     items: [
       {
-        question: 'Can beginners use Jazzify?',
-        answer: [
-          'Yes — if you know where the notes are on a keyboard, you can start.',
-          "That said, Jazzify is not a service that teaches classical piano technique or sight-reading from scratch. It's designed so that players with little piano experience can learn chords and improvisation step by step.",
-        ],
-      },
-      {
         question: "I can't read sheet music. Is that a problem?",
         answer: [
           'Not at all.',
           'Many exercises use keyboard displays and sound, so you don\u2019t need to read notation for everything. Where it helps, you\u2019ll get comfortable with notation gradually.',
         ],
-      },
-      {
-        question: 'Can I use an acoustic piano?',
-        answer: [
-          'An acoustic piano without MIDI output cannot be recognized.',
-          'You need a MIDI-compatible digital piano or a MIDI keyboard.',
-        ],
-      },
-      {
-        question: 'Can I use it on just a smartphone?',
-        answer: [
-          'Some exercises work with the on-screen keyboard.',
-          'For serious practice, we recommend connecting a MIDI keyboard. On iPhone and iPad, you can connect one via USB using the iOS app. See ',
-        ],
-        inlineLink: {
-          to: HELP_IOS_MIDI_PATH,
-          label: 'MIDI on iPhone / iPad',
-          suffix: ' for setup steps.',
-        },
       },
       {
         question: 'Can I use MIDI on iPhone / iPad?',
@@ -1120,6 +1039,13 @@ const COPY_EN: LandingCopy = {
         ],
       },
       {
+        question: 'Can I use the same account on Web and iOS?',
+        answer: [
+          'Yes. You can log in with the same account on Web and iOS. Your courses and progress carry over.',
+          'However, billing is exclusive to one platform. If you subscribe on Web, you cannot start a new subscription on iOS (and vice versa).',
+        ],
+      },
+      {
         question: 'Is Jazzify useful for experienced jazz players?',
         answer: [
           'If you want game-style repetition for chord shapes, ear training, phrases, and rhythm, yes.',
@@ -1135,11 +1061,11 @@ const COPY_EN: LandingCopy = {
       'Play one note. Learn one chord. Then play it along with the music.',
       'Stack up small wins, and jazz changes from "difficult music" into music you can play yourself.',
     ],
-    cta: 'Start Jazzify for free',
-    note: 'No credit card required / Works on Web, iPhone & iPad / On-screen keys for some exercises',
+    cta: 'Start for free',
+    note: 'No credit card required for free signup / Use on-screen keys or connect a MIDI keyboard',
   },
   footer: {
-    blurb: 'A learning service where you learn jazz piano by playing it like a game.',
+    blurb: 'Learn jazz piano by playing it like a game. For pianists who know the notes but freeze when it\u2019s time to improvise.',
     serviceHeading: 'Service',
     signupLink: 'Sign up',
     loginLink: 'Log in',

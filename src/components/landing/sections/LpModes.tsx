@@ -3,48 +3,36 @@ import { getLandingCopy, type LandingModeItem } from '@/components/landing/landi
 import { LpViralTweetEmbed } from '@/components/landing/sections/LpViralTweetEmbed';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
-interface ModeBlockProps {
+interface ModeCardProps {
   mode: LandingModeItem;
   imageSrc: string;
   imageWidth: number;
   imageHeight: number;
-  imageAnimate: 'slide-left' | 'slide-right';
-  reversed: boolean;
 }
 
-const ModeBlock: React.FC<ModeBlockProps> = ({
-  mode,
-  imageSrc,
-  imageWidth,
-  imageHeight,
-  imageAnimate,
-  reversed,
-}) => (
-  <div className="grid md:grid-cols-2 gap-8 items-center">
-    <div className={`lp-shot-stage ${reversed ? 'md:order-2' : ''}`} data-animate={imageAnimate}>
-      <div className="lp-shot">
-        <img
-          src={imageSrc}
-          alt={mode.imageAlt}
-          width={imageWidth}
-          height={imageHeight}
-          loading="lazy"
-          decoding="async"
-          className="w-full h-auto block"
-        />
-      </div>
-      <span className="lp-shot-note absolute -bottom-3.5 left-5 sm:left-8">{mode.tagline}</span>
+const ModeCard: React.FC<ModeCardProps> = ({ mode, imageSrc, imageWidth, imageHeight }) => (
+  <div className="lp-card overflow-hidden flex flex-col">
+    <div className="lp-shot">
+      <img
+        src={imageSrc}
+        alt={mode.imageAlt}
+        width={imageWidth}
+        height={imageHeight}
+        loading="lazy"
+        decoding="async"
+        className="w-full h-auto block"
+      />
     </div>
-    <div className={reversed ? 'md:order-1' : ''}>
-      <h3 className="lp-subtitle text-2xl sm:text-3xl mb-4">{mode.title}</h3>
-      <div
-        className="lp-section-lead space-y-3"
-        style={{ color: 'var(--lp-ink-muted)' }}
-      >
-        {mode.description.map((paragraph) => (
-          <p key={paragraph}>{paragraph}</p>
-        ))}
-      </div>
+    <div className="p-6 flex-1">
+      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--lp-gold-deep)' }}>
+        {mode.tagline}
+      </p>
+      <h3 className="lp-subtitle text-xl mb-2">{mode.title}</h3>
+      {mode.description.map((paragraph) => (
+        <p key={paragraph} className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
+          {paragraph}
+        </p>
+      ))}
     </div>
   </div>
 );
@@ -58,32 +46,24 @@ export const LpModes: React.FC = () => {
     imageSrc: string;
     imageWidth: number;
     imageHeight: number;
-    imageAnimate: 'slide-left' | 'slide-right';
-    reversed: boolean;
   }> = [
     {
       mode: copy.modes.chordRun,
       imageSrc: '/newLP/chord-run.webp',
       imageWidth: 1280,
       imageHeight: 952,
-      imageAnimate: 'slide-right',
-      reversed: false,
     },
     {
       mode: copy.modes.survival,
       imageSrc: '/newLP/survival.webp',
       imageWidth: 1280,
       imageHeight: 733,
-      imageAnimate: 'slide-left',
-      reversed: true,
     },
     {
       mode: copy.modes.battle,
       imageSrc: '/newLP/battle.webp',
       imageWidth: 1280,
       imageHeight: 726,
-      imageAnimate: 'slide-right',
-      reversed: false,
     },
   ];
 
@@ -102,21 +82,26 @@ export const LpModes: React.FC = () => {
           {copy.modes.heading}
         </h2>
 
-        <div className="space-y-16 sm:space-y-20 max-w-5xl mx-auto">
-          {modes.map(({ mode, imageSrc, imageWidth, imageHeight, imageAnimate, reversed }) => (
-            <React.Fragment key={mode.title}>
-              <ModeBlock
-                mode={mode}
-                imageSrc={imageSrc}
-                imageWidth={imageWidth}
-                imageHeight={imageHeight}
-                imageAnimate={imageAnimate}
-                reversed={reversed}
-              />
-              {mode === copy.modes.battle && !isEnglishCopy ? <LpViralTweetEmbed /> : null}
-            </React.Fragment>
+        <div
+          className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto"
+          data-animate="alt-cards"
+        >
+          {modes.map(({ mode, imageSrc, imageWidth, imageHeight }) => (
+            <ModeCard
+              key={mode.title}
+              mode={mode}
+              imageSrc={imageSrc}
+              imageWidth={imageWidth}
+              imageHeight={imageHeight}
+            />
           ))}
         </div>
+
+        {!isEnglishCopy ? (
+          <div className="max-w-5xl mx-auto mt-12">
+            <LpViralTweetEmbed />
+          </div>
+        ) : null}
       </div>
     </section>
   );

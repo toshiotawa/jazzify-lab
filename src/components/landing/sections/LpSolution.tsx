@@ -9,55 +9,33 @@ export const LpSolution: React.FC = () => {
     <section
       id="features"
       className="py-12 sm:py-20 scroll-mt-20"
-      style={{ background: 'var(--lp-surface)' }}
     >
       <div className="lp-container">
-        <div className="grid md:grid-cols-12 gap-10 md:gap-12 items-start">
-          <div className="md:col-span-5">
-            <h2
-              className="lp-section-title text-2xl sm:text-3xl"
-              data-animate="from-behind"
-            >
-              {copy.solution.heading}
-            </h2>
+        <h2
+          className="lp-section-title text-2xl sm:text-3xl text-center mb-12"
+          data-animate="from-behind"
+        >
+          {copy.solution.heading}
+        </h2>
 
-            <div
-              className="lp-section-lead mt-8 space-y-4"
-              style={{ color: 'var(--lp-ink-muted)' }}
-            >
-              {copy.solution.body.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-          </div>
-
-          <div className="md:col-span-7" data-animate="text-up">
-            {copy.solution.values.map((value, index) => (
+        <div
+          className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto"
+          data-animate="alt-cards"
+        >
+          {copy.solution.values.map((value, index) => (
+            <div key={value.title} className="lp-card p-8 text-center">
               <div
-                key={value.title}
-                className="flex gap-5 py-6"
-                style={{
-                  borderBottom:
-                    index < copy.solution.values.length - 1
-                      ? '1px solid var(--lp-line)'
-                      : undefined,
-                }}
+                className="w-12 h-12 rounded-full mx-auto mb-4 flex items-center justify-center font-bold text-lg"
+                style={{ background: 'var(--lp-gold-tint)', color: 'var(--lp-gold-deep)' }}
               >
-                <div
-                  className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center font-bold"
-                  style={{ background: 'var(--lp-gold-tint)', color: 'var(--lp-gold-deep)' }}
-                >
-                  {index + 1}
-                </div>
-                <div>
-                  <h3 className="lp-subtitle text-lg mb-2">{value.title}</h3>
-                  <p className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
-                    {value.description}
-                  </p>
-                </div>
+                {index + 1}
               </div>
-            ))}
-          </div>
+              <h3 className="lp-subtitle text-lg mb-3">{value.title}</h3>
+              <p className="lp-card-body" style={{ color: 'var(--lp-ink-muted)' }}>
+                {value.description}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </section>

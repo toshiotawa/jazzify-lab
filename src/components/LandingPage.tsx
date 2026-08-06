@@ -7,17 +7,14 @@ import { LpHero } from '@/components/landing/sections/LpHero';
 import { LpPromoVideo } from '@/components/landing/sections/LpPromoVideo';
 import { LpDemoPlaceholder } from '@/components/landing/sections/LpDemoPlaceholder';
 import { LpPain } from '@/components/landing/sections/LpPain';
+import { LpFirstGoal } from '@/components/landing/sections/LpFirstGoal';
 import { LpSolution } from '@/components/landing/sections/LpSolution';
-import { LpMainQuest } from '@/components/landing/sections/LpMainQuest';
-import { LpRoadmap } from '@/components/landing/sections/LpRoadmap';
 import { LpBeforeAfter } from '@/components/landing/sections/LpBeforeAfter';
-import { LpCourses } from '@/components/landing/sections/LpCourses';
-import { LpModes } from '@/components/landing/sections/LpModes';
-import { LpPlatforms } from '@/components/landing/sections/LpPlatforms';
-import { LpSkills } from '@/components/landing/sections/LpSkills';
-import { LpRequirements } from '@/components/landing/sections/LpRequirements';
 import { LpDeveloper } from '@/components/landing/sections/LpDeveloper';
-import { LpFreeTier } from '@/components/landing/sections/LpFreeTier';
+import { LpLearnContent } from '@/components/landing/sections/LpLearnContent';
+import { LpModes } from '@/components/landing/sections/LpModes';
+import { LpFit } from '@/components/landing/sections/LpFit';
+import { LpGettingStarted } from '@/components/landing/sections/LpGettingStarted';
 import { LpPricing } from '@/components/landing/sections/LpPricing';
 import { LpFaq } from '@/components/landing/sections/LpFaq';
 import { LpFinalCta } from '@/components/landing/sections/LpFinalCta';
@@ -128,17 +125,14 @@ const LandingPage: React.FC = () => {
         </div>
 
         <LpPain />
+        <LpFirstGoal />
         <LpSolution />
-        <LpMainQuest />
-        <LpRoadmap />
         <LpBeforeAfter />
-        <LpCourses />
-        <LpModes />
-        <LpPlatforms />
         <LpDeveloper />
-        <LpSkills />
-        <LpRequirements />
-        <LpFreeTier />
+        <LpLearnContent />
+        <LpModes />
+        <LpFit />
+        <LpGettingStarted />
         <LpPricing />
         <LpFaq />
         <LpFinalCta />
