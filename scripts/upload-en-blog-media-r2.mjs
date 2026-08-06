@@ -4,7 +4,7 @@ import { extname, resolve } from 'node:path';
 import { loadEnvR2Map } from './load-env-r2.mjs';
 import { r2S3CredentialsFrom } from './r2-env-helpers.mjs';
 
-const EXPECTED_ARTICLES = 42;
+const EXPECTED_ARTICLES = 102;
 const EXPECTED_OBJECTS = 93;
 const ROOT = resolve(import.meta.dirname, '..');
 const envR2 = loadEnvR2Map(ROOT);

@@ -11,7 +11,7 @@ updatedAt: "2026-07-15"
 category: "practice-guides"
 categoryLabel: "Practice Guides"
 tags: ["how to transcribe jazz piano solos","jazz transcription for beginners","learn jazz by ear","jazz piano ear training","how to transcribe jazz solos"]
-relatedSlugs: ["jazz-piano-technique-for-beginners","best-apps-for-jazz-practice","first-jazz-jam-session"]
+relatedSlugs: ["jazz-piano-technique-for-beginners","online-jazz-piano-lessons-guide","best-online-jazz-piano-course"]
 ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 ---
 

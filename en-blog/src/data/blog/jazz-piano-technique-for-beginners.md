@@ -11,7 +11,7 @@ updatedAt: "2026-07-15"
 category: "practice-guides"
 categoryLabel: "Practice Guides"
 tags: ["jazz piano technique for beginners","jazz piano exercises","piano technique for jazz","jazz piano practice routine","finger technique for jazz piano"]
-relatedSlugs: ["best-apps-for-jazz-practice","first-jazz-jam-session","how-to-learn-jazz-piano-by-yourself"]
+relatedSlugs: ["online-jazz-piano-lessons-guide","best-online-jazz-piano-course","online-jazz-piano-lessons-cost"]
 ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 ---
 

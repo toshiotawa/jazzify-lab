@@ -11,7 +11,7 @@ updatedAt: "2026-07-15"
 category: "theory-voicings"
 categoryLabel: "Theory & Voicings"
 tags: ["secondary dominant chords","what is a secondary dominant","secondary dominant jazz","V of V chord"]
-relatedSlugs: ["two-handed-voicings-tension-resolution","type-a-type-b-rootless-voicings","altered-scale"]
+relatedSlugs: ["two-handed-voicings-tension-resolution","type-a-type-b-rootless-voicings","jazz-piano-guide-tones"]
 ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 ---
 

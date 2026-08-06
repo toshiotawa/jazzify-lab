@@ -11,7 +11,7 @@ updatedAt: "2026-07-15"
 category: "theory-voicings"
 categoryLabel: "Theory & Voicings"
 tags: ["type A and type B rootless voicings","A form B form voicings","rootless voicings jazz piano","3-7-9-5 voicing","7-3-5-9 voicing"]
-relatedSlugs: ["altered-scale","how-to-build-jazz-piano-voicings","jazz-chord-tensions"]
+relatedSlugs: ["jazz-piano-guide-tones","jazz-piano-shell-voicings","jazz-piano-left-hand-bass"]
 ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 ---
 

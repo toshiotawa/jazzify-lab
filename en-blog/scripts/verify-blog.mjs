@@ -1,14 +1,15 @@
 import { access, readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const EXPECTED_ARTICLE_COUNT = 42;
-const EXPECTED_CTA_COUNT = 84;
+const EXPECTED_ARTICLE_COUNT = 102;
+const EXPECTED_CTA_COUNT = 204;
 const EXPECTED_MEDIA_URL_COUNT = 93;
 const EXPECTED_CATEGORY_COUNTS = new Map([
   ['album-guides', 9],
   ['artists-listening', 16],
-  ['practice-guides', 5],
-  ['theory-voicings', 12],
+  ['practice-guides', 32],
+  ['theory-voicings', 27],
+  ['gear-setup', 18],
 ]);
 const contentRoot = resolve(import.meta.dirname, '../src/data/blog');
 const outputRoot = resolve(import.meta.dirname, '../../dist/blog');
@@ -71,6 +72,53 @@ for (const filename of articleFiles) {
   descriptions.add(description);
   categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
   ctaCount += occurrences(source, /data-blog-cta="(?:top|bottom)"/g);
+}
+
+const stripBoilerplateHtml = (html) =>
+  html
+    .replace(/<nav class="article-toc"[\s\S]*?<\/nav>/g, ' ')
+    .replace(/<a class="blog-cta"[\s\S]*?<\/a>/g, ' ')
+    .replace(/<audio[\s\S]*?<\/audio>/g, ' ')
+    .replace(/<figure[\s\S]*?<\/figure>/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const extractSentences = (text) =>
+  text
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.replace(/\s+/g, ' ').trim().toLowerCase())
+    .filter((sentence) => sentence.split(/\s+/).length >= 8);
+
+const sentenceOccurrences = new Map();
+
+for (const filename of articleFiles) {
+  const source = await readFile(resolve(contentRoot, filename), 'utf8');
+  const slug = frontmatterValue(source, 'slug');
+  const body = source.replace(/^---[\s\S]*?---\u000a?/, '');
+  const plainText = stripBoilerplateHtml(body);
+  for (const sentence of extractSentences(plainText)) {
+    const entry = sentenceOccurrences.get(sentence) || { count: 0, slugs: new Set() };
+    entry.count += 1;
+    entry.slugs.add(slug);
+    sentenceOccurrences.set(sentence, entry);
+  }
+}
+
+const duplicatedSentences = [...sentenceOccurrences.entries()].filter(
+  ([, entry]) => entry.slugs.size >= 3,
+);
+if (duplicatedSentences.length > 0) {
+  const preview = duplicatedSentences
+    .slice(0, 5)
+    .map(([sentence, entry]) => `"${sentence.slice(0, 80)}..." (${entry.slugs.size} articles)`)
+    .join('; ');
+  throw new Error(
+    `Boilerplate duplication detected: ${duplicatedSentences.length} sentence(s) appear in 3+ articles. Examples: ${preview}`,
+  );
 }
 
 for (const filename of articleFiles) {

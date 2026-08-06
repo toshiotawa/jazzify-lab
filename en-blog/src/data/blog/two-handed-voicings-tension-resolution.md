@@ -11,7 +11,7 @@ updatedAt: "2026-07-15"
 category: "theory-voicings"
 categoryLabel: "Theory & Voicings"
 tags: ["two handed jazz piano voicings","jazz piano tension resolution","drop 2 voicings","altered dominant voicings","jazz piano comping"]
-relatedSlugs: ["type-a-type-b-rootless-voicings","altered-scale","how-to-build-jazz-piano-voicings"]
+relatedSlugs: ["type-a-type-b-rootless-voicings","jazz-piano-guide-tones","jazz-piano-shell-voicings"]
 ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 ---
 

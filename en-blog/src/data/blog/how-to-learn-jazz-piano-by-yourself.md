@@ -11,7 +11,7 @@ updatedAt: "2026-07-15"
 category: "practice-guides"
 categoryLabel: "Practice Guides"
 tags: ["how to learn jazz piano by yourself","self taught jazz piano","jazz piano practice plan","jazz piano for beginners","learn jazz piano online"]
-relatedSlugs: ["how-to-transcribe-jazz-piano","jazz-piano-technique-for-beginners","best-apps-for-jazz-practice"]
+relatedSlugs: ["how-to-transcribe-jazz-piano","jazz-piano-technique-for-beginners","online-jazz-piano-lessons-guide"]
 ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 ---
 

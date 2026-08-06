@@ -20,6 +20,7 @@ const blog = defineCollection({
       'artists-listening',
       'practice-guides',
       'theory-voicings',
+      'gear-setup',
     ]),
     categoryLabel: z.string(),
     tags: z.array(z.string()),

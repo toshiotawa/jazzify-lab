@@ -3,6 +3,7 @@ export const CATEGORY_LABELS = {
   'artists-listening': 'Artists & Listening',
   'practice-guides': 'Practice Guides',
   'theory-voicings': 'Theory & Voicings',
+  'gear-setup': 'Gear & Setup',
 } as const;
 
 export type BlogCategory = keyof typeof CATEGORY_LABELS;
@@ -12,6 +13,7 @@ export const CATEGORIES = [
   { slug: 'artists-listening', label: CATEGORY_LABELS['artists-listening'] },
   { slug: 'practice-guides', label: CATEGORY_LABELS['practice-guides'] },
   { slug: 'theory-voicings', label: CATEGORY_LABELS['theory-voicings'] },
+  { slug: 'gear-setup', label: CATEGORY_LABELS['gear-setup'] },
 ] as const;
 
 export const BLOG_PATH = '/blog/';
