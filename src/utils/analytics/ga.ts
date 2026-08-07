@@ -16,6 +16,13 @@ const LP_CONTEXT_EVENT_NAMES = new Set([
   'begin_checkout',
 ]);
 
+const PAYWALL_FUNNEL_EVENT_NAMES = new Set([
+  'paywall_view',
+  'paywall_click',
+  'paywall_dismiss',
+  'begin_checkout',
+]);
+
 const AUTH_FUNNEL_EVENT_NAMES = new Set([
   'sign_up_click',
   'signup_otp_verified',
@@ -78,7 +85,7 @@ export const initGa = (): void => {
 
 const buildEventParams = (name: string, params?: GaEventParams): GaEventParams => {
   const base = params ?? {};
-  const withDevice = AUTH_FUNNEL_EVENT_NAMES.has(name)
+  const withDevice = AUTH_FUNNEL_EVENT_NAMES.has(name) || PAYWALL_FUNNEL_EVENT_NAMES.has(name)
     ? { ...getDeviceGaParams(), ...base }
     : base;
   return shouldAttachLpContext(name, params)

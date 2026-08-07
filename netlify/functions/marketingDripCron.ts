@@ -2,8 +2,9 @@
  * ステップメルマガの定期送信（Netlify Scheduled Function、netlify.toml で毎時実行）。
  *
  * 設計:
- * - 対象はリリース以降にオプトインした新規ユーザーのみ（day0〜day3）と、
- *   リリース以降に登録しトライアルを開始したユーザー（trial_start。オプトイン不問の利用案内）。
+ * - 対象は marketing_email_opt_in=true のユーザーのみ（設計上オプトイン必須）。
+ *   2026-08 以前は登録フォームのデフォルトが OFF のため opt-in 率 11.7% → ドリップ宛先 32 人。
+ *   修正: Web/iOS 登録のデフォルト ON + Dashboard の MarketingOptInBanner で既存ユーザーを回収。
  * - 抽出はオプトイン後7日間のウィンドウで有界（ドリップは3日で完了するため十分な余裕）。
  * - marketing_email_sends を先にclaimする冪等設計（claimAndSendMarketingEmail）。
  * - 1実行につきユーザーあたり1通のみ（順序保証: day0 → day1 → day2 → day3）。

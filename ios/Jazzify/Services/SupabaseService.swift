@@ -107,9 +107,16 @@ final class SupabaseService: Sendable {
             let marketing_email_opt_in_at: String?
             let marketing_email_opt_in_source: String?
             let marketing_email_opt_in_text: String?
+            let first_touch_utm_source: String?
+            let first_touch_utm_medium: String?
+            let first_touch_utm_campaign: String?
+            let first_touch_referrer: String?
+            let first_touch_landing_path: String?
+            let first_touch_captured_at: String?
         }
 
         let device = SignupMetadata.resolveSignupDeviceContext()
+        let capturedAt = ISO8601DateFormatter().string(from: Date())
         try await client
             .from("profiles")
             .insert(NewProfile(
@@ -122,9 +129,15 @@ final class SupabaseService: Sendable {
                 country: SignupMetadata.resolveSignupCountry(),
                 ga_client_id: AnalyticsClientID.current(),
                 marketing_email_opt_in: marketingEmailOptIn,
-                marketing_email_opt_in_at: marketingEmailOptIn ? ISO8601DateFormatter().string(from: Date()) : nil,
+                marketing_email_opt_in_at: marketingEmailOptIn ? capturedAt : nil,
                 marketing_email_opt_in_source: marketingEmailOptIn ? MarketingEmailOptIn.source : nil,
-                marketing_email_opt_in_text: marketingEmailOptIn ? marketingEmailOptInText : nil
+                marketing_email_opt_in_text: marketingEmailOptIn ? marketingEmailOptInText : nil,
+                first_touch_utm_source: "app_store",
+                first_touch_utm_medium: "organic",
+                first_touch_utm_campaign: nil,
+                first_touch_referrer: nil,
+                first_touch_landing_path: "ios://signup",
+                first_touch_captured_at: capturedAt
             ))
             .execute()
     }

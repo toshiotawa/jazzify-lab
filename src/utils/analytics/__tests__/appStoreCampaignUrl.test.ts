@@ -129,7 +129,7 @@ describe('appStoreCampaignUrl', () => {
       expect(url.searchParams.get('pt')).toBe('128644431');
     });
 
-    it('falls back to ct=lp_ios when first touch has no UTM', () => {
+    it('uses the source inferred from referrer when UTM is missing', () => {
       window.localStorage.setItem(
         FIRST_TOUCH_STORAGE_KEY,
         JSON.stringify({
@@ -139,6 +139,25 @@ describe('appStoreCampaignUrl', () => {
           utm_content: null,
           utm_term: null,
           referrer: 'https://www.google.com/',
+          landing_path: '/',
+          captured_at: '2026-07-13T00:00:00.000Z',
+        }),
+      );
+
+      const url = new URL(buildAppStoreCampaignUrlFromFirstTouch());
+      expect(url.searchParams.get('ct')).toBe('google');
+    });
+
+    it('falls back to ct=lp_ios when first touch has neither UTM nor referrer', () => {
+      window.localStorage.setItem(
+        FIRST_TOUCH_STORAGE_KEY,
+        JSON.stringify({
+          utm_source: null,
+          utm_medium: null,
+          utm_campaign: null,
+          utm_content: null,
+          utm_term: null,
+          referrer: null,
           landing_path: '/',
           captured_at: '2026-07-13T00:00:00.000Z',
         }),

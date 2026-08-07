@@ -7,7 +7,7 @@ struct ProfileSetupView: View {
 
     @State private var nickname = ""
     @State private var agreed = false
-    @State private var marketingEmailOptIn = false
+    @State private var marketingEmailOptIn = true
     @State private var isSubmitting = false
     @FocusState private var isNicknameFocused: Bool
 

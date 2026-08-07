@@ -181,7 +181,7 @@ LP の App Store ボタンは、着地時の UTM（`first_touch`）から **App 
 - App Store の「ダウンロード」と Supabase の「登録」は別指標（DL → インストール → 起動 → 登録で漏斗が細る）
 - Apple はインストール元（`ct`/`pt`）をアプリに渡さない。**個別ユーザーの DL 経路は DB に残らない**
 - iOS ファネル（`first_open` 以降）は GA4 + `user_milestones` で見る。`first_open` はアプリ初回起動時に1回だけ送信
-- iOS 登録時は `signup_platform=ios` に加え `signup_device_category` / `signup_os` を保存する（`first_touch_*` は Web 専用のまま）
+- iOS 登録時は `signup_platform=ios` に加え `signup_device_category` / `signup_os` を保存する。`first_touch_*` は Apple が経路を渡さないため `app_store` / `organic` 固定で埋める（Web の UTM とは意味が違う点に注意）
 
 ---
 

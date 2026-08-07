@@ -1,0 +1,55 @@
+# Jazzify 導線 UTM 正本（手動配置用）
+# 生成: node growth/print-acquisition-links.mjs
+
+base_urls:
+  ja_lp: https://jazzify.jp/
+  en_lp: https://en.jazzify.jp/
+  app_store: https://apps.apple.com/app/apple-store/id6761457001?mt=8&pt=128644431
+
+channels:
+  x_jazz_ad_lib:
+    account: "@jazz_ad_lib"
+    note: "プロフィールリンク・固定投稿・週2本の実演Short"
+    links:
+      profile:
+        url: https://jazzify.jp/?utm_source=x&utm_medium=profile&utm_campaign=jazz_ad_lib
+      pinned:
+        url: https://jazzify.jp/?utm_source=x&utm_medium=social&utm_campaign=jazz_ad_lib&utm_content=pinned
+      post_template:
+        url: https://jazzify.jp/?utm_source=x&utm_medium=social&utm_campaign=jazz_ad_lib&utm_content={post_slug}
+
+  instagram:
+    note: "プロフィール1リンク + ストーリーズ"
+    links:
+      profile:
+        url: https://jazzify.jp/?utm_source=instagram&utm_medium=profile&utm_campaign=jazzify_ig
+      story:
+        url: https://jazzify.jp/?utm_source=instagram&utm_medium=social&utm_campaign=jazzify_ig&utm_content=story
+
+  youtube_jazznuma:
+    note: "概要欄は write-jazznuma-public-info テンプレで既存。固定コメント用"
+    links:
+      description:
+        url: https://jazzify.jp/?utm_source=youtube&utm_medium=description&utm_campaign=jazznuma_radio&utm_content={episode_slug}
+      pinned_comment:
+        url: https://jazzify.jp/?utm_source=youtube&utm_medium=comment&utm_campaign=jazznuma_radio&utm_content={episode_slug}
+
+  en_blog:
+    note: "記事CTAは en-blog 各 md に埋め込み済み。ヘッダーは BlogHeader.astro に付与済み"
+    links:
+      header:
+        url: https://en.jazzify.jp/?utm_source=en_blog&utm_medium=header&utm_campaign=blog_nav
+      article_template:
+        url: https://en.jazzify.jp/?utm_source=en_blog&utm_medium=organic&utm_campaign={category}&utm_content={slug}_{position}
+
+  bebopify_youtube:
+    note: "英語ジャズ理論 → en.jazzify.jp 送客（AdSense 目的ではない）"
+    links:
+      description:
+        url: https://en.jazzify.jp/?utm_source=youtube&utm_medium=description&utm_campaign=bebopify&utm_content={video_slug}
+
+  app_store:
+    note: "Web LP からの iOS 送客は appStoreCampaignUrl.ts が first_touch から ct を生成"
+    links:
+      generic:
+        url: https://apps.apple.com/app/apple-store/id6761457001?mt=8&pt=128644431&ct=lp_ios

@@ -17,7 +17,7 @@ import {
 import { resolveDisplayBillingCurrency } from '@/utils/billingCurrency';
 import { trackEvent } from '@/utils/analytics/ga';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
-import type { PaywallSource } from '@/utils/analytics/paywallSource';
+import { buildPaywallEventParams, type PaywallSource } from '@/utils/analytics/paywallSource';
 import { resolveWebPaywallCopy } from '@/utils/webPaywallCopy';
 
 interface WebPaywallModalProps {
@@ -141,7 +141,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
     if (!profile) {
       return;
     }
-    trackEvent('paywall_view', { source });
+    trackEvent('paywall_view', buildPaywallEventParams(source));
     recordUserMilestoneFireAndForget(profile.id, 'free_tier_wall_view', source);
   }, [open, profile, source]);
 
@@ -149,7 +149,7 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
     if (redirecting) {
       return;
     }
-    trackEvent('paywall_dismiss', { source });
+    trackEvent('paywall_dismiss', buildPaywallEventParams(source));
     onClose();
   }, [onClose, redirecting, source]);
 
@@ -165,12 +165,17 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
       ? PREMIUM_PRICING_USD.monthly
       : PREMIUM_PRICING_JPY.monthly;
 
-    trackEvent('begin_checkout', {
+    trackEvent('paywall_click', buildPaywallEventParams(source, {
       currency: billingCurrency,
       value: checkoutValue,
       plan: 'premium',
-    });
-    recordUserMilestoneFireAndForget(profile.id, 'checkout_click');
+    }));
+    trackEvent('begin_checkout', buildPaywallEventParams(source, {
+      currency: billingCurrency,
+      value: checkoutValue,
+      plan: 'premium',
+    }));
+    recordUserMilestoneFireAndForget(profile.id, 'checkout_click', source);
 
     setLoading(true);
     setError(null);

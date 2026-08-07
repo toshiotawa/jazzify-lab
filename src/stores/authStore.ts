@@ -8,7 +8,7 @@ import { normalizeMembershipTier } from '@/utils/membership';
 import { isIOSWebView, getNativeAuthToken, getNativeRefreshToken } from '@/utils/iosbridge';
 import { useGeoStore } from './geoStore';
 import { resolveWebSignupCountry, resolveWebSignupPlatform } from '@/utils/signupMetadata';
-import { getStoredFirstTouch } from '@/utils/analytics/attribution';
+import { resolveFirstTouchForSignup, hasAttributionSignal } from '@/utils/analytics/attribution';
 import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceContext';
 import { getGaClientId, trackEvent } from '@/utils/analytics/ga';
 import { MARKETING_EMAIL_OPT_IN_SOURCE } from '@/utils/marketingEmailOptIn';
@@ -58,6 +58,7 @@ interface AuthState {
     lemon_subscription_id?: string | null;
     lemon_subscription_status?: string | null; // on_trial, active, past_due, cancelled, expired, paused
     lemon_trial_used?: boolean | null;
+    marketing_email_opt_in?: boolean | null;
   } | null;
 }
 
@@ -599,7 +600,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -644,6 +645,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               lemon_subscription_id: data.lemon_subscription_id ?? null,
               lemon_subscription_status: data.lemon_subscription_status ?? null,
               lemon_trial_used: data.lemon_trial_used ?? null,
+              marketing_email_opt_in: data.marketing_email_opt_in ?? null,
             };
             persistPreferredLocale(data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null);
           } else {
@@ -735,7 +737,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // 新規プロフィール作成（localStorage > ブラウザ言語 > 検出チェーン の順で初期言語を決定）
         const initialLocale = detectPreferredLocale();
-        const firstTouch = getStoredFirstTouch();
+        const firstTouch = resolveFirstTouchForSignup();
+        const attributionCapturedAt = firstTouch && hasAttributionSignal(firstTouch)
+          ? (firstTouch.captured_at ?? new Date().toISOString())
+          : null;
         const gaClientId = await getGaClientId();
         const signupDevice = resolveCurrentSignupDeviceContext();
         const marketingEmailOptIn = options?.marketingEmailOptIn === true;
@@ -760,7 +765,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           first_touch_utm_term: firstTouch?.utm_term ?? null,
           first_touch_referrer: firstTouch?.referrer ?? null,
           first_touch_landing_path: firstTouch?.landing_path ?? null,
-          first_touch_captured_at: firstTouch?.captured_at ?? null,
+          first_touch_captured_at: attributionCapturedAt,
           ga_client_id: gaClientId,
           marketing_email_opt_in: marketingEmailOptIn,
           marketing_email_opt_in_at: marketingEmailOptIn ? new Date().toISOString() : null,

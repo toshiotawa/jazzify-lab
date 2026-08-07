@@ -1,0 +1,5 @@
+id,started_at,stage,hypothesis,change,primary_metric,baseline,result,verdict,notes
+exp-001,2026-08-07,attribution,referrer推定とsignup時マージで帰属捕捉率を上げる,attribution.ts enrichFirstTouch + resolveFirstTouchForSignup + iOS first_touch,first_touch_captured_rate,47.9,,pending,直近30日48人中23人。直帰(UTM/referrerなし)は原理的に捕捉不可のため上限は100%未満
+exp-002,2026-08-07,email,登録時デフォルトONと既存向けバナーでopt-in率を上げる,ProfileWizard/AuthGate/iOS default ON + MarketingOptInBanner,opt_in_pct,37.5,,pending,直近30日48人中18人
+exp-003,2026-08-07,paywall,出所別にpaywall到達→クリックを分解して離脱箇所を特定する,paywall_click イベント + checkout_click_source,checkout_from_paywall_pct,16.0,,pending,直近30日 paywall到達25人→checkoutクリック4人
+exp-004,,trial,（未着手）メインクエスト第2章ロック時の訴求を出所別データで改善する,,trial_start_pct,8.33,,pending,直近30日48人中4人。exp-003の出所別データが溜まってから設計する

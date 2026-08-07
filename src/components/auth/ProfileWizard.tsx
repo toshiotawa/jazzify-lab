@@ -18,7 +18,7 @@ const ProfileWizard: React.FC = () => {
   const { createProfile, hasProfile, error, profile } = useAuthStore();
   const [nickname,setNickname] = useState('');
   const [agreed,setAgreed] = useState(false);
-  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(false);
+  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(true);
   const toast = useToast();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({

@@ -38,7 +38,9 @@
     "optimize-ear-training-battle-sprites": "node ./scripts/optimize-ear-training-battle-sprites.mjs",
     "survival-voicing": "node ./scripts/survival-progression-voicings.mjs",
     "verify:node": "node ./scripts/ensure-node.mjs",
-    "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs"
+    "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs",
+    "growth:snapshot": "node growth/snapshot.mjs",
+    "growth:links": "node growth/print-acquisition-links.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",

@@ -23,6 +23,7 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import MainQuestProgressSection from '@/components/dashboard/MainQuestProgressSection';
 import MainQuestResumeModal from '@/components/dashboard/MainQuestResumeModal';
+import MarketingOptInBanner from '@/components/dashboard/MarketingOptInBanner';
 import PlayerLevelSection from '@/components/dashboard/PlayerLevelSection';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import AchievementSummarySection from '@/components/achievements/AchievementSummarySection';
@@ -119,6 +120,7 @@ const Dashboard: React.FC = () => {
         <div className="max-w-6xl mx-auto space-y-6">
           <MainQuestProgressSection />
           <MainQuestResumeModal />
+          <MarketingOptInBanner isEnglishCopy={isEnglishCopy} />
           {!isPremiumMember && (
             <button
               type="button"

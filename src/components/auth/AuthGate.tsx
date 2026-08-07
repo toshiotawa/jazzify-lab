@@ -138,7 +138,7 @@ interface AccountModalProps {
 const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry, isEnglishCopy, termsContent }) => {
   const [nickname, setNickname] = useState('');
   const [agreed, setAgreed] = useState(false);
-  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(false);
+  const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
   const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
