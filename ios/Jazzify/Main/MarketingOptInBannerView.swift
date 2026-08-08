@@ -5,11 +5,11 @@ import SwiftUI
 struct MarketingOptInBannerView: View {
     @EnvironmentObject var appState: AppState
 
-    private static let dismissKey = "marketing_opt_in_banner_dismissed_v1"
-
     @State private var isSaving = false
-    @State private var isDismissed = UserDefaults.standard
-        .bool(forKey: MarketingOptInBannerView.dismissKey)
+    @State private var isDismissed = UserDefaults.standard.bool(forKey: dismissKey)
+
+    private static let dismissKey = "marketing_opt_in_banner_dismissed_v1"
+    private static var dismissKey_: String { dismissKey }
 
     private var locale: AppLocale { appState.locale }
 

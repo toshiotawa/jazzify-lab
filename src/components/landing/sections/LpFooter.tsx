@@ -7,7 +7,6 @@ import {
   HELP_MIDI_KEYBOARD_CHOICE_PATH,
   JAZZIFY_INSTAGRAM_URL,
   JAZZIFY_X_URL,
-  JAZZIFY_YOUTUBE_CHANNEL_URL,
 } from '@/components/landing/landingLinks';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -72,15 +71,6 @@ export const LpFooter: React.FC = () => {
                 aria-label={copy.footer.instagramAria}
               >
                 <i className="fab fa-instagram text-lg" aria-hidden="true" />
-              </a>
-              <a
-                href={JAZZIFY_YOUTUBE_CHANNEL_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="transition-colors text-[var(--lp-ink-muted)] hover:text-[var(--lp-gold-deep)]"
-                aria-label={copy.footer.youtubeAria}
-              >
-                <i className="fab fa-youtube text-lg" aria-hidden="true" />
               </a>
             </div>
           </div>

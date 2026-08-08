@@ -38,6 +38,7 @@ const FILES = [
   { name: 'mq-b2-domifa_count-in.mp3', contentType: 'audio/mpeg' },
   { name: 'mq-b2-domifa.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: 'mq-b2-domifa-guide-voice4-cue.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
+  { name: 'dev-adlib-call-response-domifa.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: 'mq-b2-soshido.mp3', contentType: 'audio/mpeg' },
   { name: 'mq-b2-soshido_count-in.mp3', contentType: 'audio/mpeg' },
   { name: 'mq-b2-soshido.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },

@@ -3,9 +3,9 @@ import SwiftUI
 struct TopView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var playerXpHub = PlayerLevelHub.shared
-    @ObservedObject private var badgeStore = AchievementBadgeStore.shared
     @State private var announcements: [AnnouncementRow] = []
     @State private var userStats: UserStats?
+    @State private var earnedBadges: [SupabaseService.UserBadgeRow] = []
 
     @State private var mainQuestProgress: SupabaseService.MainQuestProgressResult?
     @State private var mainQuestLessonToOpen: Lesson?
@@ -31,7 +31,6 @@ struct TopView: View {
                         if let bannerKind = appState.paymentIssueBannerKind {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
-                        MarketingOptInBannerView()
                         mainQuestCard
                         profileCard
                         if !appState.isPremium {
@@ -540,8 +539,8 @@ struct TopView: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                     Text(locale == .ja
-                         ? "\(AchievementBadgeCatalog.totalCount)個中 \(badgeStore.earnedCount)個 獲得"
-                         : "\(badgeStore.earnedCount)/\(AchievementBadgeCatalog.totalCount) titles earned")
+                         ? "\(AchievementBadgeCatalog.totalCount)個中 \(earnedBadges.count)個 獲得"
+                         : "\(earnedBadges.count)/\(AchievementBadgeCatalog.totalCount) titles earned")
                         .font(.subheadline)
                         .foregroundStyle(.gray)
                 }
@@ -573,7 +572,7 @@ struct TopView: View {
 
         guard let userId = profile?.id else {
             userStats = nil
-            badgeStore.clear()
+            earnedBadges = []
             mainQuestProgress = nil
             return
         }
@@ -594,13 +593,18 @@ struct TopView: View {
             }
         }()
 
-        async let badgeTask: Void = {
-            await badgeStore.refresh(userId: userId, forceSync: false, usesEnglishUi: locale == .en)
+        async let badgeTask: [SupabaseService.UserBadgeRow] = {
+            do {
+                return try await SupabaseService.shared.fetchUserBadges(userId: userId)
+            } catch {
+                return []
+            }
         }()
 
-        let (loadedStats, loadedMainQuestProgress, _) = await (statsTask, mainQuestTask, badgeTask)
+        let (loadedStats, loadedMainQuestProgress, loadedBadges) = await (statsTask, mainQuestTask, badgeTask)
         userStats = loadedStats
         mainQuestProgress = loadedMainQuestProgress
+        earnedBadges = loadedBadges
         await playerXpHub.refreshFromServer()
 
         if appState.pendingMainQuestAutoStart {
@@ -679,7 +683,12 @@ struct AchievementBadgeDefinition: Identifiable, Equatable {
     let nameEn: String
     let conditionJa: String
     let conditionEn: String
-    let imageFileName: String
+    let imagePath: String
+
+    var imageURL: URL? {
+        let base = Config.webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: base + imagePath)
+    }
 
     func localizedName(_ locale: AppLocale) -> String {
         locale == .ja ? nameJa : nameEn
@@ -700,21 +709,21 @@ enum AchievementBadgeCatalog {
     ]
 
     static let definitions: [AchievementBadgeDefinition] = [
-        AchievementBadgeDefinition(id: "survival_basic_1", categoryId: "survival_basic", rank: 1, nameJa: "基礎の第一歩", nameEn: "Basic Starter", conditionJa: "サバイバル Basic のステージ1を初回クリア", conditionEn: "Clear Survival Basic stage 1 for the first time", imageFileName: "achievement_monster_02"),
-        AchievementBadgeDefinition(id: "survival_basic_50", categoryId: "survival_basic", rank: 2, nameJa: "基礎固め", nameEn: "Basic Builder", conditionJa: "サバイバル Basic のステージ50を初回クリア", conditionEn: "Clear Survival Basic stage 50 for the first time", imageFileName: "achievement_monster_09"),
-        AchievementBadgeDefinition(id: "survival_basic_100", categoryId: "survival_basic", rank: 3, nameJa: "基礎の達人", nameEn: "Basic Master", conditionJa: "サバイバル Basic のステージ100を初回クリア", conditionEn: "Clear Survival Basic stage 100 for the first time", imageFileName: "achievement_monster_11"),
-        AchievementBadgeDefinition(id: "survival_songs_1", categoryId: "survival_songs", rank: 1, nameJa: "曲に挑む者", nameEn: "Song Challenger", conditionJa: "サバイバル Songs のステージ1を初回クリア", conditionEn: "Clear Survival Songs stage 1 for the first time", imageFileName: "achievement_monster_13"),
-        AchievementBadgeDefinition(id: "survival_songs_50", categoryId: "survival_songs", rank: 2, nameJa: "曲を渡る者", nameEn: "Song Voyager", conditionJa: "サバイバル Songs のステージ50を初回クリア", conditionEn: "Clear Survival Songs stage 50 for the first time", imageFileName: "achievement_monster_19"),
-        AchievementBadgeDefinition(id: "survival_songs_100", categoryId: "survival_songs", rank: 3, nameJa: "曲を制する者", nameEn: "Song Conqueror", conditionJa: "サバイバル Songs のステージ100を初回クリア", conditionEn: "Clear Survival Songs stage 100 for the first time", imageFileName: "achievement_monster_22"),
-        AchievementBadgeDefinition(id: "survival_phrases_1", categoryId: "survival_phrases", rank: 1, nameJa: "フレーズ見習い", nameEn: "Phrase Apprentice", conditionJa: "サバイバル Phrases のステージ1を初回クリア", conditionEn: "Clear Survival Phrases stage 1 for the first time", imageFileName: "achievement_monster_33"),
-        AchievementBadgeDefinition(id: "survival_phrases_50", categoryId: "survival_phrases", rank: 2, nameJa: "フレーズ使い", nameEn: "Phrase Handler", conditionJa: "サバイバル Phrases のステージ50を初回クリア", conditionEn: "Clear Survival Phrases stage 50 for the first time", imageFileName: "achievement_monster_35"),
-        AchievementBadgeDefinition(id: "survival_phrases_100", categoryId: "survival_phrases", rank: 3, nameJa: "フレーズマスター", nameEn: "Phrase Master", conditionJa: "サバイバル Phrases のステージ100を初回クリア", conditionEn: "Clear Survival Phrases stage 100 for the first time", imageFileName: "achievement_monster_45"),
-        AchievementBadgeDefinition(id: "player_level_2", categoryId: "player_level", rank: 1, nameJa: "駆け出しプレイヤー", nameEn: "Rising Player", conditionJa: "プレイヤーレベル2に到達", conditionEn: "Reach player level 2", imageFileName: "achievement_monster_47"),
-        AchievementBadgeDefinition(id: "player_level_50", categoryId: "player_level", rank: 2, nameJa: "実力派プレイヤー", nameEn: "Skilled Player", conditionJa: "プレイヤーレベル50に到達", conditionEn: "Reach player level 50", imageFileName: "achievement_monster_49"),
-        AchievementBadgeDefinition(id: "player_level_100", categoryId: "player_level", rank: 3, nameJa: "熟練プレイヤー", nameEn: "Veteran Player", conditionJa: "プレイヤーレベル100に到達", conditionEn: "Reach player level 100", imageFileName: "achievement_monster_51"),
-        AchievementBadgeDefinition(id: "quest_clear_1", categoryId: "quest_clear", rank: 1, nameJa: "クエスト見習い", nameEn: "Quest Rookie", conditionJa: "クエストを1個完了", conditionEn: "Complete 1 quest", imageFileName: "achievement_monster_53"),
-        AchievementBadgeDefinition(id: "quest_clear_50", categoryId: "quest_clear", rank: 2, nameJa: "クエスト冒険者", nameEn: "Quest Adventurer", conditionJa: "クエストを50個完了", conditionEn: "Complete 50 quests", imageFileName: "achievement_monster_55"),
-        AchievementBadgeDefinition(id: "quest_clear_100", categoryId: "quest_clear", rank: 3, nameJa: "クエスト制覇者", nameEn: "Quest Champion", conditionJa: "クエストを100個完了", conditionEn: "Complete 100 quests", imageFileName: "achievement_monster_59")
+        AchievementBadgeDefinition(id: "survival_basic_1", categoryId: "survival_basic", rank: 1, nameJa: "基礎の第一歩", nameEn: "Basic Starter", conditionJa: "サバイバル Basic のステージ1を初回クリア", conditionEn: "Clear Survival Basic stage 1 for the first time", imagePath: "/achivement/achievement_monster_02.png"),
+        AchievementBadgeDefinition(id: "survival_basic_50", categoryId: "survival_basic", rank: 2, nameJa: "基礎固め", nameEn: "Basic Builder", conditionJa: "サバイバル Basic のステージ50を初回クリア", conditionEn: "Clear Survival Basic stage 50 for the first time", imagePath: "/achivement/achievement_monster_09.png"),
+        AchievementBadgeDefinition(id: "survival_basic_100", categoryId: "survival_basic", rank: 3, nameJa: "基礎の達人", nameEn: "Basic Master", conditionJa: "サバイバル Basic のステージ100を初回クリア", conditionEn: "Clear Survival Basic stage 100 for the first time", imagePath: "/achivement/achievement_monster_11.png"),
+        AchievementBadgeDefinition(id: "survival_songs_1", categoryId: "survival_songs", rank: 1, nameJa: "曲に挑む者", nameEn: "Song Challenger", conditionJa: "サバイバル Songs のステージ1を初回クリア", conditionEn: "Clear Survival Songs stage 1 for the first time", imagePath: "/achivement/achievement_monster_13.png"),
+        AchievementBadgeDefinition(id: "survival_songs_50", categoryId: "survival_songs", rank: 2, nameJa: "曲を渡る者", nameEn: "Song Voyager", conditionJa: "サバイバル Songs のステージ50を初回クリア", conditionEn: "Clear Survival Songs stage 50 for the first time", imagePath: "/achivement/achievement_monster_19.png"),
+        AchievementBadgeDefinition(id: "survival_songs_100", categoryId: "survival_songs", rank: 3, nameJa: "曲を制する者", nameEn: "Song Conqueror", conditionJa: "サバイバル Songs のステージ100を初回クリア", conditionEn: "Clear Survival Songs stage 100 for the first time", imagePath: "/achivement/achievement_monster_22.png"),
+        AchievementBadgeDefinition(id: "survival_phrases_1", categoryId: "survival_phrases", rank: 1, nameJa: "フレーズ見習い", nameEn: "Phrase Apprentice", conditionJa: "サバイバル Phrases のステージ1を初回クリア", conditionEn: "Clear Survival Phrases stage 1 for the first time", imagePath: "/achivement/achievement_monster_33.png"),
+        AchievementBadgeDefinition(id: "survival_phrases_50", categoryId: "survival_phrases", rank: 2, nameJa: "フレーズ使い", nameEn: "Phrase Handler", conditionJa: "サバイバル Phrases のステージ50を初回クリア", conditionEn: "Clear Survival Phrases stage 50 for the first time", imagePath: "/achivement/achievement_monster_35.png"),
+        AchievementBadgeDefinition(id: "survival_phrases_100", categoryId: "survival_phrases", rank: 3, nameJa: "フレーズマスター", nameEn: "Phrase Master", conditionJa: "サバイバル Phrases のステージ100を初回クリア", conditionEn: "Clear Survival Phrases stage 100 for the first time", imagePath: "/achivement/achievement_monster_45.png"),
+        AchievementBadgeDefinition(id: "player_level_2", categoryId: "player_level", rank: 1, nameJa: "駆け出しプレイヤー", nameEn: "Rising Player", conditionJa: "プレイヤーレベル2に到達", conditionEn: "Reach player level 2", imagePath: "/achivement/achievement_monster_47.png"),
+        AchievementBadgeDefinition(id: "player_level_50", categoryId: "player_level", rank: 2, nameJa: "実力派プレイヤー", nameEn: "Skilled Player", conditionJa: "プレイヤーレベル50に到達", conditionEn: "Reach player level 50", imagePath: "/achivement/achievement_monster_49.png"),
+        AchievementBadgeDefinition(id: "player_level_100", categoryId: "player_level", rank: 3, nameJa: "熟練プレイヤー", nameEn: "Veteran Player", conditionJa: "プレイヤーレベル100に到達", conditionEn: "Reach player level 100", imagePath: "/achivement/achievement_monster_51.png"),
+        AchievementBadgeDefinition(id: "quest_clear_1", categoryId: "quest_clear", rank: 1, nameJa: "クエスト見習い", nameEn: "Quest Rookie", conditionJa: "クエストを1個完了", conditionEn: "Complete 1 quest", imagePath: "/achivement/achievement_monster_53.png"),
+        AchievementBadgeDefinition(id: "quest_clear_50", categoryId: "quest_clear", rank: 2, nameJa: "クエスト冒険者", nameEn: "Quest Adventurer", conditionJa: "クエストを50個完了", conditionEn: "Complete 50 quests", imagePath: "/achivement/achievement_monster_55.png"),
+        AchievementBadgeDefinition(id: "quest_clear_100", categoryId: "quest_clear", rank: 3, nameJa: "クエスト制覇者", nameEn: "Quest Champion", conditionJa: "クエストを100個完了", conditionEn: "Complete 100 quests", imagePath: "/achivement/achievement_monster_59.png")
     ]
 
     static var totalCount: Int { definitions.count }
@@ -730,11 +739,14 @@ enum AchievementBadgeCatalog {
 
 struct AchievementListView: View {
     @EnvironmentObject var appState: AppState
-    @ObservedObject private var badgeStore = AchievementBadgeStore.shared
+    @State private var earnedBadges: [SupabaseService.UserBadgeRow] = []
     @State private var selectedBadge: AchievementBadgeDefinition?
-    @State private var medalImagesReady = false
+    @State private var isLoading = true
 
     private var locale: AppLocale { appState.locale }
+    private var earnedById: [String: SupabaseService.UserBadgeRow] {
+        Dictionary(uniqueKeysWithValues: earnedBadges.map { ($0.badgeId, $0) })
+    }
 
     var body: some View {
         ZStack {
@@ -748,20 +760,26 @@ struct AchievementListView: View {
                                 .font(.title2.bold())
                                 .foregroundStyle(.white)
                             Text(locale == .ja
-                                 ? "\(AchievementBadgeCatalog.totalCount)個中 \(badgeStore.earnedCount)個 獲得"
-                                 : "\(badgeStore.earnedCount)/\(AchievementBadgeCatalog.totalCount) earned")
+                                 ? "\(AchievementBadgeCatalog.totalCount)個中 \(earnedBadges.count)個 獲得"
+                                 : "\(earnedBadges.count)/\(AchievementBadgeCatalog.totalCount) earned")
                                 .font(.subheadline)
                                 .foregroundStyle(.gray)
                         }
                         Spacer()
                     }
 
-                    LazyVStack(spacing: 14) {
-                        ForEach(AchievementBadgeCatalog.categories) { category in
-                            achievementCategorySection(category)
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
+                    } else {
+                        LazyVStack(spacing: 14) {
+                            ForEach(AchievementBadgeCatalog.categories) { category in
+                                achievementCategorySection(category)
+                            }
                         }
                     }
-                    .id(medalImagesReady)
                 }
                 .padding()
             }
@@ -771,14 +789,8 @@ struct AchievementListView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .task {
-            await loadBadges(forceSync: false)
-            await Task.detached {
-                await AchievementBadgeAssets.preloadAll(displaySize: AchievementBadgeAssets.listDisplaySize)
-            }.value
-            medalImagesReady = true
-        }
-        .refreshable { await loadBadges(forceSync: true) }
+        .task { await loadBadges() }
+        .refreshable { await loadBadges() }
         .onAppear {
             LessonMapAudio.shared.stop()
             SurvivalMapAudio.shared.stop()
@@ -786,9 +798,8 @@ struct AchievementListView: View {
         .sheet(item: $selectedBadge) { badge in
             AchievementBadgeDetailSheet(
                 badge: badge,
-                earnedBadge: badgeStore.earnedById[badge.id],
-                locale: locale,
-                hasLoadedFromServer: badgeStore.hasLoadedFromServer
+                earnedBadge: earnedById[badge.id],
+                locale: locale
             )
         }
     }
@@ -815,9 +826,7 @@ struct AchievementListView: View {
     }
 
     private func achievementBadgeRow(_ badge: AchievementBadgeDefinition) -> some View {
-        let earnedBadge = badgeStore.earnedById[badge.id]
-        let earned = earnedBadge != nil
-        let statusKnown = badgeStore.hasLoadedFromServer
+        let earned = earnedById[badge.id] != nil
         return Button {
             if earned {
                 QuestJinglePlayer.playPreComplete()
@@ -826,12 +835,8 @@ struct AchievementListView: View {
         } label: {
             HStack(spacing: 14) {
                 ZStack {
-                    achievementMedalImage(
-                        badge: badge,
-                        earned: statusKnown ? earned : true,
-                        size: AchievementBadgeAssets.listDisplaySize
-                    )
-                    if statusKnown && !earned {
+                    achievementMedalImage(badge: badge, earned: earned, size: 64)
+                    if !earned {
                         Circle()
                             .fill(Color.black.opacity(0.35))
                         Image(systemName: "lock.fill")
@@ -849,15 +854,9 @@ struct AchievementListView: View {
                         .font(.subheadline.bold())
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.leading)
-                    if statusKnown {
-                        Text(earned ? (locale == .ja ? "獲得済み" : "Earned") : (locale == .ja ? "未獲得" : "Locked"))
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    } else {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(hex: "334155"))
-                            .frame(width: 56, height: 12)
-                    }
+                    Text(earned ? (locale == .ja ? "獲得済み" : "Earned") : (locale == .ja ? "未獲得" : "Locked"))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -877,38 +876,44 @@ struct AchievementListView: View {
         earned: Bool,
         size: CGFloat
     ) -> some View {
-        Group {
-            if let uiImage = AchievementBadgeAssets.cachedImage(
-                fileName: badge.imageFileName,
-                displaySize: size
-            ) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Circle()
-                    .fill(Color(hex: "334155"))
-                    .overlay {
-                        Image(systemName: "medal.fill")
-                            .foregroundStyle(Color(hex: "94a3b8"))
-                    }
-            }
+        AsyncImage(url: badge.imageURL) { image in
+            image
+                .resizable()
+                .scaledToFit()
+        } placeholder: {
+            Circle()
+                .fill(Color(hex: "334155"))
+                .overlay {
+                    Image(systemName: "medal.fill")
+                        .foregroundStyle(Color(hex: "94a3b8"))
+                }
         }
         .frame(width: size, height: size)
         .saturation(earned ? 1 : 0)
         .opacity(earned ? 1 : 0.35)
     }
 
-    private func loadBadges(forceSync: Bool) async {
+    private func loadBadges() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let granted = try await SupabaseService.shared.syncUserBadges()
+            PlayerLevelHub.shared.ingestAchievementBadges(granted, usesEnglishUi: locale == .en)
+        } catch {
+            /* 遅延付与に失敗しても一覧表示は続行 */
+        }
+
         guard let userId = appState.profile?.id else {
-            badgeStore.clear()
+            earnedBadges = []
             return
         }
-        await badgeStore.refresh(
-            userId: userId,
-            forceSync: forceSync,
-            usesEnglishUi: locale == .en
-        )
+
+        do {
+            earnedBadges = try await SupabaseService.shared.fetchUserBadges(userId: userId)
+        } catch {
+            earnedBadges = []
+        }
     }
 }
 
@@ -916,7 +921,6 @@ private struct AchievementBadgeDetailSheet: View {
     let badge: AchievementBadgeDefinition
     let earnedBadge: SupabaseService.UserBadgeRow?
     let locale: AppLocale
-    let hasLoadedFromServer: Bool
 
     var body: some View {
         ZStack {
@@ -927,27 +931,22 @@ private struct AchievementBadgeDetailSheet: View {
                     .font(.headline)
                     .foregroundStyle(Color(hex: "fde68a"))
 
-                Group {
-                    if let uiImage = AchievementBadgeAssets.cachedImage(
-                        fileName: badge.imageFileName,
-                        displaySize: AchievementBadgeAssets.detailDisplaySize
-                    ) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        Circle()
-                            .fill(Color(hex: "334155"))
-                            .overlay {
-                                Image(systemName: "medal.fill")
-                                    .font(.largeTitle)
-                                    .foregroundStyle(Color(hex: "94a3b8"))
-                            }
-                    }
+                AsyncImage(url: badge.imageURL) { image in
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } placeholder: {
+                    Circle()
+                        .fill(Color(hex: "334155"))
+                        .overlay {
+                            Image(systemName: "medal.fill")
+                                .font(.largeTitle)
+                                .foregroundStyle(Color(hex: "94a3b8"))
+                        }
                 }
-                .frame(width: AchievementBadgeAssets.detailDisplaySize, height: AchievementBadgeAssets.detailDisplaySize)
-                .saturation(earnedBadge == nil && hasLoadedFromServer ? 0 : 1)
-                .opacity(earnedBadge == nil && hasLoadedFromServer ? 0.35 : 1)
+                .frame(width: 150, height: 150)
+                .saturation(earnedBadge == nil ? 0 : 1)
+                .opacity(earnedBadge == nil ? 0.35 : 1)
 
                 VStack(spacing: 6) {
                     Text(badge.localizedName(locale))
@@ -967,9 +966,7 @@ private struct AchievementBadgeDetailSheet: View {
                     detailRow(
                         title: locale == .ja ? "獲得日" : "Earned date",
                         body: earnedBadge.map { formattedDate($0.earnedAt) }
-                            ?? (hasLoadedFromServer
-                                ? (locale == .ja ? "未獲得" : "Not earned yet")
-                                : (locale == .ja ? "読み込み中…" : "Loading…"))
+                            ?? (locale == .ja ? "未獲得" : "Not earned yet")
                     )
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

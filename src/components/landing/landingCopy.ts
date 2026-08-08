@@ -124,14 +124,6 @@ export interface LandingViralTweetCopy {
   translationText?: string;
 }
 
-export interface LandingChordRunVideoCopy {
-  heading: string;
-  caption: string;
-  thumbnailAlt: string;
-  playLabel: string;
-  iframeTitle: string;
-}
-
 interface LandingModesCopy {
   eyebrow: string;
   heading: string;
@@ -139,8 +131,6 @@ interface LandingModesCopy {
   survival: LandingModeItem;
   battle: LandingModeItem;
   viralTweet: LandingViralTweetCopy;
-  /** 日本語LPのみ。英語版には該当する動画がないため未定義 */
-  chordRunVideo?: LandingChordRunVideoCopy;
 }
 
 interface LandingPlatformCard {
@@ -256,7 +246,6 @@ interface LandingFooterCopy {
   appStoreAria: string;
   xAria: string;
   instagramAria: string;
-  youtubeAria: string;
 }
 
 interface LandingSeoCopy {
@@ -501,14 +490,6 @@ const COPY_JA: LandingCopy = {
       imageAlt: 'バトルモードのプレイ画面',
     },
     viralTweet: {},
-    chordRunVideo: {
-      heading: 'コードランを、動画で見る',
-      caption:
-        '「苦行のコード練習が遊びに変わる？」— ジャズ沼ラジオで、コードランを実際にプレイしている回です。',
-      thumbnailAlt: 'コードランのプレイ動画サムネイル',
-      playLabel: '動画を再生する',
-      iframeTitle: '苦行のコード練習が遊びに変わる？新感覚のジャズ習得法を試してみた',
-    },
   },
   platforms: {
     heading: '始めるのに必要なもの',
@@ -699,7 +680,6 @@ const COPY_JA: LandingCopy = {
     appStoreAria: 'App StoreでJazzifyをダウンロード',
     xAria: 'Jazzify公式X（@jazz_ad_lib）',
     instagramAria: '開発者Instagram（@toshio_jazzpiano）',
-    youtubeAria: 'YouTube「ジャズ沼ラジオ」（@jazzswampradio）',
   },
 };
 
@@ -1101,7 +1081,6 @@ const COPY_EN: LandingCopy = {
     appStoreAria: 'Download Jazzify on the App Store',
     xAria: 'Jazzify on X (@jazz_ad_lib)',
     instagramAria: 'Developer Instagram (@toshio_jazzpiano)',
-    youtubeAria: 'YouTube: Jazz Swamp Radio (@jazzswampradio)',
   },
 };
 

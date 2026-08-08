@@ -1,6 +1,5 @@
 import React from 'react';
 import { getLandingCopy, type LandingModeItem } from '@/components/landing/landingCopy';
-import { LpChordRunVideo } from '@/components/landing/sections/LpChordRunVideo';
 import { LpViralTweetEmbed } from '@/components/landing/sections/LpViralTweetEmbed';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -41,7 +40,6 @@ const ModeCard: React.FC<ModeCardProps> = ({ mode, imageSrc, imageWidth, imageHe
 export const LpModes: React.FC = () => {
   const isEnglishCopy = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglishCopy);
-  const chordRunVideo = copy.modes.chordRunVideo;
 
   const modes: Array<{
     mode: LandingModeItem;
@@ -98,12 +96,6 @@ export const LpModes: React.FC = () => {
             />
           ))}
         </div>
-
-        {chordRunVideo ? (
-          <div className="max-w-3xl mx-auto mt-14" data-animate="from-behind">
-            <LpChordRunVideo copy={chordRunVideo} />
-          </div>
-        ) : null}
 
         {!isEnglishCopy ? (
           <div className="max-w-5xl mx-auto mt-12">
