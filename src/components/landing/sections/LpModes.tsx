@@ -1,5 +1,6 @@
 import React from 'react';
 import { getLandingCopy, type LandingModeItem } from '@/components/landing/landingCopy';
+import { LpChordRunVideo } from '@/components/landing/sections/LpChordRunVideo';
 import { LpViralTweetEmbed } from '@/components/landing/sections/LpViralTweetEmbed';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -40,6 +41,7 @@ const ModeCard: React.FC<ModeCardProps> = ({ mode, imageSrc, imageWidth, imageHe
 export const LpModes: React.FC = () => {
   const isEnglishCopy = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglishCopy);
+  const chordRunVideo = copy.modes.chordRunVideo;
 
   const modes: Array<{
     mode: LandingModeItem;
@@ -96,6 +98,35 @@ export const LpModes: React.FC = () => {
             />
           ))}
         </div>
+
+        {chordRunVideo ? (
+          <div className="max-w-3xl mx-auto mt-14" data-animate="from-behind">
+            <LpChordRunVideo copy={chordRunVideo} />
+            <div className="lp-chord-run-comments">
+              <h4 className="lp-eyebrow text-center mb-4">{chordRunVideo.commentsHeading}</h4>
+              <figure className="lp-chord-run-comment">
+                <img
+                  src="/newLP/chord-run-comment-1.webp"
+                  alt={chordRunVideo.comment1Alt}
+                  width={1024}
+                  height={83}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+              <figure className="lp-chord-run-comment">
+                <img
+                  src="/newLP/chord-run-comment-2.webp"
+                  alt={chordRunVideo.comment2Alt}
+                  width={1024}
+                  height={247}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
+            </div>
+          </div>
+        ) : null}
 
         {!isEnglishCopy ? (
           <div className="max-w-5xl mx-auto mt-12">
