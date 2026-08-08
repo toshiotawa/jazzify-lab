@@ -142,6 +142,28 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    /// 既存ユーザーがトップ画面のバナーからメルマガを購読するときの更新。
+    /// Web の `MarketingOptInBanner` と同じ列・同じ証跡を書く。
+    func enableMarketingEmailOptIn(userId: UUID, consentText: String) async throws {
+        struct OptInUpdate: Encodable {
+            let marketing_email_opt_in: Bool
+            let marketing_email_opt_in_at: String
+            let marketing_email_opt_in_source: String
+            let marketing_email_opt_in_text: String
+        }
+
+        try await client
+            .from("profiles")
+            .update(OptInUpdate(
+                marketing_email_opt_in: true,
+                marketing_email_opt_in_at: ISO8601DateFormatter().string(from: Date()),
+                marketing_email_opt_in_source: MarketingEmailOptIn.bannerSource,
+                marketing_email_opt_in_text: consentText
+            ))
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+
     /// 登録直後メール（day0・PDF配布）送信をfire-and-forgetで依頼。
     /// 失敗しても marketingDripCron が1時間以内に day0 を拾うためベストエフォートでよい。
     func sendMarketingWelcomeEmail() async {

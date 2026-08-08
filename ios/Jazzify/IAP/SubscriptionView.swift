@@ -572,7 +572,7 @@ struct SubscriptionView: View {
 
             Button {
                 if let userId = appState.profile?.id {
-                    AnalyticsTracker.trackBeginCheckout(userId: userId)
+                    AnalyticsTracker.trackBeginCheckout(userId: userId, source: entry.analyticsSource)
                 }
                 Task {
                     try? await store.purchase(product)

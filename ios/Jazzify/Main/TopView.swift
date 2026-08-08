@@ -31,6 +31,7 @@ struct TopView: View {
                         if let bannerKind = appState.paymentIssueBannerKind {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
+                        MarketingOptInBannerView()
                         mainQuestCard
                         profileCard
                         if !appState.isPremium {

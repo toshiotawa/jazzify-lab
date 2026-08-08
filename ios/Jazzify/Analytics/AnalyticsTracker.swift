@@ -47,9 +47,12 @@ enum AnalyticsTracker {
         ])
     }
 
-    static func trackBeginCheckout(userId: UUID) {
-        sendGa4Event(name: "begin_checkout", params: ["platform": "ios"])
-        recordMilestone(userId: userId, milestone: "checkout_click")
+    static func trackBeginCheckout(userId: UUID, source: String) {
+        sendGa4Event(name: "begin_checkout", params: [
+            "source": source,
+            "platform": "ios",
+        ])
+        recordMilestone(userId: userId, milestone: "checkout_click", source: source)
     }
 
     static func trackPurchase(

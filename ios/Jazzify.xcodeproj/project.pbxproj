@@ -164,6 +164,7 @@
 		8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = D1E8E57E80A86CD8B5085935 /* onboarding-v1.script.json */; };
 		85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */ = {isa = PBXBuildFile; fileRef = 3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */; };
 		86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88453408DE12301997E620A /* MarketingEmailOptIn.swift */; };
+		7A1C4E92B3D5F60184C2A551 /* MarketingOptInBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */; };
 		88BF5507F33E2B9151249B69 /* EarTrainingChordOSMDBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A2408B86EDFD3C9580B10 /* EarTrainingChordOSMDBattleController.swift */; };
 		89FAEA77448F4B9C8274E9E1 /* SurvivalTutorialV3LineRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C534FAFEEA1C8A565DD844F6 /* SurvivalTutorialV3LineRouter.swift */; };
 		8A098B08735F68AC5D8A2E4E /* DrumLoop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 8761ED966B44CC4D71AF1614 /* DrumLoop.mp3 */; };
@@ -516,6 +517,7 @@
 		C82FD3D55152BDBC04A380C3 /* SurvivalMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalMode.swift; sourceTree = "<group>"; };
 		C86FD0A420162EC69DDE355F /* SurvivalTutorialV3StageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3StageBuilder.swift; sourceTree = "<group>"; };
 		C88453408DE12301997E620A /* MarketingEmailOptIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingEmailOptIn.swift; sourceTree = "<group>"; };
+		7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingOptInBannerView.swift; sourceTree = "<group>"; };
 		C975F62A45264DE86D940B45 /* SurvivalBackgroundCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBackgroundCache.swift; sourceTree = "<group>"; };
 		C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameView.swift; sourceTree = "<group>"; };
 		CA4891DB516CEFBCBBDF5389 /* ear-training-osmd-timing-adjustment-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ear-training-osmd-timing-adjustment-v1.script.json"; sourceTree = "<group>"; };
@@ -1223,6 +1225,7 @@
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
 				3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
+				7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */,
 				CE37C824003D0142D6E454EB /* PianoKeyboardDisplayModeSection.swift */,
 				AD142C35C72EBF8541B8AC85 /* PianoKeyboardDisplayPreferences.swift */,
 				756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */,
@@ -1549,6 +1552,7 @@
 				0B022E9FC737C56AED2D38A4 /* MainQuestResumeSheet.swift in Sources */,
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,
 				86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */,
+				7A1C4E92B3D5F60184C2A551 /* MarketingOptInBannerView.swift in Sources */,
 				1836E94E9A39B90584E12D6B /* MidiConnectionGuideView.swift in Sources */,
 				D831F538CDB3901677BB1813 /* MidiKeyboardBuyingGuideView.swift in Sources */,
 				1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */,
@@ -1770,7 +1774,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.4.5;
+				MARKETING_VERSION = 1.4.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1853,7 +1857,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.4.5;
+				MARKETING_VERSION = 1.4.6;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

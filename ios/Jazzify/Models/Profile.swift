@@ -12,6 +12,8 @@ struct Profile: Codable, Identifiable, Sendable {
     var country: String?
     var signupPlatform: String?
     var isAdmin: Bool
+    /// メルマガ許諾。列が無い古いレスポンスでも壊れないよう optional で受ける
+    var marketingEmailOptIn: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, email, nickname, rank, xp, level, country
@@ -19,6 +21,7 @@ struct Profile: Codable, Identifiable, Sendable {
         case preferredLocale = "preferred_locale"
         case signupPlatform = "signup_platform"
         case isAdmin = "is_admin"
+        case marketingEmailOptIn = "marketing_email_opt_in"
     }
 }
 

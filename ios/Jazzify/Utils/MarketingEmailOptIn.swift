@@ -25,4 +25,6 @@ enum MarketingEmailOptIn {
     }
 
     static let source = "ios_signup_wizard"
+    /// 登録時にチェックし損ねた既存ユーザーを、トップ画面のバナーから回収するときの出所
+    static let bannerSource = "ios_dashboard_banner"
 }
