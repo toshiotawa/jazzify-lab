@@ -1,8 +1,10 @@
 import {
   buildLickAudioContentKey,
   buildMarketingTrackedUrl,
+  MARKETING_CHORD_RUN_VIDEO_URL,
   MARKETING_EMAIL_PATHS,
   MARKETING_LICK_AUDIO_PATHS,
+  MARKETING_YOUTUBE_CHANNEL_URL,
   type MarketingEmailKey,
   type MarketingEmailLocale,
 } from './marketingEmailUrls';
@@ -81,6 +83,10 @@ const trackedCta = (
   path: string,
   text: string,
 ): string => ctaButton(trackedUrl(ctx, content, path), text);
+
+/** 質問・不具合の受け口。メール返信ではなくお問い合わせフォームに集約する */
+const contactLink = (ctx: MarketingEmailBuildContext, text: string): string =>
+  trackedLink(ctx, 'link_contact', MARKETING_EMAIL_PATHS.contact, text);
 
 const buildLickTable = (ctx: MarketingEmailBuildContext): string => {
   const slowLabel = ctx.locale === 'ja' ? 'スロー' : 'Slow';
@@ -343,59 +349,327 @@ const buildDay3Body = (ctx: MarketingEmailBuildContext): string => {
   return parts.join('');
 };
 
-const buildFreeClearedNudgeBody = (ctx: MarketingEmailBuildContext): string => {
+const buildPaywallNudgeBody = (ctx: MarketingEmailBuildContext): string => {
   if (ctx.locale === 'ja') {
     const trialBlock = ctx.includeTrialCta
       ? (ctx.platform === 'ios'
         ? paragraph(
-            '第2チャプター以降をプレイするには、Jazzifyアプリの「設定 → サブスクリプション」から7日間の無料トライアルを始められます。',
+            '7日間の無料トライアルは、Jazzifyアプリの「設定 → サブスクリプション」から始められます。',
           )
         : paragraph(
-            `第2チャプター以降をプレイするには、7日間の無料トライアルでメインクエストの続きを開けます。${trackedLink(ctx, 'cta_trial', MARKETING_EMAIL_PATHS.account, '無料トライアルを見てみる')}`,
+            `7日間の無料トライアルで、第2チャプター以降とBluesy Licksコースが開きます。${trackedLink(ctx, 'cta_trial', MARKETING_EMAIL_PATHS.account, '無料トライアルを見てみる')}`,
           ))
       : (ctx.platform === 'ios'
         ? paragraph(
-            '第2チャプター以降をプレイするには、Jazzifyアプリの「設定 → サブスクリプション」からプレミアムに加入できます。',
+            '続きをプレイするには、Jazzifyアプリの「設定 → サブスクリプション」からプレミアムに加入できます。',
           )
         : paragraph(
-            `第2チャプター以降をプレイするには、プレミアムでメインクエストの続きを開けます。${trackedLink(ctx, 'cta_premium', MARKETING_EMAIL_PATHS.account, 'プレミアムを見る')}`,
+            `続きをプレイするには、プレミアムでメインクエストの先を開けます。${trackedLink(ctx, 'cta_premium', MARKETING_EMAIL_PATHS.account, 'プレミアムを見る')}`,
           ));
 
     return [
-      paragraph('メインクエスト第1チャプターをクリアしましたね。お疲れさまでした。'),
       paragraph(
-        'ここまで来ると、「音を聴いて反応する」感覚が少しずつ身についてきているはずです。次はCブルースのコードをつかむ第2チャプターへ進み、さらにアドリブの幅を広げていきましょう。',
+        'メインクエストの無料範囲を最後まで進めて、その先でロックに当たったところですね。中断させてしまってすみません。',
       ),
-      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'クエスト一覧を開く'),
+      paragraph(
+        '止められた側からすると「この先に何があるか分からないのに払えない」というのが正直なところだと思うので、第2チャプター以降の中身を先にお伝えします。',
+      ),
+      paragraph(
+        '第2チャプターでは、Cブルースのコードを実際に押さえながら、コードネームを見て手が出るところまで持っていきます。第1チャプターで作った「聴いて返す」反応を、今度はコード進行の上でやる形です。ここを抜けると、ブルースのセッションで最低限ついていける状態になります。',
+      ),
       trialBlock,
-      paragraph('分からないことや不具合があれば、このメールにそのまま返信してください。'),
+      paragraph(
+        `すぐ決めなくて大丈夫です。無料で遊べるサバイバルの最初のブロックも残っています。${trackedLink(ctx, 'link_survival', MARKETING_EMAIL_PATHS.survival, 'サバイバルを開く')}`,
+      ),
+      paragraph(
+        `判断に必要な情報が足りなければ、${contactLink(ctx, 'お問い合わせフォーム')}から聞いてください。`,
+      ),
     ].join('');
   }
 
   const trialBlock = ctx.includeTrialCta
     ? (ctx.platform === 'ios'
       ? paragraph(
-          'To play Chapter 2 and beyond, open the Jazzify app and go to Settings → Subscriptions to start your 7-day free trial.',
+          'To start your 7-day free trial, open the Jazzify app and go to Settings → Subscriptions.',
         )
       : paragraph(
-          `To continue Main Quest, start a 7-day free trial and unlock Chapter 2. ${trackedLink(ctx, 'cta_trial', MARKETING_EMAIL_PATHS.account, 'See the free trial')}`,
+          `A 7-day free trial unlocks Chapter 2 onward plus the Bluesy Licks course. ${trackedLink(ctx, 'cta_trial', MARKETING_EMAIL_PATHS.account, 'See the free trial')}`,
         ))
     : (ctx.platform === 'ios'
       ? paragraph(
-          'To play Chapter 2 and beyond, open the Jazzify app and go to Settings → Subscriptions.',
+          'To keep going, open the Jazzify app and go to Settings → Subscriptions.',
         )
       : paragraph(
-          `Continue Main Quest with Premium. ${trackedLink(ctx, 'cta_premium', MARKETING_EMAIL_PATHS.account, 'See Premium')}`,
+          `To keep going, Premium unlocks the rest of Main Quest. ${trackedLink(ctx, 'cta_premium', MARKETING_EMAIL_PATHS.account, 'See Premium')}`,
         ));
 
   return [
-    paragraph('You cleared Main Quest Chapter 1 — nice work.'),
     paragraph(
-      'By now, listening and reacting on the keys should feel a little more natural. Next up: Chapter 2, where you get a grip on C Blues chords and expand your improvising.',
+      'You played through the free part of Main Quest and hit the lock right after. Sorry for the interruption.',
     ),
-    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Open the quest list'),
+    paragraph(
+      'From your side it probably feels like "I can\'t pay for something when I don\'t know what\'s behind it," so here is what Chapter 2 onward actually contains.',
+    ),
+    paragraph(
+      'In Chapter 2 you put your hands on C Blues chords until seeing a chord name is enough to make your hands move. It takes the listen-and-respond reflex from Chapter 1 and puts it on top of a chord progression. Clear it and you can hold your own in a blues session.',
+    ),
     trialBlock,
-    paragraph('Questions or bugs? Just reply to this email — we read every message.'),
+    paragraph(
+      `No rush on deciding. The first block of Survival is still free to play. ${trackedLink(ctx, 'link_survival', MARKETING_EMAIL_PATHS.survival, 'Open Survival')}`,
+    ),
+    paragraph(
+      `If you need more information to decide, ask us through the ${contactLink(ctx, 'contact form')}.`,
+    ),
+  ].join('');
+};
+
+const buildDay7Body = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph('Jazzifyに登録いただいてから、1週間が経ちました。'),
+      paragraph(
+        'もう何度か触っていただけた方も、まだ開けていない方もいると思います。開けていなくても気にしないでください。ここで止まる人はとても多いです。',
+      ),
+      paragraph(
+        'よくあるつまずきを3つ挙げます。心当たりのあるものだけ、解消してみてください。',
+      ),
+      paragraph(
+        `<strong style="color:#e2e8f0;">1. MIDIキーボードが認識されない</strong><br>充電専用のUSBケーブルを使っている、あるいは他のアプリが先に鍵盤をつかんでいる、というのがよくある原因です。${trackedLink(ctx, 'link_midi_connect', MARKETING_EMAIL_PATHS.iosMidi, '接続方法はこちら')}にまとめました。鍵盤が手元になくても、画面上の鍵盤で最初のクエストは遊べます。`,
+      ),
+      paragraph(
+        '<strong style="color:#e2e8f0;">2. テンポが速くて追いつかない</strong><br>速度は落として構いません。ゆっくり正確に返せるほうが、速く曖昧に叩くよりずっと身につきます。',
+      ),
+      paragraph(
+        '<strong style="color:#e2e8f0;">3. 理論が分からないまま進めていいのか不安</strong><br>大丈夫です。Jazzifyは「聴いて反応する」を先に作る設計になっています。理論は後から意味がつながります。',
+      ),
+      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'クエストの続きを開く'),
+      paragraph(
+        `この3つで解決しないときは、${contactLink(ctx, 'お問い合わせフォーム')}から状況を教えてください。環境まわりの問題は、こちらで再現できることが多いです。`,
+      ),
+      paragraph(
+        `新しいクエストやフレーズの紹介は、YouTube「${link(MARKETING_YOUTUBE_CHANNEL_URL, 'ジャズ沼ラジオ')}」でも流しています。`,
+      ),
+    ].join('');
+  }
+
+  return [
+    paragraph('It has been a week since you signed up for Jazzify.'),
+    paragraph(
+      'Maybe you have played a few times, maybe you have not opened it yet. If you have not, do not worry about it — this is where most people stall.',
+    ),
+    paragraph('Here are the three most common sticking points. Fix only the ones that apply to you.'),
+    paragraph(
+      `<strong style="color:#e2e8f0;">1. Your MIDI keyboard is not detected</strong><br>Usually it is a charge-only USB cable, or another app grabbed the keyboard first. ${trackedLink(ctx, 'link_midi_connect', MARKETING_EMAIL_PATHS.iosMidi, 'Here is how to connect')}. No keyboard on hand? The on-screen keys are enough for the first quest.`,
+    ),
+    paragraph(
+      '<strong style="color:#e2e8f0;">2. The tempo is too fast to keep up</strong><br>Slow it down. Playing back slowly and accurately builds far more than hitting fast and vague.',
+    ),
+    paragraph(
+      '<strong style="color:#e2e8f0;">3. You are unsure about moving on without the theory</strong><br>You are fine. Jazzify builds the listen-and-respond reflex first. The theory starts making sense afterwards.',
+    ),
+    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Pick up where you left off'),
+    paragraph(
+      `If none of these three solve it, tell us what is happening through the ${contactLink(ctx, 'contact form')}. Setup issues are usually reproducible on our side.`,
+    ),
+  ].join('');
+};
+
+const buildDay14Body = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph(
+        'メインクエストの第1チャプターまで進んだところで、続きがロックされて止まってしまった方もいると思います。',
+      ),
+      paragraph(
+        '実は、無料のままでも遊べる場所がもう1つあります。サバイバルモードの最初のブロックです。',
+      ),
+      paragraph(
+        'サバイバルは、クエストで出てきた短いフレーズやコードを、ゲームとして繰り返し反復するモードです。同じ課題を「練習」として何度もやるのは飽きますが、ゲームの形になっていると自然と回数が増えます。ジャズの反応速度は、結局のところ回数で決まります。',
+      ),
+      trackedCta(ctx, 'cta_survival', MARKETING_EMAIL_PATHS.survival, 'サバイバルを開く'),
+      paragraph(
+        `どんな雰囲気のモードかは、${link(MARKETING_CHORD_RUN_VIDEO_URL, 'この動画（コードランのプレイ回）')}が分かりやすいと思います。`,
+      ),
+      paragraph(
+        `もし第1チャプターをまだ終えていなければ、そちらが先です。10分で終わります。${trackedLink(ctx, 'link_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'メインクエストに戻る')}`,
+      ),
+    ].join('');
+  }
+
+  return [
+    paragraph(
+      'If you reached the end of Main Quest Chapter 1 and hit the lock, you may have stopped there.',
+    ),
+    paragraph(
+      'There is one more place you can play for free: the first block of Survival mode.',
+    ),
+    paragraph(
+      'Survival turns the short phrases and chords from the quests into a repeatable game. Drilling the same material as "practice" gets old fast; as a game, the reps add up on their own. And reps are what jazz reflexes are made of.',
+    ),
+    trackedCta(ctx, 'cta_survival', MARKETING_EMAIL_PATHS.survival, 'Open Survival'),
+    paragraph(
+      `Have not finished Chapter 1 yet? Do that first — it takes about 10 minutes. ${trackedLink(ctx, 'link_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Back to Main Quest')}`,
+    ),
+  ].join('');
+};
+
+const buildDay21Body = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    const parts = [
+      paragraph(
+        'ジャズの教則動画やレッスン動画は、いまいくらでもあります。それでも「知識は増えたのに、いざセッションになると手が動かない」という状態になりやすい。',
+      ),
+      paragraph('理由はシンプルで、動画を見ている間、こちらは反応していないからです。'),
+      paragraph(
+        'コードネームを見て手が動く。フレーズを聴いてすぐ返せる。これは知識ではなく反応で、反応は反応した回数でしか育ちません。Jazzifyがゲームの形をしているのはそのためです。正解を教わるのではなく、その場で返す回数を稼ぐ設計にしています。',
+      ),
+      paragraph(
+        '第2チャプター以降では、Cブルースのコードを実際につかみながら、この反応を曲の中で使えるところまで持っていきます。',
+      ),
+    ];
+
+    if (ctx.includeTrialCta) {
+      parts.push(buildTrialCtaParagraph(ctx));
+    }
+
+    parts.push(
+      paragraph(
+        `まだ迷っている段階でしたら、無理に進めなくて大丈夫です。気になることがあれば、${contactLink(ctx, 'お問い合わせフォーム')}からどうぞ。`,
+      ),
+    );
+
+    return parts.join('');
+  }
+
+  const parts = [
+    paragraph(
+      'There is no shortage of jazz tutorials and lesson videos now. And yet the usual outcome is: more knowledge, hands that still freeze at a session.',
+    ),
+    paragraph('The reason is simple. While you watch, you are not responding.'),
+    paragraph(
+      'Seeing a chord name and having your hands move. Hearing a phrase and playing it straight back. That is not knowledge, it is reflex — and reflex only grows from the number of times you respond. That is why Jazzify is shaped like a game: instead of being told the answer, you rack up reps of responding on the spot.',
+    ),
+    paragraph(
+      'From Chapter 2 onward, you put your hands on C Blues chords and carry that reflex into an actual tune.',
+    ),
+  ];
+
+  if (ctx.includeTrialCta) {
+    parts.push(buildTrialCtaParagraph(ctx));
+  }
+
+  parts.push(
+    paragraph(
+      `Still undecided? No need to push. If anything is unclear, reach us through the ${contactLink(ctx, 'contact form')}.`,
+    ),
+  );
+
+  return parts.join('');
+};
+
+const buildDay30Body = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph('登録から1ヶ月になります。ここまでお付き合いいただき、ありがとうございました。'),
+      paragraph(
+        '最初の1ヶ月でお送りしていた練習のヒントは、今回で最後です。今後は、新しいクエストの追加やアップデートがあったときに、月に1回程度のお知らせをお送りします。頻度はぐっと下がります。',
+      ),
+      paragraph(
+        'もし内容が合わなければ、下の配信停止リンクからいつでも止められます。止めてもJazzifyのアカウントはそのまま使えます。',
+      ),
+      paragraph(
+        `逆に「こういう内容が読みたい」「ここが分かりにくい」といったご要望は、${contactLink(ctx, 'お問い合わせフォーム')}からお寄せください。すべて読んでいます。`,
+      ),
+      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Jazzifyを開く'),
+    ].join('');
+  }
+
+  return [
+    paragraph('It has been a month since you signed up. Thank you for reading this far.'),
+    paragraph(
+      'This is the last of the practice tips from your first month. From here on, you will hear from us roughly once a month, when new quests or updates ship. Much lower frequency.',
+    ),
+    paragraph(
+      'If it is not for you, the unsubscribe link below stops it any time. Your Jazzify account keeps working either way.',
+    ),
+    paragraph(
+      `If instead you have a request — something you want to read about, or something that is hard to follow — send it through the ${contactLink(ctx, 'contact form')}. We read all of them.`,
+    ),
+    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Open Jazzify'),
+  ].join('');
+};
+
+const buildDormant14dBody = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph(
+        '最後にJazzifyで練習してから、少し時間が空きました。忙しい時期もあると思うので、それ自体は問題ありません。',
+      ),
+      paragraph(
+        'ただ、ジャズの反応速度は落ちるのも早いです。取り戻すのに一番効くのは、長時間の練習ではなく「短くても、また触る」ことです。',
+      ),
+      paragraph(
+        '今日は1つだけ。最初のクエストを10分。前にできていたことが、思ったより残っているはずです。',
+      ),
+      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'クエストを開く'),
+      paragraph(
+        `止まってしまった理由が操作や環境の問題（鍵盤がつながらない、音が出ないなど）であれば、${contactLink(ctx, 'お問い合わせフォーム')}から教えてください。`,
+      ),
+    ].join('');
+  }
+
+  return [
+    paragraph(
+      'It has been a while since your last practice session in Jazzify. Busy stretches happen — that part is fine.',
+    ),
+    paragraph(
+      'Jazz reflexes fade quickly, though. What brings them back is not a long session; it is touching the keys again, even briefly.',
+    ),
+    paragraph(
+      'Just one thing today: ten minutes on the first quest. More of it stayed with you than you think.',
+    ),
+    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Open the quest'),
+    paragraph(
+      `If what stopped you was a setup problem — the keyboard will not connect, no sound, anything like that — tell us through the ${contactLink(ctx, 'contact form')}.`,
+    ),
+  ].join('');
+};
+
+const buildNeverPlayed5dBody = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph('Jazzifyに登録いただいたあと、まだ一度も演奏を始めていないようです。'),
+      paragraph(
+        'こういうとき、原因はやる気ではなく環境であることがほとんどです。よくあるのは次の2つです。',
+      ),
+      paragraph(
+        `<strong style="color:#e2e8f0;">MIDIキーボードが手元にない</strong><br>画面上の鍵盤でも最初のクエストは遊べます。マウスやタップでも「聴いて返す」体験はできるので、まずそれで構いません。手持ちの電子ピアノを使いたい場合は、${trackedLink(ctx, 'link_midi_connect', MARKETING_EMAIL_PATHS.iosMidi, '接続方法')}をご覧ください。`,
+      ),
+      paragraph(
+        '<strong style="color:#e2e8f0;">何から始めればいいか分からない</strong><br>メインクエストの最初の課題、1つだけです。それ以外は今は見なくて大丈夫です。10分で終わります。',
+      ),
+      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, '最初のクエストを始める'),
+      paragraph(
+        `別の理由で止まっているなら、${contactLink(ctx, 'お問い合わせフォーム')}から教えてください。改善します。`,
+      ),
+    ].join('');
+  }
+
+  return [
+    paragraph('It looks like you have not started playing since you signed up for Jazzify.'),
+    paragraph(
+      'When that happens, the cause is almost always setup rather than motivation. Two common ones:',
+    ),
+    paragraph(
+      `<strong style="color:#e2e8f0;">No MIDI keyboard on hand</strong><br>The on-screen keys work for the first quest. Mouse or touch is enough to get the listen-and-respond experience, so start there. If you want to use a digital piano you already own, see ${trackedLink(ctx, 'link_midi_connect', MARKETING_EMAIL_PATHS.iosMidi, 'how to connect it')}.`,
+    ),
+    paragraph(
+      '<strong style="color:#e2e8f0;">Not sure where to start</strong><br>The first lesson of the main quest. That is all. Ignore everything else for now — it takes about 10 minutes.',
+    ),
+    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Start the first quest'),
+    paragraph(
+      `If something else is in the way, tell us through the ${contactLink(ctx, 'contact form')} and we will fix it.`,
+    ),
   ].join('');
 };
 
@@ -419,7 +693,9 @@ const buildTrialStartBody = (ctx: MarketingEmailBuildContext): string => {
       paragraph(
         `MIDIキーボードをまだ接続していない場合は、先に接続しておくとスムーズです。${trackedLink(ctx, 'link_midi_connect', MARKETING_EMAIL_PATHS.iosMidi, '接続方法を見る')}`,
       ),
-      paragraph('分からないことや不具合があれば、このメールにそのまま返信してください。'),
+      paragraph(
+        `分からないことや不具合があれば、${contactLink(ctx, 'お問い合わせフォーム')}から教えてください。`,
+      ),
     ].join('');
   }
 
@@ -441,7 +717,9 @@ const buildTrialStartBody = (ctx: MarketingEmailBuildContext): string => {
     paragraph(
       `No MIDI keyboard yet? Connecting one first makes a big difference. ${trackedLink(ctx, 'link_midi_connect', MARKETING_EMAIL_PATHS.iosMidi, 'See how to connect')}.`,
     ),
-    paragraph('Questions or bugs? Just reply to this email — we read every message.'),
+    paragraph(
+      `Questions or bugs? Send them through the ${contactLink(ctx, 'contact form')} — we read every message.`,
+    ),
   ].join('');
 };
 
@@ -482,6 +760,34 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     titleEn: 'From PDF to practice',
     buildBody: (ctx) => buildDay3Body(ctx),
   },
+  day7: {
+    subjectJa: '最初の1週間でつまずきやすい3つのこと',
+    subjectEn: 'Three things that trip people up in week one',
+    titleJa: 'つまずきやすい3つのこと',
+    titleEn: 'Three common sticking points',
+    buildBody: (ctx) => buildDay7Body(ctx),
+  },
+  day14: {
+    subjectJa: '無料のままでも、まだ遊べる場所があります',
+    subjectEn: 'There is still more you can play for free',
+    titleJa: '無料で遊べる場所',
+    titleEn: 'What you can still play for free',
+    buildBody: (ctx) => buildDay14Body(ctx),
+  },
+  day21: {
+    subjectJa: '動画でジャズを学んで、弾けるようにならなかった方へ',
+    subjectEn: 'For everyone who watched the videos and still cannot play',
+    titleJa: '動画と、反応速度の話',
+    titleEn: 'Videos, and why reflexes matter',
+    buildBody: (ctx) => buildDay21Body(ctx),
+  },
+  day30: {
+    subjectJa: 'ここまでありがとうございます（今後の配信について）',
+    subjectEn: 'Thanks for reading (what happens next)',
+    titleJa: '今後の配信について',
+    titleEn: 'About future emails',
+    buildBody: (ctx) => buildDay30Body(ctx),
+  },
   trial_start: {
     subjectJa: 'トライアル開始ありがとうございます。まずはここから',
     subjectEn: 'Your trial starts now — begin here',
@@ -489,12 +795,26 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     titleEn: 'Welcome to your trial',
     buildBody: (ctx) => buildTrialStartBody(ctx),
   },
-  free_cleared_nudge: {
-    subjectJa: '第1チャプタークリアおめでとう。第2チャプターへ進みましょう',
-    subjectEn: 'Chapter 1 cleared — ready for Chapter 2?',
-    titleJa: '第2チャプターへ進む',
-    titleEn: 'Continue to Chapter 2',
-    buildBody: (ctx) => buildFreeClearedNudgeBody(ctx),
+  paywall_nudge: {
+    subjectJa: '続きが気になったところで、止まりましたね',
+    subjectEn: 'You stopped right where it got interesting',
+    titleJa: '第2チャプターの中身',
+    titleEn: "What's inside Chapter 2",
+    buildBody: (ctx) => buildPaywallNudgeBody(ctx),
+  },
+  dormant_14d: {
+    subjectJa: '久しぶりに、10分だけ鍵盤に触れてみませんか',
+    subjectEn: 'Ten minutes at the keys, for old times',
+    titleJa: '10分だけ、戻ってきませんか',
+    titleEn: 'Come back for ten minutes',
+    buildBody: (ctx) => buildDormant14dBody(ctx),
+  },
+  never_played_5d: {
+    subjectJa: 'まだ一度も弾いていない方へ',
+    subjectEn: 'If you have not played a single note yet',
+    titleJa: 'まだ弾けていない場合',
+    titleEn: 'If you have not started yet',
+    buildBody: (ctx) => buildNeverPlayed5dBody(ctx),
   },
 };
 

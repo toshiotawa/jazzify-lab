@@ -155,6 +155,7 @@
 		7630C3DB245018D47061B814 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1468DBA9C15E0A44DD589ADD /* ContactView.swift */; };
 		7685D092B67E69A3195FAA28 /* SurvivalSceneSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B7A53FFCECA3078401CC764 /* SurvivalSceneSnapshot.swift */; };
 		78554B21C0C78482399B6365 /* EarTrainingBattleJustParryBodyGlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D235B58DC036F1F82F4CC6BC /* EarTrainingBattleJustParryBodyGlow.swift */; };
+		7A1C4E92B3D5F60184C2A551 /* MarketingOptInBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */; };
 		7AD0743A4EE11942973B34A1 /* ChordVoicingStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */; };
 		7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */; };
 		7BE8039E67CAD2562C8CDAA1 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C4E01D2F88EA67FEB01625 /* EarTrainingPrecisionNotes.swift */; };
@@ -426,6 +427,7 @@
 		756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollChrome.swift; sourceTree = "<group>"; };
 		79258F48911DD4B40B70A71A /* BalloonRushPlayLoopFacade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushPlayLoopFacade.swift; sourceTree = "<group>"; };
 		795B57E03FD4DB34A9606AC6 /* AnnouncementRichContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementRichContent.swift; sourceTree = "<group>"; };
+		7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingOptInBannerView.swift; sourceTree = "<group>"; };
 		7A3E89ACA87E4B99E62F5687 /* OnboardingScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScript.swift; sourceTree = "<group>"; };
 		7B538D5014906D7BF75F2B41 /* SignupMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupMetadata.swift; sourceTree = "<group>"; };
 		7BA990ADCDF7446E130A4DF0 /* SurvivalTutorialV3DemoPlayScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DemoPlayScene.swift; sourceTree = "<group>"; };
@@ -1226,6 +1228,7 @@
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
 				3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
+				7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */,
 				CE37C824003D0142D6E454EB /* PianoKeyboardDisplayModeSection.swift */,
 				AD142C35C72EBF8541B8AC85 /* PianoKeyboardDisplayPreferences.swift */,
 				756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */,
@@ -1553,6 +1556,7 @@
 				0B022E9FC737C56AED2D38A4 /* MainQuestResumeSheet.swift in Sources */,
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,
 				86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */,
+				7A1C4E92B3D5F60184C2A551 /* MarketingOptInBannerView.swift in Sources */,
 				1836E94E9A39B90584E12D6B /* MidiConnectionGuideView.swift in Sources */,
 				D831F538CDB3901677BB1813 /* MidiKeyboardBuyingGuideView.swift in Sources */,
 				1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */,

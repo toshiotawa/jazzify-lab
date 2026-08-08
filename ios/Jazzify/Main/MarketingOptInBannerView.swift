@@ -9,7 +9,6 @@ struct MarketingOptInBannerView: View {
     @State private var isDismissed = UserDefaults.standard.bool(forKey: dismissKey)
 
     private static let dismissKey = "marketing_opt_in_banner_dismissed_v1"
-    private static var dismissKey_: String { dismissKey }
 
     private var locale: AppLocale { appState.locale }
 
