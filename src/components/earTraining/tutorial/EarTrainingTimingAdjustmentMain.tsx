@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { useAuthStore } from '@/stores/authStore';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
@@ -10,6 +10,7 @@ import {
   type EarTrainingTimingAdjustmentEntry,
 } from '@/utils/earTrainingTimingAdjustmentLaunch';
 import { setAppHash } from '@/utils/appNavigation';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 
 import { EarTrainingTimingAdjustmentExperience } from './EarTrainingTimingAdjustmentExperience';
 
@@ -25,6 +26,7 @@ const EarTrainingTimingAdjustmentMain: React.FC = () => {
   const lessonId = params.lessonId ?? '';
   const lessonSongId = params.lessonSongId ?? '';
   const clearedThisSessionRef = useRef(false);
+  const assignmentStartRecordedRef = useRef(false);
   const clearConditions: ClearConditions = useMemo(() => {
     try {
       return JSON.parse(params.clearConditions ?? '{"count":1,"rank":"S"}') as ClearConditions;
@@ -32,6 +34,21 @@ const EarTrainingTimingAdjustmentMain: React.FC = () => {
       return { count: 1, rank: 'S' };
     }
   }, [params.clearConditions]);
+
+  useEffect(() => {
+    if (entry !== 'quest' || !profile?.id || !lessonId || !lessonSongId) {
+      return;
+    }
+    if (assignmentStartRecordedRef.current) {
+      return;
+    }
+    assignmentStartRecordedRef.current = true;
+    recordAssignmentStartFireAndForget(profile.id, {
+      lessonId,
+      lessonSongId,
+      isPractice: false,
+    });
+  }, [entry, profile?.id, lessonId, lessonSongId]);
 
   const handleQuestCompleted = useCallback(async () => {
     if (entry !== 'quest' || !profile || !lessonId || !lessonSongId) return;

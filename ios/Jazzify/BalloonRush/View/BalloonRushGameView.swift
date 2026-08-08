@@ -10,10 +10,13 @@ struct BalloonRushGameView: View {
     let appliedRandomChords: AppliedSurvivalLessonRandomChords?
     let onClose: () -> Void
 
+    @EnvironmentObject private var appState: AppState
+
     @State private var session: BalloonRushGameSession?
     @State private var bootstrapTask: Task<Void, Never>?
     @State private var bootstrapID = UUID()
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
+    @State private var assignmentStartRecorded = false
 
     private var presentationStage: SurvivalStageDefinition {
         BalloonRushSurvivalBridge.presentationStage(from: stage)
@@ -75,6 +78,7 @@ struct BalloonRushGameView: View {
             return
         }
         session = created
+        recordAssignmentStartIfNeeded()
         midiSubscriptionHolder.cancel()
         midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak created] status, data1, data2 in
             let messageType = status & 0xF0
@@ -93,5 +97,21 @@ struct BalloonRushGameView: View {
                 }
             }
         }
+    }
+
+    @MainActor
+    private func recordAssignmentStartIfNeeded() {
+        guard !assignmentStartRecorded,
+              let lessonContext,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonContext.lessonId,
+            lessonSongId: lessonContext.lessonSongId,
+            isPractice: false
+        )
     }
 }

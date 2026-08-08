@@ -17,6 +17,8 @@ struct EarTrainingTimingAdjustmentView: View {
     let onClose: () -> Void
     var onQuestComplete: (() async -> Void)?
 
+    @EnvironmentObject private var appState: AppState
+
     private static let scriptId = "osmd-timing-adjustment-v1"
 
     @State private var gate: Gate = .loading
@@ -28,6 +30,7 @@ struct EarTrainingTimingAdjustmentView: View {
     @State private var bluetoothNoticeOpen = true
     @State private var playbackReady = false
     @State private var osmdBattleReady = false
+    @State private var assignmentStartRecorded = false
 
     private enum Gate {
         case loading
@@ -70,6 +73,7 @@ struct EarTrainingTimingAdjustmentView: View {
                 script = loaded
                 sceneIndex = 0
                 gate = .ready
+                recordAssignmentStartIfNeeded()
             } else {
                 gate = .failed
             }
@@ -80,6 +84,23 @@ struct EarTrainingTimingAdjustmentView: View {
                 QuestJinglePlayer.playComplete()
             }
         }
+    }
+
+    private func recordAssignmentStartIfNeeded() {
+        guard entry == .quest,
+              !assignmentStartRecorded,
+              let lessonId,
+              let lessonSongId,
+              let userId = appState.profile?.id else {
+            return
+        }
+        assignmentStartRecorded = true
+        AnalyticsTracker.trackAssignmentStart(
+            userId: userId,
+            lessonId: lessonId,
+            lessonSongId: lessonSongId,
+            isPractice: false
+        )
     }
 
     @ViewBuilder

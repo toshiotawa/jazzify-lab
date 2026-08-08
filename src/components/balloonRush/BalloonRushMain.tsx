@@ -33,6 +33,7 @@ import BalloonRushGameScreen from '@/components/balloonRush/BalloonRushGameScree
 import SurvivalRunPrepModal from '@/components/survival/SurvivalRunPrepModal';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import type { SurvivalCharacter } from '@/components/survival/SurvivalTypes';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 
 const defaultClearConditions: ClearConditions = {
   count: 1,
@@ -101,6 +102,7 @@ const BalloonRushMain: React.FC = () => {
   const [hintMode, setHintMode] = useState(false);
   const [gameNonce, setGameNonce] = useState(0);
   const lessonClearedThisSessionRef = useRef(false);
+  const assignmentStartRecordedForNonceRef = useRef<number | null>(null);
   const [gameConfigOverride, setGameConfigOverride] = useState<DifficultyConfig | null>(null);
   const [lessonRandomChordOverrides, setLessonRandomChordOverrides] = useState<
     ReadonlyMap<string, ChordDefinition> | undefined
@@ -248,6 +250,32 @@ const BalloonRushMain: React.FC = () => {
       lessonClearedThisSessionRef.current = true;
     }
   }, [lessonContext]);
+
+  useEffect(() => {
+    if (!lessonContext || !profile?.id || screen !== 'game' || loading || error !== null) {
+      return;
+    }
+    if (!resolvedStage) {
+      return;
+    }
+    if (assignmentStartRecordedForNonceRef.current === gameNonce) {
+      return;
+    }
+    assignmentStartRecordedForNonceRef.current = gameNonce;
+    recordAssignmentStartFireAndForget(profile.id, {
+      lessonId: lessonContext.lessonId,
+      lessonSongId: lessonContext.lessonSongId,
+      isPractice: false,
+    });
+  }, [
+    lessonContext,
+    profile?.id,
+    screen,
+    loading,
+    error,
+    resolvedStage,
+    gameNonce,
+  ]);
 
   const prepStageDefinition = useMemo(
     () => (resolvedStage ? balloonRushToStageDefinition(resolvedStage) : null),
