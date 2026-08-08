@@ -36,6 +36,8 @@ struct MidiConnectionGuideView: View {
                     .frame(height: 560)
 
                     slideControls
+
+                    midiKeyboardBuyingGuideLink
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
@@ -128,6 +130,53 @@ struct MidiConnectionGuideView: View {
             .buttonStyle(.borderedProminent)
             .tint(.purple)
         }
+    }
+
+    private var midiKeyboardBuyingGuideLink: some View {
+        NavigationLink {
+            MidiKeyboardBuyingGuideView(locale: locale)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.purple.opacity(0.18))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "pianokeys")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.purple)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(locale == .ja ? "MIDIキーボードの選び方" : "Choosing a MIDI Keyboard")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Text(locale == .ja
+                         ? "鍵数の目安と参考機種をまとめて読む"
+                         : "Key counts and suggested boards")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.gray)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(hex: "111827"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.purple.opacity(0.28), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 4)
+        .accessibilityLabel(locale == .ja ? "MIDIキーボードの選び方を開く" : "Open MIDI keyboard buying guide")
     }
 
     private func slideView(_ slide: MidiConnectionGuideSlide) -> some View {
@@ -361,12 +410,15 @@ private struct MidiConnectionGuideSlide: Identifiable, Equatable {
         locale: AppLocale
     ) -> [MidiConnectionGuideSlide] {
         let imageName = "\(profile.deviceFamily.assetPrefix)_lightning_adapter"
+        let iphoneYearNoteJa = profile.deviceFamily == .iphone ? "iPhoneの場合、Lightningは iPhone 14 以前です。" : ""
+        let iphoneYearNoteEn = profile.deviceFamily == .iphone ? " On iPhone, Lightning is used on iPhone 14 and earlier." : ""
+
         if locale == .ja {
             return [
                 MidiConnectionGuideSlide(
                     id: "lightning-adapter",
                     title: "Lightning - USBカメラアダプタを使います",
-                    body: "Lightning端子のiPhone/iPadでは、Apple純正またはMIDI対応のUSBカメラアダプタ経由で接続します。",
+                    body: "Lightning端子のiPhone/iPadでは、Apple純正またはMIDI対応のUSBカメラアダプタ経由で接続します。\(iphoneYearNoteJa)",
                     imageName: imageName,
                     bullets: [
                         "\(profile.deviceFamily.defaultMarketingName) とカメラアダプタを接続",
@@ -392,7 +444,7 @@ private struct MidiConnectionGuideSlide: Identifiable, Equatable {
             MidiConnectionGuideSlide(
                 id: "lightning-adapter",
                 title: "Use a Lightning USB camera adapter",
-                body: "For Lightning iPhone/iPad models, connect through an Apple or MIDI-compatible USB camera adapter.",
+                body: "For Lightning iPhone/iPad models, connect through an Apple or MIDI-compatible USB camera adapter.\(iphoneYearNoteEn)",
                 imageName: imageName,
                 bullets: [
                     "Connect the adapter to your \(profile.deviceFamily.defaultMarketingName).",
@@ -420,13 +472,15 @@ private struct MidiConnectionGuideSlide: Identifiable, Equatable {
     ) -> [MidiConnectionGuideSlide] {
         let directImageName = "\(profile.deviceFamily.assetPrefix)_typec_direct"
         let hubImageName = "\(profile.deviceFamily.assetPrefix)_typec_hub"
+        let iphoneYearNoteJa = profile.deviceFamily == .iphone ? "iPhoneの場合、USB Type-Cは iPhone 15 以降です。" : ""
+        let iphoneYearNoteEn = profile.deviceFamily == .iphone ? " On iPhone, USB-C is used on iPhone 15 and later." : ""
 
         if locale == .ja {
             return [
                 MidiConnectionGuideSlide(
                     id: "usbc-direct",
                     title: "直接接続できる場合",
-                    body: "USB Type-C端子のiPhone/iPadでは、Type-C対応ケーブルでMIDIキーボードに直接接続できます。",
+                    body: "USB Type-C端子のiPhone/iPadでは、Type-C対応ケーブルでMIDIキーボードに直接接続できます。\(iphoneYearNoteJa)",
                     imageName: directImageName,
                     bullets: [
                         "Type-C ↔ Type-B ケーブルを用意",
@@ -463,7 +517,7 @@ private struct MidiConnectionGuideSlide: Identifiable, Equatable {
             MidiConnectionGuideSlide(
                 id: "usbc-direct",
                 title: "Direct USB-C connection",
-                body: "USB-C iPhone/iPad models can connect directly to a MIDI keyboard with a compatible cable.",
+                body: "USB-C iPhone/iPad models can connect directly to a MIDI keyboard with a compatible cable.\(iphoneYearNoteEn)",
                 imageName: directImageName,
                 bullets: [
                     "Prepare a USB-C to USB-B cable.",

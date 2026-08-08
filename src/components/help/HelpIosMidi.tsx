@@ -1,7 +1,13 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SiteFooter from '@/components/common/SiteFooter';
-import { getHelpIosMidiCopy } from '@/components/help/helpContent';
+import {
+  buildAmazonSearchUrl,
+  getHelpIosMidiCopy,
+  type HelpAmazonSearchLink,
+  type HelpLocale,
+} from '@/components/help/helpContent';
+import { HELP_MIDI_KEYBOARD_CHOICE_PATH } from '@/components/landing/landingLinks';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -14,22 +20,52 @@ const connectionImgClass =
   'w-full bg-slate-900/80 object-contain max-h-64 rounded-lg border border-white/10 my-4';
 
 const CONNECTION_IMAGE_FILES = [
-  'iPhone_Lightning_adapter.webp',
-  'iPad_Lightning_adapter.webp',
   'iPhone_TypeC_Direct.webp',
   'iPhone_TypeC_hub.webp',
   'iPad_TypeC_Direct.webp',
   'iPad_TypeC_hub.webp',
+  'iPhone_Lightning_adapter.webp',
+  'iPad_Lightning_adapter.webp',
 ] as const;
 
 const connectionImgSrc = (file: string): string =>
   encodeURI(`/midi-connection-patterns/${file}`);
+
+interface AmazonLinksProps {
+  locale: HelpLocale;
+  links: HelpAmazonSearchLink[];
+}
+
+const AmazonLinks: React.FC<AmazonLinksProps> = ({ locale, links }) => {
+  if (links.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className="mt-2 space-y-1 text-sm">
+      {links.map((link) => (
+        <li key={link.keyword}>
+          <a
+            href={buildAmazonSearchUrl(locale, link.keyword)}
+            className="text-blue-300 underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {link.linkLabel}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 interface ConnectionExampleProps {
   heading: string;
   imageFile: string;
   imageAlt: string;
   diagram: string;
+  locale: HelpLocale;
+  amazonLinks?: HelpAmazonSearchLink[];
   priority?: boolean;
 }
 
@@ -38,6 +74,8 @@ const ConnectionExample: React.FC<ConnectionExampleProps> = ({
   imageFile,
   imageAlt,
   diagram,
+  locale,
+  amazonLinks = [],
   priority = false,
 }) => (
   <div className="mt-6">
@@ -53,19 +91,20 @@ const ConnectionExample: React.FC<ConnectionExampleProps> = ({
       fetchPriority={priority ? 'high' : 'auto'}
     />
     <p className={diagramBoxClass}>{diagram}</p>
+    <AmazonLinks locale={locale} links={amazonLinks} />
   </div>
 );
-
-const LIGHTNING_IMAGE_FILES = [
-  'iPhone_Lightning_adapter.webp',
-  'iPad_Lightning_adapter.webp',
-] as const;
 
 const USBC_IMAGE_FILES = [
   'iPhone_TypeC_Direct.webp',
   'iPhone_TypeC_hub.webp',
   'iPad_TypeC_Direct.webp',
   'iPad_TypeC_hub.webp',
+] as const;
+
+const LIGHTNING_IMAGE_FILES = [
+  'iPhone_Lightning_adapter.webp',
+  'iPad_Lightning_adapter.webp',
 ] as const;
 
 const HelpIosMidi: React.FC = () => {
@@ -77,7 +116,8 @@ const HelpIosMidi: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
-  const copy = getHelpIosMidiCopy(isEnglishCopy ? 'en' : 'ja');
+  const locale: HelpLocale = isEnglishCopy ? 'en' : 'ja';
+  const copy = getHelpIosMidiCopy(locale);
 
   useEffect(() => {
     CONNECTION_IMAGE_FILES.forEach((file) => {
@@ -113,24 +153,6 @@ const HelpIosMidi: React.FC = () => {
           <div className="space-y-8 text-gray-300 leading-relaxed">
             <p>{copy.intro}</p>
 
-            <section aria-labelledby="midi-lightning-heading">
-              <h2 id="midi-lightning-heading" className="text-xl font-semibold text-white mb-3">
-                {copy.lightningHeading}
-              </h2>
-              <p>{copy.lightningBody}</p>
-
-              {copy.lightningExamples.map((example, index) => (
-                <ConnectionExample
-                  key={LIGHTNING_IMAGE_FILES[index]}
-                  heading={example.heading}
-                  imageFile={LIGHTNING_IMAGE_FILES[index]}
-                  imageAlt={example.imageAlt}
-                  diagram={example.diagram}
-                  priority={index === 0}
-                />
-              ))}
-            </section>
-
             <section aria-labelledby="midi-usbc-heading">
               <h2 id="midi-usbc-heading" className="text-xl font-semibold text-white mb-3">
                 {copy.usbcHeading}
@@ -144,10 +166,32 @@ const HelpIosMidi: React.FC = () => {
                   imageFile={USBC_IMAGE_FILES[index]}
                   imageAlt={example.imageAlt}
                   diagram={example.diagram}
+                  locale={locale}
+                  amazonLinks={example.amazonLinks}
+                  priority={index === 0}
                 />
               ))}
 
               <p className="mt-3">{copy.usbcClosing}</p>
+            </section>
+
+            <section aria-labelledby="midi-lightning-heading">
+              <h2 id="midi-lightning-heading" className="text-xl font-semibold text-white mb-3">
+                {copy.lightningHeading}
+              </h2>
+              <p>{copy.lightningBody}</p>
+
+              {copy.lightningExamples.map((example, index) => (
+                <ConnectionExample
+                  key={LIGHTNING_IMAGE_FILES[index]}
+                  heading={example.heading}
+                  imageFile={LIGHTNING_IMAGE_FILES[index]}
+                  imageAlt={example.imageAlt}
+                  diagram={example.diagram}
+                  locale={locale}
+                  amazonLinks={example.amazonLinks}
+                />
+              ))}
             </section>
 
             <section aria-labelledby="midi-tips-heading">
@@ -161,7 +205,15 @@ const HelpIosMidi: React.FC = () => {
               </ul>
             </section>
 
-            <div className="pt-4">
+            <p className="text-gray-400 text-sm border-t border-white/10 pt-6">
+              {copy.midiChoiceLinkPrefix}
+              <Link to={HELP_MIDI_KEYBOARD_CHOICE_PATH} className="text-blue-300 underline">
+                {copy.midiChoiceLinkLabel}
+              </Link>
+              {copy.midiChoiceLinkSuffix}
+            </p>
+
+            <div>
               <Link to="/contact" className="text-blue-300 underline">
                 {copy.contactLinkLabel}
               </Link>

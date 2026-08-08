@@ -1,9 +1,15 @@
 export type HelpLocale = 'ja' | 'en';
 
+export interface HelpAmazonSearchLink {
+  keyword: string;
+  linkLabel: string;
+}
+
 export interface HelpConnectionExampleCopy {
   heading: string;
   imageAlt: string;
   diagram: string;
+  amazonLinks?: HelpAmazonSearchLink[];
 }
 
 export interface HelpIosMidiCopy {
@@ -13,15 +19,18 @@ export interface HelpIosMidiCopy {
   backButtonLabel: string;
   backButtonAria: string;
   intro: string;
-  lightningHeading: string;
-  lightningBody: string;
-  lightningExamples: HelpConnectionExampleCopy[];
   usbcHeading: string;
   usbcBody: string;
   usbcExamples: HelpConnectionExampleCopy[];
   usbcClosing: string;
+  lightningHeading: string;
+  lightningBody: string;
+  lightningExamples: HelpConnectionExampleCopy[];
   tipsHeading: string;
   tips: string[];
+  midiChoiceLinkPrefix: string;
+  midiChoiceLinkLabel: string;
+  midiChoiceLinkSuffix: string;
   contactLinkLabel: string;
 }
 
@@ -30,6 +39,7 @@ export interface HelpKeyboardModelCopy {
   title: string;
   imageAlt: string;
   body: string;
+  amazonSearch: HelpAmazonSearchLink;
 }
 
 export interface HelpMidiKeyboardChoiceCopy {
@@ -58,61 +68,97 @@ export interface HelpMidiKeyboardChoiceCopy {
   iosMidiCrossLinkSuffix: string;
 }
 
+const AMAZON_SEARCH_BASE: Record<HelpLocale, string> = {
+  ja: 'https://www.amazon.co.jp/s',
+  en: 'https://www.amazon.com/s',
+};
+
+export const buildAmazonSearchUrl = (locale: HelpLocale, keyword: string): string => {
+  const params = new URLSearchParams({ k: keyword });
+  return `${AMAZON_SEARCH_BASE[locale]}?${params.toString()}`;
+};
+
 const HELP_IOS_MIDI_JA: HelpIosMidiCopy = {
   pageTitle: 'iPhone/iPad での MIDI 機器利用について',
   helmetTitle: 'iPhone/iPad での MIDI 接続 — Jazzify',
   seoDescription:
-    'iPhone/iPadでMIDIキーボードをJazzifyに接続する方法。Lightning端子・USB Type-C端子それぞれの接続手順と注意点を解説します。',
+    'iPhone/iPadでMIDIキーボードをJazzifyに接続する方法。USB Type-C端子・Lightning端子それぞれの接続手順と注意点を解説します。',
   backButtonLabel: '← 戻る',
   backButtonAria: '前のページに戻る',
   intro:
     'MIDIキーボード（電子ピアノ）をiPhone/iPadに接続すると、より本格的な演奏練習が可能になります。ここでは接続方法を説明します。',
-  lightningHeading: 'Lightning端子のiPhone / iPadの場合',
-  lightningBody:
-    'Lightning端子のiPhone/iPadでは、Apple純正の「Lightning - USBカメラアダプタ」が必要です。以下の順番で接続してください。',
-  lightningExamples: [
-    {
-      heading: 'iPhone（Lightning端子）',
-      imageAlt: 'Lightning端子のiPhoneとMIDIキーボードの接続例',
-      diagram: 'iPhone ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード',
-    },
-    {
-      heading: 'iPad（Lightning端子）',
-      imageAlt: 'Lightning端子のiPadとMIDIキーボードの接続例',
-      diagram: 'iPad ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード',
-    },
-  ],
   usbcHeading: 'USB Type-C端子のiPhone / iPadの場合',
-  usbcBody: 'USB Type-C端子のiPhone/iPadでは、カメラアダプタなしで直接接続できる場合があります。',
+  usbcBody:
+    'USB Type-C端子のiPhone/iPadでは、カメラアダプタなしで直接接続できる場合があります。iPhoneの場合、USB Type-Cは iPhone 15 以降です。',
   usbcExamples: [
     {
       heading: 'iPhone — パターン1（Type-C → Type-Bケーブル）',
       imageAlt: 'USB Type-C端子のiPhoneとMIDIキーボードの直接接続例',
       diagram: 'iPhone ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード',
+      amazonLinks: [
+        { keyword: 'USB Type-C Type-B ケーブル', linkLabel: 'Amazonで探す' },
+      ],
     },
     {
       heading: 'iPhone — パターン2（Type-A → Type-Bケーブル + ハブ）',
       imageAlt: 'USB Type-C端子のiPhoneとType-Cハブ経由のMIDIキーボード接続例',
       diagram: 'iPhone ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード',
+      amazonLinks: [
+        { keyword: 'USB Type-C ハブ', linkLabel: 'Type-CハブをAmazonで探す' },
+        { keyword: 'USB Type-A Type-B ケーブル', linkLabel: 'Type-A ↔ Type-BケーブルをAmazonで探す' },
+      ],
     },
     {
       heading: 'iPad — パターン1（Type-C → Type-Bケーブル）',
       imageAlt: 'USB Type-C端子のiPadとMIDIキーボードの直接接続例',
       diagram: 'iPad ― ケーブル（Type-C ↔ Type-B） ― MIDIキーボード',
+      amazonLinks: [
+        { keyword: 'USB Type-C Type-B ケーブル', linkLabel: 'Amazonで探す' },
+      ],
     },
     {
       heading: 'iPad — パターン2（Type-A → Type-Bケーブル + ハブ）',
       imageAlt: 'USB Type-C端子のiPadとType-Cハブ経由のMIDIキーボード接続例',
       diagram: 'iPad ― TypeCハブ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード',
+      amazonLinks: [
+        { keyword: 'USB Type-C ハブ', linkLabel: 'Type-CハブをAmazonで探す' },
+        { keyword: 'USB Type-A Type-B ケーブル', linkLabel: 'Type-A ↔ Type-BケーブルをAmazonで探す' },
+      ],
     },
   ],
   usbcClosing: 'お使いのMIDIキーボードの端子に合わせて、適切なケーブルを選んでください。',
+  lightningHeading: 'Lightning端子のiPhone / iPadの場合',
+  lightningBody:
+    'Lightning端子のiPhone/iPadでは、Apple純正の「Lightning - USBカメラアダプタ」が必要です。iPhoneの場合、Lightningは iPhone 14 以前です。以下の順番で接続してください。',
+  lightningExamples: [
+    {
+      heading: 'iPhone（Lightning端子）',
+      imageAlt: 'Lightning端子のiPhoneとMIDIキーボードの接続例',
+      diagram: 'iPhone ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード',
+      amazonLinks: [
+        { keyword: 'Lightning USBカメラアダプタ', linkLabel: 'カメラアダプタをAmazonで探す' },
+        { keyword: 'USB Type-A Type-B ケーブル', linkLabel: 'Type-A ↔ Type-BケーブルをAmazonで探す' },
+      ],
+    },
+    {
+      heading: 'iPad（Lightning端子）',
+      imageAlt: 'Lightning端子のiPadとMIDIキーボードの接続例',
+      diagram: 'iPad ― カメラアダプタ ― ケーブル（Type-A ↔ Type-B） ― MIDIキーボード',
+      amazonLinks: [
+        { keyword: 'Lightning USBカメラアダプタ', linkLabel: 'カメラアダプタをAmazonで探す' },
+        { keyword: 'USB Type-A Type-B ケーブル', linkLabel: 'Type-A ↔ Type-BケーブルをAmazonで探す' },
+      ],
+    },
+  ],
   tipsHeading: '接続のヒント',
   tips: [
     'MIDIキーボードの電源が入っていることを確認してください。',
     '接続すると、アプリが自動的にMIDIデバイスを検出します。',
     'うまく接続できない場合は、ケーブルを抜き差ししたり、アプリを再起動してみてください。',
   ],
+  midiChoiceLinkPrefix: 'キーボード選びの目安は、',
+  midiChoiceLinkLabel: 'MIDIキーボードの選び方',
+  midiChoiceLinkSuffix: 'もあわせてご覧ください。',
   contactLinkLabel: 'お問い合わせフォーム',
 };
 
@@ -120,58 +166,83 @@ const HELP_IOS_MIDI_EN: HelpIosMidiCopy = {
   pageTitle: 'Using MIDI Devices on iPhone / iPad',
   helmetTitle: 'MIDI on iPhone / iPad — Jazzify',
   seoDescription:
-    'How to connect a MIDI keyboard to Jazzify on iPhone or iPad. Lightning and USB Type-C connection steps and tips.',
+    'How to connect a MIDI keyboard to Jazzify on iPhone or iPad. USB Type-C and Lightning connection steps and tips.',
   backButtonLabel: '← Back',
   backButtonAria: 'Go back to the previous page',
   intro:
     'Connecting a MIDI keyboard (digital piano) to your iPhone or iPad lets you practice with a more realistic playing setup. This page explains how to connect.',
-  lightningHeading: 'iPhone / iPad with a Lightning Port',
-  lightningBody:
-    'For iPhone/iPad models with a Lightning port, you need Apple\'s official "Lightning to USB Camera Adapter." Connect in the order shown below.',
-  lightningExamples: [
-    {
-      heading: 'iPhone (Lightning port)',
-      imageAlt: 'Example connection between a Lightning iPhone and a MIDI keyboard',
-      diagram: 'iPhone — Camera Adapter — Cable (Type-A ↔ Type-B) — MIDI keyboard',
-    },
-    {
-      heading: 'iPad (Lightning port)',
-      imageAlt: 'Example connection between a Lightning iPad and a MIDI keyboard',
-      diagram: 'iPad — Camera Adapter — Cable (Type-A ↔ Type-B) — MIDI keyboard',
-    },
-  ],
   usbcHeading: 'iPhone / iPad with a USB Type-C Port',
   usbcBody:
-    'On iPhone/iPad models with USB Type-C, you may be able to connect directly without a camera adapter.',
+    'On iPhone/iPad models with USB Type-C, you may be able to connect directly without a camera adapter. On iPhone, USB-C is used on iPhone 15 and later.',
   usbcExamples: [
     {
       heading: 'iPhone — Pattern 1 (Type-C → Type-B cable)',
       imageAlt: 'Example direct connection between a USB-C iPhone and a MIDI keyboard',
       diagram: 'iPhone — Cable (Type-C ↔ Type-B) — MIDI keyboard',
+      amazonLinks: [
+        { keyword: 'USB-C to USB-B cable', linkLabel: 'Search on Amazon' },
+      ],
     },
     {
       heading: 'iPhone — Pattern 2 (Type-A → Type-B cable + hub)',
       imageAlt: 'Example MIDI keyboard connection via a USB-C hub on iPhone',
       diagram: 'iPhone — Type-C hub — Cable (Type-A ↔ Type-B) — MIDI keyboard',
+      amazonLinks: [
+        { keyword: 'USB-C hub', linkLabel: 'Search USB-C hubs on Amazon' },
+        { keyword: 'USB-A to USB-B cable', linkLabel: 'Search USB-A to USB-B cables on Amazon' },
+      ],
     },
     {
       heading: 'iPad — Pattern 1 (Type-C → Type-B cable)',
       imageAlt: 'Example direct connection between a USB-C iPad and a MIDI keyboard',
       diagram: 'iPad — Cable (Type-C ↔ Type-B) — MIDI keyboard',
+      amazonLinks: [
+        { keyword: 'USB-C to USB-B cable', linkLabel: 'Search on Amazon' },
+      ],
     },
     {
       heading: 'iPad — Pattern 2 (Type-A → Type-B cable + hub)',
       imageAlt: 'Example MIDI keyboard connection via a USB-C hub on iPad',
       diagram: 'iPad — Type-C hub — Cable (Type-A ↔ Type-B) — MIDI keyboard',
+      amazonLinks: [
+        { keyword: 'USB-C hub', linkLabel: 'Search USB-C hubs on Amazon' },
+        { keyword: 'USB-A to USB-B cable', linkLabel: 'Search USB-A to USB-B cables on Amazon' },
+      ],
     },
   ],
   usbcClosing: 'Choose the cable that matches the ports on your MIDI keyboard.',
+  lightningHeading: 'iPhone / iPad with a Lightning Port',
+  lightningBody:
+    'For iPhone/iPad models with a Lightning port, you need Apple\'s official "Lightning to USB Camera Adapter." On iPhone, Lightning is used on iPhone 14 and earlier. Connect in the order shown below.',
+  lightningExamples: [
+    {
+      heading: 'iPhone (Lightning port)',
+      imageAlt: 'Example connection between a Lightning iPhone and a MIDI keyboard',
+      diagram: 'iPhone — Camera Adapter — Cable (Type-A ↔ Type-B) — MIDI keyboard',
+      amazonLinks: [
+        { keyword: 'Lightning to USB Camera Adapter', linkLabel: 'Search camera adapters on Amazon' },
+        { keyword: 'USB-A to USB-B cable', linkLabel: 'Search USB-A to USB-B cables on Amazon' },
+      ],
+    },
+    {
+      heading: 'iPad (Lightning port)',
+      imageAlt: 'Example connection between a Lightning iPad and a MIDI keyboard',
+      diagram: 'iPad — Camera Adapter — Cable (Type-A ↔ Type-B) — MIDI keyboard',
+      amazonLinks: [
+        { keyword: 'Lightning to USB Camera Adapter', linkLabel: 'Search camera adapters on Amazon' },
+        { keyword: 'USB-A to USB-B cable', linkLabel: 'Search USB-A to USB-B cables on Amazon' },
+      ],
+    },
+  ],
   tipsHeading: 'Connection Tips',
   tips: [
     'Make sure your MIDI keyboard is powered on.',
     'Once connected, the app should detect your MIDI device automatically.',
     'If connection fails, try unplugging and replugging the cable, or restart the app.',
   ],
+  midiChoiceLinkPrefix: 'For keyboard recommendations, also see ',
+  midiChoiceLinkLabel: 'Choosing a MIDI Keyboard',
+  midiChoiceLinkSuffix: '.',
   contactLinkLabel: 'Contact form',
 };
 
@@ -198,27 +269,30 @@ const HELP_MIDI_KEYBOARD_CHOICE_JA: HelpMidiKeyboardChoiceCopy = {
 88鍵       本格派・ピアノ兼用         ほか用途もあるなら選ぶ価値あり`,
   sizeNote:
     'ジャズピアノでは左手のルートやシェルボイシング、右手のコードやメロディを同時に扱うことが多く、鍵が少ないとすぐ狭く感じます。',
-  modelsHeading: '機種の例（参考・リンクなし）',
+  modelsHeading: '機種の例（参考）',
   modelsIntro:
-    'USB‑MIDIでシンプルに使える製品として、M‑Audio Keystation シリーズの一例です。価格は店舗・在庫・時期で変わるため、ここには固定では書きません。',
+    'USB‑MIDIでシンプルに使える製品として、M‑Audio Keystation シリーズの一例です。価格は店舗・在庫・時期で変わるため、ここには固定では書きません。Amazonの検索結果一覧から探せます。',
   models: [
     {
       badge: 'まず試したい・省スペース',
       title: 'Keystation Mini 32',
       imageAlt: 'Keystation Mini 32 イメージ',
       body: 'アプリに触ってみたい・持ち運びたいとき向け。本格的な両手でのジャズピアノ練習というより、まず環境をそろえる段階向けです。',
+      amazonSearch: { keyword: 'Keystation Mini 32', linkLabel: '一覧はこちら（Amazon）' },
     },
     {
       badge: '迷ったらこれ',
       title: 'Keystation 61 MK3',
       imageAlt: 'Keystation 61 MK3 イメージ',
       body: 'Jazzifyでのコード練習や両手ワークのバランスが一番取りやすいサイズです。迷ったときの標準になる機種クラスです。',
+      amazonSearch: { keyword: 'Keystation 61 MK3', linkLabel: '一覧はこちら（Amazon）' },
     },
     {
       badge: 'フルレンジ／兼用したい人',
       title: 'Keystation 88 MK3',
       imageAlt: 'Keystation 88 MK3 イメージ',
       body: '88鍵すべてを使えるため、両手で広く音域を取る練習や、ピアノと同じ段数に慣れるのに向いています。DAWでの制作とも兼用しやすいです。設置場所と予算に余裕があるかもあわせて検討してください。',
+      amazonSearch: { keyword: 'Keystation 88 MK3', linkLabel: '一覧はこちら（Amazon）' },
     },
   ],
   disclaimerHeading: 'MIDIキーボード単体では音は鳴りません',
@@ -255,27 +329,30 @@ const HELP_MIDI_KEYBOARD_CHOICE_EN: HelpMidiKeyboardChoiceCopy = {
 88         Full piano / multi-purpose   Worth it if you need the full range`,
   sizeNote:
     'Jazz piano often uses left-hand roots and shell voicings while the right hand handles chords and melody — a smaller keyboard feels cramped quickly.',
-  modelsHeading: 'Example Models (reference only, no affiliate links)',
+  modelsHeading: 'Example Models (reference)',
   modelsIntro:
-    'As a simple USB-MIDI option, the M-Audio Keystation series is a common choice. Prices vary by store, stock, and season, so we do not list fixed prices here.',
+    'As a simple USB-MIDI option, the M-Audio Keystation series is a common choice. Prices vary by store, stock, and season, so we do not list fixed prices here. You can browse Amazon search results for each model.',
   models: [
     {
       badge: 'Try it out / save space',
       title: 'Keystation Mini 32',
       imageAlt: 'Keystation Mini 32 image',
       body: 'Good for trying the app or traveling. Better for getting set up than for serious two-hand jazz piano practice.',
+      amazonSearch: { keyword: 'Keystation Mini 32', linkLabel: 'View listings on Amazon' },
     },
     {
       badge: 'Best default pick',
       title: 'Keystation 61 MK3',
       imageAlt: 'Keystation 61 MK3 image',
       body: 'The easiest size to balance chord practice and two-hand work in Jazzify. A solid default if you are unsure.',
+      amazonSearch: { keyword: 'Keystation 61 MK3', linkLabel: 'View listings on Amazon' },
     },
     {
       badge: 'Full range / multi-use',
       title: 'Keystation 88 MK3',
       imageAlt: 'Keystation 88 MK3 image',
       body: 'All 88 keys for wide two-hand practice and getting used to a full piano layout. Also works well with a DAW. Consider space and budget too.',
+      amazonSearch: { keyword: 'Keystation 88 MK3', linkLabel: 'View listings on Amazon' },
     },
   ],
   disclaimerHeading: 'A MIDI Keyboard Does Not Make Sound on Its Own',

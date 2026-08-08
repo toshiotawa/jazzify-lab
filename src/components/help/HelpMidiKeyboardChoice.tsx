@@ -1,7 +1,11 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SiteFooter from '@/components/common/SiteFooter';
-import { getHelpMidiKeyboardChoiceCopy } from '@/components/help/helpContent';
+import {
+  buildAmazonSearchUrl,
+  getHelpMidiKeyboardChoiceCopy,
+  type HelpLocale,
+} from '@/components/help/helpContent';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -23,7 +27,8 @@ const HelpMidiKeyboardChoice: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
-  const copy = getHelpMidiKeyboardChoiceCopy(isEnglishCopy ? 'en' : 'ja');
+  const locale: HelpLocale = isEnglishCopy ? 'en' : 'ja';
+  const copy = getHelpMidiKeyboardChoiceCopy(locale);
 
   return (
     <div className="bg-slate-900 text-white flex flex-col h-screen overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
@@ -92,6 +97,16 @@ const HelpMidiKeyboardChoice: React.FC = () => {
                     <p className="text-xs uppercase tracking-wide text-emerald-300 font-semibold">{model.badge}</p>
                     <h3 className="text-lg font-semibold text-white">{model.title}</h3>
                     <p className="text-sm">{model.body}</p>
+                    <p className="text-sm pt-1">
+                      <a
+                        href={buildAmazonSearchUrl(locale, model.amazonSearch.keyword)}
+                        className="text-blue-300 underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {model.amazonSearch.linkLabel}
+                      </a>
+                    </p>
                   </div>
                 </article>
               ))}
