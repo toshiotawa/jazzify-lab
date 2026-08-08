@@ -1840,7 +1840,7 @@ final class SupabaseService: Sendable {
 
     // MARK: - Achievement Badges
 
-    struct UserBadgeRow: Decodable, Equatable, Sendable {
+    struct UserBadgeRow: Codable, Equatable, Sendable {
         let badgeId: String
         let earnedAt: String
 

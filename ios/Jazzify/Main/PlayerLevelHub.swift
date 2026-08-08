@@ -73,6 +73,7 @@ final class PlayerLevelHub: ObservableObject {
 
     func ingestAchievementBadges(_ badges: [SupabaseService.UserBadgeRow], usesEnglishUi: Bool) {
         guard !badges.isEmpty else { return }
+        AchievementBadgeStore.shared.ingestGranted(badges)
         let ja = !usesEnglishUi
         for badge in badges {
             guard let definition = AchievementBadgeCatalog.definition(id: badge.badgeId) else { continue }

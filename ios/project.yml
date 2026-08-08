@@ -35,6 +35,10 @@ targets:
       - path: ../public/stage_cards_collection
         type: folder
         buildPhase: resources
+      # 称号メダル PNG（15枚・3.2MB）。AsyncImage のリモート取得をやめ bundle 直置き
+      - path: ../public/achivement
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app
