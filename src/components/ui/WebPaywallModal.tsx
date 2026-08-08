@@ -19,6 +19,7 @@ import { trackEvent } from '@/utils/analytics/ga';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { buildPaywallEventParams, type PaywallSource } from '@/utils/analytics/paywallSource';
 import { resolveWebPaywallCopy } from '@/utils/webPaywallCopy';
+import { resolveAffiliateCheckoutUrl } from '@/utils/lemonAffiliateCheckout';
 
 interface WebPaywallModalProps {
   open: boolean;
@@ -190,9 +191,13 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
       });
 
       if (response.ok) {
-        const { url } = await response.json();
+        const { url } = await response.json() as { url?: string };
+        if (typeof url !== 'string' || url.length === 0) {
+          setError(priceCopy.checkoutFailed);
+          return;
+        }
         setRedirecting(true);
-        window.location.href = url;
+        window.location.href = resolveAffiliateCheckoutUrl(url, billingCurrency);
         return;
       }
       const errBody = await response.json().catch(() => ({}));

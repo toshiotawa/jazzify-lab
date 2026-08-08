@@ -549,6 +549,67 @@ supabase/migrations/
 
 ---
 
+## アフィリエイトプログラム（USD ストア / enjazzifyjp）
+
+Web 版の英語圏（USD）向け Lemon Squeezy ストアでアフィリエイトを有効化する手順です。JPY ストア（`jazzify.jp`）は別設定が必要です。
+
+### ダッシュボード設定（手動）
+
+Lemon Squeezy → **Settings → Affiliates** で以下を設定:
+
+| 項目 | 推奨値 |
+|------|--------|
+| Affiliate referral URL | `https://en.jazzify.jp`（ストアフロント直販は避ける） |
+| Affiliate tracking script store | `enjazzifyjp` |
+| Affiliate products | USD Premium（月額・年額、トライアル variant 含む） |
+| Subscription commission | 更新課金も対象にするかはビジネス判断 |
+
+> **重要:** Referral URL を `enjazzifyjp.lemonsqueezy.com` のままにすると、ログイン後 API checkout（`user_id` 付き）を経由せず未連携課金になりうるため、`https://en.jazzify.jp` に変更してください。
+
+### 計測の仕組み
+
+`affiliate.js` は着地 URL の `?aff=` を Lemon の `/affiliates/track` に送り、返ってきたクリック ID を
+cookie `ls_aff_ref` に保存する。そのうえで `<a href>` を MutationObserver で監視し、ストアドメイン向けリンクに
+`aff_ref` を付与する。
+
+Jazzify の Web 課金は `lemonsqueezyResolveLink` が API で作った URL に `window.location.href` で遷移するため
+**リンク書き換えの対象外**。よって cookie から自前で `aff_ref` を付ける必要がある。
+
+```
+en.jazzify.jp/?aff=CODE
+  → affiliate.js が /affiliates/track へ POST
+  → cookie ls_aff_ref=<click id>
+  → （登録・ログイン後）ペイウォール
+  → lemonsqueezyResolveLink が checkout URL を生成
+  → resolveAffiliateCheckoutUrl が aff_ref=<click id> を付与して遷移
+```
+
+| ファイル | 内容 |
+|----------|------|
+| `index-en.html` | `affiliate.js` を条件付きロード（`?aff=` 着地、または cookie 保持者の LP 再訪のみ） |
+| `src/utils/lemonAffiliateCheckout.ts` | cookie `ls_aff_ref` を読んで checkout URL に `aff_ref` を付与 |
+| `src/components/ui/WebPaywallModal.tsx` | USD 課金時のみ affiliate URL を適用 |
+
+> **なぜ条件付きロードか:** `affiliate.js` は `document.body` 全体を MutationObserver で監視し、変化した
+> サブツリーごとに `getElementsByTagName('a')` を走らせる。`en.jazzify.jp/*` はすべて `index-en.html` を返すため、
+> 無条件に読み込むとゲーム画面の DOM 更新中もこの監視が走る。checkout への付与は cookie 読み取りだけで足りるので、
+> アプリ内ではスクリプト自体を読み込まない。
+
+### テストモード E2E 確認手順
+
+1. Lemon Squeezy を **Test mode** にし、USD ストアのアフィリエイトを有効化
+2. テスト用アフィリエイト URL を取得（例: `https://en.jazzify.jp/?aff=TESTCODE`）
+3. シークレットウィンドウで上記 URL を開く
+4. DevTools → Application → Cookies で `ls_aff_ref` が `en.jazzify.jp` に保存されたことを確認
+   - 保存されない場合は attribution が付かない。`lemonSqueezyAffiliateConfig.debug = true` を一時設定してログを確認
+5. 無料登録 → Premium ペイウォール → チェックアウトへ進む
+6. 遷移先 URL に `aff_ref=<click id>` が付いていることを確認
+7. テストカードで購入完了
+8. Lemon Squeezy → Affiliates で referral が記録されていることを確認
+9. Webhook で `subscriptions` / `profiles` に `user_id` が正しく紐づくことを確認
+
+---
+
 ## 参考リンク
 
 - [Lemon Squeezy Dashboard](https://app.lemonsqueezy.com)

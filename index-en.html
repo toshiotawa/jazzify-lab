@@ -94,6 +94,28 @@
     ]
   }
   </script>
+
+  <script>
+    /*
+      Lemon Squeezy affiliate tracking (USD store: enjazzifyjp).
+      affiliate.js は MutationObserver で全 <a> を監視するため、アプリ内（ゲーム画面）では読み込まない。
+      クリック計測が必要な `?aff=` 着地と、cookie 保持者の LP 再訪だけに限定する。
+      checkout への attribution は utils/lemonAffiliateCheckout.ts が cookie から付与する。
+    */
+    (function () {
+      var hasAffParam = new URLSearchParams(location.search).has('aff');
+      /* appPaths.isLandingPath と同期 */
+      var isLanding = location.pathname === '/' || location.pathname === '';
+      var hasClickCookie = document.cookie.indexOf('ls_aff_ref=') !== -1;
+      if (!hasAffParam && !(isLanding && hasClickCookie)) return;
+
+      window.lemonSqueezyAffiliateConfig = { store: 'enjazzifyjp' };
+      var affiliateScript = document.createElement('script');
+      affiliateScript.src = 'https://lmsqueezy.com/affiliate.js';
+      affiliateScript.defer = true;
+      document.head.appendChild(affiliateScript);
+    })();
+  </script>
   
   <script>
     /* LP 専用アセット: pathname が `/` のときのみ（appPaths.isLandingPath と同期） */
