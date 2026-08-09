@@ -3,6 +3,7 @@ import Foundation
 enum EarTrainingLoopTransposeDirection: String, CaseIterable, Sendable {
     case down
     case up
+    case fourthUp
     case none
 }
 
@@ -61,6 +62,8 @@ enum EarTrainingPrecisionLoop {
             step = -safeCycle
         case .up:
             step = safeCycle
+        case .fourthUp:
+            step = safeCycle * 5
         }
         let raw = baseSemitone + step
         var wrapped = ((raw % 12) + 12) % 12

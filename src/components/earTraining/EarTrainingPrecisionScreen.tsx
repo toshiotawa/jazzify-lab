@@ -170,7 +170,7 @@ const LOOP_BASE_SEMITONE_MIN = -6;
 const LOOP_BASE_SEMITONE_MAX = 5;
 
 const parseLoopTransposeDirection = (value: string): LoopTransposeDirection => {
-  if (value === 'up' || value === 'none') {
+  if (value === 'up' || value === 'fourthUp' || value === 'none') {
     return value;
   }
   return 'down';
@@ -2020,6 +2020,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
                   >
                     <option value="down">{isEnglishCopy ? 'Half-step down' : '半音下降'}</option>
                     <option value="up">{isEnglishCopy ? 'Half-step up' : '半音上昇'}</option>
+                    <option value="fourthUp">{isEnglishCopy ? 'Perfect 4th up' : '完全4度上昇'}</option>
                     <option value="none">{isEnglishCopy ? 'No transpose' : '移調なし'}</option>
                   </select>
                 </label>

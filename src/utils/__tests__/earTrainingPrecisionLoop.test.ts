@@ -35,6 +35,13 @@ describe('earTrainingPrecisionLoop', () => {
     expect(loopSemitoneForCycle(7, 'up')).toBe(-5);
   });
 
+  it('loopSemitoneForCycle: 完全4度上昇方向', () => {
+    expect(loopSemitoneForCycle(1, 'fourthUp')).toBe(5);
+    expect(loopSemitoneForCycle(2, 'fourthUp')).toBe(-2);
+    expect(loopSemitoneForCycle(12, 'fourthUp')).toBe(0);
+    expect(loopSemitoneForCycle(2, 'fourthUp', 3)).toBe(1);
+  });
+
   it('loopSemitoneForCycle: 移調なしは常に原調', () => {
     expect(loopSemitoneForCycle(0, 'none')).toBe(0);
     expect(loopSemitoneForCycle(7, 'none')).toBe(0);
@@ -100,6 +107,7 @@ describe('earTrainingPrecisionLoop', () => {
   it('loopPracticeUniqueSemitones: 12キー分の半音セット', () => {
     expect(loopPracticeUniqueSemitones('down')).toHaveLength(12);
     expect(loopPracticeUniqueSemitones('down', 3)).toHaveLength(12);
+    expect(loopPracticeUniqueSemitones('fourthUp')).toHaveLength(12);
   });
 
   it('loopActiveMeasureNumber: ループ開始小節を加算する', () => {

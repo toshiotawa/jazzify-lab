@@ -562,6 +562,8 @@ private struct EarTrainingPrecisionGameContent: View {
             return locale == .ja ? "半音下降" : "Down"
         case .up:
             return locale == .ja ? "半音上昇" : "Up"
+        case .fourthUp:
+            return locale == .ja ? "完全4度上昇" : "P4 up"
         case .none:
             return locale == .ja ? "移調なし" : "None"
         }
@@ -658,6 +660,13 @@ private struct EarTrainingPrecisionGameContent: View {
                             selected: controller.loopTransposeDirection == .up
                         ) {
                             controller.loopTransposeDirection = .up
+                            openTransportDropdown = nil
+                        }
+                        transportDropdownRow(
+                            title: locale == .ja ? "完全4度上昇" : "Perfect 4th up",
+                            selected: controller.loopTransposeDirection == .fourthUp
+                        ) {
+                            controller.loopTransposeDirection = .fourthUp
                             openTransportDropdown = nil
                         }
                         transportDropdownRow(

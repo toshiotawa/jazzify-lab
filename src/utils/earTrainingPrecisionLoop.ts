@@ -1,7 +1,14 @@
 import { PRECISION_NOTE_FALL_LEAD_SEC } from '@/components/piano/PrecisionNotesRenderer';
 import type { PrecisionNote } from '@/utils/earTrainingPrecisionNotes';
 
-export type LoopTransposeDirection = 'down' | 'up' | 'none';
+export type LoopTransposeDirection = 'down' | 'up' | 'fourthUp' | 'none';
+
+const LOOP_TRANSPOSE_STEP_SEMITONES: Record<LoopTransposeDirection, number> = {
+  none: 0,
+  down: -1,
+  up: 1,
+  fourthUp: 5,
+};
 
 export interface PrecisionLoopWindow {
   startMeasure: number;
@@ -51,9 +58,7 @@ export const loopSemitoneForCycle = (
   baseSemitone = 0,
 ): number => {
   const safeCycle = Math.max(0, Math.trunc(cycleIndex));
-  const step = direction === 'none'
-    ? 0
-    : (direction === 'down' ? -safeCycle : safeCycle);
+  const step = LOOP_TRANSPOSE_STEP_SEMITONES[direction] * safeCycle;
   const raw = baseSemitone + step;
   let wrapped = ((raw % 12) + 12) % 12;
   if (wrapped > 6 || (wrapped === 6 && raw < 0)) {

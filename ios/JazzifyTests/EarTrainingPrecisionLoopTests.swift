@@ -24,6 +24,13 @@ final class EarTrainingPrecisionLoopTests: XCTestCase {
         XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(7, direction: .up), -5)
     }
 
+    func testLoopSemitoneForCycleFourthUpDirection() {
+        XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(1, direction: .fourthUp), 5)
+        XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(2, direction: .fourthUp), -2)
+        XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(12, direction: .fourthUp), 0)
+        XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(2, direction: .fourthUp, baseSemitone: 3), 1)
+    }
+
     func testLoopSemitoneForCycleNoneStaysOriginal() {
         XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(0, direction: .none), 0)
         XCTAssertEqual(EarTrainingPrecisionLoop.loopSemitoneForCycle(7, direction: .none), 0)
@@ -155,6 +162,7 @@ final class EarTrainingPrecisionLoopTests: XCTestCase {
     func testLoopPracticeUniqueSemitonesDirectionHasTwelveKeys() {
         XCTAssertEqual(EarTrainingPrecisionLoop.loopPracticeUniqueSemitones(direction: .down).count, 12)
         XCTAssertEqual(EarTrainingPrecisionLoop.loopPracticeUniqueSemitones(direction: .down, baseSemitone: 3).count, 12)
+        XCTAssertEqual(EarTrainingPrecisionLoop.loopPracticeUniqueSemitones(direction: .fourthUp).count, 12)
     }
 
     func testLoopActiveMeasureNumberAddsLoopStartMeasure() {
