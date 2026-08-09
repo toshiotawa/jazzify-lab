@@ -77,6 +77,11 @@ a:hover { color: #f2c977; }
 }
 .promo-video__play:hover .promo-video__play-label { filter: brightness(1.06); }
 .promo-video__player { display: block; width: 100%; height: auto; }
+/* Author `display` must not override the HTML hidden attribute (double poster + dead controls). */
+.promo-video__play[hidden],
+.promo-video__player[hidden] {
+  display: none !important;
+}
 @media (max-width: 40rem) {
   .site-header__inner, .site-footer__inner { align-items: flex-start; flex-direction: column; }
   .page-main { padding-top: 2rem; }

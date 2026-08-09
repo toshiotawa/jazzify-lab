@@ -74,16 +74,13 @@ const posterMobile = '/newLP/promo-poster-en-960.webp';
       if (!(playButton instanceof HTMLButtonElement) || !(video instanceof HTMLVideoElement)) return;
 
       playButton.addEventListener('click', () => {
-        if (!video.querySelector('source')) {
-          const src = window.matchMedia('(max-width: 767px)').matches
-            ? container.dataset.src720
-            : container.dataset.src1080;
-          if (!src) return;
-          const source = document.createElement('source');
-          source.src = src;
-          source.type = 'video/mp4';
-          video.appendChild(source);
-          video.load();
+        const src = window.matchMedia('(max-width: 767px)').matches
+          ? container.dataset.src720
+          : container.dataset.src1080;
+        if (!src) return;
+
+        if (!video.getAttribute('src')) {
+          video.src = src;
         }
 
         playButton.hidden = true;

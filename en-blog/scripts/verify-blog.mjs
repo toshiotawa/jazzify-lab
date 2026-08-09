@@ -198,6 +198,18 @@ assert(
   analyticsSource.includes("window.gtag('event', 'blog_promo_video_abandon'"),
   'Promo video abandon analytics event is missing',
 );
+
+const promoVideoSource = await readFile(
+  resolve(import.meta.dirname, '../src/components/PromoVideo.astro'),
+  'utf8',
+);
+const promoVideoCss = await readFile(resolve(import.meta.dirname, '../src/styles/global.css'), 'utf8');
+assert(promoVideoSource.includes('video.src = src'), 'Promo video must set video.src on play');
+assert(
+  promoVideoCss.includes('.promo-video__player[hidden]') &&
+    promoVideoCss.includes('display: none !important'),
+  'Promo video CSS must keep [hidden] players collapsed',
+);
 if (expectedMeasurementId) {
   const indexHtml = await readFile(resolve(outputRoot, 'index.html'), 'utf8');
   assert(indexHtml.includes(expectedMeasurementId), 'Built blog is missing VITE_GA_MEASUREMENT_ID');
