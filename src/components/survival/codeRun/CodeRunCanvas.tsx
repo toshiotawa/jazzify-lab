@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { getEffectiveCanvasDpr } from '@/utils/getEffectiveCanvasDpr';
 import type { CodeRunPixelScaleMode } from '@/utils/codeRunLayout';
-import { computeCodeRunPixelScale } from '@/utils/codeRunLayout';
+import { computeCodeRunPixelScale, computeCodeRunVisibleCameraAxis } from '@/utils/codeRunLayout';
 import type { CodeRunJumpFeedbackEffect, CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
@@ -175,7 +175,13 @@ const drawBackgroundGradient = (
   ctx.fillRect(0, topY, viewWidth, viewHeight - topY);
 };
 
-const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, images: ImageMap): void => {
+const drawBackground = (
+  ctx: CanvasRenderingContext2D,
+  state: CodeRunState,
+  images: ImageMap,
+  cameraX: number,
+  cameraY: number,
+): void => {
   const { map } = state;
   const bg = images[map.assets.background];
   ctx.fillStyle = '#071026';
@@ -187,14 +193,14 @@ const drawBackground = (ctx: CanvasRenderingContext2D, state: CodeRunState, imag
       bg.naturalWidth,
       bg.naturalHeight,
       map.worldHeight,
-      state.cameraY,
+      cameraY,
     );
     const drawW = Math.round(layout.drawW);
     const drawH = Math.round(layout.drawH);
     if (layout.gradientTop !== null) {
       drawBackgroundGradient(ctx, layout.gradientTop, map.viewWidth, map.viewHeight);
     }
-    const parallax = -(state.cameraX * 0.18) % drawW;
+    const parallax = -(cameraX * 0.18) % drawW;
     for (let x = parallax - drawW; x < map.viewWidth + drawW; x += drawW) {
       ctx.drawImage(bg, Math.round(x), layout.drawY, drawW, drawH);
     }
@@ -303,6 +309,7 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelSc
   const images = useImages(state.map);
   const { viewWidth, viewHeight } = state.map;
   const [pixelScale, setPixelScale] = useState(1);
+  const containerSizeRef = useRef({ width: 0, height: 0 });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -310,6 +317,8 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelSc
 
     const update = (): void => {
       const { width, height } = el.getBoundingClientRect();
+      containerSizeRef.current.width = width;
+      containerSizeRef.current.height = height;
       setPixelScale(computeCodeRunPixelScale(width, height, viewWidth, viewHeight, pixelScaleMode));
     };
 
@@ -347,16 +356,39 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelSc
 
     const { map } = state;
 
-    drawBackground(ctx, state, images);
+    // cover 表示では見切れた分だけカメラを寄せ直さないと、プレイヤーが画面外へ出てしまう。
+    const container = containerSizeRef.current;
+    const visibleWidth = pixelScale > 0
+      ? Math.min(viewWidth, container.width / pixelScale)
+      : viewWidth;
+    const visibleHeight = pixelScale > 0
+      ? Math.min(viewHeight, container.height / pixelScale)
+      : viewHeight;
+    const cameraX = computeCodeRunVisibleCameraAxis(
+      state.cameraX,
+      state.player.x + state.player.width / 2,
+      visibleWidth,
+      viewWidth,
+      map.worldWidth,
+    );
+    const cameraY = computeCodeRunVisibleCameraAxis(
+      state.cameraY,
+      state.player.y + state.player.height / 2,
+      visibleHeight,
+      viewHeight,
+      map.worldHeight,
+    );
+
+    drawBackground(ctx, state, images, cameraX, cameraY);
     ctx.save();
-    ctx.translate(-Math.round(state.cameraX), -Math.round(state.cameraY));
+    ctx.translate(-Math.round(cameraX), -Math.round(cameraY));
 
     const tileImages = state.map.assets.tiles;
     const groundSurfaceY = map.groundRow * map.tileSize;
     const groundSurfaceColumns = buildGroundSurfaceColumns(map.solids, groundSurfaceY, map.tileSize);
     for (const tile of map.solids) {
-      if (tile.x + tile.width < state.cameraX - map.tileSize || tile.x > state.cameraX + map.viewWidth + map.tileSize) continue;
-      if (tile.y + tile.height < state.cameraY - map.tileSize || tile.y > state.cameraY + map.viewHeight + map.tileSize) continue;
+      if (tile.x + tile.width < cameraX - map.tileSize || tile.x > cameraX + map.viewWidth + map.tileSize) continue;
+      if (tile.y + tile.height < cameraY - map.tileSize || tile.y > cameraY + map.viewHeight + map.tileSize) continue;
       const url = tileImageUrl(tileImages, tile.kind, tile, groundSurfaceY, map.tileSize, groundSurfaceColumns);
       drawImageOrRect(
         ctx,
@@ -370,8 +402,8 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelSc
     }
 
     for (const spike of map.spikes) {
-      if (spike.x + spike.width < state.cameraX - map.tileSize || spike.x > state.cameraX + map.viewWidth + map.tileSize) continue;
-      if (spike.y + spike.height < state.cameraY - map.tileSize || spike.y > state.cameraY + map.viewHeight + map.tileSize) continue;
+      if (spike.x + spike.width < cameraX - map.tileSize || spike.x > cameraX + map.viewWidth + map.tileSize) continue;
+      if (spike.y + spike.height < cameraY - map.tileSize || spike.y > cameraY + map.viewHeight + map.tileSize) continue;
       drawImageOrRect(ctx, images[tileImages.spike], spike.x, spike.y, spike.width, spike.height, '#5a6078');
     }
 
