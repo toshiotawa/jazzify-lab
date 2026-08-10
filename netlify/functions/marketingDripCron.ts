@@ -10,7 +10,7 @@
  * - marketing_email_sends を先にclaimする冪等設計（claimAndSendMarketingEmail）。
  *   主キーが (user_id, email_key) なので、どのメールも1ユーザーにつき生涯1通。
  * - 1実行につきユーザーあたり1通のみ。優先度は
- *   trial_start > paywall_nudge > soft_landing_chord_run > 定期便 > never_played_5d > dormant_14d。
+ *   trial_start > paywall_nudge > 定期便 > never_played_5d > dormant_14d。
  * - 途中で配信停止した人は marketing_email_opt_in = false になるため抽出から自然に外れる。
  */
 
@@ -37,7 +37,6 @@ const STEP_GRACE_DAYS = 3;
 const MIN_SEND_INTERVAL_HOURS = 20;
 /** ペイウォール到達の当日中〜翌朝に届く粒度。毎時実行なので時間単位で判定する */
 const PAYWALL_NUDGE_AFTER_HOURS = 12;
-const SOFT_LANDING_CHORD_RUN_AFTER_HOURS = 24;
 const NEVER_PLAYED_AFTER_DAYS = 5;
 const DORMANT_AFTER_DAYS = 14;
 const BATCH_LIMIT = 1000;
@@ -166,115 +165,6 @@ const fetchLastActivityAt = async (
   return result;
 };
 
-interface SoftLandingEmailLessonSets {
-  mainQuestBlock1LessonIds: string[];
-  chordRunBlock1LessonIds: string[];
-}
-
-const fetchSoftLandingEmailLessonSets = async (
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-): Promise<SoftLandingEmailLessonSets | null> => {
-  const { data: mainCourse, error: mainCourseError } = await supabase
-    .from('courses')
-    .select('id')
-    .eq('is_main_course', true)
-    .eq('is_visible', true)
-    .eq('is_developer_only', false)
-    .order('order_index', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (mainCourseError || !mainCourse?.id) {
-    return null;
-  }
-
-  const { data: chordRunCourse, error: chordRunCourseError } = await supabase
-    .from('courses')
-    .select('id')
-    .eq('soft_landing_order', 1)
-    .eq('is_visible', true)
-    .eq('is_developer_only', false)
-    .limit(1)
-    .maybeSingle();
-  if (chordRunCourseError || !chordRunCourse?.id) {
-    return null;
-  }
-
-  const { data: mainLessons, error: mainLessonsError } = await supabase
-    .from('lessons')
-    .select('id')
-    .eq('course_id', mainCourse.id)
-    .eq('block_number', 1);
-  if (mainLessonsError || !mainLessons?.length) {
-    return null;
-  }
-
-  const { data: chordRunLessons, error: chordRunLessonsError } = await supabase
-    .from('lessons')
-    .select('id')
-    .eq('course_id', chordRunCourse.id)
-    .eq('block_number', 1);
-  if (chordRunLessonsError || !chordRunLessons?.length) {
-    return null;
-  }
-
-  return {
-    mainQuestBlock1LessonIds: mainLessons.map((row) => row.id).filter(isNonEmptyString),
-    chordRunBlock1LessonIds: chordRunLessons.map((row) => row.id).filter(isNonEmptyString),
-  };
-};
-
-interface LessonProgressSnapshot {
-  completedLessonIds: Set<string>;
-  completedAtByLessonId: Map<string, number>;
-}
-
-const fetchLessonProgressSnapshots = async (
-  supabase: ReturnType<typeof getSupabaseServiceClient>,
-  userIds: readonly string[],
-  lessonIds: readonly string[],
-): Promise<Map<string, LessonProgressSnapshot>> => {
-  const result = new Map<string, LessonProgressSnapshot>();
-  if (userIds.length === 0 || lessonIds.length === 0) {
-    return result;
-  }
-
-  const { data, error } = await supabase
-    .from('user_lesson_progress')
-    .select('user_id, lesson_id, completed, updated_at')
-    .in('user_id', [...userIds])
-    .in('lesson_id', [...lessonIds])
-    .eq('completed', true);
-  if (error) {
-    return result;
-  }
-
-  for (const row of data ?? []) {
-    if (!isNonEmptyString(row.user_id) || !isNonEmptyString(row.lesson_id)) {
-      continue;
-    }
-    const updatedAt = parseTime(row.updated_at);
-    const snapshot = result.get(row.user_id) ?? {
-      completedLessonIds: new Set<string>(),
-      completedAtByLessonId: new Map<string, number>(),
-    };
-    snapshot.completedLessonIds.add(row.lesson_id);
-    if (updatedAt !== null) {
-      const previous = snapshot.completedAtByLessonId.get(row.lesson_id);
-      if (previous === undefined || updatedAt > previous) {
-        snapshot.completedAtByLessonId.set(row.lesson_id, updatedAt);
-      }
-    }
-    result.set(row.user_id, snapshot);
-  }
-
-  return result;
-};
-
-const isLessonSetComplete = (
-  lessonIds: readonly string[],
-  completedLessonIds: Set<string>,
-): boolean => lessonIds.every((lessonId) => completedLessonIds.has(lessonId));
-
 export const handler = async () => {
   const supabase = getSupabaseServiceClient();
   const nowMs = Date.now();
@@ -401,55 +291,6 @@ export const handler = async () => {
       continue;
     }
     await send('paywall_nudge', profile);
-  }
-
-  const softLandingLessonSets = await fetchSoftLandingEmailLessonSets(supabase);
-  if (softLandingLessonSets) {
-    const softLandingCandidates = profiles.filter(
-      (profile) => isPending(profile, 'soft_landing_chord_run') && !paidUserIds.has(profile.id),
-    );
-    const softLandingUserIds = softLandingCandidates.map((profile) => profile.id);
-    const trackedLessonIds = [
-      ...softLandingLessonSets.mainQuestBlock1LessonIds,
-      ...softLandingLessonSets.chordRunBlock1LessonIds,
-    ];
-    const progressSnapshots = await fetchLessonProgressSnapshots(
-      supabase,
-      softLandingUserIds,
-      trackedLessonIds,
-    );
-
-    for (const profile of softLandingCandidates) {
-      if (!isPending(profile, 'soft_landing_chord_run')) {
-        continue;
-      }
-      const snapshot = progressSnapshots.get(profile.id);
-      if (!snapshot) {
-        continue;
-      }
-      const mainQuestComplete = isLessonSetComplete(
-        softLandingLessonSets.mainQuestBlock1LessonIds,
-        snapshot.completedLessonIds,
-      );
-      const chordRunIncomplete = !isLessonSetComplete(
-        softLandingLessonSets.chordRunBlock1LessonIds,
-        snapshot.completedLessonIds,
-      );
-      if (!mainQuestComplete || !chordRunIncomplete) {
-        continue;
-      }
-      const mainQuestCompletedAt = softLandingLessonSets.mainQuestBlock1LessonIds
-        .map((lessonId) => snapshot.completedAtByLessonId.get(lessonId) ?? null)
-        .filter((value): value is number => value !== null);
-      const latestMainQuestCompletionAt = mainQuestCompletedAt.length > 0
-        ? Math.max(...mainQuestCompletedAt)
-        : null;
-      if (latestMainQuestCompletionAt === null
-        || nowMs - latestMainQuestCompletionAt < SOFT_LANDING_CHORD_RUN_AFTER_HOURS * HOUR_MS) {
-        continue;
-      }
-      await send('soft_landing_chord_run', profile);
-    }
   }
 
   // --- day0〜day30: 未送信の最も早いdueメールを1通だけ送る ---
