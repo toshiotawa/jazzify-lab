@@ -8,10 +8,12 @@ import {
 } from '@/components/survival/codeRun/codeRunSpriteUrls';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import { fetchSurvivalStage } from '@/components/survival/SurvivalStageDefinitions';
+import type { CodeRunDemoDifficulty } from '@/embed/codeRunDemoCatalog';
 import {
   applyDemoConfigToStage,
   buildCodeRunDemoLpUrl,
   resolveCodeRunDemo,
+  resolveCodeRunDemoDifficulty,
 } from '@/embed/codeRunDemoCatalog';
 import {
   CODE_RUN_DEMO_EVENTS,
@@ -45,9 +47,16 @@ const EmbedCodeRunPage: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy({ preferredLocale: demoConfig?.lpLocale });
   const survivalMidi = useSurvivalMidiSession();
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const [difficulty, setDifficulty] = useState<CodeRunDemoDifficulty>(() => (
+    resolveCodeRunDemoDifficulty(searchParams.get('d'))
+    ?? resolveCodeRunDemo(demoId)?.defaultDifficulty
+    ?? 'easy'
+  ));
+
   const trackContext = useMemo(
-    () => (demoConfig ? { demoConfig, from: embedFrom } : null),
-    [demoConfig, embedFrom],
+    () => (demoConfig ? { demoConfig, difficulty, from: embedFrom } : null),
+    [demoConfig, difficulty, embedFrom],
   );
 
   const [screen, setScreen] = useState<EmbedScreen>('pre');
@@ -74,7 +83,7 @@ const EmbedCodeRunPage: React.FC = () => {
       setLoadError(isEnglish ? 'Stage not found.' : 'ステージが見つかりません。');
       return null;
     }
-    const stage = applyDemoConfigToStage(row, demoConfig);
+    const stage = applyDemoConfigToStage(row, difficulty);
 
     let bgmSettings = DEFAULT_SURVIVAL_BGM_SETTINGS;
     try {
@@ -116,7 +125,7 @@ const EmbedCodeRunPage: React.FC = () => {
     setStageDefinition(stage);
     setGameConfig(baseConfig);
     return stage;
-  }, [demoConfig, isEnglish]);
+  }, [demoConfig, difficulty, isEnglish]);
 
   const startDemo = useCallback(async () => {
     if (!demoConfig || !trackContext) return;
@@ -150,11 +159,11 @@ const EmbedCodeRunPage: React.FC = () => {
 
   const openFullscreenTab = useCallback(() => {
     if (!demoConfig) return;
-    const params = new URLSearchParams({ id: demoConfig.id, fs: '1' });
+    const params = new URLSearchParams({ id: demoConfig.id, fs: '1', d: difficulty });
     if (embedFrom?.trim()) params.set('from', embedFrom.trim());
     const url = `${window.location.origin}/embed/code-run?${params.toString()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
-  }, [demoConfig, embedFrom]);
+  }, [demoConfig, difficulty, embedFrom]);
 
   const handleCtaClick = useCallback(() => {
     if (!trackContext) return;
@@ -176,9 +185,22 @@ const EmbedCodeRunPage: React.FC = () => {
     );
   }
 
-  const chordModeLabel = demoConfig.chordSource.kind === 'random'
-    ? (isEnglish ? 'Random chords' : 'ランダム出題')
-    : (isEnglish ? 'Chord progression' : 'コード進行');
+  const difficultyOptions: readonly {
+    readonly value: CodeRunDemoDifficulty;
+    readonly name: string;
+    readonly hint: string;
+  }[] = [
+    {
+      value: 'easy',
+      name: 'EASY',
+      hint: isEnglish ? 'Single notes C–G' : '単音 C〜G',
+    },
+    {
+      value: 'normal',
+      name: 'NORMAL',
+      hint: isEnglish ? 'ii–V–I voicings' : 'ii-V-I ボイシング',
+    },
+  ];
 
   return (
     <div
@@ -191,28 +213,26 @@ const EmbedCodeRunPage: React.FC = () => {
           <div className="ecr-screen__scanlines" aria-hidden="true" />
           <div className="ecr-screen__inner">
             <p className="ecr-eyebrow">JAZZIFY</p>
-            <h1 className="ecr-logo">CODE RUN</h1>
+            <h1 className="ecr-logo">Chord Run</h1>
             <p className="ecr-lead">
               {isEnglish
                 ? 'Play with a MIDI keyboard or the on-screen piano. Arrow keys move on desktop.'
                 : 'MIDIキーボードまたは画面鍵盤でプレイできます。PCでは矢印キーで移動します。'}
             </p>
 
-            <div className="ecr-badges">
-              <div className="ecr-badge">
-                <span className="ecr-badge__key">{isEnglish ? 'Mode' : '出題'}</span>
-                <span className="ecr-badge__value">{chordModeLabel}</span>
-              </div>
-              <div className="ecr-badge">
-                <span className="ecr-badge__key">{isEnglish ? 'Guide' : 'ガイド'}</span>
-                <span className="ecr-badge__value">
-                  {demoConfig.hintMode ? (isEnglish ? 'On' : 'あり') : (isEnglish ? 'Off' : 'なし')}
-                </span>
-              </div>
-              <div className="ecr-badge">
-                <span className="ecr-badge__key">{isEnglish ? 'Time' : '制限時間'}</span>
-                <span className="ecr-badge__value">{demoConfig.timeLimitSec}s</span>
-              </div>
+            <div className="ecr-difficulty" role="group" aria-label={isEnglish ? 'Difficulty' : '難易度'}>
+              {difficultyOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="ecr-difficulty__option"
+                  aria-pressed={difficulty === option.value}
+                  onClick={() => setDifficulty(option.value)}
+                >
+                  <span className="ecr-difficulty__name">{option.name}</span>
+                  <span className="ecr-difficulty__hint">{option.hint}</span>
+                </button>
+              ))}
             </div>
 
             {loadError && <p className="ecr-error">{loadError}</p>}

@@ -86,7 +86,7 @@ iframe デモ（`/embed/code-run?id=demo_*`）は次を送る。`tutorial_comple
 
 | イベント | タイミング | 主なパラメータ |
 |---|---|---|
-| `code_run_demo_play` | スタート成功（ステージ取得後） | `demo_id`, `demo_lp_locale`, `demo_chord_mode`, `embed_from?`, `lp_hostname`, `lp_path` |
+| `code_run_demo_play` | スタート成功（ステージ取得後） | `demo_id`, `demo_lp_locale`, `demo_difficulty`, `embed_from?`, `lp_hostname`, `lp_path` |
 | `code_run_demo_clear` | ゴール到達 | 同上 |
 | `code_run_demo_timeout` | 120秒切れ | 同上 |
 | `code_run_demo_cta_click` | 終了後 LP CTA | 同上 + `outcome` |

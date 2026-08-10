@@ -2,8 +2,10 @@ import {
   applyDemoChordSourceToStage,
   applyDemoConfigToStage,
   buildCodeRunDemoLpUrl,
+  CODE_RUN_DEMO_DIFFICULTIES,
   CODE_RUN_DEMOS,
   resolveCodeRunDemo,
+  resolveCodeRunDemoDifficulty,
 } from '@/embed/codeRunDemoCatalog';
 import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 
@@ -28,37 +30,42 @@ const baseStage = (): StageDefinition => ({
 });
 
 describe('codeRunDemoCatalog', () => {
-  it('resolves all four demo ids', () => {
-    expect(resolveCodeRunDemo('demo_1')?.chordSource.kind).toBe('random');
+  it('resolves all four demo ids with their default difficulty', () => {
+    expect(resolveCodeRunDemo('demo_1')?.defaultDifficulty).toBe('easy');
     expect(resolveCodeRunDemo('demo_2')?.lpLocale).toBe('en');
-    expect(resolveCodeRunDemo('demo_3')?.chordSource.kind).toBe('progression');
+    expect(resolveCodeRunDemo('demo_2')?.defaultDifficulty).toBe('easy');
+    expect(resolveCodeRunDemo('demo_3')?.defaultDifficulty).toBe('normal');
     expect(resolveCodeRunDemo('demo_4')?.lpLocale).toBe('en');
+    expect(resolveCodeRunDemo('demo_4')?.defaultDifficulty).toBe('normal');
     expect(resolveCodeRunDemo('unknown')).toBeNull();
     expect(resolveCodeRunDemo(null)).toBeNull();
   });
 
-  it('demo_1 uses C-G single notes with hint and ja LP', () => {
-    const demo = CODE_RUN_DEMOS.demo_1;
-    expect(demo.hintMode).toBe(true);
-    expect(demo.lpLocale).toBe('ja');
-    expect(demo.chordSource).toEqual({
+  it('resolves difficulty query values', () => {
+    expect(resolveCodeRunDemoDifficulty('easy')).toBe('easy');
+    expect(resolveCodeRunDemoDifficulty('normal')).toBe('normal');
+    expect(resolveCodeRunDemoDifficulty('hard')).toBeNull();
+    expect(resolveCodeRunDemoDifficulty(null)).toBeNull();
+  });
+
+  it('easy uses C-G single notes', () => {
+    const preset = CODE_RUN_DEMO_DIFFICULTIES.easy;
+    expect(preset.chordSource).toEqual({
       kind: 'random',
       allowedChords: ['C_note', 'D_note', 'E_note', 'F_note', 'G_note'],
     });
-    expect(demo.runDialogueScript?.lines[0]?.text).toContain('音を弾く');
-    expect(demo.runDialogueScript?.lines[0]?.text).toContain('2段ジャンプ');
-    expect(demo.runDialogueScript?.lines.every((line) => line.speaker === 'fai')).toBe(true);
+    expect(preset.runDialogueScript.lines[0]?.text).toContain('音を弾く');
+    expect(preset.runDialogueScript.lines[0]?.text).toContain('2段ジャンプ');
+    expect(preset.runDialogueScript.lines.every((line) => line.speaker === 'fai')).toBe(true);
   });
 
 
-  it('demo_3 uses II-V-I progression with voicings', () => {
-    const demo = CODE_RUN_DEMOS.demo_3;
-    expect(demo.hintMode).toBe(true);
-    expect(demo.lpLocale).toBe('ja');
-    if (demo.chordSource.kind !== 'progression') {
+  it('normal uses II-V-I progression with voicings', () => {
+    const preset = CODE_RUN_DEMO_DIFFICULTIES.normal;
+    if (preset.chordSource.kind !== 'progression') {
       throw new Error('expected progression');
     }
-    expect(demo.chordSource.progression).toEqual([
+    expect(preset.chordSource.progression).toEqual([
       {
         name: 'Dm7(9)',
         voicing: [53, 57, 60, 64],
@@ -78,9 +85,9 @@ describe('codeRunDemoCatalog', () => {
         keyFifths: 0,
       },
     ]);
-    expect(demo.runDialogueScript?.lines[0]?.text).toContain('コードを弾く');
-    expect(demo.runDialogueScript?.lines[0]?.text).toContain('2段ジャンプ');
-    expect(demo.runDialogueScript?.lines.every((line) => line.speaker === 'fai')).toBe(true);
+    expect(preset.runDialogueScript.lines[0]?.text).toContain('コードを弾く');
+    expect(preset.runDialogueScript.lines[0]?.text).toContain('2段ジャンプ');
+    expect(preset.runDialogueScript.lines.every((line) => line.speaker === 'fai')).toBe(true);
   });
 
 
@@ -118,10 +125,16 @@ describe('codeRunDemoCatalog', () => {
     expect(next.chordProgression).toEqual(progression);
   });
 
-  it('applyDemoConfigToStage applies chord source and dialogue script', () => {
-    const next = applyDemoConfigToStage(baseStage(), CODE_RUN_DEMOS.demo_1);
-    expect(next.allowedChords).toEqual(['C_note', 'D_note', 'E_note', 'F_note', 'G_note']);
-    expect(next.runDialogueScript?.lines).toHaveLength(3);
-    expect(next.runDialogueScript?.lines[0]?.speaker).toBe('fai');
+  it('applyDemoConfigToStage applies the selected difficulty preset', () => {
+    const easy = applyDemoConfigToStage(baseStage(), 'easy');
+    expect(easy.stageType).toBe('random');
+    expect(easy.allowedChords).toEqual(['C_note', 'D_note', 'E_note', 'F_note', 'G_note']);
+    expect(easy.runDialogueScript?.lines).toHaveLength(3);
+    expect(easy.runDialogueScript?.lines[0]?.speaker).toBe('fai');
+
+    const normal = applyDemoConfigToStage(baseStage(), 'normal');
+    expect(normal.stageType).toBe('progression');
+    expect(normal.chordProgression?.[0]?.name).toBe('Dm7(9)');
+    expect(normal.runDialogueScript?.lines[0]?.text).toContain('コードを弾く');
   });
 });

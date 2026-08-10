@@ -11,16 +11,18 @@ export type CodeRunDemoChordSource =
   | { readonly kind: 'random'; readonly allowedChords: readonly string[] }
   | { readonly kind: 'progression'; readonly progression?: readonly SurvivalChordProgressionEntry[] };
 
+/** プレイヤーが開始画面で選ぶ難易度。出題内容と台本がこれで決まる。 */
+export type CodeRunDemoDifficulty = 'easy' | 'normal';
+
 export interface CodeRunDemoConfig {
   readonly id: string;
   readonly mapCategory: SurvivalMapCategory;
   readonly stageNumber: number;
-  readonly chordSource: CodeRunDemoChordSource;
+  readonly defaultDifficulty: CodeRunDemoDifficulty;
   readonly hintMode: boolean;
   readonly timeLimitSec: number;
   readonly lpLocale: 'ja' | 'en';
   readonly utmCampaign: string;
-  readonly runDialogueScript?: SurvivalRunDialogueScript;
 }
 
 const CFG_MAJOR_SINGLE_NOTES = buildAllowedChordsForSuffix(['C', 'D', 'E', 'F', 'G'], '_note');
@@ -98,50 +100,64 @@ const buildChordDialogueScript = (): SurvivalRunDialogueScript => ({
   ],
 });
 
+interface CodeRunDemoDifficultyPreset {
+  readonly chordSource: CodeRunDemoChordSource;
+  readonly runDialogueScript: SurvivalRunDialogueScript;
+}
+
+export const CODE_RUN_DEMO_DIFFICULTIES: Readonly<
+  Record<CodeRunDemoDifficulty, CodeRunDemoDifficultyPreset>
+> = {
+  easy: {
+    chordSource: { kind: 'random', allowedChords: CFG_MAJOR_SINGLE_NOTES },
+    runDialogueScript: buildSingleNoteDialogueScript(),
+  },
+  normal: {
+    chordSource: { kind: 'progression', progression: DEMO_II_V_I_PROGRESSION },
+    runDialogueScript: buildChordDialogueScript(),
+  },
+};
+
 export const CODE_RUN_DEMOS: Readonly<Record<string, CodeRunDemoConfig>> = {
   demo_1: {
     id: 'demo_1',
     mapCategory: 'basic',
     stageNumber: 122,
-    chordSource: { kind: 'random', allowedChords: CFG_MAJOR_SINGLE_NOTES },
+    defaultDifficulty: 'easy',
     hintMode: true,
     timeLimitSec: 120,
     lpLocale: 'ja',
     utmCampaign: 'code_run_demo_single_notes_ja',
-    runDialogueScript: buildSingleNoteDialogueScript(),
   },
   demo_2: {
     id: 'demo_2',
     mapCategory: 'basic',
     stageNumber: 122,
-    chordSource: { kind: 'random', allowedChords: CFG_MAJOR_SINGLE_NOTES },
+    defaultDifficulty: 'easy',
     hintMode: true,
     timeLimitSec: 120,
     lpLocale: 'en',
     utmCampaign: 'code_run_demo_single_notes_en',
-    runDialogueScript: buildSingleNoteDialogueScript(),
   },
   demo_3: {
     id: 'demo_3',
     mapCategory: 'basic',
     stageNumber: 122,
-    chordSource: { kind: 'progression', progression: DEMO_II_V_I_PROGRESSION },
+    defaultDifficulty: 'normal',
     hintMode: true,
     timeLimitSec: 120,
     lpLocale: 'ja',
     utmCampaign: 'code_run_demo_ii_v_i_ja',
-    runDialogueScript: buildChordDialogueScript(),
   },
   demo_4: {
     id: 'demo_4',
     mapCategory: 'basic',
     stageNumber: 122,
-    chordSource: { kind: 'progression', progression: DEMO_II_V_I_PROGRESSION },
+    defaultDifficulty: 'normal',
     hintMode: true,
     timeLimitSec: 120,
     lpLocale: 'en',
     utmCampaign: 'code_run_demo_ii_v_i_en',
-    runDialogueScript: buildChordDialogueScript(),
   },
 };
 
@@ -150,6 +166,12 @@ export const resolveCodeRunDemo = (id: string | null): CodeRunDemoConfig | null 
   const trimmed = id.trim();
   return CODE_RUN_DEMOS[trimmed] ?? null;
 };
+
+export const resolveCodeRunDemoDifficulty = (
+  value: string | null,
+): CodeRunDemoDifficulty | null => (
+  value === 'easy' || value === 'normal' ? value : null
+);
 
 export const buildCodeRunDemoLpUrl = (
   config: CodeRunDemoConfig,
@@ -192,11 +214,11 @@ export const applyDemoChordSourceToStage = (
 
 export const applyDemoConfigToStage = (
   stage: StageDefinition,
-  config: CodeRunDemoConfig,
+  difficulty: CodeRunDemoDifficulty,
 ): StageDefinition => {
-  const withChords = applyDemoChordSourceToStage(stage, config.chordSource);
+  const preset = CODE_RUN_DEMO_DIFFICULTIES[difficulty];
   return {
-    ...withChords,
-    ...(config.runDialogueScript ? { runDialogueScript: config.runDialogueScript } : {}),
+    ...applyDemoChordSourceToStage(stage, preset.chordSource),
+    runDialogueScript: preset.runDialogueScript,
   };
 };

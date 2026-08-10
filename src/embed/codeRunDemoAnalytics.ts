@@ -1,4 +1,4 @@
-import type { CodeRunDemoConfig } from '@/embed/codeRunDemoCatalog';
+import type { CodeRunDemoConfig, CodeRunDemoDifficulty } from '@/embed/codeRunDemoCatalog';
 import type { GaEventParams } from '@/utils/analytics/ga';
 import { trackEvent } from '@/utils/analytics/ga';
 
@@ -15,6 +15,7 @@ type CodeRunDemoTrackableEvent =
 
 interface CodeRunDemoTrackContext {
   readonly demoConfig: CodeRunDemoConfig;
+  readonly difficulty: CodeRunDemoDifficulty;
   /** iframe URL の ?from=（例: jazzpianodays / en_blog） */
   readonly from?: string | null;
 }
@@ -27,7 +28,7 @@ export const buildCodeRunDemoEventParams = (
   return {
     demo_id: context.demoConfig.id,
     demo_lp_locale: context.demoConfig.lpLocale,
-    demo_chord_mode: context.demoConfig.chordSource.kind,
+    demo_difficulty: context.difficulty,
     ...(from ? { embed_from: from } : {}),
     ...extra,
   };
