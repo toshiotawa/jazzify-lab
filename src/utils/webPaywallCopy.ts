@@ -48,6 +48,11 @@ const COPY = {
       'コードの響きをつかんで、アドリブを続けよう。次はCブルースのコードをつかむチャプターへ進みます。',
     chapterCompleteSubheadlineSubscribe:
       'コードの響きをつかんで、アドリブを続けよう。次はCブルースのコードをつかむチャプターへ進みます。',
+    softLandingHeadline: 'このコースの続きを開放',
+    softLandingSubheadlineTrial:
+      '第1ブロックをクリアしました。7日間無料で、残りのブロックもすべてプレイできます。',
+    softLandingSubheadlineSubscribe:
+      '第1ブロックをクリアしました。プレミアムで残りのブロックもすべてプレイできます。',
     features: [
       '初心者向けメインクエストを最後まで進められる',
       'アドリブ・両手ヴォイシングなど目的別に練習できる',
@@ -63,8 +68,10 @@ const COPY = {
     ctaTrialGeneric: '7日間無料で始める',
     ctaTrialChapter: '7日間無料で第2チャプターを始める',
     ctaTrialChapterComplete: '7日間無料で次のチャプターを始める',
+    ctaTrialSoftLanding: '7日間無料ですべて開放する',
     ctaSubscribeGeneric: 'すべてのクエストを解放する',
     ctaSubscribeChapter: '次のチャプターへ進む',
+    ctaSubscribeSoftLanding: 'コースの続きへ進む',
   },
   en: {
     headline: 'Take your jazz practice further.',
@@ -77,6 +84,11 @@ const COPY = {
       'Keep improvising by learning chord colors. Next up: Get a Grip on C Blues Chords.',
     chapterCompleteSubheadlineSubscribe:
       'Keep improvising by learning chord colors. Next up: Get a Grip on C Blues Chords.',
+    softLandingHeadline: 'Unlock the rest of this course',
+    softLandingSubheadlineTrial:
+      'You cleared Block 1. Start a 7-day free trial to play every remaining block.',
+    softLandingSubheadlineSubscribe:
+      'You cleared Block 1. Go Premium to play every remaining block.',
     features: [
       'Finish the beginner Main Quest from start to end',
       'Practice by goal—improv, two-hand voicings, and more',
@@ -92,8 +104,10 @@ const COPY = {
     ctaTrialGeneric: 'Start 7-day free trial',
     ctaTrialChapter: 'Start Chapter 2 free for 7 days',
     ctaTrialChapterComplete: 'Start the next chapter free for 7 days',
+    ctaTrialSoftLanding: 'Unlock everything free for 7 days',
     ctaSubscribeGeneric: 'Unlock all quests',
     ctaSubscribeChapter: 'Continue to the next chapter',
+    ctaSubscribeSoftLanding: 'Continue this course',
   },
 } as const;
 
@@ -110,6 +124,19 @@ export function resolveWebPaywallCopy(
   const chapterOriented = isChapterOrientedSource(source);
   const trialUsedNotice = trialUsed ? trialUsedNoticeFor(billingCurrency, isEnglishCopy) : undefined;
   const trialCtaFootnote = trialUsed ? undefined : trialCtaFootnoteFor(billingCurrency, isEnglishCopy);
+
+  if (source === 'soft_landing') {
+    return {
+      headline: base.softLandingHeadline,
+      subheadline: trialUsed
+        ? base.softLandingSubheadlineSubscribe
+        : base.softLandingSubheadlineTrial,
+      features: base.features,
+      ctaLabel: trialUsed ? base.ctaSubscribeSoftLanding : base.ctaTrialSoftLanding,
+      trialUsedNotice,
+      ctaFootnote: trialCtaFootnote,
+    };
+  }
 
   if (source === 'chapter_complete' || source === 'resume_modal') {
     return {

@@ -4,7 +4,13 @@ import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { buildLessonAccessGraph, MembershipRank } from '@/utils/lessonAccess';
-import { applyMainQuestFreeTierLocks, isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+import { applyMainQuestFreeTierLocks } from '@/utils/mainQuestFreeTier';
+import {
+  applySoftLandingFreeTierLocks,
+  isLessonBlockPlayable,
+  isSequentialCourse,
+  isSoftLandingCourse,
+} from '@/utils/softLanding';
 import { log } from '@/utils/logger';
 
 export type NavigationBlockedReason =
@@ -31,6 +37,7 @@ export interface LessonNavigationInfo {
 export interface LessonNavigationOptions {
   forceRefresh?: boolean;
   isMainQuest?: boolean;
+  isSoftLanding?: boolean;
   isPremiumMember?: boolean;
 }
 
@@ -108,13 +115,14 @@ function buildNavigationCacheKey(
   currentLessonId: string,
   userRank: MembershipRank | null | undefined,
   isMainQuest: boolean,
+  isSoftLanding: boolean,
   isPremiumMember: boolean,
 ): string {
   return [
     courseId,
     currentLessonId,
     userRank ?? 'no-rank',
-    isMainQuest ? 'main' : 'course',
+    isMainQuest ? 'main' : isSoftLanding ? 'soft' : 'course',
     isPremiumMember ? 'premium' : 'free',
   ].join(':');
 }
@@ -138,7 +146,12 @@ function resolveNextBlockedReason(
   canGoNext: boolean,
   baseAccessGraph: ReturnType<typeof buildLessonAccessGraph>,
   completedIds: Set<string>,
-  options: { isMainQuest: boolean; isPremiumMember: boolean },
+  options: {
+    isMainQuest: boolean;
+    isSoftLanding: boolean;
+    isPremiumMember: boolean;
+    course: Pick<import('@/types').Course, 'is_main_course' | 'soft_landing_order'>;
+  },
 ): NavigationBlockedReason | null {
   if (nextLesson === null) {
     return 'last_lesson';
@@ -149,8 +162,8 @@ function resolveNextBlockedReason(
 
   const nextBlockNumber = nextLesson.block_number ?? 1;
   if (
-    options.isMainQuest
-    && !isMainQuestBlockPlayable(nextBlockNumber, options.isPremiumMember)
+    (options.isMainQuest || options.isSoftLanding)
+    && !isLessonBlockPlayable(options.course, nextBlockNumber, options.isPremiumMember)
   ) {
     return 'premium_required';
   }
@@ -162,7 +175,7 @@ function resolveNextBlockedReason(
 
   const currentBlockNumber = currentLesson.block_number ?? 1;
   if (
-    options.isMainQuest
+    (options.isMainQuest || options.isSoftLanding)
     && currentBlockNumber === nextBlockNumber
     && completedIds.has(currentLesson.id) !== true
   ) {
@@ -180,7 +193,12 @@ export function computeLessonNavigationInfo(
   courseId: string,
   lessons: readonly Lesson[],
   progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined>,
-  options: { isMainQuest: boolean; isPremiumMember: boolean },
+  options: {
+    isMainQuest: boolean;
+    isSoftLanding: boolean;
+    isPremiumMember: boolean;
+    course: Pick<import('@/types').Course, 'is_main_course' | 'soft_landing_order'>;
+  },
 ): LessonNavigationInfo {
   const sortedLessons = sortLessonsByOrder([...lessons]);
   const currentIndex = sortedLessons.findIndex((lesson) => lesson.id === currentLessonId);
@@ -192,15 +210,22 @@ export function computeLessonNavigationInfo(
   const previousLesson = currentIndex > 0 ? sortedLessons[currentIndex - 1] : null;
   const nextLesson = currentIndex < sortedLessons.length - 1 ? sortedLessons[currentIndex + 1] : null;
 
+  const enforceSequential = options.isMainQuest || options.isSoftLanding;
   const baseAccessGraph = buildLessonAccessGraph({
     lessons: sortedLessons,
     progressMap,
-    enforceSequentialWithinBlocks: options.isMainQuest,
+    enforceSequentialWithinBlocks: enforceSequential,
   });
 
   let accessGraph = baseAccessGraph;
   if (options.isMainQuest) {
     accessGraph = applyMainQuestFreeTierLocks(
+      accessGraph,
+      sortedLessons,
+      options.isPremiumMember,
+    );
+  } else if (options.isSoftLanding) {
+    accessGraph = applySoftLandingFreeTierLocks(
       accessGraph,
       sortedLessons,
       options.isPremiumMember,
@@ -252,15 +277,19 @@ export async function getLessonNavigationInfo(
   currentLessonId: string,
   courseId: string,
   userRank?: MembershipRank | null,
-  options?: LessonNavigationOptions,
+  options?: LessonNavigationOptions & {
+    course?: Pick<import('@/types').Course, 'is_main_course' | 'soft_landing_order'>;
+  },
 ): Promise<LessonNavigationInfo> {
   const isMainQuest = options?.isMainQuest === true;
+  const isSoftLanding = options?.isSoftLanding === true;
   const isPremiumMember = options?.isPremiumMember === true;
   const cacheKey = buildNavigationCacheKey(
     courseId,
     currentLessonId,
     userRank,
     isMainQuest,
+    isSoftLanding,
     isPremiumMember,
   );
   const now = Date.now();
@@ -278,9 +307,12 @@ export async function getLessonNavigationInfo(
   cleanupNavigationCache();
   
   try {
-    const [lessons, userProgress] = await Promise.all([
+    const [lessons, userProgress, courseData] = await Promise.all([
       fetchLessonsByCourse(courseId),
       fetchUserLessonProgress(courseId, undefined, { forceRefresh: !!options?.forceRefresh }),
+      options?.course
+        ? Promise.resolve(options.course)
+        : import('@/platform/supabaseCourses').then(({ fetchCourseById }) => fetchCourseById(courseId)),
     ]);
 
     const progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined> = {};
@@ -288,12 +320,21 @@ export async function getLessonNavigationInfo(
       progressMap[progress.lesson_id] = progress;
     });
 
+    const courseMeta = courseData ?? { is_main_course: isMainQuest, soft_landing_order: isSoftLanding ? 1 : null };
+    const resolvedMainQuest = isMainQuest || courseMeta.is_main_course === true;
+    const resolvedSoftLanding = isSoftLanding || isSoftLandingCourse(courseMeta);
+
     const navigationInfo = computeLessonNavigationInfo(
       currentLessonId,
       courseId,
       lessons,
       progressMap,
-      { isMainQuest, isPremiumMember },
+      {
+        isMainQuest: resolvedMainQuest,
+        isSoftLanding: resolvedSoftLanding,
+        isPremiumMember,
+        course: courseMeta,
+      },
     );
     
     navigationCache.set(cacheKey, {
@@ -510,14 +551,14 @@ export function getQuestCompletionModalKind(
 
 /** 無料枠 block1 最終クエスト: ReadyToComplete を挟まず完了モーダルへ直行するか */
 export function shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(input: {
-  isMainQuest: boolean;
+  isSequentialCourse: boolean;
   isPremiumMember: boolean;
   currentBlockNumber: number;
   nextLessonBlockNumber: number | null;
   nextBlockedReason: NavigationBlockedReason | null;
 }): boolean {
   return (
-    input.isMainQuest
+    input.isSequentialCourse
     && !input.isPremiumMember
     && input.currentBlockNumber === 1
     && input.nextLessonBlockNumber !== null

@@ -1324,11 +1324,16 @@ struct LessonDetailView: View {
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
-    @State private var courseIsMainQuest = false
+    @State private var courseKind: LessonCourseKind = .normal
+    @State private var courseMeta: Course?
     @State private var navigationState: LessonNavigationState?
     @State private var isNavigating = false
     @State private var showSubscriptionSheet = false
     @State private var subscriptionEntry: SubscriptionEntry = .default
+    @State private var paywallEntryAtOpen: SubscriptionEntry = .default
+    @State private var showSoftLandingOffer = false
+    @State private var softLandingOfferCandidate: SoftLandingCandidate?
+    @State private var softLandingOfferEntry: SoftLandingOfferEntry = .chapterComplete
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
     @State private var showReadyToCompletePrompt = false
@@ -1433,13 +1438,20 @@ struct LessonDetailView: View {
                         removeTempAttachmentFile(at: payload.fileURL)
                     }
             }
-            .sheet(isPresented: $showSubscriptionSheet) {
+            .sheet(isPresented: $showSubscriptionSheet, onDismiss: {
+                handleSubscriptionSheetDismiss()
+            }) {
                 SubscriptionView(entry: subscriptionEntry)
-                    .onDisappear {
-                        if subscriptionEntry == .chapterComplete {
-                            subscriptionEntry = .default
-                        }
-                    }
+            }
+            .sheet(isPresented: $showSoftLandingOffer) {
+                if let candidate = softLandingOfferCandidate {
+                    SoftLandingOfferSheet(
+                        locale: locale,
+                        course: candidate.course,
+                        onAccept: { handleSoftLandingOfferAccept(candidate) },
+                        onDismiss: { handleSoftLandingOfferDismiss(candidate) }
+                    )
+                }
             }
     }
 
@@ -1471,7 +1483,7 @@ struct LessonDetailView: View {
                     onContinue: sheetModel.nextLesson.map { next in
                         {
                             questCompletionSheet = nil
-                            if courseIsMainQuest {
+                            if courseKind.isSequential {
                                 pendingAutoStartFirstRequirement = true
                             }
                             activeLesson = next
@@ -1480,7 +1492,8 @@ struct LessonDetailView: View {
                     onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
                         ? {
                             questCompletionSheet = nil
-                            subscriptionEntry = .chapterComplete
+                            subscriptionEntry = courseKind == .softLanding ? .softLanding : .chapterComplete
+                            paywallEntryAtOpen = subscriptionEntry
                             showSubscriptionSheet = true
                         }
                         : nil
@@ -1778,7 +1791,7 @@ struct LessonDetailView: View {
                 await loadLessonDetail()
                 if pendingAutoStartFirstRequirement {
                     pendingAutoStartFirstRequirement = false
-                    if courseIsMainQuest,
+                    if courseKind.isSequential,
                        pendingClearCheck == nil,
                        let nextRequired = nextIncompleteRequirements.required {
                         showReadyToCompletePrompt = false
@@ -2534,7 +2547,7 @@ struct LessonDetailView: View {
         if !sortedRequirements.isEmpty {
             let skipReadyModal = navigationState.map {
                 LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
-                    isMainQuest: courseIsMainQuest,
+                    courseKind: courseKind,
                     isPremium: appState.isPremium,
                     currentBlockNumber: activeLesson.blockNumber ?? 1,
                     nextLessonBlockNumber: $0.nextLesson?.blockNumber,
@@ -2565,7 +2578,8 @@ struct LessonDetailView: View {
         }
 
         do {
-            courseIsMainQuest = false
+            courseKind = .normal
+            courseMeta = nil
             async let detailTask = SupabaseService.shared.fetchLessonDetail(lessonId: targetId)
             async let courseMetaTask: Course? = {
                 guard let cid = targetCourseId else { return nil }
@@ -2579,13 +2593,27 @@ struct LessonDetailView: View {
             }()
 
             let fetchedDetail = try await detailTask
-            let courseMeta = await courseMetaTask
+            let fetchedCourseMeta = await courseMetaTask
             let rawVideos = await videosTask
             let rawAttachments = await attachmentsTask
 
             guard generation == loadGeneration, activeLesson.id == targetId else { return }
 
-            courseIsMainQuest = courseMeta?.isMainCourse == true
+            courseKind = LessonCourseKind.resolve(fetchedCourseMeta)
+            courseMeta = fetchedCourseMeta
+
+            let lessonBlockNumber = activeLesson.blockNumber ?? 1
+            if !SoftLandingFreeTier.isLessonBlockPlayable(
+                courseKind: courseKind,
+                blockNumber: lessonBlockNumber,
+                isPremium: appState.isPremium
+            ) {
+                subscriptionEntry = subscriptionEntryForBlockGate(courseKind: courseKind)
+                paywallEntryAtOpen = subscriptionEntry
+                showSubscriptionSheet = true
+                return
+            }
+
             detail = fetchedDetail
             prefetchEarTrainingStageDetails(from: fetchedDetail)
             prefetchSurvivalCatalogIfNeeded(from: fetchedDetail)
@@ -2613,7 +2641,7 @@ struct LessonDetailView: View {
                             currentLesson: activeLesson,
                             lessons: lessons,
                             completedIds: Set((progressRows ?? []).filter(\.completed).map(\.lessonId)),
-                            isMainQuest: courseIsMainQuest,
+                            courseKind: courseKind,
                             isPremium: appState.isPremium
                         )
                     }
@@ -2627,7 +2655,7 @@ struct LessonDetailView: View {
                             )
                         }
                         if LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
-                            isMainQuest: courseIsMainQuest,
+                            courseKind: courseKind,
                             isPremium: appState.isPremium,
                             currentBlockNumber: activeLesson.blockNumber ?? 1,
                             nextLessonBlockNumber: navigationState.nextLesson?.blockNumber,
@@ -2813,15 +2841,18 @@ struct LessonDetailView: View {
         }
 
         let bn = activeLesson.blockNumber ?? 1
-        if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
-            alertMessage = locale == .ja
-                ? "メインクエスト第2チャプター以降はプレミアムが必要です。7日間無料トライアルで続きをプレイできます。"
-                : "Main Quest chapters after Chapter 1 require Premium. Continue with a 7-day free trial."
+        if !SoftLandingFreeTier.isLessonBlockPlayable(
+            courseKind: courseKind,
+            blockNumber: bn,
+            isPremium: appState.isPremium
+        ) {
+            alertMessage = premiumBlockGateMessage(for: courseKind)
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
                     await MainActor.run {
-                        subscriptionEntry = .mainQuest
+                        subscriptionEntry = subscriptionEntryForBlockGate(courseKind: courseKind)
+                        paywallEntryAtOpen = subscriptionEntry
                         showSubscriptionSheet = true
                     }
                 }
@@ -2890,7 +2921,7 @@ struct LessonDetailView: View {
                 currentLesson: activeLesson,
                 lessons: lessons,
                 completedIds: completedIds,
-                isMainQuest: courseIsMainQuest,
+                courseKind: courseKind,
                 isPremium: appState.isPremium
             )
             let kind = LessonNavigationHelpers.modalKind(
@@ -2983,7 +3014,8 @@ struct LessonDetailView: View {
                 direction: .previous,
                 reason: navigationState.previousBlockedReason,
                 locale: locale,
-                nextLesson: navigationState.nextLesson
+                nextLesson: navigationState.nextLesson,
+                courseKind: courseKind
             )
             return
         }
@@ -2999,7 +3031,8 @@ struct LessonDetailView: View {
                     let premium = await appState.ensureFreshBilling()
                     if !premium {
                         await MainActor.run {
-                            subscriptionEntry = .mainQuest
+                            subscriptionEntry = courseKind == .softLanding ? .softLanding : .mainQuest
+                            paywallEntryAtOpen = subscriptionEntry
                             showSubscriptionSheet = true
                         }
                     }
@@ -3009,7 +3042,8 @@ struct LessonDetailView: View {
                 direction: .next,
                 reason: navigationState.nextBlockedReason,
                 locale: locale,
-                nextLesson: navigationState.nextLesson
+                nextLesson: navigationState.nextLesson,
+                courseKind: courseKind
             )
             return
         }
@@ -3158,15 +3192,18 @@ struct LessonDetailView: View {
         )
 
         let bn = activeLesson.blockNumber ?? 1
-        if courseIsMainQuest && !appState.isPremium && bn > MainQuestFreeTier.maxFreeBlockNumber {
-            alertMessage = locale == .ja
-                ? "メインクエスト第2チャプター以降はプレミアムが必要です。7日間無料トライアルで続きをプレイできます。"
-                : "Main Quest chapters after Chapter 1 require Premium. Continue with a 7-day free trial."
+        if !SoftLandingFreeTier.isLessonBlockPlayable(
+            courseKind: courseKind,
+            blockNumber: bn,
+            isPremium: appState.isPremium
+        ) {
+            alertMessage = premiumBlockGateMessage(for: courseKind)
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
                     await MainActor.run {
-                        subscriptionEntry = .mainQuest
+                        subscriptionEntry = subscriptionEntryForBlockGate(courseKind: courseKind)
+                        paywallEntryAtOpen = subscriptionEntry
                         showSubscriptionSheet = true
                     }
                 }
@@ -3484,6 +3521,90 @@ struct LessonDetailView: View {
         let encoder = JSONEncoder()
         guard let data = try? encoder.encode(conditions) else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    private func subscriptionEntryForBlockGate(courseKind: LessonCourseKind) -> SubscriptionEntry {
+        switch courseKind {
+        case .softLanding:
+            return .softLanding
+        case .mainQuest:
+            return .mainQuest
+        case .normal:
+            return .default
+        }
+    }
+
+    private func premiumBlockGateMessage(for courseKind: LessonCourseKind) -> String {
+        switch courseKind {
+        case .mainQuest:
+            return locale == .ja
+                ? "メインクエスト第2チャプター以降はプレミアムが必要です。7日間無料トライアルで続きをプレイできます。"
+                : "Main Quest chapters after Chapter 1 require Premium. Continue with a 7-day free trial."
+        case .softLanding:
+            return locale == .ja
+                ? "第2ブロック以降はプレミアムが必要です。7日間無料トライアルで続きをプレイできます。"
+                : "Blocks after Block 1 require Premium. Continue with a 7-day free trial."
+        case .normal:
+            return locale == .ja
+                ? "この先はプレミアムが必要です。"
+                : "Premium is required to continue."
+        }
+    }
+
+    private func handleSubscriptionSheetDismiss() {
+        let entry = paywallEntryAtOpen
+        if entry == .chapterComplete {
+            subscriptionEntry = .default
+        }
+        guard !appState.isPremium, SoftLandingFreeTier.isSoftLandingPaywallSource(entry) else { return }
+        Task {
+            let excludeId = courseKind == .softLanding ? activeLesson.courseId : nil
+            guard let next = await SoftLandingOfferLoader.resolveNext(
+                userId: appState.profile?.id,
+                excludeCourseId: excludeId
+            ) else { return }
+            await MainActor.run {
+                softLandingOfferCandidate = next
+                softLandingOfferEntry = SoftLandingFreeTier.offerEntry(for: entry)
+                if let userId = appState.profile?.id {
+                    AnalyticsTracker.trackSoftLandingOfferViewed(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: softLandingOfferEntry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                }
+                showSoftLandingOffer = true
+            }
+        }
+    }
+
+    private func handleSoftLandingOfferAccept(_ candidate: SoftLandingCandidate) {
+        if let userId = appState.profile?.id {
+            AnalyticsTracker.trackSoftLandingOfferAccepted(
+                userId: userId,
+                courseId: candidate.course.id,
+                entry: softLandingOfferEntry.rawValue,
+                sequenceIndex: candidate.course.softLandingOrder ?? 0
+            )
+        }
+        showSoftLandingOffer = false
+        guard let lessonId = SoftLandingFreeTier.firstBlock1LessonId(lessons: candidate.lessons),
+              let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
+        pendingAutoStartFirstRequirement = true
+        activeLesson = lesson
+    }
+
+    private func handleSoftLandingOfferDismiss(_ candidate: SoftLandingCandidate) {
+        if let userId = appState.profile?.id {
+            AnalyticsTracker.trackSoftLandingOfferDismissed(
+                userId: userId,
+                courseId: candidate.course.id,
+                entry: softLandingOfferEntry.rawValue,
+                sequenceIndex: candidate.course.softLandingOrder ?? 0
+            )
+        }
+        showSoftLandingOffer = false
     }
 }
 

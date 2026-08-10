@@ -38,17 +38,22 @@ enum LessonNavigationHelpers {
     static func buildAccessGraph(
         lessons: [Lesson],
         completedIds: Set<UUID>,
-        isMainQuest: Bool,
+        courseKind: LessonCourseKind,
         isPremium: Bool
     ) -> LessonJourneyAccessGraph {
         let sorted = sortLessonsByOrder(lessons)
         var graph = LessonJourneyAccessGraph.build(
             lessons: sorted,
             completedIds: completedIds,
-            enforceSequentialWithinBlocks: isMainQuest
+            enforceSequentialWithinBlocks: courseKind.isSequential
         )
-        if isMainQuest {
-            graph = MainQuestFreeTier.applyLocks(graph: graph, lessons: sorted, isPremium: isPremium)
+        if let maxBlock = courseKind.freeMaxBlockNumber {
+            graph = FreeTierBlockLocks.apply(
+                graph: graph,
+                lessons: sorted,
+                maxBlockNumber: maxBlock,
+                isPremium: isPremium
+            )
         }
         return graph
     }
@@ -57,7 +62,7 @@ enum LessonNavigationHelpers {
         currentLesson: Lesson,
         lessons: [Lesson],
         completedIds: Set<UUID>,
-        isMainQuest: Bool,
+        courseKind: LessonCourseKind,
         isPremium: Bool
     ) -> LessonNavigationState {
         let sorted = sortLessonsByOrder(lessons)
@@ -78,12 +83,12 @@ enum LessonNavigationHelpers {
         let baseGraph = LessonJourneyAccessGraph.build(
             lessons: sorted,
             completedIds: completedIds,
-            enforceSequentialWithinBlocks: isMainQuest
+            enforceSequentialWithinBlocks: courseKind.isSequential
         )
         let accessGraph = buildAccessGraph(
             lessons: lessons,
             completedIds: completedIds,
-            isMainQuest: isMainQuest,
+            courseKind: courseKind,
             isPremium: isPremium
         )
 
@@ -105,7 +110,7 @@ enum LessonNavigationHelpers {
                 canGoNext: nextLesson != nil && canGoNext,
                 baseGraph: baseGraph,
                 completedIds: completedIds,
-                isMainQuest: isMainQuest,
+                courseKind: courseKind,
                 isPremium: isPremium
             )
         )
@@ -115,7 +120,8 @@ enum LessonNavigationHelpers {
         direction: NavigationDirection,
         reason: NavigationBlockedReason?,
         locale: AppLocale,
-        nextLesson: Lesson?
+        nextLesson: Lesson?,
+        courseKind: LessonCourseKind = .normal
     ) -> String {
         let resolvedReason: NavigationBlockedReason
         switch direction {
@@ -139,9 +145,20 @@ enum LessonNavigationHelpers {
                 ? "先に現在のクエストを完了してください。"
                 : "Complete the current quest before moving to the next one."
         case .premiumRequired:
-            return locale == .ja
-                ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
-                : "Main Quest chapters after Chapter 1 require Premium."
+            switch courseKind {
+            case .mainQuest:
+                return locale == .ja
+                    ? "メインクエスト第2チャプター以降はプレミアムが必要です。"
+                    : "Main Quest chapters after Chapter 1 require Premium."
+            case .softLanding:
+                return locale == .ja
+                    ? "第2ブロック以降はプレミアムが必要です。"
+                    : "Blocks after Block 1 require Premium."
+            case .normal:
+                return locale == .ja
+                    ? "この先はプレミアムが必要です。"
+                    : "Premium is required to continue."
+            }
         case .previousBlockIncomplete:
             if let nextLesson {
                 let blockLabel = locale == .ja
@@ -202,13 +219,13 @@ enum LessonNavigationHelpers {
 
     /// 無料枠 block1 最終クエスト: ReadyToComplete を挟まず完了シートへ直行するか
     static func shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
-        isMainQuest: Bool,
+        courseKind: LessonCourseKind,
         isPremium: Bool,
         currentBlockNumber: Int,
         nextLessonBlockNumber: Int?,
         nextBlockedReason: NavigationBlockedReason?
     ) -> Bool {
-        guard isMainQuest, !isPremium, currentBlockNumber == 1 else { return false }
+        guard courseKind.isSequential, !isPremium, currentBlockNumber == 1 else { return false }
         guard let nextLessonBlockNumber, nextLessonBlockNumber > 1 else { return false }
         return nextBlockedReason == .premiumRequired
     }
@@ -299,7 +316,7 @@ enum LessonNavigationHelpers {
         canGoNext: Bool,
         baseGraph: LessonJourneyAccessGraph,
         completedIds: Set<UUID>,
-        isMainQuest: Bool,
+        courseKind: LessonCourseKind,
         isPremium: Bool
     ) -> NavigationBlockedReason? {
         guard let nextLesson else {
@@ -310,7 +327,7 @@ enum LessonNavigationHelpers {
         }
 
         let nextBlockNumber = nextLesson.blockNumber ?? 1
-        if isMainQuest && !MainQuestFreeTier.isBlockPlayable(isPremium: isPremium, blockNumber: nextBlockNumber) {
+        if let maxBlock = courseKind.freeMaxBlockNumber, !isPremium, nextBlockNumber > maxBlock {
             return .premiumRequired
         }
 
@@ -320,7 +337,7 @@ enum LessonNavigationHelpers {
         }
 
         let currentBlockNumber = currentLesson.blockNumber ?? 1
-        if isMainQuest
+        if courseKind.isSequential
             && currentBlockNumber == nextBlockNumber
             && !completedIds.contains(currentLesson.id) {
             return .sequentialLock

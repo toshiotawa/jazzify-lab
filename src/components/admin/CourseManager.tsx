@@ -26,6 +26,7 @@ type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only' | 'd
   audience: CourseAudience;
   is_visible: boolean;
   is_developer_only: boolean;
+  soft_landing_order: string;
 };
 
 export const CourseManager: React.FC = () => {
@@ -47,6 +48,7 @@ export const CourseManager: React.FC = () => {
       difficulty_tier: 'beginner',
       is_visible: true,
       is_developer_only: false,
+      soft_landing_order: '',
     },
   });
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -81,6 +83,10 @@ export const CourseManager: React.FC = () => {
       setValue('difficulty_tier', normalizeCourseDifficultyTier(course.difficulty_tier));
       setValue('is_visible', course.is_visible !== false);
       setValue('is_developer_only', course.is_developer_only === true);
+      setValue(
+        'soft_landing_order',
+        course.soft_landing_order != null ? String(course.soft_landing_order) : '',
+      );
     } else {
       setSelectedCourse(null);
       reset({
@@ -91,6 +97,7 @@ export const CourseManager: React.FC = () => {
         difficulty_tier: 'beginner',
         is_visible: true,
         is_developer_only: false,
+        soft_landing_order: '',
       });
     }
     dialogRef.current?.showModal();
@@ -100,13 +107,29 @@ export const CourseManager: React.FC = () => {
     dialogRef.current?.close();
   }
 
+  const parseSoftLandingOrder = (value: string): number | null => {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const onSubmit = async (formData: CourseFormData) => {
     setIsSubmitting(true);
+    const softLandingOrder = parseSoftLandingOrder(formData.soft_landing_order);
     try {
       if (selectedCourse) {
         await updateCourse(selectedCourse.id, {
-          ...formData,
+          title: formData.title,
+          description: formData.description,
+          premium_only: formData.premium_only,
+          audience: formData.audience,
           difficulty_tier: formData.difficulty_tier,
+          is_visible: formData.is_visible,
+          is_developer_only: formData.is_developer_only,
+          soft_landing_order: softLandingOrder,
         });
         toast.success('コースを更新しました。');
       } else {
@@ -123,6 +146,7 @@ export const CourseManager: React.FC = () => {
           order_index: newOrderIndex,
           is_visible: formData.is_visible,
           is_developer_only: formData.is_developer_only,
+          soft_landing_order: softLandingOrder,
         });
         toast.success('新しいコースを追加しました。');
       }
@@ -264,17 +288,18 @@ export const CourseManager: React.FC = () => {
               <th>プレミアム限定</th>
               <th>一覧表示</th>
               <th>開発者専用</th>
+              <th>SL順</th>
               <th className="text-right">アクション</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="text-center">読み込み中...</td>
+                <td colSpan={11} className="text-center">読み込み中...</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={10} className="text-center text-red-500">
+                <td colSpan={11} className="text-center text-red-500">
                   <div className="py-4">
                     <p className="mb-2">エラー: {error}</p>
                     <button className="btn btn-sm btn-primary" onClick={loadCourses}>
@@ -285,7 +310,7 @@ export const CourseManager: React.FC = () => {
               </tr>
             ) : courses.length === 0 ? (
               <tr>
-                <td colSpan={10} className="text-center text-gray-400">
+                <td colSpan={11} className="text-center text-gray-400">
                   コースがありません。新規コースを追加してください。
                 </td>
               </tr>
@@ -293,7 +318,7 @@ export const CourseManager: React.FC = () => {
               if (row.kind === 'header') {
                 return (
                   <tr key={`h-${row.tier}`} className="bg-slate-800/80">
-                    <td colSpan={10} className="font-semibold text-sm py-2">
+                    <td colSpan={11} className="font-semibold text-sm py-2">
                       {COURSE_DIFFICULTY_LABELS[row.tier].ja}（{COURSE_DIFFICULTY_LABELS[row.tier].en}）
                     </td>
                   </tr>
@@ -346,6 +371,7 @@ export const CourseManager: React.FC = () => {
                   <td>{course.premium_only ? '✔' : ''}</td>
                   <td>{course.is_visible !== false ? '✔' : '—'}</td>
                   <td>{course.is_developer_only ? '✔' : '—'}</td>
+                  <td>{course.soft_landing_order ?? '—'}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(course)}>
                       編集
@@ -357,7 +383,7 @@ export const CourseManager: React.FC = () => {
                 </tr>
                 {expandedCourses.has(course.id) && (
                   <tr>
-                    <td colSpan={10} className="p-0">
+                    <td colSpan={11} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h4 className="font-semibold mb-2">コース詳細</h4>
                         <p className="text-sm text-gray-400 mb-4">{course.description || '説明はありません。'}</p>
@@ -428,6 +454,19 @@ export const CourseManager: React.FC = () => {
                 <span className="label-text">プレミアム限定</span> 
                 <input type="checkbox" {...register('premium_only')} className="toggle toggle-primary" />
               </label>
+            </div>
+            <div>
+              <label htmlFor="soft_landing_order" className="label">
+                <span className="label-text">ソフトランディング順（空欄=対象外）</span>
+              </label>
+              <input
+                id="soft_landing_order"
+                type="number"
+                min={1}
+                {...register('soft_landing_order')}
+                className="input input-bordered w-full"
+                placeholder="例: 1"
+              />
             </div>
             <div className="form-control">
               <label className="label cursor-pointer">

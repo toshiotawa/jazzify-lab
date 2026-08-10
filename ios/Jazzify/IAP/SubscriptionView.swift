@@ -9,6 +9,7 @@ enum SubscriptionEntry {
     case dashboard
     case resumeModal
     case accountModal
+    case softLanding
 
     var analyticsSource: String {
         switch self {
@@ -26,6 +27,8 @@ enum SubscriptionEntry {
             return "resume_modal"
         case .accountModal:
             return "account_modal"
+        case .softLanding:
+            return "soft_landing"
         }
     }
 }

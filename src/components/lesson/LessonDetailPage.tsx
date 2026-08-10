@@ -36,9 +36,14 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { grantAndToastUserBadges } from '@/utils/badgeToasts';
-import { CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow, type EarTrainingMode, type VideoLessonStageRow } from '@/types';
+import { Course, CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow, type EarTrainingMode, type VideoLessonStageRow } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
-import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+import {
+  getFirstBlock1LessonId,
+  isLessonBlockPlayable,
+  isSequentialCourse,
+  isSoftLandingCourse,
+} from '@/utils/softLanding';
 import {
   lessonCompletionBlockedToastCopy,
   lessonCompletionButtonCopy,
@@ -86,7 +91,11 @@ import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuatio
 import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
 import { lessonDetailPath } from '@/utils/appNavigation';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
+import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
 import type { PaywallSource } from '@/utils/analytics/paywallSource';
+import { isSoftLandingPaywallSource } from '@/utils/analytics/softLandingOffer';
+import type { SoftLandingOfferEntry } from '@/utils/analytics/softLandingOffer';
+import { useSoftLandingOffer } from '@/hooks/useSoftLandingOffer';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
 import { SurvivalRequirementDetailLines } from '@/components/lesson/SurvivalRequirementDetailLines';
@@ -129,6 +138,10 @@ const LessonDetailPage: React.FC = () => {
   const [shouldHideVideos, setShouldHideVideos] = useState(false);
   const [courseDifficultyTier, setCourseDifficultyTier] = useState<CourseDifficultyTier | null>(null);
   const [lessonCourseIsMainQuest, setLessonCourseIsMainQuest] = useState(false);
+  const [lessonCourseIsSoftLanding, setLessonCourseIsSoftLanding] = useState(false);
+  const [lessonCourseMeta, setLessonCourseMeta] = useState<Course | null>(null);
+  const [showSoftLandingOffer, setShowSoftLandingOffer] = useState(false);
+  const [softLandingOfferEntry, setSoftLandingOfferEntry] = useState<SoftLandingOfferEntry>('chapter_complete');
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -140,6 +153,19 @@ const LessonDetailPage: React.FC = () => {
     preferredLocale: profile?.preferred_locale,
   });
   const { isPremiumMember, effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+  const lessonCourseIsSequential = lessonCourseIsMainQuest || lessonCourseIsSoftLanding;
+  const {
+    nextCourse: nextSoftLandingCourse,
+    reload: reloadSoftLandingOffer,
+    setExcludeCourseId: setSoftLandingExcludeCourseId,
+    trackOfferViewed,
+    trackOfferAccepted,
+    trackOfferDismissed,
+  } = useSoftLandingOffer({
+    userId: profile?.id,
+    enabled: !isPremiumMember,
+    entry: softLandingOfferEntry,
+  });
   const { todayKey, resetLabel } = useUtcResetInfo(isEnglishCopy);
 
   const practiceCopy = useMemo(
@@ -299,8 +325,10 @@ const LessonDetailPage: React.FC = () => {
         setLessonProgress(thisLessonProgress || null);
       }
 
-      // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
+      // 直接アクセス時のコース受講可否ガード
       let isMainQuestCourse = false;
+      let isSoftLandingCourseFlag = false;
+      let loadedCourse: Course | null = null;
       if (lessonData?.course_id && profile?.id) {
         const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
         const [course, completedCourses] = await Promise.all([
@@ -311,11 +339,14 @@ const LessonDetailPage: React.FC = () => {
           return;
         }
         if (course) {
+          loadedCourse = course;
           setShouldHideVideos(false);
           setCourseDifficultyTier(normalizeCourseDifficultyTier(course.difficulty_tier));
+          setLessonCourseMeta(course);
           isMainQuestCourse = course.is_main_course === true;
+          isSoftLandingCourseFlag = isSoftLandingCourse(course);
           const access = canAccessCourse(course, effectiveRank, completedCourses, isEnglishCopy);
-          if (!access.canAccess) {
+          if (access.kind === 'denied') {
             pushToast(
               access.reason
                 || (isEnglishCopy ? 'You cannot access this course.' : 'このコースにはアクセスできません'),
@@ -325,16 +356,19 @@ const LessonDetailPage: React.FC = () => {
             return;
           }
           const lessonBlockNum = lessonData.block_number ?? 1;
-          if (course.is_main_course === true && !isMainQuestBlockPlayable(lessonBlockNum, isPremiumMember)) {
-            setPaywallSource('main_quest');
+          if (!isLessonBlockPlayable(course, lessonBlockNum, isPremiumMember)) {
+            setPaywallSource(isSoftLandingCourseFlag ? 'soft_landing' : 'main_quest');
             setPaywallRedirectToLessonsOnClose(true);
             setShowPaywall(true);
             return;
           }
           setLessonCourseIsMainQuest(isMainQuestCourse);
+          setLessonCourseIsSoftLanding(isSoftLandingCourseFlag);
         } else {
           setCourseDifficultyTier(null);
+          setLessonCourseMeta(null);
           setLessonCourseIsMainQuest(false);
+          setLessonCourseIsSoftLanding(false);
         }
       }
       
@@ -353,7 +387,9 @@ const LessonDetailPage: React.FC = () => {
               effectiveRank,
               {
                 isMainQuest: isMainQuestCourse,
+                isSoftLanding: isSoftLandingCourseFlag,
                 isPremiumMember,
+                course: loadedCourse ?? undefined,
               },
             );
             if (!isStale()) {
@@ -442,8 +478,8 @@ const LessonDetailPage: React.FC = () => {
       (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson)
       && !isPremiumMember
       && !(
-        lessonCourseIsMainQuest
-        && isMainQuestBlockPlayable(lesson?.block_number ?? 1, isPremiumMember)
+        lessonCourseMeta
+        && isLessonBlockPlayable(lessonCourseMeta, lesson?.block_number ?? 1, isPremiumMember)
       )
     ) {
       toast.warning(
@@ -477,7 +513,7 @@ const LessonDetailPage: React.FC = () => {
     isEnglishCopy,
     isPremiumMember,
     lesson?.block_number,
-    lessonCourseIsMainQuest,
+    lessonCourseMeta,
     prefetchPracticeResources,
     toast,
   ]);
@@ -496,14 +532,14 @@ const LessonDetailPage: React.FC = () => {
 
   const skipReadyModalForFreeTierPremiumUpsell = useMemo(
     () => shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell({
-      isMainQuest: lessonCourseIsMainQuest,
+      isSequentialCourse: lessonCourseIsSequential,
       isPremiumMember,
       currentBlockNumber: lesson?.block_number ?? 1,
       nextLessonBlockNumber: navigationInfo?.nextLesson?.block_number ?? null,
       nextBlockedReason: navigationInfo?.nextBlockedReason ?? null,
     }),
     [
-      lessonCourseIsMainQuest,
+      lessonCourseIsSequential,
       isPremiumMember,
       lesson?.block_number,
       navigationInfo?.nextLesson?.block_number,
@@ -644,7 +680,7 @@ const LessonDetailPage: React.FC = () => {
       return;
     }
     if (!shouldShowMainQuestTaskEntryPrompt({
-      isMainQuest: lessonCourseIsMainQuest,
+      isSequentialCourse: lessonCourseIsSequential,
       hasAutoStart: true,
       hasJustCleared: Boolean(justClearedParam),
     })) {
@@ -668,7 +704,7 @@ const LessonDetailPage: React.FC = () => {
     loading,
     requirements,
     requirementsProgress,
-    lessonCourseIsMainQuest,
+    lessonCourseIsSequential,
     justClearedParam,
     clearAutoStartFromUrl,
   ]);
@@ -800,7 +836,9 @@ const LessonDetailPage: React.FC = () => {
                 {
                   forceRefresh: true,
                   isMainQuest: lessonCourseIsMainQuest,
+                  isSoftLanding: lessonCourseIsSoftLanding,
                   isPremiumMember,
+                  course: lessonCourseMeta ?? undefined,
                 },
               ),
               fetchLessonsByCourse(lesson.course_id),
@@ -846,6 +884,78 @@ const LessonDetailPage: React.FC = () => {
     }
   };
   handleCompleteRef.current = handleComplete;
+
+  const openSoftLandingOfferAfterPaywall = useCallback(async () => {
+    const excludeCourseId = lessonCourseIsSoftLanding ? lesson?.course_id ?? undefined : undefined;
+    if (excludeCourseId) {
+      setSoftLandingExcludeCourseId(excludeCourseId);
+    }
+    const entry: SoftLandingOfferEntry = paywallSource === 'soft_landing'
+      ? 'soft_landing'
+      : 'chapter_complete';
+    setSoftLandingOfferEntry(entry);
+    const next = await reloadSoftLandingOffer({
+      forceRefresh: true,
+      excludeCourseId,
+    });
+    if (next) {
+      trackOfferViewed(next.course);
+      setShowSoftLandingOffer(true);
+      return true;
+    }
+    return false;
+  }, [
+    lesson?.course_id,
+    lessonCourseIsSoftLanding,
+    paywallSource,
+    reloadSoftLandingOffer,
+    setSoftLandingExcludeCourseId,
+    trackOfferViewed,
+  ]);
+
+  const handlePaywallClose = useCallback(() => {
+    setShowPaywall(false);
+    if (paywallRedirectToLessonsOnClose) {
+      setPaywallRedirectToLessonsOnClose(false);
+      window.location.hash = '#lessons';
+      return;
+    }
+    if (!isPremiumMember && isSoftLandingPaywallSource(paywallSource)) {
+      void openSoftLandingOfferAfterPaywall().then((shown) => {
+        if (!shown) {
+          window.location.hash = '#lessons';
+        }
+      });
+      return;
+    }
+  }, [
+    isPremiumMember,
+    openSoftLandingOfferAfterPaywall,
+    paywallRedirectToLessonsOnClose,
+    paywallSource,
+  ]);
+
+  const handleSoftLandingOfferAccept = useCallback(() => {
+    const target = nextSoftLandingCourse;
+    if (!target) {
+      setShowSoftLandingOffer(false);
+      return;
+    }
+    trackOfferAccepted(target.course);
+    setShowSoftLandingOffer(false);
+    const firstLessonId = getFirstBlock1LessonId(target.course.lessons ?? []);
+    if (firstLessonId) {
+      window.location.hash = buildLessonDetailHash(firstLessonId, { autoStart: true });
+    }
+  }, [nextSoftLandingCourse, trackOfferAccepted]);
+
+  const handleSoftLandingOfferDismiss = useCallback(() => {
+    if (nextSoftLandingCourse) {
+      trackOfferDismissed(nextSoftLandingCourse.course);
+    }
+    setShowSoftLandingOffer(false);
+    window.location.hash = '#lessons';
+  }, [nextSoftLandingCourse, trackOfferDismissed]);
 
   const handleClose = () => {
     window.location.hash = '#lessons';
@@ -1585,7 +1695,7 @@ const LessonDetailPage: React.FC = () => {
                         }
                         setTimeout(() => {
                           const next = navigationInfo.nextLesson!;
-                          const shouldAutoStart = lessonCourseIsMainQuest;
+                          const shouldAutoStart = lessonCourseIsSequential;
                           window.location.hash = buildLessonDetailHash(
                             next.id,
                             shouldAutoStart ? { autoStart: true } : undefined,
@@ -1599,7 +1709,7 @@ const LessonDetailPage: React.FC = () => {
                     ? () => {
                         setShowNextLessonPrompt(false);
                         setQuestCompletionModalKind('none');
-                        setPaywallSource('chapter_complete');
+                        setPaywallSource(lessonCourseIsSoftLanding ? 'soft_landing' : 'chapter_complete');
                         setPaywallRedirectToLessonsOnClose(false);
                         setShowPaywall(true);
                       }
@@ -1674,15 +1784,17 @@ const LessonDetailPage: React.FC = () => {
             ) : null}
             <WebPaywallModal
               open={showPaywall}
-              onClose={() => {
-                setShowPaywall(false);
-                if (paywallRedirectToLessonsOnClose) {
-                  setPaywallRedirectToLessonsOnClose(false);
-                  window.location.hash = '#lessons';
-                }
-              }}
+              onClose={handlePaywallClose}
               isEnglishCopy={isEnglishCopy}
               source={paywallSource}
+            />
+            <SoftLandingOfferModal
+              open={showSoftLandingOffer}
+              course={nextSoftLandingCourse?.course ?? null}
+              isEnglishCopy={isEnglishCopy}
+              entry={softLandingOfferEntry}
+              onAccept={handleSoftLandingOfferAccept}
+              onDismiss={handleSoftLandingOfferDismiss}
             />
           </div>
         </div>

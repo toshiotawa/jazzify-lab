@@ -1,8 +1,9 @@
 import type { Lesson } from '@/types';
 import type { LessonAccessGraph } from '@/utils/lessonAccess';
+import { applyFreeTierBlockLocks } from '@/utils/freeTierBlockLocks';
 
 /** フリープランでプレイできるメインクエストの最大 `block_number`（この値まで含む） */
-const MAIN_QUEST_FREE_MAX_BLOCK_NUMBER = 1;
+export const MAIN_QUEST_FREE_MAX_BLOCK_NUMBER = 1;
 
 export function isMainQuestBlockPlayable(blockNumber: number, isPremiumMember: boolean): boolean {
   if (isPremiumMember) {
@@ -20,33 +21,10 @@ export function applyMainQuestFreeTierLocks(
   lessons: readonly Lesson[],
   isPremiumMember: boolean,
 ): LessonAccessGraph {
-  if (isPremiumMember) {
-    return accessGraph;
-  }
-
-  const lessonStates = { ...accessGraph.lessonStates };
-  const blockStates = { ...accessGraph.blockStates };
-
-  for (const lesson of lessons) {
-    const bn = lesson.block_number ?? 1;
-    if (bn > MAIN_QUEST_FREE_MAX_BLOCK_NUMBER) {
-      const prev = lessonStates[lesson.id];
-      if (prev !== undefined) {
-        lessonStates[lesson.id] = { ...prev, isUnlocked: false };
-      }
-    }
-  }
-
-  for (const key of Object.keys(blockStates)) {
-    const bn = Number(key);
-    if (!Number.isFinite(bn) || bn <= MAIN_QUEST_FREE_MAX_BLOCK_NUMBER) {
-      continue;
-    }
-    const prev = blockStates[bn];
-    if (prev !== undefined) {
-      blockStates[bn] = { ...prev, isUnlocked: false };
-    }
-  }
-
-  return { lessonStates, blockStates };
+  return applyFreeTierBlockLocks(
+    accessGraph,
+    lessons,
+    MAIN_QUEST_FREE_MAX_BLOCK_NUMBER,
+    isPremiumMember,
+  );
 }

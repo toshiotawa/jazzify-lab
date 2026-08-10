@@ -127,7 +127,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
   it('returns true for main quest with autoStart and no justCleared', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
-        isMainQuest: true,
+        isSequentialCourse: true,
         hasAutoStart: true,
         hasJustCleared: false,
       }),
@@ -137,7 +137,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
   it('returns true for chapter 2 main quest with autoStart', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
-        isMainQuest: true,
+        isSequentialCourse: true,
         hasAutoStart: true,
         hasJustCleared: false,
       }),
@@ -147,7 +147,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
   it('returns false when justCleared is present', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
-        isMainQuest: true,
+        isSequentialCourse: true,
         hasAutoStart: true,
         hasJustCleared: true,
       }),
@@ -157,7 +157,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
   it('returns false without autoStart', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
-        isMainQuest: true,
+        isSequentialCourse: true,
         hasAutoStart: false,
         hasJustCleared: false,
       }),
@@ -167,7 +167,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
   it('returns false for non-main quest', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
-        isMainQuest: false,
+        isSequentialCourse: false,
         hasAutoStart: true,
         hasJustCleared: false,
       }),

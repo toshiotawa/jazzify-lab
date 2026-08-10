@@ -22,6 +22,8 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { verifyLessonPlayAccessForFreeUser } from '@/utils/lessonPlayRouteAccess';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 import { getWindow } from '@/platform';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
@@ -204,6 +206,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   const { settings } = useGameStore();
   const toast = useToast();
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const { todayKey, resetLabel } = useUtcResetInfo(isEnglishCopy);
   const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
   const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
@@ -244,6 +247,25 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
       return false;
     }
   }, []);
+
+  useEffect(() => {
+    if (isPremiumMember || !embeddedFantasyUrlOnMount) {
+      return;
+    }
+    const params = getAppRouteSearchParams(getWindow().location);
+    const lessonId = params.get('lessonId');
+    if (!lessonId) {
+      window.location.hash = '#dashboard';
+      return;
+    }
+    let cancelled = false;
+    void verifyLessonPlayAccessForFreeUser(lessonId).then((allowed) => {
+      if (!cancelled && !allowed) {
+        window.location.hash = '#dashboard';
+      }
+    });
+    return () => { cancelled = true; };
+  }, [embeddedFantasyUrlOnMount, isPremiumMember]);
   const [embeddedStageLoadFailed, setEmbeddedStageLoadFailed] = useState(false);
   
   // 次ステージ開放情報

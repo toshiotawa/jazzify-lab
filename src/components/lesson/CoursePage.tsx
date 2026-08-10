@@ -18,6 +18,8 @@ import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
+import { applySoftLandingFreeTierLocks, isSequentialCourse, isSoftLandingCourse } from '@/utils/softLanding';
+import { applyMainQuestFreeTierLocks } from '@/utils/mainQuestFreeTier';
 import LessonJourneyMap from './journey/LessonJourneyMap';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
@@ -47,7 +49,7 @@ const CoursePage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
-  const { effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+  const { effectiveRank, isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   useEffect(() => {
     if (routeCourseId) {
@@ -92,7 +94,7 @@ const CoursePage: React.FC = () => {
         }
 
         const accessResult = canAccessCourse(courseData, effectiveRank, completedCourses, isEnglishCopy);
-        if (!accessResult.canAccess) {
+        if (accessResult.kind === 'denied') {
           toast.warning(accessResult.reason || (isEnglishCopy ? 'Cannot access this course' : 'このコースにはアクセスできません'));
           window.location.hash = '#lessons';
           return;
@@ -126,7 +128,7 @@ const CoursePage: React.FC = () => {
           if (blockA !== blockB) return blockA - blockB;
           return a.order_index - b.order_index;
         });
-        const firstUnlockLessons = courseData.is_main_course
+        const firstUnlockLessons = isSequentialCourse(courseData)
           ? sortedForUnlock.slice(0, 1)
           : lessonsData.filter(l => (l.block_number || 1) === 1);
         for (const lesson of firstUnlockLessons) {
@@ -204,13 +206,23 @@ const CoursePage: React.FC = () => {
 
   const lessonAccessGraph = useMemo<LessonAccessGraph>(() => {
     if (lessons.length === 0) return { lessonStates: {}, blockStates: {} };
-    return buildLessonAccessGraph({
+    const baseGraph = buildLessonAccessGraph({
       lessons,
       progressMap: progress as Record<string, LessonProgress | undefined>,
       userRank: effectiveRank,
-      enforceSequentialWithinBlocks: course?.is_main_course === true,
+      enforceSequentialWithinBlocks: course ? isSequentialCourse(course) : false,
     });
-  }, [lessons, progress, effectiveRank, course?.is_main_course]);
+    if (!course || isPremiumMember) {
+      return baseGraph;
+    }
+    if (course.is_main_course === true) {
+      return applyMainQuestFreeTierLocks(baseGraph, lessons, isPremiumMember);
+    }
+    if (isSoftLandingCourse(course)) {
+      return applySoftLandingFreeTierLocks(baseGraph, lessons, isPremiumMember);
+    }
+    return baseGraph;
+  }, [lessons, progress, effectiveRank, course, isPremiumMember]);
 
   const handleStartLesson = useCallback((lessonId: string) => {
     const state = lessonAccessGraph.lessonStates[lessonId];
@@ -293,11 +305,15 @@ const CoursePage: React.FC = () => {
                           Tutorial
                         </span>
                       )}
-                      {course.premium_only && (
+                      {isSoftLandingCourse(course) ? (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 font-bold border border-emerald-400/30">
+                          {isEnglishCopy ? 'Block 1 free' : '第1ブロック無料'}
+                        </span>
+                      ) : course.premium_only ? (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold">
                           Premium
                         </span>
-                      )}
+                      ) : null}
                     </div>
                     <h1 className="text-xl font-bold text-violet-50 truncate">
                       {courseDisplayTitle(course, isEnglishCopy)}

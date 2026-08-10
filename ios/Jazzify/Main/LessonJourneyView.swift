@@ -48,12 +48,12 @@ struct LessonJourneyView: View {
         self.onLessonsUpdated = onLessonsUpdated
         self._lessons = State(initialValue: lessons)
         self._completedLessonIds = State(initialValue: completedLessonIds)
+        let courseKind = LessonCourseKind.resolve(course)
         let derived = Self.computeDerived(
             lessons: lessons,
             completedLessonIds: completedLessonIds,
             locale: .ja,
-            enforceSequentialWithinBlocks: course.isMainCourse == true,
-            isMainCourse: course.isMainCourse == true,
+            courseKind: courseKind,
             isPremium: true
         )
         self._layout = State(initialValue: derived.layout)
@@ -67,18 +67,21 @@ struct LessonJourneyView: View {
                 completedLessonIds: completedLessonIds,
                 layout: derived.layout,
                 locale: .ja,
-                isMainCourse: course.isMainCourse == true,
+                courseKind: courseKind,
                 isPremium: true
             )
         )
+    }
+
+    private var courseKind: LessonCourseKind {
+        LessonCourseKind.resolve(course)
     }
 
     private static func computeDerived(
         lessons: [Lesson],
         completedLessonIds: Set<UUID>,
         locale: AppLocale,
-        enforceSequentialWithinBlocks: Bool,
-        isMainCourse: Bool,
+        courseKind: LessonCourseKind,
         isPremium: Bool
     ) -> (
          layout: LessonJourneyLayout,
@@ -104,10 +107,15 @@ struct LessonJourneyView: View {
         var accessGraph = LessonJourneyAccessGraph.build(
             lessons: lessons,
             completedIds: completedLessonIds,
-            enforceSequentialWithinBlocks: enforceSequentialWithinBlocks
+            enforceSequentialWithinBlocks: courseKind.isSequential
         )
-        if isMainCourse {
-            accessGraph = MainQuestFreeTier.applyLocks(graph: accessGraph, lessons: lessons, isPremium: isPremium)
+        if let maxBlock = courseKind.freeMaxBlockNumber {
+            accessGraph = FreeTierBlockLocks.apply(
+                graph: accessGraph,
+                lessons: lessons,
+                maxBlockNumber: maxBlock,
+                isPremium: isPremium
+            )
         }
         let frontierLessonId = LessonJourneyFrontier.compute(
             lessons: inputs,
@@ -129,8 +137,7 @@ struct LessonJourneyView: View {
             lessons: lessons,
             completedLessonIds: completedLessonIds,
             locale: locale,
-            enforceSequentialWithinBlocks: course.isMainCourse == true,
-            isMainCourse: course.isMainCourse == true,
+            courseKind: courseKind,
             isPremium: appState.isPremium
         )
         layout = d.layout
@@ -143,7 +150,7 @@ struct LessonJourneyView: View {
             completedLessonIds: completedLessonIds,
             layout: d.layout,
             locale: locale,
-            isMainCourse: course.isMainCourse == true,
+            courseKind: courseKind,
             isPremium: appState.isPremium
         )
     }
@@ -153,7 +160,7 @@ struct LessonJourneyView: View {
         completedLessonIds: Set<UUID>,
         layout: LessonJourneyLayout,
         locale: AppLocale,
-        isMainCourse: Bool,
+        courseKind: LessonCourseKind,
         isPremium: Bool
     ) -> String {
         var hasher = Hasher()
@@ -169,7 +176,7 @@ struct LessonJourneyView: View {
         hasher.combine(layout.totalHeight)
         hasher.combine(layout.blocks.count)
         hasher.combine(locale.rawValue)
-        if isMainCourse {
+        if courseKind.freeMaxBlockNumber != nil {
             hasher.combine(isPremium)
         }
         return String(hasher.finalize())
@@ -297,9 +304,8 @@ struct LessonJourneyView: View {
         .task {
             let hadLessons = !lessons.isEmpty
             await loadCourseContentIfNeeded()
-            if !hadLessons {
-                recomputeJourney()
-            } else if locale == .en {
+            let needsFreeTierRecompute = courseKind.freeMaxBlockNumber != nil && !appState.isPremium
+            if !hadLessons || locale == .en || needsFreeTierRecompute {
                 recomputeJourney()
             }
         }
@@ -307,11 +313,11 @@ struct LessonJourneyView: View {
             recomputeJourney()
         }
         .onChange(of: appState.profile?.rank) { _ in
-            guard course.isMainCourse == true else { return }
+            guard courseKind.freeMaxBlockNumber != nil else { return }
             recomputeJourney()
         }
         .onChange(of: appState.isPremium) { _ in
-            guard course.isMainCourse == true else { return }
+            guard courseKind.freeMaxBlockNumber != nil else { return }
             recomputeJourney()
         }
         .sheet(isPresented: $showSheet) {
@@ -344,7 +350,10 @@ struct LessonJourneyView: View {
             )
         ) {
             if let lesson = launchLesson {
-                LessonDetailView(lesson: lesson)
+                LessonDetailView(
+                    lesson: lesson,
+                    autoStartFirstRequirement: courseKind.isSequential
+                )
             }
         }
         .onChange(of: launchLesson == nil) { isNil in

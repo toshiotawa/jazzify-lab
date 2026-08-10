@@ -1,5 +1,6 @@
 import { Course, Lesson, LessonProgress, Profile } from '@/types';
 import { courseDisplayTitle } from '@/utils/courseCopy';
+import { isSoftLandingCourse } from '@/utils/softLanding';
 
 export type MembershipRank = Profile['rank'] | 'free';
 
@@ -33,13 +34,10 @@ interface CourseAccessOptions {
   isEnglishCopy?: boolean;
 }
 
-interface CourseAccessResult {
-  canAccess: boolean;
-  reason?: string;
-  prerequisitesMet: boolean;
-  rankAllows: boolean;
-  requiresPremium: boolean;
-}
+export type CourseAccessResult =
+  | { kind: 'full'; canAccess: true }
+  | { kind: 'soft_landing_preview'; canAccess: true; freeMaxBlockNumber: number }
+  | { kind: 'denied'; canAccess: false; reason: string };
 
 export const checkCoursePrerequisites = (
   course: Course,
@@ -53,12 +51,20 @@ export const checkCoursePrerequisites = (
   );
 };
 
-const resolveCourseRank = (course: Course, rank: MembershipRank): { rankAllows: boolean; requiresPremium: boolean } => {
+type RankAccessKind = 'full' | 'soft_landing_preview' | 'denied';
+
+const resolveRankAccessKind = (course: Course, rank: MembershipRank): RankAccessKind => {
   const requiresPremium = Boolean(course.premium_only);
   if (!requiresPremium) {
-    return { rankAllows: true, requiresPremium: false };
+    return 'full';
   }
-  return { rankAllows: isPremiumRank(rank), requiresPremium: true };
+  if (isPremiumRank(rank)) {
+    return 'full';
+  }
+  if (isSoftLandingCourse(course)) {
+    return 'soft_landing_preview';
+  }
+  return 'denied';
 };
 
 export const resolveCourseAccess = ({
@@ -69,46 +75,45 @@ export const resolveCourseAccess = ({
 }: CourseAccessOptions): CourseAccessResult => {
   const rank = normalizeRank(userRank);
   const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
-  const { rankAllows, requiresPremium } = resolveCourseRank(course, rank);
+  const rankAccessKind = resolveRankAccessKind(course, rank);
 
-  if (!rankAllows) {
+  if (rankAccessKind === 'denied') {
     return {
+      kind: 'denied',
       canAccess: false,
       reason: isEnglishCopy
         ? 'Premium membership is required.'
         : 'プレミアムプラン以上が必要です',
-      prerequisitesMet,
-      rankAllows,
-      requiresPremium,
     };
   }
 
-  if (prerequisitesMet) {
+  if (!prerequisitesMet) {
+    const prerequisiteNames = course.prerequisites
+      ?.map((p) => courseDisplayTitle(p.prerequisite_course, isEnglishCopy))
+      .join(', ');
+
     return {
-      canAccess: true,
-      prerequisitesMet: true,
-      rankAllows,
-      requiresPremium,
+      kind: 'denied',
+      canAccess: false,
+      reason: prerequisiteNames
+        ? isEnglishCopy
+          ? `Complete the prerequisite course(s): ${prerequisiteNames}.`
+          : `前提コース（${prerequisiteNames}）を完了してください`
+        : isEnglishCopy
+          ? 'Complete the prerequisite course(s).'
+          : '前提コースを完了してください',
     };
   }
 
-  const prerequisiteNames = course.prerequisites
-    ?.map((p) => courseDisplayTitle(p.prerequisite_course, isEnglishCopy))
-    .join(', ');
+  if (rankAccessKind === 'soft_landing_preview') {
+    return {
+      kind: 'soft_landing_preview',
+      canAccess: true,
+      freeMaxBlockNumber: 1,
+    };
+  }
 
-  return {
-    canAccess: false,
-    reason: prerequisiteNames
-      ? isEnglishCopy
-        ? `Complete the prerequisite course(s): ${prerequisiteNames}.`
-        : `前提コース（${prerequisiteNames}）を完了してください`
-      : isEnglishCopy
-        ? 'Complete the prerequisite course(s).'
-        : '前提コースを完了してください',
-    prerequisitesMet: false,
-    rankAllows,
-    requiresPremium,
-  };
+  return { kind: 'full', canAccess: true };
 };
 
 interface LessonAccessState {

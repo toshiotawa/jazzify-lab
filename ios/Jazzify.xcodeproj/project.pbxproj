@@ -97,6 +97,11 @@
 		43B21E7F172AF3B55CEDD63D /* SurvivalPhraseMapPreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E33139D92205CFC2F61870 /* SurvivalPhraseMapPreviewPlayer.swift */; };
 		44D6034EFBE7D1558EB7FAA6 /* EarTrainingPhrasePairAdlibBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF420C834F81CF805DC8684 /* EarTrainingPhrasePairAdlibBattleController.swift */; };
 		4522AE07D97E7A2A4F0CCC76 /* MainQuestFreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */; };
+		B2C3D4E5F60718293A4B5C6D /* FreeTierBlockLocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */; };
+		D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */; };
+		F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */; };
+		18293A4B5C6D7E8F901A2B3C /* SoftLandingFreeTierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0718293A4B5C6D7E8F901A2B /* SoftLandingFreeTierTests.swift */; };
+		3A4B5C6D7E8F901A2B3C4D5E /* LessonNavigationHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293A4B5C6D7E8F901A2B3C4D /* LessonNavigationHelpersTests.swift */; };
 		47F074463BCFBB78C074DDB1 /* BalloonRushMelee.swift in Sources */ = {isa = PBXBuildFile; fileRef = 064276E96DF29FE3367E07E7 /* BalloonRushMelee.swift */; };
 		4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */; };
 		4B3D81798B36AE658E36B28E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B4665837C213B33E7EA39A7E /* Assets.xcassets */; };
@@ -517,6 +522,11 @@
 		C534FAFEEA1C8A565DD844F6 /* SurvivalTutorialV3LineRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LineRouter.swift; sourceTree = "<group>"; };
 		C6E97E7B4C255D270BD5BC8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestFreeTier.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTierBlockLocks.swift; sourceTree = "<group>"; };
+		C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingFreeTier.swift; sourceTree = "<group>"; };
+		E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingOfferSheet.swift; sourceTree = "<group>"; };
+		0718293A4B5C6D7E8F901A2B /* SoftLandingFreeTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingFreeTierTests.swift; sourceTree = "<group>"; };
+		293A4B5C6D7E8F901A2B3C4D /* LessonNavigationHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNavigationHelpersTests.swift; sourceTree = "<group>"; };
 		C82FD3D55152BDBC04A380C3 /* SurvivalMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalMode.swift; sourceTree = "<group>"; };
 		C86FD0A420162EC69DDE355F /* SurvivalTutorialV3StageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3StageBuilder.swift; sourceTree = "<group>"; };
 		C88453408DE12301997E620A /* MarketingEmailOptIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingEmailOptIn.swift; sourceTree = "<group>"; };
@@ -675,6 +685,8 @@
 			isa = PBXGroup;
 			children = (
 				C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */,
+				0718293A4B5C6D7E8F901A2B /* SoftLandingFreeTierTests.swift */,
+				293A4B5C6D7E8F901A2B3C4D /* LessonNavigationHelpersTests.swift */,
 			);
 			path = JazzifyTests;
 			sourceTree = "<group>";
@@ -1226,6 +1238,9 @@
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
 				4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */,
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
+				A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */,
+				C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */,
+				E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */,
 				3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
 				7A1C4E92B3D5F60184C2A552 /* MarketingOptInBannerView.swift */,
@@ -1553,6 +1568,9 @@
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,
 				42CDF4F3D53A7BBC2AE26E72 /* MIDIManager.swift in Sources */,
 				4522AE07D97E7A2A4F0CCC76 /* MainQuestFreeTier.swift in Sources */,
+				B2C3D4E5F60718293A4B5C6D /* FreeTierBlockLocks.swift in Sources */,
+				D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift in Sources */,
+				F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift in Sources */,
 				0B022E9FC737C56AED2D38A4 /* MainQuestResumeSheet.swift in Sources */,
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,
 				86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */,
@@ -1713,6 +1731,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift in Sources */,
+				18293A4B5C6D7E8F901A2B3C /* SoftLandingFreeTierTests.swift in Sources */,
+				3A4B5C6D7E8F901A2B3C4D5E /* LessonNavigationHelpersTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1778,7 +1798,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.4.6;
+				MARKETING_VERSION = 1.4.7;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1861,7 +1881,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				MARKETING_VERSION = 1.4.6;
+				MARKETING_VERSION = 1.4.7;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

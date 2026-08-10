@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { dashboardPath } from '@/utils/appNavigation';
+import { FantasyRouteGate } from '@/routes/FantasyRouteGate';
 
-const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
 const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'));
 const LazySurvivalMain = React.lazy(() => import('@/components/survival/SurvivalMain'));
 const LazySurvivalTutorialMain = React.lazy(
@@ -28,15 +28,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
   <Routes>
     <Route
       path="fantasy"
-      element={
-        !isPremiumMember ? (
-          <Navigate to={dashboardPath()} replace />
-        ) : (
-          <React.Suspense fallback={<LoadingScreen />}>
-            <LazyFantasyMain />
-          </React.Suspense>
-        )
-      }
+      element={<FantasyRouteGate isPremiumMember={isPremiumMember} />}
     />
     <Route
       path="story"

@@ -177,10 +177,13 @@ const CourseListPage: React.FC = () => {
   const renderCourseCard = (course: Course) => {
     const accessResult = canAccessCourse(course, effectiveRank, completedCourseIds, isEnglishCopy);
     const accessible = accessResult.canAccess;
+    const isSoftLandingPreview = accessResult.kind === 'soft_landing_preview';
+    const isDenied = accessResult.kind === 'denied';
     const progress = allCoursesProgress[course.id] ?? 0;
     const count = lessonCounts[course.id] ?? 0;
     const isCompleted = progress === 100;
     const courseDesc = courseDisplayDescription(course, isEnglishCopy);
+    const cardInteractive = accessible;
 
     return (
       <button
@@ -189,16 +192,16 @@ const CourseListPage: React.FC = () => {
           'group relative text-left w-full border transition-all duration-200 rounded-xl p-5',
           isCompleted
             ? 'border-emerald-500/40 bg-emerald-900/10 hover:bg-emerald-900/20'
-            : accessible
+            : cardInteractive
               ? 'border-violet-400/20 bg-[rgba(12,8,30,0.78)] hover:bg-violet-950/40 hover:border-violet-300/45'
               : 'border-slate-700/40 bg-slate-800/30 opacity-60 cursor-not-allowed',
         )}
         onClick={() => {
           if (accessible) {
             openCourse(course.id);
-          } else if (course.premium_only) {
+          } else if (isDenied && course.premium_only) {
             setShowPaywall(true);
-          } else {
+          } else if (isDenied) {
             toast.warning(accessResult.reason || (isEnglishCopy ? 'Cannot access this course' : 'このコースにはアクセスできません'));
           }
         }}
@@ -219,15 +222,19 @@ const CourseListPage: React.FC = () => {
             >
               {difficultyTierLabel(normalizeCourseDifficultyTier(course.difficulty_tier), isEnglishCopy)}
             </span>
-            {course.premium_only && (
+            {isSoftLandingPreview ? (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 font-bold tracking-wide border border-emerald-400/30">
+                {isEnglishCopy ? 'Block 1 free' : '第1ブロック無料'}
+              </span>
+            ) : course.premium_only ? (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
                 Premium
               </span>
-            )}
-            {!accessible && <FaLock className="text-xs text-gray-500" />}
+            ) : null}
+            {isDenied && <FaLock className="text-xs text-gray-500" />}
             {isCompleted && <FaCheck className="text-sm text-emerald-400" />}
           </div>
-          {accessible && (
+          {cardInteractive && (
             <FaChevronRight className="text-gray-500 group-hover:text-violet-200 transition-colors shrink-0 mt-1" />
           )}
         </div>
@@ -240,7 +247,7 @@ const CourseListPage: React.FC = () => {
           <p className="text-xs text-gray-400 line-clamp-2 mb-3">{courseDesc}</p>
         )}
 
-        {!accessible && accessResult.reason && (
+        {isDenied && accessResult.reason && (
           <p className="text-[11px] text-orange-300/80 mb-3">{accessResult.reason}</p>
         )}
 

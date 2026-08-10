@@ -17,6 +17,10 @@ struct TopView: View {
     @State private var resumePremiumUpsell = false
     @State private var pendingResumeAfterUpdateNotice = false
     @State private var pendingSubscriptionAfterResume = false
+    @State private var softLandingNextCandidate: SoftLandingCandidate?
+    @State private var showSoftLandingOffer = false
+    @State private var softLandingOfferEntry: SoftLandingOfferEntry = .dashboard
+    @State private var paywallEntryAtOpen: SubscriptionEntry = .default
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -33,10 +37,12 @@ struct TopView: View {
                         }
                         MarketingOptInBannerView()
                         mainQuestCard
+                        softLandingCard
                         profileCard
                         if !appState.isPremium {
                             Button {
                                 subscriptionEntry = .dashboard
+                                paywallEntryAtOpen = .dashboard
                                 showSubscription = true
                             } label: {
                                 membershipBanner
@@ -79,6 +85,7 @@ struct TopView: View {
                                     await MainActor.run {
                                         mainQuestLessonToOpen = nil
                                         subscriptionEntry = .dashboard
+                                        paywallEntryAtOpen = .dashboard
                                         showSubscription = true
                                     }
                                 }
@@ -92,8 +99,20 @@ struct TopView: View {
                     Task { await loadData() }
                 }
             }
-            .sheet(isPresented: $showSubscription) {
+            .sheet(isPresented: $showSubscription, onDismiss: {
+                handleSubscriptionSheetDismiss()
+            }) {
                 SubscriptionView(entry: subscriptionEntry)
+            }
+            .sheet(isPresented: $showSoftLandingOffer) {
+                if let candidate = softLandingNextCandidate {
+                    SoftLandingOfferSheet(
+                        locale: locale,
+                        course: candidate.course,
+                        onAccept: { handleSoftLandingOfferAccept(candidate) },
+                        onDismiss: { handleSoftLandingOfferDismiss(candidate) }
+                    )
+                }
             }
             .sheet(isPresented: $showMainQuestResumeSheet, onDismiss: {
                 MainQuestResumePreferences.markShown()
@@ -325,6 +344,7 @@ struct TopView: View {
 
                             Button {
                                 subscriptionEntry = .dashboard
+                                paywallEntryAtOpen = .dashboard
                                 showSubscription = true
                             } label: {
                                 HStack(spacing: 6) {
@@ -348,6 +368,72 @@ struct TopView: View {
             .background(Color(hex: "1e293b"))
             .cornerRadius(12)
         }
+    }
+
+    @ViewBuilder
+    private var softLandingCard: some View {
+        if !appState.isPremium,
+           mainQuestBlockedForSoftLanding,
+           let candidate = softLandingNextCandidate {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Image(systemName: "gift.fill")
+                        .foregroundStyle(.green)
+                    Text(locale == .ja ? "学びを続ける" : "Continue learning")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                }
+
+                Text(locale == .ja
+                     ? "「\(candidate.course.localizedTitle(locale))」の第1ブロックを無料で体験できます。"
+                     : "Try \"\(candidate.course.localizedTitle(locale))\" — Block 1 is free.")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    softLandingOfferEntry = .dashboard
+                    if let userId = profile?.id {
+                        AnalyticsTracker.trackSoftLandingOfferViewed(
+                            userId: userId,
+                            courseId: candidate.course.id,
+                            entry: SoftLandingOfferEntry.dashboard.rawValue,
+                            sequenceIndex: candidate.course.softLandingOrder ?? 0
+                        )
+                    }
+                    showSoftLandingOffer = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(locale == .ja ? "コースを見る" : "View course")
+                            .font(.subheadline.bold())
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.green.opacity(0.75))
+                    .cornerRadius(20)
+                }
+            }
+            .padding(16)
+            .background(Color(hex: "1e293b"))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.green.opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+
+    private var mainQuestBlockedForSoftLanding: Bool {
+        guard let progress = mainQuestProgress, progress.totalLessons > 0 else { return false }
+        if progress.completedLessons >= progress.totalLessons { return true }
+        guard let next = progress.nextLesson else { return false }
+        return !MainQuestFreeTier.isBlockPlayable(
+            isPremium: false,
+            blockNumber: next.blockNumber ?? 1
+        )
     }
 
     private func mainQuestPlayableNextLesson(progress: SupabaseService.MainQuestProgressResult) -> Lesson? {
@@ -606,6 +692,12 @@ struct TopView: View {
         userStats = loadedStats
         mainQuestProgress = loadedMainQuestProgress
         earnedBadges = loadedBadges
+        if appState.isPremium {
+            softLandingNextCandidate = nil
+        } else {
+            let candidates = await SoftLandingOfferLoader.fetchCandidates(userId: userId)
+            softLandingNextCandidate = SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates)
+        }
         await playerXpHub.refreshFromServer()
 
         if appState.pendingMainQuestAutoStart {
@@ -639,6 +731,55 @@ struct TopView: View {
                 }
             }
         }
+    }
+
+    private func handleSubscriptionSheetDismiss() {
+        let entry = paywallEntryAtOpen
+        guard !appState.isPremium, SoftLandingFreeTier.isSoftLandingPaywallSource(entry) else { return }
+        Task {
+            guard let userId = profile?.id else { return }
+            let candidates = await SoftLandingOfferLoader.fetchCandidates(userId: userId)
+            guard let next = SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates) else { return }
+            await MainActor.run {
+                softLandingNextCandidate = next
+                softLandingOfferEntry = SoftLandingFreeTier.offerEntry(for: entry)
+                AnalyticsTracker.trackSoftLandingOfferViewed(
+                    userId: userId,
+                    courseId: next.course.id,
+                    entry: softLandingOfferEntry.rawValue,
+                    sequenceIndex: next.course.softLandingOrder ?? 0
+                )
+                showSoftLandingOffer = true
+            }
+        }
+    }
+
+    private func handleSoftLandingOfferAccept(_ candidate: SoftLandingCandidate) {
+        if let userId = profile?.id {
+            AnalyticsTracker.trackSoftLandingOfferAccepted(
+                userId: userId,
+                courseId: candidate.course.id,
+                entry: softLandingOfferEntry.rawValue,
+                sequenceIndex: candidate.course.softLandingOrder ?? 0
+            )
+        }
+        showSoftLandingOffer = false
+        guard let lessonId = SoftLandingFreeTier.firstBlock1LessonId(lessons: candidate.lessons),
+              let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
+        autoStartFirstQuestRequirement = true
+        mainQuestLessonToOpen = lesson
+    }
+
+    private func handleSoftLandingOfferDismiss(_ candidate: SoftLandingCandidate) {
+        if let userId = profile?.id {
+            AnalyticsTracker.trackSoftLandingOfferDismissed(
+                userId: userId,
+                courseId: candidate.course.id,
+                entry: softLandingOfferEntry.rawValue,
+                sequenceIndex: candidate.course.softLandingOrder ?? 0
+            )
+        }
+        showSoftLandingOffer = false
     }
 }
 

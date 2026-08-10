@@ -177,7 +177,12 @@ struct CourseListView: View {
                         .padding(.trailing, 4)
                 }
 
-                if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
+                if SoftLandingFreeTier.isSoftLandingCourse(course) && !appState.isPremium {
+                    Text(locale == .ja ? "第1ブロック無料" : "Block 1 free")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.green)
+                        .padding(.trailing, 4)
+                } else if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
                     Image(systemName: "lock.fill")
                         .foregroundStyle(.purple)
                 } else {
@@ -194,7 +199,10 @@ struct CourseListView: View {
     }
 
     private func handleCourseTap(_ course: Course) {
-        let courseLocksForNonPremium = course.premiumOnly == true && course.isTutorial != true
+        let isSoftLanding = SoftLandingFreeTier.isSoftLandingCourse(course)
+        let courseLocksForNonPremium = course.premiumOnly == true
+            && course.isTutorial != true
+            && !isSoftLanding
         if courseLocksForNonPremium {
             Task {
                 let premium = await appState.ensureFreshBilling()

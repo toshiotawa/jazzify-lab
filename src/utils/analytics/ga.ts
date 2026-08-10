@@ -21,6 +21,9 @@ const PAYWALL_FUNNEL_EVENT_NAMES = new Set([
   'paywall_click',
   'paywall_dismiss',
   'begin_checkout',
+  'soft_landing_offer_viewed',
+  'soft_landing_offer_accepted',
+  'soft_landing_offer_dismissed',
 ]);
 
 const AUTH_FUNNEL_EVENT_NAMES = new Set([

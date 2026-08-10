@@ -34,7 +34,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
             currentLesson: first,
             lessons: [first, second],
             completedIds: [],
-            isMainQuest: true,
+            courseKind: .mainQuest,
             isPremium: true
         )
 
@@ -51,7 +51,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
             currentLesson: first,
             lessons: [first, second],
             completedIds: [first.id],
-            isMainQuest: true,
+            courseKind: .mainQuest,
             isPremium: true
         )
 
@@ -68,12 +68,28 @@ final class LessonNavigationHelpersTests: XCTestCase {
             currentLesson: block1Last,
             lessons: [block1First, block1Last, block2First],
             completedIds: [block1First.id, block1Last.id],
-            isMainQuest: true,
+            courseKind: .mainQuest,
             isPremium: false
         )
 
         XCTAssertEqual(state.nextLesson?.id, block2First.id)
         XCTAssertFalse(state.canGoNext)
+        XCTAssertEqual(state.nextBlockedReason, .premiumRequired)
+    }
+
+    func testSoftLandingFreeUserBlockedFromSecondBlock() {
+        let block1Last = makeLesson(orderIndex: 1, blockNumber: 1)
+        let block2First = makeLesson(orderIndex: 2, blockNumber: 2)
+        let block1First = makeLesson(orderIndex: 0, blockNumber: 1)
+
+        let state = LessonNavigationHelpers.computeNavigationState(
+            currentLesson: block1Last,
+            lessons: [block1First, block1Last, block2First],
+            completedIds: [block1First.id, block1Last.id],
+            courseKind: .softLanding,
+            isPremium: false
+        )
+
         XCTAssertEqual(state.nextBlockedReason, .premiumRequired)
     }
 
@@ -135,7 +151,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
             currentLesson: first,
             lessons: [first, second],
             completedIds: [],
-            isMainQuest: false,
+            courseKind: .normal,
             isPremium: false
         )
 
@@ -186,7 +202,19 @@ final class LessonNavigationHelpersTests: XCTestCase {
     func testShouldSkipReadyPromptForFreeTierBlock1PremiumUpsell() {
         XCTAssertTrue(
             LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
-                isMainQuest: true,
+                courseKind: .mainQuest,
+                isPremium: false,
+                currentBlockNumber: 1,
+                nextLessonBlockNumber: 2,
+                nextBlockedReason: .premiumRequired
+            )
+        )
+    }
+
+    func testShouldSkipReadyPromptForSoftLandingBlock1PremiumUpsell() {
+        XCTAssertTrue(
+            LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
+                courseKind: .softLanding,
                 isPremium: false,
                 currentBlockNumber: 1,
                 nextLessonBlockNumber: 2,
@@ -198,7 +226,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
     func testShouldNotSkipReadyPromptForPremiumMember() {
         XCTAssertFalse(
             LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
-                isMainQuest: true,
+                courseKind: .mainQuest,
                 isPremium: true,
                 currentBlockNumber: 1,
                 nextLessonBlockNumber: 2,
@@ -210,7 +238,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
     func testShouldNotSkipReadyPromptWhenNextBlockIsStillBlock1() {
         XCTAssertFalse(
             LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
-                isMainQuest: true,
+                courseKind: .mainQuest,
                 isPremium: false,
                 currentBlockNumber: 1,
                 nextLessonBlockNumber: 1,
@@ -276,6 +304,8 @@ final class LessonNavigationHelpersTests: XCTestCase {
             earTrainingStageId: nil,
             isBalloonRush: nil,
             balloonRushStageId: nil,
+            isVideoLesson: nil,
+            videoLessonStageId: nil,
             isFantasy: false,
             isSurvival: true,
             isSurvivalTutorial: nil,
@@ -297,7 +327,8 @@ final class LessonNavigationHelpersTests: XCTestCase {
             titleEn: nil,
             fantasyStage: nil,
             earTrainingStage: nil,
-            balloonRushStage: nil
+            balloonRushStage: nil,
+            videoLessonStage: nil
         )
     }
 }

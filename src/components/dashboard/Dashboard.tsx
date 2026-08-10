@@ -22,6 +22,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import MainQuestProgressSection from '@/components/dashboard/MainQuestProgressSection';
+import SoftLandingSection from '@/components/dashboard/SoftLandingSection';
 import MainQuestResumeModal from '@/components/dashboard/MainQuestResumeModal';
 import MarketingOptInBanner from '@/components/dashboard/MarketingOptInBanner';
 import PlayerLevelSection from '@/components/dashboard/PlayerLevelSection';
@@ -119,6 +120,7 @@ const Dashboard: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           <MainQuestProgressSection />
+          <SoftLandingSection />
           <MainQuestResumeModal />
           <MarketingOptInBanner isEnglishCopy={isEnglishCopy} />
           {!isPremiumMember && (

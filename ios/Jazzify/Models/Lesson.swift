@@ -52,6 +52,7 @@ struct Course: Codable, Identifiable, Sendable {
     let difficultyTier: String?
     let isDeveloperOnly: Bool?
     let isMainCourse: Bool?
+    let softLandingOrder: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description, audience
@@ -63,6 +64,7 @@ struct Course: Codable, Identifiable, Sendable {
         case difficultyTier = "difficulty_tier"
         case isDeveloperOnly = "is_developer_only"
         case isMainCourse = "is_main_course"
+        case softLandingOrder = "soft_landing_order"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

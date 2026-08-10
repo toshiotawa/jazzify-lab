@@ -99,6 +99,58 @@ enum AnalyticsTracker {
         }
     }
 
+    static func trackSoftLandingOfferViewed(
+        userId: UUID,
+        courseId: UUID,
+        entry: String,
+        sequenceIndex: Int
+    ) {
+        sendGa4Event(name: "soft_landing_offer_viewed", params: softLandingOfferParams(
+            courseId: courseId,
+            entry: entry,
+            sequenceIndex: sequenceIndex
+        ))
+    }
+
+    static func trackSoftLandingOfferAccepted(
+        userId: UUID,
+        courseId: UUID,
+        entry: String,
+        sequenceIndex: Int
+    ) {
+        sendGa4Event(name: "soft_landing_offer_accepted", params: softLandingOfferParams(
+            courseId: courseId,
+            entry: entry,
+            sequenceIndex: sequenceIndex
+        ))
+    }
+
+    static func trackSoftLandingOfferDismissed(
+        userId: UUID,
+        courseId: UUID,
+        entry: String,
+        sequenceIndex: Int
+    ) {
+        sendGa4Event(name: "soft_landing_offer_dismissed", params: softLandingOfferParams(
+            courseId: courseId,
+            entry: entry,
+            sequenceIndex: sequenceIndex
+        ))
+    }
+
+    private static func softLandingOfferParams(
+        courseId: UUID,
+        entry: String,
+        sequenceIndex: Int
+    ) -> [String: Any] {
+        [
+            "course_id": courseId.uuidString,
+            "entry": entry,
+            "sequence_index": sequenceIndex,
+            "platform": "ios",
+        ]
+    }
+
     private static func sendGa4Event(name: String, params: [String: Any] = [:]) {
         let url = Config.iosAnalyticsEventURL
         var request = URLRequest(url: url)

@@ -139,6 +139,7 @@ export async function fetchCoursesForLessonList({
         difficulty_tier,
         audience,
         is_main_course,
+        soft_landing_order,
         created_at,
         updated_at,
         lessons (
@@ -389,27 +390,131 @@ export function canAccessCourse(
   userRank: MembershipRank,
   completedCourseIds: string[] = [],
   isEnglishCopy = false,
-): {
-  canAccess: boolean;
-  reason?: string;
-  prerequisitesMet: boolean;
-  rankAllows: boolean;
-  requiresPremium: boolean;
-} {
-  const result = resolveCourseAccess({
+): import('@/utils/lessonAccess').CourseAccessResult {
+  return resolveCourseAccess({
     course,
     userRank,
     completedCourseIds,
     isEnglishCopy,
   });
+}
 
-  return {
-    canAccess: result.canAccess,
-    reason: result.reason,
-    prerequisitesMet: result.prerequisitesMet,
-    rankAllows: result.rankAllows,
-    requiresPremium: result.requiresPremium,
-  };
+export const SOFT_LANDING_CANDIDATES_CACHE_KEY = 'soft_landing_candidates';
+
+export function clearSoftLandingCandidatesCache(): void {
+  clearCacheByPattern(/^soft_landing_candidates:/);
+}
+
+export interface SoftLandingCandidateRow {
+  course: Course;
+  block1Completed: boolean;
+}
+
+/**
+ * ソフトランディング対象コースと第1ブロック完了状態を取得
+ */
+export async function fetchSoftLandingCandidates(
+  userId: string,
+  options: { forceRefresh?: boolean } = {},
+): Promise<SoftLandingCandidateRow[]> {
+  const { forceRefresh = false } = options;
+  if (forceRefresh) {
+    clearSoftLandingCandidatesCache();
+  }
+
+  const { data, error } = await fetchWithCache(
+    `${SOFT_LANDING_CANDIDATES_CACHE_KEY}:${userId}`,
+    async () => {
+      const supabase = getSupabaseClient();
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select(`
+          id,
+          title,
+          title_en,
+          description,
+          description_en,
+          order_index,
+          premium_only,
+          difficulty_tier,
+          audience,
+          is_main_course,
+          soft_landing_order,
+          is_visible,
+          is_developer_only,
+          created_at,
+          updated_at,
+          lessons (
+            id,
+            order_index,
+            block_number,
+            course_id
+          )
+        `)
+        .not('soft_landing_order', 'is', null)
+        .eq('is_visible', true)
+        .eq('is_developer_only', false)
+        .order('soft_landing_order', { ascending: true });
+
+      if (coursesError) {
+        throw coursesError;
+      }
+
+      const courses = (coursesData ?? []) as unknown as Course[];
+      if (courses.length === 0) {
+        return {
+          data: [] as SoftLandingCandidateRow[],
+          error: null,
+          status: 200,
+          statusText: 'OK',
+        };
+      }
+
+      const lessonIds = courses.flatMap(
+        (course) => (course.lessons ?? []).map((lesson) => lesson.id),
+      );
+
+      let progressMap: Record<string, { completed: boolean }> = {};
+      if (lessonIds.length > 0) {
+        const { data: progressData, error: progressError } = await supabase
+          .from('user_lesson_progress')
+          .select('lesson_id, completed')
+          .eq('user_id', userId)
+          .in('lesson_id', lessonIds);
+
+        if (progressError) {
+          throw progressError;
+        }
+
+        progressMap = Object.fromEntries(
+          (progressData ?? []).map((row) => [row.lesson_id, { completed: row.completed === true }]),
+        );
+      }
+
+      const candidates: SoftLandingCandidateRow[] = courses.map((course) => {
+        const block1Lessons = (course.lessons ?? []).filter(
+          (lesson) => (lesson.block_number ?? 1) === 1,
+        );
+        const block1Completed = block1Lessons.length > 0
+          && block1Lessons.every((lesson) => progressMap[lesson.id]?.completed === true);
+        return { course, block1Completed };
+      });
+
+      return {
+        data: candidates,
+        error: null,
+        status: 200,
+        statusText: 'OK',
+      };
+    },
+    60 * 1000,
+  );
+
+  if (error) {
+    console.error('Error fetching soft landing candidates:', error);
+    return [];
+  }
+  return (data as SoftLandingCandidateRow[]) ?? [];
 }
 
 export type FetchCourseByIdOptions = {

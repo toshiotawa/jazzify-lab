@@ -27,6 +27,20 @@ const progress = (lessonId: string, completed: boolean): Pick<LessonProgress, 'c
   completed,
 });
 
+const navOptions = (input: {
+  isMainQuest?: boolean;
+  isSoftLanding?: boolean;
+  isPremiumMember: boolean;
+}) => ({
+  isMainQuest: input.isMainQuest ?? false,
+  isSoftLanding: input.isSoftLanding ?? false,
+  isPremiumMember: input.isPremiumMember,
+  course: {
+    is_main_course: input.isMainQuest ?? false,
+    soft_landing_order: input.isSoftLanding ? 1 : null,
+  },
+});
+
 const navInfo = (
   next: Lesson | null,
   canGoNext: boolean,
@@ -56,7 +70,7 @@ describe('computeLessonNavigationInfo', () => {
       'course-1',
       [l1, l2],
       {},
-      { isMainQuest: true, isPremiumMember: true },
+      navOptions({ isMainQuest: true, isPremiumMember: true }),
     );
     expect(result.nextLesson?.id).toBe('l2');
     expect(result.canGoNext).toBe(false);
@@ -69,7 +83,7 @@ describe('computeLessonNavigationInfo', () => {
       'course-1',
       [l1, l2],
       { l1: progress('l1', true) },
-      { isMainQuest: true, isPremiumMember: true },
+      navOptions({ isMainQuest: true, isPremiumMember: true }),
     );
     expect(result.nextLesson?.id).toBe('l2');
     expect(result.canGoNext).toBe(true);
@@ -88,7 +102,7 @@ describe('computeLessonNavigationInfo', () => {
       'course-1',
       [b1First, b1Second, b1Third, b2First],
       { 'b1-first': progress('b1-first', true) },
-      { isMainQuest: true, isPremiumMember: true },
+      navOptions({ isMainQuest: true, isPremiumMember: true }),
     );
 
     expect(result.previousLesson?.id).toBe('b1-first');
@@ -107,7 +121,7 @@ describe('computeLessonNavigationInfo', () => {
         'b1-first': progress('b1-first', true),
         'b1-last': progress('b1-last', true),
       },
-      { isMainQuest: true, isPremiumMember: false },
+      navOptions({ isMainQuest: true, isPremiumMember: false }),
     );
     expect(result.nextLesson?.id).toBe('b2-first');
     expect(result.canGoNext).toBe(false);
@@ -120,7 +134,7 @@ describe('computeLessonNavigationInfo', () => {
       'course-1',
       [l1, l2],
       {},
-      { isMainQuest: false, isPremiumMember: false },
+      navOptions({ isPremiumMember: false }),
     );
     expect(result.nextLesson?.id).toBe('l2');
     expect(result.canGoNext).toBe(true);
@@ -132,7 +146,7 @@ describe('computeLessonNavigationInfo', () => {
       'course-1',
       [l1, l2],
       { l1: progress('l1', true), l2: progress('l2', true) },
-      { isMainQuest: true, isPremiumMember: true },
+      navOptions({ isMainQuest: true, isPremiumMember: true }),
     );
     expect(result.nextLesson).toBeNull();
     expect(result.canGoNext).toBe(false);
@@ -144,7 +158,7 @@ describe('computeLessonNavigationInfo', () => {
       'course-1',
       [l1, l2],
       {},
-      { isMainQuest: true, isPremiumMember: true },
+      navOptions({ isMainQuest: true, isPremiumMember: true }),
     );
     expect(result.previousLesson).toBeNull();
     expect(result.canGoPrevious).toBe(false);
@@ -161,7 +175,7 @@ describe('getNavigationErrorMessage', () => {
       'course-1',
       [first, second],
       {},
-      { isMainQuest: true, isPremiumMember: true },
+      navOptions({ isMainQuest: true, isPremiumMember: true }),
     );
     expect(getNavigationErrorMessage('next', info, false)).toContain('現在のクエストを完了');
   });
@@ -177,7 +191,7 @@ describe('getNavigationErrorMessage', () => {
         'b1-first': progress('b1-first', true),
         'b1-last': progress('b1-last', true),
       },
-      { isMainQuest: true, isPremiumMember: false },
+      navOptions({ isMainQuest: true, isPremiumMember: false }),
     );
     expect(getNavigationErrorMessage('next', info, false)).toContain('プレミアム');
   });
@@ -296,7 +310,7 @@ describe('shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell', () => {
   it('returns true for free main quest block1 last quest before premium block', () => {
     expect(
       shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell({
-        isMainQuest: true,
+        isSequentialCourse: true,
         isPremiumMember: false,
         currentBlockNumber: 1,
         nextLessonBlockNumber: 2,
@@ -308,7 +322,7 @@ describe('shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell', () => {
   it('returns false for premium members', () => {
     expect(
       shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell({
-        isMainQuest: true,
+        isSequentialCourse: true,
         isPremiumMember: true,
         currentBlockNumber: 1,
         nextLessonBlockNumber: 2,

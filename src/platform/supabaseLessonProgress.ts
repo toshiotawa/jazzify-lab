@@ -1,6 +1,6 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByKey, invalidateCacheKey, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
-import { unlockDependentCourses } from '@/platform/supabaseCourses';
+import { clearSoftLandingCandidatesCache, unlockDependentCourses } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from './supabaseClient';
 import { clearUserStatsCache } from './supabaseUserStats';
 
@@ -32,6 +32,15 @@ export interface LessonRequirement {
  */
 export const LESSON_PROGRESS_CACHE_KEY = (courseId: string, userId: string) =>
   `lesson_progress_${courseId}_${userId}`;
+
+export const LESSON_PROGRESS_ALL_CACHE_KEY = (userId: string) =>
+  `lesson_progress_all_${userId}`;
+
+export function clearLessonProgressCachesForUser(userId: string, courseId: string): void {
+  clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(courseId, userId));
+  clearCacheByKey(LESSON_PROGRESS_ALL_CACHE_KEY(userId));
+  clearSoftLandingCandidatesCache();
+}
 
 /**
  * ユーザーの特定コースのレッスン進捗を取得
@@ -151,6 +160,7 @@ export async function updateLessonProgress(
     
     // 統計キャッシュをクリア
     clearUserStatsCache(userId);
+    clearLessonProgressCachesForUser(userId, courseId);
   }
 }
 

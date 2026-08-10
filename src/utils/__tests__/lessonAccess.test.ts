@@ -64,8 +64,8 @@ describe('resolveCourseAccess', () => {
       completedCourseIds: [prerequisiteCourse.id],
     });
 
+    expect(result.kind).toBe('full');
     expect(result.canAccess).toBe(true);
-    expect(result.prerequisitesMet).toBe(true);
   });
 
   it('前提条件を満たしていない場合はアクセス不可', () => {
@@ -85,9 +85,11 @@ describe('resolveCourseAccess', () => {
       completedCourseIds: [],
     });
 
+    expect(result.kind).toBe('denied');
     expect(result.canAccess).toBe(false);
-    expect(result.prerequisitesMet).toBe(false);
-    expect(result.reason).toContain('前提コース');
+    if (result.kind === 'denied') {
+      expect(result.reason).toContain('前提コース');
+    }
   });
 
   it('isEnglishCopy 時は前提未達メッセージが英語になる', () => {
@@ -113,8 +115,10 @@ describe('resolveCourseAccess', () => {
     });
 
     expect(result.canAccess).toBe(false);
-    expect(result.reason).toContain('Prerequisite EN');
-    expect(result.reason).toContain('prerequisite');
+    if (result.kind === 'denied') {
+      expect(result.reason).toContain('Prerequisite EN');
+      expect(result.reason).toContain('prerequisite');
+    }
   });
 
   it('isEnglishCopy 時はプレミアム未加入メッセージが英語になる', () => {
@@ -128,7 +132,28 @@ describe('resolveCourseAccess', () => {
     });
 
     expect(result.canAccess).toBe(false);
-    expect(result.reason).toBe('Premium membership is required.');
+    if (result.kind === 'denied') {
+      expect(result.reason).toBe('Premium membership is required.');
+    }
+  });
+
+  it('ソフトランディング対象コースは soft_landing_preview を返す', () => {
+    const targetCourse = createCourse({
+      premium_only: true,
+      soft_landing_order: 1,
+    });
+
+    const result = resolveCourseAccess({
+      course: targetCourse,
+      userRank: 'free',
+      completedCourseIds: [],
+    });
+
+    expect(result.kind).toBe('soft_landing_preview');
+    expect(result.canAccess).toBe(true);
+    if (result.kind === 'soft_landing_preview') {
+      expect(result.freeMaxBlockNumber).toBe(1);
+    }
   });
 });
 

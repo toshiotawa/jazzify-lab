@@ -12,6 +12,7 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { isIOSWebView } from '@/utils/iosbridge';
 import { useAppInitialization } from '@/hooks/useAppInitialization';
 import { useAppIdlePrefetch } from '@/hooks/useAppIdlePrefetch';
+import { isFantasyRouteAllowedForLimitedUser } from '@/utils/lessonPlayRouteAccess';
 import { getHashBase, useHashMonitor } from '@/hooks/useHashMonitor';
 import { dashboardPath } from '@/utils/appNavigation';
 import AppHashRedirect from '@/routes/AppHashRedirect';
@@ -133,7 +134,11 @@ const AppShell: React.FC = () => {
       const pathAllowed = allowedPathPrefixes.some((prefix) =>
         location.pathname === prefix || location.pathname.startsWith(prefix),
       );
-      if (!allowedForLimited.has(baseHash) && !pathAllowed) {
+      const fantasyLessonContextAllowed = baseHash === '#fantasy'
+        && isFantasyRouteAllowedForLimitedUser({ search: location.search, hash });
+      const fantasyPathLessonContextAllowed = location.pathname.startsWith('/main/play/fantasy')
+        && isFantasyRouteAllowedForLimitedUser({ search: location.search, hash });
+      if (!allowedForLimited.has(baseHash) && !pathAllowed && !fantasyLessonContextAllowed && !fantasyPathLessonContextAllowed) {
         window.location.replace(dashboardPath());
       }
     }
