@@ -59,6 +59,30 @@ a:hover { color: #f2c977; }
 .article-toc strong { display: block; margin-bottom: 0.5rem; }
 .blog-cta { display: block; margin-block: 2.5rem; border-radius: 0.9rem; outline-offset: 0.25rem; }
 .blog-cta:hover img { filter: brightness(1.08); }
+.code-run-demo-section {
+  margin: 3.5rem 0 1.5rem;
+  padding: 1.75rem 1.35rem 1.35rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, rgba(215, 169, 83, 0.1), transparent 42%),
+    var(--surface);
+}
+.code-run-demo-section__title {
+  margin: 0 0 0.85rem;
+  font-size: clamp(1.55rem, 3.8vw, 2.05rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.code-run-demo-section__title span {
+  display: inline-block;
+  padding-bottom: 0.2rem;
+  border-bottom: 0.2rem solid var(--gold);
+}
+.code-run-demo-section__lead { margin: 0 0 0.65rem; }
+.code-run-demo-section__note { margin: 0 0 1.25rem; color: var(--muted); font-size: 0.95rem; }
+.code-run-demo-section .code-run-demo-embed { margin: 0; }
+.code-run-demo-section .code-run-demo-embed iframe { display: block; }
 .related-articles { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border); }
 .promo-video { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border); }
 .promo-video h2 { margin: 0 0 0.75rem; font-size: clamp(1.65rem, 4vw, 2.25rem); line-height: 1.25; }

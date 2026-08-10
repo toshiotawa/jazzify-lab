@@ -137,19 +137,7 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 
 <h2 id="practice-the-progression-as-music">Practice the Progression as Music</h2>
 
-<p>The ii-V-I is more than a theory label. It is a reusable musical phrase. Practice it with a steady pulse, transpose it, and listen to how each chord changes the sense of tension. Try the interactive Chord Run demo below — play Dm7(9)–G7(9.13)–CM7(9) to jump and reach the goal.</p>
-
-<figure class="code-run-demo-embed">
-  <iframe
-    src="https://en.jazzify.jp/embed/code-run?id=demo_4"
-    title="Jazzify Chord Run demo — ii-V-I voicings"
-    allow="midi; autoplay; fullscreen"
-    allowfullscreen
-    loading="lazy"
-    style="width:100%;height:min(78vh,760px);min-height:520px;border:0;border-radius:12px;background:#000"
-  ></iframe>
-  <figcaption>Play the ii–V–I voicings on a MIDI keyboard or the on-screen piano. Use arrow keys (desktop) or the stick (mobile) to move.</figcaption>
-</figure>
+<p>The ii-V-I is more than a theory label. It is a reusable musical phrase. Practice it with a steady pulse, transpose it, and listen to how each chord changes the sense of tension.</p>
 
 <p>Jazzify can help you repeat chord and improvisation exercises in a playable context, making it easier to connect Roman-numeral analysis with what your hands and ears experience.</p>
 
@@ -163,5 +151,22 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
   <li>Jazz standards often contain ii-V-I patterns that briefly point to another key.</li>
   <li>Practice recognizing and playing the progression in all twelve keys.</li>
 </ul>
+
+<section class="code-run-demo-section" aria-labelledby="code-run-demo-heading">
+  <h2 id="code-run-demo-heading" class="code-run-demo-section__title"><span>Play the Jazzify demo right now</span></h2>
+  <p class="code-run-demo-section__lead">Connect a MIDI keyboard and play this interactive demo in your browser.</p>
+  <p class="code-run-demo-section__note">On iPhone and iPad, browsers cannot use a MIDI keyboard. Please use the <a href="https://apps.apple.com/app/apple-store/id6761457001?pt=128644431&ct=en_blog_code_run_demo&mt=8" rel="noopener noreferrer" target="_blank">Jazzify app</a> instead.</p>
+  <figure class="code-run-demo-embed">
+    <iframe
+      src="https://en.jazzify.jp/embed/code-run?id=demo_4"
+      title="Jazzify Chord Run demo — ii–V–I voicings"
+      allow="midi; autoplay; fullscreen"
+      allowfullscreen
+      loading="lazy"
+      style="width:100%;height:min(78vh,760px);min-height:520px;border:0;border-radius:12px;background:#000"
+    ></iframe>
+    <figcaption>Play Dm7(9)–G7(9.13)–CM7(9) to jump. MIDI keyboard or on-screen piano both work.</figcaption>
+  </figure>
+</section>
 
 <p><a class="blog-cta" href="https://en.jazzify.jp/?utm_source=en_blog&amp;utm_medium=organic&amp;utm_campaign=theory_voicings&amp;utm_content=jazz-ii-v-i-progression_bottom" aria-label="Try Jazzify free — continue learning by playing" data-blog-cta="bottom" data-article-slug="jazz-ii-v-i-progression" data-article-category="theory-voicings" data-cta-asset="jazzify-cta-bottom-en.png"><img src="https://jazzify-cdn.com/blog/_shared/cta/jazzify-cta-bottom-en.png" alt="Learn jazz by playing chords, improvisation, and rhythm with Jazzify" width="1672" height="941" loading="lazy" decoding="async"></a></p>
