@@ -40,10 +40,12 @@ import { Course, CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStage
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import {
   getFirstBlock1LessonId,
+  getNextIncompleteBlock1LessonId,
   isLessonBlockPlayable,
   isSequentialCourse,
   isSoftLandingCourse,
 } from '@/utils/softLanding';
+import { markSoftLandingSessionDismissed } from '@/utils/softLandingResume';
 import {
   lessonCompletionBlockedToastCopy,
   lessonCompletionButtonCopy,
@@ -943,9 +945,12 @@ const LessonDetailPage: React.FC = () => {
     }
     trackOfferAccepted(target.course);
     setShowSoftLandingOffer(false);
-    const firstLessonId = getFirstBlock1LessonId(target.course.lessons ?? []);
-    if (firstLessonId) {
-      window.location.hash = buildLessonDetailHash(firstLessonId, { autoStart: true });
+    const nextLessonId = getNextIncompleteBlock1LessonId(
+      target.course.lessons ?? [],
+      target.block1ProgressMap ?? {},
+    ) ?? getFirstBlock1LessonId(target.course.lessons ?? []);
+    if (nextLessonId) {
+      window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
     }
   }, [nextSoftLandingCourse, trackOfferAccepted]);
 
@@ -953,6 +958,7 @@ const LessonDetailPage: React.FC = () => {
     if (nextSoftLandingCourse) {
       trackOfferDismissed(nextSoftLandingCourse.course);
     }
+    markSoftLandingSessionDismissed();
     setShowSoftLandingOffer(false);
     window.location.hash = '#lessons';
   }, [nextSoftLandingCourse, trackOfferDismissed]);
@@ -1679,10 +1685,17 @@ const LessonDetailPage: React.FC = () => {
                 isEnglishCopy={isEnglishCopy}
                 onStay={() => {
                   setShowNextLessonPrompt(false);
+                  const modalKind = questCompletionModalKind;
                   setQuestCompletionModalKind('none');
-                  if (questCompletionModalKind === 'chapterCompletePremiumUpsell') {
-                    window.location.hash = '#lessons';
+                  if (modalKind === 'chapterCompletePremiumUpsell') {
+                    void openSoftLandingOfferAfterPaywall().then((shown) => {
+                      if (!shown) {
+                        window.location.hash = '#lessons';
+                      }
+                    });
+                    return;
                   }
+                  markSoftLandingSessionDismissed();
                 }}
                 onContinue={
                   navigationInfo?.nextLesson
@@ -1740,7 +1753,10 @@ const LessonDetailPage: React.FC = () => {
                   setShowReadyToCompletePrompt(false);
                   void handleComplete();
                 }}
-                onLater={() => setShowReadyToCompletePrompt(false)}
+                onLater={() => {
+                  markSoftLandingSessionDismissed();
+                  setShowReadyToCompletePrompt(false);
+                }}
                 onTryOptionalTask={
                   nextIncompleteRequirements.nextOptional
                     ? () => {
@@ -1777,6 +1793,7 @@ const LessonDetailPage: React.FC = () => {
                   launchRequirement(task);
                 }}
                 onStopForToday={() => {
+                  markSoftLandingSessionDismissed();
                   setShowTaskClearNextStepModal(false);
                   setNextTaskAfterClear(null);
                 }}

@@ -11,6 +11,13 @@ import {
   readMainQuestResumeSessionShown,
   shouldShowMainQuestResumePrompt,
 } from '@/utils/mainQuestResume';
+import {
+  isMainQuestBlockedForSoftLanding,
+  shouldPrioritizeSoftLandingGuidance,
+} from '@/utils/softLandingGuidance';
+import { readSoftLandingSessionDismissed } from '@/utils/softLandingResume';
+import { fetchSoftLandingCandidates } from '@/platform/supabaseCourses';
+import { resolveNextSoftLandingCourse } from '@/utils/softLanding';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
@@ -33,10 +40,22 @@ const MainQuestResumeModal: React.FC = () => {
     (async () => {
       try {
         const data = await fetchMainQuestProgress();
-        if (cancelled || !data?.nextLesson) {
+        if (cancelled || !data?.nextLesson || !profile?.id) {
           return;
         }
         setProgress(data);
+        const mainQuestBlocked = isMainQuestBlockedForSoftLanding(data);
+        const candidates = await fetchSoftLandingCandidates(profile.id);
+        const nextSoftLandingCourse = resolveNextSoftLandingCourse(candidates);
+        const softLandingGuidanceActive = shouldPrioritizeSoftLandingGuidance({
+          isPremiumMember,
+          mainQuestBlocked,
+          nextCourse: nextSoftLandingCourse,
+          sessionDismissed: readSoftLandingSessionDismissed(),
+        });
+        if (softLandingGuidanceActive) {
+          return;
+        }
         const shouldShow = shouldShowMainQuestResumePrompt({
           lastPlayedAt: data.lastPlayedAt,
           sessionAlreadyShown: readMainQuestResumeSessionShown(),
@@ -63,7 +82,7 @@ const MainQuestResumeModal: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isPremiumMember]);
+  }, [isPremiumMember, profile?.id]);
 
   const nextLesson = progress?.nextLesson ?? null;
 

@@ -99,6 +99,7 @@
 		4522AE07D97E7A2A4F0CCC76 /* MainQuestFreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */; };
 		B2C3D4E5F60718293A4B5C6D /* FreeTierBlockLocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */; };
 		D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */; };
+		E5F60718293A4B5C6D7E8F90 /* GuidedSoftLandingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60718293A4B5C6D7E8F9012 /* GuidedSoftLandingPreferences.swift */; };
 		F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */; };
 		18293A4B5C6D7E8F901A2B3C /* SoftLandingFreeTierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0718293A4B5C6D7E8F901A2B /* SoftLandingFreeTierTests.swift */; };
 		3A4B5C6D7E8F901A2B3C4D5E /* LessonNavigationHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293A4B5C6D7E8F901A2B3C4D /* LessonNavigationHelpersTests.swift */; };
@@ -524,6 +525,7 @@
 		C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestFreeTier.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTierBlockLocks.swift; sourceTree = "<group>"; };
 		C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingFreeTier.swift; sourceTree = "<group>"; };
+		F60718293A4B5C6D7E8F9012 /* GuidedSoftLandingPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedSoftLandingPreferences.swift; sourceTree = "<group>"; };
 		E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingOfferSheet.swift; sourceTree = "<group>"; };
 		0718293A4B5C6D7E8F901A2B /* SoftLandingFreeTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingFreeTierTests.swift; sourceTree = "<group>"; };
 		293A4B5C6D7E8F901A2B3C4D /* LessonNavigationHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNavigationHelpersTests.swift; sourceTree = "<group>"; };
@@ -1240,6 +1242,7 @@
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
 				A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */,
 				C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */,
+				F60718293A4B5C6D7E8F9012 /* GuidedSoftLandingPreferences.swift */,
 				E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */,
 				3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
@@ -1570,6 +1573,7 @@
 				4522AE07D97E7A2A4F0CCC76 /* MainQuestFreeTier.swift in Sources */,
 				B2C3D4E5F60718293A4B5C6D /* FreeTierBlockLocks.swift in Sources */,
 				D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift in Sources */,
+				E5F60718293A4B5C6D7E8F90 /* GuidedSoftLandingPreferences.swift in Sources */,
 				F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift in Sources */,
 				0B022E9FC737C56AED2D38A4 /* MainQuestResumeSheet.swift in Sources */,
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,

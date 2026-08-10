@@ -694,13 +694,35 @@ struct TopView: View {
         earnedBadges = loadedBadges
         if appState.isPremium {
             softLandingNextCandidate = nil
+            appState.softLandingGuidanceActive = false
         } else {
             let candidates = await SoftLandingOfferLoader.fetchCandidates(userId: userId)
             softLandingNextCandidate = SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates)
+            await appState.refreshSoftLandingGuidance(mainQuestProgress: loadedMainQuestProgress)
         }
         await playerXpHub.refreshFromServer()
 
-        if appState.pendingMainQuestAutoStart {
+        if !appState.isPremium,
+           SoftLandingGuidance.shouldAutoShowOfferOnDashboard(
+               isPremium: appState.isPremium,
+               mainQuestBlocked: mainQuestBlockedForSoftLanding,
+               nextCandidate: softLandingNextCandidate
+           ),
+           let candidate = softLandingNextCandidate {
+            await MainActor.run {
+                softLandingOfferEntry = .dashboard
+                if let userId = appState.profile?.id {
+                    AnalyticsTracker.trackSoftLandingOfferViewed(
+                        userId: userId,
+                        courseId: candidate.course.id,
+                        entry: SoftLandingOfferEntry.dashboard.rawValue,
+                        sequenceIndex: candidate.course.softLandingOrder ?? 0
+                    )
+                }
+                GuidedSoftLandingPreferences.markOfferAutoShown()
+                showSoftLandingOffer = true
+            }
+        } else if appState.pendingMainQuestAutoStart {
             appState.pendingMainQuestAutoStart = false
             if let progress = loadedMainQuestProgress,
                let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
@@ -711,6 +733,7 @@ struct TopView: View {
                 mainQuestLessonToOpen = nextLesson
             }
         } else if let progress = loadedMainQuestProgress,
+                  !appState.softLandingGuidanceActive,
                   let rawNext = progress.nextLesson,
                   let lastPlayedAt = progress.lastPlayedAt,
                   MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
@@ -764,7 +787,10 @@ struct TopView: View {
             )
         }
         showSoftLandingOffer = false
-        guard let lessonId = SoftLandingFreeTier.firstBlock1LessonId(lessons: candidate.lessons),
+        guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
+            lessons: candidate.lessons,
+            completedIds: candidate.completedLessonIds
+        ),
               let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
         autoStartFirstQuestRequirement = true
         mainQuestLessonToOpen = lesson
@@ -779,7 +805,9 @@ struct TopView: View {
                 sequenceIndex: candidate.course.softLandingOrder ?? 0
             )
         }
+        GuidedSoftLandingPreferences.markSessionDismissed()
         showSoftLandingOffer = false
+        appState.softLandingGuidanceActive = false
     }
 }
 

@@ -5,12 +5,24 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
-import { isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
 import { useSoftLandingOffer } from '@/hooks/useSoftLandingOffer';
 import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
 import { courseDisplayTitle } from '@/utils/courseCopy';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
-import { getFirstBlock1LessonId } from '@/utils/softLanding';
+import {
+  getFirstBlock1LessonId,
+  getNextIncompleteBlock1LessonId,
+} from '@/utils/softLanding';
+import {
+  isMainQuestBlockedForSoftLanding,
+  shouldAutoShowSoftLandingOfferOnDashboard,
+} from '@/utils/softLandingGuidance';
+import {
+  markSoftLandingOfferSessionAutoShown,
+  markSoftLandingSessionDismissed,
+  readSoftLandingOfferSessionAutoShown,
+  readSoftLandingSessionDismissed,
+} from '@/utils/softLandingResume';
 
 const SoftLandingSection: React.FC = () => {
   const { profile } = useAuthStore();
@@ -48,10 +60,7 @@ const SoftLandingSection: React.FC = () => {
         if (cancelled || !progress) {
           return;
         }
-        const allCompleted = progress.completedLessons >= progress.totalLessons;
-        const nextBlocked = progress.nextLesson != null
-          && !isMainQuestBlockPlayable(progress.nextLesson.block_number, false);
-        setMainQuestBlocked(allCompleted || nextBlocked);
+        setMainQuestBlocked(isMainQuestBlockedForSoftLanding(progress));
       } catch {
         if (!cancelled) {
           setMainQuestBlocked(false);
@@ -66,6 +75,24 @@ const SoftLandingSection: React.FC = () => {
       void reload({ forceRefresh: true });
     }
   }, [isPremiumMember, mainQuestBlocked, reload]);
+
+  useEffect(() => {
+    if (
+      !shouldAutoShowSoftLandingOfferOnDashboard({
+        isPremiumMember,
+        mainQuestBlocked,
+        nextCourse,
+        sessionDismissed: readSoftLandingSessionDismissed(),
+        offerAlreadyShownThisSession: readSoftLandingOfferSessionAutoShown(),
+      })
+      || !nextCourse
+    ) {
+      return;
+    }
+    trackOfferViewed(nextCourse.course);
+    markSoftLandingOfferSessionAutoShown();
+    setShowOfferModal(true);
+  }, [isPremiumMember, mainQuestBlocked, nextCourse, trackOfferViewed]);
 
   const handleOpenOffer = useCallback(() => {
     if (!nextCourse) {
@@ -82,9 +109,12 @@ const SoftLandingSection: React.FC = () => {
     }
     trackOfferAccepted(nextCourse.course);
     setShowOfferModal(false);
-    const firstLessonId = getFirstBlock1LessonId(nextCourse.course.lessons ?? []);
-    if (firstLessonId) {
-      window.location.hash = buildLessonDetailHash(firstLessonId, { autoStart: true });
+    const nextLessonId = getNextIncompleteBlock1LessonId(
+      nextCourse.course.lessons ?? [],
+      nextCourse.block1ProgressMap ?? {},
+    ) ?? getFirstBlock1LessonId(nextCourse.course.lessons ?? []);
+    if (nextLessonId) {
+      window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
     }
   }, [nextCourse, trackOfferAccepted]);
 
@@ -92,6 +122,7 @@ const SoftLandingSection: React.FC = () => {
     if (nextCourse) {
       trackOfferDismissed(nextCourse.course);
     }
+    markSoftLandingSessionDismissed();
     setShowOfferModal(false);
   }, [nextCourse, trackOfferDismissed]);
 

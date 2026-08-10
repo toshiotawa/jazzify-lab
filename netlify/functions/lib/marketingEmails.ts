@@ -423,6 +423,55 @@ const buildPaywallNudgeBody = (ctx: MarketingEmailBuildContext): string => {
   ].join('');
 };
 
+const buildSoftLandingChordRunBody = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph(
+        'メインクエスト第1章をクリアしたあと、Jazzifyを開いていない方へお送りしています。',
+      ),
+      paragraph(
+        '実は、無料のままでもまだ遊べるコースがあります。「横スクロールコードラン:初級」の第1ブロックです。',
+      ),
+      paragraph(
+        'コードネームを見て、考え込まずに鍵盤で返す——コードランは、その反応をゲームの形で繰り返すコースです。第1章で作った「聴いて返す」感覚を、コードの見方にそのままつなげられます。',
+      ),
+      trackedCta(
+        ctx,
+        'cta_chord_run',
+        MARKETING_EMAIL_PATHS.dashboard,
+        'コードランを始める',
+      ),
+      paragraph(
+        `どんな雰囲気かは、${link(MARKETING_CHORD_RUN_VIDEO_URL, 'この動画（コードランのプレイ回）')}が分かりやすいと思います。`,
+      ),
+      paragraph(
+        `Jazzifyを開くと、ダッシュボードからそのまま体験コースへ進めます。${trackedLink(ctx, 'link_dashboard', MARKETING_EMAIL_PATHS.dashboard, 'ダッシュボードを開く')}`,
+      ),
+    ].join('');
+  }
+
+  return [
+    paragraph(
+      'You cleared Main Quest Chapter 1 — this is for anyone who has not opened Jazzify since.',
+    ),
+    paragraph(
+      'There is still a free course waiting: Block 1 of Chord Run: Beginner.',
+    ),
+    paragraph(
+      'Chord Run turns "see a chord name → move your hands without overthinking" into a game loop. It builds directly on the listen-and-respond reflex you started in Chapter 1.',
+    ),
+    trackedCta(
+      ctx,
+      'cta_chord_run',
+      MARKETING_EMAIL_PATHS.dashboard,
+      'Start Chord Run',
+    ),
+    paragraph(
+      `Open Jazzify and your dashboard will guide you straight into the free block. ${trackedLink(ctx, 'link_dashboard', MARKETING_EMAIL_PATHS.dashboard, 'Open the dashboard')}`,
+    ),
+  ].join('');
+};
+
 const buildDay7Body = (ctx: MarketingEmailBuildContext): string => {
   if (ctx.locale === 'ja') {
     return [
@@ -801,6 +850,13 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     titleJa: '第2チャプターの中身',
     titleEn: "What's inside Chapter 2",
     buildBody: (ctx) => buildPaywallNudgeBody(ctx),
+  },
+  soft_landing_chord_run: {
+    subjectJa: '無料のままでも、まだ遊べるコースがあります',
+    subjectEn: 'There is still a free course waiting for you',
+    titleJa: 'コードランを無料で体験',
+    titleEn: 'Try Chord Run for free',
+    buildBody: (ctx) => buildSoftLandingChordRunBody(ctx),
   },
   dormant_14d: {
     subjectJa: '久しぶりに、10分だけ鍵盤に触れてみませんか',

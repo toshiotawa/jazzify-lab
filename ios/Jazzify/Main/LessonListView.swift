@@ -1474,10 +1474,34 @@ struct LessonDetailView: View {
                     model: sheetModel,
                     locale: locale,
                     onStay: {
-                        let shouldReturnHome = sheetModel.kind == .chapterCompletePremiumUpsell
+                        let isPremiumUpsell = sheetModel.kind == .chapterCompletePremiumUpsell
                         questCompletionSheet = nil
-                        if shouldReturnHome {
-                            dismiss()
+                        if isPremiumUpsell {
+                            Task {
+                                let excludeId = courseKind == .softLanding ? activeLesson.courseId : nil
+                                guard let next = await SoftLandingOfferLoader.resolveNext(
+                                    userId: appState.profile?.id,
+                                    excludeCourseId: excludeId
+                                ) else {
+                                    await MainActor.run { dismiss() }
+                                    return
+                                }
+                                await MainActor.run {
+                                    softLandingOfferCandidate = next
+                                    softLandingOfferEntry = .chapterComplete
+                                    if let userId = appState.profile?.id {
+                                        AnalyticsTracker.trackSoftLandingOfferViewed(
+                                            userId: userId,
+                                            courseId: next.course.id,
+                                            entry: softLandingOfferEntry.rawValue,
+                                            sequenceIndex: next.course.softLandingOrder ?? 0
+                                        )
+                                    }
+                                    showSoftLandingOffer = true
+                                }
+                            }
+                        } else {
+                            GuidedSoftLandingPreferences.markSessionDismissed()
                         }
                     },
                     onContinue: sheetModel.nextLesson.map { next in
@@ -1508,7 +1532,10 @@ struct LessonDetailView: View {
                         showReadyToCompletePrompt = false
                         Task { await completeLesson() }
                     },
-                    onLater: { showReadyToCompletePrompt = false },
+                    onLater: {
+                        GuidedSoftLandingPreferences.markSessionDismissed()
+                        showReadyToCompletePrompt = false
+                    },
                     onTryOptionalTask: nextIncompleteRequirements.optional.map { optionalTask in
                         {
                             showReadyToCompletePrompt = false
@@ -1528,6 +1555,7 @@ struct LessonDetailView: View {
                         launchRequirement(next)
                     },
                     onStopForToday: {
+                        GuidedSoftLandingPreferences.markSessionDismissed()
                         taskClearNextStepTarget = nil
                     }
                 )
@@ -3589,7 +3617,10 @@ struct LessonDetailView: View {
             )
         }
         showSoftLandingOffer = false
-        guard let lessonId = SoftLandingFreeTier.firstBlock1LessonId(lessons: candidate.lessons),
+        guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
+            lessons: candidate.lessons,
+            completedIds: candidate.completedLessonIds
+        ),
               let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
         pendingAutoStartFirstRequirement = true
         activeLesson = lesson
@@ -3604,7 +3635,9 @@ struct LessonDetailView: View {
                 sequenceIndex: candidate.course.softLandingOrder ?? 0
             )
         }
+        GuidedSoftLandingPreferences.markSessionDismissed()
         showSoftLandingOffer = false
+        appState.softLandingGuidanceActive = false
     }
 }
 

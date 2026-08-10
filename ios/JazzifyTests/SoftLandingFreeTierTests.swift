@@ -75,8 +75,8 @@ final class SoftLandingFreeTierTests: XCTestCase {
         let c1 = makeCourse(id: UUID(), softLandingOrder: 2)
         let c2 = makeCourse(id: UUID(), softLandingOrder: 1)
         let candidates = [
-            SoftLandingCandidate(course: c1, lessons: [], block1Completed: false),
-            SoftLandingCandidate(course: c2, lessons: [], block1Completed: false),
+            SoftLandingCandidate(course: c1, lessons: [], block1Completed: false, completedLessonIds: []),
+            SoftLandingCandidate(course: c2, lessons: [], block1Completed: false, completedLessonIds: []),
         ]
         let next = SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates)
         XCTAssertEqual(next?.course.id, c2.id)
@@ -85,7 +85,7 @@ final class SoftLandingFreeTierTests: XCTestCase {
     func testResolveNextSoftLandingCourseReturnsNilWhenAllCompleted() {
         let c1 = makeCourse(softLandingOrder: 1)
         let candidates = [
-            SoftLandingCandidate(course: c1, lessons: [], block1Completed: true),
+            SoftLandingCandidate(course: c1, lessons: [], block1Completed: true, completedLessonIds: []),
         ]
         XCTAssertNil(SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates))
     }
@@ -94,8 +94,8 @@ final class SoftLandingFreeTierTests: XCTestCase {
         let c1 = makeCourse(id: UUID(), softLandingOrder: 1)
         let c2 = makeCourse(id: UUID(), softLandingOrder: 2)
         let candidates = [
-            SoftLandingCandidate(course: c1, lessons: [], block1Completed: false),
-            SoftLandingCandidate(course: c2, lessons: [], block1Completed: false),
+            SoftLandingCandidate(course: c1, lessons: [], block1Completed: false, completedLessonIds: []),
+            SoftLandingCandidate(course: c2, lessons: [], block1Completed: false, completedLessonIds: []),
         ]
         let next = SoftLandingFreeTier.resolveNextSoftLandingCourse(
             candidates: candidates,
@@ -127,6 +127,32 @@ final class SoftLandingFreeTierTests: XCTestCase {
         let first = makeLesson(orderIndex: 0, blockNumber: 1)
         let id = SoftLandingFreeTier.firstBlock1LessonId(lessons: [second, first])
         XCTAssertEqual(id, first.id)
+    }
+
+    func testNextBlock1LessonIdReturnsFirstIncomplete() {
+        let first = makeLesson(orderIndex: 0, blockNumber: 1)
+        let second = makeLesson(orderIndex: 1, blockNumber: 1)
+        let next = SoftLandingFreeTier.nextBlock1LessonId(
+            lessons: [first, second],
+            completedIds: [first.id]
+        )
+        XCTAssertEqual(next, second.id)
+    }
+
+    func testSoftLandingGuidanceRequiresPendingCandidate() {
+        let progress = SupabaseService.MainQuestProgressResult(
+            courseId: UUID(),
+            totalLessons: 10,
+            completedLessons: 3,
+            nextLesson: makeLesson(orderIndex: 3, blockNumber: 2),
+            lastPlayedAt: Date()
+        )
+        XCTAssertTrue(SoftLandingGuidance.isMainQuestBlockedForSoftLanding(progress: progress))
+        XCTAssertFalse(SoftLandingGuidance.shouldPrioritizeGuidance(
+            isPremium: false,
+            mainQuestBlocked: true,
+            nextCandidate: nil
+        ))
     }
 
     func testIsBlock1CompleteRequiresAllBlock1Lessons() {

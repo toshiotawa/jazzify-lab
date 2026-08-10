@@ -9,6 +9,7 @@ export type MarketingEmailKey =
   | 'day30'
   | 'trial_start'
   | 'paywall_nudge'
+  | 'soft_landing_chord_run'
   | 'dormant_14d'
   | 'never_played_5d';
 export type MarketingEmailLocale = 'ja' | 'en';
@@ -16,6 +17,7 @@ export type MarketingEmailLocale = 'ja' | 'en';
 export const MARKETING_EMAIL_PATHS = {
   mainLessons: '/main/lessons',
   survival: '/main/play/survival',
+  dashboard: '/main/dashboard',
   account: '/main/account',
   contact: '/contact',
   iosMidi: '/help/ios-midi',

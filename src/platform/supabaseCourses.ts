@@ -3,6 +3,7 @@ import { Course } from '@/types';
 import { resolveCourseAccess, type MembershipRank } from '@/utils/lessonAccess';
 import { shouldIncludeDeveloperLessonCourses } from '@/utils/environment';
 import { findNextIncompleteLesson, sortLessonSongsByOrderIndex } from '@/utils/lessonNavigation';
+import type { SoftLandingCandidate } from '@/utils/softLanding';
 
 const coursesDetailCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
   `courses-detail-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
@@ -405,9 +406,8 @@ export function clearSoftLandingCandidatesCache(): void {
   clearCacheByPattern(/^soft_landing_candidates:/);
 }
 
-export interface SoftLandingCandidateRow {
-  course: Course;
-  block1Completed: boolean;
+export interface SoftLandingCandidateRow extends SoftLandingCandidate {
+  block1ProgressMap: Record<string, { completed: boolean }>;
 }
 
 /**
@@ -497,7 +497,7 @@ export async function fetchSoftLandingCandidates(
         );
         const block1Completed = block1Lessons.length > 0
           && block1Lessons.every((lesson) => progressMap[lesson.id]?.completed === true);
-        return { course, block1Completed };
+        return { course, block1Completed, block1ProgressMap: progressMap };
       });
 
       return {

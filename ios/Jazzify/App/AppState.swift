@@ -11,6 +11,8 @@ final class AppState: ObservableObject {
     @Published var appUpdateNotice: AppUpdateNotice?
     @Published var locale: AppLocale
     @Published var pendingMainQuestAutoStart = false
+    /// ソフトランディング案内を優先する状態。画面遷移は制限せず、メインクエスト再開シートの抑止にのみ使う
+    @Published var softLandingGuidanceActive = false
     /// アップデート案内の取得が終わるまで Top の再開シートなどを抑止する
     @Published private(set) var isAppUpdateCheckComplete = false
     @Published private(set) var lastBillingCheckedAt: Date?
@@ -406,6 +408,23 @@ final class AppState: ObservableObject {
     private static func isValidEmailFormat(_ value: String) -> Bool {
         let pattern = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
         return value.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    func refreshSoftLandingGuidance(mainQuestProgress: SupabaseService.MainQuestProgressResult?) async {
+        guard !isPremium, let userId = profile?.id else {
+            softLandingGuidanceActive = false
+            return
+        }
+        let mainQuestBlocked = mainQuestProgress.map {
+            SoftLandingGuidance.isMainQuestBlockedForSoftLanding(progress: $0)
+        } ?? false
+        let candidates = await SoftLandingOfferLoader.fetchCandidates(userId: userId)
+        let nextCandidate = SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates)
+        softLandingGuidanceActive = SoftLandingGuidance.shouldPrioritizeGuidance(
+            isPremium: isPremium,
+            mainQuestBlocked: mainQuestBlocked,
+            nextCandidate: nextCandidate
+        )
     }
 
     var isPremium: Bool {

@@ -4,6 +4,7 @@ import { applyFreeTierBlockLocks } from '@/utils/freeTierBlockLocks';
 import type { Course, Lesson } from '@/types';
 import {
   getFirstBlock1LessonId,
+  getNextIncompleteBlock1LessonId,
   isBlock1CompleteForCourse,
   isLessonBlockPlayable,
   isSoftLandingCourse,
@@ -81,6 +82,20 @@ describe('resolveNextSoftLandingCourse', () => {
       { course: course({ id: 'c1', soft_landing_order: 1 }), block1Completed: true },
     ]);
     expect(next).toBeNull();
+  });
+});
+
+describe('getNextIncompleteBlock1LessonId', () => {
+  it('returns the first incomplete block1 lesson', () => {
+    const lessons = [
+      lesson('l1', 1, 0),
+      lesson('l2', 1, 1),
+    ];
+    const progressMap = {
+      l1: { completed: true },
+      l2: { completed: false },
+    };
+    expect(getNextIncompleteBlock1LessonId(lessons, progressMap)).toBe('l2');
   });
 });
 

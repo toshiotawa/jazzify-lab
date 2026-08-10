@@ -43,6 +43,7 @@ struct SoftLandingCandidate {
     let course: Course
     let lessons: [Lesson]
     let block1Completed: Bool
+    let completedLessonIds: Set<UUID>
 }
 
 enum SoftLandingFreeTier {
@@ -106,6 +107,13 @@ enum SoftLandingFreeTier {
             .id
     }
 
+    static func nextBlock1LessonId(lessons: [Lesson], completedIds: Set<UUID>) -> UUID? {
+        let block1Lessons = lessons
+            .filter { ($0.blockNumber ?? 1) == 1 }
+            .sorted { $0.orderIndex < $1.orderIndex }
+        return block1Lessons.first { !completedIds.contains($0.id) }?.id ?? block1Lessons.first?.id
+    }
+
     static func resolveNextSoftLandingCourse(
         candidates: [SoftLandingCandidate],
         excludeCourseId: UUID? = nil
@@ -165,7 +173,8 @@ enum SoftLandingOfferLoader {
                         block1Completed: SoftLandingFreeTier.isBlock1Complete(
                             lessons: lessons,
                             completedIds: completedIds
-                        )
+                        ),
+                        completedLessonIds: completedIds
                     )
                 }
             }

@@ -17,6 +17,7 @@ export function isSequentialCourse(course: Pick<Course, 'is_main_course' | 'soft
 export interface SoftLandingCandidate {
   course: Course;
   block1Completed: boolean;
+  block1ProgressMap?: Record<string, { completed: boolean }>;
 }
 
 export function isLessonBlockPlayable(
@@ -61,10 +62,10 @@ export function isBlock1CompleteForCourse(
   return block1Lessons.every((lesson) => progressMap[lesson.id]?.completed === true);
 }
 
-export function resolveNextSoftLandingCourse(
-  candidates: readonly SoftLandingCandidate[],
+export function resolveNextSoftLandingCourse<T extends SoftLandingCandidate>(
+  candidates: readonly T[],
   options?: { excludeCourseId?: string },
-): SoftLandingCandidate | null {
+): T | null {
   const excludeId = options?.excludeCourseId;
   const sorted = [...candidates].sort(
     (a, b) => (a.course.soft_landing_order ?? 0) - (b.course.soft_landing_order ?? 0),
@@ -79,4 +80,17 @@ export function getFirstBlock1LessonId(lessons: readonly Lesson[]): string | nul
     .filter((lesson) => (lesson.block_number ?? 1) === 1)
     .sort((a, b) => a.order_index - b.order_index);
   return block1Lessons[0]?.id ?? null;
+}
+
+export function getNextIncompleteBlock1LessonId(
+  lessons: readonly Pick<Lesson, 'id' | 'block_number' | 'order_index'>[],
+  progressMap: Record<string, Pick<LessonProgress, 'completed'> | undefined>,
+): string | null {
+  const block1Lessons = [...lessons]
+    .filter((lesson) => (lesson.block_number ?? 1) === 1)
+    .sort((a, b) => a.order_index - b.order_index);
+  const nextIncomplete = block1Lessons.find(
+    (lesson) => progressMap[lesson.id]?.completed !== true,
+  );
+  return nextIncomplete?.id ?? block1Lessons[0]?.id ?? null;
 }

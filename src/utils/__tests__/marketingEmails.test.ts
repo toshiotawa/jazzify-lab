@@ -19,6 +19,7 @@ const ALL_KEYS: readonly MarketingEmailKey[] = [
   'day30',
   'trial_start',
   'paywall_nudge',
+  'soft_landing_chord_run',
   'dormant_14d',
   'never_played_5d',
 ];
@@ -51,6 +52,13 @@ describe('buildMarketingEmail', () => {
   it('gives every email a distinct subject per locale', () => {
     const subjects = ALL_KEYS.map((key) => build(key).subject);
     expect(new Set(subjects).size).toBe(ALL_KEYS.length);
+  });
+
+  it('tags soft landing chord run CTA to dashboard', () => {
+    const html = build('soft_landing_chord_run').html;
+    expect(html).toContain('utm_campaign=soft_landing_chord_run');
+    expect(html).toContain('utm_content=cta_chord_run');
+    expect(html).toContain('/main/dashboard?');
   });
 
   it('routes questions to the contact form instead of email replies', () => {
