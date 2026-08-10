@@ -722,6 +722,22 @@ export function resetStageCache(): void {
   applySurvivalStageBlockLabels([]);
 }
 
+/** 単一ステージを Supabase から取得（埋め込みデモ等の軽量 fetch 用） */
+export async function fetchSurvivalStage(
+  mapCategory: SurvivalMapCategory,
+  stageNumber: number,
+): Promise<StageDefinition | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('survival_stages')
+    .select('*')
+    .eq('map_category', mapCategory)
+    .eq('stage_number', stageNumber)
+    .maybeSingle();
+  if (error || !data) return null;
+  return rowToStageDefinition(data as Record<string, unknown>);
+}
+
 /** カテゴリ別のステージ一覧を返す（参照のみ。配列を変更しないこと） */
 export function getStagesByCategory(category: SurvivalMapCategory): StageDefinition[] {
   return STAGES_BY_CATEGORY[category];

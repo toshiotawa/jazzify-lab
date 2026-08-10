@@ -11,6 +11,8 @@ const loadRouteModuleInternal = (
       return import('@/routes/LandingOnlyRoutes');
     case 'public':
       return import('@/routes/PublicInfoRoutes');
+    case 'embed':
+      return import('@/routes/EmbedRoutes');
     case 'app':
       return import('@/routes/AuthenticatedAppRoutes');
   }

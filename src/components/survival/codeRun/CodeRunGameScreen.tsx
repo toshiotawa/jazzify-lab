@@ -24,8 +24,10 @@ import type { DifficultyConfig, PlayerStats, SpecialSkills, AcquiredMagics, Surv
 import type { StageDefinition } from '../SurvivalStageDefinitions';
 import SurvivalGameOver from '../SurvivalGameOver';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, type SurvivalDisplaySettings } from '../SurvivalSettingsModal';
+import { EmbedMidiSettingsModal } from '@/embed/EmbedMidiSettingsModal';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 import CodeRunCanvas from './CodeRunCanvas';
+import CodeRunVirtualStick from './CodeRunVirtualStick';
 import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
 import {
   CODE_RUN_MAX_HP,
@@ -34,6 +36,23 @@ import {
   triggerCodeRunJump,
 } from './CodeRunEngine';
 import type { CodeRunInputState, CodeRunMapSpec, CodeRunState } from './CodeRunTypes';
+import {
+  computeCodeRunKeyboardHeight,
+  isCodeRunMobileViewport,
+} from '@/utils/codeRunLayout';
+import {
+  canUseElementFullscreen,
+  exitAppFullscreen,
+  isAppFullscreenActive,
+  requestAppFullscreen,
+} from '@/utils/fullscreenSupport';
+
+export type CodeRunDemoFinishOutcome = 'clear' | 'timeout' | 'failed';
+
+interface CodeRunDemoMode {
+  readonly timeLimitSec: number;
+  readonly onFinish: (outcome: CodeRunDemoFinishOutcome) => void;
+}
 
 interface CodeRunGameScreenProps {
   difficulty: SurvivalDifficulty;
@@ -56,6 +75,10 @@ interface CodeRunGameScreenProps {
     readonly keyboard?: ProductionHintMode | null;
   };
   survivalMidi: SurvivalMidiBindings;
+  demoMode?: CodeRunDemoMode;
+  preferredLocale?: 'ja' | 'en';
+  fullscreenRootRef?: React.RefObject<HTMLElement | null>;
+  onOpenFullscreenTab?: () => void;
 }
 
 const EMPTY_STATS: PlayerStats = {
@@ -109,50 +132,6 @@ const makeResult = (state: CodeRunState, clear: boolean, hintMode: boolean): Sur
   isHintMode: hintMode,
 });
 
-interface CodeRunVirtualStickProps {
-  onAnalogChange: (value: number) => void;
-}
-
-const CodeRunVirtualStick: React.FC<CodeRunVirtualStickProps> = ({ onAnalogChange }) => {
-  const padRef = useRef<HTMLDivElement | null>(null);
-  const [knobX, setKnobX] = useState(0);
-
-  const updateFromPointer = useCallback((clientX: number) => {
-    const rect = padRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const center = rect.left + rect.width / 2;
-    const radius = rect.width * 0.36;
-    const dx = Math.max(-radius, Math.min(radius, clientX - center));
-    setKnobX(dx);
-    onAnalogChange(dx / radius);
-  }, [onAnalogChange]);
-
-  const release = useCallback(() => {
-    setKnobX(0);
-    onAnalogChange(0);
-  }, [onAnalogChange]);
-
-  return (
-    <div
-      ref={padRef}
-      className="absolute bottom-5 left-5 h-28 w-28 rounded-full border border-white/20 bg-black/35 shadow-2xl backdrop-blur-sm md:hidden"
-      onPointerDown={(event) => {
-        event.currentTarget.setPointerCapture(event.pointerId);
-        updateFromPointer(event.clientX);
-      }}
-      onPointerMove={(event) => updateFromPointer(event.clientX)}
-      onPointerUp={release}
-      onPointerCancel={release}
-    >
-      <div className="absolute left-1/2 top-1/2 h-2 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/15" />
-      <div
-        className="absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-cyan-300/80 shadow-lg shadow-cyan-400/30"
-        style={{ transform: `translate(calc(-50% + ${knobX}px), -50%)` }}
-      />
-    </div>
-  );
-};
-
 const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   difficulty,
   config,
@@ -170,11 +149,19 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   onSurvivalRunModeRestart,
   lessonProductionHintOverrides,
   survivalMidi,
+  demoMode,
+  preferredLocale,
+  fullscreenRootRef,
+  onOpenFullscreenTab,
 }) => {
   const settings = useGameStore(state => state.settings);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: preferredLocale ?? profile?.preferred_locale,
+  });
   const runMapId = stageDefinition.runMapId ?? 'night_city_run_01';
   const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createCodeRunMapById(runMapId));
   const mapSpecRef = useRef(mapSpec);
@@ -192,7 +179,20 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const currentBgmUrlRef = useRef<string | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const pianoHostRef = useRef<HTMLDivElement | null>(null);
-  const [pianoSize, setPianoSize] = useState({ width: typeof window === 'undefined' ? 960 : window.innerWidth, height: 150 });
+  const focusRef = useRef<HTMLDivElement | null>(null);
+  const localRootRef = useRef<HTMLDivElement | null>(null);
+  const [needsFocusHint, setNeedsFocusHint] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(() =>
+    typeof window === 'undefined' ? 150 : computeCodeRunKeyboardHeight(window.innerHeight),
+  );
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window === 'undefined' ? false : isCodeRunMobileViewport(),
+  );
+  const [pianoSize, setPianoSize] = useState({
+    width: typeof window === 'undefined' ? 960 : window.innerWidth,
+    height: 150,
+  });
 
   const isRandomStage = useMemo(
     () => isCodeRunRandomStage(stageDefinition.stageType, stageDefinition.allowedChords),
@@ -251,10 +251,40 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const keyboardProductionMode = lessonProductionHintOverrides?.keyboard
     ?? stageDefinition.productionKeyboardHintMode
     ?? 'fade_15s';
+  const timeRemainingSec = demoMode
+    ? Math.max(0, Math.ceil(demoMode.timeLimitSec - runState.elapsedSec))
+    : null;
+
+  const restoreFocus = useCallback(() => {
+    focusRef.current?.focus({ preventScroll: true });
+    setNeedsFocusHint(false);
+  }, []);
 
   useEffect(() => {
     mapSpecRef.current = mapSpec;
   }, [mapSpec]);
+
+  useEffect(() => {
+    restoreFocus();
+  }, [restoreFocus]);
+
+  useEffect(() => {
+    const updateLayout = (): void => {
+      setKeyboardHeight(computeCodeRunKeyboardHeight(window.innerHeight));
+      setIsMobileViewport(isCodeRunMobileViewport());
+    };
+    updateLayout();
+    window.addEventListener('resize', updateLayout, { passive: true });
+    return () => window.removeEventListener('resize', updateLayout);
+  }, []);
+
+  useEffect(() => {
+    const onFullscreenChange = (): void => {
+      setIsFullscreen(isAppFullscreenActive());
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   const resetRun = useCallback((nextMap?: CodeRunMapSpec) => {
     const targetMap = nextMap ?? mapSpecRef.current;
@@ -274,7 +304,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     } else {
       syncRandomChordRefs(null, null);
     }
-  }, [drawRandomChords, isRandomStage, syncRandomChordRefs]);
+    restoreFocus();
+  }, [drawRandomChords, isRandomStage, restoreFocus, syncRandomChordRefs]);
 
   useEffect(() => {
     if (isRandomStage) {
@@ -310,7 +341,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     const observer = new ResizeObserver(update);
     observer.observe(host);
     return () => observer.disconnect();
-  }, []);
+  }, [keyboardHeight]);
 
   const stopBgm = useCallback(() => {
     if (bgmAudioRef.current) {
@@ -338,7 +369,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   useEffect(() => () => stopBgm(), [stopBgm]);
 
   useEffect(() => {
-    if (!result) return;
+    if (!result || demoMode) return;
     stopBgm();
     try {
       if (result.isStageClear) {
@@ -347,19 +378,36 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         FantasySoundManager.playGameOverJingle();
       }
     } catch { /* noop */ }
-  }, [result, stopBgm]);
+  }, [demoMode, result, stopBgm]);
 
-  const finishRun = useCallback((nextState: CodeRunState) => {
+  const finishRun = useCallback((
+    nextState: CodeRunState,
+    forcedOutcome?: CodeRunDemoFinishOutcome,
+  ) => {
     if (resultRef.current) return;
-    const clear = nextState.status === 'clear';
+    const clear = forcedOutcome === 'clear' || nextState.status === 'clear';
     const nextResult = makeResult(nextState, clear, hintMode);
     resultRef.current = nextResult;
+    if (demoMode) {
+      const outcome: CodeRunDemoFinishOutcome = forcedOutcome
+        ?? (nextState.status === 'clear' ? 'clear' : 'failed');
+      stopBgm();
+      try {
+        if (outcome === 'clear') {
+          FantasySoundManager.playStageClear();
+        } else {
+          FantasySoundManager.playGameOverJingle();
+        }
+      } catch { /* noop */ }
+      demoMode.onFinish(outcome);
+      return;
+    }
     setResult(nextResult);
     if (clear && !hintMode) {
       onLessonStageClear?.();
       onMissionStageClear?.();
     }
-  }, [hintMode, onLessonStageClear, onMissionStageClear]);
+  }, [demoMode, hintMode, onLessonStageClear, onMissionStageClear, stopBgm]);
 
   useEffect(() => {
     let raf = 0;
@@ -371,13 +419,21 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         const next = tickCodeRun(stateRef.current, inputRef.current, dt);
         stateRef.current = next;
         setRunState(next);
-        if (next.status !== 'playing') finishRun(next);
+        if (
+          demoMode
+          && next.status === 'playing'
+          && next.elapsedSec >= demoMode.timeLimitSec
+        ) {
+          finishRun(next, 'timeout');
+        } else if (next.status !== 'playing') {
+          finishRun(next);
+        }
       }
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [finishRun, isPaused]);
+  }, [demoMode, finishRun, isPaused]);
 
   const handleNoteInput = useCallback((note: number) => {
     const latestState = stateRef.current;
@@ -516,6 +572,16 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     };
   }, []);
 
+  const handleToggleFullscreen = useCallback(async () => {
+    const root = fullscreenRootRef?.current ?? localRootRef.current;
+    if (!root) return;
+    if (isAppFullscreenActive()) {
+      await exitAppFullscreen();
+      return;
+    }
+    await requestAppFullscreen(root);
+  }, [fullscreenRootRef]);
+
   const activeDialogue = useMemo(() => {
     const lines = stageDefinition.runDialogueScript?.lines ?? [];
     return lines.find((line) => {
@@ -529,34 +595,84 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const dialogueText = activeDialogue
     ? isEnglishCopy && activeDialogue.textEn ? activeDialogue.textEn : activeDialogue.text
     : '';
+  const showNativeFullscreen = canUseElementFullscreen();
+  const stickDisabled = isPaused || !!result || isSettingsOpen;
 
   return (
-    <div className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-black text-white">
-      <div className="relative min-h-0 flex-1 bg-[#071026]">
-        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-          <div className="relative h-full max-h-full w-full max-w-full" style={{ aspectRatio: `${mapSpec.viewWidth}/${mapSpec.viewHeight}` }}>
-            <CodeRunCanvas state={runState} className="h-full w-full" />
+    <div
+      ref={localRootRef}
+      className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-black text-white"
+      style={{ height: 'var(--dvh, 100dvh)', minHeight: 'var(--dvh, 100dvh)' }}
+    >
+      {/* iframe埋め込み時の矢印キー操作のためフォーカス可能にする */}
+      <div
+        ref={focusRef}
+        role="application"
+        aria-label={isEnglishCopy ? 'Code Run game area' : 'コードランゲームエリア'}
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard focus target for iframe embed
+        tabIndex={0}
+        className="relative min-h-0 flex-1 bg-[#071026] outline-none"
+        onBlur={() => setNeedsFocusHint(true)}
+        onPointerDown={restoreFocus}
+      >
+        <div className={cn(
+          'absolute inset-0 overflow-hidden',
+          isMobileViewport ? '' : 'flex items-center justify-center',
+        )}
+        >
+          <div
+            className={cn(
+              'relative h-full w-full',
+              !isMobileViewport && 'max-h-full max-w-full',
+            )}
+            style={!isMobileViewport ? { aspectRatio: `${mapSpec.viewWidth}/${mapSpec.viewHeight}` } : undefined}
+          >
+            <CodeRunCanvas
+              state={runState}
+              className="h-full w-full"
+              pixelScaleMode={isMobileViewport ? 'cover' : 'fit'}
+            />
           </div>
         </div>
 
-        <div className="absolute left-3 top-3 flex items-center gap-2">
+        <div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2">
           <button
             type="button"
             onClick={onBackToSelect}
-            className="rounded-md border border-white/15 bg-black/45 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/10"
+            className="pointer-events-auto rounded-md border border-white/15 bg-black/45 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/10"
           >
             {isEnglishCopy ? 'BACK' : '戻る'}
           </button>
           <button
             type="button"
             onClick={() => setIsSettingsOpen(true)}
-            className="rounded-md border border-white/15 bg-black/45 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/10"
+            className="pointer-events-auto rounded-md border border-white/15 bg-black/45 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/10"
           >
             {isEnglishCopy ? 'SETTINGS' : '設定'}
           </button>
+          {showNativeFullscreen && (
+            <button
+              type="button"
+              onClick={() => { void handleToggleFullscreen(); }}
+              className="pointer-events-auto rounded-md border border-white/15 bg-black/45 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/10"
+            >
+              {isFullscreen
+                ? (isEnglishCopy ? 'EXIT FS' : '全画面解除')
+                : (isEnglishCopy ? 'FULLSCREEN' : '全画面')}
+            </button>
+          )}
+          {onOpenFullscreenTab && (
+            <button
+              type="button"
+              onClick={onOpenFullscreenTab}
+              className="pointer-events-auto rounded-md border border-white/15 bg-black/45 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/10 md:hidden"
+            >
+              {isEnglishCopy ? 'OPEN TAB' : '別タブ'}
+            </button>
+          )}
         </div>
 
-        <div className="absolute right-3 top-3 flex flex-col items-end gap-1.5">
+        <div className="pointer-events-none absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5">
           <div className="flex items-center gap-2 rounded-md border border-white/15 bg-black/50 px-3 py-1.5 backdrop-blur">
             <div className="flex gap-0.5" aria-label={isEnglishCopy ? 'HP' : 'HP'}>
               {Array.from({ length: CODE_RUN_MAX_HP }, (_, i) => (
@@ -570,6 +686,11 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
               ))}
             </div>
           </div>
+          {timeRemainingSec !== null && (
+            <div className="rounded-md border border-white/15 bg-black/50 px-3 py-1 text-right text-[10px] font-bold text-white/80 backdrop-blur">
+              {isEnglishCopy ? `${timeRemainingSec}s` : `残り${timeRemainingSec}秒`}
+            </div>
+          )}
           {hintMode && (
             <div className="rounded-md border border-white/15 bg-black/50 px-3 py-1 text-right text-[10px] font-bold text-white/65 backdrop-blur">
               HINT
@@ -577,7 +698,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           )}
         </div>
 
-        <div className="code-run-chord-display absolute left-1/2 top-24 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]">
+        <div className="code-run-chord-display pointer-events-none absolute left-1/2 top-[72px] z-20 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]">
           <div
             className="min-w-40 max-w-60 px-3 py-1 text-[34px] leading-none text-[#ffe04d] sm:text-[40px]"
             style={{
@@ -607,7 +728,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         {dialogueText && (
           <div
             className={cn(
-              'absolute max-w-[min(520px,80vw)] rounded-xl border px-4 py-3 text-sm font-semibold leading-relaxed shadow-2xl backdrop-blur',
+              'pointer-events-none absolute z-20 max-w-[min(520px,80vw)] rounded-xl border px-4 py-3 text-sm font-semibold leading-relaxed shadow-2xl backdrop-blur',
               activeDialogue?.speaker === 'jajii'
                 ? 'left-[58%] top-[24%] border-amber-200/40 bg-amber-950/65 text-amber-50'
                 : 'left-[16%] top-[22%] border-sky-200/40 bg-sky-950/65 text-sky-50',
@@ -617,7 +738,19 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           </div>
         )}
 
-        {isPaused && !result && (
+        {needsFocusHint && !isMobileViewport && (
+          <button
+            type="button"
+            onClick={restoreFocus}
+            className="absolute inset-x-4 bottom-4 z-30 rounded-lg border border-cyan-300/40 bg-black/70 px-4 py-3 text-center text-sm text-cyan-100 backdrop-blur"
+          >
+            {isEnglishCopy
+              ? 'Click here to resume keyboard controls (← →)'
+              : 'クリックしてキーボード操作を再開（← →）'}
+          </button>
+        )}
+
+        {isPaused && !result && !demoMode && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/55 backdrop-blur-sm">
             <div className="w-[min(360px,88vw)] rounded-lg border border-white/15 bg-gray-900 p-4 text-center shadow-2xl">
               <div className="mb-3 text-lg font-bold">{isEnglishCopy ? 'Paused' : '一時停止'}</div>
@@ -639,13 +772,17 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           </div>
         )}
 
-        <CodeRunVirtualStick onAnalogChange={(value) => { inputRef.current = { ...inputRef.current, analogX: value }; }} />
+        <CodeRunVirtualStick
+          disabled={stickDisabled}
+          onAnalogChange={(value) => { inputRef.current = { ...inputRef.current, analogX: value }; }}
+        />
       </div>
 
       <div
         ref={pianoHostRef}
-        className="relative h-[150px] shrink-0 border-t border-amber-900/40 bg-[#120c18] sm:h-[160px]"
+        className="relative shrink-0 border-t border-amber-900/40 bg-[#120c18]"
         style={{
+          height: `${keyboardHeight}px`,
           backgroundImage:
             'linear-gradient(180deg, rgba(42,28,18,0.55) 0%, rgba(12,8,18,0.95) 28%), repeating-linear-gradient(90deg, rgba(60,40,28,0.12) 0, rgba(60,40,28,0.12) 2px, transparent 2px, transparent 14px)',
         }}
@@ -660,7 +797,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         />
       </div>
 
-      {result && (
+      {result && !demoMode && (
         <SurvivalGameOver
           result={result}
           difficulty={difficulty}
@@ -677,23 +814,31 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         />
       )}
 
-      <SurvivalSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        isMidiConnected={survivalMidi.isMidiConnected}
-        displaySettings={displaySettings}
-        onDisplaySettingsChange={setDisplaySettings}
-        bgmVolume={bgmVolume}
-        onBgmVolumeChange={(volume) => {
-          setBgmVolume(volume);
-          bgmVolumeRef.current = volume;
-          if (bgmAudioRef.current) bgmAudioRef.current.volume = volume;
-        }}
-        stageRunMode={onSurvivalRunModeRestart ? {
-          hintMode,
-          onApplyHintModeAndRestart: onSurvivalRunModeRestart,
-        } : undefined}
-      />
+      {demoMode ? (
+        <EmbedMidiSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          isMidiConnected={survivalMidi.isMidiConnected}
+        />
+      ) : (
+        <SurvivalSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          isMidiConnected={survivalMidi.isMidiConnected}
+          displaySettings={displaySettings}
+          onDisplaySettingsChange={setDisplaySettings}
+          bgmVolume={bgmVolume}
+          onBgmVolumeChange={(volume) => {
+            setBgmVolume(volume);
+            bgmVolumeRef.current = volume;
+            if (bgmAudioRef.current) bgmAudioRef.current.volume = volume;
+          }}
+          stageRunMode={onSurvivalRunModeRestart ? {
+            hintMode,
+            onApplyHintModeAndRestart: onSurvivalRunModeRestart,
+          } : undefined}
+        />
+      )}
     </div>
   );
 };

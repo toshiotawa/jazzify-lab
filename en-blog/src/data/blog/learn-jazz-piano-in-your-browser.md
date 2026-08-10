@@ -67,6 +67,18 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 
 <p>The entire flow — from opening the browser to playing the first exercise — takes under two minutes once your keyboard is connected.</p>
 
+<figure class="code-run-demo-embed">
+  <iframe
+    src="https://en.jazzify.jp/embed/code-run?id=demo_2"
+    title="Jazzify Chord Run demo — single notes C through G"
+    allow="midi; autoplay; fullscreen"
+    allowfullscreen
+    loading="lazy"
+    style="width:100%;aspect-ratio:3/4;max-height:90vh;border:0;border-radius:12px;background:#000"
+  ></iframe>
+  <figcaption>Try a browser Chord Run demo: play C–G notes to jump. MIDI keyboard or on-screen piano both work.</figcaption>
+</figure>
+
 <h2 id="advantages-of-browser-based-learning">Advantages of Browser-Based Learning</h2>
 
 <h3>No installation</h3>

@@ -137,7 +137,21 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
 
 <h2 id="practice-the-progression-as-music">Practice the Progression as Music</h2>
 
-<p>The ii-V-I is more than a theory label. It is a reusable musical phrase. Practice it with a steady pulse, transpose it, and listen to how each chord changes the sense of tension. Jazzify can help you repeat chord and improvisation exercises in a playable context, making it easier to connect Roman-numeral analysis with what your hands and ears experience.</p>
+<p>The ii-V-I is more than a theory label. It is a reusable musical phrase. Practice it with a steady pulse, transpose it, and listen to how each chord changes the sense of tension. Try the interactive Chord Run demo below — play Dm7(9)–G7(9.13)–CM7(9) to jump and reach the goal.</p>
+
+<figure class="code-run-demo-embed">
+  <iframe
+    src="https://en.jazzify.jp/embed/code-run?id=demo_4"
+    title="Jazzify Chord Run demo — ii-V-I voicings"
+    allow="midi; autoplay; fullscreen"
+    allowfullscreen
+    loading="lazy"
+    style="width:100%;aspect-ratio:3/4;max-height:90vh;border:0;border-radius:12px;background:#000"
+  ></iframe>
+  <figcaption>Play the ii–V–I voicings on a MIDI keyboard or the on-screen piano. Use arrow keys (desktop) or the stick (mobile) to move.</figcaption>
+</figure>
+
+<p>Jazzify can help you repeat chord and improvisation exercises in a playable context, making it easier to connect Roman-numeral analysis with what your hands and ears experience.</p>
 
 <h2 id="summary">Summary</h2>
 

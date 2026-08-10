@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { getEffectiveCanvasDpr } from '@/utils/getEffectiveCanvasDpr';
+import type { CodeRunPixelScaleMode } from '@/utils/codeRunLayout';
+import { computeCodeRunPixelScale } from '@/utils/codeRunLayout';
 import type { CodeRunJumpFeedbackEffect, CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
@@ -8,6 +10,7 @@ type ImageMap = Record<string, HTMLImageElement>;
 interface CodeRunCanvasProps {
   state: CodeRunState;
   className?: string;
+  pixelScaleMode?: CodeRunPixelScaleMode;
 }
 
 const loadImage = (url: string): HTMLImageElement => {
@@ -36,13 +39,7 @@ const collectAssetUrls = (map: CodeRunMapSpec): string[] => {
   return [...urls];
 };
 
-/** コンテナに収まるピクセルアート向け表示倍率（拡大は整数倍、縮小は 0.5 刻み）。 */
-const computePixelScale = (containerW: number, containerH: number, viewW: number, viewH: number): number => {
-  if (containerW <= 0 || containerH <= 0 || viewW <= 0 || viewH <= 0) return 1;
-  const fit = Math.min(containerW / viewW, containerH / viewH);
-  if (fit >= 1) return Math.max(1, Math.floor(fit));
-  return Math.max(0.25, Math.floor(fit * 2) / 2);
-};
+/** コンテナに収まるピクセルアート向け表示倍率は @/utils/codeRunLayout を使用 */
 
 const applySharpCanvas = (ctx: CanvasRenderingContext2D): void => {
   ctx.imageSmoothingEnabled = false;
@@ -300,7 +297,7 @@ const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
   return Math.floor(tick / 4) % 2 === 0;
 };
 
-const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
+const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelScaleMode = 'fit' }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useImages(state.map);
@@ -313,14 +310,14 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className }) => {
 
     const update = (): void => {
       const { width, height } = el.getBoundingClientRect();
-      setPixelScale(computePixelScale(width, height, viewWidth, viewHeight));
+      setPixelScale(computeCodeRunPixelScale(width, height, viewWidth, viewHeight, pixelScaleMode));
     };
 
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewWidth, viewHeight]);
+  }, [viewWidth, viewHeight, pixelScaleMode]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -15,11 +15,14 @@ export const PUBLIC_INFO_PATHS = new Set([
   '/login/verify-otp',
 ]);
 
-export type AppRouteKind = 'landing' | 'public' | 'app';
+export type AppRouteKind = 'landing' | 'public' | 'embed' | 'app';
 
 export const resolveAppRouteKind = (pathname: string): AppRouteKind => {
   if (pathname === '/' || pathname === '') {
     return 'landing';
+  }
+  if (pathname.startsWith('/embed/')) {
+    return 'embed';
   }
   if (pathname === '/main' || pathname.startsWith('/main/')) {
     return 'app';
