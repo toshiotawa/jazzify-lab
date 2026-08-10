@@ -1,5 +1,8 @@
 -- 母数確認: メインクエスト第1章クリア済み × コードラン初級 block1 未完了 × 未送信
 -- 実行: Supabase SQL Editor または psql
+--
+-- 2026-08-11 時点スナップショット: eligible_now = 7（専用再訪メールは当面見送り）
+-- 進捗ファネル全体は scripts/analytics/soft_landing_funnel.sql を参照
 
 WITH paid_users AS (
   SELECT DISTINCT s.user_id

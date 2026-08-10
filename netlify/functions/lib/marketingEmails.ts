@@ -379,7 +379,7 @@ const buildPaywallNudgeBody = (ctx: MarketingEmailBuildContext): string => {
       ),
       trialBlock,
       paragraph(
-        `すぐ決めなくて大丈夫です。無料で遊べるサバイバルの最初のブロックも残っています。${trackedLink(ctx, 'link_survival', MARKETING_EMAIL_PATHS.survival, 'サバイバルを開く')}`,
+        `すぐ決めなくて大丈夫です。無料のまま「横スクロールコードラン:初級」の第1ブロックも体験できます。${trackedLink(ctx, 'link_chord_run', MARKETING_EMAIL_PATHS.chordRunBeginner, 'コードランを開く')}`,
       ),
       paragraph(
         `判断に必要な情報が足りなければ、${contactLink(ctx, 'お問い合わせフォーム')}から聞いてください。`,
@@ -415,7 +415,7 @@ const buildPaywallNudgeBody = (ctx: MarketingEmailBuildContext): string => {
     ),
     trialBlock,
     paragraph(
-      `No rush on deciding. The first block of Survival is still free to play. ${trackedLink(ctx, 'link_survival', MARKETING_EMAIL_PATHS.survival, 'Open Survival')}`,
+      `No rush on deciding. Block 1 of Chord Run: Beginner is still free to play. ${trackedLink(ctx, 'link_chord_run', MARKETING_EMAIL_PATHS.chordRunBeginner, 'Open Chord Run')}`,
     ),
     paragraph(
       `If you need more information to decide, ask us through the ${contactLink(ctx, 'contact form')}.`,
@@ -481,14 +481,17 @@ const buildDay14Body = (ctx: MarketingEmailBuildContext): string => {
         'メインクエストの第1チャプターまで進んだところで、続きがロックされて止まってしまった方もいると思います。',
       ),
       paragraph(
-        '実は、無料のままでも遊べる場所がもう1つあります。サバイバルモードの最初のブロックです。',
+        '実は、無料のままでも遊べるコースがあります。「横スクロールコードラン:初級」の第1ブロックです。',
       ),
       paragraph(
-        'サバイバルは、クエストで出てきた短いフレーズやコードを、ゲームとして繰り返し反復するモードです。同じ課題を「練習」として何度もやるのは飽きますが、ゲームの形になっていると自然と回数が増えます。ジャズの反応速度は、結局のところ回数で決まります。',
+        'コードネームを見て、考え込まずに鍵盤で返す——コードランは、その反応をゲームの形で繰り返すコースです。第1章で作った「聴いて返す」感覚を、コードの見方にそのままつなげられます。',
       ),
-      trackedCta(ctx, 'cta_survival', MARKETING_EMAIL_PATHS.survival, 'サバイバルを開く'),
+      trackedCta(ctx, 'cta_chord_run', MARKETING_EMAIL_PATHS.chordRunBeginner, 'コードランを始める'),
       paragraph(
-        `どんな雰囲気のモードかは、${link(MARKETING_CHORD_RUN_VIDEO_URL, 'この動画（コードランのプレイ回）')}が分かりやすいと思います。`,
+        `どんな雰囲気かは、${link(MARKETING_CHORD_RUN_VIDEO_URL, 'この動画（コードランのプレイ回）')}が分かりやすいと思います。`,
+      ),
+      paragraph(
+        `サバイバルモードの最初のブロックも無料で残っています。${trackedLink(ctx, 'link_survival', MARKETING_EMAIL_PATHS.survival, 'サバイバルを開く')}`,
       ),
       paragraph(
         `もし第1チャプターをまだ終えていなければ、そちらが先です。10分で終わります。${trackedLink(ctx, 'link_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'メインクエストに戻る')}`,
@@ -501,12 +504,15 @@ const buildDay14Body = (ctx: MarketingEmailBuildContext): string => {
       'If you reached the end of Main Quest Chapter 1 and hit the lock, you may have stopped there.',
     ),
     paragraph(
-      'There is one more place you can play for free: the first block of Survival mode.',
+      'There is still a free course waiting for you: block 1 of Chord Run: Beginner.',
     ),
     paragraph(
-      'Survival turns the short phrases and chords from the quests into a repeatable game. Drilling the same material as "practice" gets old fast; as a game, the reps add up on their own. And reps are what jazz reflexes are made of.',
+      'Chord Run turns "see a chord name → move your hands without overthinking" into a game loop. It builds directly on the listen-and-respond reflex you started in Chapter 1.',
     ),
-    trackedCta(ctx, 'cta_survival', MARKETING_EMAIL_PATHS.survival, 'Open Survival'),
+    trackedCta(ctx, 'cta_chord_run', MARKETING_EMAIL_PATHS.chordRunBeginner, 'Start Chord Run'),
+    paragraph(
+      `The first block of Survival mode is still free too. ${trackedLink(ctx, 'link_survival', MARKETING_EMAIL_PATHS.survival, 'Open Survival')}`,
+    ),
     paragraph(
       `Have not finished Chapter 1 yet? Do that first — it takes about 10 minutes. ${trackedLink(ctx, 'link_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Back to Main Quest')}`,
     ),
@@ -768,10 +774,10 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     buildBody: (ctx) => buildDay7Body(ctx),
   },
   day14: {
-    subjectJa: '無料のままでも、まだ遊べる場所があります',
-    subjectEn: 'There is still more you can play for free',
-    titleJa: '無料で遊べる場所',
-    titleEn: 'What you can still play for free',
+    subjectJa: '第1章のあと、無料で続けられるコースがあります',
+    subjectEn: 'After Chapter 1, Chord Run block 1 is still free',
+    titleJa: 'コードランを無料で体験',
+    titleEn: 'Try Chord Run for free',
     buildBody: (ctx) => buildDay14Body(ctx),
   },
   day21: {

@@ -13,8 +13,12 @@ export type MarketingEmailKey =
   | 'never_played_5d';
 export type MarketingEmailLocale = 'ja' | 'en';
 
+/** ソフトランディング第1候補（横スクロールコードラン:初級）。courses.soft_landing_order = 1 */
+export const MARKETING_CHORD_RUN_BEGINNER_COURSE_ID = '5fff9e19-f04a-595f-b666-b9dcf4aa765c';
+
 export const MARKETING_EMAIL_PATHS = {
   mainLessons: '/main/lessons',
+  chordRunBeginner: `/main/courses/${MARKETING_CHORD_RUN_BEGINNER_COURSE_ID}`,
   survival: '/main/play/survival',
   account: '/main/account',
   contact: '/contact',

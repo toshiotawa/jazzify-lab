@@ -578,9 +578,18 @@ MIDIキーボードがなくても、まずはタッチ鍵盤で試せます。
 
 具体的には、プロフィール作成完了（許諾あり）をトリガーに、Netlify FunctionからResend APIで1通送る。既存の `netlify/functions/deleteAccount.ts` にResend利用の先例があるので構成はそれに倣う。
 
-### 実装済み（2026-07-05 更新）
+### 実装済み（2026-08-11 更新）
 
-本章の「最初は1通だけ」方針から拡張し、PDFリードマグネット（Bluesy Licks 5選）を軸にした day0（登録直後・PDF＋音源）→ day1 → day2（MIDI）→ day3 ＋ trial_start の5通構成を実装済み。実体は `netlify/functions/marketingDripCron.ts`（毎時cron）+ `sendMarketingWelcome.ts`（登録直後）+ `marketingUnsubscribe.ts`（配信停止）+ `lib/marketingEmails.ts`（JA/EN文面）。対象はリリース以降の新規オプトインのみ。トライアル開始者には以後のトライアルCTAを出さない。
+本章の「最初は1通だけ」方針から拡張し、**12種**のドリップ＋行動トリガーメールを実装済み。
+
+| 分類 | Key |
+|------|-----|
+| 定期（オプトイン日起点） | `day0`〜`day3`, `day7`, `day14`, `day21`, `day30` |
+| 行動 | `trial_start`（オプトイン不要）, `paywall_nudge`, `never_played_5d`, `dormant_14d` |
+
+実体: `netlify/functions/marketingDripCron.ts`（毎時cron）+ `sendMarketingWelcome.ts`（day0 即時）+ `marketingUnsubscribe.ts`（配信停止）+ `lib/marketingEmails.ts`（JA/EN文面）。対象はリリース以降（`MARKETING_EMAIL_RELEASE_CUTOFF`）の新規オプトイン。トライアル開始者には以後のトライアルCTAを出さない。
+
+ソフトランディング: アプリ内はコードラン block1 無料案内。専用再訪メール `soft_landing_chord_run` は停止済み。`day14` / `paywall_nudge` の無料続き CTA はコードランに揃えた（詳細: `docs/marketing-email-soft-landing.md`）。
 
 ### 実装の順番（再掲）
 

@@ -84,7 +84,20 @@ describe('buildMarketingEmail', () => {
     expect(build('day7', { locale: 'en' }).html).not.toContain('youtube.com');
   });
 
-  it('points en readers at the en subdomain', () => {
-    expect(build('day14', { locale: 'en' }).html).toContain('https://en.jazzify.jp/main/play/survival');
+  it('points day14 readers at chord run soft landing and survival as secondary', () => {
+    const ja = build('day14', { locale: 'ja' }).html;
+    const en = build('day14', { locale: 'en' }).html;
+    expect(ja).toContain('utm_content=cta_chord_run');
+    expect(ja).toContain('5fff9e19-f04a-595f-b666-b9dcf4aa765c');
+    expect(ja).toContain('utm_content=link_survival');
+    expect(en).toContain('https://en.jazzify.jp/main/courses/5fff9e19-f04a-595f-b666-b9dcf4aa765c');
+    expect(en).toContain('https://en.jazzify.jp/main/play/survival');
+  });
+
+  it('points paywall nudge readers at chord run soft landing instead of survival', () => {
+    const ja = build('paywall_nudge', { locale: 'ja' }).html;
+    expect(ja).toContain('utm_content=link_chord_run');
+    expect(ja).toContain('5fff9e19-f04a-595f-b666-b9dcf4aa765c');
+    expect(ja).not.toContain('utm_content=link_survival');
   });
 });

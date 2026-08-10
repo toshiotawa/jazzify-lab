@@ -26,6 +26,12 @@ describe('marketingEmailUrls', () => {
     );
   });
 
+  it('exposes chord run beginner course path for soft landing CTAs', () => {
+    expect(MARKETING_EMAIL_PATHS.chordRunBeginner).toBe(
+      '/main/courses/5fff9e19-f04a-595f-b666-b9dcf4aa765c',
+    );
+  });
+
   it('builds lick audio content keys', () => {
     expect(buildLickAudioContentKey(0, 'slow')).toBe('lick1_slow');
     expect(buildLickAudioContentKey(4, 'normal')).toBe('lick5_normal');
