@@ -89,7 +89,9 @@ iframe デモ（`/embed/code-run?id=demo_*`）は次を送る。`tutorial_comple
 | `code_run_demo_play` | スタート成功（ステージ取得後） | `demo_id`, `demo_lp_locale`, `demo_difficulty`, `embed_from?`, `lp_hostname`, `lp_path` |
 | `code_run_demo_clear` | ゴール到達 | 同上 |
 | `code_run_demo_timeout` | 120秒切れ | 同上 |
-| `code_run_demo_cta_click` | 終了後 LP CTA | 同上 + `outcome` |
+| `code_run_demo_cta_click` | 終了後 CTA | 同上 + `outcome`, `cta_target`（`lp` / `signup`） |
+
+LP（`jazzify.jp` / `en.jazzify.jp`）の Modes セクションにも同じ iframe を置いている。LP 上のサムネイルをクリックして iframe を読み込んだ時点で `lp_chord_run_demo_open`（`demo_id`, `embed_from`）を送るので、`サムネクリック → play → clear` の 3 段でファネルが見える。LP 埋め込みは `cta=signup` を付けており、終了後 CTA は LP ではなく `/signup` に向かう。
 
 日本語ブログ埋め込み例:
 

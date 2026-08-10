@@ -17,6 +17,7 @@ const JAZZIFY_EVENTS = [
   "quest_start",
   "quest_complete",
   "midi_connected",
+  "lp_chord_run_demo_open",
   "code_run_demo_play",
   "code_run_demo_clear",
   "code_run_demo_timeout",

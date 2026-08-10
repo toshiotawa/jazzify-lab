@@ -135,6 +135,16 @@ export interface LandingChordRunVideoCopy {
   comment2Alt: string;
 }
 
+export interface LandingChordRunDemoCopy {
+  heading: string;
+  caption: string;
+  startLabel: string;
+  thumbnailAlt: string;
+  iframeTitle: string;
+  midiNote: string;
+  iosNote: string;
+}
+
 interface LandingModesCopy {
   eyebrow: string;
   heading: string;
@@ -142,6 +152,7 @@ interface LandingModesCopy {
   survival: LandingModeItem;
   battle: LandingModeItem;
   viralTweet: LandingViralTweetCopy;
+  chordRunDemo: LandingChordRunDemoCopy;
   /** 日本語LPのみ。英語版には該当する動画がないため未定義 */
   chordRunVideo?: LandingChordRunVideoCopy;
 }
@@ -504,6 +515,15 @@ const COPY_JA: LandingCopy = {
       imageAlt: 'バトルモードのプレイ画面',
     },
     viralTweet: {},
+    chordRunDemo: {
+      heading: 'コードランを、今すぐ遊ぶ',
+      caption: 'ブラウザでそのままプレイできます。難易度は EASY（単音）と NORMAL（ii-V-I）から選べます。',
+      startLabel: 'コードランを遊ぶ',
+      thumbnailAlt: 'コードランのプレイ画面',
+      iframeTitle: 'コードラン デモ',
+      midiNote: 'MIDIキーボードでも、画面の鍵盤でもプレイできます。',
+      iosNote: 'iPhone / iPad のブラウザではMIDIキーボードを使用できません。アプリ版をご利用ください。',
+    },
     chordRunVideo: {
       heading: 'コードランを、動画で見る',
       caption:
@@ -917,6 +937,15 @@ const COPY_EN: LandingCopy = {
     viralTweet: {
       translationText:
         'What if a jazz-learning game where the only way to attack is to parry? Enemy plays a phrase → you play the same notes back in time → parry success → the jazz enemy goes down. I\'m building this pretty nonsensical game.',
+    },
+    chordRunDemo: {
+      heading: 'Play Chord Run right now',
+      caption: 'Play it here in your browser. Choose EASY (single notes) or NORMAL (ii–V–I voicings).',
+      startLabel: 'Play Chord Run',
+      thumbnailAlt: 'Chord Run gameplay screen',
+      iframeTitle: 'Chord Run demo',
+      midiNote: 'Play with a MIDI keyboard or the on-screen piano.',
+      iosNote: 'On iPhone and iPad, browsers cannot use a MIDI keyboard. Please use the app instead.',
     },
   },
   platforms: {

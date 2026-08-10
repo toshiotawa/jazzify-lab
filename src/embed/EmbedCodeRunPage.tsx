@@ -66,6 +66,8 @@ const EmbedCodeRunPage: React.FC = () => {
   const [finishOutcome, setFinishOutcome] = useState<CodeRunDemoFinishOutcome | null>(null);
   const didAutoStartRef = useRef(false);
 
+  /** LP 内に埋め込む場合、LP へ戻す CTA は無意味なので登録ページへ向ける */
+  const ctaTarget = searchParams.get('cta') === 'signup' ? 'signup' : 'lp';
   const lpUrl = demoConfig
     ? buildCodeRunDemoLpUrl(demoConfig, { from: embedFrom })
     : 'https://jazzify.jp/';
@@ -161,16 +163,18 @@ const EmbedCodeRunPage: React.FC = () => {
     if (!demoConfig) return;
     const params = new URLSearchParams({ id: demoConfig.id, fs: '1', d: difficulty });
     if (embedFrom?.trim()) params.set('from', embedFrom.trim());
+    if (ctaTarget === 'signup') params.set('cta', 'signup');
     const url = `${window.location.origin}/embed/code-run?${params.toString()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
-  }, [demoConfig, difficulty, embedFrom]);
+  }, [ctaTarget, demoConfig, difficulty, embedFrom]);
 
   const handleCtaClick = useCallback(() => {
     if (!trackContext) return;
     trackCodeRunDemoEvent(CODE_RUN_DEMO_EVENTS.ctaClick, trackContext, {
       outcome: finishOutcome ?? 'unknown',
+      cta_target: ctaTarget,
     });
-  }, [finishOutcome, trackContext]);
+  }, [ctaTarget, finishOutcome, trackContext]);
 
   if (!demoConfig) {
     return (
@@ -321,17 +325,30 @@ const EmbedCodeRunPage: React.FC = () => {
               <div className="ecr-stage__ground" />
             </div>
 
-            <a
-              href={lpUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleCtaClick}
-              className="ecr-start"
-            >
-              <span className="ecr-start__shine" aria-hidden="true" />
-              <span className="ecr-start__caret" aria-hidden="true">▶</span>
-              {isEnglish ? 'Explore Jazzify' : 'Jazzifyを見る'}
-            </a>
+            {ctaTarget === 'signup' ? (
+              <a
+                href="/signup"
+                target="_top"
+                onClick={handleCtaClick}
+                className="ecr-start"
+              >
+                <span className="ecr-start__shine" aria-hidden="true" />
+                <span className="ecr-start__caret" aria-hidden="true">▶</span>
+                {isEnglish ? 'Start for free' : '無料で始める'}
+              </a>
+            ) : (
+              <a
+                href={lpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleCtaClick}
+                className="ecr-start"
+              >
+                <span className="ecr-start__shine" aria-hidden="true" />
+                <span className="ecr-start__caret" aria-hidden="true">▶</span>
+                {isEnglish ? 'Explore Jazzify' : 'Jazzifyを見る'}
+              </a>
+            )}
 
             <button
               type="button"

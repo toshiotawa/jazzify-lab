@@ -1,5 +1,6 @@
 import React from 'react';
 import { getLandingCopy, type LandingModeItem } from '@/components/landing/landingCopy';
+import { LpChordRunDemo } from '@/components/landing/sections/LpChordRunDemo';
 import { LpChordRunVideo } from '@/components/landing/sections/LpChordRunVideo';
 import { LpViralTweetEmbed } from '@/components/landing/sections/LpViralTweetEmbed';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -97,6 +98,16 @@ export const LpModes: React.FC = () => {
               imageHeight={imageHeight}
             />
           ))}
+        </div>
+
+        <div className="max-w-3xl mx-auto mt-14" data-animate="from-behind">
+          <LpChordRunDemo
+            copy={copy.modes.chordRunDemo}
+            demoId={isEnglishCopy ? 'demo_2' : 'demo_1'}
+            embedFrom={isEnglishCopy ? 'lp_en' : 'lp_ja'}
+            appStoreLabel={copy.platforms.appStoreCta}
+            appStoreAriaLabel={copy.footer.appStoreAria}
+          />
         </div>
 
         {chordRunVideo ? (
