@@ -8,6 +8,10 @@ import {
   buildCodeRunDemoLpUrl,
   resolveCodeRunDemo,
 } from '@/embed/codeRunDemoCatalog';
+import {
+  CODE_RUN_DEMO_EVENTS,
+  trackCodeRunDemoEvent,
+} from '@/embed/codeRunDemoAnalytics';
 import { useSurvivalMidiSession } from '@/hooks/useSurvivalMidiSession';
 import {
   DEFAULT_SURVIVAL_BGM_SETTINGS,
@@ -16,7 +20,6 @@ import {
   resolveStageBgmUrl,
   toSurvivalBgmSettingsMap,
 } from '@/platform/supabaseSurvival';
-import { trackEvent } from '@/utils/analytics/ga';
 import { installDvhViewport } from '@/utils/dvhViewport';
 import { isIphoneSafari, requestAppFullscreen } from '@/utils/fullscreenSupport';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -31,10 +34,15 @@ const EmbedCodeRunPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const demoId = searchParams.get('id');
   const autoStart = searchParams.get('fs') === '1';
+  const embedFrom = searchParams.get('from');
   const demoConfig = useMemo(() => resolveCodeRunDemo(demoId), [demoId]);
   const isEnglish = shouldUseEnglishCopy({ preferredLocale: demoConfig?.lpLocale });
   const survivalMidi = useSurvivalMidiSession();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const trackContext = useMemo(
+    () => (demoConfig ? { demoConfig, from: embedFrom } : null),
+    [demoConfig, embedFrom],
+  );
 
   const [screen, setScreen] = useState<EmbedScreen>('pre');
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -43,7 +51,9 @@ const EmbedCodeRunPage: React.FC = () => {
   const [finishOutcome, setFinishOutcome] = useState<CodeRunDemoFinishOutcome | null>(null);
   const didAutoStartRef = useRef(false);
 
-  const lpUrl = demoConfig ? buildCodeRunDemoLpUrl(demoConfig) : 'https://jazzify.jp/';
+  const lpUrl = demoConfig
+    ? buildCodeRunDemoLpUrl(demoConfig, { from: embedFrom })
+    : 'https://jazzify.jp/';
 
   useEffect(() => installDvhViewport(), []);
 
@@ -103,12 +113,13 @@ const EmbedCodeRunPage: React.FC = () => {
   }, [demoConfig, isEnglish]);
 
   const startDemo = useCallback(async () => {
-    if (!demoConfig) return;
-    trackEvent('demo_start', { demo_id: demoConfig.id });
+    if (!demoConfig || !trackContext) return;
     const stage = await loadStage();
     if (!stage) return;
+    // ステージ取得成功後にのみ play を送る（失敗時にキーイベントを汚さない）
+    trackCodeRunDemoEvent(CODE_RUN_DEMO_EVENTS.play, trackContext);
     setScreen('playing');
-  }, [demoConfig, loadStage]);
+  }, [demoConfig, loadStage, trackContext]);
 
   useEffect(() => {
     if (!autoStart || didAutoStartRef.current || !demoConfig) return;
@@ -121,27 +132,30 @@ const EmbedCodeRunPage: React.FC = () => {
   }, [autoStart, demoConfig, startDemo]);
 
   const handleFinish = useCallback((outcome: CodeRunDemoFinishOutcome) => {
-    if (!demoConfig) return;
+    if (!trackContext) return;
     if (outcome === 'clear') {
-      trackEvent('demo_clear', { demo_id: demoConfig.id });
+      trackCodeRunDemoEvent(CODE_RUN_DEMO_EVENTS.clear, trackContext);
     } else if (outcome === 'timeout') {
-      trackEvent('demo_timeout', { demo_id: demoConfig.id });
+      trackCodeRunDemoEvent(CODE_RUN_DEMO_EVENTS.timeout, trackContext);
     }
     setFinishOutcome(outcome);
     setScreen('finished');
-  }, [demoConfig]);
+  }, [trackContext]);
 
   const openFullscreenTab = useCallback(() => {
     if (!demoConfig) return;
-    const url = `${window.location.origin}/embed/code-run?id=${encodeURIComponent(demoConfig.id)}&fs=1`;
+    const params = new URLSearchParams({ id: demoConfig.id, fs: '1' });
+    if (embedFrom?.trim()) params.set('from', embedFrom.trim());
+    const url = `${window.location.origin}/embed/code-run?${params.toString()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
-  }, [demoConfig]);
+  }, [demoConfig, embedFrom]);
 
   const handleCtaClick = useCallback(() => {
-    if (demoConfig) {
-      trackEvent('demo_cta_click', { demo_id: demoConfig.id, outcome: finishOutcome ?? 'unknown' });
-    }
-  }, [demoConfig, finishOutcome]);
+    if (!trackContext) return;
+    trackCodeRunDemoEvent(CODE_RUN_DEMO_EVENTS.ctaClick, trackContext, {
+      outcome: finishOutcome ?? 'unknown',
+    });
+  }, [finishOutcome, trackContext]);
 
   if (!demoConfig) {
     return (

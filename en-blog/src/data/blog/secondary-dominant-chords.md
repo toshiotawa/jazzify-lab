@@ -159,7 +159,7 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
   <p class="code-run-demo-section__note">On iPhone and iPad, browsers cannot use a MIDI keyboard. Please use the <a href="https://apps.apple.com/app/apple-store/id6761457001?pt=128644431&ct=en_blog_code_run_demo&mt=8" rel="noopener noreferrer" target="_blank">Jazzify app</a> instead.</p>
   <figure class="code-run-demo-embed">
     <iframe
-      src="https://en.jazzify.jp/embed/code-run?id=demo_4"
+      src="https://en.jazzify.jp/embed/code-run?id=demo_4&from=en_blog"
       title="Jazzify Chord Run demo — ii–V–I voicings"
       allow="midi; autoplay; fullscreen"
       allowfullscreen

@@ -19,6 +19,8 @@ const JAZZIFY_KEY_EVENTS = [
   "quest_start",
   "quest_complete",
   "midi_connected",
+  "code_run_demo_play",
+  "code_run_demo_clear",
 ] as const;
 
 async function report(

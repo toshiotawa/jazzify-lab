@@ -92,6 +92,9 @@ describe('codeRunDemoCatalog', () => {
     const enUrl = buildCodeRunDemoLpUrl(CODE_RUN_DEMOS.demo_2);
     expect(enUrl).toContain('https://en.jazzify.jp/');
     expect(enUrl).toContain('utm_campaign=code_run_demo_single_notes_en');
+
+    const withFrom = buildCodeRunDemoLpUrl(CODE_RUN_DEMOS.demo_2, { from: 'en_blog' });
+    expect(withFrom).toContain('utm_content=en_blog');
   });
 
   it('applies random chord source', () => {

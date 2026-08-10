@@ -151,13 +151,20 @@ export const resolveCodeRunDemo = (id: string | null): CodeRunDemoConfig | null 
   return CODE_RUN_DEMOS[trimmed] ?? null;
 };
 
-export const buildCodeRunDemoLpUrl = (config: CodeRunDemoConfig): string => {
+export const buildCodeRunDemoLpUrl = (
+  config: CodeRunDemoConfig,
+  options?: { readonly from?: string | null },
+): string => {
   const host = config.lpLocale === 'en' ? 'https://en.jazzify.jp/' : 'https://jazzify.jp/';
   const params = new URLSearchParams({
     utm_source: 'embed_demo',
     utm_medium: 'iframe',
     utm_campaign: config.utmCampaign,
   });
+  const from = options?.from?.trim();
+  if (from) {
+    params.set('utm_content', from);
+  }
   return `${host}?${params.toString()}`;
 };
 

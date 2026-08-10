@@ -14,6 +14,11 @@ const LP_CONTEXT_EVENT_NAMES = new Set([
   'sign_up',
   'tutorial_complete',
   'begin_checkout',
+  // 埋め込みコードランデモ（GA4 キーイベント候補）
+  'code_run_demo_play',
+  'code_run_demo_clear',
+  'code_run_demo_timeout',
+  'code_run_demo_cta_click',
 ]);
 
 const PAYWALL_FUNNEL_EVENT_NAMES = new Set([

@@ -44,7 +44,7 @@ const buildSection = (demoId) => {
   <p class="code-run-demo-section__note">On iPhone and iPad, browsers cannot use a MIDI keyboard. Please use the <a href="${APP_STORE_URL}" rel="noopener noreferrer" target="_blank">Jazzify app</a> instead.</p>
   <figure class="code-run-demo-embed">
     <iframe
-      src="https://en.jazzify.jp/embed/code-run?id=${demoId}"
+      src="https://en.jazzify.jp/embed/code-run?id=${demoId}&from=en_blog"
       title="${title}"
       allow="midi; autoplay; fullscreen"
       allowfullscreen

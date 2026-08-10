@@ -78,8 +78,30 @@ npm run ga:jpd:daily
 - `sign_up_click` / `sign_up`
 - `tutorial_begin` / `tutorial_complete`
 - `begin_checkout`
+- 埋め込みコードラン: `code_run_demo_play` / `code_run_demo_clear`（任意で `code_run_demo_timeout` / `code_run_demo_cta_click`）
 
-探索レポートで `sessionSource` × イベント数を切ると、SNS投稿別の入口効率が分かる。UTM付きリンク運用と併用する（`docs/marketing-growth-review.md` 7章）。
+#### 埋め込みコードランのキーイベント
+
+iframe デモ（`/embed/code-run?id=demo_*`）は次を送る。`tutorial_complete` とは別イベントにし、初回体験 CV を混ぜない。
+
+| イベント | タイミング | 主なパラメータ |
+|---|---|---|
+| `code_run_demo_play` | スタート成功（ステージ取得後） | `demo_id`, `demo_lp_locale`, `demo_chord_mode`, `embed_from?`, `lp_hostname`, `lp_path` |
+| `code_run_demo_clear` | ゴール到達 | 同上 |
+| `code_run_demo_timeout` | 120秒切れ | 同上 |
+| `code_run_demo_cta_click` | 終了後 LP CTA | 同上 + `outcome` |
+
+日本語ブログ埋め込み例:
+
+```html
+<iframe src="https://jazzify.jp/embed/code-run?id=demo_1&from=jazzpianodays" allow="midi; autoplay; fullscreen"></iframe>
+```
+
+英語ブログは `from=en_blog`。`from` はイベントの `embed_from` と、終了後 LP の `utm_content` に入る。
+
+**GA4 管理画面での Key event 化（必須・手動）**: 管理 → イベント → `code_run_demo_play` / `code_run_demo_clear` をキーイベントとしてオン。コードだけではキーイベント扱いにならない。
+
+探索レポートで `demo_id` × `embed_from` を切ると、記事群・デモ種別ごとのプレイ→クリア率が見える。
 
 ### iOS からの GA4 送信
 

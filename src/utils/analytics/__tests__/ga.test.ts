@@ -160,4 +160,42 @@ describe('initGa dataLayer contract', () => {
 
     expect(demoBeginCommand?.[2]).toEqual({ tutorial_name: 'lp_demo' });
   });
+
+  it('attaches lp context to code run demo key-event candidates', async () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        hostname: 'en.jazzify.jp',
+        pathname: '/embed/code-run',
+        search: '?id=demo_2&from=en_blog',
+        hash: '',
+        origin: 'https://en.jazzify.jp',
+      },
+    });
+
+    const pushed: unknown[] = [];
+    const dataLayer: unknown[] = [];
+    Object.defineProperty(dataLayer, 'push', {
+      value: (...items: unknown[]) => {
+        pushed.push(...items);
+        return pushed.length;
+      },
+    });
+    window.dataLayer = dataLayer;
+
+    const { initGa, trackEvent } = await import('@/utils/analytics/ga');
+    initGa();
+    trackEvent('code_run_demo_play', { demo_id: 'demo_2' });
+
+    const playCommand = pushed.find(
+      (item) => !Array.isArray(item) && (item as IArguments)[0] === 'event' && (item as IArguments)[1] === 'code_run_demo_play',
+    ) as IArguments | undefined;
+
+    expect(playCommand?.[2]).toEqual({
+      lp_locale: 'en',
+      lp_hostname: 'en.jazzify.jp',
+      lp_path: '/embed/code-run',
+      demo_id: 'demo_2',
+    });
+  });
 });

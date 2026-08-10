@@ -17,6 +17,10 @@ const JAZZIFY_EVENTS = [
   "quest_start",
   "quest_complete",
   "midi_connected",
+  "code_run_demo_play",
+  "code_run_demo_clear",
+  "code_run_demo_timeout",
+  "code_run_demo_cta_click",
 ] as const;
 
 async function main(): Promise<void> {
