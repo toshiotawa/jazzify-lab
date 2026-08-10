@@ -74,7 +74,7 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
     allow="midi; autoplay; fullscreen"
     allowfullscreen
     loading="lazy"
-    style="width:100%;aspect-ratio:3/4;max-height:90vh;border:0;border-radius:12px;background:#000"
+    style="width:100%;height:min(78vh,760px);min-height:520px;border:0;border-radius:12px;background:#000"
   ></iframe>
   <figcaption>Try a browser Chord Run demo: play C–G notes to jump. MIDI keyboard or on-screen piano both work.</figcaption>
 </figure>

@@ -615,24 +615,12 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         onBlur={() => setNeedsFocusHint(true)}
         onPointerDown={restoreFocus}
       >
-        <div className={cn(
-          'absolute inset-0 overflow-hidden',
-          isMobileViewport ? '' : 'flex items-center justify-center',
-        )}
-        >
-          <div
-            className={cn(
-              'relative h-full w-full',
-              !isMobileViewport && 'max-h-full max-w-full',
-            )}
-            style={!isMobileViewport ? { aspectRatio: `${mapSpec.viewWidth}/${mapSpec.viewHeight}` } : undefined}
-          >
-            <CodeRunCanvas
-              state={runState}
-              className="h-full w-full"
-              pixelScaleMode={isMobileViewport ? 'cover' : 'fit'}
-            />
-          </div>
+        <div className="absolute inset-0 overflow-hidden">
+          <CodeRunCanvas
+            state={runState}
+            className="h-full w-full"
+            pixelScaleMode={isMobileViewport ? 'cover' : 'fit'}
+          />
         </div>
 
         <div className="pointer-events-none absolute left-3 top-3 z-20 flex items-center gap-2">

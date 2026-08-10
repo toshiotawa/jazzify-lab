@@ -146,7 +146,7 @@ ogImage: "https://en.jazzify.jp/newLP/hero-poster.webp"
     allow="midi; autoplay; fullscreen"
     allowfullscreen
     loading="lazy"
-    style="width:100%;aspect-ratio:3/4;max-height:90vh;border:0;border-radius:12px;background:#000"
+    style="width:100%;height:min(78vh,760px);min-height:520px;border:0;border-radius:12px;background:#000"
   ></iframe>
   <figcaption>Play the ii–V–I voicings on a MIDI keyboard or the on-screen piano. Use arrow keys (desktop) or the stick (mobile) to move.</figcaption>
 </figure>
