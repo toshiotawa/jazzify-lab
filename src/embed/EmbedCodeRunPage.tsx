@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { CodeRunDemoFinishOutcome } from '@/components/survival/codeRun/CodeRunGameScreen';
+import {
+  CODE_RUN_HERO_SPRITE_HEIGHT,
+  CODE_RUN_HERO_SPRITE_URL,
+  CODE_RUN_HERO_SPRITE_WIDTH,
+} from '@/components/survival/codeRun/codeRunSpriteUrls';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import { fetchSurvivalStage } from '@/components/survival/SurvivalStageDefinitions';
 import {
@@ -23,6 +28,7 @@ import {
 import { installDvhViewport } from '@/utils/dvhViewport';
 import { isIphoneSafari, requestAppFullscreen } from '@/utils/fullscreenSupport';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import './embedCodeRunStart.css';
 
 const LazyCodeRunGameScreen = React.lazy(
   () => import('@/components/survival/codeRun/CodeRunGameScreen'),
@@ -181,47 +187,64 @@ const EmbedCodeRunPage: React.FC = () => {
       style={{ minHeight: 'var(--dvh, 100dvh)' }}
     >
       {screen === 'pre' && (
-        <div className="mx-auto flex min-h-[var(--dvh,100dvh)] max-w-lg flex-col justify-center px-6 py-10">
-          <p className="text-xs uppercase tracking-[0.2em] text-cyan-300/80">Jazzify Code Run</p>
-          <h1 className="mt-3 text-3xl font-bold">{isEnglish ? 'Try the demo' : 'デモを体験'}</h1>
-          <p className="mt-3 text-sm text-white/70">
-            {isEnglish
-              ? 'Play with a MIDI keyboard or the on-screen piano. Arrow keys move on desktop.'
-              : 'MIDIキーボードまたは画面鍵盤でプレイできます。PCでは矢印キーで移動します。'}
-          </p>
-          <div className="mt-6 space-y-2 rounded-xl border border-white/10 bg-white/5 p-4 text-sm">
-            <div className="flex justify-between gap-4">
-              <span className="text-white/60">{isEnglish ? 'Mode' : '出題'}</span>
-              <span>{chordModeLabel}</span>
+        <div className="ecr-screen">
+          <div className="ecr-screen__scanlines" aria-hidden="true" />
+          <div className="ecr-screen__inner">
+            <p className="ecr-eyebrow">JAZZIFY</p>
+            <h1 className="ecr-logo">CODE RUN</h1>
+            <p className="ecr-lead">
+              {isEnglish
+                ? 'Play with a MIDI keyboard or the on-screen piano. Arrow keys move on desktop.'
+                : 'MIDIキーボードまたは画面鍵盤でプレイできます。PCでは矢印キーで移動します。'}
+            </p>
+
+            <div className="ecr-badges">
+              <div className="ecr-badge">
+                <span className="ecr-badge__key">{isEnglish ? 'Mode' : '出題'}</span>
+                <span className="ecr-badge__value">{chordModeLabel}</span>
+              </div>
+              <div className="ecr-badge">
+                <span className="ecr-badge__key">{isEnglish ? 'Guide' : 'ガイド'}</span>
+                <span className="ecr-badge__value">
+                  {demoConfig.hintMode ? (isEnglish ? 'On' : 'あり') : (isEnglish ? 'Off' : 'なし')}
+                </span>
+              </div>
+              <div className="ecr-badge">
+                <span className="ecr-badge__key">{isEnglish ? 'Time' : '制限時間'}</span>
+                <span className="ecr-badge__value">{demoConfig.timeLimitSec}s</span>
+              </div>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-white/60">{isEnglish ? 'Guide' : 'ガイド'}</span>
-              <span>{demoConfig.hintMode ? (isEnglish ? 'On' : 'あり') : (isEnglish ? 'Off' : 'なし')}</span>
+
+            {loadError && <p className="ecr-error">{loadError}</p>}
+
+            <div className="ecr-stage" aria-hidden="true">
+              <img
+                className="ecr-stage__hero"
+                src={CODE_RUN_HERO_SPRITE_URL}
+                width={CODE_RUN_HERO_SPRITE_WIDTH}
+                height={CODE_RUN_HERO_SPRITE_HEIGHT}
+                alt=""
+                decoding="async"
+              />
+              <div className="ecr-stage__ground" />
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-white/60">{isEnglish ? 'Time limit' : '制限時間'}</span>
-              <span>{demoConfig.timeLimitSec}s</span>
-            </div>
-          </div>
-          {loadError && (
-            <p className="mt-4 text-sm text-red-300">{loadError}</p>
-          )}
-          <button
-            type="button"
-            onClick={() => { void startDemo(); }}
-            className="mt-8 w-full rounded-xl bg-cyan-500 py-4 text-lg font-bold text-black transition hover:bg-cyan-400"
-          >
-            {isEnglish ? 'START' : 'スタート'}
-          </button>
-          {isIphoneSafari() && (
+
             <button
               type="button"
-              onClick={openFullscreenTab}
-              className="mt-3 w-full rounded-xl border border-white/20 py-3 text-sm font-semibold text-white/90"
+              onClick={() => { void startDemo(); }}
+              className="ecr-start"
             >
-              {isEnglish ? 'Open in new tab (fullscreen)' : '別タブで全画面プレイ'}
+              <span className="ecr-start__shine" aria-hidden="true" />
+              <span className="ecr-start__caret" aria-hidden="true">▶</span>
+              {isEnglish ? 'PRESS START' : 'スタート'}
             </button>
-          )}
+
+            {isIphoneSafari() && (
+              <button type="button" onClick={openFullscreenTab} className="ecr-secondary">
+                {isEnglish ? 'Open in new tab (fullscreen)' : '別タブで全画面プレイ'}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -247,38 +270,60 @@ const EmbedCodeRunPage: React.FC = () => {
       )}
 
       {screen === 'finished' && (
-        <div className="mx-auto flex min-h-[var(--dvh,100dvh)] max-w-lg flex-col justify-center px-6 py-10 text-center">
-          <h2 className="text-3xl font-bold">
-            {finishOutcome === 'clear'
-              ? (isEnglish ? 'Nice run!' : 'クリア！')
-              : finishOutcome === 'timeout'
-                ? (isEnglish ? 'Time\'s up!' : '時間切れ！')
-                : (isEnglish ? 'Try again!' : 'もう一度！')}
-          </h2>
-          <p className="mt-3 text-sm text-white/70">
-            {isEnglish
-              ? 'Continue your chord journey with the full Jazzify course.'
-              : 'Jazzify本編でコードランを続けましょう。'}
-          </p>
-          <a
-            href={lpUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleCtaClick}
-            className="mt-8 inline-block w-full rounded-xl bg-amber-400 py-4 text-lg font-bold text-black transition hover:bg-amber-300"
-          >
-            {isEnglish ? 'Explore Jazzify' : 'Jazzifyを見る'}
-          </a>
-          <button
-            type="button"
-            onClick={() => {
-              setFinishOutcome(null);
-              setScreen('pre');
-            }}
-            className="mt-3 w-full rounded-xl border border-white/20 py-3 text-sm font-semibold text-white/90"
-          >
-            {isEnglish ? 'Play again' : 'もう一度プレイ'}
-          </button>
+        <div className="ecr-screen">
+          <div className="ecr-screen__scanlines" aria-hidden="true" />
+          <div className="ecr-screen__inner">
+            <p className="ecr-eyebrow">
+              {finishOutcome === 'clear' ? 'STAGE CLEAR' : 'GAME OVER'}
+            </p>
+            <h2 className="ecr-logo">
+              {finishOutcome === 'clear'
+                ? (isEnglish ? 'NICE RUN!' : 'クリア！')
+                : finishOutcome === 'timeout'
+                  ? (isEnglish ? "TIME'S UP!" : '時間切れ！')
+                  : (isEnglish ? 'TRY AGAIN!' : 'もう一度！')}
+            </h2>
+            <p className="ecr-lead">
+              {isEnglish
+                ? 'Continue your chord journey with the full Jazzify course.'
+                : 'Jazzify本編でコードランを続けましょう。'}
+            </p>
+
+            <div className="ecr-stage" aria-hidden="true">
+              <img
+                className="ecr-stage__hero"
+                src={CODE_RUN_HERO_SPRITE_URL}
+                width={CODE_RUN_HERO_SPRITE_WIDTH}
+                height={CODE_RUN_HERO_SPRITE_HEIGHT}
+                alt=""
+                decoding="async"
+              />
+              <div className="ecr-stage__ground" />
+            </div>
+
+            <a
+              href={lpUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleCtaClick}
+              className="ecr-start"
+            >
+              <span className="ecr-start__shine" aria-hidden="true" />
+              <span className="ecr-start__caret" aria-hidden="true">▶</span>
+              {isEnglish ? 'Explore Jazzify' : 'Jazzifyを見る'}
+            </a>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFinishOutcome(null);
+                setScreen('pre');
+              }}
+              className="ecr-secondary"
+            >
+              {isEnglish ? 'Play again' : 'もう一度プレイ'}
+            </button>
+          </div>
         </div>
       )}
     </div>

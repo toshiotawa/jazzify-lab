@@ -6,16 +6,13 @@ import type {
   CodeRunTileKind,
   CodeRunTileRect,
 } from './CodeRunTypes';
+import { mainCharSprite } from './codeRunSpriteUrls';
 import graveyardRun02LayoutJson from './layouts/graveyard_run_02.layout.json';
 import tutorialLayoutJson from './layouts/tutorial.layout.json';
 import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
 
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
-
-const MAIN_CHAR_BASE = '/RUN/%E3%83%A1%E3%82%A4%E3%83%B3%E3%82%AD%E3%83%A3%E3%83%A9%E3%82%AF%E3%82%BF%E3%83%BC';
-const MAIN_CHAR_VER = '64';
-const mainCharSprite = (name: string): string => `${MAIN_CHAR_BASE}/${name}?v=${MAIN_CHAR_VER}`;
 
 const TILE = CODE_RUN_TILE;
 const VIEW_W = 960;

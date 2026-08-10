@@ -1,0 +1,236 @@
+/* 埋め込みデモの開始画面（アーケード風）。ゲーム本編と同じ夜の街のネオン配色に寄せる。 */
+
+.ecr-screen {
+  position: relative;
+  display: flex;
+  min-height: var(--dvh, 100dvh);
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(80% 55% at 18% 12%, rgba(56, 214, 255, 0.22), transparent 70%),
+    radial-gradient(70% 50% at 86% 82%, rgba(236, 72, 153, 0.24), transparent 72%),
+    radial-gradient(120% 70% at 50% 118%, rgba(126, 233, 255, 0.16), transparent 62%),
+    linear-gradient(180deg, #060a1d 0%, #0d1030 52%, #1a0f33 100%);
+  color: #fff;
+}
+
+.ecr-screen__scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.22) 3px,
+    rgba(0, 0, 0, 0.22) 4px
+  );
+}
+
+.ecr-screen__inner {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 2.5rem, 30rem);
+  margin-inline: auto;
+  padding-block: 2rem;
+  text-align: center;
+}
+
+.ecr-eyebrow {
+  margin: 0;
+  color: rgba(126, 233, 255, 0.85);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+}
+
+.ecr-logo {
+  margin: 0.55rem 0 0;
+  color: #ffe04d;
+  font-size: clamp(2.5rem, 13vw, 3.75rem);
+  font-weight: 900;
+  line-height: 0.94;
+  letter-spacing: 0.04em;
+  text-shadow:
+    0 3px 0 #b7343f,
+    0 5px 18px rgba(230, 56, 87, 0.85),
+    0 2px 3px rgba(0, 0, 0, 0.9);
+}
+
+.ecr-lead {
+  margin: 0.9rem auto 0;
+  max-width: 26rem;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.ecr-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.35rem;
+}
+
+.ecr-badge {
+  display: flex;
+  min-width: 6.5rem;
+  flex: 1 1 6.5rem;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid rgba(126, 233, 255, 0.28);
+  border-radius: 0.6rem;
+  background: rgba(8, 14, 38, 0.62);
+  box-shadow: inset 0 0 12px rgba(56, 214, 255, 0.12);
+}
+
+.ecr-badge__key {
+  color: rgba(126, 233, 255, 0.8);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ecr-badge__value {
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.ecr-error {
+  margin: 1rem 0 0;
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+.ecr-stage {
+  position: relative;
+  margin-top: 1.5rem;
+  height: 6.25rem;
+}
+
+.ecr-stage__hero {
+  position: absolute;
+  bottom: 1.05rem;
+  left: 50%;
+  height: 6rem;
+  width: auto;
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55));
+  animation: ecr-hero-bob 2.4s ease-in-out infinite alternate;
+}
+
+.ecr-stage__ground {
+  position: absolute;
+  bottom: 0.65rem;
+  left: 50%;
+  height: 0.4rem;
+  width: min(100%, 22rem);
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(126, 233, 255, 0.75), transparent);
+  box-shadow: 0 0 18px rgba(56, 214, 255, 0.55);
+}
+
+a.ecr-start {
+  text-align: center;
+  text-decoration: none;
+}
+
+.ecr-start {
+  position: relative;
+  display: block;
+  width: 100%;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  padding: 1.05rem 1.25rem;
+  border: 2px solid rgba(255, 224, 77, 0.9);
+  border-radius: 0.85rem;
+  background: linear-gradient(180deg, #ffe04d 0%, #f5b700 100%);
+  color: #1a1204;
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  box-shadow: 0 8px 0 #a97400, 0 12px 26px rgba(245, 183, 0, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.ecr-start:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 0 #a97400, 0 16px 32px rgba(245, 183, 0, 0.45);
+}
+
+.ecr-start:active {
+  transform: translateY(4px);
+  box-shadow: 0 4px 0 #a97400, 0 8px 18px rgba(245, 183, 0, 0.3);
+}
+
+.ecr-start__shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.68) 50%, transparent 62%);
+  opacity: 0;
+  animation: ecr-shine 2.8s ease-in-out infinite;
+}
+
+.ecr-start__caret {
+  display: inline-block;
+  margin-right: 0.5rem;
+  animation: ecr-blink 1.05s steps(1, end) infinite;
+}
+
+.ecr-secondary {
+  display: block;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ecr-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes ecr-hero-bob {
+  from { transform: translateX(-50%) translateY(0); }
+  to { transform: translateX(-50%) translateY(-0.5rem); }
+}
+
+@keyframes ecr-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes ecr-shine {
+  0%, 62% { opacity: 0; transform: translateX(-60%); }
+  74% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(60%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecr-stage__hero,
+  .ecr-start__caret,
+  .ecr-start__shine {
+    animation: none;
+  }
+
+  .ecr-start__shine {
+    opacity: 0;
+  }
+}
