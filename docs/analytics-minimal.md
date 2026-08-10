@@ -105,6 +105,10 @@ LP（`jazzify.jp` / `en.jazzify.jp`）の Modes セクションにも同じ ifra
 
 探索レポートで `demo_id` × `embed_from` を切ると、記事群・デモ種別ごとのプレイ→クリア率が見える。
 
+**週次 CLI**: `jazzify-ga-report` の `npm run ga:week`（末尾）または `npm run ga:code-run-demo`。`customEvent:embed_from` が未登録のときは iframe URL の `?from=`（`pagePathPlusQueryString`）から出所を推定する。
+
+**GA4 カスタム次元（推奨）**: 管理 → カスタム定義 → イベントスコープで `embed_from` / `demo_id` を登録すると Data API の `customEvent:embed_from` が使える。
+
 ### iOS からの GA4 送信
 
 ネイティブは `gtag.js` を使えないため、Measurement Protocol を **Netlify Function 経由**で送る。

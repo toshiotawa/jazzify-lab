@@ -5,6 +5,7 @@ import {
   GA_SITE,
   logGaHeader,
 } from "./client.js";
+import { printCodeRunDemoReports } from "./reports/codeRunDemo.js";
 
 const RANGE = [{ startDate: "7daysAgo", endDate: "yesterday" }] as const;
 
@@ -21,6 +22,7 @@ const JAZZIFY_KEY_EVENTS = [
   "midi_connected",
   "code_run_demo_play",
   "code_run_demo_clear",
+  "lp_chord_run_demo_open",
 ] as const;
 
 async function report(
@@ -170,6 +172,8 @@ async function main(): Promise<void> {
         limit: 20,
       },
     );
+
+    await printCodeRunDemoReports();
   }
 }
 

@@ -1,4 +1,5 @@
--- ソフトランディング（コードラン初級 block1）の進捗ファネル
+-- ソフトランディング（コードラン初級 block1）の進捗ファネル（全会員スナップショット）
+-- 7日コホート版: scripts/analytics/weekly_soft_landing_marketing.sql（節 A–C）
 -- 実行: Supabase SQL Editor または psql
 --
 -- 2026-08-11 時点スナップショット（無料ユーザー）:

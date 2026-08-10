@@ -39,7 +39,8 @@ cp .env.example .env
 
 ```bash
 npm run ga:daily        # 直近7日: ユーザー / セッション / PV / キーイベント
-npm run ga:week         # 直近7日: 日次 + 端末 + 国 + イベント + 流入 + sign_up帰属
+npm run ga:week         # 直近7日: 日次 + 端末 + 国 + イベント + 流入 + sign_up帰属 + LP/ブログコードラン
+npm run ga:code-run-demo # 直近7日: LP/ブログ/埋め込みコードラン（open/play/clear × embed_from）
 npm run ga:acquisition  # 直近30日: source / medium / campaign / content
 npm run ga:events       # 直近30日: 主要イベント別
 ```

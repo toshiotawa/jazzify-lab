@@ -107,6 +107,7 @@ ORDER BY cnt DESC;
 
 -- ============================================================
 -- F. first-touch UTM / landing
+-- iOS: 新ビルドは app_store/organic、旧登録は (none) が多い。投稿別は ASC Campaign Link。
 -- ============================================================
 SELECT
   coalesce(p.first_touch_utm_source, '(none)') AS utm_source,
@@ -185,5 +186,33 @@ SELECT
     1
   ) AS opt_in_pct
 FROM public.profiles p
+GROUP BY 1
+ORDER BY profiles DESC;
+
+-- ============================================================
+-- J. marketing_email_opt_in 率（7日コホート）
+-- ============================================================
+SELECT
+  count(*) AS new_profiles,
+  count(*) FILTER (WHERE p.marketing_email_opt_in = true) AS opt_in,
+  round(
+    100.0 * count(*) FILTER (WHERE p.marketing_email_opt_in = true) / nullif(count(*), 0),
+    1
+  ) AS opt_in_pct
+FROM public.profiles p
+JOIN auth.users u ON u.id = p.id
+WHERE u.created_at >= now() - interval '7 days';
+
+SELECT
+  coalesce(p.signup_platform, '(null)') AS signup_platform,
+  count(*) AS profiles,
+  count(*) FILTER (WHERE p.marketing_email_opt_in = true) AS opt_in,
+  round(
+    100.0 * count(*) FILTER (WHERE p.marketing_email_opt_in = true) / nullif(count(*), 0),
+    1
+  ) AS opt_in_pct
+FROM public.profiles p
+JOIN auth.users u ON u.id = p.id
+WHERE u.created_at >= now() - interval '7 days'
 GROUP BY 1
 ORDER BY profiles DESC;

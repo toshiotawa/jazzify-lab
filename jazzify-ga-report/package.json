@@ -9,6 +9,7 @@
     "ga:acquisition": "tsx src/ga-acquisition.ts",
     "ga:events": "tsx src/ga-events.ts",
     "ga:week": "tsx src/ga-week.ts",
+    "ga:code-run-demo": "tsx src/ga-code-run-demo.ts",
     "ga:report": "tsx src/ga-report.ts",
     "ga:jpd:daily": "tsx src/ga-daily.ts --site=jazzpianodays",
     "ga:jpd:acquisition": "tsx src/ga-acquisition.ts --site=jazzpianodays",
