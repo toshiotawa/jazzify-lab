@@ -13,6 +13,14 @@ struct AdlibCallResponseTarget: Equatable, Sendable {
     let guideMidis: [Int]
 }
 
+/// MusicXML `<harmony>` 由来のコードスロット（連続同一コードはマージ済み）。
+struct AdlibCallResponseChordSlot: Equatable, Sendable {
+    let id: String
+    let name: String
+    let measureNumber: Int
+    let startTimeSec: Double
+}
+
 enum EarTrainingAdlibCallResponseTargets {
     /// アドリブ C&R: MusicXML voice 1 のみを判定ターゲットとする
     static let targetVoice = 1
@@ -23,6 +31,91 @@ enum EarTrainingAdlibCallResponseTargets {
 
     private static func targetId(measureNumber: Int, beatStartInMeasure: Double, orderIndex: Int) -> String {
         "acr:\(measureNumber):\(String(format: "%.4f", beatStartInMeasure)):\(orderIndex)"
+    }
+
+    private static func chordSlotId(measureNumber: Int, beatStartInMeasure: Double, orderIndex: Int) -> String {
+        "acr-chord:\(measureNumber):\(String(format: "%.4f", beatStartInMeasure)):\(orderIndex)"
+    }
+
+    /// MusicXML `<harmony>` からコードスロット列を生成。連続する同一コード名は1スロットにマージ。
+    static func buildChordSlots(
+        from musicXmlText: String,
+        bpm: Double,
+        beatsPerMeasure: Int,
+        isSwing: Bool = false
+    ) -> [AdlibCallResponseChordSlot] {
+        let events = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdHarmonyEvents(musicXmlText)
+        guard !events.isEmpty else { return [] }
+
+        let sorted = events.sorted { lhs, rhs in
+            let timeLhs = EarTrainingChordOsmdParrySpan.lyricTargetTimeSec(
+                measureNumber: lhs.measureNumber,
+                beatStartInMeasure: lhs.beatStartInMeasure,
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure,
+                isSwing: isSwing
+            )
+            let timeRhs = EarTrainingChordOsmdParrySpan.lyricTargetTimeSec(
+                measureNumber: rhs.measureNumber,
+                beatStartInMeasure: rhs.beatStartInMeasure,
+                bpm: bpm,
+                beatsPerMeasure: beatsPerMeasure,
+                isSwing: isSwing
+            )
+            if abs(timeLhs - timeRhs) > 1e-9 { return timeLhs < timeRhs }
+            if lhs.measureNumber != rhs.measureNumber { return lhs.measureNumber < rhs.measureNumber }
+            return lhs.beatStartInMeasure < rhs.beatStartInMeasure
+        }
+
+        var slots: [AdlibCallResponseChordSlot] = []
+        var lastName: String?
+        for event in sorted {
+            let trimmedName = event.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty, trimmedName != lastName else { continue }
+            lastName = trimmedName
+            slots.append(
+                AdlibCallResponseChordSlot(
+                    id: chordSlotId(
+                        measureNumber: event.measureNumber,
+                        beatStartInMeasure: event.beatStartInMeasure,
+                        orderIndex: slots.count
+                    ),
+                    name: trimmedName,
+                    measureNumber: event.measureNumber,
+                    startTimeSec: EarTrainingChordOsmdParrySpan.lyricTargetTimeSec(
+                        measureNumber: event.measureNumber,
+                        beatStartInMeasure: event.beatStartInMeasure,
+                        bpm: bpm,
+                        beatsPerMeasure: beatsPerMeasure,
+                        isSwing: isSwing
+                    )
+                )
+            )
+        }
+        return slots
+    }
+
+    /// `startTimeSec <= phraseTimeSec` を満たす最後のスロット index。先頭未満なら 0。
+    /// アクティブ index はフレーズ内で単調増加するため、前回値を `fromIndex` に渡すと走査が償却 O(1) になる。
+    /// `resolveStartTimeSec` は練習速度などのスケーリング適用用。
+    static func activeChordSlotIndex(
+        slots: [AdlibCallResponseChordSlot],
+        phraseTimeSec: Double,
+        fromIndex: Int = 0,
+        resolveStartTimeSec: ((Double) -> Double)? = nil
+    ) -> Int {
+        guard !slots.isEmpty, phraseTimeSec.isFinite else { return 0 }
+        var activeIndex = min(max(0, fromIndex), slots.count - 1)
+        var index = activeIndex + 1
+        while index < slots.count {
+            let startTimeSec = resolveStartTimeSec?(slots[index].startTimeSec) ?? slots[index].startTimeSec
+            if startTimeSec > phraseTimeSec + 1e-9 {
+                break
+            }
+            activeIndex = index
+            index += 1
+        }
+        return activeIndex
     }
 
     /// MusicXML から voice1 アタックを収集する。

@@ -141,10 +141,20 @@ export interface ChordOsmdMusicXmlAttack {
   spellings?: readonly string[];
 }
 
+/** MusicXML `<harmony>` の出現位置とコード名。 */
+export interface ChordOsmdHarmonyEvent {
+  measureNumber: number;
+  /** 小節内の拍位置（先頭拍を 1）。四分音符グリッド。 */
+  beatStartInMeasure: number;
+  name: string;
+}
+
 /** MusicXML アタック収集オプション。未指定時は voice 4 ガイドのみ除外（従来どおり）。 */
 export interface CollectChordOsmdAttacksOptions {
   /** 指定時、この voice のクラスタのみターゲット化 */
   readonly targetVoice?: number;
+  /** 指定時、`<harmony>` 出現ごとにコールバック（音符クラスタとは独立） */
+  readonly onHarmony?: (event: ChordOsmdHarmonyEvent) => void;
 }
 
 /** MusicXML 1 番（verse 1）歌詞の表示タイミング（フレーズ冒頭 0 秒基準・Audio と同じ BPM 換算） */
@@ -928,6 +938,39 @@ export const musicXmlNoteHasTieStop = noteHasTieStop;
 
 export const chordOsmdBeatToTargetTimeSec = chordOsmdLyricTargetTimeSec;
 
+const stepAlterToHarmonyName = (step: string, alter: number): string => {
+  if (alter > 0) {
+    return `${step}${'#'.repeat(alter)}`;
+  }
+  if (alter < 0) {
+    return `${step}${'b'.repeat(Math.abs(alter))}`;
+  }
+  return step;
+};
+
+const getHarmonyNameFromElement = (harmony: Element): string => {
+  const rootEl = getDirectChild(harmony, 'root');
+  const rootStep = rootEl ? getDirectChildText(rootEl, 'root-step') ?? 'C' : 'C';
+  const rootAlterRaw = rootEl ? getDirectChildText(rootEl, 'root-alter') ?? '0' : '0';
+  const rootAlter = Number(rootAlterRaw);
+  const kindEl = getDirectChild(harmony, 'kind');
+  const kindText = kindEl?.getAttribute('text')?.trim()
+    || kindEl?.textContent?.trim()
+    || '';
+  const bassEl = getDirectChild(harmony, 'bass');
+  const bassStep = bassEl ? getDirectChildText(bassEl, 'bass-step') : null;
+  const bassAlterRaw = bassEl ? getDirectChildText(bassEl, 'bass-alter') ?? '0' : '0';
+  const bassAlter = Number(bassAlterRaw);
+  const rootName = stepAlterToHarmonyName(rootStep, Number.isFinite(rootAlter) ? rootAlter : 0);
+
+  if (!bassStep) {
+    return `${rootName}${kindText}`.trim();
+  }
+
+  const bassName = stepAlterToHarmonyName(bassStep, Number.isFinite(bassAlter) ? bassAlter : 0);
+  return `${rootName}${kindText}/${bassName}`.trim();
+};
+
 /**
  * ピッチを持つ音符クラスタ（先頭＋`<chord/>`）ごとにコールバック。`collectChordOsmdMusicXmlAttacks` と同一走査。
  */
@@ -937,6 +980,7 @@ export const forEachChordOsmdNoteCluster = (
   options?: CollectChordOsmdAttacksOptions,
 ): void => {
   const targetVoice = options?.targetVoice;
+  const onHarmony = options?.onHarmony;
   if (typeof DOMParser === 'undefined') {
     return;
   }
@@ -982,6 +1026,20 @@ export const forEachChordOsmdNoteCluster = (
         const dur = parsePositiveNumber(getDirectChildText(child, 'duration'));
         if (dur !== null) {
           currentTime += dur;
+        }
+        ci += 1;
+        continue;
+      }
+      if (child.localName === 'harmony') {
+        if (onHarmony) {
+          const divisions = Math.max(1, timing.divisions);
+          const quartersFromMeasureStart = currentTime / divisions;
+          const beatStartInMeasure = quartersFromMeasureStart + 1;
+          onHarmony({
+            measureNumber,
+            beatStartInMeasure,
+            name: getHarmonyNameFromElement(child),
+          });
         }
         ci += 1;
         continue;
@@ -1126,6 +1184,23 @@ export const collectChordOsmdMusicXmlAttacks = (
     }
   }, options);
   return attacks;
+};
+
+/** MusicXML から `<harmony>` 出現を measure + beat + コード名で収集。 */
+export const collectChordOsmdHarmonyEvents = (
+  musicXmlText: string,
+): ChordOsmdHarmonyEvent[] => {
+  const events: ChordOsmdHarmonyEvent[] = [];
+  forEachChordOsmdNoteCluster(
+    musicXmlText,
+    () => undefined,
+    {
+      onHarmony: (event) => {
+        events.push(event);
+      },
+    },
+  );
+  return events;
 };
 
 const verseOneLyricTextFromNote = (noteEl: Element): string | null => {

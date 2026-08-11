@@ -1,6 +1,7 @@
 import {
   chordOsmdBeatToTargetTimeSec,
   chordOsmdRankForAccuracy,
+  collectChordOsmdHarmonyEvents,
   collectChordOsmdMusicXmlAttacks,
   type ChordOsmdMusicXmlAttack,
 } from '@/utils/earTrainingChordOsmd';
@@ -25,6 +26,92 @@ export interface BuildAdlibCallResponseTargetsOptions {
   readonly beatsPerMeasure: number;
   readonly isSwing?: boolean;
 }
+
+export interface AdlibCallResponseChordSlot {
+  id: string;
+  name: string;
+  measureNumber: number;
+  startTimeSec: number;
+}
+
+const chordSlotId = (measureNumber: number, beatStartInMeasure: number, orderIndex: number): string => (
+  `acr-chord:${measureNumber}:${beatStartInMeasure.toFixed(4)}:${orderIndex}`
+);
+
+/** MusicXML `<harmony>` からコードスロット列を生成。連続する同一コード名は1スロットにマージ。 */
+export const buildAdlibCallResponseChordSlots = (
+  musicXmlText: string,
+  options: BuildAdlibCallResponseTargetsOptions,
+): AdlibCallResponseChordSlot[] => {
+  const { bpm, beatsPerMeasure, isSwing = false } = options;
+  const events = collectChordOsmdHarmonyEvents(musicXmlText);
+  if (events.length === 0) {
+    return [];
+  }
+
+  const sorted = events.slice().sort((a, b) => {
+    const timeA = chordOsmdBeatToTargetTimeSec(a.measureNumber, a.beatStartInMeasure, bpm, beatsPerMeasure, isSwing);
+    const timeB = chordOsmdBeatToTargetTimeSec(b.measureNumber, b.beatStartInMeasure, bpm, beatsPerMeasure, isSwing);
+    if (Math.abs(timeA - timeB) > 1e-9) {
+      return timeA - timeB;
+    }
+    if (a.measureNumber !== b.measureNumber) {
+      return a.measureNumber - b.measureNumber;
+    }
+    return a.beatStartInMeasure - b.beatStartInMeasure;
+  });
+
+  const slots: AdlibCallResponseChordSlot[] = [];
+  let lastName: string | null = null;
+  for (const event of sorted) {
+    const trimmedName = event.name.trim();
+    if (!trimmedName || trimmedName === lastName) {
+      continue;
+    }
+    lastName = trimmedName;
+    slots.push({
+      id: chordSlotId(event.measureNumber, event.beatStartInMeasure, slots.length),
+      name: trimmedName,
+      measureNumber: event.measureNumber,
+      startTimeSec: chordOsmdBeatToTargetTimeSec(
+        event.measureNumber,
+        event.beatStartInMeasure,
+        bpm,
+        beatsPerMeasure,
+        isSwing,
+      ),
+    });
+  }
+  return slots;
+};
+
+/**
+ * `startTimeSec <= phraseTimeSec` を満たす最後のスロット index。先頭未満なら 0。
+ * アクティブ index はフレーズ内で単調増加するため、前回値を `fromIndex` に渡すと走査が償却 O(1) になる。
+ * `resolveStartTimeSec` は練習速度などのスケーリング適用用（毎回同じ参照を渡すこと）。
+ */
+export const resolveAdlibCallResponseActiveChordSlotIndex = (
+  slots: readonly AdlibCallResponseChordSlot[],
+  phraseTimeSec: number,
+  fromIndex = 0,
+  resolveStartTimeSec?: (startTimeSec: number) => number,
+): number => {
+  if (slots.length === 0 || !Number.isFinite(phraseTimeSec)) {
+    return 0;
+  }
+  const start = Math.min(Math.max(0, Math.trunc(fromIndex)), slots.length - 1);
+  let activeIndex = start;
+  for (let i = start + 1; i < slots.length; i += 1) {
+    const startTimeSec = resolveStartTimeSec
+      ? resolveStartTimeSec(slots[i].startTimeSec)
+      : slots[i].startTimeSec;
+    if (startTimeSec > phraseTimeSec + 1e-9) {
+      break;
+    }
+    activeIndex = i;
+  }
+  return activeIndex;
+};
 
 const midiToPitchClass = (midi: number): number => ((Math.round(midi) % 12) + 12) % 12;
 

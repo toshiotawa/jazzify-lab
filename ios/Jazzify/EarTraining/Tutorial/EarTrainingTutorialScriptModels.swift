@@ -204,6 +204,7 @@ enum EarTrainingTutorialScene: Decodable, Sendable {
     case chordVoicingSelfPaced(EarTrainingTutorialSelfPacedScene)
     case chordOsmd(EarTrainingTutorialOsmdScene)
     case adlib(EarTrainingTutorialAdlibScene)
+    case adlibCallResponse(EarTrainingTutorialAdlibCallResponseScene)
     case phrasePairAdlib(EarTrainingTutorialPhrasePairAdlibScene)
     case composite(EarTrainingTutorialCompositeScene)
     case finish
@@ -226,6 +227,8 @@ enum EarTrainingTutorialScene: Decodable, Sendable {
             self = .chordOsmd(try EarTrainingTutorialOsmdScene(from: decoder))
         case "adlib":
             self = .adlib(try EarTrainingTutorialAdlibScene(from: decoder))
+        case "adlib_call_response":
+            self = .adlibCallResponse(try EarTrainingTutorialAdlibCallResponseScene(from: decoder))
         case "phrase_pair_adlib":
             self = .phrasePairAdlib(try EarTrainingTutorialPhrasePairAdlibScene(from: decoder))
         case "composite":
@@ -285,6 +288,12 @@ struct EarTrainingTutorialOsmdScene: Decodable, Sendable {
 struct EarTrainingTutorialAdlibScene: Decodable, Sendable {
     let contentRef: String
     let requiredMeasures: Int
+    let timedLines: [EarTrainingTutorialOsmdTimedLine]?
+}
+
+struct EarTrainingTutorialAdlibCallResponseScene: Decodable, Sendable {
+    let contentRef: String
+    let requiredLoops: Int
     let timedLines: [EarTrainingTutorialOsmdTimedLine]?
 }
 

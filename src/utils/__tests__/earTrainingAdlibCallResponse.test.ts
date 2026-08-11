@@ -1,13 +1,15 @@
 import {
   adlibCallResponseHitRatio,
   adlibCallResponseRankForAccuracy,
+  buildAdlibCallResponseChordSlots,
   buildAdlibCallResponseHintGroups,
   buildAdlibCallResponseTargets,
   collectAdlibCallResponseAttacks,
   matchesAdlibCallResponseTarget,
+  resolveAdlibCallResponseActiveChordSlotIndex,
   resolveAdlibCallResponseActiveHintGuideMidis,
 } from '@/utils/earTrainingAdlibCallResponse';
-import { collectChordOsmdMusicXmlAttacks } from '@/utils/earTrainingChordOsmd';
+import { collectChordOsmdHarmonyEvents, collectChordOsmdMusicXmlAttacks } from '@/utils/earTrainingChordOsmd';
 
 const miniScore = (measureInner: string): string => `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="3.1">
@@ -116,6 +118,90 @@ describe('adlibCallResponseHitRatio', () => {
     expect(adlibCallResponseHitRatio(targets, 1)).toBeCloseTo(0.5, 5);
     expect(adlibCallResponseHitRatio(targets, 2)).toBeCloseTo(1, 5);
     expect(adlibCallResponseRankForAccuracy(1)).toBe('Perfect');
+  });
+});
+
+describe('collectChordOsmdHarmonyEvents / buildAdlibCallResponseChordSlots', () => {
+  it('harmony から root-alter / kind text / bass を読み取る', () => {
+    const xml = miniScore(`<attributes><divisions>1</divisions></attributes>
+<harmony><root><root-step>C</root-step><root-alter>0</root-alter></root><kind text="m7">minor-seventh</kind></harmony>
+<harmony><root><root-step>D</root-step></root><kind text="7">dominant</kind><bass><bass-step>F</bass-step><bass-alter>0</bass-alter></bass></harmony>`);
+    const events = collectChordOsmdHarmonyEvents(xml);
+    expect(events).toHaveLength(2);
+    expect(events[0].name).toBe('Cm7');
+    expect(events[1].name).toBe('D7/F');
+  });
+
+  it('連続する同一コード名は1スロットにマージする', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Music</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1"><attributes><divisions>1</divisions></attributes>
+      <harmony><root><root-step>C</root-step></root><kind text="7">dominant</kind></harmony>
+    </measure>
+    <measure number="2">
+      <harmony><root><root-step>C</root-step></root><kind text="7">dominant</kind></harmony>
+    </measure>
+    <measure number="3">
+      <harmony><root><root-step>F</root-step></root><kind text="7">dominant</kind></harmony>
+    </measure>
+  </part>
+</score-partwise>`;
+    const slots = buildAdlibCallResponseChordSlots(xml, { bpm: 120, beatsPerMeasure: 4 });
+    expect(slots).toHaveLength(2);
+    expect(slots.map(slot => slot.name)).toEqual(['C7', 'F7']);
+    expect(slots[0].startTimeSec).toBeCloseTo(0, 5);
+    expect(slots[1].startTimeSec).toBeCloseTo(4, 5);
+  });
+
+  it('voice1 音符が無い小節の harmony もスロットになる', () => {
+    const xml = miniScore(`<attributes><divisions>1</divisions></attributes>
+<harmony><root><root-step>G</root-step></root><kind text="7">dominant</kind></harmony>
+<note><rest/><duration>1</duration><voice>1</voice></note>`);
+    const slots = buildAdlibCallResponseChordSlots(xml, { bpm: 120, beatsPerMeasure: 4 });
+    expect(slots).toHaveLength(1);
+    expect(slots[0].name).toBe('G7');
+  });
+});
+
+describe('resolveAdlibCallResponseActiveChordSlotIndex', () => {
+  const slots = buildAdlibCallResponseChordSlots(
+    `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Music</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1"><attributes><divisions>1</divisions></attributes>
+      <harmony><root><root-step>C</root-step></root><kind text="7">dominant</kind></harmony>
+    </measure>
+    <measure number="2">
+      <harmony><root><root-step>F</root-step></root><kind text="7">dominant</kind></harmony>
+    </measure>
+  </part>
+</score-partwise>`,
+    { bpm: 120, beatsPerMeasure: 4 },
+  );
+
+  it('先頭未満は 0、境界秒ちょうどで進み、最終以降は末尾を維持', () => {
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, -1)).toBe(0);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 0)).toBe(0);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 1.999)).toBe(0);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 2)).toBe(1);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 99)).toBe(1);
+  });
+
+  it('fromIndex を渡しても 0 から走査した場合と同じ結果になる', () => {
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 2, 0)).toBe(1);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 2, 1)).toBe(1);
+    // 範囲外の fromIndex はクランプされる
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 0, -5)).toBe(0);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 99, 99)).toBe(1);
+  });
+
+  it('resolveStartTimeSec でスケールした開始秒を基準に判定する', () => {
+    const halfSpeed = (sec: number) => sec * 2;
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 2, 0, halfSpeed)).toBe(0);
+    expect(resolveAdlibCallResponseActiveChordSlotIndex(slots, 4, 0, halfSpeed)).toBe(1);
   });
 });
 

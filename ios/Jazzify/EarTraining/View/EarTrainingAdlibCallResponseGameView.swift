@@ -8,6 +8,7 @@ struct EarTrainingAdlibCallResponseGameView: View {
     let lessonContext: EarTrainingLessonContext?
     let locale: AppLocale
     var initialPracticeMode: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
     var hostedLandscapeSize: CGSize?
     let onClose: () -> Void
 
@@ -119,6 +120,10 @@ struct EarTrainingAdlibCallResponseGameView: View {
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
+            if let tutorialHooks {
+                createdController.tutorialNoCombat = tutorialHooks.noCombat
+                createdController.tutorialHooks = tutorialHooks
+            }
 
             attachMidiFinishBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {

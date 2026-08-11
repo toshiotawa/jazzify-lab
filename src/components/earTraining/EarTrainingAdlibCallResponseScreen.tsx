@@ -92,12 +92,15 @@ import {
 import {
   adlibCallResponseHitRatio,
   adlibCallResponseRankForAccuracy,
+  buildAdlibCallResponseChordSlots,
   buildAdlibCallResponseHintGroups,
   buildAdlibCallResponseTargets,
   collectAdlibCallResponseAttacks,
   getAdlibCallResponseTargetCount,
   matchesAdlibCallResponseTarget,
+  resolveAdlibCallResponseActiveChordSlotIndex,
   resolveAdlibCallResponseActiveHintGuideMidis,
+  type AdlibCallResponseChordSlot,
   type AdlibCallResponseHintGroup,
   type AdlibCallResponseTarget,
 } from '@/utils/earTrainingAdlibCallResponse';
@@ -127,7 +130,7 @@ import {
   shouldTutorialBlockGameOver,
 } from '@/components/earTraining/tutorial/earTrainingTutorialBindings';
 import type { EarTrainingTutorialOsmdSceneResult } from '@/components/earTraining/tutorial/earTrainingTutorialScriptTypes';
-import type { EarTrainingTutorialOsmdConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
+import type { EarTrainingTutorialAdlibCallResponseConfig } from '@/components/earTraining/tutorial/earTrainingTutorialSceneConfig';
 import {
   scheduleOsmdTimedLinesForLoop,
   type DialogueScheduleHandle,
@@ -147,7 +150,7 @@ interface EarTrainingAdlibCallResponseScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
-  tutorial?: EarTrainingTutorialOsmdConfig & {
+  tutorial?: EarTrainingTutorialAdlibCallResponseConfig & {
     drumLoopUrl?: string;
     onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
   };
@@ -312,8 +315,19 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     () => (musicXmlText ? collectAdlibCallResponseAttacks(musicXmlText) : null),
     [musicXmlText],
   );
+  const chordSlots = useMemo(
+    () => (musicXmlText
+      ? buildAdlibCallResponseChordSlots(musicXmlText, {
+        bpm: stage.bpm,
+        beatsPerMeasure: stage.beats_per_measure,
+        isSwing: stage.is_swing === true,
+      })
+      : []),
+    [musicXmlText, stage.bpm, stage.beats_per_measure, stage.is_swing],
+  );
   const [targets, setTargets] = useState<AdlibCallResponseTarget[]>([]);
   const [completedTargetCount, setCompletedTargetCount] = useState(0);
+  const [activeChordSlotIndex, setActiveChordSlotIndex] = useState(0);
   const [lastRank, setLastRank] = useState<EarTrainingRank | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
@@ -351,6 +365,8 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
   const nextHammerTargetIndexRef = useRef(0);
   const nextApproachTargetIndexRef = useRef(0);
   const nextMissTargetIndexRef = useRef(0);
+  const chordSlotsRef = useRef<readonly AdlibCallResponseChordSlot[]>([]);
+  const activeChordSlotIndexRef = useRef(0);
   const finishCurrentPhraseRef = useRef<(runId: number) => void>(() => undefined);
   const practiceTransposeOffsetRef = useRef(0);
   const practiceSpeedPercentRef = useRef(100);
@@ -366,6 +382,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
   useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
+  useEffect(() => { chordSlotsRef.current = chordSlots; }, [chordSlots]);
 
   const resolveEffectiveTargetTimeSec = useCallback((targetTimeSec: number): number => {
     if (!practiceModeRef.current) {
@@ -850,6 +867,8 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     hintGroupsRef.current = buildAdlibCallResponseHintGroups(nextTargets);
     runtimeByTargetIdRef.current = runtime;
     resetPhraseTimelineIndices();
+    activeChordSlotIndexRef.current = 0;
+    setActiveChordSlotIndex(0);
     pianoOverlayRef.current?.clearVoicingHints();
     setTargets([...nextTargets]);
     setCompletedTargetCount(0);
@@ -1076,6 +1095,23 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     }
   }, [failTargetIfNeeded, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
 
+  const syncActiveChordSlotIndex = useCallback((phraseTimeSec: number) => {
+    const slots = chordSlotsRef.current;
+    if (slots.length === 0) {
+      return;
+    }
+    const activeIdx = resolveAdlibCallResponseActiveChordSlotIndex(
+      slots,
+      phraseTimeSec,
+      activeChordSlotIndexRef.current,
+      resolveEffectiveTargetTimeSec,
+    );
+    if (activeIdx !== activeChordSlotIndexRef.current) {
+      activeChordSlotIndexRef.current = activeIdx;
+      setActiveChordSlotIndex(activeIdx);
+    }
+  }, [resolveEffectiveTargetTimeSec]);
+
   const handlePhraseTimelineTick = useCallback(() => {
     if (phraseEndingRef.current) {
       return;
@@ -1094,6 +1130,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     spawnDueApproachCircles(phraseTimeSec);
     failExpiredTargets(phraseTimeSec);
     syncPracticeVoicingHints();
+    syncActiveChordSlotIndex(phraseTimeSec);
 
     if (state !== 'playingPhrase') {
       return;
@@ -1103,6 +1140,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     }
   }, [
     failExpiredTargets,
+    syncActiveChordSlotIndex,
     syncPracticeVoicingHints,
     spawnDueApproachCircles,
     throwDueHammers,
@@ -1217,7 +1255,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
           countInBeats: stage.count_in_beats,
           loopMeasures: stage.loop_measures,
           phraseLoopDurationSec: safeLoopDurationSec,
-          timedLines: tutorial.scene.timedLines,
+          timedLines: tutorial.scene.timedLines ?? [],
           isEnglishCopy,
           onLine: (text) => {
             phaserGameRef.current?.setPlayerQuote(text);
@@ -1726,6 +1764,15 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     return () => clearTimeout(timer);
   }, [startBattle, tutorial?.bindings.ui.hideLobby]);
 
+  const battleChords = useMemo(
+    () => chordSlots.map((slot, index) => ({
+      id: slot.id,
+      name: slot.name,
+      active: index === activeChordSlotIndex,
+    })),
+    [activeChordSlotIndex, chordSlots],
+  );
+
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
     resultState,
@@ -1756,8 +1803,8 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     demoLoopActive: false,
     enemyAttackGaugePercent: 0,
     attackGaugeHidden: true,
-    chordHudHidden: true,
-    chords: [],
+    chordHudHidden: chordSlots.length === 0,
+    chords: battleChords,
     phraseSlotsHidden: true,
     phraseSlots: [],
     revealedNotes: [],
@@ -1785,7 +1832,9 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     disableEnemyAttacks: false,
     keyboardHintsDefault: false,
   }), [
+    battleChords,
     canChangePracticeMode,
+    chordSlots.length,
     clearConditionLine,
     completedTargetCount,
     enemyAvatar,

@@ -29,6 +29,9 @@ const EarTrainingAdlibScreen = React.lazy(
 const EarTrainingPhrasePairAdlibScreen = React.lazy(
   () => import('@/components/earTraining/EarTrainingPhrasePairAdlibScreen'),
 );
+const EarTrainingAdlibCallResponseScreen = React.lazy(
+  () => import('@/components/earTraining/EarTrainingAdlibCallResponseScreen'),
+);
 
 interface EarTrainingTutorialSceneHostProps {
   script: EarTrainingTutorialScriptPayload;
@@ -143,6 +146,29 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
     return (
       <React.Suspense fallback={null}>
         <EarTrainingChordOSMDScreen
+          stage={stage}
+          enemy={enemy}
+          lessonContext={null}
+          initialPracticeMode={false}
+          onLessonStageClear={async () => undefined}
+          onBack={() => bindings.onExit()}
+          tutorial={{
+            scene,
+            bindings,
+            onSceneComplete: completeOnce,
+            drumLoopUrl: osmdDrumLoopUrl,
+            timingReturnContext,
+          }}
+        />
+      </React.Suspense>
+    );
+  }
+
+  if (scene.type === 'adlib_call_response') {
+    const osmdDrumLoopUrl = resolveTutorialOsmdDrumLoopUrl(script.content, scene.contentRef);
+    return (
+      <React.Suspense fallback={null}>
+        <EarTrainingAdlibCallResponseScreen
           stage={stage}
           enemy={enemy}
           lessonContext={null}

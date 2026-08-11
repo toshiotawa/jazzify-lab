@@ -301,6 +301,44 @@
         }
       ]
     },
+    "adlib-call-response": {
+      "stage": {
+        "slug": "tutorial-adlib-call-response",
+        "title": "チュートリアル・アドリブC&R",
+        "title_en": "Tutorial adlib call & response",
+        "bpm": 120,
+        "key_fifths": 0,
+        "beats_per_measure": 4,
+        "beat_type": 4,
+        "loop_measures": 24,
+        "max_loops_per_phrase": 2,
+        "count_in_beats": 0,
+        "time_limit_sec": 600,
+        "player_hp": 100,
+        "enemy_hp": 10000,
+        "per_correct_note_damage": 10,
+        "good_completion_damage": 30,
+        "miss_damage": 0,
+        "fail_damage": 0,
+        "background_theme": "blue_club",
+        "mode": "adlib_call_response",
+        "osmd_targets_from_score": false,
+        "is_swing": true,
+        "show_keyboard_hints_in_battle": true
+      },
+      "phrases": [
+        {
+          "order_index": 0,
+          "title": "Cブルース・ドミファ（C&R）",
+          "title_en": "C blues domifa (C&R)",
+          "music_xml_url": "https://jazzify-cdn.com/sozai/dev-adlib-call-response-domifa.musicxml?v=202607301445",
+          "audio_url": "https://jazzify-cdn.com/sozai/mq-b2-domifa_count-in.mp3",
+          "loop_duration_sec": 50,
+          "audio_duration_sec": 50,
+          "note_count": 0
+        }
+      ]
+    },
     "tutorial-adlib": {
       "stage": {
         "slug": "tutorial-adlib",
@@ -327,8 +365,8 @@
           "order_index": 0,
           "title": "Adlib loop",
           "audio_url": "https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3",
-          "loop_duration_sec": 4,
-          "audio_duration_sec": 4,
+          "loop_duration_sec": 9.6,
+          "audio_duration_sec": 9.6,
           "note_count": 0,
           "chords": [
             {
@@ -355,21 +393,8 @@
             },
             {
               "order_index": 1,
-              "chord_name": "—",
-              "measure_number": 2,
-              "duration_beats": 4,
-              "input_disabled": true,
-              "voicing": [],
-              "voicing_staves": [],
-              "quote": {
-                "ja": "2 小節目：聴くだけ。",
-                "en": "Measure 2: listen only."
-              }
-            },
-            {
-              "order_index": 2,
               "chord_name": "G7",
-              "measure_number": 3,
+              "measure_number": 2,
               "duration_beats": 4,
               "voicing": [
                 "G3",
@@ -383,6 +408,19 @@
                 1,
                 1
               ]
+            },
+            {
+              "order_index": 2,
+              "chord_name": "CM7",
+              "measure_number": 3,
+              "duration_beats": 4,
+              "input_disabled": true,
+              "voicing": [],
+              "voicing_staves": [],
+              "quote": {
+                "ja": "3 小節目：聴くだけ。",
+                "en": "Measure 3: listen only."
+              }
             },
             {
               "order_index": 3,
@@ -552,6 +590,57 @@
           "order_index": 0,
           "title": "Phrase A",
           "loop_duration_sec": 4,
+          "note_count": 6,
+          "notes": [
+            {
+              "note_index": 0,
+              "pitch_midi": 64,
+              "pitch_class": 4,
+              "note_name": "E4",
+              "octave": 4,
+              "measure_number": 1
+            },
+            {
+              "note_index": 1,
+              "pitch_midi": 62,
+              "pitch_class": 2,
+              "note_name": "D4",
+              "octave": 4,
+              "measure_number": 1
+            },
+            {
+              "note_index": 2,
+              "pitch_midi": 69,
+              "pitch_class": 9,
+              "note_name": "A4",
+              "octave": 4,
+              "measure_number": 1
+            },
+            {
+              "note_index": 3,
+              "pitch_midi": 65,
+              "pitch_class": 5,
+              "note_name": "F4",
+              "octave": 4,
+              "measure_number": 2
+            },
+            {
+              "note_index": 4,
+              "pitch_midi": 64,
+              "pitch_class": 4,
+              "note_name": "E4",
+              "octave": 4,
+              "measure_number": 2
+            },
+            {
+              "note_index": 5,
+              "pitch_midi": 62,
+              "pitch_class": 2,
+              "note_name": "D4",
+              "octave": 4,
+              "measure_number": 2
+            }
+          ],
           "chords": [
             {
               "order_index": 0,
@@ -595,6 +684,57 @@
           "order_index": 1,
           "title": "Phrase B",
           "loop_duration_sec": 4,
+          "note_count": 6,
+          "notes": [
+            {
+              "note_index": 0,
+              "pitch_midi": 64,
+              "pitch_class": 4,
+              "note_name": "E4",
+              "octave": 4,
+              "measure_number": 1
+            },
+            {
+              "note_index": 1,
+              "pitch_midi": 65,
+              "pitch_class": 5,
+              "note_name": "F4",
+              "octave": 4,
+              "measure_number": 1
+            },
+            {
+              "note_index": 2,
+              "pitch_midi": 69,
+              "pitch_class": 9,
+              "note_name": "A4",
+              "octave": 4,
+              "measure_number": 1
+            },
+            {
+              "note_index": 3,
+              "pitch_midi": 60,
+              "pitch_class": 0,
+              "note_name": "C4",
+              "octave": 4,
+              "measure_number": 2
+            },
+            {
+              "note_index": 4,
+              "pitch_midi": 64,
+              "pitch_class": 4,
+              "note_name": "E4",
+              "octave": 4,
+              "measure_number": 2
+            },
+            {
+              "note_index": 5,
+              "pitch_midi": 62,
+              "pitch_class": 2,
+              "note_name": "D4",
+              "octave": 4,
+              "measure_number": 2
+            }
+          ],
           "chords": [
             {
               "order_index": 0,
@@ -745,6 +885,44 @@
       ]
     },
     {
+      "type": "dialogue_only",
+      "lines": [
+        {
+          "speaker": "partner",
+          "ja": "次はアドリブ・コール&レスポンスじゃ。譜面は見えんが、上のコード名は頼むで。",
+          "en": "Next up: adlib call & response. The score is hidden, but watch the chord names up top."
+        }
+      ],
+      "lineIntervalSeconds": 4
+    },
+    {
+      "type": "adlib_call_response",
+      "contentRef": "adlib-call-response",
+      "requiredLoops": 1,
+      "timedLines": [
+        {
+          "phase": "count_in",
+          "loop": 0,
+          "beat": 1,
+          "text": {
+            "ja": "C&R：コード名を見ながら演奏。",
+            "en": "C&R: play while watching the chord names."
+          }
+        },
+        {
+          "at": {
+            "loop": 0,
+            "measure": 2,
+            "beat": 1
+          },
+          "text": {
+            "ja": "C&R：2 小節目からレスポンス。",
+            "en": "C&R: respond from measure 2."
+          }
+        }
+      ]
+    },
+    {
       "type": "adlib",
       "contentRef": "tutorial-adlib",
       "requiredMeasures": 4,
@@ -763,7 +941,7 @@
         {
           "at": {
             "loop": 0,
-            "measure": 2,
+            "measure": 3,
             "beat": 1
           },
           "text": {
@@ -787,6 +965,17 @@
           "text": {
             "ja": "ペア：1 小節目",
             "en": "Pair: measure 1"
+          }
+        },
+        {
+          "at": {
+            "loop": 0,
+            "measure": 3,
+            "beat": 1
+          },
+          "text": {
+            "ja": "ペア：聴くだけ",
+            "en": "Pair: listen"
           }
         }
       ]

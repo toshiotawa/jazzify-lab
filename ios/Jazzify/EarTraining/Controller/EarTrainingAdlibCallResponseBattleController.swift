@@ -38,6 +38,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
     @Published private(set) var countInValue: Int
     @Published private(set) var completedTargetCount: Int = 0
     @Published private(set) var failedTargetCount: Int = 0
+    @Published private(set) var activeChordSlotIndex: Int = 0
     @Published private(set) var phraseAccuracy: Double = 0
     @Published private(set) var statusText: String
     @Published private(set) var feedback: EarTrainingBattleController.Feedback?
@@ -67,12 +68,20 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
     let enemyId: String
     let enemyName: String
 
+    var tutorialNoCombat: Bool = false
+    var tutorialHooks: EarTrainingTutorialSceneHooks?
+    private var tutorialOsmdLoopCount: Int = 0
+    private var tutorialOsmdTimedLineWorks: [DispatchWorkItem] = []
+
     private let onExitCallback: () -> Void
     private let audio: EarTrainingAudio
     private let supabase = SupabaseService.shared
     private weak var scene: EarTrainingBattleSceneHandle?
 
     private var targets: [RuntimeTarget] = []
+    private var chordSlots: [AdlibCallResponseChordSlot] = []
+    /// `hudModel` は SwiftUI の body 評価ごとに参照されるため、アクティブ index 変化時のみ作り直す。
+    private var chordChipsCache: [EarTrainingChordChip] = []
     private var hintGroups: [EarTrainingAdlibCallResponseTargets.HintGroup] = []
     private var nextMissTargetIndex: Int = 0
     private var nextHammerTargetIndex: Int = 0
@@ -270,6 +279,12 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
             }
         }
         publishSnapshot()
+        guard tutorialHooks?.ui.hideLobby == true else { return }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, self.gameState == .idle else { return }
+            self.startBattle()
+        }
     }
 
     func tearDown(stopSharedAudio: Bool = true) {
@@ -322,6 +337,9 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
         totalCompletedTargets = 0
         totalJudgedTargets = 0
         lastRankStorage = nil
+        if tutorialHooks != nil {
+            tutorialOsmdLoopCount = 0
+        }
         startPhrase(at: 0)
     }
 
@@ -410,6 +428,9 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
         let runId = phraseRunId
         targets = []
         hintGroups = []
+        chordSlots = []
+        activeChordSlotIndex = 0
+        chordChipsCache = []
         resetPhraseRuntimeState()
         countInValue = 0
         gameState = .countIn
@@ -427,6 +448,16 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
             EarTrainingAdlibCallResponseTargets.collectAttacks(from: $0)
         } ?? []
         rhythmAttacks = attacks
+        chordSlots = rhythmXml.map {
+            EarTrainingAdlibCallResponseTargets.buildChordSlots(
+                from: $0,
+                bpm: Double(stage.bpm),
+                beatsPerMeasure: stage.beatsPerMeasure,
+                isSwing: stage.resolvedIsSwing
+            )
+        } ?? []
+        activeChordSlotIndex = 0
+        rebuildChordChipsCache()
 
         let preparedTargets = EarTrainingAdlibCallResponseTargets.buildTargets(
             attacks: attacks,
@@ -455,6 +486,10 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
         audio.phrasePlaybackSpeedPercent = Float(effectivePracticeSpeedPercent())
 
         phraseLoopEndSecCache = resolvePhraseLoopEndSec(phrase: phrase)
+        if tutorialHooks != nil {
+            scheduleTutorialOsmdTimedDialogue(loopIndex: tutorialOsmdLoopCount, runId: runId)
+            startTutorialDrumIfNeeded(phraseAudioUrl: phrase.audioUrl)
+        }
         publishSnapshot()
 
         let onStarted: () -> Void = { [weak self] in
@@ -506,6 +541,42 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
         runtimeFailedTargetCount = 0
         phraseAccuracy = 0
         phraseEnding = false
+        activeChordSlotIndex = 0
+        rebuildChordChipsCache()
+    }
+
+    private func syncActiveChordSlotIndex(at phraseTimeSec: Double) {
+        guard !chordSlots.isEmpty else { return }
+        let activeIdx = EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(
+            slots: chordSlots,
+            phraseTimeSec: phraseTimeSec,
+            fromIndex: activeChordSlotIndex,
+            resolveStartTimeSec: { [weak self] in
+                self?.resolveEffectiveTargetTimeSec($0) ?? $0
+            }
+        )
+        guard activeIdx != activeChordSlotIndex else { return }
+        activeChordSlotIndex = activeIdx
+        rebuildChordChipsCache()
+    }
+
+    private func rebuildChordChipsCache() {
+        guard !chordSlots.isEmpty else {
+            chordChipsCache = []
+            return
+        }
+        chordChipsCache = chordSlots.enumerated().map { index, slot in
+            EarTrainingChordChip(
+                id: Self.chordChipId(orderIndex: index),
+                name: slot.name,
+                active: index == activeChordSlotIndex
+            )
+        }
+    }
+
+    private static func chordChipId(orderIndex: Int) -> UUID {
+        let idString = String(format: "ac100000-0000-4000-8000-%012x", orderIndex & 0x0000FFFFFFFFFFFF)
+        return UUID(uuidString: idString) ?? UUID()
     }
 
     private func runCountInDisplayOnly(scheduleStart: TimeInterval, meta: EarTrainingScheduledCountInPhrase) async {
@@ -630,6 +701,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
         spawnDueApproachCircles(at: phraseTime)
         failExpiredTargets(at: phraseTime)
         refreshPracticeVoicingHints()
+        syncActiveChordSlotIndex(at: phraseTime)
 
         guard gameState == .playingPhrase else { return }
         if phraseTime >= phraseLoopEndSecCache {
@@ -910,7 +982,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
             updateTargetCounters(publish: false)
         }
         resetParryChainState()
-        guard practiceMode == false else { return }
+        guard practiceMode == false, tutorialNoCombat == false else { return }
         let damage = stage.missDamage
         guard damage > 0 else { return }
         playerHp = max(0, playerHp - damage)
@@ -921,6 +993,30 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
 
     private func finishCurrentPhraseIfNeeded() {
         guard gameState == .playingPhrase, !phraseEnding else { return }
+        if let hooks = tutorialHooks {
+            phraseEnding = true
+            tutorialOsmdLoopCount += 1
+            if tutorialOsmdLoopCount >= hooks.requiredSuccessfulLoops {
+                cancelTutorialOsmdTimedLineWorks()
+                audio.stopDrumLoop()
+                audio.stopPhrase()
+                failRemainingTargets()
+                let noteHitPercent = Int(round(
+                    EarTrainingAdlibCallResponseTargets.hitRatio(
+                        targetCount: targets.count,
+                        completedCount: runtimeCompletedTargetCount
+                    ) * 100
+                ))
+                hooks.onSceneComplete(
+                    EarTrainingTutorialOsmdSceneResult(noteHitPercent: noteHitPercent)
+                )
+                return
+            }
+            phraseEnding = false
+            audio.stopPhrase()
+            startPhrase(at: phraseIndex)
+            return
+        }
         phraseEnding = true
         audio.stopPhrase()
         audio.emitNegativePhraseTimelineBeforeAnchor = false
@@ -936,7 +1032,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
 
         let rank = rank(for: accuracy)
         let completionDamageAmount = practiceMode ? 0 : completionDamage(for: rank)
-        let playerFailDamage = (!practiceMode && rank == .fail) ? stage.failDamage : 0
+        let playerFailDamage = (!practiceMode && !tutorialNoCombat && rank == .fail) ? stage.failDamage : 0
 
         gameState = .phraseComplete
         statusText = isEnglishCopy
@@ -1006,7 +1102,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
     }
 
     private func applyPlayerDamage(_ damage: Int) {
-        guard !practiceMode else { return }
+        guard !practiceMode, !tutorialNoCombat else { return }
         guard damage > 0 else { return }
         playerHp = max(0, playerHp - damage)
         if playerHp <= 0 {
@@ -1186,6 +1282,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
     }
 
     private func cancelAllTasks(keepsAudio: Bool = false) {
+        cancelTutorialOsmdTimedLineWorks()
         countdownTask?.cancel(); countdownTask = nil
         feedbackTask?.cancel(); feedbackTask = nil
         phrasePrepareTask?.cancel(); phrasePrepareTask = nil
@@ -1224,7 +1321,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
 
     var hudModel: EarTrainingHudModel {
         let currentIndex = firstUnresolvedTargetIndex()
-        return EarTrainingHudModel(
+        let base = EarTrainingHudModel(
             playerHp: practiceMode ? stage.playerHp : playerHp,
             playerMaxHp: stage.playerHp,
             enemyHp: practiceMode ? stage.enemyHp : enemyHp,
@@ -1238,18 +1335,131 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
             hideBackButton: false,
             enemyAttackGaugePercent: 0,
             hideEnemyAttackGauge: true,
-            hideChordChips: true,
+            hideChordChips: chordSlots.isEmpty,
             hideSlotsRow: true,
             hudLabels: hudLabels,
             gameState: gameState,
             phraseRunId: phraseRunId,
-            chordChips: [],
+            chordChips: chordChipsCache,
             slotRow: .chordVoicing(
                 slotCount: max(1, targets.count),
                 completed: targets.map(\.completed),
                 currentIndex: currentIndex
             )
         )
+        if let ui = tutorialHooks?.ui {
+            return ui.apply(to: base, timingCalibrationMode: false)
+        }
+        return base
+    }
+
+    private func phraseTutorialLoopDurationSec(_ phrase: EarTrainingPhraseDetail) -> Double {
+        let dur = phrase.loopDurationSec
+        if dur.isFinite && dur > 0 {
+            return EarTrainingPracticeSpeed.scalePracticePhraseLoopEndSec(
+                dur,
+                speedPercent: effectivePracticeSpeedPercent()
+            )
+        }
+        let beatDuration = 60.0 / Double(max(1, resolveEffectivePracticeBpm()))
+        return beatDuration * Double(max(1, stage.loopMeasures))
+    }
+
+    private func localizedTutorialOsmdTimedText(_ text: EarTrainingTutorialLocalizedText) -> String {
+        isEnglishCopy ? text.en : text.ja
+    }
+
+    private func cancelTutorialOsmdTimedLineWorks() {
+        for work in tutorialOsmdTimedLineWorks {
+            work.cancel()
+        }
+        tutorialOsmdTimedLineWorks.removeAll()
+    }
+
+    private func computeOsmdTimedLineDelayMs(loopIndex: Int, line: EarTrainingTutorialOsmdTimedLine) -> Double? {
+        let bpm = max(1, practiceMode ? resolveEffectivePracticeBpm() : stage.bpm)
+        let beatDurationSec = 60.0 / Double(bpm)
+        let measureDurationSec = beatDurationSec * Double(max(1, stage.beatsPerMeasure))
+        let countInBeats = sanitizedCountInBeats
+        let countInDurationSec = Double(countInBeats) * beatDurationSec
+        let skipCountIn = loopIndex > 0
+
+        switch line {
+        case let .countIn(loop: optionalLoop, beat: beat, _):
+            if skipCountIn {
+                return nil
+            }
+            let targetLoop = optionalLoop ?? 0
+            if targetLoop != loopIndex {
+                return nil
+            }
+            let clampedBeat = max(1, beat)
+            if clampedBeat > countInBeats {
+                return nil
+            }
+            return Double(clampedBeat - 1) * beatDurationSec * 1000
+        case let .at(loop: atLoop, measure: measure, beat: beat, _):
+            if atLoop != loopIndex {
+                return nil
+            }
+            let countInOffsetSec = skipCountIn ? 0 : countInDurationSec
+            let measureIndex = max(1, measure) - 1
+            let beatIndex = max(1, beat) - 1
+            guard phrases.indices.contains(phraseIndex) else { return nil }
+            let phrase = phrases[phraseIndex]
+            let phraseOffsetSec = Double(measureIndex) * measureDurationSec + Double(beatIndex) * beatDurationSec
+            let loopDur = phraseTutorialLoopDurationSec(phrase)
+            let loopOffsetSec = Double(loopIndex) * loopDur
+            return (loopOffsetSec + countInOffsetSec + phraseOffsetSec) * 1000
+        }
+    }
+
+    private func scheduleTutorialOsmdTimedDialogue(loopIndex: Int, runId: Int) {
+        cancelTutorialOsmdTimedLineWorks()
+        guard tutorialHooks != nil, let rows = tutorialHooks?.osmdTimedLines, !rows.isEmpty else { return }
+
+        let mainQueue = DispatchQueue.main
+        for line in rows {
+            guard let delayMs = computeOsmdTimedLineDelayMs(loopIndex: loopIndex, line: line) else { continue }
+            let text: String
+            switch line {
+            case let .countIn(_, _, loc),
+                 let .at(_, _, _, loc):
+                text = localizedTutorialOsmdTimedText(loc)
+            }
+            let capturedRunId = runId
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                guard self.phraseRunId == capturedRunId else { return }
+                guard self.gameState == .countIn || self.gameState == .playingPhrase else { return }
+                self.scene?.setPlayerQuote(text)
+                self.tutorialHooks?.onCharacterText(text)
+            }
+            tutorialOsmdTimedLineWorks.append(work)
+            mainQueue.asyncAfter(deadline: .now() + delayMs / 1000, execute: work)
+        }
+    }
+
+    private func resolvedTutorialDrumLoopURL() -> URL? {
+        guard let raw = tutorialHooks?.tutorialDrumLoopUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        return URL(string: raw)
+    }
+
+    private func startTutorialDrumIfNeeded(phraseAudioUrl: String) {
+        guard tutorialHooks != nil else { return }
+        guard EarTrainingTutorialOsmdDrumLoopResolver.shouldStartTutorialOsmdDrumLoop(
+            phraseAudioUrl: phraseAudioUrl,
+            drumLoopUrl: tutorialHooks?.tutorialDrumLoopUrl
+        ) else { return }
+        guard let url = resolvedTutorialDrumLoopURL() else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let ok = await self.audio.prepareDrumLoop(url: url)
+            guard ok else { return }
+            self.audio.startDrumLoop()
+        }
     }
 
     private func firstUnresolvedTargetIndex() -> Int {

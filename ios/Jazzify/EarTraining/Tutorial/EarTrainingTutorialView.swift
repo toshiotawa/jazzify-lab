@@ -276,6 +276,32 @@ struct EarTrainingTutorialView: View {
                     }
                 }
             }
+        case .adlibCallResponse(let adlibCallResponseScene):
+            if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
+                content: script.content,
+                contentRef: adlibCallResponseScene.contentRef,
+                keyboardHintsScriptDefault: kbHints,
+                locale: locale
+            ) {
+                EarTrainingAdlibCallResponseGameView(
+                    source: .embedded(stage),
+                    lessonContext: nil,
+                    locale: locale,
+                    initialPracticeMode: false,
+                    tutorialHooks: makeHooks(
+                        script: script,
+                        requiredLoops: adlibCallResponseScene.requiredLoops,
+                        onLoopSuccess: nil,
+                        osmdTimedLines: adlibCallResponseScene.timedLines,
+                        tutorialDrumLoopUrlOverride: EarTrainingTutorialOsmdDrumLoopResolver.resolveTutorialOsmdDrumLoopUrl(
+                            content: script.content,
+                            contentRef: adlibCallResponseScene.contentRef
+                        )
+                    ),
+                    hostedLandscapeSize: hostedLandscapeSize,
+                    onClose: onClose
+                )
+            }
         case .adlib(let adlibScene):
             if let stage = try? EarTrainingTutorialStageBuilder.resolveStage(
                 content: script.content,

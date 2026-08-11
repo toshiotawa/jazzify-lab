@@ -6,6 +6,10 @@ const OSMD_MUSIC_XML =
   'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-lesson7-whole.musicxml';
 const OSMD_AUDIO =
   'https://jazzify-cdn.com/fantasy-bgm/ear-training-dev-chord-osmd-120-phrase-01.mp3';
+const ADLIB_CALL_RESPONSE_MUSIC_XML =
+  'https://jazzify-cdn.com/sozai/dev-adlib-call-response-domifa.musicxml?v=202607301445';
+const ADLIB_CALL_RESPONSE_AUDIO =
+  'https://jazzify-cdn.com/sozai/mq-b2-domifa_count-in.mp3';
 
 /** 開発者コース全分岐テスト用台本 */
 export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScriptPayload => ({
@@ -218,6 +222,44 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
               voicing_staves: [1],
             },
           ],
+        },
+      ],
+    },
+    'adlib-call-response': {
+      stage: {
+        slug: 'tutorial-adlib-call-response',
+        title: 'チュートリアル・アドリブC&R',
+        title_en: 'Tutorial adlib call & response',
+        bpm: 120,
+        key_fifths: 0,
+        beats_per_measure: 4,
+        beat_type: 4,
+        loop_measures: 24,
+        max_loops_per_phrase: 2,
+        count_in_beats: 0,
+        time_limit_sec: 600,
+        player_hp: 100,
+        enemy_hp: 10000,
+        per_correct_note_damage: 10,
+        good_completion_damage: 30,
+        miss_damage: 0,
+        fail_damage: 0,
+        background_theme: 'blue_club',
+        mode: 'adlib_call_response',
+        osmd_targets_from_score: false,
+        is_swing: true,
+        show_keyboard_hints_in_battle: true,
+      },
+      phrases: [
+        {
+          order_index: 0,
+          title: 'Cブルース・ドミファ（C&R）',
+          title_en: 'C blues domifa (C&R)',
+          music_xml_url: ADLIB_CALL_RESPONSE_MUSIC_XML,
+          audio_url: ADLIB_CALL_RESPONSE_AUDIO,
+          loop_duration_sec: 50,
+          audio_duration_sec: 50,
+          note_count: 0,
         },
       ],
     },
@@ -548,6 +590,34 @@ export const buildEarTrainingDeveloperFullV1Script = (): EarTrainingTutorialScri
         {
           at: { loop: 0, measure: 2, beat: 1 },
           text: { ja: 'セルフ：2 小節目で演奏。', en: 'Self: play at measure 2.' },
+        },
+      ],
+    },
+    {
+      type: 'dialogue_only',
+      lines: [
+        {
+          speaker: 'partner',
+          ja: '次はアドリブ・コール&レスポンスじゃ。譜面は見えんが、上のコード名は頼むで。',
+          en: 'Next up: adlib call & response. The score is hidden, but watch the chord names up top.',
+        },
+      ],
+      lineIntervalSeconds: 4,
+    },
+    {
+      type: 'adlib_call_response',
+      contentRef: 'adlib-call-response',
+      requiredLoops: 1,
+      timedLines: [
+        {
+          phase: 'count_in',
+          loop: 0,
+          beat: 1,
+          text: { ja: 'C&R：コード名を見ながら演奏。', en: 'C&R: play while watching the chord names.' },
+        },
+        {
+          at: { loop: 0, measure: 2, beat: 1 },
+          text: { ja: 'C&R：2 小節目からレスポンス。', en: 'C&R: respond from measure 2.' },
         },
       ],
     },

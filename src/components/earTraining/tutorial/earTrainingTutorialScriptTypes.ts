@@ -233,6 +233,13 @@ export interface EarTrainingTutorialAdlibScene {
   timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
 }
 
+export interface EarTrainingTutorialAdlibCallResponseScene {
+  type: 'adlib_call_response';
+  contentRef: string;
+  requiredLoops: number;
+  timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
+}
+
 export interface EarTrainingTutorialPhrasePairAdlibScene {
   type: 'phrase_pair_adlib';
   contentRef: string;
@@ -253,6 +260,7 @@ export type EarTrainingTutorialScene =
   | EarTrainingTutorialSelfPacedScene
   | EarTrainingTutorialOsmdScene
   | EarTrainingTutorialAdlibScene
+  | EarTrainingTutorialAdlibCallResponseScene
   | EarTrainingTutorialPhrasePairAdlibScene
   | EarTrainingTutorialCompositeScene
   | EarTrainingTutorialFinishScene;

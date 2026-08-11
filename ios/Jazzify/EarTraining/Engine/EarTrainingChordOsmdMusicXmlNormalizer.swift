@@ -22,6 +22,14 @@ struct ChordOsmdMusicXmlAttack: Equatable, Sendable {
     }
 }
 
+/// MusicXML `<harmony>` の出現位置とコード名。
+struct ChordOsmdHarmonyEvent: Equatable, Sendable {
+    let measureNumber: Int
+    /// 小節内の拍位置（先頭拍を 1）。四分音符グリッド。
+    let beatStartInMeasure: Double
+    let name: String
+}
+
 /// MusicXML 1 番歌詞をフレーズ時間軸（秒）に載せた表示イベント（Web `ChordOsmdLyricEvent` と同等）。
 struct ChordOsmdLyricEvent: Equatable, Sendable {
     let targetTimeSec: Double
@@ -1102,6 +1110,103 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         }
 
         return attacks
+    }
+
+    /// Web `collectChordOsmdHarmonyEvents` と同等。
+    static func collectChordOsmdHarmonyEvents(_ xmlText: String) -> [ChordOsmdHarmonyEvent] {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
+        let measures = measuresInPartsFirst(from: root)
+        var events: [ChordOsmdHarmonyEvent] = []
+        var timing = ScoreTimingStateForAttacks(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
+
+        for (idx, measure) in measures.enumerated() {
+            let measureNumber = parseMeasureNumberAttribute(measure, ordinalOneBased: idx + 1)
+            var currentTime = 0.0
+            let children = measure.children
+            var ci = 0
+            while ci < children.count {
+                guard case let .element(child) = children[ci] else {
+                    ci += 1
+                    continue
+                }
+
+                switch child.name {
+                case "attributes":
+                    timing = readScoreTimingForAttacks(attributes: child, previous: timing)
+                    ci += 1
+                case "backup":
+                    if let d = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) {
+                        currentTime -= d
+                    }
+                    ci += 1
+                case "forward":
+                    if let d = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) {
+                        currentTime += d
+                    }
+                    ci += 1
+                case "harmony":
+                    let divisions = max(1, timing.divisions)
+                    let quartersFromMeasureStart = currentTime / Double(divisions)
+                    let beatStartInMeasure = quartersFromMeasureStart + 1
+                    events.append(
+                        ChordOsmdHarmonyEvent(
+                            measureNumber: measureNumber,
+                            beatStartInMeasure: beatStartInMeasure,
+                            name: harmonyName(from: child)
+                        )
+                    )
+                    ci += 1
+                case "note":
+                    guard directChild(child, localName: "grace") == nil else {
+                        ci += 1
+                        continue
+                    }
+                    guard let duration = parsePositiveInt(text(in: child, localName: "duration")).map(Double.init) else {
+                        ci += 1
+                        continue
+                    }
+                    if directChild(child, localName: "chord") == nil {
+                        currentTime += duration
+                    }
+                    ci += 1
+                default:
+                    ci += 1
+                }
+            }
+        }
+
+        return events
+    }
+
+    private static func stepAlterToHarmonyName(step: String, alter: Int) -> String {
+        if alter > 0 {
+            return step + String(repeating: "#", count: alter)
+        }
+        if alter < 0 {
+            return step + String(repeating: "b", count: abs(alter))
+        }
+        return step
+    }
+
+    private static func harmonyName(from harmony: ChordOsmdXmlElement) -> String {
+        let rootEl = directChild(harmony, localName: "root")
+        let rootStep = rootEl.flatMap { text(in: $0, localName: "root-step") } ?? "C"
+        let rootAlter = rootEl.flatMap { Int(text(in: $0, localName: "root-alter") ?? "0") } ?? 0
+        let kindEl = directChild(harmony, localName: "kind")
+        let kindText = kindEl?.attributes.first(where: { $0.name == "text" })?.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? kindEl.flatMap { textContent(of: $0) }?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        let bassEl = directChild(harmony, localName: "bass")
+        let bassStep = bassEl.flatMap { text(in: $0, localName: "bass-step") }
+        let bassAlter = bassEl.flatMap { Int(text(in: $0, localName: "bass-alter") ?? "0") } ?? 0
+        let rootName = stepAlterToHarmonyName(step: rootStep, alter: rootAlter)
+
+        guard let bassStep else {
+            return (rootName + kindText).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let bassName = stepAlterToHarmonyName(step: bassStep, alter: bassAlter)
+        return (rootName + kindText + "/" + bassName).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// `(measure_number, beat_offset)` に一致する MusicXML アタックの MIDI をマージ。無ければ nil（voicing フォールバック）。

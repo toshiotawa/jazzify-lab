@@ -1,5 +1,6 @@
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
 import type {
+  EarTrainingTutorialAdlibCallResponseScene,
   EarTrainingTutorialAdlibScene,
   EarTrainingTutorialChordQuizScene,
   EarTrainingTutorialCompositeScene,
@@ -35,6 +36,12 @@ export interface EarTrainingTutorialOsmdConfig {
 export interface EarTrainingTutorialAdlibConfig {
   scene: EarTrainingTutorialAdlibScene;
   bindings: EarTrainingTutorialBindings;
+}
+
+export interface EarTrainingTutorialAdlibCallResponseConfig {
+  scene: EarTrainingTutorialAdlibCallResponseScene;
+  bindings: EarTrainingTutorialBindings;
+  timingReturnContext?: EarTrainingTutorialTimingReturnContext;
 }
 
 export interface EarTrainingTutorialPhrasePairAdlibConfig {

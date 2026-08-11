@@ -158,4 +158,99 @@ final class EarTrainingAdlibCallResponseTargetsTests: XCTestCase {
         settled.insert(targets[7].id)
         XCTAssertNil(resolve(5.5))
     }
+
+    func testBuildChordSlotsMergesConsecutiveDuplicateHarmonies() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise version="3.1">
+          <part-list><score-part id="P1"><part-name>Music</part-name></score-part></part-list>
+          <part id="P1">
+            <measure number="1"><attributes><divisions>1</divisions></attributes>
+              <harmony><root><root-step>C</root-step></root><kind text="7">dominant</kind></harmony>
+            </measure>
+            <measure number="2">
+              <harmony><root><root-step>C</root-step></root><kind text="7">dominant</kind></harmony>
+            </measure>
+            <measure number="3">
+              <harmony><root><root-step>F</root-step></root><kind text="7">dominant</kind></harmony>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+        let slots = EarTrainingAdlibCallResponseTargets.buildChordSlots(
+            from: xml,
+            bpm: 120,
+            beatsPerMeasure: 4
+        )
+        XCTAssertEqual(slots.count, 2)
+        XCTAssertEqual(slots.map(\.name), ["C7", "F7"])
+        XCTAssertEqual(slots[0].startTimeSec, 0, accuracy: 1e-5)
+        XCTAssertEqual(slots[1].startTimeSec, 4, accuracy: 1e-5)
+    }
+
+    func testBuildChordSlotsIncludesHarmonyWithoutVoice1Notes() {
+        let xml = miniScore("""
+        <attributes><divisions>1</divisions></attributes>
+        <harmony><root><root-step>G</root-step></root><kind text="7">dominant</kind></harmony>
+        <note><rest/><duration>1</duration><voice>1</voice></note>
+        """)
+        let slots = EarTrainingAdlibCallResponseTargets.buildChordSlots(from: xml, bpm: 120, beatsPerMeasure: 4)
+        XCTAssertEqual(slots.count, 1)
+        XCTAssertEqual(slots[0].name, "G7")
+    }
+
+    func testActiveChordSlotIndexTracksPhraseTimeline() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise version="3.1">
+          <part-list><score-part id="P1"><part-name>Music</part-name></score-part></part-list>
+          <part id="P1">
+            <measure number="1"><attributes><divisions>1</divisions></attributes>
+              <harmony><root><root-step>C</root-step></root><kind text="7">dominant</kind></harmony>
+            </measure>
+            <measure number="2">
+              <harmony><root><root-step>F</root-step></root><kind text="7">dominant</kind></harmony>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+        let slots = EarTrainingAdlibCallResponseTargets.buildChordSlots(from: xml, bpm: 120, beatsPerMeasure: 4)
+        XCTAssertEqual(EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: -1), 0)
+        XCTAssertEqual(EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 0), 0)
+        XCTAssertEqual(EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 1.999), 0)
+        XCTAssertEqual(EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 2), 1)
+        XCTAssertEqual(EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 99), 1)
+
+        // fromIndex を渡しても 0 から走査した場合と同じ結果になる（範囲外はクランプ）
+        XCTAssertEqual(
+            EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 2, fromIndex: 1),
+            1
+        )
+        XCTAssertEqual(
+            EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 0, fromIndex: -5),
+            0
+        )
+        XCTAssertEqual(
+            EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(slots: slots, phraseTimeSec: 99, fromIndex: 99),
+            1
+        )
+
+        // resolveStartTimeSec でスケールした開始秒を基準に判定する
+        XCTAssertEqual(
+            EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(
+                slots: slots,
+                phraseTimeSec: 2,
+                resolveStartTimeSec: { $0 * 2 }
+            ),
+            0
+        )
+        XCTAssertEqual(
+            EarTrainingAdlibCallResponseTargets.activeChordSlotIndex(
+                slots: slots,
+                phraseTimeSec: 4,
+                resolveStartTimeSec: { $0 * 2 }
+            ),
+            1
+        )
+    }
 }
