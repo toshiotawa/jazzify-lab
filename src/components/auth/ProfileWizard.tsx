@@ -6,8 +6,8 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { trackEvent } from '@/utils/analytics/ga';
 import {
-  MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN,
-  MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA,
+  MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_EN,
+  MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_JA,
   MARKETING_EMAIL_OPT_IN_LABEL_EN,
   MARKETING_EMAIL_OPT_IN_LABEL_JA,
   MARKETING_EMAIL_OPT_IN_TEXT_EN,
@@ -44,8 +44,8 @@ const ProfileWizard: React.FC = () => {
     ? MARKETING_EMAIL_OPT_IN_LABEL_EN
     : MARKETING_EMAIL_OPT_IN_LABEL_JA;
   const marketingOptInDescription = isEnglishCopy
-    ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN
-    : MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA;
+    ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_EN
+    : MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_JA;
   const marketingOptInText = isEnglishCopy
     ? MARKETING_EMAIL_OPT_IN_TEXT_EN
     : MARKETING_EMAIL_OPT_IN_TEXT_JA;

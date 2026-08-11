@@ -3,12 +3,12 @@ import { FaEnvelope, FaTimes } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import {
+  MARKETING_EMAIL_OPT_IN_BANNER_TEXT_EN,
+  MARKETING_EMAIL_OPT_IN_BANNER_TEXT_JA,
   MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN,
   MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA,
   MARKETING_EMAIL_OPT_IN_LABEL_EN,
   MARKETING_EMAIL_OPT_IN_LABEL_JA,
-  MARKETING_EMAIL_OPT_IN_TEXT_EN,
-  MARKETING_EMAIL_OPT_IN_TEXT_JA,
 } from '@/utils/marketingEmailOptIn';
 
 const OPT_IN_BANNER_SOURCE = 'dashboard_banner';
@@ -36,8 +36,8 @@ const MarketingOptInBanner: React.FC<MarketingOptInBannerProps> = ({ isEnglishCo
     ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN
     : MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA;
   const consentText = isEnglishCopy
-    ? MARKETING_EMAIL_OPT_IN_TEXT_EN
-    : MARKETING_EMAIL_OPT_IN_TEXT_JA;
+    ? MARKETING_EMAIL_OPT_IN_BANNER_TEXT_EN
+    : MARKETING_EMAIL_OPT_IN_BANNER_TEXT_JA;
 
   const handleDismiss = () => {
     localStorage.setItem(DISMISS_KEY, '1');

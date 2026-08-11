@@ -104,7 +104,7 @@ struct ProfileSetupView: View {
                                 }
                                 .tint(.purple)
 
-                                Text(MarketingEmailOptIn.description(locale: locale))
+                                Text(MarketingEmailOptIn.descriptionSignup(locale: locale))
                                     .font(.caption2)
                                     .foregroundStyle(.gray)
                             }

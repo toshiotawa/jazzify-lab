@@ -7,8 +7,8 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
 import {
-  MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN,
-  MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA,
+  MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_EN,
+  MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_JA,
   MARKETING_EMAIL_OPT_IN_LABEL_EN,
   MARKETING_EMAIL_OPT_IN_LABEL_JA,
   MARKETING_EMAIL_OPT_IN_TEXT_EN,
@@ -153,8 +153,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
     ? MARKETING_EMAIL_OPT_IN_LABEL_EN
     : MARKETING_EMAIL_OPT_IN_LABEL_JA;
   const marketingOptInDescription = isEnglishCopy
-    ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_EN
-    : MARKETING_EMAIL_OPT_IN_DESCRIPTION_JA;
+    ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_EN
+    : MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_JA;
   const marketingOptInText = isEnglishCopy
     ? MARKETING_EMAIL_OPT_IN_TEXT_EN
     : MARKETING_EMAIL_OPT_IN_TEXT_JA;

@@ -96,7 +96,7 @@ struct MarketingOptInBannerView: View {
         do {
             try await SupabaseService.shared.enableMarketingEmailOptIn(
                 userId: profile.id,
-                consentText: MarketingEmailOptIn.consentText(locale: locale)
+                consentText: MarketingEmailOptIn.bannerConsentText(locale: locale)
             )
         } catch {
             // 保存に失敗したらバナーを残して再試行できるようにする

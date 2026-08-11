@@ -6,10 +6,18 @@ enum MarketingEmailOptIn {
     static let labelJa = "無料PDF「Bluesy Licks 5選」と、Jazzifyからの練習ヒント・お知らせをメールで受け取る"
     static let labelEn = "Get the free \"5 Bluesy Licks\" PDF plus Jazzify practice tips and updates by email"
 
+    /// バナー・登録フォーム共通の説明（チェックボックス専用の注記は含まない）
     static let descriptionJa =
-        "登録後、特典PDFに加え、練習のヒントやサービスに関するお知らせをお送りします。※いつでも配信停止できます。チェックしなくても無料登録できます。"
+        "登録後、特典PDFに加え、練習のヒントやサービスに関するお知らせをお送りします。※いつでも配信停止できます。"
     static let descriptionEn =
-        "After signing up, we'll email you the PDF, practice tips, and product updates. Unsubscribe anytime. You can sign up without checking this box."
+        "After signing up, we'll email you the PDF, practice tips, and product updates. Unsubscribe anytime."
+
+    /// 登録時チェックボックス専用。バナーには出さない
+    static let signupNoteJa = "チェックしなくても無料登録できます。"
+    static let signupNoteEn = "You can sign up without checking this box."
+
+    static var descriptionSignupJa: String { descriptionJa + signupNoteJa }
+    static var descriptionSignupEn: String { "\(descriptionEn) \(signupNoteEn)" }
 
     static func label(locale: AppLocale) -> String {
         locale == .ja ? labelJa : labelEn
@@ -19,9 +27,22 @@ enum MarketingEmailOptIn {
         locale == .ja ? descriptionJa : descriptionEn
     }
 
-    /// 同意の証跡としてDB（profiles.marketing_email_opt_in_text）に保存する文言
+    static func descriptionSignup(locale: AppLocale) -> String {
+        locale == .ja ? descriptionSignupJa : descriptionSignupEn
+    }
+
+    /// 同意の証跡としてDB（profiles.marketing_email_opt_in_text）に保存する文言（登録時）
     static func consentText(locale: AppLocale) -> String {
-        locale == .ja ? "\(labelJa)。\(descriptionJa)" : "\(labelEn). \(descriptionEn)"
+        locale == .ja
+            ? "\(labelJa)。\(descriptionSignupJa)"
+            : "\(labelEn). \(descriptionSignupEn)"
+    }
+
+    /// ダッシュボードバナーからの同意証跡（チェックボックス注記なし）
+    static func bannerConsentText(locale: AppLocale) -> String {
+        locale == .ja
+            ? "\(labelJa)。\(descriptionJa)"
+            : "\(labelEn). \(descriptionEn)"
     }
 
     static let source = "ios_signup_wizard"
