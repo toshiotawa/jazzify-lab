@@ -12,6 +12,7 @@ export interface QuestCompletionModalProps {
   onStay: () => void;
   onContinue?: () => void;
   onPremium?: () => void;
+  onSoftLanding?: () => void;
 }
 
 const CHAPTER_PREMIUM_UPSELL_COPY = {
@@ -22,8 +23,9 @@ const CHAPTER_PREMIUM_UPSELL_COPY = {
     nextChapterLabel: '次のチャプター',
     nextChapterTitle: 'Cブルースのコードをつかむ',
     nextChapterBody: 'コードの響きと進行をつかむ。使える要素を増やしながら、自分のフレーズへ進みます。',
-    continueLabel: '次のチャプターへ',
-    stayLabel: 'あとでホームに戻る',
+    softLandingLabel: 'コードランを無料で始める',
+    trialLabel: '第2章を7日無料で試す',
+    stayLabel: 'ホームに戻る',
   },
   en: {
     label: 'CHAPTER 1 COMPLETE',
@@ -32,8 +34,9 @@ const CHAPTER_PREMIUM_UPSELL_COPY = {
     nextChapterLabel: 'Next chapter',
     nextChapterTitle: 'Get a Grip on C Blues Chords',
     nextChapterBody: 'Learn chord colors and the blues progression. Add more tools and build your own phrases.',
-    continueLabel: 'Continue to the next chapter',
-    stayLabel: 'Return home later',
+    softLandingLabel: 'Start Chord Run free',
+    trialLabel: 'Try Chapter 2 free for 7 days',
+    stayLabel: 'Return home',
   },
 } as const;
 
@@ -45,6 +48,7 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
   onStay,
   onContinue,
   onPremium,
+  onSoftLanding,
 }) => {
   const blockInfo = getLessonBlockInfo(currentLesson, { isEnglishCopy });
   const chapterLabel = isEnglishCopy
@@ -99,14 +103,13 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
       : (isEnglishCopy ? 'Stay on this page' : 'このまま留まる');
   })();
 
-  const continueLabel = kind === 'chapterCompletePremiumUpsell'
-    ? premiumUpsellCopy.continueLabel
-    : (isEnglishCopy ? 'Continue' : '次へ進む');
+  const continueLabel = isEnglishCopy ? 'Continue' : '次へ進む';
 
   const showContinue = kind !== 'chapterCompleteOnly'
     && kind !== 'chapterCompletePremiumUpsell'
     && onContinue !== undefined;
   const showPremium = kind === 'chapterCompletePremiumUpsell' && onPremium !== undefined;
+  const showSoftLanding = kind === 'chapterCompletePremiumUpsell' && onSoftLanding !== undefined;
 
   if (kind === 'chapterCompletePremiumUpsell') {
     return (
@@ -152,13 +155,23 @@ export const QuestCompletionModal: React.FC<QuestCompletionModalProps> = ({
           </div>
 
           <div className="flex flex-col gap-3">
+            {showSoftLanding ? (
+              <button
+                type="button"
+                onClick={onSoftLanding}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-green-500"
+              >
+                {premiumUpsellCopy.softLandingLabel}
+                <FaChevronRight className="h-3 w-3" aria-hidden />
+              </button>
+            ) : null}
             {showPremium ? (
               <button
                 type="button"
                 onClick={onPremium}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-green-500"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-500 bg-slate-700 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-600"
               >
-                {continueLabel}
+                {premiumUpsellCopy.trialLabel}
                 <FaChevronRight className="h-3 w-3" aria-hidden />
               </button>
             ) : null}

@@ -35,6 +35,7 @@ enum SubscriptionEntry {
 
 struct SubscriptionView: View {
     var entry: SubscriptionEntry = .default
+    var onContinueFree: (() -> Void)? = nil
     @EnvironmentObject var appState: AppState
     @StateObject private var store = StoreManager.shared
     @Environment(\.dismiss) private var dismiss
@@ -525,6 +526,19 @@ struct SubscriptionView: View {
                          : "Your purchase is pending approval. It will activate once approved.")
                         .font(.caption)
                         .foregroundStyle(.orange)
+                }
+
+                if let onContinueFree {
+                    Button(action: onContinueFree) {
+                        Text(locale == .ja
+                             ? "まずはコードランを無料で続ける"
+                             : "Continue free with Chord Run")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color(hex: "6ee7b7"))
                 }
             } else if store.isLoadingProduct {
                 ProgressView()

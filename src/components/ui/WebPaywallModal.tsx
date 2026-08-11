@@ -26,6 +26,7 @@ interface WebPaywallModalProps {
   onClose: () => void;
   isEnglishCopy: boolean;
   source: PaywallSource;
+  onContinueFree?: () => void;
 }
 
 const PRICE_COPY = {
@@ -37,6 +38,7 @@ const PRICE_COPY = {
     footnote: '次の画面で月額・年額を選択できます。いつでも解約できます。',
     trialBadge: '7日間無料',
     dismiss: 'あとで',
+    continueFree: 'まずはコードランを無料で続ける',
     loginRequired: 'ログインが必要です',
     checkoutFailed: 'チェックアウトの起動に失敗しました',
     error: 'エラーが発生しました',
@@ -53,6 +55,7 @@ const PRICE_COPY = {
     footnote: 'Choose monthly or yearly on the next screen. Cancel anytime.',
     trialBadge: '7-day free trial',
     dismiss: 'Later',
+    continueFree: 'Continue free with Chord Run',
     loginRequired: 'You need to log in first.',
     checkoutFailed: 'Failed to open checkout',
     error: 'An error occurred',
@@ -69,6 +72,7 @@ const PRICE_COPY = {
     footnote: 'Choose monthly or yearly on the next screen. Cancel anytime.',
     trialBadge: '7-day free trial',
     dismiss: 'Later',
+    continueFree: 'Continue free with Chord Run',
     loginRequired: 'You need to log in first.',
     checkoutFailed: 'Failed to open checkout',
     error: 'An error occurred',
@@ -113,7 +117,13 @@ const PriceRow: React.FC<PriceRowProps> = ({ icon, label, sublabel }) => (
   </div>
 );
 
-const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy, source }) => {
+const WebPaywallModal: React.FC<WebPaywallModalProps> = ({
+  open,
+  onClose,
+  isEnglishCopy,
+  source,
+  onContinueFree,
+}) => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -343,7 +353,17 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
           {copy.ctaFootnote ?? priceCopy.footnote}
         </p>
 
-        <div className="text-center mt-3">
+        <div className="text-center mt-3 space-y-2">
+          {onContinueFree ? (
+            <button
+              type="button"
+              className="block w-full text-sm text-emerald-400 hover:text-emerald-300 transition-colors disabled:opacity-50"
+              onClick={onContinueFree}
+              disabled={checkoutBusy}
+            >
+              {priceCopy.continueFree}
+            </button>
+          ) : null}
           <button
             type="button"
             className="text-xs text-gray-500 hover:text-gray-400 transition-colors disabled:opacity-50"

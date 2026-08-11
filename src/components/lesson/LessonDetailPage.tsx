@@ -915,6 +915,43 @@ const LessonDetailPage: React.FC = () => {
     trackOfferViewed,
   ]);
 
+  const acceptSoftLandingFromChapterComplete = useCallback(async () => {
+    const excludeCourseId = lessonCourseIsSoftLanding ? lesson?.course_id ?? undefined : undefined;
+    if (excludeCourseId) {
+      setSoftLandingExcludeCourseId(excludeCourseId);
+    }
+    setSoftLandingOfferEntry('chapter_complete');
+    const next = await reloadSoftLandingOffer({
+      forceRefresh: true,
+      excludeCourseId,
+    });
+    const nextLessonId = next
+      ? getNextIncompleteBlock1LessonId(
+        next.course.lessons ?? [],
+        next.block1ProgressMap ?? {},
+      ) ?? getFirstBlock1LessonId(next.course.lessons ?? [])
+      : null;
+    if (!next || !nextLessonId) {
+      window.location.hash = '#lessons';
+      return;
+    }
+    trackOfferViewed(next.course);
+    trackOfferAccepted(next.course);
+    window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
+  }, [
+    lesson?.course_id,
+    lessonCourseIsSoftLanding,
+    reloadSoftLandingOffer,
+    setSoftLandingExcludeCourseId,
+    trackOfferAccepted,
+    trackOfferViewed,
+  ]);
+
+  const handlePaywallContinueFree = useCallback(() => {
+    setShowPaywall(false);
+    void acceptSoftLandingFromChapterComplete();
+  }, [acceptSoftLandingFromChapterComplete]);
+
   const handlePaywallClose = useCallback(() => {
     setShowPaywall(false);
     if (paywallRedirectToLessonsOnClose) {
@@ -1684,18 +1721,13 @@ const LessonDetailPage: React.FC = () => {
                 nextLesson={navigationInfo?.nextLesson ?? null}
                 isEnglishCopy={isEnglishCopy}
                 onStay={() => {
-                  setShowNextLessonPrompt(false);
                   const modalKind = questCompletionModalKind;
+                  setShowNextLessonPrompt(false);
                   setQuestCompletionModalKind('none');
-                  if (modalKind === 'chapterCompletePremiumUpsell') {
-                    void openSoftLandingOfferAfterPaywall().then((shown) => {
-                      if (!shown) {
-                        window.location.hash = '#lessons';
-                      }
-                    });
-                    return;
-                  }
                   markSoftLandingSessionDismissed();
+                  if (modalKind === 'chapterCompletePremiumUpsell') {
+                    window.location.hash = '#lessons';
+                  }
                 }}
                 onContinue={
                   navigationInfo?.nextLesson
@@ -1725,6 +1757,15 @@ const LessonDetailPage: React.FC = () => {
                         setPaywallSource(lessonCourseIsSoftLanding ? 'soft_landing' : 'chapter_complete');
                         setPaywallRedirectToLessonsOnClose(false);
                         setShowPaywall(true);
+                      }
+                    : undefined
+                }
+                onSoftLanding={
+                  questCompletionModalKind === 'chapterCompletePremiumUpsell'
+                    ? () => {
+                        setShowNextLessonPrompt(false);
+                        setQuestCompletionModalKind('none');
+                        void acceptSoftLandingFromChapterComplete();
                       }
                     : undefined
                 }
@@ -1804,6 +1845,11 @@ const LessonDetailPage: React.FC = () => {
               onClose={handlePaywallClose}
               isEnglishCopy={isEnglishCopy}
               source={paywallSource}
+              onContinueFree={
+                !isPremiumMember && (paywallSource === 'chapter_complete' || paywallSource === 'soft_landing')
+                  ? handlePaywallContinueFree
+                  : undefined
+              }
             />
             <SoftLandingOfferModal
               open={showSoftLandingOffer}

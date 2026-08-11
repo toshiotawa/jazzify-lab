@@ -45,12 +45,16 @@ private enum ChapterPremiumUpsellCopy {
             : "Learn chord colors and the blues progression. Add more tools and build your own phrases."
     }
 
-    static func continueLabel(locale: AppLocale) -> String {
-        locale == .ja ? "次のチャプターへ" : "Continue to the next chapter"
+    static func softLandingLabel(locale: AppLocale) -> String {
+        locale == .ja ? "コードランを無料で始める" : "Start Chord Run free"
+    }
+
+    static func trialLabel(locale: AppLocale) -> String {
+        locale == .ja ? "第2章を7日無料で試す" : "Try Chapter 2 free for 7 days"
     }
 
     static func stayLabel(locale: AppLocale) -> String {
-        locale == .ja ? "あとでホームに戻る" : "Return home later"
+        locale == .ja ? "ホームに戻る" : "Return home"
     }
 }
 
@@ -60,6 +64,7 @@ struct QuestCompletionSheet: View {
     let onStay: () -> Void
     let onContinue: (() -> Void)?
     let onPremium: (() -> Void)?
+    let onSoftLanding: (() -> Void)?
 
     private var isJapanese: Bool { locale == .ja }
 
@@ -163,9 +168,15 @@ struct QuestCompletionSheet: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
 
-        if model.kind == .chapterCompletePremiumUpsell, let onPremium {
-            Button(ChapterPremiumUpsellCopy.continueLabel(locale: locale), action: onPremium)
+        if model.kind == .chapterCompletePremiumUpsell, let onSoftLanding {
+            Button(ChapterPremiumUpsellCopy.softLandingLabel(locale: locale), action: onSoftLanding)
                 .buttonStyle(.borderedProminent)
+                .frame(maxWidth: .infinity)
+        }
+
+        if model.kind == .chapterCompletePremiumUpsell, let onPremium {
+            Button(ChapterPremiumUpsellCopy.trialLabel(locale: locale), action: onPremium)
+                .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)
         }
 

@@ -1334,6 +1334,8 @@ struct LessonDetailView: View {
     @State private var showSoftLandingOffer = false
     @State private var softLandingOfferCandidate: SoftLandingCandidate?
     @State private var softLandingOfferEntry: SoftLandingOfferEntry = .chapterComplete
+    /// 「無料で続ける」でペイウォールを閉じたときは、重ねてオファーシートを出さない
+    @State private var skipSoftLandingOfferOnPaywallDismiss = false
     @State private var survivalCatalogPrefetchTick = 0
     @State private var questCompletionSheet: QuestCompletionSheetModel?
     @State private var showReadyToCompletePrompt = false
@@ -1441,7 +1443,12 @@ struct LessonDetailView: View {
             .sheet(isPresented: $showSubscriptionSheet, onDismiss: {
                 handleSubscriptionSheetDismiss()
             }) {
-                SubscriptionView(entry: subscriptionEntry)
+                SubscriptionView(
+                    entry: subscriptionEntry,
+                    onContinueFree: SoftLandingFreeTier.isSoftLandingPaywallSource(subscriptionEntry)
+                        ? { handlePaywallContinueFree() }
+                        : nil
+                )
             }
             .sheet(isPresented: $showSoftLandingOffer) {
                 if let candidate = softLandingOfferCandidate {
@@ -1474,34 +1481,10 @@ struct LessonDetailView: View {
                     model: sheetModel,
                     locale: locale,
                     onStay: {
-                        let isPremiumUpsell = sheetModel.kind == .chapterCompletePremiumUpsell
                         questCompletionSheet = nil
-                        if isPremiumUpsell {
-                            Task {
-                                let excludeId = courseKind == .softLanding ? activeLesson.courseId : nil
-                                guard let next = await SoftLandingOfferLoader.resolveNext(
-                                    userId: appState.profile?.id,
-                                    excludeCourseId: excludeId
-                                ) else {
-                                    await MainActor.run { dismiss() }
-                                    return
-                                }
-                                await MainActor.run {
-                                    softLandingOfferCandidate = next
-                                    softLandingOfferEntry = .chapterComplete
-                                    if let userId = appState.profile?.id {
-                                        AnalyticsTracker.trackSoftLandingOfferViewed(
-                                            userId: userId,
-                                            courseId: next.course.id,
-                                            entry: softLandingOfferEntry.rawValue,
-                                            sequenceIndex: next.course.softLandingOrder ?? 0
-                                        )
-                                    }
-                                    showSoftLandingOffer = true
-                                }
-                            }
-                        } else {
-                            GuidedSoftLandingPreferences.markSessionDismissed()
+                        GuidedSoftLandingPreferences.markSessionDismissed()
+                        if sheetModel.kind == .chapterCompletePremiumUpsell {
+                            dismiss()
                         }
                     },
                     onContinue: sheetModel.nextLesson.map { next in
@@ -1519,6 +1502,12 @@ struct LessonDetailView: View {
                             subscriptionEntry = courseKind == .softLanding ? .softLanding : .chapterComplete
                             paywallEntryAtOpen = subscriptionEntry
                             showSubscriptionSheet = true
+                        }
+                        : nil,
+                    onSoftLanding: sheetModel.kind == .chapterCompletePremiumUpsell
+                        ? {
+                            questCompletionSheet = nil
+                            startChapterCompleteSoftLanding()
                         }
                         : nil
                 )
@@ -3584,6 +3573,10 @@ struct LessonDetailView: View {
         if entry == .chapterComplete {
             subscriptionEntry = .default
         }
+        if skipSoftLandingOfferOnPaywallDismiss {
+            skipSoftLandingOfferOnPaywallDismiss = false
+            return
+        }
         guard !appState.isPremium, SoftLandingFreeTier.isSoftLandingPaywallSource(entry) else { return }
         Task {
             let excludeId = courseKind == .softLanding ? activeLesson.courseId : nil
@@ -3624,6 +3617,52 @@ struct LessonDetailView: View {
               let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
         pendingAutoStartFirstRequirement = true
         activeLesson = lesson
+    }
+
+    private func startChapterCompleteSoftLanding() {
+        let entry = SoftLandingOfferEntry.chapterComplete
+        Task {
+            let excludeId = courseKind == .softLanding ? activeLesson.courseId : nil
+            guard let next = await SoftLandingOfferLoader.resolveNext(
+                userId: appState.profile?.id,
+                excludeCourseId: excludeId
+            ) else {
+                await MainActor.run { dismiss() }
+                return
+            }
+            await MainActor.run {
+                if let userId = appState.profile?.id {
+                    AnalyticsTracker.trackSoftLandingOfferViewed(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: entry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                    AnalyticsTracker.trackSoftLandingOfferAccepted(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: entry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                }
+                guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
+                    lessons: next.lessons,
+                    completedIds: next.completedLessonIds
+                ),
+                      let lesson = next.lessons.first(where: { $0.id == lessonId }) else {
+                    dismiss()
+                    return
+                }
+                pendingAutoStartFirstRequirement = true
+                activeLesson = lesson
+            }
+        }
+    }
+
+    private func handlePaywallContinueFree() {
+        skipSoftLandingOfferOnPaywallDismiss = true
+        showSubscriptionSheet = false
+        startChapterCompleteSoftLanding()
     }
 
     private func handleSoftLandingOfferDismiss(_ candidate: SoftLandingCandidate) {
