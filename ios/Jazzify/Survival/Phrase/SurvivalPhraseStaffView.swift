@@ -68,27 +68,41 @@ struct SurvivalPhraseStaffView: View {
         var groups: [EarTrainingChordVoicingStaffLayout.GroupInput] = []
         var correctMap: [UUID: Set<Int>] = [:]
         var activeGroupId: UUID?
+        let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
 
-        for (index, note) in chord.notes.enumerated() {
+        for (stepPosition, step) in steps.enumerated() {
             let groupId = UUID()
-            let isCorrect = isCurrent && snapshot.correctNoteIndices.contains(index)
-            let isRevealed = isCurrent && snapshot.revealedNoteIndices.contains(index)
-            if isCurrent && snapshot.hintMode && !isCorrect && index == snapshot.targetNoteIndex {
+            var stepCorrectPitchClasses: Set<Int> = []
+            var allRevealed = true
+
+            for noteIndex in step.noteIndices {
+                guard noteIndex < chord.notes.count else { continue }
+                let note = chord.notes[noteIndex]
+                if isCurrent, snapshot.correctNoteIndices.contains(noteIndex) {
+                    stepCorrectPitchClasses.insert(note.pitchClass)
+                }
+                if isCurrent, !snapshot.revealedNoteIndices.contains(noteIndex) {
+                    allRevealed = false
+                }
+            }
+
+            if isCurrent, snapshot.hintMode, stepPosition == snapshot.targetStepIndex {
                 activeGroupId = groupId
             }
+
             groups.append(
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: groupId,
-                    chordName: index == 0 ? chord.chordName : "",
-                    voicing: [note.noteName],
-                    voicingStaves: [note.staff],
+                    chordName: stepPosition == 0 ? chord.chordName : "",
+                    voicing: step.noteIndices.map { chord.notes[$0].noteName },
+                    voicingStaves: step.noteIndices.map { chord.notes[$0].staff },
                     measureOffset: measureOffset,
                     isRest: false,
-                    exemptFromFade: isCurrent && isRevealed
+                    exemptFromFade: isCurrent && allRevealed
                 )
             )
-            if isCorrect {
-                correctMap[groupId] = [note.pitchClass]
+            if !stepCorrectPitchClasses.isEmpty {
+                correctMap[groupId] = stepCorrectPitchClasses
             }
         }
         return ChordBuilt(groups: groups, correctMap: correctMap, activeGroupId: activeGroupId)

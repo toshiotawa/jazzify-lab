@@ -3,20 +3,23 @@
  */
 import type { SurvivalPhraseChord, SurvivalPhraseDefinition } from '@/utils/survivalPhraseDefinitions';
 import {
-  advanceSequential,
-  getChordPatternCache,
-  prefixIndexSet,
-} from '@/utils/phraseStreamMatching';
+  advanceChordStep,
+  firstUnmatchedNoteIndexInStep,
+  getPhraseChordSteps,
+  type ChordStepAdvanceState,
+} from '@/utils/phraseChordSteps';
 
 export type SurvivalPhraseNoteResult =
   | 'progress'
   | 'resync'
+  | 'chord-hold'
   | 'measure-complete'
   | 'miss';
 
 export interface SurvivalPhraseRuntimeState {
   readonly phrase: SurvivalPhraseDefinition;
   readonly chordIndex: number;
+  readonly targetStepIndex: number;
   readonly targetNoteIndex: number;
   readonly correctNoteIndices: ReadonlySet<number>;
   readonly revealedNoteIndices: ReadonlySet<number>;
@@ -28,6 +31,7 @@ export function createInitialPhraseState(
   return {
     phrase,
     chordIndex: 0,
+    targetStepIndex: 0,
     targetNoteIndex: 0,
     correctNoteIndices: new Set(),
     revealedNoteIndices: new Set(),
@@ -38,17 +42,12 @@ function getCurrentChord(state: SurvivalPhraseRuntimeState): SurvivalPhraseChord
   return state.phrase.chords[state.chordIndex] ?? null;
 }
 
-function getTargetNote(state: SurvivalPhraseRuntimeState) {
-  const chord = getCurrentChord(state);
-  if (!chord) return null;
-  return chord.notes[state.targetNoteIndex] ?? null;
-}
-
 function resetChordState(
   state: SurvivalPhraseRuntimeState,
 ): SurvivalPhraseRuntimeState {
   return {
     ...state,
+    targetStepIndex: 0,
     targetNoteIndex: 0,
     correctNoteIndices: new Set(),
     revealedNoteIndices: new Set(),
@@ -62,9 +61,34 @@ function advanceChord(state: SurvivalPhraseRuntimeState): SurvivalPhraseRuntimeS
   return {
     phrase: state.phrase,
     chordIndex: nextIndex,
+    targetStepIndex: 0,
     targetNoteIndex: 0,
     correctNoteIndices: new Set(),
     revealedNoteIndices: new Set(),
+  };
+}
+
+function applyStepState(
+  state: SurvivalPhraseRuntimeState,
+  chord: SurvivalPhraseChord,
+  stepState: ChordStepAdvanceState,
+): SurvivalPhraseRuntimeState {
+  const { steps } = getPhraseChordSteps(chord.notes);
+  const currentStep = steps[stepState.targetStepIndex];
+  const targetNoteIndex = currentStep
+    ? firstUnmatchedNoteIndexInStep(
+      chord.notes,
+      currentStep,
+      stepState.correctNoteIndices,
+    )
+    : chord.notes.length;
+
+  return {
+    ...state,
+    targetStepIndex: stepState.targetStepIndex,
+    targetNoteIndex,
+    correctNoteIndices: stepState.correctNoteIndices,
+    revealedNoteIndices: stepState.revealedNoteIndices,
   };
 }
 
@@ -82,37 +106,34 @@ export function evaluatePhraseNoteOn(
     return { result: 'miss', nextState: state };
   }
 
-  const beforeLength = state.targetNoteIndex;
-  const { pattern } = getChordPatternCache(chord.notes);
-  const { matchedLength: nextMatchedLength, resync } = advanceSequential(
-    pattern,
-    beforeLength,
-    pitchClass,
-  );
+  const { steps } = getPhraseChordSteps(chord.notes);
+  const stepState: ChordStepAdvanceState = {
+    targetStepIndex: state.targetStepIndex,
+    correctNoteIndices: state.correctNoteIndices,
+    revealedNoteIndices: state.revealedNoteIndices,
+  };
 
-  if (nextMatchedLength === 0) {
+  const evaluation = advanceChordStep(chord.notes, steps, stepState, pitchClass);
+
+  if (evaluation.result === 'miss') {
     return { result: 'miss', nextState: resetChordState(state) };
   }
 
-  const nextCorrect = prefixIndexSet(nextMatchedLength);
-  const progressedState: SurvivalPhraseRuntimeState = {
-    ...state,
-    targetNoteIndex: nextMatchedLength,
-    correctNoteIndices: nextCorrect,
-    revealedNoteIndices: nextCorrect,
-  };
+  if (evaluation.result === 'chord-hold') {
+    return { result: 'chord-hold', nextState: state };
+  }
 
-  if (nextMatchedLength >= chord.notes.length) {
+  const progressedState = applyStepState(state, chord, evaluation.nextState);
+
+  if (evaluation.result === 'measure-complete') {
     return {
       result: 'measure-complete',
       nextState: advanceChord(progressedState),
     };
   }
 
-  const result: SurvivalPhraseNoteResult = resync ? 'resync' : 'progress';
-
   return {
-    result,
+    result: evaluation.result,
     nextState: progressedState,
   };
 }
@@ -144,8 +165,26 @@ export function skipRestPhraseChord(
   return { advanced: false, wrapped: false, nextState: state };
 }
 
-export function getPhraseTargetMidi(state: SurvivalPhraseRuntimeState): number | null {
-  return getTargetNote(state)?.pitchMidi ?? null;
+export function getPhraseTargetMidis(
+  state: SurvivalPhraseRuntimeState,
+): readonly number[] {
+  const chord = getCurrentChord(state);
+  if (!chord) return [];
+
+  const { steps } = getPhraseChordSteps(chord.notes);
+  const step = steps[state.targetStepIndex];
+  if (!step) return [];
+
+  const midis: number[] = [];
+  for (const noteIndex of step.noteIndices) {
+    if (!state.correctNoteIndices.has(noteIndex)) {
+      const note = chord.notes[noteIndex];
+      if (note) {
+        midis.push(note.pitchMidi);
+      }
+    }
+  }
+  return midis;
 }
 
 export function getPhraseDisplayChords(

@@ -8,6 +8,7 @@ import React, { useMemo } from 'react';
 import ChordVoicingStaff, { type ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoicingStaff';
 
 import type { SurvivalPhraseChord } from '@/utils/survivalPhraseDefinitions';
+import { getPhraseChordSteps } from '@/utils/phraseChordSteps';
 
 import { cn } from '@/utils/cn';
 
@@ -18,7 +19,7 @@ export interface SurvivalPhraseStaffProps {
   readonly keyFifths: number;
   readonly correctNoteIndices: ReadonlySet<number>;
   readonly revealedNoteIndices: ReadonlySet<number>;
-  readonly targetNoteIndex: number;
+  readonly targetStepIndex: number;
   readonly hintMode: boolean;
   readonly unpressedNoteOpacity: number;
   readonly className?: string;
@@ -28,27 +29,42 @@ function buildChordGroups(
   chord: SurvivalPhraseChord | null,
   correctIndices: ReadonlySet<number>,
   revealedIndices: ReadonlySet<number>,
-  targetNoteIndex: number,
+  targetStepIndex: number,
   hintMode: boolean,
 ): readonly ChordVoicingStaffGroup[] {
   if (!chord || chord.notes.length === 0) {
     return [];
   }
 
-  return chord.notes.map((note, noteIndex) => {
-    const isCorrect = correctIndices.has(noteIndex);
-    const isRevealed = revealedIndices.has(noteIndex);
-    const isTarget = !isCorrect && noteIndex === targetNoteIndex && hintMode;
+  const { steps } = getPhraseChordSteps(chord.notes);
+
+  return steps.map((step, stepPosition) => {
+    const groupId = `m0-s${stepPosition}`;
+    const stepCorrectPitchClasses: number[] = [];
+    let allRevealed = true;
+
+    for (const noteIndex of step.noteIndices) {
+      const note = chord.notes[noteIndex];
+      if (!note) continue;
+      if (correctIndices.has(noteIndex)) {
+        stepCorrectPitchClasses.push(note.pitchClass);
+      }
+      if (!revealedIndices.has(noteIndex)) {
+        allRevealed = false;
+      }
+    }
+
+    const isTarget = stepPosition === targetStepIndex && hintMode;
 
     return {
-      id: `m0-n${noteIndex}`,
-      chordName: noteIndex === 0 ? chord.chordName : '',
-      voicing: [note.noteName] as const,
-      voicingStaves: [note.staff] as const,
-      correctPitchClasses: isCorrect ? [note.pitchClass] : [],
+      id: groupId,
+      chordName: stepPosition === 0 ? chord.chordName : '',
+      voicing: step.noteIndices.map((index) => chord.notes[index]?.noteName ?? ''),
+      voicingStaves: step.noteIndices.map((index) => chord.notes[index]?.staff ?? 1),
+      correctPitchClasses: stepCorrectPitchClasses,
       measureOffset: 0 as const,
       isActive: isTarget,
-      exemptFromFade: isRevealed,
+      exemptFromFade: allRevealed,
     };
   });
 }
@@ -60,7 +76,7 @@ export const SurvivalPhraseStaff = React.memo<SurvivalPhraseStaffProps>(
     keyFifths,
     correctNoteIndices,
     revealedNoteIndices,
-    targetNoteIndex,
+    targetStepIndex,
     hintMode,
     unpressedNoteOpacity,
     className,
@@ -72,20 +88,12 @@ export const SurvivalPhraseStaff = React.memo<SurvivalPhraseStaffProps>(
         currentChord,
         correctNoteIndices,
         revealedNoteIndices,
-        targetNoteIndex,
+        targetStepIndex,
         hintMode,
       );
-    }, [currentChord, correctNoteIndices, revealedNoteIndices, targetNoteIndex, hintMode]);
+    }, [currentChord, correctNoteIndices, revealedNoteIndices, targetStepIndex, hintMode]);
 
-    const correctGroupIds = useMemo((): ReadonlySet<string> => {
-      const ids = new Set<string>();
-      for (const index of correctNoteIndices) {
-        ids.add(`m0-n${index}`);
-      }
-      return ids;
-    }, [correctNoteIndices]);
-
-    const activeGroupId = hintMode ? `m0-n${targetNoteIndex}` : null;
+    const activeGroupId = hintMode ? `m0-s${targetStepIndex}` : null;
 
     const correctPitchClassesByGroupId = useMemo(() => {
       const map = new Map<string, readonly number[]>();
@@ -115,7 +123,6 @@ export const SurvivalPhraseStaff = React.memo<SurvivalPhraseStaffProps>(
           keyFifths={keyFifths}
           voicingGroups={voicingGroups}
           activeGroupId={activeGroupId}
-          correctGroupIds={correctGroupIds}
           correctPitchClassesByGroupId={correctPitchClassesByGroupId}
           showTargetHints={hintMode}
           unpressedNoteOpacity={unpressedNoteOpacity}

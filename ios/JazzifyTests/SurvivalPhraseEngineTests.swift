@@ -87,6 +87,77 @@ final class SurvivalPhraseEngineTests: XCTestCase {
         XCTAssertEqual(done.nextState.chordIndex, 0)
     }
 
+    func testChordStepAcceptsEitherOrder() {
+        let chordPhrase = SurvivalPhraseDefinition(
+            id: "chord",
+            mapCategory: "phrases",
+            stageNumber: 1,
+            title: "Chord",
+            bgmUrl: nil,
+            keyFifths: 0,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "c0",
+                    orderIndex: 0,
+                    chordName: "F",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 1),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 68, pitchClass: 8, noteName: "Ab4", staff: 1, stepIndex: 1),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 2),
+                    ]
+                ),
+            ]
+        )
+
+        var state = SurvivalPhraseEngine.createInitialState(phrase: chordPhrase)
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5).nextState
+        XCTAssertEqual(state.targetStepIndex, 1)
+
+        let afterAb = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 8)
+        XCTAssertEqual(afterAb.result, .progress)
+        state = afterAb.nextState
+        XCTAssertEqual(state.targetStepIndex, 1)
+        XCTAssertEqual(state.correctNoteIndices, Set([0, 2]))
+
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5).nextState
+        XCTAssertEqual(state.targetStepIndex, 2)
+        XCTAssertEqual(state.correctNoteIndices, Set([0, 1, 2]))
+    }
+
+    func testChordHoldWhenReplayingMatchedPitch() {
+        let chordPhrase = SurvivalPhraseDefinition(
+            id: "hold",
+            mapCategory: "phrases",
+            stageNumber: 1,
+            title: "Hold",
+            bgmUrl: nil,
+            keyFifths: 0,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "c0",
+                    orderIndex: 0,
+                    chordName: "F",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 1),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 68, pitchClass: 8, noteName: "Ab4", staff: 1, stepIndex: 1),
+                    ]
+                ),
+            ]
+        )
+
+        var state = SurvivalPhraseEngine.createInitialState(phrase: chordPhrase)
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5).nextState
+        state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5).nextState
+
+        let hold = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5)
+        XCTAssertEqual(hold.result, .chordHold)
+        XCTAssertEqual(hold.nextState, state)
+    }
+
     func testMaxPitchMidiInResolvedChordsForTutorialV3() {
         let g7 = SurvivalResolvedChord(
             id: "tutorial:g7",

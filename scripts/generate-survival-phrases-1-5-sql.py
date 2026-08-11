@@ -54,10 +54,11 @@ def sql_escape(s: str) -> str:
     return s.replace("'", "''")
 
 
-def parse_stage_measure(measure: ET.Element) -> tuple[str, list[tuple[str, int, int]]]:
+def parse_stage_measure(measure: ET.Element) -> tuple[str, list[tuple[str, int, int, int]]]:
     harmony = measure.find("harmony")
     chord = harmony_name(harmony) if harmony is not None else "Dm7"
-    notes: list[tuple[str, int, int]] = []
+    notes: list[tuple[str, int, int, int]] = []
+    step_index = -1
     for child in measure:
         if child.tag != "note":
             continue
@@ -66,6 +67,8 @@ def parse_stage_measure(measure: ET.Element) -> tuple[str, list[tuple[str, int, 
         pel = child.find("pitch")
         if pel is None:
             continue
+        if child.find("chord") is None:
+            step_index += 1
         st = pel.find("step")
         step = st.text if st is not None and st.text else "C"
         alt_el = pel.find("alter")
@@ -73,7 +76,7 @@ def parse_stage_measure(measure: ET.Element) -> tuple[str, list[tuple[str, int, 
         oc_el = pel.find("octave")
         octv = int(oc_el.text) if oc_el is not None and oc_el.text else 4
         midi = midi_for_pitch(step, alter, octv)
-        notes.append((note_display_name(step, alter, octv), midi, pitch_class(midi)))
+        notes.append((note_display_name(step, alter, octv), midi, pitch_class(midi), step_index))
     return chord, notes
 
 
@@ -209,13 +212,13 @@ VALUES (
         )
         if notes:
             vals = []
-            for oi, (nm, midi, pc) in enumerate(notes):
+            for oi, (nm, midi, pc, si) in enumerate(notes):
                 vals.append(
-                    f"    (v_chord_{i}, {oi}, {midi}, {pc}, '{sql_escape(nm)}', 1)"
+                    f"    (v_chord_{i}, {oi}, {midi}, {pc}, '{sql_escape(nm)}', 1, {si})"
                 )
             print(
                 "  INSERT INTO public.survival_phrase_chord_notes "
-                "(chord_id, order_index, pitch_midi, pitch_class, note_name, staff) VALUES\n"
+                "(chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index) VALUES\n"
                 + ",\n".join(vals)
                 + ";"
             )

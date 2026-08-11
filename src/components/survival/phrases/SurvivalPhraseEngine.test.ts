@@ -220,4 +220,74 @@ describe('SurvivalPhraseEngine', () => {
     expect(isLastPhraseChunkInMeasure(chords, 3)).toBe(true);
     expect(isLastPhraseChunkInMeasure(chords, 4)).toBe(true);
   });
+
+  it('accepts chord steps in either order before advancing', () => {
+    const chordPhrase: SurvivalPhraseDefinition = {
+      id: 'chord',
+      mapCategory: 'phrases',
+      stageNumber: 1,
+      title: 'Chord',
+      bgmUrl: null,
+      keyFifths: 0,
+      chords: [{
+        id: 'c0',
+        orderIndex: 0,
+        chordName: 'F',
+        measureNumber: 1,
+        notes: [
+          { orderIndex: 0, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 0 },
+          { orderIndex: 1, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 1 },
+          { orderIndex: 2, pitchMidi: 68, pitchClass: 8, noteName: 'Ab4', staff: 1, stepIndex: 1 },
+          { orderIndex: 3, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 2 },
+        ],
+      }],
+    };
+
+    let state = createInitialPhraseState(chordPhrase);
+    state = evaluatePhraseNoteOn(state, 5).nextState;
+    expect(state.targetStepIndex).toBe(1);
+
+    const afterAb = evaluatePhraseNoteOn(state, 8);
+    expect(afterAb.result).toBe('progress');
+    state = afterAb.nextState;
+    expect(state.targetStepIndex).toBe(1);
+    expect(state.correctNoteIndices).toEqual(new Set([0, 2]));
+
+    state = evaluatePhraseNoteOn(state, 5).nextState;
+    expect(state.targetStepIndex).toBe(2);
+    expect(state.correctNoteIndices).toEqual(new Set([0, 1, 2]));
+
+    const afterSecondF = evaluatePhraseNoteOn(state, 5);
+    expect(afterSecondF.result).toBe('measure-complete');
+  });
+
+  it('holds when replaying a matched pitch in the current chord step', () => {
+    const chordPhrase: SurvivalPhraseDefinition = {
+      id: 'hold',
+      mapCategory: 'phrases',
+      stageNumber: 1,
+      title: 'Hold',
+      bgmUrl: null,
+      keyFifths: 0,
+      chords: [{
+        id: 'c0',
+        orderIndex: 0,
+        chordName: 'F',
+        measureNumber: 1,
+        notes: [
+          { orderIndex: 0, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 0 },
+          { orderIndex: 1, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 1 },
+          { orderIndex: 2, pitchMidi: 68, pitchClass: 8, noteName: 'Ab4', staff: 1, stepIndex: 1 },
+        ],
+      }],
+    };
+
+    let state = createInitialPhraseState(chordPhrase);
+    state = evaluatePhraseNoteOn(state, 5).nextState;
+    state = evaluatePhraseNoteOn(state, 5).nextState;
+
+    const hold = evaluatePhraseNoteOn(state, 5);
+    expect(hold.result).toBe('chord-hold');
+    expect(hold.nextState).toEqual(state);
+  });
 });

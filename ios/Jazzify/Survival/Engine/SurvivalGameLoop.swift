@@ -347,7 +347,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 keyFifths: compositePhraseKeyFifths,
                 correctNoteIndices: view.correctNoteIndices,
                 revealedNoteIndices: view.correctNoteIndices,
-                targetNoteIndex: 0,
+                targetStepIndex: 0,
                 hintMode: false,
                 unpressedNoteOpacity: 0
             )
@@ -368,7 +368,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             keyFifths: state.phrase.keyFifths,
             correctNoteIndices: state.correctNoteIndices,
             revealedNoteIndices: state.revealedNoteIndices,
-            targetNoteIndex: state.targetNoteIndex,
+            targetStepIndex: state.targetStepIndex,
             hintMode: mode.hintMode || runtime.productionHintModes.staffHintMode == .always,
             unpressedNoteOpacity: Double(opacity)
         )
@@ -653,9 +653,9 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         if isPhraseMode, isCompositePhraseBossStage {
             return []
         }
-        if isPhraseMode, let midi = phraseState.flatMap({ SurvivalPhraseEngine.targetMidi(state: $0) }) {
+        if isPhraseMode {
             guard keyboardHintsEnabled() else { return [] }
-            return [midi]
+            return Set(phraseState.flatMap { SurvivalPhraseEngine.targetMidis(state: $0) })
         }
         guard let target = currentHintTargetSlot() else { return [] }
         return Set(target.chord.midiNotes)
@@ -813,7 +813,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             runtime.comboGauge = 0
             runtime.comboReady = false
             return []
-        case .resync:
+        case .resync, .chordHold:
             return []
         case .progress, .measureComplete:
             var events: [SurvivalFrameEvent] = []

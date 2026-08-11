@@ -41,6 +41,7 @@
 		182B571EFEB0DECD5F9255AC /* Bravura.otf in Resources */ = {isa = PBXBuildFile; fileRef = 7506A99CCCD98BCB75B3EC6C /* Bravura.otf */; };
 		1836E94E9A39B90584E12D6B /* MidiConnectionGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48EAE0378D83A7E32E3565A4 /* MidiConnectionGuideView.swift */; };
 		18AF7B0B808E9648A7ECE897 /* SurvivalPhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E556118DFD8F80FDA8B4BC52 /* SurvivalPhraseEngine.swift */; };
+		3A8E1F2C9D7B4567890FEDCBA /* SurvivalPhraseChordSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3C2A9E1B8D4567890ABCDE1 /* SurvivalPhraseChordSteps.swift */; };
 		19E97A760FD91CB70434417A /* EarTrainingTutorialDialogueBattleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A88FE49722A0680190C68352 /* EarTrainingTutorialDialogueBattleView.swift */; };
 		1A30BE7F1CDD445C7A0DCEE6 /* BalloonRushSurvivalBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60480C0EAD760C5FCA62EE0 /* BalloonRushSurvivalBridge.swift */; };
 		1A3685F8B461FBABFE4C6D1E /* SurvivalDemoStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */; };
@@ -567,6 +568,7 @@
 		E2647E0DC0BE4E402F65D761 /* SurvivalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalViewModel.swift; sourceTree = "<group>"; };
 		E2AE6B5043CCEF16E6033EF1 /* SurvivalProgressionStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalProgressionStaffView.swift; sourceTree = "<group>"; };
 		E464D061B361CB1F32B3D071 /* EarTrainingBattleOsuCircleColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleColors.swift; sourceTree = "<group>"; };
+		7F3C2A9E1B8D4567890ABCDE1 /* SurvivalPhraseChordSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseChordSteps.swift; sourceTree = "<group>"; };
 		E556118DFD8F80FDA8B4BC52 /* SurvivalPhraseEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseEngine.swift; sourceTree = "<group>"; };
 		E602162EA3A9F9A8E9EDA852 /* OnboardingCtaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCtaView.swift; sourceTree = "<group>"; };
 		E6C1425BEA0C8052E33037DF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -814,6 +816,7 @@
 				9140CD76A930EFAA3062EE0D /* SurvivalCompositePhraseDamage.swift */,
 				E026E94D06447C703E617901 /* SurvivalCompositePhraseEngine.swift */,
 				51C3C7772B87C9B96D5320F7 /* SurvivalLessonConfig.swift */,
+				7F3C2A9E1B8D4567890ABCDE1 /* SurvivalPhraseChordSteps.swift */,
 				E556118DFD8F80FDA8B4BC52 /* SurvivalPhraseEngine.swift */,
 				F1E33139D92205CFC2F61870 /* SurvivalPhraseMapPreviewPlayer.swift */,
 				E16120BBBAF7F047B52F3CFB /* SurvivalPhraseModel.swift */,
@@ -1659,6 +1662,7 @@
 				FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */,
 				CD3107E623F660267F32BD9A /* SurvivalPauseSettingsSheet.swift in Sources */,
 				18AF7B0B808E9648A7ECE897 /* SurvivalPhraseEngine.swift in Sources */,
+				3A8E1F2C9D7B4567890FEDCBA /* SurvivalPhraseChordSteps.swift in Sources */,
 				43B21E7F172AF3B55CEDD63D /* SurvivalPhraseMapPreviewPlayer.swift in Sources */,
 				17175AF83580D47BDF3CB9C9 /* SurvivalPhraseModel.swift in Sources */,
 				6B25763630F15C2BA3D37CBE /* SurvivalPhrasePreviewModel.swift in Sources */,

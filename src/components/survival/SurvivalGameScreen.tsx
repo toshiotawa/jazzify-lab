@@ -159,7 +159,7 @@ import {
   createInitialPhraseState,
   evaluatePhraseNoteOn,
   getPhraseDisplayChords,
-  getPhraseTargetMidi,
+  getPhraseTargetMidis,
   isLastPhraseChunkInMeasure,
   skipRestPhraseChord,
   type SurvivalPhraseRuntimeState,
@@ -186,6 +186,7 @@ import {
   type SurvivalPhraseDefinition,
 } from '@/utils/survivalPhraseDefinitions';
 import { compositeChordToSurvivalChord } from '@/utils/compositePhraseSurvivalAdapter';
+import { getPhraseChordSteps } from '@/utils/phraseChordSteps';
 import {
   applyPlayerStatMultiplier,
   type ResolvedSurvivalLessonRuntime,
@@ -2511,7 +2512,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
 
-        if (evaluation.result === 'resync') {
+        if (evaluation.result === 'resync' || evaluation.result === 'chord-hold') {
           return prev;
         }
 
@@ -5767,7 +5768,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         keyFifths: compositePhraseKeyFifthsRef.current,
         correctNoteIndices: view.correctNoteIndices,
         revealedNoteIndices: view.correctNoteIndices,
-        targetNoteIndex: 0,
+        targetStepIndex: 0,
         hintMode: false,
       };
     }
@@ -5780,7 +5781,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       keyFifths: state.phrase.keyFifths,
       correctNoteIndices: state.correctNoteIndices,
       revealedNoteIndices: state.revealedNoteIndices,
-      targetNoteIndex: state.targetNoteIndex,
+      targetStepIndex: state.targetStepIndex,
       hintMode: hintMode || beginnerAssistActive,
     };
   }, [isPhraseMode, phraseUiTick, hintMode, beginnerAssistActive, isCompositePhraseBossStage]);
@@ -5807,12 +5808,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       correctIndices.add(i);
     }
     const revealedIndices = new Set(correctIndices);
-    let targetNoteIndex = 0;
-    for (let i = 0; i < phraseChord.notes.length; i += 1) {
-      if (!correctIndices.has(i)) {
-        targetNoteIndex = i;
+    const { steps } = getPhraseChordSteps(phraseChord.notes);
+    let targetStepIndex = 0;
+    for (let stepPosition = 0; stepPosition < steps.length; stepPosition += 1) {
+      const step = steps[stepPosition];
+      const stepComplete = step.noteIndices.every((index) => correctIndices.has(index));
+      if (!stepComplete) {
+        targetStepIndex = stepPosition;
         break;
       }
+      targetStepIndex = stepPosition + 1;
     }
     return {
       currentChord: phraseChord,
@@ -5820,7 +5825,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       keyFifths: chord.progressionStaffKeyFifths ?? 0,
       correctNoteIndices: correctIndices,
       revealedNoteIndices: revealedIndices,
-      targetNoteIndex,
+      targetStepIndex,
       hintMode: true,
     };
   }, [scenarioMode, scenarioUiTick, gameState.codeSlots.current[1].correctNotes]);
@@ -6274,12 +6279,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         return undefined;
       }
       const renderer = pixiRendererRef.current;
-      const targetMidi = phraseStateRef.current ? getPhraseTargetMidi(phraseStateRef.current) : null;
-      if (!renderer || targetMidi === null) {
+      const targetMidis = phraseStateRef.current
+        ? getPhraseTargetMidis(phraseStateRef.current)
+        : [];
+      if (!renderer || targetMidis.length === 0) {
         pixiRendererRef.current?.clearVoicingHints();
         return undefined;
       }
-      applySurvivalVoicingHintsWithOpacity(renderer, [targetMidi], [], survivalKeyboardHintOpacity);
+      applySurvivalVoicingHintsWithOpacity(renderer, [...targetMidis], [], survivalKeyboardHintOpacity);
       return undefined;
     }
 
@@ -6693,7 +6700,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   keyFifths={scenarioPhraseStaff.keyFifths}
                   correctNoteIndices={scenarioPhraseStaff.correctNoteIndices}
                   revealedNoteIndices={scenarioPhraseStaff.revealedNoteIndices}
-                  targetNoteIndex={scenarioPhraseStaff.targetNoteIndex}
+                  targetStepIndex={scenarioPhraseStaff.targetStepIndex}
                   hintMode={scenarioPhraseStaff.hintMode}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"
@@ -6790,7 +6797,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   keyFifths={phraseStaffProps.keyFifths}
                   correctNoteIndices={phraseStaffProps.correctNoteIndices}
                   revealedNoteIndices={phraseStaffProps.revealedNoteIndices}
-                  targetNoteIndex={phraseStaffProps.targetNoteIndex}
+                  targetStepIndex={phraseStaffProps.targetStepIndex}
                   hintMode={phraseStaffProps.hintMode}
                   unpressedNoteOpacity={survivalCenterStaffUnpressedNoteOpacity}
                   className="max-w-[min(520px,92vw)] md:max-w-[min(620px,90vw)]"

@@ -6,6 +6,8 @@ struct SurvivalPhraseChordNote: Codable, Sendable, Equatable {
     let pitchClass: Int
     let noteName: String
     let staff: Int
+    /// Simultaneous-note group within the chunk. nil = one note per step (legacy).
+    var stepIndex: Int? = nil
 }
 
 struct SurvivalPhraseChord: Codable, Sendable, Equatable, Identifiable {

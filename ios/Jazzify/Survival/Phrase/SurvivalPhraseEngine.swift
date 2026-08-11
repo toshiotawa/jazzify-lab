@@ -3,6 +3,7 @@ import Foundation
 enum SurvivalPhraseNoteResult: Equatable {
     case progress
     case resync
+    case chordHold
     case measureComplete
     case miss
 }
@@ -10,6 +11,7 @@ enum SurvivalPhraseNoteResult: Equatable {
 struct SurvivalPhraseRuntimeState: Equatable {
     let phrase: SurvivalPhraseDefinition
     var chordIndex: Int
+    var targetStepIndex: Int
     var targetNoteIndex: Int
     var correctNoteIndices: Set<Int>
     var revealedNoteIndices: Set<Int>
@@ -20,6 +22,7 @@ enum SurvivalPhraseEngine {
         SurvivalPhraseRuntimeState(
             phrase: phrase,
             chordIndex: 0,
+            targetStepIndex: 0,
             targetNoteIndex: 0,
             correctNoteIndices: [],
             revealedNoteIndices: []
@@ -36,31 +39,32 @@ enum SurvivalPhraseEngine {
             return (.miss, state)
         }
 
-        let beforeLength = state.targetNoteIndex
-        let cache = PhraseStreamMatching.getChordPatternCache(notes: chord.notes)
-        let advance = PhraseStreamMatching.advanceSequential(
-            pattern: cache.pattern,
-            matchedLength: beforeLength,
+        let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
+        let stepState = SurvivalPhraseChordSteps.AdvanceState(
+            targetStepIndex: state.targetStepIndex,
+            correctNoteIndices: state.correctNoteIndices,
+            revealedNoteIndices: state.revealedNoteIndices
+        )
+        let evaluation = SurvivalPhraseChordSteps.advance(
+            notes: chord.notes,
+            steps: steps,
+            state: stepState,
             pitchClass: pitchClass
         )
-        let nextMatchedLength = advance.matchedLength
 
-        if nextMatchedLength == 0 {
+        switch evaluation.result {
+        case .miss:
             return (.miss, resetChord(state))
-        }
-
-        let nextCorrect = PhraseStreamMatching.prefixIndexSet(nextMatchedLength)
-        var progressed = state
-        progressed.targetNoteIndex = nextMatchedLength
-        progressed.correctNoteIndices = nextCorrect
-        progressed.revealedNoteIndices = nextCorrect
-
-        if nextMatchedLength >= chord.notes.count {
+        case .chordHold:
+            return (.chordHold, state)
+        case .measureComplete:
+            let progressed = applyStepState(state: state, chord: chord, stepState: evaluation.nextState, steps: steps)
             return (.measureComplete, advanceChord(progressed))
+        case .resync, .progress:
+            let progressed = applyStepState(state: state, chord: chord, stepState: evaluation.nextState, steps: steps)
+            let result: SurvivalPhraseNoteResult = evaluation.result == .resync ? .resync : .progress
+            return (result, progressed)
         }
-
-        let result: SurvivalPhraseNoteResult = advance.resync ? .resync : .progress
-        return (result, progressed)
     }
 
     /// 現在塊が休符(notes 空)のとき入力なしで次塊へ送る。play の「会話だけの小節」用。
@@ -75,10 +79,14 @@ enum SurvivalPhraseEngine {
         return (false, false, state)
     }
 
-    static func targetMidi(state: SurvivalPhraseRuntimeState) -> Int? {
-        guard let chord = state.phrase.chords[safe: state.chordIndex],
-              let note = chord.notes[safe: state.targetNoteIndex] else { return nil }
-        return note.pitchMidi
+    static func targetMidis(state: SurvivalPhraseRuntimeState) -> [Int] {
+        guard let chord = state.phrase.chords[safe: state.chordIndex] else { return [] }
+        let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
+        guard let step = steps[safe: state.targetStepIndex] else { return [] }
+        return step.noteIndices.compactMap { index in
+            guard !state.correctNoteIndices.contains(index) else { return nil }
+            return chord.notes[safe: index]?.pitchMidi
+        }
     }
 
     static func displayChords(state: SurvivalPhraseRuntimeState) -> (current: SurvivalPhraseChord?, next: SurvivalPhraseChord?) {
@@ -89,8 +97,27 @@ enum SurvivalPhraseEngine {
         return (current, chords[nextIndex])
     }
 
+    private static func applyStepState(
+        state: SurvivalPhraseRuntimeState,
+        chord: SurvivalPhraseChord,
+        stepState: SurvivalPhraseChordSteps.AdvanceState,
+        steps: [PhraseChordStep]
+    ) -> SurvivalPhraseRuntimeState {
+        var next = state
+        next.targetStepIndex = stepState.targetStepIndex
+        next.correctNoteIndices = stepState.correctNoteIndices
+        next.revealedNoteIndices = stepState.revealedNoteIndices
+        next.targetNoteIndex = SurvivalPhraseChordSteps.targetNoteIndex(
+            notes: chord.notes,
+            steps: steps,
+            state: stepState
+        )
+        return next
+    }
+
     private static func resetChord(_ state: SurvivalPhraseRuntimeState) -> SurvivalPhraseRuntimeState {
         var next = state
+        next.targetStepIndex = 0
         next.targetNoteIndex = 0
         next.correctNoteIndices = []
         next.revealedNoteIndices = []
@@ -102,6 +129,7 @@ enum SurvivalPhraseEngine {
         guard count > 0 else { return state }
         var next = state
         next.chordIndex = (state.chordIndex + 1) % count
+        next.targetStepIndex = 0
         next.targetNoteIndex = 0
         next.correctNoteIndices = []
         next.revealedNoteIndices = []

@@ -11,6 +11,8 @@ export interface SurvivalPhraseChordNote {
   readonly pitchClass: number;
   readonly noteName: string;
   readonly staff: 1 | 2;
+  /** Simultaneous-note group within the chunk. Omitted = one note per step (legacy). */
+  readonly stepIndex?: number;
 }
 
 export interface SurvivalPhraseChord {
@@ -60,6 +62,7 @@ interface NoteRow {
   pitch_class: number;
   note_name: string;
   staff: number;
+  step_index: number | null;
 }
 
 const phraseDefinitionCache = new Map<string, SurvivalPhraseDefinition | null>();
@@ -140,7 +143,7 @@ export async function fetchSurvivalPhraseByStage(
 
   const { data: noteRows, error: noteError } = await supabase
     .from('survival_phrase_chord_notes')
-    .select('chord_id, order_index, pitch_midi, pitch_class, note_name, staff')
+    .select('chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index')
     .in('chord_id', chordIds)
     .order('order_index', { ascending: true });
 
@@ -159,6 +162,7 @@ export async function fetchSurvivalPhraseByStage(
       pitchClass: row.pitch_class,
       noteName: row.note_name,
       staff: staffNum,
+      stepIndex: row.step_index ?? undefined,
     });
     notesByChord.set(row.chord_id, list);
   }
@@ -191,7 +195,10 @@ export interface SurvivalCompositePhraseRuntimeConfig {
   readonly sourcePhrases: readonly SurvivalPhraseDefinition[];
 }
 
-/** 複合フレーズ舞台: StageDefinition の compositePhraseSources で元フレーズを並列読込 */
+/**
+ * 複合フレーズ舞台: StageDefinition の compositePhraseSources で元フレーズを並列読込。
+ * 和音ステップ（step_index グループ）を含むフレーズは composite 判定では順次1音扱いになる。
+ */
 export async function loadCompositePhraseRuntimeConfig(
   stage: StageDefinition,
 ): Promise<SurvivalCompositePhraseRuntimeConfig | null> {

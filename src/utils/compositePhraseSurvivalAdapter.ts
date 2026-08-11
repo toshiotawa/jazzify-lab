@@ -56,6 +56,7 @@ export function compositeChordToSurvivalChord(chord: CompositePhraseChord | null
         pitchClass: n.pitchClass,
         noteName: n.noteName,
         staff: n.staff,
+        stepIndex: undefined,
       };
     }),
   };

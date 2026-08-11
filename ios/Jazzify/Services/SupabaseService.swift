@@ -884,6 +884,7 @@ final class SupabaseService: Sendable {
             let pitch_class: Int
             let note_name: String
             let staff: Int
+            let step_index: Int?
         }
 
         let phrases: [PhraseRow] = try await client
@@ -908,7 +909,7 @@ final class SupabaseService: Sendable {
         let chordIds = chords.map(\.id)
         let notes: [NoteRow] = try await client
             .from("survival_phrase_chord_notes")
-            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff")
+            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index")
             .in("chord_id", values: chordIds)
             .order("order_index")
             .execute()
@@ -921,7 +922,8 @@ final class SupabaseService: Sendable {
                 pitchMidi: row.pitch_midi,
                 pitchClass: row.pitch_class,
                 noteName: row.note_name,
-                staff: row.staff
+                staff: row.staff,
+                stepIndex: row.step_index
             )
             notesByChord[row.chord_id, default: []].append(note)
         }
