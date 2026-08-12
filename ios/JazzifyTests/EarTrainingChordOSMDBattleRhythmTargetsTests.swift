@@ -67,4 +67,24 @@ final class EarTrainingChordOSMDBattleRhythmTargetsTests: XCTestCase {
     func testParryPreciseRingOnSuccessRegardlessOfTimingOffset() {
         XCTAssertTrue(EarTrainingChordOSMDBattleController.parryPreciseRingOnSuccess)
     }
+
+    func testStraightBeatKeysGuardSkipsSwingOnMixedSixteenthBeat() {
+        let straightKeys: Set<String> = ["1:0"]
+        let even = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
+            measureNumber: 1,
+            beatStartInMeasure: 1.5,
+            bpm: 120,
+            beatsPerMeasure: 4,
+            isSwing: false
+        )
+        let guarded = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
+            measureNumber: 1,
+            beatStartInMeasure: 1.5,
+            bpm: 120,
+            beatsPerMeasure: 4,
+            isSwing: true,
+            straightBeatKeys: straightKeys
+        )
+        XCTAssertEqual(guarded, even, accuracy: 0.00001)
+    }
 }

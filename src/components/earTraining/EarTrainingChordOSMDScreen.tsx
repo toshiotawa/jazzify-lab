@@ -956,6 +956,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         transposeOffset,
         resolveMidiNotesForTargets(transposeOffset),
         stage.is_swing === true,
+        musicXmlText ?? undefined,
       );
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
@@ -1434,6 +1435,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         transposeOffset,
         resolveMidiNotesForTargets(transposeOffset),
         stage.is_swing === true,
+        xmlText ?? undefined,
       );
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');

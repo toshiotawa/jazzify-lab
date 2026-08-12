@@ -1094,6 +1094,13 @@ describe('chordOsmdBeatToTargetTimeSec swing', () => {
     const swing = chordOsmdBeatToTargetTimeSec(1, 1, 120, 4, true);
     expect(swing).toBeCloseTo(even, 5);
   });
+
+  it('16分を含む拍では裏拍0.5をスイングしない', () => {
+    const straightKeys = new Set(['1:0']);
+    const even = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
+    const guarded = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true, straightKeys);
+    expect(guarded).toBeCloseTo(even, 5);
+  });
 });
 
 describe('resolveEarTrainingOsmdTargetsFromScore', () => {

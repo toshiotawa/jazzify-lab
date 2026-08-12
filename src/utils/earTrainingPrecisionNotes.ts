@@ -1,5 +1,6 @@
 import {
   chordOsmdBeatToTargetTimeSec,
+  collectChordOsmdStraightBeatKeys,
   forEachChordOsmdNoteCluster,
   musicXmlNoteHasTieStop,
   parseMusicXmlNoteElementToMidi,
@@ -82,6 +83,7 @@ const resolvePrecisionNoteTimingSec = (
   bpm: number,
   beatsPerMeasure: number,
   isSwing: boolean,
+  straightBeatKeys?: ReadonlySet<string>,
 ): { startSec: number; durationSec: number } => {
   if (!isSwing) {
     const startSec = chordOsmdBeatToTargetTimeSec(
@@ -103,6 +105,7 @@ const resolvePrecisionNoteTimingSec = (
     bpm,
     beatsPerMeasure,
     true,
+    straightBeatKeys,
   );
   const endSec = chordOsmdBeatToTargetTimeSec(
     measureNumber,
@@ -110,6 +113,7 @@ const resolvePrecisionNoteTimingSec = (
     bpm,
     beatsPerMeasure,
     true,
+    straightBeatKeys,
   );
   return {
     startSec,
@@ -289,6 +293,7 @@ export const buildPrecisionNotesFromMusicXml = (
   transposeOffset = 0,
   isSwing = false,
 ): PrecisionNoteBuildResult => {
+  const straightBeatKeys = isSwing ? collectChordOsmdStraightBeatKeys(musicXmlText) : undefined;
   const notes: PrecisionNote[] = [];
   forEachChordOsmdNoteCluster(musicXmlText, ({
     measureNumber,
@@ -305,6 +310,7 @@ export const buildPrecisionNotesFromMusicXml = (
       bpm,
       beatsPerMeasure,
       isSwing,
+      straightBeatKeys,
     );
     let indexInCluster = 0;
     for (const noteEl of clusterNotes) {

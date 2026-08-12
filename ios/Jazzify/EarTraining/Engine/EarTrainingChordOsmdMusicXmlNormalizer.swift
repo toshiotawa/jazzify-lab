@@ -683,15 +683,61 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return nil
     }
 
+    private static let straightBeatFractionEps = 1e-6
     private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
 
+    /// 16分など 0/0.5 以外のオンセットを含む拍はスイングしない（`"\(measureNumber):\(beatWhole)"`）。
+    static func collectChordOsmdStraightBeatKeys(_ xmlText: String) -> Set<String> {
+        var straightKeys = Set<String>()
+        EarTrainingPrecisionMusicXmlClusterWalker.forEachCluster(musicXmlText: xmlText) { context in
+            let rawBeatIndex = max(0.0, context.beatStartInMeasure - 1)
+            let beatWhole = Int(floor(rawBeatIndex + straightBeatFractionEps))
+            let fraction = rawBeatIndex - Double(beatWhole)
+            let onStraightGrid =
+                abs(fraction) <= straightBeatFractionEps
+                || abs(fraction - 0.5) <= straightBeatFractionEps
+            if !onStraightGrid {
+                straightKeys.insert("\(context.measureNumber):\(beatWhole)")
+            }
+        }
+        return straightKeys
+    }
+
+    private static func isStraightBeatKey(
+        _ straightBeatKeys: Set<String>?,
+        measureNumber: Int,
+        rawBeatIndex: Double
+    ) -> Bool {
+        guard let straightBeatKeys, !straightBeatKeys.isEmpty else { return false }
+        let beatWhole = Int(floor(rawBeatIndex + straightBeatFractionEps))
+        return straightBeatKeys.contains("\(measureNumber):\(beatWhole)")
+    }
+
     private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
-        let beatWhole = floor(beatIndex + 1e-6)
+        let beatWhole = floor(beatIndex + straightBeatFractionEps)
         let fraction = beatIndex - beatWhole
-        if abs(fraction - 0.5) < 1e-6 {
+        if abs(fraction - 0.5) < straightBeatFractionEps {
             return beatWhole + chordOsmdSwingLongEighthRatio
         }
         return beatIndex
+    }
+
+    static func chordOsmdBeatToTargetTimeSec(
+        measureNumber: Int,
+        beatStartInMeasure: Double,
+        bpm: Double,
+        beatsPerMeasure: Int,
+        isSwing: Bool = false,
+        straightBeatKeys: Set<String>? = nil
+    ) -> Double {
+        chordOsmdLyricTargetTimeSec(
+            measureNumber: measureNumber,
+            beatStartInMeasure: beatStartInMeasure,
+            bpm: bpm,
+            beatsPerMeasure: beatsPerMeasure,
+            isSwing: isSwing,
+            straightBeatKeys: straightBeatKeys
+        )
     }
 
     private static func chordOsmdLyricTargetTimeSec(
@@ -699,13 +745,16 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         beatStartInMeasure: Double,
         bpm: Double,
         beatsPerMeasure: Int,
-        isSwing: Bool = false
+        isSwing: Bool = false,
+        straightBeatKeys: Set<String>? = nil
     ) -> Double {
         let beatDurationSec = 60 / max(1.0, bpm)
         let bpmSafe = max(1, beatsPerMeasure)
         let measureIndex = max(0, measureNumber - 1)
         let rawBeatIndex = max(0.0, beatStartInMeasure - 1)
-        let beatIndex = isSwing ? applyChordOsmdSwingToBeatIndex(rawBeatIndex) : rawBeatIndex
+        let beatIndex = isSwing && !isStraightBeatKey(straightBeatKeys, measureNumber: measureNumber, rawBeatIndex: rawBeatIndex)
+            ? applyChordOsmdSwingToBeatIndex(rawBeatIndex)
+            : rawBeatIndex
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
     }
 
@@ -716,6 +765,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         bpm: Double,
         beatsPerMeasure: Int,
         isSwing: Bool,
+        straightBeatKeys: Set<String>? = nil,
         lastTextByVerse: inout [Int: String],
         events: inout [ChordOsmdScoreLyricEvent]
     ) {
@@ -761,7 +811,8 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             beatStartInMeasure: beatStartInMeasure,
             bpm: bpm,
             beatsPerMeasure: beatsPerMeasure,
-            isSwing: isSwing
+            isSwing: isSwing,
+            straightBeatKeys: straightBeatKeys
         )
         for (verseNumber, text) in nextState where !text.isEmpty {
             events.append(
@@ -784,6 +835,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         beatsPerMeasure: Int,
         isSwing: Bool = false
     ) -> [ChordOsmdScoreLyricEvent] {
+        let straightBeatKeys = isSwing ? collectChordOsmdStraightBeatKeys(xmlText) : nil
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
         let measures = measuresInPartsFirst(from: root)
         var events: [ChordOsmdScoreLyricEvent] = []
@@ -836,6 +888,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                                 bpm: bpm,
                                 beatsPerMeasure: beatsPerMeasure,
                                 isSwing: isSwing,
+                                straightBeatKeys: straightBeatKeys,
                                 lastTextByVerse: &lastTextByVerse,
                                 events: &events
                             )
@@ -884,6 +937,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                         bpm: bpm,
                         beatsPerMeasure: beatsPerMeasure,
                         isSwing: isSwing,
+                        straightBeatKeys: straightBeatKeys,
                         lastTextByVerse: &lastTextByVerse,
                         events: &events
                     )

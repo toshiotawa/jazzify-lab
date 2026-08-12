@@ -175,6 +175,9 @@ enum EarTrainingPrecisionNotes {
         transposeOffset: Int = 0,
         isSwing: Bool = false
     ) -> EarTrainingPrecisionNoteBuildResult {
+        let straightBeatKeys = isSwing
+            ? EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdStraightBeatKeys(musicXmlText)
+            : nil
         var notes: [EarTrainingPrecisionNote] = []
         forEachNoteCluster(musicXmlText: musicXmlText) { context in
             let timing = resolvePrecisionNoteTimingSec(
@@ -184,7 +187,8 @@ enum EarTrainingPrecisionNotes {
                 divisions: context.divisions,
                 bpm: bpm,
                 beatsPerMeasure: beatsPerMeasure,
-                isSwing: isSwing
+                isSwing: isSwing,
+                straightBeatKeys: straightBeatKeys
             )
             let startSec = timing.startSec
             let durationSec = timing.durationSec
@@ -263,13 +267,14 @@ enum EarTrainingPrecisionNotes {
         divisions: Int,
         bpm: Int,
         beatsPerMeasure: Int,
-        isSwing: Bool
+        isSwing: Bool,
+        straightBeatKeys: Set<String>? = nil
     ) -> (startSec: Double, durationSec: Double) {
         if !isSwing {
-            let startSec = chordOsmdBeatToTargetTimeSec(
+            let startSec = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
                 measureNumber: measureNumber,
                 beatStartInMeasure: beatStartInMeasure,
-                bpm: bpm,
+                bpm: Double(bpm),
                 beatsPerMeasure: beatsPerMeasure
             )
             return (
@@ -279,32 +284,23 @@ enum EarTrainingPrecisionNotes {
         }
         let quarters = durationDivisions / Double(max(1, divisions))
         let endBeatStartInMeasure = beatStartInMeasure + quarters
-        let startSec = chordOsmdBeatToTargetTimeSec(
+        let startSec = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
             measureNumber: measureNumber,
             beatStartInMeasure: beatStartInMeasure,
-            bpm: bpm,
+            bpm: Double(bpm),
             beatsPerMeasure: beatsPerMeasure,
-            isSwing: true
+            isSwing: true,
+            straightBeatKeys: straightBeatKeys
         )
-        let endSec = chordOsmdBeatToTargetTimeSec(
+        let endSec = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
             measureNumber: measureNumber,
             beatStartInMeasure: endBeatStartInMeasure,
-            bpm: bpm,
+            bpm: Double(bpm),
             beatsPerMeasure: beatsPerMeasure,
-            isSwing: true
+            isSwing: true,
+            straightBeatKeys: straightBeatKeys
         )
         return (startSec, max(0.05, endSec - startSec))
-    }
-
-    private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
-
-    private static func applyChordOsmdSwingToBeatIndex(_ beatIndex: Double) -> Double {
-        let beatWhole = floor(beatIndex + 1e-6)
-        let fraction = beatIndex - beatWhole
-        if abs(fraction - 0.5) < 1e-6 {
-            return beatWhole + chordOsmdSwingLongEighthRatio
-        }
-        return beatIndex
     }
 
     static func chordOsmdBeatToTargetTimeSec(
@@ -312,14 +308,17 @@ enum EarTrainingPrecisionNotes {
         beatStartInMeasure: Double,
         bpm: Int,
         beatsPerMeasure: Int,
-        isSwing: Bool = false
+        isSwing: Bool = false,
+        straightBeatKeys: Set<String>? = nil
     ) -> Double {
-        let beatDurationSec = 60.0 / Double(max(1, bpm))
-        let bpmSafe = max(1, beatsPerMeasure)
-        let measureIndex = max(0, measureNumber - 1)
-        let rawBeatIndex = max(0.0, beatStartInMeasure - 1)
-        let beatIndex = isSwing ? applyChordOsmdSwingToBeatIndex(rawBeatIndex) : rawBeatIndex
-        return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
+        EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
+            measureNumber: measureNumber,
+            beatStartInMeasure: beatStartInMeasure,
+            bpm: Double(bpm),
+            beatsPerMeasure: beatsPerMeasure,
+            isSwing: isSwing,
+            straightBeatKeys: straightBeatKeys
+        )
     }
 
     private struct NoteClusterContext {
