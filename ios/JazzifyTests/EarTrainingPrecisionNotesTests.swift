@@ -139,6 +139,42 @@ final class EarTrainingPrecisionNotesTests: XCTestCase {
         XCTAssertEqual(attr(playNotes[2], "print-object"), "no")
     }
 
+    func testBuildFromMusicXmlSwingsOffbeatEighths() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise>
+          <part>
+            <measure number="1">
+              <attributes>
+                <divisions>2</divisions>
+                <time><beats>4</beats><beat-type>4</beat-type></time>
+                <key><fifths>0</fifths></key>
+              </attributes>
+              <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>eighth</type></note>
+              <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><type>eighth</type></note>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+        let even = EarTrainingPrecisionNotes.buildFromMusicXml(
+            musicXmlText: xml,
+            bpm: 120,
+            beatsPerMeasure: 4,
+            isSwing: false
+        )
+        let swing = EarTrainingPrecisionNotes.buildFromMusicXml(
+            musicXmlText: xml,
+            bpm: 120,
+            beatsPerMeasure: 4,
+            isSwing: true
+        )
+        XCTAssertEqual(even.notes.count, 2)
+        XCTAssertEqual(swing.notes.count, 2)
+        XCTAssertEqual(swing.notes[0].startSec, even.notes[0].startSec, accuracy: 0.00001)
+        XCTAssertGreaterThan(swing.notes[1].startSec, even.notes[1].startSec)
+        XCTAssertEqual(swing.notes[1].startSec, (60.0 / 120.0) * (2.0 / 3.0), accuracy: 0.00001)
+    }
+
     func testBuildFromMusicXmlExcludesVoiceFourGuideNotes() {
         let displayXML = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(guideVoiceXML)
         XCTAssertTrue(displayXML.contains("<voice>4</voice>"))

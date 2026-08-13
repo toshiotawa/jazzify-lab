@@ -747,6 +747,48 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return beatIndex
     }
 
+    private static func swungBeatIndexToNotatedBeatIndex(
+        _ beatIndex: Double,
+        measureNumber: Int,
+        straightBeatKeys: Set<String>?
+    ) -> Double {
+        if isStraightBeatKey(straightBeatKeys, measureNumber: measureNumber, rawBeatIndex: beatIndex) {
+            return beatIndex
+        }
+        let beatWhole = floor(beatIndex + straightBeatFractionEps)
+        let fraction = beatIndex - beatWhole
+        let longRatio = chordOsmdSwingLongEighthRatio
+        if fraction <= longRatio + straightBeatFractionEps {
+            return beatWhole + fraction * (0.5 / longRatio)
+        }
+        let shortRatio = 1 - longRatio
+        return beatWhole + 0.5 + ((fraction - longRatio) / shortRatio) * 0.5
+    }
+
+    /// スイング済みオーディオ時刻 → 記譜上の時刻（譜面プレイヘッド用）。
+    static func swungTimelineToNotatedTimelineSec(
+        phraseTimeSec: Double,
+        measureDurationSec: Double,
+        beatsPerMeasure: Int,
+        straightBeatKeys: Set<String>? = nil
+    ) -> Double {
+        if phraseTimeSec < 0 {
+            return phraseTimeSec
+        }
+        let safeMeasureDurationSec = max(1e-6, measureDurationSec)
+        let bpmSafe = max(1, beatsPerMeasure)
+        let measureIndex = Int(floor(phraseTimeSec / safeMeasureDurationSec + 1e-12))
+        let timeInMeasure = phraseTimeSec - Double(measureIndex) * safeMeasureDurationSec
+        let beatDurationSec = safeMeasureDurationSec / Double(bpmSafe)
+        let beatInMeasure = timeInMeasure / max(1e-12, beatDurationSec)
+        let notatedBeatInMeasure = swungBeatIndexToNotatedBeatIndex(
+            beatInMeasure,
+            measureNumber: measureIndex + 1,
+            straightBeatKeys: straightBeatKeys
+        )
+        return Double(measureIndex) * safeMeasureDurationSec + notatedBeatInMeasure * beatDurationSec
+    }
+
     static func chordOsmdBeatToTargetTimeSec(
         measureNumber: Int,
         beatStartInMeasure: Double,

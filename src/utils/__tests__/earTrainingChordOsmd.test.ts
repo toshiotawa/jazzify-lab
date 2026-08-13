@@ -10,6 +10,7 @@ import {
   CHORD_OSMD_GUIDE_NOTE_COLOR,
   CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
   chordOsmdBeatToTargetTimeSec,
+  chordOsmdSwungTimelineToNotatedTimelineSec,
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
@@ -1133,6 +1134,30 @@ describe('chordOsmdBeatToTargetTimeSec swing', () => {
     const even = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
     const guarded = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true, straightKeys);
     expect(guarded).toBeCloseTo(even, 5);
+  });
+
+  it('スイング済み裏拍時刻を記譜8分位置へ戻す', () => {
+    const measureDurationSec = 2;
+    const evenSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
+    const swingSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);
+    const notatedSec = chordOsmdSwungTimelineToNotatedTimelineSec(
+      swingSec,
+      measureDurationSec,
+      4,
+    );
+    expect(notatedSec).toBeCloseTo(evenSec, 5);
+  });
+
+  it('16分拍のプレイヘッド逆変換は時刻を変えない', () => {
+    const straightKeys = new Set(['1:0']);
+    const swingSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);
+    const notatedSec = chordOsmdSwungTimelineToNotatedTimelineSec(
+      swingSec,
+      2,
+      4,
+      straightKeys,
+    );
+    expect(notatedSec).toBeCloseTo(swingSec, 5);
   });
 });
 

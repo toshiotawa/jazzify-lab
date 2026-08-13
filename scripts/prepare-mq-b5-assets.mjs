@@ -26,6 +26,83 @@ const run = (args) => {
   }
 };
 
+/** F7 小節の 3 拍目に誤って入った Eb/A/D 半音符コード → 2 拍休符 */
+const F7_BEAT3_HALF_CHORD_RE = /<note[^>]*>\s*<pitch>\s*<step>E<\/step>\s*<alter>-1<\/alter>\s*<octave>3<\/octave>\s*<\/pitch>\s*<duration>4<\/duration>\s*<voice>1<\/voice>\s*<type>half<\/type>[\s\S]*?<\/note>\s*<note[^>]*>\s*<chord\/>\s*<pitch>\s*<step>A<\/step>[\s\S]*?<duration>4<\/duration>[\s\S]*?<\/note>\s*<note[^>]*>\s*<chord\/>\s*<pitch>\s*<step>D<\/step>[\s\S]*?<duration>4<\/duration>[\s\S]*?<\/note>/;
+
+/** @param {string} filePath */
+const replaceF7Beat3HalfChordWithRest = (filePath) => {
+  const xml = readFileSync(filePath, 'utf8');
+  const match = xml.match(F7_BEAT3_HALF_CHORD_RE);
+  if (!match) {
+    return false;
+  }
+  const nl = match[0].includes('\r\n') ? '\r\n' : '\n';
+  const rest = [
+    '      <note>',
+    '        <rest/>',
+    '        <duration>4</duration>',
+    '        <voice>1</voice>',
+    '        <type>half</type>',
+    '      </note>',
+  ].join(nl);
+  writeFileSync(filePath, xml.replace(F7_BEAT3_HALF_CHORD_RE, rest));
+  return true;
+};
+
+/** クエスト9 フレーズ I: 末尾 F4 の全音下 Eb4 を追加（再生成で消えないようにする） */
+const appendEbToQ9PhraseI = (filePath) => {
+  const xml = readFileSync(filePath, 'utf8');
+  const dom = new JSDOM(xml, { contentType: 'application/xml' });
+  const doc = dom.window.document;
+  const measure = doc.querySelector('part measure');
+  if (!measure) {
+    return false;
+  }
+  const notes = [...measure.querySelectorAll('note')];
+  const pitched = notes.filter((note) => note.querySelector('pitch') && !note.querySelector('rest'));
+  const lastPitch = pitched[pitched.length - 1];
+  if (!lastPitch) {
+    return false;
+  }
+  const lastStep = lastPitch.querySelector('step')?.textContent;
+  const lastAlter = lastPitch.querySelector('alter')?.textContent ?? '';
+  const lastOctave = lastPitch.querySelector('octave')?.textContent;
+  if (lastStep === 'E' && lastAlter === '-1' && lastOctave === '4') {
+    return false;
+  }
+  const trailingRest = [...notes].reverse().find((note) => note.querySelector('rest'));
+  const restDuration = trailingRest?.querySelector('duration')?.textContent?.trim() || '12';
+  const voice = trailingRest?.querySelector('voice')?.textContent?.trim() || '1';
+  const eb = doc.createElement('note');
+  const pitch = doc.createElement('pitch');
+  const step = doc.createElement('step');
+  step.textContent = 'E';
+  const alter = doc.createElement('alter');
+  alter.textContent = '-1';
+  const octave = doc.createElement('octave');
+  octave.textContent = '4';
+  pitch.appendChild(step);
+  pitch.appendChild(alter);
+  pitch.appendChild(octave);
+  const duration = doc.createElement('duration');
+  duration.textContent = restDuration;
+  const voiceEl = doc.createElement('voice');
+  voiceEl.textContent = voice;
+  const type = doc.createElement('type');
+  type.textContent = 'quarter';
+  eb.appendChild(pitch);
+  eb.appendChild(duration);
+  eb.appendChild(voiceEl);
+  eb.appendChild(type);
+  if (trailingRest) {
+    measure.replaceChild(eb, trailingRest);
+  } else {
+    measure.appendChild(eb);
+  }
+  writeFileSync(filePath, new dom.window.XMLSerializer().serializeToString(doc));
+  return true;
+};
+
 /** @param {string} srcName @param {string} base */
 const copyXml = (srcName, base) => {
   copyFileSync(join(SRC, srcName), join(SOZAI, `${base}.musicxml`));
@@ -66,6 +143,7 @@ copyXml('6-3-2.3.4.5.6.musicxml.xml', 'mq-b5-6-3-6');
 precisionOnly('mq-b5-6-3-6');
 
 copyXml('6-4-3.musicxml.xml', 'mq-b5-6-4-3');
+replaceF7Beat3HalfChordWithRest(join(SOZAI, 'mq-b5-6-4-3.musicxml'));
 precisionOnly('mq-b5-6-4-3');
 
 copyXml('6-4-4.musicxml.xml', 'mq-b5-6-4-4');
@@ -76,6 +154,7 @@ precisionOnly('mq-b5-6-4-5');
 
 copyXml('6-4-6.musicxml.xml', 'mq-b5-6-4-6');
 run([BUILD, '--shift', '--part', '1', '--source', join(SOZAI, 'mq-b5-6-4-6.musicxml'), '--output', join(SOZAI, 'mq-b5-6-4-6.musicxml')]);
+replaceF7Beat3HalfChordWithRest(join(SOZAI, 'mq-b5-6-4-6.musicxml'));
 buildThenCue('mq-b5-6-4-6', []);
 
 copyXml('6-5-2.musicxml.xml', 'mq-b5-6-5-2');
@@ -110,6 +189,7 @@ precisionOnly('mq-b5-6-10-2');
 
 copyXml('クエスト9.musicxml.xml', 'mq-b5-6-9');
 run([BUILD, '--fix-tempo', '80', '--source', join(SOZAI, 'mq-b5-6-9.musicxml'), '--output', join(SOZAI, 'mq-b5-6-9.musicxml')]);
+appendEbToQ9PhraseI(join(SOZAI, 'mq-b5-6-9.musicxml'));
 
 // --- クエスト9: 1小節×4連結ループ MP3 ---
 const q9Src = join(SOZAI, 'mq-b5-6-9.mp3');

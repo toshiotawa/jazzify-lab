@@ -121,7 +121,6 @@ const randomChordPool = (pool) =>
   }));
 
 const CHORD_NAMES_5 = ['F7', 'Bb7', 'D7', 'Gm7', 'C7'];
-const F_BLUES_TURNAROUND = ['F7', 'Bb7', 'F7', 'Gm7', 'C7'];
 
 /** @type {readonly {
  *   key: string;
@@ -164,8 +163,8 @@ const STAGES = [
   {
     key: 'mq-b5-6-4-3', slug: 'mq-b5-6-4-3-osmd', title: 'パターン3', titleEn: 'Pattern 3',
     description: '4つのリズムパターンの3つ目。', descriptionEn: 'Third of four rhythm patterns.',
-    mode: 'chord_osmd', base: 'mq-b5-6-4-3', xmlSuffix: '', mp3Base: 'mq-b5-6-4-3',
-    measures: 25, targets: 147, bpm: 100, is_swing: true, loopSec: 60,
+    mode: 'chord_osmd', base: 'mq-b5-6-4-3', xmlSuffix: '', mp3Base: 'mq-b5-6-karaoke',
+    measures: 25, targets: 144, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
     key: 'mq-b5-6-4-4', slug: 'mq-b5-6-4-4-osmd', title: 'パターン4', titleEn: 'Pattern 4',
@@ -183,7 +182,7 @@ const STAGES = [
     key: 'mq-b5-6-4-6', slug: 'mq-b5-6-4-6-osmd', title: 'パターン6（まとめ）', titleEn: 'Pattern 6 (summary)',
     description: '4パターンのまとめ（クリア必須ではない）。', descriptionEn: 'Summary of four patterns (optional clear).',
     mode: 'chord_osmd', base: 'mq-b5-6-4-6', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b5-6-4-3',
-    measures: 25, targets: 185, bpm: 100, is_swing: true, loopSec: 60,
+    measures: 25, targets: 182, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
     key: 'mq-b5-6-5-2', slug: 'mq-b5-6-5-2-osmd', title: 'アドリブ2（2音）', titleEn: 'Ad-lib 2 (2 notes)',
@@ -863,19 +862,6 @@ function parseQ9Phrases() {
   }
 
   return measures.map((measure, idx) => {
-    const harmony = measure.querySelector('harmony');
-    let chordName = F_BLUES_TURNAROUND[idx] ?? 'F7';
-    if (harmony) {
-      const step = harmony.querySelector('root root-step')?.textContent ?? 'F';
-      const alterEl = harmony.querySelector('root root-alter');
-      const alter = alterEl?.textContent ? Number(alterEl.textContent) : 0;
-      const kind = harmony.querySelector('kind')?.getAttribute('text')
-        ?? harmony.querySelector('kind')?.textContent
-        ?? '7';
-      const acc = alter > 0 ? '#'.repeat(alter) : alter < 0 ? 'b'.repeat(-alter) : '';
-      chordName = `${step}${acc}${kind}`.trim();
-    }
-
     /** @type {{ name: string; midi: number; pc: number; stepIndex: number }[]} */
     const notes = [];
     let stepIndex = -1;
@@ -899,7 +885,7 @@ function parseQ9Phrases() {
       });
     }
 
-    return { stageNumber: 501 + idx, roman: ['I', 'II', 'III', 'IV', 'V'][idx], chordName, notes };
+    return { stageNumber: 501 + idx, roman: ['I', 'II', 'III', 'IV', 'V'][idx], notes };
   });
 }
 
@@ -929,14 +915,16 @@ INSERT INTO public.survival_stages (
   chord_suffix, chord_display_name, chord_display_name_en,
   root_pattern, root_pattern_name, root_pattern_name_en,
   block_key, is_mixed_stage, mixed_group_key, chord_progression,
-  lesson_only, production_staff_hint_mode, production_keyboard_hint_mode
+  lesson_only, production_staff_hint_mode, production_keyboard_hint_mode,
+  hide_chord_names_in_battle
 ) VALUES (
   'phrases', ${p.stageNumber}, 'progression',
   'MQ Ch6 フレーズ ${p.roman}', 'MQ Ch6 Phrase ${p.roman}', 'easy',
-  '', '${esc(p.chordName)}', '${esc(p.chordName)}',
+  '', '', '',
   NULL, NULL, NULL,
   'mq-b5-ch6-phrases', false, NULL, NULL,
-  true, 'fade_15s', 'fade_15s'
+  true, 'fade_15s', 'fade_15s',
+  true
 )
 ON CONFLICT (map_category, stage_number) DO UPDATE SET
   name = EXCLUDED.name,
@@ -947,6 +935,7 @@ ON CONFLICT (map_category, stage_number) DO UPDATE SET
   lesson_only = EXCLUDED.lesson_only,
   production_staff_hint_mode = EXCLUDED.production_staff_hint_mode,
   production_keyboard_hint_mode = EXCLUDED.production_keyboard_hint_mode,
+  hide_chord_names_in_battle = EXCLUDED.hide_chord_names_in_battle,
   updated_at = now();`).join('\n');
 
   const phraseInserts = phrases.map((p, i) => {
@@ -971,7 +960,7 @@ VALUES (
     ...phrases.flatMap((p) => {
       const lines = [
         `  INSERT INTO public.survival_phrase_chords (phrase_id, order_index, chord_name, measure_number)`,
-        `  VALUES (v_phrase_${p.stageNumber}, 0, '${esc(p.chordName)}', 1)`,
+        `  VALUES (v_phrase_${p.stageNumber}, 0, '', 1)`,
         `  RETURNING id INTO v_chord_${p.stageNumber};`,
       ];
       if (p.notes.length > 0) {
@@ -1204,4 +1193,4 @@ for (const s of STAGES.filter((x) => x.mode === 'chord_osmd')) {
   console.log(`  ${s.slug}: N=${s.targets} enemy_hp=${c.enemy_hp} miss=${c.miss_damage} fail=${c.fail_damage}`);
 }
 const q9 = parseQ9Phrases();
-console.log('Q9 phrases parsed:', q9.map((p) => `${p.stageNumber}:${p.chordName}(${p.notes.length} notes)`).join(', '));
+console.log('Q9 phrases parsed:', q9.map((p) => `${p.stageNumber}:${p.notes.length} notes`).join(', '));

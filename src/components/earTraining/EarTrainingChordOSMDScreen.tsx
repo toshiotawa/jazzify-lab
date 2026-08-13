@@ -993,6 +993,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage,
     stage.bpm,
     stage.beats_per_measure,
+    stage.is_swing,
   ]);
 
   const resetPhraseTimelineIndices = useCallback(() => {
@@ -1663,6 +1664,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     stage.beats_per_measure,
     stage.bpm,
     stage.count_in_beats,
+    stage.is_swing,
     stage.loop_measures,
     practiceSpeedPercent,
     stopPhraseAudio,

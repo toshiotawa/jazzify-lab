@@ -971,6 +971,52 @@ const applyChordOsmdSwingToBeatIndex = (beatIndex: number): number => {
   return beatIndex;
 };
 
+/** スイング済み 0-indexed 拍位置 → 記譜上の拍位置（譜面プレイヘッド用）。 */
+const chordOsmdSwungBeatIndexToNotatedBeatIndex = (
+  beatIndex: number,
+  measureNumber: number,
+  straightBeatKeys?: ReadonlySet<string>,
+): number => {
+  if (isStraightBeatKey(straightBeatKeys, measureNumber, beatIndex)) {
+    return beatIndex;
+  }
+  const beatWhole = Math.floor(beatIndex + STRAIGHT_BEAT_FRACTION_EPS);
+  const fraction = beatIndex - beatWhole;
+  const longRatio = CHORD_OSMD_SWING_LONG_EIGHTH_RATIO;
+  if (fraction <= longRatio + STRAIGHT_BEAT_FRACTION_EPS) {
+    return beatWhole + fraction * (0.5 / longRatio);
+  }
+  const shortRatio = 1 - longRatio;
+  return beatWhole + 0.5 + ((fraction - longRatio) / shortRatio) * 0.5;
+};
+
+/**
+ * スイング済みオーディオ時刻 → 記譜上の時刻（譜面プレイヘッド用）。
+ * 小節の壁時計長は変わらず、拍内だけ 2:1 をイーブン8分位置へ戻す。
+ */
+export const chordOsmdSwungTimelineToNotatedTimelineSec = (
+  phraseTimeSec: number,
+  measureDurationSec: number,
+  beatsPerMeasure: number,
+  straightBeatKeys?: ReadonlySet<string>,
+): number => {
+  if (phraseTimeSec < 0) {
+    return phraseTimeSec;
+  }
+  const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
+  const bpmSafe = Math.max(1, beatsPerMeasure);
+  const measureIndex = Math.floor(phraseTimeSec / safeMeasureDurationSec + 1e-12);
+  const timeInMeasure = phraseTimeSec - measureIndex * safeMeasureDurationSec;
+  const beatDurationSec = safeMeasureDurationSec / bpmSafe;
+  const beatInMeasure = timeInMeasure / Math.max(1e-12, beatDurationSec);
+  const notatedBeatInMeasure = chordOsmdSwungBeatIndexToNotatedBeatIndex(
+    beatInMeasure,
+    measureIndex + 1,
+    straightBeatKeys,
+  );
+  return measureIndex * safeMeasureDurationSec + notatedBeatInMeasure * beatDurationSec;
+};
+
 const chordOsmdLyricTargetTimeSec = (
   measureNumber: number,
   beatStartInMeasure: number,

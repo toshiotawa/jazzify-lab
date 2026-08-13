@@ -95,6 +95,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private var seekInteractionActive = false
     private var musicXmlCache: [String: String] = [:]
     private var midiCache: [String: Data] = [:]
+    private var playheadSwingEnabled = false
+    private var playheadStraightBeatKeys: Set<String>?
     private var lobbyPreloadTask: Task<Void, Never>?
     private weak var osmdCoordinator: EarTrainingOSMDScoreWebView.Coordinator?
     private var maxOsmdMeasure: Int = 1
@@ -401,13 +403,19 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     private func buildLoopPracticeCaches(baseXml: String) {
+        let usingMidi = baseMidiData != nil
+        let isSwing = stage.resolvedIsSwing
+        playheadSwingEnabled = isSwing && !usingMidi
+        playheadStraightBeatKeys = playheadSwingEnabled
+            ? EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdStraightBeatKeys(baseXml)
+            : nil
         let classificationBpm = resolveEffectivePracticeBpm()
         notesBySemitone = EarTrainingPrecisionLoop.buildPrecisionNotesBySemitone(
             xmlText: baseMidiData == nil ? baseXml : nil,
             midiData: baseMidiData,
             bpm: stage.bpm,
             beatsPerMeasure: stage.beatsPerMeasure,
-            isSwing: stage.resolvedIsSwing,
+            isSwing: isSwing,
             direction: loopTransposeDirection,
             baseSemitone: loopBaseSemitone,
             resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
@@ -532,6 +540,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
 
         let classificationBpm = resolveEffectivePracticeBpm()
         var builtNotes: [EarTrainingPrecisionNote] = []
+        let usingMidi = baseMidiData != nil
+        let isSwing = stage.resolvedIsSwing
+        playheadSwingEnabled = isSwing && !usingMidi
+        if playheadSwingEnabled, let xml = baseMusicXmlText {
+            playheadStraightBeatKeys = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdStraightBeatKeys(xml)
+        } else {
+            playheadStraightBeatKeys = nil
+        }
 
         if let midiData = baseMidiData {
             if let result = try? EarTrainingPrecisionMidi.buildFromMidi(data: midiData, bpm: stage.bpm, transposeOffset: 0) {
@@ -542,7 +558,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
                 musicXmlText: xml,
                 bpm: stage.bpm,
                 beatsPerMeasure: stage.beatsPerMeasure,
-                isSwing: stage.resolvedIsSwing
+                isSwing: isSwing
             ).notes
         }
 
@@ -705,6 +721,15 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             )
             updateActiveMeasure(for: max(0, timelineForOsmd))
             measureNumber = activeMeasureNumber
+        }
+
+        if playheadSwingEnabled, timelineForOsmd >= 0 {
+            timelineForOsmd = EarTrainingChordOsmdMusicXmlNormalizer.swungTimelineToNotatedTimelineSec(
+                phraseTimeSec: timelineForOsmd,
+                measureDurationSec: effectiveMeasureDurationSec,
+                beatsPerMeasure: stage.beatsPerMeasure,
+                straightBeatKeys: playheadStraightBeatKeys
+            )
         }
 
         if measureNumber != activeMeasureNumber {

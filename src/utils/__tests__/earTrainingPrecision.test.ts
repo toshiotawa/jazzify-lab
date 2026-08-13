@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import {
   buildPrecisionNotesFromMusicXml,
   isPrecisionNoteInGuideWindow,
@@ -67,6 +68,19 @@ describe('earTrainingPrecisionNotes', () => {
     expect(swingNotes[0]?.startSec).toBeCloseTo(evenNotes[0]?.startSec ?? 0, 5);
     expect(swingNotes[1]?.startSec ?? 0).toBeGreaterThan(evenNotes[1]?.startSec ?? 0);
     expect(swingNotes[1]?.startSec).toBeCloseTo((60 / 120) * (2 / 3), 5);
+  });
+
+  it('Ch6 Fブルース精密譜面の裏拍8分は isSwing で遅らせる', () => {
+    const xml = readFileSync('public/sozai/mq-b5-6-7-2-precision.musicxml', 'utf8');
+    const { notes: evenNotes } = buildPrecisionNotesFromMusicXml(xml, 100, 4, 0, false);
+    const { notes: swingNotes } = buildPrecisionNotesFromMusicXml(xml, 100, 4, 0, true);
+    expect(swingNotes).toHaveLength(evenNotes.length);
+    const delaySec = (60 / 100) * (2 / 3 - 0.5);
+    const swungOffbeats = evenNotes.filter((note, index) => {
+      const swung = swingNotes[index];
+      return swung != null && swung.startSec - note.startSec > delaySec * 0.5;
+    });
+    expect(swungOffbeats.length).toBeGreaterThan(0);
   });
 
   it('両端1白鍵の余白を付ける', () => {

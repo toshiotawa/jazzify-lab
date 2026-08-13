@@ -60,7 +60,9 @@ import {
   computeOsmdActiveMeasureFromTimeline,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
+  chordOsmdSwungTimelineToNotatedTimelineSec,
   collectChordOsmdScoreLyricEvents,
+  collectChordOsmdStraightBeatKeys,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
   joinScoreLyricVerseTexts,
@@ -328,6 +330,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const loopStartMeasureRef = useRef(1);
   const loopEndMeasureRef = useRef(Math.max(1, stage.loop_measures));
   const startBattleRef = useRef<() => void>(() => undefined);
+  const playheadSwingEnabledRef = useRef(false);
+  const playheadStraightBeatKeysRef = useRef<ReadonlySet<string> | undefined>(undefined);
 
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
@@ -520,6 +524,15 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       );
     }
 
+    if (playheadSwingEnabledRef.current && timelineForOsmd >= 0) {
+      timelineForOsmd = chordOsmdSwungTimelineToNotatedTimelineSec(
+        timelineForOsmd,
+        measureDurationSec,
+        stage.beats_per_measure,
+        playheadStraightBeatKeysRef.current,
+      );
+    }
+
     if (measureNumber !== activeMeasureNumberRef.current) {
       activeMeasureNumberRef.current = measureNumber;
       setActiveMeasureNumber(measureNumber);
@@ -532,7 +545,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       activeMeasureNumber: measureNumber,
       animating: isAnimating,
     });
-  }, [applyLoopCycleTransition, measureDurationSec]);
+  }, [applyLoopCycleTransition, measureDurationSec, stage.beats_per_measure]);
 
   const ensurePhrasePlayer = useCallback((): EarTrainingChordVoicingPhrasePlayer => {
     if (!phrasePlayerRef.current) {
@@ -674,8 +687,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const rebuildPrecisionNotes = useCallback((xmlText: string | null): void => {
     const classificationBpm = resolveEffectivePracticeBpm();
     const midiUrl = phrase?.midi_url?.trim() ?? '';
+    const usingMidi = midiUrl.length > 0 && baseMidiDataRef.current != null;
+    const isSwing = stage.is_swing === true;
+    playheadSwingEnabledRef.current = isSwing && !usingMidi;
+    playheadStraightBeatKeysRef.current = playheadSwingEnabledRef.current && xmlText
+      ? collectChordOsmdStraightBeatKeys(xmlText)
+      : undefined;
     let builtNotes: PrecisionNote[] = [];
-    if (midiUrl.length > 0 && baseMidiDataRef.current) {
+    if (usingMidi && baseMidiDataRef.current) {
       builtNotes = buildPrecisionNotesFromMidi(
         baseMidiDataRef.current,
         stage.bpm,
@@ -687,7 +706,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         stage.bpm,
         stage.beats_per_measure,
         0,
-        stage.is_swing === true,
+        isSwing,
       ).notes;
     }
     const calibratedNotes = calibratePrecisionNotes(builtNotes, {
@@ -717,6 +736,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     refreshMaxOsmdMeasure,
     stage.beats_per_measure,
     stage.bpm,
+    stage.is_swing,
     syncRenderer,
     settings.webKeyboardDisplayMode,
     ensureMinTwoOctaves,
@@ -1155,13 +1175,19 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
         const rawXmlUrl = phrase.music_xml_url?.trim() ?? '';
         const baseXml = getCachedEarTrainingMusicXml(rawXmlUrl) ?? xmlText;
+        const usingMidi = baseMidiDataRef.current != null;
+        const isSwing = stage.is_swing === true;
+        playheadSwingEnabledRef.current = isSwing && !usingMidi;
+        playheadStraightBeatKeysRef.current = playheadSwingEnabledRef.current
+          ? collectChordOsmdStraightBeatKeys(baseXml)
+          : undefined;
 
         const notesBySemitone = buildPrecisionNotesBySemitone({
           xmlText: baseXml,
           midiData: baseMidiDataRef.current,
           bpm: stage.bpm,
           beatsPerMeasure: stage.beats_per_measure,
-          isSwing: stage.is_swing === true,
+          isSwing,
           direction: loopTransposeDirectionRef.current,
           baseSemitone: loopBaseSemitoneRef.current,
           resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
@@ -1298,6 +1324,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     stage.beats_per_measure,
     stage.bpm,
     stage.count_in_beats,
+    stage.is_swing,
     stage.loop_measures,
   ]);
 
