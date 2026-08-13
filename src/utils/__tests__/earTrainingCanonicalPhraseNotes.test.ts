@@ -3,13 +3,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildCanonicalPhraseNotes,
+  buildChordOsmdRhythmTargetsWithMeta,
   canonicalNotesToOsmdRhythmTargets,
   canonicalNotesToPrecisionNotes,
 } from '@/utils/earTrainingCanonicalPhraseNotes';
-import {
-  buildChordOsmdRhythmTargetsWithMeta,
-  collectChordOsmdMusicXmlAttacks,
-} from '@/utils/earTrainingChordOsmd';
 import type { EarTrainingPhrase } from '@/types';
 
 const phrase = (chords: EarTrainingPhrase['chords'] = []): EarTrainingPhrase => ({

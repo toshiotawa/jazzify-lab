@@ -1,5 +1,6 @@
 import type { EarTrainingPhrase } from '@/types';
 import {
+  buildChordOsmdRhythmTargets as buildChordOsmdRhythmTargetsFallback,
   buildPlayableMeasureLabels,
   buildPlayableMeasures,
   buildDisabledMeasures,
@@ -7,6 +8,7 @@ import {
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdStraightBeatKeys,
   forEachChordOsmdNoteCluster,
+  type ChordOsmdMidiNoteLike,
   type ChordOsmdMusicXmlAttack,
   type ChordOsmdRhythmTarget,
   type ChordOsmdSwingScope,
@@ -571,4 +573,67 @@ export const canonicalNotesToOsmdRhythmTargets = (
   }
 
   return targets;
+};
+
+interface ChordOsmdRhythmTargetsBuildResult {
+  targets: ChordOsmdRhythmTarget[];
+  timingSource: EarTrainingTimingSource;
+}
+
+/** OSMD ターゲット。fromScore+MusicXML は正本、それ以外は chordOsmd フォールバック。 */
+export const buildChordOsmdRhythmTargetsWithMeta = (
+  phrase: EarTrainingPhrase | undefined,
+  bpm: number,
+  beatsPerMeasure: number,
+  attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
+  fromScore = false,
+  transposeOffset = 0,
+  midiNotes?: readonly ChordOsmdMidiNoteLike[] | null,
+  isSwing = false,
+  musicXmlText?: string,
+  midiData?: Uint8Array | null,
+  audioAnchorMs?: number | null,
+): ChordOsmdRhythmTargetsBuildResult => {
+  if (!phrase) {
+    return { targets: [], timingSource: 'musicxml' };
+  }
+
+  if (fromScore && attacks && attacks.length > 0 && musicXmlText) {
+    const canonical = buildCanonicalPhraseNotes({
+      musicXmlText,
+      midiData,
+      midiNotes,
+      bpm,
+      beatsPerMeasure,
+      isSwing,
+      transposeOffset,
+      audioAnchorMs,
+    });
+    return {
+      targets: canonicalNotesToOsmdRhythmTargets(
+        canonical.notes,
+        phrase,
+        bpm,
+        beatsPerMeasure,
+        canonical.attacks,
+        transposeOffset,
+      ),
+      timingSource: canonical.timingSource,
+    };
+  }
+
+  return {
+    targets: buildChordOsmdRhythmTargetsFallback(
+      phrase,
+      bpm,
+      beatsPerMeasure,
+      attacks,
+      fromScore,
+      transposeOffset,
+      midiNotes,
+      isSwing,
+      musicXmlText,
+    ),
+    timingSource: midiNotes && midiNotes.length > 0 ? 'midi' : 'musicxml',
+  };
 };

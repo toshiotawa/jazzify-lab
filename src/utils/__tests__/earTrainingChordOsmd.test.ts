@@ -3,11 +3,11 @@ import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
 import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
+import { buildChordOsmdRhythmTargetsWithMeta } from '@/utils/earTrainingCanonicalPhraseNotes';
 import {
   applyChordOsmdGuideNoteColors,
   areAllChordOsmdTargetsCompleted,
   buildChordOsmdRhythmTargets,
-  buildChordOsmdRhythmTargetsWithMeta,
   CHORD_OSMD_GUIDE_NOTE_COLOR,
   CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
   chordOsmdBeatToTargetTimeSec,

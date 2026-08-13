@@ -86,8 +86,6 @@ import {
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
-  buildChordOsmdRhythmTargets,
-  buildChordOsmdRhythmTargetsWithMeta,
   CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT,
   resolveChordOsmdParrySpanState,
   type ChordOsmdParrySpanAnchor,
@@ -135,7 +133,10 @@ import {
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 import { logEarTrainingInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
-import type { EarTrainingTimingSource } from '@/utils/earTrainingCanonicalPhraseNotes';
+import {
+  buildChordOsmdRhythmTargetsWithMeta,
+  type EarTrainingTimingSource,
+} from '@/utils/earTrainingCanonicalPhraseNotes';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
 import {
   clampTutorialPlayerHp,

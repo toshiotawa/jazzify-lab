@@ -1,9 +1,4 @@
 import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTrainingStage } from '@/types';
-import {
-  buildCanonicalPhraseNotes,
-  canonicalNotesToOsmdRhythmTargets,
-  type EarTrainingTimingSource,
-} from '@/utils/earTrainingCanonicalPhraseNotes';
 import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
 import {
   musicXmlAccidentalTextToAlter,
@@ -1917,39 +1912,6 @@ const buildChordOsmdRhythmTargetsFromScore = (
   });
 };
 
-export interface ChordOsmdRhythmTargetsBuildResult {
-  targets: ChordOsmdRhythmTarget[];
-  timingSource: EarTrainingTimingSource;
-}
-
-export const buildChordOsmdRhythmTargetsWithMeta = (
-  phrase: EarTrainingPhrase | undefined,
-  bpm: number,
-  beatsPerMeasure: number,
-  attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
-  fromScore = false,
-  transposeOffset = 0,
-  midiNotes?: readonly ChordOsmdMidiNoteLike[] | null,
-  isSwing = false,
-  musicXmlText?: string,
-  midiData?: Uint8Array | null,
-  audioAnchorMs?: number | null,
-): ChordOsmdRhythmTargetsBuildResult => (
-  buildChordOsmdRhythmTargetsInternal(
-    phrase,
-    bpm,
-    beatsPerMeasure,
-    attacks,
-    fromScore,
-    transposeOffset,
-    midiNotes,
-    isSwing,
-    musicXmlText,
-    midiData,
-    audioAnchorMs,
-  )
-);
-
 export const buildChordOsmdRhythmTargets = (
   phrase: EarTrainingPhrase | undefined,
   bpm: number,
@@ -1960,82 +1922,25 @@ export const buildChordOsmdRhythmTargets = (
   midiNotes?: readonly ChordOsmdMidiNoteLike[] | null,
   isSwing = false,
   musicXmlText?: string,
-  midiData?: Uint8Array | null,
-  audioAnchorMs?: number | null,
-): ChordOsmdRhythmTarget[] => (
-  buildChordOsmdRhythmTargetsWithMeta(
-    phrase,
-    bpm,
-    beatsPerMeasure,
-    attacks,
-    fromScore,
-    transposeOffset,
-    midiNotes,
-    isSwing,
-    musicXmlText,
-    midiData,
-    audioAnchorMs,
-  ).targets
-);
-
-const buildChordOsmdRhythmTargetsInternal = (
-  phrase: EarTrainingPhrase | undefined,
-  bpm: number,
-  beatsPerMeasure: number,
-  attacks?: readonly ChordOsmdMusicXmlAttack[] | null,
-  fromScore = false,
-  transposeOffset = 0,
-  midiNotes?: readonly ChordOsmdMidiNoteLike[] | null,
-  isSwing = false,
-  musicXmlText?: string,
-  midiData?: Uint8Array | null,
-  audioAnchorMs?: number | null,
-): ChordOsmdRhythmTargetsBuildResult => {
+): ChordOsmdRhythmTarget[] => {
   if (!phrase) {
-    return { targets: [], timingSource: 'musicxml' };
+    return [];
   }
 
   const straightBeatKeys = isSwing && musicXmlText
     ? collectChordOsmdStraightBeatKeys(musicXmlText)
     : undefined;
 
-  if (fromScore && attacks && attacks.length > 0 && musicXmlText) {
-    const canonical = buildCanonicalPhraseNotes({
-      musicXmlText,
-      midiData,
-      midiNotes,
+  if (fromScore && attacks && attacks.length > 0) {
+    return buildChordOsmdRhythmTargetsFromScore(
+      phrase,
       bpm,
       beatsPerMeasure,
-      isSwing,
+      attacks,
       transposeOffset,
-      audioAnchorMs,
-    });
-    return {
-      targets: canonicalNotesToOsmdRhythmTargets(
-        canonical.notes,
-        phrase,
-        bpm,
-        beatsPerMeasure,
-        canonical.attacks,
-        transposeOffset,
-      ),
-      timingSource: canonical.timingSource,
-    };
-  }
-
-  if (fromScore && attacks && attacks.length > 0) {
-    return {
-      targets: buildChordOsmdRhythmTargetsFromScore(
-        phrase,
-        bpm,
-        beatsPerMeasure,
-        attacks,
-        transposeOffset,
-        isSwing,
-        straightBeatKeys,
-      ),
-      timingSource: 'musicxml',
-    };
+      isSwing,
+      straightBeatKeys,
+    );
   }
 
   if (midiNotes && midiNotes.length > 0) {
@@ -2047,13 +1952,13 @@ const buildChordOsmdRhythmTargetsInternal = (
       measureLabels,
     );
     if (fromMidi.length > 0) {
-      return { targets: fromMidi, timingSource: 'midi' };
+      return fromMidi;
     }
   }
 
   const chords = phrase.chords ?? [];
   if (chords.length === 0) {
-    return { targets: [], timingSource: 'musicxml' };
+    return [];
   }
 
   const beatDurationSec = 60 / Math.max(1, bpm);
@@ -2141,15 +2046,12 @@ const buildChordOsmdRhythmTargetsInternal = (
     });
   }
 
-  return {
-    targets: targets.map(({
-      beatOffset: _beatOffset,
-      mutableCounts: _mutableCounts,
-      mutableSpellings: _mutableSpellings,
-      ...target
-    }) => target),
-    timingSource: 'musicxml',
-  };
+  return targets.map(({
+    beatOffset: _beatOffset,
+    mutableCounts: _mutableCounts,
+    mutableSpellings: _mutableSpellings,
+    ...target
+  }) => target);
 };
 
 export const createChordOsmdRemainingCounts = (
