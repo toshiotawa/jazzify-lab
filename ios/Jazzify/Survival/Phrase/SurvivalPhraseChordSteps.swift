@@ -47,10 +47,12 @@ enum SurvivalPhraseChordSteps {
                 )
                 lastResolvedStepIndex = resolvedStepIndex
             } else {
-                var current = steps[steps.count - 1]
-                current.noteIndices.append(noteIndex)
-                current.pitchClasses.append(normalizedPitchClass(note.pitchClass))
-                steps[steps.count - 1] = current
+                let current = steps[steps.count - 1]
+                steps[steps.count - 1] = PhraseChordStep(
+                    stepIndex: current.stepIndex,
+                    noteIndices: current.noteIndices + [noteIndex],
+                    pitchClasses: current.pitchClasses + [normalizedPitchClass(note.pitchClass)]
+                )
             }
         }
 
