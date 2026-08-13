@@ -89,6 +89,7 @@ export const parseEarTrainingTimingAdjustmentReturnHash = (
     if (sceneIndexRaw) {
       search.set('sceneIndex', sceneIndexRaw);
     }
+    search.set('restart', '1');
     return `#ear-training-tutorial-lesson?${search.toString()}`;
   }
 

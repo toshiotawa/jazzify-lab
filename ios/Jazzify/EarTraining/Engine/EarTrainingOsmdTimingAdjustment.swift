@@ -26,6 +26,14 @@ enum EarTrainingOsmdTimingAdjustment {
         speedScaledTargetTimeSec + timingAdjustmentSec(fromMs: timingAdjustmentMs)
     }
 
+    /// 譜面プレイヘッド用。判定キャリブレーションと逆方向にずらし、ヒット位置と一致させる。
+    static func playheadTimelineSec(
+        phraseTimelineSec: Double,
+        timingAdjustmentMs: Int
+    ) -> Double {
+        phraseTimelineSec - timingAdjustmentSec(fromMs: timingAdjustmentMs)
+    }
+
     static func formatTimingAdjustmentLabel(_ ms: Int) -> String {
         let clamped = clampTimingAdjustmentMs(ms)
         if clamped > 0 {

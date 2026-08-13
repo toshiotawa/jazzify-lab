@@ -26,6 +26,14 @@ final class EarTrainingOsmdTimingAdjustmentTests: XCTestCase {
         XCTAssertEqual(calibrated, 2.04, accuracy: 0.0001)
     }
 
+    func testPlayheadTimelineSecOpposesJudgmentCalibration() {
+        let playhead = EarTrainingOsmdTimingAdjustment.playheadTimelineSec(
+            phraseTimelineSec: 2.04,
+            timingAdjustmentMs: 40
+        )
+        XCTAssertEqual(playhead, 2.0, accuracy: 0.0001)
+    }
+
     func testFormatTimingAdjustmentLabel() {
         XCTAssertEqual(EarTrainingOsmdTimingAdjustment.formatTimingAdjustmentLabel(40), "+40ms")
         XCTAssertEqual(EarTrainingOsmdTimingAdjustment.formatTimingAdjustmentLabel(-20), "-20ms")

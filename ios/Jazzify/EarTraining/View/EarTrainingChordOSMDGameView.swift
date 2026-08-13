@@ -467,8 +467,10 @@ private struct EarTrainingChordOSMDContent: View {
                         measureDurationSec: controller.effectiveMeasureDurationSec,
                         musicXMLText: musicXMLText,
                         renderKey: controller.phraseRunId,
+                        playheadController: controller,
                         zoom: osmdZoom,
-                        scrollLayout: .battleDefault
+                        scrollLayout: .battleDefault,
+                        countInDurationSec: controller.countInDurationSec
                     )
                 } else {
                     VStack(spacing: 10) {

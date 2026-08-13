@@ -10,22 +10,38 @@ struct SurvivalLessonRandomChordEntry: Codable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case name, voicing
-        case voicingNames = "voicing_names"
-        case voicingStaves = "voicing_staves"
-        case keyFifths = "key_fifths"
+        case voicingNames
+        case voicingNamesSnake = "voicing_names"
+        case voicingStaves
+        case voicingStavesSnake = "voicing_staves"
+        case keyFifths
+        case keyFifthsSnake = "key_fifths"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = (try container.decode(String.self, forKey: .name)).trimmingCharacters(in: .whitespacesAndNewlines)
         voicing = Self.decodeVoicing(from: container)
-        voicingNames = Self.decodeStringArray(from: container, key: .voicingNames)
-        voicingStaves = Self.decodeStaves(from: container, voicingCount: voicing.count)
-        if let raw = try container.decodeIfPresent(Int.self, forKey: .keyFifths) {
+        voicingNames = Self.decodeStringArray(from: container, keys: [.voicingNames, .voicingNamesSnake])
+        voicingStaves = Self.decodeStaves(
+            from: container,
+            keys: [.voicingStaves, .voicingStavesSnake],
+            voicingCount: voicing.count
+        )
+        if let raw = Self.decodeKeyFifths(from: container) {
             keyFifths = Self.clampKeyFifths(raw)
         } else {
             keyFifths = nil
         }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(voicing, forKey: .voicing)
+        try container.encodeIfPresent(voicingNames, forKey: .voicingNames)
+        try container.encodeIfPresent(voicingStaves, forKey: .voicingStaves)
+        try container.encodeIfPresent(keyFifths, forKey: .keyFifths)
     }
 
     init(
@@ -53,26 +69,50 @@ struct SurvivalLessonRandomChordEntry: Codable, Sendable, Equatable {
 
     private static func decodeStringArray(
         from container: KeyedDecodingContainer<CodingKeys>,
-        key: CodingKeys
+        keys: [CodingKeys]
     ) -> [String]? {
-        guard let raw = try? container.decode([String].self, forKey: key) else { return nil }
-        let trimmed = raw.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        return trimmed.isEmpty ? nil : trimmed
+        for key in keys {
+            if let raw = try? container.decode([String].self, forKey: key) {
+                let trimmed = raw.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        }
+        return nil
     }
 
     private static func decodeStaves(
         from container: KeyedDecodingContainer<CodingKeys>,
+        keys: [CodingKeys],
         voicingCount: Int
     ) -> [Int]? {
-        guard voicingCount > 0,
-              let raw = try? container.decode([Int].self, forKey: .voicingStaves),
-              raw.count == voicingCount else {
-            return nil
+        guard voicingCount > 0 else { return nil }
+        for key in keys {
+            guard let raw = try? container.decode([Int].self, forKey: key),
+                  raw.count == voicingCount else {
+                continue
+            }
+            var valid = true
+            for value in raw where value != 1 && value != 2 {
+                valid = false
+                break
+            }
+            if valid {
+                return raw
+            }
         }
-        for value in raw where value != 1 && value != 2 {
-            return nil
+        return nil
+    }
+
+    private static func decodeKeyFifths(
+        from container: KeyedDecodingContainer<CodingKeys>
+    ) -> Int? {
+        if let raw = try? container.decode(Int.self, forKey: .keyFifths) {
+            return raw
         }
-        return raw
+        if let raw = try? container.decode(Int.self, forKey: .keyFifthsSnake) {
+            return raw
+        }
+        return nil
     }
 }
 

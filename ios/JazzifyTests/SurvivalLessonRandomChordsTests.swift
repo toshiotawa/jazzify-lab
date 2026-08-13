@@ -36,6 +36,28 @@ final class SurvivalLessonRandomChordsTests: XCTestCase {
         XCTAssertEqual(applied.overrides["F4"]?.midiNotes, [65])
     }
 
+    func testDecodeCamelCaseLessonRandomChordJSON() throws {
+        let json = Data("""
+        [{"name":"F7","voicing":[51,57],"keyFifths":-1,"voicingNames":["Eb3","A3"],"voicingStaves":[2,2]}]
+        """.utf8)
+        let entries = try JSONDecoder().decode([SurvivalLessonRandomChordEntry].self, from: json)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.name, "F7")
+        XCTAssertEqual(entries.first?.voicing, [51, 57])
+        XCTAssertEqual(entries.first?.voicingNames, ["Eb3", "A3"])
+        XCTAssertEqual(entries.first?.voicingStaves, [2, 2])
+        XCTAssertEqual(entries.first?.keyFifths, -1)
+    }
+
+    func testDecodeSnakeCaseLessonRandomChordJSON() throws {
+        let json = Data("""
+        [{"name":"Bb7","voicing":[50,56],"key_fifths":-1,"voicing_names":["D3","Ab3"],"voicing_staves":[2,2]}]
+        """.utf8)
+        let entries = try JSONDecoder().decode([SurvivalLessonRandomChordEntry].self, from: json)
+        XCTAssertEqual(entries.first?.voicingNames, ["D3", "Ab3"])
+        XCTAssertEqual(entries.first?.keyFifths, -1)
+    }
+
     func testApplyLessonRandomChordsKeepsProgressionStage() {
         let entries = [
             SurvivalLessonRandomChordEntry(

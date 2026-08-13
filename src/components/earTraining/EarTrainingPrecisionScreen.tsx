@@ -52,7 +52,7 @@ import {
 import { getEarTrainingGameCopy } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { buildEarTrainingTimingAdjustmentHash } from '@/utils/earTrainingTimingAdjustmentLaunch';
-import { setAppHash } from '@/utils/appNavigation';
+import { useNavigateAppHash } from '@/hooks/useNavigateAppHash';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import { EarTrainingChordVoicingPhrasePlayer } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 import {
@@ -95,6 +95,7 @@ import {
   clampEarTrainingOsmdTimingAdjustmentMs,
   loadEarTrainingOsmdTimingAdjustmentMs,
   resolveOsmdCalibratedTargetTimeSec,
+  resolveOsmdPlayheadTimelineSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 import {
@@ -197,6 +198,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   onRunModeRestartFromSettings,
   earMidi,
 }) => {
+  const navigateAppHash = useNavigateAppHash();
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const isAdmin = profile?.isAdmin === true;
@@ -497,11 +499,22 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         measureDurationSec,
         loopWindowRef.current,
       );
-      measureNumber = osmdTimeline.measureNumber;
-      timelineForOsmd = osmdTimeline.phraseTimelineSec;
-    } else {
+      timelineForOsmd = resolveOsmdPlayheadTimelineSec(
+        osmdTimeline.phraseTimelineSec,
+        timingAdjustmentMsRef.current,
+      );
       measureNumber = computeOsmdActiveMeasureFromTimeline(
+        Math.max(0, timelineForOsmd),
+        measureDurationSec,
+        maxOsmdMeasureRef.current,
+      );
+    } else {
+      timelineForOsmd = resolveOsmdPlayheadTimelineSec(
         phraseTimeSec,
+        timingAdjustmentMsRef.current,
+      );
+      measureNumber = computeOsmdActiveMeasureFromTimeline(
+        timelineForOsmd,
         measureDurationSec,
         maxOsmdMeasureRef.current,
       );
@@ -980,28 +993,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (phraseTimeSec < 0) {
       hasSyncedPhraseStartPlayheadRef.current = false;
       syncPlayheadForTimeline(phraseTimeSec, true);
-    } else if (!hasSyncedPhraseStartPlayheadRef.current) {
-      hasSyncedPhraseStartPlayheadRef.current = true;
-      syncPlayheadForTimeline(phraseTimeSec, true);
-    } else if (!practiceModeRef.current) {
-      const nextMeasure = computeOsmdActiveMeasureFromTimeline(
-        phraseTimeSec,
-        measureDurationSec,
-        maxOsmdMeasureRef.current,
-      );
-      const measureChanged = nextMeasure !== activeMeasureNumberRef.current;
-      if (measureChanged) {
-        activeMeasureNumberRef.current = nextMeasure;
-        setActiveMeasureNumber(nextMeasure);
-      }
-      if (measureChanged) {
-        osmdScoreRef.current?.syncPlayhead({
-          phraseTimelineSec: phraseTimeSec,
-          activeMeasureNumber: nextMeasure,
-          animating: true,
-        });
-      }
     } else {
+      hasSyncedPhraseStartPlayheadRef.current = true;
       syncPlayheadForTimeline(phraseTimeSec, true);
     }
     const newlyMissed = markExpiredPrecisionNotesAsMiss(
@@ -1063,7 +1056,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       finishPhraseRef.current();
     }
   }, [
-    measureDurationSec,
     syncPlayheadForTimeline,
     resolveCalibratedTargetTimeSec,
     resolveEffectiveTimingWindowSec,
@@ -1507,11 +1499,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         Math.max(0, Math.min(phraseLoopEndSecRef.current, phraseTimeSec)),
       );
       syncRenderer(phraseTimeSec);
+      syncPlayheadForTimeline(
+        phraseTimeSec,
+        gameStateRef.current === 'countIn' || gameStateRef.current === 'playingPhrase',
+      );
     }
   }, [
     musicXmlText,
     rebuildPrecisionNotes,
     resetRuntimeStatesForSeekTime,
+    syncPlayheadForTimeline,
     syncRenderer,
   ]);
 
@@ -1528,8 +1525,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           : undefined,
       },
     });
-    setAppHash(hash);
-  }, [lessonContext, practiceMode, stage.id]);
+    navigateAppHash(hash);
+  }, [lessonContext, navigateAppHash, practiceMode, stage.id]);
 
   const handlePrecisionAutoPlayChange = useCallback((enabled: boolean) => {
     if (!enabled) {

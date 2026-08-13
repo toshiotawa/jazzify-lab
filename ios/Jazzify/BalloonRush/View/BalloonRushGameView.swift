@@ -19,7 +19,10 @@ struct BalloonRushGameView: View {
     @State private var assignmentStartRecorded = false
 
     private var presentationStage: SurvivalStageDefinition {
-        BalloonRushSurvivalBridge.presentationStage(from: stage)
+        BalloonRushSurvivalBridge.presentationStage(
+            from: stage,
+            allowedChordIds: appliedRandomChords?.allowedChordIds
+        )
     }
 
     var body: some View {

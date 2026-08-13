@@ -18,11 +18,12 @@ export const chordDefinitionToCodeRunActive = (chord: ChordDefinition): CodeRunA
 export const pickCodeRunRandomChord = (
   allowedChordIds: readonly string[],
   excludeId?: string,
+  overrides?: ReadonlyMap<string, ChordDefinition>,
 ): CodeRunActiveChord | null => {
   if (allowedChordIds.length === 0) {
     return null;
   }
-  const picked = selectRandomChord([...allowedChordIds], excludeId);
+  const picked = selectRandomChord([...allowedChordIds], excludeId, overrides);
   if (!picked) {
     return null;
   }

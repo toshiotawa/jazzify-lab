@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeChordOsmdActiveMeasureNumber,
+  computeChordOsmdCalibratedPhraseLoopEndSec,
   computeChordOsmdPhraseLoopEndSec,
   computeChordOsmdScoreMaxMeasure,
   computeOsmdActiveMeasureFromTimeline,
@@ -73,6 +74,24 @@ describe('computeChordOsmdPhraseLoopEndSec', () => {
     const targets = [{ targetTimeSec: 57.6 }];
     const lastEnd = 57.6 + CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC + CHORD_OSMD_HAMMER_IMPACT_OFFSET_SEC;
     expect(computeChordOsmdPhraseLoopEndSec(60, targets)).toBeCloseTo(Math.max(60, lastEnd) + 0.08, 5);
+  });
+});
+
+describe('computeChordOsmdCalibratedPhraseLoopEndSec', () => {
+  it('調整は最終ターゲットにだけ足し、ループ尺全体には足さない', () => {
+    const targets = [{ targetTimeSec: 57.6 }];
+    const uncalibrated = computeChordOsmdPhraseLoopEndSec(60, targets);
+    const calibrated = computeChordOsmdCalibratedPhraseLoopEndSec(60, targets, 40);
+    expect(uncalibrated).toBeCloseTo(60.08, 5);
+    expect(calibrated).toBeCloseTo(60.08, 5);
+  });
+
+  it('最終ターゲットがループ末近くなら調整分だけ終端が伸びる', () => {
+    const targets = [{ targetTimeSec: 59.9 }];
+    const uncalibrated = computeChordOsmdPhraseLoopEndSec(60, targets);
+    const calibrated = computeChordOsmdCalibratedPhraseLoopEndSec(60, targets, 40);
+    expect(calibrated).toBeGreaterThan(uncalibrated);
+    expect(calibrated - uncalibrated).toBeCloseTo(0.04, 5);
   });
 });
 

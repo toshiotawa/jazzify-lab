@@ -5,11 +5,12 @@ export interface TutorialLocalizedText {
   readonly en: string;
 }
 
-/** `dialogue_only` の話者（省略時はプレイヤー）。`partner` はジャ爺（相方）固定表示。 */
+/** `dialogue_only` の話者（省略時はプレイヤー）。`partner` はジャ爺。`jajii`/`fai` も受け付ける。 */
 type EarTrainingTutorialDialogueSpeaker = 'player' | 'partner';
+type EarTrainingTutorialDialogueSpeakerRaw = EarTrainingTutorialDialogueSpeaker | 'jajii' | 'fai';
 
 export interface EarTrainingTutorialDialogueLine extends TutorialLocalizedText {
-  speaker?: EarTrainingTutorialDialogueSpeaker;
+  speaker?: EarTrainingTutorialDialogueSpeakerRaw;
 }
 
 export interface EarTrainingTutorialUiOverrides {
@@ -300,5 +301,5 @@ export function localizedText(
 export const resolveDialogueLineSpeaker = (
   line: EarTrainingTutorialDialogueLine,
 ): EarTrainingTutorialDialogueSpeaker => (
-  line.speaker === 'partner' ? 'partner' : 'player'
+  line.speaker === 'partner' || line.speaker === 'jajii' ? 'partner' : 'player'
 );

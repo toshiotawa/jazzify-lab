@@ -6,7 +6,7 @@ import os.log
 
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
-final class EarTrainingChordOSMDBattleController: ObservableObject {
+final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingOsmdPlayheadBinding {
     /// ターゲットより早い入力の受付幅（120ms）。
     private static let judgmentWindowEarlySec: Double = EarTrainingChordOsmdTiming.judgmentWindowEarlySec
     /// ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。
@@ -93,6 +93,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     private let audio: EarTrainingAudio
     private let supabase = SupabaseService.shared
     private weak var scene: EarTrainingBattleSceneHandle?
+    private weak var osmdCoordinator: EarTrainingOSMDScoreWebView.Coordinator?
+    private var hasSyncedPhraseStartPlayhead = false
 
     private var targets: [RhythmTarget] = []
     private var activeTargetIndices: [Int] = []
@@ -214,6 +216,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         timingAdjustmentMs = clamped
         EarTrainingOsmdTimingAdjustment.saveTimingAdjustmentMs(clamped)
         syncActiveOsuApproachCircleTimings()
+        if gameState == .countIn || gameState == .playingPhrase,
+           let phraseTime = osmdPhraseTimelineSecNow() {
+            syncPlayheadForTimeline(phraseTime, animating: true)
+        }
     }
 
     func handleTimingCalibrationLoopConfirmOk() {
@@ -287,6 +293,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
     var effectiveMeasureDurationSec: Double {
         let bpm = resolveEffectivePracticeBpm()
         return 60.0 / Double(max(1, bpm)) * Double(max(1, stage.beatsPerMeasure))
+    }
+
+    var countInDurationSec: Double {
+        let beats = max(0, min(32, stage.countInBeats))
+        if beats <= 0 { return 0 }
+        return (60.0 / Double(max(1, resolveEffectivePracticeBpm()))) * Double(beats)
+    }
+
+    func bindOsmdCoordinator(_ coordinator: EarTrainingOSMDScoreWebView.Coordinator?) {
+        osmdCoordinator = coordinator
     }
 
     func attachScene(_ scene: EarTrainingBattleSceneHandle) {
@@ -628,6 +644,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         phraseIndex = index
         phraseRunId += 1
         phraseIntroSeq += 1
+        hasSyncedPhraseStartPlayhead = false
         let runId = phraseRunId
         targets = []
         resetPhraseRuntimeState()
@@ -930,8 +947,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
             phraseTime = gameState == .countIn ? currentTime : max(0, currentTime)
         }
 
-        if phraseTime >= 0 {
-            updateActiveMeasure(for: phraseTime)
+        if phraseTime < 0 {
+            hasSyncedPhraseStartPlayhead = false
+            syncPlayheadForTimeline(phraseTime, animating: true)
+        } else {
+            hasSyncedPhraseStartPlayhead = true
+            syncPlayheadForTimeline(phraseTime, animating: true)
         }
         openJudgmentWindows(at: phraseTime)
         throwDueHammers(at: phraseTime)
@@ -1036,10 +1057,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         }
     }
 
-    private func updateActiveMeasure(for time: Double) {
+    private func updateActiveMeasure(for time: Double) -> Int {
         let beatDuration = 60.0 / Double(max(1, resolveEffectivePracticeBpm()))
         let measureDuration = beatDuration * Double(max(1, stage.beatsPerMeasure))
-        guard measureDuration > 0 else { return }
+        guard measureDuration > 0 else { return max(1, activeMeasureNumber) }
         let rawMeasure = Int(floor(time / measureDuration)) + 1
         let targetMaxMeasure = targets.map(\.measureNumber).max() ?? 1
         /// Web の `tickerMeasureCount`（phrase.loop_duration_sec から算出）と揃える
@@ -1057,6 +1078,21 @@ final class EarTrainingChordOSMDBattleController: ObservableObject {
         if nextMeasure != activeMeasureNumber {
             activeMeasureNumber = nextMeasure
         }
+        return nextMeasure
+    }
+
+    private func syncPlayheadForTimeline(_ phraseTimeSec: Double, animating: Bool) {
+        let playheadTimeSec = EarTrainingOsmdTimingAdjustment.playheadTimelineSec(
+            phraseTimelineSec: phraseTimeSec,
+            timingAdjustmentMs: timingAdjustmentMs
+        )
+        let measureNumber = playheadTimeSec < 0 ? 1 : updateActiveMeasure(for: playheadTimeSec)
+        osmdCoordinator?.syncPlayhead(
+            phraseTimelineSec: playheadTimeSec,
+            activeMeasureNumber: measureNumber,
+            measureDurationSec: effectiveMeasureDurationSec,
+            animating: animating
+        )
     }
 
     private func openJudgmentWindows(at time: Double) {

@@ -27,6 +27,19 @@ describe('resolveDialogueLineSpeaker', () => {
       speaker: 'player',
     })).toBe('player');
   });
+
+  it('maps jajii to partner and fai to player', () => {
+    expect(resolveDialogueLineSpeaker({
+      ja: 'じゃ',
+      en: 'aye',
+      speaker: 'jajii',
+    })).toBe('partner');
+    expect(resolveDialogueLineSpeaker({
+      ja: 'ね',
+      en: 'ok',
+      speaker: 'fai',
+    })).toBe('player');
+  });
 });
 
 describe('resolveTutorialOsmdDrumLoopUrl', () => {

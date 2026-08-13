@@ -20,6 +20,8 @@ const SRC_DIR = join(ROOT, 'public', 'sozai');
 
 const useS3 = process.argv.includes('--s3');
 const dryRun = process.argv.includes('--dry-run');
+const onlyIndex = process.argv.indexOf('--only');
+const onlyPrefix = onlyIndex >= 0 ? process.argv[onlyIndex + 1] : null;
 const noRetry = process.argv.includes('--no-retry');
 const wranglerRetries = noRetry
   ? 1
@@ -126,6 +128,9 @@ if (!useS3 && !dryRun && !CLOUDFLARE_ACCOUNT_ID) {
 }
 
 for (const { name, contentType } of FILES) {
+  if (onlyPrefix && !name.includes(onlyPrefix)) {
+    continue;
+  }
   const localPath = join(SRC_DIR, name);
   const r2Key = `sozai/${name}`;
   const objectPath = `${BUCKET}/${r2Key}`;

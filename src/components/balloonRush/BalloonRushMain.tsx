@@ -154,7 +154,43 @@ const BalloonRushMain: React.FC = () => {
             isEnglishCopy ? 'Balloon rush stage could not be loaded.' : '風船ラッシュステージを読み込めませんでした。',
           );
         } else {
+          let nextConfig: DifficultyConfig | null = null;
+          let nextOverrides: ReadonlyMap<string, ChordDefinition> | undefined;
+          let nextHints: {
+            staff?: ProductionHintMode | null;
+            keyboard?: ProductionHintMode | null;
+          } | undefined;
+          if (lessonContext?.lessonSongId) {
+            try {
+              const lessonSong = await fetchLessonSongById(lessonContext.lessonSongId);
+              if (cancelled) return;
+              const entries = parseSurvivalLessonRandomChords(lessonSong.survival_random_chords);
+              const baseAllowed = resolveBalloonRushAllowedChordIds(st);
+              const applied = applyLessonRandomChords(
+                baseAllowed,
+                entries,
+                st.stageType,
+              );
+              const baseConfig = balloonRushDifficultyConfig(st);
+              nextConfig = {
+                ...baseConfig,
+                allowedChords: applied.allowedChordIds.length > 0
+                  ? [...applied.allowedChordIds]
+                  : [...baseConfig.allowedChords],
+              };
+              nextOverrides = applied.overrides.size > 0 ? applied.overrides : undefined;
+              nextHints = {
+                staff: lessonSong.override_production_staff_hint_mode ?? null,
+                keyboard: lessonSong.override_production_keyboard_hint_mode ?? null,
+              };
+            } catch {
+              if (cancelled) return;
+            }
+          }
           setResolvedStage(st);
+          setGameConfigOverride(nextConfig);
+          setLessonRandomChordOverrides(nextOverrides);
+          setLessonProductionHintOverrides(nextHints);
           setScreen(lessonContext ? 'prep' : 'game');
           setHintMode(false);
           setGameNonce(n => n + 1);
@@ -177,53 +213,6 @@ const BalloonRushMain: React.FC = () => {
       cancelled = true;
     };
   }, [stageIdFromUrl, lessonContext, isEnglishCopy]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadLessonRandomChords = async (): Promise<void> => {
-      if (!lessonContext?.lessonSongId || !resolvedStage) {
-        setGameConfigOverride(null);
-        setLessonRandomChordOverrides(undefined);
-        setLessonProductionHintOverrides(undefined);
-        return;
-      }
-      try {
-        const lessonSong = await fetchLessonSongById(lessonContext.lessonSongId);
-        if (cancelled) return;
-        const entries = parseSurvivalLessonRandomChords(lessonSong.survival_random_chords);
-        const baseAllowed = resolveBalloonRushAllowedChordIds(resolvedStage);
-        const applied = applyLessonRandomChords(
-          baseAllowed,
-          entries,
-          resolvedStage.stageType,
-        );
-        const baseConfig = balloonRushDifficultyConfig(resolvedStage);
-        setGameConfigOverride({
-          ...baseConfig,
-          allowedChords: applied.allowedChordIds.length > 0
-            ? [...applied.allowedChordIds]
-            : [...baseConfig.allowedChords],
-        });
-        setLessonRandomChordOverrides(
-          applied.overrides.size > 0 ? applied.overrides : undefined,
-        );
-        setLessonProductionHintOverrides({
-          staff: lessonSong.override_production_staff_hint_mode ?? null,
-          keyboard: lessonSong.override_production_keyboard_hint_mode ?? null,
-        });
-      } catch {
-        if (!cancelled) {
-          setGameConfigOverride(null);
-          setLessonRandomChordOverrides(undefined);
-          setLessonProductionHintOverrides(undefined);
-        }
-      }
-    };
-    void loadLessonRandomChords();
-    return () => {
-      cancelled = true;
-    };
-  }, [lessonContext?.lessonSongId, resolvedStage]);
 
   const handleBack = useCallback(() => {
     if (lessonContext) {
@@ -277,10 +266,17 @@ const BalloonRushMain: React.FC = () => {
     gameNonce,
   ]);
 
-  const prepStageDefinition = useMemo(
-    () => (resolvedStage ? balloonRushToStageDefinition(resolvedStage) : null),
-    [resolvedStage],
-  );
+  const prepStageDefinition = useMemo(() => {
+    if (!resolvedStage) {
+      return null;
+    }
+    const base = balloonRushToStageDefinition(resolvedStage);
+    const allowed = gameConfigOverride?.allowedChords;
+    if (!allowed || allowed.length === 0) {
+      return base;
+    }
+    return { ...base, allowedChords: [...allowed] };
+  }, [gameConfigOverride?.allowedChords, resolvedStage]);
   const prepLessonRuntime = useMemo(
     () => (resolvedStage ? balloonRushLessonRuntime(resolvedStage) : undefined),
     [resolvedStage],

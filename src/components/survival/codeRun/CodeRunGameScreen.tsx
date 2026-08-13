@@ -6,6 +6,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { playNote, stopNote } from '@/utils/MidiController';
 import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
+import type { ChordDefinition } from '@/components/fantasy/FantasyGameEngine';
 import { progressionBassRootName } from '@/utils/chord-utils';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 import { buildProgressionChordDefinitions } from '@/utils/survivalProgressionChords';
@@ -70,6 +71,7 @@ interface CodeRunGameScreenProps {
   onNextStage?: () => void;
   onSurvivalRunModeRestart?: (nextHintMode: boolean) => void;
   lessonRuntime?: { readonly timeLimitSec?: number | null };
+  lessonRandomChordOverrides?: ReadonlyMap<string, ChordDefinition>;
   lessonProductionHintOverrides?: {
     readonly staff?: ProductionHintMode | null;
     readonly keyboard?: ProductionHintMode | null;
@@ -148,6 +150,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   onNextStage,
   onSurvivalRunModeRestart,
   lessonProductionHintOverrides,
+  lessonRandomChordOverrides,
   survivalMidi,
   demoMode,
   preferredLocale,
@@ -194,11 +197,15 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     height: 150,
   });
 
-  const isRandomStage = useMemo(
-    () => isCodeRunRandomStage(stageDefinition.stageType, stageDefinition.allowedChords),
-    [stageDefinition.stageType, stageDefinition.allowedChords],
+  const randomAllowedChords = (
+    stageDefinition.allowedChords.length > 0
+      ? stageDefinition.allowedChords
+      : config.allowedChords
   );
-  const randomAllowedChords = stageDefinition.allowedChords;
+  const isRandomStage = useMemo(
+    () => isCodeRunRandomStage(stageDefinition.stageType, randomAllowedChords),
+    [stageDefinition.stageType, randomAllowedChords],
+  );
 
   const progressionChords = useMemo(
     () => (isRandomStage
@@ -208,9 +215,13 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   );
   const sessionMidiMidis = useMemo(
     () => (isRandomStage
-      ? computeSurvivalSessionMidiMidis({ kind: 'random', allowedChordIds: randomAllowedChords })
+      ? computeSurvivalSessionMidiMidis({
+        kind: 'random',
+        allowedChordIds: randomAllowedChords,
+        overrides: lessonRandomChordOverrides,
+      })
       : computeSurvivalSessionMidiMidis({ kind: 'progression', chords: progressionChords })),
-    [isRandomStage, progressionChords, randomAllowedChords],
+    [isRandomStage, lessonRandomChordOverrides, progressionChords, randomAllowedChords],
   );
   const keyboardRange = useResolvedWebKeyboardRange(sessionMidiMidis);
   const [currentChordIndex, setCurrentChordIndex] = useState(0);
@@ -231,12 +242,12 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   }, []);
 
   const drawRandomChords = useCallback((excludeId?: string) => {
-    const current = pickCodeRunRandomChord(randomAllowedChords, excludeId);
+    const current = pickCodeRunRandomChord(randomAllowedChords, excludeId, lessonRandomChordOverrides);
     const next = current
-      ? pickCodeRunRandomChord(randomAllowedChords, current.id)
+      ? pickCodeRunRandomChord(randomAllowedChords, current.id, lessonRandomChordOverrides)
       : null;
     syncRandomChordRefs(current, next);
-  }, [randomAllowedChords, syncRandomChordRefs]);
+  }, [lessonRandomChordOverrides, randomAllowedChords, syncRandomChordRefs]);
 
   const progressionCurrentChord = progressionChords.length > 0
     ? progressionChords[currentChordIndex % progressionChords.length]
@@ -459,9 +470,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     setRunState(jumped);
     if (isRandomStage) {
       const advanced = randomNextChordRef.current
-        ?? pickCodeRunRandomChord(randomAllowedChords, chord.id);
+        ?? pickCodeRunRandomChord(randomAllowedChords, chord.id, lessonRandomChordOverrides);
       const following = advanced
-        ? pickCodeRunRandomChord(randomAllowedChords, advanced.id)
+        ? pickCodeRunRandomChord(randomAllowedChords, advanced.id, lessonRandomChordOverrides)
         : null;
       syncRandomChordRefs(advanced, following);
     } else {
@@ -478,6 +489,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     }
   }, [
     isRandomStage,
+    lessonRandomChordOverrides,
     progressionChords,
     randomAllowedChords,
     syncRandomChordRefs,

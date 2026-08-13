@@ -40,11 +40,17 @@ const BalloonRushGameScreen: React.FC<BalloonRushGameScreenProps> = ({
   onLessonClear,
   onBack,
 }) => {
-  const stageDefinition = useMemo(() => balloonRushToStageDefinition(stage), [stage]);
   const config = useMemo(
     () => configOverride ?? balloonRushDifficultyConfig(stage),
     [configOverride, stage],
   );
+  const stageDefinition = useMemo(() => {
+    const base = balloonRushToStageDefinition(stage);
+    if (config.allowedChords.length === 0) {
+      return base;
+    }
+    return { ...base, allowedChords: [...config.allowedChords] };
+  }, [config.allowedChords, stage]);
   const lessonRuntime = useMemo(() => balloonRushLessonRuntime(stage), [stage]);
   const scenarioOverrides = useMemo(
     () => balloonRushScenarioOverrides(stage, hintMode),

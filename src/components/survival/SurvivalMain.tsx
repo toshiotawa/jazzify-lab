@@ -452,7 +452,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       setSelectedDifficulty(stageDef.difficulty);
       setSelectedConfig(lessonConfig);
       setSelectedCharacter(faiChar);
-      setActiveStageDefinition(stageDef);
+      setActiveStageDefinition(
+        appliedRandom.allowedChordIds.length > 0
+          ? { ...stageDef, allowedChords: appliedRandom.allowedChordIds }
+          : stageDef,
+      );
       setLessonInlineCompositePhrases(inlinePhrases);
       setLessonRuntime(runtime);
       setLessonRandomChordOverrides(
@@ -746,6 +750,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
           character={selectedCharacter}
           stageDefinition={activeStageDefinition}
           lessonRuntime={lessonRuntime ?? undefined}
+          lessonRandomChordOverrides={lessonRandomChordOverrides}
           lessonProductionHintOverrides={lessonProductionHintOverrides}
           onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
           isLessonMode={!!lessonMode}

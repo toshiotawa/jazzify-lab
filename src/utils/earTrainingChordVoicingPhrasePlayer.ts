@@ -106,6 +106,36 @@ const defaultAudioContextFactory = (): AudioContext => {
   return new Ctor();
 };
 
+let sharedPhraseAudioContext: AudioContext | null = null;
+
+const getSharedPhraseAudioContext = (): AudioContext => {
+  if (sharedPhraseAudioContext && sharedPhraseAudioContext.state !== 'closed') {
+    return sharedPhraseAudioContext;
+  }
+  sharedPhraseAudioContext = defaultAudioContextFactory();
+  return sharedPhraseAudioContext;
+};
+
+const isSharedPhraseAudioContext = (ctx: AudioContext | null): boolean => (
+  ctx !== null && ctx === sharedPhraseAudioContext
+);
+
+/**
+ * ユーザージェスチャ内で呼び、フレーズ再生用 AudioContext を running にする。
+ * 画面遷移後の自動 startBattle でも同じコンテキストを再利用する。
+ */
+export const unlockEarTrainingPhraseAudioContext = (): AudioContext | null => {
+  try {
+    const ctx = getSharedPhraseAudioContext();
+    if (ctx.state !== 'running') {
+      void ctx.resume();
+    }
+    return ctx;
+  } catch {
+    return null;
+  }
+};
+
 export class EarTrainingChordVoicingPhrasePlayer {
   private readonly options: EarTrainingChordVoicingPhrasePlayerOptions;
   private ctx: AudioContext | null = null;
@@ -147,7 +177,7 @@ export class EarTrainingChordVoicingPhrasePlayer {
     if (this.ctx && this.masterGain) {
       return this.ctx;
     }
-    const factory = this.options.createAudioContext ?? defaultAudioContextFactory;
+    const factory = this.options.createAudioContext ?? getSharedPhraseAudioContext;
     const ctx = factory();
     const phraseGainNode = ctx.createGain();
     phraseGainNode.gain.value = 1;
@@ -324,8 +354,19 @@ export class EarTrainingChordVoicingPhrasePlayer {
 
   dispose(): void {
     this.stop();
-    if (this.ctx) {
+    if (this.ctx && !isSharedPhraseAudioContext(this.ctx)) {
       void this.ctx.close();
+    } else {
+      try {
+        this.phraseGain?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      try {
+        this.masterGain?.disconnect();
+      } catch {
+        /* ignore */
+      }
     }
     this.ctx = null;
     this.masterGain = null;

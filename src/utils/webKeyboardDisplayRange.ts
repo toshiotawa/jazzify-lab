@@ -371,7 +371,7 @@ export const computeSurvivalSessionMidiMidis = (
     | { readonly kind: 'phrase'; readonly phrase: SurvivalPhraseDefinition | null | undefined }
     | { readonly kind: 'phrases'; readonly phrases: readonly SurvivalPhraseDefinition[] }
     | { readonly kind: 'progression'; readonly chords: readonly ChordDefinition[] | null | undefined }
-    | { readonly kind: 'random'; readonly allowedChordIds: readonly string[] | null | undefined },
+    | { readonly kind: 'random'; readonly allowedChordIds: readonly string[] | null | undefined; readonly overrides?: ReadonlyMap<string, ChordDefinition> },
 ): number[] => {
   const midis: number[] = [];
 
@@ -410,7 +410,7 @@ export const computeSurvivalSessionMidiMidis = (
     return midis;
   }
   for (const id of source.allowedChordIds) {
-    const chord = getChordDefinition(id);
+    const chord = source.overrides?.get(id) ?? getChordDefinition(id);
     if (!chord?.notes?.length) {
       continue;
     }

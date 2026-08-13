@@ -125,10 +125,12 @@ const EarTrainingMain: React.FC = () => {
     if (lessonContext) {
       setConfirmedRunMode(initialRunMode);
       setConfirmedPracticeMode(initialPracticeMode);
-      setEarSessionNonce(0);
+      if (!restartFromTimingAdjustment) {
+        setEarSessionNonce(0);
+      }
       lessonClearedThisSessionRef.current = false;
     }
-  }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, initialRunMode, lessonContext]);
+  }, [lessonContext?.lessonId, lessonContext?.lessonSongId, initialPracticeMode, initialRunMode, lessonContext, restartFromTimingAdjustment]);
 
   const effectiveRunMode = lessonContext ? confirmedRunMode : initialRunMode;
   const effectivePracticeMode = isPrecisionPracticeRunMode(effectiveRunMode);
@@ -350,6 +352,7 @@ const EarTrainingMain: React.FC = () => {
           enemy={enemy}
           lessonContext={lessonContext}
           initialPracticeMode={effectivePracticeMode}
+          autoStartBattle={restartFromTimingAdjustment}
           onLessonStageClear={handleLessonStageClear}
           onBack={handleBack}
           {...lessonRestartProps}

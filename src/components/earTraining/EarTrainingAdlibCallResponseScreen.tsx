@@ -53,7 +53,7 @@ import {
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { buildEarTrainingTimingAdjustmentHash } from '@/utils/earTrainingTimingAdjustmentLaunch';
-import { setAppHash } from '@/utils/appNavigation';
+import { useNavigateAppHash } from '@/hooks/useNavigateAppHash';
 import {
   buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
@@ -71,7 +71,7 @@ import {
   EarTrainingChordVoicingDrumLoop,
 } from '@/utils/earTrainingChordVoicingDrumLoop';
 import {
-  computeChordOsmdPhraseLoopEndSec,
+  computeChordOsmdCalibratedPhraseLoopEndSec,
   shouldFinishOsmdPhraseOnAudioEnded,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
@@ -227,6 +227,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
   onPracticeModeRestartFromSettings,
   tutorial,
 }) => {
+  const navigateAppHash = useNavigateAppHash();
   const tutorialUi = tutorial?.bindings.ui;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const tutorialOsmdLoopRef = useRef(0);
@@ -1243,8 +1244,11 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
         ? scalePracticePhraseLoopEndSec(safeLoopDurationSec, practiceSpeedPercentRef.current)
         : safeLoopDurationSec;
       phraseLoopEndSecRef.current = scalePracticePhraseLoopEndSec(
-        computeChordOsmdPhraseLoopEndSec(safeLoopDurationSec, phraseTargets)
-          + timingAdjustmentMsRef.current / 1000,
+        computeChordOsmdCalibratedPhraseLoopEndSec(
+          safeLoopDurationSec,
+          phraseTargets,
+          timingAdjustmentMsRef.current,
+        ),
         practiceModeRef.current ? practiceSpeedPercentRef.current : 100,
       );
       if (tutorial) {
@@ -1528,8 +1532,8 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
               : undefined,
           },
     });
-    setAppHash(hash);
-  }, [lessonContext, practiceMode, stage.id, tutorial?.timingReturnContext]);
+    navigateAppHash(hash);
+  }, [lessonContext, navigateAppHash, practiceMode, stage.id, tutorial?.timingReturnContext]);
 
   const osmdTimingAdjustmentConfig = useMemo(
     () => ({

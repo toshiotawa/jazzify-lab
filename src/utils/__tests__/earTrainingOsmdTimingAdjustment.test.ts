@@ -6,6 +6,7 @@ import {
   loadEarTrainingOsmdTimingAdjustmentMs,
   OSMD_TIMING_ADJUSTMENT_MS_DEFAULT,
   resolveOsmdCalibratedTargetTimeSec,
+  resolveOsmdPlayheadTimelineSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
   timingAdjustmentMsToSec,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
@@ -61,5 +62,10 @@ describe('earTrainingOsmdTimingAdjustment', () => {
   it('resolveOsmdCalibratedTargetTimeSec adds adjustment to speed-scaled time', () => {
     expect(resolveOsmdCalibratedTargetTimeSec(2, 40)).toBe(2.04);
     expect(timingAdjustmentMsToSec(40)).toBe(0.04);
+  });
+
+  it('shifts playhead timeline opposite to judgment calibration', () => {
+    expect(resolveOsmdPlayheadTimelineSec(1.04, 40)).toBeCloseTo(1, 5);
+    expect(resolveOsmdPlayheadTimelineSec(-0.2, 40)).toBeCloseTo(-0.24, 5);
   });
 });

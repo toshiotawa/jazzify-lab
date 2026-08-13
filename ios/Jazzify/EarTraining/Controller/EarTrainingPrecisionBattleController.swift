@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 @MainActor
-final class EarTrainingPrecisionBattleController: ObservableObject {
+final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingOsmdPlayheadBinding {
     private static let inputCooldownMs: Double = 20
     private static let seekSliderUiUpdateIntervalSec: Double = 0.2
 
@@ -607,33 +607,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
             phraseTime = wallTime
         }
 
-        let previousMeasure = activeMeasureNumber
-        let previousCycle = lastLoopCycleIndex
-
         if phraseTime < 0 {
             hasSyncedPhraseStartPlayhead = false
             syncPlayheadForTimeline(phraseTime, animating: true)
-        } else if !hasSyncedPhraseStartPlayhead {
+        } else {
             hasSyncedPhraseStartPlayhead = true
             syncPlayheadForTimeline(phraseTime, animating: true)
-        } else if practiceMode, audio.isLoopSessionActive() || !notesBySemitone.isEmpty {
-            let position = EarTrainingPrecisionLoop.globalToLoopPosition(
-                phraseTime,
-                durationSec: loopWindow.durationSec
-            )
-            let osmdTimeline = EarTrainingPrecisionLoop.loopOsmdTimelineSec(
-                localSec: position.localSec,
-                measureDurationSec: effectiveMeasureDurationSec,
-                loopWindow: loopWindow
-            )
-            if osmdTimeline.measureNumber != previousMeasure || position.cycleIndex != previousCycle {
-                syncPlayheadForTimeline(phraseTime, animating: true)
-            }
-        } else {
-            updateActiveMeasure(for: max(0, phraseTime))
-            if activeMeasureNumber != previousMeasure {
-                syncPlayheadForTimeline(phraseTime, animating: true)
-            }
         }
 
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
@@ -714,10 +693,17 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
                 measureDurationSec: effectiveMeasureDurationSec,
                 loopWindow: loopWindow
             )
-            measureNumber = osmdTimeline.measureNumber
-            timelineForOsmd = osmdTimeline.phraseTimelineSec
+            timelineForOsmd = EarTrainingOsmdTimingAdjustment.playheadTimelineSec(
+                phraseTimelineSec: osmdTimeline.phraseTimelineSec,
+                timingAdjustmentMs: timingAdjustmentMs
+            )
+            measureNumber = max(1, Int(floor(max(0, timelineForOsmd) / max(1e-6, effectiveMeasureDurationSec))) + 1)
         } else {
-            updateActiveMeasure(for: max(0, phraseTimeSec))
+            timelineForOsmd = EarTrainingOsmdTimingAdjustment.playheadTimelineSec(
+                phraseTimelineSec: phraseTimeSec,
+                timingAdjustmentMs: timingAdjustmentMs
+            )
+            updateActiveMeasure(for: max(0, timelineForOsmd))
             measureNumber = activeMeasureNumber
         }
 
@@ -1118,6 +1104,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject {
         timingAdjustmentMs = EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(value)
         EarTrainingOsmdTimingAdjustment.saveTimingAdjustmentMs(timingAdjustmentMs)
         rebuildPrecisionNotes()
+        if gameState == .countIn || gameState == .playingPhrase || gameState == .paused,
+           let phraseTime = audio.phraseWallClockTimelineSecNowOrNil() {
+            syncPlayheadForTimeline(phraseTime, animating: gameState != .paused)
+        }
     }
 
     func handleOpenSettings() { isSettingsOpen = true }

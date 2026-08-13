@@ -24,7 +24,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     /// 省略時は overlay 表示状態に追随。
     var playheadAnimating: Bool? = nil
     /// 指定時はプレイヘッドを imperative API で更新し、上記 timeline props は無視する。
-    var playheadController: EarTrainingPrecisionBattleController? = nil
+    var playheadController: EarTrainingOsmdPlayheadBinding? = nil
     /// OSMD の描画倍率。コンテナ高さを変えずに譜面を縮小する（主に iPhone）。
     let zoom: Double
     /// 小節スクロールのアンカーと 1 小節フィット（精密モード向け）。省略時はリズムバトル既定。
@@ -540,8 +540,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             zoom: Double
         ) {
             guard !isTornDown else { return }
-            pendingMusicXMLText = musicXMLText
-            pendingScoreXmlBySemitone = scoreXmlBySemitone.isEmpty ? [0: musicXMLText] : scoreXmlBySemitone
+            pendingMusicXMLText = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(musicXMLText)
+            let xmlBySemitone = scoreXmlBySemitone.isEmpty ? [0: musicXMLText] : scoreXmlBySemitone
+            xmlBySemitone = xmlBySemitone.mapValues {
+                EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors($0)
+            }
+            pendingScoreXmlBySemitone = xmlBySemitone
             pendingActiveSemitone = activeSemitone
             pendingTransposeDirection = loopTransposeDirection
             pendingTransposeBaseSemitone = loopBaseSemitone
@@ -2126,5 +2130,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     </body>
     </html>
     """
+}
+
+protocol EarTrainingOsmdPlayheadBinding: AnyObject {
+    func bindOsmdCoordinator(_ coordinator: EarTrainingOSMDScoreWebView.Coordinator?)
 }
 

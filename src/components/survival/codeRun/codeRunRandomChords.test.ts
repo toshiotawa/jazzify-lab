@@ -37,6 +37,21 @@ describe('codeRunRandomChords', () => {
     expect(chord?.notes.length).toBeGreaterThanOrEqual(4);
   });
 
+  it('pickCodeRunRandomChord は overrides のヴォイシングを優先する', () => {
+    const overrides = new Map([
+      ['F7', {
+        id: 'F7',
+        displayName: 'F7',
+        notes: [51, 57],
+        noteNames: ['Eb3', 'A3'],
+        quality: 'dominant7' as const,
+        root: 'F',
+      }],
+    ]);
+    const chord = pickCodeRunRandomChord(['F7'], undefined, overrides);
+    expect(chord?.notes).toEqual([51, 57]);
+  });
+
   it('chordDefinitionToCodeRunActive は id と notes を保持する', () => {
     const source = pickCodeRunRandomChord(['F']);
     expect(source).not.toBeNull();

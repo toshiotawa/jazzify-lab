@@ -77,7 +77,7 @@ const survivalTutorialUi = {
  *   descriptionEn: string;
  *   mode: 'chord_osmd' | 'chord_precision';
  *   base: string;
- *   xmlSuffix: 'guide-voice4-cue' | 'precision';
+ *   xmlSuffix: 'guide-voice4-cue' | 'precision' | null;
  *   mp3Base: string;
  *   measures: number;
  *   targets: number;
@@ -85,14 +85,14 @@ const survivalTutorialUi = {
  * }[]} */
 const STAGES = [
   // Ch4 Q1
-  { key: 'mq-b3-4-1-2', slug: 'mq-b3-4-1-2-osmd', title: 'パターン1（1頭3ウラ）', titleEn: 'Pattern 1 (beat 1 + and-of-3)', description: '左手コンピング：1頭と3ウラ。', descriptionEn: 'LH comping: beat 1 and the and-of-3.', mode: 'chord_osmd', base: 'mq-b3-4-1-2', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-1-2', measures: 25, targets: 96 },
-  { key: 'mq-b3-4-1-3', slug: 'mq-b3-4-1-3-osmd', title: 'パターン2（1ウラ3ウラ）', titleEn: 'Pattern 2 (and-of-1 + and-of-3)', description: '左手コンピング：1ウラと3ウラ。', descriptionEn: 'LH comping: and-of-1 and and-of-3.', mode: 'chord_osmd', base: 'mq-b3-4-1-3', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-1-3', measures: 25, targets: 96 },
-  { key: 'mq-b3-4-1-4', slug: 'mq-b3-4-1-4-osmd', title: 'パターン3（4ウラ2ウラ）', titleEn: 'Pattern 3 (and-of-4 + and-of-2)', description: '左手コンピング：4ウラと2ウラ。', descriptionEn: 'LH comping: and-of-4 and and-of-2.', mode: 'chord_osmd', base: 'mq-b3-4-1-4', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-1-4', measures: 26, targets: 98 },
+  { key: 'mq-b3-4-1-2', slug: 'mq-b3-4-1-2-osmd', title: 'パターン1（1頭3ウラ）', titleEn: 'Pattern 1 (beat 1 + and-of-3)', description: '左手コンピング：1頭と3ウラ。', descriptionEn: 'LH comping: beat 1 and the and-of-3.', mode: 'chord_osmd', base: 'mq-b3-4-1-2', xmlSuffix: null, mp3Base: 'mq-b3-4-1-2', measures: 25, targets: 96 },
+  { key: 'mq-b3-4-1-3', slug: 'mq-b3-4-1-3-osmd', title: 'パターン2（1ウラ3ウラ）', titleEn: 'Pattern 2 (and-of-1 + and-of-3)', description: '左手コンピング：1ウラと3ウラ。', descriptionEn: 'LH comping: and-of-1 and and-of-3.', mode: 'chord_osmd', base: 'mq-b3-4-1-3', xmlSuffix: null, mp3Base: 'mq-b3-4-1-3', measures: 25, targets: 96 },
+  { key: 'mq-b3-4-1-4', slug: 'mq-b3-4-1-4-osmd', title: 'パターン3（4ウラ2ウラ）', titleEn: 'Pattern 3 (and-of-4 + and-of-2)', description: '左手コンピング：4ウラと2ウラ。', descriptionEn: 'LH comping: and-of-4 and and-of-2.', mode: 'chord_osmd', base: 'mq-b3-4-1-4', xmlSuffix: null, mp3Base: 'mq-b3-4-1-4', measures: 26, targets: 98 },
   // Ch4 Q2
-  { key: 'mq-b3-4-2-2', slug: 'mq-b3-4-2-2-osmd', title: '両手パターン1（1頭のみ）', titleEn: 'Two-hand pattern 1 (beat 1 only)', description: '右手と一緒に。コールアンドレスポンス（クリア必須ではない）。', descriptionEn: 'With RH. Call-and-response (optional clear).', mode: 'chord_osmd', base: 'mq-b3-4-2-2', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-2-2', measures: 25, targets: 128 },
-  { key: 'mq-b3-4-2-2-prec', slug: 'mq-b3-4-2-2-precision', title: '両手パターン1・精密', titleEn: 'Two-hand pattern 1 · Precision', description: '精密モード（Voice4なし）。クリア必須ではない。', descriptionEn: 'Precision mode (no Voice4). Optional clear.', mode: 'chord_precision', base: 'mq-b3-4-2-2', xmlSuffix: 'precision', mp3Base: 'mq-b3-4-2-2', measures: 25, targets: 128 },
-  { key: 'mq-b3-4-2-4', slug: 'mq-b3-4-2-4-osmd', title: '両手パターン2（1頭3ウラ）', titleEn: 'Two-hand pattern 2 (beat 1 + and-of-3)', description: '右手と一緒に。コールアンドレスポンス（クリア必須ではない）。', descriptionEn: 'With RH. Call-and-response (optional clear).', mode: 'chord_osmd', base: 'mq-b3-4-2-4', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-2-4', measures: 25, targets: 168 },
-  { key: 'mq-b3-4-2-4-prec', slug: 'mq-b3-4-2-4-precision', title: '両手パターン2・精密', titleEn: 'Two-hand pattern 2 · Precision', description: '精密モード（Voice4なし）。クリア必須ではない。', descriptionEn: 'Precision mode (no Voice4). Optional clear.', mode: 'chord_precision', base: 'mq-b3-4-2-4', xmlSuffix: 'precision', mp3Base: 'mq-b3-4-2-4', measures: 25, targets: 168 },
+  { key: 'mq-b3-4-2-2', slug: 'mq-b3-4-2-2-osmd', title: '両手パターン1（1頭のみ）', titleEn: 'Two-hand pattern 1 (beat 1 only)', description: '右手と一緒に。コールアンドレスポンス（クリア必須ではない）。', descriptionEn: 'With RH. Call-and-response (optional clear).', mode: 'chord_osmd', base: 'mq-b3-4-2-2', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-2-2', measures: 25, targets: 92 },
+  { key: 'mq-b3-4-2-2-prec', slug: 'mq-b3-4-2-2-precision', title: '両手パターン1・精密', titleEn: 'Two-hand pattern 1 · Precision', description: '精密モード（Voice4 cue は非ターゲット）。クリア必須ではない。', descriptionEn: 'Precision mode (Voice4 cue is non-target). Optional clear.', mode: 'chord_precision', base: 'mq-b3-4-2-2', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-2-2', measures: 25, targets: 92 },
+  { key: 'mq-b3-4-2-4', slug: 'mq-b3-4-2-4-osmd', title: '両手パターン2（1頭3ウラ）', titleEn: 'Two-hand pattern 2 (beat 1 + and-of-3)', description: '右手と一緒に。コールアンドレスポンス（クリア必須ではない）。', descriptionEn: 'With RH. Call-and-response (optional clear).', mode: 'chord_osmd', base: 'mq-b3-4-2-4', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-2-4', measures: 25, targets: 132 },
+  { key: 'mq-b3-4-2-4-prec', slug: 'mq-b3-4-2-4-precision', title: '両手パターン2・精密', titleEn: 'Two-hand pattern 2 · Precision', description: '精密モード（Voice4 cue は非ターゲット）。クリア必須ではない。', descriptionEn: 'Precision mode (Voice4 cue is non-target). Optional clear.', mode: 'chord_precision', base: 'mq-b3-4-2-4', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b3-4-2-4', measures: 25, targets: 132 },
   // Ch5 Q2/Q3 production (Q1 is tutorial-only)
   { key: 'mq-b4-5-2-2', slug: 'mq-b4-5-2-2-osmd', title: 'テーマ＋左手（1頭のみ）', titleEn: 'Theme + LH (beat 1 only)', description: 'テーマを弾きながら左手（クリア必須ではない）。', descriptionEn: 'Play the theme with LH (optional clear).', mode: 'chord_osmd', base: 'mq-b4-5-2-2', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b4-5-2-2', measures: 25, targets: 140 },
   { key: 'mq-b4-5-2-3', slug: 'mq-b4-5-2-3-precision', title: 'テーマ＋左手（1頭）・精密', titleEn: 'Theme + LH (beat 1) · Precision', description: '5-2-2 の精密モード。クリア必須ではない。', descriptionEn: 'Precision version of 5-2-2. Optional clear.', mode: 'chord_precision', base: 'mq-b4-5-2-2', xmlSuffix: 'precision', mp3Base: 'mq-b4-5-2-2', measures: 25, targets: 140 },
@@ -119,7 +119,9 @@ function buildStageSql(s) {
         max_loops_per_phrase: 2,
       }
     : combatFromTargets(s.targets);
-  const xmlUrl = asset(`${s.base}-${s.xmlSuffix}.musicxml`);
+  const xmlUrl = s.xmlSuffix
+    ? asset(`${s.base}-${s.xmlSuffix}.musicxml`)
+    : asset(`${s.base}.musicxml`);
   const audioUrl = asset(`${s.mp3Base}.mp3`);
 
   return `
@@ -295,10 +297,10 @@ const ch5Q1Tutorial = {
       type: 'dialogue_only',
       lineIntervalSeconds: 4,
       lines: [
-        { speaker: 'jajii', ja: 'ここからは Jazzify Blues じゃ。お前のテーマを、右手だけで確かめるぞ。', en: 'Now comes Jazzify Blues. We check your theme with the right hand alone.' },
-        { speaker: 'fai', ja: 'テーマ…曲の顔みたいなメロディだよね。', en: 'The theme — like the face of the tune.' },
-        { speaker: 'jajii', ja: 'そうじゃ。まずは譜面どおりに、右手でメロディを通してみるのじゃ。', en: 'Aye. First, walk the melody from the score with your right hand.' },
-        { speaker: 'fai', ja: 'よし、テーマ練習いってみよう！', en: 'Alright — theme practice, here I go!' },
+        { speaker: 'partner', ja: 'ここからは Jazzify Blues じゃ。お前のテーマを、右手だけで確かめるぞ。', en: 'Now comes Jazzify Blues. We check your theme with the right hand alone.' },
+        { speaker: 'player', ja: 'テーマ…曲の顔みたいなメロディだよね。', en: 'The theme — like the face of the tune.' },
+        { speaker: 'partner', ja: 'そうじゃ。まずは譜面どおりに、右手でメロディを通してみるのじゃ。', en: 'Aye. First, walk the melody from the score with your right hand.' },
+        { speaker: 'player', ja: 'よし、テーマ練習いってみよう！', en: 'Alright — theme practice, here I go!' },
       ],
     },
     {
@@ -310,8 +312,8 @@ const ch5Q1Tutorial = {
       type: 'dialogue_only',
       lineIntervalSeconds: 4,
       lines: [
-        { speaker: 'jajii', ja: 'よいぞ。テーマが口をついて出るようになれば、次は左手も足せる。', en: 'Good. Once the theme is on your tongue, we can add the left hand.' },
-        { speaker: 'fai', ja: '次は両手だね。楽しみ！', en: 'Next is both hands. I am ready!' },
+        { speaker: 'partner', ja: 'よいぞ。テーマが口をついて出るようになれば、次は左手も足せる。', en: 'Good. Once the theme is on your tongue, we can add the left hand.' },
+        { speaker: 'player', ja: '次は両手だね。楽しみ！', en: 'Next is both hands. I am ready!' },
       ],
     },
     { type: 'finish' },

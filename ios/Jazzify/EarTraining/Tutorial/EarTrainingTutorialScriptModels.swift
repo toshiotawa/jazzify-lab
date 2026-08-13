@@ -12,6 +12,16 @@ struct EarTrainingTutorialLocalizedText: Decodable, Sendable {
 enum EarTrainingTutorialDialogueSpeaker: String, Codable, Sendable {
     case player
     case partner
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "partner", "jajii":
+            self = .partner
+        default:
+            self = .player
+        }
+    }
 }
 
 struct EarTrainingTutorialDialogueLine: Decodable, Sendable {

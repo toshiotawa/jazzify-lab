@@ -9,10 +9,13 @@ import {
   parseEarTrainingTimingAdjustmentReturnHash,
   type EarTrainingTimingAdjustmentEntry,
 } from '@/utils/earTrainingTimingAdjustmentLaunch';
-import { setAppHash } from '@/utils/appNavigation';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 
 import { EarTrainingTimingAdjustmentExperience } from './EarTrainingTimingAdjustmentExperience';
+import { markAudioUserInteraction } from '@/utils/MidiController';
+import { unlockEarTrainingPhraseAudioContext } from '@/utils/earTrainingChordVoicingPhrasePlayer';
+import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
+import { useNavigateAppHash } from '@/hooks/useNavigateAppHash';
 
 function parseRouteParams(): Record<string, string> {
   return Object.fromEntries(getAppRouteSearchParams(window.location));
@@ -20,6 +23,7 @@ function parseRouteParams(): Record<string, string> {
 
 const EarTrainingTimingAdjustmentMain: React.FC = () => {
   const profile = useAuthStore((s) => s.profile);
+  const navigateAppHash = useNavigateAppHash();
   const params = useMemo(() => parseRouteParams(), []);
 
   const entry = (params.entry === 'settings' ? 'settings' : 'quest') as EarTrainingTimingAdjustmentEntry;
@@ -69,6 +73,9 @@ const EarTrainingTimingAdjustmentMain: React.FC = () => {
   }, [clearConditions, entry, lessonId, lessonSongId, profile]);
 
   const handleExit = useCallback(() => {
+    markAudioUserInteraction();
+    unlockEarTrainingPhraseAudioContext();
+    void unlockTutorialAudio();
     if (entry === 'settings') {
       const searchParams = new URLSearchParams();
       for (const [key, value] of Object.entries(params)) {
@@ -78,7 +85,7 @@ const EarTrainingTimingAdjustmentMain: React.FC = () => {
       }
       const returnHash = parseEarTrainingTimingAdjustmentReturnHash(searchParams);
       if (returnHash) {
-        setAppHash(returnHash);
+        navigateAppHash(returnHash);
         return;
       }
     }
@@ -89,7 +96,7 @@ const EarTrainingTimingAdjustmentMain: React.FC = () => {
     } else {
       window.location.hash = '#lessons';
     }
-  }, [entry, lessonId, lessonSongId, params]);
+  }, [entry, lessonId, lessonSongId, navigateAppHash, params]);
 
   return (
     <EarTrainingTimingAdjustmentExperience

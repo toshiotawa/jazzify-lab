@@ -3,7 +3,7 @@ import { useQuestCompleteJingleOnStageClear, useGameOverJingleOnGameOver } from 
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingBattleRenderer from './EarTrainingBattleRenderer';
 import DeferredEarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './DeferredEarTrainingPianoOverlay';
-import EarTrainingChordOSMDScore from './EarTrainingChordOSMDScore';
+import EarTrainingChordOSMDScore, { type EarTrainingChordOSMDScoreHandle } from './EarTrainingChordOSMDScore';
 import type {
   ClearConditions,
   EarTrainingGameState,
@@ -46,6 +46,7 @@ import {
 import { buildPrecisionNotesFromMidi } from '@/utils/earTrainingPrecisionMidi';
 import {
   preloadBattleCountInClick,
+  preloadBattleGmPiano,
 } from '@/utils/ensureBattlePianoAudio';
 import {
   getCompletionDamage,
@@ -60,7 +61,7 @@ import {
 } from '@/utils/earTrainingUiCopy';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { buildEarTrainingTimingAdjustmentHash } from '@/utils/earTrainingTimingAdjustmentLaunch';
-import { setAppHash } from '@/utils/appNavigation';
+import { useNavigateAppHash } from '@/hooks/useNavigateAppHash';
 import {
   buildEarTrainingEnemyBattleSourceKey,
   EAR_TRAINING_PLAYER_AVATAR_URL,
@@ -72,6 +73,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { getEarTrainingLessonClearConditionText } from '@/utils/earTrainingLessonClearCondition';
 import {
   EarTrainingChordVoicingPhrasePlayer,
+  unlockEarTrainingPhraseAudioContext,
 } from '@/utils/earTrainingChordVoicingPhrasePlayer';
 import {
   CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL,
@@ -80,7 +82,7 @@ import {
 } from '@/utils/earTrainingChordVoicingDrumLoop';
 import {
   computeChordOsmdActiveMeasureNumber,
-  computeChordOsmdPhraseLoopEndSec,
+  computeChordOsmdCalibratedPhraseLoopEndSec,
   shouldFinishOsmdPhraseOnAudioEnded,
   shouldStartTutorialOsmdDrumLoop,
 } from '@/utils/earTrainingChordOsmdTimeline';
@@ -129,6 +131,7 @@ import {
   clampEarTrainingOsmdTimingAdjustmentMs,
   loadEarTrainingOsmdTimingAdjustmentMs,
   resolveOsmdCalibratedTargetTimeSec,
+  resolveOsmdPlayheadTimelineSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
@@ -159,6 +162,8 @@ interface EarTrainingChordOSMDScreenProps {
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
   onPracticeModeRestartFromSettings?: (nextPracticeMode: boolean) => void;
+  /** タイミング調整から戻ったときなど、ロビーを出さずにバトルを開始する */
+  autoStartBattle?: boolean;
   tutorial?: EarTrainingTutorialOsmdConfig & {
     drumLoopUrl?: string;
     onSceneComplete: (result?: EarTrainingTutorialOsmdSceneResult) => void;
@@ -199,8 +204,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   onLessonStageClear,
   onBack,
   onPracticeModeRestartFromSettings,
+  autoStartBattle = false,
   tutorial,
 }) => {
+  const navigateAppHash = useNavigateAppHash();
   const tutorialUi = tutorial?.bindings.ui;
   const timingCalibrationMode = tutorial?.bindings.timingCalibrationMode === true;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
@@ -296,6 +303,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
   const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
+  const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
+  const hasSyncedPhraseStartPlayheadRef = useRef(false);
+  const activeMeasureNumberRef = useRef(1);
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const [baseMusicXmlText, setBaseMusicXmlText] = useState<string | null>(null);
   const [practiceTransposeOffset, setPracticeTransposeOffset] = useState(0);
@@ -309,6 +319,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       * Math.max(1, stage.beats_per_measure),
     [practiceMode, practiceSpeedPercent, stage.beats_per_measure, stage.bpm],
   );
+  const countInDurationSec = useMemo(() => {
+    const beats = Math.max(0, Math.min(32, stage.count_in_beats));
+    if (beats <= 0) {
+      return 0;
+    }
+    return (60 / Math.max(1, effectivePracticeBpm(stage.bpm, practiceMode ? practiceSpeedPercent : 100))) * beats;
+  }, [practiceMode, practiceSpeedPercent, stage.bpm, stage.count_in_beats]);
   const [scoreErrorText, setScoreErrorText] = useState<string | null>(null);
   const chordOsmdXmlAttacks = useMemo(
     () => (musicXmlText ? collectChordOsmdMusicXmlAttacks(musicXmlText) : null),
@@ -377,6 +394,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => { practiceTransposeOffsetRef.current = practiceTransposeOffset; }, [practiceTransposeOffset]);
   useEffect(() => { practiceSpeedPercentRef.current = practiceSpeedPercent; }, [practiceSpeedPercent]);
   useEffect(() => { timingAdjustmentMsRef.current = timingAdjustmentMs; }, [timingAdjustmentMs]);
+  useEffect(() => { activeMeasureNumberRef.current = activeMeasureNumber; }, [activeMeasureNumber]);
 
   const resolveEffectiveTargetTimeSec = useCallback((targetTimeSec: number): number => {
     if (!practiceModeRef.current) {
@@ -435,6 +453,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   useEffect(() => {
     preloadBattleCountInClick();
+    preloadBattleGmPiano();
     prefetchEarTrainingLobbyAssetsFromStage(stage);
   }, [stage]);
 
@@ -1252,7 +1271,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const updateActiveMeasureForPhraseTime = useCallback((phraseTimeSec: number) => {
     if (phraseTimeSec < 0) {
-      return;
+      return 1;
     }
     const nextMeasure = computeChordOsmdActiveMeasureNumber(
       phraseTimeSec,
@@ -1262,8 +1281,25 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       stage.loop_measures,
       targetsRef.current,
     );
+    activeMeasureNumberRef.current = nextMeasure;
     setActiveMeasureNumber(current => (current === nextMeasure ? current : nextMeasure));
+    return nextMeasure;
   }, [resolveEffectivePracticeBpm, stage.beats_per_measure, stage.loop_measures]);
+
+  const syncOsmdPlayhead = useCallback((phraseTimeSec: number, animating: boolean): void => {
+    const playheadTimeSec = resolveOsmdPlayheadTimelineSec(
+      phraseTimeSec,
+      timingAdjustmentMsRef.current,
+    );
+    const measureNumber = playheadTimeSec < 0
+      ? 1
+      : updateActiveMeasureForPhraseTime(playheadTimeSec);
+    osmdScoreRef.current?.syncPlayhead({
+      phraseTimelineSec: playheadTimeSec,
+      activeMeasureNumber: measureNumber,
+      animating,
+    });
+  }, [updateActiveMeasureForPhraseTime]);
 
   const handlePhraseTimelineTick = useCallback(() => {
     if (phraseEndingRef.current) {
@@ -1289,8 +1325,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
 
-    if (phraseTimeSec >= 0) {
-      updateActiveMeasureForPhraseTime(phraseTimeSec);
+    if (phraseTimeSec < 0) {
+      hasSyncedPhraseStartPlayheadRef.current = false;
+      syncOsmdPlayhead(phraseTimeSec, true);
+    } else {
+      hasSyncedPhraseStartPlayheadRef.current = true;
+      syncOsmdPlayhead(phraseTimeSec, true);
     }
     throwDueHammers(phraseTimeSec);
     spawnDueApproachCircles(phraseTimeSec);
@@ -1313,7 +1353,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     syncSelfPacedMeasureAndHints,
     spawnDueApproachCircles,
     throwDueHammers,
-    updateActiveMeasureForPhraseTime,
+    syncOsmdPlayhead,
   ]);
 
   useEffect(() => {
@@ -1470,6 +1510,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           }
         }
         setScoreTimelineArmed(true);
+        hasSyncedPhraseStartPlayheadRef.current = false;
+        activeMeasureNumberRef.current = initialMeasureNumber;
         setActiveMeasureNumber(initialMeasureNumber);
         player.playPrepared({
           prepared: preparedSelfPaced,
@@ -1504,6 +1546,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       }
 
       setScoreTimelineArmed(true);
+      hasSyncedPhraseStartPlayheadRef.current = false;
+      activeMeasureNumberRef.current = initialMeasureNumber;
       setActiveMeasureNumber(initialMeasureNumber);
 
       const loopDurationSec = Number(phrase.loop_duration_sec);
@@ -1515,8 +1559,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         ? scalePracticePhraseLoopEndSec(safeLoopDurationSec, practiceSpeedPercentRef.current)
         : safeLoopDurationSec;
       phraseLoopEndSecRef.current = scalePracticePhraseLoopEndSec(
-        computeChordOsmdPhraseLoopEndSec(safeLoopDurationSec, phraseTargets)
-          + timingAdjustmentMsRef.current / 1000,
+        computeChordOsmdCalibratedPhraseLoopEndSec(
+          safeLoopDurationSec,
+          phraseTargets,
+          timingAdjustmentMsRef.current,
+        ),
         practiceModeRef.current ? practiceSpeedPercentRef.current : 100,
       );
       const phraseLyrics = xmlText
@@ -1686,6 +1733,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     pendingImpactHandlersRef.current.clear();
     markAudioUserInteraction();
+    unlockEarTrainingPhraseAudioContext();
+    ensureBattlePianoAudioLazy();
     void ensureBattleAudioReady()
       .then(() => {
         if (typeof performance !== 'undefined' && performance.mark) {
@@ -1705,7 +1754,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     playerHpRef.current = stage.player_hp;
     battleEffectIdRef.current = 0;
     startPhrase(0);
-  }, [copy.noPhrases, ensureBattleAudioReady, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
+  }, [copy.noPhrases, ensureBattleAudioReady, ensureBattlePianoAudioLazy, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
 
   const applyPracticePlaybackAndRestart = useCallback((params: {
     speedPercent: number;
@@ -1784,7 +1833,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     setTimingAdjustmentMs(clamped);
     saveEarTrainingOsmdTimingAdjustmentMs(clamped);
     syncActiveOsuApproachCircleTimings();
-  }, [syncActiveOsuApproachCircleTimings]);
+    const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec();
+    if (phraseTimeSec == null || !Number.isFinite(phraseTimeSec)) {
+      return;
+    }
+    const state = gameStateRef.current;
+    if (state === 'countIn' || state === 'playingPhrase') {
+      syncOsmdPlayhead(phraseTimeSec, true);
+    }
+  }, [syncActiveOsuApproachCircleTimings, syncOsmdPlayhead]);
 
   const restartTimingCalibrationLoop = useCallback(() => {
     setLoopConfirmVisible(false);
@@ -1827,8 +1884,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
               : undefined,
           },
     });
-    setAppHash(hash);
-  }, [lessonContext, practiceMode, stage.id, tutorial?.timingReturnContext]);
+    navigateAppHash(hash);
+  }, [lessonContext, navigateAppHash, practiceMode, stage.id, tutorial?.timingReturnContext]);
 
   const osmdTimingAdjustmentConfig = useMemo(
     () => ({
@@ -2118,7 +2175,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     : `${Math.min(phraseIndex + 1, Math.max(1, phrases.length))}/${Math.max(1, phrases.length)}`;
 
   useEffect(() => {
-    if (!tutorial?.bindings.ui.hideLobby) {
+    if (!tutorial?.bindings.ui.hideLobby && !autoStartBattle) {
       return undefined;
     }
     if (gameStateRef.current !== 'idle') {
@@ -2127,7 +2184,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     tutorialOsmdLoopRef.current = 0;
     const timer = setTimeout(() => startBattle(), 120);
     return () => clearTimeout(timer);
-  }, [startBattle, tutorial?.bindings.ui.hideLobby]);
+  }, [autoStartBattle, startBattle, tutorial?.bindings.ui.hideLobby]);
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
@@ -2288,15 +2345,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
       {musicXmlText ? (
         <EarTrainingChordOSMDScore
+          ref={osmdScoreRef}
           musicXmlText={musicXmlText}
           scoreErrorText={scoreErrorText}
           activeMeasureNumber={activeMeasureNumber}
           measureDurationSec={measureDurationSec}
+          countInDurationSec={countInDurationSec}
           scrollActive={scoreScrollActive}
           renderKeyValue={phraseRunId}
           isEnglishCopy={isEnglishCopy}
           hidden={showLobbyControls || timingCalibrationMode}
           scoreZClassName={showLobbyControls ? 'z-0' : 'z-10'}
+          useImperativePlayhead
         />
       ) : null}
 

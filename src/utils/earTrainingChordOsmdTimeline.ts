@@ -5,6 +5,7 @@ import {
   chordOsmdHammerLeadSec,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
+import { timingAdjustmentMsToSec } from '@/utils/earTrainingOsmdTimingAdjustment';
 
 export const CHORD_OSMD_PHRASE_END_PADDING_SEC = 0.08;
 
@@ -50,6 +51,22 @@ export const computeChordOsmdPhraseLoopEndSec = (
     ? phraseLoopDurationSec
     : 0;
   return Math.max(safeLoop, lastTargetEnd) + CHORD_OSMD_PHRASE_END_PADDING_SEC;
+};
+
+/** 判定時刻（target + 調整）を最終ノーツ終端に使い、ループ尺そのものには調整を足さない */
+export const computeChordOsmdCalibratedPhraseLoopEndSec = (
+  phraseLoopDurationSec: number,
+  targets: readonly Pick<ChordOsmdRhythmTarget, 'targetTimeSec'>[],
+  timingAdjustmentMs: number,
+): number => {
+  const adjSec = timingAdjustmentMsToSec(timingAdjustmentMs);
+  if (adjSec === 0) {
+    return computeChordOsmdPhraseLoopEndSec(phraseLoopDurationSec, targets);
+  }
+  return computeChordOsmdPhraseLoopEndSec(
+    phraseLoopDurationSec,
+    targets.map(target => ({ targetTimeSec: target.targetTimeSec + adjSec })),
+  );
 };
 
 /** `startIndex` 以降で `phraseTimeSec` 時点までに投擲すべきハンマー数（テスト用）。 */

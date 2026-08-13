@@ -1138,7 +1138,11 @@ private struct SurvivalCodeRunGameContent: View {
             }
         self.progressionChords = resolvedChords
         let stageMaxMidi: Int? = randomStage
-            ? SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: stage.allowedChords)
+            ? (
+                randomChordOverrides.isEmpty
+                    ? SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: stage.allowedChords)
+                    : randomChordOverrides.values.flatMap(\.midiNotes).max()
+            )
             : SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords)
         if let maxMidi = stageMaxMidi {
             self.keyboardScrollAnchorMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: maxMidi)
@@ -1152,6 +1156,7 @@ private struct SurvivalCodeRunGameContent: View {
                 isRandomStage: randomStage,
                 allowedChords: stage.allowedChords,
                 progressionChords: resolvedChords,
+                overrideChords: Array(randomChordOverrides.values),
                 displayMode: initialKeyboardDisplayMode
             )
         )
@@ -1161,9 +1166,16 @@ private struct SurvivalCodeRunGameContent: View {
         isRandomStage: Bool,
         allowedChords: [String],
         progressionChords: [SurvivalResolvedChord],
+        overrideChords: [SurvivalResolvedChord],
         displayMode: PianoKeyboardDisplayMode
     ) -> PianoStagePitchRange {
         if isRandomStage {
+            if !overrideChords.isEmpty {
+                return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                    in: overrideChords,
+                    displayMode: displayMode
+                )
+            }
             return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
                 fromChordIds: allowedChords,
                 displayMode: displayMode
@@ -1180,6 +1192,7 @@ private struct SurvivalCodeRunGameContent: View {
             isRandomStage: isRandomStage,
             allowedChords: stage.allowedChords,
             progressionChords: progressionChords,
+            overrideChords: Array(randomChordOverrides.values),
             displayMode: mode
         )
     }

@@ -97,6 +97,26 @@ describe('earTrainingPrecisionNotes', () => {
     expect(notes.every(note => note.isShortNote === false)).toBe(true);
     expect(isPrecisionShortNoteDuration(notes[0]?.durationSec ?? 0, 120)).toBe(false);
   });
+
+  it('voice 4 ガイドは精密ノーツに含めない', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part>
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <key><fifths>0</fifths></key>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
+      <backup><duration>1</duration></backup>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice><type size="cue">quarter</type></note>
+    </measure>
+  </part>
+</score-partwise>`;
+    const { notes } = buildPrecisionNotesFromMusicXml(xml, 120, 4);
+    expect(notes.map(note => note.midi)).toEqual([60]);
+  });
 });
 
 describe('earTrainingPrecisionJudge', () => {

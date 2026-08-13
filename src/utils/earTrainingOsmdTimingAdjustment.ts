@@ -35,6 +35,15 @@ export const resolveOsmdCalibratedTargetTimeSec = (
   timingAdjustmentMs: number,
 ): number => speedScaledTargetTimeSec + timingAdjustmentMsToSec(timingAdjustmentMs);
 
+/**
+ * 譜面プレイヘッド用タイムライン。判定より早い音声時刻から調整分を引き、
+ * プレイヘッドが判定タイミングと同じ音符位置に来るようにする。
+ */
+export const resolveOsmdPlayheadTimelineSec = (
+  phraseTimelineSec: number,
+  timingAdjustmentMs: number,
+): number => phraseTimelineSec - timingAdjustmentMsToSec(timingAdjustmentMs);
+
 export const formatEarTrainingOsmdTimingAdjustmentLabel = (ms: number): string => {
   const clamped = clampEarTrainingOsmdTimingAdjustmentMs(ms);
   if (clamped > 0) {

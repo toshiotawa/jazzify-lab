@@ -120,7 +120,7 @@ describe('earTrainingTimingAdjustmentLaunch', () => {
     });
     const hash = parseEarTrainingTimingAdjustmentReturnHash(params);
     expect(hash).toBe(
-      '#ear-training-tutorial-lesson?scriptId=developer-full-v1&lessonId=lesson-1&lessonSongId=song-1&clearConditions=%7B%22count%22%3A1%2C%22rank%22%3A%22S%22%7D&sceneIndex=2',
+      '#ear-training-tutorial-lesson?scriptId=developer-full-v1&lessonId=lesson-1&lessonSongId=song-1&clearConditions=%7B%22count%22%3A1%2C%22rank%22%3A%22S%22%7D&sceneIndex=2&restart=1',
     );
   });
 });

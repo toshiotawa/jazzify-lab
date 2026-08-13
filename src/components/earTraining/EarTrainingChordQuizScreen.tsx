@@ -297,6 +297,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   const [progressSaved, setProgressSaved] = useState(false);
 
   const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
+  const drumStartGenerationRef = useRef(0);
   const chordVoicingPhrasePlayerStubRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
@@ -435,6 +436,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, []);
 
   const stopSelfPacedDrumLoop = useCallback(() => {
+    drumStartGenerationRef.current += 1;
     selfPacedDrumLoopRef.current?.stop();
   }, []);
 
@@ -464,15 +466,17 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    clearQuizTimer();
-    clearCountdownTimer();
-    clearBattleEffectTimers();
-    clearStaffShiftQueue();
-    chordVoicingPhrasePlayerStubRef.current?.dispose();
-    chordVoicingPhrasePlayerStubRef.current = null;
-    selfPacedDrumLoopRef.current?.dispose();
-    selfPacedDrumLoopRef.current = null;
-    return () => undefined;
+    return () => {
+      drumStartGenerationRef.current += 1;
+      clearQuizTimer();
+      clearCountdownTimer();
+      clearBattleEffectTimers();
+      clearStaffShiftQueue();
+      chordVoicingPhrasePlayerStubRef.current?.dispose();
+      chordVoicingPhrasePlayerStubRef.current = null;
+      selfPacedDrumLoopRef.current?.dispose();
+      selfPacedDrumLoopRef.current = null;
+    };
   }, [clearBattleEffectTimers, clearCountdownTimer, clearQuizTimer, clearStaffShiftQueue]);
 
   const triggerBattleEffect = useCallback((
@@ -716,6 +720,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
 
       void (async () => {
         const drum = ensureSelfPacedDrumLoop();
+        const generation = drumStartGenerationRef.current;
         try {
           if (!chordVoicingPhrasePlayerStubRef.current) {
             chordVoicingPhrasePlayerStubRef.current = new EarTrainingChordVoicingPhrasePlayer();
@@ -723,11 +728,21 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
           const stubPlayer = chordVoicingPhrasePlayerStubRef.current;
           const quizDrumUrl = resolveQuizDrumLoopUrl(lessonContext);
           await stubPlayer.prepare(quizDrumUrl);
+          if (generation !== drumStartGenerationRef.current) {
+            return;
+          }
           const phraseCtx = stubPlayer.getAudioContext();
           if (!phraseCtx) {
             return;
           }
           await drum.prepare(quizDrumUrl, phraseCtx);
+          if (generation !== drumStartGenerationRef.current) {
+            return;
+          }
+          const state = gameStateRef.current;
+          if (state !== 'playingPhrase' && state !== 'countIn') {
+            return;
+          }
           drum.setVolume(settings.musicVolume * settings.masterVolume);
           drum.start();
         } catch {
@@ -1250,9 +1265,16 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     staffVoicingGroups.length,
   ]);
 
+  const handleQuizBack = useCallback(() => {
+    stopSelfPacedDrumLoop();
+    selfPacedDrumLoopRef.current?.dispose();
+    selfPacedDrumLoopRef.current = null;
+    onBack();
+  }, [onBack, stopSelfPacedDrumLoop]);
+
   const battleCallbacks = useMemo(() => ({
     onStart: startQuiz,
-    onBack,
+    onBack: handleQuizBack,
     onOpenSettings: () => setIsSettingsOpen(true),
     onPracticeModeChange: (nextPracticeMode: boolean) => {
       if (canChangePracticeMode) {
@@ -1267,7 +1289,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
     handleBattleEffectImpact,
     handlePianoKeyDown,
     handlePianoKeyUp,
-    onBack,
+    handleQuizBack,
     startQuiz,
   ]);
 
