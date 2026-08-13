@@ -86,6 +86,7 @@ const defaultPhraseForm: PhraseForm = {
   loop_duration_sec: 4,
   audio_duration_sec: 24,
   note_count: 0,
+  audio_anchor_ms: 0,
   notesText: '',
   chordsText: '',
   demoLoopsText: '1,3,5',
@@ -135,6 +136,7 @@ const phraseToForm = (phrase: EarTrainingPhrase): PhraseForm => ({
   loop_duration_sec: phrase.loop_duration_sec,
   audio_duration_sec: phrase.audio_duration_sec,
   note_count: phrase.note_count,
+  audio_anchor_ms: phrase.audio_anchor_ms ?? 0,
   notesText: serializeNotes(phrase.notes),
   chordsText: serializeChords(phrase.chords),
   demoLoopsText: (phrase.demo_loops ?? [])
@@ -451,6 +453,7 @@ const EarTrainingStageManager: React.FC = () => {
         loop_duration_sec: phraseForm.loop_duration_sec,
         audio_duration_sec: phraseForm.audio_duration_sec,
         note_count: noteRows.length,
+        audio_anchor_ms: phraseForm.audio_anchor_ms ?? 0,
       };
       const phrase = selectedPhrase
         ? await updateEarTrainingPhrase(selectedPhrase.id, phrasePayload)
@@ -982,6 +985,7 @@ const EarTrainingStageManager: React.FC = () => {
                 <Input label="タイトル" value={phraseForm.title ?? ''} onChange={value => setPhraseForm(prev => ({ ...prev, title: value }))} />
                 <NumberInput label="loopDuration秒" value={phraseForm.loop_duration_sec} onChange={value => setPhraseForm(prev => ({ ...prev, loop_duration_sec: value }))} />
                 <NumberInput label="audioDuration秒" value={phraseForm.audio_duration_sec} onChange={value => setPhraseForm(prev => ({ ...prev, audio_duration_sec: value }))} />
+                <NumberInput label="audioAnchorMs（音源ゼロ点 ms）" value={phraseForm.audio_anchor_ms ?? 0} onChange={value => setPhraseForm(prev => ({ ...prev, audio_anchor_ms: value }))} />
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <Input label="mp3 URL" value={phraseForm.audio_url} onChange={value => setPhraseForm(prev => ({ ...prev, audio_url: value }))} />

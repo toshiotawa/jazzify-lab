@@ -70,6 +70,8 @@ export const findPrecisionNoteForInput = (
   windowSec: number,
 ): PrecisionNote | null => {
   const roundedMidi = Math.round(midi);
+  let bestNote: PrecisionNote | null = null;
+  let bestAbsDelta = Number.POSITIVE_INFINITY;
   for (const note of notes) {
     if (note.midi !== roundedMidi) {
       continue;
@@ -78,11 +80,13 @@ export const findPrecisionNoteForInput = (
     if (!state || state.judgment !== 'pending') {
       continue;
     }
-    if (Math.abs(phraseTimeSec - note.startSec) <= windowSec) {
-      return note;
+    const absDelta = Math.abs(phraseTimeSec - note.startSec);
+    if (absDelta <= windowSec && absDelta < bestAbsDelta) {
+      bestAbsDelta = absDelta;
+      bestNote = note;
     }
   }
-  return null;
+  return bestNote;
 };
 
 export const PRECISION_NOTE_CULL_MARGIN_PX = 20;

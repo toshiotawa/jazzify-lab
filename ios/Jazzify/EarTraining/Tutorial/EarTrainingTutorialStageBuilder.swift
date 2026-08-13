@@ -98,7 +98,8 @@ enum EarTrainingTutorialStageBuilder {
                 noteCount: phrase.note_count ?? notes?.count ?? 1,
                 notes: notes,
                 chords: chords,
-                demoLoops: nil
+                demoLoops: nil,
+                audioAnchorMs: nil
             )
         }
         let quizItems: [EarTrainingChordQuizItem]? = content.chord_quiz_items?.map { item in

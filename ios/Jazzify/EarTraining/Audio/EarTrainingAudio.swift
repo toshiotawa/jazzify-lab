@@ -1540,6 +1540,14 @@ final class EarTrainingAudio: NSObject {
         return max(0, sec)
     }
 
+    /// MIDI パケット host time からフレーズタイムライン秒を推定（ハンドラ遅延よりパケット時刻を優先）。
+    func phraseTimelineSecFromMidiHostTime(_ midiHostTime: UInt64) -> Double? {
+        guard let wallNow = phraseWallClockTimelineSecNowOrNil() else { return nil }
+        let delta = Self.secondsFromMachHostDifference(from: midiHostTime, to: mach_absolute_time())
+        guard delta.isFinite else { return nil }
+        return wallNow - delta
+    }
+
     /// OSMD バトル用。WEB `getPhraseTimelineSec()` と同じ wall-clock 秒（スケール済みターゲット時刻と整合）。
     func phraseWallClockTimelineSecNowOrNil() -> Double? {
         if loopSessionActive, let loopSec = loopTimelineSecNowOrNil() {

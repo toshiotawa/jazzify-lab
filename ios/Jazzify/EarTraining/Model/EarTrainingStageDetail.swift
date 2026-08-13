@@ -471,7 +471,8 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
                 noteCount: phrase.noteCount,
                 notes: (phrase.notes ?? []).sorted { $0.noteIndex < $1.noteIndex },
                 chords: (phrase.chords ?? []).sorted { $0.orderIndex < $1.orderIndex },
-                demoLoops: (phrase.demoLoops ?? []).sorted { $0.loopNumber < $1.loopNumber }
+                demoLoops: (phrase.demoLoops ?? []).sorted { $0.loopNumber < $1.loopNumber },
+                audioAnchorMs: phrase.audioAnchorMs
             )
         }
     }
@@ -538,6 +539,8 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
     let loopDurationSec: Double
     let audioDurationSec: Double
     let noteCount: Int
+    /// 音源ゼロ点補正（ms）。未設定は 0。
+    let audioAnchorMs: Int?
     let notes: [EarTrainingPhraseNoteDetail]?
     let chords: [EarTrainingPhraseChordDetail]?
     let demoLoops: [EarTrainingPhraseDemoLoopDetail]?
@@ -554,6 +557,7 @@ struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
         case loopDurationSec = "loop_duration_sec"
         case audioDurationSec = "audio_duration_sec"
         case noteCount = "note_count"
+        case audioAnchorMs = "audio_anchor_ms"
         case demoLoops = "demo_loops"
     }
 }

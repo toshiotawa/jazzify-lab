@@ -85,14 +85,17 @@ enum EarTrainingPrecisionJudge {
         windowSec: Double
     ) -> EarTrainingPrecisionNote? {
         let roundedMidi = midi
+        var best: EarTrainingPrecisionNote?
+        var bestDelta = Double.greatestFiniteMagnitude
         for note in notes {
             guard note.midi == roundedMidi else { continue }
             guard let state = states[note.id], state.judgment == .pending else { continue }
-            if abs(phraseTimeSec - note.startSec) <= windowSec {
-                return note
-            }
+            let delta = abs(phraseTimeSec - note.startSec)
+            guard delta <= windowSec, delta < bestDelta else { continue }
+            bestDelta = delta
+            best = note
         }
-        return nil
+        return best
     }
 
     static func shouldCullNoteFromLane(

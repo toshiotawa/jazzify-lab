@@ -7,6 +7,7 @@ import {
   applyChordOsmdGuideNoteColors,
   areAllChordOsmdTargetsCompleted,
   buildChordOsmdRhythmTargets,
+  buildChordOsmdRhythmTargetsWithMeta,
   CHORD_OSMD_GUIDE_NOTE_COLOR,
   CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
   chordOsmdBeatToTargetTimeSec,
@@ -176,14 +177,14 @@ describe('buildChordOsmdRhythmTargets', () => {
     expect(targets.every(target => target.label === 'C/G')).toBe(true);
   });
 
-  it('fromScore=true のとき MIDI より MusicXML アタックを優先する（両手同時発音）', () => {
+  it('fromScore=true かつ MIDI があるとき欠落音は MusicXML から残し時刻は MIDI を正本にする（両手同時発音）', () => {
     const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions><staves>2</staves></attributes>
 <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><staff>1</staff></note>
 <backup><duration>1</duration></backup>
 <note><pitch><step>E</step><octave>3</octave></pitch><duration>1</duration><staff>2</staff></note>`);
     const attacks = collectChordOsmdMusicXmlAttacks(xml);
-    const midiNotes = [{ midi: 52, startSec: 0 }];
-    const targets = buildChordOsmdRhythmTargets(
+    const midiNotes = [{ midi: 52, startSec: 0.05 }];
+    const built = buildChordOsmdRhythmTargetsWithMeta(
       phrase([]),
       120,
       4,
@@ -191,11 +192,17 @@ describe('buildChordOsmdRhythmTargets', () => {
       true,
       0,
       midiNotes,
+      false,
+      xml,
+      null,
+      0,
     );
 
-    expect(targets).toHaveLength(2);
-    expect(targets.map(target => target.midiCounts[0]?.midi).sort((a, b) => a - b)).toEqual([52, 60]);
-    expect(new Set(targets.map(target => target.id)).size).toBe(2);
+    expect(built.timingSource).toBe('midi_merged_xml');
+    expect(built.targets).toHaveLength(2);
+    expect(built.targets.map(target => target.midiCounts[0]?.midi).sort((a, b) => a - b)).toEqual([52, 60]);
+    expect(built.targets.find(target => target.midiCounts[0]?.midi === 52)?.targetTimeSec).toBeCloseTo(0.05, 3);
+    expect(new Set(built.targets.map(target => target.id)).size).toBe(2);
   });
 
   it('fromScore=true の同一拍 RH/LH 別アタックは id が衝突せず runtime Map で両方保持できる', () => {

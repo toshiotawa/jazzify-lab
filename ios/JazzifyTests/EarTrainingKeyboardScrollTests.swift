@@ -75,7 +75,8 @@ final class EarTrainingKeyboardScrollTests: XCTestCase {
                         ),
                     ],
                     chords: nil,
-                    demoLoops: nil
+                    demoLoops: nil,
+                    audioAnchorMs: nil
                 ),
             ],
             chordVoicingSelfPaced: nil,

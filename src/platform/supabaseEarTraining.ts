@@ -30,6 +30,7 @@ const EAR_TRAINING_PHRASE_OSMD_SELECT = `
   music_xml_url,
   midi_url,
   loop_duration_sec,
+  audio_anchor_ms,
   stage_id
 `;
 

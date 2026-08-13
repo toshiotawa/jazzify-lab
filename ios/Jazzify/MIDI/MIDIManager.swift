@@ -27,6 +27,7 @@ final class MIDIManager: ObservableObject {
 
     private let subscriberLock = NSLock()
     nonisolated(unsafe) private var subscribers: [UUID: (UInt8, UInt8, UInt8) -> Void] = [:]
+    nonisolated(unsafe) private var hostTimeSubscribers: [UUID: (UInt8, UInt8, UInt8, UInt64) -> Void] = [:]
 
     private init() {
         if let saved = UserDefaults.standard.object(forKey: Self.selectedDeviceDefaultsKey) as? NSNumber {
@@ -44,18 +45,37 @@ final class MIDIManager: ObservableObject {
         return MIDISubscriptionToken(manager: self, id: id)
     }
 
+    /// `MIDIEventPacket.timeStamp`（host time）付き購読。耳コピ入力時刻補正用。
+    func subscribeWithHostTime(_ handler: @escaping (UInt8, UInt8, UInt8, UInt64) -> Void) -> MIDISubscription {
+        subscriberLock.lock()
+        let id = UUID()
+        hostTimeSubscribers[id] = handler
+        subscriberLock.unlock()
+        return MIDISubscriptionHostTimeToken(manager: self, id: id)
+    }
+
+    nonisolated func removeHostTimeSubscriber(id: UUID) {
+        subscriberLock.lock()
+        hostTimeSubscribers.removeValue(forKey: id)
+        subscriberLock.unlock()
+    }
+
     nonisolated func removeSubscriber(id: UUID) {
         subscriberLock.lock()
         subscribers.removeValue(forKey: id)
         subscriberLock.unlock()
     }
 
-    nonisolated private func deliverChannelVoice(status: UInt8, data1: UInt8, data2: UInt8) {
+    nonisolated private func deliverChannelVoice(status: UInt8, data1: UInt8, data2: UInt8, hostTime: UInt64) {
         subscriberLock.lock()
         let handlers = Array(subscribers.values)
+        let hostHandlers = Array(hostTimeSubscribers.values)
         subscriberLock.unlock()
         for handler in handlers {
             handler(status, data1, data2)
+        }
+        for handler in hostHandlers {
+            handler(status, data1, data2, hostTime)
         }
     }
 
@@ -199,6 +219,7 @@ final class MIDIManager: ObservableObject {
     }
 
     nonisolated private func processPacket(_ packet: MIDIEventPacket) {
+        let hostTime = packet.timeStamp
         let wordCount = Int(packet.wordCount)
         guard wordCount > 0 else { return }
         var mutablePacket = packet
@@ -212,12 +233,12 @@ final class MIDIManager: ObservableObject {
                 case 0x0, 0x1: // Utility / System RealTime: 1 word、CVM ではないので無視
                     index += 1
                 case 0x2: // MIDI 1.0 Channel Voice: 1 word
-                    dispatchMIDI1ChannelVoice(word: word)
+                    dispatchMIDI1ChannelVoice(word: word, hostTime: hostTime)
                     index += 1
                 case 0x3: // 7bit System/Data: 2 words (CVM ではない)
                     index += 2
                 case 0x4: // MIDI 2.0 Channel Voice: 2 words
-                    dispatchMIDI2ChannelVoice(word0: word, word1: index + 1 < wordCount ? base[index + 1] : 0)
+                    dispatchMIDI2ChannelVoice(word0: word, word1: index + 1 < wordCount ? base[index + 1] : 0, hostTime: hostTime)
                     index += 2
                 case 0x5: // 128bit Data / SysEx 8bit: 4 words
                     index += 4
@@ -230,27 +251,27 @@ final class MIDIManager: ObservableObject {
 
     /// Note On/Off に加えて Control Change (0xB0) も購読者へ流す。サステインペダル (CC64) を
     /// オーディオ側で扱うため。既存の購読者は 0x90 / 0x80 以外を無視するので影響しない。
-    nonisolated private func dispatchMIDI1ChannelVoice(word: UInt32) {
+    nonisolated private func dispatchMIDI1ChannelVoice(word: UInt32, hostTime: UInt64) {
         let status = UInt8((word >> 16) & 0xFF)
         let data1 = UInt8((word >> 8) & 0xFF)
         let data2 = UInt8(word & 0xFF)
         let messageType = status & 0xF0
         guard messageType == 0x90 || messageType == 0x80 || messageType == 0xB0 else { return }
-        deliverChannelVoice(status: status, data1: data1, data2: data2)
+        deliverChannelVoice(status: status, data1: data1, data2: data2, hostTime: hostTime)
     }
 
     /// MIDI 2.0 CVM は UMP 2 ワード。Note On/Off は第 1 ワードに status/note、
     /// 第 2 ワードに 16bit velocity (上位) + 16bit attribute が載る。
     /// MIDIInputPortCreateWithProtocol(..., ._1_0, ...) で接続済みのため通常は届かないが、
     /// キーボード側が UMP 2.0 で送ってくる環境に備えて 7bit velocity に縮めて通知する。
-    nonisolated private func dispatchMIDI2ChannelVoice(word0: UInt32, word1: UInt32) {
+    nonisolated private func dispatchMIDI2ChannelVoice(word0: UInt32, word1: UInt32, hostTime: UInt64) {
         let status = UInt8((word0 >> 16) & 0xFF)
         let note = UInt8((word0 >> 8) & 0xFF)
         let velocity16 = UInt16((word1 >> 16) & 0xFFFF)
         let velocity7 = UInt8(min(127, Int(velocity16) >> 9))
         let messageType = status & 0xF0
         guard messageType == 0x90 || messageType == 0x80 else { return }
-        deliverChannelVoice(status: status, data1: note, data2: velocity7)
+        deliverChannelVoice(status: status, data1: note, data2: velocity7, hostTime: hostTime)
     }
 
     private func handleMIDINotification(_ notification: UnsafePointer<MIDINotification>) {
@@ -285,6 +306,20 @@ final class MIDISubscriptionToken: MIDISubscription {
 
     func cancel() {
         manager?.removeSubscriber(id: id)
+    }
+}
+
+final class MIDISubscriptionHostTimeToken: MIDISubscription {
+    private weak var manager: MIDIManager?
+    private let id: UUID
+
+    fileprivate init(manager: MIDIManager, id: UUID) {
+        self.manager = manager
+        self.id = id
+    }
+
+    func cancel() {
+        manager?.removeHostTimeSubscriber(id: id)
     }
 }
 

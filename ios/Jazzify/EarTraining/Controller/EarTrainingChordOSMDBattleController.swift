@@ -126,6 +126,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     }
 
     private var musicXMLCache: [String: MusicXmlPrepared] = [:]
+    private var midiCache: [String: Data] = [:]
+    private var baseMidiData: Data?
+    private var timingSource: EarTrainingCanonicalPhraseNotes.TimingSource = .musicxml
     /// 正規化済み・歌詞付き。表示は `musicXMLText` の歌詞除去版。
     private var rhythmMusicXmlForAttacks: String?
     private var rhythmAttacks: [ChordOsmdMusicXmlAttack] = []
@@ -454,7 +457,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         publishSnapshot()
     }
 
-    func handleNoteOn(midi: Int, velocity: Int = 100, playAudio: Bool = true) {
+    func handleNoteOn(midi: Int, velocity: Int = 100, playAudio: Bool = true, midiHostTime: UInt64? = nil) {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
@@ -462,7 +465,13 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         if nowMs - (lastInputAtByNote[midi] ?? 0) < Self.inputCooldownMs { return }
         lastInputAtByNote[midi] = nowMs
         guard gameState == .playingPhrase || gameState == .countIn else { return }
-        guard let phraseTime = osmdPhraseTimelineSecNow() else { return }
+        let phraseTime: Double
+        if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
+            phraseTime = fromMidi
+        } else {
+            guard let wall = osmdPhraseTimelineSecNow() else { return }
+            phraseTime = wall
+        }
         compactActiveTargets()
 
         let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
@@ -485,6 +494,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             refreshPracticeVoicingHints()
             return
         }
+        let target = targets[matchedIndex]
+        EarTrainingInputTimingTelemetry.log(
+            mode: .chordOsmd,
+            slug: stage.slug,
+            timingSource: timingSource.rawValue,
+            nominalTargetSec: resolveCalibratedTargetTimeSec(target.targetTimeSec),
+            inputSec: phraseTime,
+            midi: midi
+        )
         guard targets[matchedIndex].consume(midi: midi) else {
             refreshPracticeVoicingHints()
             return
@@ -656,6 +674,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
 
         await loadMusicXML(for: phrase)
         if Task.isCancelled { return }
+        await loadMidi(for: phrase, runId: runId)
+        if Task.isCancelled { return }
 
         let xmlAttacks = rhythmAttacks
 
@@ -667,7 +687,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             fromScore: stage.resolvedOsmdTargetsFromScore,
             transposeOffset: effectivePracticeTransposeOffset(),
             isSwing: stage.resolvedIsSwing,
-            musicXmlText: rhythmMusicXmlForAttacks
+            musicXmlText: rhythmMusicXmlForAttacks,
+            midiData: baseMidiData,
+            audioAnchorMs: phrase.audioAnchorMs,
+            timingSource: &timingSource
         )
         guard !preparedTargets.isEmpty else {
             finishGameOver(message: isEnglishCopy ? "No chord timings are registered." : "判定用コードタイミングが登録されていません")
@@ -844,6 +867,30 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             practiceOriginalKeyName = "—"
             scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
             keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+        }
+    }
+
+    private func loadMidi(for phrase: EarTrainingPhraseDetail, runId: Int?) async {
+        guard let midiUrl = phrase.midiUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !midiUrl.isEmpty else {
+            baseMidiData = nil
+            return
+        }
+        if let cached = midiCache[midiUrl] {
+            baseMidiData = cached
+            return
+        }
+        guard let url = URL(string: midiUrl) else {
+            baseMidiData = nil
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            if let runId, phraseRunId != runId { return }
+            midiCache[midiUrl] = data
+            baseMidiData = data
+        } catch {
+            baseMidiData = nil
         }
     }
 
@@ -1897,8 +1944,43 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         fromScore: Bool = false,
         transposeOffset: Int = 0,
         isSwing: Bool = false,
-        musicXmlText: String? = nil
+        musicXmlText: String? = nil,
+        midiData: Data? = nil,
+        audioAnchorMs: Int? = nil,
+        timingSource: inout EarTrainingCanonicalPhraseNotes.TimingSource
     ) -> [RhythmTarget] {
+        if fromScore, let musicXmlText, !musicXmlText.isEmpty, !attacks.isEmpty {
+            let canonical = EarTrainingCanonicalPhraseNotes.build(
+                EarTrainingCanonicalPhraseNotes.BuildParams(
+                    musicXmlText: musicXmlText,
+                    midiData: midiData,
+                    bpm: bpm,
+                    beatsPerMeasure: beatsPerMeasure,
+                    isSwing: isSwing,
+                    transposeOffset: transposeOffset,
+                    audioAnchorMs: audioAnchorMs
+                )
+            )
+            timingSource = canonical.timingSource
+            let drafts = EarTrainingCanonicalPhraseNotes.toOsmdRhythmTargets(
+                notes: canonical.notes,
+                chords: phrase.chords ?? [],
+                attacks: canonical.attacks,
+                transposeOffset: transposeOffset
+            )
+            return drafts.map {
+                RhythmTarget(
+                    id: $0.id,
+                    label: $0.label,
+                    targetTimeSec: $0.targetTimeSec,
+                    measureNumber: $0.measureNumber,
+                    midiCounts: $0.midiCounts,
+                    noteSpellings: $0.noteSpellings,
+                    orderIndex: $0.orderIndex
+                )
+            }
+        }
+
         let straightBeatKeys: Set<String>? = {
             guard isSwing, let musicXmlText else { return nil }
             return EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdStraightBeatKeys(musicXmlText)

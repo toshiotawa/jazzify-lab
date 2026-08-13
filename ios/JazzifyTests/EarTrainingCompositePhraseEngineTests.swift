@@ -161,7 +161,8 @@ final class EarTrainingCompositePhraseEngineTests: XCTestCase {
                     voicing: ["G3", "B3", "D4", "F4"]
                 ),
             ],
-            demoLoops: nil
+            demoLoops: nil,
+            audioAnchorMs: nil
         )
 
         let definition = EarTrainingCompositePhraseAdapter.phraseDetailToDefinition(phrase)

@@ -160,7 +160,7 @@ export const updateGlobalVolume = (volume: number): void => {
 };
 
 export class MIDIController {
-  private readonly onNoteOn: (note: number, velocity?: number) => void;
+  private readonly onNoteOn: (note: number, velocity?: number, domTimeStampMs?: number) => void;
   private readonly onNoteOff: (note: number) => void;
   private midiAccess: MIDIAccess | null = null;
   private readonly activeNotes = new Set<number>();
@@ -268,7 +268,7 @@ export class MIDIController {
     const command = status & 0xf0;
 
     if (command === 0x90 && data2 > 0) {
-      this.handleNoteOn(data1, data2);
+      this.handleNoteOn(data1, data2, message.timeStamp);
     } else if (command === 0x80 || (command === 0x90 && data2 === 0)) {
       this.handleNoteOff(data1);
     } else if (command === 0xB0) {
@@ -284,7 +284,7 @@ export class MIDIController {
     }
   };
 
-  private handleNoteOn(note: number, velocity: number): void {
+  private handleNoteOn(note: number, velocity: number, domTimeStampMs?: number): void {
     try {
       this.activeNotes.add(note);
       
@@ -292,7 +292,7 @@ export class MIDIController {
         this.onKeyHighlight(note, true);
       }
       
-      this.onNoteOn(note, velocity);
+      this.onNoteOn(note, velocity, domTimeStampMs);
 
       if (this.playMidiSound) {
         void playNote(note, velocity).catch(() => {});

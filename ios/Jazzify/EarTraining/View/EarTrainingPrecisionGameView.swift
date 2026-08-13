@@ -105,7 +105,7 @@ struct EarTrainingPrecisionGameView: View {
     ) {
         createdController.start()
         midiSubscriptionHolder.cancel()
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
+        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)
@@ -121,7 +121,7 @@ struct EarTrainingPrecisionGameView: View {
             DispatchQueue.main.async {
                 guard let createdController else { return }
                 if isNoteOn {
-                    createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
+                    createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false, midiHostTime: hostTime)
                 } else {
                     createdController.handleNoteOff(midi: note, playAudio: false)
                 }

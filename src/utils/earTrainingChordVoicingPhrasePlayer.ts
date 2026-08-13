@@ -404,6 +404,23 @@ export class EarTrainingChordVoicingPhrasePlayer {
     return Number.isFinite(delta) ? delta : null;
   }
 
+  /**
+   * MIDI `timeStamp`（DOMHighResTimeStamp ms）からフレーズタイムライン秒を推定。
+   * ハンドラ実行遅延よりパケット時刻を優先する。
+   */
+  getPhraseTimelineSecFromDomTimeStamp(domTimeStampMs: number): number | null {
+    if (this.loopSessionActive) {
+      return this.getLoopTimelineSec();
+    }
+    if (this.phraseStartCtxTime === null || !this.ctx) {
+      return null;
+    }
+    const domDeltaSec = (domTimeStampMs - performance.now()) / 1000;
+    const ctxAtInput = this.ctx.currentTime + domDeltaSec;
+    const timeline = ctxAtInput - this.phraseStartCtxTime;
+    return Number.isFinite(timeline) ? timeline : null;
+  }
+
   isLoopSessionActive(): boolean {
     return this.loopSessionActive;
   }

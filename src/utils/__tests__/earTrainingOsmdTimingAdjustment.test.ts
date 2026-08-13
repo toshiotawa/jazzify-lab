@@ -29,7 +29,7 @@ describe('earTrainingOsmdTimingAdjustment', () => {
     window.localStorage.removeItem(EAR_TRAINING_OSMD_TIMING_ADJUSTMENT_STORAGE_KEY);
   });
 
-  it('returns default +40ms when nothing is stored', () => {
+  it('returns default 0ms when nothing is stored', () => {
     expect(loadEarTrainingOsmdTimingAdjustmentMs()).toBe(OSMD_TIMING_ADJUSTMENT_MS_DEFAULT);
   });
 

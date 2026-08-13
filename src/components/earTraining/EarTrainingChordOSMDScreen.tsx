@@ -43,7 +43,6 @@ import {
   storeEarTrainingMidi,
   storeEarTrainingMusicXml,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
-import { buildPrecisionNotesFromMidi } from '@/utils/earTrainingPrecisionMidi';
 import {
   preloadBattleCountInClick,
   preloadBattleGmPiano,
@@ -88,6 +87,7 @@ import {
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   buildChordOsmdRhythmTargets,
+  buildChordOsmdRhythmTargetsWithMeta,
   CHORD_OSMD_HAMMER_LEAD_MEASURES_DEFAULT,
   resolveChordOsmdParrySpanState,
   type ChordOsmdParrySpanAnchor,
@@ -134,6 +134,8 @@ import {
   resolveOsmdPlayheadTimelineSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
+import { logEarTrainingInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
+import type { EarTrainingTimingSource } from '@/utils/earTrainingCanonicalPhraseNotes';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
 import {
   clampTutorialPlayerHp,
@@ -343,13 +345,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
   const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
-  const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
+  const handleNoteInputRef = useRef<(note: number, domTimeStampMs?: number) => void>(() => undefined);
   const battlePianoAudioPromiseRef = useRef<Promise<void> | null>(null);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
   const gameStateRef = useRef<EarTrainingGameState>('idle');
   const phraseIndexRef = useRef(0);
   const phraseRunIdRef = useRef(0);
   const baseMidiDataRef = useRef<Uint8Array | null>(null);
+  const timingSourceRef = useRef<EarTrainingTimingSource>('musicxml');
   const [midiLoadToken, setMidiLoadToken] = useState(0);
   const enemyHpRef = useRef(stage.enemy_hp);
   const playerHpRef = useRef(stage.player_hp);
@@ -941,14 +944,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
   }, []);
 
-  const resolveMidiNotesForTargets = useCallback((transposeOffset: number) => {
-    const data = baseMidiDataRef.current;
-    if (!data) {
-      return null;
-    }
-    const { notes } = buildPrecisionNotesFromMidi(data, stage.bpm, transposeOffset);
-    return notes.map(note => ({ midi: note.midi, startSec: note.startSec }));
-  }, [stage.bpm]);
 
   useEffect(() => {
     if (gameState !== 'idle' || phrases.length === 0) {
@@ -966,17 +961,21 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       const transposeOffset = practiceMode && practiceTransposeEnabled
         ? practiceTransposeOffset
         : 0;
-      const initialTargets = buildChordOsmdRhythmTargets(
+      const built = buildChordOsmdRhythmTargetsWithMeta(
         firstPhrase,
         stage.bpm,
         stage.beats_per_measure,
         chordOsmdXmlAttacks,
         earTrainingOsmdUsesScoreTargets(stage),
         transposeOffset,
-        resolveMidiNotesForTargets(transposeOffset),
+        null,
         stage.is_swing === true,
         musicXmlText ?? undefined,
+        baseMidiDataRef.current,
+        firstPhrase.audio_anchor_ms,
       );
+      timingSourceRef.current = built.timingSource;
+      const initialTargets = built.targets;
       targetsRef.current = initialTargets;
       setTargets(initialTargets);
       setCompletedTargetCount(0);
@@ -989,7 +988,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     practiceMode,
     practiceTransposeEnabled,
     practiceTransposeOffset,
-    resolveMidiNotesForTargets,
     stage,
     stage.bpm,
     stage.beats_per_measure,
@@ -1467,17 +1465,21 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       const transposeOffset = practiceTransposeEnabled && practiceModeRef.current
         ? practiceTransposeOffsetRef.current
         : 0;
-      const phraseTargets = buildChordOsmdRhythmTargets(
+      const built = buildChordOsmdRhythmTargetsWithMeta(
         phrase,
         stage.bpm,
         stage.beats_per_measure,
         attacks,
         earTrainingOsmdUsesScoreTargets(stage),
         transposeOffset,
-        resolveMidiNotesForTargets(transposeOffset),
+        null,
         stage.is_swing === true,
         xmlText ?? undefined,
+        baseMidiDataRef.current,
+        phrase.audio_anchor_ms,
       );
+      timingSourceRef.current = built.timingSource;
+      const phraseTargets = built.targets;
       if (phraseTargets.length === 0) {
         finishGameOver(isEnglishCopy ? 'No chord timings are registered.' : '判定用コードタイミングが登録されていません');
         return;
@@ -1656,7 +1658,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     phrases,
     practiceTransposeEnabled,
     resetPhraseRuntime,
-    resolveMidiNotesForTargets,
     settings.masterVolume,
     settings.musicVolume,
     resolveEffectivePracticeBpm,
@@ -1700,15 +1701,15 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     settings.soundEffectVolume,
   ]);
 
-  const handleMidiNoteOn = useCallback((note: number) => {
+  const handleMidiNoteOn = useCallback((note: number, domTimeStampMs?: number) => {
     ensureBattlePianoAudioLazy();
-    handleNoteInputRef.current(note);
+    handleNoteInputRef.current(note, domTimeStampMs);
   }, [ensureBattlePianoAudioLazy]);
 
   const ensureBattleAudioReady = useCallback(async (): Promise<void> => {
     if (!midiControllerRef.current) {
       midiControllerRef.current = new MIDIController({
-        onNoteOn: note => handleMidiNoteOn(note),
+        onNoteOn: (note, _velocity, domTimeStampMs) => handleMidiNoteOn(note, domTimeStampMs),
         onNoteOff: () => undefined,
         onConnectionChange: connected => setIsMidiConnected(connected),
         playMidiSound: true,
@@ -2006,7 +2007,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     autoCompleteDueTargetsInTimingCalibrationRef.current = autoCompleteDueTargetsInTimingCalibration;
   }, [autoCompleteDueTargetsInTimingCalibration]);
 
-  const handleNoteInput = useCallback((note: number) => {
+  const handleNoteInput = useCallback((note: number, domTimeStampMs?: number) => {
     const now = performance.now();
     const midiNote = Math.round(note);
     const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
@@ -2048,7 +2049,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
 
-    const phraseT = phrasePlayerRef.current?.getPhraseTimelineSec();
+    const phraseT = resolveEarTrainingInputPhraseTimeSec(phrasePlayerRef.current, domTimeStampMs);
     if (phraseT == null || !Number.isFinite(phraseT)) {
       return;
     }
@@ -2078,6 +2079,14 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (!state) {
       return;
     }
+    logEarTrainingInputTimingTelemetry({
+      mode: 'chord_osmd',
+      slug: stage.slug,
+      timingSource: timingSourceRef.current,
+      nominalTargetSec: resolveCalibratedTargetTimeSec(target.targetTimeSec),
+      inputSec: phraseT,
+      midi: midiNote,
+    });
     const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
     if (!nextRemaining) {
       return;
@@ -2098,7 +2107,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   useEffect(() => {
     if (!midiControllerRef.current) {
       midiControllerRef.current = new MIDIController({
-        onNoteOn: note => handleMidiNoteOn(note),
+        onNoteOn: (note, _velocity, domTimeStampMs) => handleMidiNoteOn(note, domTimeStampMs),
         onNoteOff: () => undefined,
         onConnectionChange: connected => setIsMidiConnected(connected),
         playMidiSound: true,

@@ -192,7 +192,17 @@ describe('earTrainingPrecisionNotes', () => {
 });
 
 describe('earTrainingPrecisionJudge', () => {
-  it('±250ms 内の最早ノーツを good にする', () => {
+  it('±250ms 内の最も近い未判定ノーツを good にする', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+      { id: 'b', midi: 60, startSec: 1.2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const matched = findPrecisionNoteForInput(notes, states, 60, 1.18, 0.25);
+    expect(matched?.id).toBe('b');
+  });
+
+  it('±250ms 内で唯一の候補なら最早でも good にする', () => {
     const notes = [
       { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
       { id: 'b', midi: 60, startSec: 1.2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },

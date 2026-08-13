@@ -540,7 +540,7 @@ export interface ToneStatic {
 }
 
 export interface MidiControllerOptions {
-  onNoteOn: (note: number, velocity?: number) => void;
+  onNoteOn: (note: number, velocity?: number, domTimeStampMs?: number) => void;
   onNoteOff: (note: number) => void;
   onConnectionChange?: (connected: boolean) => void;
   playMidiSound?: boolean; // 音声再生の有効/無効（デフォルト: true）
@@ -782,6 +782,8 @@ export interface EarTrainingPhrase {
   music_xml_url?: string | null;
   midi_url?: string | null;
   audio_url: string;
+  /** フレーズ MP3 の先頭無音・エンコード遅延補正（ms）。正本 startSec に加算。 */
+  audio_anchor_ms?: number | null;
   loop_duration_sec: number;
   audio_duration_sec: number;
   note_count: number;

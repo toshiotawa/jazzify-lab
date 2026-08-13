@@ -3,7 +3,7 @@ import XCTest
 
 final class EarTrainingOsmdTimingAdjustmentTests: XCTestCase {
     func testClampTimingAdjustmentMs() {
-        XCTAssertEqual(EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(40), 40)
+        XCTAssertEqual(EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(0), 0)
         XCTAssertEqual(EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(43), 40)
         XCTAssertEqual(EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(45), 50)
         XCTAssertEqual(EarTrainingOsmdTimingAdjustment.clampTimingAdjustmentMs(-310), -300)

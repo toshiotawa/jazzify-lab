@@ -495,7 +495,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             noteCount: 0,
             notes: [],
             chords: chords,
-            demoLoops: []
+            demoLoops: [],
+            audioAnchorMs: nil
         )
         quizPhraseDetail = phraseDetail
         attempt = EarTrainingChordVoicingEngine.createAttempt(for: phraseDetail)

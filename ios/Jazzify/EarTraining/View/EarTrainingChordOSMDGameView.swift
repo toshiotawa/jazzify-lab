@@ -154,7 +154,7 @@ struct EarTrainingChordOSMDGameView: View {
         if createdController.gameState == .idle {
             createdController.start()
         }
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
+        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)
@@ -170,7 +170,7 @@ struct EarTrainingChordOSMDGameView: View {
             DispatchQueue.main.async { [weak createdController] in
                 guard let createdController else { return }
                 if isNoteOn {
-                    createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
+                    createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false, midiHostTime: hostTime)
                     createdController.registerMidiKeyDown(note)
                 } else {
                     createdController.handleNoteOff(midi: note, playAudio: false)

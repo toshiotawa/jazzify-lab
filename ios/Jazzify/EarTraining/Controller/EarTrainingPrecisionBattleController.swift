@@ -77,6 +77,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private var nextLyricIndex = 0
     private var baseMusicXmlText: String?
     private var baseMidiData: Data?
+    private var timingSource: EarTrainingCanonicalPhraseNotes.TimingSource = .musicxml
     private var notesBySemitone: [Int: [EarTrainingPrecisionNote]] = [:]
     private var loopWindow: EarTrainingPrecisionLoopWindow
     private var loopCycleWindowSize: Int = 2
@@ -539,28 +540,27 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
 
         let classificationBpm = resolveEffectivePracticeBpm()
-        var builtNotes: [EarTrainingPrecisionNote] = []
-        let usingMidi = baseMidiData != nil
         let isSwing = stage.resolvedIsSwing
-        playheadSwingEnabled = isSwing && !usingMidi
+        playheadSwingEnabled = isSwing && baseMidiData == nil
         if playheadSwingEnabled, let xml = baseMusicXmlText {
             playheadStraightBeatKeys = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdStraightBeatKeys(xml)
         } else {
             playheadStraightBeatKeys = nil
         }
 
-        if let midiData = baseMidiData {
-            if let result = try? EarTrainingPrecisionMidi.buildFromMidi(data: midiData, bpm: stage.bpm, transposeOffset: 0) {
-                builtNotes = result.notes
-            }
-        } else if let xml = baseMusicXmlText {
-            builtNotes = EarTrainingPrecisionNotes.buildFromMusicXml(
-                musicXmlText: xml,
+        let canonical = EarTrainingCanonicalPhraseNotes.build(
+            EarTrainingCanonicalPhraseNotes.BuildParams(
+                musicXmlText: baseMusicXmlText,
+                midiData: baseMidiData,
                 bpm: stage.bpm,
                 beatsPerMeasure: stage.beatsPerMeasure,
-                isSwing: isSwing
-            ).notes
-        }
+                isSwing: isSwing,
+                transposeOffset: 0,
+                audioAnchorMs: currentPhrase?.audioAnchorMs
+            )
+        )
+        timingSource = canonical.timingSource
+        let builtNotes = EarTrainingCanonicalPhraseNotes.toPrecisionNotes(canonical.notes, bpm: stage.bpm)
 
         let calibrated = EarTrainingPrecisionNotes.calibrateNotes(
             notes: builtNotes,
@@ -753,7 +753,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
     }
 
-    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool = true) {
+    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool = true, midiHostTime: UInt64? = nil) {
         let now = CFAbsoluteTimeGetCurrent() * 1000
         if let last = lastInputAtByNote[midi], now - last < Self.inputCooldownMs {
             return
@@ -766,7 +766,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
 
         guard gameState == .countIn || gameState == .playingPhrase else { return }
-        guard let phraseTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
+        let phraseTime: Double
+        if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
+            phraseTime = fromMidi
+        } else {
+            guard let wallTime = audio.phraseWallClockTimelineSecNowOrNil() else { return }
+            phraseTime = wallTime
+        }
 
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
         guard let matched = EarTrainingPrecisionJudge.findNoteForInput(
@@ -778,6 +784,15 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         ) else {
             return
         }
+
+        EarTrainingInputTimingTelemetry.log(
+            mode: .chordPrecision,
+            slug: stage.slug,
+            timingSource: timingSource.rawValue,
+            nominalTargetSec: matched.startSec,
+            inputSec: phraseTime,
+            midi: midi
+        )
 
         guard var state = runtimeStates[matched.id] else { return }
         state.judgment = .good

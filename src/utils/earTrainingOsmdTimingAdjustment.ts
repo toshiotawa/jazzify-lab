@@ -7,8 +7,8 @@ export const OSMD_TIMING_ADJUSTMENT_MS_MAX = 300;
 /** OSMD タイミング調整の刻み（ms） */
 export const OSMD_TIMING_ADJUSTMENT_MS_STEP = 10;
 
-/** OSMD タイミング調整のデフォルト（ms）。旧 judgmentOffset +40ms 相当 */
-export const OSMD_TIMING_ADJUSTMENT_MS_DEFAULT = 40;
+/** OSMD タイミング調整のデフォルト（ms）。正本時刻統一後は 0（デバイス／聴感用のみ）。 */
+export const OSMD_TIMING_ADJUSTMENT_MS_DEFAULT = 0;
 
 export const EAR_TRAINING_OSMD_TIMING_ADJUSTMENT_STORAGE_KEY =
   'earTraining.osmd.timingAdjustmentMs';

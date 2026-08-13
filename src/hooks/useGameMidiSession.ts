@@ -9,7 +9,7 @@ import { isIOSWebView } from '@/utils/iosbridge';
 export type GameMidiAudioProfile = 'survival' | 'battle';
 
 export type GameMidiBindings = {
-  registerNoteHandler: (handler: (note: number) => void) => () => void;
+  registerNoteHandler: (handler: (note: number, domTimeStampMs?: number) => void) => () => void;
   registerNoteOffHandler: (handler: (note: number) => void) => () => void;
   registerKeyHighlightHandler: (handler: (note: number, active: boolean) => void) => () => void;
   registerKeyHighlightTarget: (getRenderer: () => PIXINotesRendererInstance | null) => () => void;
@@ -34,14 +34,14 @@ export const useGameMidiSession = (audioProfile: GameMidiAudioProfile): GameMidi
   const [isMidiInitialized, setIsMidiInitialized] = useState(false);
   const controllerRef = useRef<MIDIController | null>(null);
   const initPromiseRef = useRef<Promise<void> | null>(null);
-  const noteHandlerRef = useRef<(note: number) => void>(() => undefined);
+  const noteHandlerRef = useRef<(note: number, domTimeStampMs?: number) => void>(() => undefined);
   const noteOffHandlerRef = useRef<(note: number) => void>(() => undefined);
   const keyHighlightHandlerRef = useRef<(note: number, active: boolean) => void>(() => undefined);
 
   useEffect(() => {
     const controller = new MIDIController({
-      onNoteOn: (note: number) => {
-        noteHandlerRef.current(note);
+      onNoteOn: (note: number, _velocity?: number, domTimeStampMs?: number) => {
+        noteHandlerRef.current(note, domTimeStampMs);
       },
       onNoteOff: (note: number) => {
         noteOffHandlerRef.current(note);
@@ -139,7 +139,7 @@ export const useGameMidiSession = (audioProfile: GameMidiAudioProfile): GameMidi
     controllerRef.current?.updateVolume(settings.midiVolume ?? 0.8);
   }, [settings.midiVolume]);
 
-  const registerNoteHandler = useCallback((handler: (note: number) => void) => {
+  const registerNoteHandler = useCallback((handler: (note: number, domTimeStampMs?: number) => void) => {
     noteHandlerRef.current = handler;
     return () => {
       if (noteHandlerRef.current === handler) {

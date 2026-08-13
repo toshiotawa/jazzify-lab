@@ -4,7 +4,7 @@ enum EarTrainingOsmdTimingAdjustment {
     static let timingAdjustmentMsMin = -300
     static let timingAdjustmentMsMax = 300
     static let timingAdjustmentMsStep = 10
-    static let timingAdjustmentMsDefault = 40
+    static let timingAdjustmentMsDefault = 0
 
     private static let storageKey = "earTraining.osmd.timingAdjustmentMs"
 

@@ -1,8 +1,8 @@
 import {
-  buildPrecisionNotesFromMidi,
-} from '@/utils/earTrainingPrecisionMidi';
+  buildCanonicalPhraseNotes,
+  canonicalNotesToPrecisionNotes,
+} from '@/utils/earTrainingCanonicalPhraseNotes';
 import {
-  buildPrecisionNotesFromMusicXml,
   calibratePrecisionNotes,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
@@ -23,6 +23,7 @@ export interface BuildPrecisionNotesBySemitoneParams {
   practiceMode: boolean;
   practiceSpeedPercent: number;
   classificationBpm: number;
+  audioAnchorMs?: number | null;
 }
 
 export const buildPrecisionNotesBySemitone = (
@@ -32,22 +33,16 @@ export const buildPrecisionNotesBySemitone = (
   const result = new Map<number, PrecisionNote[]>();
 
   for (const semitone of semitones) {
-    let builtNotes: PrecisionNote[] = [];
-    if (params.midiData) {
-      builtNotes = buildPrecisionNotesFromMidi(
-        params.midiData,
-        params.bpm,
-        semitone,
-      ).notes;
-    } else if (params.xmlText) {
-      builtNotes = buildPrecisionNotesFromMusicXml(
-        params.xmlText,
-        params.bpm,
-        params.beatsPerMeasure,
-        semitone,
-        params.isSwing,
-      ).notes;
-    }
+    const canonical = buildCanonicalPhraseNotes({
+      musicXmlText: params.xmlText,
+      midiData: params.midiData,
+      bpm: params.bpm,
+      beatsPerMeasure: params.beatsPerMeasure,
+      isSwing: params.isSwing,
+      transposeOffset: semitone,
+      audioAnchorMs: params.audioAnchorMs,
+    });
+    const builtNotes = canonicalNotesToPrecisionNotes(canonical.notes, params.classificationBpm);
     const calibratedNotes = calibratePrecisionNotes(builtNotes, {
       resolveCalibratedStartSec: params.resolveCalibratedStartSec,
       practiceMode: params.practiceMode,

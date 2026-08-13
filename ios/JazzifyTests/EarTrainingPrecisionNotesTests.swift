@@ -221,21 +221,20 @@ final class EarTrainingPrecisionJudgeTests: XCTestCase {
         )
     }
 
-    func testFindNoteForInputPicksEarliestMatchingNote() {
+    func testFindNoteForInputPicksNearestMatchingNote() {
         let notes = [
             sampleNote(id: "a", midi: 60, startSec: 1),
             sampleNote(id: "b", midi: 60, startSec: 1.2),
         ]
-        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        let states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
         let matched = EarTrainingPrecisionJudge.findNoteForInput(
             notes: notes,
             states: states,
             midi: 60,
-            phraseTimeSec: 1.05,
+            phraseTimeSec: 1.18,
             windowSec: 0.25
         )
-        XCTAssertEqual(matched?.id, "a")
-        _ = states
+        XCTAssertEqual(matched?.id, "b")
     }
 
     func testMarkExpiredNotesAsMiss() {

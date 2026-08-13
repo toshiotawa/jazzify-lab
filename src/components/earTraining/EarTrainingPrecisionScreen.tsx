@@ -101,13 +101,17 @@ import {
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 import {
-  buildPrecisionNotesFromMusicXml,
+  buildCanonicalPhraseNotes,
+  canonicalNotesToPrecisionNotes,
+  type EarTrainingTimingSource,
+} from '@/utils/earTrainingCanonicalPhraseNotes';
+import { logEarTrainingInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
+import {
   calibratePrecisionNotes,
   resolvePrecisionDisplayKeyboardRange,
   type PrecisionKeyboardRange,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
-import { buildPrecisionNotesFromMidi } from '@/utils/earTrainingPrecisionMidi';
 import {
   createPrecisionRuntimeStates,
   findPrecisionNoteForInput,
@@ -287,6 +291,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const gameStateRef = useRef<EarTrainingGameState | 'paused'>('idle');
   const phraseRunIdRef = useRef(0);
   const notesRef = useRef<PrecisionNote[]>([]);
+  const timingSourceRef = useRef<EarTrainingTimingSource>('musicxml');
   const runtimeStatesRef = useRef<Map<string, PrecisionNoteRuntimeState>>(new Map());
   const phraseScoreLyricsRef = useRef<readonly ChordOsmdScoreLyricEvent[]>([]);
   const nextLyricIndexRef = useRef(0);
@@ -298,7 +303,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const activeGoodNotesByMidiRef = useRef<Map<number, string>>(new Map());
   const practiceSpeedPercentRef = useRef(100);
   const timingAdjustmentMsRef = useRef(loadEarTrainingOsmdTimingAdjustmentMs());
-  const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
+  const handleNoteInputRef = useRef<(note: number, domTimeStampMs?: number) => void>(() => undefined);
   const handleNoteReleaseRef = useRef<(note: number) => void>(() => undefined);
   const finishPhraseRef = useRef<() => void>(() => undefined);
   const phraseTimeSecRef = useRef(0);
@@ -686,29 +691,22 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
   const rebuildPrecisionNotes = useCallback((xmlText: string | null): void => {
     const classificationBpm = resolveEffectivePracticeBpm();
-    const midiUrl = phrase?.midi_url?.trim() ?? '';
-    const usingMidi = midiUrl.length > 0 && baseMidiDataRef.current != null;
     const isSwing = stage.is_swing === true;
-    playheadSwingEnabledRef.current = isSwing && !usingMidi;
+    const canonical = buildCanonicalPhraseNotes({
+      musicXmlText: xmlText,
+      midiData: baseMidiDataRef.current,
+      bpm: stage.bpm,
+      beatsPerMeasure: stage.beats_per_measure,
+      isSwing,
+      transposeOffset: 0,
+      audioAnchorMs: phrase?.audio_anchor_ms,
+    });
+    timingSourceRef.current = canonical.timingSource;
+    playheadSwingEnabledRef.current = isSwing && canonical.timingSource === 'musicxml';
     playheadStraightBeatKeysRef.current = playheadSwingEnabledRef.current && xmlText
       ? collectChordOsmdStraightBeatKeys(xmlText)
       : undefined;
-    let builtNotes: PrecisionNote[] = [];
-    if (usingMidi && baseMidiDataRef.current) {
-      builtNotes = buildPrecisionNotesFromMidi(
-        baseMidiDataRef.current,
-        stage.bpm,
-        0,
-      ).notes;
-    } else if (xmlText) {
-      builtNotes = buildPrecisionNotesFromMusicXml(
-        xmlText,
-        stage.bpm,
-        stage.beats_per_measure,
-        0,
-        isSwing,
-      ).notes;
-    }
+    const builtNotes = canonicalNotesToPrecisionNotes(canonical.notes, classificationBpm);
     const calibratedNotes = calibratePrecisionNotes(builtNotes, {
       resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
       practiceMode: practiceModeRef.current,
@@ -730,7 +728,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     autoPlaySchedulerRef.current.setNotes(calibratedNotes);
     autoPlaySchedulerRef.current.reset();
   }, [
-    phrase?.midi_url,
+    phrase?.audio_anchor_ms,
     resolveCalibratedTargetTimeSec,
     resolveEffectivePracticeBpm,
     refreshMaxOsmdMeasure,
@@ -1332,7 +1330,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     startBattleRef.current = startBattle;
   }, [startBattle]);
 
-  const handleNoteInput = useCallback((note: number) => {
+  const handleNoteInput = useCallback((note: number, domTimeStampMs?: number) => {
     const now = performance.now();
     const midiNote = Math.round(note);
     const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
@@ -1343,7 +1341,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (gameStateRef.current !== 'playingPhrase' && gameStateRef.current !== 'countIn') {
       return;
     }
-    const phraseTime = phrasePlayerRef.current?.getPhraseTimelineSec();
+    const phraseTime = resolveEarTrainingInputPhraseTimeSec(phrasePlayerRef.current, domTimeStampMs);
     if (phraseTime == null || !Number.isFinite(phraseTime)) {
       return;
     }
@@ -1358,6 +1356,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (!matched) {
       return;
     }
+    logEarTrainingInputTimingTelemetry({
+      mode: 'chord_precision',
+      slug: stage.slug,
+      timingSource: timingSourceRef.current,
+      nominalTargetSec: matched.startSec,
+      inputSec: phraseTime,
+      midi: midiNote,
+    });
     const state = runtimeStatesRef.current.get(matched.id);
     if (!state) {
       return;
@@ -1398,8 +1404,8 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, [handleNoteInput, handleNoteRelease]);
 
   useEffect(() => {
-    return earMidi.registerNoteHandler((note) => {
-      handleNoteInputRef.current(note);
+    return earMidi.registerNoteHandler((note, domTimeStampMs) => {
+      handleNoteInputRef.current(note, domTimeStampMs);
     });
   }, [earMidi]);
 
