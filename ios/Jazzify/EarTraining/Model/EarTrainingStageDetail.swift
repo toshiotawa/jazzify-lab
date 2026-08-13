@@ -469,10 +469,10 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
                 loopDurationSec: phrase.loopDurationSec,
                 audioDurationSec: phrase.audioDurationSec,
                 noteCount: phrase.noteCount,
+                audioAnchorMs: phrase.audioAnchorMs,
                 notes: (phrase.notes ?? []).sorted { $0.noteIndex < $1.noteIndex },
                 chords: (phrase.chords ?? []).sorted { $0.orderIndex < $1.orderIndex },
-                demoLoops: (phrase.demoLoops ?? []).sorted { $0.loopNumber < $1.loopNumber },
-                audioAnchorMs: phrase.audioAnchorMs
+                demoLoops: (phrase.demoLoops ?? []).sorted { $0.loopNumber < $1.loopNumber }
             )
         }
     }

@@ -2131,6 +2131,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     """
 }
 
+@MainActor
 protocol EarTrainingOsmdPlayheadBinding: AnyObject {
     func bindOsmdCoordinator(_ coordinator: EarTrainingOSMDScoreWebView.Coordinator?)
 }

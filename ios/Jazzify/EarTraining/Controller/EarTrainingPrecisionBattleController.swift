@@ -552,6 +552,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             EarTrainingCanonicalPhraseNotes.BuildParams(
                 musicXmlText: baseMusicXmlText,
                 midiData: baseMidiData,
+                midiNotes: nil,
                 bpm: stage.bpm,
                 beatsPerMeasure: stage.beatsPerMeasure,
                 isSwing: isSwing,
@@ -753,7 +754,11 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
     }
 
-    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool = true, midiHostTime: UInt64? = nil) {
+    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool = true) {
+        handleNoteOn(midi: midi, velocity: velocity, playAudio: playAudio, midiHostTime: nil)
+    }
+
+    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool, midiHostTime: UInt64?) {
         let now = CFAbsoluteTimeGetCurrent() * 1000
         if let last = lastInputAtByNote[midi], now - last < Self.inputCooldownMs {
             return

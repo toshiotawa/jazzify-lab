@@ -137,6 +137,7 @@ final class EarTrainingCompositePhraseEngineTests: XCTestCase {
             loopDurationSec: 4,
             audioDurationSec: 4,
             noteCount: 3,
+            audioAnchorMs: nil,
             notes: [
                 phraseNote(phraseId: phraseId, index: 0, midi: 64, pc: 4, name: "E4", measure: 1),
                 phraseNote(phraseId: phraseId, index: 1, midi: 62, pc: 2, name: "D4", measure: 1),
@@ -161,8 +162,7 @@ final class EarTrainingCompositePhraseEngineTests: XCTestCase {
                     voicing: ["G3", "B3", "D4", "F4"]
                 ),
             ],
-            demoLoops: nil,
-            audioAnchorMs: nil
+            demoLoops: nil
         )
 
         let definition = EarTrainingCompositePhraseAdapter.phraseDetailToDefinition(phrase)

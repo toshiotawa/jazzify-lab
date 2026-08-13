@@ -457,7 +457,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         publishSnapshot()
     }
 
-    func handleNoteOn(midi: Int, velocity: Int = 100, playAudio: Bool = true, midiHostTime: UInt64? = nil) {
+    func handleNoteOn(midi: Int, velocity: Int = 100, playAudio: Bool = true) {
+        handleNoteOn(midi: midi, velocity: velocity, playAudio: playAudio, midiHostTime: nil)
+    }
+
+    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool, midiHostTime: UInt64?) {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
@@ -1253,7 +1257,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private func dismissOsuCircle(for targetIndex: Int) {
         guard targets.indices.contains(targetIndex),
               let effectId = targets[targetIndex].osuCircleEffectId else { return }
-        triggerBattleEffect(
+        _ = triggerBattleEffect(
             kind: .osmdApproachCircleDismiss,
             label: nil,
             damage: nil,
@@ -1264,7 +1268,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     }
 
     private func clearParryVisualSlowEffect() {
-        triggerBattleEffect(kind: .clearParryVisualSlow, label: nil, damage: nil, phraseNoteCount: nil)
+        _ = triggerBattleEffect(kind: .clearParryVisualSlow, label: nil, damage: nil, phraseNoteCount: nil)
     }
 
     private func resetParryChainState() {
@@ -1304,7 +1308,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             pendingImpactHandlers[incomingHammerEffectId] = nil
         }
         if let circleEffectId = targets[index].osuCircleEffectId {
-            triggerBattleEffect(
+            _ = triggerBattleEffect(
                 kind: .osmdApproachCircleBurst,
                 label: nil,
                 damage: nil,
@@ -1954,6 +1958,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 EarTrainingCanonicalPhraseNotes.BuildParams(
                     musicXmlText: musicXmlText,
                     midiData: midiData,
+                    midiNotes: nil,
                     bpm: bpm,
                     beatsPerMeasure: beatsPerMeasure,
                     isSwing: isSwing,

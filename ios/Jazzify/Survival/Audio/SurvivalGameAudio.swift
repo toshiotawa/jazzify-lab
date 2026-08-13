@@ -3,13 +3,16 @@ import AVFoundation
 import AudioToolbox
 import UIKit
 
-/// アプリ同梱の鍵盤ピアノ SF2（FreePats "Upright Piano KW" フル版 / CC0）。
-/// 全 132 ゾーンが pan ±500 の L/R ペアでステレオ、velRange 0-80 / 81-127 の 2 レイヤー構成。
-private let kPianoSoundBankResourceName = "UprightPianoKW-20220221"
+/// アプリ同梱の鍵盤ピアノ SF2（Fuchs & Möhr Felt Piano 軽量版 / Public Domain）。
+/// 3 音ごとの ff サンプル + ループ。プリセット 1（F&M Stereo）、失敗時は 0（Mono）。
+private let kPianoSoundBankResourceName = "FuchsMoehrFeltPianoLite"
 /// 正解ルート音用 SF2（`public/FingerBassYR 20190930.sf2` と同一）
 private let kRootBassSoundBankResourceName = "FingerBassYR 20190930"
-/// 同梱 SF2 のデフォルト melodic program。
-private let kSoundBankDefaultProgram: UInt8 = 0
+/// ピアノ SF2 のプリセット。0=Mono, 1=Stereo, 2=St+Loudness。
+private let kPianoSoundBankPreferredProgram: UInt8 = 1
+private let kPianoSoundBankFallbackProgram: UInt8 = 0
+/// FingerBass は program 0 のみ。
+private let kRootBassSoundBankProgram: UInt8 = 0
 /// GM 正解ルートの再生オクターブシフト（呼び出し側は C2 起点 MIDI、そのまま C2 で再生）
 private let kRootBassPlaybackOctaveShift = 0
 /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
@@ -56,6 +59,8 @@ final class SurvivalGameAudio {
     private let keyboardGrandSampler = AVAudioUnitSampler()
     private var keyboardGMReady = false
     private var keyboardGMLoadAttempted = false
+    /// 実際にロードできたピアノ preset（Stereo 失敗時は Mono）。
+    private var pianoLoadedProgram: UInt8 = kPianoSoundBankPreferredProgram
     /// `start()` 完了後に鍵盤発音可能。SF2 ロード完了を示す。
     private var isPianoPrepared = false
     /// 同梱ピアノ SF2 の Bundle URL（初回解決後キャッシュ）
@@ -396,7 +401,7 @@ final class SurvivalGameAudio {
         rootBassGMReady = loadSamplerInstrument(
             rootBassSampler,
             bankURL: bankURL,
-            program: kSoundBankDefaultProgram
+            program: kRootBassSoundBankProgram
         )
         if !rootBassGMReady {
             assertionFailure("Failed to load root bass instrument from \(kRootBassSoundBankResourceName)")
@@ -512,8 +517,18 @@ final class SurvivalGameAudio {
         keyboardGMReady = loadSamplerInstrument(
             keyboardGrandSampler,
             bankURL: bankURL,
-            program: kSoundBankDefaultProgram
+            program: kPianoSoundBankPreferredProgram
         )
+        if keyboardGMReady {
+            pianoLoadedProgram = kPianoSoundBankPreferredProgram
+        } else {
+            keyboardGMReady = loadSamplerInstrument(
+                keyboardGrandSampler,
+                bankURL: bankURL,
+                program: kPianoSoundBankFallbackProgram
+            )
+            pianoLoadedProgram = kPianoSoundBankFallbackProgram
+        }
         if !keyboardGMReady {
             assertionFailure("Failed to load keyboard piano instrument from \(kPianoSoundBankResourceName)")
         }
@@ -591,14 +606,14 @@ final class SurvivalGameAudio {
             keyboardGMReady = loadSamplerInstrument(
                 keyboardGrandSampler,
                 bankURL: bankURL,
-                program: kSoundBankDefaultProgram
+                program: pianoLoadedProgram
             )
         }
         if rootBassGMLoadAttempted, let bankURL = resolveRootBassSoundBankURL() {
             rootBassGMReady = loadSamplerInstrument(
                 rootBassSampler,
                 bankURL: bankURL,
-                program: kSoundBankDefaultProgram
+                program: kRootBassSoundBankProgram
             )
         }
     }

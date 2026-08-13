@@ -27,12 +27,10 @@ final class PianoVelocityCurveTests: XCTestCase {
     }
 
     /// カーブは弱打側へ寄せる方向なので、中間域は生の値を超えない。
-    func testShapesTowardsSofterLayer() {
+    func testShapesTowardsSofterTouch() {
         for raw in 1...126 {
             XCTAssertLessThanOrEqual(Int(PianoVelocityCurve.map(raw)), raw)
         }
-        // 同梱 SF2 の 2 レイヤー境界 (80/81) を越える閾値が 81 から上がっていること。
-        XCTAssertLessThanOrEqual(PianoVelocityCurve.map(85), 80)
-        XCTAssertGreaterThan(PianoVelocityCurve.map(86), 80)
+        XCTAssertLessThan(PianoVelocityCurve.map(PianoVelocityCurve.screenTapVelocity), PianoVelocityCurve.screenTapVelocity)
     }
 }

@@ -48,6 +48,7 @@ final class EarTrainingKeyboardScrollTests: XCTestCase {
                     loopDurationSec: 4,
                     audioDurationSec: 4,
                     noteCount: 2,
+                    audioAnchorMs: nil,
                     notes: [
                         EarTrainingPhraseNoteDetail(
                             id: noteId,
@@ -75,8 +76,7 @@ final class EarTrainingKeyboardScrollTests: XCTestCase {
                         ),
                     ],
                     chords: nil,
-                    demoLoops: nil,
-                    audioAnchorMs: nil
+                    demoLoops: nil
                 ),
             ],
             chordVoicingSelfPaced: nil,

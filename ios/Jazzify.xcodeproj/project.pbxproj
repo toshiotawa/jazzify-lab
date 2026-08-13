@@ -26,7 +26,7 @@
 		0D7D788C58C2C2CBD2A0E107 /* TaskClearNextStepSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D27335D573691EFA7C446A20 /* TaskClearNextStepSheet.swift */; };
 		0E775BFEF3BE802CBC83309D /* QuestCompletionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BDEC3235DA37D6C97CE44D9 /* QuestCompletionSheet.swift */; };
 		0EA1A8A5BCE00017E6FCE282 /* EarTrainingPrecisionBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB1E961D354C30BF3C17B37 /* EarTrainingPrecisionBattleController.swift */; };
-		0EE545899F373B98B102C556 /* UprightPianoKW-20220221.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = EBA08E7C00D54AE2C234C953 /* UprightPianoKW-20220221.sf2 */; };
+		0EE545899F373B98B102C556 /* FuchsMoehrFeltPianoLite.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = EBA08E7C00D54AE2C234C953 /* FuchsMoehrFeltPianoLite.sf2 */; };
 		0F3F7E08B059686FB938164B /* SurvivalStaffOverlayLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ECCBD6262FA0D7BF5AA6C86 /* SurvivalStaffOverlayLayout.swift */; };
 		0FD918D7197C061E71DA139C /* SurvivalChordPadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */; };
 		10341AFE546C003CFEE5CC5F /* VideoLessonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD87642E2E6E630A3A8B31CF /* VideoLessonView.swift */; };
@@ -98,7 +98,7 @@
 		43B21E7F172AF3B55CEDD63D /* SurvivalPhraseMapPreviewPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E33139D92205CFC2F61870 /* SurvivalPhraseMapPreviewPlayer.swift */; };
 		44D6034EFBE7D1558EB7FAA6 /* EarTrainingPhrasePairAdlibBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CF420C834F81CF805DC8684 /* EarTrainingPhrasePairAdlibBattleController.swift */; };
 		4522AE07D97E7A2A4F0CCC76 /* MainQuestFreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */; };
-		B2C3D4E5F60718293A4B5C6D /* FreeTierBlockLocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */; };
+		8018293A4B5C6D7E8F901A2C /* FreeTierBlockLocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7018293A4B5C6D7E8F901A2C /* FreeTierBlockLocks.swift */; };
 		D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */; };
 		E5F60718293A4B5C6D7E8F90 /* GuidedSoftLandingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60718293A4B5C6D7E8F9012 /* GuidedSoftLandingPreferences.swift */; };
 		F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */; };
@@ -531,7 +531,7 @@
 		C534FAFEEA1C8A565DD844F6 /* SurvivalTutorialV3LineRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LineRouter.swift; sourceTree = "<group>"; };
 		C6E97E7B4C255D270BD5BC8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestFreeTier.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTierBlockLocks.swift; sourceTree = "<group>"; };
+		7018293A4B5C6D7E8F901A2C /* FreeTierBlockLocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeTierBlockLocks.swift; sourceTree = "<group>"; };
 		C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingFreeTier.swift; sourceTree = "<group>"; };
 		F60718293A4B5C6D7E8F9012 /* GuidedSoftLandingPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedSoftLandingPreferences.swift; sourceTree = "<group>"; };
 		E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingOfferSheet.swift; sourceTree = "<group>"; };
@@ -584,7 +584,7 @@
 		E9B0517AEE16077E85783267 /* SurvivalPhrasePreviewURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhrasePreviewURL.swift; sourceTree = "<group>"; };
 		EA3C10F13E523238253DCDBE /* SurvivalStageIntroScriptModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageIntroScriptModels.swift; sourceTree = "<group>"; };
 		EAA9D31EF087B30F3292731A /* PhraseStreamMatching.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseStreamMatching.swift; sourceTree = "<group>"; };
-		EBA08E7C00D54AE2C234C953 /* UprightPianoKW-20220221.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "UprightPianoKW-20220221.sf2"; sourceTree = "<group>"; };
+		EBA08E7C00D54AE2C234C953 /* FuchsMoehrFeltPianoLite.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "FuchsMoehrFeltPianoLite.sf2"; sourceTree = "<group>"; };
 		ECDEDC88537A018A2B1C9EB2 /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
 		F034080E04C73977D21BFCEC /* TopView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopView.swift; sourceTree = "<group>"; };
 		F1AEC1B26646D55154111C37 /* SurvivalSessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSessionState.swift; sourceTree = "<group>"; };
@@ -1113,7 +1113,7 @@
 				2AA6502C749876A952A425C8 /* Gameover.mp3 */,
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				A2F6F94B04EBCE40147CE417 /* opensheetmusicdisplay.min.js */,
-				EBA08E7C00D54AE2C234C953 /* UprightPianoKW-20220221.sf2 */,
+				EBA08E7C00D54AE2C234C953 /* FuchsMoehrFeltPianoLite.sf2 */,
 				381E12BED6CB73533234D66B /* クエスト完了.mp3 */,
 				E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */,
 			);
@@ -1255,7 +1255,7 @@
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
 				4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */,
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
-				A1B2C3D4E5F60718293A4B5C /* FreeTierBlockLocks.swift */,
+				7018293A4B5C6D7E8F901A2C /* FreeTierBlockLocks.swift */,
 				C3D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift */,
 				F60718293A4B5C6D7E8F9012 /* GuidedSoftLandingPreferences.swift */,
 				E5F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift */,
@@ -1443,7 +1443,7 @@
 				B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */,
 				607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */,
 				9D7EEBB749CB223A1C5D31AC /* OSMD_PERFORMANCE.md in Resources */,
-				0EE545899F373B98B102C556 /* UprightPianoKW-20220221.sf2 in Resources */,
+				0EE545899F373B98B102C556 /* FuchsMoehrFeltPianoLite.sf2 in Resources */,
 				BF4DF80F1EB3B446913254CD /* drumstick-count.mp3 in Resources */,
 				B8CECCAD88030BE5D41E89C0 /* ear-training-developer-full-v1.script.json in Resources */,
 				A2B8F955DBF8C3A314F178BC /* ear-training-osmd-timing-adjustment-v1.script.json in Resources */,
@@ -1589,7 +1589,7 @@
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,
 				42CDF4F3D53A7BBC2AE26E72 /* MIDIManager.swift in Sources */,
 				4522AE07D97E7A2A4F0CCC76 /* MainQuestFreeTier.swift in Sources */,
-				B2C3D4E5F60718293A4B5C6D /* FreeTierBlockLocks.swift in Sources */,
+				8018293A4B5C6D7E8F901A2C /* FreeTierBlockLocks.swift in Sources */,
 				D4E5F60718293A4B5C6D7E8F /* SoftLandingFreeTier.swift in Sources */,
 				E5F60718293A4B5C6D7E8F90 /* GuidedSoftLandingPreferences.swift in Sources */,
 				F60718293A4B5C6D7E8F901A /* SoftLandingOfferSheet.swift in Sources */,
