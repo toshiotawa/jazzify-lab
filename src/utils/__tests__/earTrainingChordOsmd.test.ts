@@ -884,6 +884,39 @@ describe('voice 4 guide notes', () => {
     expect(colored.match(/color="/g)?.length).toBe(1);
   });
 
+  it('voice 4 pitch がある小節の voice 1 rest は非表示にし、演奏小節の voice 1 は残す', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1">
+<measure number="1">
+<attributes><divisions>1</divisions></attributes>
+<note><rest/><duration>4</duration><voice>1</voice></note>
+<backup><duration>4</duration></backup>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice></note>
+</measure>
+<measure number="2">
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice></note>
+<note><rest/><duration>3</duration><voice>1</voice></note>
+<backup><duration>4</duration></backup>
+<note print-object="no"><rest/><duration>4</duration><voice>4</voice></note>
+</measure>
+</part></score-partwise>`;
+    const display = applyChordOsmdGuideNoteColors(xml);
+    const doc = new DOMParser().parseFromString(display, 'application/xml');
+    const measures = Array.from(doc.getElementsByTagName('measure'));
+    const measureNotes = (measure: Element): Element[] =>
+      Array.from(measure.children).filter((el) => el.localName === 'note');
+
+    const listenNotes = measureNotes(measures[0]);
+    expect(listenNotes[0].getAttribute('print-object')).toBe('no');
+    expect(listenNotes[0].getElementsByTagName('duration')[0]?.textContent).toBe('4');
+    expect(listenNotes[1].getAttribute('color')).toBe(CHORD_OSMD_GUIDE_NOTE_COLOR);
+
+    const playNotes = measureNotes(measures[1]);
+    expect(playNotes[0].getAttribute('print-object')).toBeNull();
+    expect(playNotes[1].getAttribute('print-object')).toBeNull();
+    expect(playNotes[2].getAttribute('print-object')).toBe('no');
+  });
+
   it('voice 4 を含む交互 staff 小節は staff 正規化で voice を潰さない', () => {
     const xml = miniChordOsmdScorePartwise(`<attributes><divisions>1</divisions><staves>2</staves></attributes>
 <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff></note>

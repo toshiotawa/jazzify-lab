@@ -257,36 +257,61 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return false
     }
 
-    /// 表示用 MusicXML: voice 4 の pitch 音符に薄い色を付与（Web `applyChordOsmdGuideNoteColors` と同等）。
+    /// 表示用 MusicXML: voice 4 の pitch に薄い色。同じ小節に voice 4 pitch があるとき voice 1 rest を非表示（Web と同等）。
     static func applyGuideNoteColors(_ xmlText: String) -> String {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return xmlText }
         var changed = false
 
-        func visit(_ el: ChordOsmdXmlElement) {
-            if el.name == "note",
-               directChild(el, localName: "pitch") != nil,
-               parseNoteVoiceNumber(el) == guideVoice
-            {
-                if let idx = el.attributes.firstIndex(where: { $0.name == "color" }) {
-                    if el.attributes[idx].value != guideNoteColor {
-                        el.attributes[idx].value = guideNoteColor
-                        changed = true
-                    }
-                } else {
-                    el.attributes.append((name: "color", value: guideNoteColor))
-                    changed = true
-                }
-            }
-            for ch in el.children {
-                if case let .element(child) = ch {
-                    visit(child)
-                }
+        for measure in allElements(named: "measure", in: root) {
+            if applyGuideDisplayToMeasure(measure) {
+                changed = true
             }
         }
 
-        visit(root)
         guard changed else { return xmlText }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
+    private static func applyGuideDisplayToMeasure(_ measure: ChordOsmdXmlElement) -> Bool {
+        var notes: [ChordOsmdXmlElement] = []
+        var hasGuidePitch = false
+        for ch in measure.children {
+            guard case let .element(child) = ch, child.name == "note" else { continue }
+            notes.append(child)
+            if parseNoteVoiceNumber(child) == guideVoice, directChild(child, localName: "pitch") != nil {
+                hasGuidePitch = true
+            }
+        }
+
+        var changed = false
+        for note in notes {
+            if parseNoteVoiceNumber(note) == guideVoice, directChild(note, localName: "pitch") != nil {
+                if setAttribute(note, name: "color", value: guideNoteColor) {
+                    changed = true
+                }
+            }
+            if hasGuidePitch,
+               parseNoteVoiceNumber(note) == 1,
+               directChild(note, localName: "rest") != nil
+            {
+                if setAttribute(note, name: "print-object", value: "no") {
+                    changed = true
+                }
+            }
+        }
+        return changed
+    }
+
+    private static func setAttribute(_ el: ChordOsmdXmlElement, name: String, value: String) -> Bool {
+        if let idx = el.attributes.firstIndex(where: { $0.name == name }) {
+            if el.attributes[idx].value == value {
+                return false
+            }
+            el.attributes[idx].value = value
+            return true
+        }
+        el.attributes.append((name: name, value: value))
+        return true
     }
 
     private static func readMeasureTiming(_ measure: ChordOsmdXmlElement, previous: Timing) -> Timing {

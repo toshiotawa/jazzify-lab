@@ -1,5 +1,7 @@
 /**
  * voice 1 のタイムライン（pitch + rest）を 1 小節前へ voice 4 ガイドとして複製する。
+ * 聞き小節の voice 1 全休符は残す（backup のうえに cue を重ねる）。
+ * 消すと OSMD に休符が出ず、精密譜の当該小節が空になる。
  *
  * Usage:
  *   node scripts/build-mq-b1-q1-guide-voice4-musicxml.mjs
@@ -147,28 +149,6 @@ const cloneTimelineNoteAsGuide = (doc, sourceNote, asCue) => {
   return note;
 };
 
-const isFullMeasureRestOnly = (measure) => {
-  const noteElements = [...measure.children].filter(
-    (child) => isElement(child) && child.localName === 'note',
-  );
-  if (noteElements.length !== 1) {
-    return false;
-  }
-  const only = noteElements[0];
-  return getDirectChild(only, 'rest') !== null && getDirectChild(only, 'pitch') === null;
-};
-
-const removeFullMeasureRestNotes = (measure) => {
-  for (const child of [...measure.children]) {
-    if (!isElement(child) || child.localName !== 'note') {
-      continue;
-    }
-    if (getDirectChild(child, 'rest') && !getDirectChild(child, 'pitch')) {
-      measure.removeChild(child);
-    }
-  }
-};
-
 const sumNoteDurations = (notes) => {
   let total = 0;
   for (const note of notes) {
@@ -216,14 +196,10 @@ for (let i = 1; i < measures.length; i += 1) {
     continue;
   }
 
-  const guideWasFullRest = isFullMeasureRestOnly(guideMeasure);
-  if (guideWasFullRest) {
-    removeFullMeasureRestNotes(guideMeasure);
-  } else {
-    const backupDuration = sumNoteDurations(sourceNotes);
-    if (backupDuration > 0) {
-      guideMeasure.appendChild(createBackup(doc, backupDuration));
-    }
+  // 聞き小節の voice 1 全休符は残す。消すと OSMD に休符が出ず、精密譜が空小節になる。
+  const backupDuration = sumNoteDurations(sourceNotes);
+  if (backupDuration > 0) {
+    guideMeasure.appendChild(createBackup(doc, backupDuration));
   }
 
   for (const sourceNote of sourceNotes) {

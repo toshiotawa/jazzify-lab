@@ -17,6 +17,12 @@ final class LessonLocalizationTests: XCTestCase {
         XCTAssertEqual(song.localizedTitle(.ja), "クイズ: 全キーまとめ")
     }
 
+    func testLessonSongLocalizedTitleStripsIndexPrefix() {
+        let song = makeLessonSong(title: "1-1. Fブルース入門", titleEn: "1-1. F blues intro")
+        XCTAssertEqual(song.localizedTitle(.ja), "Fブルース入門")
+        XCTAssertEqual(song.localizedTitle(.en), "F blues intro")
+    }
+
     func testEarTrainingStageLocalizedTitleEnglishUsesTitleEnOnly() {
         let stage = EarTrainingStage(
             id: UUID(),

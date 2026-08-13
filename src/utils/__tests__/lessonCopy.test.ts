@@ -78,6 +78,22 @@ describe('lessonSongDisplayTitle', () => {
     expect(lessonSongDisplayTitle({ title: null }, false)).toBe('');
   });
 
+  it('先頭の 1-1. などの課題番号プレフィックスを除去する', () => {
+    expect(
+      lessonSongDisplayTitle({ title: '1-1. Fブルース入門', title_en: '1-1. F blues intro' }, false),
+    ).toBe('Fブルース入門');
+    expect(
+      lessonSongDisplayTitle({ title: '1-1. Fブルース入門', title_en: '1-1. F blues intro' }, true),
+    ).toBe('F blues intro');
+    expect(
+      lessonSongDisplayTitle({ title: '10-1. 総仕上げ・精密' }, false),
+    ).toBe('総仕上げ・精密');
+  });
+
+  it('番号プレフィックスが無いタイトルはそのまま返す', () => {
+    expect(lessonSongDisplayTitle({ title: 'コードラン（2音）' }, false)).toBe('コードラン（2音）');
+  });
+
   it('英語で title_en が空白のみのときは空文字', () => {
     expect(lessonSongDisplayTitle({ title: 'JA', title_en: '   ' }, true)).toBe('');
   });

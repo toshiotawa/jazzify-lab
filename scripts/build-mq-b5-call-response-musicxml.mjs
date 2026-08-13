@@ -82,21 +82,18 @@ const collectVoiceOneTimelineNotes = (measure) => {
   return notes;
 };
 
-const measureHasVoiceOnePitch = (measure) => (
-  collectVoiceOneTimelineNotes(measure).some((n) => getDirectChild(n, 'pitch') !== null)
-);
-
 const createWholeRest = (doc, divisions) => {
   const note = doc.createElement('note');
   const rest = doc.createElement('rest');
+  rest.setAttribute('measure', 'yes');
   note.appendChild(rest);
   const duration = doc.createElement('duration');
   duration.textContent = String(divisions * 4);
   note.appendChild(duration);
-  const type = doc.createElement('type');
-  type.textContent = 'whole';
-  note.appendChild(type);
   setDirectChildText(doc, note, 'voice', '1');
+  const staff = doc.createElement('staff');
+  staff.textContent = '1';
+  note.appendChild(staff);
   return note;
 };
 
@@ -112,22 +109,39 @@ const cloneNoteForVoice = (doc, sourceNote, voice, asCue) => {
   return note;
 };
 
-const getMeasureDivisions = (measure) => {
-  const div = getDirectChildText(measure, 'divisions');
-  if (div) {
-    return Number.parseInt(div, 10);
+const sumNoteDurations = (notes) => {
+  let total = 0;
+  for (const note of notes) {
+    const durationText = getDirectChildText(note, 'duration');
+    const duration = durationText ? Number.parseInt(durationText, 10) : NaN;
+    if (Number.isFinite(duration) && duration > 0) {
+      total += duration;
+    }
   }
-  return null;
+  return total;
+};
+
+const createVoiceOneRest = (doc, duration) => {
+  const note = doc.createElement('note');
+  note.appendChild(doc.createElement('rest'));
+  const durationEl = doc.createElement('duration');
+  durationEl.textContent = String(duration);
+  note.appendChild(durationEl);
+  setDirectChildText(doc, note, 'voice', '1');
+  const staff = doc.createElement('staff');
+  staff.textContent = '1';
+  note.appendChild(staff);
+  return note;
 };
 
 const findDivisionsInMeasure = (measure) => {
-  const direct = getMeasureDivisions(measure);
-  if (direct) {
-    return direct;
-  }
   const attrs = getDirectChild(measure, 'attributes');
   const divEl = attrs ? getDirectChild(attrs, 'divisions') : null;
-  return divEl ? Number.parseInt(divEl.textContent ?? '1', 10) : 1;
+  if (!divEl) {
+    return null;
+  }
+  const parsed = Number.parseInt(divEl.textContent ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 };
 
 const shiftEvenMeasuresToNext = (part) => {
@@ -139,14 +153,13 @@ const shiftEvenMeasuresToNext = (part) => {
 
   for (let i = 0; i < measures.length; i += 1) {
     const mnum = Number.parseInt(measures[i].getAttribute('number') ?? String(i + 1), 10);
-    divisions = findDivisionsInMeasure(measures[i]) || divisions;
+    divisions = findDivisionsInMeasure(measures[i]) ?? divisions;
     if (mnum % 2 !== 0) {
       continue;
     }
-    const sourceNotes = collectVoiceOneTimelineNotes(measures[i]).filter(
-      (n) => getDirectChild(n, 'pitch') !== null,
-    );
-    if (sourceNotes.length === 0 || i + 1 >= measures.length) {
+    const sourceNotes = collectVoiceOneTimelineNotes(measures[i]);
+    const hasPitch = sourceNotes.some((n) => getDirectChild(n, 'pitch') !== null);
+    if (!hasPitch || i + 1 >= measures.length) {
       continue;
     }
     const targetMeasure = measures[i + 1];
@@ -160,6 +173,11 @@ const shiftEvenMeasuresToNext = (part) => {
     }
     for (const sourceNote of sourceNotes) {
       targetMeasure.appendChild(cloneNoteForVoice(doc, sourceNote, '1', false));
+    }
+    const measureDuration = divisions * 4;
+    const copiedDuration = sumNoteDurations(sourceNotes);
+    if (copiedDuration > 0 && copiedDuration < measureDuration) {
+      targetMeasure.appendChild(createVoiceOneRest(doc, measureDuration - copiedDuration));
     }
     for (const child of [...measures[i].children]) {
       if (isElement(child) && child.localName === 'note') {

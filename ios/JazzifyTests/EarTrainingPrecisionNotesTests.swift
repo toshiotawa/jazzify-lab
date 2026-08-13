@@ -56,6 +56,89 @@ final class EarTrainingPrecisionNotesTests: XCTestCase {
         XCTAssertEqual(result.notes[2].midi, 67)
     }
 
+    func testApplyGuideNoteColorsHidesVoiceOneRestsUnderGuidePitches() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise>
+          <part>
+            <measure number="1">
+              <attributes><divisions>1</divisions></attributes>
+              <note><rest/><duration>4</duration><voice>1</voice></note>
+              <backup><duration>4</duration></backup>
+              <note>
+                <pitch><step>C</step><octave>4</octave></pitch>
+                <duration>1</duration><voice>4</voice>
+              </note>
+            </measure>
+            <measure number="2">
+              <note>
+                <pitch><step>C</step><octave>4</octave></pitch>
+                <duration>1</duration><voice>1</voice>
+              </note>
+              <note><rest/><duration>3</duration><voice>1</voice></note>
+              <backup><duration>4</duration></backup>
+              <note print-object="no"><rest/><duration>4</duration><voice>4</voice></note>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+        let display = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(xml)
+        guard let root = ChordOsmdXmlParser.parse(display) else {
+            XCTFail("display XML did not parse")
+            return
+        }
+        func collect(_ el: ChordOsmdXmlElement, name: String) -> [ChordOsmdXmlElement] {
+            var out: [ChordOsmdXmlElement] = []
+            if el.name == name {
+                out.append(el)
+            }
+            for child in el.children {
+                if case let .element(inner) = child {
+                    out.append(contentsOf: collect(inner, name: name))
+                }
+            }
+            return out
+        }
+        let measures = collect(root, name: "measure")
+        XCTAssertEqual(measures.count, 2)
+
+        func notes(in measure: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {
+            measure.children.compactMap { child in
+                if case let .element(el) = child, el.name == "note" { return el }
+                return nil
+            }
+        }
+        func attr(_ el: ChordOsmdXmlElement, _ name: String) -> String? {
+            el.attributes.first(where: { $0.name == name })?.value
+        }
+        func hasChild(_ el: ChordOsmdXmlElement, _ name: String) -> Bool {
+            el.children.contains { child in
+                if case let .element(inner) = child { return inner.name == name }
+                return false
+            }
+        }
+        func voice(_ el: ChordOsmdXmlElement) -> String? {
+            for child in el.children {
+                guard case let .element(inner) = child, inner.name == "voice" else { continue }
+                for nested in inner.children {
+                    if case let .text(text) = nested { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                }
+            }
+            return nil
+        }
+
+        let listenNotes = notes(in: measures[0])
+        XCTAssertEqual(voice(listenNotes[0]), "1")
+        XCTAssertTrue(hasChild(listenNotes[0], "rest"))
+        XCTAssertEqual(attr(listenNotes[0], "print-object"), "no")
+        XCTAssertEqual(attr(listenNotes[1], "color"), EarTrainingChordOsmdMusicXmlNormalizer.guideNoteColor)
+
+        let playNotes = notes(in: measures[1])
+        XCTAssertNil(attr(playNotes[0], "print-object"))
+        XCTAssertNil(attr(playNotes[1], "print-object"))
+        XCTAssertEqual(attr(playNotes[2], "print-object"), "no")
+    }
+
     func testBuildFromMusicXmlExcludesVoiceFourGuideNotes() {
         let displayXML = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(guideVoiceXML)
         XCTAssertTrue(displayXML.contains("<voice>4</voice>"))

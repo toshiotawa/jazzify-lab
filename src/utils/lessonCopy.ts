@@ -17,12 +17,26 @@ type LessonSongTitleFields = {
   title_en?: string | null;
 };
 
+const QUEST_TITLE_PREFIX_JA = /^クエスト\d+[：:]\s*/;
+const QUEST_TITLE_PREFIX_EN = /^Quest\s+\d+[：:]\s*/i;
+/** 課題タイトル先頭の「1-1. 」など。UI がリスト番号を別途付けるため除去する。 */
+const LESSON_SONG_INDEX_PREFIX = /^\d+-\d+\.\s*/;
+
+export const stripQuestTitlePrefix = (title: string, isEnglish: boolean): string => {
+  const pattern = isEnglish ? QUEST_TITLE_PREFIX_EN : QUEST_TITLE_PREFIX_JA;
+  return title.replace(pattern, '').trim();
+};
+
+const stripLessonSongIndexPrefix = (title: string): string =>
+  title.replace(LESSON_SONG_INDEX_PREFIX, '').trim();
+
 export const lessonSongDisplayTitle = (song: LessonSongTitleFields, isEnglish: boolean): string => {
   if (isEnglish) {
     const en = song.title_en?.trim();
-    return en ?? '';
+    return en ? stripLessonSongIndexPrefix(en) : '';
   }
-  return song.title ?? '';
+  const ja = song.title?.trim();
+  return ja ? stripLessonSongIndexPrefix(ja) : '';
 };
 
 type FantasyStageLocaleFields = Pick<FantasyStage, 'name' | 'name_en' | 'description' | 'description_en'>;
@@ -68,14 +82,6 @@ export const earTrainingStageDisplayDescription = (
     return stage.description_en?.trim() ?? '';
   }
   return stage.description?.trim() ?? '';
-};
-
-const QUEST_TITLE_PREFIX_JA = /^クエスト\d+[：:]\s*/;
-const QUEST_TITLE_PREFIX_EN = /^Quest\s+\d+[：:]\s*/i;
-
-export const stripQuestTitlePrefix = (title: string, isEnglish: boolean): string => {
-  const pattern = isEnglish ? QUEST_TITLE_PREFIX_EN : QUEST_TITLE_PREFIX_JA;
-  return title.replace(pattern, '').trim();
 };
 
 const hasEnglishLessonTitle = (lesson: Pick<Lesson, 'title_en'>): boolean =>

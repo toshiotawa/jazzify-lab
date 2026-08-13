@@ -7,6 +7,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
+import { JSDOM } from 'jsdom';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SRC = '/Users/apple/Downloads/Fブルース素材/sozai';
@@ -130,14 +131,59 @@ const cueFiles = [
   'mq-b5-6-1-2', 'mq-b5-6-4-6', 'mq-b5-6-5-2', 'mq-b5-6-5-3', 'mq-b5-6-5-4',
   'mq-b5-6-6-1', 'mq-b5-6-6-2', 'mq-b5-6-7-2',
 ];
+/** --shift したコール＆レスポンス。聞き小節の voice 1 休符が残っていること。 */
+const shiftCallResponseBases = new Set([
+  'mq-b5-6-1-2', 'mq-b5-6-4-6', 'mq-b5-6-5-2', 'mq-b5-6-5-3', 'mq-b5-6-6-2', 'mq-b5-6-7-2',
+]);
+
+/** @param {string} xml */
+const countVoiceOneRestsAndEmptyMeasures = (xml) => {
+  const doc = new JSDOM(xml, { contentType: 'text/xml' }).window.document;
+  const part = doc.querySelector('part');
+  let voiceOneRests = 0;
+  let emptyMeasures = 0;
+  if (!part) {
+    return { voiceOneRests, emptyMeasures };
+  }
+  for (const measure of part.children) {
+    if (measure.localName !== 'measure') {
+      continue;
+    }
+    let noteCount = 0;
+    for (const child of measure.children) {
+      if (child.localName !== 'note') {
+        continue;
+      }
+      noteCount += 1;
+      const rest = [...child.children].some((el) => el.localName === 'rest');
+      const voice = [...child.children].find((el) => el.localName === 'voice')?.textContent;
+      if (rest && voice === '1') {
+        voiceOneRests += 1;
+      }
+    }
+    if (noteCount === 0) {
+      emptyMeasures += 1;
+    }
+  }
+  return { voiceOneRests, emptyMeasures };
+};
+
 for (const base of cueFiles) {
   const cue = readFileSync(join(SOZAI, `${base}-guide-voice4-cue.musicxml`), 'utf8');
   const prec = readFileSync(join(SOZAI, `${base}-precision.musicxml`), 'utf8');
   const cueHasV4 = /<voice>4<\/voice>/.test(cue) && /size="cue"/.test(cue);
   const precV4 = (prec.match(/<voice>4<\/voice>/g) ?? []).length;
-  console.log(`${base}: cue v4=${cueHasV4} precision v4 count=${precV4}`);
+  const cueRests = countVoiceOneRestsAndEmptyMeasures(cue);
+  const precStats = countVoiceOneRestsAndEmptyMeasures(prec);
+  console.log(
+    `${base}: cue v4=${cueHasV4} v1rest=${cueRests.voiceOneRests} precision v4=${precV4} empty=${precStats.emptyMeasures}`,
+  );
   if (!cueHasV4 || precV4 !== 0) {
     console.error(`Validation failed for ${base}`);
+    process.exit(1);
+  }
+  if (shiftCallResponseBases.has(base) && (cueRests.voiceOneRests === 0 || precStats.emptyMeasures > 0)) {
+    console.error(`Call-response rest validation failed for ${base}`);
     process.exit(1);
   }
 }

@@ -285,7 +285,13 @@ const measureHasNonStaffNormalizationVoice = (measure: Element): boolean => {
   return false;
 };
 
-/** 表示用 MusicXML: voice 4 の pitch 音符に薄い色を付与 */
+/**
+ * 表示用 MusicXML:
+ * - voice 4 の pitch に薄い色
+ * - 同じ小節に voice 4 pitch（cue）があるとき、voice 1 の rest を `print-object=no`
+ *   （尺は残し、コール＆レスポンス聞き小節の全休符と cue の重なりを避ける）
+ * 演奏小節の voice 1 pitch は隠さない。precision（voice 4 なし）にも影響しない。
+ */
 export const applyChordOsmdGuideNoteColors = (xmlText: string): string => {
   if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
     return xmlText;
@@ -297,15 +303,35 @@ export const applyChordOsmdGuideNoteColors = (xmlText: string): string => {
   }
 
   let changed = false;
-  for (const note of Array.from(doc.getElementsByTagName('note'))) {
-    if (!getDirectChild(note, 'pitch')) {
-      continue;
+  for (const measure of Array.from(doc.getElementsByTagName('measure'))) {
+    const notes: Element[] = [];
+    let hasGuidePitch = false;
+    for (const child of Array.from(measure.childNodes)) {
+      if (!isElementNode(child) || child.localName !== 'note') {
+        continue;
+      }
+      notes.push(child);
+      if (parseNoteVoiceNumber(child) === CHORD_OSMD_GUIDE_VOICE && getDirectChild(child, 'pitch')) {
+        hasGuidePitch = true;
+      }
     }
-    if (parseNoteVoiceNumber(note) !== CHORD_OSMD_GUIDE_VOICE) {
-      continue;
+    for (const note of notes) {
+      if (parseNoteVoiceNumber(note) === CHORD_OSMD_GUIDE_VOICE && getDirectChild(note, 'pitch')) {
+        if (note.getAttribute('color') !== CHORD_OSMD_GUIDE_NOTE_COLOR) {
+          note.setAttribute('color', CHORD_OSMD_GUIDE_NOTE_COLOR);
+          changed = true;
+        }
+      }
+      if (
+        hasGuidePitch
+        && parseNoteVoiceNumber(note) === 1
+        && getDirectChild(note, 'rest')
+        && note.getAttribute('print-object') !== 'no'
+      ) {
+        note.setAttribute('print-object', 'no');
+        changed = true;
+      }
     }
-    note.setAttribute('color', CHORD_OSMD_GUIDE_NOTE_COLOR);
-    changed = true;
   }
 
   if (!changed) {

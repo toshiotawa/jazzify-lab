@@ -21,6 +21,9 @@ const MAIN_COURSE_ID = 'a0000000-0000-0000-0000-000000000001';
 const CDN = 'https://jazzify-cdn.com/sozai';
 const ASSET_V = '202608121000';
 const DRUM = `${CDN}/Cblues_24bars_100BPM_Drum.mp3`;
+const CODE_RUN_DRUM_LOOP_BGM_URL =
+  'https://jazzify-cdn.com/fantasy-bgm/survival-composite-phrases-drums160-loop.mp3';
+const CODE_RUN_BGM = { bgmUrl: CODE_RUN_DRUM_LOOP_BGM_URL };
 
 const KEY_FIFTHS = -1;
 const BEATS = 4;
@@ -145,12 +148,6 @@ const STAGES = [
     description: 'Fブルースでコール＆レスポンス。', descriptionEn: 'Call and response on the F blues.',
     mode: 'chord_osmd', base: 'mq-b5-6-1-2', xmlSuffix: 'guide-voice4-cue', mp3Base: 'mq-b5-6-1-2',
     measures: 25, targets: 38, bpm: 100, is_swing: true, loopSec: 60,
-  },
-  {
-    key: 'mq-b5-6-2-6', slug: 'mq-b5-6-2-6-osmd', title: '2音・頭拍パターン', titleEn: 'Two-note head-beat pattern',
-    description: 'F7〜C7の2音コードを頭拍で。', descriptionEn: 'Two-note chords on beat one.',
-    mode: 'chord_osmd', base: 'mq-b5-6-2-6', xmlSuffix: '', mp3Base: 'mq-b5-6-karaoke',
-    measures: 25, targets: 56, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
     key: 'mq-b5-6-3-6', slug: 'mq-b5-6-3-6-osmd', title: '3音・頭拍パターン', titleEn: 'Three-note head-beat pattern',
@@ -711,7 +708,7 @@ function buildSurvivalLessonStageSql(key, stageNum, voices, playMode) {
     ? `, run_map_id, run_time_limit_sec, run_dialogue_script`
     : '';
   const extraVals = playMode === 'code_run'
-    ? `, 'tutorial_3', 120, '${sqlJson(codeRunDialogue)}'::jsonb`
+    ? `, 'snow_run_01', 120, '${sqlJson(codeRunDialogue)}'::jsonb`
     : '';
   const extraUpdate = playMode === 'code_run'
     ? `,
@@ -979,7 +976,8 @@ VALUES (
       ];
       if (p.notes.length > 0) {
         const vals = p.notes.map((n, oi) =>
-          `    (v_chord_${p.stageNumber}, ${oi}, ${n.midi}, ${n.pc}, '${esc(n.name)}', 2, ${n.stepIndex})`,
+          // staff=1 ト音記号（原譜 mq-b5-6-9.musicxml の G clef に合わせる）
+          `    (v_chord_${p.stageNumber}, ${oi}, ${n.midi}, ${n.pc}, '${esc(n.name)}', 1, ${n.stepIndex})`,
         );
         lines.push(
           '  INSERT INTO public.survival_phrase_chord_notes (chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index) VALUES',
@@ -1042,17 +1040,16 @@ const LESSON_SONGS = [
   { lesson: 'mq-b5-q1-lesson', order: 0, id: 'mq-b5-q1-0-lsong', survivalTutorial: 'mq-b5-q1-0-v1', title: '1-0. C→Fブルース', titleEn: '1-0. C to F blues' },
   { lesson: 'mq-b5-q1-lesson', order: 1, id: 'mq-b5-q1-1-lsong', earTutorial: 'mq-b5-q1-1-v1', title: '1-1. Fブルース入門', titleEn: '1-1. F blues intro' },
   { lesson: 'mq-b5-q2-lesson', order: 0, id: 'mq-b5-q2-0-lsong', survivalTutorial: 'mq-b5-q2-0-v1', title: '2-0. 5つのコード', titleEn: '2-0. Five chords' },
-  { lesson: 'mq-b5-q2-lesson', order: 1, id: 'mq-b5-q2-1-lsong', survivalStage: 1301, survivalRandomChords: R2V, staffHint: 'always', keyboardHint: 'always', title: '2-1. コードラン（2音）', titleEn: '2-1. Code Run (2v)' },
+  { lesson: 'mq-b5-q2-lesson', order: 1, id: 'mq-b5-q2-1-lsong', survivalStage: 1301, survivalRandomChords: R2V, survivalOverrides: CODE_RUN_BGM, staffHint: 'always', keyboardHint: 'always', title: '2-1. コードラン（2音）', titleEn: '2-1. Code Run (2v)' },
   { lesson: 'mq-b5-q2-lesson', order: 2, id: 'mq-b5-q2-2-lsong', balloon: 'mq-b5-balloon-2v', survivalRandomChords: R2V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '2-2. 風船（2音）', titleEn: '2-2. Balloon (2v)' },
   { lesson: 'mq-b5-q2-lesson', order: 3, id: 'mq-b5-q2-3-lsong', earStage: 'mq-b5-quiz-2v', title: '2-3. クイズ（2音）', titleEn: '2-3. Quiz (2v)' },
   { lesson: 'mq-b5-q2-lesson', order: 4, id: 'mq-b5-q2-4-lsong', survivalStage: 1302, survivalRandomChords: R2V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '2-4. サバイバル（2音）', titleEn: '2-4. Survival (2v)' },
   { lesson: 'mq-b5-q3-lesson', order: 0, id: 'mq-b5-q3-0-lsong', survivalTutorial: 'mq-b5-q3-0-v1', title: '3-0. 3音の説明', titleEn: '3-0. Three-note intro' },
-  { lesson: 'mq-b5-q3-lesson', order: 1, id: 'mq-b5-q3-1-lsong', earStage: 'mq-b5-6-2-6', title: '3-1. 2音・頭拍', titleEn: '3-1. Two-note head beat' },
-  { lesson: 'mq-b5-q3-lesson', order: 2, id: 'mq-b5-q3-2-lsong', earStage: 'mq-b5-6-3-6', title: '3-2. 3音・頭拍', titleEn: '3-2. Three-note head beat' },
-  { lesson: 'mq-b5-q3-lesson', order: 3, id: 'mq-b5-q3-3-lsong', survivalStage: 1311, survivalRandomChords: R3V, staffHint: 'always', keyboardHint: 'always', title: '3-3. コードラン（3音）', titleEn: '3-3. Code Run (3v)' },
-  { lesson: 'mq-b5-q3-lesson', order: 4, id: 'mq-b5-q3-4-lsong', balloon: 'mq-b5-balloon-3v', survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-4. 風船（3音）', titleEn: '3-4. Balloon (3v)' },
-  { lesson: 'mq-b5-q3-lesson', order: 5, id: 'mq-b5-q3-5-lsong', earStage: 'mq-b5-quiz-3v', title: '3-5. クイズ（3音）', titleEn: '3-5. Quiz (3v)' },
-  { lesson: 'mq-b5-q3-lesson', order: 6, id: 'mq-b5-q3-6-lsong', survivalStage: 1312, survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-6. サバイバル（3音）', titleEn: '3-6. Survival (3v)' },
+  { lesson: 'mq-b5-q3-lesson', order: 1, id: 'mq-b5-q3-2-lsong', earStage: 'mq-b5-6-3-6', title: '3-2. 3音・頭拍', titleEn: '3-2. Three-note head beat' },
+  { lesson: 'mq-b5-q3-lesson', order: 2, id: 'mq-b5-q3-3-lsong', survivalStage: 1311, survivalRandomChords: R3V, survivalOverrides: CODE_RUN_BGM, staffHint: 'always', keyboardHint: 'always', title: '3-3. コードラン（3音）', titleEn: '3-3. Code Run (3v)' },
+  { lesson: 'mq-b5-q3-lesson', order: 3, id: 'mq-b5-q3-4-lsong', balloon: 'mq-b5-balloon-3v', survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-4. 風船（3音）', titleEn: '3-4. Balloon (3v)' },
+  { lesson: 'mq-b5-q3-lesson', order: 4, id: 'mq-b5-q3-5-lsong', earStage: 'mq-b5-quiz-3v', title: '3-5. クイズ（3音）', titleEn: '3-5. Quiz (3v)' },
+  { lesson: 'mq-b5-q3-lesson', order: 5, id: 'mq-b5-q3-6-lsong', survivalStage: 1312, survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-6. サバイバル（3音）', titleEn: '3-6. Survival (3v)' },
   { lesson: 'mq-b5-q4-lesson', order: 0, id: 'mq-b5-q4-0-lsong', survivalTutorial: 'mq-b5-q4-0-v1', title: '4-0. 4パターン紹介', titleEn: '4-0. Four patterns intro' },
   { lesson: 'mq-b5-q4-lesson', order: 1, id: 'mq-b5-q4-1-lsong', earStage: 'mq-b5-6-4-2', title: '4-1. パターン2', titleEn: '4-1. Pattern 2' },
   { lesson: 'mq-b5-q4-lesson', order: 2, id: 'mq-b5-q4-2-lsong', earStage: 'mq-b5-6-4-3', title: '4-2. パターン3', titleEn: '4-2. Pattern 3' },

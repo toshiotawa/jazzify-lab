@@ -107,8 +107,12 @@
         </clef>
       </attributes>
       <sound tempo="80"/>
-      
-    <note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      <note>
+        <rest measure="yes"/>
+        <duration>32</duration>
+        <voice>1</voice>
+      </note>
+    <backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="2" width="282">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -124,7 +128,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>F</step>
           <octave>4</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="10">up</stem></note><note><pitch>
@@ -145,7 +149,7 @@
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><pitch>
           <step>F</step>
           <octave>5</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-35">down</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-35">down</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="3" width="166">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -221,7 +225,12 @@
         <type>eighth</type>
         <stem default-y="-35">down</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><note default-x="220">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="4" width="283">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -237,7 +246,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>F</step>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-45">down</stem></note><note><pitch>
@@ -258,7 +267,7 @@
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="10">up</stem></note><note><pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="5" width="246">
       <print new-system="yes">
@@ -338,7 +347,12 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><note default-x="221">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="6" width="303">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -354,7 +368,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>F</step>
           <octave>4</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="0">up</stem></note><note><pitch>
@@ -449,7 +463,7 @@
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-35">down</stem>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="8" width="303">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -464,7 +478,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>F</step>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><pitch>
@@ -563,7 +577,7 @@
         <type>quarter</type>
         <accidental>flat</accidental>
         <stem default-y="10">up</stem>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="10" width="302">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -578,7 +592,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>B</step>
           <alter>-1</alter>
           <octave>4</octave>
@@ -672,7 +686,7 @@
         <type>quarter</type>
         <accidental>flat</accidental>
         <stem default-y="-40">down</stem>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="12" width="305">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -693,21 +707,21 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="10">up</stem></note><note><pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><pitch>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note><note><pitch>
           <step>E</step>
           <alter>-1</alter>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><pitch>
           <step>C</step>
           <octave>5</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-50">down</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-50">down</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="13" width="245">
       <print new-system="yes">
@@ -751,6 +765,11 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
+      </note><note default-x="95">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
       </note><note default-x="158">
         <pitch>
           <step>E</step>
@@ -773,7 +792,12 @@
         <type>eighth</type>
         <stem default-y="-50">down</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><note default-x="236">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="14" width="306">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -788,21 +812,21 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>E</step>
           <alter>-1</alter>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><pitch>
           <step>C</step>
           <octave>5</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-50">down</stem></note><note><pitch>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-50">down</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note><note><pitch>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="10">up</stem></note><note><pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="15" width="186">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -835,6 +859,11 @@
         <type>eighth</type>
         <stem default-y="-50">down</stem>
         <beam number="1">end</beam>
+      </note><note default-x="95">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
       </note><note default-x="158">
         <pitch>
           <step>A</step>
@@ -857,7 +886,12 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><note default-x="236">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="16" width="302">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -872,7 +906,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>B</step>
           <alter>-1</alter>
           <octave>4</octave>
@@ -971,7 +1005,7 @@
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-50">down</stem>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="18" width="306">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -987,21 +1021,21 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="10">up</stem></note><note><pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><pitch>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note><note><pitch>
           <step>E</step>
           <alter>-1</alter>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><pitch>
           <step>C</step>
           <octave>5</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-50">down</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-50">down</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="19" width="186">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -1034,6 +1068,11 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
+      </note><note default-x="95">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
       </note><note default-x="158">
         <pitch>
           <step>E</step>
@@ -1056,7 +1095,12 @@
         <type>eighth</type>
         <stem default-y="-50">down</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><note default-x="236">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="20" width="302">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -1071,21 +1115,21 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>C</step>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-50">down</stem></note><note><pitch>
           <step>E</step>
           <alter>-1</alter>
           <octave>5</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><pitch>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="-40">down</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note><note><pitch>
           <step>F</step>
           <octave>4</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="0">up</stem></note><note><pitch>
           <step>A</step>
           <alter>-1</alter>
           <octave>4</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="10">up</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="10">up</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="21" width="242">
       <print new-system="yes">
@@ -1122,6 +1166,11 @@
         <accidental>flat</accidental>
         <stem default-y="-40">down</stem>
         <beam number="1">end</beam>
+      </note><note default-x="92">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
       </note><note default-x="154">
         <pitch>
           <step>F</step>
@@ -1144,7 +1193,12 @@
         <accidental>flat</accidental>
         <stem default-y="10">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><note default-x="233">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="22" width="301">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -1159,7 +1213,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>E</step>
           <alter>-1</alter>
           <octave>5</octave>
@@ -1255,7 +1309,7 @@
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="10">up</stem>
-      </note><backup><duration>4</duration></backup><note print-object="no"><rest/><duration>4</duration><type>whole</type><voice>4</voice></note></measure>
+      </note><backup><duration>32</duration></backup><note print-object="no"><rest measure="yes"/><duration>32</duration><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="24" width="311">
       <harmony default-y="32" font-family="Arial" font-size="13.1">
@@ -1277,7 +1331,7 @@
       
       
       
-    <note><pitch>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup><note><pitch>
           <step>F</step>
           <octave>5</octave>
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="-45">down</stem></note><note><pitch>
@@ -1298,7 +1352,7 @@
         </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">begin</beam><voice>4</voice><stem default-y="10">up</stem></note><note><pitch>
           <step>F</step>
           <octave>4</octave>
-        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note></measure>
+        </pitch><duration>4</duration><type size="cue">eighth</type><beam number="1">end</beam><voice>4</voice><stem default-y="0">up</stem></note><note><rest/><duration>8</duration><type>quarter</type><voice>4</voice></note></measure>
     <!--=======================================================-->
     <measure number="25" width="1038">
       <print new-system="yes">
@@ -1388,6 +1442,11 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
+      </note><note default-x="243">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
       </note></measure>
   </part>
   <!--=========================================================-->

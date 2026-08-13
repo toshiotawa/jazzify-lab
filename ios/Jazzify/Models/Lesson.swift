@@ -135,6 +135,12 @@ private enum LessonTitleFormatting {
         return title.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// Web `stripLessonSongIndexPrefix` と同様。UI がリスト番号を付けるため「1-1. 」を除去する。
+    static func stripLessonSongIndexPrefix(_ title: String) -> String {
+        title.replacingOccurrences(of: #"^\d+-\d+\.\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 extension Lesson {
@@ -575,16 +581,19 @@ extension LessonDetail {
 
 extension LessonSong {
     /// Web `lessonSongDisplayTitle` と同様。英語 UI では title_en のみ（未設定なら nil）。
+    /// 先頭の「1-1. 」は除去する（リスト側で `2.` を付けるため）。
     func localizedTitle(_ locale: AppLocale) -> String? {
         if locale == .en {
             guard let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines), !en.isEmpty else {
                 return nil
             }
-            return en
+            let stripped = LessonTitleFormatting.stripLessonSongIndexPrefix(en)
+            return stripped.isEmpty ? nil : stripped
         }
         guard let ja = title?.trimmingCharacters(in: .whitespacesAndNewlines), !ja.isEmpty else {
             return nil
         }
-        return ja
+        let stripped = LessonTitleFormatting.stripLessonSongIndexPrefix(ja)
+        return stripped.isEmpty ? nil : stripped
     }
 }

@@ -108,8 +108,12 @@
         </clef>
       </attributes>
       <sound tempo="100"/>
-      
-    </measure>
+      <note>
+        <rest measure="yes"/>
+        <duration>32</duration>
+        <voice>1</voice>
+      </note>
+    <backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="2" width="274">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -123,7 +127,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="3" width="179">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -154,7 +158,22 @@
         <type>eighth</type>
         <stem default-y="-10">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="90">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="149">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="209">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="4" width="266">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -168,7 +187,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="5" width="253">
       <print new-system="yes">
@@ -243,7 +262,7 @@
         <notations>
           <tied type="stop"/>
         </notations>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="6" width="278">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -257,7 +276,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="7" width="198">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -288,7 +307,17 @@
         <type>eighth</type>
         <stem default-y="-10">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="99">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="160">
+        <rest/>
+        <duration>16</duration>
+        <voice>1</voice>
+        <type>half</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="8" width="304">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -302,7 +331,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="9" width="250">
       <print new-system="yes">
@@ -348,7 +377,17 @@
         <accidental>flat</accidental>
         <stem default-y="-5">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="165">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="231">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="10" width="296">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -362,7 +401,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="11" width="193">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -372,7 +411,12 @@
         <kind halign="center" text="7">dominant</kind>
       </harmony>
       
-    <note default-x="57">
+    <note default-x="17">
+        <rest/>
+        <duration>4</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+      </note><note default-x="57">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -409,7 +453,7 @@
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-15">up</stem>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="12" width="295">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -429,7 +473,7 @@
       </harmony>
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="13" width="281">
       <print new-system="yes">
@@ -480,7 +524,17 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="161">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="225">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="14" width="287">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -494,7 +548,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="15" width="187">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -525,7 +579,22 @@
         <type>eighth</type>
         <stem default-y="-10">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="94">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="157">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="218">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="16" width="278">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -539,7 +608,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="17" width="253">
       <print new-system="yes">
@@ -614,7 +683,7 @@
         <notations>
           <tied type="stop"/>
         </notations>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="18" width="278">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -628,7 +697,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="19" width="198">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -659,7 +728,17 @@
         <type>eighth</type>
         <stem default-y="-10">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="99">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="160">
+        <rest/>
+        <duration>16</duration>
+        <voice>1</voice>
+        <type>half</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="20" width="304">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -673,7 +752,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="21" width="250">
       <print new-system="yes">
@@ -719,7 +798,17 @@
         <accidental>flat</accidental>
         <stem default-y="-5">up</stem>
         <beam number="1">end</beam>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><note default-x="165">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="231">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="22" width="296">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -733,7 +822,7 @@
       
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="23" width="193">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -743,7 +832,12 @@
         <kind halign="center" text="7">dominant</kind>
       </harmony>
       
-    <note default-x="57">
+    <note default-x="17">
+        <rest/>
+        <duration>4</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+      </note><note default-x="57">
         <pitch>
           <step>B</step>
           <alter>-1</alter>
@@ -780,7 +874,7 @@
         <voice>1</voice>
         <type>quarter</type>
         <stem default-y="-15">up</stem>
-      </note><backup><duration>4</duration></backup></measure>
+      </note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="24" width="295">
       <harmony default-y="32" font-family="Arial" font-size="13.3">
@@ -800,7 +894,7 @@
       </harmony>
       
       
-    </measure>
+    <note><rest measure="yes"/><duration>32</duration><voice>1</voice><staff>1</staff></note><backup><duration>32</duration></backup></measure>
     <!--=======================================================-->
     <measure number="25" width="1033">
       <print new-system="yes">
@@ -854,6 +948,16 @@
         <type>eighth</type>
         <stem default-y="0">up</stem>
         <beam number="1">end</beam>
+      </note><note default-x="161">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note><note default-x="225">
+        <rest/>
+        <duration>8</duration>
+        <voice>1</voice>
+        <type>quarter</type>
       </note></measure>
   </part>
   <!--=========================================================-->
