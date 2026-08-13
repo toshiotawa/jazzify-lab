@@ -188,7 +188,9 @@ enum EarTrainingPrecisionNotes {
                 bpm: bpm,
                 beatsPerMeasure: beatsPerMeasure,
                 isSwing: isSwing,
-                straightBeatKeys: straightBeatKeys
+                straightBeatKeys: straightBeatKeys,
+                swingPartIndex: context.partIndex,
+                swingStaff: context.staff
             )
             let startSec = timing.startSec
             let durationSec = timing.durationSec
@@ -268,7 +270,9 @@ enum EarTrainingPrecisionNotes {
         bpm: Int,
         beatsPerMeasure: Int,
         isSwing: Bool,
-        straightBeatKeys: Set<String>? = nil
+        straightBeatKeys: Set<String>? = nil,
+        swingPartIndex: Int? = nil,
+        swingStaff: Int? = nil
     ) -> (startSec: Double, durationSec: Double) {
         if !isSwing {
             let startSec = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
@@ -290,7 +294,9 @@ enum EarTrainingPrecisionNotes {
             bpm: Double(bpm),
             beatsPerMeasure: beatsPerMeasure,
             isSwing: true,
-            straightBeatKeys: straightBeatKeys
+            straightBeatKeys: straightBeatKeys,
+            swingPartIndex: swingPartIndex,
+            swingStaff: swingStaff
         )
         let endSec = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
             measureNumber: measureNumber,
@@ -298,7 +304,9 @@ enum EarTrainingPrecisionNotes {
             bpm: Double(bpm),
             beatsPerMeasure: beatsPerMeasure,
             isSwing: true,
-            straightBeatKeys: straightBeatKeys
+            straightBeatKeys: straightBeatKeys,
+            swingPartIndex: swingPartIndex,
+            swingStaff: swingStaff
         )
         return (startSec, max(0.05, endSec - startSec))
     }
@@ -328,6 +336,8 @@ enum EarTrainingPrecisionNotes {
         let divisions: Int
         let keyFifths: Int
         let durationDivisions: Double
+        let partIndex: Int
+        let staff: Int
     }
 
     private static func forEachNoteCluster(
@@ -342,7 +352,9 @@ enum EarTrainingPrecisionNotes {
                     clusterNotes: context.clusterNotes,
                     divisions: context.divisions,
                     keyFifths: context.keyFifths,
-                    durationDivisions: context.durationDivisions
+                    durationDivisions: context.durationDivisions,
+                    partIndex: context.partIndex,
+                    staff: context.staff
                 )
             )
         }
@@ -357,6 +369,8 @@ enum EarTrainingPrecisionMusicXmlClusterWalker {
         let divisions: Int
         let keyFifths: Int
         let durationDivisions: Double
+        let partIndex: Int
+        let staff: Int
     }
 
     private struct ScoreTimingState {
@@ -371,10 +385,19 @@ enum EarTrainingPrecisionMusicXmlClusterWalker {
         handler: (ClusterContext) -> Void
     ) {
         guard let root = ChordOsmdXmlParser.parse(musicXmlText) else { return }
-        let measures = measuresInPartsFirst(from: root)
-        var timing = ScoreTimingState(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
+        let parts = partsInDocument(from: root)
+        let measureGroups: [(measures: [ChordOsmdXmlElement], partIndex: Int)]
+        if parts.isEmpty {
+            measureGroups = [(measuresInPartsFirst(from: root), 0)]
+        } else {
+            measureGroups = parts.enumerated().map { index, part in
+                (measuresInPart(part), index)
+            }
+        }
 
-        for (idx, measure) in measures.enumerated() {
+        for group in measureGroups {
+            var timing = ScoreTimingState(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
+            for (idx, measure) in group.measures.enumerated() {
             let measureNumber = parseMeasureNumberAttribute(measure, ordinalOneBased: idx + 1)
             var currentTime = 0.0
             let children = measure.children
@@ -450,7 +473,9 @@ enum EarTrainingPrecisionMusicXmlClusterWalker {
                             clusterNotes: clusterNotes,
                             divisions: divisions,
                             keyFifths: timing.keyFifths,
-                            durationDivisions: clusterDur
+                            durationDivisions: clusterDur,
+                            partIndex: group.partIndex,
+                            staff: staffNumber(from: child)
                         )
                     )
 
@@ -459,6 +484,7 @@ enum EarTrainingPrecisionMusicXmlClusterWalker {
                 default:
                     ci += 1
                 }
+            }
             }
         }
     }
@@ -469,6 +495,43 @@ enum EarTrainingPrecisionMusicXmlClusterWalker {
 
     static func midiFromNoteElement(_ note: ChordOsmdXmlElement, keyFifths: Int) -> Int? {
         EarTrainingChordOsmdMusicXmlNormalizer.parseNoteElementToMidi(note, keyFifths: keyFifths)
+    }
+
+    private static func partsInDocument(from root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {
+        var parts: [ChordOsmdXmlElement] = []
+        func collect(_ el: ChordOsmdXmlElement) {
+            if el.name == "part" {
+                parts.append(el)
+                return
+            }
+            for child in el.children {
+                if case let .element(c) = child {
+                    collect(c)
+                }
+            }
+        }
+        collect(root)
+        return parts
+    }
+
+    private static func measuresInPart(_ part: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {
+        var measures: [ChordOsmdXmlElement] = []
+        for child in part.children {
+            if case let .element(c) = child, c.name == "measure" {
+                measures.append(c)
+            }
+        }
+        return measures
+    }
+
+    private static func staffNumber(from note: ChordOsmdXmlElement) -> Int {
+        guard let raw = text(in: note, localName: "staff"),
+              let parsed = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              parsed == 2
+        else {
+            return 1
+        }
+        return 2
     }
 
     private static func measuresInPartsFirst(from root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {

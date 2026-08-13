@@ -1136,6 +1136,15 @@ describe('chordOsmdBeatToTargetTimeSec swing', () => {
     expect(guarded).toBeCloseTo(even, 5);
   });
 
+  it('別パートの三連符は左手裏拍のスイングを止めない', () => {
+    const straightKeys = new Set(['1:0', '0:1:1:0']);
+    const even = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
+    const left = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true, straightKeys, { partIndex: 1, staff: 1 });
+    const right = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true, straightKeys, { partIndex: 0, staff: 1 });
+    expect(left).toBeGreaterThan(even);
+    expect(right).toBeCloseTo(even, 5);
+  });
+
   it('スイング済み裏拍時刻を記譜8分位置へ戻す', () => {
     const measureDurationSec = 2;
     const evenSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);

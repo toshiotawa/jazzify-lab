@@ -83,6 +83,64 @@ describe('earTrainingPrecisionNotes', () => {
     expect(swungOffbeats.length).toBeGreaterThan(0);
   });
 
+  it('右手が三連符でも別パートの左手裏拍8分はスイングする', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>3</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><type>eighth</type>
+        <time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><type>eighth</type>
+        <time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><type>eighth</type>
+        <time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification></note>
+      <note><rest/><duration>9</duration></note>
+    </measure>
+  </part>
+  <part id="P2">
+    <measure number="1">
+      <attributes>
+        <divisions>2</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <note><pitch><step>C</step><octave>3</octave></pitch><duration>2</duration><type>quarter</type></note>
+      <note><rest/><duration>1</duration><type>eighth</type></note>
+      <note><pitch><step>E</step><octave>3</octave></pitch><duration>1</duration><type>eighth</type></note>
+      <note><rest/><duration>4</duration></note>
+    </measure>
+  </part>
+</score-partwise>`;
+    const { notes: evenNotes } = buildPrecisionNotesFromMusicXml(xml, 120, 4, 0, false);
+    const { notes: swingNotes } = buildPrecisionNotesFromMusicXml(xml, 120, 4, 0, true);
+    const evenLeft = evenNotes.find(note => note.midi === 52);
+    const swingLeft = swingNotes.find(note => note.midi === 52);
+    expect(evenLeft?.startSec).toBeCloseTo(0.75, 5);
+    expect(swingLeft?.startSec).toBeCloseTo((60 / 120) * (1 + 2 / 3), 5);
+    expect(swingLeft?.startSec ?? 0).toBeGreaterThan(evenLeft?.startSec ?? 0);
+  });
+
+  it('クエスト8 フレーズ1の左手裏拍は isSwing で遅らせる', () => {
+    const xml = readFileSync('public/sozai/mq-b5-6-8-2-precision.musicxml', 'utf8');
+    const { notes: evenNotes } = buildPrecisionNotesFromMusicXml(xml, 80, 4, 0, false);
+    const { notes: swingNotes } = buildPrecisionNotesFromMusicXml(xml, 80, 4, 0, true);
+    const beatSec = 60 / 80;
+    const evenOffbeatSec = 4 * beatSec + 1.5 * beatSec;
+    const delaySec = beatSec * (2 / 3 - 0.5);
+    const evenLeft = evenNotes.filter(note => (
+      note.midi === 51 && Math.abs(note.startSec - evenOffbeatSec) < 0.02
+    ));
+    expect(evenLeft.length).toBeGreaterThan(0);
+    const swungLeft = evenLeft.filter((note) => {
+      const swung = swingNotes.find(candidate => candidate.id === note.id);
+      return swung != null && swung.startSec - note.startSec > delaySec * 0.5;
+    });
+    expect(swungLeft.length).toBe(evenLeft.length);
+  });
+
   it('両端1白鍵の余白を付ける', () => {
     const range = resolvePrecisionKeyboardRange([60, 67]);
     expect(range).toEqual({ minMidi: 59, maxMidi: 69 });

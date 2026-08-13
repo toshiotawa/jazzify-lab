@@ -4,6 +4,7 @@ import {
   forEachChordOsmdNoteCluster,
   musicXmlNoteHasTieStop,
   parseMusicXmlNoteElementToMidi,
+  type ChordOsmdSwingScope,
 } from '@/utils/earTrainingChordOsmd';
 import { scalePracticeTargetTimeSec } from '@/utils/earTrainingPracticeSpeed';
 import {
@@ -84,6 +85,7 @@ const resolvePrecisionNoteTimingSec = (
   beatsPerMeasure: number,
   isSwing: boolean,
   straightBeatKeys?: ReadonlySet<string>,
+  swingScope?: ChordOsmdSwingScope,
 ): { startSec: number; durationSec: number } => {
   if (!isSwing) {
     const startSec = chordOsmdBeatToTargetTimeSec(
@@ -106,6 +108,7 @@ const resolvePrecisionNoteTimingSec = (
     beatsPerMeasure,
     true,
     straightBeatKeys,
+    swingScope,
   );
   const endSec = chordOsmdBeatToTargetTimeSec(
     measureNumber,
@@ -114,6 +117,7 @@ const resolvePrecisionNoteTimingSec = (
     beatsPerMeasure,
     true,
     straightBeatKeys,
+    swingScope,
   );
   return {
     startSec,
@@ -301,7 +305,10 @@ export const buildPrecisionNotesFromMusicXml = (
     clusterNotes,
     timing,
     durationDivisions,
+    partIndex,
+    staff,
   }) => {
+    const swingScope: ChordOsmdSwingScope = { partIndex, staff };
     const { startSec, durationSec } = resolvePrecisionNoteTimingSec(
       measureNumber,
       beatStartInMeasure,
@@ -311,6 +318,7 @@ export const buildPrecisionNotesFromMusicXml = (
       beatsPerMeasure,
       isSwing,
       straightBeatKeys,
+      swingScope,
     );
     let indexInCluster = 0;
     for (const noteEl of clusterNotes) {

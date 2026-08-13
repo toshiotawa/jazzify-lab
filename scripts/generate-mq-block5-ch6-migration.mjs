@@ -155,26 +155,26 @@ const STAGES = [
     measures: 25, targets: 84, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
-    key: 'mq-b5-6-4-2', slug: 'mq-b5-6-4-2-osmd', title: 'パターン2（3音・頭拍）', titleEn: 'Pattern 2 (3-note head beat)',
+    key: 'mq-b5-6-4-2', slug: 'mq-b5-6-4-2-osmd', title: 'パターン1 両手', titleEn: 'Pattern 1 (both hands)',
     description: '6-3-6 と同じ譜面・音源。', descriptionEn: 'Same score and audio as 6-3-6.',
     mode: 'chord_osmd', base: 'mq-b5-6-3-6', xmlSuffix: '', mp3Base: 'mq-b5-6-karaoke',
     measures: 25, targets: 84, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
-    key: 'mq-b5-6-4-3', slug: 'mq-b5-6-4-3-osmd', title: 'パターン3', titleEn: 'Pattern 3',
-    description: '4つのリズムパターンの3つ目。', descriptionEn: 'Third of four rhythm patterns.',
+    key: 'mq-b5-6-4-3', slug: 'mq-b5-6-4-3-osmd', title: 'パターン2 両手', titleEn: 'Pattern 2 (both hands)',
+    description: '4つのリズムパターンの2つ目。', descriptionEn: 'Second of four rhythm patterns.',
     mode: 'chord_osmd', base: 'mq-b5-6-4-3', xmlSuffix: '', mp3Base: 'mq-b5-6-karaoke',
     measures: 25, targets: 144, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
-    key: 'mq-b5-6-4-4', slug: 'mq-b5-6-4-4-osmd', title: 'パターン4', titleEn: 'Pattern 4',
-    description: '4つのリズムパターンの4つ目。', descriptionEn: 'Fourth of four rhythm patterns.',
+    key: 'mq-b5-6-4-4', slug: 'mq-b5-6-4-4-osmd', title: 'パターン3 両手', titleEn: 'Pattern 3 (both hands)',
+    description: '4つのリズムパターンの3つ目。', descriptionEn: 'Third of four rhythm patterns.',
     mode: 'chord_osmd', base: 'mq-b5-6-4-4', xmlSuffix: '', mp3Base: 'mq-b5-6-4-4',
     measures: 25, targets: 144, bpm: 100, is_swing: true, loopSec: 60,
   },
   {
-    key: 'mq-b5-6-4-5', slug: 'mq-b5-6-4-5-osmd', title: 'パターン5', titleEn: 'Pattern 5',
-    description: '4つのリズムパターンの5つ目。', descriptionEn: 'Fifth rhythm pattern.',
+    key: 'mq-b5-6-4-5', slug: 'mq-b5-6-4-5-osmd', title: 'パターン4 両手', titleEn: 'Pattern 4 (both hands)',
+    description: '4つのリズムパターンの4つ目。', descriptionEn: 'Fourth of four rhythm patterns.',
     mode: 'chord_osmd', base: 'mq-b5-6-4-5', xmlSuffix: '', mp3Base: 'mq-b5-6-4-5',
     measures: 25, targets: 148, bpm: 100, is_swing: true, loopSec: 60.048,
   },
@@ -685,14 +685,6 @@ const ch6Q10Dialogue = {
   finish: { showCta: true },
 };
 
-const codeRunDialogue = {
-  lines: [
-    { atSeconds: 2, speaker: 'fai', text: 'Fブルースのコードを弾きながら進む！', textEn: 'Play F blues chords and run!' },
-    { atSeconds: 8, speaker: 'jajii', text: '2音でも形を覚えれば、自然にヴォイシングが身につく。', textEn: 'Two-note shapes build voicing naturally.' },
-    { atSeconds: 16, speaker: 'jajii', text: '右端の旗まで進むんじゃ。', textEn: 'Head for the flag on the right.' },
-  ],
-};
-
 /** @param {string} key @param {number} stageNum @param {2|3} voices @param {'code_run'|'survival'} playMode */
 function buildSurvivalLessonStageSql(key, stageNum, voices, playMode) {
   const pool = voices === 2 ? VOICINGS_2V : VOICINGS_3V;
@@ -707,7 +699,7 @@ function buildSurvivalLessonStageSql(key, stageNum, voices, playMode) {
     ? `, run_map_id, run_time_limit_sec, run_dialogue_script`
     : '';
   const extraVals = playMode === 'code_run'
-    ? `, 'snow_run_01', 120, '${sqlJson(codeRunDialogue)}'::jsonb`
+    ? `, 'snow_run_01', 120, NULL`
     : '';
   const extraUpdate = playMode === 'code_run'
     ? `,
@@ -1040,10 +1032,10 @@ const LESSON_SONGS = [
   { lesson: 'mq-b5-q3-lesson', order: 4, id: 'mq-b5-q3-5-lsong', earStage: 'mq-b5-quiz-3v', title: '3-5. クイズ（3音）', titleEn: '3-5. Quiz (3v)' },
   { lesson: 'mq-b5-q3-lesson', order: 5, id: 'mq-b5-q3-6-lsong', survivalStage: 1312, survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-6. サバイバル（3音）', titleEn: '3-6. Survival (3v)' },
   { lesson: 'mq-b5-q4-lesson', order: 0, id: 'mq-b5-q4-0-lsong', survivalTutorial: 'mq-b5-q4-0-v1', title: '4-0. 4パターン紹介', titleEn: '4-0. Four patterns intro' },
-  { lesson: 'mq-b5-q4-lesson', order: 1, id: 'mq-b5-q4-1-lsong', earStage: 'mq-b5-6-4-2', title: '4-1. パターン2', titleEn: '4-1. Pattern 2' },
-  { lesson: 'mq-b5-q4-lesson', order: 2, id: 'mq-b5-q4-2-lsong', earStage: 'mq-b5-6-4-3', title: '4-2. パターン3', titleEn: '4-2. Pattern 3' },
-  { lesson: 'mq-b5-q4-lesson', order: 3, id: 'mq-b5-q4-3-lsong', earStage: 'mq-b5-6-4-4', title: '4-3. パターン4', titleEn: '4-3. Pattern 4' },
-  { lesson: 'mq-b5-q4-lesson', order: 4, id: 'mq-b5-q4-4-lsong', earStage: 'mq-b5-6-4-5', title: '4-4. パターン5', titleEn: '4-4. Pattern 5' },
+  { lesson: 'mq-b5-q4-lesson', order: 1, id: 'mq-b5-q4-1-lsong', earStage: 'mq-b5-6-4-2', title: '4-1. パターン1 両手', titleEn: '4-1. Pattern 1 (both hands)' },
+  { lesson: 'mq-b5-q4-lesson', order: 2, id: 'mq-b5-q4-2-lsong', earStage: 'mq-b5-6-4-3', title: '4-2. パターン2 両手', titleEn: '4-2. Pattern 2 (both hands)' },
+  { lesson: 'mq-b5-q4-lesson', order: 3, id: 'mq-b5-q4-3-lsong', earStage: 'mq-b5-6-4-4', title: '4-3. パターン3 両手', titleEn: '4-3. Pattern 3 (both hands)' },
+  { lesson: 'mq-b5-q4-lesson', order: 4, id: 'mq-b5-q4-4-lsong', earStage: 'mq-b5-6-4-5', title: '4-4. パターン4 両手', titleEn: '4-4. Pattern 4 (both hands)' },
   { lesson: 'mq-b5-q4-lesson', order: 5, id: 'mq-b5-q4-5-lsong', earStage: 'mq-b5-6-4-6', clearRequired: false, title: '4-5. パターン6（まとめ）', titleEn: '4-5. Pattern 6 (optional)' },
   { lesson: 'mq-b5-q5-lesson', order: 0, id: 'mq-b5-q5-0-lsong', survivalTutorial: 'mq-b5-q5-0-v1', title: '5-0. アドリブの説明', titleEn: '5-0. Ad-lib intro' },
   { lesson: 'mq-b5-q5-lesson', order: 1, id: 'mq-b5-q5-1-lsong', earStage: 'mq-b5-6-5-2', title: '5-1. アドリブ2', titleEn: '5-1. Ad-lib 2' },

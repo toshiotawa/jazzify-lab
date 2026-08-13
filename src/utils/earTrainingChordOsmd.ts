@@ -139,6 +139,8 @@ export interface ChordOsmdMusicXmlAttack {
   midis: readonly number[];
   /** MusicXML `<step>`+`<alter>`/`<accidental>` 由来の音名（オクターブなし）。`midis` と同順。 */
   spellings?: readonly string[];
+  partIndex?: number;
+  staff?: 1 | 2;
 }
 
 /** MusicXML `<harmony>` の出現位置とコード名。 */
@@ -173,6 +175,11 @@ export interface ChordOsmdScoreLyricEvent {
   text: string;
 }
 
+export interface ChordOsmdSwingScope {
+  partIndex: number;
+  staff: 1 | 2;
+}
+
 export interface ChordOsmdNoteClusterContext {
   measureNumber: number;
   beatStartInMeasure: number;
@@ -180,6 +187,10 @@ export interface ChordOsmdNoteClusterContext {
   timing: MusicXmlScoreTimingState;
   /** クラスタ先頭音符の `<duration>`（divisions 単位） */
   durationDivisions: number;
+  /** 0-indexed `<part>`。複数パート譜でスイング抑制をパート内に閉じる */
+  partIndex: number;
+  /** MusicXML `<staff>`。未指定は 1 */
+  staff: 1 | 2;
 }
 
 interface MusicXmlScoreTimingState {
@@ -259,6 +270,10 @@ const parseStaffNumber = (value: string | null): 1 | 2 | null => {
   }
   return null;
 };
+
+const staffFromNoteElement = (noteEl: Element): 1 | 2 => (
+  parseStaffNumber(getDirectChildText(noteEl, 'staff')) ?? 1
+);
 
 const parseNoteVoiceNumber = (noteEl: Element): number | null => {
   const voiceText = getDirectChildText(noteEl, 'voice');
@@ -795,6 +810,16 @@ const selectMusicXmlMeasures = (doc: Document): Element[] => {
   return Array.from(doc.getElementsByTagName('measure'));
 };
 
+const selectDirectChildMeasures = (parent: Element): Element[] => {
+  const measures: Element[] = [];
+  for (const child of Array.from(parent.childNodes)) {
+    if (isElementNode(child) && child.localName === 'measure') {
+      measures.push(child);
+    }
+  }
+  return measures;
+};
+
 /** `number` 未指定・空・1 の lyric のみ 1 番として扱う（MusicXML 既定）。 */
 const lyricElementIsVerseOne = (lyricEl: Element): boolean => {
   const raw = lyricEl.getAttribute('number')?.trim();
@@ -931,12 +956,23 @@ export const CHORD_OSMD_SWING_LONG_EIGHTH_RATIO = 2 / 3;
 
 const STRAIGHT_BEAT_FRACTION_EPS = 1e-6;
 
-/** 16分など 0/0.5 以外のオンセットを含む拍はスイングしない（`${measureNumber}:${beatWhole}`） */
+const straightBeatGlobalKey = (measureNumber: number, beatWhole: number): string => (
+  `${measureNumber}:${beatWhole}`
+);
+
+const straightBeatPartStaffKey = (
+  partIndex: number,
+  staff: 1 | 2,
+  measureNumber: number,
+  beatWhole: number,
+): string => `${partIndex}:${staff}:${measureNumber}:${beatWhole}`;
+
+/** 16分など 0/0.5 以外のオンセットを含む拍はスイングしない（`${measureNumber}:${beatWhole}` とパート/譜表キー） */
 export const collectChordOsmdStraightBeatKeys = (
   musicXmlText: string,
 ): ReadonlySet<string> => {
   const straightKeys = new Set<string>();
-  forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure }) => {
+  forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, partIndex, staff }) => {
     const rawBeatIndex = Math.max(0, beatStartInMeasure - 1);
     const beatWhole = Math.floor(rawBeatIndex + STRAIGHT_BEAT_FRACTION_EPS);
     const fraction = rawBeatIndex - beatWhole;
@@ -944,7 +980,8 @@ export const collectChordOsmdStraightBeatKeys = (
       Math.abs(fraction) <= STRAIGHT_BEAT_FRACTION_EPS
       || Math.abs(fraction - 0.5) <= STRAIGHT_BEAT_FRACTION_EPS;
     if (!onStraightGrid) {
-      straightKeys.add(`${measureNumber}:${beatWhole}`);
+      straightKeys.add(straightBeatGlobalKey(measureNumber, beatWhole));
+      straightKeys.add(straightBeatPartStaffKey(partIndex, staff, measureNumber, beatWhole));
     }
   });
   return straightKeys;
@@ -954,12 +991,18 @@ const isStraightBeatKey = (
   straightBeatKeys: ReadonlySet<string> | undefined,
   measureNumber: number,
   rawBeatIndex: number,
+  swingScope?: ChordOsmdSwingScope,
 ): boolean => {
   if (!straightBeatKeys || straightBeatKeys.size === 0) {
     return false;
   }
   const beatWhole = Math.floor(rawBeatIndex + STRAIGHT_BEAT_FRACTION_EPS);
-  return straightBeatKeys.has(`${measureNumber}:${beatWhole}`);
+  if (swingScope) {
+    return straightBeatKeys.has(
+      straightBeatPartStaffKey(swingScope.partIndex, swingScope.staff, measureNumber, beatWhole),
+    );
+  }
+  return straightBeatKeys.has(straightBeatGlobalKey(measureNumber, beatWhole));
 };
 
 const applyChordOsmdSwingToBeatIndex = (beatIndex: number): number => {
@@ -1024,12 +1067,13 @@ const chordOsmdLyricTargetTimeSec = (
   beatsPerMeasure: number,
   isSwing = false,
   straightBeatKeys?: ReadonlySet<string>,
+  swingScope?: ChordOsmdSwingScope,
 ): number => {
   const beatDurationSec = 60 / Math.max(1, bpm);
   const bpmSafe = Math.max(1, beatsPerMeasure);
   const measureIndex = Math.max(0, Math.trunc(measureNumber) - 1);
   const rawBeatIndex = Math.max(0, beatStartInMeasure - 1);
-  const beatIndex = isSwing && !isStraightBeatKey(straightBeatKeys, measureNumber, rawBeatIndex)
+  const beatIndex = isSwing && !isStraightBeatKey(straightBeatKeys, measureNumber, rawBeatIndex, swingScope)
     ? applyChordOsmdSwingToBeatIndex(rawBeatIndex)
     : rawBeatIndex;
   return (measureIndex * bpmSafe + beatIndex) * beatDurationSec;
@@ -1097,15 +1141,15 @@ export const forEachChordOsmdNoteCluster = (
     return;
   }
 
-  const measures = selectMusicXmlMeasures(doc);
-  let timing: MusicXmlScoreTimingState = {
-    divisions: 1,
-    beats: 4,
-    beatType: 4,
-    keyFifths: 0,
-  };
+  const walkMeasures = (measures: readonly Element[], partIndex: number): void => {
+    let timing: MusicXmlScoreTimingState = {
+      divisions: 1,
+      beats: 4,
+      beatType: 4,
+      keyFifths: 0,
+    };
 
-  for (let measureIndex = 0; measureIndex < measures.length; measureIndex += 1) {
+    for (let measureIndex = 0; measureIndex < measures.length; measureIndex += 1) {
     const measure = measures[measureIndex];
     const measureNumber = parseMusicXmlMeasureNumber(measure, measureIndex + 1);
     let currentTime = 0;
@@ -1180,6 +1224,8 @@ export const forEachChordOsmdNoteCluster = (
             clusterNotes: [noteEl],
             timing,
             durationDivisions: duration,
+            partIndex,
+            staff: staffFromNoteElement(noteEl),
           });
         }
         currentTime += duration;
@@ -1247,11 +1293,27 @@ export const forEachChordOsmdNoteCluster = (
         clusterNotes,
         timing,
         durationDivisions: clusterDur,
+        partIndex,
+        staff: staffFromNoteElement(noteEl),
       });
 
       currentTime += clusterDur;
       ci = ni;
     }
+    }
+  };
+
+  const parts = Array.from(doc.getElementsByTagName('part'));
+  if (parts.length === 0) {
+    walkMeasures(selectMusicXmlMeasures(doc), 0);
+    return;
+  }
+  for (let partIndex = 0; partIndex < parts.length; partIndex += 1) {
+    const part = parts[partIndex];
+    if (!part) {
+      continue;
+    }
+    walkMeasures(selectDirectChildMeasures(part), partIndex);
   }
 };
 
@@ -1261,7 +1323,14 @@ export const collectChordOsmdMusicXmlAttacks = (
   options?: CollectChordOsmdAttacksOptions,
 ): ChordOsmdMusicXmlAttack[] => {
   const attacks: ChordOsmdMusicXmlAttack[] = [];
-  forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes, timing }) => {
+  forEachChordOsmdNoteCluster(musicXmlText, ({
+    measureNumber,
+    beatStartInMeasure,
+    clusterNotes,
+    timing,
+    partIndex,
+    staff,
+  }) => {
     const clusterMidis: number[] = [];
     const clusterSpellings: string[] = [];
     const pushNote = (noteEl: Element): void => {
@@ -1288,6 +1357,8 @@ export const collectChordOsmdMusicXmlAttacks = (
         beatStartInMeasure,
         midis: clusterMidis,
         spellings: clusterSpellings,
+        partIndex,
+        staff,
       });
     }
   }, options);
@@ -1346,7 +1417,13 @@ export const collectChordOsmdScoreLyricEvents = (
   const straightBeatKeys = isSwing ? collectChordOsmdStraightBeatKeys(musicXmlText) : undefined;
   const events: ChordOsmdScoreLyricEvent[] = [];
   const lastTextByVerse = new Map<number, string>();
-  forEachChordOsmdNoteCluster(musicXmlText, ({ measureNumber, beatStartInMeasure, clusterNotes }) => {
+  forEachChordOsmdNoteCluster(musicXmlText, ({
+    measureNumber,
+    beatStartInMeasure,
+    clusterNotes,
+    partIndex,
+    staff,
+  }) => {
     const allVersesInCluster = allLyricVersesFromCluster(clusterNotes);
     if (allVersesInCluster.length === 0) {
       return;
@@ -1395,6 +1472,7 @@ export const collectChordOsmdScoreLyricEvents = (
       beatsPerMeasure,
       isSwing,
       straightBeatKeys,
+      { partIndex, staff },
     );
     for (const [verseNumber, text] of nextState) {
       if (text.length > 0) {
@@ -1767,6 +1845,12 @@ const buildChordOsmdRhythmTargetsFromScore = (
   }
   const useAllScoreMeasures = playableMeasures.size === 0 && disabledMeasures.size === 0;
 
+  const attackSwingScope = (attack: ChordOsmdMusicXmlAttack): ChordOsmdSwingScope | undefined => (
+    attack.partIndex === undefined
+      ? undefined
+      : { partIndex: attack.partIndex, staff: attack.staff ?? 1 }
+  );
+
   const sortedAttacks = attacks
     .filter(attack => {
       if (useAllScoreMeasures) {
@@ -1778,8 +1862,24 @@ const buildChordOsmdRhythmTargetsFromScore = (
       return playableMeasures.has(attack.measureNumber);
     })
     .sort((a, b) => {
-      const timeA = chordOsmdLyricTargetTimeSec(a.measureNumber, a.beatStartInMeasure, bpm, beatsPerMeasure, isSwing, straightBeatKeys);
-      const timeB = chordOsmdLyricTargetTimeSec(b.measureNumber, b.beatStartInMeasure, bpm, beatsPerMeasure, isSwing, straightBeatKeys);
+      const timeA = chordOsmdLyricTargetTimeSec(
+        a.measureNumber,
+        a.beatStartInMeasure,
+        bpm,
+        beatsPerMeasure,
+        isSwing,
+        straightBeatKeys,
+        attackSwingScope(a),
+      );
+      const timeB = chordOsmdLyricTargetTimeSec(
+        b.measureNumber,
+        b.beatStartInMeasure,
+        bpm,
+        beatsPerMeasure,
+        isSwing,
+        straightBeatKeys,
+        attackSwingScope(b),
+      );
       if (Math.abs(timeA - timeB) > SAME_TARGET_EPSILON_SEC) {
         return timeA - timeB;
       }
@@ -1797,6 +1897,7 @@ const buildChordOsmdRhythmTargetsFromScore = (
       beatsPerMeasure,
       isSwing,
       straightBeatKeys,
+      attackSwingScope(attack),
     );
     const noteSpellings = uniqueChordOsmdAttackSpellings(attack.midis, attack.spellings);
     return {

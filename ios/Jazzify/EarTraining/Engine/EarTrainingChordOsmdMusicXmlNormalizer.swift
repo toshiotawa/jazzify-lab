@@ -711,7 +711,9 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     private static let straightBeatFractionEps = 1e-6
     private static let chordOsmdSwingLongEighthRatio = 2.0 / 3.0
 
-    /// 16分など 0/0.5 以外のオンセットを含む拍はスイングしない（`"\(measureNumber):\(beatWhole)"`）。
+    /// 16分など 0/0.5 以外のオンセットを含む拍はスイングしない。
+    /// グローバル `"\(measureNumber):\(beatWhole)"` はプレイヘッド用。
+    /// パート/譜表 `"\(partIndex):\(staff):\(measureNumber):\(beatWhole)"` はノーツ用。
     static func collectChordOsmdStraightBeatKeys(_ xmlText: String) -> Set<String> {
         var straightKeys = Set<String>()
         EarTrainingPrecisionMusicXmlClusterWalker.forEachCluster(musicXmlText: xmlText) { context in
@@ -723,6 +725,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                 || abs(fraction - 0.5) <= straightBeatFractionEps
             if !onStraightGrid {
                 straightKeys.insert("\(context.measureNumber):\(beatWhole)")
+                straightKeys.insert("\(context.partIndex):\(context.staff):\(context.measureNumber):\(beatWhole)")
             }
         }
         return straightKeys
@@ -731,10 +734,15 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     private static func isStraightBeatKey(
         _ straightBeatKeys: Set<String>?,
         measureNumber: Int,
-        rawBeatIndex: Double
+        rawBeatIndex: Double,
+        partIndex: Int? = nil,
+        staff: Int? = nil
     ) -> Bool {
         guard let straightBeatKeys, !straightBeatKeys.isEmpty else { return false }
         let beatWhole = Int(floor(rawBeatIndex + straightBeatFractionEps))
+        if let partIndex, let staff {
+            return straightBeatKeys.contains("\(partIndex):\(staff):\(measureNumber):\(beatWhole)")
+        }
         return straightBeatKeys.contains("\(measureNumber):\(beatWhole)")
     }
 
@@ -795,7 +803,9 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         bpm: Double,
         beatsPerMeasure: Int,
         isSwing: Bool = false,
-        straightBeatKeys: Set<String>? = nil
+        straightBeatKeys: Set<String>? = nil,
+        swingPartIndex: Int? = nil,
+        swingStaff: Int? = nil
     ) -> Double {
         chordOsmdLyricTargetTimeSec(
             measureNumber: measureNumber,
@@ -803,7 +813,9 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             bpm: bpm,
             beatsPerMeasure: beatsPerMeasure,
             isSwing: isSwing,
-            straightBeatKeys: straightBeatKeys
+            straightBeatKeys: straightBeatKeys,
+            swingPartIndex: swingPartIndex,
+            swingStaff: swingStaff
         )
     }
 
@@ -813,13 +825,21 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         bpm: Double,
         beatsPerMeasure: Int,
         isSwing: Bool = false,
-        straightBeatKeys: Set<String>? = nil
+        straightBeatKeys: Set<String>? = nil,
+        swingPartIndex: Int? = nil,
+        swingStaff: Int? = nil
     ) -> Double {
         let beatDurationSec = 60 / max(1.0, bpm)
         let bpmSafe = max(1, beatsPerMeasure)
         let measureIndex = max(0, measureNumber - 1)
         let rawBeatIndex = max(0.0, beatStartInMeasure - 1)
-        let beatIndex = isSwing && !isStraightBeatKey(straightBeatKeys, measureNumber: measureNumber, rawBeatIndex: rawBeatIndex)
+        let beatIndex = isSwing && !isStraightBeatKey(
+            straightBeatKeys,
+            measureNumber: measureNumber,
+            rawBeatIndex: rawBeatIndex,
+            partIndex: swingPartIndex,
+            staff: swingStaff
+        )
             ? applyChordOsmdSwingToBeatIndex(rawBeatIndex)
             : rawBeatIndex
         return (Double(measureIndex * bpmSafe) + beatIndex) * beatDurationSec
