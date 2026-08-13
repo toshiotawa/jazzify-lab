@@ -541,8 +541,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         ) {
             guard !isTornDown else { return }
             pendingMusicXMLText = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(musicXMLText)
-            let xmlBySemitone = scoreXmlBySemitone.isEmpty ? [0: musicXMLText] : scoreXmlBySemitone
-            xmlBySemitone = xmlBySemitone.mapValues {
+            let xmlBySemitone = (scoreXmlBySemitone.isEmpty ? [0: musicXMLText] : scoreXmlBySemitone).mapValues {
                 EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors($0)
             }
             pendingScoreXmlBySemitone = xmlBySemitone
