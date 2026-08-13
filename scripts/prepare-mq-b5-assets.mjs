@@ -190,6 +190,10 @@ precisionOnly('mq-b5-6-10-2');
 copyXml('クエスト9.musicxml.xml', 'mq-b5-6-9');
 run([BUILD, '--fix-tempo', '80', '--source', join(SOZAI, 'mq-b5-6-9.musicxml'), '--output', join(SOZAI, 'mq-b5-6-9.musicxml')]);
 appendEbToQ9PhraseI(join(SOZAI, 'mq-b5-6-9.musicxml'));
+{
+  const q9Raw = readFileSync(join(SOZAI, 'mq-b5-6-9.musicxml'), 'utf8');
+  writeFileSync(join(SOZAI, 'mq-b5-6-9-osmd.musicxml'), q9Raw.replace('tempo="80"', 'tempo="100"'));
+}
 
 // --- クエスト9: 1小節×4連結ループ MP3 ---
 const q9Src = join(SOZAI, 'mq-b5-6-9.mp3');

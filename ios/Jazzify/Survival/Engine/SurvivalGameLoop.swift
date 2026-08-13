@@ -194,12 +194,18 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 ),
                 randomChordOverrides: randomChordOverrides
             )
-            if let mx = SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: allowedChords) {
+            if let mx = SurvivalPhraseKeyboardScroll.maxHintMidi(
+                fromChordIds: allowedChords,
+                overrides: randomChordOverrides
+            ) {
                 stageKeyboardScrollMidi = SurvivalPhraseKeyboardScroll.scrollAnchorWhiteMidi(maxPhraseMidi: mx)
             } else {
                 stageKeyboardScrollMidi = nil
             }
-            stageKeyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(fromChordIds: allowedChords)
+            stageKeyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+                fromChordIds: allowedChords,
+                overrides: randomChordOverrides
+            )
         }
 
         keyboardScrollAnchorMidi = stage.mapCategory == .phrases ? nil : stageKeyboardScrollMidi
@@ -333,6 +339,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         if case let .random(allowedChords) = mode.stageKind {
             keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
                 fromChordIds: allowedChords,
+                overrides: randomChordOverrides,
                 displayMode: displayMode
             )
         }

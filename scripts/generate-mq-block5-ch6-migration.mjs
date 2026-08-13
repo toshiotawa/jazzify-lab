@@ -21,9 +21,9 @@ const MAIN_COURSE_ID = 'a0000000-0000-0000-0000-000000000001';
 const CDN = 'https://jazzify-cdn.com/sozai';
 const ASSET_V = '202608121000';
 const DRUM = `${CDN}/Cblues_24bars_100BPM_Drum.mp3`;
-const CODE_RUN_DRUM_LOOP_BGM_URL =
+const DRUM_LOOP_BGM_URL =
   'https://jazzify-cdn.com/fantasy-bgm/survival-composite-phrases-drums160-loop.mp3';
-const CODE_RUN_BGM = { bgmUrl: CODE_RUN_DRUM_LOOP_BGM_URL };
+const DRUM_LOOP_BGM = { bgmUrl: DRUM_LOOP_BGM_URL };
 
 const KEY_FIFTHS = -1;
 const BEATS = 4;
@@ -131,8 +131,9 @@ const CHORD_NAMES_5 = ['F7', 'Bb7', 'D7', 'Gm7', 'C7'];
  *   descriptionEn: string;
  *   mode: 'chord_osmd' | 'chord_precision';
  *   base: string;
- *   xmlSuffix: 'guide-voice4-cue' | 'precision' | '';
+ *   xmlSuffix: 'guide-voice4-cue' | 'precision' | 'osmd' | '';
  *   mp3Base: string;
+ *   audioUrl?: string;
  *   measures: number;
  *   targets: number;
  *   bpm: number;
@@ -140,6 +141,8 @@ const CHORD_NAMES_5 = ['F7', 'Bb7', 'D7', 'Gm7', 'C7'];
  *   loopSec?: number;
  *   count_in_beats?: number;
  *   hammer_lead_measures?: number;
+ *   enemyHp?: number;
+ *   maxLoops?: number;
  * }[]} */
 const STAGES = [
   {
@@ -264,10 +267,14 @@ function buildStageSql(s) {
         fail_damage: 0,
         max_loops_per_phrase: 2,
       }
-    : combatFromTargets(s.targets);
+    : {
+        ...combatFromTargets(s.targets),
+        ...(s.enemyHp ? { enemy_hp: s.enemyHp } : {}),
+        ...(s.maxLoops ? { max_loops_per_phrase: s.maxLoops } : {}),
+      };
   const xmlFile = s.xmlSuffix ? `${s.base}-${s.xmlSuffix}.musicxml` : `${s.base}.musicxml`;
   const xmlUrl = asset(xmlFile);
-  const audioUrl = asset(`${s.mp3Base}.mp3`);
+  const audioUrl = s.audioUrl ?? asset(`${s.mp3Base}.mp3`);
 
   return `
 DELETE FROM public.ear_training_phrases WHERE stage_id = ${uuid(`${s.key}-stage`)};
@@ -353,7 +360,13 @@ function osmdStageContent(s) {
   const measureSec = (60 / s.bpm) * BEATS;
   const loopSec = Number((s.loopSec ?? s.measures * measureSec).toFixed(3));
   const xmlFile = s.xmlSuffix ? `${s.base}-${s.xmlSuffix}.musicxml` : `${s.base}.musicxml`;
-  const combat = s.mode === 'chord_osmd' ? combatFromTargets(s.targets) : null;
+  const combat = s.mode === 'chord_osmd'
+    ? {
+        ...combatFromTargets(s.targets),
+        ...(s.enemyHp ? { enemy_hp: s.enemyHp } : {}),
+        ...(s.maxLoops ? { max_loops_per_phrase: s.maxLoops } : {}),
+      }
+    : null;
   return {
     stage: {
       slug: s.slug,
@@ -364,7 +377,7 @@ function osmdStageContent(s) {
       beats_per_measure: BEATS,
       beat_type: 4,
       loop_measures: s.measures,
-      max_loops_per_phrase: 2,
+      max_loops_per_phrase: combat?.max_loops_per_phrase ?? 2,
       count_in_beats: s.count_in_beats ?? 0,
       time_limit_sec: 600,
       player_hp: combat?.player_hp ?? 100,
@@ -385,7 +398,7 @@ function osmdStageContent(s) {
       title: s.title,
       title_en: s.titleEn,
       music_xml_url: asset(xmlFile),
-      audio_url: asset(`${s.mp3Base}.mp3`),
+      audio_url: s.audioUrl ?? asset(`${s.mp3Base}.mp3`),
       loop_duration_sec: loopSec,
       audio_duration_sec: loopSec,
       note_count: 0,
@@ -721,7 +734,7 @@ INSERT INTO public.survival_stages (
   '7', 'F7 / Bb7 / D7 / Gm7 / C7', 'F7 / Bb7 / D7 / Gm7 / C7',
   NULL, NULL, NULL,
   'mq-b5-ch6', false, NULL, NULL,
-  true, '${playMode === 'code_run' ? 'always' : 'fade_15s'}', '${playMode === 'code_run' ? 'always' : 'fade_15s'}'${extraVals}
+  true, 'fade_15s', 'fade_15s'${extraVals}
 )
 ON CONFLICT (map_category, stage_number) DO UPDATE SET
   stage_type = EXCLUDED.stage_type,
@@ -973,6 +986,104 @@ VALUES (
   return `${deleteSql}\n${stageInserts}\n${phraseInserts}\n${doBlock}`;
 }
 
+/** クエスト9: 耳コピ複合フレーズ（課題1–5）。BGM はドラムループ 100BPM。敵 HP 150。 */
+function buildQ9EarCompositeSql() {
+  const phrases = parseQ9Phrases();
+  const loopSec = 2.4;
+  const stageId = uuid('mq-b5-6-9-stage');
+  const phraseRows = phrases.map((p, i) => {
+    const roman = p.roman;
+    const pid = uuid(`mq-b5-6-9-ph-${i + 1}`);
+    return `  (
+    ${pid}, ${stageId}, ${i},
+    'フレーズ ${roman}', 'Phrase ${roman}',
+    NULL, '${DRUM}', ${loopSec}, ${loopSec}, ${p.notes.length}, ${KEY_FIFTHS}
+  )`;
+  }).join(',\n');
+  const chordRows = phrases.map((p, i) => {
+    const names = p.notes.map((n) => `'${esc(n.name)}'`).join(', ');
+    const staves = p.notes.map(() => '1').join(', ');
+    return `  (
+    ${uuid(`mq-b5-6-9-c-${i + 1}`)},
+    ${uuid(`mq-b5-6-9-ph-${i + 1}`)},
+    0, '', 1, 1, 4, 0, ${loopSec},
+    ARRAY[${names}]::text[], ARRAY[${staves}]::smallint[]
+  )`;
+  }).join(',\n');
+  const sourceRows = phrases.map((_, i) =>
+    `    (${uuid(`mq-b5-6-9-ph-${i + 1}`)}, ${i})`,
+  ).join(',\n');
+
+  return `
+DELETE FROM public.ear_training_composite_phrase_sources
+WHERE config_id IN (
+  SELECT id FROM public.ear_training_composite_phrase_config WHERE stage_id = ${stageId}
+);
+DELETE FROM public.ear_training_composite_phrase_config WHERE stage_id = ${stageId};
+DELETE FROM public.ear_training_phrase_chord_quotes
+WHERE phrase_chord_id IN (
+  SELECT c.id FROM public.ear_training_phrase_chords c
+  JOIN public.ear_training_phrases p ON p.id = c.phrase_id
+  WHERE p.stage_id = ${stageId}
+);
+DELETE FROM public.ear_training_phrase_chords
+WHERE phrase_id IN (SELECT id FROM public.ear_training_phrases WHERE stage_id = ${stageId});
+DELETE FROM public.ear_training_phrase_notes
+WHERE phrase_id IN (SELECT id FROM public.ear_training_phrases WHERE stage_id = ${stageId});
+DELETE FROM public.ear_training_phrases WHERE stage_id = ${stageId};
+DELETE FROM public.ear_training_stages WHERE id = ${stageId};
+
+INSERT INTO public.ear_training_stages (
+  id, slug, title, title_en, description, description_en,
+  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,
+  count_in_beats, time_limit_sec, player_hp, enemy_hp,
+  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,
+  miss_damage, fail_damage, perfect_max_misses, great_max_misses,
+  background_theme, is_active, is_demo, mode,
+  chord_voicing_self_paced, chord_voicing_composite_phrase,
+  show_keyboard_hints_in_battle, hide_chord_names_in_battle, osmd_targets_from_score, is_swing
+) VALUES (
+  ${stageId},
+  'mq-b5-6-9-composite',
+  '複合フレーズ',
+  'Composite phrases',
+  '課題1–5の5フレーズを耳コピ複合フレーズで通す。',
+  'Play phrases I–V as an ear-training composite phrase battle.',
+  100, ${KEY_FIFTHS}, ${BEATS}, 4, 1, 16,
+  0, 600, 100, 150,
+  50, 0, 0, 0,
+  8, 12, 4, 8,
+  'blue_club', true, false, 'chord_voicing',
+  true, true,
+  true, true, false, false
+);
+
+INSERT INTO public.ear_training_phrases (
+  id, stage_id, order_index, title, title_en,
+  music_xml_url, audio_url, loop_duration_sec, audio_duration_sec, note_count, key_fifths
+) VALUES
+${phraseRows};
+
+INSERT INTO public.ear_training_phrase_chords (
+  id, phrase_id, order_index, chord_name,
+  measure_number, beat_offset, duration_beats,
+  start_time_sec, end_time_sec, voicing, voicing_staves
+) VALUES
+${chordRows};
+
+INSERT INTO public.ear_training_composite_phrase_config (stage_id, bgm_url, key_fifths)
+VALUES (${stageId}, '${DRUM}', ${KEY_FIFTHS});
+
+INSERT INTO public.ear_training_composite_phrase_sources (config_id, source_phrase_id, sort_order)
+SELECT c.id, s.pid, s.ord
+FROM public.ear_training_composite_phrase_config c
+CROSS JOIN (VALUES
+${sourceRows}
+) AS s(pid, ord)
+WHERE c.stage_id = ${stageId};
+`;
+}
+
 /** @param {string} lessonKey @param {number} order @param {object} row */
 function lessonSongRow(lessonKey, order, row) {
   const clearReq = row.clearRequired !== false;
@@ -1010,7 +1121,7 @@ const LESSONS = [
   { key: 'mq-b5-q6-lesson', order: 5, title: 'クエスト6：ペンタトニック', titleEn: 'Quest 6: Pentatonic', desc: 'Fペンタトニックで色を足す。', descEn: 'Add color with the F pentatonic.', assign: 'ペンタトニックを弾きましょう。', assignEn: 'Play the pentatonic scale.' },
   { key: 'mq-b5-q7-lesson', order: 6, title: 'クエスト7：ブルーノート', titleEn: 'Quest 7: Blue notes', desc: 'ブルーノート・スケールのフレーズ。', descEn: 'Phrases with the blue-note scale.', assign: 'ブルーノートを確かめましょう。', assignEn: 'Explore blue notes.' },
   { key: 'mq-b5-q8-lesson', order: 7, title: 'クエスト8：フレーズ', titleEn: 'Quest 8: Phrases', desc: 'Bb→Bのスライドを含む精密フレーズ。', descEn: 'Precision phrases including Bb→B slide.', assign: '精密フレーズに挑戦しましょう。', assignEn: 'Try the precision phrases.' },
-  { key: 'mq-b5-q9-lesson', order: 8, title: 'クエスト9：サバイバル・フレーズ', titleEn: 'Quest 9: Survival phrases', desc: '5つの1小節フレーズをサバイバルで。', descEn: 'Five one-bar phrases in Survival.', assign: 'フレーズを覚えましょう。', assignEn: 'Learn the survival phrases.' },
+  { key: 'mq-b5-q9-lesson', order: 8, title: 'クエスト9：サバイバル・フレーズ', titleEn: 'Quest 9: Survival phrases', desc: '5つの1小節フレーズを覚え、最後は複合フレーズバトル。', descEn: 'Five one-bar phrases, then a composite phrase battle.', assign: 'フレーズを覚え、複合フレーズバトルで仕上げましょう。', assignEn: 'Learn the phrases, then finish with the composite phrase battle.' },
   { key: 'mq-b5-q10-lesson', order: 9, title: 'クエスト10：まとめ', titleEn: 'Quest 10: Summary', desc: 'Fブルース章の総仕上げ。', descEn: 'F blues chapter finale.', assign: '総仕上げに挑戦しましょう。', assignEn: 'Take on the finale.' },
 ];
 
@@ -1021,16 +1132,16 @@ const LESSON_SONGS = [
   { lesson: 'mq-b5-q1-lesson', order: 0, id: 'mq-b5-q1-0-lsong', survivalTutorial: 'mq-b5-q1-0-v1', title: '1-0. C→Fブルース', titleEn: '1-0. C to F blues' },
   { lesson: 'mq-b5-q1-lesson', order: 1, id: 'mq-b5-q1-1-lsong', earTutorial: 'mq-b5-q1-1-v1', title: '1-1. Fブルース入門', titleEn: '1-1. F blues intro' },
   { lesson: 'mq-b5-q2-lesson', order: 0, id: 'mq-b5-q2-0-lsong', survivalTutorial: 'mq-b5-q2-0-v1', title: '2-0. 5つのコード', titleEn: '2-0. Five chords' },
-  { lesson: 'mq-b5-q2-lesson', order: 1, id: 'mq-b5-q2-1-lsong', survivalStage: 1301, survivalRandomChords: R2V, survivalOverrides: CODE_RUN_BGM, staffHint: 'always', keyboardHint: 'always', title: '2-1. コードラン（2音）', titleEn: '2-1. Code Run (2v)' },
+  { lesson: 'mq-b5-q2-lesson', order: 1, id: 'mq-b5-q2-1-lsong', survivalStage: 1301, survivalRandomChords: R2V, survivalOverrides: DRUM_LOOP_BGM, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '2-1. コードラン（2音）', titleEn: '2-1. Code Run (2v)' },
   { lesson: 'mq-b5-q2-lesson', order: 2, id: 'mq-b5-q2-2-lsong', balloon: 'mq-b5-balloon-2v', survivalRandomChords: R2V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '2-2. 風船（2音）', titleEn: '2-2. Balloon (2v)' },
   { lesson: 'mq-b5-q2-lesson', order: 3, id: 'mq-b5-q2-3-lsong', earStage: 'mq-b5-quiz-2v', title: '2-3. クイズ（2音）', titleEn: '2-3. Quiz (2v)' },
-  { lesson: 'mq-b5-q2-lesson', order: 4, id: 'mq-b5-q2-4-lsong', survivalStage: 1302, survivalRandomChords: R2V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '2-4. サバイバル（2音）', titleEn: '2-4. Survival (2v)' },
+  { lesson: 'mq-b5-q2-lesson', order: 4, id: 'mq-b5-q2-4-lsong', survivalStage: 1302, survivalRandomChords: R2V, survivalOverrides: DRUM_LOOP_BGM, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '2-4. サバイバル（2音）', titleEn: '2-4. Survival (2v)' },
   { lesson: 'mq-b5-q3-lesson', order: 0, id: 'mq-b5-q3-0-lsong', survivalTutorial: 'mq-b5-q3-0-v1', title: '3-0. 3音の説明', titleEn: '3-0. Three-note intro' },
   { lesson: 'mq-b5-q3-lesson', order: 1, id: 'mq-b5-q3-2-lsong', earStage: 'mq-b5-6-3-6', title: '3-2. 3音・頭拍', titleEn: '3-2. Three-note head beat' },
-  { lesson: 'mq-b5-q3-lesson', order: 2, id: 'mq-b5-q3-3-lsong', survivalStage: 1311, survivalRandomChords: R3V, survivalOverrides: CODE_RUN_BGM, staffHint: 'always', keyboardHint: 'always', title: '3-3. コードラン（3音）', titleEn: '3-3. Code Run (3v)' },
+  { lesson: 'mq-b5-q3-lesson', order: 2, id: 'mq-b5-q3-3-lsong', survivalStage: 1311, survivalRandomChords: R3V, survivalOverrides: DRUM_LOOP_BGM, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-3. コードラン（3音）', titleEn: '3-3. Code Run (3v)' },
   { lesson: 'mq-b5-q3-lesson', order: 3, id: 'mq-b5-q3-4-lsong', balloon: 'mq-b5-balloon-3v', survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-4. 風船（3音）', titleEn: '3-4. Balloon (3v)' },
   { lesson: 'mq-b5-q3-lesson', order: 4, id: 'mq-b5-q3-5-lsong', earStage: 'mq-b5-quiz-3v', title: '3-5. クイズ（3音）', titleEn: '3-5. Quiz (3v)' },
-  { lesson: 'mq-b5-q3-lesson', order: 5, id: 'mq-b5-q3-6-lsong', survivalStage: 1312, survivalRandomChords: R3V, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-6. サバイバル（3音）', titleEn: '3-6. Survival (3v)' },
+  { lesson: 'mq-b5-q3-lesson', order: 5, id: 'mq-b5-q3-6-lsong', survivalStage: 1312, survivalRandomChords: R3V, survivalOverrides: DRUM_LOOP_BGM, staffHint: 'fade_15s', keyboardHint: 'fade_15s', title: '3-6. サバイバル（3音）', titleEn: '3-6. Survival (3v)' },
   { lesson: 'mq-b5-q4-lesson', order: 0, id: 'mq-b5-q4-0-lsong', survivalTutorial: 'mq-b5-q4-0-v1', title: '4-0. 4パターン紹介', titleEn: '4-0. Four patterns intro' },
   { lesson: 'mq-b5-q4-lesson', order: 1, id: 'mq-b5-q4-1-lsong', earStage: 'mq-b5-6-4-2', title: '4-1. パターン1 両手', titleEn: '4-1. Pattern 1 (both hands)' },
   { lesson: 'mq-b5-q4-lesson', order: 2, id: 'mq-b5-q4-2-lsong', earStage: 'mq-b5-6-4-3', title: '4-2. パターン2 両手', titleEn: '4-2. Pattern 2 (both hands)' },
@@ -1064,6 +1175,14 @@ const LESSON_SONGS = [
     title: `9-${i + 1}. フレーズ ${['I', 'II', 'III', 'IV', 'V'][i]}`,
     titleEn: `9-${i + 1}. Phrase ${['I', 'II', 'III', 'IV', 'V'][i]}`,
   }))),
+  {
+    lesson: 'mq-b5-q9-lesson',
+    order: 6,
+    id: 'mq-b5-q9-6-lsong',
+    earStage: 'mq-b5-6-9',
+    title: '9-6. 複合フレーズ',
+    titleEn: '9-6. Composite phrases',
+  },
   { lesson: 'mq-b5-q10-lesson', order: 0, id: 'mq-b5-q10-0-lsong', survivalTutorial: 'mq-b5-q10-0-v1', title: '10-0. 章のまとめ', titleEn: '10-0. Chapter summary' },
   { lesson: 'mq-b5-q10-lesson', order: 1, id: 'mq-b5-q10-1-lsong', earStage: 'mq-b5-6-10-2', clearRequired: false, title: '10-1. 総仕上げ・精密', titleEn: '10-1. Finale · Precision' },
 ];
@@ -1103,6 +1222,7 @@ ${buildQuizStageSql(2, VOICINGS_2V)}
 ${buildQuizStageSql(3, VOICINGS_3V)}
 
 ${buildSurvivalPhrasesSql()}
+${buildQ9EarCompositeSql()}
 
 INSERT INTO public.lessons (
   id, course_id, title, title_en, description, description_en,

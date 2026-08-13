@@ -5,6 +5,7 @@
  *   node scripts/upload-sozai-main-quest-block5-r2.mjs
  *   node scripts/upload-sozai-main-quest-block5-r2.mjs --dry-run
  *   node scripts/upload-sozai-main-quest-block5-r2.mjs --s3
+ *   node scripts/upload-sozai-main-quest-block5-r2.mjs --s3 --no-retry --only mq-b5-6-9-osmd.musicxml
  */
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
@@ -111,6 +112,7 @@ const FILES = [
     name: `mq-b5-6-9-${i}-loop.mp3`,
     contentType: 'audio/mpeg',
   })),
+  { name: 'mq-b5-6-9-osmd.musicxml', contentType: 'application/vnd.recordare.musicxml+xml' },
 ];
 
 /** @type {S3Client | null} */
@@ -177,6 +179,14 @@ async function putWithWranglerRetry(localPath, objectPath, contentType) {
   return last;
 }
 
+const onlyIdx = process.argv.indexOf('--only');
+const onlyName = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null;
+const filesToUpload = onlyName ? FILES.filter((file) => file.name === onlyName) : FILES;
+if (onlyName && filesToUpload.length === 0) {
+  console.error(`--only: FILES にありません: ${onlyName}`);
+  process.exit(1);
+}
+
 let uploaded = 0;
 let errors = 0;
 
@@ -185,7 +195,7 @@ if (!useS3 && !dryRun && !CLOUDFLARE_ACCOUNT_ID) {
   process.exit(1);
 }
 
-for (const { name, contentType } of FILES) {
+for (const { name, contentType } of filesToUpload) {
   const localPath = join(SRC_DIR, name);
   const r2Key = `sozai/${name}`;
   const objectPath = `${BUCKET}/${r2Key}`;

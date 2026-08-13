@@ -49,6 +49,7 @@ import {
   getSurvivalStageBattleKind,
   isBlockLastStage,
   isPhraseMapCompositeStage,
+  isCatalogCompositePhraseBossStage,
   isSurvivalStageDetailBossClearCondition,
   resolveMapBossTypeForBlock,
 } from './SurvivalStageDefinitions';
@@ -68,6 +69,23 @@ describe('isPhraseMapCompositeStage', () => {
 
   it('excludes regular phrase stages without composite sources', () => {
     expect(isPhraseMapCompositeStage(phraseStage({
+      stageNumber: 7,
+      compositePhraseSources: undefined,
+    }))).toBe(false);
+  });
+});
+
+describe('isCatalogCompositePhraseBossStage', () => {
+  it('treats lesson-only phrase composites as bosses', () => {
+    expect(isCatalogCompositePhraseBossStage(phraseStage({ lessonOnly: true }))).toBe(true);
+  });
+
+  it('treats map composites as bosses', () => {
+    expect(isCatalogCompositePhraseBossStage(phraseStage())).toBe(true);
+  });
+
+  it('excludes regular phrase stages without composite sources', () => {
+    expect(isCatalogCompositePhraseBossStage(phraseStage({
       stageNumber: 7,
       compositePhraseSources: undefined,
     }))).toBe(false);
@@ -112,11 +130,17 @@ describe('isSurvivalStageDetailBossClearCondition', () => {
 describe('phrase map composite boss battle kind', () => {
   it('treats mid-block composite as boss when combined with phrase map composite helper', () => {
     const stage = phraseStage({ stageNumber: 6 });
-    const isPhraseMapCompositeBossStage = isPhraseMapCompositeStage(stage);
+    const isPhraseMapCompositeBossStage = isCatalogCompositePhraseBossStage(stage);
     const stageBattleKind = isPhraseMapCompositeBossStage
       ? 'boss'
       : getSurvivalStageBattleKind(stage.stageType, isBlockLastStage(stage.stageNumber, stage.mapCategory));
     expect(isBlockLastStage(stage.stageNumber, stage.mapCategory)).toBe(false);
     expect(stageBattleKind).toBe('boss');
+  });
+
+  it('treats lesson-only catalog composite as boss', () => {
+    const stage = phraseStage({ stageNumber: 506, lessonOnly: true });
+    expect(isCatalogCompositePhraseBossStage(stage)).toBe(true);
+    expect(isPhraseMapCompositeStage(stage)).toBe(false);
   });
 });

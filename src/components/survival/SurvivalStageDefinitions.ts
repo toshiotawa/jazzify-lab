@@ -858,11 +858,14 @@ export function survivalStageUsesCompositePhrasePattern(stage: StageDefinition):
   return n > 0;
 }
 
+/** 複合フレーズボス戦か（レッスン専用カタログ含む）。降下マップ扉は isPhraseMapCompositeStage。 */
+export function isCatalogCompositePhraseBossStage(stage: StageDefinition): boolean {
+  return stage.mapCategory === 'phrases' && survivalStageUsesCompositePhrasePattern(stage);
+}
+
 /** Phrases マップ上の DB 複合フレーズステージ（レッスン専用は除外）。 */
 export function isPhraseMapCompositeStage(stage: StageDefinition): boolean {
-  return stage.mapCategory === 'phrases'
-    && !stage.lessonOnly
-    && survivalStageUsesCompositePhrasePattern(stage);
+  return isCatalogCompositePhraseBossStage(stage) && !stage.lessonOnly;
 }
 
 /** 降下マップ詳細パネルのクリア条件がボス表記になるか（ブロック末尾 or Phrases 途中複合）。 */

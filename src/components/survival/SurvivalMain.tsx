@@ -21,6 +21,7 @@ import {
   resolveLessonSurvivalMapCategory,
   getSurvivalStageBattleKind,
   isBlockLastStage,
+  isCatalogCompositePhraseBossStage,
 } from './SurvivalStageDefinitions';
 import { fetchLessonSongById } from '@/platform/supabaseLessons';
 import {
@@ -419,7 +420,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
       const isInlineComposite = inlinePhrases !== null && inlinePhrases.length >= 2;
+      const isCatalogComposite = isCatalogCompositePhraseBossStage(stageDef);
       const isBossStage = isInlineComposite
+        || isCatalogComposite
         || getSurvivalStageBattleKind(
           stageDef.stageType,
           isBlockLastStage(stageDef.stageNumber, stageDef.mapCategory),
@@ -430,8 +433,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         baseConfig,
         isBossStage,
         isPhraseMode,
-        isCompositeBoss: isInlineComposite
-          || Boolean(stageDef.compositePhraseSources?.length),
+        isCompositeBoss: isInlineComposite || isCatalogComposite,
         isFirstBlockBoss: isFirstBlockBossStageDef(stageDef),
       });
       const defaultBgm = resolveStageBgmUrl(stageDef, bgmSettings);

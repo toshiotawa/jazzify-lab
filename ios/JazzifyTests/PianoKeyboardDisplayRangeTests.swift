@@ -125,4 +125,38 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
         XCTAssertEqual(fullRange, .full88)
         XCTAssertNotEqual(fitRange, fullRange)
     }
+
+    func testRandomDisplayRangeUsesLessonVoicingOverrides() {
+        let override = SurvivalResolvedChord.fromExplicitTutorialVoicing(
+            id: "F7",
+            name: "F7",
+            voicing: [51, 57],
+            voicingNames: ["Eb3", "A3"],
+            keyFifths: -1,
+            progressionStaffVoicingStaves: [2, 2]
+        )
+        let defaultRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            fromChordIds: ["F7"],
+            displayMode: .questionRangeFit
+        )
+        let overrideRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
+            fromChordIds: ["F7"],
+            overrides: ["F7": override],
+            displayMode: .questionRangeFit
+        )
+        let expected = PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: 51,
+            maxNoteMidi: 57
+        )
+
+        XCTAssertEqual(overrideRange, expected)
+        XCTAssertNotEqual(overrideRange, defaultRange)
+        XCTAssertEqual(
+            SurvivalPhraseKeyboardScroll.maxHintMidi(
+                fromChordIds: ["F7"],
+                overrides: ["F7": override]
+            ),
+            57
+        )
+    }
 }

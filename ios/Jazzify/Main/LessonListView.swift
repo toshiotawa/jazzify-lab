@@ -3332,7 +3332,7 @@ struct LessonDetailView: View {
                 let isBossStage = SurvivalBossEngine.isBlockLastStage(
                     stageNumber: stage.stageNumber,
                     in: stage.mapCategory
-                )
+                ) || stage.isCompositePhraseBossStage
                 let runtime = SurvivalLessonConfig.resolveSurvivalLessonRuntime(
                     overrides: requirement.survivalLessonOverrides,
                     stage: stage,

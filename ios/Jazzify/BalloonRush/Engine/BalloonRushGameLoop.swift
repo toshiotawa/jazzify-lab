@@ -85,6 +85,7 @@ final class BalloonRushGameLoop {
             let ids = allowedChordIds.isEmpty ? ["Dm7"] : allowedChordIds
             keyboardDisplayRange = SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
                 fromChordIds: ids,
+                overrides: randomChordOverrides,
                 displayMode: displayMode
             )
         }

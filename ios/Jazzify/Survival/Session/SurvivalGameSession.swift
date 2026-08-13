@@ -167,7 +167,9 @@ final class SurvivalGameSession: SurvivalPlaySession {
                         viewModel.syncPhraseStaff(from: gameLoop)
                         viewModel.syncKeyboardScrollAnchor(from: gameLoop)
                         if playBackgroundMusic {
-                            if let stageBgm = gameLoop.stageConfig.bgmUrl {
+                            if let bgm = lessonRuntime?.bgmUrl {
+                                audioController.setBgmUrl(bgm)
+                            } else if let stageBgm = gameLoop.stageConfig.bgmUrl {
                                 audioController.setBgmUrl(stageBgm)
                             }
                         }

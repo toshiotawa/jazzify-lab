@@ -414,9 +414,9 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
             && mapCategory == .phrases
     }
 
-    /// 複合フレーズボス戦か（ランタイム分岐・ボス種別上書き用）。
+    /// 複合フレーズボス戦か（ランタイム分岐・ボス種別上書き用）。レッスン専用カタログも含む。
     var isCompositePhraseBossStage: Bool {
-        isPhraseMapCompositeStage
+        survivalUsesCompositePhrasePattern && mapCategory == .phrases
     }
 
     /// BGM・難易度設定取得用。複合フレーズボス（ステージ6 等）は phrases の drum loop。

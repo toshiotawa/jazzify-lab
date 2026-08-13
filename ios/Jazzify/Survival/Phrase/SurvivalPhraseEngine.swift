@@ -296,11 +296,14 @@ enum SurvivalPhraseKeyboardScroll {
         )
     }
 
-    static func pitchRange(fromChordIds allowedChordIds: [String]) -> PianoStagePitchRange? {
+    static func pitchRange(
+        fromChordIds allowedChordIds: [String],
+        overrides: [String: SurvivalResolvedChord] = [:]
+    ) -> PianoStagePitchRange? {
         var minValue: Int?
         var maxValue: Int?
         for id in allowedChordIds {
-            guard let chord = SurvivalChordResolver.resolve(id: id) else { continue }
+            guard let chord = resolveRandomChord(id: id, overrides: overrides) else { continue }
             for midi in chord.midiNotes {
                 if minValue == nil || midi < minValue! {
                     minValue = midi
@@ -322,11 +325,25 @@ enum SurvivalPhraseKeyboardScroll {
         Set(chord.midiNotes)
     }
 
+    /// Random 出題のコード解決。レッスン上書きヴォイシングがあればそれを優先する。
+    static func resolveRandomChord(
+        id: String,
+        overrides: [String: SurvivalResolvedChord]
+    ) -> SurvivalResolvedChord? {
+        if let override = overrides[id] {
+            return override
+        }
+        return SurvivalChordResolver.resolve(id: id)
+    }
+
     /// 出題コードプールにおけるヒント鍵の最大 MIDI（`midiNotes` 直値）。
-    static func maxHintMidi(fromChordIds allowedChordIds: [String]) -> Int? {
+    static func maxHintMidi(
+        fromChordIds allowedChordIds: [String],
+        overrides: [String: SurvivalResolvedChord] = [:]
+    ) -> Int? {
         var maxValue: Int?
         for id in allowedChordIds {
-            guard let chord = SurvivalChordResolver.resolve(id: id) else { continue }
+            guard let chord = resolveRandomChord(id: id, overrides: overrides) else { continue }
             for midi in chord.midiNotes {
                 if maxValue == nil || midi > maxValue! {
                     maxValue = midi
@@ -374,13 +391,14 @@ enum SurvivalPhraseKeyboardScroll {
 
     static func resolvedDisplayRange(
         fromChordIds allowedChordIds: [String],
+        overrides: [String: SurvivalResolvedChord] = [:],
         displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     ) -> PianoStagePitchRange {
         switch displayMode {
         case .full88Keys:
             return .full88
         case .questionRangeFit:
-            return pitchRange(fromChordIds: allowedChordIds) ?? .full88
+            return pitchRange(fromChordIds: allowedChordIds, overrides: overrides) ?? .full88
         }
     }
 }

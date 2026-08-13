@@ -1138,10 +1138,9 @@ private struct SurvivalCodeRunGameContent: View {
             }
         self.progressionChords = resolvedChords
         let stageMaxMidi: Int? = randomStage
-            ? (
-                randomChordOverrides.isEmpty
-                    ? SurvivalPhraseKeyboardScroll.maxHintMidi(fromChordIds: stage.allowedChords)
-                    : randomChordOverrides.values.flatMap(\.midiNotes).max()
+            ? SurvivalPhraseKeyboardScroll.maxHintMidi(
+                fromChordIds: stage.allowedChords,
+                overrides: randomChordOverrides
             )
             : SurvivalPhraseKeyboardScroll.maxPitchMidi(in: resolvedChords)
         if let maxMidi = stageMaxMidi {
@@ -1156,7 +1155,7 @@ private struct SurvivalCodeRunGameContent: View {
                 isRandomStage: randomStage,
                 allowedChords: stage.allowedChords,
                 progressionChords: resolvedChords,
-                overrideChords: Array(randomChordOverrides.values),
+                randomChordOverrides: randomChordOverrides,
                 displayMode: initialKeyboardDisplayMode
             )
         )
@@ -1166,18 +1165,13 @@ private struct SurvivalCodeRunGameContent: View {
         isRandomStage: Bool,
         allowedChords: [String],
         progressionChords: [SurvivalResolvedChord],
-        overrideChords: [SurvivalResolvedChord],
+        randomChordOverrides: [String: SurvivalResolvedChord],
         displayMode: PianoKeyboardDisplayMode
     ) -> PianoStagePitchRange {
         if isRandomStage {
-            if !overrideChords.isEmpty {
-                return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
-                    in: overrideChords,
-                    displayMode: displayMode
-                )
-            }
             return SurvivalPhraseKeyboardScroll.resolvedDisplayRange(
                 fromChordIds: allowedChords,
+                overrides: randomChordOverrides,
                 displayMode: displayMode
             )
         }
@@ -1192,7 +1186,7 @@ private struct SurvivalCodeRunGameContent: View {
             isRandomStage: isRandomStage,
             allowedChords: stage.allowedChords,
             progressionChords: progressionChords,
-            overrideChords: Array(randomChordOverrides.values),
+            randomChordOverrides: randomChordOverrides,
             displayMode: mode
         )
     }

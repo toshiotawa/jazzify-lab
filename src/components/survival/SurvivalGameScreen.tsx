@@ -82,7 +82,7 @@ import {
   STAGE_TIME_LIMIT_SECONDS,
   getSurvivalStageBattleKind,
   isBlockLastStage,
-  isPhraseMapCompositeStage,
+  isCatalogCompositePhraseBossStage,
 } from './SurvivalStageDefinitions';
 import { fetchSurvivalStageIntroScript } from '@/components/survival/stageIntro/fetchSurvivalStageIntroScript';
 import { fetchSurvivalStagePlayDialogue } from '@/components/survival/stageIntro/fetchSurvivalStagePlayDialogue';
@@ -532,7 +532,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const balloonPhysicsRef = useRef<BalloonRushPhysicsState | null>(null);
   const [balloonDrawSnapshot, setBalloonDrawSnapshot] = useState<BalloonRushDrawSnapshot | null>(null);
   const isPhraseMapCompositeBossStage = stageDefinition
-    ? isPhraseMapCompositeStage(stageDefinition)
+    ? isCatalogCompositePhraseBossStage(stageDefinition)
     : false;
   const stageBattleKind = stageDefinition
     ? (isLessonInlineCompositeBoss || isPhraseMapCompositeBossStage
