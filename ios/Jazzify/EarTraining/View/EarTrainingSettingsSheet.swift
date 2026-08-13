@@ -53,6 +53,8 @@ struct EarTrainingSettingsSheet: View {
     var practiceSpeed: EarTrainingPracticeSpeedConfig?
     var osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig?
     var onLaunchTimingAdjustment: (() -> Void)?
+    /// OSMD バトル専用。ターゲット演奏成功時のカメラズームを設定から抑制する。
+    var showsOsmdTargetCameraEffectToggle: Bool = false
     var precisionAutoPlay: EarTrainingPrecisionAutoPlayConfig?
     var onRestartFromBeginning: (() -> Void)?
     let onDismiss: () -> Void
@@ -76,6 +78,8 @@ struct EarTrainingSettingsSheet: View {
     @State private var pianoVolume: Double = Double(SurvivalGameAudio.shared.pianoVolume)
     @State private var sfxVolume: Double = Double(SurvivalGameAudio.shared.sfxVolume)
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    @State private var suppressTargetSuccessCameraZoom =
+        EarTrainingOsmdCameraEffectPreferences.loadSuppressTargetSuccessCameraZoom()
     @StateObject private var midiManager = MIDIManager.shared
 
     var body: some View {
@@ -99,6 +103,9 @@ struct EarTrainingSettingsSheet: View {
                 volumeBlock
                 if !isTutorialScope {
                     displayRotationSection
+                }
+                if showsOsmdTargetCameraEffectToggle {
+                    osmdCameraEffectSection
                 }
                 PianoKeyboardDisplayModeSection(
                     displayMode: $keyboardDisplayMode,
@@ -183,6 +190,10 @@ struct EarTrainingSettingsSheet: View {
             }
             if let precisionAutoPlay {
                 autoPlayDraft = precisionAutoPlay.enabled
+            }
+            if showsOsmdTargetCameraEffectToggle {
+                suppressTargetSuccessCameraZoom =
+                    EarTrainingOsmdCameraEffectPreferences.loadSuppressTargetSuccessCameraZoom()
             }
         }
         .onChange(of: stageRunMode?.practiceMode) { newValue in
@@ -552,6 +563,36 @@ struct EarTrainingSettingsSheet: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private var osmdCameraEffectSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $suppressTargetSuccessCameraZoom) {
+                Text(isEnglishCopy ? "Suppress camera effects" : "カメラエフェクトを抑制")
+                    .foregroundStyle(.white)
+            }
+            .tint(.yellow)
+            .onChange(of: suppressTargetSuccessCameraZoom) { enabled in
+                EarTrainingOsmdCameraEffectPreferences.saveSuppressTargetSuccessCameraZoom(enabled)
+            }
+
+            Text(isEnglishCopy
+                 ? "Stops the camera zoom when a target is played successfully."
+                 : "ターゲット演奏成功時のカメラズームを止めます。")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
     }
 

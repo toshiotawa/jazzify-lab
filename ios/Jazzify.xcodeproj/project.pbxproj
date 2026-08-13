@@ -124,6 +124,7 @@
 		53798BE5E2C80ABDAE7EFAD1 /* EarTrainingChordQuizBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE10747A26971D22D12815D9 /* EarTrainingChordQuizBattleController.swift */; };
 		53EDBDC25339FD88006E14DF /* EarTrainingSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */; };
 		54984AEFC83A27AAA4EAE456 /* EarTrainingOsmdTimingAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */; };
+		54C8E1A09B2D4F17A6C3E9D1 /* EarTrainingOsmdCameraEffectPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B8C4D2E5F60718A9C0D1E3 /* EarTrainingOsmdCameraEffectPreferences.swift */; };
 		54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */; };
 		55F54C4BA1E268879298B4D9 /* SurvivalRunPrepSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43BC0A05D209E54BAAB95B5 /* SurvivalRunPrepSheet.swift */; };
 		56798F7B79D567C225C5CB37 /* TopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F034080E04C73977D21BFCEC /* TopView.swift */; };
@@ -400,6 +401,7 @@
 		5B7A53FFCECA3078401CC764 /* SurvivalSceneSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSceneSnapshot.swift; sourceTree = "<group>"; };
 		5BAE352D4750FD9B61D66ACE /* EarTrainingStageDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingStageDetail.swift; sourceTree = "<group>"; };
 		5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdTimingAdjustment.swift; sourceTree = "<group>"; };
+		61B8C4D2E5F60718A9C0D1E3 /* EarTrainingOsmdCameraEffectPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdCameraEffectPreferences.swift; sourceTree = "<group>"; };
 		5E7EA654B4F135FB53EDF52E /* SurvivalInputBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalInputBuffer.swift; sourceTree = "<group>"; };
 		5ECCBD6262FA0D7BF5AA6C86 /* SurvivalStaffOverlayLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStaffOverlayLayout.swift; sourceTree = "<group>"; };
 		5ECE76FBCD48F4FD05191971 /* EarTrainingChordQuizGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordQuizGameView.swift; sourceTree = "<group>"; };
@@ -767,6 +769,7 @@
 				8106DE015E72BD51EF5DA841 /* EarTrainingMusicXmlTransposer.swift */,
 				66CED8A9F431B3C6BF2DB649 /* EarTrainingOsmdScoreScroll.swift */,
 				5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */,
+				61B8C4D2E5F60718A9C0D1E3 /* EarTrainingOsmdCameraEffectPreferences.swift */,
 				48494D61BCD36D80C12C54AD /* EarTrainingPhrasePairBattleEngine.swift */,
 				3F025416B60CF0EC0AB90A07 /* EarTrainingPhrasePairEngine.swift */,
 				1E61246F5E583E2666BE252D /* EarTrainingPracticeSpeed.swift */,
@@ -1528,6 +1531,7 @@
 				7CDA71E7ED7D03027816DCAF /* EarTrainingOSMDScoreWebView.swift in Sources */,
 				042B05486F736CD7167107E3 /* EarTrainingOsmdScoreScroll.swift in Sources */,
 				54984AEFC83A27AAA4EAE456 /* EarTrainingOsmdTimingAdjustment.swift in Sources */,
+				54C8E1A09B2D4F17A6C3E9D1 /* EarTrainingOsmdCameraEffectPreferences.swift in Sources */,
 				44D6034EFBE7D1558EB7FAA6 /* EarTrainingPhrasePairAdlibBattleController.swift in Sources */,
 				B32467ABF115CA695A1275A9 /* EarTrainingPhrasePairAdlibGameView.swift in Sources */,
 				EBD7121752D063D193721ACC /* EarTrainingPhrasePairBattleEngine.swift in Sources */,

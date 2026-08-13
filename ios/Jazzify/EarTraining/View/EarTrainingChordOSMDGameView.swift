@@ -282,6 +282,7 @@ private struct EarTrainingChordOSMDContent: View {
                     )
                     controller.handleCloseSettings()
                 },
+                showsOsmdTargetCameraEffectToggle: true,
                 onRestartFromBeginning: isTutorialSettings ? {
                     controller.handleCloseSettings()
                     controller.startBattle()

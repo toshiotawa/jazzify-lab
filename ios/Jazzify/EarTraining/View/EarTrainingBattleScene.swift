@@ -2457,10 +2457,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             startedAt: now,
             isChainParry: isChainParry
         )
-        cameraShake(
-            amplitude: min(size.width, size.height) * EarTrainingBattleParryConstants.hitCameraShakeIntensity,
-            durationMs: EarTrainingBattleParryConstants.hitCameraShakeMs
-        )
+        playTargetSuccessCameraEffect()
 
         launchReflectedOsmdHammer(
             from: contact,
@@ -3029,6 +3026,17 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     // MARK: - Camera
+
+    /// ターゲット演奏成功時の微カメラズーム（実装はヒットシェイク）。設定で抑制可能。
+    private func playTargetSuccessCameraEffect() {
+        guard EarTrainingOsmdCameraEffectPreferences.loadSuppressTargetSuccessCameraZoom() == false else {
+            return
+        }
+        cameraShake(
+            amplitude: min(size.width, size.height) * EarTrainingBattleParryConstants.hitCameraShakeIntensity,
+            durationMs: EarTrainingBattleParryConstants.hitCameraShakeMs
+        )
+    }
 
     private func cameraShake(amplitude: CGFloat, durationMs: TimeInterval) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
