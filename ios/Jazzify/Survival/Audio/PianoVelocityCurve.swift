@@ -8,6 +8,8 @@ import Foundation
 enum PianoVelocityCurve {
     /// カーブの強さ。1.0 で無変換（実質カーブ無効）。大きいほど弱打側に寄る。
     static let exponent: Double = 1.15
+    /// 画面タップ鍵盤の生ベロシティ。MIDI コントローラー入力とは別に、画面上の鍵盤用に固定する。
+    static let screenTapVelocity: Int = 100
 
     /// 0...127 の写像テーブル。ノート ON ごとに `pow` を評価しないよう初回アクセス時に一度だけ作る。
     private static let table: [UInt8] = (0...127).map { raw in

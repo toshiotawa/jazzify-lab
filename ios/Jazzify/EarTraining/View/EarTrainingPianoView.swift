@@ -101,7 +101,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                         voicingHint: player.voicingHintsByMidi[midi],
                         width: whiteKeyWidth,
                         height: keyboardHeight,
-                        onPress: { player.handleNoteOn(midi: $0, velocity: 100, playAudio: true) },
+                        onPress: { player.handleNoteOn(midi: $0, velocity: PianoVelocityCurve.screenTapVelocity, playAudio: true) },
                         onRelease: { player.handleNoteOff(midi: $0, playAudio: true) }
                     )
                     .id(midi)
@@ -120,7 +120,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                     voicingHint: player.voicingHintsByMidi[midi],
                     width: blackKeyWidth,
                     height: blackKeyHeight,
-                    onPress: { player.handleNoteOn(midi: $0, velocity: 100, playAudio: true) },
+                    onPress: { player.handleNoteOn(midi: $0, velocity: PianoVelocityCurve.screenTapVelocity, playAudio: true) },
                     onRelease: { player.handleNoteOff(midi: $0, playAudio: true) }
                 )
                 .offset(x: x - blackKeyWidth / 2, y: 0)

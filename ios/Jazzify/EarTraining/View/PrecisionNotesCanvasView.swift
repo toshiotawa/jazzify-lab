@@ -723,7 +723,7 @@ final class PrecisionNotesCanvasUIView: UIView {
         guard let point = touches.first?.location(in: self), point.y >= hitLineY else { return }
         guard let midi = findKey(at: point) else { return }
         activeTouchMidi = midi
-        controller?.handleNoteOn(midi: midi, velocity: 100)
+        controller?.handleNoteOn(midi: midi, velocity: PianoVelocityCurve.screenTapVelocity)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
