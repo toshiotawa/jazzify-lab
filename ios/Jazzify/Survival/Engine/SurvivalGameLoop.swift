@@ -655,7 +655,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         }
         if isPhraseMode {
             guard keyboardHintsEnabled() else { return [] }
-            return Set(phraseState.flatMap { SurvivalPhraseEngine.targetMidis(state: $0) })
+            guard let phraseState else { return [] }
+            return Set(SurvivalPhraseEngine.targetMidis(state: phraseState))
         }
         guard let target = currentHintTargetSlot() else { return [] }
         return Set(target.chord.midiNotes)
