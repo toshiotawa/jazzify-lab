@@ -1481,6 +1481,8 @@ final class SupabaseService: Sendable {
         let carryTailLength: Int
         let priority: Int
         let sortOrder: Int
+        let voicing: [String]?
+        let voicingStaves: [Int]?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -1491,6 +1493,8 @@ final class SupabaseService: Sendable {
             case carryTailLength = "carry_tail_length"
             case priority
             case sortOrder = "sort_order"
+            case voicing
+            case voicingStaves = "voicing_staves"
         }
     }
 
@@ -1529,7 +1533,7 @@ final class SupabaseService: Sendable {
         let groupIds = Array(Set(stepRows.map(\.patternGroupId)))
         let patternRows: [EarTrainingAdlibPatternRow] = try await client
             .from("ear_training_adlib_patterns")
-            .select("id,group_id,label,pcs,family_id,carry_tail_length,priority,sort_order")
+            .select("id,group_id,label,pcs,family_id,carry_tail_length,priority,sort_order,voicing,voicing_staves")
             .in("group_id", values: groupIds.map(\.uuidString))
             .order("sort_order")
             .execute()
@@ -1546,7 +1550,9 @@ final class SupabaseService: Sendable {
                 pcs: row.pcs.map { (($0 % 12) + 12) % 12 },
                 familyId: row.familyId,
                 carryTailLength: row.carryTailLength,
-                priority: row.priority
+                priority: row.priority,
+                voicing: row.voicing?.isEmpty == false ? row.voicing : nil,
+                voicingStaves: row.voicingStaves?.isEmpty == false ? row.voicingStaves : nil
             )
             patternsByGroupId[row.groupId, default: []].append(pattern)
         }

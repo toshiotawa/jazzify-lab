@@ -2,7 +2,8 @@ import type { ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoici
 import type { AdlibPattern } from '@/utils/earTrainingPhrasePairEngine';
 
 const EMPTY_CORRECT_GROUP_IDS = new Set<string>();
-const NOTE_NAMES_BY_PITCH_CLASS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+const NOTE_NAMES_SHARP_BY_PITCH_CLASS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+const NOTE_NAMES_FLAT_BY_PITCH_CLASS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
 const phrasePairStaffGroupId = (patternId: string, noteIndex: number): string => (
   `pp-${patternId}-n${noteIndex}`
@@ -25,15 +26,22 @@ const comparePatternsByLengthAndPriority = (a: AdlibPattern, b: AdlibPattern): n
   return (b.priority ?? 0) - (a.priority ?? 0);
 };
 
-const fallbackVoicingForPattern = (pattern: AdlibPattern): readonly string[] => (
-  pattern.pcs.map((pc) => {
+const fallbackVoicingForPattern = (
+  pattern: AdlibPattern,
+  keyFifths = 0,
+): readonly string[] => {
+  const names = keyFifths > 0 ? NOTE_NAMES_SHARP_BY_PITCH_CLASS : NOTE_NAMES_FLAT_BY_PITCH_CLASS;
+  return pattern.pcs.map((pc) => {
     const safePc = ((Math.trunc(pc) % 12) + 12) % 12;
-    return `${NOTE_NAMES_BY_PITCH_CLASS[safePc] ?? 'C'}4`;
-  })
-);
+    return `${names[safePc] ?? 'C'}4`;
+  });
+};
 
-const resolvePatternVoicing = (pattern: AdlibPattern): readonly string[] => (
-  pattern.voicing?.length ? pattern.voicing : fallbackVoicingForPattern(pattern)
+const resolvePatternVoicing = (
+  pattern: AdlibPattern,
+  keyFifths = 0,
+): readonly string[] => (
+  pattern.voicing?.length ? pattern.voicing : fallbackVoicingForPattern(pattern, keyFifths)
 );
 
 /** Active step pattern group: longest pcs sequence; tie-break by priority desc. */
@@ -80,7 +88,7 @@ export const buildPhrasePairStaffVoicingGroups = (
   pattern: AdlibPattern | null,
   chordName: string,
   visibleNoteCount?: number,
-  options?: { readonly isRest?: boolean },
+  options?: { readonly isRest?: boolean; readonly keyFifths?: number },
 ): readonly ChordVoicingStaffGroup[] => {
   if (options?.isRest) {
     return [{
@@ -96,7 +104,8 @@ export const buildPhrasePairStaffVoicingGroups = (
 
   if (!pattern) return [];
 
-  const voicing = resolvePatternVoicing(pattern);
+  const keyFifths = options?.keyFifths ?? 0;
+  const voicing = resolvePatternVoicing(pattern, keyFifths);
   const staves = pattern.voicingStaves ?? [];
   const noteCount = Math.min(
     voicing.length,
@@ -128,6 +137,7 @@ export const buildPhrasePairStaffVoicingGroups = (
 export const computePhrasePairStaffCorrectGroupIds = (
   pattern: AdlibPattern | null,
   buffer: readonly number[],
+  keyFifths = 0,
 ): ReadonlySet<string> => {
   if (!pattern || buffer.length === 0) {
     return EMPTY_CORRECT_GROUP_IDS;
@@ -139,7 +149,7 @@ export const computePhrasePairStaffCorrectGroupIds = (
   }
 
   const correctIds = new Set<string>();
-  const voicing = resolvePatternVoicing(pattern);
+  const voicing = resolvePatternVoicing(pattern, keyFifths);
   for (let i = 0; i < matchedLength; i += 1) {
     const noteName = voicing[i]?.trim();
     if (!noteName) continue;

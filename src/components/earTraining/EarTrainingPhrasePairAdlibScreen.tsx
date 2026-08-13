@@ -927,14 +927,19 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
       displayPattern,
       activeStep.chordName,
       matcherState.buffer.length,
+      { keyFifths: bootstrap?.keyFifths ?? 0 },
     );
-  }, [activeStep, displayPattern, matcherState.buffer.length]);
+  }, [activeStep, bootstrap?.keyFifths, displayPattern, matcherState.buffer.length]);
 
   const showStaff = !!activeStep && !activeStep.inputDisabled;
 
   const staffCorrectGroupIds = useMemo(
-    () => computePhrasePairStaffCorrectGroupIds(displayPattern, matcherState.buffer),
-    [displayPattern, matcherState.buffer],
+    () => computePhrasePairStaffCorrectGroupIds(
+      displayPattern,
+      matcherState.buffer,
+      bootstrap?.keyFifths ?? 0,
+    ),
+    [bootstrap?.keyFifths, displayPattern, matcherState.buffer],
   );
 
   const enemyName = enemy?.name ?? 'Random Rival';

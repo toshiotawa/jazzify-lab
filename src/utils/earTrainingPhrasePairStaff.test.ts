@@ -74,12 +74,12 @@ describe('buildPhrasePairStaffVoicingGroups', () => {
     expect(groups[0]?.voicing).toEqual(['C4']);
   });
 
-  it('falls back to pitch-class note names when voicing is missing', () => {
-    const pattern = makePattern({ id: 'no-voicing', pcs: [0, 2] });
-    const groups = buildPhrasePairStaffVoicingGroups(pattern, 'CM7');
+  it('falls back to flat pitch-class note names when voicing is missing and key is C', () => {
+    const pattern = makePattern({ id: 'no-voicing', pcs: [8, 10] });
+    const groups = buildPhrasePairStaffVoicingGroups(pattern, 'Fm7', undefined, { keyFifths: 0 });
     expect(groups).toHaveLength(2);
-    expect(groups[0]?.voicing).toEqual(['C4']);
-    expect(groups[1]?.voicing).toEqual(['D4']);
+    expect(groups[0]?.voicing).toEqual(['Ab4']);
+    expect(groups[1]?.voicing).toEqual(['Bb4']);
   });
 
   it('builds one group per note with chord name on first slot', () => {

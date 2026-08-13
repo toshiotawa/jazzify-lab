@@ -272,11 +272,13 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                 pattern: displayPattern,
                 chordName: step.chordName,
                 visibleNoteCount: controller.matcherState.buffer.count,
-                isRest: false
+                isRest: false,
+                keyFifths: controller.bootstrap.keyFifths
             )
             let correctMap = EarTrainingPhrasePairStaff.correctPitchClassesByGroup(
                 pattern: displayPattern,
-                buffer: controller.matcherState.buffer
+                buffer: controller.matcherState.buffer,
+                keyFifths: controller.bootstrap.keyFifths
             )
             let showVoicingTargets = controller.gameState == .playingPhrase
                 || (controller.gameState == .countIn && controller.countInEarlyInputActive)

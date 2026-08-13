@@ -204,7 +204,8 @@ enum EarTrainingPhrasePairBattleEngine {
 }
 
 enum EarTrainingPhrasePairStaff {
-    private static let noteNamesByPitchClass = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    private static let noteNamesSharpByPitchClass = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    private static let noteNamesFlatByPitchClass = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
     static func pickLongestPattern(
         _ patterns: [EarTrainingPhrasePairEngine.Pattern]
@@ -248,7 +249,8 @@ enum EarTrainingPhrasePairStaff {
         pattern: EarTrainingPhrasePairEngine.Pattern?,
         chordName: String,
         visibleNoteCount: Int? = nil,
-        isRest: Bool = false
+        isRest: Bool = false,
+        keyFifths: Int = 0
     ) -> [EarTrainingChordVoicingStaffLayout.GroupInput] {
         if isRest {
             return [EarTrainingChordVoicingStaffLayout.GroupInput(
@@ -261,7 +263,7 @@ enum EarTrainingPhrasePairStaff {
             )]
         }
         guard let pattern else { return [] }
-        let voicing = resolvedVoicing(for: pattern)
+        let voicing = resolvedVoicing(for: pattern, keyFifths: keyFifths)
         let staves = pattern.voicingStaves ?? []
         let noteCount = min(voicing.count, visibleNoteCount ?? voicing.count)
         var groups: [EarTrainingChordVoicingStaffLayout.GroupInput] = []
@@ -285,12 +287,13 @@ enum EarTrainingPhrasePairStaff {
 
     static func correctPitchClassesByGroup(
         pattern: EarTrainingPhrasePairEngine.Pattern?,
-        buffer: [Int]
+        buffer: [Int],
+        keyFifths: Int = 0
     ) -> [UUID: Set<Int>] {
         guard let pattern, !buffer.isEmpty else { return [:] }
         let matchedLength = longestCommonPrefixLength(buffer, pattern.pcs)
         guard matchedLength > 0 else { return [:] }
-        let voicing = resolvedVoicing(for: pattern)
+        let voicing = resolvedVoicing(for: pattern, keyFifths: keyFifths)
         var map: [UUID: Set<Int>] = [:]
         let limit = min(matchedLength, voicing.count, pattern.pcs.count)
         guard limit > 0 else { return [:] }
@@ -311,14 +314,18 @@ enum EarTrainingPhrasePairStaff {
         return limit
     }
 
-    private static func resolvedVoicing(for pattern: EarTrainingPhrasePairEngine.Pattern) -> [String] {
+    private static func resolvedVoicing(
+        for pattern: EarTrainingPhrasePairEngine.Pattern,
+        keyFifths: Int = 0
+    ) -> [String] {
         if let voicing = pattern.voicing, !voicing.isEmpty {
             return voicing
         }
+        let names = keyFifths > 0 ? noteNamesSharpByPitchClass : noteNamesFlatByPitchClass
         var fallback: [String] = []
         fallback.reserveCapacity(pattern.pcs.count)
         for pc in pattern.pcs {
-            fallback.append("\(noteNamesByPitchClass[normalizePitchClass(pc)])4")
+            fallback.append("\(names[normalizePitchClass(pc)])4")
         }
         return fallback
     }
