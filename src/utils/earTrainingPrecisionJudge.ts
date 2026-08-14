@@ -178,6 +178,16 @@ export const precisionRankForGoodRate = (goodRate: number): PrecisionLessonRank 
   return 'D';
 };
 
+/** 音源 onEnded 時、フレーズタイムラインが loopEnd に達したときだけ終了する（OSMD と同型）。 */
+export const shouldFinishPrecisionPhraseOnAudioEnded = (
+  phraseTimeSec: number | null,
+  phraseLoopEndSec: number,
+): boolean => (
+  phraseTimeSec !== null
+  && Number.isFinite(phraseTimeSec)
+  && phraseTimeSec + 1e-9 >= phraseLoopEndSec
+);
+
 export const isPrecisionClearRank = (rank: PrecisionLessonRank): boolean => rank !== 'D';
 
 export const mapPrecisionRankToLessonRank = (

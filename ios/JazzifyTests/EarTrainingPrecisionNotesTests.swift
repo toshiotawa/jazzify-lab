@@ -260,6 +260,91 @@ final class EarTrainingPrecisionJudgeTests: XCTestCase {
         XCTAssertFalse(EarTrainingPrecisionJudge.isClearRank(.d))
     }
 
+    func testRankForGoodRateExactThresholds() {
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.95), .s)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.949999), .a)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.9), .a)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.899999), .b)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.8), .b)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.799999), .c)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.7), .c)
+        XCTAssertEqual(EarTrainingPrecisionJudge.rankForGoodRate(0.699999), .d)
+    }
+
+    func testFindNoteForInputIgnoresWrongMidi() {
+        let notes = [sampleNote(id: "a", midi: 60, startSec: 1)]
+        let states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        let matched = EarTrainingPrecisionJudge.findNoteForInput(
+            notes: notes,
+            states: states,
+            midi: 61,
+            phraseTimeSec: 1,
+            windowSec: 0.25
+        )
+        XCTAssertNil(matched)
+        let counts = EarTrainingPrecisionJudge.countJudgments(notes: notes, states: states)
+        XCTAssertEqual(counts.pending, 1)
+        XCTAssertEqual(counts.good, 0)
+        XCTAssertEqual(counts.miss, 0)
+    }
+
+    func testFindNoteForInputNearestNeighborStealsLaterNote() {
+        let notes = [
+            sampleNote(id: "a", midi: 60, startSec: 1),
+            sampleNote(id: "b", midi: 60, startSec: 1.25),
+        ]
+        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        let matched = EarTrainingPrecisionJudge.findNoteForInput(
+            notes: notes,
+            states: states,
+            midi: 60,
+            phraseTimeSec: 1.15,
+            windowSec: 0.25
+        )
+        XCTAssertEqual(matched?.id, "b")
+        states["b"]?.judgment = .good
+        _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
+            notes: notes,
+            states: &states,
+            phraseTimeSec: 1.3,
+            windowSec: 0.25
+        )
+        XCTAssertEqual(states["a"]?.judgment, .miss)
+        XCTAssertEqual(states["b"]?.judgment, .good)
+    }
+
+    func testShouldFinishPhraseOnAudioEnded() {
+        XCTAssertFalse(EarTrainingPrecisionJudge.shouldFinishPhraseOnAudioEnded(
+            phraseTimeSec: 57.6,
+            phraseLoopEndSec: 60.08
+        ))
+        XCTAssertFalse(EarTrainingPrecisionJudge.shouldFinishPhraseOnAudioEnded(
+            phraseTimeSec: nil,
+            phraseLoopEndSec: 60.08
+        ))
+        XCTAssertTrue(EarTrainingPrecisionJudge.shouldFinishPhraseOnAudioEnded(
+            phraseTimeSec: 60.08,
+            phraseLoopEndSec: 60.08
+        ))
+        XCTAssertTrue(EarTrainingPrecisionJudge.shouldFinishPhraseOnAudioEnded(
+            phraseTimeSec: 61,
+            phraseLoopEndSec: 60.08
+        ))
+    }
+
+    func testMarkExpiredAtPhraseLoopEndBeforeScoring() {
+        let notes = [sampleNote(id: "a", midi: 60, startSec: 10)]
+        var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)
+        _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
+            notes: notes,
+            states: &states,
+            phraseTimeSec: 10.5,
+            windowSec: 0.25
+        )
+        XCTAssertEqual(states["a"]?.judgment, .miss)
+        XCTAssertEqual(EarTrainingPrecisionJudge.goodRate(notes: notes, states: states), 0)
+    }
+
     func testResetRuntimeStatesFromTime() {
         let notes = [sampleNote(id: "a", midi: 60, startSec: 2)]
         var states = EarTrainingPrecisionJudge.createRuntimeStates(notes: notes)

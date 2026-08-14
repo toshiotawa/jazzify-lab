@@ -17,6 +17,9 @@ import {
   isPrecisionClearRank,
   PRECISION_JUDGMENT_WINDOW_SEC,
   shouldCullPrecisionNoteFromLane,
+  shouldFinishPrecisionPhraseOnAudioEnded,
+  countPrecisionJudgments,
+  precisionGoodRate,
 } from '@/utils/earTrainingPrecisionJudge';
 import { applyPracticeTransposeToMusicXml } from '@/utils/earTrainingPracticeTranspose';
 
@@ -230,6 +233,69 @@ describe('earTrainingPrecisionJudge', () => {
     expect(precisionRankForGoodRate(0.69)).toBe('D');
     expect(isPrecisionClearRank('C')).toBe(true);
     expect(isPrecisionClearRank('D')).toBe(false);
+  });
+
+  it('good率ランク境界値 S/A/B/C/D を正確に判定する', () => {
+    expect(precisionRankForGoodRate(0.95)).toBe('S');
+    expect(precisionRankForGoodRate(0.949999)).toBe('A');
+    expect(precisionRankForGoodRate(0.9)).toBe('A');
+    expect(precisionRankForGoodRate(0.899999)).toBe('B');
+    expect(precisionRankForGoodRate(0.8)).toBe('B');
+    expect(precisionRankForGoodRate(0.799999)).toBe('C');
+    expect(precisionRankForGoodRate(0.7)).toBe('C');
+    expect(precisionRankForGoodRate(0.699999)).toBe('D');
+  });
+
+  it('誤鍵入力はマッチせず既存判定を変えない', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const matched = findPrecisionNoteForInput(notes, states, 61, 1, 0.25);
+    expect(matched).toBeNull();
+    expect(countPrecisionJudgments(notes, states)).toEqual({
+      good: 0,
+      miss: 0,
+      pending: 1,
+      total: 1,
+    });
+  });
+
+  it('同音連打では最近傍マッチが次ノーツに吸われる（現仕様）', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.25, isBlackKey: false, measureNumber: 1, isShortNote: true },
+      { id: 'b', midi: 60, startSec: 1.25, durationSec: 0.25, isBlackKey: false, measureNumber: 1, isShortNote: true },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const matched = findPrecisionNoteForInput(notes, states, 60, 1.15, 0.25);
+    expect(matched?.id).toBe('b');
+    const stateB = states.get('b');
+    if (!stateB) {
+      throw new Error('missing state b');
+    }
+    stateB.judgment = 'good';
+    expect(states.get('a')?.judgment).toBe('pending');
+    markExpiredPrecisionNotesAsMiss(notes, states, 1.3, 0.25);
+    expect(states.get('a')?.judgment).toBe('miss');
+    expect(states.get('b')?.judgment).toBe('good');
+  });
+
+  it('phraseLoopEnd 到達前の onEnded では終了しない', () => {
+    expect(shouldFinishPrecisionPhraseOnAudioEnded(57.6, 60.08)).toBe(false);
+    expect(shouldFinishPrecisionPhraseOnAudioEnded(null, 60.08)).toBe(false);
+    expect(shouldFinishPrecisionPhraseOnAudioEnded(60.08, 60.08)).toBe(true);
+    expect(shouldFinishPrecisionPhraseOnAudioEnded(61, 60.08)).toBe(true);
+  });
+
+  it('finish 直前の markExpired で pending を miss にする', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 10, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    const phraseLoopEndSec = 10.5;
+    markExpiredPrecisionNotesAsMiss(notes, states, phraseLoopEndSec, 0.25);
+    expect(states.get('a')?.judgment).toBe('miss');
+    expect(precisionGoodRate(notes, states)).toBe(0);
   });
 
   it('シークでシーク位置以降の good ノーツを pending に戻す', () => {

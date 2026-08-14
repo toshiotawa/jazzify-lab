@@ -183,6 +183,15 @@ enum EarTrainingPrecisionJudge {
         rank != .d
     }
 
+    /// 音源 onEnded 時、フレーズタイムラインが loopEnd に達したときだけ終了する（Web `shouldFinishPrecisionPhraseOnAudioEnded` 相当）。
+    static func shouldFinishPhraseOnAudioEnded(
+        phraseTimeSec: Double?,
+        phraseLoopEndSec: Double
+    ) -> Bool {
+        guard let phraseTimeSec, phraseTimeSec.isFinite else { return false }
+        return phraseTimeSec + 1e-9 >= phraseLoopEndSec
+    }
+
     static func mapRankToLessonRank(_ rank: LessonRank) -> String {
         switch rank {
         case .s: return "S"

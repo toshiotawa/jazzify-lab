@@ -166,7 +166,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
         audio.onEnded = { [weak self] in
             Task { @MainActor in
-                self?.finishPhraseIfNeeded()
+                guard let self else { return }
+                let phraseTime = self.audio.phraseWallClockTimelineSecNowOrNil()
+                if EarTrainingPrecisionJudge.shouldFinishPhraseOnAudioEnded(
+                    phraseTimeSec: phraseTime,
+                    phraseLoopEndSec: self.phraseLoopEndSec
+                ) {
+                    self.finishPhraseIfNeeded()
+                }
             }
         }
         scheduleLobbyAssetPreload()
@@ -637,7 +644,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
 
         updateSeekSliderUi(phraseTimeSec: max(0, phraseTime))
 
-        if phraseTime >= phraseLoopEndSec - 0.05 {
+        if phraseTime + 1e-9 >= phraseLoopEndSec {
             finishPhraseIfNeeded()
         }
     }
@@ -874,6 +881,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             releaseAllAutoPlayHeldNotes()
             autoPlayScheduler.reset()
         }
+        let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
+        _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
+            notes: precisionNotes,
+            states: &runtimeStates,
+            phraseTimeSec: phraseLoopEndSec,
+            windowSec: windowSec
+        )
         audio.stopPhrase()
         let rate = EarTrainingPrecisionJudge.goodRate(notes: precisionNotes, states: runtimeStates)
         let rank = EarTrainingPrecisionJudge.rankForGoodRate(rate)

@@ -121,6 +121,7 @@ import {
   precisionGoodRate,
   precisionRankForGoodRate,
   resetPrecisionRuntimeStatesFromTime,
+  shouldFinishPrecisionPhraseOnAudioEnded,
   type PrecisionNoteRuntimeState,
 } from '@/utils/earTrainingPrecisionJudge';
 import {
@@ -811,6 +812,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     setProgressSaved(true);
   }, [lessonContext, onLessonStageClear, practiceMode]);
 
+  const tryFinishPhraseOnAudioEnded = useCallback((): void => {
+    const phraseTimeSec = phrasePlayerRef.current?.getPhraseTimelineSec() ?? null;
+    if (shouldFinishPrecisionPhraseOnAudioEnded(phraseTimeSec, phraseLoopEndSecRef.current)) {
+      finishPhraseRef.current();
+    }
+  }, []);
+
   const finishPhrase = useCallback(() => {
     if (phraseEndingRef.current) {
       return;
@@ -825,6 +833,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       }
       autoPlayHoldCountRef.current.clear();
     }
+    markExpiredPrecisionNotesAsMiss(
+      notesRef.current,
+      runtimeStatesRef.current,
+      phraseLoopEndSecRef.current,
+      resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC),
+    );
     stopPhraseAudio();
     const rate = precisionGoodRate(notesRef.current, runtimeStatesRef.current);
     const rank = precisionRankForGoodRate(rate);
@@ -839,7 +853,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     void finishStageClear(rank, rate);
-  }, [finishStageClear, stopPhraseAudio, syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
+  }, [
+    finishStageClear,
+    resolveEffectiveTimingWindowSec,
+    stopPhraseAudio,
+    syncPlayheadForTimeline,
+    syncRenderer,
+    updateSeekSliderUi,
+  ]);
 
   useEffect(() => {
     finishPhraseRef.current = finishPhrase;
@@ -952,7 +973,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           gameStateRef.current = 'playingPhrase';
           setGameState('playingPhrase');
         },
-        onEnded: () => finishPhraseRef.current(),
+        onEnded: () => tryFinishPhraseOnAudioEnded(),
       });
     } else {
       gameStateRef.current = 'paused';
@@ -961,6 +982,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   }, [
     loopCycleBaseSec,
     resetRuntimeStatesForSeekTime,
+    tryFinishPhraseOnAudioEnded,
     settings.masterVolume,
     settings.musicVolume,
     syncPlayheadForTimeline,
@@ -1280,11 +1302,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           gameStateRef.current = 'playingPhrase';
           setGameState('playingPhrase');
         },
-        onEnded: () => finishPhraseRef.current(),
+        onEnded: () => tryFinishPhraseOnAudioEnded(),
       });
     })();
   }, [
     beginLoopSessionFromPreloadedBuffers,
+    tryFinishPhraseOnAudioEnded,
     ensurePhrasePlayer,
     isEnglishCopy,
     loadMusicXml,
@@ -1635,10 +1658,17 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           gameStateRef.current = 'playingPhrase';
           setGameState('playingPhrase');
         },
-        onEnded: () => finishPhraseRef.current(),
+        onEnded: () => tryFinishPhraseOnAudioEnded(),
       });
     }
-  }, [settings.masterVolume, settings.musicVolume, syncPlayheadForTimeline, syncRenderer, updateSeekSliderUi]);
+  }, [
+    settings.masterVolume,
+    settings.musicVolume,
+    syncPlayheadForTimeline,
+    syncRenderer,
+    tryFinishPhraseOnAudioEnded,
+    updateSeekSliderUi,
+  ]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
