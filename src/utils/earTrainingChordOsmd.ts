@@ -83,10 +83,10 @@ export const isPhraseTimeInChordOsmdJudgmentWindow = (
 };
 
 /**
- * 鍵盤ヒントをジャスト到達から光らせておく長さ（30ms）。
+ * 鍵盤ヒントをジャスト到達から光らせておく長さ（100ms）。
  * 判定窓とは独立で、手前では光らせない。
  */
-export const CHORD_OSMD_VOICING_HINT_DURATION_SEC = 0.03;
+export const CHORD_OSMD_VOICING_HINT_DURATION_SEC = 0.1;
 
 /** 鍵盤ヒント点灯範囲：ジャスト（delta 0）から {@link CHORD_OSMD_VOICING_HINT_DURATION_SEC} 後まで。 */
 export const isPhraseTimeInChordOsmdVoicingHintWindow = (

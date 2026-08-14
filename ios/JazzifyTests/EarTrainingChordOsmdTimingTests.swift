@@ -11,10 +11,10 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         )
     }
 
-    func testHintLightsForThirtyMsFromJust() {
+    func testHintLightsForOneHundredMsFromJust() {
         XCTAssertTrue(isHintOn(0))
-        XCTAssertTrue(isHintOn(0.03))
-        XCTAssertFalse(isHintOn(0.031))
+        XCTAssertTrue(isHintOn(0.1))
+        XCTAssertFalse(isHintOn(0.101))
     }
 
     func testHintStaysOffBeforeJust() {
@@ -23,7 +23,7 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
     }
 
     func testHintDoesNotFollowJudgmentWindow() {
-        for phraseTime in [-0.1, 0.1] {
+        for phraseTime in [-0.1, 0.15] {
             XCTAssertTrue(EarTrainingChordOsmdTiming.isWithinJudgmentWindow(
                 phraseTimeSec: phraseTime,
                 judgedTargetTimeSec: 0

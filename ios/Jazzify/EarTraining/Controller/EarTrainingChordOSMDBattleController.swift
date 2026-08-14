@@ -13,7 +13,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private static let judgmentWindowLateSec: Double = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
-    /// 鍵盤ヒントをジャスト到達から光らせておく長さ（30ms）。
+    /// 鍵盤ヒントをジャスト到達から光らせておく長さ（100ms）。
     private static let voicingHintDurationSec: Double = EarTrainingChordOsmdTiming.voicingHintDurationSec
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
     private static let hammerImpactOffsetSec: Double = 0.3

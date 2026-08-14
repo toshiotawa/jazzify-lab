@@ -1213,10 +1213,10 @@ describe('chord osmd asymmetric judgment window', () => {
 });
 
 describe('isPhraseTimeInChordOsmdVoicingHintWindow', () => {
-  it('ジャストから30msの間だけ点灯する', () => {
+  it('ジャストから100msの間だけ点灯する', () => {
     expect(isPhraseTimeInChordOsmdVoicingHintWindow(0, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.03, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.031, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.1, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.101, 0)).toBe(false);
   });
 
   it('ジャストより手前では点灯しない', () => {
@@ -1227,8 +1227,8 @@ describe('isPhraseTimeInChordOsmdVoicingHintWindow', () => {
   it('判定窓には干渉しない（窓内でもヒントは消えている）', () => {
     expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.1, 0)).toBe(true);
     expect(isPhraseTimeInChordOsmdVoicingHintWindow(-0.1, 0)).toBe(false);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.1, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.1, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.15, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.15, 0)).toBe(false);
   });
 
   it('練習速度で伸ばした長さを受け取れる', () => {
