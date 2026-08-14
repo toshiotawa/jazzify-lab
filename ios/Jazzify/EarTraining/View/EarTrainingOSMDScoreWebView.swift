@@ -979,6 +979,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
+          // 1 小節フィット倍率は最大幅の小節から決めるため、全小節走査の結果を持ち回る。
+          const fitScaleCache = { bounds: null, cssScale: 0, viewportWidth: 0, scale: 1 };
           let scoreWidth = 0;
           let cssScale = 1;
           let effectiveScale = 1;
@@ -1552,33 +1554,54 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return cssScale * multiplier;
           }
 
-          function computeEffectiveScale(measureNumber) {
+          function widestMeasureWidth() {
+            let widest = 0;
+            for (const key in measureBoundsByNumber) {
+              const bounds = measureBoundsByNumber[key];
+              if (!bounds) continue;
+              const width = bounds.right - bounds.left;
+              if (Number.isFinite(width) && width > widest) {
+                widest = width;
+              }
+            }
+            return widest;
+          }
+
+          function computeFitActiveMeasureScale() {
+            const viewportWidth = viewport.clientWidth || 0;
+            if (cssScale <= 0 || viewportWidth <= 0) {
+              return cssScale;
+            }
+            if (
+              fitScaleCache.bounds === measureBoundsByNumber &&
+              fitScaleCache.cssScale === cssScale &&
+              fitScaleCache.viewportWidth === viewportWidth
+            ) {
+              return fitScaleCache.scale;
+            }
+            const measureWidth = widestMeasureWidth();
+            const scale = measureWidth > 0
+              ? cssScale * Math.min(1, Math.max(MIN_FIT_SCALE, viewportWidth / (measureWidth * cssScale)))
+              : cssScale;
+            fitScaleCache.bounds = measureBoundsByNumber;
+            fitScaleCache.cssScale = cssScale;
+            fitScaleCache.viewportWidth = viewportWidth;
+            fitScaleCache.scale = scale;
+            return scale;
+          }
+
+          function computeEffectiveScale() {
             if (FIT_WINDOW_ENABLED) {
               return computeWindowFitScale();
             }
             if (!FIT_ACTIVE_MEASURE_WIDTH) {
               return cssScale;
             }
-            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
-            const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
-            if (!bounds) {
-              return cssScale;
-            }
-            const measureWidth = bounds.right - bounds.left;
-            if (!Number.isFinite(measureWidth) || measureWidth <= 0 || cssScale <= 0) {
-              return cssScale;
-            }
-            const viewportWidth = viewport.clientWidth || 0;
-            if (viewportWidth <= 0) {
-              return cssScale;
-            }
-            const fitScale = viewportWidth / (measureWidth * cssScale);
-            const clampedFit = Math.min(1, Math.max(MIN_FIT_SCALE, fitScale));
-            return cssScale * clampedFit;
+            return computeFitActiveMeasureScale();
           }
 
-          function refreshEffectiveScale(measureNumber) {
-            effectiveScale = computeEffectiveScale(measureNumber);
+          function refreshEffectiveScale() {
+            effectiveScale = computeEffectiveScale();
           }
 
           function snapLayoutPx(value) {
@@ -1624,7 +1647,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function computeReachEndScrollOffset(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
-            refreshEffectiveScale(mn);
+            refreshEffectiveScale();
             const viewportWidth = viewport.clientWidth || 0;
             const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
             let windowStart = Math.max(1, Math.floor(precisionWindowStart));
@@ -1651,7 +1674,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
           function computeScrollOffset(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
-            refreshEffectiveScale(mn);
+            refreshEffectiveScale();
             const viewportWidth = viewport.clientWidth || 0;
             const maxOffset = Math.max(0, scoreWidth * effectiveScale - viewportWidth);
             if (FIT_WINDOW_ENABLED) {
@@ -2077,6 +2100,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.max(0, Math.min(1, (timelineSec + countInDurationSec) / countInDurationSec));
           }
 
+          function measureAnchorX(bounds) {
+            if (Number.isFinite(bounds.noteLeft) && bounds.noteLeft > bounds.left) {
+              return bounds.noteLeft;
+            }
+            return bounds.left;
+          }
+
           function measureHighlightGeometry(measureNumber) {
             const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
             const bounds = measureBoundsByNumber[mn] || measureBoundsByNumber[1];
@@ -2089,9 +2119,26 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
             const highlightWidthPx = measureWidth * effectiveScale;
             const highlightLeftPx = bounds.left * effectiveScale - currentScrollOffset - manualScrollOffsetPx;
+            const noteOffsetPx = Math.max(
+              0,
+              Math.min(highlightWidthPx, (measureAnchorX(bounds) - bounds.left) * effectiveScale)
+            );
+            const nextBounds = measureBoundsByNumber[mn + 1];
+            const rawNextOffsetPx = nextBounds
+              ? (measureAnchorX(nextBounds) - bounds.left) * effectiveScale
+              : highlightWidthPx;
+            // 改行で次小節が左へ戻る譜面では小節右端を終点にする。
+            const nextNoteOffsetPx = Math.max(
+              noteOffsetPx,
+              Number.isFinite(rawNextOffsetPx) && rawNextOffsetPx > highlightWidthPx
+                ? rawNextOffsetPx
+                : highlightWidthPx
+            );
             return {
               leftPx: highlightLeftPx,
-              widthPx: highlightWidthPx
+              widthPx: highlightWidthPx,
+              noteOffsetPx: noteOffsetPx,
+              nextNoteOffsetPx: nextNoteOffsetPx
             };
           }
 
@@ -2112,7 +2159,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             highlight.style.left = geometry.leftPx + 'px';
             highlight.style.width = geometry.widthPx + 'px';
             highlight.style.display = 'block';
-            updatePlayheadPosition(geometry.leftPx, geometry.widthPx);
+            updatePlayheadPosition(geometry);
           }
 
           let phraseTimelineSec = 0;
@@ -2129,20 +2176,23 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.max(0, Math.min(1, timeInMeasure / safeDur));
           }
 
-          function updatePlayheadPosition(highlightLeftPx, highlightWidthPx) {
+          function updatePlayheadPosition(geometry) {
             const playhead = document.getElementById('measure-playhead');
             if (!playhead || !overlayVisible) {
               return;
             }
-            const widthPx = Number.isFinite(highlightWidthPx) ? highlightWidthPx : 0;
-            const baseLeftPx = Number.isFinite(highlightLeftPx) ? highlightLeftPx : 0;
+            const widthPx = Number.isFinite(geometry.widthPx) ? geometry.widthPx : 0;
+            const baseLeftPx = Number.isFinite(geometry.leftPx) ? geometry.leftPx : 0;
             if (!playheadTimelineConfigured) {
               restartPlayheadAnimationLegacy(baseLeftPx, widthPx);
               return;
             }
             const progress = computeProgressInMeasure();
-            const innerLeftPx = progress * widthPx;
             const inCountInPhase = phraseTimelineSec < 0;
+            // 演奏中は最初の音符 →次小節の最初の音符、カウントイン中は小節線 →最初の音符。
+            const startPx = inCountInPhase ? 0 : geometry.noteOffsetPx;
+            const endPx = inCountInPhase ? geometry.noteOffsetPx : geometry.nextNoteOffsetPx;
+            const innerLeftPx = startPx + progress * (endPx - startPx);
             const animating = playheadAnimating && overlayVisible && !inCountInPhase;
             if (!animating) {
               playhead.style.transition = 'none';
@@ -2150,13 +2200,14 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               return;
             }
             const safeDur = Math.max(1e-6, measureDurationSec);
-            const remainingMs = Math.max(100, (1 - progress) * safeDur * 1000);
+            // 下限を 1 フレーム相当にする。100ms だと小節末で減速して見え、小節切替で飛ぶ。
+            const remainingMs = Math.max(16, (1 - progress) * safeDur * 1000);
             playhead.style.transition = 'none';
             playhead.style.left = (baseLeftPx + innerLeftPx) + 'px';
             void playhead.offsetWidth;
             requestAnimationFrame(function () {
               playhead.style.transition = 'left ' + remainingMs + 'ms linear';
-              playhead.style.left = (baseLeftPx + widthPx) + 'px';
+              playhead.style.left = (baseLeftPx + endPx) + 'px';
             });
           }
 
@@ -2235,7 +2286,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             activeMeasureNumber = Math.max(1, Math.floor(Number(measureNumber || 1)));
             if (!overlayVisible) {
               currentScrollOffset = 0;
-              refreshEffectiveScale(activeMeasureNumber);
+              refreshEffectiveScale();
               applyScoreTransform(0);
               updateMeasureHighlight();
               return;

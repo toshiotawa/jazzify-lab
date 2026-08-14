@@ -8,10 +8,13 @@ import {
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
+  computeOsmdPlayheadAnchorOffsetsPx,
+  computeOsmdPlayheadOffsetPx,
   computeOsmdReachEndJumpScrollOffset,
   computeOsmdWindowFitScale,
   computeOsmdWindowJumpScrollOffset,
   computeOsmdWindowStartMeasureNumber,
+  resolveOsmdWidestMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 
 const bounds = {
@@ -513,6 +516,131 @@ describe('computeOsmdReachEndJumpScrollOffset', () => {
     });
     expect(m4.windowStartMeasure).toBe(4);
     expect(m4.offsetPx).toBe(300);
+  });
+
+  it('倍率は現在小節ではなく最大幅の小節で決まる', () => {
+    // 小節 1 だけが広い譜面。小節 4 表示中でも小節 1 に合わせた 0.5 倍が使われる。
+    const wideFirstMeasure = {
+      1: { left: 0, right: 400 },
+      2: { left: 400, right: 500 },
+      3: { left: 500, right: 600 },
+      4: { left: 600, right: 700 },
+    };
+    const result = computeOsmdReachEndJumpScrollOffset({
+      activeMeasureNumber: 4,
+      previousWindowStart: 4,
+      measureBoundsByNumber: wideFirstMeasure,
+      measureCentersByNumber: { 1: 200, 2: 450, 3: 550, 4: 650 },
+      cssScale: 1,
+      playheadPx: 0,
+      scoreWidth: 1000,
+      viewportWidth: 200,
+      maxMeasureNumber: 4,
+    });
+    expect(result.windowStartMeasure).toBe(4);
+    expect(result.offsetPx).toBe(300);
+  });
+});
+
+describe('resolveOsmdWidestMeasureBounds', () => {
+  it('最大幅の小節を返す', () => {
+    expect(resolveOsmdWidestMeasureBounds({
+      1: { left: 0, right: 200 },
+      2: { left: 200, right: 300 },
+      3: { left: 300, right: 460 },
+    })).toEqual({ left: 0, right: 200 });
+  });
+
+  it('小節が無ければ undefined', () => {
+    expect(resolveOsmdWidestMeasureBounds({})).toBeUndefined();
+  });
+});
+
+describe('computeOsmdPlayheadAnchorOffsetsPx', () => {
+  // 1 小節目は音部記号・調号を含むため noteLeft が右に寄る。カウントイン小節（全休符）は noteLeft を持たない。
+  const anchorBounds = {
+    1: { left: 0, right: 200 },
+    2: { left: 200, right: 300, noteLeft: 215 },
+    3: { left: 300, right: 400, noteLeft: 312 },
+  };
+
+  it('音符を持たない小節は 0 起点・次小節の音符を終点にする', () => {
+    expect(computeOsmdPlayheadAnchorOffsetsPx({
+      activeMeasureNumber: 1,
+      measureBoundsByNumber: anchorBounds,
+      effectiveScale: 1,
+    })).toEqual({ noteOffsetPx: 0, nextNoteOffsetPx: 215 });
+  });
+
+  it('effectiveScale を反映し、次小節の音符までを終点にする', () => {
+    expect(computeOsmdPlayheadAnchorOffsetsPx({
+      activeMeasureNumber: 2,
+      measureBoundsByNumber: anchorBounds,
+      effectiveScale: 0.5,
+    })).toEqual({ noteOffsetPx: 7.5, nextNoteOffsetPx: 56 });
+  });
+
+  it('最終小節は小節右端を終点にする', () => {
+    expect(computeOsmdPlayheadAnchorOffsetsPx({
+      activeMeasureNumber: 3,
+      measureBoundsByNumber: anchorBounds,
+      effectiveScale: 1,
+    })).toEqual({ noteOffsetPx: 12, nextNoteOffsetPx: 100 });
+  });
+
+  it('小節境界が無い場合は 0', () => {
+    expect(computeOsmdPlayheadAnchorOffsetsPx({
+      activeMeasureNumber: 1,
+      measureBoundsByNumber: {},
+      effectiveScale: 1,
+    })).toEqual({ noteOffsetPx: 0, nextNoteOffsetPx: 0 });
+  });
+});
+
+describe('computeOsmdPlayheadOffsetPx', () => {
+  const offsets = { noteOffsetPx: 15, nextNoteOffsetPx: 115 };
+
+  it('小節頭では最初の音符に乗る', () => {
+    expect(computeOsmdPlayheadOffsetPx({
+      progress: 0,
+      ...offsets,
+      inCountIn: false,
+    })).toEqual({ offsetPx: 15, endOffsetPx: 115 });
+  });
+
+  it('小節末は次小節の音符位置に到達する', () => {
+    expect(computeOsmdPlayheadOffsetPx({
+      progress: 1,
+      ...offsets,
+      inCountIn: false,
+    })).toEqual({ offsetPx: 115, endOffsetPx: 115 });
+  });
+
+  it('カウントイン終端と演奏開始位置が一致する', () => {
+    const countInEnd = computeOsmdPlayheadOffsetPx({
+      progress: 1,
+      ...offsets,
+      inCountIn: true,
+    });
+    const playStart = computeOsmdPlayheadOffsetPx({
+      progress: 0,
+      ...offsets,
+      inCountIn: false,
+    });
+    expect(countInEnd.offsetPx).toBe(playStart.offsetPx);
+  });
+
+  it('進捗は 0..1 にクランプされる', () => {
+    expect(computeOsmdPlayheadOffsetPx({
+      progress: 1.4,
+      ...offsets,
+      inCountIn: false,
+    }).offsetPx).toBe(115);
+    expect(computeOsmdPlayheadOffsetPx({
+      progress: -0.2,
+      ...offsets,
+      inCountIn: false,
+    }).offsetPx).toBe(15);
   });
 });
 

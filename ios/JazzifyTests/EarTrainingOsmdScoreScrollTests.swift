@@ -280,6 +280,83 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         )
     }
 
+    /// 1 小節目だけが広い譜面でも、倍率は最大幅の小節で決まり小節をまたいでも変わらない。
+    func testWidestMeasureBounds_drivesFitScale() {
+        let wideFirstMeasure: [Int: EarTrainingOsmdScoreScroll.MeasureBounds] = [
+            1: .init(left: 0, right: 400),
+            2: .init(left: 400, right: 500),
+        ]
+        let widest = EarTrainingOsmdScoreScroll.widestMeasureBounds(wideFirstMeasure)
+        XCTAssertEqual(widest, EarTrainingOsmdScoreScroll.MeasureBounds(left: 0, right: 400))
+        let scale = EarTrainingOsmdScoreScroll.effectiveScaleForMeasure(
+            cssScale: 1,
+            bounds: widest,
+            viewportWidth: 200,
+            fitActiveMeasureWidth: true
+        )
+        XCTAssertEqual(scale, 0.5, accuracy: 0.0001)
+    }
+
+    /// カウントイン小節（音符なし）は小節線起点、次小節の最初の音符が終点になる。
+    func testPlayheadAnchorOffsets_usesNextMeasureNoteAsEnd() {
+        let anchorBounds: [Int: EarTrainingOsmdScoreScroll.MeasureBounds] = [
+            1: .init(left: 0, right: 200),
+            2: .init(left: 200, right: 300, noteLeft: 215),
+            3: .init(left: 300, right: 400, noteLeft: 312),
+        ]
+        let first = EarTrainingOsmdScoreScroll.playheadAnchorOffsetsPx(
+            activeMeasureNumber: 1,
+            measureBoundsByNumber: anchorBounds,
+            effectiveScale: 1
+        )
+        XCTAssertEqual(first.noteOffsetPx, 0)
+        XCTAssertEqual(first.nextNoteOffsetPx, 215)
+
+        let second = EarTrainingOsmdScoreScroll.playheadAnchorOffsetsPx(
+            activeMeasureNumber: 2,
+            measureBoundsByNumber: anchorBounds,
+            effectiveScale: 0.5
+        )
+        XCTAssertEqual(second.noteOffsetPx, 7.5, accuracy: 0.0001)
+        XCTAssertEqual(second.nextNoteOffsetPx, 56, accuracy: 0.0001)
+
+        let last = EarTrainingOsmdScoreScroll.playheadAnchorOffsetsPx(
+            activeMeasureNumber: 3,
+            measureBoundsByNumber: anchorBounds,
+            effectiveScale: 1
+        )
+        XCTAssertEqual(last.noteOffsetPx, 12)
+        XCTAssertEqual(last.nextNoteOffsetPx, 100)
+    }
+
+    /// カウントイン終端と演奏開始が同じ位置になり、曲頭でプレイヘッドが飛ばない。
+    func testPlayheadOffset_countInEndMatchesPlaybackStart() {
+        let offsets = EarTrainingOsmdScoreScroll.PlayheadAnchorOffsets(
+            noteOffsetPx: 15,
+            nextNoteOffsetPx: 115
+        )
+        let countInEnd = EarTrainingOsmdScoreScroll.playheadOffsetPx(
+            progress: 1,
+            anchorOffsets: offsets,
+            inCountIn: true
+        )
+        let playStart = EarTrainingOsmdScoreScroll.playheadOffsetPx(
+            progress: 0,
+            anchorOffsets: offsets,
+            inCountIn: false
+        )
+        XCTAssertEqual(countInEnd.offsetPx, playStart.offsetPx)
+        XCTAssertEqual(playStart.offsetPx, 15)
+
+        let measureEnd = EarTrainingOsmdScoreScroll.playheadOffsetPx(
+            progress: 1,
+            anchorOffsets: offsets,
+            inCountIn: false
+        )
+        XCTAssertEqual(measureEnd.offsetPx, 115)
+        XCTAssertEqual(measureEnd.endOffsetPx, 115)
+    }
+
     func testPrecisionLayout_fitsActiveMeasureWidth() {
         XCTAssertTrue(EarTrainingOsmdScrollLayout.precision.fitActiveMeasureWidth)
         XCTAssertTrue(EarTrainingOsmdScrollLayout.precision.anchorToMeasureLeft)

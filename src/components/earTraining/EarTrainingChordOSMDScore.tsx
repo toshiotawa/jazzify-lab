@@ -17,10 +17,14 @@ import {
   computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
+  computeOsmdPlayheadAnchorOffsetsPx,
+  computeOsmdPlayheadOffsetPx,
   computeOsmdReachEndJumpScrollOffset,
   computeOsmdWindowFitScale,
   computeOsmdWindowJumpScrollOffset,
+  resolveOsmdWidestMeasureBounds,
   type OsmdMeasureBounds,
+  type OsmdPlayheadAnchorOffsetsPx,
   type OsmdScrollLayout,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 import { measureLayoutFromOsmd } from '@/utils/earTrainingOsmdMeasureLayout';
@@ -90,7 +94,7 @@ export interface EarTrainingChordOSMDScoreHandle {
 
 interface ApplyPlayheadDomParams {
   playhead: HTMLDivElement;
-  highlightWidthPx: number;
+  anchorOffsets: OsmdPlayheadAnchorOffsetsPx;
   measureDurationSec: number;
   countInDurationSec: number;
   phraseTimelineSec: number;
@@ -102,7 +106,7 @@ interface ApplyPlayheadDomParams {
 
 const applyPlayheadDom = ({
   playhead,
-  highlightWidthPx,
+  anchorOffsets,
   measureDurationSec,
   countInDurationSec,
   phraseTimelineSec,
@@ -116,8 +120,13 @@ const applyPlayheadDom = ({
     measureDurationSec,
     countInDurationSec,
   });
-  const leftPx = progress * highlightWidthPx;
   const inCountInPhase = phraseTimelineSec < 0;
+  const { offsetPx, endOffsetPx } = computeOsmdPlayheadOffsetPx({
+    progress,
+    noteOffsetPx: anchorOffsets.noteOffsetPx,
+    nextNoteOffsetPx: anchorOffsets.nextNoteOffsetPx,
+    inCountIn: inCountInPhase,
+  });
 
   // 直前フレームで予約したトランジションが後から発火すると小節端まで走ってしまう。
   if (pendingTransitionRafRef.current !== null) {
@@ -127,19 +136,20 @@ const applyPlayheadDom = ({
 
   if (!animating || inCountInPhase) {
     playhead.style.transition = 'none';
-    playhead.style.left = `${leftPx}px`;
+    playhead.style.left = `${offsetPx}px`;
     return;
   }
 
   const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
-  const remainingMs = Math.max(100, (1 - progress) * safeMeasureDurationSec * 1000);
+  // 下限を 1 フレーム相当にする。100ms だと小節末で減速して見え、小節切替で飛ぶ。
+  const remainingMs = Math.max(16, (1 - progress) * safeMeasureDurationSec * 1000);
   playhead.style.transition = 'none';
-  playhead.style.left = `${leftPx}px`;
+  playhead.style.left = `${offsetPx}px`;
   void playhead.offsetWidth;
   pendingTransitionRafRef.current = requestAnimationFrame(() => {
     pendingTransitionRafRef.current = null;
     playhead.style.transition = `left ${remainingMs}ms linear`;
-    playhead.style.left = `${highlightWidthPx}px`;
+    playhead.style.left = `${endOffsetPx}px`;
   });
 };
 
@@ -284,8 +294,11 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const pendingPlayheadSyncRef = useRef<OsmdPlayheadSyncParams | null>(null);
   const precisionWindowStartRef = useRef(1);
 
-  const activeMeasureBounds = layout.measureBoundsByNumber[Math.max(1, Math.floor(activeMeasureNumber))]
-    ?? layout.measureBoundsByNumber[1];
+  // 1 小節フィットの倍率は最大幅の小節で固定する（小節ごとに変えると境界で再ラスタライズが走る）。
+  const widestMeasureBounds = useMemo(
+    () => resolveOsmdWidestMeasureBounds(layout.measureBoundsByNumber),
+    [layout.measureBoundsByNumber],
+  );
   const maxMeasureNumber = useMemo(() => {
     let max = 1;
     for (const key in layout.measureBoundsByNumber) {
@@ -309,7 +322,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     }) * userZoom
     : computeOsmdEffectiveScaleForMeasure({
       cssScale: cssScaleForLayout,
-      bounds: activeMeasureBounds,
+      bounds: widestMeasureBounds,
       viewportWidth: viewportWidthPx,
       fitActiveMeasureWidth: scrollLayout.fitActiveMeasureWidth,
     });
@@ -392,7 +405,11 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     highlight.style.width = `${measureHighlightNow.widthPx}px`;
     applyPlayheadDom({
       playhead,
-      highlightWidthPx: measureHighlightNow.widthPx,
+      anchorOffsets: computeOsmdPlayheadAnchorOffsetsPx({
+        activeMeasureNumber: params.activeMeasureNumber,
+        measureBoundsByNumber: layoutRef.current.measureBoundsByNumber,
+        effectiveScale: effectiveScaleRef.current,
+      }),
       measureDurationSec,
       countInDurationSec,
       phraseTimelineSec: params.phraseTimelineSec,
@@ -848,6 +865,14 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     }),
     [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber, scrollLayout.playheadPx, scrollOffsetPx],
   );
+  const playheadAnchorOffsets = useMemo(
+    () => computeOsmdPlayheadAnchorOffsetsPx({
+      activeMeasureNumber,
+      measureBoundsByNumber: layout.measureBoundsByNumber,
+      effectiveScale,
+    }),
+    [activeMeasureNumber, effectiveScale, layout.measureBoundsByNumber],
+  );
 
   useEffect(() => {
     if (useImperativePlayhead) {
@@ -860,7 +885,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     }
     applyPlayheadDom({
       playhead,
-      highlightWidthPx: measureHighlight.widthPx,
+      anchorOffsets: playheadAnchorOffsets,
       measureDurationSec,
       countInDurationSec,
       phraseTimelineSec: phraseTimelineSec ?? (activeMeasureNumber - 1) * Math.max(1e-6, measureDurationSec),
@@ -873,8 +898,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     countInDurationSec,
     measureDurationSec,
     measureHighlight.visible,
-    measureHighlight.widthPx,
     phraseTimelineSec,
+    playheadAnchorOffsets,
     playheadAnimating,
     scrollActive,
     showPlayhead,
@@ -972,7 +997,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       {showPlayhead && measureHighlight.visible && (
         <div
           ref={measureHighlightRef}
-          className="pointer-events-none absolute bottom-0 top-0 z-[9] overflow-hidden"
+          // overflow は切らない。プレイヘッドは小節末で次小節の最初の音符まで進む。
+          className="pointer-events-none absolute bottom-0 top-0 z-[9]"
           style={{
             left: `${measureHighlight.leftPx}px`,
             width: `${measureHighlight.widthPx}px`,

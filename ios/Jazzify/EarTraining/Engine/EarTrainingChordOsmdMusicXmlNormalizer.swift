@@ -806,63 +806,6 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return beatIndex
     }
 
-    /// 端点の傾きを 1 に固定した 3 次エルミート補間の 1 区間。
-    /// 折れ線だとプレイヘッドが拍の途中で急に速くなるため、区間の継ぎ目で速度を揃える。
-    private static func swungSegmentToNotated(_ t: Double, height: Double, width: Double) -> Double {
-        let t2 = t * t
-        let t3 = t2 * t
-        let h10 = t3 - 2 * t2 + t
-        let h01 = -2 * t3 + 3 * t2
-        let h11 = t3 - t2
-        return h01 * height + (h10 + h11) * width
-    }
-
-    private static func swungBeatIndexToNotatedBeatIndex(
-        _ beatIndex: Double,
-        measureNumber: Int,
-        straightBeatKeys: Set<String>?
-    ) -> Double {
-        if isStraightBeatKey(straightBeatKeys, measureNumber: measureNumber, rawBeatIndex: beatIndex) {
-            return beatIndex
-        }
-        let beatWhole = floor(beatIndex + straightBeatFractionEps)
-        let fraction = beatIndex - beatWhole
-        let longRatio = chordOsmdSwingLongEighthRatio
-        if fraction <= longRatio + straightBeatFractionEps {
-            return beatWhole + swungSegmentToNotated(fraction / longRatio, height: 0.5, width: longRatio)
-        }
-        let shortRatio = 1 - longRatio
-        return beatWhole + 0.5 + swungSegmentToNotated(
-            (fraction - longRatio) / shortRatio,
-            height: 0.5,
-            width: shortRatio
-        )
-    }
-
-    /// スイング済みオーディオ時刻 → 記譜上の時刻（譜面プレイヘッド用）。
-    static func swungTimelineToNotatedTimelineSec(
-        phraseTimeSec: Double,
-        measureDurationSec: Double,
-        beatsPerMeasure: Int,
-        straightBeatKeys: Set<String>? = nil
-    ) -> Double {
-        if phraseTimeSec < 0 {
-            return phraseTimeSec
-        }
-        let safeMeasureDurationSec = max(1e-6, measureDurationSec)
-        let bpmSafe = max(1, beatsPerMeasure)
-        let measureIndex = Int(floor(phraseTimeSec / safeMeasureDurationSec + 1e-12))
-        let timeInMeasure = phraseTimeSec - Double(measureIndex) * safeMeasureDurationSec
-        let beatDurationSec = safeMeasureDurationSec / Double(bpmSafe)
-        let beatInMeasure = timeInMeasure / max(1e-12, beatDurationSec)
-        let notatedBeatInMeasure = swungBeatIndexToNotatedBeatIndex(
-            beatInMeasure,
-            measureNumber: measureIndex + 1,
-            straightBeatKeys: straightBeatKeys
-        )
-        return Double(measureIndex) * safeMeasureDurationSec + notatedBeatInMeasure * beatDurationSec
-    }
-
     static func chordOsmdBeatToTargetTimeSec(
         measureNumber: Int,
         beatStartInMeasure: Double,

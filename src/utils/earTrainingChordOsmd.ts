@@ -82,6 +82,22 @@ export const isPhraseTimeInChordOsmdJudgmentWindow = (
   return delta >= -earlySec && delta <= lateSec;
 };
 
+/**
+ * 鍵盤ヒントをジャスト到達から光らせておく長さ（30ms）。
+ * 判定窓とは独立で、手前では光らせない。
+ */
+export const CHORD_OSMD_VOICING_HINT_DURATION_SEC = 0.03;
+
+/** 鍵盤ヒント点灯範囲：ジャスト（delta 0）から {@link CHORD_OSMD_VOICING_HINT_DURATION_SEC} 後まで。 */
+export const isPhraseTimeInChordOsmdVoicingHintWindow = (
+  phraseTimeSec: number,
+  judgedTargetTimeSec: number,
+  durationSec: number = CHORD_OSMD_VOICING_HINT_DURATION_SEC,
+): boolean => {
+  const delta = phraseTimeSec - judgedTargetTimeSec;
+  return delta >= 0 && delta <= durationSec;
+};
+
 export const hasChordOsmdJudgmentWindowExpired = (
   phraseTimeSec: number,
   judgedTargetTimeSec: number,
@@ -1012,65 +1028,6 @@ const applyChordOsmdSwingToBeatIndex = (beatIndex: number): number => {
     return beatWhole + CHORD_OSMD_SWING_LONG_EIGHTH_RATIO;
   }
   return beatIndex;
-};
-
-/**
- * 端点の傾きを 1 に固定した 3 次エルミート補間の 1 区間。
- * 折れ線だとプレイヘッドが拍の途中で急に速くなるため、区間の継ぎ目で速度を揃える。
- */
-const swungSegmentToNotated = (t: number, height: number, width: number): number => {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  const h10 = t3 - 2 * t2 + t;
-  const h01 = -2 * t3 + 3 * t2;
-  const h11 = t3 - t2;
-  return h01 * height + (h10 + h11) * width;
-};
-
-/** スイング済み 0-indexed 拍位置 → 記譜上の拍位置（譜面プレイヘッド用）。 */
-const chordOsmdSwungBeatIndexToNotatedBeatIndex = (
-  beatIndex: number,
-  measureNumber: number,
-  straightBeatKeys?: ReadonlySet<string>,
-): number => {
-  if (isStraightBeatKey(straightBeatKeys, measureNumber, beatIndex)) {
-    return beatIndex;
-  }
-  const beatWhole = Math.floor(beatIndex + STRAIGHT_BEAT_FRACTION_EPS);
-  const fraction = beatIndex - beatWhole;
-  const longRatio = CHORD_OSMD_SWING_LONG_EIGHTH_RATIO;
-  if (fraction <= longRatio + STRAIGHT_BEAT_FRACTION_EPS) {
-    return beatWhole + swungSegmentToNotated(fraction / longRatio, 0.5, longRatio);
-  }
-  const shortRatio = 1 - longRatio;
-  return beatWhole + 0.5 + swungSegmentToNotated((fraction - longRatio) / shortRatio, 0.5, shortRatio);
-};
-
-/**
- * スイング済みオーディオ時刻 → 記譜上の時刻（譜面プレイヘッド用）。
- * 小節の壁時計長は変わらず、拍内だけ 2:1 をイーブン8分位置へ戻す。
- */
-export const chordOsmdSwungTimelineToNotatedTimelineSec = (
-  phraseTimeSec: number,
-  measureDurationSec: number,
-  beatsPerMeasure: number,
-  straightBeatKeys?: ReadonlySet<string>,
-): number => {
-  if (phraseTimeSec < 0) {
-    return phraseTimeSec;
-  }
-  const safeMeasureDurationSec = Math.max(1e-6, measureDurationSec);
-  const bpmSafe = Math.max(1, beatsPerMeasure);
-  const measureIndex = Math.floor(phraseTimeSec / safeMeasureDurationSec + 1e-12);
-  const timeInMeasure = phraseTimeSec - measureIndex * safeMeasureDurationSec;
-  const beatDurationSec = safeMeasureDurationSec / bpmSafe;
-  const beatInMeasure = timeInMeasure / Math.max(1e-12, beatDurationSec);
-  const notatedBeatInMeasure = chordOsmdSwungBeatIndexToNotatedBeatIndex(
-    beatInMeasure,
-    measureIndex + 1,
-    straightBeatKeys,
-  );
-  return measureIndex * safeMeasureDurationSec + notatedBeatInMeasure * beatDurationSec;
 };
 
 const chordOsmdLyricTargetTimeSec = (

@@ -11,7 +11,6 @@ import {
   CHORD_OSMD_GUIDE_NOTE_COLOR,
   CHORD_OSMD_SWING_LONG_EIGHTH_RATIO,
   chordOsmdBeatToTargetTimeSec,
-  chordOsmdSwungTimelineToNotatedTimelineSec,
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
@@ -27,6 +26,7 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   pickNearestChordOsmdTargetIndex,
   isPhraseTimeInChordOsmdJudgmentWindow,
+  isPhraseTimeInChordOsmdVoicingHintWindow,
   isChordOsmdNonTargetVoice,
   joinScoreLyricVerseTexts,
   normalizeChordOsmdMusicXml,
@@ -1151,52 +1151,6 @@ describe('chordOsmdBeatToTargetTimeSec swing', () => {
     expect(left).toBeGreaterThan(even);
     expect(right).toBeCloseTo(even, 5);
   });
-
-  it('スイング済み裏拍時刻を記譜8分位置へ戻す', () => {
-    const measureDurationSec = 2;
-    const evenSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, false);
-    const swingSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);
-    const notatedSec = chordOsmdSwungTimelineToNotatedTimelineSec(
-      swingSec,
-      measureDurationSec,
-      4,
-    );
-    expect(notatedSec).toBeCloseTo(evenSec, 5);
-  });
-
-  it('スイングのプレイヘッド逆変換は拍をまたいでも速度が急変しない', () => {
-    const measureDurationSec = 2;
-    const stepSec = 0.005;
-    const sampleCount = 200;
-    const notated: number[] = [];
-    for (let i = 0; i <= sampleCount; i += 1) {
-      notated.push(
-        chordOsmdSwungTimelineToNotatedTimelineSec(i * stepSec, measureDurationSec, 4),
-      );
-    }
-    const deltas: number[] = [];
-    for (let i = 1; i < notated.length; i += 1) {
-      deltas.push(notated[i] - notated[i - 1]);
-    }
-    deltas.forEach((delta) => {
-      expect(delta).toBeGreaterThan(0);
-    });
-    for (let i = 1; i < deltas.length; i += 1) {
-      expect(Math.abs(deltas[i] - deltas[i - 1])).toBeLessThan(stepSec * 0.1);
-    }
-  });
-
-  it('16分拍のプレイヘッド逆変換は時刻を変えない', () => {
-    const straightKeys = new Set(['1:0']);
-    const swingSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);
-    const notatedSec = chordOsmdSwungTimelineToNotatedTimelineSec(
-      swingSec,
-      2,
-      4,
-      straightKeys,
-    );
-    expect(notatedSec).toBeCloseTo(swingSec, 5);
-  });
 });
 
 describe('resolveEarTrainingOsmdTargetsFromScore', () => {
@@ -1255,6 +1209,31 @@ describe('chord osmd asymmetric judgment window', () => {
   it('遅れミスはターゲット+150ms超過で確定', () => {
     expect(hasChordOsmdJudgmentWindowExpired(0.15, 0)).toBe(false);
     expect(hasChordOsmdJudgmentWindowExpired(0.151, 0)).toBe(true);
+  });
+});
+
+describe('isPhraseTimeInChordOsmdVoicingHintWindow', () => {
+  it('ジャストから30msの間だけ点灯する', () => {
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.03, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.031, 0)).toBe(false);
+  });
+
+  it('ジャストより手前では点灯しない', () => {
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(-0.001, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(-0.1, 0)).toBe(false);
+  });
+
+  it('判定窓には干渉しない（窓内でもヒントは消えている）', () => {
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.1, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(-0.1, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.1, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.1, 0)).toBe(false);
+  });
+
+  it('練習速度で伸ばした長さを受け取れる', () => {
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(0.05, 0, 0.06)).toBe(true);
+    expect(isPhraseTimeInChordOsmdVoicingHintWindow(-0.01, 0, 0.06)).toBe(false);
   });
 });
 

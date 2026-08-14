@@ -4,6 +4,8 @@ import Foundation
 enum EarTrainingChordOsmdTiming {
     static let judgmentWindowEarlySec: Double = 0.12
     static let judgmentWindowLateSec: Double = 0.15
+    /// 鍵盤ヒントをジャスト到達から光らせておく長さ（30ms）。判定窓とは独立で、手前では光らせない。
+    static let voicingHintDurationSec: Double = 0.03
     static let approachLeadBeats: Double = 1
     static let hammerLeadMeasuresDefault = 1
     static let hammerImpactOffsetSec: Double = 0.3
@@ -32,6 +34,16 @@ enum EarTrainingChordOsmdTiming {
     ) -> Bool {
         let delta = phraseTimeSec - judgedTargetTimeSec
         return delta >= -earlySec && delta <= lateSec
+    }
+
+    /// 鍵盤ヒント点灯範囲：ジャスト（delta 0）から `durationSec` 後まで。
+    static func isWithinVoicingHintWindow(
+        phraseTimeSec: Double,
+        judgedTargetTimeSec: Double,
+        durationSec: Double = voicingHintDurationSec
+    ) -> Bool {
+        let delta = phraseTimeSec - judgedTargetTimeSec
+        return delta >= 0 && delta <= durationSec
     }
 
     static func pickNearestTargetIndex(

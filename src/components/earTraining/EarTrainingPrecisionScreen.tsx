@@ -60,9 +60,7 @@ import {
   computeOsmdActiveMeasureFromTimeline,
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
-  chordOsmdSwungTimelineToNotatedTimelineSec,
   collectChordOsmdScoreLyricEvents,
-  collectChordOsmdStraightBeatKeys,
   normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
   joinScoreLyricVerseTexts,
@@ -336,9 +334,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const loopStartMeasureRef = useRef(1);
   const loopEndMeasureRef = useRef(Math.max(1, stage.loop_measures));
   const startBattleRef = useRef<() => void>(() => undefined);
-  const playheadSwingEnabledRef = useRef(false);
-  const playheadStraightBeatKeysRef = useRef<ReadonlySet<string> | undefined>(undefined);
-
   useQuestCompleteJingleOnStageClear(
     gameState === 'paused' ? 'playingPhrase' : gameState as EarTrainingGameState,
   );
@@ -530,15 +525,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       );
     }
 
-    if (playheadSwingEnabledRef.current && timelineForOsmd >= 0) {
-      timelineForOsmd = chordOsmdSwungTimelineToNotatedTimelineSec(
-        timelineForOsmd,
-        measureDurationSec,
-        stage.beats_per_measure,
-        playheadStraightBeatKeysRef.current,
-      );
-    }
-
     if (measureNumber !== activeMeasureNumberRef.current) {
       activeMeasureNumberRef.current = measureNumber;
       setActiveMeasureNumber(measureNumber);
@@ -551,7 +537,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       activeMeasureNumber: measureNumber,
       animating: isAnimating,
     });
-  }, [applyLoopCycleTransition, measureDurationSec, stage.beats_per_measure]);
+  }, [applyLoopCycleTransition, measureDurationSec]);
 
   const ensurePhrasePlayer = useCallback((): EarTrainingChordVoicingPhrasePlayer => {
     if (!phrasePlayerRef.current) {
@@ -703,10 +689,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       audioAnchorMs: phrase?.audio_anchor_ms,
     });
     timingSourceRef.current = canonical.timingSource;
-    playheadSwingEnabledRef.current = isSwing && canonical.timingSource === 'musicxml';
-    playheadStraightBeatKeysRef.current = playheadSwingEnabledRef.current && xmlText
-      ? collectChordOsmdStraightBeatKeys(xmlText)
-      : undefined;
     const builtNotes = canonicalNotesToPrecisionNotes(canonical.notes, classificationBpm);
     const calibratedNotes = calibratePrecisionNotes(builtNotes, {
       resolveCalibratedStartSec: resolveCalibratedTargetTimeSec,
@@ -1174,12 +1156,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
         const rawXmlUrl = phrase.music_xml_url?.trim() ?? '';
         const baseXml = getCachedEarTrainingMusicXml(rawXmlUrl) ?? xmlText;
-        const usingMidi = baseMidiDataRef.current != null;
         const isSwing = stage.is_swing === true;
-        playheadSwingEnabledRef.current = isSwing && !usingMidi;
-        playheadStraightBeatKeysRef.current = playheadSwingEnabledRef.current
-          ? collectChordOsmdStraightBeatKeys(baseXml)
-          : undefined;
 
         const notesBySemitone = buildPrecisionNotesBySemitone({
           xmlText: baseXml,

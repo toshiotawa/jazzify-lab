@@ -311,10 +311,13 @@ export const computeOsmdReachEndJumpScrollOffset = (
   input: OsmdReachEndJumpScrollInput,
 ): OsmdReachEndJumpScrollResult => {
   const activeMeasure = Math.max(1, Math.floor(input.activeMeasureNumber));
-  const activeBounds = input.measureBoundsByNumber[activeMeasure] ?? input.measureBoundsByNumber[1];
+  // 小節ごとに倍率が変わると小節線をまたぐたび SVG が再ラスタライズされるため、最大幅の小節で固定する。
+  const scaleBounds = resolveOsmdWidestMeasureBounds(input.measureBoundsByNumber)
+    ?? input.measureBoundsByNumber[activeMeasure]
+    ?? input.measureBoundsByNumber[1];
   const effectiveScale = computeOsmdEffectiveScaleForMeasure({
     cssScale: input.cssScale,
-    bounds: activeBounds,
+    bounds: scaleBounds,
     viewportWidth: input.viewportWidth,
     fitActiveMeasureWidth: true,
     minFitScale: input.minFitScale,
@@ -394,6 +397,91 @@ export const clampOsmdManualScrollOffset = (input: {
 }): number => {
   const maxOffset = Math.max(0, input.scoreWidth * input.effectiveScale - input.viewportWidth);
   return Math.min(Math.max(input.manualOffsetPx, -input.baseOffsetPx), maxOffset - input.baseOffsetPx);
+};
+
+const resolveMeasureAnchorX = (bounds: OsmdMeasureBounds): number => {
+  if (typeof bounds.noteLeft === 'number' && Number.isFinite(bounds.noteLeft) && bounds.noteLeft > bounds.left) {
+    return bounds.noteLeft;
+  }
+  return bounds.left;
+};
+
+/** 全小節のうち最も幅の広い小節。1 小節フィットの倍率を曲中で固定するための基準。 */
+export const resolveOsmdWidestMeasureBounds = (
+  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>,
+): OsmdMeasureBounds | undefined => {
+  let widest: OsmdMeasureBounds | undefined;
+  let widestWidth = 0;
+  for (const key in measureBoundsByNumber) {
+    const bounds = measureBoundsByNumber[Number(key)];
+    if (!bounds) {
+      continue;
+    }
+    const width = bounds.right - bounds.left;
+    if (!Number.isFinite(width) || width <= widestWidth) {
+      continue;
+    }
+    widestWidth = width;
+    widest = bounds;
+  }
+  return widest;
+};
+
+export interface OsmdPlayheadAnchorOffsetsPx {
+  /** 小節左端から最初の音符までの px（音符を持たない小節は 0）。 */
+  noteOffsetPx: number;
+  /** 小節左端から次小節の最初の音符までの px（次小節が無ければ小節右端）。 */
+  nextNoteOffsetPx: number;
+}
+
+/**
+ * プレイヘッドの始点（この小節の音符左端）と終点（次小節の音符左端）を小節左端起点の px で返す。
+ * 小節線ではなく音符に合わせることで、拍頭とプレイヘッドの見た目が一致する。
+ */
+export const computeOsmdPlayheadAnchorOffsetsPx = (input: {
+  activeMeasureNumber: number;
+  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>;
+  effectiveScale: number;
+}): OsmdPlayheadAnchorOffsetsPx => {
+  const measureNumber = Math.max(1, Math.floor(input.activeMeasureNumber));
+  const bounds = input.measureBoundsByNumber[measureNumber] ?? input.measureBoundsByNumber[1];
+  if (!bounds) {
+    return { noteOffsetPx: 0, nextNoteOffsetPx: 0 };
+  }
+  const widthPx = (bounds.right - bounds.left) * input.effectiveScale;
+  if (!Number.isFinite(widthPx) || widthPx <= 0) {
+    return { noteOffsetPx: 0, nextNoteOffsetPx: 0 };
+  }
+  const noteOffsetPx = clamp((resolveMeasureAnchorX(bounds) - bounds.left) * input.effectiveScale, 0, widthPx);
+  const nextBounds = input.measureBoundsByNumber[measureNumber + 1];
+  const nextOffsetPx = nextBounds
+    ? (resolveMeasureAnchorX(nextBounds) - bounds.left) * input.effectiveScale
+    : widthPx;
+  // 改行で次小節が左へ戻る譜面では小節右端を終点にする。
+  const usableNextOffsetPx = Number.isFinite(nextOffsetPx) && nextOffsetPx > widthPx
+    ? nextOffsetPx
+    : widthPx;
+  return { noteOffsetPx, nextNoteOffsetPx: Math.max(noteOffsetPx, usableNextOffsetPx) };
+};
+
+export interface OsmdPlayheadOffsetResult {
+  /** 現在位置（小節左端からの px）。 */
+  offsetPx: number;
+  /** トランジション終点（小節左端からの px）。 */
+  endOffsetPx: number;
+}
+
+/** 小節内プレイヘッド位置。演奏中は音符左端 →次小節の音符左端、カウントイン中は小節線 →音符左端。 */
+export const computeOsmdPlayheadOffsetPx = (input: {
+  progress: number;
+  noteOffsetPx: number;
+  nextNoteOffsetPx: number;
+  inCountIn: boolean;
+}): OsmdPlayheadOffsetResult => {
+  const progress = clamp(input.progress, 0, 1);
+  const startPx = input.inCountIn ? 0 : input.noteOffsetPx;
+  const endPx = input.inCountIn ? input.noteOffsetPx : Math.max(input.noteOffsetPx, input.nextNoteOffsetPx);
+  return { offsetPx: startPx + progress * (endPx - startPx), endOffsetPx: endPx };
 };
 
 /** カウントイン中（phraseTimelineSec < 0）の小節 1 内プレイヘッド進捗 0..1。 */

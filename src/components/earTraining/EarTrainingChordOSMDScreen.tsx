@@ -98,9 +98,10 @@ import {
   chordOsmdHammerLeadSec,
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  CHORD_OSMD_VOICING_HINT_DURATION_SEC,
   hasChordOsmdJudgmentWindowExpired,
   pickNearestChordOsmdTargetIndex,
-  isPhraseTimeInChordOsmdJudgmentWindow,
+  isPhraseTimeInChordOsmdVoicingHintWindow,
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
@@ -184,10 +185,6 @@ interface RuntimeTargetState {
 type PendingImpactHandler = () => void;
 
 const INPUT_COOLDOWN_MS = 20;
-/** OSMD 鍵盤ヒント: |Δ|≤30ms で最濃（alpha 0.85） */
-const OSMD_VOICING_HINT_STRONG_SEC = 0.03;
-/** OSMD 鍵盤ヒント: |Δ|≤70ms で中間（alpha 0.55） */
-const OSMD_VOICING_HINT_MEDIUM_SEC = 0.07;
 /** 正解連打時の statusText 更新間隔（React 再レンダリング抑制） */
 const STATUS_TEXT_THROTTLE_MS = 400;
 const NO_DAMAGE_CONFIG = {
@@ -604,50 +601,27 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       pianoOverlayRef.current?.clearVoicingHints();
       return;
     }
-    const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
-    const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
-    const tierByMidi = new Map<number, 0 | 1 | 2>();
+    const hintDurationSec = resolveEffectiveTimingWindowSec(CHORD_OSMD_VOICING_HINT_DURATION_SEC);
+    const hintMidis: number[] = [];
     for (const target of targetsRef.current) {
       const state = runtimeByTargetIdRef.current.get(target.id);
       if (!state || state.completed || state.failed) {
         continue;
       }
       const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
-      if (!isPhraseTimeInChordOsmdJudgmentWindow(phraseT, judged, earlyW, lateW)) {
+      if (!isPhraseTimeInChordOsmdVoicingHintWindow(phraseT, judged, hintDurationSec)) {
         continue;
       }
-      const dt = Math.abs(phraseT - judged);
-      const tier: 0 | 1 | 2 = dt <= resolveEffectiveTimingWindowSec(OSMD_VOICING_HINT_STRONG_SEC)
-        ? 0
-        : dt <= resolveEffectiveTimingWindowSec(OSMD_VOICING_HINT_MEDIUM_SEC)
-          ? 1
-          : 2;
       state.remainingCounts.forEach((count, midi) => {
-        if (count <= 0) {
-          return;
-        }
-        const prev = tierByMidi.get(midi);
-        if (prev === undefined || tier < prev) {
-          tierByMidi.set(midi, tier);
+        if (count > 0 && !hintMidis.includes(midi)) {
+          hintMidis.push(midi);
         }
       });
     }
-    if (tierByMidi.size === 0) {
+    if (hintMidis.length === 0) {
       pianoOverlayRef.current?.clearVoicingHints();
     } else {
-      const strongMidis: number[] = [];
-      const mediumMidis: number[] = [];
-      const softMidis: number[] = [];
-      tierByMidi.forEach((tier, midi) => {
-        if (tier === 0) {
-          strongMidis.push(midi);
-        } else if (tier === 1) {
-          mediumMidis.push(midi);
-        } else {
-          softMidis.push(midi);
-        }
-      });
-      pianoOverlayRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, []);
+      pianoOverlayRef.current?.setVoicingHintsByIntensity(hintMidis, [], [], []);
     }
   }, [syncSelfPacedMeasureAndHints, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
 

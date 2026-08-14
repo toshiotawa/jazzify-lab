@@ -87,27 +87,4 @@ final class EarTrainingChordOSMDBattleRhythmTargetsTests: XCTestCase {
         )
         XCTAssertEqual(guarded, even, accuracy: 0.00001)
     }
-
-    func testSwungTimelineMapsBackToNotatedEighth() {
-        let even = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
-            measureNumber: 1,
-            beatStartInMeasure: 1.5,
-            bpm: 120,
-            beatsPerMeasure: 4,
-            isSwing: false
-        )
-        let swing = EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
-            measureNumber: 1,
-            beatStartInMeasure: 1.5,
-            bpm: 120,
-            beatsPerMeasure: 4,
-            isSwing: true
-        )
-        let notated = EarTrainingChordOsmdMusicXmlNormalizer.swungTimelineToNotatedTimelineSec(
-            phraseTimeSec: swing,
-            measureDurationSec: 2,
-            beatsPerMeasure: 4
-        )
-        XCTAssertEqual(notated, even, accuracy: 0.00001)
-    }
 }

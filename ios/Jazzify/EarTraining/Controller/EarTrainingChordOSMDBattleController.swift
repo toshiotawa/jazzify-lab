@@ -13,8 +13,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private static let judgmentWindowLateSec: Double = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
-    private static let osmdVoicingHintStrongSec: Double = 0.03
-    private static let osmdVoicingHintMediumSec: Double = 0.07
+    /// 鍵盤ヒントをジャスト到達から光らせておく長さ（30ms）。
+    private static let voicingHintDurationSec: Double = EarTrainingChordOsmdTiming.voicingHintDurationSec
     /// ターゲット時刻からこの秒数後にハンマー着弾・被ダメ演出
     private static let hammerImpactOffsetSec: Double = 0.3
     /// 正解連打時の statusText 更新間隔（SwiftUI 再描画抑制）
@@ -1060,47 +1060,22 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         } else {
             phraseTime = gameState == .countIn ? audio.phraseJudgmentTimelineSecNow() : max(0, audio.phraseJudgmentTimelineSecNow())
         }
-        let earlyW = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
-        let lateW = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
-        var tierByMidi: [Int: Int] = [:]
+        let hintDurationSec = resolveEffectiveTimingWindowSec(Self.voicingHintDurationSec)
+        var next: [Int: VoicingHintIntensity] = [:]
         for target in targets {
             if target.completed || target.failed {
                 continue
             }
             let judged = resolveCalibratedTargetTimeSec(target.targetTimeSec)
-            let delta = phraseTime - judged
-            if delta < -earlyW || delta > lateW {
+            guard EarTrainingChordOsmdTiming.isWithinVoicingHintWindow(
+                phraseTimeSec: phraseTime,
+                judgedTargetTimeSec: judged,
+                durationSec: hintDurationSec
+            ) else {
                 continue
             }
-            let dt = abs(delta)
-            let tier: Int
-            if dt <= resolveEffectiveTimingWindowSec(Self.osmdVoicingHintStrongSec) {
-                tier = 0
-            } else if dt <= resolveEffectiveTimingWindowSec(Self.osmdVoicingHintMediumSec) {
-                tier = 1
-            } else {
-                tier = 2
-            }
             for (midi, count) in target.remainingMidiCounts where count > 0 {
-                if let prev = tierByMidi[midi] {
-                    if tier < prev {
-                        tierByMidi[midi] = tier
-                    }
-                } else {
-                    tierByMidi[midi] = tier
-                }
-            }
-        }
-        var next: [Int: VoicingHintIntensity] = [:]
-        next.reserveCapacity(tierByMidi.count)
-        for (midi, rawTier) in tierByMidi {
-            switch rawTier {
-            case 0:
                 next[midi] = .strong
-            case 1:
-                next[midi] = .medium
-            default:
-                next[midi] = .soft
             }
         }
         if next != voicingHintIntensities {

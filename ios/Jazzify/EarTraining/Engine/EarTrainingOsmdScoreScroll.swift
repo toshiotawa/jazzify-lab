@@ -153,6 +153,19 @@ enum EarTrainingOsmdScoreScroll {
         return cssScale * clampedFit
     }
 
+    /// 全小節のうち最も幅の広い小節。1 小節フィットの倍率を曲中で固定するための基準。
+    static func widestMeasureBounds(_ measureBoundsByNumber: [Int: MeasureBounds]) -> MeasureBounds? {
+        var widest: MeasureBounds?
+        var widestWidth: CGFloat = 0
+        for bounds in measureBoundsByNumber.values {
+            let width = bounds.right - bounds.left
+            guard width.isFinite, width > widestWidth else { continue }
+            widestWidth = width
+            widest = bounds
+        }
+        return widest
+    }
+
     static func visibleMeasureCountFromWindowStart(
         windowStartMeasure: Int,
         measureBoundsByNumber: [Int: MeasureBounds],
@@ -183,10 +196,13 @@ enum EarTrainingOsmdScoreScroll {
 
     static func reachEndJumpScrollOffset(_ input: ReachEndJumpScrollInput) -> ReachEndJumpScrollResult {
         let activeMeasure = max(1, input.activeMeasureNumber)
-        let activeBounds = input.measureBoundsByNumber[activeMeasure] ?? input.measureBoundsByNumber[1]
+        // 小節ごとに倍率が変わると小節線をまたぐたび再ラスタライズが走るため、最大幅の小節で固定する。
+        let scaleBounds = widestMeasureBounds(input.measureBoundsByNumber)
+            ?? input.measureBoundsByNumber[activeMeasure]
+            ?? input.measureBoundsByNumber[1]
         let effectiveScale = effectiveScaleForMeasure(
             cssScale: input.cssScale,
-            bounds: activeBounds,
+            bounds: scaleBounds,
             viewportWidth: input.viewportWidth,
             fitActiveMeasureWidth: true
         )
@@ -234,6 +250,68 @@ enum EarTrainingOsmdScoreScroll {
         }
         let progress = (phraseTimelineSec + countInDurationSec) / countInDurationSec
         return CGFloat(min(1, max(0, progress)))
+    }
+
+    struct PlayheadAnchorOffsets: Equatable {
+        /// 小節左端から最初の音符までの px（音符を持たない小節は 0）。
+        let noteOffsetPx: CGFloat
+        /// 小節左端から次小節の最初の音符までの px（次小節が無ければ小節右端）。
+        let nextNoteOffsetPx: CGFloat
+    }
+
+    struct PlayheadOffset: Equatable {
+        let offsetPx: CGFloat
+        let endOffsetPx: CGFloat
+    }
+
+    private static func measureAnchorX(_ bounds: MeasureBounds) -> CGFloat {
+        if let noteLeft = bounds.noteLeft, noteLeft.isFinite, noteLeft > bounds.left {
+            return noteLeft
+        }
+        return bounds.left
+    }
+
+    /// プレイヘッドの始点（この小節の音符左端）と終点（次小節の音符左端）を小節左端起点の px で返す。
+    static func playheadAnchorOffsetsPx(
+        activeMeasureNumber: Int,
+        measureBoundsByNumber: [Int: MeasureBounds],
+        effectiveScale: CGFloat
+    ) -> PlayheadAnchorOffsets {
+        let measureNumber = max(1, activeMeasureNumber)
+        guard let bounds = measureBoundsByNumber[measureNumber] ?? measureBoundsByNumber[1] else {
+            return PlayheadAnchorOffsets(noteOffsetPx: 0, nextNoteOffsetPx: 0)
+        }
+        let widthPx = (bounds.right - bounds.left) * effectiveScale
+        guard widthPx.isFinite, widthPx > 0 else {
+            return PlayheadAnchorOffsets(noteOffsetPx: 0, nextNoteOffsetPx: 0)
+        }
+        let noteOffsetPx = min(widthPx, max(0, (measureAnchorX(bounds) - bounds.left) * effectiveScale))
+        let rawNextOffsetPx = measureBoundsByNumber[measureNumber + 1]
+            .map { (measureAnchorX($0) - bounds.left) * effectiveScale }
+            ?? widthPx
+        // 改行で次小節が左へ戻る譜面では小節右端を終点にする。
+        let nextOffsetPx = rawNextOffsetPx.isFinite && rawNextOffsetPx > widthPx ? rawNextOffsetPx : widthPx
+        return PlayheadAnchorOffsets(
+            noteOffsetPx: noteOffsetPx,
+            nextNoteOffsetPx: max(noteOffsetPx, nextOffsetPx)
+        )
+    }
+
+    /// 小節内プレイヘッド位置。演奏中は音符左端 →次小節の音符左端、カウントイン中は小節線 →音符左端。
+    static func playheadOffsetPx(
+        progress: CGFloat,
+        anchorOffsets: PlayheadAnchorOffsets,
+        inCountIn: Bool
+    ) -> PlayheadOffset {
+        let clampedProgress = min(1, max(0, progress))
+        let startPx = inCountIn ? 0 : anchorOffsets.noteOffsetPx
+        let endPx = inCountIn
+            ? anchorOffsets.noteOffsetPx
+            : max(anchorOffsets.noteOffsetPx, anchorOffsets.nextNoteOffsetPx)
+        return PlayheadOffset(
+            offsetPx: startPx + clampedProgress * (endPx - startPx),
+            endOffsetPx: endPx
+        )
     }
 
     /// 現在小節の左端（小節線付近）を固定プレイヘッド位置へ合わせるオフセット（小節更新時のみジャンプ）。
