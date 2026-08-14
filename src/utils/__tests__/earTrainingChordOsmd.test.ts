@@ -1164,6 +1164,28 @@ describe('chordOsmdBeatToTargetTimeSec swing', () => {
     expect(notatedSec).toBeCloseTo(evenSec, 5);
   });
 
+  it('スイングのプレイヘッド逆変換は拍をまたいでも速度が急変しない', () => {
+    const measureDurationSec = 2;
+    const stepSec = 0.005;
+    const sampleCount = 200;
+    const notated: number[] = [];
+    for (let i = 0; i <= sampleCount; i += 1) {
+      notated.push(
+        chordOsmdSwungTimelineToNotatedTimelineSec(i * stepSec, measureDurationSec, 4),
+      );
+    }
+    const deltas: number[] = [];
+    for (let i = 1; i < notated.length; i += 1) {
+      deltas.push(notated[i] - notated[i - 1]);
+    }
+    deltas.forEach((delta) => {
+      expect(delta).toBeGreaterThan(0);
+    });
+    for (let i = 1; i < deltas.length; i += 1) {
+      expect(Math.abs(deltas[i] - deltas[i - 1])).toBeLessThan(stepSec * 0.1);
+    }
+  });
+
   it('16分拍のプレイヘッド逆変換は時刻を変えない', () => {
     const straightKeys = new Set(['1:0']);
     const swingSec = chordOsmdBeatToTargetTimeSec(1, 1.5, 120, 4, true);

@@ -162,6 +162,8 @@ private struct EarTrainingPrecisionGameContent: View {
     @State private var scoreBandHeightPx: CGFloat = EarTrainingPrecisionScorePreferences.initialHeight()
     @State private var dragHeightPreview: CGFloat?
     @State private var dragStartBandHeight: CGFloat = 0
+    @State private var cachedMusicXMLText: String?
+    @State private var osmdMultiStaff = false
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
@@ -223,20 +225,25 @@ private struct EarTrainingPrecisionGameContent: View {
         }
         .onAppear {
             ScreenRotationApplier.shared.applyCurrentPreference()
+            if let xml = controller.musicXMLText {
+                cachedMusicXMLText = xml
+                osmdMultiStaff = EarTrainingChordOsmdMusicXmlNormalizer
+                    .detectMaxStaffLayersFromMusicXmlString(xml) >= 2
+            }
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onChange(of: keyboardDisplayMode) { _ in
             controller.refreshKeyboardDisplayRangeForPreferencesChange()
         }
         .onChange(of: controller.musicXMLText) { xml in
+            if let xml {
+                cachedMusicXMLText = xml
+                osmdMultiStaff = EarTrainingChordOsmdMusicXmlNormalizer
+                    .detectMaxStaffLayersFromMusicXmlString(xml) >= 2
+            }
             guard let xml else { return }
             guard !EarTrainingPrecisionScorePreferences.hasSavedHeight else { return }
-            let multiStaff = EarTrainingChordOsmdMusicXmlNormalizer
-                .detectMaxStaffLayersFromMusicXmlString(xml) >= 2
-            scoreBandHeightPx = EarTrainingPrecisionScorePreferences.preferredHeight(multiStaff: multiStaff)
-        }
-        .onChange(of: scoreBandHeightPx) { newValue in
-            EarTrainingPrecisionScorePreferences.saveHeight(newValue)
+            scoreBandHeightPx = EarTrainingPrecisionScorePreferences.preferredHeight(multiStaff: osmdMultiStaff)
         }
         .sheet(isPresented: $controller.isSettingsOpen, onDismiss: handleSettingsSheetDismissed) {
             EarTrainingSettingsSheet(
@@ -350,14 +357,11 @@ private struct EarTrainingPrecisionGameContent: View {
     private func scoreBand(screenHeight: CGFloat) -> some View {
         let effectiveHeight = currentBandHeight(screenHeight: screenHeight)
         let isPhone = UIDevice.current.userInterfaceIdiom == .phone
-        let maxStaffFromXml = controller.musicXMLText.map {
-            EarTrainingChordOsmdMusicXmlNormalizer.detectMaxStaffLayersFromMusicXmlString($0)
-        } ?? 1
-        let multiStaff = maxStaffFromXml >= 2
+        let multiStaff = osmdMultiStaff
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.48 : 0.72) : 0.85
 
         ZStack {
-            if let musicXMLText = controller.musicXMLText {
+            if let musicXMLText = controller.musicXMLText ?? cachedMusicXMLText {
                 EarTrainingOSMDScoreWebView(
                     scoreScrollActive: controller.scoreScrollActive,
                     activeMeasureNumber: controller.activeMeasureNumber,
@@ -376,8 +380,20 @@ private struct EarTrainingPrecisionGameContent: View {
                     countInDurationSec: controller.countInDurationSec,
                     maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
                     manualScrollEnabled: controller.practiceMode
-                        && (controller.gameState == .paused || controller.showLobbyControls)
+                        && (controller.gameState == .paused || controller.showLobbyControls),
+                    reportContentHeightFit: true,
+                    onContentHeightFit: { height in
+                        handleOsmdContentHeightFit(height, screenHeight: screenHeight)
+                    }
                 )
+                if controller.musicXMLText == nil {
+                    Color.black.opacity(0.35)
+                        .allowsHitTesting(false)
+                    Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .allowsHitTesting(false)
+                }
             } else {
                 Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
                     .font(.caption)
@@ -394,8 +410,25 @@ private struct EarTrainingPrecisionGameContent: View {
         }
         return EarTrainingPrecisionScorePreferences.clampHeight(
             scoreBandHeightPx,
-            screenHeight: screenHeight
+            screenHeight: screenHeight,
+            practiceMode: controller.practiceMode
         )
+    }
+
+    private func handleOsmdContentHeightFit(_ heightPx: CGFloat, screenHeight: CGFloat) {
+        guard !EarTrainingPrecisionScorePreferences.hasSavedHeight else { return }
+        if controller.gameState == .countIn || controller.gameState == .playingPhrase {
+            return
+        }
+        let next = EarTrainingPrecisionScorePreferences.clampHeight(
+            heightPx,
+            screenHeight: screenHeight,
+            practiceMode: controller.practiceMode
+        )
+        if abs(next - scoreBandHeightPx) < 4 {
+            return
+        }
+        scoreBandHeightPx = next
     }
 
     @ViewBuilder
@@ -418,21 +451,25 @@ private struct EarTrainingPrecisionGameContent: View {
                     if dragHeightPreview == nil {
                         dragStartBandHeight = EarTrainingPrecisionScorePreferences.clampHeight(
                             scoreBandHeightPx,
-                            screenHeight: screenHeight
+                            screenHeight: screenHeight,
+                            practiceMode: controller.practiceMode
                         )
                     }
                     let proposed = dragStartBandHeight + value.translation.height
                     dragHeightPreview = EarTrainingPrecisionScorePreferences.clampHeight(
                         proposed,
-                        screenHeight: screenHeight
+                        screenHeight: screenHeight,
+                        practiceMode: controller.practiceMode
                     )
                 }
                 .onEnded { value in
                     let proposed = dragStartBandHeight + value.translation.height
                     scoreBandHeightPx = EarTrainingPrecisionScorePreferences.clampHeight(
                         proposed,
-                        screenHeight: screenHeight
+                        screenHeight: screenHeight,
+                        practiceMode: controller.practiceMode
                     )
+                    EarTrainingPrecisionScorePreferences.saveHeight(scoreBandHeightPx)
                     dragHeightPreview = nil
                 }
         )
@@ -759,9 +796,21 @@ enum EarTrainingPrecisionScorePreferences {
     private static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 144, 160, 192, 208]
 
     static let minBandHeight: CGFloat = 96
+    /// Web `PRECISION_SCORE_BAND_RESERVED_TOP_PX` + piano + margin（transport 除く）
+    private static let reservedTopPx: CGFloat = 52
+    private static let pianoHeightPx: CGFloat = 96
+    private static let transportHeightPx: CGFloat = 112
+    private static let layoutMarginPx: CGFloat = 12
 
-    static func clampHeight(_ height: CGFloat, screenHeight: CGFloat) -> CGFloat {
-        min(max(height, minBandHeight), max(minBandHeight, screenHeight - 60))
+    static func clampHeight(
+        _ height: CGFloat,
+        screenHeight: CGFloat,
+        practiceMode: Bool = false
+    ) -> CGFloat {
+        let transport = practiceMode ? transportHeightPx : 0
+        let reserved = reservedTopPx + pianoHeightPx + transport + layoutMarginPx
+        let maxHeight = max(minBandHeight, screenHeight - reserved)
+        return min(max(height, minBandHeight), maxHeight)
     }
 
     static var hasSavedHeight: Bool {

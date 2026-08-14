@@ -32,7 +32,8 @@ describe('earTrainingPrecisionScorePreferences', () => {
 
   it('clamps height to min and viewport headroom', () => {
     expect(clampPrecisionScoreBandHeightPx(50, 800)).toBe(PRECISION_SCORE_BAND_MIN_HEIGHT_PX);
-    expect(clampPrecisionScoreBandHeightPx(900, 800)).toBe(660);
+    expect(clampPrecisionScoreBandHeightPx(900, 800)).toBe(640);
+    expect(clampPrecisionScoreBandHeightPx(900, 800, { practiceMode: true })).toBe(528);
     expect(clampPrecisionScoreBandHeightPx(128.7, 800)).toBe(129);
   });
 

@@ -1823,21 +1823,23 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         return chips
     }
 
+    /// 段ごとの Swing 判定に使うため、アタック自身の part/staff をスコープとして渡す。
     private static func chordOsmdAttackTargetTimeSec(
-        measureNumber: Int,
-        beatStartInMeasure: Double,
+        _ attack: ChordOsmdMusicXmlAttack,
         bpm: Int,
         beatsPerMeasure: Int,
         isSwing: Bool = false,
         straightBeatKeys: Set<String>? = nil
     ) -> Double {
         EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
-            measureNumber: measureNumber,
-            beatStartInMeasure: beatStartInMeasure,
+            measureNumber: attack.measureNumber,
+            beatStartInMeasure: attack.beatStartInMeasure,
             bpm: Double(bpm),
             beatsPerMeasure: beatsPerMeasure,
             isSwing: isSwing,
-            straightBeatKeys: straightBeatKeys
+            straightBeatKeys: straightBeatKeys,
+            swingPartIndex: attack.partIndex,
+            swingStaff: attack.partIndex == nil ? nil : (attack.staff ?? 1)
         )
     }
 
@@ -1888,16 +1890,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             }
             .sorted { lhs, rhs in
                 let lhsTime = chordOsmdAttackTargetTimeSec(
-                    measureNumber: lhs.measureNumber,
-                    beatStartInMeasure: lhs.beatStartInMeasure,
+                    lhs,
                     bpm: bpm,
                     beatsPerMeasure: beatsPerMeasure,
                     isSwing: isSwing,
                     straightBeatKeys: straightBeatKeys
                 )
                 let rhsTime = chordOsmdAttackTargetTimeSec(
-                    measureNumber: rhs.measureNumber,
-                    beatStartInMeasure: rhs.beatStartInMeasure,
+                    rhs,
                     bpm: bpm,
                     beatsPerMeasure: beatsPerMeasure,
                     isSwing: isSwing,
@@ -1918,8 +1918,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 spellings: attack.spellings
             )
             let targetTimeSec = chordOsmdAttackTargetTimeSec(
-                measureNumber: attack.measureNumber,
-                beatStartInMeasure: attack.beatStartInMeasure,
+                attack,
                 bpm: bpm,
                 beatsPerMeasure: beatsPerMeasure,
                 isSwing: isSwing,

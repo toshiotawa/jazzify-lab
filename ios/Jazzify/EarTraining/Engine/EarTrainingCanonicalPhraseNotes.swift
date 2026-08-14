@@ -266,6 +266,14 @@ enum EarTrainingCanonicalPhraseNotes {
         String(format: "attack:%d:%.4f:%d", attack.measureNumber, attack.beatStartInMeasure, orderIndex)
     }
 
+    /// 段ごとの Swing 判定スコープ。partIndex 不明の attack は従来どおり全体判定にフォールバックする。
+    private static func attackSwingScope(
+        _ attack: ChordOsmdMusicXmlAttack
+    ) -> (partIndex: Int, staff: Int)? {
+        guard let partIndex = attack.partIndex else { return nil }
+        return (partIndex, attack.staff ?? 1)
+    }
+
     private static func resolveAttackXmlStartSec(
         _ attack: ChordOsmdMusicXmlAttack,
         bpm: Int,
@@ -273,13 +281,16 @@ enum EarTrainingCanonicalPhraseNotes {
         isSwing: Bool,
         straightBeatKeys: Set<String>?
     ) -> Double {
-        EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
+        let scope = attackSwingScope(attack)
+        return EarTrainingChordOsmdMusicXmlNormalizer.chordOsmdBeatToTargetTimeSec(
             measureNumber: attack.measureNumber,
             beatStartInMeasure: attack.beatStartInMeasure,
             bpm: Double(bpm),
             beatsPerMeasure: beatsPerMeasure,
             isSwing: isSwing,
-            straightBeatKeys: straightBeatKeys
+            straightBeatKeys: straightBeatKeys,
+            swingPartIndex: scope?.partIndex,
+            swingStaff: scope?.staff
         )
     }
 
@@ -382,7 +393,13 @@ enum EarTrainingCanonicalPhraseNotes {
         _ attack: ChordOsmdMusicXmlAttack,
         durationMaps: [String: [Int: Double]]
     ) -> [Int: Double] {
-        let clusterKey = String(format: "%d:%.4f:0:1", attack.measureNumber, attack.beatStartInMeasure)
+        let clusterKey = String(
+            format: "%d:%.4f:%d:%d",
+            attack.measureNumber,
+            attack.beatStartInMeasure,
+            attack.partIndex ?? 0,
+            attack.staff ?? 1
+        )
         return durationMaps[clusterKey] ?? [:]
     }
 

@@ -1014,6 +1014,19 @@ const applyChordOsmdSwingToBeatIndex = (beatIndex: number): number => {
   return beatIndex;
 };
 
+/**
+ * 端点の傾きを 1 に固定した 3 次エルミート補間の 1 区間。
+ * 折れ線だとプレイヘッドが拍の途中で急に速くなるため、区間の継ぎ目で速度を揃える。
+ */
+const swungSegmentToNotated = (t: number, height: number, width: number): number => {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const h10 = t3 - 2 * t2 + t;
+  const h01 = -2 * t3 + 3 * t2;
+  const h11 = t3 - t2;
+  return h01 * height + (h10 + h11) * width;
+};
+
 /** スイング済み 0-indexed 拍位置 → 記譜上の拍位置（譜面プレイヘッド用）。 */
 const chordOsmdSwungBeatIndexToNotatedBeatIndex = (
   beatIndex: number,
@@ -1027,10 +1040,10 @@ const chordOsmdSwungBeatIndexToNotatedBeatIndex = (
   const fraction = beatIndex - beatWhole;
   const longRatio = CHORD_OSMD_SWING_LONG_EIGHTH_RATIO;
   if (fraction <= longRatio + STRAIGHT_BEAT_FRACTION_EPS) {
-    return beatWhole + fraction * (0.5 / longRatio);
+    return beatWhole + swungSegmentToNotated(fraction / longRatio, 0.5, longRatio);
   }
   const shortRatio = 1 - longRatio;
-  return beatWhole + 0.5 + ((fraction - longRatio) / shortRatio) * 0.5;
+  return beatWhole + 0.5 + swungSegmentToNotated((fraction - longRatio) / shortRatio, 0.5, shortRatio);
 };
 
 /**

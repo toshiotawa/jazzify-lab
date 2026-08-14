@@ -32,6 +32,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     var countInDurationSec: Double = 0
     var maxOsmdMeasure: Int = 1
     var manualScrollEnabled: Bool = false
+    /// 精密モード: 描画後のコンテンツ高さを Swift へ通知する。
+    var reportContentHeightFit: Bool = false
+    var onContentHeightFit: ((CGFloat) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(scrollLayout: scrollLayout)
@@ -71,6 +74,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         )
         context.coordinator.updateManualScroll(enabled: manualScrollEnabled)
         context.coordinator.updateDrawMeasureNumbers(drawMeasureNumbers)
+        context.coordinator.reportContentHeightFit = reportContentHeightFit
+        context.coordinator.onContentHeightFit = onContentHeightFit
         context.coordinator.update(
             webView: webView,
             musicXMLText: musicXMLText,
@@ -147,6 +152,69 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var pendingTransposeDirection: EarTrainingLoopTransposeDirection = .none
         private var pendingTransposeBaseSemitone: Int = 0
         private var pendingLoopCycleIndex: Int = 0
+        var reportContentHeightFit = false
+        var onContentHeightFit: ((CGFloat) -> Void)?
+
+        private struct UpdateSignature: Equatable {
+            let activeSemitone: Int
+            let renderKey: Int
+            let activeMeasureNumber: Int
+            let measureDurationSec: Double
+            let phraseTimelineSec: Double?
+            let playheadAnimating: Bool?
+            let zoom: Double
+            let loopCycleIndex: Int
+            let semitoneKeys: [Int]
+        }
+
+        private var lastUpdateSignature: UpdateSignature?
+        private var guideColorPrimaryInput: String?
+        private var guideColorPrimaryOutput: String?
+        private var guideColorInputBySemitone: [Int: String] = [:]
+        private var guideColorOutputBySemitone: [Int: String] = [:]
+
+        private func clearGuideColorCache() {
+            guideColorPrimaryInput = nil
+            guideColorPrimaryOutput = nil
+            guideColorInputBySemitone.removeAll(keepingCapacity: true)
+            guideColorOutputBySemitone.removeAll(keepingCapacity: true)
+        }
+
+        private func guideColoredPrimary(raw: String) -> String {
+            if guideColorPrimaryInput == raw, let cached = guideColorPrimaryOutput {
+                return cached
+            }
+            let applied = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(raw)
+            guideColorPrimaryInput = raw
+            guideColorPrimaryOutput = applied
+            return applied
+        }
+
+        private func guideColored(semitone: Int, raw: String) -> String {
+            if guideColorInputBySemitone[semitone] == raw,
+               let cached = guideColorOutputBySemitone[semitone] {
+                return cached
+            }
+            let applied = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(raw)
+            guideColorInputBySemitone[semitone] = raw
+            guideColorOutputBySemitone[semitone] = applied
+            return applied
+        }
+
+        private func guideColoredXmlBySemitone(
+            scoreXmlBySemitone: [Int: String],
+            fallbackMusicXMLText: String
+        ) -> [Int: String] {
+            if scoreXmlBySemitone.isEmpty {
+                return [0: guideColoredPrimary(raw: fallbackMusicXMLText)]
+            }
+            var result: [Int: String] = [:]
+            result.reserveCapacity(scoreXmlBySemitone.count)
+            for (semitone, raw) in scoreXmlBySemitone {
+                result[semitone] = guideColored(semitone: semitone, raw: raw)
+            }
+            return result
+        }
 
         func prepareScoreSlots(
             xmlBySemitone: [Int: String],
@@ -169,7 +237,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 slotRenderInFlight = false
                 slotRenderInFlightSemitone = nil
                 lastActivatedSemitone = nil
-                disposeScoreSlotsIfNeeded()
+                clearGuideColorCache()
             }
             enqueueScoreSlotPreparation(
                 prioritySemitones: prioritizedSlotSemitones(
@@ -237,11 +305,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 merged.append(semitone)
             }
             for semitone in slotRenderQueue {
-                guard shouldPrepareScoreSlot(semitone, available: available),
-                      seen.insert(semitone).inserted else { continue }
-                merged.append(semitone)
-            }
-            for semitone in available.sorted() {
                 guard shouldPrepareScoreSlot(semitone, available: available),
                       seen.insert(semitone).inserted else { continue }
                 merged.append(semitone)
@@ -332,6 +395,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             slotRenderInFlight = false
             slotRenderInFlightSemitone = nil
             lastActivatedSemitone = nil
+            lastUpdateSignature = nil
+            clearGuideColorCache()
             webView?.stopLoading()
             webView = nil
         }
@@ -488,6 +553,14 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 guard webView != nil else { return }
                 resyncOverlayAfterRender()
                 flushPendingMeasureUpdatesIfReady()
+            case "contentHeightFit":
+                if reportContentHeightFit || scrollLayout == .precision,
+                   let height = Double(detail), height.isFinite, height > 0 {
+                    let px = CGFloat(height)
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onContentHeightFit?(px)
+                    }
+                }
             case "setupComplete":
                 guard webView != nil else { return }
                 resyncOverlayAfterRender()
@@ -540,10 +613,31 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             zoom: Double
         ) {
             guard !isTornDown else { return }
-            pendingMusicXMLText = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(musicXMLText)
-            let xmlBySemitone = (scoreXmlBySemitone.isEmpty ? [0: musicXMLText] : scoreXmlBySemitone).mapValues {
-                EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors($0)
+
+            let semitoneKeys = scoreXmlBySemitone.isEmpty
+                ? [0]
+                : scoreXmlBySemitone.keys.sorted()
+            let signature = UpdateSignature(
+                activeSemitone: activeSemitone,
+                renderKey: renderKey,
+                activeMeasureNumber: activeMeasureNumber,
+                measureDurationSec: measureDurationSec,
+                phraseTimelineSec: phraseTimelineSec,
+                playheadAnimating: playheadAnimating,
+                zoom: zoom,
+                loopCycleIndex: loopCycleIndex,
+                semitoneKeys: semitoneKeys
+            )
+            if signature == lastUpdateSignature, htmlReady {
+                return
             }
+            lastUpdateSignature = signature
+
+            pendingMusicXMLText = guideColoredPrimary(raw: musicXMLText)
+            let xmlBySemitone = guideColoredXmlBySemitone(
+                scoreXmlBySemitone: scoreXmlBySemitone,
+                fallbackMusicXMLText: musicXMLText
+            )
             pendingScoreXmlBySemitone = xmlBySemitone
             pendingActiveSemitone = activeSemitone
             pendingTransposeDirection = loopTransposeDirection
@@ -776,6 +870,10 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 of: "__WINDOW_DENSE_FALLBACK_MEASURES__",
                 with: String(EarTrainingOsmdScoreScroll.windowDenseFallbackMeasures)
             )
+            .replacingOccurrences(
+                of: "__REPORT_CONTENT_HEIGHT_FIT__",
+                with: layout == .precision ? "true" : "false"
+            )
     }
 
     private static let htmlTemplate = """
@@ -802,10 +900,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         #score-content {
           position: absolute;
           left: 0;
-          top: 50%;
+          top: 0;
           min-width: 100%;
-          transform-origin: left center;
+          transform-origin: left top;
           will-change: transform;
+        }
+        .score-slot-wrapper {
+          transform-origin: left top;
         }
         #score {
           position: relative;
@@ -874,6 +975,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const FIT_WINDOW_STEP = __FIT_WINDOW_STEP__;
           const WINDOW_DENSE_FALLBACK_SCALE = __WINDOW_DENSE_FALLBACK_SCALE__;
           const WINDOW_DENSE_FALLBACK_MEASURES = __WINDOW_DENSE_FALLBACK_MEASURES__;
+          const REPORT_CONTENT_HEIGHT_FIT = __REPORT_CONTENT_HEIGHT_FIT__;
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
@@ -1489,16 +1591,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function applyScoreTransform(scrollOffset) {
-            const slot = slotsBySemitone[activeSemitone];
             const totalOffset = scrollOffset + manualScrollOffsetPx;
             const snapped = snapLayoutPx(totalOffset);
-            const transform = 'translate3d(' + (-snapped) + 'px, -50%, 0) scale(' + effectiveScale + ')';
-            if (slot && slot.wrapper) {
-              slot.wrapper.style.transform = transform;
-            } else if (scoreContent) {
+            const transform = 'translate3d(' + (-snapped) + 'px, 0, 0) scale(' + effectiveScale + ')';
+            if (scoreContent) {
               scoreContent.style.transform = transform;
-            } else if (score) {
-              score.style.transform = transform;
             }
           }
 
@@ -1624,15 +1721,63 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               }
             }
             if (xmlBetweenStaff !== null && typeof rules.BetweenStaffDistance === 'number') {
-              const nextBetweenStaff = Math.max(rules.BetweenStaffDistance, xmlBetweenStaff);
-              rules.BetweenStaffDistance = nextBetweenStaff;
+              rules.BetweenStaffDistance = xmlBetweenStaff;
               if (typeof rules.MinSkyBottomDistBetweenStaves === 'number') {
                 rules.MinSkyBottomDistBetweenStaves = Math.min(
                   rules.MinSkyBottomDistBetweenStaves,
-                  nextBetweenStaff
+                  xmlBetweenStaff
                 );
               }
             }
+          }
+
+          function resolveVisibleSemitone(requested) {
+            const slot = slotsBySemitone[requested];
+            if (slot && slot.ready) {
+              return requested;
+            }
+            const current = slotsBySemitone[activeSemitone];
+            if (current && current.ready) {
+              return activeSemitone;
+            }
+            const keys = Object.keys(slotsBySemitone);
+            for (let i = 0; i < keys.length; i += 1) {
+              const semitone = Number(keys[i]);
+              const candidate = slotsBySemitone[semitone];
+              if (candidate && candidate.ready) {
+                return semitone;
+              }
+            }
+            return requested;
+          }
+
+          function pruneInactiveScoreSlots(keepSemitone) {
+            const keys = Object.keys(slotsBySemitone);
+            for (let i = 0; i < keys.length; i += 1) {
+              const semitone = Number(keys[i]);
+              if (semitone === keepSemitone) {
+                continue;
+              }
+              const slot = slotsBySemitone[semitone];
+              if (slot && slot.wrapper && slot.wrapper.parentNode) {
+                slot.wrapper.parentNode.removeChild(slot.wrapper);
+              }
+              delete slotsBySemitone[semitone];
+            }
+          }
+
+          function postContentHeightFitIfNeeded(root, cssScaleValue, isBackgroundSlot) {
+            if (!REPORT_CONTENT_HEIGHT_FIT || isBackgroundSlot) {
+              return;
+            }
+            const measured = measureContentHeightForRoot(root);
+            if (!(measured > 0)) {
+              return;
+            }
+            const scale = typeof cssScaleValue === 'number' && Number.isFinite(cssScaleValue)
+              ? cssScaleValue
+              : 1;
+            postOsmdMessage('contentHeightFit', String(Math.ceil(measured * scale + 6)));
           }
 
           function createSlotState(semitone) {
@@ -1643,6 +1788,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             wrapper.style.inset = '0';
             wrapper.style.opacity = '0';
             wrapper.style.pointerEvents = 'none';
+            wrapper.style.transformOrigin = 'left top';
             wrapper.setAttribute('aria-hidden', 'true');
             const root = document.createElement('div');
             root.className = 'score-slot-root';
@@ -1701,14 +1847,16 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function applySlotVisibility() {
+            const visibleSemitone = resolveVisibleSemitone(activeSemitone);
             const keys = Object.keys(slotsBySemitone);
             for (let i = 0; i < keys.length; i += 1) {
               const semitone = Number(keys[i]);
               const slot = slotsBySemitone[semitone];
-              const isActive = semitone === activeSemitone;
-              slot.wrapper.style.opacity = isActive ? '1' : '0';
-              slot.wrapper.style.pointerEvents = isActive ? 'auto' : 'none';
-              slot.wrapper.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+              const isVisible = semitone === visibleSemitone && slot.ready;
+              slot.wrapper.style.opacity = isVisible ? '1' : '0';
+              slot.wrapper.style.visibility = isVisible ? 'visible' : 'hidden';
+              slot.wrapper.style.pointerEvents = isVisible ? 'auto' : 'none';
+              slot.wrapper.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
             }
           }
 
@@ -1740,27 +1888,37 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function setActiveScoreSlot(semitone) {
-            const slot = slotsBySemitone[semitone];
-            if (!slot || !slot.ready) {
-              return false;
-            }
             if (slotsBySemitone[activeSemitone]) {
               persistGlobalsToActiveSlot();
             }
             activeSemitone = semitone;
+            const visibleSemitone = resolveVisibleSemitone(semitone);
+            const slot = slotsBySemitone[visibleSemitone];
+            if (!slot || !slot.ready) {
+              applySlotVisibility();
+              return false;
+            }
             bindSlot(slot);
             applySlotVisibility();
             applyIdleScoreLayout();
             updateMeasureHighlight();
-            postOsmdMessage('slotActivated', String(semitone));
+            if (visibleSemitone === semitone) {
+              pruneInactiveScoreSlots(visibleSemitone);
+            }
+            postOsmdMessage('slotActivated', String(visibleSemitone));
             return true;
           }
 
           async function prepareScoreSlot(semitone, xmlText, zoomValue) {
             const slot = ensureSlot(semitone);
-            await renderMusicXMLInternal(xmlText, zoomValue, slot);
-            slot.ready = true;
-            postOsmdMessage('slotReady', String(semitone));
+            let renderSucceeded = await renderMusicXMLInternal(xmlText, zoomValue, slot);
+            if (renderSucceeded) {
+              slot.ready = true;
+              postOsmdMessage('slotReady', String(semitone));
+            } else if (Object.keys(slotsBySemitone).length === 1 || semitone === activeSemitone) {
+              status.textContent = status.textContent || 'Could not render MusicXML.';
+              status.style.display = 'grid';
+            }
           }
 
           function buildOsmd(targetRoot) {
@@ -1802,6 +1960,22 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return rect.height || surface.height || 0;
           }
 
+          function measureContentHeightForRoot(root) {
+            const surface = root.querySelector('canvas, svg');
+            if (!surface) return 0;
+            if (surface.tagName && surface.tagName.toLowerCase() === 'svg') {
+              try {
+                const bbox = surface.getBBox();
+                if (bbox.height > 0) {
+                  return bbox.height;
+                }
+              } catch (_e) {
+                /* fall through */
+              }
+            }
+            return measureSurfaceHeightForRoot(root);
+          }
+
           async function renderMusicXMLInternal(xmlText, zoomValue, slot) {
             const isBackgroundSlot = slot.semitone !== activeSemitone;
             if (!isBackgroundSlot) {
@@ -1816,7 +1990,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             slot.currentScrollOffset = 0;
             slot.precisionWindowStart = 1;
             slot.effectiveScale = 1;
-            slot.wrapper.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+            slot.wrapper.style.transform = '';
             if (!isBackgroundSlot) {
               status.textContent = 'Rendering...';
               status.style.display = 'grid';
@@ -1852,14 +2026,17 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
               const aggressiveShrink =
                 typeof zoomValue === 'number' && Number.isFinite(zoomValue) && zoomValue <= 0.5;
-              const targetHeight = Math.max(48, viewport.clientHeight * (aggressiveShrink ? 0.78 : 0.98));
-              const measured = measureSurfaceHeightForRoot(slot.root);
+              const targetHeight = Math.max(48, viewport.clientHeight * (aggressiveShrink ? 0.92 : 0.98));
+              const measured = measureContentHeightForRoot(slot.root);
               if (measured > targetHeight && measured > 0) {
                 slot.cssScale = Math.max(0.28, targetHeight / measured);
               } else {
                 slot.cssScale = 1;
               }
-              slot.wrapper.style.transform = 'translate3d(0, -50%, 0) scale(' + slot.cssScale + ')';
+              if (!isBackgroundSlot && scoreContent) {
+                scoreContent.style.transform = 'translate3d(0, 0, 0) scale(1)';
+              }
+              postContentHeightFitIfNeeded(slot.root, slot.cssScale, isBackgroundSlot);
               await new Promise(function (resolve) {
                 requestAnimationFrame(resolve);
               });
@@ -1883,6 +2060,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 status.style.display = 'none';
               }
             }
+            return renderSucceeded;
           }
 
           async function renderMusicXML(xmlText, zoomValue) {

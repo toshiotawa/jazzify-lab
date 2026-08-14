@@ -1,4 +1,5 @@
 import CoreGraphics
+import UIKit
 
 /// 耳コピバトル中央の五線譜(OSMD/Canvas)が占有する縦帯と、吹き出し配置の共通計算。
 /// SwiftUI 座標系（上端 Y=0、下向き正）で下端 Y を返す。
@@ -20,9 +21,15 @@ enum EarTrainingBattleStaffBandLayout {
     }
 
     /// `EarTrainingChordOSMDGameView.scoreOverlay` の outer 高さに合わせる。
-    static func osmdStaffBottomY(sceneSize: CGSize) -> CGFloat {
+    static func osmdStaffBottomY(sceneSize: CGSize, multiStaff: Bool = false) -> CGFloat {
+        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
         let baseHeight = min(sceneSize.height * 0.55, 360)
-        let outerHeight = min(sceneSize.height * 0.72, max(sceneSize.height * 0.26, baseHeight))
+        let outerHeight: CGFloat = {
+            if multiStaff && isPhone {
+                return min(sceneSize.height * 0.82, max(sceneSize.height * 0.34, baseHeight + 48))
+            }
+            return min(sceneSize.height * 0.72, max(sceneSize.height * 0.26, baseHeight))
+        }()
         let centerY = sceneSize.height * 0.36
         return centerY + outerHeight / 2 + bandMargin
     }

@@ -87,6 +87,7 @@ import {
 import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
 import {
   clampPrecisionScoreBandHeightPx,
+  hasSavedPrecisionScoreBandHeightPx,
   loadPrecisionScoreBandHeightPx,
   PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX,
   PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX,
@@ -278,7 +279,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [scoreBandHeightPx, setScoreBandHeightPx] = useState(() => {
     const saved = loadPrecisionScoreBandHeightPx();
     if (saved !== null && typeof window !== 'undefined') {
-      return clampPrecisionScoreBandHeightPx(saved, window.innerHeight);
+      return clampPrecisionScoreBandHeightPx(saved, window.innerHeight, { practiceMode });
     }
     return PRECISION_SCORE_BAND_DEFAULT_HEIGHT_PX;
   });
@@ -1706,9 +1707,31 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return clampPrecisionScoreBandHeightPx(
         PRECISION_SCORE_BAND_MULTI_STAFF_DEFAULT_HEIGHT_PX,
         window.innerHeight,
+        { practiceMode },
       );
     });
-  }, [musicXmlText]);
+  }, [musicXmlText, practiceMode]);
+
+  const handleOsmdContentHeightFit = useCallback((heightPx: number) => {
+    if (hasSavedPrecisionScoreBandHeightPx()) {
+      return;
+    }
+    const state = gameStateRef.current;
+    if (state === 'countIn' || state === 'playingPhrase') {
+      return;
+    }
+    setScoreBandHeightPx((current) => {
+      const next = clampPrecisionScoreBandHeightPx(
+        heightPx,
+        window.innerHeight,
+        { practiceMode: practiceModeRef.current },
+      );
+      if (Math.abs(next - current) < 4) {
+        return current;
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => () => {
     if (scoreBandResizeRafRef.current !== null) {
@@ -1732,6 +1755,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     const nextHeight = clampPrecisionScoreBandHeightPx(
       drag.startHeight + (event.clientY - drag.startY),
       window.innerHeight,
+      { practiceMode },
     );
     if (scoreBandResizeRafRef.current !== null) {
       cancelAnimationFrame(scoreBandResizeRafRef.current);
@@ -1740,7 +1764,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       scoreBandResizeRafRef.current = null;
       setScoreBandHeightPx(nextHeight);
     });
-  }, []);
+  }, [practiceMode]);
 
   const handleScoreBandResizePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>): void => {
     const drag = scoreBandResizeDragRef.current;
@@ -1755,13 +1779,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     const finalHeight = clampPrecisionScoreBandHeightPx(
       drag.startHeight + (event.clientY - drag.startY),
       window.innerHeight,
+      { practiceMode },
     );
     setScoreBandHeightPx(finalHeight);
     savePrecisionScoreBandHeightPx(finalHeight);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-  }, []);
+  }, [practiceMode]);
 
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear';
   const showLobby = canChangePracticeMode;
@@ -1812,6 +1837,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             showScoreLyrics={stage.show_score_lyrics_in_battle === true}
             drawMeasureNumbers
             scrollLayout={OSMD_SCROLL_LAYOUT_PRECISION}
+            onContentHeightFit={handleOsmdContentHeightFit}
           />
         ) : musicXmlText ? (
           <EarTrainingChordOSMDScore
@@ -1832,6 +1858,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             showScoreLyrics={stage.show_score_lyrics_in_battle === true}
             drawMeasureNumbers={practiceMode}
             scrollLayout={OSMD_SCROLL_LAYOUT_PRECISION}
+            onContentHeightFit={handleOsmdContentHeightFit}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">

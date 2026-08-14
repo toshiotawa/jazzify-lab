@@ -316,11 +316,18 @@ private struct EarTrainingChordOSMDContent: View {
         timingAdjustmentLaunch = pending
     }
 
+    private func osmdLayoutMultiStaff() -> Bool {
+        controller.musicXMLMaxStaffLayers >= 2
+    }
+
     private func landscapeContent(size: CGSize) -> some View {
         let hideScoreForTiming = timingCalibrationMode
         let staffBottomY = hideScoreForTiming
             ? nil
-            : EarTrainingBattleStaffBandLayout.osmdStaffBottomY(sceneSize: size)
+            : EarTrainingBattleStaffBandLayout.osmdStaffBottomY(
+                sceneSize: size,
+                multiStaff: osmdLayoutMultiStaff()
+            )
         return ZStack {
             feedbackBackground
 
@@ -441,7 +448,14 @@ private struct EarTrainingChordOSMDContent: View {
         let outerWidth = (size.width - leftInset) * 0.98
         let centerY = size.height * 0.36
         let baseHeight = min(size.height * 0.55, 360)
-        let outerHeight = min(size.height * 0.72, max(size.height * 0.26, baseHeight))
+        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
+        let multiStaff = osmdLayoutMultiStaff()
+        let outerHeight: CGFloat = {
+            if multiStaff && isPhone {
+                return min(size.height * 0.82, max(size.height * 0.34, baseHeight + 48))
+            }
+            return min(size.height * 0.72, max(size.height * 0.26, baseHeight))
+        }()
 
         let tableIndex = min(max(scoreSizeStep + 2, 0), Self.containerScaleTable.count - 1)
         let containerScale = Self.containerScaleTable[tableIndex]
@@ -451,12 +465,6 @@ private struct EarTrainingChordOSMDContent: View {
         // OSMD コンテナ高さに収めるためのベースズーム。WebView 側でレンダー後に高さを測り、
         // 必要なら縮小再描画して五線・音符が完全に収まるようにする。
         // 2段譜以上では iPhone のみ明示的に小さく開始（iPad は変更なし）。
-        let isPhone = UIDevice.current.userInterfaceIdiom == .phone
-        let maxStaffFromXml = controller.musicXMLText.map {
-            EarTrainingChordOsmdMusicXmlNormalizer.detectMaxStaffLayersFromMusicXmlString($0)
-        } ?? 1
-        let maxStaffLayersForZoom = max(controller.musicXMLMaxStaffLayers, maxStaffFromXml)
-        let multiStaff = maxStaffLayersForZoom >= 2
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.48 : 0.72) : 0.85
 
         ZStack {

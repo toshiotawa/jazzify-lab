@@ -31,6 +31,7 @@ interface EarTrainingPrecisionLoopOsmdScoreProps {
   showScoreLyrics?: boolean;
   drawMeasureNumbers?: boolean;
   scrollLayout?: OsmdScrollLayout;
+  onContentHeightFit?: (heightPx: number) => void;
 }
 
 const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
@@ -53,6 +54,7 @@ const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
   showScoreLyrics = false,
   drawMeasureNumbers = false,
   scrollLayout,
+  onContentHeightFit,
 }, ref) {
   const scoreHandlesRef = useRef<Map<number, EarTrainingChordOSMDScoreHandle>>(new Map());
 
@@ -98,6 +100,7 @@ const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
               showScoreLyrics={showScoreLyrics}
               drawMeasureNumbers={drawMeasureNumbers}
               scrollLayout={scrollLayout}
+              onContentHeightFit={isActive ? onContentHeightFit : undefined}
             />
           </div>
         );

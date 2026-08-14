@@ -8,17 +8,25 @@ struct ChordOsmdMusicXmlAttack: Equatable, Sendable {
     let midis: [Int]
     /// MusicXML `<step>`+`<alter>`/`<accidental>` 由来の音名（オクターブなし）。`midis` と同順。
     let spellings: [String]
+    /// 段ごとの Swing 判定に使う `<part>` 位置（0 始まり）。
+    let partIndex: Int?
+    /// 段ごとの Swing 判定に使う `<staff>`（1 = 右手 / 2 = 左手）。
+    let staff: Int?
 
     init(
         measureNumber: Int,
         beatStartInMeasure: Double,
         midis: [Int],
-        spellings: [String] = []
+        spellings: [String] = [],
+        partIndex: Int? = nil,
+        staff: Int? = nil
     ) {
         self.measureNumber = measureNumber
         self.beatStartInMeasure = beatStartInMeasure
         self.midis = midis
         self.spellings = spellings
+        self.partIndex = partIndex
+        self.staff = staff
     }
 }
 
@@ -112,11 +120,40 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         let node: ChordOsmdXmlChild
     }
 
-    /// `<staves>` の最大値と、`<note>` 直下の `<staff>` 番号の最大値のうち大きい方（いずれも無ければ 1）。
+    /// `<staves>` / note `<staff>` / 音符を持つ `<part>` 数の最大（Web `detectMaxStaffLayersFromMusicXml` と同一）。
     private static func maxDetectedStaffLayerCount(from root: ChordOsmdXmlElement) -> Int {
         var maxFromStaves = 0
         var maxFromNoteStaff = 0
+        var partsWithPitchNotes = 0
+        func noteHasPitch(_ note: ChordOsmdXmlElement) -> Bool {
+            for ch in note.children {
+                if case let .element(child) = ch, child.name == "pitch" {
+                    return true
+                }
+            }
+            return false
+        }
+        func partHasPitchNote(_ part: ChordOsmdXmlElement) -> Bool {
+            var found = false
+            func visit(_ el: ChordOsmdXmlElement) {
+                if found { return }
+                if el.name == "note", noteHasPitch(el) {
+                    found = true
+                    return
+                }
+                for ch in el.children {
+                    if case let .element(child) = ch {
+                        visit(child)
+                    }
+                }
+            }
+            visit(part)
+            return found
+        }
         func visit(_ el: ChordOsmdXmlElement) {
+            if el.name == "part", partHasPitchNote(el) {
+                partsWithPitchNotes += 1
+            }
             if el.name == "staves", let n = parsePositiveInt(textContent(of: el)) {
                 maxFromStaves = max(maxFromStaves, n)
             }
@@ -136,7 +173,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             }
         }
         visit(root)
-        return max(1, maxFromStaves, maxFromNoteStaff)
+        return max(1, maxFromStaves, maxFromNoteStaff, partsWithPitchNotes)
     }
 
     private static func textContent(of el: ChordOsmdXmlElement) -> String? {
@@ -169,27 +206,41 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             }
         }
 
-        guard let noteOuter = try? NSRegularExpression(pattern: #"<note\b[^>]*>[\s\S]*?</note>"#, options: .caseInsensitive),
-              let staffInner = try? NSRegularExpression(pattern: #"<staff>\s*(\d+)\s*</staff>"#, options: .caseInsensitive)
-        else {
-            return max(1, maxFromStaves, maxFromNoteStaff)
-        }
-
-        let full = NSRange(xml.startIndex..., in: xml)
-        noteOuter.enumerateMatches(in: xml, options: [], range: full) { noteMatch, _, _ in
-            guard let noteMatch else { return }
-            guard let blockRange = Range(noteMatch.range, in: xml) else { return }
-            let block = String(xml[blockRange])
-            let blockFull = NSRange(block.startIndex..., in: block)
-            staffInner.enumerateMatches(in: block, options: [], range: blockFull) { sm, _, _ in
-                guard let sm, sm.numberOfRanges >= 2,
-                      let sr = Range(sm.range(at: 1), in: block),
-                      let n = Int(block[sr]), n > maxFromNoteStaff else { return }
-                maxFromNoteStaff = n
+        var partsWithPitchNotes = 0
+        if let partRe = try? NSRegularExpression(
+            pattern: #"<part\b[^>]*>([\s\S]*?)</part>"#,
+            options: .caseInsensitive
+        ) {
+            let full = NSRange(xml.startIndex..., in: xml)
+            partRe.enumerateMatches(in: xml, options: [], range: full) { result, _, _ in
+                guard let result, result.numberOfRanges >= 2,
+                      let bodyRange = Range(result.range(at: 1), in: xml) else { return }
+                let body = String(xml[bodyRange])
+                if body.range(of: #"<note\b[^>]*>[\s\S]*?<pitch>"#, options: .regularExpression) != nil {
+                    partsWithPitchNotes += 1
+                }
             }
         }
 
-        return max(1, maxFromStaves, maxFromNoteStaff)
+        if let noteOuter = try? NSRegularExpression(pattern: #"<note\b[^>]*>[\s\S]*?</note>"#, options: .caseInsensitive),
+           let staffInner = try? NSRegularExpression(pattern: #"<staff>\s*(\d+)\s*</staff>"#, options: .caseInsensitive)
+        {
+            let full = NSRange(xml.startIndex..., in: xml)
+            noteOuter.enumerateMatches(in: xml, options: [], range: full) { noteMatch, _, _ in
+                guard let noteMatch else { return }
+                guard let blockRange = Range(noteMatch.range, in: xml) else { return }
+                let block = String(xml[blockRange])
+                let blockFull = NSRange(block.startIndex..., in: block)
+                staffInner.enumerateMatches(in: block, options: [], range: blockFull) { sm, _, _ in
+                    guard let sm, sm.numberOfRanges >= 2,
+                          let sr = Range(sm.range(at: 1), in: block),
+                          let n = Int(block[sr]), n > maxFromNoteStaff else { return }
+                    maxFromNoteStaff = n
+                }
+            }
+        }
+
+        return max(1, maxFromStaves, maxFromNoteStaff, partsWithPitchNotes)
     }
 
     /// 正規化後の XML と、段落譜数の検出結果（読み込み 1 回で両方算出）。
@@ -755,6 +806,17 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return beatIndex
     }
 
+    /// 端点の傾きを 1 に固定した 3 次エルミート補間の 1 区間。
+    /// 折れ線だとプレイヘッドが拍の途中で急に速くなるため、区間の継ぎ目で速度を揃える。
+    private static func swungSegmentToNotated(_ t: Double, height: Double, width: Double) -> Double {
+        let t2 = t * t
+        let t3 = t2 * t
+        let h10 = t3 - 2 * t2 + t
+        let h01 = -2 * t3 + 3 * t2
+        let h11 = t3 - t2
+        return h01 * height + (h10 + h11) * width
+    }
+
     private static func swungBeatIndexToNotatedBeatIndex(
         _ beatIndex: Double,
         measureNumber: Int,
@@ -767,10 +829,14 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         let fraction = beatIndex - beatWhole
         let longRatio = chordOsmdSwingLongEighthRatio
         if fraction <= longRatio + straightBeatFractionEps {
-            return beatWhole + fraction * (0.5 / longRatio)
+            return beatWhole + swungSegmentToNotated(fraction / longRatio, height: 0.5, width: longRatio)
         }
         let shortRatio = 1 - longRatio
-        return beatWhole + 0.5 + ((fraction - longRatio) / shortRatio) * 0.5
+        return beatWhole + 0.5 + swungSegmentToNotated(
+            (fraction - longRatio) / shortRatio,
+            height: 0.5,
+            width: shortRatio
+        )
     }
 
     /// スイング済みオーディオ時刻 → 記譜上の時刻（譜面プレイヘッド用）。
@@ -1114,11 +1180,11 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
     /// `targetVoice` 指定時はその voice のクラスタのみ収集する（未指定時は voice 4 ガイドのみ除外）。
     static func collectChordOsmdMusicXmlAttacks(_ xmlText: String, targetVoice: Int? = nil) -> [ChordOsmdMusicXmlAttack] {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else { return [] }
-        let measures = measuresInPartsFirst(from: root)
         var attacks: [ChordOsmdMusicXmlAttack] = []
-        var timing = ScoreTimingStateForAttacks(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
 
-        for (idx, measure) in measures.enumerated() {
+        for group in attackMeasureGroups(from: root) {
+            var timing = ScoreTimingStateForAttacks(divisions: 1, beats: 4, beatType: 4, keyFifths: 0)
+            for (idx, measure) in group.measures.enumerated() {
             let measureNumber = parseMeasureNumberAttribute(measure, ordinalOneBased: idx + 1)
             var currentTime = 0.0
             let children = measure.children
@@ -1237,7 +1303,9 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                                 measureNumber: measureNumber,
                                 beatStartInMeasure: beatStartInMeasure,
                                 midis: clusterMidis,
-                                spellings: clusterSpellings
+                                spellings: clusterSpellings,
+                                partIndex: group.partIndex,
+                                staff: attackStaffNumber(from: child)
                             )
                         )
                     }
@@ -1247,6 +1315,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
                 default:
                     ci += 1
                 }
+            }
             }
         }
 
@@ -1369,6 +1438,53 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         }
         guard matched, !merged.isEmpty else { return nil }
         return merged
+    }
+
+    private struct AttackMeasureGroup {
+        let measures: [ChordOsmdXmlElement]
+        let partIndex: Int
+    }
+
+    /// `<part>` ごとに小節をまとめる。`EarTrainingPrecisionMusicXmlClusterWalker` と同じ partIndex 採番。
+    private static func attackMeasureGroups(from root: ChordOsmdXmlElement) -> [AttackMeasureGroup] {
+        var parts: [ChordOsmdXmlElement] = []
+
+        func collect(_ el: ChordOsmdXmlElement) {
+            if el.name == "part" {
+                parts.append(el)
+                return
+            }
+            for ch in el.children {
+                if case let .element(c) = ch {
+                    collect(c)
+                }
+            }
+        }
+
+        collect(root)
+        if parts.isEmpty {
+            return [AttackMeasureGroup(measures: allElements(named: "measure", in: root), partIndex: 0)]
+        }
+        return parts.enumerated().map { index, part in
+            var measures: [ChordOsmdXmlElement] = []
+            for ch in part.children {
+                if case let .element(m) = ch, m.name == "measure" {
+                    measures.append(m)
+                }
+            }
+            return AttackMeasureGroup(measures: measures, partIndex: index)
+        }
+    }
+
+    /// `EarTrainingPrecisionMusicXmlClusterWalker.staffNumber` と同じ 1/2 クランプ（Swing キー整合のため）。
+    private static func attackStaffNumber(from note: ChordOsmdXmlElement) -> Int {
+        guard let raw = text(in: note, localName: "staff"),
+              let parsed = Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+              parsed == 2
+        else {
+            return 1
+        }
+        return 2
     }
 
     private static func measuresInPartsFirst(from root: ChordOsmdXmlElement) -> [ChordOsmdXmlElement] {

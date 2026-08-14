@@ -28,4 +28,17 @@ describe('detectMaxStaffLayersFromMusicXml', () => {
       `<note><staff>3</staff></note>`;
     expect(detectMaxStaffLayersFromMusicXml(xml)).toBe(3);
   });
+
+  it('2 パート（G+F）で <staves> も note <staff> も無いときは 2', () => {
+    const xml = `<?xml version="1.0"?>
+<score-partwise>
+  <part id="P1"><measure><attributes><clef><sign>G</sign></clef></attributes>
+    <note><pitch><step>C</step><octave>4</octave></pitch></note>
+  </measure></part>
+  <part id="P2"><measure><attributes><clef><sign>F</sign></clef></attributes>
+    <note><pitch><step>E</step><octave>3</octave></pitch></note>
+  </measure></part>
+</score-partwise>`;
+    expect(detectMaxStaffLayersFromMusicXml(xml)).toBe(2);
+  });
 });

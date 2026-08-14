@@ -293,6 +293,8 @@
 		F6C846CDCB5B49491273FA00 /* EarTrainingPrecisionMidi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BBE5A49757C0B62C14A75D /* EarTrainingPrecisionMidi.swift */; };
 		A1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift */; };
 		D1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */; };
+		D1E2F3D4C5B6A79887766560 /* EarTrainingCanonicalPhraseNotesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E2F3D4C5B6A79887766560 /* EarTrainingCanonicalPhraseNotesTests.swift */; };
+		D1E2F3D4C5B6A79887766561 /* EarTrainingSwingPlayheadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E2F3D4C5B6A79887766561 /* EarTrainingSwingPlayheadTests.swift */; };
 		E1E2F3D4C5B6A7988776650B /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E1E2F3D4C5B6A7988776650C /* XCTest.framework */; };
 		F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44BB606E44E08242A371BE80 /* BillingService.swift */; };
 		F8F637556726711A82399A73 /* SurvivalInputBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7EA654B4F135FB53EDF52E /* SurvivalInputBuffer.swift */; };
@@ -336,6 +338,8 @@
 		22BBE5A49757C0B62C14A75D /* EarTrainingPrecisionMidi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionMidi.swift; sourceTree = "<group>"; };
 		B1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionLoop.swift; sourceTree = "<group>"; };
 		C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionLoopTests.swift; sourceTree = "<group>"; };
+		C1E2F3D4C5B6A79887766560 /* EarTrainingCanonicalPhraseNotesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCanonicalPhraseNotesTests.swift; sourceTree = "<group>"; };
+		C1E2F3D4C5B6A79887766561 /* EarTrainingSwingPlayheadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSwingPlayheadTests.swift; sourceTree = "<group>"; };
 		E1E2F3D4C5B6A79887766501 /* JazzifyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JazzifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E1E2F3D4C5B6A7988776650C /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		22BD2D3BC73DAEB9E0A13AFE /* SurvivalLessonRandomChords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonRandomChords.swift; sourceTree = "<group>"; };
@@ -697,6 +701,8 @@
 			isa = PBXGroup;
 			children = (
 				C1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift */,
+				C1E2F3D4C5B6A79887766560 /* EarTrainingCanonicalPhraseNotesTests.swift */,
+				C1E2F3D4C5B6A79887766561 /* EarTrainingSwingPlayheadTests.swift */,
 				0718293A4B5C6D7E8F901A2B /* SoftLandingFreeTierTests.swift */,
 				293A4B5C6D7E8F901A2B3C4D /* LessonNavigationHelpersTests.swift */,
 				F1A2B3C4D5E678907665541 /* PianoVelocityCurveTests.swift */,
@@ -1754,6 +1760,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				D1E2F3D4C5B6A79887766554 /* EarTrainingPrecisionLoopTests.swift in Sources */,
+				D1E2F3D4C5B6A79887766560 /* EarTrainingCanonicalPhraseNotesTests.swift in Sources */,
+				D1E2F3D4C5B6A79887766561 /* EarTrainingSwingPlayheadTests.swift in Sources */,
 				18293A4B5C6D7E8F901A2B3C /* SoftLandingFreeTierTests.swift in Sources */,
 				3A4B5C6D7E8F901A2B3C4D5E /* LessonNavigationHelpersTests.swift in Sources */,
 				F1A2B3C4D5E678907665542 /* PianoVelocityCurveTests.swift in Sources */,

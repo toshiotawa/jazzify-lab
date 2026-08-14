@@ -31,6 +31,9 @@ final class PianoVelocityCurveTests: XCTestCase {
         for raw in 1...126 {
             XCTAssertLessThanOrEqual(Int(PianoVelocityCurve.map(raw)), raw)
         }
-        XCTAssertLessThan(PianoVelocityCurve.map(PianoVelocityCurve.screenTapVelocity), PianoVelocityCurve.screenTapVelocity)
+        XCTAssertLessThan(
+            Int(PianoVelocityCurve.map(PianoVelocityCurve.screenTapVelocity)),
+            PianoVelocityCurve.screenTapVelocity
+        )
     }
 }

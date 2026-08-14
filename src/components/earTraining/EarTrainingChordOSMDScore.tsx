@@ -74,6 +74,8 @@ interface EarTrainingChordOSMDScoreProps {
   scrollLayout?: OsmdScrollLayout;
   /** true のとき全小節に小節番号を描画する。 */
   drawMeasureNumbers?: boolean;
+  /** 描画後のコンテンツ高さ（px）を親へ通知（精密モードの帯自動調整）。 */
+  onContentHeightFit?: (heightPx: number) => void;
 }
 
 export interface OsmdPlayheadSyncParams {
@@ -249,6 +251,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   showScoreLyrics = false,
   scrollLayout = OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
   drawMeasureNumbers = false,
+  onContentHeightFit,
 }, ref) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreContentRef = useRef<HTMLDivElement | null>(null);
@@ -323,7 +326,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       return;
     }
     const totalOffsetPx = baseOffsetPx + manualOffsetPx;
-    scoreContent.style.transform = `translate3d(${-totalOffsetPx}px, -50%, 0) scale(${effectiveScaleRef.current})`;
+    scoreContent.style.transform = `translate3d(${-totalOffsetPx}px, 0, 0) scale(${effectiveScaleRef.current})`;
   }, []);
 
   const applyHighlightLeftWithManual = useCallback((baseLeftPx: number, manualOffsetPx: number): void => {
@@ -506,6 +509,8 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     };
   }, []);
 
+  const lastRefitViewportRef = useRef({ width: 0, height: 0, cssScale: 1 });
+
   const refitScoreScale = useCallback(async (): Promise<void> => {
     const score = scoreRef.current;
     const scoreContent = scoreContentRef.current;
@@ -520,28 +525,61 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       if (!el) {
         return { el: null, height: 0 };
       }
+      if (el instanceof SVGSVGElement) {
+        try {
+          const bbox = el.getBBox();
+          if (bbox.height > 0) {
+            return { el: el as unknown as HTMLElement, height: bbox.height };
+          }
+        } catch {
+          // fall through
+        }
+      }
       const rect = el.getBoundingClientRect();
       const height = rect.height || (el instanceof HTMLCanvasElement ? el.height : 0);
       return { el: el as HTMLElement, height };
     };
 
-    scoreContent.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+    const viewportWidth = viewportEl.clientWidth;
+    const viewportHeight = viewportEl.clientHeight;
+    const previous = lastRefitViewportRef.current;
+    if (
+      previous.width === viewportWidth
+      && previous.height === viewportHeight
+    ) {
+      return;
+    }
+
+    scoreContent.style.transform = 'translate3d(0, 0, 0) scale(1)';
     await waitNextPaint();
 
     const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
-    const viewportHeight = viewportEl.clientHeight;
     const aggressiveShrink = maxStaff >= 2;
-    const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.78 : 0.98));
+    const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.92 : 0.98));
     const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
     const nextCssScale =
       measuredBeforeScale > targetHeight && measuredBeforeScale > 0
         ? Math.max(0.28, targetHeight / measuredBeforeScale)
         : 1;
-    setCssScale(nextCssScale);
-    applyScoreTransform(scrollOffsetPxRef.current, manualScrollOffsetPxRef.current);
-    await waitNextPaint();
 
-    const viewportWidth = viewportEl.clientWidth;
+    const viewportUnchanged =
+      previous.width === viewportWidth
+      && previous.height === viewportHeight
+      && previous.cssScale === nextCssScale;
+    lastRefitViewportRef.current = {
+      width: viewportWidth,
+      height: viewportHeight,
+      cssScale: nextCssScale,
+    };
+
+    applyScoreTransform(scrollOffsetPxRef.current, manualScrollOffsetPxRef.current);
+
+    if (viewportUnchanged) {
+      return;
+    }
+
+    setCssScale(nextCssScale);
+    await waitNextPaint();
     const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
     setLayout(nextLayout);
   }, [applyScoreTransform, musicXmlText]);
@@ -600,7 +638,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       relaxOsmdCompactTightSpacingForBattle(osmd, musicXmlText);
       (osmd as OpenSheetMusicDisplayZoomable).zoom = osmdZoom;
       installEarTrainingOsmdWordsLayout(osmd);
-      scoreContent.style.transform = 'translate3d(0, -50%, 0) scale(1)';
+      scoreContent.style.transform = 'translate3d(0, 0, 0) scale(1)';
       osmd.render();
       await waitNextPaint();
 
@@ -621,13 +659,21 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         measuredBeforeScale > targetHeight && measuredBeforeScale > 0
           ? Math.max(0.28, targetHeight / measuredBeforeScale)
           : 1;
-      scoreContent.style.transform = `translate3d(0, -50%, 0) scale(${nextCssScale})`;
+      scoreContent.style.transform = `translate3d(0, 0, 0) scale(${nextCssScale})`;
       setCssScale(nextCssScale);
       await waitNextPaint();
 
       const viewportWidth = viewportRef.current?.clientWidth ?? 0;
+      lastRefitViewportRef.current = {
+        width: viewportWidth,
+        height: viewportHeight,
+        cssScale: nextCssScale,
+      };
       const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
       setLayout(nextLayout);
+      if (onContentHeightFit && measuredBeforeScale > 0) {
+        onContentHeightFit(Math.ceil(measuredBeforeScale * nextCssScale + 6));
+      }
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
       setLayout(EMPTY_LAYOUT);
@@ -640,6 +686,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     musicXmlText,
     mobileLandscapeOsmdShrink,
     osmdDisplayMusicXml,
+    onContentHeightFit,
   ]);
 
   useEffect(() => {
@@ -892,6 +939,12 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     </div>
   ) : null;
 
+  const maxStaffLayers = useMemo(
+    () => (musicXmlText ? detectMaxStaffLayersFromMusicXml(musicXmlText) : 1),
+    [musicXmlText],
+  );
+  const multiStaffBattleBand = maxStaffLayers >= 2 && mobileLandscapeOsmdShrink;
+
   const scoreViewport = (
     <div
       ref={viewportRef}
@@ -900,7 +953,12 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         'ear-training-osmd-score overflow-hidden',
         fillParent
           ? 'absolute inset-0 h-full w-full'
-          : 'pointer-events-none absolute left-1/2 top-[36%] h-[min(360px,52vh)] w-[98vw] max-w-[98vw] -translate-x-1/2 -translate-y-1/2',
+          : cn(
+            'pointer-events-none absolute left-1/2 top-[36%] w-[98vw] max-w-[98vw] -translate-x-1/2 -translate-y-1/2',
+            multiStaffBattleBand
+              ? 'h-[min(420px,58vh)]'
+              : 'h-[min(360px,52vh)]',
+          ),
         !fillParent && scoreZClassName,
         fillParent && 'z-0 bg-transparent',
         hidden && 'invisible',
@@ -930,7 +988,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       )}
       <div
         ref={scoreContentRef}
-        className="absolute left-0 top-1/2 min-w-full origin-left"
+        className="absolute left-0 top-0 min-w-full origin-top-left"
       >
         <div
           ref={scoreRef}
