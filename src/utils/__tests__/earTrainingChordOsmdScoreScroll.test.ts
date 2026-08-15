@@ -557,35 +557,34 @@ describe('resolveOsmdWidestMeasureBounds', () => {
 });
 
 describe('computeOsmdPlayheadAnchorOffsetsPx', () => {
-  // 1 小節目は音部記号・調号を含むため noteLeft が右に寄る。カウントイン小節（全休符）は noteLeft を持たない。
   const anchorBounds = {
     1: { left: 0, right: 200 },
     2: { left: 200, right: 300, noteLeft: 215 },
     3: { left: 300, right: 400, noteLeft: 312 },
   };
 
-  it('音符を持たない小節は 0 起点・次小節の音符を終点にする', () => {
+  it('小節線起点・小節幅を終点にする', () => {
     expect(computeOsmdPlayheadAnchorOffsetsPx({
       activeMeasureNumber: 1,
       measureBoundsByNumber: anchorBounds,
       effectiveScale: 1,
-    })).toEqual({ noteOffsetPx: 0, nextNoteOffsetPx: 215 });
+    })).toEqual({ noteOffsetPx: 0, nextNoteOffsetPx: 200 });
   });
 
-  it('effectiveScale を反映し、次小節の音符までを終点にする', () => {
+  it('effectiveScale を小節幅に反映する', () => {
     expect(computeOsmdPlayheadAnchorOffsetsPx({
       activeMeasureNumber: 2,
       measureBoundsByNumber: anchorBounds,
       effectiveScale: 0.5,
-    })).toEqual({ noteOffsetPx: 7.5, nextNoteOffsetPx: 56 });
+    })).toEqual({ noteOffsetPx: 0, nextNoteOffsetPx: 50 });
   });
 
-  it('最終小節は小節右端を終点にする', () => {
+  it('最終小節も右小節線まで', () => {
     expect(computeOsmdPlayheadAnchorOffsetsPx({
       activeMeasureNumber: 3,
       measureBoundsByNumber: anchorBounds,
       effectiveScale: 1,
-    })).toEqual({ noteOffsetPx: 12, nextNoteOffsetPx: 100 });
+    })).toEqual({ noteOffsetPx: 0, nextNoteOffsetPx: 100 });
   });
 
   it('小節境界が無い場合は 0', () => {
@@ -598,36 +597,35 @@ describe('computeOsmdPlayheadAnchorOffsetsPx', () => {
 });
 
 describe('computeOsmdPlayheadOffsetPx', () => {
-  const offsets = { noteOffsetPx: 15, nextNoteOffsetPx: 115 };
+  const offsets = { noteOffsetPx: 0, nextNoteOffsetPx: 100 };
 
-  it('小節頭では最初の音符に乗る', () => {
+  it('小節頭では左小節線', () => {
     expect(computeOsmdPlayheadOffsetPx({
       progress: 0,
       ...offsets,
       inCountIn: false,
-    })).toEqual({ offsetPx: 15, endOffsetPx: 115 });
+    })).toEqual({ offsetPx: 0, endOffsetPx: 100 });
   });
 
-  it('小節末は次小節の音符位置に到達する', () => {
+  it('小節末は右小節線', () => {
     expect(computeOsmdPlayheadOffsetPx({
       progress: 1,
       ...offsets,
       inCountIn: false,
-    })).toEqual({ offsetPx: 115, endOffsetPx: 115 });
+    })).toEqual({ offsetPx: 100, endOffsetPx: 100 });
   });
 
-  it('カウントイン終端と演奏開始位置が一致する', () => {
-    const countInEnd = computeOsmdPlayheadOffsetPx({
+  it('カウントイン中は左小節線に固定', () => {
+    expect(computeOsmdPlayheadOffsetPx({
       progress: 1,
       ...offsets,
       inCountIn: true,
-    });
-    const playStart = computeOsmdPlayheadOffsetPx({
+    })).toEqual({ offsetPx: 0, endOffsetPx: 0 });
+    expect(computeOsmdPlayheadOffsetPx({
       progress: 0,
       ...offsets,
       inCountIn: false,
-    });
-    expect(countInEnd.offsetPx).toBe(playStart.offsetPx);
+    })).toEqual({ offsetPx: 0, endOffsetPx: 100 });
   });
 
   it('進捗は 0..1 にクランプされる', () => {
@@ -635,12 +633,12 @@ describe('computeOsmdPlayheadOffsetPx', () => {
       progress: 1.4,
       ...offsets,
       inCountIn: false,
-    }).offsetPx).toBe(115);
+    }).offsetPx).toBe(100);
     expect(computeOsmdPlayheadOffsetPx({
       progress: -0.2,
       ...offsets,
       inCountIn: false,
-    }).offsetPx).toBe(15);
+    }).offsetPx).toBe(0);
   });
 });
 

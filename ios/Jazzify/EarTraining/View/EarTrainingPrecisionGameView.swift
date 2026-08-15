@@ -409,7 +409,17 @@ private struct EarTrainingPrecisionGameContent: View {
                         progress: controller.scoreErrorText == nil ? 0.2 : nil
                     )
                     .allowsHitTesting(false)
-                } else if let osmdRenderProgress {
+                } else if controller.osmdPlaybackPreparing {
+                    Color.black.opacity(0.35)
+                        .allowsHitTesting(false)
+                    EarTrainingScoreLoadingOverlay(
+                        message: locale == .ja ? "譜面を表示中…" : "Rendering score…",
+                        progress: nil
+                    )
+                    .allowsHitTesting(false)
+                } else if let osmdRenderProgress,
+                          controller.gameState != .countIn,
+                          controller.gameState != .playingPhrase {
                     Color.black.opacity(0.35)
                         .allowsHitTesting(false)
                     EarTrainingScoreLoadingOverlay(

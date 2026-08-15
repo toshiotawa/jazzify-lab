@@ -297,8 +297,8 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertEqual(scale, 0.5, accuracy: 0.0001)
     }
 
-    /// カウントイン小節（音符なし）は小節線起点、次小節の最初の音符が終点になる。
-    func testPlayheadAnchorOffsets_usesNextMeasureNoteAsEnd() {
+    /// プレイヘッドは左小節線 → 右小節線（小節幅）で線形補間する。
+    func testPlayheadAnchorOffsets_usesMeasureBarlines() {
         let anchorBounds: [Int: EarTrainingOsmdScoreScroll.MeasureBounds] = [
             1: .init(left: 0, right: 200),
             2: .init(left: 200, right: 300, noteLeft: 215),
@@ -310,30 +310,30 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
             effectiveScale: 1
         )
         XCTAssertEqual(first.noteOffsetPx, 0)
-        XCTAssertEqual(first.nextNoteOffsetPx, 215)
+        XCTAssertEqual(first.nextNoteOffsetPx, 200)
 
         let second = EarTrainingOsmdScoreScroll.playheadAnchorOffsetsPx(
             activeMeasureNumber: 2,
             measureBoundsByNumber: anchorBounds,
             effectiveScale: 0.5
         )
-        XCTAssertEqual(second.noteOffsetPx, 7.5, accuracy: 0.0001)
-        XCTAssertEqual(second.nextNoteOffsetPx, 56, accuracy: 0.0001)
+        XCTAssertEqual(second.noteOffsetPx, 0)
+        XCTAssertEqual(second.nextNoteOffsetPx, 50, accuracy: 0.0001)
 
         let last = EarTrainingOsmdScoreScroll.playheadAnchorOffsetsPx(
             activeMeasureNumber: 3,
             measureBoundsByNumber: anchorBounds,
             effectiveScale: 1
         )
-        XCTAssertEqual(last.noteOffsetPx, 12)
+        XCTAssertEqual(last.noteOffsetPx, 0)
         XCTAssertEqual(last.nextNoteOffsetPx, 100)
     }
 
-    /// カウントイン終端と演奏開始が同じ位置になり、曲頭でプレイヘッドが飛ばない。
-    func testPlayheadOffset_countInEndMatchesPlaybackStart() {
+    /// カウントイン中は左小節線に固定、演奏中は小節幅まで線形移動。
+    func testPlayheadOffset_countInFixedAtBarline() {
         let offsets = EarTrainingOsmdScoreScroll.PlayheadAnchorOffsets(
-            noteOffsetPx: 15,
-            nextNoteOffsetPx: 115
+            noteOffsetPx: 0,
+            nextNoteOffsetPx: 100
         )
         let countInEnd = EarTrainingOsmdScoreScroll.playheadOffsetPx(
             progress: 1,
@@ -345,16 +345,64 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
             anchorOffsets: offsets,
             inCountIn: false
         )
-        XCTAssertEqual(countInEnd.offsetPx, playStart.offsetPx)
-        XCTAssertEqual(playStart.offsetPx, 15)
+        XCTAssertEqual(countInEnd.offsetPx, 0)
+        XCTAssertEqual(playStart.offsetPx, 0)
 
         let measureEnd = EarTrainingOsmdScoreScroll.playheadOffsetPx(
             progress: 1,
             anchorOffsets: offsets,
             inCountIn: false
         )
-        XCTAssertEqual(measureEnd.offsetPx, 115)
-        XCTAssertEqual(measureEnd.endOffsetPx, 115)
+        XCTAssertEqual(measureEnd.offsetPx, 100)
+        XCTAssertEqual(measureEnd.endOffsetPx, 100)
+    }
+
+    func testShouldResyncPlayheadTimeline_skipsIntraMeasureTicks() {
+        XCTAssertFalse(
+            EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: 1.00,
+                nextTimelineSec: 1.03,
+                previousAnimating: true,
+                nextAnimating: true,
+                measureChanged: false
+            )
+        )
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: 1.90,
+                nextTimelineSec: 2.00,
+                previousAnimating: true,
+                nextAnimating: true,
+                measureChanged: true
+            )
+        )
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: -0.02,
+                nextTimelineSec: 0,
+                previousAnimating: true,
+                nextAnimating: true,
+                measureChanged: false
+            )
+        )
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: 1.00,
+                nextTimelineSec: 1.00,
+                previousAnimating: true,
+                nextAnimating: false,
+                measureChanged: false
+            )
+        )
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: 1.00,
+                nextTimelineSec: 1.50,
+                previousAnimating: true,
+                nextAnimating: true,
+                measureChanged: false
+            )
+        )
     }
 
     func testPrecisionLayout_fitsActiveMeasureWidth() {

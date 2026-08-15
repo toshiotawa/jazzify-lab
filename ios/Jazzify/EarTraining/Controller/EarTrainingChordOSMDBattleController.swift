@@ -308,6 +308,10 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         osmdCoordinator = coordinator
     }
 
+    func waitForOsmdScoreReady() async {
+        await osmdCoordinator?.waitForActiveScoreReady()
+    }
+
     func attachScene(_ scene: EarTrainingBattleSceneHandle) {
         self.scene = scene
         publishSnapshot()

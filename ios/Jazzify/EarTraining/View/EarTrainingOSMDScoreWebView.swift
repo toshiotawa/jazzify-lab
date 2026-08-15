@@ -159,19 +159,20 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         var onContentHeightFit: ((CGFloat) -> Void)?
         var onRenderProgress: ((Double) -> Void)?
 
-        private struct UpdateSignature: Equatable {
+        private struct ScoreIdentitySignature: Equatable {
             let activeSemitone: Int
-            let renderKey: Int
-            let activeMeasureNumber: Int
-            let measureDurationSec: Double
-            let phraseTimelineSec: Double?
-            let playheadAnimating: Bool?
             let zoom: Double
             let loopCycleIndex: Int
             let semitoneKeys: [Int]
+            let primaryXml: String
+            let slotXmlBySemitone: [Int: String]
         }
 
-        private var lastUpdateSignature: UpdateSignature?
+        private var lastScoreIdentitySignature: ScoreIdentitySignature?
+        private var lastPreparedGuideXmlBySemitone: [Int: String] = [:]
+        private var lastPreparedZoom: Double?
+        private var activeScoreRenderComplete = false
+        private var readyWaitContinuations: [CheckedContinuation<Void, Never>] = []
         private var guideColorPrimaryInput: String?
         private var guideColorPrimaryOutput: String?
         private var guideColorInputBySemitone: [Int: String] = [:]
@@ -228,21 +229,32 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             baseSemitone: Int,
             cycleIndex: Int
         ) {
-            pendingScoreXmlBySemitone = xmlBySemitone
+            let guideColored = guideColoredXmlBySemitone(
+                scoreXmlBySemitone: xmlBySemitone,
+                fallbackMusicXMLText: xmlBySemitone[activeSemitone] ?? xmlBySemitone.values.first ?? ""
+            )
+            pendingScoreXmlBySemitone = guideColored
             pendingActiveSemitone = activeSemitone
             pendingRenderKey = renderKey
             pendingTransposeDirection = transposeDirection
             pendingTransposeBaseSemitone = baseSemitone
             pendingLoopCycleIndex = cycleIndex
-            if lastSlotRenderKey != renderKey {
-                lastSlotRenderKey = renderKey
+            let xmlChanged = guideColored != lastPreparedGuideXmlBySemitone
+            let zoomChanged = lastPreparedZoom.map { abs($0 - pendingZoomForSlots) > 0.000_1 } ?? true
+            if xmlChanged || zoomChanged {
+                lastPreparedGuideXmlBySemitone = guideColored
+                lastPreparedZoom = pendingZoomForSlots
+                activeScoreRenderComplete = false
                 readyScoreSlots.removeAll()
                 slotRenderQueue.removeAll()
                 slotRenderInFlight = false
                 slotRenderInFlightSemitone = nil
                 lastActivatedSemitone = nil
-                clearGuideColorCache()
+                if xmlChanged {
+                    clearGuideColorCache()
+                }
             }
+            lastSlotRenderKey = renderKey
             enqueueScoreSlotPreparation(
                 prioritySemitones: prioritizedSlotSemitones(
                     cycleIndex: cycleIndex,
@@ -251,6 +263,34 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 )
             )
             sendActiveScoreSlotIfNeeded()
+        }
+
+        func waitForActiveScoreReady() async {
+            guard !isTornDown else { return }
+            if isActiveScoreReady() {
+                return
+            }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                readyWaitContinuations.append(continuation)
+            }
+        }
+
+        private func isActiveScoreReady() -> Bool {
+            guard htmlReady, !isTornDown else { return false }
+            let usesSlots = pendingScoreXmlBySemitone.count > 1
+            if usesSlots {
+                return readyScoreSlots.contains(pendingActiveSemitone)
+            }
+            return activeScoreRenderComplete
+        }
+
+        private func notifyReadyWaitersIfNeeded() {
+            guard isActiveScoreReady() else { return }
+            let waiters = readyWaitContinuations
+            readyWaitContinuations.removeAll()
+            for waiter in waiters {
+                waiter.resume()
+            }
         }
 
         func setActiveScoreSlot(semitone: Int) {
@@ -326,6 +366,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
             slotRenderInFlight = true
             slotRenderInFlightSemitone = semitone
+            activeScoreRenderComplete = false
             let generation = renderGeneration
             let literal = Self.javaScriptStringLiteral(xml)
             let z = Self.javascriptNumber(pendingZoomForSlots)
@@ -399,7 +440,15 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             slotRenderInFlight = false
             slotRenderInFlightSemitone = nil
             lastActivatedSemitone = nil
-            lastUpdateSignature = nil
+            lastScoreIdentitySignature = nil
+            lastPreparedGuideXmlBySemitone = [:]
+            lastPreparedZoom = nil
+            activeScoreRenderComplete = false
+            let waiters = readyWaitContinuations
+            readyWaitContinuations.removeAll()
+            for waiter in waiters {
+                waiter.resume()
+            }
             clearGuideColorCache()
             webView?.stopLoading()
             webView = nil
@@ -491,21 +540,17 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let durationLiteral = Self.javascriptNumber(measureDurationSec)
                 scripts.append("window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));")
             }
-            if lastMeasureNumber != activeMeasureNumber {
+            let measureChanged = lastMeasureNumber != activeMeasureNumber
+            if measureChanged {
                 lastMeasureNumber = activeMeasureNumber
                 scripts.append("window.JazzifyOSMD.setActiveMeasure(\(activeMeasureNumber));")
             }
-            let timelineChanged = lastPhraseTimelineSec.map { abs($0 - phraseTimelineSec) > 0.000_1 } ?? true
-            let animatingChanged = lastPlayheadAnimating.map { $0 != animating } ?? true
-            if timelineChanged || animatingChanged {
-                lastPhraseTimelineSec = phraseTimelineSec
-                lastPlayheadAnimating = animating
-                let timelineLiteral = Self.javascriptNumber(phraseTimelineSec)
-                let animatingLiteral = animating ? "true" : "false"
-                scripts.append(
-                    "window.JazzifyOSMD.setPlayheadTimeline(\(timelineLiteral), \(animatingLiteral));"
-                )
-            }
+            appendPlayheadTimelineScriptIfNeeded(
+                to: &scripts,
+                timelineSec: phraseTimelineSec,
+                animating: animating,
+                measureChanged: measureChanged
+            )
             guard !scripts.isEmpty else { return }
             let generation = renderGeneration
             Self.evaluate(
@@ -513,6 +558,29 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 on: webView,
                 generation: generation,
                 coordinator: self
+            )
+        }
+
+        private func appendPlayheadTimelineScriptIfNeeded(
+            to scripts: inout [String],
+            timelineSec: Double,
+            animating: Bool,
+            measureChanged: Bool
+        ) {
+            let shouldPush = EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: lastPhraseTimelineSec,
+                nextTimelineSec: timelineSec,
+                previousAnimating: lastPlayheadAnimating,
+                nextAnimating: animating,
+                measureChanged: measureChanged
+            )
+            lastPhraseTimelineSec = timelineSec
+            lastPlayheadAnimating = animating
+            guard shouldPush else { return }
+            let timelineLiteral = Self.javascriptNumber(timelineSec)
+            let animatingLiteral = animating ? "true" : "false"
+            scripts.append(
+                "window.JazzifyOSMD.setPlayheadTimeline(\(timelineLiteral), \(animatingLiteral));"
             )
         }
 
@@ -550,6 +618,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                     }
                 }
                 if type == "ready" {
+                    activeScoreRenderComplete = true
+                    notifyReadyWaitersIfNeeded()
                     Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
                 }
             case "slotReady":
@@ -559,11 +629,14 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                     slotRenderInFlightSemitone = nil
                     sendActiveScoreSlotIfNeeded()
                     processNextScoreSlotRender()
+                    notifyReadyWaitersIfNeeded()
                 }
             case "slotActivated":
                 guard webView != nil else { return }
+                activeScoreRenderComplete = true
                 resyncOverlayAfterRender()
                 flushPendingMeasureUpdatesIfReady()
+                notifyReadyWaitersIfNeeded()
             case "contentHeightFit":
                 if reportContentHeightFit || scrollLayout == .precision,
                    let height = Double(detail), height.isFinite, height > 0 {
@@ -574,7 +647,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 }
             case "setupComplete":
                 guard webView != nil else { return }
+                activeScoreRenderComplete = true
                 resyncOverlayAfterRender()
+                notifyReadyWaitersIfNeeded()
             case "error":
                 Log.osmd.error("OSMD score render error: \(detail, privacy: .public)")
                 slotRenderInFlight = false
@@ -628,22 +703,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let semitoneKeys = scoreXmlBySemitone.isEmpty
                 ? [0]
                 : scoreXmlBySemitone.keys.sorted()
-            let signature = UpdateSignature(
-                activeSemitone: activeSemitone,
-                renderKey: renderKey,
-                activeMeasureNumber: activeMeasureNumber,
-                measureDurationSec: measureDurationSec,
-                phraseTimelineSec: phraseTimelineSec,
-                playheadAnimating: playheadAnimating,
-                zoom: zoom,
-                loopCycleIndex: loopCycleIndex,
-                semitoneKeys: semitoneKeys
-            )
-            if signature == lastUpdateSignature, htmlReady {
-                return
-            }
-            lastUpdateSignature = signature
-
             pendingMusicXMLText = guideColoredPrimary(raw: musicXMLText)
             let xmlBySemitone = guideColoredXmlBySemitone(
                 scoreXmlBySemitone: scoreXmlBySemitone,
@@ -661,22 +720,41 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingPlayheadAnimating = playheadAnimating
             pendingZoom = zoom
             pendingZoomForSlots = zoom
+
+            let identity = ScoreIdentitySignature(
+                activeSemitone: activeSemitone,
+                zoom: zoom,
+                loopCycleIndex: loopCycleIndex,
+                semitoneKeys: semitoneKeys,
+                primaryXml: pendingMusicXMLText ?? "",
+                slotXmlBySemitone: xmlBySemitone
+            )
+            let identityChanged = identity != lastScoreIdentitySignature
+            if identityChanged {
+                lastScoreIdentitySignature = identity
+            }
+
             guard htmlReady else { return }
 
-            if pendingScoreXmlBySemitone.count > 1 || !scoreXmlBySemitone.isEmpty {
-                prepareScoreSlots(
-                    xmlBySemitone: pendingScoreXmlBySemitone,
-                    activeSemitone: activeSemitone,
-                    renderKey: renderKey,
-                    transposeDirection: loopTransposeDirection,
-                    baseSemitone: loopBaseSemitone,
-                    cycleIndex: loopCycleIndex
-                )
+            if identityChanged {
+                if pendingScoreXmlBySemitone.count > 1 || !scoreXmlBySemitone.isEmpty {
+                    prepareScoreSlots(
+                        xmlBySemitone: scoreXmlBySemitone,
+                        activeSemitone: activeSemitone,
+                        renderKey: renderKey,
+                        transposeDirection: loopTransposeDirection,
+                        baseSemitone: loopBaseSemitone,
+                        cycleIndex: loopCycleIndex
+                    )
+                } else {
+                    flushPending(webView: webView)
+                }
+            } else {
                 flushPendingMeasureUpdatesIfReady()
-                sendActiveScoreSlotIfNeeded()
-                return
+                if pendingScoreXmlBySemitone.count > 1 || !scoreXmlBySemitone.isEmpty {
+                    sendActiveScoreSlotIfNeeded()
+                }
             }
-            flushPending(webView: webView)
         }
 
         private func flushPendingMeasureUpdatesIfReady() {
@@ -694,23 +772,19 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let durationLiteral = Self.javascriptNumber(nextMeasureDurationSec)
                 scripts.append("window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));")
             }
-            if lastMeasureNumber != measure {
+            let measureChanged = lastMeasureNumber != measure
+            if measureChanged {
                 lastMeasureNumber = measure
                 scripts.append("window.JazzifyOSMD.setActiveMeasure(\(measure));")
             }
             if let timelineSec = pendingPhraseTimelineSec,
                let animating = pendingPlayheadAnimating {
-                let timelineChanged = lastPhraseTimelineSec.map { abs($0 - timelineSec) > 0.000_1 } ?? true
-                let animatingChanged = lastPlayheadAnimating.map { $0 != animating } ?? true
-                if timelineChanged || animatingChanged {
-                    lastPhraseTimelineSec = timelineSec
-                    lastPlayheadAnimating = animating
-                    let timelineLiteral = Self.javascriptNumber(timelineSec)
-                    let animatingLiteral = animating ? "true" : "false"
-                    scripts.append(
-                        "window.JazzifyOSMD.setPlayheadTimeline(\(timelineLiteral), \(animatingLiteral));"
-                    )
-                }
+                appendPlayheadTimelineScriptIfNeeded(
+                    to: &scripts,
+                    timelineSec: timelineSec,
+                    animating: animating,
+                    measureChanged: measureChanged
+                )
             }
             guard !scripts.isEmpty else { return }
             let generation = renderGeneration
@@ -730,11 +804,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let nextZoom = pendingZoom
             let nextMeasureDurationSec = pendingMeasureDurationSec
             let needsRender = lastRenderedMusicXMLText != xml
-                || lastRenderedKey != key
                 || lastRenderedZoom.map { abs($0 - nextZoom) > 0.000_1 } ?? true
             if needsRender {
                 renderGeneration += 1
                 let generation = renderGeneration
+                activeScoreRenderComplete = false
                 lastRenderedMusicXMLText = xml
                 lastRenderedKey = key
                 lastRenderedZoom = nextZoom
@@ -774,23 +848,19 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 let durationLiteral = Self.javascriptNumber(nextMeasureDurationSec)
                 scripts.append("window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));")
             }
-            if lastMeasureNumber != measure {
+            let measureChanged = lastMeasureNumber != measure
+            if measureChanged {
                 lastMeasureNumber = measure
                 scripts.append("window.JazzifyOSMD.setActiveMeasure(\(measure));")
             }
             if let timelineSec = pendingPhraseTimelineSec,
                let animating = pendingPlayheadAnimating {
-                let timelineChanged = lastPhraseTimelineSec.map { abs($0 - timelineSec) > 0.000_1 } ?? true
-                let animatingChanged = lastPlayheadAnimating.map { $0 != animating } ?? true
-                if timelineChanged || animatingChanged {
-                    lastPhraseTimelineSec = timelineSec
-                    lastPlayheadAnimating = animating
-                    let timelineLiteral = Self.javascriptNumber(timelineSec)
-                    let animatingLiteral = animating ? "true" : "false"
-                    scripts.append(
-                        "window.JazzifyOSMD.setPlayheadTimeline(\(timelineLiteral), \(animatingLiteral));"
-                    )
-                }
+                appendPlayheadTimelineScriptIfNeeded(
+                    to: &scripts,
+                    timelineSec: timelineSec,
+                    animating: animating,
+                    measureChanged: measureChanged
+                )
             }
             guard !scripts.isEmpty else { return }
             let generation = renderGeneration
@@ -948,6 +1018,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           background: rgba(255, 0, 0, 0.95);
           pointer-events: none;
           z-index: 10;
+          will-change: transform;
         }
         #status {
           position: fixed;
@@ -1974,7 +2045,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             bindSlot(slot);
             applySlotVisibility();
             applyIdleScoreLayout();
-            updateMeasureHighlight();
+            updateMeasureHighlight(true);
             if (visibleSemitone === semitone) {
               pruneInactiveScoreSlots(visibleSemitone);
             }
@@ -2201,13 +2272,15 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             };
           }
 
-          function updateMeasureHighlight() {
+          function updateMeasureHighlight(forcePlayheadRestart) {
             const highlight = document.getElementById('measure-highlight');
             if (!highlight) {
               return;
             }
             if (!overlayVisible) {
               highlight.style.display = 'none';
+              cancelPlayheadTransitionRaf();
+              playheadRunningMeasure = null;
               return;
             }
             const geometry = measureHighlightGeometry(activeMeasureNumber);
@@ -2218,12 +2291,29 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             highlight.style.left = geometry.leftPx + 'px';
             highlight.style.width = geometry.widthPx + 'px';
             highlight.style.display = 'block';
-            updatePlayheadPosition(geometry);
+            updatePlayheadPosition(geometry, !!forcePlayheadRestart);
           }
 
           let phraseTimelineSec = 0;
           let playheadAnimating = false;
           let playheadTimelineConfigured = false;
+          let playheadRunningMeasure = null;
+          let playheadTransitionRaf = null;
+
+          function cancelPlayheadTransitionRaf() {
+            if (playheadTransitionRaf !== null) {
+              cancelAnimationFrame(playheadTransitionRaf);
+              playheadTransitionRaf = null;
+            }
+          }
+
+          function setPlayheadTransform(xPx) {
+            const playhead = document.getElementById('measure-playhead');
+            if (!playhead) {
+              return;
+            }
+            playhead.style.transform = 'translate3d(' + xPx + 'px, 0, 0)';
+          }
 
           function computeProgressInMeasure() {
             if (phraseTimelineSec < 0) {
@@ -2235,7 +2325,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.max(0, Math.min(1, timeInMeasure / safeDur));
           }
 
-          function updatePlayheadPosition(geometry) {
+          function updatePlayheadPosition(geometry, forceRestart) {
             const playhead = document.getElementById('measure-playhead');
             if (!playhead || !overlayVisible) {
               return;
@@ -2248,25 +2338,32 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
             const progress = computeProgressInMeasure();
             const inCountInPhase = phraseTimelineSec < 0;
-            // 演奏中は最初の音符 →次小節の最初の音符、カウントイン中は小節線 →最初の音符。
-            const startPx = inCountInPhase ? 0 : geometry.noteOffsetPx;
-            const endPx = inCountInPhase ? geometry.noteOffsetPx : geometry.nextNoteOffsetPx;
+            const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
+            const startPx = 0;
+            const endPx = inCountInPhase ? 0 : widthPx;
             const innerLeftPx = startPx + progress * (endPx - startPx);
             const animating = playheadAnimating && overlayVisible && !inCountInPhase;
             if (!animating) {
+              cancelPlayheadTransitionRaf();
+              playheadRunningMeasure = null;
               playhead.style.transition = 'none';
-              playhead.style.left = (baseLeftPx + innerLeftPx) + 'px';
+              setPlayheadTransform(baseLeftPx + innerLeftPx);
               return;
             }
+            if (!forceRestart && playheadRunningMeasure === mn) {
+              return;
+            }
+            playheadRunningMeasure = mn;
             const safeDur = Math.max(1e-6, measureDurationSec);
-            // 下限を 1 フレーム相当にする。100ms だと小節末で減速して見え、小節切替で飛ぶ。
             const remainingMs = Math.max(16, (1 - progress) * safeDur * 1000);
+            cancelPlayheadTransitionRaf();
             playhead.style.transition = 'none';
-            playhead.style.left = (baseLeftPx + innerLeftPx) + 'px';
+            setPlayheadTransform(baseLeftPx + innerLeftPx);
             void playhead.offsetWidth;
-            requestAnimationFrame(function () {
-              playhead.style.transition = 'left ' + remainingMs + 'ms linear';
-              playhead.style.left = (baseLeftPx + endPx) + 'px';
+            playheadTransitionRaf = requestAnimationFrame(function () {
+              playheadTransitionRaf = null;
+              playhead.style.transition = 'transform ' + remainingMs + 'ms linear';
+              setPlayheadTransform(baseLeftPx + endPx);
             });
           }
 
@@ -2278,21 +2375,22 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             const widthPx = Number.isFinite(highlightWidthPx) ? highlightWidthPx : 0;
             const baseLeftPx = Number.isFinite(highlightLeftPx) ? highlightLeftPx : 0;
             const durationMs = Math.max(100, measureDurationSec * 1000);
+            cancelPlayheadTransitionRaf();
             playhead.style.transition = 'none';
-            playhead.style.left = baseLeftPx + 'px';
+            setPlayheadTransform(baseLeftPx);
             void playhead.offsetWidth;
-            requestAnimationFrame(function () {
-              playhead.style.transition = 'left ' + durationMs + 'ms linear';
-              playhead.style.left = (baseLeftPx + widthPx) + 'px';
+            playheadTransitionRaf = requestAnimationFrame(function () {
+              playheadTransitionRaf = null;
+              playhead.style.transition = 'transform ' + durationMs + 'ms linear';
+              setPlayheadTransform(baseLeftPx + widthPx);
             });
           }
 
           function setPlayheadTimeline(sec, animating) {
-            resetManualScroll();
             playheadTimelineConfigured = true;
             phraseTimelineSec = Number.isFinite(Number(sec)) ? Number(sec) : 0;
             playheadAnimating = !!animating;
-            updateMeasureHighlight();
+            updateMeasureHighlight(true);
           }
 
           function applyIdleScoreLayout() {
@@ -2304,7 +2402,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             resetManualScroll();
             overlayVisible = !!show;
             applyIdleScoreLayout();
-            updateMeasureHighlight();
+            updateMeasureHighlight(true);
           }
 
           function setMeasureDurationSec(sec) {
@@ -2336,7 +2434,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if (overlayVisible) {
               currentScrollOffset = computeScrollOffset(activeMeasureNumber);
               applyScoreTransform(currentScrollOffset);
-              updateMeasureHighlight();
+              updateMeasureHighlight(true);
             }
           }
 
@@ -2347,12 +2445,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               currentScrollOffset = 0;
               refreshEffectiveScale();
               applyScoreTransform(0);
-              updateMeasureHighlight();
+              updateMeasureHighlight(true);
               return;
             }
             currentScrollOffset = computeScrollOffset(activeMeasureNumber);
             applyScoreTransform(currentScrollOffset);
-            updateMeasureHighlight();
+            updateMeasureHighlight(true);
           }
 
           function resetManualScroll() {
@@ -2422,5 +2520,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 @MainActor
 protocol EarTrainingOsmdPlayheadBinding: AnyObject {
     func bindOsmdCoordinator(_ coordinator: EarTrainingOSMDScoreWebView.Coordinator?)
+    func waitForOsmdScoreReady() async
 }
 

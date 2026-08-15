@@ -253,9 +253,9 @@ enum EarTrainingOsmdScoreScroll {
     }
 
     struct PlayheadAnchorOffsets: Equatable {
-        /// 小節左端から最初の音符までの px（音符を持たない小節は 0）。
+        /// 小節左端（左小節線）からの px。常に 0。
         let noteOffsetPx: CGFloat
-        /// 小節左端から次小節の最初の音符までの px（次小節が無ければ小節右端）。
+        /// 小節左端から右小節線までの px（小節幅）。
         let nextNoteOffsetPx: CGFloat
     }
 
@@ -264,14 +264,7 @@ enum EarTrainingOsmdScoreScroll {
         let endOffsetPx: CGFloat
     }
 
-    private static func measureAnchorX(_ bounds: MeasureBounds) -> CGFloat {
-        if let noteLeft = bounds.noteLeft, noteLeft.isFinite, noteLeft > bounds.left {
-            return noteLeft
-        }
-        return bounds.left
-    }
-
-    /// プレイヘッドの始点（この小節の音符左端）と終点（次小節の音符左端）を小節左端起点の px で返す。
+    /// プレイヘッドの始点（左小節線）と終点（右小節線）を小節左端起点の px で返す。
     static func playheadAnchorOffsetsPx(
         activeMeasureNumber: Int,
         measureBoundsByNumber: [Int: MeasureBounds],
@@ -285,33 +278,53 @@ enum EarTrainingOsmdScoreScroll {
         guard widthPx.isFinite, widthPx > 0 else {
             return PlayheadAnchorOffsets(noteOffsetPx: 0, nextNoteOffsetPx: 0)
         }
-        let noteOffsetPx = min(widthPx, max(0, (measureAnchorX(bounds) - bounds.left) * effectiveScale))
-        let rawNextOffsetPx = measureBoundsByNumber[measureNumber + 1]
-            .map { (measureAnchorX($0) - bounds.left) * effectiveScale }
-            ?? widthPx
-        // 改行で次小節が左へ戻る譜面では小節右端を終点にする。
-        let nextOffsetPx = rawNextOffsetPx.isFinite && rawNextOffsetPx > widthPx ? rawNextOffsetPx : widthPx
-        return PlayheadAnchorOffsets(
-            noteOffsetPx: noteOffsetPx,
-            nextNoteOffsetPx: max(noteOffsetPx, nextOffsetPx)
-        )
+        return PlayheadAnchorOffsets(noteOffsetPx: 0, nextNoteOffsetPx: widthPx)
     }
 
-    /// 小節内プレイヘッド位置。演奏中は音符左端 →次小節の音符左端、カウントイン中は小節線 →音符左端。
+    /// 小節内プレイヘッド位置。演奏中は左小節線 → 右小節線、カウントイン中は左小節線に固定。
     static func playheadOffsetPx(
         progress: CGFloat,
         anchorOffsets: PlayheadAnchorOffsets,
         inCountIn: Bool
     ) -> PlayheadOffset {
+        if inCountIn {
+            return PlayheadOffset(offsetPx: 0, endOffsetPx: 0)
+        }
         let clampedProgress = min(1, max(0, progress))
-        let startPx = inCountIn ? 0 : anchorOffsets.noteOffsetPx
-        let endPx = inCountIn
-            ? anchorOffsets.noteOffsetPx
-            : max(anchorOffsets.noteOffsetPx, anchorOffsets.nextNoteOffsetPx)
+        let endPx = max(anchorOffsets.noteOffsetPx, anchorOffsets.nextNoteOffsetPx)
         return PlayheadOffset(
-            offsetPx: startPx + clampedProgress * (endPx - startPx),
+            offsetPx: clampedProgress * endPx,
             endOffsetPx: endPx
         )
+    }
+
+    /// 30Hz のタイムライン更新で CSS トランジションを張り直さない。
+    /// 小節切替・一時停止・シーク・カウントイン境界だけ再同期する。
+    static let playheadResyncSeekThresholdSec: Double = 0.12
+
+    static func shouldResyncPlayheadTimeline(
+        previousTimelineSec: Double?,
+        nextTimelineSec: Double,
+        previousAnimating: Bool?,
+        nextAnimating: Bool,
+        measureChanged: Bool
+    ) -> Bool {
+        guard let previousTimelineSec, let previousAnimating else {
+            return true
+        }
+        if measureChanged {
+            return true
+        }
+        if previousAnimating != nextAnimating {
+            return true
+        }
+        if previousTimelineSec < 0 && nextTimelineSec >= 0 {
+            return true
+        }
+        if previousTimelineSec >= 0 && nextTimelineSec < 0 {
+            return true
+        }
+        return abs(nextTimelineSec - previousTimelineSec) > playheadResyncSeekThresholdSec
     }
 
     /// 現在小節の左端（小節線付近）を固定プレイヘッド位置へ合わせるオフセット（小節更新時のみジャンプ）。

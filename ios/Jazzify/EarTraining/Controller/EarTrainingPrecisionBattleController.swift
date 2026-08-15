@@ -10,6 +10,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     @Published private(set) var phraseRunId: Int = 0
     @Published private(set) var musicXMLText: String?
     @Published private(set) var scoreErrorText: String?
+    @Published private(set) var osmdPlaybackPreparing = false
     @Published private(set) var activeMeasureNumber: Int = 1
     @Published private(set) var scoreTimelineArmed: Bool = false
     @Published private(set) var precisionNotes: [EarTrainingPrecisionNote] = []
@@ -142,6 +143,26 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         osmdCoordinator = coordinator
     }
 
+    func waitForOsmdScoreReady() async {
+        await osmdCoordinator?.waitForActiveScoreReady()
+    }
+
+    private func awaitOsmdReadyForPlayback() async {
+        osmdPlaybackPreparing = true
+        defer { osmdPlaybackPreparing = false }
+        if practiceMode, !loopScoreXmlBySemitone.isEmpty {
+            osmdCoordinator?.prepareScoreSlots(
+                xmlBySemitone: loopScoreXmlBySemitone,
+                activeSemitone: loopActiveSemitone,
+                renderKey: phraseRunId,
+                transposeDirection: loopTransposeDirection,
+                baseSemitone: loopBaseSemitone,
+                cycleIndex: loopCycleIndex
+            )
+        }
+        await waitForOsmdScoreReady()
+    }
+
     private func refreshMaxOsmdMeasure() {
         let measureDuration = effectiveMeasureDurationSec
         let targetMaxMeasure = precisionNotes.map(\.measureNumber).max() ?? 1
@@ -238,6 +259,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
                 self.refreshLoopWindow()
             }
             self.rebuildPrecisionNotes()
+            await self.awaitOsmdReadyForPlayback()
+            guard self.phraseRunId == runId else { return }
             if self.practiceMode {
                 self.beginLoopPlaybackFromPrepared()
             } else {
@@ -499,14 +522,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         if !started {
             scoreErrorText = isEnglishCopy ? "Could not start loop playback." : "ループ再生を開始できませんでした"
         }
-        osmdCoordinator?.prepareScoreSlots(
-            xmlBySemitone: loopScoreXmlBySemitone,
-            activeSemitone: loopActiveSemitone,
-            renderKey: phraseRunId,
-            transposeDirection: loopTransposeDirection,
-            baseSemitone: loopBaseSemitone,
-            cycleIndex: loopCycleIndex
-        )
     }
 
     private func applyDisplayMusicXml() {
