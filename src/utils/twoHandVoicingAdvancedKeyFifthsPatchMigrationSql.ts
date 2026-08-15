@@ -4,8 +4,8 @@
 import {
   TWO_HAND_VOICING_ADVANCED_EXT_LESSONS,
   TWO_HAND_VOICING_ADVANCED_LESSONS,
-  buildAdvancedQuizItems,
   buildAdvancedSurvivalProgression,
+  buildAdvancedVoicingPhrase,
   getAdvancedStageKey,
   resolveAdvancedSurvivalStageNumberForProgression,
   type TwoHandVoicingAdvancedLessonSpec,
@@ -41,26 +41,13 @@ export const generateTwoHandVoicingAdvancedKeyFifthsPatchMigrationSql = (): stri
     }
 
     for (const progression of lesson.progressions) {
-      const quizStageKey = getAdvancedStageKey(lesson, progression, 'quiz');
-      const quizStageUuid = uuidV5(quizStageKey);
-      const items = buildAdvancedQuizItems(progression, lesson.category);
-
-      for (const item of items) {
-        lines.push(
-          'UPDATE public.ear_training_chord_quiz_items',
-          `SET key_fifths = ${item.keyFifths}, updated_at = now()`,
-          `WHERE stage_id = ${quizStageUuid}`,
-          `  AND order_index = ${item.orderIndex};`,
-        );
-      }
-
       if (!progression.isSummary) {
         const voicingStageKey = getAdvancedStageKey(lesson, progression, 'voicing');
         const phraseUuid = uuidV5(`${voicingStageKey}-ph0`);
-        const firstKeyFifths = items[0]?.keyFifths ?? 0;
+        const phrase = buildAdvancedVoicingPhrase(progression, lesson.category);
         lines.push(
           'UPDATE public.ear_training_phrases',
-          `SET key_fifths = ${firstKeyFifths}, updated_at = now()`,
+          `SET key_fifths = ${phrase.keyFifths}, updated_at = now()`,
           `WHERE id = ${phraseUuid};`,
           '',
         );

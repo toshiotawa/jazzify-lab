@@ -9,17 +9,12 @@ import {
 import { TWO_HAND_VOICING_BLOCK3_META } from './twoHandVoicingBlock3Course';
 import {
   TWO_HAND_VOICING_BLOCK3_MINOR_II_VALT_I_LESSON,
-  TWO_HAND_VOICING_GRAND_STAFF,
-  buildMinorIiValtIQuizItems,
   getBlock3MinorIiValtILessonKey,
-  getBlock3MinorIiValtIStageKey,
   getMinorIiValtIProgressionChords,
   resolveBlock3MinorIiValtISurvivalStageNumberForProgression,
-  resolveMinorIiValtIQuizLoopMeasures,
   type MinorIiValtIProgressionSpec,
   type TwoHandVoicingBlock3MinorIiValtILessonSpec,
 } from './twoHandVoicingBlock3MinorIiValtICourse';
-import { appendEarTrainingChordQuizItemSql } from './twoHandVoicingMigrationSqlShared';
 
 const sqlEscape = (value: string): string => value.replace(/'/g, "''");
 const sqlString = (value: string): string => `'${sqlEscape(value)}'`;
@@ -122,72 +117,6 @@ const appendSurvivalStageSql = (
   );
 };
 
-const appendQuizStageSql = (
-  lines: string[],
-  lesson: TwoHandVoicingBlock3MinorIiValtILessonSpec,
-  progression: MinorIiValtIProgressionSpec,
-): void => {
-  const stageKey = getBlock3MinorIiValtIStageKey(progression, 'quiz');
-  const loopMeasures = resolveMinorIiValtIQuizLoopMeasures(progression);
-  const descriptionJa = progression.isSummary
-    ? '60秒以内に20問正解。全キーのマイナー II-Valt-I を順番に弾きましょう。'
-    : `60秒以内に20問正解。${progression.titleJa} のマイナー II-Valt-I を弾きましょう。`;
-  const descriptionEn = progression.isSummary
-    ? 'Answer 20 questions within 60 seconds. Play minor II-Valt-I in all keys in order.'
-    : `Answer 20 questions within 60 seconds using ${progression.titleEn} minor II-Valt-I voicings.`;
-
-  lines.push(
-    'INSERT INTO public.ear_training_stages (',
-    '  id, slug, title, title_en, description, description_en,',
-    '  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,',
-    '  count_in_beats, time_limit_sec, player_hp, enemy_hp,',
-    '  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,',
-    '  miss_damage, fail_damage, perfect_max_misses, great_max_misses,',
-    '  background_theme, is_active, mode,',
-    '  quiz_duration_seconds, quiz_question_order, quiz_show_notation_in_battle,',
-    '  hide_chord_names_in_battle, quiz_required_correct_count, show_keyboard_hints_in_battle',
-    ') VALUES (',
-    `  ${uuidV5(stageKey)},`,
-    `  ${sqlString(`thvi-b3-quiz-${lesson.lessonKey}-${progression.progressionKey}`)},`,
-    `  ${sqlString(`クイズ: ${progression.titleJa}`)},`,
-    `  ${sqlString(`Quiz: ${progression.titleEn}`)},`,
-    `  ${sqlString(descriptionJa)},`,
-    `  ${sqlString(descriptionEn)},`,
-    `  100, 0, 4, 4, ${loopMeasures}, ${loopMeasures},`,
-    '  0, 60, 100, 10000,',
-    '  0, 0, 0, 0, 0, 0, 0, 0,',
-    "  'blue_club', true, 'chord_quiz',",
-    `  60, 'sequential', ${progression.isSummary ? 'false' : 'true'}, false, 20, ${progression.isSummary ? 'false' : 'true'}`,
-    ')',
-    'ON CONFLICT (id) DO UPDATE SET',
-    '  title = EXCLUDED.title,',
-    '  title_en = EXCLUDED.title_en,',
-    '  description = EXCLUDED.description,',
-    '  description_en = EXCLUDED.description_en,',
-    '  quiz_duration_seconds = EXCLUDED.quiz_duration_seconds,',
-    '  quiz_question_order = EXCLUDED.quiz_question_order,',
-    '  quiz_show_notation_in_battle = EXCLUDED.quiz_show_notation_in_battle,',
-    '  quiz_required_correct_count = EXCLUDED.quiz_required_correct_count,',
-    '  show_keyboard_hints_in_battle = EXCLUDED.show_keyboard_hints_in_battle,',
-    '  updated_at = now();',
-    '',
-  );
-
-  const items = buildMinorIiValtIQuizItems(progression);
-  for (const item of items) {
-    const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    appendEarTrainingChordQuizItemSql(lines, {
-      itemKey,
-      stageKey,
-      item,
-      stavesSql: `ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
-      uuidV5,
-      sqlString,
-    });
-  }
-  lines.push('');
-};
-
 const appendLessonSql = (
   lines: string[],
   lesson: TwoHandVoicingBlock3MinorIiValtILessonSpec,
@@ -211,8 +140,8 @@ const appendLessonSql = (
     `  ${sqlString(TWO_HAND_VOICING_BLOCK3_META.blockNameJa)},`,
     `  ${sqlString(TWO_HAND_VOICING_BLOCK3_META.blockNameEn)},`,
     "  '[]'::jsonb,",
-    "  '①デモ ②2キーずつ×クイズ/サバイバル ③全キーまとめ',",
-    "  '① Demo ② 2 keys at a time × quiz/survival ③ All-keys review'",
+    "  '①デモ ②2キーずつ×サバイバル ③全キーまとめ',",
+    "  '① Demo ② 2 keys at a time × survival ③ All-keys review'",
     ')',
     'ON CONFLICT (id) DO UPDATE SET',
     '  title = EXCLUDED.title,',
@@ -250,25 +179,6 @@ const appendLessonSongsSql = (
   );
   orderIndex += 1;
 
-  const appendEarTrainingRow = (
-    lsongKey: string,
-    titleJa: string,
-    titleEn: string,
-    stageUuidKey: string,
-    overrides: string,
-    clearRank: 'B' | 'C' = 'B',
-  ): void => {
-    rows.push(
-      `  (${uuidV5(lsongKey)}, ${lessonUuid}, NULL, ${orderIndex}, '{"count":1,"rank":"${clearRank}"}'::jsonb,\n`
-      + '   false, NULL, false, NULL, NULL, false, NULL, true,\n'
-      + `   ${uuidV5(stageUuidKey)},\n`
-      + '   false, false, NULL, NULL,\n'
-      + `   ${overrides},\n`
-      + `   ${sqlString(titleJa)}, ${sqlString(titleEn)}, true)`,
-    );
-    orderIndex += 1;
-  };
-
   const appendSurvivalRow = (
     lsongKey: string,
     titleJa: string,
@@ -287,14 +197,6 @@ const appendLessonSongsSql = (
   };
 
   for (const progression of lesson.progressions) {
-    appendEarTrainingRow(
-      `${getBlock3MinorIiValtILessonKey(lesson)}-${progression.progressionKey}-quiz-lsong`,
-      progression.isSummary ? 'クイズ: 全キーまとめ' : `クイズ: ${progression.titleJa}`,
-      progression.isSummary ? 'Quiz: All keys' : `Quiz: ${progression.titleEn}`,
-      getBlock3MinorIiValtIStageKey(progression, 'quiz'),
-      BGM_OVERRIDE_JSON,
-    );
-
     const stageNumber = resolveBlock3MinorIiValtISurvivalStageNumberForProgression(progression);
     appendSurvivalRow(
       `${getBlock3MinorIiValtILessonKey(lesson)}-${progression.progressionKey}-survival-lsong`,
@@ -338,7 +240,7 @@ export const generateTwoHandVoicingBlock3MinorIiValtIMigrationSql = (): string =
   const lesson = TWO_HAND_VOICING_BLOCK3_MINOR_II_VALT_I_LESSON;
   const lines: string[] = [
     '-- 両手ヴォイシングコース(中級) Block 3 レッスン8: マイナー II-Valt-I',
-    '-- デモ + 6キーペア + 全キーまとめ × クイズ/サバイバル',
+    '-- デモ + 6キーペア + 全キーまとめ × サバイバル',
     'BEGIN;',
     '',
   ];
@@ -361,10 +263,6 @@ export const generateTwoHandVoicingBlock3MinorIiValtIMigrationSql = (): string =
 
   for (const progression of lesson.progressions) {
     appendSurvivalStageSql(lines, lesson, progression);
-  }
-
-  for (const progression of lesson.progressions) {
-    appendQuizStageSql(lines, lesson, progression);
   }
 
   appendLessonSql(lines, lesson);

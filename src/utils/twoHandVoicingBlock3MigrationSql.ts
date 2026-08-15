@@ -9,7 +9,6 @@ import {
 import {
   TWO_HAND_VOICING_BLOCK3_META,
   TWO_HAND_VOICING_GRAND_STAFF,
-  buildBlock3QuizItems,
   buildBlock3SurvivalProgression,
   buildBlock3VoicingPhrase,
   getBlock3LessonKey,
@@ -21,7 +20,6 @@ import {
   type TwoHandVoicingBlock3LessonSpec,
 } from './twoHandVoicingBlock3Course';
 import {
-  appendEarTrainingChordQuizItemSql,
   voicingBattleTitleEn,
   voicingBattleTitleJa,
 } from './twoHandVoicingMigrationSqlShared';
@@ -125,73 +123,6 @@ const appendSurvivalStageSql = (
     '  updated_at = now();',
     '',
   );
-};
-
-const appendQuizStageSql = (
-  lines: string[],
-  lesson: TwoHandVoicingBlock3LessonSpec,
-  progression: Block3ProgressionSpec,
-): void => {
-  const stageKey = getBlock3StageKey(lesson, progression, 'quiz');
-  const isSummary = progression.isSummary;
-  const descriptionJa = isSummary
-    ? '60秒以内に20問正解。全キーの Drop2 Resolution をランダム出題。'
-    : `60秒以内に20問正解。${progression.titleJa} の Drop2 Resolution を弾きましょう。`;
-  const descriptionEn = isSummary
-    ? 'Answer 20 questions within 60 seconds. Random Drop 2 Resolution in all keys.'
-    : `Answer 20 questions within 60 seconds using ${progression.titleEn} Drop 2 Resolution voicings.`;
-
-  lines.push(
-    'INSERT INTO public.ear_training_stages (',
-    '  id, slug, title, title_en, description, description_en,',
-    '  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,',
-    '  count_in_beats, time_limit_sec, player_hp, enemy_hp,',
-    '  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,',
-    '  miss_damage, fail_damage, perfect_max_misses, great_max_misses,',
-    '  background_theme, is_active, mode,',
-    '  quiz_duration_seconds, quiz_question_order, quiz_show_notation_in_battle,',
-    '  hide_chord_names_in_battle, quiz_required_correct_count, show_keyboard_hints_in_battle',
-    ') VALUES (',
-    `  ${uuidV5(stageKey)},`,
-    `  ${sqlString(`thvi-b3-quiz-${lesson.lessonKey}-${progression.progressionKey}`)},`,
-    `  ${sqlString(`クイズ: ${progression.titleJa}`)},`,
-    `  ${sqlString(`Quiz: ${progression.titleEn}`)},`,
-    `  ${sqlString(descriptionJa)},`,
-    `  ${sqlString(descriptionEn)},`,
-    '  100, 0, 4, 4, 4, 4,',
-    '  0, 60, 100, 10000,',
-    '  0, 0, 0, 0, 0, 0, 0, 0,',
-    "  'blue_club', true, 'chord_quiz',",
-    `  60, ${sqlString(isSummary ? 'random' : 'sequential')}, ${isSummary ? 'false' : 'true'}, false, 20, ${isSummary ? 'false' : 'true'}`,
-    ')',
-    'ON CONFLICT (id) DO UPDATE SET',
-    '  title = EXCLUDED.title,',
-    '  title_en = EXCLUDED.title_en,',
-    '  description = EXCLUDED.description,',
-    '  description_en = EXCLUDED.description_en,',
-    '  quiz_duration_seconds = EXCLUDED.quiz_duration_seconds,',
-    '  quiz_question_order = EXCLUDED.quiz_question_order,',
-    '  quiz_show_notation_in_battle = EXCLUDED.quiz_show_notation_in_battle,',
-    '  quiz_required_correct_count = EXCLUDED.quiz_required_correct_count,',
-    '  show_keyboard_hints_in_battle = EXCLUDED.show_keyboard_hints_in_battle,',
-    '  updated_at = now();',
-    '',
-  );
-
-  const items = buildBlock3QuizItems(progression, lesson.category);
-  for (const item of items) {
-    const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    appendEarTrainingChordQuizItemSql(lines, {
-      itemKey,
-      stageKey,
-      item,
-      beatOffset: item.beatOffset,
-      stavesSql: `ARRAY[${TWO_HAND_VOICING_GRAND_STAFF.join(', ')}]::smallint[]`,
-      uuidV5,
-      sqlString,
-    });
-  }
-  lines.push('');
 };
 
 const appendVoicingStageSql = (
@@ -314,8 +245,8 @@ const appendLessonSql = (
     `  ${sqlString(TWO_HAND_VOICING_BLOCK3_META.blockNameJa)},`,
     `  ${sqlString(TWO_HAND_VOICING_BLOCK3_META.blockNameEn)},`,
     "  '[]'::jsonb,",
-    "  '①デモ ②3進行×クイズ/バトル/サバイバル ③全キーまとめ',",
-    "  '① Demo ② 3 progressions × quiz/ear/survival ③ All-keys review'",
+    "  '①デモ ②3進行×バトル/サバイバル ③全キーまとめ',",
+    "  '① Demo ② 3 progressions × battle/survival ③ All-keys review'",
     ')',
     'ON CONFLICT (id) DO UPDATE SET',
     '  title = EXCLUDED.title,',
@@ -392,26 +323,11 @@ const appendLessonSongsSql = (
   for (const progression of lesson.progressions) {
     if (!progression.isSummary) {
       appendEarTrainingRow(
-        `${getBlock3LessonKey(lesson)}-${progression.progressionKey}-quiz-lsong`,
-        `クイズ: ${progression.titleJa}`,
-        `Quiz: ${progression.titleEn}`,
-        getBlock3StageKey(lesson, progression, 'quiz'),
-        BGM_OVERRIDE_JSON,
-      );
-      appendEarTrainingRow(
         `${getBlock3LessonKey(lesson)}-${progression.progressionKey}-voicing-lsong`,
         voicingBattleTitleJa(progression.titleJa),
         voicingBattleTitleEn(progression.titleEn),
         getBlock3StageKey(lesson, progression, 'voicing'),
         'NULL',
-      );
-    } else {
-      appendEarTrainingRow(
-        `${getBlock3LessonKey(lesson)}-${progression.progressionKey}-quiz-lsong`,
-        'クイズ: 全キーまとめ',
-        'Quiz: All keys',
-        getBlock3StageKey(lesson, progression, 'quiz'),
-        BGM_OVERRIDE_JSON,
       );
     }
 
@@ -511,7 +427,6 @@ const generateTwoHandVoicingBlock3DualLessonsMigrationSql = (
 
   for (const lesson of lessons) {
     for (const progression of lesson.progressions) {
-      appendQuizStageSql(lines, lesson, progression);
       appendVoicingStageSql(lines, lesson, progression);
     }
   }

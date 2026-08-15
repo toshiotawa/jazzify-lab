@@ -6,7 +6,6 @@ import {
   TWO_HAND_VOICING_ADVANCED_COURSE_KEY,
   TWO_HAND_VOICING_ADVANCED_UUID_NS,
   TWO_HAND_VOICING_ADVANCED_BLOCK_META,
-  buildAdvancedQuizItems,
   buildAdvancedSurvivalProgression,
   buildAdvancedVoicingPhrase,
   getAdvancedLessonKey,
@@ -18,12 +17,9 @@ import {
   type TwoHandVoicingAdvancedLessonSpec,
 } from './twoHandVoicingAdvancedCourse';
 import {
-  buildMinorIiViQuizItems,
   getAdvancedMinorIiViLessonKey,
-  getAdvancedMinorIiViStageKey,
   getMinorIiViProgressionChords,
   resolveAdvancedMinorIiViSurvivalStageNumberForProgression,
-  resolveMinorIiViQuizLoopMeasures,
   TWO_HAND_VOICING_ADVANCED_MINOR_II_VI_LESSON,
   type MinorIiViProgressionSpec,
   type TwoHandVoicingAdvancedMinorIiViLessonSpec,
@@ -31,9 +27,6 @@ import {
 import {
   advancedLessonDescriptionEn,
   advancedLessonDescriptionJa,
-  advancedQuizStageDescriptionEn,
-  advancedQuizStageDescriptionJa,
-  appendEarTrainingChordQuizItemSql,
   voicingBattleTitleEn,
   voicingBattleTitleJa,
 } from './twoHandVoicingMigrationSqlShared';
@@ -196,68 +189,6 @@ const appendAdvancedSurvivalStageSql = (
   );
 };
 
-const appendAdvancedQuizStageSql = (
-  lines: string[],
-  lesson: TwoHandVoicingAdvancedLessonSpec,
-  progression: AdvancedProgressionSpec,
-): void => {
-  const stageKey = getAdvancedStageKey(lesson, progression, 'quiz');
-  const isSummary = progression.isSummary;
-  const descriptionJa = advancedQuizStageDescriptionJa(lesson, progression);
-  const descriptionEn = advancedQuizStageDescriptionEn(lesson, progression);
-
-  lines.push(
-    'INSERT INTO public.ear_training_stages (',
-    '  id, slug, title, title_en, description, description_en,',
-    '  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,',
-    '  count_in_beats, time_limit_sec, player_hp, enemy_hp,',
-    '  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,',
-    '  miss_damage, fail_damage, perfect_max_misses, great_max_misses,',
-    '  background_theme, is_active, mode,',
-    '  quiz_duration_seconds, quiz_question_order, quiz_show_notation_in_battle,',
-    '  hide_chord_names_in_battle, quiz_required_correct_count, show_keyboard_hints_in_battle',
-    ') VALUES (',
-    `  ${uuidV5(stageKey)},`,
-    `  ${sqlString(`thva-quiz-${lesson.lessonKey}-${progression.progressionKey}`)},`,
-    `  ${sqlString(`クイズ: ${progression.titleJa}`)},`,
-    `  ${sqlString(`Quiz: ${progression.titleEn}`)},`,
-    `  ${sqlString(descriptionJa)},`,
-    `  ${sqlString(descriptionEn)},`,
-    '  100, 0, 4, 4, 4, 4,',
-    '  0, 60, 100, 10000,',
-    '  0, 0, 0, 0, 0, 0, 0, 0,',
-    "  'blue_club', true, 'chord_quiz',",
-    `  60, ${sqlString(isSummary ? 'random' : 'sequential')}, ${isSummary ? 'false' : 'true'}, false, 20, ${isSummary ? 'false' : 'true'}`,
-    ')',
-    'ON CONFLICT (id) DO UPDATE SET',
-    '  title = EXCLUDED.title,',
-    '  title_en = EXCLUDED.title_en,',
-    '  description = EXCLUDED.description,',
-    '  description_en = EXCLUDED.description_en,',
-    '  quiz_duration_seconds = EXCLUDED.quiz_duration_seconds,',
-    '  quiz_question_order = EXCLUDED.quiz_question_order,',
-    '  quiz_show_notation_in_battle = EXCLUDED.quiz_show_notation_in_battle,',
-    '  quiz_required_correct_count = EXCLUDED.quiz_required_correct_count,',
-    '  show_keyboard_hints_in_battle = EXCLUDED.show_keyboard_hints_in_battle,',
-    '  updated_at = now();',
-    '',
-  );
-
-  const items = buildAdvancedQuizItems(progression, lesson.category);
-  for (const item of items) {
-    const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    appendEarTrainingChordQuizItemSql(lines, {
-      itemKey,
-      stageKey,
-      item,
-      stavesSql: sqlStavesArray(item.notes),
-      uuidV5,
-      sqlString,
-    });
-  }
-  lines.push('');
-};
-
 const appendAdvancedVoicingStageSql = (
   lines: string[],
   lesson: TwoHandVoicingAdvancedLessonSpec,
@@ -376,8 +307,8 @@ const appendAdvancedLessonSql = (
     `  ${sqlString(TWO_HAND_VOICING_ADVANCED_BLOCK_META.blockNameJa)},`,
     `  ${sqlString(TWO_HAND_VOICING_ADVANCED_BLOCK_META.blockNameEn)},`,
     "  '[]'::jsonb,",
-    "  '①デモ ②3進行×クイズ/バトル/サバイバル ③全キーまとめ',",
-    "  '① Demo ② 3 progressions × quiz/ear/survival ③ All-keys review'",
+    "  '①デモ ②3進行×バトル/サバイバル ③全キーまとめ',",
+    "  '① Demo ② 3 progressions × battle/survival ③ All-keys review'",
     ')',
     'ON CONFLICT (id) DO UPDATE SET',
     '  title = EXCLUDED.title,',
@@ -454,26 +385,11 @@ const appendAdvancedLessonSongsSql = (
   for (const progression of lesson.progressions) {
     if (!progression.isSummary) {
       appendEarTrainingRow(
-        `${getAdvancedLessonKey(lesson)}-${progression.progressionKey}-quiz-lsong`,
-        `クイズ: ${progression.titleJa}`,
-        `Quiz: ${progression.titleEn}`,
-        getAdvancedStageKey(lesson, progression, 'quiz'),
-        BGM_OVERRIDE_JSON,
-      );
-      appendEarTrainingRow(
         `${getAdvancedLessonKey(lesson)}-${progression.progressionKey}-voicing-lsong`,
         voicingBattleTitleJa(progression.titleJa),
         voicingBattleTitleEn(progression.titleEn),
         getAdvancedStageKey(lesson, progression, 'voicing'),
         'NULL',
-      );
-    } else {
-      appendEarTrainingRow(
-        `${getAdvancedLessonKey(lesson)}-${progression.progressionKey}-quiz-lsong`,
-        'クイズ: 全キーまとめ',
-        'Quiz: All keys',
-        getAdvancedStageKey(lesson, progression, 'quiz'),
-        BGM_OVERRIDE_JSON,
       );
     }
 
@@ -564,72 +480,6 @@ const appendMinorIiViSurvivalStageSql = (
   );
 };
 
-const appendMinorIiViQuizStageSql = (
-  lines: string[],
-  lesson: TwoHandVoicingAdvancedMinorIiViLessonSpec,
-  progression: MinorIiViProgressionSpec,
-): void => {
-  const stageKey = getAdvancedMinorIiViStageKey(progression, 'quiz');
-  const loopMeasures = resolveMinorIiViQuizLoopMeasures(progression);
-  const descriptionJa = progression.isSummary
-    ? '60秒以内に20問正解。全キーのマイナー II-V-I を順番に弾きましょう。'
-    : `60秒以内に20問正解。${progression.titleJa} のマイナー II-V-I を弾きましょう。`;
-  const descriptionEn = progression.isSummary
-    ? 'Answer 20 questions within 60 seconds. Play minor II-V-I in all keys in order.'
-    : `Answer 20 questions within 60 seconds using ${progression.titleEn} minor II-V-I voicings.`;
-
-  lines.push(
-    'INSERT INTO public.ear_training_stages (',
-    '  id, slug, title, title_en, description, description_en,',
-    '  bpm, key_fifths, beats_per_measure, beat_type, loop_measures, max_loops_per_phrase,',
-    '  count_in_beats, time_limit_sec, player_hp, enemy_hp,',
-    '  per_correct_note_damage, good_completion_damage, great_completion_damage, perfect_completion_damage,',
-    '  miss_damage, fail_damage, perfect_max_misses, great_max_misses,',
-    '  background_theme, is_active, mode,',
-    '  quiz_duration_seconds, quiz_question_order, quiz_show_notation_in_battle,',
-    '  hide_chord_names_in_battle, quiz_required_correct_count, show_keyboard_hints_in_battle',
-    ') VALUES (',
-    `  ${uuidV5(stageKey)},`,
-    `  ${sqlString(`thva-quiz-${lesson.lessonKey}-${progression.progressionKey}`)},`,
-    `  ${sqlString(`クイズ: ${progression.titleJa}`)},`,
-    `  ${sqlString(`Quiz: ${progression.titleEn}`)},`,
-    `  ${sqlString(descriptionJa)},`,
-    `  ${sqlString(descriptionEn)},`,
-    `  100, 0, 4, 4, ${loopMeasures}, ${loopMeasures},`,
-    '  0, 60, 100, 10000,',
-    '  0, 0, 0, 0, 0, 0, 0, 0,',
-    "  'blue_club', true, 'chord_quiz',",
-    `  60, 'sequential', ${progression.isSummary ? 'false' : 'true'}, false, 20, ${progression.isSummary ? 'false' : 'true'}`,
-    ')',
-    'ON CONFLICT (id) DO UPDATE SET',
-    '  title = EXCLUDED.title,',
-    '  title_en = EXCLUDED.title_en,',
-    '  description = EXCLUDED.description,',
-    '  description_en = EXCLUDED.description_en,',
-    '  quiz_duration_seconds = EXCLUDED.quiz_duration_seconds,',
-    '  quiz_question_order = EXCLUDED.quiz_question_order,',
-    '  quiz_show_notation_in_battle = EXCLUDED.quiz_show_notation_in_battle,',
-    '  quiz_required_correct_count = EXCLUDED.quiz_required_correct_count,',
-    '  show_keyboard_hints_in_battle = EXCLUDED.show_keyboard_hints_in_battle,',
-    '  updated_at = now();',
-    '',
-  );
-
-  const items = buildMinorIiViQuizItems(progression);
-  for (const item of items) {
-    const itemKey = `${stageKey}-item-${item.orderIndex}`;
-    appendEarTrainingChordQuizItemSql(lines, {
-      itemKey,
-      stageKey,
-      item,
-      stavesSql: sqlStavesArray(item.notes),
-      uuidV5,
-      sqlString,
-    });
-  }
-  lines.push('');
-};
-
 const appendMinorIiViLessonSql = (
   lines: string[],
   lesson: TwoHandVoicingAdvancedMinorIiViLessonSpec,
@@ -653,8 +503,8 @@ const appendMinorIiViLessonSql = (
     `  ${sqlString(TWO_HAND_VOICING_ADVANCED_BLOCK_META.blockNameJa)},`,
     `  ${sqlString(TWO_HAND_VOICING_ADVANCED_BLOCK_META.blockNameEn)},`,
     "  '[]'::jsonb,",
-    "  '①デモ ②2キーずつ×クイズ/サバイバル ③全キーまとめ',",
-    "  '① Demo ② 2 keys at a time × quiz/survival ③ All-keys review'",
+    "  '①デモ ②2キーずつ×サバイバル ③全キーまとめ',",
+    "  '① Demo ② 2 keys at a time × survival ③ All-keys review'",
     ')',
     'ON CONFLICT (id) DO UPDATE SET',
     '  title = EXCLUDED.title,',
@@ -692,25 +542,6 @@ const appendMinorIiViLessonSongsSql = (
   );
   orderIndex += 1;
 
-  const appendEarTrainingRow = (
-    lsongKey: string,
-    titleJa: string,
-    titleEn: string,
-    stageUuidKey: string,
-    overrides: string,
-    clearRank: 'B' | 'C' = 'B',
-  ): void => {
-    rows.push(
-      `  (${uuidV5(lsongKey)}, ${lessonUuid}, NULL, ${orderIndex}, '{"count":1,"rank":"${clearRank}"}'::jsonb,\n`
-      + '   false, NULL, false, NULL, NULL, false, NULL, true,\n'
-      + `   ${uuidV5(stageUuidKey)},\n`
-      + '   false, false, NULL, NULL,\n'
-      + `   ${overrides},\n`
-      + `   ${sqlString(titleJa)}, ${sqlString(titleEn)}, true)`,
-    );
-    orderIndex += 1;
-  };
-
   const appendSurvivalRow = (
     lsongKey: string,
     titleJa: string,
@@ -729,14 +560,6 @@ const appendMinorIiViLessonSongsSql = (
   };
 
   for (const progression of lesson.progressions) {
-    appendEarTrainingRow(
-      `${getAdvancedMinorIiViLessonKey(lesson)}-${progression.progressionKey}-quiz-lsong`,
-      progression.isSummary ? 'クイズ: 全キーまとめ' : `クイズ: ${progression.titleJa}`,
-      progression.isSummary ? 'Quiz: All keys' : `Quiz: ${progression.titleEn}`,
-      getAdvancedMinorIiViStageKey(progression, 'quiz'),
-      BGM_OVERRIDE_JSON,
-    );
-
     const stageNumber = resolveAdvancedMinorIiViSurvivalStageNumberForProgression(progression);
     appendSurvivalRow(
       `${getAdvancedMinorIiViLessonKey(lesson)}-${progression.progressionKey}-survival-lsong`,
@@ -831,13 +654,8 @@ export const generateTwoHandVoicingAdvancedExtMigrationSql = (): string => {
 
   for (const lesson of TWO_HAND_VOICING_ADVANCED_EXT_LESSONS) {
     for (const progression of lesson.progressions) {
-      appendAdvancedQuizStageSql(lines, lesson, progression);
       appendAdvancedVoicingStageSql(lines, lesson, progression);
     }
-  }
-
-  for (const progression of minorLesson.progressions) {
-    appendMinorIiViQuizStageSql(lines, minorLesson, progression);
   }
 
   for (const lesson of TWO_HAND_VOICING_ADVANCED_EXT_LESSONS) {

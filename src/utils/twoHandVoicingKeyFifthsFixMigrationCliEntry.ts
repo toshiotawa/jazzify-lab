@@ -7,7 +7,6 @@ import {
   TWO_HAND_VOICING_BLOCK_META,
   TWO_HAND_VOICING_LESSONS,
   TWO_HAND_VOICING_UUID_NS,
-  buildQuizItemsForLesson,
   buildVoicingPhrasesForLesson,
   getLessonKey,
 } from '@/utils/twoHandVoicingIntermediateCourse';
@@ -58,16 +57,6 @@ for (const lesson of TWO_HAND_VOICING_LESSONS) {
       lines.push('');
     }
   }
-
-  const quizStageKey = `${getLessonKey(lesson)}-quiz`;
-  const quizItems = buildQuizItemsForLesson(lesson, form);
-  for (const item of quizItems) {
-    lines.push(
-      `UPDATE public.ear_training_chord_quiz_items SET key_fifths = ${item.keyFifths}, updated_at = now()`,
-      `WHERE stage_id = ${uuidV5(quizStageKey)} AND order_index = ${item.orderIndex};`,
-    );
-  }
-  lines.push('');
 }
 
 const babScript = sqlEscape(JSON.stringify(buildDrop2IIVIBABDemoScript()));

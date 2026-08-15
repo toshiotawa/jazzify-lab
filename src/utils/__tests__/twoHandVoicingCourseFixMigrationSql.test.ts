@@ -21,13 +21,14 @@ describe('twoHandVoicingCourseFixMigrationSql', () => {
     );
   });
 
-  it('各データパートは quiz item INSERT に key_fifths を含む', () => {
+  it('各データパートは生成 SQL を含む', () => {
     for (const part of TWO_HAND_VOICING_COURSE_FIX_MIGRATION_PARTS.slice(1)) {
-      expect(part.sql).toContain('key_fifths');
+      expect(part.sql).toContain('INSERT INTO public.lessons');
     }
     const intermediate = TWO_HAND_VOICING_COURSE_FIX_MIGRATION_PARTS.find(
       (part) => part.slug === 'intermediate',
     );
     expect(intermediate?.sql).toContain('バトル');
+    expect(intermediate?.sql).not.toContain("'chord_quiz'");
   });
 });
