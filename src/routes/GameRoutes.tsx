@@ -36,7 +36,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
         !isPremiumMember ? (
           <Navigate to={dashboardPath()} replace />
         ) : (
-          <React.Suspense fallback={<LoadingScreen />}>
+          <React.Suspense fallback={<LoadingScreen compact />}>
             <LazyStoryPage />
           </React.Suspense>
         )
@@ -45,7 +45,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="survival"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazySurvivalMain />
         </React.Suspense>
       }
@@ -53,7 +53,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="survival-lesson"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazySurvivalMain lessonMode />
         </React.Suspense>
       }
@@ -61,7 +61,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="survival-tutorial"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazySurvivalTutorialMain />
         </React.Suspense>
       }
@@ -69,7 +69,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="balloon-rush"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyBalloonRushMain />
         </React.Suspense>
       }
@@ -77,7 +77,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="ear-training"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyEarTrainingMain />
         </React.Suspense>
       }
@@ -85,7 +85,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="ear-training-tutorial"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyEarTrainingTutorialMain />
         </React.Suspense>
       }
@@ -93,7 +93,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="ear-training-timing-adjustment"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyEarTrainingTimingAdjustmentMain />
         </React.Suspense>
       }
@@ -101,7 +101,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
     <Route
       path="video-lesson"
       element={
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyVideoLessonMain />
         </React.Suspense>
       }

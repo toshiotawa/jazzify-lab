@@ -46,6 +46,7 @@ import {
   saveEarTrainingOsmdUserZoom,
 } from '@/utils/earTrainingOsmdScorePreferences';
 import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
+import LoadProgressBar from '@/components/ui/LoadProgressBar';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
@@ -273,6 +274,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  const [renderProgress, setRenderProgress] = useState<number | undefined>(undefined);
   const [cssScale, setCssScale] = useState(1);
   const [userZoom, setUserZoom] = useState(loadEarTrainingOsmdUserZoom);
   const [scrollOffsetPx, setScrollOffsetPx] = useState(0);
@@ -610,6 +612,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     }
 
     setIsRendering(true);
+    setRenderProgress(0.2);
     setRenderError(null);
     setScrollOffsetPx(0);
     scrollOffsetPxRef.current = 0;
@@ -645,7 +648,9 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       if (drawMeasureNumbers) {
         applyOsmdMeasureNumberRules(osmd);
       }
+      setRenderProgress(0.45);
       await osmd.load(osmdDisplayMusicXml);
+      setRenderProgress(0.7);
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
       const viewportEl = viewportRef.current;
       const viewportHeight = viewportEl?.clientHeight ?? 0;
@@ -691,11 +696,14 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       if (onContentHeightFit && measuredBeforeScale > 0) {
         onContentHeightFit(Math.ceil(measuredBeforeScale * nextCssScale + 6));
       }
+      setRenderProgress(1);
     } catch {
       setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
       setLayout(EMPTY_LAYOUT);
+      setRenderProgress(undefined);
     } finally {
       setIsRendering(false);
+      setRenderProgress(undefined);
     }
   }, [
     drawMeasureNumbers,
@@ -1025,8 +1033,17 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         />
       </div>
       {(isRendering || statusText) && (
-        <div className="absolute inset-0 grid place-items-center text-center text-xs font-semibold text-white/75">
-          {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
+        <div className="absolute inset-0 grid place-items-center bg-slate-950/35 px-6 text-center">
+          <div className="w-full max-w-xs space-y-3">
+            <p className="text-xs font-semibold text-white/75">
+              {statusText ?? (isEnglishCopy ? 'Rendering score...' : '譜面を表示中…')}
+            </p>
+            <LoadProgressBar
+              value={isRendering ? renderProgress : undefined}
+              showPercent={isRendering && renderProgress !== undefined}
+              trackClassName="bg-white/15"
+            />
+          </div>
         </div>
       )}
       {fillParent ? zoomControls : null}

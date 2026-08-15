@@ -17,6 +17,7 @@ struct EarTrainingPrecisionGameView: View {
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
     @State private var isLoading = true
+    @State private var bootstrapProgress: Double = 0
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
     @State private var assignmentStartRecorded = false
 
@@ -29,8 +30,13 @@ struct EarTrainingPrecisionGameView: View {
                     locale: locale
                 )
             } else if isLoading {
-                ProgressView()
-                    .tint(.yellow)
+                VStack(spacing: 12) {
+                    EarTrainingLoadProgressBar(progress: bootstrapProgress > 0 ? bootstrapProgress : nil)
+                    Text(locale == .ja ? "バトルを準備中…" : "Preparing battle…")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                .padding(.horizontal, 24)
             } else {
                 errorView
             }
@@ -61,6 +67,7 @@ struct EarTrainingPrecisionGameView: View {
         guard controller == nil else { return }
         isLoading = true
         loadError = nil
+        bootstrapProgress = 0.1
         do {
             let stageDetail: EarTrainingStageDetail
             switch source {
@@ -71,6 +78,7 @@ struct EarTrainingPrecisionGameView: View {
             case .embedded(let embedded):
                 stageDetail = embedded
             }
+            bootstrapProgress = 0.45
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja ? "フレーズが登録されていません" : "No phrases registered."
@@ -78,9 +86,11 @@ struct EarTrainingPrecisionGameView: View {
                 return
             }
             let audioInstance = EarTrainingAudio()
+            bootstrapProgress = 0.7
             if let first = phrases.first, let url = URL(string: first.audioUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
+            bootstrapProgress = 0.85
             let createdController = EarTrainingPrecisionBattleController(
                 stage: stageDetail,
                 phrases: phrases,
@@ -129,6 +139,7 @@ struct EarTrainingPrecisionGameView: View {
         }
         audio = audioInstance
         controller = createdController
+        bootstrapProgress = 1
         isLoading = false
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
         recordAssignmentStartIfNeeded()
@@ -168,6 +179,7 @@ private struct EarTrainingPrecisionGameContent: View {
     @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @State private var openTransportDropdown: TransportDropdownKind?
+    @State private var osmdRenderProgress: Double?
 
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
@@ -384,20 +396,33 @@ private struct EarTrainingPrecisionGameContent: View {
                     reportContentHeightFit: true,
                     onContentHeightFit: { height in
                         handleOsmdContentHeightFit(height, screenHeight: screenHeight)
+                    },
+                    onRenderProgress: { progress in
+                        osmdRenderProgress = progress >= 1 ? nil : progress
                     }
                 )
                 if controller.musicXMLText == nil {
                     Color.black.opacity(0.35)
                         .allowsHitTesting(false)
-                    Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.75))
+                    EarTrainingScoreLoadingOverlay(
+                        message: controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"),
+                        progress: controller.scoreErrorText == nil ? 0.2 : nil
+                    )
+                    .allowsHitTesting(false)
+                } else if let osmdRenderProgress {
+                    Color.black.opacity(0.35)
                         .allowsHitTesting(false)
+                    EarTrainingScoreLoadingOverlay(
+                        message: locale == .ja ? "譜面を表示中…" : "Rendering score…",
+                        progress: osmdRenderProgress
+                    )
+                    .allowsHitTesting(false)
                 }
             } else {
-                Text(controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"))
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                EarTrainingScoreLoadingOverlay(
+                    message: controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"),
+                    progress: controller.scoreErrorText == nil ? 0.2 : nil
+                )
             }
         }
         .frame(height: effectiveHeight)

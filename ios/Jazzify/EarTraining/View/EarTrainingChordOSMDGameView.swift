@@ -21,6 +21,7 @@ struct EarTrainingChordOSMDGameView: View {
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
     @State private var isLoading: Bool = true
+    @State private var bootstrapProgress: Double = 0
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
 
     var body: some View {
@@ -53,11 +54,12 @@ struct EarTrainingChordOSMDGameView: View {
 
     private var loadingView: some View {
         VStack(spacing: 12) {
-            ProgressView().tint(.yellow)
+            EarTrainingLoadProgressBar(progress: bootstrapProgress > 0 ? bootstrapProgress : nil)
             Text(locale == .ja ? "バトルを準備中…" : "Preparing battle…")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
         }
+        .padding(.horizontal, 24)
     }
 
     private var errorView: some View {
@@ -87,11 +89,13 @@ struct EarTrainingChordOSMDGameView: View {
         if let pack = prewarmOsmdPack {
             isLoading = true
             loadError = nil
+            bootstrapProgress = 0.9
             attachMidiFinishOsmdBootstrap(createdController: pack.controller, audioInstance: pack.audio)
             return
         }
         isLoading = true
         loadError = nil
+        bootstrapProgress = 0.1
         do {
             let stageDetail: EarTrainingStageDetail
             switch source {
@@ -102,6 +106,7 @@ struct EarTrainingChordOSMDGameView: View {
             case .embedded(let embedded):
                 stageDetail = embedded
             }
+            bootstrapProgress = 0.45
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja
@@ -119,9 +124,11 @@ struct EarTrainingChordOSMDGameView: View {
             }
 
             let audioInstance = EarTrainingAudio()
+            bootstrapProgress = 0.7
             if let first = phrases.first, let url = URL(string: first.audioUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
+            bootstrapProgress = 0.85
             let createdController = EarTrainingChordOSMDBattleController(
                 stage: stageDetail,
                 phrases: phrases,
@@ -180,6 +187,7 @@ struct EarTrainingChordOSMDGameView: View {
         }
         self.audio = audioInstance
         self.controller = createdController
+        bootstrapProgress = 1
         self.isLoading = false
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
         onReady?()
@@ -198,6 +206,7 @@ private struct EarTrainingChordOSMDContent: View {
     @State private var scoreSizeStep: Int = 0
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
+    @State private var osmdRenderProgress: Double?
 
     private var timingCalibrationMode: Bool {
         controller.tutorialHooks?.timingCalibrationMode == true
@@ -479,7 +488,10 @@ private struct EarTrainingChordOSMDContent: View {
                         playheadController: controller,
                         zoom: osmdZoom,
                         scrollLayout: .battleDefault,
-                        countInDurationSec: controller.countInDurationSec
+                        countInDurationSec: controller.countInDurationSec,
+                        onRenderProgress: { progress in
+                            osmdRenderProgress = progress >= 1 ? nil : progress
+                        }
                     )
                 } else {
                     VStack(spacing: 10) {
@@ -497,10 +509,22 @@ private struct EarTrainingChordOSMDContent: View {
                                 .foregroundStyle(.white.opacity(0.72))
                                 .multilineTextAlignment(.center)
                         } else {
-                            ProgressView().tint(.white)
+                            EarTrainingScoreLoadingOverlay(
+                                message: locale == .ja ? "譜面を読み込み中…" : "Loading score…",
+                                progress: 0.2
+                            )
                         }
                     }
                     .padding(.horizontal, 18)
+                }
+                if let osmdRenderProgress {
+                    Color.black.opacity(0.35)
+                        .allowsHitTesting(false)
+                    EarTrainingScoreLoadingOverlay(
+                        message: locale == .ja ? "譜面を表示中…" : "Rendering score…",
+                        progress: osmdRenderProgress
+                    )
+                    .allowsHitTesting(false)
                 }
             }
             .frame(width: outerWidth, height: outerHeight, alignment: .leading)

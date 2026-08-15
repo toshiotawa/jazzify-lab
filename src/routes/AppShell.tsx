@@ -34,7 +34,7 @@ const AchievementsPage = React.lazy(() => import('@/components/achievements/Achi
 const PricingTable = React.lazy(() => import('@/components/subscription/PricingTable'));
 
 const renderDashboard = (): React.ReactNode => (
-  <React.Suspense fallback={<LoadingScreen />}>
+  <React.Suspense fallback={<LoadingScreen compact />}>
     <LazyDashboard />
   </React.Suspense>
 );
@@ -169,11 +169,11 @@ const AppShell: React.FC = () => {
     );
   }
 
-  if (authLoading) return <LoadingScreen />;
+  if (authLoading) return <LoadingScreen compact />;
 
   if (!user || forceLogin) {
     return (
-      <React.Suspense fallback={<LoadingScreen />}>
+      <React.Suspense fallback={<LoadingScreen compact />}>
         <AuthLanding mode="login" />
         <ToastContainer />
       </React.Suspense>
@@ -187,7 +187,7 @@ const AppShell: React.FC = () => {
     }
     return (
       <ErrorBoundary>
-        <React.Suspense fallback={<LoadingScreen />}>
+        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyAdminDashboard />
           <ToastContainer />
         </React.Suspense>
@@ -198,7 +198,7 @@ const AppShell: React.FC = () => {
   return (
     <ErrorBoundary>
       <AppHashRedirect />
-      <React.Suspense fallback={<LoadingScreen />}>
+      <React.Suspense fallback={<LoadingScreen compact />}>
         <div
           className={cn(
             'game-container',
@@ -215,7 +215,7 @@ const AppShell: React.FC = () => {
             <Route
               path="lessons"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <LessonPage />
                 </React.Suspense>
               }
@@ -223,7 +223,7 @@ const AppShell: React.FC = () => {
             <Route
               path="lessons/:lessonId"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <LessonDetailPage />
                 </React.Suspense>
               }
@@ -231,7 +231,7 @@ const AppShell: React.FC = () => {
             <Route
               path="courses"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <CourseListPage />
                 </React.Suspense>
               }
@@ -239,7 +239,7 @@ const AppShell: React.FC = () => {
             <Route
               path="courses/:courseId"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <CoursePage />
                 </React.Suspense>
               }
@@ -247,7 +247,7 @@ const AppShell: React.FC = () => {
             <Route
               path="information"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <InformationPage />
                 </React.Suspense>
               }
@@ -255,7 +255,7 @@ const AppShell: React.FC = () => {
             <Route
               path="achievements"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <AchievementsPage />
                 </React.Suspense>
               }
@@ -263,7 +263,7 @@ const AppShell: React.FC = () => {
             <Route
               path="pricing"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <PricingTable />
                 </React.Suspense>
               }
@@ -271,7 +271,7 @@ const AppShell: React.FC = () => {
             <Route
               path="plan-comparison"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <PricingTable mode="view" />
                 </React.Suspense>
               }
@@ -279,7 +279,7 @@ const AppShell: React.FC = () => {
             <Route
               path="account"
               element={
-                <React.Suspense fallback={<LoadingScreen />}>
+                <React.Suspense fallback={<LoadingScreen compact />}>
                   <AccountPage />
                 </React.Suspense>
               }
@@ -290,7 +290,7 @@ const AppShell: React.FC = () => {
                 isFreeRank ? (
                   <Navigate to="/main/dashboard" replace />
                 ) : (
-                  <React.Suspense fallback={<LoadingScreen />}>
+                  <React.Suspense fallback={<LoadingScreen compact />}>
                     <MypagePage />
                   </React.Suspense>
                 )

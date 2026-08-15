@@ -1,12 +1,16 @@
 import React from 'react';
+import LoadProgressBar from '@/components/ui/LoadProgressBar';
 import { useAuthStore } from '@/stores/authStore';
 import { getStoredPreferredLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 interface LoadingScreenProps {
+  /** 0–1。未指定のときは不定バー。 */
   progress?: number;
   message?: string;
   error?: string | null;
   onRetry?: () => void;
+  /** ページ遷移など短い待ち向け。ヒントを省略する。 */
+  compact?: boolean;
 }
 
 /**
@@ -15,21 +19,21 @@ interface LoadingScreenProps {
  * useMemo で固定しない（認証完了後にプロフィールが入っても再判定できるようにする）。
  */
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
-  progress = 0,
+  progress,
   message,
   error,
-  onRetry
+  onRetry,
+  compact = false,
 }) => {
   const profile = useAuthStore((s) => s.profile);
   const isEnglishCopy = shouldUseEnglishCopy({
     preferredLocale: profile?.preferred_locale ?? getStoredPreferredLocale(),
   });
 
-  // デフォルトメッセージの設定（日英統一）
   const defaultMessage = 'Loading Jazzify...';
   const displayMessage = message ?? defaultMessage;
+  const showPercent = progress !== undefined;
 
-  // エラー状態の表示
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-game flex items-center justify-center p-4">
@@ -54,65 +58,55 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
     );
   }
 
-  // 通常のローディング画面
   return (
     <div className="min-h-screen bg-gradient-game flex items-center justify-center p-4">
       <div className="text-center">
-        {/* ローディングアニメーション */}
-        <div className="relative mb-8">
-          <div className="w-20 h-20 mx-auto">
-            {/* 外側のリング */}
-            <div className="absolute inset-0 border-4 border-primary-600 border-opacity-20 rounded-full"></div>
-            {/* 回転するリング */}
-            <div className="absolute inset-0 border-4 border-transparent border-t-primary-600 rounded-full animate-spin"></div>
-            {/* 内側の音符アイコン */}
+        <div className={compact ? 'relative mb-4' : 'relative mb-8'}>
+          <div className={compact ? 'w-12 h-12 mx-auto' : 'w-20 h-20 mx-auto'}>
+            <div className="absolute inset-0 border-4 border-primary-600 border-opacity-20 rounded-full" />
+            <div className="absolute inset-0 border-4 border-transparent border-t-primary-600 rounded-full animate-spin" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-2xl text-primary-400 animate-pulse">🎵</span>
+              <span className={compact ? 'text-lg text-primary-400 animate-pulse' : 'text-2xl text-primary-400 animate-pulse'}>
+                🎵
+              </span>
             </div>
           </div>
         </div>
 
-        {/* タイトル */}
-        <h1 className="text-3xl font-bold text-white mb-2 text-gradient">
-          Jazzify
-        </h1>
+        {!compact ? (
+          <h1 className="text-3xl font-bold text-white mb-2 text-gradient">
+            Jazzify
+          </h1>
+        ) : null}
 
-        {/* ローディングメッセージ */}
-        <p className="text-primary-300 mb-6 animate-pulse">
+        <p className={compact ? 'text-primary-300 mb-4 text-sm animate-pulse' : 'text-primary-300 mb-6 animate-pulse'}>
           {displayMessage}
         </p>
 
-        {/* プログレスバー */}
-        {progress > 0 && (
-          <div className="w-64 mx-auto mb-4">
-            <div className="bg-game-accent rounded-full h-2 overflow-hidden">
-              <div 
-                className="bg-gradient-to-r from-primary-600 to-jazz-500 h-full rounded-full transition-all duration-300 ease-out"
-                style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
-              />
-            </div>
-            <p className="text-xs text-gray-400 mt-2">
-              {Math.round(progress * 100)}%
+        <div className={compact ? 'w-48 mx-auto mb-2' : 'w-64 mx-auto mb-4'}>
+          <LoadProgressBar
+            value={progress}
+            showPercent={showPercent}
+          />
+        </div>
+
+        {!compact ? (
+          <div className="mt-8 text-sm text-gray-400 max-w-md mx-auto">
+            <p className="mb-2">
+              {isEnglishCopy
+                ? '💡 Tip: Connect a MIDI keyboard for a more authentic playing experience'
+                : '💡 ヒント: MIDIキーボードを接続すると、より本格的な演奏体験ができます'}
+            </p>
+            <p className="text-xs">
+              {isEnglishCopy
+                ? 'The initial load may take a moment'
+                : '初回読み込みには少し時間がかかる場合があります'}
             </p>
           </div>
-        )}
-
-        {/* 下部のヒント */}
-        <div className="mt-8 text-sm text-gray-400 max-w-md mx-auto">
-          <p className="mb-2">
-            {isEnglishCopy 
-              ? '💡 Tip: Connect a MIDI keyboard for a more authentic playing experience'
-              : '💡 ヒント: MIDIキーボードを接続すると、より本格的な演奏体験ができます'}
-          </p>
-          <p className="text-xs">
-            {isEnglishCopy 
-              ? 'The initial load may take a moment'
-              : '初回読み込みには少し時間がかかる場合があります'}
-          </p>
-        </div>
+        ) : null}
       </div>
     </div>
   );
 };
 
-export default LoadingScreen; 
+export default LoadingScreen;

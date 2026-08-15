@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import ToastContainer from '@/components/ui/ToastContainer';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
 import {
   isAppPath,
@@ -31,11 +32,7 @@ const buildLoadedRoute = (kind: AppRouteKind): LoadedRouteModule | null => {
   return { kind, Component: module.default };
 };
 
-const PageFallback: React.FC = () => (
-  <div className="w-full min-h-screen flex items-center justify-center text-white">
-    Loading...
-  </div>
-);
+const PageFallback: React.FC = () => <LoadingScreen compact />;
 
 const App: React.FC = () => {
   const location = useLocation();

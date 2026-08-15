@@ -35,6 +35,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     /// 精密モード: 描画後のコンテンツ高さを Swift へ通知する。
     var reportContentHeightFit: Bool = false
     var onContentHeightFit: ((CGFloat) -> Void)? = nil
+    /// OSMD 描画ステップ（0...1）を通知する。
+    var onRenderProgress: ((Double) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(scrollLayout: scrollLayout)
@@ -76,6 +78,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         context.coordinator.updateDrawMeasureNumbers(drawMeasureNumbers)
         context.coordinator.reportContentHeightFit = reportContentHeightFit
         context.coordinator.onContentHeightFit = onContentHeightFit
+        context.coordinator.onRenderProgress = onRenderProgress
         context.coordinator.update(
             webView: webView,
             musicXMLText: musicXMLText,
@@ -154,6 +157,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var pendingLoopCycleIndex: Int = 0
         var reportContentHeightFit = false
         var onContentHeightFit: ((CGFloat) -> Void)?
+        var onRenderProgress: ((Double) -> Void)?
 
         private struct UpdateSignature: Equatable {
             let activeSemitone: Int
@@ -539,8 +543,15 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let type = body?["type"] as? String ?? "unknown"
             let detail = body?["detail"] as? String ?? ""
             switch type {
-            case "ready":
-                Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
+            case "loadStart", "xmlLoaded", "ready":
+                if let value = Double(detail) {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onRenderProgress?(value)
+                    }
+                }
+                if type == "ready" {
+                    Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
+                }
             case "slotReady":
                 if let semitone = Int(detail) {
                     readyScoreSlots.insert(semitone)
@@ -941,11 +952,30 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         #status {
           position: fixed;
           inset: 0;
-          display: grid;
+          display: none;
           place-items: center;
           color: rgba(255, 255, 255, 0.7);
           font-size: 13px;
           pointer-events: none;
+        }
+        .status-panel {
+          width: 72%;
+          max-width: 220px;
+          text-align: center;
+        }
+        .status-track {
+          height: 6px;
+          margin-top: 8px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.15);
+        }
+        #status-bar {
+          width: 0%;
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
+          transition: width 0.3s ease-out;
         }
       </style>
       <script src="opensheetmusicdisplay.min.js"></script>
@@ -955,13 +985,20 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         <div id="measure-highlight"></div>
         <div id="measure-playhead"></div>
         <div id="score-content"></div>
-        <div id="status">Loading OSMD...</div>
+        <div id="status">
+          <div class="status-panel">
+            <div id="status-label">Loading OSMD...</div>
+            <div class="status-track"><div id="status-bar"></div></div>
+          </div>
+        </div>
       </div>
       <script>
         (function() {
           const viewport = document.getElementById('viewport');
           const scoreContent = document.getElementById('score-content');
           const status = document.getElementById('status');
+          const statusLabel = document.getElementById('status-label');
+          const statusBar = document.getElementById('status-bar');
           let score = null;
           let drawMeasureNumbersEnabled = false;
           let slotsBySemitone = {};
@@ -1698,6 +1735,19 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return Math.max(0, Math.min(maxOffset, xPos * effectiveScale - PLAYHEAD_PX));
           }
 
+          function setStatusProgress(label, ratio) {
+            if (statusLabel && label) {
+              statusLabel.textContent = label;
+            }
+            if (statusBar && typeof ratio === 'number' && Number.isFinite(ratio)) {
+              const clamped = Math.max(0, Math.min(1, ratio));
+              statusBar.style.width = String(Math.round(clamped * 100)) + '%';
+            }
+            if (status) {
+              status.style.display = 'grid';
+            }
+          }
+
           function postOsmdMessage(type, detail) {
             try {
               var handler =
@@ -1939,8 +1989,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               slot.ready = true;
               postOsmdMessage('slotReady', String(semitone));
             } else if (Object.keys(slotsBySemitone).length === 1 || semitone === activeSemitone) {
-              status.textContent = status.textContent || 'Could not render MusicXML.';
-              status.style.display = 'grid';
+              setStatusProgress('Could not render MusicXML.', 0.7);
             }
           }
 
@@ -2015,8 +2064,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             slot.effectiveScale = 1;
             slot.wrapper.style.transform = '';
             if (!isBackgroundSlot) {
-              status.textContent = 'Rendering...';
-              status.style.display = 'grid';
+              setStatusProgress('Rendering...', 0.2);
+              postOsmdMessage('loadStart', '0.2');
             }
 
             let renderSucceeded = false;
@@ -2025,7 +2074,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
               if (!OpenSheetMusicDisplay) {
                 if (!isBackgroundSlot) {
-                  status.textContent = 'OSMD failed to load';
+                  setStatusProgress('OSMD failed to load', 0.2);
                 }
                 postOsmdMessage('error', 'OpenSheetMusicDisplay missing');
                 return;
@@ -2037,7 +2086,15 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               slot.osmd = buildOsmd(slot.root);
               enableEarTrainingOsmdWordsLayoutRules(slot.osmd);
               slot.osmd.zoom = z;
+              if (!isBackgroundSlot) {
+                setStatusProgress('Rendering...', 0.45);
+                postOsmdMessage('loadStart', '0.45');
+              }
               await slot.osmd.load(displayXml);
+              if (!isBackgroundSlot) {
+                setStatusProgress('Rendering...', 0.7);
+                postOsmdMessage('xmlLoaded', '0.7');
+              }
               relaxOsmdCompactTightSpacingForBattle(slot.osmd, displayXml);
               installEarTrainingOsmdWordsLayout(slot.osmd);
               slot.osmd.render();
@@ -2075,11 +2132,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             } catch (err) {
               const msg = err && err.message ? String(err.message) : String(err);
               if (!isBackgroundSlot) {
-                status.textContent = 'Could not render MusicXML.';
+                setStatusProgress('Could not render MusicXML.', 0.7);
               }
               postOsmdMessage('error', msg);
             } finally {
               if (renderSucceeded && !isBackgroundSlot) {
+                setStatusProgress('Rendering...', 1);
+                postOsmdMessage('ready', '1');
                 status.style.display = 'none';
               }
             }
@@ -2090,7 +2149,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             disposeScoreSlots();
             await prepareScoreSlot(0, xmlText, zoomValue);
             setActiveScoreSlot(0);
-            postOsmdMessage('ready', '');
+            postOsmdMessage('ready', '1');
           }
 
           function countInPlayheadProgress(timelineSec) {

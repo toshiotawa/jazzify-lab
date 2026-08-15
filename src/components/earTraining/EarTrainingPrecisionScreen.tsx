@@ -28,6 +28,7 @@ import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceConte
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { cn } from '@/utils/cn';
+import LoadProgressBar from '@/components/ui/LoadProgressBar';
 import {
   markAudioUserInteraction,
   playNote,
@@ -268,6 +269,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [loopCycleIndex, setLoopCycleIndex] = useState(0);
   const [loopActiveSemitone, setLoopActiveSemitone] = useState(0);
   const [loopPreloadProgress, setLoopPreloadProgress] = useState<string | null>(null);
+  const [loopPreloadRatio, setLoopPreloadRatio] = useState<number | undefined>(undefined);
   const [loopScoreXmlBySemitone, setLoopScoreXmlBySemitone] = useState<Map<number, string>>(new Map());
   const loopScoreXmlBySemitoneRef = useRef<Map<number, string>>(new Map());
   const notesViewportRef = useRef<HTMLDivElement | null>(null);
@@ -1153,6 +1155,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       }
 
       if (practiceModeRef.current) {
+        setLoopPreloadRatio(undefined);
         setLoopPreloadProgress(
           isEnglishCopy ? 'Loading… Preparing practice' : '読み込み中… 練習を準備しています',
         );
@@ -1216,6 +1219,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           {
             speedPercent: practiceSpeedPercentRef.current,
             onProgress: ({ completed, total }) => {
+              setLoopPreloadRatio(total > 0 ? completed / total : undefined);
               setLoopPreloadProgress(
                 isEnglishCopy
                   ? `Loading… Audio ${completed}/${total}`
@@ -1229,10 +1233,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         }
         loopBuffersRef.current = buffersBySemitone;
         setLoopPreloadProgress(null);
+        setLoopPreloadRatio(undefined);
 
         beginLoopSessionFromPreloadedBuffers(runId);
         } catch {
           setLoopPreloadProgress(null);
+          setLoopPreloadRatio(undefined);
           setGameState('idle');
         }
         return;
@@ -1868,8 +1874,11 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             onContentHeightFit={handleOsmdContentHeightFit}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            {scoreErrorText ?? (isEnglishCopy ? 'Loading score…' : '譜面を読み込み中…')}
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-sm text-slate-400">
+            <p>{scoreErrorText ?? (isEnglishCopy ? 'Loading score…' : '譜面を読み込み中…')}</p>
+            {!scoreErrorText ? (
+              <LoadProgressBar value={0.2} showPercent trackClassName="bg-slate-700" className="max-w-xs" />
+            ) : null}
           </div>
         )}
       </div>
@@ -1973,11 +1982,13 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
         {loopPreloadProgress ? (
           <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-slate-950/85 px-6 text-center text-sm text-slate-200">
-            <div
-              className="h-8 w-8 animate-spin rounded-full border-2 border-slate-500 border-t-emerald-400"
-              aria-hidden
-            />
             <p>{loopPreloadProgress}</p>
+            <LoadProgressBar
+              value={loopPreloadRatio}
+              showPercent={loopPreloadRatio !== undefined}
+              className="max-w-xs"
+              trackClassName="bg-slate-700"
+            />
           </div>
         ) : null}
 

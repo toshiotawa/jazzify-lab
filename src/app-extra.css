@@ -822,6 +822,15 @@
     }
   }
 
+  @keyframes loadProgressIndeterminate {
+    0% {
+      left: -40%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -844,6 +853,10 @@
 
   .animate-progress-bar {
     animation: progressBar linear;
+  }
+
+  .animate-load-progress-indeterminate {
+    animation: loadProgressIndeterminate 1.4s ease-in-out infinite;
   }
 
   .animate-fade-in {
