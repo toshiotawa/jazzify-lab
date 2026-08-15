@@ -16,8 +16,9 @@ struct EarTrainingPrecisionGameView: View {
     @State private var controller: EarTrainingPrecisionBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
-    @State private var isLoading = true
     @State private var bootstrapProgress: Double = 0
+    @State private var isBootstrapComplete = false
+    @State private var showPreparingOverlay = true
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
     @State private var assignmentStartRecorded = false
 
@@ -29,16 +30,20 @@ struct EarTrainingPrecisionGameView: View {
                     audio: audio,
                     locale: locale
                 )
-            } else if isLoading {
-                VStack(spacing: 12) {
-                    EarTrainingLoadProgressBar(progress: bootstrapProgress > 0 ? bootstrapProgress : nil)
-                    Text(locale == .ja ? "バトルを準備中…" : "Preparing battle…")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                .padding(.horizontal, 24)
-            } else {
+            } else if loadError != nil {
                 errorView
+            } else {
+                Color(hex: "020617")
+            }
+
+            if showPreparingOverlay && loadError == nil {
+                EarTrainingPreparingOverlay(
+                    message: locale == .ja ? "バトルを準備中…" : "Preparing battle…",
+                    targetProgress: bootstrapProgress,
+                    isWorkComplete: isBootstrapComplete,
+                    background: Color(hex: "020617"),
+                    onVisualComplete: { showPreparingOverlay = false }
+                )
             }
         }
         .background(Color(hex: "020617"))
@@ -65,9 +70,10 @@ struct EarTrainingPrecisionGameView: View {
     @MainActor
     private func bootstrap() async {
         guard controller == nil else { return }
-        isLoading = true
         loadError = nil
-        bootstrapProgress = 0.1
+        isBootstrapComplete = false
+        showPreparingOverlay = true
+        bootstrapProgress = EarTrainingLoadProgress.started
         do {
             let stageDetail: EarTrainingStageDetail
             switch source {
@@ -78,19 +84,19 @@ struct EarTrainingPrecisionGameView: View {
             case .embedded(let embedded):
                 stageDetail = embedded
             }
-            bootstrapProgress = 0.45
+            bootstrapProgress = EarTrainingLoadProgress.stageLoaded
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja ? "フレーズが登録されていません" : "No phrases registered."
-                isLoading = false
+                showPreparingOverlay = false
                 return
             }
             let audioInstance = EarTrainingAudio()
-            bootstrapProgress = 0.7
+            bootstrapProgress = EarTrainingLoadProgress.audioReady
             if let first = phrases.first, let url = URL(string: first.audioUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
-            bootstrapProgress = 0.85
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             let createdController = EarTrainingPrecisionBattleController(
                 stage: stageDetail,
                 phrases: phrases,
@@ -104,7 +110,7 @@ struct EarTrainingPrecisionGameView: View {
             attachMidi(controller: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
-            isLoading = false
+            showPreparingOverlay = false
         }
     }
 
@@ -140,7 +146,7 @@ struct EarTrainingPrecisionGameView: View {
         audio = audioInstance
         controller = createdController
         bootstrapProgress = 1
-        isLoading = false
+        isBootstrapComplete = true
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
         recordAssignmentStartIfNeeded()
     }
@@ -398,7 +404,15 @@ private struct EarTrainingPrecisionGameContent: View {
                         handleOsmdContentHeightFit(height, screenHeight: screenHeight)
                     },
                     onRenderProgress: { progress in
-                        osmdRenderProgress = progress >= 1 ? nil : progress
+                        let clamped = EarTrainingLoadProgress.clamped(progress)
+                        osmdRenderProgress = clamped
+                        guard clamped >= 1 else { return }
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: EarTrainingLoadProgress.scoreCompleteHoldNanoseconds)
+                            if osmdRenderProgress ?? 0 >= 1 {
+                                osmdRenderProgress = nil
+                            }
+                        }
                     }
                 )
                 if controller.musicXMLText == nil {

@@ -20,8 +20,9 @@ struct EarTrainingChordOSMDGameView: View {
     @State private var controller: EarTrainingChordOSMDBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
-    @State private var isLoading: Bool = true
     @State private var bootstrapProgress: Double = 0
+    @State private var isBootstrapComplete = false
+    @State private var showPreparingOverlay = true
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
 
     var body: some View {
@@ -33,10 +34,19 @@ struct EarTrainingChordOSMDGameView: View {
                     locale: locale,
                     fixedLandscapeSize: hostedLandscapeSize
                 )
-            } else if isLoading {
-                loadingView
-            } else {
+            } else if loadError != nil {
                 errorView
+            } else {
+                Color.black
+            }
+
+            if showPreparingOverlay && loadError == nil {
+                EarTrainingPreparingOverlay(
+                    message: locale == .ja ? "バトルを準備中…" : "Preparing battle…",
+                    targetProgress: bootstrapProgress,
+                    isWorkComplete: isBootstrapComplete,
+                    onVisualComplete: { showPreparingOverlay = false }
+                )
             }
         }
         .background(Color.black)
@@ -50,16 +60,6 @@ struct EarTrainingChordOSMDGameView: View {
             controller?.tearDown(stopSharedAudio: !keepSharedAudio)
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            EarTrainingLoadProgressBar(progress: bootstrapProgress > 0 ? bootstrapProgress : nil)
-            Text(locale == .ja ? "バトルを準備中…" : "Preparing battle…")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-        }
-        .padding(.horizontal, 24)
     }
 
     private var errorView: some View {
@@ -87,15 +87,17 @@ struct EarTrainingChordOSMDGameView: View {
     private func bootstrap() async {
         guard controller == nil else { return }
         if let pack = prewarmOsmdPack {
-            isLoading = true
             loadError = nil
-            bootstrapProgress = 0.9
+            isBootstrapComplete = false
+            showPreparingOverlay = true
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             attachMidiFinishOsmdBootstrap(createdController: pack.controller, audioInstance: pack.audio)
             return
         }
-        isLoading = true
         loadError = nil
-        bootstrapProgress = 0.1
+        isBootstrapComplete = false
+        showPreparingOverlay = true
+        bootstrapProgress = EarTrainingLoadProgress.started
         do {
             let stageDetail: EarTrainingStageDetail
             switch source {
@@ -106,29 +108,29 @@ struct EarTrainingChordOSMDGameView: View {
             case .embedded(let embedded):
                 stageDetail = embedded
             }
-            bootstrapProgress = 0.45
+            bootstrapProgress = EarTrainingLoadProgress.stageLoaded
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja
                     ? "フレーズが登録されていません"
                     : "No phrases are registered for this stage."
-                isLoading = false
+                showPreparingOverlay = false
                 return
             }
             guard phrases.contains(where: { $0.musicXmlUrl != nil }) else {
                 loadError = locale == .ja
                     ? "OSMD表示用のMusicXMLが登録されていません"
                     : "No MusicXML is registered for OSMD display."
-                isLoading = false
+                showPreparingOverlay = false
                 return
             }
 
             let audioInstance = EarTrainingAudio()
-            bootstrapProgress = 0.7
+            bootstrapProgress = EarTrainingLoadProgress.audioReady
             if let first = phrases.first, let url = URL(string: first.audioUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
-            bootstrapProgress = 0.85
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             let createdController = EarTrainingChordOSMDBattleController(
                 stage: stageDetail,
                 phrases: phrases,
@@ -148,7 +150,7 @@ struct EarTrainingChordOSMDGameView: View {
             attachMidiFinishOsmdBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
-            isLoading = false
+            showPreparingOverlay = false
         }
     }
 
@@ -188,7 +190,7 @@ struct EarTrainingChordOSMDGameView: View {
         self.audio = audioInstance
         self.controller = createdController
         bootstrapProgress = 1
-        self.isLoading = false
+        isBootstrapComplete = true
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
         onReady?()
     }
@@ -490,7 +492,15 @@ private struct EarTrainingChordOSMDContent: View {
                         scrollLayout: .battleDefault,
                         countInDurationSec: controller.countInDurationSec,
                         onRenderProgress: { progress in
-                            osmdRenderProgress = progress >= 1 ? nil : progress
+                            let clamped = EarTrainingLoadProgress.clamped(progress)
+                            osmdRenderProgress = clamped
+                            guard clamped >= 1 else { return }
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: EarTrainingLoadProgress.scoreCompleteHoldNanoseconds)
+                                if osmdRenderProgress ?? 0 >= 1 {
+                                    osmdRenderProgress = nil
+                                }
+                            }
                         }
                     )
                 } else {

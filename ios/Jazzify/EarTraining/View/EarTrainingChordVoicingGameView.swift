@@ -23,7 +23,9 @@ struct EarTrainingChordVoicingGameView: View {
     @State private var controller: EarTrainingChordVoicingBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
-    @State private var isLoading: Bool = true
+    @State private var bootstrapProgress: Double = 0
+    @State private var isBootstrapComplete = false
+    @State private var showPreparingOverlay = true
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
 
     var body: some View {
@@ -36,10 +38,19 @@ struct EarTrainingChordVoicingGameView: View {
                     fixedLandscapeSize: hostedLandscapeSize,
                     onClose: onClose
                 )
-            } else if isLoading {
-                loadingView
-            } else {
+            } else if loadError != nil {
                 errorView
+            } else {
+                Color.black
+            }
+
+            if showPreparingOverlay && loadError == nil {
+                EarTrainingPreparingOverlay(
+                    message: locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…",
+                    targetProgress: bootstrapProgress,
+                    isWorkComplete: isBootstrapComplete,
+                    onVisualComplete: { showPreparingOverlay = false }
+                )
             }
         }
         .background(Color.black)
@@ -51,15 +62,6 @@ struct EarTrainingChordVoicingGameView: View {
             controller?.tearDown()
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView().tint(.yellow)
-            Text(locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-        }
     }
 
     private var errorView: some View {
@@ -87,13 +89,17 @@ struct EarTrainingChordVoicingGameView: View {
     private func bootstrap() async {
         guard controller == nil else { return }
         if let pack = prewarmVoicingPack {
-            isLoading = true
             loadError = nil
+            isBootstrapComplete = false
+            showPreparingOverlay = true
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             attachMidiFinishVoicingBootstrap(createdController: pack.controller, audioInstance: pack.audio)
             return
         }
-        isLoading = true
         loadError = nil
+        isBootstrapComplete = false
+        showPreparingOverlay = true
+        bootstrapProgress = EarTrainingLoadProgress.started
         do {
             let stageDetail: EarTrainingStageDetail
             switch source {
@@ -104,18 +110,21 @@ struct EarTrainingChordVoicingGameView: View {
             case .embedded(let embedded):
                 stageDetail = embedded
             }
+            bootstrapProgress = EarTrainingLoadProgress.stageLoaded
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja
                     ? "フレーズが登録されていません"
                     : "No phrases are registered for this stage."
-                isLoading = false
+                showPreparingOverlay = false
                 return
             }
             let audioInstance = EarTrainingAudio()
+            bootstrapProgress = EarTrainingLoadProgress.audioReady
             if let first = phrases.first, let url = URL(string: first.audioUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             let createdController = EarTrainingChordVoicingBattleController(
                 stage: stageDetail,
                 phrases: phrases,
@@ -139,7 +148,7 @@ struct EarTrainingChordVoicingGameView: View {
             attachMidiFinishVoicingBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
-            isLoading = false
+            showPreparingOverlay = false
         }
     }
 
@@ -178,7 +187,8 @@ struct EarTrainingChordVoicingGameView: View {
         }
         self.audio = audioInstance
         self.controller = createdController
-        self.isLoading = false
+        bootstrapProgress = 1
+        isBootstrapComplete = true
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }

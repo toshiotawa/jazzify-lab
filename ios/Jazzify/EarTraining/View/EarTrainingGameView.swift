@@ -18,7 +18,9 @@ struct EarTrainingGameView: View {
     @State private var controller: EarTrainingBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
-    @State private var isLoading: Bool = true
+    @State private var bootstrapProgress: Double = 0
+    @State private var isBootstrapComplete = false
+    @State private var showPreparingOverlay = true
     @State private var resolvedMode: EarTrainingMode?
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
     @State private var assignmentStartRecorded = false
@@ -89,10 +91,19 @@ struct EarTrainingGameView: View {
                     locale: locale,
                     onClose: onClose
                 )
-            } else if isLoading {
-                loadingView
-            } else {
+            } else if loadError != nil {
                 errorView
+            } else {
+                Color.black
+            }
+
+            if showPreparingOverlay && loadError == nil && (resolvedMode == nil || resolvedMode == .phrase) {
+                EarTrainingPreparingOverlay(
+                    message: locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…",
+                    targetProgress: bootstrapProgress,
+                    isWorkComplete: isBootstrapComplete,
+                    onVisualComplete: { showPreparingOverlay = false }
+                )
             }
         }
         .background(Color.black)
@@ -106,15 +117,6 @@ struct EarTrainingGameView: View {
             controller?.tearDown()
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView().tint(.yellow)
-            Text(locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-        }
     }
 
     private var errorView: some View {
@@ -141,49 +143,45 @@ struct EarTrainingGameView: View {
     @MainActor
     private func bootstrap() async {
         guard controller == nil else { return }
-        isLoading = true
         loadError = nil
+        isBootstrapComplete = false
+        showPreparingOverlay = true
+        bootstrapProgress = EarTrainingLoadProgress.started
 
         do {
             let stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
+            bootstrapProgress = EarTrainingLoadProgress.stageLoaded
             if stageDetail.resolvedMode == .chordVoicing {
                 self.resolvedMode = .chordVoicing
-                self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordQuiz {
                 self.resolvedMode = .chordQuiz
-                self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordOSMD {
                 self.resolvedMode = .chordOSMD
-                self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordPrecision {
                 self.resolvedMode = .chordPrecision
-                self.isLoading = false
                 return
             }
             if stageDetail.resolvedMode == .adlib {
                 self.resolvedMode = .adlib
-                self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .phrasePairAdlib {
                 self.resolvedMode = .phrasePairAdlib
-                self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .adlibCallResponse {
                 self.resolvedMode = .adlibCallResponse
-                self.isLoading = false
                 recordAssignmentStartIfNeeded()
                 return
             }
@@ -193,13 +191,15 @@ struct EarTrainingGameView: View {
                 loadError = locale == .ja
                     ? "フレーズが登録されていません"
                     : "No phrases are registered for this stage."
-                isLoading = false
+                showPreparingOverlay = false
                 return
             }
             let audioInstance = EarTrainingAudio()
+            bootstrapProgress = EarTrainingLoadProgress.audioReady
             if let first = phrases.first, let url = URL(string: first.audioUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             let createdController = EarTrainingBattleController(
                 stage: stageDetail,
                 phrases: phrases,
@@ -242,12 +242,13 @@ struct EarTrainingGameView: View {
 
             self.audio = audioInstance
             self.controller = createdController
-            self.isLoading = false
+            bootstrapProgress = 1
+            isBootstrapComplete = true
             createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
             recordAssignmentStartIfNeeded()
         } catch {
             loadError = error.localizedDescription
-            isLoading = false
+            showPreparingOverlay = false
         }
     }
 

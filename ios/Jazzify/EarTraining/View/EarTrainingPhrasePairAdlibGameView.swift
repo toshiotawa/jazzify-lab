@@ -15,7 +15,9 @@ struct EarTrainingPhrasePairAdlibGameView: View {
     @State private var controller: EarTrainingPhrasePairAdlibBattleController?
     @State private var audio: EarTrainingAudio?
     @State private var loadError: String?
-    @State private var isLoading: Bool = true
+    @State private var bootstrapProgress: Double = 0
+    @State private var isBootstrapComplete = false
+    @State private var showPreparingOverlay = true
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
 
     var body: some View {
@@ -27,10 +29,19 @@ struct EarTrainingPhrasePairAdlibGameView: View {
                     locale: locale,
                     onClose: onClose
                 )
-            } else if isLoading {
-                loadingView
-            } else {
+            } else if loadError != nil {
                 errorView
+            } else {
+                Color.black
+            }
+
+            if showPreparingOverlay && loadError == nil {
+                EarTrainingPreparingOverlay(
+                    message: locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…",
+                    targetProgress: bootstrapProgress,
+                    isWorkComplete: isBootstrapComplete,
+                    onVisualComplete: { showPreparingOverlay = false }
+                )
             }
         }
         .background(Color.black)
@@ -42,15 +53,6 @@ struct EarTrainingPhrasePairAdlibGameView: View {
             controller?.tearDown()
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView().tint(.yellow)
-            Text(locale == .ja ? "バトルモードを準備中…" : "Preparing battle mode…")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-        }
     }
 
     private var errorView: some View {
@@ -77,8 +79,10 @@ struct EarTrainingPhrasePairAdlibGameView: View {
     @MainActor
     private func bootstrap() async {
         guard controller == nil else { return }
-        isLoading = true
         loadError = nil
+        isBootstrapComplete = false
+        showPreparingOverlay = true
+        bootstrapProgress = EarTrainingLoadProgress.started
         do {
             let stageDetail: EarTrainingStageDetail
             switch source {
@@ -89,17 +93,20 @@ struct EarTrainingPhrasePairAdlibGameView: View {
             case .embedded(let embedded):
                 stageDetail = embedded
             }
+            bootstrapProgress = EarTrainingLoadProgress.stageLoaded
             guard let bootstrap = stageDetail.phrasePairAdlibBootstrap, !bootstrap.steps.isEmpty else {
                 loadError = locale == .ja
                     ? "フレーズペア設定がありません"
                     : "Phrase pair configuration is missing."
-                isLoading = false
+                showPreparingOverlay = false
                 return
             }
             let audioInstance = EarTrainingAudio()
+            bootstrapProgress = EarTrainingLoadProgress.audioReady
             if let url = URL(string: bootstrap.bgmUrl) {
                 audioInstance.preloadPhrase(url: url)
             }
+            bootstrapProgress = EarTrainingLoadProgress.controllerReady
             let createdController = EarTrainingPhrasePairAdlibBattleController(
                 stage: stageDetail,
                 bootstrap: bootstrap,
@@ -116,7 +123,7 @@ struct EarTrainingPhrasePairAdlibGameView: View {
             attachMidi(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
-            isLoading = false
+            showPreparingOverlay = false
         }
     }
 
@@ -155,7 +162,8 @@ struct EarTrainingPhrasePairAdlibGameView: View {
         }
         audio = audioInstance
         controller = createdController
-        isLoading = false
+        bootstrapProgress = 1
+        isBootstrapComplete = true
         createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
     }
 }
