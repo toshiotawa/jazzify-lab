@@ -18,12 +18,13 @@ struct EarTrainingOsmdScrollLayout: Equatable {
             stepMeasures: EarTrainingOsmdScoreScroll.windowStepMeasures
         )
     )
+    /// 精密モードは 2 小節表示・1 小節ずつページ送り（右小節が次に左へ来る）。
     static let precision = EarTrainingOsmdScrollLayout(
         playheadPx: 0,
         anchorToMeasureLeft: true,
         fitWindow: EarTrainingOsmdFitWindowConfig(
             minVisibleMeasures: EarTrainingOsmdScoreScroll.precisionWindowMinVisibleMeasures,
-            stepMeasures: EarTrainingOsmdScoreScroll.windowStepMeasures
+            stepMeasures: EarTrainingOsmdScoreScroll.precisionWindowStepMeasures
         )
     )
 }
@@ -32,10 +33,11 @@ struct EarTrainingOsmdScrollLayout: Equatable {
 enum EarTrainingOsmdScoreScroll {
     static let battlePlayheadPx: CGFloat = 120
     static let precisionMinFitScale: CGFloat = 0.35
-    static let precisionWindowMinVisibleMeasures = 2
     static let windowMinVisibleMeasuresWeb = 4
     static let windowMinVisibleMeasuresIOS = 3
     static let windowStepMeasures = 2
+    static let precisionWindowMinVisibleMeasures = 2
+    static let precisionWindowStepMeasures = 1
     static let windowDenseFallbackScale: CGFloat = 0.5
     static let windowDenseFallbackMeasures = 2
 

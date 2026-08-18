@@ -153,6 +153,48 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertEqual(EarTrainingOsmdScoreScroll.windowStartMeasureNumber(activeMeasureNumber: 3, visibleMeasures: 3), 3)
     }
 
+    /// 精密モードは 1 小節ステップなので、窓開始小節はアクティブ小節と常に一致する。
+    func testPrecisionWindowStart_advancesOneMeasureAtATime() {
+        for measureNumber in 1...4 {
+            XCTAssertEqual(
+                EarTrainingOsmdScoreScroll.windowStartMeasureNumber(
+                    activeMeasureNumber: measureNumber,
+                    visibleMeasures: EarTrainingOsmdScoreScroll.precisionWindowMinVisibleMeasures,
+                    stepMeasures: EarTrainingOsmdScoreScroll.precisionWindowStepMeasures
+                ),
+                measureNumber
+            )
+        }
+    }
+
+    func testPrecisionMeasureJumpScrollOffset_alignsMeasureLeftToContainerEdge() {
+        let scroll = EarTrainingOsmdScoreScroll.measureJumpScrollOffset(
+            EarTrainingOsmdScoreScroll.MeasureJumpScrollInput(
+                activeMeasureNumber: 1,
+                measureBoundsByNumber: bounds,
+                measureCentersByNumber: centers,
+                playheadPx: EarTrainingOsmdScrollLayout.precision.playheadPx,
+                effectiveScale: 1,
+                scoreWidth: 500,
+                viewportWidth: 400,
+                anchorToMeasureLeft: EarTrainingOsmdScrollLayout.precision.anchorToMeasureLeft
+            )
+        )
+        XCTAssertEqual(scroll.xPos, 10)
+        XCTAssertEqual(scroll.offsetPx, 10)
+
+        let highlight = EarTrainingOsmdScoreScroll.activeMeasureHighlight(
+            EarTrainingOsmdScoreScroll.ActiveMeasureHighlightInput(
+                activeMeasureNumber: 1,
+                measureBoundsByNumber: bounds,
+                playheadPx: EarTrainingOsmdScrollLayout.precision.playheadPx,
+                effectiveScale: 1,
+                scrollOffsetPx: scroll.offsetPx
+            )
+        )
+        XCTAssertEqual(highlight.leftPx, 0)
+    }
+
     func testCountInPlayheadProgress_mapsNegativeTimelineToZeroOne() {
         XCTAssertEqual(
             EarTrainingOsmdScoreScroll.countInPlayheadProgress(phraseTimelineSec: -4, countInDurationSec: 4),
@@ -279,18 +321,13 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         )
     }
 
-    func testPrecisionLayout_usesTwoMeasureWindowFit() {
-        XCTAssertFalse(EarTrainingOsmdScrollLayout.precision.fitWindow == nil)
-        XCTAssertEqual(
-            EarTrainingOsmdScrollLayout.precision.fitWindow?.minVisibleMeasures,
-            EarTrainingOsmdScoreScroll.precisionWindowMinVisibleMeasures
-        )
-        XCTAssertEqual(
-            EarTrainingOsmdScrollLayout.precision.fitWindow?.stepMeasures,
-            EarTrainingOsmdScoreScroll.windowStepMeasures
-        )
+    func testPrecisionLayout_usesTwoMeasureWindowWithSingleMeasureStep() {
         XCTAssertTrue(EarTrainingOsmdScrollLayout.precision.anchorToMeasureLeft)
         XCTAssertEqual(EarTrainingOsmdScrollLayout.precision.playheadPx, 0)
+        XCTAssertEqual(
+            EarTrainingOsmdScrollLayout.precision.fitWindow,
+            EarTrainingOsmdFitWindowConfig(minVisibleMeasures: 2, stepMeasures: 1)
+        )
     }
 
     func testClampedManualScrollOffset_returnsUnchangedWhenWithinRange() {

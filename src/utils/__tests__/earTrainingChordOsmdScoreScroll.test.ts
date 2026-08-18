@@ -1,9 +1,9 @@
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
   OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
+  OSMD_PRECISION_WINDOW_STEP_MEASURES,
   OSMD_SCROLL_LAYOUT_PRECISION,
   OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB,
-  OSMD_WINDOW_STEP_MEASURES,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
   computeOsmdCountInPlayheadProgress,
@@ -414,14 +414,75 @@ describe('computeOsmdMeasurePlayheadProgress', () => {
   });
 });
 
-describe('OSMD_SCROLL_LAYOUT_PRECISION', () => {
-  it('左端アンカー・2 小節窓フィット', () => {
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.anchorToMeasureLeft).toBe(true);
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.playheadPx).toBe(0);
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitWindow).toEqual({
-      minVisibleMeasures: OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
-      stepMeasures: OSMD_WINDOW_STEP_MEASURES,
-    });
+describe('精密モードの 2 小節窓・1 小節ステップ', () => {
+  const uniformBounds = {
+    1: { left: 0, right: 100 },
+    2: { left: 100, right: 200 },
+    3: { left: 200, right: 300 },
+    4: { left: 300, right: 400 },
+  };
+  const uniformCenters = { 1: 50, 2: 150, 3: 250, 4: 350 };
+  const precisionWindow = {
+    visibleMeasures: OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
+    stepMeasures: OSMD_PRECISION_WINDOW_STEP_MEASURES,
+  };
+
+  const fitScale = (
+    measureBoundsByNumber: Readonly<Record<number, { left: number; right: number }>>,
+    viewportWidth: number,
+  ): number => computeOsmdWindowFitScale({
+    cssScale: 1,
+    measureBoundsByNumber,
+    maxMeasureNumber: 4,
+    viewportWidth,
+    minVisibleMeasures: OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
+    stepMeasures: OSMD_PRECISION_WINDOW_STEP_MEASURES,
+  });
+
+  it('2 小節がちょうど収まるとき等倍', () => {
+    expect(fitScale(uniformBounds, 200)).toBe(1);
+  });
+
+  it('狭い小節でも拡大せず、最も広い 2 小節窓に合わせて縮小する', () => {
+    // 1 小節目だけ広い（音部記号・調号を含む想定）。最大窓幅は 1+2 の 500。
+    const wideFirstMeasure = {
+      1: { left: 0, right: 400 },
+      2: { left: 400, right: 500 },
+      3: { left: 500, right: 600 },
+      4: { left: 600, right: 700 },
+    };
+    expect(fitScale(wideFirstMeasure, 400)).toBeCloseTo(0.8, 5);
+    // 幅 100 の小節が単独で拡大されることはない。
+    expect(fitScale(wideFirstMeasure, 400)).toBeLessThanOrEqual(1);
+  });
+
+  it('1 小節進むごとに右小節が左端へ来る', () => {
+    const offsetFor = (activeMeasureNumber: number): number => computeOsmdWindowJumpScrollOffset({
+      activeMeasureNumber,
+      measureBoundsByNumber: uniformBounds,
+      measureCentersByNumber: uniformCenters,
+      effectiveScale: 1,
+      scoreWidth: 400,
+      viewportWidth: 200,
+      ...precisionWindow,
+    }).offsetPx;
+
+    expect(offsetFor(1)).toBe(0);
+    // 小節 2 の左端（100）がビューポート左端に来る＝直前の右小節が左へ移動。
+    expect(offsetFor(2)).toBe(uniformBounds[2].left);
+    expect(offsetFor(3)).toBe(uniformBounds[3].left);
+    // 末尾では譜面右端でクランプされる。
+    expect(offsetFor(4)).toBe(200);
+  });
+
+  it('窓開始小節はアクティブ小節と一致する', () => {
+    for (let measureNumber = 1; measureNumber <= 4; measureNumber += 1) {
+      expect(computeOsmdWindowStartMeasureNumber(
+        measureNumber,
+        OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
+        OSMD_PRECISION_WINDOW_STEP_MEASURES,
+      )).toBe(measureNumber);
+    }
   });
 });
 
@@ -508,5 +569,16 @@ describe('computeOsmdPlayheadOffsetPx', () => {
       ...offsets,
       inCountIn: false,
     }).offsetPx).toBe(0);
+  });
+});
+
+describe('OSMD_SCROLL_LAYOUT_PRECISION', () => {
+  it('左端アンカー・2 小節窓・1 小節ステップ', () => {
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.anchorToMeasureLeft).toBe(true);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.playheadPx).toBe(0);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitWindow).toEqual({
+      minVisibleMeasures: 2,
+      stepMeasures: 1,
+    });
   });
 });

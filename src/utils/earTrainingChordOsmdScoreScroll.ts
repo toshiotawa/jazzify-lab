@@ -1,10 +1,14 @@
 export const OSMD_BATTLE_PLAYHEAD_PX = 120;
-/** 1 小節フィット時の最小縮小率（iOS `precisionMinFitScale` と同一）。 */
+/** 窓フィット時の最小縮小率（iOS `precisionMinFitScale` と同一）。 */
 const OSMD_PRECISION_MIN_FIT_SCALE = 0.35;
 /** 窓フィットの最低表示小節数（Web バトル。iOS は Swift 側で 3）。 */
 export const OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB = 4;
 /** 窓ジャンプのステップ小節数（表示窓サイズとは独立）。 */
 export const OSMD_WINDOW_STEP_MEASURES = 2;
+/** 精密モードの表示小節数（iOS `precisionWindowMinVisibleMeasures` と同一）。 */
+export const OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES = 2;
+/** 精密モードのページ送り単位。1 小節ごとに右小節が左へ来る。 */
+export const OSMD_PRECISION_WINDOW_STEP_MEASURES = 1;
 /** 最低表示小節数でスケールがこの倍率未満なら 2 小節フィットへフォールバック。 */
 export const OSMD_WINDOW_DENSE_FALLBACK_SCALE = 0.5;
 /** 密集フォールバック時の表示小節数。 */
@@ -20,7 +24,7 @@ export interface OsmdScrollLayout {
   playheadPx: number;
   /** true のとき小節の左端（小節線）をアンカーにする（false は音符左端を優先）。 */
   anchorToMeasureLeft: boolean;
-  /** 設定時は N 小節窓フィット＋最終表示小節到達時の窓ジャンプスクロール。 */
+  /** 設定時は N 小節窓フィット＋窓ジャンプスクロール。 */
   fitWindow?: OsmdFitWindowConfig;
 }
 
@@ -34,16 +38,13 @@ export const OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT: OsmdScrollLayout = {
   },
 };
 
-/** 精密モード（左端アンカー・2 小節窓フィット）。 */
-export const OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES = 2;
-
-/** 精密モード（左端アンカー・2 小節窓フィット）。 */
+/** 精密モード（左端アンカー・2 小節表示・1 小節ずつページ送り）。 */
 export const OSMD_SCROLL_LAYOUT_PRECISION: OsmdScrollLayout = {
   playheadPx: 0,
   anchorToMeasureLeft: true,
   fitWindow: {
     minVisibleMeasures: OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
-    stepMeasures: OSMD_WINDOW_STEP_MEASURES,
+    stepMeasures: OSMD_PRECISION_WINDOW_STEP_MEASURES,
   },
 };
 
@@ -263,7 +264,7 @@ export const computeOsmdWindowJumpScrollOffset = (
   return { offsetPx, xPos };
 };
 
-/** 窓開始小節左端をビューポート左端へ合わせるオフセット（窓 1 は 0 で音部記号を保持）。 */
+/** 現在小節の左端（小節線付近）を固定プレイヘッド位置へ合わせるオフセット（小節更新時のみジャンプ）。 */
 export const computeOsmdMeasureJumpScrollOffset = (
   input: OsmdMeasureJumpScrollInput,
 ): OsmdMeasureJumpScrollResult => {
@@ -304,6 +305,13 @@ export const clampOsmdManualScrollOffset = (input: {
 }): number => {
   const maxOffset = Math.max(0, input.scoreWidth * input.effectiveScale - input.viewportWidth);
   return Math.min(Math.max(input.manualOffsetPx, -input.baseOffsetPx), maxOffset - input.baseOffsetPx);
+};
+
+const resolveMeasureAnchorX = (bounds: OsmdMeasureBounds): number => {
+  if (typeof bounds.noteLeft === 'number' && Number.isFinite(bounds.noteLeft) && bounds.noteLeft > bounds.left) {
+    return bounds.noteLeft;
+  }
+  return bounds.left;
 };
 
 export interface OsmdPlayheadAnchorOffsetsPx {

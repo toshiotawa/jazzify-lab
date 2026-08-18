@@ -303,7 +303,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     return max;
   }, [layout]);
   const viewportWidthPx = viewportRef.current?.clientWidth ?? 0;
-  const cssScaleForLayout = cssScale * userZoom;
   const effectiveScale = scrollLayout.fitWindow
     ? computeOsmdWindowFitScale({
       cssScale,
@@ -313,7 +312,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       minVisibleMeasures: scrollLayout.fitWindow.minVisibleMeasures,
       stepMeasures: scrollLayout.fitWindow.stepMeasures,
     }) * userZoom
-    : cssScaleForLayout;
+    : cssScale * userZoom;
 
   cssScaleRef.current = cssScale;
   userZoomRef.current = userZoom;
@@ -827,9 +826,6 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     scrollActive,
     scrollLayout,
     useImperativePlayhead,
-    cssScaleForLayout,
-    maxMeasureNumber,
-    userZoom,
   ]);
 
   const statusText = renderError ?? scoreErrorText;

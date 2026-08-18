@@ -114,6 +114,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var maxOsmdMeasure: Int = 1
         private var lastCountInDurationSec: Double?
         private var lastMaxOsmdMeasure: Int?
+        private var lastSentScrollLayout: EarTrainingOsmdScrollLayout?
 
         init(scrollLayout: EarTrainingOsmdScrollLayout) {
             self.scrollLayout = scrollLayout
@@ -435,6 +436,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingRenderKey = nil
             pendingMeasureNumber = nil
             lastSentOverlayVisible = nil
+            lastSentScrollLayout = nil
             slotRenderQueue.removeAll()
             readyScoreSlots.removeAll()
             slotRenderInFlight = false
@@ -485,7 +487,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         ) {
             self.countInDurationSec = countInDurationSec
             self.maxOsmdMeasure = max(1, maxOsmdMeasure)
-            pendingScrollLayout = scrollLayout
+            if lastSentScrollLayout != scrollLayout {
+                pendingScrollLayout = scrollLayout
+            }
             sendScrollConfigIfNeeded()
         }
 
@@ -496,6 +500,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             var scripts: [String] = []
             if let layout = pendingScrollLayout {
                 pendingScrollLayout = nil
+                lastSentScrollLayout = layout
                 let playheadLiteral = String(format: "%.10g", Double(layout.playheadPx))
                 let anchorLiteral = layout.anchorToMeasureLeft ? "true" : "false"
                 scripts.append(
@@ -664,6 +669,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             htmlReady = true
             lastCountInDurationSec = nil
             lastMaxOsmdMeasure = nil
+            lastSentScrollLayout = nil
             sendScrollConfigIfNeeded()
             lastSentManualScrollEnabled = nil
             sendManualScrollEnabledIfNeeded()
@@ -1084,15 +1090,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
-          // 窓フィット倍率は全窓走査の結果を持ち回る。
-          const fitScaleCache = {
-            bounds: null,
-            cssScale: 0,
-            viewportWidth: 0,
-            minVisible: 0,
-            step: 0,
-            scale: 1,
-          };
+          // 窓フィット倍率は全小節走査で決まるため、入力が変わらない限り使い回す。
+          const fitScaleCache = { bounds: null, cssScale: 0, viewportWidth: 0, maxMeasureNumber: 0, scale: 1 };
           let scoreWidth = 0;
           let cssScale = 1;
           let effectiveScale = 1;
@@ -1662,8 +1661,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               fitScaleCache.bounds === measureBoundsByNumber &&
               fitScaleCache.cssScale === cssScale &&
               fitScaleCache.viewportWidth === viewportWidth &&
-              fitScaleCache.minVisible === FIT_WINDOW_MIN_VISIBLE &&
-              fitScaleCache.step === FIT_WINDOW_STEP
+              fitScaleCache.maxMeasureNumber === maxMeasureNumber
             ) {
               return fitScaleCache.scale;
             }
@@ -1676,8 +1674,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             fitScaleCache.bounds = measureBoundsByNumber;
             fitScaleCache.cssScale = cssScale;
             fitScaleCache.viewportWidth = viewportWidth;
-            fitScaleCache.minVisible = FIT_WINDOW_MIN_VISIBLE;
-            fitScaleCache.step = FIT_WINDOW_STEP;
+            fitScaleCache.maxMeasureNumber = maxMeasureNumber;
             fitScaleCache.scale = scale;
             return scale;
           }
@@ -2222,6 +2219,15 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           let playheadTimelineConfigured = false;
           let playheadRunningMeasure = null;
           let playheadTransitionRaf = null;
+          let playheadAnchorSec = 0;
+          let playheadAnchorPerfMs = 0;
+
+          function currentTimelineSec() {
+            if (!playheadAnimating) {
+              return phraseTimelineSec;
+            }
+            return playheadAnchorSec + (performance.now() - playheadAnchorPerfMs) / 1000;
+          }
 
           function cancelPlayheadTransitionRaf() {
             if (playheadTransitionRaf !== null) {
@@ -2239,12 +2245,13 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           }
 
           function computeProgressInMeasure() {
-            if (phraseTimelineSec < 0) {
-              return countInPlayheadProgress(phraseTimelineSec);
+            const timelineSec = currentTimelineSec();
+            if (timelineSec < 0) {
+              return countInPlayheadProgress(timelineSec);
             }
             const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
             const safeDur = Math.max(1e-6, measureDurationSec);
-            const timeInMeasure = phraseTimelineSec - (mn - 1) * safeDur;
+            const timeInMeasure = timelineSec - (mn - 1) * safeDur;
             return Math.max(0, Math.min(1, timeInMeasure / safeDur));
           }
 
@@ -2260,7 +2267,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               return;
             }
             const progress = computeProgressInMeasure();
-            const inCountInPhase = phraseTimelineSec < 0;
+            const inCountInPhase = currentTimelineSec() < 0;
             const mn = Math.max(1, Math.floor(Number(activeMeasureNumber || 1)));
             const startPx = 0;
             const endPx = inCountInPhase ? 0 : widthPx;
@@ -2313,6 +2320,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             playheadTimelineConfigured = true;
             phraseTimelineSec = Number.isFinite(Number(sec)) ? Number(sec) : 0;
             playheadAnimating = !!animating;
+            playheadAnchorSec = phraseTimelineSec;
+            playheadAnchorPerfMs = performance.now();
             updateMeasureHighlight(true);
           }
 
