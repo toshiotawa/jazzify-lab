@@ -69,6 +69,12 @@ enum Config {
             + "/.netlify/functions/sendMarketingWelcome")!
     }
 
+    /// お問い合わせ送信（Supabase 保存 + Netlify Forms 転送）。
+    static var submitContactURL: URL {
+        URL(string: webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            + "/.netlify/functions/submitContact")!
+    }
+
     /// 開発者専用レッスンコースを一覧に含めるか（DEBUG では既定 true。Release では Info.plist の `IncludeDevLessonCourses` が true のときのみ true）
     static var includeDeveloperLessonCourses: Bool {
         #if DEBUG

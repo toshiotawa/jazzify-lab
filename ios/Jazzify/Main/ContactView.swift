@@ -1,5 +1,15 @@
 import SwiftUI
 
+private struct ContactSubmissionPayload: Encodable {
+    let name: String
+    let email: String
+    let message: String
+    let botField: String
+    let source: String
+    let locale: String
+    let appVersion: String?
+}
+
 struct ContactView: View {
     @EnvironmentObject var appState: AppState
     @State private var name = ""
@@ -149,33 +159,26 @@ struct ContactView: View {
         isSending = true
         defer { isSending = false }
 
-        guard let url = URL(string: "https://jazzify.jp/contact") else {
-            errorMessage = locale == .ja ? "URLエラーが発生しました" : "URL error occurred"
-            showErrorAlert = true
-            return
+        let payload = ContactSubmissionPayload(
+            name: name.trimmingCharacters(in: .whitespaces),
+            email: email.trimmingCharacters(in: .whitespaces),
+            message: message.trimmingCharacters(in: .whitespaces),
+            botField: "",
+            source: "ios",
+            locale: locale == .ja ? "ja" : "en",
+            appVersion: currentAppVersion()
+        )
+
+        var request = URLRequest(url: Config.submitContactURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = try? await SupabaseService.shared.accessToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        let params: [(String, String)] = [
-            ("form-name", "contact"),
-            ("bot-field", ""),
-            ("name", name.trimmingCharacters(in: .whitespaces)),
-            ("email", email.trimmingCharacters(in: .whitespaces)),
-            ("message", message.trimmingCharacters(in: .whitespaces))
-        ]
-
-        let body = params.map { key, value in
-            let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-            let encodedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
-            return "\(encodedKey)=\(encodedValue)"
-        }.joined(separator: "&")
-
-        request.httpBody = body.data(using: .utf8)
-
         do {
+            request.httpBody = try JSONEncoder().encode(payload)
             let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200..<300).contains(httpResponse.statusCode) else {
@@ -192,6 +195,14 @@ struct ContactView: View {
                 : "Network error: \(error.localizedDescription)"
             showErrorAlert = true
         }
+    }
+
+    private func currentAppVersion() -> String? {
+        guard let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+              !version.isEmpty else {
+            return nil
+        }
+        return version
     }
 }
 

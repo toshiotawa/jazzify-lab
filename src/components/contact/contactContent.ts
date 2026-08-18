@@ -11,6 +11,10 @@ export interface ContactPageCopy {
   emailLabel: string;
   messageLabel: string;
   submitLabel: string;
+  sendingLabel: string;
+  successMessage: string;
+  errorMessage: string;
+  validationMessage: string;
   honeypotLabel: string;
 }
 
@@ -26,6 +30,10 @@ const CONTACT_COPY: Record<ContactLocale, ContactPageCopy> = {
     emailLabel: 'メールアドレス',
     messageLabel: 'お問い合わせ内容',
     submitLabel: '送信',
+    sendingLabel: '送信中…',
+    successMessage: 'お問い合わせを受け付けました。内容を確認の上、ご連絡いたします。',
+    errorMessage: '送信に失敗しました。もう一度お試しください。',
+    validationMessage: 'お名前・メールアドレス・お問い合わせ内容を正しく入力してください。',
     honeypotLabel: "Don't fill this out if you're human:",
   },
   en: {
@@ -39,6 +47,10 @@ const CONTACT_COPY: Record<ContactLocale, ContactPageCopy> = {
     emailLabel: 'Email address',
     messageLabel: 'Message',
     submitLabel: 'Send',
+    sendingLabel: 'Sending…',
+    successMessage: 'Your inquiry has been received. We will review it and get back to you.',
+    errorMessage: 'Failed to send. Please try again.',
+    validationMessage: 'Please enter your name, email address, and message correctly.',
     honeypotLabel: "Don't fill this out if you're human:",
   },
 };
