@@ -358,3 +358,32 @@ struct QuestCompletionSheetModel: Identifiable {
     let chapterNumber: Int
     let nextLesson: Lesson?
 }
+
+/// SwiftUI の sheet / fullScreenCover は dismiss アニメーション中に present すると
+/// 一瞬表示されて閉じる、または present 自体が失われる。提示要求を直列化する。
+struct SerialPresentationQueue<Step> {
+    private var pending: Step?
+
+    var hasPending: Bool { pending != nil }
+
+    /// 提示中なら保留して nil を返す（呼び出し側は何もしない）。空いていれば即実行分を返す。
+    mutating func request(_ step: Step, isPresenting: Bool) -> Step? {
+        if isPresenting {
+            pending = step
+            return nil
+        }
+        pending = nil
+        return step
+    }
+
+    /// dismiss 完了時に保留を取り出す。
+    mutating func consume() -> Step? {
+        guard let step = pending else { return nil }
+        pending = nil
+        return step
+    }
+
+    mutating func clear() {
+        pending = nil
+    }
+}

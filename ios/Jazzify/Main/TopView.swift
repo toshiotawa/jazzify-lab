@@ -21,6 +21,16 @@ struct TopView: View {
     @State private var showSoftLandingOffer = false
     @State private var softLandingOfferEntry: SoftLandingOfferEntry = .dashboard
     @State private var paywallEntryAtOpen: SubscriptionEntry = .default
+    @State private var presentationQueue = SerialPresentationQueue<TopPendingPresentationStep>()
+
+    private enum TopPendingPresentationStep {
+        case openLesson(Lesson, autoStart: Bool)
+        case presentSubscription(SubscriptionEntry)
+    }
+
+    private var hasActiveTopPresentation: Bool {
+        showSubscription || showSoftLandingOffer || showMainQuestResumeSheet
+    }
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -71,26 +81,11 @@ struct TopView: View {
                     set: { if !$0 { mainQuestLessonToOpen = nil } }
                 )
             ) {
-                Group {
-                    if let lesson = mainQuestLessonToOpen {
-                        if appState.isPremium || (lesson.blockNumber ?? 1) <= MainQuestFreeTier.maxFreeBlockNumber {
-                            LessonDetailView(
-                                lesson: lesson,
-                                autoStartFirstRequirement: autoStartFirstQuestRequirement
-                            )
-                        } else {
-                            Color.clear
-                                .frame(width: 0, height: 0)
-                                .task {
-                                    await MainActor.run {
-                                        mainQuestLessonToOpen = nil
-                                        subscriptionEntry = .dashboard
-                                        paywallEntryAtOpen = .dashboard
-                                        showSubscription = true
-                                    }
-                                }
-                        }
-                    }
+                if let lesson = mainQuestLessonToOpen {
+                    LessonDetailView(
+                        lesson: lesson,
+                        autoStartFirstRequirement: autoStartFirstQuestRequirement
+                    )
                 }
             }
             .onChange(of: mainQuestLessonToOpen == nil) { isNil in
@@ -101,10 +96,11 @@ struct TopView: View {
             }
             .sheet(isPresented: $showSubscription, onDismiss: {
                 handleSubscriptionSheetDismiss()
+                runPendingPresentation()
             }) {
                 SubscriptionView(entry: subscriptionEntry)
             }
-            .sheet(isPresented: $showSoftLandingOffer) {
+            .sheet(isPresented: $showSoftLandingOffer, onDismiss: runPendingPresentation) {
                 if let candidate = softLandingNextCandidate {
                     SoftLandingOfferSheet(
                         locale: locale,
@@ -116,6 +112,7 @@ struct TopView: View {
             }
             .sheet(isPresented: $showMainQuestResumeSheet, onDismiss: {
                 MainQuestResumePreferences.markShown()
+                runPendingPresentation()
                 if pendingSubscriptionAfterResume {
                     pendingSubscriptionAfterResume = false
                     subscriptionEntry = .resumeModal
@@ -126,20 +123,16 @@ struct TopView: View {
                     locale: locale,
                     premiumUpsell: resumePremiumUpsell,
                     onContinue: {
-                        MainQuestResumePreferences.markShown()
-                        showMainQuestResumeSheet = false
-                        autoStartFirstQuestRequirement = true
                         if let lesson = resumeNextLesson {
-                            mainQuestLessonToOpen = lesson
+                            queuePresentationAfterDismiss(.openLesson(lesson, autoStart: true))
                         }
+                        showMainQuestResumeSheet = false
                     },
                     onPremium: {
-                        MainQuestResumePreferences.markShown()
                         pendingSubscriptionAfterResume = true
                         showMainQuestResumeSheet = false
                     },
                     onLater: {
-                        MainQuestResumePreferences.markShown()
                         showMainQuestResumeSheet = false
                     }
                 )
@@ -313,8 +306,7 @@ struct TopView: View {
                                 .lineLimit(2)
 
                             Button {
-                                autoStartFirstQuestRequirement = true
-                                mainQuestLessonToOpen = nextLesson
+                                openMainQuestLesson(nextLesson, autoStart: true)
                             } label: {
                                 HStack(spacing: 6) {
                                     Image(systemName: "play.fill")
@@ -726,11 +718,7 @@ struct TopView: View {
             appState.pendingMainQuestAutoStart = false
             if let progress = loadedMainQuestProgress,
                let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
-                if nextLesson.orderIndex == 0, let userId = appState.profile?.id {
-                    AnalyticsTracker.trackTutorialBegin(userId: userId, tutorialName: "first_quest")
-                }
-                autoStartFirstQuestRequirement = true
-                mainQuestLessonToOpen = nextLesson
+                openMainQuestLesson(nextLesson, autoStart: true)
             }
         } else if let progress = loadedMainQuestProgress,
                   !appState.softLandingGuidanceActive,
@@ -792,8 +780,45 @@ struct TopView: View {
             completedIds: candidate.completedLessonIds
         ),
               let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
-        autoStartFirstQuestRequirement = true
-        mainQuestLessonToOpen = lesson
+        queuePresentationAfterDismiss(.openLesson(lesson, autoStart: true))
+    }
+
+    private func openMainQuestLesson(_ lesson: Lesson, autoStart: Bool) {
+        if appState.isPremium || (lesson.blockNumber ?? 1) <= MainQuestFreeTier.maxFreeBlockNumber {
+            if lesson.orderIndex == 0, let userId = appState.profile?.id {
+                AnalyticsTracker.trackTutorialBegin(userId: userId, tutorialName: "first_quest")
+            }
+            autoStartFirstQuestRequirement = autoStart
+            mainQuestLessonToOpen = lesson
+            return
+        }
+        subscriptionEntry = .dashboard
+        paywallEntryAtOpen = .dashboard
+        if hasActiveTopPresentation {
+            queuePresentationAfterDismiss(.presentSubscription(.dashboard))
+        } else {
+            showSubscription = true
+        }
+    }
+
+    private func queuePresentationAfterDismiss(_ step: TopPendingPresentationStep) {
+        _ = presentationQueue.request(step, isPresenting: true)
+    }
+
+    private func runPendingPresentation() {
+        guard let step = presentationQueue.consume() else { return }
+        applyPresentationStep(step)
+    }
+
+    private func applyPresentationStep(_ step: TopPendingPresentationStep) {
+        switch step {
+        case .openLesson(let lesson, let autoStart):
+            openMainQuestLesson(lesson, autoStart: autoStart)
+        case .presentSubscription(let entry):
+            subscriptionEntry = entry
+            paywallEntryAtOpen = entry
+            showSubscription = true
+        }
     }
 
     private func handleSoftLandingOfferDismiss(_ candidate: SoftLandingCandidate) {

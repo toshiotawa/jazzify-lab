@@ -1343,6 +1343,21 @@ struct LessonDetailView: View {
     @State private var taskClearNextStepTarget: LessonSong?
     @State private var taskClearPromptMode: TaskClearPromptMode = .afterClear
     @State private var pendingAutoStartFirstRequirement: Bool
+    @State private var presentationQueue = SerialPresentationQueue<LessonDetailPendingStep>()
+
+    private enum LessonDetailPendingStep {
+        case launchRequirement(LessonSong)
+        case launchSurvival(SurvivalLessonLaunch)
+        case launchBalloonRush(BalloonRushLessonLaunch)
+        case completeLesson
+        case openLesson(Lesson, autoStart: Bool)
+        case presentTaskClearNextStep(LessonSong, TaskClearPromptMode)
+        case presentReadyToComplete
+        case presentSubscription(SubscriptionEntry)
+        case presentSoftLandingOffer(SoftLandingCandidate)
+        case startChapterCompleteSoftLanding
+        case dismissDetail
+    }
 
     private struct PendingRequirementClearCheck {
         let lessonSongId: UUID
@@ -1380,6 +1395,30 @@ struct LessonDetailView: View {
         LessonNavigationHelpers.splitNextIncompleteRequirements(sortedRequirements) { requirement in
             progress(for: requirement)?.isCompleted == true
         }
+    }
+
+    private var hasActiveGameCover: Bool {
+        launchDestination != nil
+            || earTrainingLaunch != nil
+            || earTrainingTutorialLaunch != nil
+            || earTrainingTimingAdjustmentLaunch != nil
+            || survivalTutorialLaunch != nil
+            || survivalLessonLaunch != nil
+            || balloonRushLessonLaunch != nil
+            || videoLessonLaunch != nil
+    }
+
+    private var hasActivePresentation: Bool {
+        hasActiveGameCover
+            || quickLookDocument != nil
+            || attachmentSharePayload != nil
+            || showSubscriptionSheet
+            || showSoftLandingOffer
+            || questCompletionSheet != nil
+            || showReadyToCompletePrompt
+            || taskClearNextStepTarget != nil
+            || survivalLessonPrep != nil
+            || balloonRushPrep != nil
     }
 
     private var sortedRequirements: [LessonSong] {
@@ -1433,7 +1472,7 @@ struct LessonDetailView: View {
                     removeTempAttachmentFile(at: doc.fileURL)
                 }
             }
-            .sheet(item: $attachmentSharePayload) { payload in
+            .sheet(item: $attachmentSharePayload, onDismiss: runPendingPresentation) { payload in
                 LessonAttachmentShareSheet(items: [payload.fileURL])
                     .presentationDetents([.medium, .large])
                     .onDisappear {
@@ -1442,6 +1481,7 @@ struct LessonDetailView: View {
             }
             .sheet(isPresented: $showSubscriptionSheet, onDismiss: {
                 handleSubscriptionSheetDismiss()
+                runPendingPresentation()
             }) {
                 SubscriptionView(
                     entry: subscriptionEntry,
@@ -1450,7 +1490,7 @@ struct LessonDetailView: View {
                         : nil
                 )
             }
-            .sheet(isPresented: $showSoftLandingOffer) {
+            .sheet(isPresented: $showSoftLandingOffer, onDismiss: runPendingPresentation) {
                 if let candidate = softLandingOfferCandidate {
                     SoftLandingOfferSheet(
                         locale: locale,
@@ -1476,7 +1516,7 @@ struct LessonDetailView: View {
             } message: {
                 Text(alertMessage ?? "")
             }
-            .sheet(item: $questCompletionSheet) { sheetModel in
+            .sheet(item: $questCompletionSheet, onDismiss: runPendingPresentation) { sheetModel in
                 QuestCompletionSheet(
                     model: sheetModel,
                     locale: locale,
@@ -1489,11 +1529,8 @@ struct LessonDetailView: View {
                     },
                     onContinue: sheetModel.nextLesson.map { next in
                         {
+                            queuePresentationAfterDismiss(.openLesson(next, autoStart: courseKind.isSequential))
                             questCompletionSheet = nil
-                            if courseKind.isSequential {
-                                pendingAutoStartFirstRequirement = true
-                            }
-                            activeLesson = next
                         }
                     },
                     onPremium: sheetModel.kind == .chapterCompletePremiumUpsell
@@ -1512,14 +1549,14 @@ struct LessonDetailView: View {
                         : nil
                 )
             }
-            .sheet(isPresented: $showReadyToCompletePrompt) {
+            .sheet(isPresented: $showReadyToCompletePrompt, onDismiss: runPendingPresentation) {
                 QuestReadyToCompleteSheet(
                     locale: locale,
                     hasOptionalRemaining: nextIncompleteRequirements.optional != nil,
                     optionalTaskTitle: nextIncompleteRequirements.optional?.localizedTitle(locale),
                     onComplete: {
+                        queuePresentationAfterDismiss(.completeLesson)
                         showReadyToCompletePrompt = false
-                        Task { await completeLesson() }
                     },
                     onLater: {
                         GuidedSoftLandingPreferences.markSessionDismissed()
@@ -1527,21 +1564,21 @@ struct LessonDetailView: View {
                     },
                     onTryOptionalTask: nextIncompleteRequirements.optional.map { optionalTask in
                         {
+                            queuePresentationAfterDismiss(.launchRequirement(optionalTask))
                             showReadyToCompletePrompt = false
-                            launchRequirement(optionalTask)
                         }
                     }
                 )
             }
-            .sheet(item: $taskClearNextStepTarget) { target in
+            .sheet(item: $taskClearNextStepTarget, onDismiss: runPendingPresentation) { target in
                 TaskClearNextStepSheet(
                     nextTaskTitle: target.localizedTitle(locale) ?? (locale == .ja ? "次の課題" : "Next task"),
                     locale: locale,
                     mode: taskClearPromptMode,
                     onNext: {
                         let next = target
+                        queuePresentationAfterDismiss(.launchRequirement(next))
                         taskClearNextStepTarget = nil
-                        launchRequirement(next)
                     },
                     onStopForToday: {
                         GuidedSoftLandingPreferences.markSessionDismissed()
@@ -1554,43 +1591,8 @@ struct LessonDetailView: View {
     @ViewBuilder
     private var lessonDetailWithReloadHooks: some View {
         lessonDetailWithGameLaunchers
-            .onChange(of: launchDestination == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: earTrainingLaunch == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: earTrainingTutorialLaunch == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: earTrainingTimingAdjustmentLaunch == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: survivalTutorialLaunch == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: survivalLessonLaunch == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: balloonRushLessonLaunch == nil) { isNil in
-                if isNil {
-                    reloadLessonDetailAfterGame()
-                }
-            }
-            .onChange(of: videoLessonLaunch == nil) { isNil in
-                if isNil {
+            .onChange(of: hasActiveGameCover) { isActive in
+                if !isActive {
                     reloadLessonDetailAfterGame()
                 }
             }
@@ -1715,7 +1717,7 @@ struct LessonDetailView: View {
                     )
                 )
             }
-            .sheet(item: $survivalLessonPrep) { prep in
+            .sheet(item: $survivalLessonPrep, onDismiss: runPendingPresentation) { prep in
                 SurvivalRunPrepSheet(
                     stage: prep.stage,
                     locale: locale,
@@ -1724,39 +1726,47 @@ struct LessonDetailView: View {
                     lessonRuntime: prep.lessonRuntime,
                     onCancel: { survivalLessonPrep = nil },
                     onConfirm: { hintMode in
-                        survivalLessonPrep = nil
-                        survivalLessonLaunch = SurvivalLessonLaunch(
-                            stage: prep.stage,
-                            hintMode: hintMode,
-                            configOverride: prep.configOverride,
-                            inlineCompositePhrases: prep.inlineCompositePhrases,
-                            lessonRuntime: prep.lessonRuntime,
-                            productionHintModes: prep.productionHintModes,
-                            randomChordOverrides: prep.randomChordOverrides,
-                            lessonId: prep.lessonId,
-                            lessonSongId: prep.lessonSongId,
-                            clearConditions: prep.clearConditions
+                        queuePresentationAfterDismiss(
+                            .launchSurvival(
+                                SurvivalLessonLaunch(
+                                    stage: prep.stage,
+                                    hintMode: hintMode,
+                                    configOverride: prep.configOverride,
+                                    inlineCompositePhrases: prep.inlineCompositePhrases,
+                                    lessonRuntime: prep.lessonRuntime,
+                                    productionHintModes: prep.productionHintModes,
+                                    randomChordOverrides: prep.randomChordOverrides,
+                                    lessonId: prep.lessonId,
+                                    lessonSongId: prep.lessonSongId,
+                                    clearConditions: prep.clearConditions
+                                )
+                            )
                         )
+                        survivalLessonPrep = nil
                     }
                 )
             }
-            .sheet(item: $balloonRushPrep) { prep in
+            .sheet(item: $balloonRushPrep, onDismiss: runPendingPresentation) { prep in
                 SurvivalRunPrepSheet(
                     balloonStage: prep.stage,
                     locale: locale,
                     initialHintMode: false,
                     onCancel: { balloonRushPrep = nil },
                     onConfirm: { hintMode in
-                        balloonRushPrep = nil
-                        balloonRushLessonLaunch = BalloonRushLessonLaunch(
-                            stage: prep.stage,
-                            hintMode: hintMode,
-                            productionHintModes: prep.productionHintModes,
-                            appliedRandomChords: prep.appliedRandomChords,
-                            lessonId: prep.lessonId,
-                            lessonSongId: prep.lessonSongId,
-                            clearConditions: prep.clearConditions
+                        queuePresentationAfterDismiss(
+                            .launchBalloonRush(
+                                BalloonRushLessonLaunch(
+                                    stage: prep.stage,
+                                    hintMode: hintMode,
+                                    productionHintModes: prep.productionHintModes,
+                                    appliedRandomChords: prep.appliedRandomChords,
+                                    lessonId: prep.lessonId,
+                                    lessonSongId: prep.lessonSongId,
+                                    clearConditions: prep.clearConditions
+                                )
+                            )
                         )
+                        balloonRushPrep = nil
                     }
                 )
             }
@@ -1805,15 +1815,14 @@ struct LessonDetailView: View {
                 pendingClearCheck = nil
                 taskClearNextStepTarget = nil
                 taskClearPromptMode = .afterClear
+                presentationQueue.clear()
                 await loadLessonDetail()
                 if pendingAutoStartFirstRequirement {
                     pendingAutoStartFirstRequirement = false
                     if courseKind.isSequential,
                        pendingClearCheck == nil,
                        let nextRequired = nextIncompleteRequirements.required {
-                        showReadyToCompletePrompt = false
-                        taskClearPromptMode = .entry
-                        taskClearNextStepTarget = nextRequired
+                        enqueuePresentationStep(.presentTaskClearNextStep(nextRequired, .entry))
                     }
                 }
             }
@@ -2518,6 +2527,7 @@ struct LessonDetailView: View {
         }
     }
 
+    @MainActor
     private func reloadLessonDetailAfterGame() {
         Task {
             await loadLessonDetail()
@@ -2554,9 +2564,7 @@ struct LessonDetailView: View {
         guard isPlayedRequirementCompleted() else { return }
 
         if let nextRequired = nextIncompleteRequirements.required {
-            showReadyToCompletePrompt = false
-            taskClearPromptMode = .afterClear
-            taskClearNextStepTarget = nextRequired
+            enqueuePresentationStep(.presentTaskClearNextStep(nextRequired, .afterClear))
             return
         }
 
@@ -2574,11 +2582,12 @@ struct LessonDetailView: View {
             if skipReadyModal {
                 await completeLesson()
             } else {
-                showReadyToCompletePrompt = true
+                enqueuePresentationStep(.presentReadyToComplete)
             }
         }
     }
 
+    @MainActor
     private func loadLessonDetail() async {
         loadGeneration += 1
         let generation = loadGeneration
@@ -2587,7 +2596,6 @@ struct LessonDetailView: View {
 
         isLoading = true
         currentVideoIndex = 0
-        showReadyToCompletePrompt = false
         defer {
             if generation == loadGeneration {
                 isLoading = false
@@ -2663,7 +2671,7 @@ struct LessonDetailView: View {
                         )
                     }
 
-                    showReadyToCompletePrompt = {
+                    let shouldShowReadyToComplete = {
                         guard let navigationState else {
                             return LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
                                 hasRequirements: !sortedRequirements.isEmpty,
@@ -2686,16 +2694,29 @@ struct LessonDetailView: View {
                             isLessonCompleted: isLessonCompleted
                         )
                     }()
+                    syncReadyToCompletePrompt(shouldShow: shouldShowReadyToComplete)
                 }
             } else {
                 requirementProgress = []
                 isLessonCompleted = false
                 navigationState = nil
+                syncReadyToCompletePrompt(shouldShow: false)
             }
         } catch {
             guard generation == loadGeneration, activeLesson.id == targetId else { return }
             detail = nil
             alertMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func syncReadyToCompletePrompt(shouldShow: Bool) {
+        if shouldShow {
+            if !showReadyToCompletePrompt {
+                enqueuePresentationStep(.presentReadyToComplete)
+            }
+        } else if showReadyToCompletePrompt {
+            showReadyToCompletePrompt = false
         }
     }
 
@@ -3203,6 +3224,8 @@ struct LessonDetailView: View {
     }
 
     private func launchRequirement(_ requirement: LessonSong) {
+        guard !hasActiveGameCover else { return }
+
         pendingClearCheck = PendingRequirementClearCheck(
             lessonSongId: requirement.id,
             wasCompletedBefore: progress(for: requirement)?.isCompleted == true
@@ -3568,6 +3591,57 @@ struct LessonDetailView: View {
         }
     }
 
+    private func queuePresentationAfterDismiss(_ step: LessonDetailPendingStep) {
+        _ = presentationQueue.request(step, isPresenting: true)
+    }
+
+    private func runPendingPresentation() {
+        guard let step = presentationQueue.consume() else { return }
+        applyPresentationStep(step)
+    }
+
+    private func enqueuePresentationStep(_ step: LessonDetailPendingStep) {
+        if let immediate = presentationQueue.request(step, isPresenting: hasActivePresentation) {
+            applyPresentationStep(immediate)
+        }
+    }
+
+    @MainActor
+    private func applyPresentationStep(_ step: LessonDetailPendingStep) {
+        switch step {
+        case .launchRequirement(let requirement):
+            launchRequirement(requirement)
+        case .launchSurvival(let launch):
+            survivalLessonLaunch = launch
+        case .launchBalloonRush(let launch):
+            balloonRushLessonLaunch = launch
+        case .completeLesson:
+            Task { await completeLesson() }
+        case .openLesson(let lesson, let autoStart):
+            if autoStart {
+                pendingAutoStartFirstRequirement = true
+            }
+            activeLesson = lesson
+        case .presentTaskClearNextStep(let requirement, let mode):
+            showReadyToCompletePrompt = false
+            taskClearPromptMode = mode
+            taskClearNextStepTarget = requirement
+        case .presentReadyToComplete:
+            showReadyToCompletePrompt = true
+        case .presentSubscription(let entry):
+            subscriptionEntry = entry
+            paywallEntryAtOpen = entry
+            showSubscriptionSheet = true
+        case .presentSoftLandingOffer(let candidate):
+            softLandingOfferCandidate = candidate
+            showSoftLandingOffer = true
+        case .startChapterCompleteSoftLanding:
+            startChapterCompleteSoftLanding()
+        case .dismissDetail:
+            dismiss()
+        }
+    }
+
     private func handleSubscriptionSheetDismiss() {
         let entry = paywallEntryAtOpen
         if entry == .chapterComplete {
@@ -3609,14 +3683,16 @@ struct LessonDetailView: View {
                 sequenceIndex: candidate.course.softLandingOrder ?? 0
             )
         }
-        showSoftLandingOffer = false
         guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
             lessons: candidate.lessons,
             completedIds: candidate.completedLessonIds
         ),
-              let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else { return }
-        pendingAutoStartFirstRequirement = true
-        activeLesson = lesson
+              let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else {
+            showSoftLandingOffer = false
+            return
+        }
+        queuePresentationAfterDismiss(.openLesson(lesson, autoStart: true))
+        showSoftLandingOffer = false
     }
 
     private func startChapterCompleteSoftLanding() {
@@ -3661,8 +3737,8 @@ struct LessonDetailView: View {
 
     private func handlePaywallContinueFree() {
         skipSoftLandingOfferOnPaywallDismiss = true
+        queuePresentationAfterDismiss(.startChapterCompleteSoftLanding)
         showSubscriptionSheet = false
-        startChapterCompleteSoftLanding()
     }
 
     private func handleSoftLandingOfferDismiss(_ candidate: SoftLandingCandidate) {

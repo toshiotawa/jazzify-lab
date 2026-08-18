@@ -332,3 +332,41 @@ final class LessonNavigationHelpersTests: XCTestCase {
         )
     }
 }
+
+final class SerialPresentationQueueTests: XCTestCase {
+    func testRequestWhenIdleReturnsStepImmediately() {
+        var queue = SerialPresentationQueue<String>()
+        let result = queue.request("launch", isPresenting: false)
+        XCTAssertEqual(result, "launch")
+        XCTAssertFalse(queue.hasPending)
+    }
+
+    func testRequestWhilePresentingEnqueuesAndReturnsNil() {
+        var queue = SerialPresentationQueue<String>()
+        let result = queue.request("launch", isPresenting: true)
+        XCTAssertNil(result)
+        XCTAssertTrue(queue.hasPending)
+        XCTAssertEqual(queue.consume(), "launch")
+        XCTAssertFalse(queue.hasPending)
+    }
+
+    func testConsumeWithoutPendingReturnsNil() {
+        var queue = SerialPresentationQueue<String>()
+        XCTAssertNil(queue.consume())
+    }
+
+    func testMultipleRequestsWhilePresentingKeepsLastOnly() {
+        var queue = SerialPresentationQueue<String>()
+        _ = queue.request("first", isPresenting: true)
+        _ = queue.request("second", isPresenting: true)
+        XCTAssertEqual(queue.consume(), "second")
+    }
+
+    func testClearRemovesPending() {
+        var queue = SerialPresentationQueue<String>()
+        _ = queue.request("launch", isPresenting: true)
+        queue.clear()
+        XCTAssertFalse(queue.hasPending)
+        XCTAssertNil(queue.consume())
+    }
+}

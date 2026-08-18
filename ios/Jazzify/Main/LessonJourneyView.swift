@@ -25,6 +25,7 @@ struct LessonJourneyView: View {
     @State private var selectedLesson: Lesson?
     @State private var launchLesson: Lesson?
     @State private var showSheet = false
+    @State private var pendingLaunchLesson: Lesson?
     @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
     @State private var scrollTargetLessonId: UUID?
     @State private var scrollTargetY: CGFloat?
@@ -320,7 +321,12 @@ struct LessonJourneyView: View {
             guard courseKind.freeMaxBlockNumber != nil else { return }
             recomputeJourney()
         }
-        .sheet(isPresented: $showSheet) {
+        .sheet(isPresented: $showSheet, onDismiss: {
+            if let lesson = pendingLaunchLesson {
+                pendingLaunchLesson = nil
+                launchLesson = lesson
+            }
+        }) {
             if let lesson = selectedLesson {
                 LessonJourneyDetailSheet(
                     locale: locale,
@@ -330,10 +336,8 @@ struct LessonJourneyView: View {
                     blockLabel: blockLabel(for: lesson),
                     onStart: {
                         LessonMapAudio.shared.stop()
+                        pendingLaunchLesson = lesson
                         showSheet = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                            launchLesson = lesson
-                        }
                     },
                     onClose: { showSheet = false }
                 )
