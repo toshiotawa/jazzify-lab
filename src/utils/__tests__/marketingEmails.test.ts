@@ -14,6 +14,7 @@ const ALL_KEYS: readonly MarketingEmailKey[] = [
   'day2',
   'day3',
   'day7',
+  'day10',
   'day14',
   'day21',
   'day30',
@@ -82,6 +83,17 @@ describe('buildMarketingEmail', () => {
   it('promotes the Japanese YouTube channel only to Japanese readers', () => {
     expect(build('day7', { locale: 'ja' }).html).toContain('youtube.com/@jazzswampradio');
     expect(build('day7', { locale: 'en' }).html).not.toContain('youtube.com');
+  });
+
+  it('promotes the six-note scale video only to Japanese day10 readers', () => {
+    const ja = build('day10', { locale: 'ja' }).html;
+    const en = build('day10', { locale: 'en' }).html;
+    expect(ja).toContain('ybl4HUBqEVQ');
+    expect(ja).toContain('utm_content=cta_lessons');
+    expect(ja).not.toContain('5fff9e19-f04a-595f-b666-b9dcf4aa765c');
+    expect(en).not.toContain('youtube.com');
+    expect(en).toContain('utm_content=cta_lessons');
+    expect(en).not.toContain('5fff9e19-f04a-595f-b666-b9dcf4aa765c');
   });
 
   it('points day14 readers at chord run soft landing and survival as secondary', () => {

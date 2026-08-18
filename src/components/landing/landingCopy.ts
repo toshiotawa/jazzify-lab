@@ -106,11 +106,21 @@ interface LandingCourseItem {
   description: string;
 }
 
+export interface LandingYouTubeVideoCopy {
+  heading: string;
+  caption: string;
+  thumbnailAlt: string;
+  playLabel: string;
+  iframeTitle: string;
+}
+
 interface LandingCoursesCopy {
   heading: string;
   body: string[];
   items: LandingCourseItem[];
   imageAlt: string;
+  /** 日本語LPのみ。英語版には該当する動画がないため未定義 */
+  sixNoteScaleVideo?: LandingYouTubeVideoCopy;
 }
 
 export interface LandingModeItem {
@@ -435,7 +445,7 @@ const COPY_JA: LandingCopy = {
         blockNumber: null,
         chapter: 'その先',
         title: '目的別コースで伸ばす',
-        description: '両手ヴォイシング、耳コピ、コードランなど、テーマごとに力を伸ばせます。',
+        description: '両手ヴォイシング、耳コピ、コードラン、6音スケールなど、テーマごとに力を伸ばせます。',
       },
     ],
     freeBadge: '無料',
@@ -481,11 +491,23 @@ const COPY_JA: LandingCopy = {
         description: '限られた音から始めて、自分のフレーズを作る力を育てます。',
       },
       {
+        title: '6音スケール',
+        description: '使える音を6音に絞り、精密演奏とペアアドリブでフレーズを止めずに弾く力を育てます。',
+      },
+      {
         title: '両手ヴォイシング',
         description: '両手で響きのあるコードを弾く。伴奏やソロピアノに必要なヴォイシングを身につけます。',
       },
     ],
     imageAlt: '目的別コースのクエストマップ画面',
+    sixNoteScaleVideo: {
+      heading: '6音スケールを、動画で見る',
+      caption:
+        '「ビバップ初心者から“自由”を奪ったら、フレーズが止まらなくなった」— ジャズ沼ラジオで、6音に絞ると手が動きやすくなる感覚を試している回です。',
+      thumbnailAlt: '6音スケールのプレイ動画サムネイル',
+      playLabel: '動画を再生する',
+      iframeTitle: 'ビバップ初心者から「自由」を奪ったら、フレーズが止まらなくなった',
+    },
   },
   modes: {
     eyebrow: 'HOW IT WORKS',

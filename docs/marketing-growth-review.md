@@ -585,12 +585,12 @@ MIDIキーボードがなくても、まずはタッチ鍵盤で試せます。
 
 | 分類 | Key |
 |------|-----|
-| 定期（オプトイン日起点） | `day0`〜`day3`, `day7`, `day14`, `day21`, `day30` |
+| 定期（オプトイン日起点） | `day0`〜`day3`, `day7`, `day10`, `day14`, `day21`, `day30` |
 | 行動 | `trial_start`（オプトイン不要）, `paywall_nudge`, `never_played_5d`, `dormant_14d` |
 
 実体: `netlify/functions/marketingDripCron.ts`（毎時cron）+ `sendMarketingWelcome.ts`（day0 即時）+ `marketingUnsubscribe.ts`（配信停止）+ `lib/marketingEmails.ts`（JA/EN文面）。対象はリリース以降（`MARKETING_EMAIL_RELEASE_CUTOFF`）の新規オプトイン。トライアル開始者には以後のトライアルCTAを出さない。
 
-ソフトランディング: アプリ内はコードラン block1 無料案内。専用再訪メール `soft_landing_chord_run` は停止済み。`day14` / `paywall_nudge` の無料続き CTA はコードランに揃えた（詳細: `docs/marketing-email-soft-landing.md`）。
+ソフトランディング: アプリ内はコードラン block1 無料案内。専用再訪メール `soft_landing_chord_run` は停止済み。`day14` / `paywall_nudge` の無料続き CTA はコードランに揃えた（詳細: `docs/marketing-email-soft-landing.md`）。`day10` / `day14` の定期便は日本語ユーザーのみ（英語は cron でスキップ）。
 
 ### 実装の順番（再掲）
 

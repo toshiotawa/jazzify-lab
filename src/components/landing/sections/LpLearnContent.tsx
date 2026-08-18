@@ -1,12 +1,18 @@
 import React from 'react';
 import { getLpCoursesShot } from '@/components/landing/landingAssets';
 import { getLandingCopy } from '@/components/landing/landingCopy';
+import { LpYouTubeVideo } from '@/components/landing/sections/LpYouTubeVideo';
+import {
+  SIX_NOTE_SCALE_VIDEO_ID,
+  SIX_NOTE_SCALE_VIDEO_START_SECONDS,
+} from '@/components/landing/landingLinks';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 export const LpLearnContent: React.FC = () => {
   const isEnglish = shouldUseEnglishCopy();
   const copy = getLandingCopy(isEnglish);
   const coursesShot = getLpCoursesShot(isEnglish);
+  const sixNoteScaleVideo = copy.courses.sixNoteScaleVideo;
 
   return (
     <section
@@ -78,6 +84,18 @@ export const LpLearnContent: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {sixNoteScaleVideo ? (
+          <div className="max-w-3xl mx-auto mt-14" data-animate="from-behind">
+            <LpYouTubeVideo
+              copy={sixNoteScaleVideo}
+              videoId={SIX_NOTE_SCALE_VIDEO_ID}
+              startSeconds={SIX_NOTE_SCALE_VIDEO_START_SECONDS}
+              gaEventName="lp_six_note_scale_video_play"
+              className="lp-six-note-scale-video"
+            />
+          </div>
+        ) : null}
       </div>
     </section>
   );

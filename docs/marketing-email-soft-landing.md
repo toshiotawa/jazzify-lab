@@ -8,10 +8,12 @@
 
 | 分類 | Key |
 |------|-----|
-| 定期ドリップ | `day0`, `day1`, `day2`, `day3`, `day7`, `day14`, `day21`, `day30` |
+| 定期ドリップ | `day0`, `day1`, `day2`, `day3`, `day7`, `day10`, `day14`, `day21`, `day30` |
 | 行動 | `trial_start`（オプトイン不要）, `paywall_nudge`, `never_played_5d`, `dormant_14d` |
 
 送信: `marketingDripCron.ts`（毎時）+ `sendMarketingWelcome.ts`（day0 即時）
+
+**日本語のみ送信**: `day10`（6音スケール動画）、`day14`（コードラン無料続き）。英語ユーザーは cron でスキップし、次の due ステップ（例: day21）へ進む。
 
 ## ソフトランディングとメールの役割分担
 

@@ -52,10 +52,14 @@ const DRIP_SEQUENCE: ReadonlyArray<{ key: MarketingEmailKey; afterDays: number }
   { key: 'day2', afterDays: 2 },
   { key: 'day3', afterDays: 3 },
   { key: 'day7', afterDays: 7 },
+  { key: 'day10', afterDays: 10 },
   { key: 'day14', afterDays: 14 },
   { key: 'day21', afterDays: 21 },
   { key: 'day30', afterDays: 30 },
 ];
+
+/** ジャズ沼ラジオ動画を案内する定期便。英語ユーザーには送らず次の due ステップへ進める */
+const JA_ONLY_DRIP_KEYS: ReadonlySet<MarketingEmailKey> = new Set(['day10', 'day14']);
 
 interface OptedInProfileRow {
   id: string;
@@ -305,6 +309,12 @@ export const handler = async () => {
       if (elapsedDays < step.afterDays) break;
       if (!isPending(profile, step.key)) continue;
       if (step.afterDays > 0 && elapsedDays - step.afterDays > STEP_GRACE_DAYS) continue;
+      if (
+        JA_ONLY_DRIP_KEYS.has(step.key) &&
+        resolveMarketingLocale(profile.preferred_locale, profile.country) !== 'ja'
+      ) {
+        continue;
+      }
       await send(step.key, profile);
       break;
     }

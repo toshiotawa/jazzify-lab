@@ -4,6 +4,7 @@ export type MarketingEmailKey =
   | 'day2'
   | 'day3'
   | 'day7'
+  | 'day10'
   | 'day14'
   | 'day21'
   | 'day30'
@@ -31,6 +32,7 @@ export const MARKETING_EMAIL_PATHS = {
 /** 日本語話者向けのみ案内する外部リンク（YouTube「ジャズ沼ラジオ」） */
 export const MARKETING_YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@jazzswampradio';
 export const MARKETING_CHORD_RUN_VIDEO_URL = 'https://www.youtube.com/watch?v=0iAvq5dAK40&t=8s';
+export const MARKETING_SIX_NOTE_SCALE_VIDEO_URL = 'https://www.youtube.com/watch?v=ybl4HUBqEVQ';
 
 export const MARKETING_LICK_AUDIO_PATHS = [
   {

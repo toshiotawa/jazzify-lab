@@ -10,3 +10,7 @@ export const JAZZIFY_YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@jazzswampra
 /** ジャズ沼ラジオのコードラン紹介回。冒頭の挨拶を飛ばして本題から再生する */
 export const CHORD_RUN_VIDEO_ID = '0iAvq5dAK40';
 export const CHORD_RUN_VIDEO_START_SECONDS = 8;
+
+/** ジャズ沼ラジオの6音スケール紹介回（日本語LPのみ） */
+export const SIX_NOTE_SCALE_VIDEO_ID = 'ybl4HUBqEVQ';
+export const SIX_NOTE_SCALE_VIDEO_START_SECONDS = 0;

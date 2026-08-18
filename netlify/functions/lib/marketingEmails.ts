@@ -4,6 +4,7 @@ import {
   MARKETING_CHORD_RUN_VIDEO_URL,
   MARKETING_EMAIL_PATHS,
   MARKETING_LICK_AUDIO_PATHS,
+  MARKETING_SIX_NOTE_SCALE_VIDEO_URL,
   MARKETING_YOUTUBE_CHANNEL_URL,
   type MarketingEmailKey,
   type MarketingEmailLocale,
@@ -474,6 +475,38 @@ const buildDay7Body = (ctx: MarketingEmailBuildContext): string => {
   ].join('');
 };
 
+const buildDay10Body = (ctx: MarketingEmailBuildContext): string => {
+  if (ctx.locale === 'ja') {
+    return [
+      paragraph('登録から10日が経ちました。今日は少し視点を変えてみましょう。'),
+      paragraph(
+        'アドリブで「使える音が多すぎて手が止まる」と感じたことはありませんか。実は、音を減らすと逆にフレーズが止まらなくなることがあります。',
+      ),
+      paragraph(
+        'Jazzifyの6音スケールは、使える音を6音に絞って精密演奏とペアアドリブで練習するコースです。選択肢が減るほど、次の音に進みやすくなります。',
+      ),
+      paragraph(
+        `どんな感覚かは、${link(MARKETING_SIX_NOTE_SCALE_VIDEO_URL, 'この動画（6音スケールの実験回）')}が分かりやすいと思います。`,
+      ),
+      trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'メインクエストを開く'),
+      paragraph(
+        `まだ第1章を終えていなければ、そちらが先です。${trackedLink(ctx, 'link_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'メインクエストに戻る')}`,
+      ),
+    ].join('');
+  }
+
+  return [
+    paragraph('It has been 10 days since you signed up. Here is a different angle on practice.'),
+    paragraph(
+      'When improvising, too many note choices can freeze your hands. Sometimes fewer notes actually keeps the phrase moving.',
+    ),
+    paragraph(
+      'Jazzify builds that reflex through short, repeatable reps in the Main Quest — hear it, respond on the keys, get feedback.',
+    ),
+    trackedCta(ctx, 'cta_lessons', MARKETING_EMAIL_PATHS.mainLessons, 'Open Main Quest'),
+  ].join('');
+};
+
 const buildDay14Body = (ctx: MarketingEmailBuildContext): string => {
   if (ctx.locale === 'ja') {
     return [
@@ -772,6 +805,13 @@ const EMAIL_DEFINITIONS: Record<MarketingEmailKey, EmailDefinition> = {
     titleJa: 'つまずきやすい3つのこと',
     titleEn: 'Three common sticking points',
     buildBody: (ctx) => buildDay7Body(ctx),
+  },
+  day10: {
+    subjectJa: '音を減らすと、フレーズが止まらなくなる',
+    subjectEn: 'Fewer notes can keep your phrase moving',
+    titleJa: '音を減らす練習',
+    titleEn: 'Practice with fewer notes',
+    buildBody: (ctx) => buildDay10Body(ctx),
   },
   day14: {
     subjectJa: '第1章のあと、無料で続けられるコースがあります',
