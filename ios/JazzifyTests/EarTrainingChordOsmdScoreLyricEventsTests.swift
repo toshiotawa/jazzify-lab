@@ -136,4 +136,36 @@ final class EarTrainingChordOsmdScoreLyricEventsTests: XCTestCase {
         )
         XCTAssertEqual(resolved, "Bbm7\nBroken Chord")
     }
+
+    func testResolveChordOsmdBattleDisplaySourceXmlKeepsLyricsWhenEnabled() {
+        let rhythm = miniScorePartwise("""
+        <attributes><divisions>1</divisions></attributes>
+        <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric><text>hello</text></lyric></note>
+        """)
+        let stripped = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(rhythm)
+        let resolved = EarTrainingChordOsmdMusicXmlNormalizer.resolveChordOsmdBattleDisplaySourceXml(
+            showScoreLyricsInBattle: true,
+            baseRhythmXml: rhythm,
+            baseDisplayXml: stripped,
+            transposedRhythmXml: rhythm,
+            transposeOffset: 0
+        )
+        XCTAssertTrue(resolved.contains("<lyric>"))
+    }
+
+    func testResolveChordOsmdBattleDisplaySourceXmlStripsLyricsWhenDisabled() {
+        let rhythm = miniScorePartwise("""
+        <attributes><divisions>1</divisions></attributes>
+        <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><lyric><text>hello</text></lyric></note>
+        """)
+        let stripped = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(rhythm)
+        let resolved = EarTrainingChordOsmdMusicXmlNormalizer.resolveChordOsmdBattleDisplaySourceXml(
+            showScoreLyricsInBattle: false,
+            baseRhythmXml: rhythm,
+            baseDisplayXml: stripped,
+            transposedRhythmXml: rhythm,
+            transposeOffset: 0
+        )
+        XCTAssertFalse(resolved.contains("<lyric>"))
+    }
 }

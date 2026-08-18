@@ -18,7 +18,8 @@ export type EarTrainingBattleEffectKind =
   | 'osmdApproachCircle'
   | 'osmdApproachCircleBurst'
   | 'osmdApproachCircleDismiss'
-  | 'osmdMeteor';
+  | 'osmdMeteor'
+  | 'pairComplete';
 
 export interface EarTrainingBattleEffectOriginPoint {
   x: number;

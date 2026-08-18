@@ -259,6 +259,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
                 groupId: Self.phrasePairCompletePulseGroupId,
                 kind: .harmonyComplete
             )
+            _ = triggerBattleEffect(kind: .pairComplete, label: pattern.label, damage: nil)
         }
 
         guard result.shouldFire, result.enemyDamage > 0 else { return }

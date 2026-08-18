@@ -643,6 +643,22 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
     }
 
+    /// OSMD バトル表示用 MusicXML の `<lyric>` 除去可否（Web `showScoreLyrics` / `show_score_lyrics_in_battle` 相当）。
+    static func resolveChordOsmdBattleDisplaySourceXml(
+        showScoreLyricsInBattle: Bool,
+        baseRhythmXml: String,
+        baseDisplayXml: String,
+        transposedRhythmXml: String,
+        transposeOffset: Int
+    ) -> String {
+        if showScoreLyricsInBattle {
+            return transposeOffset == 0 ? baseRhythmXml : transposedRhythmXml
+        }
+        return transposeOffset == 0
+            ? baseDisplayXml
+            : stripLyricsFromMusicXml(transposedRhythmXml)
+    }
+
     private static func lyricElementIsVerseOne(_ lyric: ChordOsmdXmlElement) -> Bool {
         let raw = attribute(named: "number", on: lyric)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return raw.isEmpty || raw == "1"

@@ -525,6 +525,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.playCompleteEffect(command);
       return;
     }
+    if (command.kind === 'pairComplete') {
+      this.playPairCompleteEffect(command);
+      return;
+    }
     if (command.kind === 'fail') {
       this.playEnemyAttackEffect(command, true);
       return;
@@ -2719,6 +2723,21 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     lightning.lineBetween(x - 12, startY + 34, x + 18, startY + 70);
     lightning.lineBetween(x + 18, startY + 70, x - 4, endY);
     return lightning;
+  }
+
+  private playPairCompleteEffect(command: EarTrainingBattleEffectCommand): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const width = Math.max(320, this.scale.width);
+    const height = Math.max(480, this.scale.height);
+    const anchors = this.getBattleAnchors(width, height);
+    this.showFloatingResultText(
+      command.label ?? '',
+      anchors.player.x,
+      anchors.player.resultTextY,
+      '#facc15',
+    );
   }
 
   private showFloatingResultText(label: string, x: number, y: number, color: string): void {

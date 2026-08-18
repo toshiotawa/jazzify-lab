@@ -2343,6 +2343,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           hidden={showLobbyControls || timingCalibrationMode}
           scoreZClassName={showLobbyControls ? 'z-0' : 'z-10'}
           useImperativePlayhead
+          showScoreLyrics={stage.show_score_lyrics_in_battle === true}
         />
       ) : null}
 

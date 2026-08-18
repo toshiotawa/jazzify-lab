@@ -646,6 +646,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     if (result.evaluation.result === 'complete' && result.evaluation.completedPattern) {
       setStatusText(result.evaluation.completedPattern.label);
       triggerCompletionPulse('pp-complete', 'harmonyComplete');
+      triggerBattleEffect('pairComplete', result.evaluation.completedPattern.label);
     }
 
     if (!result.shouldFire || result.enemyDamage <= 0) return;

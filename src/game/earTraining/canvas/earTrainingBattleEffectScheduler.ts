@@ -988,6 +988,17 @@ const applyCompletionImpact = (
   }, impactDelayMs);
 };
 
+const playPairCompleteEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
+  const { runtime, anchors } = ctx;
+  showFloatingText(
+    runtime,
+    command.label ?? '',
+    anchors.player.x,
+    anchors.player.resultTextY,
+    '#facc15',
+  );
+};
+
 const playGoodCompleteEffect = (ctx: EffectSchedulerContext, command: EarTrainingBattleEffectCommand): void => {
   const { runtime, anchors, onDirty, playerTimers, snapshot, width } = ctx;
   holdCharacterForAction(runtime.player, 'attack', 1120, snapshot, runtime.enemy.x, width, playerTimers, onDirty);
@@ -1215,6 +1226,9 @@ export const scheduleEarTrainingBattleEffect = (
       break;
     case 'complete':
       playCompleteEffect(ctx, command);
+      break;
+    case 'pairComplete':
+      playPairCompleteEffect(ctx, command);
       break;
     case 'fail':
       playEnemyAttackEffect(ctx, command, true);

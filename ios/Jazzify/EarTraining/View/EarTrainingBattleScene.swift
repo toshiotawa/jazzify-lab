@@ -382,6 +382,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         case .osmdApproachCircleDismiss: playOsmdApproachCircleDismissEffect(command)
         case .clearParryVisualSlow: clearParryVisualSlowEffect()
         case .osmdMeteor: playOSMDMeteorEffect(command)
+        case .pairComplete: playPairCompleteEffect(command)
         case .miss: playEnemyAttackEffect(command, heavy: false)
         case .fail: playEnemyAttackEffect(command, heavy: true)
         }
@@ -2880,6 +2881,18 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let tex = SKTexture(image: image)
         tex.filteringMode = .nearest
         return tex
+    }
+
+    private func playPairCompleteEffect(_ command: EarTrainingBattleEffectCommand) {
+        let width = max(320, size.width)
+        let height = max(480, size.height)
+        let anchors = getBattleAnchors(width: width, height: height)
+        showFloatingResultText(
+            label: command.label ?? "",
+            x: anchors.player.x,
+            y: anchors.player.resultTextY,
+            color: UIColor(red: 0.98, green: 0.8, blue: 0.082, alpha: 1.0)
+        )
     }
 
     private func showFloatingResultText(label: String, x: CGFloat, y: CGFloat, color: UIColor) {

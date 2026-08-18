@@ -37,6 +37,7 @@ enum EarTrainingBattleEffectKind: String, Sendable {
     case osmdApproachCircleDismiss
     case clearParryVisualSlow
     case osmdMeteor
+    case pairComplete
 }
 
 /// Web `EarTrainingBattleEffectCommand` と同等。
