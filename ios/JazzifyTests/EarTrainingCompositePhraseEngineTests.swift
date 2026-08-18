@@ -87,6 +87,87 @@ final class EarTrainingCompositePhraseEngineTests: XCTestCase {
         )
     }
 
+    func testStaffViewShowsFirstNoteAfterProgress() {
+        let cId = UUID(uuidString: "10000000-0000-4000-8000-000000000010")!
+        let p1 = definition(
+            source: idA,
+            chords: [
+                chord(id: cId, name: "X", measure: 1, notes: [note(4, "E4"), note(2, "D4"), note(9, "A4")])
+            ]
+        )
+        var state = EarTrainingCompositePhraseEngine.createInitialState(sourcePhrases: [p1])
+
+        let r0 = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 4)
+        XCTAssertEqual(r0.result, .progress)
+        state = r0.nextState
+
+        let view0 = EarTrainingCompositePhraseEngine.staffChordView(state: state)
+        XCTAssertEqual(view0.correctNoteIndices, Set([0]))
+
+        let r1 = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)
+        XCTAssertEqual(r1.result, .progress)
+        state = r1.nextState
+
+        let view1 = EarTrainingCompositePhraseEngine.staffChordView(state: state)
+        XCTAssertEqual(view1.correctNoteIndices, Set([0, 1]))
+    }
+
+    func testStaffViewShowsFirstNoteAfterPhraseCompleteReset() {
+        let cId1 = UUID(uuidString: "10000000-0000-4000-8000-000000000011")!
+        let cId2 = UUID(uuidString: "10000000-0000-4000-8000-000000000012")!
+        let p1 = definition(
+            source: idA,
+            chords: [
+                chord(id: cId1, name: "X", measure: 1, notes: [note(4, "E4")]),
+                chord(id: cId2, name: "Y", measure: 2, notes: [note(2, "D4")]),
+            ]
+        )
+        var state = EarTrainingCompositePhraseEngine.createInitialState(sourcePhrases: [p1])
+
+        state = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 4).nextState
+        let complete = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)
+        XCTAssertEqual(complete.result, .phraseComplete)
+        state = complete.nextState
+
+        let viewAfterComplete = EarTrainingCompositePhraseEngine.staffChordView(state: state)
+        XCTAssertEqual(viewAfterComplete.correctNoteIndices, Set())
+
+        let r0 = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 4)
+        XCTAssertEqual(r0.result, .progress)
+        state = r0.nextState
+
+        let viewAfterReplay = EarTrainingCompositePhraseEngine.staffChordView(state: state)
+        XCTAssertEqual(viewAfterReplay.correctNoteIndices, Set([0]))
+    }
+
+    func testCompositeStaffArtifactMapsCorrectPitchClasses() {
+        let stageId = UUID(uuidString: "50000000-0000-4000-8000-000000000001")!
+        let cId = UUID(uuidString: "10000000-0000-4000-8000-000000000012")!
+        let p1 = definition(
+            source: idA,
+            chords: [
+                chord(id: cId, name: "X", measure: 1, notes: [note(4, "E4"), note(2, "D4")])
+            ]
+        )
+        var state = EarTrainingCompositePhraseEngine.createInitialState(sourcePhrases: [p1])
+        state = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: state, pitchClass: 4).nextState
+
+        let artifact = EarTrainingCompositePhraseAdapter.compositeStaffArtifact(
+            runtime: state,
+            stageId: stageId
+        )
+        XCTAssertEqual(artifact.groups.count, 2)
+        XCTAssertTrue(artifact.groups[0].exemptFromFade)
+        XCTAssertFalse(artifact.groups[1].exemptFromFade)
+
+        let firstGroupId = EarTrainingCompositePhraseAdapter.compositeStaffGroupUUID(
+            stageId: stageId,
+            chordId: cId,
+            noteIndex: 0
+        )
+        XCTAssertEqual(artifact.correctMap[firstGroupId], Set([4]))
+    }
+
     /// C,E / C,G — 共有 C のあと分岐。
     func testParallelFilterThenLock() {
         let cId = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!

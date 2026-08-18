@@ -6,6 +6,7 @@ import {
   compositeSelectionGreenPrefixLength,
   createInitialCompositePhraseRuntimeState,
   evaluateCompositePhraseNoteOn,
+  getCompositePhraseStaffChordView,
 } from '@/utils/compositePhraseEngine';
 
 function chordWithPcs(stageLabel: number, pcs: readonly number[]): CompositePhraseChord {
@@ -201,6 +202,25 @@ describe('compositePhraseEngine', () => {
     const ev = evaluateCompositePhraseNoteOn(state, 4);
     expect(ev.result).toBe('resync');
     expect(ev.nextState.candidates[0]?.targetNoteIndex).toBe(1);
+  });
+
+  it('staff view shows first note after progress', () => {
+    const p = chordChain(101, [[4, 2, 9]]);
+    let state = createInitialCompositePhraseRuntimeState([p]);
+    state = evaluateCompositePhraseNoteOn(state, 4).nextState;
+    const view0 = getCompositePhraseStaffChordView(state);
+    expect(view0.correctNoteIndices).toEqual(new Set([0]));
+
+    state = evaluateCompositePhraseNoteOn(state, 2).nextState;
+    const view1 = getCompositePhraseStaffChordView(state);
+    expect(view1.correctNoteIndices).toEqual(new Set([0, 1]));
+  });
+
+  it('staff view clears correct indices after phrase-complete reset', () => {
+    const p = chordChain(102, [[4]]);
+    let state = createInitialCompositePhraseRuntimeState([p]);
+    state = evaluateCompositePhraseNoteOn(state, 4).nextState;
+    expect(getCompositePhraseStaffChordView(state).correctNoteIndices).toEqual(new Set());
   });
 
   it('keeps evaluating all candidates while primary is set', () => {

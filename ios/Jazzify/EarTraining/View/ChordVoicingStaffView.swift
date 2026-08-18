@@ -987,6 +987,49 @@ struct ChordVoicingStaffGroupsView: View {
     private static let trebleReferenceDegree = 4 * 7 + 6
     private static let bassReferenceDegree = 3 * 7 + 1
 
+    /// SwiftUI `Canvas` は同一 View identity だと `correctPitchClassesByGroupId` 更新を再描画しないことがある。
+    /// 複合フレーズ（`unpressedNoteOpacity: 0`）では正解符頭だけ描画するため、ここで identity を変える。
+    private var staffCanvasRenderIdentity: Int {
+        Self.staffCanvasRenderIdentity(
+            groups: groups,
+            correctByGroup: correctPitchClassesByGroupId,
+            unpressedNoteOpacity: effectiveUnpressedNoteOpacity,
+            activeGroupId: activeGroupId,
+            keyFifths: keyFifths,
+            fadeAllMeasureNotes: fadeAllMeasureNotes
+        )
+    }
+
+    private static func staffCanvasRenderIdentity(
+        groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
+        correctByGroup: [UUID: Set<Int>],
+        unpressedNoteOpacity: CGFloat,
+        activeGroupId: UUID?,
+        keyFifths: Int,
+        fadeAllMeasureNotes: Bool
+    ) -> Int {
+        var hasher = Hasher()
+        hasher.combine(unpressedNoteOpacity)
+        hasher.combine(keyFifths)
+        hasher.combine(fadeAllMeasureNotes)
+        hasher.combine(activeGroupId)
+        for group in groups {
+            hasher.combine(group.id)
+            hasher.combine(group.measureOffset)
+            hasher.combine(group.exemptFromFade)
+            for name in group.voicing {
+                hasher.combine(name)
+            }
+        }
+        for entry in correctByGroup.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            hasher.combine(entry.key)
+            for pitchClass in entry.value.sorted() {
+                hasher.combine(pitchClass)
+            }
+        }
+        return hasher.finalize()
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let hintGroupId: UUID? = (showTargetHints && effectiveUnpressedNoteOpacity > 0) ? activeGroupId : nil
@@ -1039,6 +1082,7 @@ struct ChordVoicingStaffGroupsView: View {
                         fixedActiveStaves: fixedActiveStaves
                     )
                 }
+                .id(staffCanvasRenderIdentity)
                 .frame(width: w, height: h)
 
                 if let pulse = effectivePulse() {
