@@ -4,9 +4,10 @@ import UIKit
 struct PrecisionNotesCanvasView: UIViewRepresentable {
     @ObservedObject var controller: EarTrainingPrecisionBattleController
     let pianoHeight: CGFloat
+    var fallLeadSec: Double = EarTrainingPrecisionNotes.fallLeadSec
 
     func makeUIView(context: Context) -> PrecisionNotesCanvasUIView {
-        let view = PrecisionNotesCanvasUIView(pianoHeight: pianoHeight)
+        let view = PrecisionNotesCanvasUIView(pianoHeight: pianoHeight, fallLeadSec: fallLeadSec)
         view.controller = controller
         return view
     }
@@ -14,6 +15,7 @@ struct PrecisionNotesCanvasView: UIViewRepresentable {
     func updateUIView(_ uiView: PrecisionNotesCanvasUIView, context: Context) {
         uiView.controller = controller
         uiView.pianoHeight = pianoHeight
+        uiView.fallLeadSec = fallLeadSec
         uiView.setNeedsLayout()
     }
 
@@ -28,6 +30,10 @@ final class PrecisionNotesCanvasUIView: UIView {
     }
 
     var pianoHeight: CGFloat {
+        didSet { recalculateLayout() }
+    }
+
+    var fallLeadSec: Double {
         didSet { recalculateLayout() }
     }
 
@@ -128,8 +134,12 @@ final class PrecisionNotesCanvasUIView: UIView {
         let startedAtMs: Double
     }
 
-    init(pianoHeight: CGFloat) {
+    init(
+        pianoHeight: CGFloat,
+        fallLeadSec: Double = EarTrainingPrecisionNotes.fallLeadSec
+    ) {
         self.pianoHeight = pianoHeight
+        self.fallLeadSec = fallLeadSec
         super.init(frame: .zero)
         backgroundColor = PrecisionNoteColors.background
         isMultipleTouchEnabled = false
@@ -188,7 +198,7 @@ final class PrecisionNotesCanvasUIView: UIView {
     private func recalculateLayout() {
         hitLineY = bounds.height - pianoHeight
         noteLaneHeight = max(0, hitLineY)
-        noteSpeedPxPerSec = noteLaneHeight / CGFloat(EarTrainingPrecisionNotes.fallLeadSec)
+        noteSpeedPxPerSec = noteLaneHeight / CGFloat(max(0.1, fallLeadSec))
         keyGeometries = buildKeyGeometries()
         invalidateStaticLayerIfNeeded()
     }

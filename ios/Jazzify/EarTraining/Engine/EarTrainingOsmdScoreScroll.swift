@@ -181,6 +181,66 @@ enum EarTrainingOsmdScoreScroll {
     /// 小節切替・一時停止・シーク・カウントイン境界だけ再同期する。
     static let playheadResyncSeekThresholdSec: Double = 0.12
 
+    struct SingleScoreRenderDecisionInput: Equatable {
+        let lastRenderedMusicXMLText: String?
+        let nextMusicXMLText: String
+        let lastRenderedZoom: Double?
+        let nextZoom: Double
+        let lastRenderedKey: Int?
+        let nextRenderKey: Int
+        let lastUsedScoreSlots: Bool
+        let nextUsesScoreSlots: Bool
+    }
+
+    /// 同一 MusicXML のリトライや練習スロット→本番シングル遷移でも再レンダーが必要か。
+    static func shouldRenderSingleScore(_ input: SingleScoreRenderDecisionInput) -> Bool {
+        if input.lastRenderedMusicXMLText != input.nextMusicXMLText {
+            return true
+        }
+        if input.lastRenderedZoom.map({ abs($0 - input.nextZoom) > 0.000_1 }) ?? true {
+            return true
+        }
+        if input.lastRenderedKey != input.nextRenderKey {
+            return true
+        }
+        if input.lastUsedScoreSlots, !input.nextUsesScoreSlots {
+            return true
+        }
+        return false
+    }
+
+    static func shouldResetPlayheadCacheForRenderRun(
+        previousRenderKey: Int?,
+        nextRenderKey: Int
+    ) -> Bool {
+        previousRenderKey != nextRenderKey
+    }
+
+    /// OSMD からのメッセージが譜面 ready 待機解除に使えるか（`renderProgress` は進捗のみ）。
+    static func osmdMessageCompletesScoreRender(_ messageType: String) -> Bool {
+        switch messageType {
+        case "ready", "setupComplete", "slotActivated":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// OSMD からの進捗通知のみ（ready 待機解除には使わない）。
+    static func osmdMessageReportsRenderProgressOnly(_ messageType: String) -> Bool {
+        switch messageType {
+        case "loadStart", "xmlLoaded", "renderProgress":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// `slotReady` 受信後に JS へ `setActiveScoreSlot` を送るべきか（練習スロットモードのみ）。
+    static func shouldSendActiveScoreSlotOnSlotReady(usesScoreSlots: Bool) -> Bool {
+        usesScoreSlots
+    }
+
     static func shouldResyncPlayheadTimeline(
         previousTimelineSec: Double?,
         nextTimelineSec: Double,

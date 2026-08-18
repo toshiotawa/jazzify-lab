@@ -449,6 +449,7 @@ final class EarTrainingAudio: NSObject {
             return nil
         }
 
+        resetLoopSessionState()
         stopPhrasePlaybackOnly()
         ensureGraph(for: phraseFormat)
         startPhraseEngineIfNeeded()

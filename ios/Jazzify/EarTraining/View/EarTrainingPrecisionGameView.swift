@@ -1,8 +1,5 @@
 import SwiftUI
 
-private let precisionPianoHeight: CGFloat = 96
-private let precisionTransportHeight: CGFloat = 120
-
 struct EarTrainingPrecisionGameView: View {
     let source: EarTrainingStageSource
     let lessonContext: EarTrainingLessonContext?
@@ -176,71 +173,35 @@ private struct EarTrainingPrecisionGameContent: View {
 
     @State private var seekPreviewSec: Double = 0
     @State private var isSeekDragging = false
-    @State private var scoreBandHeightPx: CGFloat = EarTrainingPrecisionScorePreferences.initialHeight()
+    @State private var scoreBandHeightPx: CGFloat? = EarTrainingPrecisionScorePreferences.savedLandscapeHeight()
     @State private var dragHeightPreview: CGFloat?
     @State private var dragStartBandHeight: CGFloat = 0
     @State private var cachedMusicXMLText: String?
     @State private var osmdMultiStaff = false
     @State private var timingAdjustmentLaunch: EarTrainingTimingAdjustmentReturnLaunch?
-    @State private var pendingTimingLaunch: EarTrainingTimingAdjustmentReturnLaunch?
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @State private var openTransportDropdown: TransportDropdownKind?
     @State private var osmdRenderProgress: Double?
+    @State private var isTransportOpen = false
 
     private static let scoreBandGripWidth: CGFloat = 44
     private static let scoreBandGripHeight: CGFloat = 28
 
     var body: some View {
-        ZStack {
-            GeometryReader { proxy in
-                let screenHeight = proxy.size.height
-                VStack(spacing: 0) {
-                    header
-                    scoreBand(screenHeight: screenHeight)
-                    ZStack {
-                        PrecisionNotesCanvasView(controller: controller, pianoHeight: precisionPianoHeight)
-
-                        if !controller.showLobbyControls && !controller.activeLyricText.isEmpty {
-                            VStack {
-                                Spacer()
-                                Text(controller.activeLyricText)
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(.white)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(Color(hex: "0f172a").opacity(0.45))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    .padding(.bottom, precisionPianoHeight + 24)
-                                    .padding(.horizontal, 16)
-                            }
-                            .allowsHitTesting(false)
-                        }
-
-                        EarTrainingResultView(host: controller)
-                            .zIndex(10)
-                    }
-                    .overlay(alignment: .top) {
-                        scoreBandHeightDragHandle(screenHeight: screenHeight)
-                            .offset(y: -Self.scoreBandGripHeight / 2)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if controller.practiceMode {
-                        transportBar
-                    }
-                }
-            }
-
-            if let dropdown = openTransportDropdown {
-                Color.black.opacity(0.45)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        openTransportDropdown = nil
-                    }
-
-                transportDropdownPanel(for: dropdown)
-            }
+        GeometryReader { proxy in
+            let portraitSize = proxy.size
+            let landscapeSize = CGSize(
+                width: max(1, portraitSize.height),
+                height: max(1, portraitSize.width)
+            )
+            landscapeContent(size: landscapeSize)
+                .frame(width: landscapeSize.width, height: landscapeSize.height)
+                .clipped()
+                .rotationEffect(.degrees(90))
+                .frame(width: portraitSize.width, height: portraitSize.height)
+                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
         }
+        .ignoresSafeArea()
         .onAppear {
             ScreenRotationApplier.shared.applyCurrentPreference()
             if let xml = controller.musicXMLText {
@@ -259,57 +220,6 @@ private struct EarTrainingPrecisionGameContent: View {
                 osmdMultiStaff = EarTrainingChordOsmdMusicXmlNormalizer
                     .detectMaxStaffLayersFromMusicXmlString(xml) >= 2
             }
-            guard let xml else { return }
-            guard !EarTrainingPrecisionScorePreferences.hasSavedHeight else { return }
-            scoreBandHeightPx = EarTrainingPrecisionScorePreferences.preferredHeight(multiStaff: osmdMultiStaff)
-        }
-        .sheet(isPresented: $controller.isSettingsOpen, onDismiss: handleSettingsSheetDismissed) {
-            EarTrainingSettingsSheet(
-                isEnglishCopy: locale == .en,
-                audio: audio,
-                scope: .battle,
-                stageRunMode: controller.lessonContext.map { _ in
-                    EarTrainingStageRunModeConfig(
-                        practiceMode: controller.practiceMode,
-                        onApplyPracticeModeAndRestart: { mode in
-                            controller.applyPracticeModeAndRestart(mode)
-                            controller.handleCloseSettings()
-                        }
-                    )
-                },
-                practiceSpeed: EarTrainingPracticeSpeedConfig(
-                    practiceMode: controller.practiceMode,
-                    appliedSpeedPercent: controller.practiceSpeedPercent,
-                    onApplyAndRestart: { _, speed in
-                        controller.applyPracticePlaybackAndRestart(speedPercent: speed)
-                    }
-                ),
-                osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig(
-                    appliedOffsetMs: controller.timingAdjustmentMs,
-                    onChange: { controller.applyTimingAdjustmentMs($0) }
-                ),
-                onLaunchTimingAdjustment: {
-                    controller.suspendForOverlay()
-                    pendingTimingLaunch = EarTrainingTimingAdjustmentReturnLaunch(
-                        stageId: controller.stage.id,
-                        lessonContext: controller.lessonContext,
-                        initialPracticeMode: controller.practiceMode
-                    )
-                    controller.handleCloseSettings()
-                },
-                precisionAutoPlay: controller.isAdmin
-                    ? EarTrainingPrecisionAutoPlayConfig(
-                        enabled: controller.precisionAutoPlayEnabled,
-                        onChange: { controller.applyPrecisionAutoPlayEnabled($0) }
-                    )
-                    : nil,
-                onRestartFromBeginning: {
-                    controller.handleCloseSettings()
-                    controller.startBattle()
-                },
-                onDismiss: { controller.handleCloseSettings() },
-                onExit: { controller.handleBack() }
-            )
         }
         // 子の onDisappear → tearDown → SurvivalGameAudio.stop() の後に再開する。
         // onClose 内で start すると dismiss 後の tearDown に潰されてピアノが無音になる。
@@ -330,50 +240,229 @@ private struct EarTrainingPrecisionGameContent: View {
         }
     }
 
-    private func handleSettingsSheetDismissed() {
-        guard let pending = pendingTimingLaunch else { return }
-        pendingTimingLaunch = nil
-        timingAdjustmentLaunch = pending
+    private var precisionSettingsSheet: some View {
+        EarTrainingSettingsSheet(
+            isEnglishCopy: locale == .en,
+            audio: audio,
+            scope: .battle,
+            stageRunMode: controller.lessonContext.map { _ in
+                EarTrainingStageRunModeConfig(
+                    practiceMode: controller.practiceMode,
+                    onApplyPracticeModeAndRestart: { mode in
+                        controller.applyPracticeModeAndRestart(mode)
+                        controller.handleCloseSettings()
+                    }
+                )
+            },
+            practiceSpeed: EarTrainingPracticeSpeedConfig(
+                practiceMode: controller.practiceMode,
+                appliedSpeedPercent: controller.practiceSpeedPercent,
+                onApplyAndRestart: { _, speed in
+                    controller.applyPracticePlaybackAndRestart(speedPercent: speed)
+                }
+            ),
+            osmdTimingAdjustment: EarTrainingOsmdTimingAdjustmentConfig(
+                appliedOffsetMs: controller.timingAdjustmentMs,
+                onChange: { controller.applyTimingAdjustmentMs($0) }
+            ),
+            onLaunchTimingAdjustment: {
+                controller.suspendForOverlay()
+                controller.handleCloseSettings()
+                timingAdjustmentLaunch = EarTrainingTimingAdjustmentReturnLaunch(
+                    stageId: controller.stage.id,
+                    lessonContext: controller.lessonContext,
+                    initialPracticeMode: controller.practiceMode
+                )
+            },
+            precisionAutoPlay: controller.isAdmin
+                ? EarTrainingPrecisionAutoPlayConfig(
+                    enabled: controller.precisionAutoPlayEnabled,
+                    onChange: { controller.applyPrecisionAutoPlayEnabled($0) }
+                )
+                : nil,
+            onRestartFromBeginning: {
+                controller.handleCloseSettings()
+                controller.startBattle()
+            },
+            onDismiss: { controller.handleCloseSettings() },
+            onExit: { controller.handleBack() }
+        )
     }
 
-    private var header: some View {
-        HStack {
-            Button(action: { controller.handleBack() }) {
-                Text(locale == .ja ? "戻る" : "Back")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    private var isTransportVisible: Bool {
+        controller.practiceMode && isTransportOpen
+    }
+
+    private func landscapeContent(size: CGSize) -> some View {
+        let layout = resolvedLayout(viewportHeight: size.height)
+        return ZStack {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: Self.landscapeLeadingInset())
+                    controlRail
+                    ZStack(alignment: .top) {
+                        scoreBand(screenHeight: size.height, bandHeight: layout.scoreBandHeight)
+                        if controller.showLobbyControls {
+                            titleOverlay
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(height: layout.scoreBandHeight)
+
+                ZStack {
+                    PrecisionNotesCanvasView(
+                        controller: controller,
+                        pianoHeight: layout.pianoHeight,
+                        fallLeadSec: EarTrainingPrecisionLandscapeLayout.fallLeadSec
+                    )
+
+                    if !controller.showLobbyControls && !controller.activeLyricText.isEmpty {
+                        VStack {
+                            Spacer()
+                            Text(controller.activeLyricText)
+                                .font(.system(size: 16))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(hex: "0f172a").opacity(0.45))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .padding(.bottom, layout.pianoHeight + 24)
+                                .padding(.horizontal, 16)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
+                .overlay(alignment: .top) {
+                    scoreBandHeightDragHandle(screenHeight: size.height)
+                        .offset(y: -Self.scoreBandGripHeight / 2)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if isTransportVisible {
+                    transportBar()
+                }
             }
-            Spacer()
-            VStack(spacing: 2) {
-                Text(controller.stage.localizedTitle(locale))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                Text(controller.stage.battleClearConditionText(isEnglish: locale == .en))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.55))
+            .padding(.trailing, Self.landscapeTrailingInset())
+
+            if let dropdown = openTransportDropdown {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        openTransportDropdown = nil
+                    }
+
+                transportDropdownPanel(for: dropdown, availableWidth: size.width)
             }
-            Spacer()
-            Button(action: { controller.handleOpenSettings() }) {
-                Text(locale == .ja ? "設定" : "Settings")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            EarTrainingResultView(host: controller)
+                .zIndex(10)
+
+            if controller.isSettingsOpen {
+                Color.black.opacity(0.55)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        controller.handleCloseSettings()
+                    }
+                precisionSettingsSheet
+                    .zIndex(20)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+    }
+
+    private var controlRail: some View {
+        VStack(spacing: 8) {
+            railButton(title: locale == .ja ? "戻る" : "Back") {
+                controller.handleBack()
+            }
+            Spacer(minLength: 0)
+            if controller.practiceMode {
+                railButton(
+                    title: locale == .ja ? "操作" : "Ctrl",
+                    highlighted: isTransportOpen
+                ) {
+                    isTransportOpen.toggle()
+                    if !isTransportOpen {
+                        openTransportDropdown = nil
+                    }
+                }
+            }
+            railButton(title: locale == .ja ? "設定" : "Set.") {
+                controller.handleOpenSettings()
+            }
+        }
+        .padding(.vertical, 6)
+        .frame(width: EarTrainingPrecisionLandscapeLayout.controlRailWidth)
+        .background(Color.black.opacity(0.25))
+    }
+
+    private func railButton(
+        title: String,
+        highlighted: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(highlighted ? 0.28 : 0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 4)
+    }
+
+    private var titleOverlay: some View {
+        VStack(spacing: 2) {
+            Text(controller.stage.localizedTitle(locale))
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+            Text(controller.stage.battleClearConditionText(isEnglish: locale == .en))
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .padding(.top, 6)
+        .allowsHitTesting(false)
+    }
+
+    private func resolvedLayout(viewportHeight: CGFloat) -> EarTrainingPrecisionLandscapeLayout.Resolved {
+        let requested = dragHeightPreview
+            ?? scoreBandHeightPx
+            ?? EarTrainingPrecisionLandscapeLayout.defaultScoreBandHeight(
+                viewportHeight: viewportHeight,
+                transportOpen: isTransportVisible
+            )
+        return EarTrainingPrecisionLandscapeLayout.resolve(
+            viewportHeight: viewportHeight,
+            transportOpen: isTransportVisible,
+            requestedScoreBandHeight: requested
+        )
+    }
+
+    private static func landscapeLeadingInset() -> CGFloat {
+        max(8, windowSafeAreaInsets().top)
+    }
+
+    private static func landscapeTrailingInset() -> CGFloat {
+        min(max(8, windowSafeAreaInsets().bottom), 20)
+    }
+
+    private static func windowSafeAreaInsets() -> UIEdgeInsets {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
+            return UIEdgeInsets(top: 16, left: 0, bottom: 8, right: 0)
+        }
+        return window.safeAreaInsets
     }
 
     @ViewBuilder
-    private func scoreBand(screenHeight: CGFloat) -> some View {
-        let effectiveHeight = currentBandHeight(screenHeight: screenHeight)
+    private func scoreBand(screenHeight: CGFloat, bandHeight: CGFloat) -> some View {
+        let effectiveHeight = bandHeight
         let isPhone = UIDevice.current.userInterfaceIdiom == .phone
         let multiStaff = osmdMultiStaff
         let osmdZoom: Double = isPhone ? (multiStaff ? 0.48 : 0.72) : 0.85
@@ -399,10 +488,6 @@ private struct EarTrainingPrecisionGameContent: View {
                     maxOsmdMeasure: controller.maxOsmdMeasureForScroll,
                     manualScrollEnabled: controller.practiceMode
                         && (controller.gameState == .paused || controller.showLobbyControls),
-                    reportContentHeightFit: true,
-                    onContentHeightFit: { height in
-                        handleOsmdContentHeightFit(height, screenHeight: screenHeight)
-                    },
                     onRenderProgress: { progress in
                         let clamped = EarTrainingLoadProgress.clamped(progress)
                         osmdRenderProgress = clamped
@@ -454,30 +539,7 @@ private struct EarTrainingPrecisionGameContent: View {
     }
 
     private func currentBandHeight(screenHeight: CGFloat) -> CGFloat {
-        if let preview = dragHeightPreview {
-            return preview
-        }
-        return EarTrainingPrecisionScorePreferences.clampHeight(
-            scoreBandHeightPx,
-            screenHeight: screenHeight,
-            practiceMode: controller.practiceMode
-        )
-    }
-
-    private func handleOsmdContentHeightFit(_ heightPx: CGFloat, screenHeight: CGFloat) {
-        guard !EarTrainingPrecisionScorePreferences.hasSavedHeight else { return }
-        if controller.gameState == .countIn || controller.gameState == .playingPhrase {
-            return
-        }
-        let next = EarTrainingPrecisionScorePreferences.clampHeight(
-            heightPx,
-            screenHeight: screenHeight,
-            practiceMode: controller.practiceMode
-        )
-        if abs(next - scoreBandHeightPx) < 4 {
-            return
-        }
-        scoreBandHeightPx = next
+        resolvedLayout(viewportHeight: screenHeight).scoreBandHeight
     }
 
     @ViewBuilder
@@ -498,27 +560,24 @@ private struct EarTrainingPrecisionGameContent: View {
             DragGesture(minimumDistance: 2)
                 .onChanged { value in
                     if dragHeightPreview == nil {
-                        dragStartBandHeight = EarTrainingPrecisionScorePreferences.clampHeight(
-                            scoreBandHeightPx,
-                            screenHeight: screenHeight,
-                            practiceMode: controller.practiceMode
-                        )
+                        dragStartBandHeight = currentBandHeight(screenHeight: screenHeight)
                     }
                     let proposed = dragStartBandHeight + value.translation.height
-                    dragHeightPreview = EarTrainingPrecisionScorePreferences.clampHeight(
+                    dragHeightPreview = EarTrainingPrecisionScorePreferences.clampLandscapeHeight(
                         proposed,
-                        screenHeight: screenHeight,
-                        practiceMode: controller.practiceMode
+                        viewportHeight: screenHeight,
+                        transportOpen: isTransportVisible
                     )
                 }
                 .onEnded { value in
                     let proposed = dragStartBandHeight + value.translation.height
-                    scoreBandHeightPx = EarTrainingPrecisionScorePreferences.clampHeight(
+                    let clamped = EarTrainingPrecisionScorePreferences.clampLandscapeHeight(
                         proposed,
-                        screenHeight: screenHeight,
-                        practiceMode: controller.practiceMode
+                        viewportHeight: screenHeight,
+                        transportOpen: isTransportVisible
                     )
-                    EarTrainingPrecisionScorePreferences.saveHeight(scoreBandHeightPx)
+                    scoreBandHeightPx = clamped
+                    EarTrainingPrecisionScorePreferences.saveLandscapeHeight(clamped)
                     dragHeightPreview = nil
                 }
         )
@@ -526,85 +585,80 @@ private struct EarTrainingPrecisionGameContent: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var transportBar: some View {
-        VStack(spacing: 8) {
-            HStack {
+    private func transportBar() -> some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(locale == .ja ? "周回 \(controller.loopCycleIndex + 1)" : "Loop \(controller.loopCycleIndex + 1)")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.75))
-                Spacer()
                 Text(locale == .ja ? "キー \(controller.loopCurrentKeyName)" : "Key \(controller.loopCurrentKeyName)")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.75))
+            }
+            .font(.caption2)
+            .foregroundStyle(.white.opacity(0.75))
+            .frame(minWidth: 56, alignment: .leading)
+
+            transportDropdownTrigger(
+                label: locale == .ja ? "開始" : "A",
+                value: "\(controller.loopStartMeasure)",
+                kind: .loopStart
+            )
+            transportDropdownTrigger(
+                label: locale == .ja ? "終了" : "B",
+                value: "\(controller.loopEndMeasure)",
+                kind: .loopEnd
+            )
+            transportDropdownTrigger(
+                label: locale == .ja ? "キー" : "Key",
+                value: controller.loopBaseKeyOptions.first(where: { $0.offset == controller.loopBaseSemitone })?.label
+                    ?? controller.loopCurrentKeyName,
+                kind: .key
+            )
+            transportDropdownTrigger(
+                label: locale == .ja ? "移調" : "Tr.",
+                value: loopTransposeDirectionLabel(controller.loopTransposeDirection),
+                kind: .transpose
+            )
+            Button(locale == .ja ? "再設定" : "Apply") {
+                openTransportDropdown = nil
+                controller.applyLoopRangeAndRestart()
+            }
+            .font(.caption2.bold())
+            .foregroundStyle(.black)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color.yellow)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            transportIconButton(
+                accessibilityLabel: locale == .ja ? "1秒戻る" : "Back 1 second"
+            ) {
+                controller.seekBySeconds(delta: -1)
+            } icon: {
+                EarTrainingPrecisionSeekBackwardIcon()
+                    .fill(.white)
+                    .frame(width: 16, height: 16)
+            }
+            transportIconButton(
+                accessibilityLabel: controller.gameState == .paused
+                    ? (locale == .ja ? "再生" : "Play")
+                    : (locale == .ja ? "一時停止" : "Pause")
+            ) {
+                controller.togglePause()
+            } icon: {
+                Image(systemName: controller.gameState == .paused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 14))
+            }
+            .disabled(controller.gameState != .playingPhrase
+                && controller.gameState != .countIn
+                && controller.gameState != .paused)
+            transportIconButton(
+                accessibilityLabel: locale == .ja ? "1秒進む" : "Forward 1 second"
+            ) {
+                controller.seekBySeconds(delta: 1)
+            } icon: {
+                EarTrainingPrecisionSeekForwardIcon()
+                    .fill(.white)
+                    .frame(width: 16, height: 16)
             }
 
-            HStack(spacing: 6) {
-                transportDropdownTrigger(
-                    label: locale == .ja ? "開始" : "A",
-                    value: "\(controller.loopStartMeasure)",
-                    kind: .loopStart
-                )
-                transportDropdownTrigger(
-                    label: locale == .ja ? "終了" : "B",
-                    value: "\(controller.loopEndMeasure)",
-                    kind: .loopEnd
-                )
-                transportDropdownTrigger(
-                    label: locale == .ja ? "キー" : "Key",
-                    value: controller.loopBaseKeyOptions.first(where: { $0.offset == controller.loopBaseSemitone })?.label
-                        ?? controller.loopCurrentKeyName,
-                    kind: .key
-                )
-                transportDropdownTrigger(
-                    label: locale == .ja ? "移調" : "Tr.",
-                    value: loopTransposeDirectionLabel(controller.loopTransposeDirection),
-                    kind: .transpose
-                )
-                Button(locale == .ja ? "再設定" : "Apply") {
-                    openTransportDropdown = nil
-                    controller.applyLoopRangeAndRestart()
-                }
-                .font(.caption.bold())
-                .foregroundStyle(.black)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(Color.yellow)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
-            HStack(spacing: 12) {
-                transportIconButton(
-                    accessibilityLabel: locale == .ja ? "1秒戻る" : "Back 1 second"
-                ) {
-                    controller.seekBySeconds(delta: -1)
-                } icon: {
-                    EarTrainingPrecisionSeekBackwardIcon()
-                        .fill(.white)
-                        .frame(width: 20, height: 20)
-                }
-                transportIconButton(
-                    accessibilityLabel: controller.gameState == .paused
-                        ? (locale == .ja ? "再生" : "Play")
-                        : (locale == .ja ? "一時停止" : "Pause")
-                ) {
-                    controller.togglePause()
-                } icon: {
-                    Image(systemName: controller.gameState == .paused ? "play.fill" : "pause.fill")
-                        .font(.system(size: 18))
-                }
-                .disabled(controller.gameState != .playingPhrase
-                    && controller.gameState != .countIn
-                    && controller.gameState != .paused)
-                transportIconButton(
-                    accessibilityLabel: locale == .ja ? "1秒進む" : "Forward 1 second"
-                ) {
-                    controller.seekBySeconds(delta: 1)
-                } icon: {
-                    EarTrainingPrecisionSeekForwardIcon()
-                        .fill(.white)
-                        .frame(width: 20, height: 20)
-                }
-            }
             Slider(
                 value: Binding(
                     get: {
@@ -635,10 +689,11 @@ private struct EarTrainingPrecisionGameContent: View {
                 }
             )
             .tint(.yellow)
+            .frame(minWidth: 80)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(height: precisionTransportHeight)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
+        .frame(height: EarTrainingPrecisionLandscapeLayout.transportHeight)
         .background(Color(hex: "020617").opacity(0.95))
     }
 
@@ -682,7 +737,7 @@ private struct EarTrainingPrecisionGameContent: View {
     }
 
     @ViewBuilder
-    private func transportDropdownPanel(for kind: TransportDropdownKind) -> some View {
+    private func transportDropdownPanel(for kind: TransportDropdownKind, availableWidth: CGFloat) -> some View {
         VStack(spacing: 0) {
             Text(transportDropdownTitle(for: kind))
                 .font(.caption.bold())
@@ -767,7 +822,7 @@ private struct EarTrainingPrecisionGameContent: View {
             }
             .frame(maxHeight: 220)
         }
-        .frame(maxWidth: min(320, UIScreen.main.bounds.width - 48))
+        .frame(maxWidth: min(320, max(200, availableWidth - 48)))
         .background(Color(hex: "0f172a"))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
@@ -820,7 +875,7 @@ private struct EarTrainingPrecisionGameContent: View {
         Button(action: action) {
             icon()
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
+                .frame(width: 32, height: 32)
                 .background(Color.white.opacity(0.12))
                 .clipShape(Circle())
         }
@@ -840,55 +895,31 @@ private enum TransportDropdownKind: Equatable {
 // MARK: - Precision score preferences
 
 enum EarTrainingPrecisionScorePreferences {
-    private static let scoreBandHeightKey = "earTraining.precision.scoreBandHeightPx"
-    private static let scoreBandHeightStepKey = "earTraining.precision.scoreBandHeightStep"
-    private static let scoreBandHeightTable: [CGFloat] = [96, 112, 128, 144, 160, 192, 208]
+    private static let landscapeScoreBandHeightKey = "earTraining.precision.scoreBandHeightPx.landscape"
 
-    static let minBandHeight: CGFloat = 96
-    /// Web `PRECISION_SCORE_BAND_RESERVED_TOP_PX` + piano + margin（transport 除く）
-    private static let reservedTopPx: CGFloat = 52
-    private static let pianoHeightPx: CGFloat = 96
-    private static let transportHeightPx: CGFloat = 112
-    private static let layoutMarginPx: CGFloat = 12
+    static let minBandHeight: CGFloat = EarTrainingPrecisionLandscapeLayout.minScoreBandHeight
 
-    static func clampHeight(
+    static func clampLandscapeHeight(
         _ height: CGFloat,
-        screenHeight: CGFloat,
-        practiceMode: Bool = false
+        viewportHeight: CGFloat,
+        transportOpen: Bool
     ) -> CGFloat {
-        let transport = practiceMode ? transportHeightPx : 0
-        let reserved = reservedTopPx + pianoHeightPx + transport + layoutMarginPx
-        let maxHeight = max(minBandHeight, screenHeight - reserved)
-        return min(max(height, minBandHeight), maxHeight)
+        EarTrainingPrecisionLandscapeLayout.resolve(
+            viewportHeight: viewportHeight,
+            transportOpen: transportOpen,
+            requestedScoreBandHeight: height
+        ).scoreBandHeight
     }
 
-    static var hasSavedHeight: Bool {
-        UserDefaults.standard.object(forKey: scoreBandHeightKey) != nil
-            || UserDefaults.standard.object(forKey: scoreBandHeightStepKey) != nil
-    }
-
-    static func loadSavedHeight() -> CGFloat {
-        if let saved = UserDefaults.standard.object(forKey: scoreBandHeightKey) as? Double {
-            return CGFloat(saved)
+    static func savedLandscapeHeight() -> CGFloat? {
+        guard let saved = UserDefaults.standard.object(forKey: landscapeScoreBandHeightKey) as? Double else {
+            return nil
         }
-        if UserDefaults.standard.object(forKey: scoreBandHeightStepKey) != nil {
-            let step = UserDefaults.standard.integer(forKey: scoreBandHeightStepKey)
-            let index = min(max(step + 2, 0), scoreBandHeightTable.count - 1)
-            return scoreBandHeightTable[index]
-        }
-        return preferredHeight(multiStaff: false)
+        return CGFloat(saved)
     }
 
-    static func preferredHeight(multiStaff: Bool) -> CGFloat {
-        multiStaff ? 208 : 144
-    }
-
-    static func initialHeight() -> CGFloat {
-        hasSavedHeight ? loadSavedHeight() : preferredHeight(multiStaff: false)
-    }
-
-    static func saveHeight(_ height: CGFloat) {
-        UserDefaults.standard.set(Double(height), forKey: scoreBandHeightKey)
+    static func saveLandscapeHeight(_ height: CGFloat) {
+        UserDefaults.standard.set(Double(height), forKey: landscapeScoreBandHeightKey)
     }
 }
 

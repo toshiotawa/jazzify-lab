@@ -375,4 +375,99 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         )
         XCTAssertEqual(result, 0)
     }
+
+    func testShouldRenderSingleScore_rerendersWhenRenderKeyChanges() {
+        let xml = "<score-partwise/>"
+        let input = EarTrainingOsmdScoreScroll.SingleScoreRenderDecisionInput(
+            lastRenderedMusicXMLText: xml,
+            nextMusicXMLText: xml,
+            lastRenderedZoom: 1,
+            nextZoom: 1,
+            lastRenderedKey: 3,
+            nextRenderKey: 4,
+            lastUsedScoreSlots: false,
+            nextUsesScoreSlots: false
+        )
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.shouldRenderSingleScore(input))
+    }
+
+    func testShouldRenderSingleScore_rerendersWhenLeavingPracticeSlots() {
+        let xml = "<score-partwise/>"
+        let input = EarTrainingOsmdScoreScroll.SingleScoreRenderDecisionInput(
+            lastRenderedMusicXMLText: xml,
+            nextMusicXMLText: xml,
+            lastRenderedZoom: 1,
+            nextZoom: 1,
+            lastRenderedKey: 4,
+            nextRenderKey: 4,
+            lastUsedScoreSlots: true,
+            nextUsesScoreSlots: false
+        )
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.shouldRenderSingleScore(input))
+    }
+
+    func testShouldRenderSingleScore_skipsWhenSameRunAndMode() {
+        let xml = "<score-partwise/>"
+        let input = EarTrainingOsmdScoreScroll.SingleScoreRenderDecisionInput(
+            lastRenderedMusicXMLText: xml,
+            nextMusicXMLText: xml,
+            lastRenderedZoom: 1,
+            nextZoom: 1,
+            lastRenderedKey: 4,
+            nextRenderKey: 4,
+            lastUsedScoreSlots: false,
+            nextUsesScoreSlots: false
+        )
+        XCTAssertFalse(EarTrainingOsmdScoreScroll.shouldRenderSingleScore(input))
+    }
+
+    func testShouldResetPlayheadCacheForRenderRun() {
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldResetPlayheadCacheForRenderRun(
+                previousRenderKey: 2,
+                nextRenderKey: 3
+            )
+        )
+        XCTAssertFalse(
+            EarTrainingOsmdScoreScroll.shouldResetPlayheadCacheForRenderRun(
+                previousRenderKey: 3,
+                nextRenderKey: 3
+            )
+        )
+    }
+
+    func testShouldResyncPlayheadTimeline_resyncsAfterRenderCacheInvalidation() {
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldResyncPlayheadTimeline(
+                previousTimelineSec: nil,
+                nextTimelineSec: 0,
+                previousAnimating: nil,
+                nextAnimating: true,
+                measureChanged: false
+            )
+        )
+    }
+
+    func testOsmdMessageCompletesScoreRender() {
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.osmdMessageCompletesScoreRender("ready"))
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.osmdMessageCompletesScoreRender("setupComplete"))
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.osmdMessageCompletesScoreRender("slotActivated"))
+        XCTAssertFalse(EarTrainingOsmdScoreScroll.osmdMessageCompletesScoreRender("renderProgress"))
+        XCTAssertFalse(EarTrainingOsmdScoreScroll.osmdMessageCompletesScoreRender("loadStart"))
+    }
+
+    func testOsmdMessageReportsRenderProgressOnly() {
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.osmdMessageReportsRenderProgressOnly("renderProgress"))
+        XCTAssertTrue(EarTrainingOsmdScoreScroll.osmdMessageReportsRenderProgressOnly("xmlLoaded"))
+        XCTAssertFalse(EarTrainingOsmdScoreScroll.osmdMessageReportsRenderProgressOnly("ready"))
+    }
+
+    func testShouldSendActiveScoreSlotOnSlotReady_onlyInSlotMode() {
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(usesScoreSlots: true)
+        )
+        XCTAssertFalse(
+            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(usesScoreSlots: false)
+        )
+    }
 }

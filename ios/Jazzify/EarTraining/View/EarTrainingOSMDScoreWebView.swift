@@ -32,9 +32,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
     var countInDurationSec: Double = 0
     var maxOsmdMeasure: Int = 1
     var manualScrollEnabled: Bool = false
-    /// 精密モード: 描画後のコンテンツ高さを Swift へ通知する。
-    var reportContentHeightFit: Bool = false
-    var onContentHeightFit: ((CGFloat) -> Void)? = nil
     /// OSMD 描画ステップ（0...1）を通知する。
     var onRenderProgress: ((Double) -> Void)? = nil
 
@@ -76,8 +73,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         )
         context.coordinator.updateManualScroll(enabled: manualScrollEnabled)
         context.coordinator.updateDrawMeasureNumbers(drawMeasureNumbers)
-        context.coordinator.reportContentHeightFit = reportContentHeightFit
-        context.coordinator.onContentHeightFit = onContentHeightFit
         context.coordinator.onRenderProgress = onRenderProgress
         context.coordinator.update(
             webView: webView,
@@ -152,15 +147,17 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var slotRenderInFlightSemitone: Int?
         private var lastActivatedSemitone: Int?
         private var lastSlotRenderKey: Int?
+        private var lastUsedScoreSlots = false
+        private var expectedReadyRenderKey: Int?
+        private var activeReadyRenderKey: Int?
         private var pendingZoomForSlots: Double = 1.0
         private var pendingTransposeDirection: EarTrainingLoopTransposeDirection = .none
         private var pendingTransposeBaseSemitone: Int = 0
         private var pendingLoopCycleIndex: Int = 0
-        var reportContentHeightFit = false
-        var onContentHeightFit: ((CGFloat) -> Void)?
         var onRenderProgress: ((Double) -> Void)?
 
         private struct ScoreIdentitySignature: Equatable {
+            let renderKey: Int
             let activeSemitone: Int
             let zoom: Double
             let loopCycleIndex: Int
@@ -222,6 +219,23 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return result
         }
 
+        func invalidateForNewRenderRun(renderKey: Int) {
+            guard !isTornDown else { return }
+            pendingRenderKey = renderKey
+            expectedReadyRenderKey = renderKey
+            activeReadyRenderKey = nil
+            activeScoreRenderComplete = false
+            readyScoreSlots.removeAll()
+            slotRenderQueue.removeAll()
+            slotRenderInFlight = false
+            slotRenderInFlightSemitone = nil
+            lastActivatedSemitone = nil
+            lastPhraseTimelineSec = nil
+            lastPlayheadAnimating = nil
+            lastMeasureNumber = nil
+            lastScoreIdentitySignature = nil
+        }
+
         func prepareScoreSlots(
             xmlBySemitone: [Int: String],
             activeSemitone: Int,
@@ -240,9 +254,12 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingTransposeDirection = transposeDirection
             pendingTransposeBaseSemitone = baseSemitone
             pendingLoopCycleIndex = cycleIndex
+            expectedReadyRenderKey = renderKey
+            activeReadyRenderKey = nil
             let xmlChanged = guideColored != lastPreparedGuideXmlBySemitone
             let zoomChanged = lastPreparedZoom.map { abs($0 - pendingZoomForSlots) > 0.000_1 } ?? true
-            if xmlChanged || zoomChanged {
+            let renderKeyChanged = lastSlotRenderKey.map { $0 != renderKey } ?? true
+            if xmlChanged || zoomChanged || renderKeyChanged {
                 lastPreparedGuideXmlBySemitone = guideColored
                 lastPreparedZoom = pendingZoomForSlots
                 activeScoreRenderComplete = false
@@ -256,6 +273,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 }
             }
             lastSlotRenderKey = renderKey
+            lastUsedScoreSlots = guideColored.count > 1
             enqueueScoreSlotPreparation(
                 prioritySemitones: prioritizedSlotSemitones(
                     cycleIndex: cycleIndex,
@@ -280,9 +298,21 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             guard htmlReady, !isTornDown else { return false }
             let usesSlots = pendingScoreXmlBySemitone.count > 1
             if usesSlots {
-                return readyScoreSlots.contains(pendingActiveSemitone)
+                guard readyScoreSlots.contains(pendingActiveSemitone) else { return false }
+                if let expectedReadyRenderKey {
+                    return lastSlotRenderKey == expectedReadyRenderKey
+                }
+                return true
             }
-            return activeScoreRenderComplete
+            guard activeScoreRenderComplete else { return false }
+            if let expectedReadyRenderKey {
+                return activeReadyRenderKey == expectedReadyRenderKey
+            }
+            return true
+        }
+
+        private func markActiveScoreReadyForCurrentRenderKey() {
+            activeReadyRenderKey = pendingRenderKey
         }
 
         private func notifyReadyWaitersIfNeeded() {
@@ -446,6 +476,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             lastPreparedGuideXmlBySemitone = [:]
             lastPreparedZoom = nil
             activeScoreRenderComplete = false
+            activeReadyRenderKey = nil
+            expectedReadyRenderKey = nil
+            lastUsedScoreSlots = false
             let waiters = readyWaitContinuations
             readyWaitContinuations.removeAll()
             for waiter in waiters {
@@ -605,6 +638,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private func resyncOverlayAfterRender() {
             guard !isTornDown, htmlReady else { return }
             lastSentOverlayVisible = nil
+            lastMeasureNumber = nil
+            lastPhraseTimelineSec = nil
+            lastPlayheadAnimating = nil
             sendOverlayVisibleIfNeeded()
         }
 
@@ -615,45 +651,51 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let type = body?["type"] as? String ?? "unknown"
             let detail = body?["detail"] as? String ?? ""
             switch type {
-            case "loadStart", "xmlLoaded", "ready":
+            case "loadStart", "xmlLoaded", "renderProgress":
                 if let value = Double(detail) {
                     DispatchQueue.main.async { [weak self] in
                         self?.onRenderProgress?(value)
                     }
                 }
-                if type == "ready" {
-                    activeScoreRenderComplete = true
-                    notifyReadyWaitersIfNeeded()
-                    Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
+            case "ready":
+                if let value = Double(detail) {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onRenderProgress?(value)
+                    }
                 }
+                activeScoreRenderComplete = true
+                markActiveScoreReadyForCurrentRenderKey()
+                notifyReadyWaitersIfNeeded()
+                Log.osmd.debug("OSMD score render ready: \(detail, privacy: .public)")
             case "slotReady":
                 if let semitone = Int(detail) {
                     readyScoreSlots.insert(semitone)
                     slotRenderInFlight = false
                     slotRenderInFlightSemitone = nil
-                    sendActiveScoreSlotIfNeeded()
+                    if EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(
+                        usesScoreSlots: pendingScoreXmlBySemitone.count > 1
+                    ) {
+                        sendActiveScoreSlotIfNeeded()
+                    }
                     processNextScoreSlotRender()
                     notifyReadyWaitersIfNeeded()
                 }
             case "slotActivated":
                 guard webView != nil else { return }
                 activeScoreRenderComplete = true
+                markActiveScoreReadyForCurrentRenderKey()
                 resyncOverlayAfterRender()
                 flushPendingMeasureUpdatesIfReady()
                 notifyReadyWaitersIfNeeded()
-            case "contentHeightFit":
-                if reportContentHeightFit || scrollLayout == .precision,
-                   let height = Double(detail), height.isFinite, height > 0 {
-                    let px = CGFloat(height)
-                    DispatchQueue.main.async { [weak self] in
-                        self?.onContentHeightFit?(px)
-                    }
-                }
             case "setupComplete":
                 guard webView != nil else { return }
                 activeScoreRenderComplete = true
+                markActiveScoreReadyForCurrentRenderKey()
                 resyncOverlayAfterRender()
+                flushPendingMeasureUpdatesIfReady()
                 notifyReadyWaitersIfNeeded()
+            case "playheadState":
+                Log.osmd.debug("OSMD playheadState: \(detail, privacy: .public)")
             case "error":
                 Log.osmd.error("OSMD score render error: \(detail, privacy: .public)")
                 slotRenderInFlight = false
@@ -667,9 +709,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
             guard !isTornDown else { return }
             htmlReady = true
+            lastSentOverlayVisible = nil
             lastCountInDurationSec = nil
             lastMaxOsmdMeasure = nil
             lastSentScrollLayout = nil
+            sendOverlayVisibleIfNeeded()
             sendScrollConfigIfNeeded()
             lastSentManualScrollEnabled = nil
             sendManualScrollEnabledIfNeeded()
@@ -727,6 +771,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             pendingZoomForSlots = zoom
 
             let identity = ScoreIdentitySignature(
+                renderKey: renderKey,
                 activeSemitone: activeSemitone,
                 zoom: zoom,
                 loopCycleIndex: loopCycleIndex,
@@ -737,6 +782,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             let identityChanged = identity != lastScoreIdentitySignature
             if identityChanged {
                 lastScoreIdentitySignature = identity
+                expectedReadyRenderKey = renderKey
+                activeReadyRenderKey = nil
+                activeScoreRenderComplete = false
             }
 
             guard htmlReady else { return }
@@ -808,22 +856,45 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                   let measure = pendingMeasureNumber else { return }
             let nextZoom = pendingZoom
             let nextMeasureDurationSec = pendingMeasureDurationSec
-            let needsRender = lastRenderedMusicXMLText != xml
-                || lastRenderedZoom.map { abs($0 - nextZoom) > 0.000_1 } ?? true
+            let nextUsesScoreSlots = pendingScoreXmlBySemitone.count > 1
+            let needsRender = EarTrainingOsmdScoreScroll.shouldRenderSingleScore(
+                EarTrainingOsmdScoreScroll.SingleScoreRenderDecisionInput(
+                    lastRenderedMusicXMLText: lastRenderedMusicXMLText,
+                    nextMusicXMLText: xml,
+                    lastRenderedZoom: lastRenderedZoom,
+                    nextZoom: nextZoom,
+                    lastRenderedKey: lastRenderedKey,
+                    nextRenderKey: key,
+                    lastUsedScoreSlots: lastUsedScoreSlots,
+                    nextUsesScoreSlots: nextUsesScoreSlots
+                )
+            )
             if needsRender {
                 renderGeneration += 1
                 let generation = renderGeneration
                 activeScoreRenderComplete = false
+                activeReadyRenderKey = nil
+                expectedReadyRenderKey = key
+                readyScoreSlots.removeAll()
+                lastActivatedSemitone = nil
+                lastSlotRenderKey = nil
+                slotRenderQueue.removeAll()
+                slotRenderInFlight = false
+                slotRenderInFlightSemitone = nil
                 lastRenderedMusicXMLText = xml
                 lastRenderedKey = key
                 lastRenderedZoom = nextZoom
                 lastMeasureNumber = measure
                 lastMeasureDurationSec = nextMeasureDurationSec
+                lastUsedScoreSlots = false
                 let literal = Self.javaScriptStringLiteral(xml)
                 let z = Self.javascriptNumber(nextZoom)
                 let durationLiteral = Self.javascriptNumber(nextMeasureDurationSec)
                 let script = """
-                void window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function() {
+                void window.JazzifyOSMD.renderMusicXML(\(literal), \(z)).then(function(applied) {
+                  if (!applied) {
+                    return;
+                  }
                   window.JazzifyOSMD.setMeasureDurationSec(\(durationLiteral));
                   window.JazzifyOSMD.setActiveMeasure(\(measure));
                   try {
@@ -955,10 +1026,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 of: "__WINDOW_DENSE_FALLBACK_MEASURES__",
                 with: String(EarTrainingOsmdScoreScroll.windowDenseFallbackMeasures)
             )
-            .replacingOccurrences(
-                of: "__REPORT_CONTENT_HEIGHT_FIT__",
-                with: layout == .precision ? "true" : "false"
-            )
     }
 
     private static let htmlTemplate = """
@@ -1086,7 +1153,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
           const FIT_WINDOW_STEP = __FIT_WINDOW_STEP__;
           const WINDOW_DENSE_FALLBACK_SCALE = __WINDOW_DENSE_FALLBACK_SCALE__;
           const WINDOW_DENSE_FALLBACK_MEASURES = __WINDOW_DENSE_FALLBACK_MEASURES__;
-          const REPORT_CONTENT_HEIGHT_FIT = __REPORT_CONTENT_HEIGHT_FIT__;
           let osmd = null;
           let measureCentersByNumber = {};
           let measureBoundsByNumber = {};
@@ -1762,6 +1828,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
           }
 
+          window.onerror = function(message, _source, _lineno, _colno, error) {
+            const detail = error && error.message ? String(error.message) : String(message || 'unknown');
+            postOsmdMessage('error', detail);
+          };
+
           function relaxOsmdCompactTightSpacingForBattle(osmdInst, xmlText) {
             const rules = osmdInst && (osmdInst.EngravingRules || osmdInst.rules);
             if (!rules) {
@@ -1833,20 +1904,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               }
               delete slotsBySemitone[semitone];
             }
-          }
-
-          function postContentHeightFitIfNeeded(root, cssScaleValue, isBackgroundSlot) {
-            if (!REPORT_CONTENT_HEIGHT_FIT || isBackgroundSlot) {
-              return;
-            }
-            const measured = measureContentHeightForRoot(root);
-            if (!(measured > 0)) {
-              return;
-            }
-            const scale = typeof cssScaleValue === 'number' && Number.isFinite(cssScaleValue)
-              ? cssScaleValue
-              : 1;
-            postOsmdMessage('contentHeightFit', String(Math.ceil(measured * scale + 6)));
           }
 
           function createSlotState(semitone) {
@@ -1974,15 +2031,41 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             return true;
           }
 
-          async function prepareScoreSlot(semitone, xmlText, zoomValue) {
+          let scoreRenderToken = 0;
+          let scoreRenderChain = Promise.resolve();
+
+          // 描画要求は必ず直列化する。並行実行すると後発の disposeScoreSlots で
+          // 先発の描画中スロットが外れ、globals が空の測定結果に束縛されたまま残る。
+          function queueScoreRender(task) {
+            scoreRenderToken += 1;
+            const token = scoreRenderToken;
+            geometrySelfHealAttempted = false;
+            const run = scoreRenderChain.then(function () {
+              return task(token);
+            });
+            scoreRenderChain = run.then(
+              function () { /* keep chain alive */ },
+              function () { /* keep chain alive */ }
+            );
+            return run;
+          }
+
+          async function prepareScoreSlotInternal(semitone, xmlText, zoomValue) {
             const slot = ensureSlot(semitone);
-            let renderSucceeded = await renderMusicXMLInternal(xmlText, zoomValue, slot);
+            const renderSucceeded = await renderMusicXMLInternal(xmlText, zoomValue, slot);
             if (renderSucceeded) {
               slot.ready = true;
               postOsmdMessage('slotReady', String(semitone));
             } else if (Object.keys(slotsBySemitone).length === 1 || semitone === activeSemitone) {
               setStatusProgress('Could not render MusicXML.', 0.7);
             }
+            return renderSucceeded;
+          }
+
+          function prepareScoreSlot(semitone, xmlText, zoomValue) {
+            return queueScoreRender(function () {
+              return prepareScoreSlotInternal(semitone, xmlText, zoomValue);
+            });
           }
 
           function buildOsmd(targetRoot) {
@@ -2048,11 +2131,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
 
             slot.root.replaceChildren();
-            slot.measureCentersByNumber = {};
-            slot.measureBoundsByNumber = {};
-            slot.cssScale = 1;
             slot.currentScrollOffset = 0;
-            slot.effectiveScale = 1;
             slot.wrapper.style.transform = '';
             if (!isBackgroundSlot) {
               setStatusProgress('Rendering...', 0.2);
@@ -2060,6 +2139,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
 
             let renderSucceeded = false;
+            let completedAsActive = false;
             try {
               const OpenSheetMusicDisplay =
                 window.opensheetmusicdisplay && window.opensheetmusicdisplay.OpenSheetMusicDisplay;
@@ -2107,7 +2187,6 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               if (!isBackgroundSlot && scoreContent) {
                 scoreContent.style.transform = 'translate3d(0, 0, 0) scale(1)';
               }
-              postContentHeightFitIfNeeded(slot.root, slot.cssScale, isBackgroundSlot);
               await new Promise(function (resolve) {
                 requestAnimationFrame(resolve);
               });
@@ -2115,7 +2194,9 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               measureLayoutFromOsmdForSlot(slot);
               slot.root.style.width = slot.scoreWidth + 'px';
 
-              if (!isBackgroundSlot) {
+              completedAsActive = slot.semitone === activeSemitone
+                || Object.keys(slotsBySemitone).length === 1;
+              if (completedAsActive) {
                 bindSlot(slot);
                 applyIdleScoreLayout();
               }
@@ -2127,20 +2208,28 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
               }
               postOsmdMessage('error', msg);
             } finally {
-              if (renderSucceeded && !isBackgroundSlot) {
+              if (renderSucceeded && completedAsActive) {
                 setStatusProgress('Rendering...', 1);
-                postOsmdMessage('ready', '1');
+                postOsmdMessage('renderProgress', '1');
                 status.style.display = 'none';
               }
             }
             return renderSucceeded;
           }
 
-          async function renderMusicXML(xmlText, zoomValue) {
-            disposeScoreSlots();
-            await prepareScoreSlot(0, xmlText, zoomValue);
-            setActiveScoreSlot(0);
-            postOsmdMessage('ready', '1');
+          // 後続要求で追い越された描画は false を返し、譜面のアクティベートと
+          // ready 通知を行わない（Swift 側の再生開始待ちは勝者の ready だけで解除する）。
+          function renderMusicXML(xmlText, zoomValue) {
+            return queueScoreRender(async function (token) {
+              disposeScoreSlots();
+              await prepareScoreSlotInternal(0, xmlText, zoomValue);
+              if (token !== scoreRenderToken) {
+                return false;
+              }
+              setActiveScoreSlot(0);
+              postOsmdMessage('ready', '1');
+              return true;
+            });
           }
 
           function countInPlayheadProgress(timelineSec) {
@@ -2192,18 +2281,70 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             };
           }
 
+          let lastPlayheadStateMeasure = null;
+          let geometrySelfHealAttempted = false;
+
+          function trySelfHealMeasureGeometry() {
+            if (geometrySelfHealAttempted) {
+              return false;
+            }
+            const visibleSemitone = resolveVisibleSemitone(activeSemitone);
+            const slot = slotsBySemitone[visibleSemitone];
+            if (!slot || !slot.ready || !slot.osmd || !slot.osmd.GraphicSheet) {
+              return false;
+            }
+            geometrySelfHealAttempted = true;
+            measureLayoutFromOsmdForSlot(slot);
+            slot.root.style.width = slot.scoreWidth + 'px';
+            if (slot.semitone === activeSemitone || Object.keys(slotsBySemitone).length === 1) {
+              bindSlot(slot);
+              refreshEffectiveScale();
+            }
+            return true;
+          }
+
+          function postPlayheadStateIfNeeded(measureNumber, geometry, forcePlayheadRestart, selfHealed) {
+            const mn = Math.max(1, Math.floor(Number(measureNumber || 1)));
+            if (mn !== lastPlayheadStateMeasure || !!forcePlayheadRestart) {
+              lastPlayheadStateMeasure = mn;
+              postOsmdMessage(
+                'playheadState',
+                JSON.stringify({
+                  measure: mn,
+                  overlayVisible: overlayVisible,
+                  hasGeometry: !!geometry,
+                  effectiveScale: effectiveScale,
+                  playheadTimelineConfigured: playheadTimelineConfigured,
+                  boundsCount: Object.keys(measureBoundsByNumber).length,
+                  activeSemitone: activeSemitone,
+                  slotCount: Object.keys(slotsBySemitone).length,
+                  selfHealed: !!selfHealed,
+                })
+              );
+            }
+          }
+
           function updateMeasureHighlight(forcePlayheadRestart) {
             const highlight = document.getElementById('measure-highlight');
             if (!highlight) {
               return;
             }
             if (!overlayVisible) {
+              postPlayheadStateIfNeeded(activeMeasureNumber, null, forcePlayheadRestart, false);
               highlight.style.display = 'none';
               cancelPlayheadTransitionRaf();
               playheadRunningMeasure = null;
               return;
             }
-            const geometry = measureHighlightGeometry(activeMeasureNumber);
+            let geometry = measureHighlightGeometry(activeMeasureNumber);
+            let selfHealed = false;
+            if (!geometry) {
+              selfHealed = trySelfHealMeasureGeometry();
+              if (selfHealed) {
+                geometry = measureHighlightGeometry(activeMeasureNumber);
+              }
+            }
+            postPlayheadStateIfNeeded(activeMeasureNumber, geometry, forcePlayheadRestart, selfHealed);
             if (!geometry) {
               highlight.style.display = 'none';
               return;

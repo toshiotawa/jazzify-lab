@@ -98,6 +98,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private var musicXmlCache: [String: String] = [:]
     private var midiCache: [String: Data] = [:]
     private var lobbyPreloadTask: Task<Void, Never>?
+    private var phrasePrepareTask: Task<Void, Never>?
     private weak var osmdCoordinator: EarTrainingOSMDScoreWebView.Coordinator?
     private var maxOsmdMeasure: Int = 1
     private let autoPlayScheduler = EarTrainingPrecisionAutoPlayScheduler()
@@ -147,9 +148,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         await osmdCoordinator?.waitForActiveScoreReady()
     }
 
-    private func awaitOsmdReadyForPlayback() async {
+    private func awaitOsmdReadyForPlayback(runId: Int) async {
         osmdPlaybackPreparing = true
         defer { osmdPlaybackPreparing = false }
+        guard phraseRunId == runId, !Task.isCancelled else { return }
         if practiceMode, !loopScoreXmlBySemitone.isEmpty {
             osmdCoordinator?.prepareScoreSlots(
                 xmlBySemitone: loopScoreXmlBySemitone,
@@ -203,6 +205,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     func tearDown() {
         lobbyPreloadTask?.cancel()
         lobbyPreloadTask = nil
+        phrasePrepareTask?.cancel()
+        phrasePrepareTask = nil
         audio.stopPhrase()
         audio.onTimeUpdate = nil
         audio.onEnded = nil
@@ -226,7 +230,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     func startBattle() {
+        phrasePrepareTask?.cancel()
         audio.ensureBattlePianoReady()
+        audio.stopPhrase()
         phraseEnding = false
         progressSaveStarted = false
         lessonProgressStatus = nil
@@ -237,30 +243,38 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         autoPlayHoldCount.removeAll()
         autoPlayScheduler.reset()
         hasSyncedPhraseStartPlayhead = false
+        gameState = .countIn
+        scoreTimelineArmed = false
+        activeMeasureNumber = 1
+        seekSliderSec = 0
         if !practiceMode {
             notesBySemitone = [:]
             loopScoreXmlBySemitone = [:]
+            loopCycleIndex = 0
             lastLoopCycleIndex = -1
+            seekInteractionActive = false
+            wasPlayingBeforeSeekInteraction = false
         }
         phraseRunId += 1
         let runId = phraseRunId
+        osmdCoordinator?.invalidateForNewRenderRun(renderKey: runId)
 
         guard let phrase = currentPhrase else {
             scoreErrorText = isEnglishCopy ? "No phrase registered." : "フレーズが登録されていません"
             return
         }
 
-        Task { @MainActor [weak self] in
+        phrasePrepareTask = Task { @MainActor [weak self] in
             guard let self, self.phraseRunId == runId else { return }
             await self.preparePhraseAssets(phrase: phrase, runId: runId)
-            guard self.phraseRunId == runId else { return }
+            guard !Task.isCancelled, self.phraseRunId == runId else { return }
             if self.practiceMode, let baseXml = self.baseMusicXmlText {
                 self.buildLoopPracticeCaches(baseXml: baseXml)
                 self.refreshLoopWindow()
             }
             self.rebuildPrecisionNotes()
-            await self.awaitOsmdReadyForPlayback()
-            guard self.phraseRunId == runId else { return }
+            await self.awaitOsmdReadyForPlayback(runId: runId)
+            guard !Task.isCancelled, self.phraseRunId == runId else { return }
             if self.practiceMode {
                 self.beginLoopPlaybackFromPrepared()
             } else {
@@ -274,13 +288,16 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     private func preparePhraseAssets(phrase: EarTrainingPhraseDetail, runId: Int) async {
+        guard phraseRunId == runId, !Task.isCancelled else { return }
         scoreTimelineArmed = false
         activeMeasureNumber = 1
         scoreErrorText = nil
 
         await loadMusicXml(for: phrase, runId: runId)
+        guard phraseRunId == runId, !Task.isCancelled else { return }
         applyDisplayMusicXml()
         await loadMidi(for: phrase, runId: runId)
+        guard phraseRunId == runId, !Task.isCancelled else { return }
 
         phraseScoreLyricEvents = baseMusicXmlText.map {
             EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdScoreLyricEvents(
@@ -610,8 +627,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         audio.phraseTimelinePlaybackOffsetSec = 0
 
         syncPlayheadForTimeline(0, animating: false)
+        updateSeekSliderUi(phraseTimeSec: 0, force: true)
 
-        _ = audio.schedulePreparedPhraseWithCountIn(
+        let scheduled = audio.schedulePreparedPhraseWithCountIn(
             url: url,
             countInBeats: stage.countInBeats,
             bpm: stage.bpm,
@@ -619,6 +637,13 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
                 self?.gameState = .playingPhrase
             }
         )
+        if scheduled == nil {
+            scoreErrorText = isEnglishCopy
+                ? "Could not start performance playback."
+                : "本番再生を開始できませんでした"
+            gameState = .idle
+            scoreTimelineArmed = false
+        }
     }
 
     private func handleAudioTimeUpdate() {
@@ -705,7 +730,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         var measureNumber: Int
         var timelineForOsmd = phraseTimeSec
 
-        if practiceMode, phraseTimeSec >= 0, audio.isLoopSessionActive() || !notesBySemitone.isEmpty {
+        if practiceMode, phraseTimeSec >= 0, audio.isLoopSessionActive() {
             let position = EarTrainingPrecisionLoop.globalToLoopPosition(
                 phraseTimeSec,
                 durationSec: loopWindow.durationSec
@@ -1127,9 +1152,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     func applyPracticeModeAndRestart(_ value: Bool) {
+        phrasePrepareTask?.cancel()
+        audio.stopPhrase()
         practiceMode = value
         if !value {
             loopBaseSemitone = 0
+            loopActiveSemitone = 0
             practiceSpeedPercent = 100
             notesBySemitone = [:]
             loopScoreXmlBySemitone = [:]
@@ -1143,6 +1171,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
 
     func applyPracticePlaybackAndRestart(speedPercent: Int) {
         guard practiceMode else { return }
+        phrasePrepareTask?.cancel()
+        audio.stopPhrase()
         practiceSpeedPercent = EarTrainingPracticeSpeed.clampPracticeSpeedPercent(speedPercent)
         audio.phrasePlaybackSpeedPercent = Float(practiceSpeedPercent)
         if let baseXml = baseMusicXmlText {
@@ -1169,6 +1199,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     func suspendForOverlay() {
         lobbyPreloadTask?.cancel()
         lobbyPreloadTask = nil
+        phrasePrepareTask?.cancel()
+        phrasePrepareTask = nil
         audio.stopPhrase()
         phraseEnding = false
     }
@@ -1279,6 +1311,7 @@ extension EarTrainingPrecisionBattleController: EarTrainingLobbyPresentable {
         practiceMode = value
         if !value {
             loopBaseSemitone = 0
+            loopActiveSemitone = 0
             practiceSpeedPercent = 100
             notesBySemitone = [:]
             loopScoreXmlBySemitone = [:]
