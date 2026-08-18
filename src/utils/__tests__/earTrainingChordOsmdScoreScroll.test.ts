@@ -1,20 +1,19 @@
 import {
   OSMD_BATTLE_PLAYHEAD_PX,
+  OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
   OSMD_SCROLL_LAYOUT_PRECISION,
   OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB,
+  OSMD_WINDOW_STEP_MEASURES,
   clampOsmdManualScrollOffset,
   computeOsmdActiveMeasureHighlight,
   computeOsmdCountInPlayheadProgress,
-  computeOsmdEffectiveScaleForMeasure,
   computeOsmdMeasureJumpScrollOffset,
   computeOsmdMeasurePlayheadProgress,
   computeOsmdPlayheadAnchorOffsetsPx,
   computeOsmdPlayheadOffsetPx,
-  computeOsmdReachEndJumpScrollOffset,
   computeOsmdWindowFitScale,
   computeOsmdWindowJumpScrollOffset,
   computeOsmdWindowStartMeasureNumber,
-  resolveOsmdWidestMeasureBounds,
 } from '@/utils/earTrainingChordOsmdScoreScroll';
 
 const bounds = {
@@ -415,144 +414,14 @@ describe('computeOsmdMeasurePlayheadProgress', () => {
   });
 });
 
-describe('computeOsmdEffectiveScaleForMeasure', () => {
-  it('fit 無効のときは cssScale をそのまま返す', () => {
-    expect(computeOsmdEffectiveScaleForMeasure({
-      cssScale: 1.2,
-      bounds: { left: 0, right: 100 },
-      viewportWidth: 400,
-      fitActiveMeasureWidth: false,
-    })).toBe(1.2);
-  });
-
-  it('小節が広いときはビューポート幅に収まるよう縮小する', () => {
-    // measureWidth=200, cssScale=1 → fit=400/200=2 → clamp(1) → 1
-    expect(computeOsmdEffectiveScaleForMeasure({
-      cssScale: 1,
-      bounds: { left: 0, right: 200 },
-      viewportWidth: 400,
-      fitActiveMeasureWidth: true,
-    })).toBe(1);
-    // measureWidth=800, cssScale=1 → fit=400/800=0.5 → 0.5
-    expect(computeOsmdEffectiveScaleForMeasure({
-      cssScale: 1,
-      bounds: { left: 0, right: 800 },
-      viewportWidth: 400,
-      fitActiveMeasureWidth: true,
-    })).toBe(0.5);
-  });
-
-  it('minFitScale を下回らない', () => {
-    expect(computeOsmdEffectiveScaleForMeasure({
-      cssScale: 1,
-      bounds: { left: 0, right: 5000 },
-      viewportWidth: 400,
-      fitActiveMeasureWidth: true,
-      minFitScale: 0.35,
-    })).toBeCloseTo(0.35, 5);
-  });
-});
-
-describe('computeOsmdReachEndJumpScrollOffset', () => {
-  const uniformBounds = {
-    1: { left: 0, right: 100 },
-    2: { left: 100, right: 200 },
-    3: { left: 200, right: 300 },
-    4: { left: 300, right: 400 },
-  };
-
-  it('窓内ではオフセット 0 を維持する', () => {
-    const m2 = computeOsmdReachEndJumpScrollOffset({
-      activeMeasureNumber: 2,
-      previousWindowStart: 1,
-      measureBoundsByNumber: uniformBounds,
-      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
-      cssScale: 1,
-      playheadPx: 0,
-      scoreWidth: 500,
-      viewportWidth: 400,
-      maxMeasureNumber: 4,
+describe('OSMD_SCROLL_LAYOUT_PRECISION', () => {
+  it('左端アンカー・2 小節窓フィット', () => {
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.anchorToMeasureLeft).toBe(true);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.playheadPx).toBe(0);
+    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitWindow).toEqual({
+      minVisibleMeasures: OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
+      stepMeasures: OSMD_WINDOW_STEP_MEASURES,
     });
-    expect(m2.offsetPx).toBe(0);
-    expect(m2.windowStartMeasure).toBe(1);
-
-    const m3 = computeOsmdReachEndJumpScrollOffset({
-      activeMeasureNumber: 3,
-      previousWindowStart: m2.windowStartMeasure,
-      measureBoundsByNumber: uniformBounds,
-      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
-      cssScale: 1,
-      playheadPx: 0,
-      scoreWidth: 500,
-      viewportWidth: 400,
-      maxMeasureNumber: 4,
-    });
-    expect(m3.offsetPx).toBe(0);
-    expect(m3.windowStartMeasure).toBe(1);
-  });
-
-  it('最終表示小節到達で窓を進める', () => {
-    const m3 = computeOsmdReachEndJumpScrollOffset({
-      activeMeasureNumber: 3,
-      previousWindowStart: 1,
-      measureBoundsByNumber: uniformBounds,
-      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
-      cssScale: 1,
-      playheadPx: 0,
-      scoreWidth: 500,
-      viewportWidth: 400,
-      maxMeasureNumber: 4,
-    });
-    const m4 = computeOsmdReachEndJumpScrollOffset({
-      activeMeasureNumber: 4,
-      previousWindowStart: m3.windowStartMeasure,
-      measureBoundsByNumber: uniformBounds,
-      measureCentersByNumber: { 1: 50, 2: 150, 3: 250, 4: 350 },
-      cssScale: 1,
-      playheadPx: 0,
-      scoreWidth: 800,
-      viewportWidth: 400,
-      maxMeasureNumber: 4,
-    });
-    expect(m4.windowStartMeasure).toBe(4);
-    expect(m4.offsetPx).toBe(300);
-  });
-
-  it('倍率は現在小節ではなく最大幅の小節で決まる', () => {
-    // 小節 1 だけが広い譜面。小節 4 表示中でも小節 1 に合わせた 0.5 倍が使われる。
-    const wideFirstMeasure = {
-      1: { left: 0, right: 400 },
-      2: { left: 400, right: 500 },
-      3: { left: 500, right: 600 },
-      4: { left: 600, right: 700 },
-    };
-    const result = computeOsmdReachEndJumpScrollOffset({
-      activeMeasureNumber: 4,
-      previousWindowStart: 4,
-      measureBoundsByNumber: wideFirstMeasure,
-      measureCentersByNumber: { 1: 200, 2: 450, 3: 550, 4: 650 },
-      cssScale: 1,
-      playheadPx: 0,
-      scoreWidth: 1000,
-      viewportWidth: 200,
-      maxMeasureNumber: 4,
-    });
-    expect(result.windowStartMeasure).toBe(4);
-    expect(result.offsetPx).toBe(300);
-  });
-});
-
-describe('resolveOsmdWidestMeasureBounds', () => {
-  it('最大幅の小節を返す', () => {
-    expect(resolveOsmdWidestMeasureBounds({
-      1: { left: 0, right: 200 },
-      2: { left: 200, right: 300 },
-      3: { left: 300, right: 460 },
-    })).toEqual({ left: 0, right: 200 });
-  });
-
-  it('小節が無ければ undefined', () => {
-    expect(resolveOsmdWidestMeasureBounds({})).toBeUndefined();
   });
 });
 
@@ -639,14 +508,5 @@ describe('computeOsmdPlayheadOffsetPx', () => {
       ...offsets,
       inCountIn: false,
     }).offsetPx).toBe(0);
-  });
-});
-
-describe('OSMD_SCROLL_LAYOUT_PRECISION', () => {
-  it('左端アンカー・fit 有効', () => {
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.anchorToMeasureLeft).toBe(true);
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitActiveMeasureWidth).toBe(true);
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.playheadPx).toBe(0);
-    expect(OSMD_SCROLL_LAYOUT_PRECISION.fitWindow).toBeUndefined();
   });
 });

@@ -2231,7 +2231,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 judgedMs: $0.judgedMs
             )
         }
-        osuCirclePool?.resyncTimings(mapped)
+        _ = osuCirclePool?.resyncTimings(mapped)
     }
 
     private func showEnemyHammerThrowWave(at position: CGPoint) {
@@ -2386,7 +2386,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func playOsmdApproachCircleDismissEffect(_ command: EarTrainingBattleEffectCommand) {
         guard let relatedId = command.relatedEffectId else { return }
         ensureOsuCirclePool()
-        osuCirclePool?.dismiss(commandId: relatedId)
+        _ = osuCirclePool?.dismiss(commandId: relatedId)
     }
 
     private func applyOsmdHammerFlightVisual(_ flight: OsmdHammerFlight, wallNow: TimeInterval) {
@@ -2884,9 +2884,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playPairCompleteEffect(_ command: EarTrainingBattleEffectCommand) {
-        let width = max(320, size.width)
-        let height = max(480, size.height)
-        let anchors = getBattleAnchors(width: width, height: height)
+        let anchors = battleAnchors()
         showFloatingResultText(
             label: command.label ?? "",
             x: anchors.player.x,

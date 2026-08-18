@@ -20,8 +20,6 @@ export interface OsmdScrollLayout {
   playheadPx: number;
   /** true のとき小節の左端（小節線）をアンカーにする（false は音符左端を優先）。 */
   anchorToMeasureLeft: boolean;
-  /** true のとき現在小節がビューポート幅に収まるよう effectiveScale を縮小する。 */
-  fitActiveMeasureWidth: boolean;
   /** 設定時は N 小節窓フィット＋最終表示小節到達時の窓ジャンプスクロール。 */
   fitWindow?: OsmdFitWindowConfig;
 }
@@ -30,18 +28,23 @@ export interface OsmdScrollLayout {
 export const OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT: OsmdScrollLayout = {
   playheadPx: 0,
   anchorToMeasureLeft: true,
-  fitActiveMeasureWidth: false,
   fitWindow: {
     minVisibleMeasures: OSMD_WINDOW_MIN_VISIBLE_MEASURES_WEB,
     stepMeasures: OSMD_WINDOW_STEP_MEASURES,
   },
 };
 
-/** 精密モード（左端アンカー・1 小節フィット）。 */
+/** 精密モード（左端アンカー・2 小節窓フィット）。 */
+export const OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES = 2;
+
+/** 精密モード（左端アンカー・2 小節窓フィット）。 */
 export const OSMD_SCROLL_LAYOUT_PRECISION: OsmdScrollLayout = {
   playheadPx: 0,
   anchorToMeasureLeft: true,
-  fitActiveMeasureWidth: true,
+  fitWindow: {
+    minVisibleMeasures: OSMD_PRECISION_WINDOW_MIN_VISIBLE_MEASURES,
+    stepMeasures: OSMD_WINDOW_STEP_MEASURES,
+  },
 };
 
 export interface OsmdMeasureBounds {
@@ -66,23 +69,6 @@ export interface OsmdMeasureJumpScrollInput {
 export interface OsmdMeasureJumpScrollResult {
   offsetPx: number;
   xPos: number;
-}
-
-export interface OsmdReachEndJumpScrollInput {
-  activeMeasureNumber: number;
-  previousWindowStart: number;
-  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>;
-  measureCentersByNumber: Readonly<Record<number, number>>;
-  cssScale: number;
-  playheadPx: number;
-  scoreWidth: number;
-  viewportWidth: number;
-  maxMeasureNumber: number;
-  minFitScale?: number;
-}
-
-export interface OsmdReachEndJumpScrollResult extends OsmdMeasureJumpScrollResult {
-  windowStartMeasure: number;
 }
 
 export interface OsmdActiveMeasureHighlightInput {
@@ -277,86 +263,7 @@ export const computeOsmdWindowJumpScrollOffset = (
   return { offsetPx, xPos };
 };
 
-/** windowStart から effectiveScale 適用後にビューポートへ収まる小節数。 */
-export const computeOsmdVisibleMeasureCountFromWindowStart = (input: {
-  windowStartMeasure: number;
-  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>;
-  effectiveScale: number;
-  viewportWidth: number;
-  maxMeasureNumber: number;
-}): number => {
-  const windowStart = Math.max(1, Math.floor(input.windowStartMeasure));
-  const startBounds = input.measureBoundsByNumber[windowStart];
-  if (!startBounds || input.viewportWidth <= 0 || input.effectiveScale <= 0) {
-    return 1;
-  }
-  const originX = startBounds.left * input.effectiveScale;
-  let count = 0;
-  for (let measureNumber = windowStart; measureNumber <= input.maxMeasureNumber; measureNumber += 1) {
-    const bounds = input.measureBoundsByNumber[measureNumber];
-    if (!bounds) {
-      break;
-    }
-    const rightPx = bounds.right * input.effectiveScale - originX;
-    if (count > 0 && rightPx > input.viewportWidth) {
-      break;
-    }
-    count += 1;
-  }
-  return Math.max(1, count);
-};
-
-/** 精密モード: 最終表示小節到達時のみ窓を進めるジャンプ（1 小節フィット維持）。 */
-export const computeOsmdReachEndJumpScrollOffset = (
-  input: OsmdReachEndJumpScrollInput,
-): OsmdReachEndJumpScrollResult => {
-  const activeMeasure = Math.max(1, Math.floor(input.activeMeasureNumber));
-  // 小節ごとに倍率が変わると小節線をまたぐたび SVG が再ラスタライズされるため、最大幅の小節で固定する。
-  const scaleBounds = resolveOsmdWidestMeasureBounds(input.measureBoundsByNumber)
-    ?? input.measureBoundsByNumber[activeMeasure]
-    ?? input.measureBoundsByNumber[1];
-  const effectiveScale = computeOsmdEffectiveScaleForMeasure({
-    cssScale: input.cssScale,
-    bounds: scaleBounds,
-    viewportWidth: input.viewportWidth,
-    fitActiveMeasureWidth: true,
-    minFitScale: input.minFitScale,
-  });
-
-  let windowStart = Math.max(1, Math.floor(input.previousWindowStart));
-  if (activeMeasure < windowStart) {
-    windowStart = activeMeasure;
-  }
-
-  const visibleCount = computeOsmdVisibleMeasureCountFromWindowStart({
-    windowStartMeasure: windowStart,
-    measureBoundsByNumber: input.measureBoundsByNumber,
-    effectiveScale,
-    viewportWidth: input.viewportWidth,
-    maxMeasureNumber: input.maxMeasureNumber,
-  });
-  const lastVisible = windowStart + visibleCount - 1;
-
-  if (activeMeasure >= lastVisible && activeMeasure > windowStart) {
-    windowStart = activeMeasure;
-  }
-
-  const anchorBounds = input.measureBoundsByNumber[windowStart] ?? input.measureBoundsByNumber[1];
-  const xPos = anchorBounds?.left
-    ?? input.measureCentersByNumber[windowStart]
-    ?? input.measureCentersByNumber[1]
-    ?? input.viewportWidth / 2;
-
-  if (windowStart === 1) {
-    return { offsetPx: 0, xPos, windowStartMeasure: windowStart };
-  }
-
-  const maxOffset = Math.max(0, input.scoreWidth * effectiveScale - input.viewportWidth);
-  const offsetPx = clamp(xPos * effectiveScale - input.playheadPx, 0, maxOffset);
-  return { offsetPx, xPos, windowStartMeasure: windowStart };
-};
-
-/** 現在小節の左端（小節線付近）を固定プレイヘッド位置へ合わせるオフセット（小節更新時のみジャンプ）。 */
+/** 窓開始小節左端をビューポート左端へ合わせるオフセット（窓 1 は 0 で音部記号を保持）。 */
 export const computeOsmdMeasureJumpScrollOffset = (
   input: OsmdMeasureJumpScrollInput,
 ): OsmdMeasureJumpScrollResult => {
@@ -397,34 +304,6 @@ export const clampOsmdManualScrollOffset = (input: {
 }): number => {
   const maxOffset = Math.max(0, input.scoreWidth * input.effectiveScale - input.viewportWidth);
   return Math.min(Math.max(input.manualOffsetPx, -input.baseOffsetPx), maxOffset - input.baseOffsetPx);
-};
-
-const resolveMeasureAnchorX = (bounds: OsmdMeasureBounds): number => {
-  if (typeof bounds.noteLeft === 'number' && Number.isFinite(bounds.noteLeft) && bounds.noteLeft > bounds.left) {
-    return bounds.noteLeft;
-  }
-  return bounds.left;
-};
-
-/** 全小節のうち最も幅の広い小節。1 小節フィットの倍率を曲中で固定するための基準。 */
-export const resolveOsmdWidestMeasureBounds = (
-  measureBoundsByNumber: Readonly<Record<number, OsmdMeasureBounds>>,
-): OsmdMeasureBounds | undefined => {
-  let widest: OsmdMeasureBounds | undefined;
-  let widestWidth = 0;
-  for (const key in measureBoundsByNumber) {
-    const bounds = measureBoundsByNumber[Number(key)];
-    if (!bounds) {
-      continue;
-    }
-    const width = bounds.right - bounds.left;
-    if (!Number.isFinite(width) || width <= widestWidth) {
-      continue;
-    }
-    widestWidth = width;
-    widest = bounds;
-  }
-  return widest;
 };
 
 export interface OsmdPlayheadAnchorOffsetsPx {
@@ -539,31 +418,4 @@ export const computeOsmdActiveMeasureHighlight = (
     widthPx: measureWidth * effectiveScale,
     visible: true,
   };
-};
-
-/** 1 小節フィット時、現在小節がビューポート幅に収まるよう cssScale を縮小した実効スケール。 */
-export const computeOsmdEffectiveScaleForMeasure = (input: {
-  cssScale: number;
-  bounds: OsmdMeasureBounds | undefined;
-  viewportWidth: number;
-  fitActiveMeasureWidth: boolean;
-  minFitScale?: number;
-}): number => {
-  const {
-    cssScale,
-    bounds,
-    viewportWidth,
-    fitActiveMeasureWidth,
-    minFitScale = OSMD_PRECISION_MIN_FIT_SCALE,
-  } = input;
-  if (!fitActiveMeasureWidth || !bounds) {
-    return cssScale;
-  }
-  const measureWidth = bounds.right - bounds.left;
-  if (!Number.isFinite(measureWidth) || measureWidth <= 0 || cssScale <= 0 || viewportWidth <= 0) {
-    return cssScale;
-  }
-  const fitScale = viewportWidth / (measureWidth * cssScale);
-  const clampedFit = Math.min(1, Math.max(minFitScale, fitScale));
-  return cssScale * clampedFit;
 };
