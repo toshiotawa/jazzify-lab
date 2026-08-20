@@ -302,7 +302,8 @@ private struct EarTrainingPhrasePairAdlibContent: View {
                 showTargetHints: showVoicingTargets,
                 singleMeasureLayout: true,
                 unpressedNoteOpacity: 0,
-                fadeAllMeasureNotes: true
+                fadeAllMeasureNotes: true,
+                fixedActiveStaves: [1]
             )
             .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
             .position(x: size.width / 2, y: size.height * 0.44)

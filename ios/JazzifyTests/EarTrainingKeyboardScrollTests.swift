@@ -147,82 +147,125 @@ final class EarTrainingKeyboardScrollTests: XCTestCase {
         XCTAssertNil(EarTrainingKeyboardScroll.scrollAnchorMidi(for: stage))
     }
 
-    func testPianoScrollContentTokenDiffersForSameCountDifferentMidis() {
-        let cm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: ["C3", "E3", "G3", "B3"],
-            pressedPitchClasses: []
-        )
-        let dm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: ["D3", "F3", "A3", "C4"],
-            pressedPitchClasses: []
-        )
-        XCTAssertEqual(cm7.count, dm7.count)
-        XCTAssertEqual(cm7.count, 4)
+    func testPhrasePairAdlibPitchRangeCentersThreeOctavesOnQuestionMidpoint() {
+        let stage = makePhrasePairAdlibStage(voicingNotes: ["C4", "G5"])
+        let range = EarTrainingKeyboardScroll.phrasePairAdlibPitchRange(in: stage)
 
-        let layout = (visibleWhiteKeys: 21, viewportWidth: CGFloat(400), totalWidth: CGFloat(3000))
-        let cm7Token = EarTrainingPianoScrollContentToken.hash(
-            midiHeldKeys: [],
-            voicingHintsByMidi: cm7,
-            voicingHintIntensitiesByMidi: nil,
-            visibleWhiteKeys: layout.visibleWhiteKeys,
-            viewportWidth: layout.viewportWidth,
-            totalWidth: layout.totalWidth
-        )
-        let dm7Token = EarTrainingPianoScrollContentToken.hash(
-            midiHeldKeys: [],
-            voicingHintsByMidi: dm7,
-            voicingHintIntensitiesByMidi: nil,
-            visibleWhiteKeys: layout.visibleWhiteKeys,
-            viewportWidth: layout.viewportWidth,
-            totalWidth: layout.totalWidth
-        )
-        XCTAssertNotEqual(cm7Token, dm7Token)
+        XCTAssertEqual(range?.minMidi, 51)
+        XCTAssertEqual(range?.maxMidi, 87)
+        XCTAssertEqual((range?.maxMidi ?? 0) - (range?.minMidi ?? 0), 36)
     }
 
-    func testPianoScrollContentTokenDiffersWhenHintStateChanges() {
-        let pending = EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: ["C3", "E3", "G3", "B3"],
-            pressedPitchClasses: []
+    func testPhrasePairAdlibResolvedDisplayRangeUsesThreeOctavesInQuestionRangeFit() {
+        let stage = makePhrasePairAdlibStage(voicingNotes: ["C4", "G5"])
+        let range = EarTrainingKeyboardScroll.resolvedDisplayRange(
+            for: stage,
+            displayMode: .questionRangeFit
         )
-        let completed = EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: ["C3", "E3", "G3", "B3"],
-            pressedPitchClasses: [0]
-        )
-        XCTAssertEqual(pending.count, completed.count)
 
-        let layout = (visibleWhiteKeys: 21, viewportWidth: CGFloat(400), totalWidth: CGFloat(3000))
-        let pendingToken = EarTrainingPianoScrollContentToken.hash(
-            midiHeldKeys: [],
-            voicingHintsByMidi: pending,
-            voicingHintIntensitiesByMidi: nil,
-            visibleWhiteKeys: layout.visibleWhiteKeys,
-            viewportWidth: layout.viewportWidth,
-            totalWidth: layout.totalWidth
-        )
-        let completedToken = EarTrainingPianoScrollContentToken.hash(
-            midiHeldKeys: [],
-            voicingHintsByMidi: completed,
-            voicingHintIntensitiesByMidi: nil,
-            visibleWhiteKeys: layout.visibleWhiteKeys,
-            viewportWidth: layout.viewportWidth,
-            totalWidth: layout.totalWidth
-        )
-        XCTAssertNotEqual(pendingToken, completedToken)
+        XCTAssertEqual(range.minMidi, 51)
+        XCTAssertEqual(range.maxMidi, 87)
     }
 
-    func testPianoScrollContentTokenCountOnlyWouldNotDiffer() {
-        let cm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: ["C3", "E3", "G3", "B3"],
-            pressedPitchClasses: []
+    func testPhrasePairAdlibPitchRangeShiftsAtLowEndWhileKeepingSpan() {
+        let stage = makePhrasePairAdlibStage(voicingNotes: ["A0", "C2"])
+        let range = EarTrainingKeyboardScroll.phrasePairAdlibPitchRange(in: stage)
+
+        XCTAssertEqual(range?.minMidi, PianoKeyboardScrollGeometry.firstMidi)
+        XCTAssertEqual(range?.maxMidi, PianoKeyboardScrollGeometry.firstMidi + 36)
+    }
+
+    func testPhrasePairAdlibPitchRangeShiftsAtHighEndWhileKeepingSpan() {
+        let stage = makePhrasePairAdlibStage(voicingNotes: ["A6", "C8"])
+        let range = EarTrainingKeyboardScroll.phrasePairAdlibPitchRange(in: stage)
+
+        XCTAssertEqual(range?.maxMidi, PianoKeyboardScrollGeometry.lastMidi)
+        XCTAssertEqual(range?.minMidi, PianoKeyboardScrollGeometry.lastMidi - 36)
+    }
+
+    func testPhrasePairAdlibFull88KeysOverridesCenteredRange() {
+        let stage = makePhrasePairAdlibStage(voicingNotes: ["C4", "G5"])
+        let range = EarTrainingKeyboardScroll.resolvedDisplayRange(
+            for: stage,
+            displayMode: .full88Keys
         )
-        let dm7 = EarTrainingChordVoicingEngine.voicingKeyboardHints(
-            voicing: ["D3", "F3", "A3", "C4"],
-            pressedPitchClasses: []
+
+        XCTAssertEqual(range, .full88)
+    }
+
+    private func makePhrasePairAdlibStage(voicingNotes: [String]) -> EarTrainingStageDetail {
+        let stageId = UUID()
+        let groupId = UUID()
+        let stepId = UUID()
+        let pattern = EarTrainingPhrasePairEngine.Pattern(
+            id: "A",
+            label: "A",
+            pcs: [0, 2],
+            familyId: "TEST-A",
+            carryTailLength: 0,
+            voicing: voicingNotes,
+            voicingStaves: Array(repeating: 1, count: voicingNotes.count)
         )
-        var countHasher1 = Hasher()
-        countHasher1.combine(cm7.count)
-        var countHasher2 = Hasher()
-        countHasher2.combine(dm7.count)
-        XCTAssertEqual(countHasher1.finalize(), countHasher2.finalize())
+        let bootstrap = EarTrainingPhrasePairAdlibBootstrap(
+            bgmUrl: "https://example.com/bgm.mp3",
+            keyFifths: 0,
+            loopDurationSec: 8,
+            steps: [
+                EarTrainingPhrasePairAdlibStep(
+                    id: stepId,
+                    orderIndex: 0,
+                    chordName: "CM7",
+                    patternGroupId: groupId,
+                    measureNumber: 1,
+                    startTimeSec: 0,
+                    endTimeSec: 8,
+                    quote: nil,
+                    inputDisabled: false
+                ),
+            ],
+            patternsByGroupId: [groupId: [pattern]]
+        )
+
+        return EarTrainingStageDetail(
+            id: stageId,
+            slug: "pair-adlib-test",
+            title: "Pair Adlib Test",
+            titleEn: nil,
+            description: nil,
+            descriptionEn: nil,
+            bpm: 120,
+            beatsPerMeasure: 4,
+            beatType: 4,
+            loopMeasures: 4,
+            maxLoopsPerPhrase: 4,
+            countInBeats: 4,
+            timeLimitSec: 120,
+            playerHp: 100,
+            enemyHp: 100,
+            perCorrectNoteDamage: 10,
+            goodCompletionDamage: 20,
+            greatCompletionDamage: 30,
+            perfectCompletionDamage: 40,
+            missDamage: 5,
+            failDamage: 10,
+            perfectMaxMisses: 0,
+            greatMaxMisses: 2,
+            backgroundTheme: nil,
+            isActive: true,
+            mode: .phrasePairAdlib,
+            keyFifths: 0,
+            phrases: nil,
+            chordVoicingSelfPaced: nil,
+            quizDurationSeconds: nil,
+            quizQuestionOrder: nil,
+            quizShowNotationInBattle: nil,
+            hideChordNamesInBattle: nil,
+            quizRequiredCorrectCount: nil,
+            showKeyboardHintsInBattle: nil,
+            chordQuizItems: nil,
+            chordVoicingCompositePhrase: nil,
+            compositePhraseBootstrap: nil,
+            phrasePairAdlibBootstrap: bootstrap
+        )
     }
 }

@@ -3,6 +3,9 @@ import Foundation
 /// 耳コピバトル鍵盤の初期スクロール位置（ステージ内最高音基準）。
 /// アンカー白鍵の算出は [`SurvivalPhraseKeyboardScroll`] と同一式。
 enum EarTrainingKeyboardScroll {
+    private static let phrasePairAdlibDisplaySpanSemitones = 36
+    private static let phrasePairAdlibDisplayHalfSpanSemitones = phrasePairAdlibDisplaySpanSemitones / 2
+
     static func maxPitchMidi(in stage: EarTrainingStageDetail) -> Int? {
         var maxValue: Int?
 
@@ -120,6 +123,36 @@ enum EarTrainingKeyboardScroll {
         )
     }
 
+    /// ペアアドリブ: 出題音域の中点を中心に合計3オクターブ（±1.5）を表示する。
+    static func phrasePairAdlibPitchRange(in stage: EarTrainingStageDetail) -> PianoStagePitchRange? {
+        guard stage.resolvedMode == .phrasePairAdlib else { return nil }
+        guard let maxMidi = maxPitchMidi(in: stage),
+              let minMidi = minPitchMidi(in: stage) else { return nil }
+
+        let center = (minMidi + maxMidi) / 2
+        var minRange = center - phrasePairAdlibDisplayHalfSpanSemitones
+        var maxRange = center + phrasePairAdlibDisplayHalfSpanSemitones
+
+        let first = PianoKeyboardScrollGeometry.firstMidi
+        let last = PianoKeyboardScrollGeometry.lastMidi
+
+        if minRange < first {
+            let shift = first - minRange
+            minRange += shift
+            maxRange += shift
+        }
+        if maxRange > last {
+            let shift = maxRange - last
+            minRange -= shift
+            maxRange -= shift
+        }
+
+        return PianoStagePitchRange(
+            minMidi: max(first, minRange),
+            maxMidi: min(last, maxRange)
+        )
+    }
+
     static func resolvedDisplayRange(
         for stage: EarTrainingStageDetail,
         displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
@@ -128,6 +161,9 @@ enum EarTrainingKeyboardScroll {
         case .full88Keys:
             return .full88
         case .questionRangeFit:
+            if let phrasePairRange = phrasePairAdlibPitchRange(in: stage) {
+                return phrasePairRange
+            }
             if let pitchRange = pitchRange(in: stage) {
                 return pitchRange
             }
