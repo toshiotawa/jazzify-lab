@@ -274,18 +274,6 @@ final class OsmdScorePdfExporter: NSObject {
               return svgs.map(function (svg) { return svg.cloneNode(true); });
             }
 
-            function addTitlePage(pdf, documentTitle, sectionTitle) {
-              pdf.setFont('helvetica', 'bold');
-              pdf.setFontSize(18);
-              pdf.setTextColor(0, 0, 0);
-              pdf.text(documentTitle, PDF_MARGIN_MM, PDF_MARGIN_MM + 8);
-              if (sectionTitle && String(sectionTitle).trim().length > 0) {
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(12);
-                pdf.text(String(sectionTitle).trim(), PDF_MARGIN_MM, PDF_MARGIN_MM + 18);
-              }
-            }
-
             async function exportScorePdf(payload) {
               const jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
               const svg2pdfFn = window.svg2pdf || (window.svg2pdfjs && window.svg2pdfjs.svg2pdf);
@@ -299,26 +287,21 @@ final class OsmdScorePdfExporter: NSObject {
               const pdf = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
               const printableWidth = A4_WIDTH_MM - PDF_MARGIN_MM * 2;
               const printableHeight = A4_HEIGHT_MM - PDF_MARGIN_MM * 2;
-              addTitlePage(
-                pdf,
-                payload.documentTitle || 'Score',
-                sections.length === 1 ? sections[0].title : undefined
-              );
+              let wroteFirstPage = false;
               for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
                 const section = sections[sectionIndex];
                 const sectionSvgs = await renderSectionSvgs(section.musicXmlText);
-                if (sections.length > 1 && section.title && String(section.title).trim().length > 0) {
-                  pdf.addPage();
-                  addTitlePage(pdf, payload.documentTitle || 'Score', section.title);
-                }
                 for (let pageIndex = 0; pageIndex < sectionSvgs.length; pageIndex += 1) {
-                  pdf.addPage();
+                  if (wroteFirstPage) {
+                    pdf.addPage();
+                  }
                   await svg2pdfFn(sectionSvgs[pageIndex], pdf, {
                     x: PDF_MARGIN_MM,
                     y: PDF_MARGIN_MM,
                     width: printableWidth,
                     height: printableHeight
                   });
+                  wroteFirstPage = true;
                 }
               }
               const dataUri = pdf.output('datauristring');

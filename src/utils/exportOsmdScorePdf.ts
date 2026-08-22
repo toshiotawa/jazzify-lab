@@ -101,25 +101,8 @@ const renderSectionSvgs = async (
   }
 };
 
-const addTitlePage = (
-  pdf: import('jspdf').jsPDF,
-  documentTitle: string,
-  sectionTitle?: string,
-): void => {
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(18);
-  pdf.setTextColor(0, 0, 0);
-  pdf.text(documentTitle, PDF_MARGIN_MM, PDF_MARGIN_MM + 8);
-  if (sectionTitle && sectionTitle.trim().length > 0) {
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(12);
-    pdf.text(sectionTitle.trim(), PDF_MARGIN_MM, PDF_MARGIN_MM + 18);
-  }
-};
-
 const renderOsmdScoreSectionsToPdfBlob = async (
   sections: readonly OsmdScorePdfSection[],
-  documentTitle: string,
   showScoreLyrics = false,
 ): Promise<Blob> => {
   if (sections.length === 0) {
@@ -140,34 +123,26 @@ const renderOsmdScoreSectionsToPdfBlob = async (
 
   const printableWidth = A4_WIDTH_MM - PDF_MARGIN_MM * 2;
   const printableHeight = A4_HEIGHT_MM - PDF_MARGIN_MM * 2;
+  let wroteFirstPage = false;
 
-  addTitlePage(
-    pdf,
-    documentTitle,
-    sections.length === 1 ? sections[0]?.title : undefined,
-  );
-
-  for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex += 1) {
-    const section = sections[sectionIndex];
+  for (const section of sections) {
     const sectionSvgs = await renderSectionSvgs(
       OpenSheetMusicDisplayCtor,
       section.musicXmlText,
       showScoreLyrics,
     );
 
-    if (sections.length > 1 && section.title && section.title.trim().length > 0) {
-      pdf.addPage();
-      addTitlePage(pdf, documentTitle, section.title);
-    }
-
     for (const svg of sectionSvgs) {
-      pdf.addPage();
+      if (wroteFirstPage) {
+        pdf.addPage();
+      }
       await svg2pdf(svg, pdf, {
         x: PDF_MARGIN_MM,
         y: PDF_MARGIN_MM,
         width: printableWidth,
         height: printableHeight,
       });
+      wroteFirstPage = true;
     }
   }
 
@@ -216,7 +191,6 @@ const loadOsmdScorePdfSections = async (
     }
     const musicXmlText = await fetchMusicXmlText(url);
     sections.push({
-      title: phrase.title?.trim() || phrase.title_en?.trim() || undefined,
       musicXmlText,
     });
   }
@@ -241,7 +215,6 @@ export const downloadEarTrainingOsmdScorePdf = async ({
   const sections = await loadOsmdScorePdfSections(stage.phrases);
   const blob = await renderOsmdScoreSectionsToPdfBlob(
     sections,
-    stageTitle.trim() || 'Score',
     stage.show_score_lyrics_in_battle === true,
   );
   triggerPdfBlobDownload(blob, sanitizeOsmdScorePdfFileName(stageTitle));

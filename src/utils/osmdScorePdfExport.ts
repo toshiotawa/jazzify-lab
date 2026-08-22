@@ -39,6 +39,5 @@ export const collectOsmdPhraseMusicXmlUrls = (
 );
 
 export interface OsmdScorePdfSection {
-  readonly title?: string;
   readonly musicXmlText: string;
 }
