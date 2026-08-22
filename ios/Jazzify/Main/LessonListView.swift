@@ -1324,6 +1324,7 @@ struct LessonDetailView: View {
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
+    @State private var osmdScoreExportBusyRequirementId: UUID?
     @State private var courseKind: LessonCourseKind = .normal
     @State private var courseMeta: Course?
     @State private var navigationState: LessonNavigationState?
@@ -1924,6 +1925,32 @@ struct LessonDetailView: View {
         }
     }
 
+    private func downloadOsmdScore(for requirement: LessonSong, index: Int) async {
+        guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
+            return
+        }
+        await MainActor.run { osmdScoreExportBusyRequirementId = requirement.id }
+
+        let stageTitle = requirementTitle(requirement, index: index)
+        do {
+            let fileURL = try await OsmdScorePdfExportService.exportStageScore(
+                stageId: stageId,
+                stageTitle: stageTitle
+            )
+            await MainActor.run {
+                osmdScoreExportBusyRequirementId = nil
+                attachmentSharePayload = AttachmentSharePayload(fileURL: fileURL)
+            }
+        } catch {
+            await MainActor.run {
+                osmdScoreExportBusyRequirementId = nil
+                alertMessage = locale == .ja
+                    ? "譜面PDFの作成に失敗しました。"
+                    : "Could not create score PDF."
+            }
+        }
+    }
+
     private func summaryCard(_ detail: LessonDetail) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
@@ -2202,6 +2229,36 @@ struct LessonDetailView: View {
                     }
                     .padding(.vertical, 4)
                 }
+            }
+
+            if requirement.isEarTraining == true,
+               requirement.isEarTrainingTutorial != true,
+               let mode = requirement.earTrainingStage?.mode,
+               mode.supportsScorePdfDownload {
+                Button {
+                    Task {
+                        await downloadOsmdScore(for: requirement, index: index)
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if osmdScoreExportBusyRequirementId == requirement.id {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.down.circle")
+                        }
+                        Text(locale == .ja ? "譜面ダウンロード" : "Download score")
+                        Spacer()
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(hex: "475569"))
+                    .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+                .disabled(osmdScoreExportBusyRequirementId == requirement.id)
             }
 
             Button {

@@ -30,6 +30,8 @@ import {
 } from '@/utils/lessonRequirementDisplay';
 import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters';
 import { buildLessonRequirementLaunchHash } from '@/utils/lessonRequirementLaunch';
+import { downloadEarTrainingOsmdScorePdf } from '@/utils/exportOsmdScorePdf';
+import { isOsmdScoreDownloadMode } from '@/utils/osmdScorePdfExport';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -137,6 +139,7 @@ const LessonDetailPage: React.FC = () => {
   const [completing, setCompleting] = useState(false);
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadingOsmdScoreKey, setDownloadingOsmdScoreKey] = useState<string | null>(null);
   const [shouldHideVideos, setShouldHideVideos] = useState(false);
   const [courseDifficultyTier, setCourseDifficultyTier] = useState<CourseDifficultyTier | null>(null);
   const [lessonCourseIsMainQuest, setLessonCourseIsMainQuest] = useState(false);
@@ -184,6 +187,9 @@ const LessonDetailPage: React.FC = () => {
       remainingClears: (n: number) => (isEnglishCopy ? ` (${n} more)` : ` (あと${n}回)`),
       startPractice: isEnglishCopy ? 'Start practice' : '練習開始',
       retry: isEnglishCopy ? 'Retry' : '再挑戦',
+      downloadScore: isEnglishCopy ? 'Download score' : '譜面ダウンロード',
+      downloadScoreBusy: isEnglishCopy ? 'Creating PDF…' : 'PDF作成中…',
+      downloadScoreFailed: isEnglishCopy ? 'Could not create score PDF.' : '譜面PDFの作成に失敗しました。',
       noTasks: isEnglishCopy ? 'No practice tasks yet.' : '実習課題がありません',
       optionalTaskNotice: isEnglishCopy
         ? 'This task is not required to clear.'
@@ -1524,7 +1530,53 @@ const LessonDetailPage: React.FC = () => {
                         </div>
                         )}
                         
-                        
+                        {isEarTraining && !isEarTrainingTutorial && req.ear_training_stage && isOsmdScoreDownloadMode(req.ear_training_stage.mode) && (
+                          <div className="mb-3">
+                            <button
+                              type="button"
+                              className={`btn btn-xs btn-outline flex items-center gap-2 ${
+                                downloadingOsmdScoreKey === (req.lesson_song_id ?? req.ear_training_stage.id)
+                                  ? 'btn-disabled'
+                                  : ''
+                              }`}
+                              disabled={downloadingOsmdScoreKey === (req.lesson_song_id ?? req.ear_training_stage.id)}
+                              aria-label={practiceCopy.downloadScore}
+                              onClick={async () => {
+                                const et = req.ear_training_stage;
+                                if (!et?.id) {
+                                  return;
+                                }
+                                const downloadKey = req.lesson_song_id ?? et.id;
+                                setDownloadingOsmdScoreKey(downloadKey);
+                                try {
+                                  const stageTitle = lessonSongDisplayTitle(
+                                    {
+                                      title: req.title ?? et.title ?? null,
+                                      title_en: req.title_en ?? et.title_en ?? null,
+                                    },
+                                    isEnglishCopy,
+                                  ) || et.title;
+                                  await downloadEarTrainingOsmdScorePdf({
+                                    stageId: et.id,
+                                    stageTitle,
+                                  });
+                                } catch {
+                                  toast.error(practiceCopy.downloadScoreFailed);
+                                } finally {
+                                  setDownloadingOsmdScoreKey(null);
+                                }
+                              }}
+                            >
+                              <FaDownload aria-hidden />
+                              <span>
+                                {downloadingOsmdScoreKey === (req.lesson_song_id ?? req.ear_training_stage.id)
+                                  ? practiceCopy.downloadScoreBusy
+                                  : practiceCopy.downloadScore}
+                              </span>
+                            </button>
+                          </div>
+                        )}
+
                         <button 
                           className={`w-full mt-3 btn btn-sm ${
                             isCompleted ? 'btn-success' : 'btn-primary'
