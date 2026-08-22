@@ -3,7 +3,8 @@ import type { EarTrainingPhrase } from '@/types';
 import {
   collectOsmdPhraseMusicXmlUrls,
   isOsmdScoreDownloadMode,
-  sanitizeOsmdScorePdfFileName,
+  buildOsmdScorePdfFileName,
+  hideOsmdPdfAlternateVoiceRests,
 } from '@/utils/osmdScorePdfExport';
 
 describe('isOsmdScoreDownloadMode', () => {
@@ -19,13 +20,42 @@ describe('isOsmdScoreDownloadMode', () => {
   });
 });
 
-describe('sanitizeOsmdScorePdfFileName', () => {
-  it('sanitizes unsafe characters and adds pdf extension', () => {
-    expect(sanitizeOsmdScorePdfFileName('F Blues / Intro')).toBe('F-Blues-Intro.pdf');
+describe('buildOsmdScorePdfFileName', () => {
+  it('builds Chapter-Quest-task filename', () => {
+    expect(buildOsmdScorePdfFileName(6, 7, 2)).toBe('Chapter6-Quest7-2.pdf');
   });
+});
 
-  it('falls back when title is empty', () => {
-    expect(sanitizeOsmdScorePdfFileName('   ')).toBe('score.pdf');
+describe('hideOsmdPdfAlternateVoiceRests', () => {
+  it('hides voice 1 rests when voice 4 has notes, and voice 4 rests when voice 1 has notes', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1"><part id="P1">
+<measure number="1">
+<note><rest/><duration>4</duration><voice>1</voice></note>
+<backup><duration>4</duration></backup>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice></note>
+</measure>
+<measure number="2">
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice></note>
+<note><rest/><duration>3</duration><voice>1</voice></note>
+<backup><duration>4</duration></backup>
+<note><rest/><duration>4</duration><voice>4</voice></note>
+</measure>
+</part></score-partwise>`;
+    const next = hideOsmdPdfAlternateVoiceRests(xml);
+    const doc = new DOMParser().parseFromString(next, 'application/xml');
+    const measures = Array.from(doc.getElementsByTagName('measure'));
+    const measureNotes = (measure: Element): Element[] =>
+      Array.from(measure.children).filter((el) => el.localName === 'note');
+
+    const listenNotes = measureNotes(measures[0]);
+    expect(listenNotes[0].getAttribute('print-object')).toBe('no');
+    expect(listenNotes[1].getAttribute('print-object')).toBeNull();
+
+    const playNotes = measureNotes(measures[1]);
+    expect(playNotes[0].getAttribute('print-object')).toBeNull();
+    expect(playNotes[1].getAttribute('print-object')).toBeNull();
+    expect(playNotes[2].getAttribute('print-object')).toBe('no');
   });
 });
 

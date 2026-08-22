@@ -5,7 +5,8 @@ import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import { normalizeChordOsmdMusicXml } from '@/utils/earTrainingChordOsmd';
 import {
   collectOsmdPhraseMusicXmlUrls,
-  sanitizeOsmdScorePdfFileName,
+  hideOsmdPdfAlternateVoiceRests,
+  buildOsmdScorePdfFileName,
   type OsmdScorePdfSection,
 } from '@/utils/osmdScorePdfExport';
 import { ensureMusicXmlDeclaration, stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
@@ -62,7 +63,8 @@ const preparePrintMusicXml = (
   showScoreLyrics: boolean,
 ): string => {
   const normalized = ensureMusicXmlDeclaration(normalizeChordOsmdMusicXml(musicXmlText));
-  return showScoreLyrics ? normalized : stripLyricsFromMusicXml(normalized);
+  const withoutLyrics = showScoreLyrics ? normalized : stripLyricsFromMusicXml(normalized);
+  return hideOsmdPdfAlternateVoiceRests(withoutLyrics);
 };
 
 const collectRenderedSvgs = (container: HTMLElement): SVGSVGElement[] => {
@@ -204,12 +206,16 @@ const loadOsmdScorePdfSections = async (
 
 interface DownloadEarTrainingOsmdScorePdfParams {
   stageId: string;
-  stageTitle: string;
+  chapterNumber: number;
+  questNumber: number;
+  taskNumber: number;
 }
 
 export const downloadEarTrainingOsmdScorePdf = async ({
   stageId,
-  stageTitle,
+  chapterNumber,
+  questNumber,
+  taskNumber,
 }: DownloadEarTrainingOsmdScorePdfParams): Promise<void> => {
   const stage = await fetchEarTrainingStageById(stageId);
   const sections = await loadOsmdScorePdfSections(stage.phrases);
@@ -217,5 +223,5 @@ export const downloadEarTrainingOsmdScorePdf = async ({
     sections,
     stage.show_score_lyrics_in_battle === true,
   );
-  triggerPdfBlobDownload(blob, sanitizeOsmdScorePdfFileName(stageTitle));
+  triggerPdfBlobDownload(blob, buildOsmdScorePdfFileName(chapterNumber, questNumber, taskNumber));
 };

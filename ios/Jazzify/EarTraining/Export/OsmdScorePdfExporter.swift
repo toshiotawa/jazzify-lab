@@ -34,20 +34,100 @@ struct OsmdScorePdfSectionInput: Encodable, Sendable {
 }
 
 enum OsmdScorePdfExportService {
-    static func sanitizePdfFileName(_ title: String) -> String {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let invalid = CharacterSet(charactersIn: "<>:\"/\\|?*").union(.controlCharacters)
-        let cleaned = trimmed
-            .components(separatedBy: invalid)
-            .joined()
-            .replacingOccurrences(of: "\\s+", with: "-", options: .regularExpression)
-            .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        let base = cleaned.isEmpty ? "score" : String(cleaned.prefix(80))
-        return "\(base).pdf"
+    static func buildFileName(chapterNumber: Int, questNumber: Int, taskNumber: Int) -> String {
+        "Chapter\(chapterNumber)-Quest\(questNumber)-\(taskNumber).pdf"
     }
 
-    static func exportStageScore(stageId: UUID, stageTitle: String) async throws -> URL {
+    static func hideAlternateVoiceRests(_ xmlText: String) -> String {
+        guard let root = ChordOsmdXmlParser.parse(xmlText) else {
+            return xmlText
+        }
+        var changed = false
+        func visit(_ element: ChordOsmdXmlElement) {
+            if element.name == "measure" {
+                if hideAlternateVoiceRests(in: element) {
+                    changed = true
+                }
+            }
+            for child in element.children {
+                if case let .element(inner) = child {
+                    visit(inner)
+                }
+            }
+        }
+        visit(root)
+        guard changed else {
+            return xmlText
+        }
+        let serialized = ChordOsmdXmlSerializer.stringify(root)
+        let trimmed = serialized.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("<?xml") {
+            return serialized
+        }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + serialized
+    }
+
+    private static func hideAlternateVoiceRests(in measure: ChordOsmdXmlElement) -> Bool {
+        var notes: [ChordOsmdXmlElement] = []
+        for child in measure.children {
+            guard case let .element(el) = child, el.name == "note" else { continue }
+            notes.append(el)
+        }
+
+        var hasGuidePitch = false
+        var hasPlayPitch = false
+        for note in notes {
+            guard hasDirectChild(note, "pitch") else { continue }
+            let voice = EarTrainingChordOsmdMusicXmlNormalizer.parseNoteVoiceNumber(note)
+            if voice == EarTrainingChordOsmdMusicXmlNormalizer.guideVoice {
+                hasGuidePitch = true
+            }
+            if voice == 1 || voice == nil {
+                hasPlayPitch = true
+            }
+        }
+
+        var changed = false
+        for note in notes {
+            guard hasDirectChild(note, "rest") else { continue }
+            let voice = EarTrainingChordOsmdMusicXmlNormalizer.parseNoteVoiceNumber(note)
+            let hideRest = (hasGuidePitch && (voice == 1 || voice == nil))
+                || (hasPlayPitch && voice == EarTrainingChordOsmdMusicXmlNormalizer.guideVoice)
+            guard hideRest else { continue }
+            if setAttribute(note, name: "print-object", value: "no") {
+                changed = true
+            }
+        }
+        return changed
+    }
+
+    private static func hasDirectChild(_ element: ChordOsmdXmlElement, _ name: String) -> Bool {
+        element.children.contains { child in
+            if case let .element(inner) = child {
+                return inner.name == name
+            }
+            return false
+        }
+    }
+
+    private static func setAttribute(_ el: ChordOsmdXmlElement, name: String, value: String) -> Bool {
+        if let idx = el.attributes.firstIndex(where: { $0.name == name }) {
+            if el.attributes[idx].value == value {
+                return false
+            }
+            el.attributes[idx].value = value
+            return true
+        }
+        el.attributes.append((name: name, value: value))
+        return true
+    }
+
+    static func exportStageScore(
+        stageId: UUID,
+        chapterNumber: Int,
+        questNumber: Int,
+        taskNumber: Int
+    ) async throws -> URL {
         let detail = try await SupabaseService.shared.fetchEarTrainingStageDetail(stageId: stageId)
         let showScoreLyrics = detail.resolvedShowScoreLyricsInBattle
         var sections: [OsmdScorePdfSectionInput] = []
@@ -70,29 +150,27 @@ enum OsmdScorePdfExportService {
             }
 
             let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
-            let displayXml = showScoreLyrics
+            let withoutLyrics = showScoreLyrics
                 ? normalized
                 : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(normalized)
-            let phraseTitle = {
-                let ja = phrase.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if !ja.isEmpty { return ja }
-                let en = phrase.titleEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                return en.isEmpty ? nil : en
-            }()
-            sections.append(OsmdScorePdfSectionInput(title: phraseTitle, musicXmlText: displayXml))
+            let displayXml = hideAlternateVoiceRests(withoutLyrics)
+            sections.append(OsmdScorePdfSectionInput(title: nil, musicXmlText: displayXml))
         }
 
         guard !sections.isEmpty else {
             throw OsmdScorePdfExportError.noMusicXml
         }
 
+        let fileName = buildFileName(
+            chapterNumber: chapterNumber,
+            questNumber: questNumber,
+            taskNumber: taskNumber
+        )
         let pdfData = try await OsmdScorePdfExporter.shared.exportPdf(
-            documentTitle: stageTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Score" : stageTitle,
+            documentTitle: fileName,
             sections: sections,
             showScoreLyrics: showScoreLyrics
         )
-
-        let fileName = sanitizePdfFileName(stageTitle)
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\((fileName as NSString).deletingPathExtension)-\(UUID().uuidString.prefix(8)).pdf")
         try pdfData.write(to: tempURL, options: .atomic)

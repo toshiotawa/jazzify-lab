@@ -1931,11 +1931,12 @@ struct LessonDetailView: View {
         }
         await MainActor.run { osmdScoreExportBusyRequirementId = requirement.id }
 
-        let stageTitle = requirementTitle(requirement, index: index)
         do {
             let fileURL = try await OsmdScorePdfExportService.exportStageScore(
                 stageId: stageId,
-                stageTitle: stageTitle
+                chapterNumber: activeLesson.blockNumber ?? 1,
+                questNumber: activeLesson.orderIndex + 1,
+                taskNumber: index + 1
             )
             await MainActor.run {
                 osmdScoreExportBusyRequirementId = nil

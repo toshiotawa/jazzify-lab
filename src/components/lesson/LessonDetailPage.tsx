@@ -1549,16 +1549,11 @@ const LessonDetailPage: React.FC = () => {
                                 const downloadKey = req.lesson_song_id ?? et.id;
                                 setDownloadingOsmdScoreKey(downloadKey);
                                 try {
-                                  const stageTitle = lessonSongDisplayTitle(
-                                    {
-                                      title: req.title ?? et.title ?? null,
-                                      title_en: req.title_en ?? et.title_en ?? null,
-                                    },
-                                    isEnglishCopy,
-                                  ) || et.title;
                                   await downloadEarTrainingOsmdScorePdf({
                                     stageId: et.id,
-                                    stageTitle,
+                                    chapterNumber: lesson?.block_number ?? 1,
+                                    questNumber: (lesson?.order_index ?? 0) + 1,
+                                    taskNumber: index + 1,
                                   });
                                 } catch {
                                   toast.error(practiceCopy.downloadScoreFailed);
