@@ -111,7 +111,7 @@ struct EarTrainingSettingsSheet: View {
                     displayMode: $keyboardDisplayMode,
                     isEnglishCopy: isEnglishCopy
                 )
-                midiSection
+                InputMethodSection(isEnglishCopy: isEnglishCopy)
 
                 if let osmdTimingAdjustment {
                     osmdTimingAdjustmentSection(osmdTimingAdjustment, onLaunch: onLaunchTimingAdjustment)

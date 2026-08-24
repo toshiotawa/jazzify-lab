@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { VoiceInputController } from '@/utils/VoiceInputController';
+import { PitchInputController } from '@/utils/PitchInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -151,7 +151,7 @@ export const useAudioDevices = () => {
     setError(null);
 
     try {
-      if (!VoiceInputController.isSupported()) {
+      if (!PitchInputController.isSupported()) {
         setIsSupported(false);
         throw new Error(
           shouldUseEnglishCopy()
@@ -161,7 +161,7 @@ export const useAudioDevices = () => {
       }
 
       // 一時的なコントローラーでデバイス一覧取得
-      const tempController = new VoiceInputController({
+      const tempController = new PitchInputController({
         onNoteOn: () => {},
         onNoteOff: () => {}
       });
@@ -181,7 +181,7 @@ export const useAudioDevices = () => {
 
   // 初回ロード時にデバイス一覧を取得
   useEffect(() => {
-    if (VoiceInputController.isSupported()) {
+    if (PitchInputController.isSupported()) {
       refreshDevices({ requestPermission: false });
     } else {
       setIsSupported(false);
@@ -240,8 +240,8 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
       return;
     }
 
-    if (!VoiceInputController.isPermissionGranted()) {
-      const permissionOk = await VoiceInputController.requestMicrophonePermission(
+    if (!PitchInputController.isPermissionGranted()) {
+      const permissionOk = await PitchInputController.requestMicrophonePermission(
         newDeviceId === 'default' ? undefined : newDeviceId
       );
       if (!permissionOk) {
@@ -312,7 +312,7 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           )}
         </div>
 
-        {VoiceInputController.isIOS() && (
+        {PitchInputController.isIOS() && (
           <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
             {en
               ? '📱 iOS: Microphone permission will be requested when you select a device.'

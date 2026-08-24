@@ -68,12 +68,17 @@ export const findPrecisionNoteForInput = (
   midi: number,
   phraseTimeSec: number,
   windowSec: number,
+  allowOctaveError = false,
 ): PrecisionNote | null => {
   const roundedMidi = Math.round(midi);
+  const inputPitchClass = ((roundedMidi % 12) + 12) % 12;
   let bestNote: PrecisionNote | null = null;
   let bestAbsDelta = Number.POSITIVE_INFINITY;
   for (const note of notes) {
-    if (note.midi !== roundedMidi) {
+    const midiMatches = allowOctaveError
+      ? ((note.midi % 12) + 12) % 12 === inputPitchClass
+      : note.midi === roundedMidi;
+    if (!midiMatches) {
       continue;
     }
     const state = states.get(note.id);

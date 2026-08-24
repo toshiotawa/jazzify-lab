@@ -163,7 +163,7 @@ struct EarTrainingChordOSMDGameView: View {
         if createdController.gameState == .idle {
             createdController.start()
         }
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
+        midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)

@@ -83,6 +83,8 @@ final class LessonLocalizationTests: XCTestCase {
             earTrainingStageId: nil,
             isBalloonRush: nil,
             balloonRushStageId: nil,
+            isVideoLesson: nil,
+            videoLessonStageId: nil,
             isFantasy: false,
             isSurvival: true,
             isSurvivalTutorial: nil,
@@ -104,7 +106,8 @@ final class LessonLocalizationTests: XCTestCase {
             titleEn: titleEn,
             fantasyStage: nil,
             earTrainingStage: nil,
-            balloonRushStage: nil
+            balloonRushStage: nil,
+            videoLessonStage: nil
         )
     }
 }

@@ -108,6 +108,30 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# PESTO モデル / onnxruntime-web ランタイム（内容不変。パス指定で確実にマッチさせる）
+[[headers]]
+  for = "/models/pesto/*"
+  [headers.values]
+    Content-Type = "application/octet-stream"
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/ort/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/ort/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/ort/*.mjs"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
+    Cache-Control = "public, max-age=31536000, immutable"
+
 [[headers]]
   for = "*.wasm"
   [headers.values]

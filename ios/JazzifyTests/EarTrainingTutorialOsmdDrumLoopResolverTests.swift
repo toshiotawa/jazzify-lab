@@ -19,8 +19,8 @@ final class EarTrainingTutorialOsmdDrumLoopResolverTests: XCTestCase {
                     audio_duration_sec: nil,
                     note_count: nil,
                     key_fifths: nil,
-                    chords: nil,
-                    notes: nil
+                    notes: nil,
+                    chords: nil
                 )],
                 chord_quiz_items: nil,
                 phrase_pair_adlib: nil,
@@ -87,7 +87,8 @@ final class EarTrainingTutorialOsmdDrumLoopResolverTests: XCTestCase {
             hide_chord_names_in_battle: nil,
             quiz_required_correct_count: nil,
             show_keyboard_hints_in_battle: nil,
-            osmd_targets_from_score: nil
+            osmd_targets_from_score: nil,
+            is_swing: nil
         )
     }
 }

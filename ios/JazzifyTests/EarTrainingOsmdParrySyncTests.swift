@@ -4,7 +4,8 @@ import SpriteKit
 import XCTest
 @testable import Jazzify
 
-final class EarTrainingChordOsmdTimingTests: XCTestCase {
+@MainActor
+final class EarTrainingOsmdParrySyncTests: XCTestCase {
     func testHammerLeadSecUsesMeasuresAndBeats() {
         let sec = EarTrainingChordOsmdTiming.hammerLeadSec(bpm: 120, beatsPerMeasure: 4, leadMeasures: 2)
         XCTAssertEqual(sec, 4.0, accuracy: 1e-9)
@@ -135,6 +136,7 @@ final class EarTrainingBattleOsuCircleTimingTests: XCTestCase {
     }
 }
 
+@MainActor
 final class EarTrainingBattleOsuCirclePoolTests: XCTestCase {
     func testDismissImmediatelyDeactivatesSlot() {
         let parent = SKNode()

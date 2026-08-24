@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MidiDeviceSelector, AudioDeviceSelector } from '../ui/MidiDeviceManager';
+import { InputMethodSelector } from '@/components/ui/InputMethodSelector';
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
@@ -212,105 +212,12 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
             </div>
           ) : null}
 
-          {/* 入力方式選択 */}
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">
-              {isEnglishCopy ? 'Input Method' : '入力方式'}
-            </label>
-            <p className="text-xs text-gray-400 mb-3">
-              {isEnglishCopy ? 'Choose MIDI (keyboard) or voice input (microphone).' : 'MIDI（キーボード）または音声入力（マイク）を選択できます。'}
-            </p>
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => updateSettings({ inputMethod: 'midi' })}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  settings.inputMethod === 'midi'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                🎹 MIDI
-              </button>
-              <button
-                type="button"
-                onClick={() => updateSettings({ inputMethod: 'voice' })}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  settings.inputMethod === 'voice'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                🎤 {isEnglishCopy ? 'Voice' : '音声'}
-              </button>
-            </div>
-
-            {settings.inputMethod === 'midi' && (
-              <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-blue-200 mb-2">🎹 {isEnglishCopy ? 'MIDI Device' : 'MIDIデバイス'}</h4>
-                <MidiDeviceSelector
-                  value={midiDeviceId}
-                  onChange={handleMidiDeviceChange}
-                  className="w-full"
-                />
-                <div className="mt-1 text-xs text-gray-400">
-                  {isMidiConnected ? (isEnglishCopy ? '✅ Connected' : '✅ 接続済み') : (isEnglishCopy ? '❌ Not connected' : '❌ 未接続')}
-                </div>
-              </div>
-            )}
-
-            {settings.inputMethod === 'voice' && (
-              <div className="bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-purple-200 mb-2">🎤 {isEnglishCopy ? 'Voice Input Settings' : '音声入力設定'}</h4>
-                <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2 mb-3">
-                  <p className="text-xs text-yellow-300">
-                    ⚠️ {isEnglishCopy
-                      ? 'Single-note detection only. Chord detection is inaccurate.'
-                      : '単音での読み取り専用です。和音の読み取りは不正確です。'}
-                  </p>
-                </div>
-                <div className="bg-orange-900 bg-opacity-30 border border-orange-600 border-opacity-40 rounded p-2 mb-3">
-                  <p className="text-xs text-orange-300">
-                    🎵 {isEnglishCopy
-                      ? 'This mode requires chord input. With voice input, you need to play notes one at a time. Simultaneous chord input is not possible.'
-                      : 'このモードはコード（和音）入力が中心のため、音声入力では一音ずつ順番に鳴らして認識させる必要があります。同時押しのような操作はできません。'}
-                  </p>
-                </div>
-                <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-3">
-                  <p className="text-xs text-purple-300">
-                    💡 {isEnglishCopy
-                      ? 'Voice input has latency. We recommend shifting note timing to + (later) in timing adjustment.'
-                      : '音声入力にはレイテンシがあるため、タイミング調整で+（遅く）方向にずらすことをおすすめします。'}
-                  </p>
-                </div>
-                <p className="text-xs text-gray-400 mb-3">
-                  {isEnglishCopy ? 'Detect pitch using a microphone. Works on iOS/Android.' : 'マイクを使用してピッチを検出します。iOS/Android対応。'}
-                </p>
-                <AudioDeviceSelector
-                  value={settings.selectedAudioDevice}
-                  onChange={(deviceId: string | null) => updateSettings({ selectedAudioDevice: deviceId })}
-                />
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-purple-200 mb-2">
-                    {isEnglishCopy ? 'Voice Recognition Sensitivity' : '音声認識の感度'}: {settings.voiceSensitivity}
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    step="1"
-                    value={settings.voiceSensitivity}
-                    onChange={(e) => updateSettings({ voiceSensitivity: parseInt(e.target.value) })}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>{isEnglishCopy ? 'Low (noise resistant)' : '低（ノイズ耐性）'}</span>
-                    <span>{isEnglishCopy ? 'High (sensitive)' : '高（高感度）'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <InputMethodSelector
+            midiDeviceId={midiDeviceId}
+            onMidiDeviceChange={handleMidiDeviceChange}
+            isMidiConnected={isMidiConnected}
+            showMonophonicWarning
+          />
 
           {/* ピアノ音量設定 */}
           <div>

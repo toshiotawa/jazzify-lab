@@ -1,6 +1,7 @@
 import XCTest
 @testable import Jazzify
 
+@MainActor
 final class EarTrainingChordOSMDBattleRhythmTargetsTests: XCTestCase {
     private let phraseId = UUID(uuidString: "10000000-0000-4000-8000-000000000001")!
     private let chordAId = UUID(uuidString: "20000000-0000-4000-8000-000000000001")!

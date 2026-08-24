@@ -82,13 +82,18 @@ enum EarTrainingPrecisionJudge {
         states: [String: NoteRuntimeState],
         midi: Int,
         phraseTimeSec: Double,
-        windowSec: Double
+        windowSec: Double,
+        ignoreOctave: Bool = false
     ) -> EarTrainingPrecisionNote? {
         let roundedMidi = midi
+        let inputPitchClass = ((roundedMidi % 12) + 12) % 12
         var best: EarTrainingPrecisionNote?
         var bestDelta = Double.greatestFiniteMagnitude
         for note in notes {
-            guard note.midi == roundedMidi else { continue }
+            let midiMatches = ignoreOctave
+                ? ((note.midi % 12) + 12) % 12 == inputPitchClass
+                : note.midi == roundedMidi
+            guard midiMatches else { continue }
             guard let state = states[note.id], state.judgment == .pending else { continue }
             let delta = abs(phraseTimeSec - note.startSec)
             guard delta <= windowSec, delta < bestDelta else { continue }

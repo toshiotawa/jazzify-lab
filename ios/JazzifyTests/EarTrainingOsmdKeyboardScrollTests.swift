@@ -144,7 +144,17 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
             mode: mode,
             keyFifths: 0,
             phrases: nil,
-            osmdTargetsFromScore: osmdTargetsFromScore
+            chordVoicingSelfPaced: nil,
+            quizDurationSeconds: nil,
+            quizQuestionOrder: nil,
+            quizShowNotationInBattle: nil,
+            hideChordNamesInBattle: nil,
+            quizRequiredCorrectCount: nil,
+            showKeyboardHintsInBattle: nil,
+            osmdTargetsFromScore: osmdTargetsFromScore,
+            chordQuizItems: nil,
+            chordVoicingCompositePhrase: nil,
+            compositePhraseBootstrap: nil
         )
     }
 }

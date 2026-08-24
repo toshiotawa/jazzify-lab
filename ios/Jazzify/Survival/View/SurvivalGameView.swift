@@ -249,7 +249,7 @@ struct SurvivalGameView: View {
         recordAssignmentStartIfNeeded()
 
         midiSubscriptionHolder.cancel()
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak created] status, data1, data2 in
+        midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribe { [weak created] status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)
@@ -1018,7 +1018,9 @@ private struct SurvivalCodeRunSettingsSheet: View {
                     )
                     .padding(12)
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                    midiSettingsSection
+                    InputMethodSection(isEnglishCopy: locale == .en)
+                        .padding(12)
+                        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     Button(locale == .ja ? "閉じる" : "Close", action: onClose)
                         .frame(maxWidth: .infinity)
                 }
@@ -1967,7 +1969,7 @@ private struct SurvivalCodeRunGameContent: View {
             }
         }
         midiSubscriptionHolder.cancel()
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { status, data1, data2 in
+        midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribe { status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)

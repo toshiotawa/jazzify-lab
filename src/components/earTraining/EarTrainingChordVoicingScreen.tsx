@@ -29,8 +29,8 @@ import { createEarTrainingChordVoicingStaffBand } from '@/game/earTraining/canva
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
+import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
 import {
-  MIDIController,
   markAudioUserInteraction,
   playNote,
   stopNote,
@@ -359,7 +359,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
-  const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
   const phaserContainerRef = useRef<HTMLDivElement | null>(null);
   const staffOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -1979,45 +1978,17 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     handleNoteInputRef.current = handleNoteInput;
   }, [handleNoteInput]);
 
+  const { isConnected: isStandaloneInputConnected } = useStandaloneNoteInput({
+    onNoteOn: (note) => handleNoteInputRef.current(note),
+    onKeyHighlight: (note, active) => pianoOverlayRef.current?.highlightKey(note, active),
+  });
+
   useEffect(() => {
-    if (!midiControllerRef.current) {
-      midiControllerRef.current = new MIDIController({
-        onNoteOn: (note) => handleNoteInputRef.current(note),
-        onNoteOff: () => undefined,
-        onConnectionChange: connected => setIsMidiConnected(connected),
-        playMidiSound: true,
-      });
-    }
-    const controller = midiControllerRef.current;
-    controller.setKeyHighlightCallback((note, active) => {
-      pianoOverlayRef.current?.highlightKey(note, active);
-    });
-    void ensureBattlePianoAudio({
-      midiVolume: settings.midiVolume,
-      soundEffectVolume: settings.soundEffectVolume,
-      rootSoundVolume: settings.rootSoundVolume,
-    }).then(() => controller.initialize()).then(async () => {
-      if (settings.selectedMidiDevice) {
-        const connected = await controller.connectDevice(settings.selectedMidiDevice);
-        setIsMidiConnected(connected);
-      }
-    }).catch(() => setIsMidiConnected(false));
-    return () => {
-      void controller.destroy();
-      midiControllerRef.current = null;
-    };
-  }, [settings.selectedMidiDevice]);
+    setIsMidiConnected(isStandaloneInputConnected);
+  }, [isStandaloneInputConnected]);
 
   const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
     updateSettings({ selectedMidiDevice: deviceId });
-    if (!deviceId) {
-      midiControllerRef.current?.disconnect();
-      setIsMidiConnected(false);
-      return;
-    }
-    void midiControllerRef.current?.connectDevice(deviceId).then(connected => {
-      setIsMidiConnected(Boolean(connected));
-    });
   }, [updateSettings]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {

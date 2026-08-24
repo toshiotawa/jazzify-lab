@@ -57,13 +57,14 @@ final class SurvivalTutorialV3ScenarioTests: XCTestCase {
         XCTAssertFalse(SurvivalTutorialV3Scenario.isNextSceneFinish(script: script, sceneIndex: 99))
     }
 
+    @MainActor
     func testDemoPlayEmptyKeyboardHintsDoNotFallbackToOnboardingDm7() {
         let overrides = SurvivalTutorialV3Scenario.demoPlayReveal(base: SurvivalScenarioOverrides())
         let loop = SurvivalGameLoop(
             stage: OnboardingChords.stageDefinition,
+            hintMode: true,
             profile: .defaultFai,
             config: OnboardingChords.stageConfig,
-            hintMode: true,
             scenarioOverrides: overrides
         )
         XCTAssertTrue(loop.currentHintHighlightMidis().isEmpty)

@@ -1359,6 +1359,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       midiNote,
       phraseTime,
       windowSec,
+      settings.allowOctaveError,
     );
     if (!matched) {
       return;

@@ -43,7 +43,7 @@ final class SurvivalCodeRunRandomChordsTests: XCTestCase {
             rootPatternJa: "CDE",
             rootPatternEn: "CDE",
             allowedChords: ["C", "D", "E"],
-            blockKey: .major,
+            blockKey: "major",
             isMixedStage: false,
             chordProgression: nil,
             lessonOnly: false,
@@ -54,7 +54,7 @@ final class SurvivalCodeRunRandomChordsTests: XCTestCase {
             playMode: .codeRun,
             runMapId: "snow_run_01"
         )
-        XCTAssertEqual(stage.stageType, .random)
+        XCTAssertEqual(stage.stageType, SurvivalStageType.random)
         XCTAssertFalse(stage.allowedChords.isEmpty)
         XCTAssertTrue(stage.chordProgression == nil || stage.chordProgression?.isEmpty == true)
     }

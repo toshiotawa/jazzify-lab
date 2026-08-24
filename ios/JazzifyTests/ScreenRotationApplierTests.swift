@@ -1,6 +1,7 @@
 import XCTest
 @testable import Jazzify
 
+@MainActor
 final class ScreenRotationApplierTests: XCTestCase {
     func testRotatedSwapsTopBottomAndLeftRight() {
         let base = UIEdgeInsets(top: 59, left: 0, bottom: 34, right: 0)

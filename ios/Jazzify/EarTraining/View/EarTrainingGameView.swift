@@ -5,7 +5,7 @@ import UIKit
 /// 耳コピバトル ゲーム画面 (ネイティブ版) のルートビュー。
 /// - SpriteKit シーン上に SwiftUI で HUD / ピアノ / ロビー / 結果 / 設定モーダルを重ねる。
 /// - `onAppear` で Supabase からステージ詳細を取得し、`EarTrainingBattleController` を生成する。
-/// - MIDI 入力は `MIDIManager.shared.subscribe` で購読する。
+/// - MIDI 入力は `NoteInputManager.shared.subscribe` で購読する。
 struct EarTrainingGameView: View {
     let stageId: UUID
     let lessonContext: EarTrainingLessonContext?
@@ -215,7 +215,7 @@ struct EarTrainingGameView: View {
             createdController.start()
 
             midiSubscriptionHolder.cancel()
-            midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak createdController] status, data1, data2 in
+            midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribe { [weak createdController] status, data1, data2 in
                 let messageType = status & 0xF0
                 let note = Int(data1)
                 let velocity = Int(data2)

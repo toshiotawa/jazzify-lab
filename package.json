@@ -40,7 +40,8 @@
     "verify:node": "node ./scripts/ensure-node.mjs",
     "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs",
     "growth:snapshot": "node growth/snapshot.mjs",
-    "growth:links": "node growth/print-acquisition-links.mjs"
+    "growth:links": "node growth/print-acquisition-links.mjs",
+    "postinstall": "node ./scripts/copy-ort-wasm.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",
@@ -62,6 +63,7 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^0.525.0",
     "marked": "^16.0.0",
+    "onnxruntime-web": "^1.20.0",
     "opensheetmusicdisplay": "^1.9.0",
     "phaser": "^4.1.0",
     "react": "^18.2.0",

@@ -30,7 +30,7 @@ final class SurvivalLessonRandomChordsTests: XCTestCase {
         let applied = SurvivalLessonRandomChords.applyLessonRandomChords(
             stageAllowedChordIds: ["CM7", "Dm7"],
             entries: entries,
-            stageType: .random
+            stageType: SurvivalStageType.random
         )
         XCTAssertEqual(applied.allowedChordIds, ["F4"])
         XCTAssertEqual(applied.overrides["F4"]?.midiNotes, [65])
@@ -71,7 +71,7 @@ final class SurvivalLessonRandomChordsTests: XCTestCase {
         let applied = SurvivalLessonRandomChords.applyLessonRandomChords(
             stageAllowedChordIds: ["CM7"],
             entries: entries,
-            stageType: .progression
+            stageType: SurvivalStageType.progression
         )
         XCTAssertEqual(applied.allowedChordIds, ["CM7"])
         XCTAssertTrue(applied.overrides.isEmpty)

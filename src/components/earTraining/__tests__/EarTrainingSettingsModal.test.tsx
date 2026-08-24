@@ -14,8 +14,8 @@ vi.mock('@/stores/gameStore', () => ({
   }),
 }));
 
-vi.mock('@/components/ui/MidiDeviceManager', () => ({
-  MidiDeviceSelector: () => <div data-testid="midi-selector" />,
+vi.mock('@/components/ui/InputMethodSelector', () => ({
+  InputMethodSelector: () => <div data-testid="input-method-selector" />,
 }));
 
 describe('EarTrainingSettingsModal tutorial scope', () => {
@@ -45,6 +45,6 @@ describe('EarTrainingSettingsModal tutorial scope', () => {
     expect(screen.queryByText('練習 / 本番')).not.toBeInTheDocument();
     expect(screen.queryByText('速度変更')).not.toBeInTheDocument();
     expect(screen.getByText('最初からやり直す')).toBeInTheDocument();
-    expect(screen.getByTestId('midi-selector')).toBeInTheDocument();
+    expect(screen.getByTestId('input-method-selector')).toBeInTheDocument();
   });
 });

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
-import { MidiDeviceSelector, AudioDeviceSelector } from '../ui/MidiDeviceManager';
+import { InputMethodSelector } from '@/components/ui/InputMethodSelector';
 import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useGameStore } from '@/stores/gameStore';
@@ -201,119 +201,12 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
         </div>
 
         <div className="space-y-4">
-          {/* 入力方式選択 */}
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">
-              {en ? 'Input method' : '入力方式'}
-            </label>
-            <p className="text-xs text-gray-400 mb-3">
-              {en
-                ? 'Choose MIDI (keyboard) or voice input (microphone).'
-                : 'MIDI（キーボード）または音声入力（マイク）を選択できます。'}
-            </p>
-            <div className="flex gap-2 mb-3">
-              <button
-                type="button"
-                onClick={() => updateGameSettings({ inputMethod: 'midi' })}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  gameSettings.inputMethod === 'midi'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                🎹 MIDI
-              </button>
-              <button
-                type="button"
-                onClick={() => updateGameSettings({ inputMethod: 'voice' })}
-                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  gameSettings.inputMethod === 'voice'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                {en ? '🎤 Voice' : '🎤 音声'}
-              </button>
-            </div>
-
-            {gameSettings.inputMethod === 'midi' && (
-              <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-blue-200 mb-2">
-                  {en ? '🎹 MIDI device' : '🎹 MIDIデバイス'}
-                </h4>
-                <MidiDeviceSelector
-                  value={settings.midiDeviceId}
-                  onChange={handleMidiDeviceChange}
-                  className="w-full"
-                />
-                <div className="mt-1 text-xs text-gray-400">
-                  {isMidiConnected
-                    ? en
-                      ? '✅ Connected'
-                      : '✅ 接続済み'
-                    : en
-                      ? '❌ Not connected'
-                      : '❌ 未接続'}
-                </div>
-              </div>
-            )}
-
-            {gameSettings.inputMethod === 'voice' && (
-              <div className="bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-purple-200 mb-2">
-                  {en ? '🎤 Voice input' : '🎤 音声入力設定'}
-                </h4>
-                <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2 mb-3">
-                  <p className="text-xs text-yellow-300">
-                    {en
-                      ? '⚠️ Monophonic input only. Chord detection is unreliable.'
-                      : '⚠️ 単音での読み取り専用です。和音の読み取りは不正確です。'}
-                  </p>
-                </div>
-                <div className="bg-orange-900 bg-opacity-30 border border-orange-600 border-opacity-40 rounded p-2 mb-3">
-                  <p className="text-xs text-orange-300">
-                    {en
-                      ? '🎵 This mode focuses on chord input; with voice you must play one note at a time in order. Simultaneous notes are not supported.'
-                      : '🎵 このモードはコード（和音）入力が中心のため、音声入力では一音ずつ順番に鳴らして認識させる必要があります。同時押しのような操作はできません。'}
-                  </p>
-                </div>
-                <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-3">
-                  <p className="text-xs text-purple-300">
-                    {en
-                      ? '💡 Voice input has latency; try shifting timing toward + (later).'
-                      : '💡 音声入力にはレイテンシがあるため、タイミング調整で+（遅く）方向にずらすことをおすすめします。'}
-                  </p>
-                </div>
-                <p className="text-xs text-gray-400 mb-3">
-                  {en
-                    ? 'Detect pitch using a microphone. Works on iOS/Android.'
-                    : 'マイクを使用してピッチを検出します。iOS/Android対応。'}
-                </p>
-                <AudioDeviceSelector
-                  value={gameSettings.selectedAudioDevice}
-                  onChange={(deviceId: string | null) => updateGameSettings({ selectedAudioDevice: deviceId })}
-                />
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-purple-200 mb-2">
-                    {en ? 'Voice sensitivity' : '音声認識の感度'}: {gameSettings.voiceSensitivity}
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    step="1"
-                    value={gameSettings.voiceSensitivity}
-                    onChange={(e) => updateGameSettings({ voiceSensitivity: parseInt(e.target.value) })}
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>{en ? 'Low (noise resistant)' : '低（ノイズ耐性）'}</span>
-                    <span>{en ? 'High (sensitive)' : '高（高感度）'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <InputMethodSelector
+            midiDeviceId={settings.midiDeviceId}
+            onMidiDeviceChange={handleMidiDeviceChange}
+            isMidiConnected={isMidiConnected}
+            showMonophonicWarning
+          />
 
           {/* ピアノ音量設定 */}
           <div>

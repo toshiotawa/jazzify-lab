@@ -394,15 +394,15 @@ final class OsmdScorePdfExporter: NSObject {
               export: async function (payload) {
                 try {
                   const base64 = await exportScorePdf(payload);
-                  window.webkit.messageHandlers.\(Self.scriptMessageName).postMessage({ ok: true, base64: base64 });
+                  window.webkit.messageHandlers.osmdScorePdfExport.postMessage({ ok: true, base64: base64 });
                 } catch (error) {
                   const message = error && error.message ? String(error.message) : String(error);
-                  window.webkit.messageHandlers.\(Self.scriptMessageName).postMessage({ ok: false, error: message });
+                  window.webkit.messageHandlers.osmdScorePdfExport.postMessage({ ok: false, error: message });
                 }
               }
             };
 
-            window.webkit.messageHandlers.\(Self.scriptMessageName).postMessage({ ok: true, ready: true });
+            window.webkit.messageHandlers.osmdScorePdfExport.postMessage({ ok: true, ready: true });
           })();
         </script>
       </body>

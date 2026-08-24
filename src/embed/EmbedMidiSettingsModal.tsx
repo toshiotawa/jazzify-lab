@@ -1,5 +1,5 @@
 import React from 'react';
-import { LpMidiDeviceSelector } from '@/components/landing/LpMidiDeviceSelector';
+import { InputMethodSelector } from '@/components/ui/InputMethodSelector';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
@@ -30,12 +30,12 @@ export const EmbedMidiSettingsModal: React.FC<EmbedMidiSettingsModalProps> = ({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <h2 id="embed-midi-settings-title" className="text-lg font-bold text-white">
-              {isEnglish ? 'MIDI Settings' : 'MIDI設定'}
+              {isEnglish ? 'Input Settings' : '入力設定'}
             </h2>
             <p className="mt-1 text-xs text-white/60">
               {isEnglish
-                ? 'Connect a MIDI keyboard to play with physical keys.'
-                : 'MIDIキーボードを接続すると物理鍵盤で演奏できます。'}
+                ? 'Connect a MIDI keyboard or use voice input to play.'
+                : 'MIDIキーボードまたは音声入力で演奏できます。'}
             </p>
           </div>
           <button
@@ -47,24 +47,17 @@ export const EmbedMidiSettingsModal: React.FC<EmbedMidiSettingsModalProps> = ({
           </button>
         </div>
 
-        <LpMidiDeviceSelector
-          value={settings.selectedMidiDevice}
-          onChange={(id) => updateSettings({ selectedMidiDevice: id })}
+        <InputMethodSelector
+          midiDeviceId={settings.selectedMidiDevice}
+          onMidiDeviceChange={(id) => updateSettings({ selectedMidiDevice: id })}
+          isMidiConnected={isMidiConnected}
+          showMonophonicWarning
         />
-
-        <div className="mt-4 text-xs text-white/70">
-          {isEnglish ? 'Connection status: ' : '接続状態: '}
-          <span className={isMidiConnected ? 'text-green-400' : 'text-gray-400'}>
-            {isMidiConnected
-              ? (isEnglish ? 'Connected' : '接続済み')
-              : (isEnglish ? 'Not connected' : '未接続')}
-          </span>
-        </div>
 
         <p className="mt-3 text-xs text-white/50">
           {isEnglish
-            ? 'You can also play using the on-screen keyboard without MIDI.'
-            : 'MIDIがなくても画面鍵盤でプレイできます。'}
+            ? 'You can also play using the on-screen keyboard without MIDI or voice input.'
+            : 'MIDI・音声入力がなくても画面鍵盤でプレイできます。'}
         </p>
       </div>
     </div>

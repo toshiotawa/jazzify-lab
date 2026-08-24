@@ -237,7 +237,8 @@ struct SurvivalPauseSettingsSheet: View {
 
                 staffSizeSection
 
-                midiSection
+                InputMethodSection(isEnglishCopy: isEnglishCopy)
+                    .padding(.horizontal, 18)
 
                 if let stageRunMode, !isDemo {
                     stageRunModeSection(stageRunMode)

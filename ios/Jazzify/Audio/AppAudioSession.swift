@@ -24,8 +24,22 @@ final class AppAudioSession {
     private var routeChangeObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
     private var hasStarted = false
+    private var recordingEnabled = false
 
     private init() {}
+
+    /// マイク入力（PESTO）使用中は `.playAndRecord`、それ以外は `.playback`。
+    func setRecordingEnabled(_ enabled: Bool) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.setRecordingEnabled(enabled) }
+            return
+        }
+        guard recordingEnabled != enabled else { return }
+        recordingEnabled = enabled
+        _ = configure(force: true)
+    }
+
+    var isRecordingEnabled: Bool { recordingEnabled }
 
     /// AppDelegate から 1 回だけ呼ぶ。初期構成 + ライフサイクル監視を開始する。
     func start() {
@@ -52,8 +66,17 @@ final class AppAudioSession {
         let targetBuffer = preferredIOBufferDuration
         let currentSampleRate = session.sampleRate
 
-        let categoryMatches = session.category == .playback
-        let optionsMatch = session.categoryOptions.contains(.mixWithOthers)
+        let targetCategory: AVAudioSession.Category = recordingEnabled ? .playAndRecord : .playback
+        var targetOptions: AVAudioSession.CategoryOptions = [.mixWithOthers]
+        if recordingEnabled {
+            targetOptions.insert(.defaultToSpeaker)
+            // .allowBluetooth は HFP を有効にして出力まで 16kHz モノラルに落ちるため使わない。
+            // A2DP のみ許可して再生音質を維持する。
+            targetOptions.insert(.allowBluetoothA2DP)
+        }
+
+        let categoryMatches = session.category == targetCategory
+        let optionsMatch = session.categoryOptions == targetOptions
         let modeMatches = session.mode == .default
         let bufferMatches = lastAppliedIOBufferDuration == targetBuffer
         let sampleRateMatches = lastAppliedSampleRate != nil
@@ -67,7 +90,7 @@ final class AppAudioSession {
         let previousBuffer = lastAppliedIOBufferDuration
         let previousSampleRate = lastAppliedSampleRate
 
-        try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        try? session.setCategory(targetCategory, mode: .default, options: targetOptions)
         // 44.1 kHz 固定は画面録画 (48 kHz) 時のリサンプル負荷でアンダーランを起こしやすい。
         // ハードウェア優先レート (多くの端末は 48 kHz) に追従させる。
         // 非録画時は 20ms で鍵盤 / 正解ルート / デモプレイの低レイテンシを維持する。

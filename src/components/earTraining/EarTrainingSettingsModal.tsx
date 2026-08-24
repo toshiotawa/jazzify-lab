@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { InputMethodSelector } from '@/components/ui/InputMethodSelector';
 import { useGameStore } from '@/stores/gameStore';
 import { getEarTrainingSettingsModalCopy } from '@/utils/earTrainingUiCopy';
 import {
@@ -234,14 +234,12 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
 
           <section className="rounded-xl border border-blue-700/40 bg-blue-950/30 p-4">
             <h3 className="mb-2 text-sm font-semibold text-blue-100">{ui.midiHeading}</h3>
-            <MidiDeviceSelector
-              value={midiDeviceId}
-              onChange={onMidiDeviceChange}
-              className="w-full"
+            <InputMethodSelector
+              midiDeviceId={midiDeviceId}
+              onMidiDeviceChange={onMidiDeviceChange}
+              isMidiConnected={isMidiConnected}
+              showMonophonicWarning
             />
-            <p className="mt-2 text-xs text-slate-300">
-              {isMidiConnected ? ui.midiConnected : ui.midiDisconnected}
-            </p>
           </section>
 
           <section className="space-y-4 rounded-xl border border-slate-700 bg-slate-800/60 p-4">

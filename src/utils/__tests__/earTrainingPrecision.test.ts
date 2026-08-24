@@ -195,6 +195,15 @@ describe('earTrainingPrecisionNotes', () => {
 });
 
 describe('earTrainingPrecisionJudge', () => {
+  it('allowOctaveError で pitch class 一致を許容する', () => {
+    const notes = [
+      { id: 'a', midi: 72, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    expect(findPrecisionNoteForInput(notes, states, 60, 1, 0.25, false)).toBeNull();
+    expect(findPrecisionNoteForInput(notes, states, 60, 1, 0.25, true)?.id).toBe('a');
+  });
+
   it('±250ms 内の最も近い未判定ノーツを good にする', () => {
     const notes = [
       { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },

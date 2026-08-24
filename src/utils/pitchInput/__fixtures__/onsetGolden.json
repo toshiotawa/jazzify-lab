@@ -1,0 +1,40 @@
+{
+  "config": {
+    "onsetLevelDb": -35,
+    "releaseLevelDb": -45,
+    "minConfidence": 0.5,
+    "pitchStableFrames": 2,
+    "releaseFrames": 3,
+    "minNoteFrames": 4,
+    "attackRiseDb": 6,
+    "retriggerGuardFrames": 5,
+    "centsTolerance": 40
+  },
+  "frames": [
+    { "prediction": 0, "confidence": 0, "volume": 1e-8 },
+    { "prediction": 60, "confidence": 0.9, "volume": 0.01 },
+    { "prediction": 60.1, "confidence": 0.92, "volume": 0.012 },
+    { "prediction": 60, "confidence": 0.91, "volume": 0.011 },
+    { "prediction": 60, "confidence": 0.9, "volume": 0.01 },
+    { "prediction": 60, "confidence": 0.88, "volume": 0.005 },
+    { "prediction": 60, "confidence": 0.85, "volume": 0.002 },
+    { "prediction": 60, "confidence": 0.3, "volume": 0.0001 },
+    { "prediction": 60, "confidence": 0.1, "volume": 1e-8 },
+    { "prediction": 60, "confidence": 0.1, "volume": 1e-8 },
+    { "prediction": 64, "confidence": 0.9, "volume": 0.015 },
+    { "prediction": 64.05, "confidence": 0.91, "volume": 0.016 },
+    { "prediction": 64, "confidence": 0.9, "volume": 0.014 },
+    { "prediction": 64, "confidence": 0.9, "volume": 0.013 },
+    { "prediction": 64, "confidence": 0.88, "volume": 0.004 },
+    { "prediction": 64, "confidence": 0.85, "volume": 0.002 },
+    { "prediction": 64, "confidence": 0.2, "volume": 1e-8 },
+    { "prediction": 64, "confidence": 0.1, "volume": 1e-8 },
+    { "prediction": 64, "confidence": 0.1, "volume": 1e-8 }
+  ],
+  "expectedEvents": [
+    { "type": "noteOn", "note": 60, "frameIndex": 2 },
+    { "type": "noteOff", "note": 60, "frameIndex": 9 },
+    { "type": "noteOn", "note": 64, "frameIndex": 11 },
+    { "type": "noteOff", "note": 64, "frameIndex": 18 }
+  ]
+}

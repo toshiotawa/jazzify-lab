@@ -140,7 +140,7 @@ export default defineConfig(({ mode }) => {
         '@soundtouchjs/core',
         '@soundtouchjs/audio-worklet'
       ],
-      exclude: ['@/wasm'],
+      exclude: ['onnxruntime-web'],
       esbuildOptions: {
         target: 'es2020'
       },

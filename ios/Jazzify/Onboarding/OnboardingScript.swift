@@ -437,11 +437,13 @@ final class OnboardingScript: ObservableObject {
         return o
     }
 
+    @MainActor
     private func waitForMidiNoteOrTimeout(seconds: TimeInterval) async -> Bool {
         await withCheckedContinuation { continuation in
             let once = ResumeOnce(continuation)
             var sub: MIDISubscription?
-            sub = MIDIManager.shared.subscribe { status, _, vel in
+            // MIDI / マイクどちらを選んでいてもゲートを通過できるよう統合入力を購読する
+            sub = NoteInputManager.shared.subscribe { status, _, vel in
                 let t = status & 0xF0
                 if t == 0x90 && vel > 0, once.resume(returning: true) {
                     sub?.cancel()

@@ -232,7 +232,7 @@ import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
-import { VoiceInputController } from '@/utils/VoiceInputController';
+import { PitchInputController } from '@/utils/PitchInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -1169,7 +1169,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // MIDI/ピアノ関連
   const midiControllerRef = useRef<MIDIController | null>(null);
-  const voiceControllerRef = useRef<VoiceInputController | null>(null);
+  const voiceControllerRef = useRef<PitchInputController | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
@@ -1585,7 +1585,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, [survivalMidi]);
 
   // 音声入力初期化（レジェンドモードと同様）
+  // survivalMidi があるときは useNoteInputSession 側が PitchInputController を持つ。
+  // ここで二重に作るとマイクストリームと 17MB の ONNX セッションが 2 つ立ち上がる。
   useEffect(() => {
+    if (survivalMidi) return;
     if (settings.inputMethod !== 'voice') {
       if (voiceControllerRef.current) {
         void voiceControllerRef.current.disconnect();
@@ -1598,12 +1601,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
       return;
     }
-    if (!VoiceInputController.isSupported()) return;
+    if (!PitchInputController.isSupported()) return;
 
     const initVoiceInput = async () => {
       try {
         if (!voiceControllerRef.current) {
-          voiceControllerRef.current = new VoiceInputController({
+          voiceControllerRef.current = new PitchInputController({
             onNoteOn: (note: number) => {
               if (handleNoteInputRef.current) {
                 handleNoteInputRef.current(note);
@@ -1633,7 +1636,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     };
     void initVoiceInput();
-  }, [settings.inputMethod, settings.selectedAudioDevice]);
+  }, [settings.inputMethod, settings.selectedAudioDevice, survivalMidi]);
 
   // 音声認識感度の反映
   useEffect(() => {

@@ -6,8 +6,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useImperativeHandle, forwardRef, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
-import { VoiceInputController } from '@/utils/VoiceInputController';
+import { playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
+import { useGameMidiSession } from '@/hooks/useGameMidiSession';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
@@ -239,9 +239,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
-  const midiControllerRef = useRef<MIDIController | null>(null);
-  const voiceControllerRef = useRef<VoiceInputController | null>(null);
-  const [isMidiConnected, setIsMidiConnected] = useState(false);
+  const fantasyMidi = useGameMidiSession('battle');
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -309,184 +307,38 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
   // 🚀 パフォーマンス最適化: playNote を直接参照（動的インポート不要）
   const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(playNote);
   
-  // MIDIControllerの初期化と管理
+  // オーディオ初期化と入力セッション
   useEffect(() => {
-    // MIDIControllerのインスタンスを作成（一度だけ）
-    if (!midiControllerRef.current) {
-      const controller = new MIDIController({
-        onNoteOn: (note: number, _velocity?: number) => {
-          if (handleNoteInputRef.current) {
-            handleNoteInputRef.current(note, 'midi'); // MIDI経由として指定
-          }
-        },
-        onNoteOff: (_note: number) => {
-          // Note off - no action needed
-        },
-        playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
-      });
-      
-      controller.setConnectionChangeCallback((connected: boolean) => {
-        setIsMidiConnected(connected);
-      });
-      
-      midiControllerRef.current = controller;
-      
-      const initPromise = (async () => {
-        try {
-          // 1. ゲーム開始に必須な初期化のみブロッキング（オーディオ + GM音源）
-          await Promise.all([
-            initializeAudioSystem().then(() => {
-              updateGlobalVolume(settings.midiVolume ?? 0.8);
-            }),
-            FantasySoundManager.waitForGMReady()
-          ]);
-          setIsInitialized(true);
-
-          // 2. SE/MIDI 等の残り初期化はバックグラウンド（ゲーム開始をブロックしない）
-          FantasySoundManager.init(
-            settings.soundEffectVolume ?? 0.8,
-            settings.rootSoundVolume ?? 0.5,
-            stage?.playRootOnCorrect !== false
-          ).then(() => {
-            FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
-          }).catch(() => {});
-          controller.initialize().catch(() => {});
-        } catch (error) {
-          console.error('Audio system initialization failed:', error);
-          setIsInitialized(true);
-        }
-      })();
-      
-      initPromiseRef.current = initPromise;
-    }
-    
-    // クリーンアップ
-    return () => {
-      if (midiControllerRef.current) {
-        midiControllerRef.current.destroy();
-        midiControllerRef.current = null;
-      }
-    };
-  }, []); // 空の依存配列で一度だけ実行
-  
-  // ★★★ 修正箇所 ★★★
-  // gameStoreのデバイスIDを監視して接続/切断
-  useEffect(() => {
-    const connect = async () => {
-      const deviceId = settings.selectedMidiDevice;
-      if (midiControllerRef.current && deviceId) {
-        await midiControllerRef.current.connectDevice(deviceId);
-      } else if (midiControllerRef.current && !deviceId) {
-        midiControllerRef.current.disconnect();
-      }
-    };
-    connect();
-  }, [settings.selectedMidiDevice]);
-
-  // ステージ変更時にMIDI接続を確認・復元
-  useEffect(() => {
-    const restoreMidiConnection = async () => {
-      if (midiControllerRef.current && midiControllerRef.current.getCurrentDeviceId()) {
-        await midiControllerRef.current.checkAndRestoreConnection();
-      }
-    };
-
-    // コンポーネントが表示されたときに接続復元を試みる
-    const timer = setTimeout(restoreMidiConnection, 100);
-    return () => clearTimeout(timer);
-  }, [stage]); // stageが変更されたときに実行
-
-  // 音声入力初期化（レジェンドモードと同様）
-  useEffect(() => {
-    if (settings.inputMethod !== 'voice') {
-      if (voiceControllerRef.current) {
-        void voiceControllerRef.current.disconnect();
-      }
+    if (initPromiseRef.current) {
       return;
     }
-    if (!settings.selectedAudioDevice) {
-      if (voiceControllerRef.current) {
-        void voiceControllerRef.current.disconnect();
-      }
-      return;
-    }
-    if (!VoiceInputController.isSupported()) return;
 
-    const initVoiceInput = async () => {
+    const initPromise = (async () => {
       try {
-        if (!voiceControllerRef.current) {
-          voiceControllerRef.current = new VoiceInputController({
-            onNoteOn: (note: number) => {
-              if (handleNoteInputRef.current) {
-                handleNoteInputRef.current(note, 'midi');
-              }
-              pixiRendererRef.current?.highlightKey(note, true);
-              setTimeout(() => {
-                pixiRendererRef.current?.highlightKey(note, false);
-              }, 150);
-            },
-            onNoteOff: (note: number) => {
-              pixiRendererRef.current?.highlightKey(note, false);
-            },
-            onConnectionChange: () => {},
-            onError: () => {}
-          });
-          voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
-        }
-        if (settings.selectedAudioDevice) {
-          const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
-          await voiceControllerRef.current.connect(deviceId);
-        }
-      } catch {
-        // エラー時はタッチ入力で続行可能
-      }
-    };
-    void initVoiceInput();
-  }, [settings.inputMethod, settings.selectedAudioDevice]);
+        await Promise.all([
+          initializeAudioSystem().then(() => {
+            updateGlobalVolume(settings.midiVolume ?? 0.8);
+          }),
+          FantasySoundManager.waitForGMReady(),
+        ]);
+        setIsInitialized(true);
 
-  // 音声認識感度の反映
-  useEffect(() => {
-    if (voiceControllerRef.current) {
-      voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
-    }
-  }, [settings.voiceSensitivity]);
-
-  // 音声入力コントローラーのクリーンアップ
-  useEffect(() => {
-    return () => {
-      if (voiceControllerRef.current) {
-        voiceControllerRef.current.destroy();
-        voiceControllerRef.current = null;
+        FantasySoundManager.init(
+          settings.soundEffectVolume ?? 0.8,
+          settings.rootSoundVolume ?? 0.5,
+          stage?.playRootOnCorrect !== false,
+        ).then(() => {
+          FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+        }).catch(() => {});
+      } catch (error) {
+        console.error('Audio system initialization failed:', error);
+        setIsInitialized(true);
       }
-    };
+    })();
+
+    initPromiseRef.current = initPromise;
   }, []);
 
-  // 入力方式切り替え時のMIDI/Voice切り替え処理
-  useEffect(() => {
-    if (settings.inputMethod === 'midi') {
-      if (voiceControllerRef.current) {
-        void voiceControllerRef.current.disconnect();
-      }
-      if (midiControllerRef.current && settings.selectedMidiDevice) {
-        void midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
-      }
-    } else if (settings.inputMethod === 'voice') {
-      if (midiControllerRef.current) {
-        midiControllerRef.current.disconnect();
-      }
-    }
-    // iOS: 入力方式切り替え後にBGM音量が低下する問題への対策
-    // AudioContext操作後に短い遅延を置いてBGM音量を再適用する
-    const currentBgmVolume = settings.bgmVolume ?? 0.7;
-    const timer = setTimeout(() => {
-      if (bgmManager.getIsPlaying()) {
-        bgmManager.setVolume(currentBgmVolume);
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [settings.inputMethod, settings.selectedMidiDevice, settings.bgmVolume]);
-
-  // 🚀 パフォーマンス最適化: ステージ設定に応じてルート音を有効/無効にする（動的インポート不要）
   useEffect(() => {
     // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
     FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
@@ -1253,6 +1105,45 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
   useEffect(() => {
     pixiRendererRef.current = pixiRenderer;
   }, [pixiRenderer]);
+
+  useEffect(() => {
+    return fantasyMidi.registerNoteHandler((note) => {
+      if (handleNoteInputRef.current) {
+        handleNoteInputRef.current(note, 'midi');
+      }
+    });
+  }, [fantasyMidi]);
+
+  useEffect(() => {
+    return fantasyMidi.registerKeyHighlightTarget(() => pixiRendererRef.current);
+  }, [fantasyMidi]);
+
+  useEffect(() => {
+    const controller = fantasyMidi.getMidiController();
+    const restoreMidiConnection = async () => {
+      if (controller?.getCurrentDeviceId()) {
+        await controller.checkAndRestoreConnection();
+      }
+    };
+
+    const timer = setTimeout(() => {
+      void restoreMidiConnection();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [stage, fantasyMidi]);
+
+  useEffect(() => {
+    if (settings.inputMethod !== 'voice') {
+      return;
+    }
+    const currentBgmVolume = settings.bgmVolume ?? 0.7;
+    const timer = setTimeout(() => {
+      if (bgmManager.getIsPlaying()) {
+        bgmManager.setVolume(currentBgmVolume);
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [settings.inputMethod, settings.selectedAudioDevice, settings.bgmVolume]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -1314,13 +1205,6 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
           activeNotesRef.current.delete(note);
         }
       );
-      
-      // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
-      if (midiControllerRef.current) {
-        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-          renderer.highlightKey(note, active);
-        });
-      }
     }
   }, [handleNoteInputBridge, effectiveShowGuide, keyboardNoteNameStyle, gameState.isTaikoMode]);
 
@@ -2384,7 +2268,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
         keyboardNoteNameStyle={keyboardNoteNameStyle}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
-        isMidiConnected={isMidiConnected}
+        isMidiConnected={fantasyMidi.isInputConnected}
         // デイリーチャレンジ用の追加props
         isDailyChallenge={isDailyChallenge}
         isPracticeMode={playMode === 'practice'}

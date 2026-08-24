@@ -10,13 +10,16 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "1.4.8"
+    MARKETING_VERSION: "1.4.9"
     CURRENT_PROJECT_VERSION: "2"
 
 packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift
     from: "2.0.0"
+  onnxruntime:
+    url: https://github.com/microsoft/onnxruntime-swift-package-manager
+    from: "1.20.0"
 
 targets:
   Jazzify:
@@ -45,5 +48,39 @@ targets:
     dependencies:
       - package: Supabase
         product: Supabase
+      - package: onnxruntime
+        product: onnxruntime
     entitlements:
       path: Jazzify/Jazzify.entitlements
+
+  JazzifyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: JazzifyTests
+    dependencies:
+      - target: Jazzify
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: ""
+
+schemes:
+  Jazzify:
+    build:
+      targets:
+        Jazzify: all
+        JazzifyTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - JazzifyTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

@@ -810,7 +810,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             states: runtimeStates,
             midi: midi,
             phraseTimeSec: phraseTime,
-            windowSec: windowSec
+            windowSec: windowSec,
+            ignoreOctave: NoteInputPreferences.ignoreOctave
         ) else {
             return
         }

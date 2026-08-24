@@ -83,7 +83,7 @@ struct BalloonRushGameView: View {
         session = created
         recordAssignmentStartIfNeeded()
         midiSubscriptionHolder.cancel()
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribe { [weak created] status, data1, data2 in
+        midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribe { [weak created] status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)

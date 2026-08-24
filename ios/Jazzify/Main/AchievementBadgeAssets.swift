@@ -31,7 +31,7 @@ enum AchievementBadgeAssets {
     /// 一覧表示前にバックグラウンドで全メダルをプリロードする。
     static func preloadAll(displaySize: CGFloat = listDisplaySize) async {
         let scale = await MainActor.run { UIScreen.main.scale }
-        let fileNames = AchievementBadgeCatalog.definitions.map(\.imageFileName)
+        let fileNames = AchievementBadgeCatalog.definitions.map { bundleFileName(from: $0.imagePath) }
         await withTaskGroup(of: Void.self) { group in
             for fileName in fileNames {
                 group.addTask {
@@ -39,6 +39,11 @@ enum AchievementBadgeAssets {
                 }
             }
         }
+    }
+
+    /// `/achivement/achievement_monster_02.png` → `achievement_monster_02`
+    private static func bundleFileName(from imagePath: String) -> String {
+        URL(fileURLWithPath: imagePath).deletingPathExtension().lastPathComponent
     }
 
     private static func loadImage(fileName: String, displaySize: CGFloat, scale: CGFloat) -> UIImage? {

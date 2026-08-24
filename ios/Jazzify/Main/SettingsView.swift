@@ -654,6 +654,9 @@ struct MIDISettingsView: View {
                 Color(hex: "0f172a").ignoresSafeArea()
 
                 List {
+                    InputMethodSection(isEnglishCopy: locale == .en)
+                        .listRowBackground(Color(hex: "1e293b"))
+
                     if midiManager.availableDevices.isEmpty {
                         Section {
                             VStack(spacing: 8) {

@@ -118,7 +118,7 @@ struct EarTrainingPrecisionGameView: View {
     ) {
         createdController.start()
         midiSubscriptionHolder.cancel()
-        midiSubscriptionHolder.subscription = MIDIManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
+        midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)
