@@ -1,11 +1,13 @@
 import AVFoundation
 import Foundation
 import OnnxRuntimeBindings
+import os
+import QuartzCore
 
 /// PESTO v2 (ONNX) による単音ピッチ入力エンジン。
 ///
 /// スレッド分離を厳密に守る:
-/// - `installTap` クロージャ（オーディオレンダースレッド）: リング蓄積のみ。ヒープ割当なし。
+/// - `AVAudioSinkNode` コールバック（オーディオレンダースレッド）: リング蓄積のみ。ヒープ割当なし。
 /// - `inferenceQueue`: `ORTSession` / cache / `PitchOnsetTracker` / frameIndex を専有。
 /// - main: `AVAudioEngine` のライフサイクル管理。
 ///
@@ -19,6 +21,9 @@ final class PitchInputEngine: @unchecked Sendable {
     private static let poolSlotCount = 4
     private static let cacheElementCount = 3_856
     private static let targetSampleRate: Double = 48_000
+    /// モニタ UI 用: -60dB〜0dB を 0..1 にマップ。
+    private static let monitorMinDb: Double = -60
+    private static let monitorMaxDb: Double = 0
 
     private let inferenceQueue = DispatchQueue(label: "jp.jazzify.pitch.inference", qos: .userInitiated)
 
@@ -39,8 +44,10 @@ final class PitchInputEngine: @unchecked Sendable {
     // MARK: - スレッド間共有（ロック保護）
 
     /// 推論中フラグ。10ms に間に合わないフレームは捨てて遅延の蓄積を防ぐ。
-    private let stateLock = NSLock()
+    /// レンダースレッドから触るため os_unfair_lock を使用。
+    private var inferringLock = os_unfair_lock()
     nonisolated(unsafe) private var isInferring = false
+    private let stateLock = NSLock()
     /// stop() 時の取りこぼし解放用。押されているノート。
     nonisolated(unsafe) private var activeNote: Int?
 
@@ -48,10 +55,31 @@ final class PitchInputEngine: @unchecked Sendable {
     nonisolated(unsafe) private var simpleHandlers: [UUID: (UInt8, UInt8, UInt8) -> Void] = [:]
     nonisolated(unsafe) private var hostTimeHandlers: [UUID: (UInt8, UInt8, UInt8, UInt64) -> Void] = [:]
 
+    /// 設定 UI 用モニタ（推論スレッドが更新、MainActor が 30Hz で読む）。
+    private let monitorLock = NSLock()
+    nonisolated(unsafe) private var latestVolume: Double = 0
+    nonisolated(unsafe) private var latestDetectedNote: Int?
+    nonisolated(unsafe) private var lastErrorMessage: String?
+    nonisolated(unsafe) private var emaCaptureIntervalMs: Double = 0
+    nonisolated(unsafe) private var emaInferenceMs: Double = 0
+    nonisolated(unsafe) private var lastCaptureTime: Double = 0
+    private static let latencyEmaAlpha = 0.1
+
     // MARK: - main 専有
 
     private var audioEngine: AVAudioEngine?
     private var isRunning = false
+    private var isStarting = false
+    private var observersRegistered = false
+    private var routeChangeObserver: NSObjectProtocol?
+    private var sessionReconfigureObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
+    private var mediaServicesResetObserver: NSObjectProtocol?
+    private var restartWorkItem: DispatchWorkItem?
+    private var activeVoiceProcessing = false
+    private var activeTapSampleRate: Double = 0
+    private var captureSinkNode: AVAudioSinkNode?
+    private var capturePipeline: CapturePipeline?
 
     private init() {
         chunkPool = UnsafeMutablePointer<Float>.allocate(
@@ -148,13 +176,82 @@ final class PitchInputEngine: @unchecked Sendable {
         subscriberLock.unlock()
     }
 
+    // MARK: - モニタ
+
+    struct MonitorSnapshot {
+        let volume: Double
+        let detectedNote: Int?
+        let detectedNoteName: String?
+        let isActive: Bool
+        let lastError: String?
+        /// キャプチャコールバック間隔の移動平均 (ms)。
+        let captureIntervalMs: Double?
+        /// ORT 推論所要時間の移動平均 (ms)。
+        let inferenceMs: Double?
+    }
+
+    func monitorSnapshot(isActive: Bool) -> MonitorSnapshot {
+        monitorLock.lock()
+        let volume = Self.normalizedMonitorVolume(latestVolume)
+        let note = latestDetectedNote
+        let error = lastErrorMessage
+        let captureMs = emaCaptureIntervalMs > 0 ? emaCaptureIntervalMs : nil
+        let inferMs = emaInferenceMs > 0 ? emaInferenceMs : nil
+        monitorLock.unlock()
+        return MonitorSnapshot(
+            volume: volume,
+            detectedNote: note,
+            detectedNoteName: note.map { Self.noteName(for: $0) },
+            isActive: isActive,
+            lastError: error,
+            captureIntervalMs: captureMs,
+            inferenceMs: inferMs
+        )
+    }
+
+    private static func normalizedMonitorVolume(_ linearVolume: Double) -> Double {
+        let db = 10 * log10(max(linearVolume, 1e-12))
+        let range = monitorMaxDb - monitorMinDb
+        guard range > 0 else { return 0 }
+        return min(1, max(0, (db - monitorMinDb) / range))
+    }
+
+    private static func noteName(for midi: Int) -> String {
+        let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        let pc = ((midi % 12) + 12) % 12
+        let octave = midi / 12 - 1
+        return "\(names[pc])\(octave)"
+    }
+
+    private func setMonitorError(_ message: String?) {
+        monitorLock.lock()
+        lastErrorMessage = message
+        monitorLock.unlock()
+    }
+
+    private func updateMonitorVolume(_ volume: Double) {
+        monitorLock.lock()
+        latestVolume = volume
+        monitorLock.unlock()
+    }
+
+    private func updateMonitorDetectedNote(_ note: Int?) {
+        monitorLock.lock()
+        latestDetectedNote = note
+        monitorLock.unlock()
+    }
+
     // MARK: - ライフサイクル
 
     @MainActor
     func start() async throws {
         guard !isRunning else { return }
+        guard !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
 
         guard await Self.requestMicrophonePermission() else {
+            setMonitorError(PitchInputEngineError.microphonePermissionDenied.localizedDescription)
             throw PitchInputEngineError.microphonePermissionDenied
         }
         guard !isRunning else { return }
@@ -162,11 +259,42 @@ final class PitchInputEngine: @unchecked Sendable {
         try await loadModelIfNeeded()
         AppAudioSession.shared.setRecordingEnabled(true)
 
+        do {
+            try await startEngineInternal()
+            registerObserversIfNeeded()
+            setMonitorError(nil)
+        } catch {
+            AppAudioSession.shared.setRecordingEnabled(false)
+            setMonitorError(error.localizedDescription)
+            throw error
+        }
+    }
+
+    @MainActor
+    private func startEngineInternal() async throws {
+        let useVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput()
+
+        AppAudioSession.shared.suppressAutomaticReconfigure(for: 1.0)
+
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+
+        if useVoiceProcessing {
+            try? inputNode.setVoiceProcessingEnabled(true)
+            if #available(iOS 17.0, *) {
+                inputNode.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
+                    enableAdvancedDucking: false,
+                    duckingLevel: .min
+                )
+            }
+        }
+
+        var inputFormat = inputNode.outputFormat(forBus: 0)
+        if inputFormat.sampleRate <= 0 {
+            try await Task.sleep(nanoseconds: 100_000_000)
+            inputFormat = inputNode.outputFormat(forBus: 0)
+        }
         guard inputFormat.sampleRate > 0 else {
-            AppAudioSession.shared.setRecordingEnabled(false)
             throw PitchInputEngineError.inputUnavailable
         }
 
@@ -176,54 +304,116 @@ final class PitchInputEngine: @unchecked Sendable {
             channels: 1,
             interleaved: false
         ), let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            AppAudioSession.shared.setRecordingEnabled(false)
             throw PitchInputEngineError.inputUnavailable
         }
 
-        // tap クロージャがキャプチャして専有する。プロパティ経由の共有を避ける。
         let scratchCapacity = AVAudioFrameCount(max(inputFormat.sampleRate, Self.targetSampleRate) * 0.1)
         guard let inputScratch = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: scratchCapacity),
               let outputScratch = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: scratchCapacity) else {
-            AppAudioSession.shared.setRecordingEnabled(false)
             throw PitchInputEngineError.inputUnavailable
         }
 
         resetInferenceState()
         ringWriteIndex = 0
         poolSlot = 0
+        lastCaptureTime = 0
+        monitorLock.lock()
+        emaCaptureIntervalMs = 0
+        emaInferenceMs = 0
+        monitorLock.unlock()
+        updateMonitorVolume(0)
+        updateMonitorDetectedNote(nil)
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, time in
-            self?.handleInputBuffer(
-                buffer,
-                hostTime: time.hostTime,
-                converter: converter,
-                inputScratch: inputScratch,
-                outputScratch: outputScratch
+        let pipeline = CapturePipeline(
+            engine: self,
+            converter: converter,
+            inputFormat: inputFormat,
+            inputScratch: inputScratch,
+            outputScratch: outputScratch
+        )
+        let sink = AVAudioSinkNode { timestamp, frameCount, bufferList in
+            pipeline.process(
+                timestamp: timestamp,
+                frameCount: frameCount,
+                bufferList: bufferList
             )
         }
+        engine.attach(sink)
+        engine.connect(inputNode, to: sink, format: inputFormat)
 
         engine.prepare()
         do {
             try engine.start()
         } catch {
-            inputNode.removeTap(onBus: 0)
-            AppAudioSession.shared.setRecordingEnabled(false)
+            engine.disconnectNodeInput(sink)
+            engine.detach(sink)
             throw error
         }
 
         audioEngine = engine
+        captureSinkNode = sink
+        capturePipeline = pipeline
         isRunning = true
+        activeVoiceProcessing = useVoiceProcessing
+        activeTapSampleRate = inputFormat.sampleRate
+        SurvivalGameAudio.shared.setVoiceInputDucking(true)
+    }
+
+    @MainActor
+    private func engineConfigurationMatchesDesired() -> Bool {
+        guard isRunning, let engine = audioEngine, engine.isRunning else { return false }
+        let desiredVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput()
+        let currentRate = engine.inputNode.outputFormat(forBus: 0).sampleRate
+        guard currentRate > 0 else { return false }
+        return activeVoiceProcessing == desiredVoiceProcessing
+            && abs(activeTapSampleRate - currentRate) < 1.0
+    }
+
+    @MainActor
+    private func restart() async {
+        guard isRunning else { return }
+        if engineConfigurationMatchesDesired() {
+            return
+        }
+        tearDownEngine(releaseRecordingSession: false)
+        do {
+            try await startEngineInternal()
+            setMonitorError(nil)
+        } catch {
+            isRunning = false
+            setMonitorError(error.localizedDescription)
+        }
     }
 
     @MainActor
     func stop() {
-        guard isRunning else { return }
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine?.stop()
-        audioEngine = nil
-        isRunning = false
+        restartWorkItem?.cancel()
+        restartWorkItem = nil
+        if isRunning || audioEngine != nil {
+            tearDownEngine(releaseRecordingSession: true)
+        } else {
+            AppAudioSession.shared.setRecordingEnabled(false)
+        }
+        unregisterObserversIfNeeded()
+    }
 
-        // 押されたままのノートを解放してゲーム側に残らないようにする
+    @MainActor
+    private func tearDownEngine(releaseRecordingSession: Bool) {
+        SurvivalGameAudio.shared.setVoiceInputDucking(false)
+        if let engine = audioEngine, let sink = captureSinkNode {
+            engine.stop()
+            engine.disconnectNodeInput(sink)
+            engine.detach(sink)
+        } else {
+            audioEngine?.stop()
+        }
+        audioEngine = nil
+        captureSinkNode = nil
+        capturePipeline = nil
+        isRunning = false
+        activeVoiceProcessing = false
+        activeTapSampleRate = 0
+
         stateLock.lock()
         let heldNote = activeNote
         activeNote = nil
@@ -231,12 +421,129 @@ final class PitchInputEngine: @unchecked Sendable {
         if let heldNote {
             notify(status: 0x80, note: heldNote, velocity: 0, hostTime: 0)
         }
+        updateMonitorDetectedNote(nil)
 
-        AppAudioSession.shared.setRecordingEnabled(false)
+        if releaseRecordingSession {
+            AppAudioSession.shared.setRecordingEnabled(false)
+        }
     }
 
     @MainActor
     var isActive: Bool { isRunning }
+
+    // MARK: - ルート / セッション監視
+
+    @MainActor
+    private func registerObserversIfNeeded() {
+        guard !observersRegistered else { return }
+        observersRegistered = true
+
+        let center = NotificationCenter.default
+        let session = AVAudioSession.sharedInstance()
+
+        routeChangeObserver = center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor in
+                self?.handleRouteChange(notification)
+            }
+        }
+
+        sessionReconfigureObserver = center.addObserver(
+            forName: AppAudioSession.didReconfigureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.scheduleRestartIfRunning()
+            }
+        }
+
+        interruptionObserver = center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            Task { @MainActor in
+                self?.handleInterruption(notification)
+            }
+        }
+
+        mediaServicesResetObserver = center.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.scheduleRestartIfRunning()
+            }
+        }
+    }
+
+    @MainActor
+    private func unregisterObserversIfNeeded() {
+        guard observersRegistered else { return }
+        observersRegistered = false
+
+        let center = NotificationCenter.default
+        if let routeChangeObserver {
+            center.removeObserver(routeChangeObserver)
+            self.routeChangeObserver = nil
+        }
+        if let sessionReconfigureObserver {
+            center.removeObserver(sessionReconfigureObserver)
+            self.sessionReconfigureObserver = nil
+        }
+        if let interruptionObserver {
+            center.removeObserver(interruptionObserver)
+            self.interruptionObserver = nil
+        }
+        if let mediaServicesResetObserver {
+            center.removeObserver(mediaServicesResetObserver)
+            self.mediaServicesResetObserver = nil
+        }
+    }
+
+    @MainActor
+    private func handleRouteChange(_ notification: Notification) {
+        guard isRunning else { return }
+        guard let reasonValue = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        switch reason {
+        case .oldDeviceUnavailable, .newDeviceAvailable:
+            scheduleRestartIfRunning()
+        default:
+            break
+        }
+    }
+
+    @MainActor
+    private func handleInterruption(_ notification: Notification) {
+        guard isRunning else { return }
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+        if type == .ended {
+            scheduleRestartIfRunning()
+        }
+    }
+
+    @MainActor
+    private func scheduleRestartIfRunning() {
+        guard isRunning else { return }
+        restartWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                await self?.restart()
+            }
+        }
+        restartWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
 
     // MARK: - モデル
 
@@ -274,14 +581,41 @@ final class PitchInputEngine: @unchecked Sendable {
             frameIndex = 0
             cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
         }
-        stateLock.lock()
+        os_unfair_lock_lock(&inferringLock)
         isInferring = false
-        stateLock.unlock()
+        os_unfair_lock_unlock(&inferringLock)
+    }
+
+    fileprivate func recordCaptureInterval() {
+        let now = CACurrentMediaTime()
+        defer { lastCaptureTime = now }
+        guard lastCaptureTime > 0 else { return }
+        let intervalMs = (now - lastCaptureTime) * 1000
+        monitorLock.lock()
+        let alpha = Self.latencyEmaAlpha
+        if emaCaptureIntervalMs <= 0 {
+            emaCaptureIntervalMs = intervalMs
+        } else {
+            emaCaptureIntervalMs = emaCaptureIntervalMs * (1 - alpha) + intervalMs * alpha
+        }
+        monitorLock.unlock()
+    }
+
+    private func recordInferenceDuration(startTime: CFTimeInterval) {
+        let elapsedMs = (CACurrentMediaTime() - startTime) * 1000
+        monitorLock.lock()
+        let alpha = Self.latencyEmaAlpha
+        if emaInferenceMs <= 0 {
+            emaInferenceMs = elapsedMs
+        } else {
+            emaInferenceMs = emaInferenceMs * (1 - alpha) + elapsedMs * alpha
+        }
+        monitorLock.unlock()
     }
 
     // MARK: - オーディオレンダースレッド
 
-    private func handleInputBuffer(
+    fileprivate func handleInputBuffer(
         _ buffer: AVAudioPCMBuffer,
         hostTime: UInt64,
         converter: AVAudioConverter,
@@ -330,19 +664,19 @@ final class PitchInputEngine: @unchecked Sendable {
     }
 
     private func enqueueInference(slot: Int, hostTime: UInt64) {
-        stateLock.lock()
+        os_unfair_lock_lock(&inferringLock)
         if isInferring {
-            stateLock.unlock()
+            os_unfair_lock_unlock(&inferringLock)
             return
         }
         isInferring = true
-        stateLock.unlock()
+        os_unfair_lock_unlock(&inferringLock)
 
         inferenceQueue.async { [self] in
             runInference(slot: slot, hostTime: hostTime)
-            stateLock.lock()
+            os_unfair_lock_lock(&inferringLock)
             isInferring = false
-            stateLock.unlock()
+            os_unfair_lock_unlock(&inferringLock)
         }
     }
 
@@ -350,6 +684,9 @@ final class PitchInputEngine: @unchecked Sendable {
 
     private func runInference(slot: Int, hostTime: UInt64) {
         guard let session = ortSession else { return }
+
+        let inferenceStart = CACurrentMediaTime()
+        defer { recordInferenceDuration(startTime: inferenceStart) }
 
         let chunkSize = Self.chunkSize
         let cacheCount = Self.cacheElementCount
@@ -394,6 +731,8 @@ final class PitchInputEngine: @unchecked Sendable {
                 volume: Double(readScalar(outputs["volume"]))
             )
 
+            updateMonitorVolume(frame.volume)
+
             let events = tracker.processFrame(frame, frameIndex: frameIndex)
             frameIndex += 1
 
@@ -428,6 +767,16 @@ final class PitchInputEngine: @unchecked Sendable {
         activeNote = status == 0x90 ? note : nil
         stateLock.unlock()
 
+        if status == 0x90 {
+            updateMonitorDetectedNote(note)
+        } else if status == 0x80 {
+            monitorLock.lock()
+            if latestDetectedNote == note {
+                latestDetectedNote = nil
+            }
+            monitorLock.unlock()
+        }
+
         subscriberLock.lock()
         let simple = Array(simpleHandlers.values)
         let hostTimed = Array(hostTimeHandlers.values)
@@ -456,6 +805,49 @@ enum PitchInputEngineError: LocalizedError {
         case .inputUnavailable:
             return "Audio input is unavailable."
         }
+    }
+}
+
+private final class CapturePipeline {
+    let converter: AVAudioConverter
+    let inputScratch: AVAudioPCMBuffer
+    let outputScratch: AVAudioPCMBuffer
+    let inputFormat: AVAudioFormat
+    unowned let engine: PitchInputEngine
+
+    init(
+        engine: PitchInputEngine,
+        converter: AVAudioConverter,
+        inputFormat: AVAudioFormat,
+        inputScratch: AVAudioPCMBuffer,
+        outputScratch: AVAudioPCMBuffer
+    ) {
+        self.engine = engine
+        self.converter = converter
+        self.inputFormat = inputFormat
+        self.inputScratch = inputScratch
+        self.outputScratch = outputScratch
+    }
+
+    func process(
+        timestamp: UnsafePointer<AudioTimeStamp>,
+        frameCount: AVAudioFrameCount,
+        bufferList: UnsafePointer<AudioBufferList>
+    ) -> OSStatus {
+        guard frameCount > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, bufferListNoCopy: bufferList) else {
+            return noErr
+        }
+        buffer.frameLength = frameCount
+        engine.recordCaptureInterval()
+        engine.handleInputBuffer(
+            buffer,
+            hostTime: timestamp.pointee.mHostTime,
+            converter: converter,
+            inputScratch: inputScratch,
+            outputScratch: outputScratch
+        )
+        return noErr
     }
 }
 

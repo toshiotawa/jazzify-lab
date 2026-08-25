@@ -19,10 +19,34 @@ describe('PitchOnsetTracker', () => {
     expect(allEvents).toEqual(golden.expectedEvents);
   });
 
+  it('emits immediate noteOn when confidence exceeds onsetImmediateConfidence', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 2,
+      onsetImmediateConfidence: 0.85,
+    });
+    const silent: PitchFrame = { prediction: 0, confidence: 0, volume: 1e-8 };
+    const highConfidence: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const lowConfidence: PitchFrame = { prediction: 60, confidence: 0.6, volume: 0.01 };
+
+    expect(tracker.processFrame(silent, 0)).toEqual([]);
+    expect(tracker.processFrame(highConfidence, 1)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 1 },
+    ]);
+
+    tracker.reset();
+    expect(tracker.processFrame(silent, 0)).toEqual([]);
+    expect(tracker.processFrame(lowConfidence, 1)).toEqual([]);
+    expect(tracker.processFrame(lowConfidence, 2)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 2 },
+    ]);
+  });
+
   it('emits noteOn after pitchStableFrames', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 2,
+      onsetImmediateConfidence: 2,
     });
     const silent: PitchFrame = { prediction: 0, confidence: 0, volume: 1e-8 };
     const voiced: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };

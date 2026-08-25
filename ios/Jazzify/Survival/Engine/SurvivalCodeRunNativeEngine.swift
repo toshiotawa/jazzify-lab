@@ -12,7 +12,7 @@ enum SurvivalCodeRunNativeTileKind: String, Sendable {
     case block
 }
 
-struct SurvivalCodeRunNativeSolid: Sendable {
+struct SurvivalCodeRunNativeSolid: Sendable, Equatable {
     let kind: SurvivalCodeRunNativeTileKind
     let rect: CGRect
 }

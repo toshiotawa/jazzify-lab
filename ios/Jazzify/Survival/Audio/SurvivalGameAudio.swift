@@ -118,6 +118,9 @@ final class SurvivalGameAudio {
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
     private var appAudioSessionObserver: NSObjectProtocol?
+    /// マイク入力中は BGM のみ 50% 減衰（ピアノ / SFX / フレーズは対象外）。
+    private var voiceInputDucking = false
+    private static let voiceInputDuckFactor: Float = 0.5
     /// サステインペダル (CC64) 用の MIDI 購読。各 GameView に同じ処理を撒かずここへ集約する。
     private var sustainPedalSubscription: MIDISubscription?
 
@@ -263,6 +266,13 @@ final class SurvivalGameAudio {
         let v = max(0, min(1, volume))
         userDefaults.set(v, forKey: bgmVolumeKey)
         applyVolumesToNodes()
+    }
+
+    /// マイク入力稼働中に BGM を減衰する（PitchInputEngine から連動）。
+    func setVoiceInputDucking(_ enabled: Bool) {
+        guard voiceInputDucking != enabled else { return }
+        voiceInputDucking = enabled
+        bgmPlayer.volume = effectiveBgmVolume()
     }
 
     /// ピアノ音量を設定。
@@ -814,8 +824,16 @@ final class SurvivalGameAudio {
 
     private func effectiveBgmVolume() -> Float {
         if isMuted { return 0 }
-        if userDefaults.object(forKey: bgmVolumeKey) == nil { return defaultBgmVolume }
-        return max(0, min(1, userDefaults.float(forKey: bgmVolumeKey)))
+        var volume: Float
+        if userDefaults.object(forKey: bgmVolumeKey) == nil {
+            volume = defaultBgmVolume
+        } else {
+            volume = max(0, min(1, userDefaults.float(forKey: bgmVolumeKey)))
+        }
+        if voiceInputDucking {
+            volume *= Self.voiceInputDuckFactor
+        }
+        return volume
     }
 
     private func effectivePianoVolume() -> Float {

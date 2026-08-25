@@ -24,6 +24,11 @@ interface GetAudioDevicesOptions {
   requestPermission?: boolean;
 }
 
+export interface PitchInputLatencyStats {
+  captureIntervalMs: number | null;
+  inferenceMs: number | null;
+}
+
 const isVoiceInputSupported = (): boolean =>
   typeof navigator !== 'undefined' &&
   typeof window !== 'undefined' &&
@@ -32,9 +37,24 @@ const isVoiceInputSupported = (): boolean =>
 export class PitchInputController {
   private static _permissionGranted = false;
   private static _cachedStream: MediaStream | null = null;
+  private static _latestLatencyStats: PitchInputLatencyStats = {
+    captureIntervalMs: null,
+    inferenceMs: null,
+  };
 
   static isPermissionGranted(): boolean {
     return PitchInputController._permissionGranted;
+  }
+
+  static getLatencyStats(): PitchInputLatencyStats {
+    return PitchInputController._latestLatencyStats;
+  }
+
+  private static resetLatencyStats(): void {
+    PitchInputController._latestLatencyStats = {
+      captureIntervalMs: null,
+      inferenceMs: null,
+    };
   }
 
   static clearCachedPermission(): void {
@@ -196,7 +216,7 @@ export class PitchInputController {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             deviceId: deviceId ? { exact: deviceId } : undefined,
-            echoCancellation: false,
+            echoCancellation: true,
             noiseSuppression: false,
             autoGainControl: false,
           },
@@ -268,6 +288,15 @@ export class PitchInputController {
           this.onNoteOff(data.note);
           this.currentNote = -1;
         }
+      } else if (data?.type === 'monitor') {
+        PitchInputController._latestLatencyStats = {
+          captureIntervalMs: typeof data.captureIntervalMs === 'number'
+            ? data.captureIntervalMs
+            : null,
+          inferenceMs: typeof data.inferenceMs === 'number'
+            ? data.inferenceMs
+            : null,
+        };
       } else if (data?.type === 'error') {
         this.onError?.(data.message);
       }
@@ -347,6 +376,7 @@ export class PitchInputController {
 
   private async disconnectInternal(notify: boolean): Promise<void> {
     this.isProcessing = false;
+    PitchInputController.resetLatencyStats();
 
     if (this.workletNode) {
       this.workletNode.disconnect();

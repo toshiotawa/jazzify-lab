@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
-import { PitchInputController } from '@/utils/PitchInputController';
+import { PitchInputController, type PitchInputLatencyStats } from '@/utils/PitchInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+
+const formatLatencyMs = (value: number | null): string =>
+  value === null ? '—' : `${Math.round(value)}ms`;
 
 export interface InputMethodSelectorProps {
   midiDeviceId: string | null;
@@ -22,6 +25,20 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
 }) => {
   const { settings, updateSettings } = useGameStore();
   const en = shouldUseEnglishCopy();
+  const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
+    captureIntervalMs: null,
+    inferenceMs: null,
+  });
+
+  useEffect(() => {
+    if (settings.inputMethod !== 'voice') {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      setLatencyStats(PitchInputController.getLatencyStats());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [settings.inputMethod]);
 
   return (
     <div className={`space-y-3 ${className}`}>
@@ -125,6 +142,11 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
               className="w-full"
             />
           </label>
+          <p className="text-xs text-gray-400 font-mono">
+            {en
+              ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
+              : `入力 ${formatLatencyMs(latencyStats.captureIntervalMs)} / 推論 ${formatLatencyMs(latencyStats.inferenceMs)}`}
+          </p>
         </div>
       )}
 

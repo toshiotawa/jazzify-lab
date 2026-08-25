@@ -54,7 +54,17 @@ interface WorkerErrorMessage {
   message: string;
 }
 
-type WorkerOutbound = NoteEventMessage | WorkerReadyMessage | WorkerErrorMessage;
+interface WorkerMonitorMessage {
+  type: 'monitor';
+  captureIntervalMs: number;
+  inferenceMs: number;
+}
+
+type WorkerOutbound =
+  | NoteEventMessage
+  | WorkerReadyMessage
+  | WorkerErrorMessage
+  | WorkerMonitorMessage;
 
 let session: ort.InferenceSession | null = null;
 let cacheTensor: ort.Tensor | null = null;
@@ -65,6 +75,13 @@ let tracker: PitchOnsetTracker | null = null;
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
+let lastChunkTime = 0;
+let emaCaptureIntervalMs = 0;
+let emaInferenceMs = 0;
+let monitorFrameCounter = 0;
+
+const LATENCY_EMA_ALPHA = 0.1;
+const MONITOR_POST_INTERVAL = 30;
 
 const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
@@ -78,6 +95,36 @@ const recycle = (samples: Float32Array): void => {
   const buffer = samples.buffer;
   if (!port || !(buffer instanceof ArrayBuffer) || buffer.byteLength === 0) return;
   port.postMessage({ type: 'recycle', buffer }, [buffer]);
+};
+
+const updateEma = (current: number, sample: number): number =>
+  current <= 0 ? sample : current * (1 - LATENCY_EMA_ALPHA) + sample * LATENCY_EMA_ALPHA;
+
+const recordCaptureInterval = (): void => {
+  const now = performance.now();
+  if (lastChunkTime > 0) {
+    emaCaptureIntervalMs = updateEma(emaCaptureIntervalMs, now - lastChunkTime);
+  }
+  lastChunkTime = now;
+};
+
+const maybePostMonitor = (): void => {
+  monitorFrameCounter += 1;
+  if (monitorFrameCounter < MONITOR_POST_INTERVAL) return;
+  monitorFrameCounter = 0;
+  if (emaCaptureIntervalMs <= 0 && emaInferenceMs <= 0) return;
+  post({
+    type: 'monitor',
+    captureIntervalMs: emaCaptureIntervalMs,
+    inferenceMs: emaInferenceMs,
+  });
+};
+
+const resetLatencyStats = (): void => {
+  lastChunkTime = 0;
+  emaCaptureIntervalMs = 0;
+  emaInferenceMs = 0;
+  monitorFrameCounter = 0;
 };
 
 const initSession = async (): Promise<void> => {
@@ -111,6 +158,7 @@ const processChunk = async (
   }
 
   isInferring = true;
+  const inferenceStart = performance.now();
   try {
     audioData.set(samples);
 
@@ -118,6 +166,8 @@ const processChunk = async (
       audio: audioTensor,
       cache: cacheTensor,
     });
+
+    emaInferenceMs = updateEma(emaInferenceMs, performance.now() - inferenceStart);
 
     const predictionArr = outputs.prediction.data as Float32Array;
     const confidenceArr = outputs.confidence.data as Float32Array;
@@ -133,6 +183,7 @@ const processChunk = async (
 
     const events = tracker.processFrame(frame, frameIndex);
     frameIndex += 1;
+    maybePostMonitor();
 
     for (const event of events) {
       if (event.type === 'noteOn') {
@@ -156,6 +207,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       audioPort = port;
       audioPort.onmessage = (portEvent: MessageEvent<WorkerAudioMessage>) => {
         if (portEvent.data?.type === 'audioChunk') {
+          recordCaptureInterval();
           void processChunk(portEvent.data.samples, portEvent.data.audioContextTime);
         }
       };
@@ -170,6 +222,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       tracker = new PitchOnsetTracker({ ...config, ...data.config });
       frameIndex = 0;
       isInferring = false;
+      resetLatencyStats();
       // 再接続時に前セッションの再帰状態を持ち越さない
       cacheData?.fill(0);
       post({ type: 'ready' });

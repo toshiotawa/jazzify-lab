@@ -27,6 +27,7 @@ import SurvivalGameOver from '../SurvivalGameOver';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, type SurvivalDisplaySettings } from '../SurvivalSettingsModal';
 import { EmbedMidiSettingsModal } from '@/embed/EmbedMidiSettingsModal';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
+import { duckBgmForVoiceInput } from '@/utils/voiceInputBgmDuck';
 import CodeRunCanvas from './CodeRunCanvas';
 import CodeRunVirtualStick from './CodeRunVirtualStick';
 import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
@@ -370,12 +371,12 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     if (currentBgmUrlRef.current === config.bgmUrl && bgmAudioRef.current && !bgmAudioRef.current.paused) return;
     const audio = new Audio(config.bgmUrl);
     audio.loop = true;
-    audio.volume = bgmVolumeRef.current;
+    audio.volume = duckBgmForVoiceInput(bgmVolumeRef.current, settings.inputMethod);
     stopBgm();
     bgmAudioRef.current = audio;
     currentBgmUrlRef.current = config.bgmUrl;
     audio.play().catch(() => undefined);
-  }, [config.bgmUrl, isPaused, result, stopBgm]);
+  }, [config.bgmUrl, isPaused, result, stopBgm, settings.inputMethod]);
 
   useEffect(() => () => stopBgm(), [stopBgm]);
 
@@ -831,7 +832,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           onBgmVolumeChange={(volume) => {
             setBgmVolume(volume);
             bgmVolumeRef.current = volume;
-            if (bgmAudioRef.current) bgmAudioRef.current.volume = volume;
+            if (bgmAudioRef.current) {
+              bgmAudioRef.current.volume = duckBgmForVoiceInput(volume, settings.inputMethod);
+            }
           }}
           stageRunMode={onSurvivalRunModeRestart ? {
             hintMode,

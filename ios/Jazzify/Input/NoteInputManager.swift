@@ -37,6 +37,9 @@ final class NoteInputManager {
         }
     }
 
+    /// 購読ハンドラ（推論/MIDI スレッド）から参照。マイク入力時はピアノ発音を抑止する。
+    nonisolated var isVoiceInputActive: Bool { activeMethod == .voice }
+
     // MARK: - 購読
 
     func subscribe(_ handler: @escaping (UInt8, UInt8, UInt8) -> Void) -> MIDISubscription {
@@ -108,6 +111,9 @@ final class NoteInputManager {
         defer { subscriberLock.unlock() }
         return !simpleHandlers.isEmpty || !hostTimeHandlers.isEmpty
     }
+
+    /// 設定画面のモニタ表示用。ゲーム購読が無いときだけプレビュー起動する。
+    var hasActiveSubscribers: Bool { hasSubscribers }
 
     private func attachUpstreamIfNeeded() {
         guard upstream.isEmpty else {

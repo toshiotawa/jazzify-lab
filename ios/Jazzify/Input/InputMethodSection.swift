@@ -12,6 +12,13 @@ struct InputMethodSection: View {
     @State private var micSensitivity: Double = Double(NoteInputPreferences.micSensitivity)
     @State private var permission: PitchInputEngine.MicrophonePermission = .undetermined
     @State private var hasHeadphones = true
+    @State private var monitorVolume: Double = 0
+    @State private var monitorNoteName: String?
+    @State private var monitorError: String?
+    @State private var monitorCaptureMs: Double?
+    @State private var monitorInferenceMs: Double?
+    @State private var engineActive = false
+    @State private var monitorTimer: Timer?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -25,10 +32,16 @@ struct InputMethodSection: View {
             .pickerStyle(.segmented)
             .onChange(of: inputMethod) { newValue in
                 NoteInputManager.shared.inputMethod = newValue
-                guard newValue == .voice else { return }
+                guard newValue == .voice else {
+                    stopVoicePreviewIfNeeded()
+                    stopMonitorTimer()
+                    return
+                }
                 Task {
                     await PitchInputEngine.ensureMicrophonePermission()
                     permission = PitchInputEngine.microphonePermission
+                    await startVoicePreviewIfNeeded()
+                    startMonitorTimer()
                 }
             }
 
@@ -62,6 +75,16 @@ struct InputMethodSection: View {
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
             permission = PitchInputEngine.microphonePermission
             refreshHeadphoneState()
+            if inputMethod == .voice {
+                Task {
+                    await startVoicePreviewIfNeeded()
+                    startMonitorTimer()
+                }
+            }
+        }
+        .onDisappear {
+            stopMonitorTimer()
+            stopVoicePreviewIfNeeded()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
@@ -117,12 +140,65 @@ struct InputMethodSection: View {
         if !hasHeadphones {
             Label(
                 isEnglishCopy
-                    ? "Headphones recommended to avoid speaker bleed."
-                    : "スピーカーの回り込みを防ぐため、ヘッドホンを推奨します。",
+                    ? "Echo cancellation is on for the speaker. Lower BGM if detection is unstable."
+                    : "スピーカー時はエコーキャンセルが有効です。BGM が大きいと精度が落ちます。",
                 systemImage: "headphones"
             )
             .font(.caption)
             .foregroundStyle(.orange)
+        }
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text(
+                isEnglishCopy
+                    ? "Input level"
+                    : "入力レベル"
+            )
+            .font(.caption)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.secondary.opacity(0.2))
+                    Capsule()
+                        .fill(engineActive ? Color.green : Color.secondary.opacity(0.4))
+                        .frame(width: geometry.size.width * CGFloat(min(1, max(0, monitorVolume))))
+                }
+            }
+            .frame(height: 8)
+
+            if let monitorNoteName {
+                Text(
+                    isEnglishCopy
+                        ? "Detected: \(monitorNoteName)"
+                        : "検出: \(monitorNoteName)"
+                )
+                .font(.caption)
+                .foregroundStyle(.primary)
+            } else if engineActive {
+                Text(
+                    isEnglishCopy
+                        ? "Listening…"
+                        : "待機中…"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            if let monitorError, !engineActive {
+                Text(monitorError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            if engineActive, monitorCaptureMs != nil || monitorInferenceMs != nil {
+                Text(
+                    isEnglishCopy
+                        ? "Input \(formattedLatencyMs(monitorCaptureMs)) / infer \(formattedLatencyMs(monitorInferenceMs))"
+                        : "入力 \(formattedLatencyMs(monitorCaptureMs)) / 推論 \(formattedLatencyMs(monitorInferenceMs))"
+                )
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+            }
         }
 
         VStack(alignment: .leading, spacing: 4) {
@@ -142,12 +218,66 @@ struct InputMethodSection: View {
     }
 
     private func refreshHeadphoneState() {
-        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
-        hasHeadphones = outputs.contains { output in
-            output.portType == .headphones
-                || output.portType == .bluetoothA2DP
-                || output.portType == .bluetoothHFP
-                || output.portType == .usbAudio
+        hasHeadphones = AudioRouteHelper.hasHeadphoneOutput()
+    }
+
+    @MainActor
+    private func startVoicePreviewIfNeeded() async {
+        guard inputMethod == .voice else { return }
+        guard !NoteInputManager.shared.hasActiveSubscribers else { return }
+        guard !PitchInputEngine.shared.isActive else {
+            refreshMonitor()
+            return
         }
+        do {
+            try await PitchInputEngine.shared.start()
+            PitchInputEngine.shared.setSensitivity(NoteInputPreferences.micSensitivity)
+        } catch {
+            monitorError = error.localizedDescription
+        }
+        refreshMonitor()
+    }
+
+    @MainActor
+    private func stopVoicePreviewIfNeeded() {
+        guard !NoteInputManager.shared.hasActiveSubscribers else { return }
+        PitchInputEngine.shared.stop()
+        engineActive = false
+        monitorVolume = 0
+        monitorNoteName = nil
+        monitorCaptureMs = nil
+        monitorInferenceMs = nil
+    }
+
+    private func startMonitorTimer() {
+        stopMonitorTimer()
+        monitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { _ in
+            Task { @MainActor in
+                refreshMonitor()
+            }
+        }
+    }
+
+    private func stopMonitorTimer() {
+        monitorTimer?.invalidate()
+        monitorTimer = nil
+    }
+
+    @MainActor
+    private func refreshMonitor() {
+        let snapshot = PitchInputEngine.shared.monitorSnapshot(
+            isActive: PitchInputEngine.shared.isActive
+        )
+        engineActive = snapshot.isActive
+        monitorVolume = snapshot.volume
+        monitorNoteName = snapshot.detectedNoteName
+        monitorError = snapshot.lastError
+        monitorCaptureMs = snapshot.captureIntervalMs
+        monitorInferenceMs = snapshot.inferenceMs
+    }
+
+    private func formattedLatencyMs(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        return String(format: "%.0fms", value)
     }
 }

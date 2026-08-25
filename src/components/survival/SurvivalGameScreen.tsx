@@ -237,6 +237,7 @@ import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
+import { duckBgmForVoiceInput } from '@/utils/voiceInputBgmDuck';
 import { playTutorialChordPreview } from '@/components/survival/tutorial/tutorialAudioUnlock';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -1130,7 +1131,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         await phraseDrum.prepare(url, ctx);
         if (cancelled) return;
         phraseDrum.start();
-        phraseDrum.setVolume(bgmVolumeRef.current);
+        phraseDrum.setVolume(
+          duckBgmForVoiceInput(bgmVolumeRef.current, settings.inputMethod),
+        );
       } catch {
         /* ignore */
       }
@@ -1368,7 +1371,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 新しいBGMを作成
         const audio = new Audio(targetBgmUrl);
         audio.loop = true;
-        audio.volume = bgmVolumeRef.current;
+        audio.volume = duckBgmForVoiceInput(bgmVolumeRef.current, settings.inputMethod);
         
         bgmAudioRef.current = audio;
         currentBgmUrlRef.current = targetBgmUrl;
@@ -1670,11 +1673,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         midiController.disconnect();
       }
     }
-    // iOS: 入力方式切り替え後にBGM音量が低下する問題への対策
+    // iOS: 入力方式切り替え後にBGM音量が低下する問題への対策 + voice 入力時 BGM 減衰
     const timer = setTimeout(() => {
+      const ducked = duckBgmForVoiceInput(bgmVolumeRef.current, settings.inputMethod);
       if (bgmAudioRef.current) {
-        bgmAudioRef.current.volume = bgmVolumeRef.current;
+        bgmAudioRef.current.volume = ducked;
       }
+      phraseDrumLoopRef.current?.setVolume(ducked);
     }, 100);
     return () => clearTimeout(timer);
   }, [settings.inputMethod, settings.selectedMidiDevice, survivalMidi]);
@@ -7090,7 +7095,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           setBgmVolume(v);
           bgmVolumeRef.current = v;
           if (bgmAudioRef.current) {
-            bgmAudioRef.current.volume = v;
+            bgmAudioRef.current.volume = duckBgmForVoiceInput(v, settings.inputMethod);
           }
         }}
         stageRunMode={

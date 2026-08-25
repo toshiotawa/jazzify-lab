@@ -22,6 +22,8 @@ export interface PitchOnsetTrackerConfig {
   retriggerGuardFrames: number;
   /** グリッサンド抑制: cents 許容 */
   centsTolerance: number;
+  /** 1 フレーム目でも confidence がこの値以上なら即 noteOn */
+  onsetImmediateConfidence: number;
 }
 
 export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
@@ -34,6 +36,7 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   attackRiseDb: 6,
   retriggerGuardFrames: 5,
   centsTolerance: 40,
+  onsetImmediateConfidence: 0.85,
 };
 
 /** 感度 1-10 から dB しきい値をスケール */
@@ -129,13 +132,13 @@ export class PitchOnsetTracker {
       this.pendingOff = false;
 
       if (this.currentNote < 0) {
-        if (this.pitchStableCount >= this.config.pitchStableFrames) {
+        if (this.shouldEmitNoteOn(frame.confidence)) {
           this.emitNoteOn(events, quantized, frameIndex);
         }
       } else if (
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
-        if (this.pitchStableCount >= this.config.pitchStableFrames) {
+        if (this.shouldEmitNoteOn(frame.confidence)) {
           this.emitNoteOff(events, this.currentNote, frameIndex);
           this.emitNoteOn(events, quantized, frameIndex);
         }
@@ -163,6 +166,14 @@ export class PitchOnsetTracker {
 
     this.flushPendingOff(events, frameIndex);
     return events;
+  }
+
+  private shouldEmitNoteOn(confidence: number): boolean {
+    if (this.pitchStableCount >= this.config.pitchStableFrames) return true;
+    if (this.pitchStableCount === 1 && confidence >= this.config.onsetImmediateConfidence) {
+      return true;
+    }
+    return false;
   }
 
   private emitNoteOn(

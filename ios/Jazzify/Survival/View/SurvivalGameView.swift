@@ -256,9 +256,13 @@ struct SurvivalGameView: View {
             let isNoteOn = messageType == 0x90 && velocity > 0
             let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
             if isNoteOn {
-                created?.audioController.pianoNoteOnRealtime(midi: note, velocity: velocity)
+                if !NoteInputManager.shared.isVoiceInputActive {
+                    created?.audioController.pianoNoteOnRealtime(midi: note, velocity: velocity)
+                }
             } else if isNoteOff {
-                created?.audioController.pianoNoteOffRealtime(midi: note)
+                if !NoteInputManager.shared.isVoiceInputActive {
+                    created?.audioController.pianoNoteOffRealtime(midi: note)
+                }
             } else {
                 return
             }
@@ -467,7 +471,7 @@ private struct SurvivalCodeRunSpikePlacement: Codable, Sendable {
     }
 }
 
-private struct SurvivalCodeRunEnemyPlacement: Codable, Sendable {
+private struct SurvivalCodeRunEnemyPlacement: Codable, Sendable, Equatable {
     let c: Int
     let r: Int?
     let id: String?
@@ -790,7 +794,7 @@ private extension SurvivalCodeRunMapData {
     }
 }
 
-private struct SurvivalCodeRunNativeMapSpec {
+private struct SurvivalCodeRunNativeMapSpec: Equatable {
     let id: String
     let name: String
     let viewSize: CGSize
@@ -1161,6 +1165,10 @@ private struct SurvivalCodeRunGameContent: View {
                 displayMode: initialKeyboardDisplayMode
             )
         )
+        let initialMap = SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId)
+        _mapSpec = State(initialValue: initialMap)
+        _player = State(initialValue: SurvivalCodeRunNativePlayer(x: initialMap.spawn.x, y: initialMap.spawn.y))
+        _enemies = State(initialValue: initialMap.enemies())
     }
 
     private static func resolvedKeyboardDisplayRange(
@@ -1193,9 +1201,9 @@ private struct SurvivalCodeRunGameContent: View {
         )
     }
 
-    @State private var mapSpec = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil)
-    @State private var player = SurvivalCodeRunNativePlayer()
-    @State private var enemies = SurvivalCodeRunNativeMapSpec.fallback(mapId: nil).enemies()
+    @State private var mapSpec: SurvivalCodeRunNativeMapSpec
+    @State private var player: SurvivalCodeRunNativePlayer
+    @State private var enemies: [SurvivalCodeRunNativeEnemy]
     @State private var elapsed: TimeInterval = 0
     @State private var inputX: CGFloat = 0
     @State private var status: SurvivalCodeRunNativeStatus = .playing
@@ -1271,8 +1279,8 @@ private struct SurvivalCodeRunGameContent: View {
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
                     displayRange: chordPadDisplayRange,
-                    onPress: noteOn,
-                    onRelease: noteOff
+                    onPress: { noteOn($0, playPiano: true) },
+                    onRelease: { noteOff($0, playPiano: true) }
                 )
                 .equatable()
                 .id("\(chordPadDisplayRange.minMidi)-\(chordPadDisplayRange.maxMidi)")
@@ -1809,8 +1817,10 @@ private struct SurvivalCodeRunGameContent: View {
         }
     }
 
-    private func noteOn(_ midi: Int) {
-        audio.pianoNoteOnRealtime(midi: midi, velocity: 100)
+    private func noteOn(_ midi: Int, playPiano: Bool = true) {
+        if playPiano {
+            audio.pianoNoteOnRealtime(midi: midi, velocity: 100)
+        }
         heldKeys.insert(midi)
         guard status == .playing, !player.chordLockedUntilLanding, let chord = currentChord else { return }
         let pc = Self.pitchClass(midi)
@@ -1870,8 +1880,10 @@ private struct SurvivalCodeRunGameContent: View {
         randomNextChord = next
     }
 
-    private func noteOff(_ midi: Int) {
-        audio.pianoNoteOffRealtime(midi: midi)
+    private func noteOff(_ midi: Int, playPiano: Bool = true) {
+        if playPiano {
+            audio.pianoNoteOffRealtime(midi: midi)
+        }
         heldKeys.remove(midi)
     }
 
@@ -1905,6 +1917,7 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private func applyMapSpec(_ nextMap: SurvivalCodeRunNativeMapSpec) {
+        guard nextMap != mapSpec else { return }
         mapSpec = nextMap
         player = SurvivalCodeRunNativePlayer(x: nextMap.spawn.x, y: nextMap.spawn.y)
         enemies = nextMap.enemies()
@@ -1949,7 +1962,6 @@ private struct SurvivalCodeRunGameContent: View {
         if isRandomStage {
             drawRandomChords()
         }
-        applyMapSpec(SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId))
         audioStartupTask = Task {
             let config = (try? await SupabaseService.shared.fetchSurvivalStageConfig(difficulty: stage.difficulty.rawValue, stageType: stage.survivalBgmConfigStageType)) ?? .default
             await MainActor.run {
@@ -1975,8 +1987,9 @@ private struct SurvivalCodeRunGameContent: View {
             let velocity = Int(data2)
             DispatchQueue.main.async {
                 guard lifecycleID == id else { return }
-                if messageType == 0x90 && velocity > 0 { noteOn(note) }
-                if messageType == 0x80 || (messageType == 0x90 && velocity == 0) { noteOff(note) }
+                let playPiano = !NoteInputManager.shared.isVoiceInputActive
+                if messageType == 0x90 && velocity > 0 { noteOn(note, playPiano: playPiano) }
+                if messageType == 0x80 || (messageType == 0x90 && velocity == 0) { noteOff(note, playPiano: playPiano) }
             }
         }
     }

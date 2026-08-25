@@ -11,6 +11,7 @@ import { useGameMidiSession } from '@/hooks/useGameMidiSession';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
+import { duckBgmForVoiceInput } from '@/utils/voiceInputBgmDuck';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode } from './FantasyGameEngine';
 import { TaikoRenderBridge } from './TaikoRenderBridge';
 import { 
@@ -843,7 +844,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
         firstSection.timeSignature,
         firstSection.measureCount,
         firstSectionSkipCI ? firstSection.audioCountInMeasures : firstSection.countInMeasures,
-        settings.bgmVolume ?? 0.7,
+        duckBgmForVoiceInput(settings.bgmVolume ?? 0.7, settings.inputMethod),
         playbackRate,
         initialPitchShift,
         true, // noLoop
@@ -858,7 +859,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
           bgmManager.prepareNextSection(
             nextSection.bgmUrl, nextSection.bpm, nextSection.timeSignature,
             nextSection.measureCount, nextSection.audioCountInMeasures,
-            settings.bgmVolume ?? 0.7, playbackRate, initialPitchShift, true, nextSkipCI
+            duckBgmForVoiceInput(settings.bgmVolume ?? 0.7, settings.inputMethod), playbackRate, initialPitchShift, true, nextSkipCI
           );
         }
       }
@@ -873,7 +874,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
           stage.timeSignature || 4,
           stage.measureCount ?? 8,
           stage.countInMeasures ?? 0,
-          settings.bgmVolume ?? 0.7,
+          duckBgmForVoiceInput(settings.bgmVolume ?? 0.7, settings.inputMethod),
           playbackRate,
           initialPitchShift,
           false,
@@ -884,7 +885,7 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
     }
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage?.id, stage?.mode, stage?.bgmUrl, settings.bgmVolume, selectedSpeedMultiplier]);
+  }, [gameState.isGameActive, isReady, stage?.id, stage?.mode, stage?.bgmUrl, settings.bgmVolume, settings.inputMethod, selectedSpeedMultiplier]);
   // 注: stage オブジェクト全体ではなく stage.id/mode/bgmUrl のみ依存に含め、親の再レンダーで不要な effect 再実行を防止
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
   
@@ -1133,10 +1134,10 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
   }, [stage, fantasyMidi]);
 
   useEffect(() => {
-    if (settings.inputMethod !== 'voice') {
-      return;
-    }
-    const currentBgmVolume = settings.bgmVolume ?? 0.7;
+    const currentBgmVolume = duckBgmForVoiceInput(
+      settings.bgmVolume ?? 0.7,
+      settings.inputMethod,
+    );
     const timer = setTimeout(() => {
       if (bgmManager.getIsPlaying()) {
         bgmManager.setVolume(currentBgmVolume);

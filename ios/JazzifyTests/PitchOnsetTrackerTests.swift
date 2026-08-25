@@ -12,6 +12,7 @@ final class PitchOnsetTrackerTests: XCTestCase {
         let attackRiseDb: Double
         let retriggerGuardFrames: Int
         let centsTolerance: Double
+        let onsetImmediateConfidence: Double?
     }
 
     private struct GoldenFrame: Decodable {
@@ -53,6 +54,9 @@ final class PitchOnsetTrackerTests: XCTestCase {
         config.attackRiseDb = fixture.config.attackRiseDb
         config.retriggerGuardFrames = fixture.config.retriggerGuardFrames
         config.centsTolerance = fixture.config.centsTolerance
+        if let immediate = fixture.config.onsetImmediateConfidence {
+            config.onsetImmediateConfidence = immediate
+        }
 
         let tracker = PitchOnsetTracker(config: config)
         var allEvents: [GoldenEvent] = []

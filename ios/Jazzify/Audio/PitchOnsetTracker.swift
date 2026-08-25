@@ -10,6 +10,8 @@ struct PitchOnsetTrackerConfig: Equatable {
     var attackRiseDb: Double = 6
     var retriggerGuardFrames: Int = 5
     var centsTolerance: Double = 40
+    /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 10ms）。
+    var onsetImmediateConfidence: Double = 0.85
 }
 
 struct PitchFrame {
@@ -76,11 +78,11 @@ final class PitchOnsetTracker {
             pendingOff = false
 
             if currentNote < 0 {
-                if pitchStableCount >= config.pitchStableFrames {
+                if shouldEmitNoteOn(pitchStableCount: pitchStableCount, confidence: frame.confidence) {
                     emitNoteOn(&events, note: quantized, frameIndex: frameIndex)
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
-                if pitchStableCount >= config.pitchStableFrames {
+                if shouldEmitNoteOn(pitchStableCount: pitchStableCount, confidence: frame.confidence) {
                     emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
                     emitNoteOn(&events, note: quantized, frameIndex: frameIndex)
                 }
@@ -110,6 +112,12 @@ final class PitchOnsetTracker {
     }
 
     func getCurrentNote() -> Int { currentNote }
+
+    private func shouldEmitNoteOn(pitchStableCount: Int, confidence: Double) -> Bool {
+        if pitchStableCount >= config.pitchStableFrames { return true }
+        if pitchStableCount == 1, confidence >= config.onsetImmediateConfidence { return true }
+        return false
+    }
 
     private func volumeToDb(_ volume: Double) -> Double {
         10 * log10(max(volume, 1e-12))

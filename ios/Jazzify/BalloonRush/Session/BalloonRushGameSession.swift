@@ -114,12 +114,16 @@ final class BalloonRushGameSession: SurvivalPlaySession {
     }
 
     func midiGameNoteOn(_ midi: Int, velocity: Int) {
-        audioController.pianoNoteOnRealtime(midi: midi, velocity: velocity)
+        if !NoteInputManager.shared.isVoiceInputActive {
+            audioController.pianoNoteOnRealtime(midi: midi, velocity: velocity)
+        }
         input.enqueueNoteOn(midi, velocity: velocity)
     }
 
     func midiGameNoteOff(_ midi: Int) {
-        audioController.pianoNoteOffRealtime(midi: midi)
+        if !NoteInputManager.shared.isVoiceInputActive {
+            audioController.pianoNoteOffRealtime(midi: midi)
+        }
         input.enqueueNoteOff(midi)
     }
 

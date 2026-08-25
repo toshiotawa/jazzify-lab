@@ -153,9 +153,13 @@ struct EarTrainingAdlibCallResponseGameView: View {
             let isNoteOn = messageType == 0x90 && velocity > 0
             let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
             if isNoteOn {
-                SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
+                if !NoteInputManager.shared.isVoiceInputActive {
+                    SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
+                }
             } else if isNoteOff {
-                SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
+                if !NoteInputManager.shared.isVoiceInputActive {
+                    SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
+                }
             } else {
                 return
             }

@@ -8,7 +8,8 @@
     "minNoteFrames": 4,
     "attackRiseDb": 6,
     "retriggerGuardFrames": 5,
-    "centsTolerance": 40
+    "centsTolerance": 40,
+    "onsetImmediateConfidence": 2
   },
   "frames": [
     { "prediction": 0, "confidence": 0, "volume": 1e-8 },
