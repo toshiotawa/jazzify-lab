@@ -31,10 +31,10 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   releaseLevelDb: -45,
   minConfidence: 0.5,
   pitchStableFrames: 2,
-  releaseFrames: 3,
-  minNoteFrames: 4,
+  releaseFrames: 2,
+  minNoteFrames: 3,
   attackRiseDb: 6,
-  retriggerGuardFrames: 5,
+  retriggerGuardFrames: 3,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
 };
@@ -81,7 +81,7 @@ export class PitchOnsetTracker {
   private noteOnFrame = -1;
   private lastNoteOnFrame = -1;
   private pitchStableCount = 0;
-  private lastStablePitch = -1;
+  private lastStableNote = -1;
   private releaseCount = 0;
   private recentMinDb = Infinity;
   private pendingOff = false;
@@ -100,7 +100,7 @@ export class PitchOnsetTracker {
     this.noteOnFrame = -1;
     this.lastNoteOnFrame = -1;
     this.pitchStableCount = 0;
-    this.lastStablePitch = -1;
+    this.lastStableNote = -1;
     this.releaseCount = 0;
     this.recentMinDb = Infinity;
     this.pendingOff = false;
@@ -118,14 +118,11 @@ export class PitchOnsetTracker {
 
     if (voiced) {
       const quantized = quantizeMidi(frame.prediction);
-      if (
-        this.lastStablePitch >= 0 &&
-        pitchMatch(frame.prediction, this.lastStablePitch, this.config.centsTolerance)
-      ) {
+      if (this.lastStableNote === quantized) {
         this.pitchStableCount += 1;
       } else {
         this.pitchStableCount = 1;
-        this.lastStablePitch = frame.prediction;
+        this.lastStableNote = quantized;
       }
 
       this.releaseCount = 0;
@@ -147,7 +144,7 @@ export class PitchOnsetTracker {
       }
     } else {
       this.pitchStableCount = 0;
-      this.lastStablePitch = -1;
+      this.lastStableNote = -1;
 
       if (this.currentNote >= 0) {
         const belowRelease =
@@ -217,8 +214,8 @@ export class PitchOnsetTracker {
 
   private flushPendingOff(events: PitchInputEvent[], frameIndex: number): void {
     if (!this.pendingOff || this.currentNote < 0) return;
-    const elapsed = frameIndex - this.pendingOffFrame;
-    if (elapsed >= this.config.minNoteFrames) {
+    const noteDuration = frameIndex - this.noteOnFrame;
+    if (noteDuration >= this.config.minNoteFrames) {
       this.emitNoteOff(events, this.currentNote, frameIndex);
     }
   }

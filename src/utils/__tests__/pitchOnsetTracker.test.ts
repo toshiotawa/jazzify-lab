@@ -91,4 +91,67 @@ describe('PitchOnsetTracker', () => {
     tracker.reset();
     expect(tracker.getCurrentNote()).toBe(-1);
   });
+
+  it('flushes pending noteOff from noteOnFrame not pendingOffFrame', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      releaseFrames: 1,
+      minNoteFrames: 4,
+      onsetImmediateConfidence: 2,
+    });
+    const voiced: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.1, volume: 1e-8 };
+
+    tracker.processFrame(voiced, 0);
+    expect(tracker.getCurrentNote()).toBe(60);
+    tracker.processFrame(quiet, 1);
+    expect(tracker.getCurrentNote()).toBe(60);
+    tracker.processFrame(quiet, 2);
+    expect(tracker.getCurrentNote()).toBe(60);
+    tracker.processFrame(quiet, 3);
+    expect(tracker.getCurrentNote()).toBe(60);
+    const events = tracker.processFrame(quiet, 4);
+    expect(events).toEqual([{ type: 'noteOff', note: 60, frameIndex: 4 }]);
+  });
+
+  it('counts pitch stability by quantized semitone not raw cents', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 2,
+      onsetImmediateConfidence: 2,
+    });
+    const silent: PitchFrame = { prediction: 0, confidence: 0, volume: 1e-8 };
+    const wobbleA: PitchFrame = { prediction: 60.2, confidence: 0.9, volume: 0.01 };
+    const wobbleB: PitchFrame = { prediction: 59.8, confidence: 0.9, volume: 0.01 };
+
+    tracker.processFrame(silent, 0);
+    expect(tracker.processFrame(wobbleA, 1)).toEqual([]);
+    expect(tracker.processFrame(wobbleB, 2)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 2 },
+    ]);
+  });
+
+  it('retriggers same note after retriggerGuardFrames with attack rise', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 3,
+      attackRiseDb: 6,
+      onsetImmediateConfidence: 2,
+    });
+    const soft: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.001 };
+    const loud: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.02 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.001 };
+
+    tracker.processFrame(soft, 0);
+    tracker.processFrame(quiet, 1);
+    tracker.processFrame(quiet, 2);
+    tracker.processFrame(quiet, 3);
+    const events = tracker.processFrame(loud, 4);
+    expect(events).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 4 },
+      { type: 'noteOn', note: 60, frameIndex: 4 },
+    ]);
+  });
 });

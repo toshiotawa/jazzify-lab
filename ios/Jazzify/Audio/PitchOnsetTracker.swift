@@ -5,10 +5,10 @@ struct PitchOnsetTrackerConfig: Equatable {
     var releaseLevelDb: Double = -45
     var minConfidence: Double = 0.5
     var pitchStableFrames: Int = 2
-    var releaseFrames: Int = 3
-    var minNoteFrames: Int = 4
+    var releaseFrames: Int = 2
+    var minNoteFrames: Int = 3
     var attackRiseDb: Double = 6
-    var retriggerGuardFrames: Int = 5
+    var retriggerGuardFrames: Int = 3
     var centsTolerance: Double = 40
     /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 10ms）。
     var onsetImmediateConfidence: Double = 0.85
@@ -31,7 +31,7 @@ final class PitchOnsetTracker {
     private var noteOnFrame = -1
     private var lastNoteOnFrame = -1
     private var pitchStableCount = 0
-    private var lastStablePitch: Double = -1
+    private var lastStableNote = -1
     private var releaseCount = 0
     private var recentMinDb = Double.infinity
     private var pendingOff = false
@@ -50,7 +50,7 @@ final class PitchOnsetTracker {
         noteOnFrame = -1
         lastNoteOnFrame = -1
         pitchStableCount = 0
-        lastStablePitch = -1
+        lastStableNote = -1
         releaseCount = 0
         recentMinDb = .infinity
         pendingOff = false
@@ -66,12 +66,11 @@ final class PitchOnsetTracker {
 
         if voiced {
             let quantized = Int(frame.prediction.rounded())
-            if lastStablePitch >= 0,
-               pitchMatch(frame.prediction, lastStablePitch, config.centsTolerance) {
+            if lastStableNote == quantized {
                 pitchStableCount += 1
             } else {
                 pitchStableCount = 1
-                lastStablePitch = frame.prediction
+                lastStableNote = quantized
             }
 
             releaseCount = 0
@@ -91,7 +90,7 @@ final class PitchOnsetTracker {
             }
         } else {
             pitchStableCount = 0
-            lastStablePitch = -1
+            lastStableNote = -1
 
             if currentNote >= 0 {
                 let belowRelease = levelDb < config.releaseLevelDb
@@ -156,8 +155,8 @@ final class PitchOnsetTracker {
 
     private func flushPendingOff(_ events: inout [PitchInputEvent], frameIndex: Int) {
         guard pendingOff, currentNote >= 0 else { return }
-        let elapsed = frameIndex - pendingOffFrame
-        if elapsed >= config.minNoteFrames {
+        let noteDuration = frameIndex - noteOnFrame
+        if noteDuration >= config.minNoteFrames {
             emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
         }
     }
