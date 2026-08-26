@@ -79,10 +79,6 @@ final class PitchInputEngine: @unchecked Sendable {
     private var activeVoiceProcessing = false
     private var activeTapSampleRate: Double = 0
     private var captureSinkNode: AVAudioSinkNode?
-    /// VPIO は入出力が一体の I/O ユニットで、出力側も毎 IO サイクル pull される。
-    /// 出力チェーンが無いと render err: -1 をレンダースレッドから吐き続け、
-    /// AEC の参照信号も得られない。無音を供給して正常終了させる。
-    private var silentOutputNode: AVAudioSourceNode?
     private var capturePipeline: CapturePipeline?
 
     private init() {
@@ -345,61 +341,22 @@ final class PitchInputEngine: @unchecked Sendable {
         engine.attach(sink)
         engine.connect(inputNode, to: sink, format: inputFormat)
 
-        let silence = Self.makeSilentOutputNode()
-        if let silence, let silenceFormat = AVAudioFormat(
-            standardFormatWithSampleRate: inputFormat.sampleRate,
-            channels: 1
-        ) {
-            engine.attach(silence)
-            engine.connect(silence, to: engine.mainMixerNode, format: silenceFormat)
-            engine.mainMixerNode.outputVolume = 0
-        }
-
         engine.prepare()
         do {
             try engine.start()
         } catch {
-            Self.detachCaptureNodes(engine: engine, sink: sink, silence: silence)
+            engine.disconnectNodeInput(sink)
+            engine.detach(sink)
             throw error
         }
 
         audioEngine = engine
         captureSinkNode = sink
-        silentOutputNode = silence
         capturePipeline = pipeline
         isRunning = true
         activeVoiceProcessing = useVoiceProcessing
         activeTapSampleRate = inputFormat.sampleRate
         SurvivalGameAudio.shared.setVoiceInputDucking(true)
-    }
-
-    /// レンダースレッドで呼ばれる。memset のみでヒープ割当なし。
-    private static func makeSilentOutputNode() -> AVAudioSourceNode? {
-        AVAudioSourceNode { isSilence, _, _, audioBufferList in
-            isSilence.pointee = true
-            for buffer in UnsafeMutableAudioBufferListPointer(audioBufferList) {
-                if let data = buffer.mData {
-                    memset(data, 0, Int(buffer.mDataByteSize))
-                }
-            }
-            return noErr
-        }
-    }
-
-    @MainActor
-    private static func detachCaptureNodes(
-        engine: AVAudioEngine,
-        sink: AVAudioSinkNode?,
-        silence: AVAudioSourceNode?
-    ) {
-        if let sink {
-            engine.disconnectNodeInput(sink)
-            engine.detach(sink)
-        }
-        if let silence {
-            engine.disconnectNodeOutput(silence)
-            engine.detach(silence)
-        }
     }
 
     @MainActor
@@ -443,17 +400,15 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func tearDownEngine(releaseRecordingSession: Bool) {
         SurvivalGameAudio.shared.setVoiceInputDucking(false)
-        if let engine = audioEngine {
+        if let engine = audioEngine, let sink = captureSinkNode {
             engine.stop()
-            Self.detachCaptureNodes(
-                engine: engine,
-                sink: captureSinkNode,
-                silence: silentOutputNode
-            )
+            engine.disconnectNodeInput(sink)
+            engine.detach(sink)
+        } else {
+            audioEngine?.stop()
         }
         audioEngine = nil
         captureSinkNode = nil
-        silentOutputNode = nil
         capturePipeline = nil
         isRunning = false
         activeVoiceProcessing = false
