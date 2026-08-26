@@ -93,7 +93,7 @@ describe('SurvivalPhraseEngine', () => {
     expect(done.result).toBe('measure-complete');
   });
 
-  it('resets current chord on wrong pitch class', () => {
+  it('ignores wrong pitch class without resetting current chord progress', () => {
     let state = createInitialPhraseState(samplePhrase);
     const ok = evaluatePhraseNoteOn(state, 2);
     state = ok.nextState;
@@ -101,8 +101,8 @@ describe('SurvivalPhraseEngine', () => {
 
     const miss = evaluatePhraseNoteOn(state, 0);
     expect(miss.result).toBe('miss');
-    expect(miss.nextState.correctNoteIndices.size).toBe(0);
-    expect(miss.nextState.targetNoteIndex).toBe(0);
+    expect(miss.nextState.correctNoteIndices.size).toBe(1);
+    expect(miss.nextState.targetNoteIndex).toBe(1);
     expect(miss.nextState.chordIndex).toBe(0);
   });
 
@@ -153,11 +153,11 @@ describe('SurvivalPhraseEngine', () => {
     expect(done.nextState.chordIndex).toBe(0);
   });
 
-  it('resets on out-of-chord note', () => {
+  it('ignores out-of-chord note without resetting state', () => {
     const state = createInitialPhraseState(samplePhrase);
     const miss = evaluatePhraseNoteOn(state, 0);
     expect(miss.result).toBe('miss');
-    expect(miss.nextState.chordIndex).toBe(0);
+    expect(miss.nextState).toEqual(state);
   });
 
   it('skipRestPhraseChord advances when current chord is a rest (empty notes)', () => {

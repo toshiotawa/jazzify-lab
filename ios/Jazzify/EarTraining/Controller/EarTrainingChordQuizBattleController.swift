@@ -542,26 +542,8 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             attempt: currentAttempt,
             activeChord: judged,
             midiNote: midi,
-            damage: Self.zeroDamage,
-            suppressMissRecording: false,
-            wrongNotesPolicy: .firstOnlyPerChord
+            damage: Self.zeroDamage
         )
-
-        if !practiceMode, !tutorialNoCombat, result.firstWrongJustHappened {
-            let wrongEffectId = triggerBattleEffect(
-                kind: .miss,
-                label: nil,
-                damage: Self.quizStrikeDamage,
-                phraseNoteCount: nil,
-                originPoint: nil
-            )
-            registerBattleEffectImpact(effectId: wrongEffectId) { [weak self] in
-                guard let self else { return }
-                let nextPlayer = max(0, self.playerHp - Self.quizStrikeDamage)
-                self.playerHp = nextPlayer
-                self.applyQuizHpOutcome(nextEnemyHp: self.enemyHp, nextPlayerHp: nextPlayer)
-            }
-        }
 
         if result.attempt != currentAttempt {
             attempt = result.attempt

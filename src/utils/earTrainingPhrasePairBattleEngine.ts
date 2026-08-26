@@ -77,7 +77,7 @@ export const handlePhrasePairAdlibNoteOn = (
       nextWindow: window,
       shouldFire: false,
       enemyDamage: 0,
-      playerDamage: damage.miss,
+      playerDamage: 0,
       hitPitchClass: null,
     };
   }

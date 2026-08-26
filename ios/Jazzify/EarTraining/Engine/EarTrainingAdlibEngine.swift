@@ -148,7 +148,7 @@ enum EarTrainingAdlibEngine {
                 nextWindow: window,
                 shouldFire: false,
                 enemyDamage: 0,
-                playerDamage: damage.miss,
+                playerDamage: 0,
                 hitPitchClass: nil
             )
         }

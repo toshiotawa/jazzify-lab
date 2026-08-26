@@ -70,7 +70,7 @@ describe('compositePhraseEngine', () => {
     expect(ev.result).toBe('miss');
     state = ev.nextState;
     expect(state.candidates.length).toBe(2);
-    expect(state.primarySourcePhraseId).toBeNull();
+    expect(state.primarySourcePhraseId).toBe('11');
   });
 
   it('shows common revealed prefix length while parallel', () => {

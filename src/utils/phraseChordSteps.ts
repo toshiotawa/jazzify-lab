@@ -239,7 +239,7 @@ export function advanceChordStep(
     }
   }
 
-  return { result: 'miss', nextState: resetStepState() };
+  return { result: 'miss', nextState: state };
 }
 
 export function firstUnmatchedNoteIndexInStep(

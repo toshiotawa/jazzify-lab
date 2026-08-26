@@ -68,52 +68,39 @@ describe('earTrainingChordVoicingEngine', () => {
     expect(attempt.completedChordIds.has('c1')).toBe(true);
   });
 
-  it('構成音外のミスタッチは5回まで評価に加算し、被ダメは発生しない', () => {
-    const chord = buildChord({ id: 'c1' });
-    const phrase = buildPhrase([chord]);
-    let attempt = createChordVoicingAttempt(phrase);
-
-    for (let index = 0; index < 7; index += 1) {
-      const result = handleChordVoicingNoteOn(attempt, chord, 61, damage);
-      attempt = result.attempt;
-      expect(result.evaluationMissAdded).toBe(index < 5);
-      expect(result.playerDamage).toBe(0);
-      expect(result.firstWrongJustHappened).toBe(index === 0);
-    }
-    expect(countChordVoicingMisses(attempt)).toBe(5);
-  });
-
-  it('suppressMissRecording でミスの記録のみ抑止できる', () => {
+  it('構成音外の誤鍵は無視し、attempt もミス記録も更新しない', () => {
     const chord = buildChord({ id: 'c1' });
     const phrase = buildPhrase([chord]);
     const attempt = createChordVoicingAttempt(phrase);
-    const r = handleChordVoicingNoteOn(attempt, chord, 61, damage, {
-      suppressMissRecording: true,
-    });
-    expect(r.attempt).toBe(attempt);
-    expect(r.firstWrongJustHappened).toBe(false);
-    expect(countChordVoicingMisses(r.attempt)).toBe(0);
+
+    for (let index = 0; index < 7; index += 1) {
+      const result = handleChordVoicingNoteOn(attempt, chord, 61, damage);
+      expect(result.evaluationMissAdded).toBe(false);
+      expect(result.playerDamage).toBe(0);
+      expect(result.firstWrongJustHappened).toBe(false);
+      expect(result.attempt).toBe(attempt);
+    }
+    expect(countChordVoicingMisses(attempt)).toBe(0);
   });
 
-  it('wrongNotesPolicy first_only_per_chord は1コードにつき1回だけミス記録する', () => {
+  it('suppressMissRecording も wrongNotesPolicy も誤鍵では state を変えない', () => {
     const chord = buildChord({ id: 'c1' });
     const phrase = buildPhrase([chord]);
-    let attempt = createChordVoicingAttempt(phrase);
+    const attempt = createChordVoicingAttempt(phrase);
+    const suppressed = handleChordVoicingNoteOn(attempt, chord, 61, damage, {
+      suppressMissRecording: true,
+    });
+    expect(suppressed.attempt).toBe(attempt);
+    expect(suppressed.firstWrongJustHappened).toBe(false);
+    expect(countChordVoicingMisses(suppressed.attempt)).toBe(0);
 
-    const first = handleChordVoicingNoteOn(attempt, chord, 61, damage, {
+    const firstOnly = handleChordVoicingNoteOn(attempt, chord, 63, damage, {
       wrongNotesPolicy: 'first_only_per_chord',
     });
-    expect(first.firstWrongJustHappened).toBe(true);
-    expect(first.evaluationMissAdded).toBe(true);
-    attempt = first.attempt;
-
-    const second = handleChordVoicingNoteOn(attempt, chord, 63, damage, {
-      wrongNotesPolicy: 'first_only_per_chord',
-    });
-    expect(second.attempt).toBe(attempt);
-    expect(second.firstWrongJustHappened).toBe(false);
-    expect(second.evaluationMissAdded).toBe(false);
-    expect(countChordVoicingMisses(second.attempt)).toBe(1);
+    expect(firstOnly.attempt).toBe(attempt);
+    expect(firstOnly.firstWrongJustHappened).toBe(false);
+    expect(firstOnly.evaluationMissAdded).toBe(false);
+    expect(countChordVoicingMisses(firstOnly.attempt)).toBe(0);
   });
 
   it('完成済みコードに対する追加入力は無視される', () => {

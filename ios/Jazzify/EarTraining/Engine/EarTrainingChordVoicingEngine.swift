@@ -236,56 +236,14 @@ enum EarTrainingChordVoicingEngine {
         var pressed = attempt.pressedByChord[chordId] ?? Set<Int>()
         let isTargetTone = targetPcs.contains(inputPc)
         if !isTargetTone {
-            if suppressMissRecording {
-                return InputResult(
-                    attempt: attempt,
-                    hitPitchClass: nil,
-                    chordJustCompleted: false,
-                    enemyDamage: 0,
-                    playerDamage: 0,
-                    evaluationMissAdded: false,
-                    firstWrongJustHappened: false
-                )
-            }
-            if wrongNotesPolicy == .firstOnlyPerChord {
-                let currentMiss = attempt.missByChord[chordId] ?? 0
-                if currentMiss >= 1 {
-                    return InputResult(
-                        attempt: attempt,
-                        hitPitchClass: nil,
-                        chordJustCompleted: false,
-                        enemyDamage: 0,
-                        playerDamage: 0,
-                        evaluationMissAdded: false,
-                        firstWrongJustHappened: false
-                    )
-                }
-                var next = attempt
-                next.missByChord[chordId] = 1
-                return InputResult(
-                    attempt: next,
-                    hitPitchClass: nil,
-                    chordJustCompleted: false,
-                    enemyDamage: 0,
-                    playerDamage: 0,
-                    evaluationMissAdded: true,
-                    firstWrongJustHappened: true
-                )
-            }
-            var next = attempt
-            let currentMiss = next.missByChord[chordId] ?? 0
-            let evaluationMissAdded = currentMiss < maxMissesPerChord
-            if evaluationMissAdded {
-                next.missByChord[chordId] = currentMiss + 1
-            }
             return InputResult(
-                attempt: next,
+                attempt: attempt,
                 hitPitchClass: nil,
                 chordJustCompleted: false,
                 enemyDamage: 0,
                 playerDamage: 0,
-                evaluationMissAdded: evaluationMissAdded,
-                firstWrongJustHappened: evaluationMissAdded && currentMiss == 0
+                evaluationMissAdded: false,
+                firstWrongJustHappened: false
             )
         }
         if pressed.contains(inputPc) {

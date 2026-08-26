@@ -39,8 +39,6 @@ export type EarTrainingOutcome =
   | 'input';
 
 const NOTE_NAMES_BY_PITCH_CLASS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const MAX_MISSES_PER_NOTE = 5;
-
 export const midiToPitchClass = (midiNote: number): number => {
   const rounded = Math.round(midiNote);
   return ((rounded % 12) + 12) % 12;
@@ -161,25 +159,13 @@ export const handleEarTrainingNoteInput = (
     };
   }
 
-  const noteIndex = attempt.currentNoteIndex;
-  const missedNoteCounts = new Map(attempt.missedNoteCounts);
-  const currentMissCount = missedNoteCounts.get(noteIndex) ?? 0;
-  const evaluationMissAdded = currentMissCount < MAX_MISSES_PER_NOTE;
-
-  if (evaluationMissAdded) {
-    missedNoteCounts.set(noteIndex, currentMissCount + 1);
-  }
-
   return {
-    attempt: {
-      ...attempt,
-      missedNoteCounts,
-    },
+    attempt,
     correct: false,
     completed: false,
     enemyDamage: 0,
     playerDamage: 0,
-    evaluationMissAdded,
+    evaluationMissAdded: false,
   };
 };
 

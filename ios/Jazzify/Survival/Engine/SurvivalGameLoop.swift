@@ -47,6 +47,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
     private var compositePhraseRuntime: SurvivalCompositePhraseRuntimeState?
     private var compositePhraseKeyFifths: Int = 0
+    private var lastPhraseProgressAt: TimeInterval?
 
     var isPhraseMode: Bool { stage.mapCategory == .phrases }
 
@@ -488,6 +489,30 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         }
     }
 
+    private func expirePhraseProgressIfTimedOut(now: TimeInterval) {
+        guard isPhraseMode,
+              let lastProgressAt = lastPhraseProgressAt,
+              PhraseProgressIdleReset.isExpired(lastProgressAt: lastProgressAt, now: now)
+        else { return }
+
+        if isCompositePhraseBossStage,
+           let composite = compositePhraseRuntime,
+           SurvivalCompositePhraseEngine.hasPartialProgress(composite) {
+            compositePhraseRuntime = SurvivalCompositePhraseEngine.resetProgressIdle(composite)
+            lastPhraseProgressAt = nil
+            return
+        }
+
+        if let phrase = phraseState,
+           SurvivalPhraseEngine.hasPartialProgress(phrase) {
+            phraseState = SurvivalPhraseEngine.resetProgressIdle(phrase)
+            lastPhraseProgressAt = nil
+            return
+        }
+
+        lastPhraseProgressAt = nil
+    }
+
     // MARK: - Jajii support（Web SurvivalJajiiEngine と仕様同期）
 
     private func configureJajiiSupportIfNeeded() {
@@ -817,13 +842,22 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
 
         switch evaluation.result {
         case .miss:
-            runtime.comboCount = 0
-            runtime.comboGauge = 0
-            runtime.comboReady = false
             return []
-        case .resync, .chordHold:
+        case .chordHold:
             return []
-        case .progress, .measureComplete:
+        case .resync:
+            lastPhraseProgressAt = CACurrentMediaTime()
+            return []
+        case .progress:
+            if SurvivalPhraseEngine.hasPartialProgress(evaluation.nextState) {
+                lastPhraseProgressAt = CACurrentMediaTime()
+            }
+            var progressEvents: [SurvivalFrameEvent] = []
+            runtime.comboCount += 1
+            progressEvents.append(contentsOf: firePhraseCombat(measureComplete: false))
+            return progressEvents
+        case .measureComplete:
+            lastPhraseProgressAt = nil
             var events: [SurvivalFrameEvent] = []
             if evaluation.result == .measureComplete {
                 if evaluation.nextState.chordIndex == 0,
@@ -912,17 +946,28 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         let pc = ((note % 12) + 12) % 12
         let repeatCompletionCompare = composite.lastCompletedSourceStageNumber
         let evaluation = SurvivalCompositePhraseEngine.evaluateNoteOn(state: composite, pitchClass: pc)
+        if evaluation.result == .miss {
+            return []
+        }
+
         compositePhraseRuntime = evaluation.nextState
 
         switch evaluation.result {
         case .miss:
-            runtime.comboCount = 0
-            runtime.comboGauge = 0
-            runtime.comboReady = false
             return []
         case .resync:
+            if SurvivalCompositePhraseEngine.hasPartialProgress(evaluation.nextState) {
+                lastPhraseProgressAt = CACurrentMediaTime()
+            }
             return []
         case .progress, .measureComplete, .phraseComplete:
+            if evaluation.result == .phraseComplete {
+                lastPhraseProgressAt = nil
+            } else if SurvivalCompositePhraseEngine.hasPartialProgress(evaluation.nextState) {
+                lastPhraseProgressAt = CACurrentMediaTime()
+            } else {
+                lastPhraseProgressAt = nil
+            }
             let now = CACurrentMediaTime()
             runtime.comboCount += 1
             runtime.lastComboHitAt = now
@@ -1239,6 +1284,8 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
     private func tickNormal(deltaTime: TimeInterval, now: TimeInterval, events: inout [SurvivalFrameEvent]) {
         if !isPhraseMode {
             expireComboIfTimedOut(now: now)
+        } else {
+            expirePhraseProgressIfTimedOut(now: now)
         }
         runtime.statusEffects = SurvivalStatusEffectEngine.prune(effects: runtime.statusEffects, now: now)
         let effectiveStats = SurvivalStatusEffectEngine.effectiveStats(

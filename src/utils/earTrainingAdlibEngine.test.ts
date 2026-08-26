@@ -82,13 +82,14 @@ describe('earTrainingAdlibEngine', () => {
     expect(capped.nextWindow.fireCount).toBe(ADLIB_MAX_FIREBALLS_PER_HARMONY);
   });
 
-  it('treats out-of-group notes as miss with player damage', () => {
+  it('treats out-of-group notes as miss without player damage', () => {
     const union = getHarmonyUnionPitchClasses(phrase, harmonyRow);
     const window = createAdlibWindowState('chord-1');
     const result = handleAdlibNoteOn(window, union, 61, damage);
     expect(result.kind).toBe('miss');
-    expect(result.playerDamage).toBe(5);
+    expect(result.playerDamage).toBe(0);
     expect(result.shouldFire).toBe(false);
+    expect(result.nextWindow).toEqual(window);
   });
 
   it('resets window state on harmony change', () => {

@@ -170,23 +170,14 @@ enum EarTrainingEngine {
             )
         }
 
-        let noteIndex = attempt.currentNoteIndex
-        var missed = attempt.missedNoteCounts
-        let currentMissCount = missed[noteIndex] ?? 0
-        let evaluationMissAdded = currentMissCount < maxMissesPerNote
-        if evaluationMissAdded {
-            missed[noteIndex] = currentMissCount + 1
-        }
-        var nextAttempt = attempt
-        nextAttempt.missedNoteCounts = missed
         return InputResult(
-            attempt: nextAttempt,
+            attempt: attempt,
             correct: false,
             completed: false,
             revealedNote: nil,
             enemyDamage: 0,
-            playerDamage: evaluationMissAdded ? damage.miss : 0,
-            evaluationMissAdded: evaluationMissAdded
+            playerDamage: 0,
+            evaluationMissAdded: false
         )
     }
 

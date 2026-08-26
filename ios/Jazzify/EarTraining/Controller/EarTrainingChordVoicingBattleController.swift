@@ -125,6 +125,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
     private var timeLimitTask: Task<Void, Never>?
     private var chordSyncTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
+    private var compositeProgressIdleTask: Task<Void, Never>?
     private var pendingImpactHandlers: [Int: () -> Void] = [:]
     private var battleEffectIdCounter: Int = 0
     private var lastEmittedEffectId: Int = -1
@@ -525,8 +526,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         }
 
         if result.evaluationMissAdded {
-            triggerFeedback(.miss)
-            statusText = copy.tryAgain
             return
         }
 
@@ -603,18 +602,19 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         let repeatCompareLast = rt.lastCompletedSourcePhraseId
         let pc = EarTrainingChordVoicingEngine.midiToPitchClass(midi)
         let evaluation = EarTrainingCompositePhraseEngine.evaluateNoteOn(state: rt, pitchClass: pc)
+        guard evaluation.result != .miss else { return }
+
         compositePhraseRuntime = evaluation.nextState
 
-        guard evaluation.result != .miss else {
-            compositeComboCount = 0
-            compositeMissCount += 1
-            triggerFeedback(.miss)
-            statusText = copy.tryAgain
+        if evaluation.result == .resync {
+            scheduleCompositeProgressIdleReset()
             return
         }
 
-        guard evaluation.result != .resync else {
-            return
+        if evaluation.result == .phraseComplete {
+            cancelCompositeProgressIdleTimer()
+        } else {
+            scheduleCompositeProgressIdleReset()
         }
 
         compositeComboCount += 1
@@ -1647,11 +1647,31 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
         cancelCountdownTimer()
         cancelTimeLimitTimer()
         cancelChordSyncTask()
+        cancelCompositeProgressIdleTimer()
         cancelTutorialTimedLineWorks()
         countInEarlyInputActive = false
         feedbackTask?.cancel()
         feedbackTask = nil
         clearMeasureDisplayShiftQueue()
+    }
+
+    private func cancelCompositeProgressIdleTimer() {
+        compositeProgressIdleTask?.cancel()
+        compositeProgressIdleTask = nil
+    }
+
+    private func scheduleCompositeProgressIdleReset() {
+        cancelCompositeProgressIdleTimer()
+        compositeProgressIdleTask = Task { [weak self] in
+            let delayNs = UInt64(PhraseProgressIdleReset.intervalSec * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, let runtime = self.compositePhraseRuntime else { return }
+                guard EarTrainingCompositePhraseEngine.hasPartialProgress(runtime) else { return }
+                self.compositePhraseRuntime = EarTrainingCompositePhraseEngine.resetProgressIdle(runtime)
+            }
+        }
     }
 
     private func cancelTutorialTimedLineWorks() {

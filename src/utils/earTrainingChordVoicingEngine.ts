@@ -9,8 +9,6 @@ import {
   type EarTrainingDamageConfig,
 } from '@/utils/earTrainingEngine';
 
-const MAX_MISSES_PER_CHORD = 5;
-
 export interface ChordVoicingEvaluationResult {
   attempt: EarTrainingChordVoicingAttempt;
   hitPitchClass: number | null;
@@ -173,56 +171,14 @@ export const handleChordVoicingNoteOn = (
   const isTargetTone = targetPcs.includes(inputPc);
 
   if (!isTargetTone) {
-    if (options?.suppressMissRecording === true) {
-      return {
-        attempt,
-        hitPitchClass: null,
-        chordJustCompleted: false,
-        enemyDamage: 0,
-        playerDamage: 0,
-        evaluationMissAdded: false,
-        firstWrongJustHappened: false,
-      };
-    }
-    if (options?.wrongNotesPolicy === 'first_only_per_chord') {
-      const currentMiss = attempt.missByChord.get(chordId) ?? 0;
-      if (currentMiss >= 1) {
-        return {
-          attempt,
-          hitPitchClass: null,
-          chordJustCompleted: false,
-          enemyDamage: 0,
-          playerDamage: 0,
-          evaluationMissAdded: false,
-          firstWrongJustHappened: false,
-        };
-      }
-      const next = cloneAttempt(attempt);
-      next.missByChord.set(chordId, 1);
-      return {
-        attempt: next,
-        hitPitchClass: null,
-        chordJustCompleted: false,
-        enemyDamage: 0,
-        playerDamage: 0,
-        evaluationMissAdded: true,
-        firstWrongJustHappened: true,
-      };
-    }
-    const next = cloneAttempt(attempt);
-    const currentMiss = next.missByChord.get(chordId) ?? 0;
-    const evaluationMissAdded = currentMiss < MAX_MISSES_PER_CHORD;
-    if (evaluationMissAdded) {
-      next.missByChord.set(chordId, currentMiss + 1);
-    }
     return {
-      attempt: next,
+      attempt,
       hitPitchClass: null,
       chordJustCompleted: false,
       enemyDamage: 0,
       playerDamage: 0,
-      evaluationMissAdded,
-      firstWrongJustHappened: evaluationMissAdded && currentMiss === 0,
+      evaluationMissAdded: false,
+      firstWrongJustHappened: false,
     };
   }
 

@@ -265,6 +265,7 @@
 		AE315E9F3DC457EC31F8F591 /* EarTrainingBattleVolumePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256267E5F9D8CF6132FCF6BD /* EarTrainingBattleVolumePreferences.swift */; };
 		B0D7DAFEE3826B9E27817BEC /* SurvivalTutorialV3DemoPlayDecodeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88A1574E91DF667FEAFE18F /* SurvivalTutorialV3DemoPlayDecodeTests.swift */; };
 		B0E0CFCE3583B03B3EB51DA3 /* SignupMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B538D5014906D7BF75F2B41 /* SignupMetadata.swift */; };
+		F1A2B3C4D5E60718293A4B5C /* PhraseProgressIdleReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* PhraseProgressIdleReset.swift */; };
 		B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 38BCDCE6710BA5E08D77BA6C /* InfoPlist.strings */; };
 		B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */; };
 		B2C17E9EB2C7B760FD0C92D2 /* Gameover.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2AA6502C749876A952A425C8 /* Gameover.mp3 */; };
@@ -533,6 +534,7 @@
 		795B57E03FD4DB34A9606AC6 /* AnnouncementRichContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementRichContent.swift; sourceTree = "<group>"; };
 		7A3E89ACA87E4B99E62F5687 /* OnboardingScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScript.swift; sourceTree = "<group>"; };
 		7B538D5014906D7BF75F2B41 /* SignupMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupMetadata.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* PhraseProgressIdleReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseProgressIdleReset.swift; sourceTree = "<group>"; };
 		7BA990ADCDF7446E130A4DF0 /* SurvivalTutorialV3DemoPlayScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DemoPlayScene.swift; sourceTree = "<group>"; };
 		7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleController.swift; sourceTree = "<group>"; };
 		7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameState.swift; sourceTree = "<group>"; };
@@ -841,6 +843,7 @@
 			isa = PBXGroup;
 			children = (
 				C88453408DE12301997E620A /* MarketingEmailOptIn.swift */,
+				A1B2C3D4E5F60718293A4B5D /* PhraseProgressIdleReset.swift */,
 				7B538D5014906D7BF75F2B41 /* SignupMetadata.swift */,
 			);
 			path = Utils;
@@ -1883,6 +1886,7 @@
 				7FC19B00C680C4C54197B045 /* ScreenRotationPreferences.swift in Sources */,
 				2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */,
 				B0E0CFCE3583B03B3EB51DA3 /* SignupMetadata.swift in Sources */,
+				F1A2B3C4D5E60718293A4B5C /* PhraseProgressIdleReset.swift in Sources */,
 				46E8B9D41C4934FB1FD5F571 /* SoftLandingFreeTier.swift in Sources */,
 				F9C13CAA249C7F30E3D71E97 /* SoftLandingOfferSheet.swift in Sources */,
 				E09259FB92854762EA40D533 /* StoreManager.swift in Sources */,

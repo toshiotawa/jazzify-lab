@@ -342,6 +342,10 @@ final class EarTrainingBattleController: ObservableObject {
             inputMidiNote: midi,
             damage: damageConfig
         )
+        if !result.correct {
+            return
+        }
+
         current = result.attempt
         attempt = current
 
@@ -410,37 +414,6 @@ final class EarTrainingBattleController: ObservableObject {
             }
             return
         }
-
-        if result.playerDamage > 0 {
-            triggerFeedback(.miss)
-            statusText = copy.missEnemyAttack
-            let missEffectId = triggerBattleEffect(
-                kind: .miss,
-                label: "MISS",
-                damage: result.playerDamage,
-                phraseNoteCount: phrase.notes?.count ?? 0
-            )
-            registerBattleEffectImpact(effectId: missEffectId) { [weak self] in
-                guard let self else { return }
-                let nextPlayerHp = max(0, self.playerHp - result.playerDamage)
-                self.playerHp = nextPlayerHp
-                let outcome = EarTrainingEngine.resolveOutcome(
-                    enemyHp: self.enemyHp,
-                    playerHp: nextPlayerHp,
-                    timeRemainingSec: self.timeRemaining,
-                    phraseCompleted: false,
-                    phraseFailed: false
-                )
-                if outcome == .gameOver {
-                    self.finishGameOver(message: self.copy.gameOver)
-                }
-            }
-            return
-        }
-
-        statusText = copy.tryAgain
-        triggerFeedback(.miss)
-        _ = triggerBattleEffect(kind: .miss, label: "MISS", damage: nil, phraseNoteCount: phrase.notes?.count ?? 0)
     }
 
     // MARK: - Effect plumbing

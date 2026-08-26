@@ -40,10 +40,13 @@ import {
 } from '@/utils/earTrainingPhrasePairBattleEngine';
 import {
   createInitialAdlibRuntimeState,
+  clearAdlibBufferProgress,
   handleChordChange,
+  hasAdlibBufferProgress,
   type AdlibPattern,
   type AdlibRuntimeState,
 } from '@/utils/earTrainingPhrasePairEngine';
+import { PHRASE_PROGRESS_IDLE_RESET_MS } from '@/utils/phraseProgressIdleReset';
 import type { EarTrainingPhrasePairAdlibStep } from '@/utils/earTrainingPhrasePairAdlibAdapter';
 import {
   getNextPhrasePairStepBoundarySec,
@@ -234,6 +237,32 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
   const countInEarlyInputRef = useRef(false);
+  const progressIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearProgressIdleTimer = useCallback(() => {
+    if (progressIdleTimerRef.current) {
+      clearTimeout(progressIdleTimerRef.current);
+      progressIdleTimerRef.current = null;
+    }
+  }, []);
+
+  const resetMatcherBufferIdle = useCallback(() => {
+    const current = matcherStateRef.current;
+    if (!hasAdlibBufferProgress(current)) {
+      return;
+    }
+    const cleared = clearAdlibBufferProgress(current);
+    matcherStateRef.current = cleared;
+    setMatcherState(cleared);
+  }, []);
+
+  const scheduleProgressIdleReset = useCallback(() => {
+    clearProgressIdleTimer();
+    progressIdleTimerRef.current = setTimeout(() => {
+      progressIdleTimerRef.current = null;
+      resetMatcherBufferIdle();
+    }, PHRASE_PROGRESS_IDLE_RESET_MS);
+  }, [clearProgressIdleTimer, resetMatcherBufferIdle]);
 
   useEffect(() => { pairWindowRef.current = pairWindow; }, [pairWindow]);
   useEffect(() => { matcherStateRef.current = matcherState; }, [matcherState]);
@@ -619,26 +648,15 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     }
 
     if (result.evaluation.result === 'miss') {
-      triggerFeedback('miss');
-      setStatusText(copy.tryAgain);
-      if (result.playerDamage <= 0) return;
-      const missEffectId = triggerBattleEffect('miss', 'MISS', result.playerDamage);
-      registerBattleEffectImpact(missEffectId, () => {
-        const nextPlayerHp = Math.max(0, playerHpRef.current - result.playerDamage);
-        setPlayerHp(nextPlayerHp);
-        playerHpRef.current = nextPlayerHp;
-        const outcome = resolveEarTrainingOutcome({
-          enemyHp: enemyHpRef.current,
-          playerHp: nextPlayerHp,
-          timeRemainingSec: timeRemainingRef.current,
-          phraseCompleted: false,
-          phraseFailed: false,
-        });
-        if (outcome === 'gameOver') {
-          finishGameOver(copy.gameOver);
-        }
-      });
       return;
+    }
+
+    if (
+      result.evaluation.result === 'progress'
+      || result.evaluation.result === 'complete'
+      || result.evaluation.result === 'resync'
+    ) {
+      scheduleProgressIdleReset();
     }
 
     triggerFeedback('correct');
@@ -676,6 +694,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     loopDurationSec,
     patternsByGroupId,
     registerBattleEffectImpact,
+    scheduleProgressIdleReset,
     stage.bpm,
     steps,
     triggerBattleEffect,
@@ -710,6 +729,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     pendingImpactHandlersRef.current.clear();
     clearTimeLimitTimer();
     clearChordSyncTimer();
+    clearProgressIdleTimer();
     stopPhraseAudio();
 
     const initialMatcher = createInitialAdlibRuntimeState();
@@ -858,6 +878,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     pendingImpactHandlersRef.current.clear();
     clearBattleEffectTimers();
     clearChordSyncTimer();
+    clearProgressIdleTimer();
     clearTimeLimitTimer();
     stopPhraseAudio();
     bgmLoopRef.current?.dispose();
@@ -867,6 +888,7 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
   }, [
     clearBattleEffectTimers,
     clearChordSyncTimer,
+    clearProgressIdleTimer,
     clearTimeLimitTimer,
     stopPhraseAudio,
   ]);

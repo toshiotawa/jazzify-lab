@@ -134,7 +134,7 @@ enum SurvivalPhraseChordSteps {
             }
         }
 
-        return (.miss, resetState())
+        return (.miss, state)
     }
 
     private static func resetState() -> AdvanceState {

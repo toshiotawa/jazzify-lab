@@ -125,6 +125,23 @@ function resetAllCandidates(
   };
 }
 
+export function hasCompositePhrasePartialProgress(
+  state: CompositePhraseRuntimeState,
+): boolean {
+  for (const candidate of state.candidates) {
+    if (candidate.correctNoteIndices.size > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function resetCompositePhraseProgressIdle(
+  state: CompositePhraseRuntimeState,
+): CompositePhraseRuntimeState {
+  return resetAllCandidates(state, true);
+}
+
 function applyStreamingCandidateStep(
   c: CompositePhraseCandidateState,
   pitchClass: number,
@@ -319,13 +336,7 @@ export function evaluateCompositePhraseNoteOn(
   if (accepted.length === 0) {
     return {
       result: 'miss',
-      nextState: resetAllCandidates(
-        {
-          ...state,
-          candidates: steps.map((s) => s.candidate),
-        },
-        true,
-      ),
+      nextState: state,
     };
   }
 

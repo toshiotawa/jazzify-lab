@@ -56,8 +56,11 @@ import {
   createInitialCompositePhraseRuntimeState,
   evaluateCompositePhraseNoteOn,
   getCompositePhraseStaffChordView,
+  hasCompositePhrasePartialProgress,
+  resetCompositePhraseProgressIdle,
   type CompositePhraseRuntimeState,
 } from '@/utils/compositePhraseEngine';
+import { PHRASE_PROGRESS_IDLE_RESET_MS } from '@/utils/phraseProgressIdleReset';
 import {
   clampPhraseOutgoingDamage,
   shouldFirePhrasePlayerAttacks,
@@ -356,6 +359,31 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
   const compositePhraseRuntimeRef = useRef<CompositePhraseRuntimeState | null>(null);
   const compositeComboRef = useRef(0);
   const compositeMissCountRef = useRef(0);
+  const compositeProgressIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCompositeProgressIdleTimer = useCallback(() => {
+    if (compositeProgressIdleTimerRef.current) {
+      clearTimeout(compositeProgressIdleTimerRef.current);
+      compositeProgressIdleTimerRef.current = null;
+    }
+  }, []);
+
+  const resetCompositePhraseProgressQuiet = useCallback(() => {
+    const current = compositePhraseRuntimeRef.current;
+    if (!current || !hasCompositePhrasePartialProgress(current)) {
+      return;
+    }
+    compositePhraseRuntimeRef.current = resetCompositePhraseProgressIdle(current);
+    setCompositeUiTick((x) => x + 1);
+  }, []);
+
+  const scheduleCompositeProgressIdleReset = useCallback(() => {
+    clearCompositeProgressIdleTimer();
+    compositeProgressIdleTimerRef.current = setTimeout(() => {
+      compositeProgressIdleTimerRef.current = null;
+      resetCompositePhraseProgressQuiet();
+    }, PHRASE_PROGRESS_IDLE_RESET_MS);
+  }, [clearCompositeProgressIdleTimer, resetCompositePhraseProgressQuiet]);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
@@ -1369,6 +1397,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
         : null;
       compositeComboRef.current = 0;
       compositeMissCountRef.current = 0;
+      clearCompositeProgressIdleTimer();
       setAttempt(null);
       attemptRef.current = null;
       setActiveChord(null);
@@ -1703,19 +1732,22 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     const repeatCompareLast = rt.lastCompletedSourcePhraseId;
     const pc = midiToPitchClass(note);
     const evaluation = evaluateCompositePhraseNoteOn(rt, pc);
-    compositePhraseRuntimeRef.current = evaluation.nextState;
-    setCompositeUiTick((x) => x + 1);
-
     if (evaluation.result === 'miss') {
-      compositeComboRef.current = 0;
-      compositeMissCountRef.current += 1;
-      triggerFeedback('miss');
-      setStatusText(copy.tryAgain);
       return;
     }
 
+    compositePhraseRuntimeRef.current = evaluation.nextState;
+    setCompositeUiTick((x) => x + 1);
+
     if (evaluation.result === 'resync') {
+      scheduleCompositeProgressIdleReset();
       return;
+    }
+
+    if (evaluation.result === 'phrase-complete') {
+      clearCompositeProgressIdleTimer();
+    } else {
+      scheduleCompositeProgressIdleReset();
     }
 
     compositeComboRef.current += 1;
@@ -1795,11 +1827,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       }
     }
   }, [
+    clearCompositeProgressIdleTimer,
     computeChordLabelOriginPoint,
-    copy.tryAgain,
     finishStageClear,
     rankRule,
     registerBattleEffectImpact,
+    scheduleCompositeProgressIdleReset,
     stage.compositePhraseBootstrap?.definitions.length,
     triggerBattleEffect,
     triggerCompletionPulse,
@@ -1887,8 +1920,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     }
 
     if (result.evaluationMissAdded) {
-      triggerFeedback('miss');
-      setStatusText(copy.tryAgain);
       return;
     }
 
@@ -2010,6 +2041,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       clearChordSyncTimer();
       clearTimeLimitTimer();
       clearTransitionTimer();
+      clearCompositeProgressIdleTimer();
       stopPhraseAudio();
       selfPacedDrumLoopRef.current?.dispose();
       selfPacedDrumLoopRef.current = null;
@@ -2022,6 +2054,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     clearCountdownTimer,
     clearFailTimer,
     clearTimeLimitTimer,
+    clearCompositeProgressIdleTimer,
     clearTransitionTimer,
     stopPhraseAudio,
   ]);

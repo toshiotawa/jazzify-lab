@@ -54,7 +54,7 @@ enum SurvivalPhraseEngine {
 
         switch evaluation.result {
         case .miss:
-            return (.miss, resetChord(state))
+            return (.miss, state)
         case .chordHold:
             return (.chordHold, state)
         case .measureComplete:
@@ -122,6 +122,14 @@ enum SurvivalPhraseEngine {
         next.correctNoteIndices = []
         next.revealedNoteIndices = []
         return next
+    }
+
+    static func hasPartialProgress(_ state: SurvivalPhraseRuntimeState) -> Bool {
+        !state.correctNoteIndices.isEmpty
+    }
+
+    static func resetProgressIdle(_ state: SurvivalPhraseRuntimeState) -> SurvivalPhraseRuntimeState {
+        resetChord(state)
     }
 
     private static func advanceChord(_ state: SurvivalPhraseRuntimeState) -> SurvivalPhraseRuntimeState {

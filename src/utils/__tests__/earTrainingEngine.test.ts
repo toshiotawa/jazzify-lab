@@ -64,28 +64,14 @@ describe('earTrainingEngine', () => {
     expect(isMatchingPitchClass(phrase.notes![1], 75)).toBe(true);
   });
 
-  it('同じ音での評価ミスは5回まで加算し、ミスタッチ被ダメは発生しない', () => {
+  it('誤鍵は無視し、attempt もミス記録も更新しない', () => {
     const attempt = createPhraseAttempt(phrase);
-    const first = handleEarTrainingNoteInput(phrase, attempt, 60, damage);
-    const second = handleEarTrainingNoteInput(phrase, first.attempt, 61, damage);
-    const third = handleEarTrainingNoteInput(phrase, second.attempt, 64, damage);
-    const fourth = handleEarTrainingNoteInput(phrase, third.attempt, 65, damage);
-    const fifth = handleEarTrainingNoteInput(phrase, fourth.attempt, 66, damage);
-    const sixth = handleEarTrainingNoteInput(phrase, fifth.attempt, 67, damage);
+    const miss = handleEarTrainingNoteInput(phrase, attempt, 60, damage);
 
-    expect(first.playerDamage).toBe(0);
-    expect(first.evaluationMissAdded).toBe(true);
-    expect(second.playerDamage).toBe(0);
-    expect(second.evaluationMissAdded).toBe(true);
-    expect(third.playerDamage).toBe(0);
-    expect(third.evaluationMissAdded).toBe(true);
-    expect(fourth.playerDamage).toBe(0);
-    expect(fourth.evaluationMissAdded).toBe(true);
-    expect(fifth.playerDamage).toBe(0);
-    expect(fifth.evaluationMissAdded).toBe(true);
-    expect(sixth.playerDamage).toBe(0);
-    expect(sixth.evaluationMissAdded).toBe(false);
-    expect(sixth.attempt.missedNoteCounts.get(0)).toBe(5);
+    expect(miss.playerDamage).toBe(0);
+    expect(miss.evaluationMissAdded).toBe(false);
+    expect(miss.attempt).toBe(attempt);
+    expect(miss.attempt.missedNoteCounts.size).toBe(0);
   });
 
   it('ダメージ0設定では正解とミスのダメージを発生させない', () => {
@@ -102,8 +88,8 @@ describe('earTrainingEngine', () => {
 
     expect(correct.enemyDamage).toBe(0);
     expect(miss.playerDamage).toBe(0);
-    expect(miss.evaluationMissAdded).toBe(true);
-    expect(miss.attempt.missedNoteCounts.get(0)).toBe(1);
+    expect(miss.evaluationMissAdded).toBe(false);
+    expect(miss.attempt.missedNoteCounts.size).toBe(0);
   });
 
   it('現在の次音だけを開示し、最後の正解で完了にする', () => {

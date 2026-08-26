@@ -94,7 +94,7 @@ describe('earTrainingPhrasePairEngine CM7', () => {
     expect(results[2].result).toBe('progress');
   });
 
-  it('invalid note is miss with empty buffer', () => {
+  it('invalid note is miss with unchanged buffer', () => {
     const { results } = playSequence([8]);
     expect(results[0].result).toBe('miss');
     expect(results[0].nextState.buffer).toEqual([]);

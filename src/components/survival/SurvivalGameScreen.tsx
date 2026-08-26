@@ -160,7 +160,9 @@ import {
   evaluatePhraseNoteOn,
   getPhraseDisplayChords,
   getPhraseTargetMidis,
+  hasSurvivalPhrasePartialProgress,
   isLastPhraseChunkInMeasure,
+  resetSurvivalPhraseProgressIdle,
   skipRestPhraseChord,
   type SurvivalPhraseRuntimeState,
 } from './phrases/SurvivalPhraseEngine';
@@ -170,6 +172,11 @@ import {
   getCompositePhraseStaffChordView,
   type SurvivalCompositePhraseRuntimeState,
 } from './phrases/SurvivalCompositePhraseEngine';
+import {
+  hasCompositePhrasePartialProgress,
+  resetCompositePhraseProgressIdle,
+} from '@/utils/compositePhraseEngine';
+import { isPhraseProgressIdleExpired } from '@/utils/phraseProgressIdleReset';
 import {
   SurvivalInputBuffer,
   dedupeFrameNoteOnsByPitchClass,
@@ -613,6 +620,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const phraseDefinitionRef = useRef<SurvivalPhraseDefinition | null>(null);
   const phraseStateRef = useRef<SurvivalPhraseRuntimeState | null>(null);
   const compositePhraseRuntimeRef = useRef<SurvivalCompositePhraseRuntimeState | null>(null);
+  const lastPhraseProgressAtRef = useRef<number | null>(null);
   const compositePhraseKeyFifthsRef = useRef<number>(0);
   const compositePhraseSourcePhrasesRef = useRef<SurvivalPhraseDefinition[]>([]);
   /** iOS `SurvivalInputBuffer` 相当: フレーズ入力を rAF で drain して評価 */
@@ -2323,17 +2331,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const curComposite = compositePhraseRuntimeRef.current;
         const repeatCompareLast = curComposite.lastCompletedSourcePhraseId;
         const evaluation = evaluateCompositePhraseNoteOn(curComposite, noteMod12);
+        if (evaluation.result === 'miss') {
+          return prev;
+        }
+
         compositePhraseRuntimeRef.current = evaluation.nextState;
 
         setPhraseUiTick((t) => t + 1);
 
-        if (evaluation.result === 'miss') {
-          return {
-            ...prev,
-            comboCount: 0,
-            comboGauge: 0,
-            comboReady: false,
-          };
+        if (evaluation.result === 'phrase-complete') {
+          lastPhraseProgressAtRef.current = null;
+        } else if (hasCompositePhrasePartialProgress(evaluation.nextState)) {
+          lastPhraseProgressAtRef.current = survivalComboClockSec();
         }
 
         if (evaluation.result === 'resync') {
@@ -2485,7 +2494,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const evaluation = evaluatePhraseNoteOn(preState, noteMod12);
         phraseStateRef.current = evaluation.nextState;
 
+        if (evaluation.result === 'miss') {
+          return prev;
+        }
+
         if (evaluation.result === 'measure-complete') {
+          lastPhraseProgressAtRef.current = null;
           // play(V4 由来): 塊を正解した瞬間に staff3 ベースをアプリ音源で発音。
           const completedChord = preState.phrase.chords[preState.chordIndex];
           if (completedChord?.bass && completedChord.bass.length > 0) {
@@ -2502,6 +2516,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (scenarioPhraseFullLoopPulseRef && evaluation.nextState.chordIndex === 0) {
             scenarioPhraseFullLoopPulseRef.current += 1;
           }
+        } else if (hasSurvivalPhrasePartialProgress(evaluation.nextState)) {
+          lastPhraseProgressAtRef.current = survivalComboClockSec();
         }
 
         const phraseChords = preState.phrase.chords;
@@ -2510,15 +2526,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           && isLastPhraseChunkInMeasure(phraseChords, preState.chordIndex);
 
         setPhraseUiTick((t) => t + 1);
-
-        if (evaluation.result === 'miss') {
-          return {
-            ...prev,
-            comboCount: 0,
-            comboGauge: 0,
-            comboReady: false,
-          };
-        }
 
         if (evaluation.result === 'resync' || evaluation.result === 'chord-hold') {
           return prev;
@@ -4315,6 +4322,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           pendingMultiHitCallbacksRef.current = remaining;
           // 同一 rAF 内で連続発火 → React 18 自動バッチングで 1 コミットに集約される
           for (const cb of due) cb.exec();
+        }
+      }
+
+      if (isPhraseMode && lastPhraseProgressAtRef.current !== null) {
+        const nowSec = survivalComboClockSec();
+        if (isPhraseProgressIdleExpired(lastPhraseProgressAtRef.current, nowSec)) {
+          if (
+            isCompositePhraseBossStage
+            && compositePhraseRuntimeRef.current
+            && hasCompositePhrasePartialProgress(compositePhraseRuntimeRef.current)
+          ) {
+            compositePhraseRuntimeRef.current = resetCompositePhraseProgressIdle(
+              compositePhraseRuntimeRef.current,
+            );
+            lastPhraseProgressAtRef.current = null;
+            setPhraseUiTick((t) => t + 1);
+          } else if (
+            phraseStateRef.current
+            && hasSurvivalPhrasePartialProgress(phraseStateRef.current)
+          ) {
+            phraseStateRef.current = resetSurvivalPhraseProgressIdle(phraseStateRef.current);
+            lastPhraseProgressAtRef.current = null;
+            setPhraseUiTick((t) => t + 1);
+          } else {
+            lastPhraseProgressAtRef.current = null;
+          }
         }
       }
 

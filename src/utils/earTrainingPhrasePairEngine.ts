@@ -173,10 +173,18 @@ export function evaluateAdlibNote(
   return {
     result: 'miss',
     completedPattern: null,
-    nextState: {
-      buffer: [],
-      lastCompletedPatternId: state.lastCompletedPatternId,
-    },
+    nextState: state,
+  };
+}
+
+export function hasAdlibBufferProgress(state: AdlibRuntimeState): boolean {
+  return state.buffer.length > 0;
+}
+
+export function clearAdlibBufferProgress(state: AdlibRuntimeState): AdlibRuntimeState {
+  return {
+    ...state,
+    buffer: [],
   };
 }
 

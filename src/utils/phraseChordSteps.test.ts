@@ -78,6 +78,6 @@ describe('advanceChordStep', () => {
 
     const miss = advanceChordStep(chordNotes, steps, state, 7);
     expect(miss.result).toBe('miss');
-    expect(miss.nextState.targetStepIndex).toBe(0);
+    expect(miss.nextState).toEqual(state);
   });
 });

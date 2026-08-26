@@ -183,10 +183,18 @@ enum EarTrainingPhrasePairEngine {
         return Evaluation(
             result: .miss,
             completedPattern: nil,
-            nextState: RuntimeState(
-                buffer: [],
-                lastCompletedPatternId: state.lastCompletedPatternId
-            )
+            nextState: state
+        )
+    }
+
+    static func hasBufferProgress(_ state: RuntimeState) -> Bool {
+        !state.buffer.isEmpty
+    }
+
+    static func clearBufferProgress(_ state: RuntimeState) -> RuntimeState {
+        RuntimeState(
+            buffer: [],
+            lastCompletedPatternId: state.lastCompletedPatternId
         )
     }
 

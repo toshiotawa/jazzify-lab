@@ -58,6 +58,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
     private var timeLimitTask: Task<Void, Never>?
     private var chordSyncTask: Task<Void, Never>?
     private var feedbackTask: Task<Void, Never>?
+    private var progressIdleTask: Task<Void, Never>?
     private var drumLoopStarted = false
     private var completionPulseEventKey = 0
 
@@ -230,26 +231,14 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         }
 
         if result.evaluation.result == .miss {
-            triggerFeedback(.miss)
-            statusText = copy.tryAgain
-            guard result.playerDamage > 0 else { return }
-            let effectId = triggerBattleEffect(kind: .miss, label: "MISS", damage: result.playerDamage)
-            registerBattleEffectImpact(effectId: effectId) { [weak self] in
-                guard let self else { return }
-                let nextHp = max(0, self.playerHp - result.playerDamage)
-                self.playerHp = nextHp
-                let outcome = EarTrainingEngine.resolveOutcome(
-                    enemyHp: self.enemyHp,
-                    playerHp: nextHp,
-                    timeRemainingSec: self.timeRemaining,
-                    phraseCompleted: false,
-                    phraseFailed: false
-                )
-                if outcome == .gameOver {
-                    self.finishGameOver(message: self.copy.gameOver)
-                }
-            }
             return
+        }
+
+        switch result.evaluation.result {
+        case .progress, .complete, .resync:
+            scheduleProgressIdleReset()
+        default:
+            break
         }
 
         triggerFeedback(.correct)
@@ -540,7 +529,27 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         chordSyncTask = nil
         feedbackTask?.cancel()
         feedbackTask = nil
+        cancelProgressIdleTimer()
         cancelTutorialTimers()
+    }
+
+    private func cancelProgressIdleTimer() {
+        progressIdleTask?.cancel()
+        progressIdleTask = nil
+    }
+
+    private func scheduleProgressIdleReset() {
+        cancelProgressIdleTimer()
+        progressIdleTask = Task { [weak self] in
+            let delayNs = UInt64(PhraseProgressIdleReset.intervalSec * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                guard EarTrainingPhrasePairEngine.hasBufferProgress(self.matcherState) else { return }
+                self.matcherState = EarTrainingPhrasePairEngine.clearBufferProgress(self.matcherState)
+            }
+        }
     }
 
     private func cancelTutorialTimers() {

@@ -574,27 +574,6 @@ const EarTrainingAdlibScreen: React.FC<EarTrainingAdlibScreenProps> = ({
     }
 
     if (result.kind === 'miss') {
-      triggerFeedback('miss');
-      setStatusText(copy.tryAgain);
-      if (result.playerDamage <= 0) {
-        return;
-      }
-      const missEffectId = triggerBattleEffect('miss', 'MISS', result.playerDamage);
-      registerBattleEffectImpact(missEffectId, () => {
-        const nextPlayerHp = Math.max(0, playerHpRef.current - result.playerDamage);
-        setPlayerHp(nextPlayerHp);
-        playerHpRef.current = nextPlayerHp;
-        const outcome = resolveEarTrainingOutcome({
-          enemyHp: enemyHpRef.current,
-          playerHp: nextPlayerHp,
-          timeRemainingSec: timeRemainingRef.current,
-          phraseCompleted: false,
-          phraseFailed: false,
-        });
-        if (outcome === 'gameOver') {
-          finishGameOver(copy.gameOver);
-        }
-      });
       return;
     }
 

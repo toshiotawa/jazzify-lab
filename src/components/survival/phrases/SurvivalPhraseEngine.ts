@@ -54,6 +54,18 @@ function resetChordState(
   };
 }
 
+export function hasSurvivalPhrasePartialProgress(
+  state: SurvivalPhraseRuntimeState,
+): boolean {
+  return state.correctNoteIndices.size > 0;
+}
+
+export function resetSurvivalPhraseProgressIdle(
+  state: SurvivalPhraseRuntimeState,
+): SurvivalPhraseRuntimeState {
+  return resetChordState(state);
+}
+
 function advanceChord(state: SurvivalPhraseRuntimeState): SurvivalPhraseRuntimeState {
   const chordCount = state.phrase.chords.length;
   if (chordCount === 0) return state;
@@ -116,7 +128,7 @@ export function evaluatePhraseNoteOn(
   const evaluation = advanceChordStep(chord.notes, steps, stepState, pitchClass);
 
   if (evaluation.result === 'miss') {
-    return { result: 'miss', nextState: resetChordState(state) };
+    return { result: 'miss', nextState: state };
   }
 
   if (evaluation.result === 'chord-hold') {

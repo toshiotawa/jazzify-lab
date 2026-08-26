@@ -819,12 +819,7 @@ const EarTrainingChordQuizScreen: React.FC<EarTrainingChordQuizScreenProps> = ({
       judgmentChord,
       midiNote,
       QUIZ_ZERO_NOTE_DAMAGE,
-      { wrongNotesPolicy: 'first_only_per_chord' },
     );
-
-    if (!practiceModeRef.current && result.firstWrongJustHappened) {
-      registerPlayerHpImpactDamage(QUIZ_ENEMY_STRIKE_DAMAGE);
-    }
 
     setAttempt(result.attempt);
     attemptRef.current = result.attempt;

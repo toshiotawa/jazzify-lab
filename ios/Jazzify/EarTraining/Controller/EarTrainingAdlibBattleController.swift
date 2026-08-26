@@ -237,25 +237,6 @@ final class EarTrainingAdlibBattleController: ObservableObject {
         }
 
         if result.kind == .miss {
-            triggerFeedback(.miss)
-            statusText = copy.tryAgain
-            guard result.playerDamage > 0 else { return }
-            let effectId = triggerBattleEffect(kind: .miss, label: "MISS", damage: result.playerDamage, phraseNoteCount: nil)
-            registerBattleEffectImpact(effectId: effectId) { [weak self] in
-                guard let self else { return }
-                let nextHp = max(0, self.playerHp - result.playerDamage)
-                self.playerHp = nextHp
-                let outcome = EarTrainingEngine.resolveOutcome(
-                    enemyHp: self.enemyHp,
-                    playerHp: nextHp,
-                    timeRemainingSec: self.timeRemaining,
-                    phraseCompleted: false,
-                    phraseFailed: false
-                )
-                if outcome == .gameOver {
-                    self.finishGameOver(message: self.copy.gameOver)
-                }
-            }
             return
         }
 

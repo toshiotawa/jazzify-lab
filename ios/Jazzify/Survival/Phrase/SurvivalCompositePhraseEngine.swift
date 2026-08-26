@@ -71,9 +71,7 @@ enum SurvivalCompositePhraseEngine {
 
         let accepted = steps.filter { $0.accepted && $0.matchedLength > 0 }
         if accepted.isEmpty {
-            var st = state
-            st.candidates = steps.map(\.candidate)
-            return (.miss, resetAllCandidates(st, preserveLastCompleted: true))
+            return (.miss, state)
         }
 
         let bestMatchedLength = accepted.map(\.matchedLength).max() ?? 0
@@ -367,6 +365,14 @@ enum SurvivalCompositePhraseEngine {
             next.lastCompletedSourceStageNumber = nil
         }
         return next
+    }
+
+    static func hasPartialProgress(_ state: SurvivalCompositePhraseRuntimeState) -> Bool {
+        state.candidates.contains { !$0.correctNoteIndices.isEmpty }
+    }
+
+    static func resetProgressIdle(_ state: SurvivalCompositePhraseRuntimeState) -> SurvivalCompositePhraseRuntimeState {
+        resetAllCandidates(state, preserveLastCompleted: true)
     }
 }
 
