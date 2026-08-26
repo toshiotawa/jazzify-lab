@@ -610,6 +610,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     : '';
   const showNativeFullscreen = canUseElementFullscreen();
   const stickDisabled = isPaused || !!result || isSettingsOpen;
+  const showVoicePreparing =
+    settings.inputMethod === 'voice' && !survivalMidi.isInputConnected && !result;
 
   return (
     <div
@@ -769,6 +771,20 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
               >
                 {isEnglishCopy ? 'RETRY' : 'リトライ'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {showVoicePreparing && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-white/15 bg-gray-900/90 px-6 py-5 text-center shadow-2xl">
+              <div
+                className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-cyan-400"
+                aria-hidden
+              />
+              <p className="text-sm font-semibold text-white">
+                {isEnglishCopy ? 'Preparing microphone…' : 'マイクを準備中…'}
+              </p>
             </div>
           </div>
         )}

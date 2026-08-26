@@ -4,13 +4,13 @@ struct PitchOnsetTrackerConfig: Equatable {
     var onsetLevelDb: Double = -35
     var releaseLevelDb: Double = -45
     var minConfidence: Double = 0.5
-    var pitchStableFrames: Int = 2
-    var releaseFrames: Int = 2
-    var minNoteFrames: Int = 3
+    var pitchStableFrames: Int = 4
+    var releaseFrames: Int = 4
+    var minNoteFrames: Int = 6
     var attackRiseDb: Double = 6
-    var retriggerGuardFrames: Int = 3
+    var retriggerGuardFrames: Int = 6
     var centsTolerance: Double = 40
-    /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 10ms）。
+    /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 5ms）。
     var onsetImmediateConfidence: Double = 0.85
 }
 

@@ -6,11 +6,11 @@ VENV="${ROOT}/.venv-pesto"
 CACHE="${ROOT}/.cache/pesto"
 CHECKPOINT="mir-1k_g7"
 SR=48000
-CHUNK=480
+CHUNK=240
 BATCH=1
 MODEL_NAME="${CHECKPOINT}_${SR}_${CHUNK}.onnx"
-OUT_WEB="${ROOT}/public/models/pesto/pesto-mir1k-g7-48000-480.onnx"
-OUT_IOS="${ROOT}/ios/Jazzify/Resources/pesto-mir1k-g7-48000-480.onnx"
+OUT_WEB="${ROOT}/public/models/pesto/pesto-mir1k-g7-48000-240.onnx"
+OUT_IOS="${ROOT}/ios/Jazzify/Resources/pesto-mir1k-g7-48000-240.onnx"
 LICENSE_OUT="${ROOT}/public/licenses/pesto-LGPL-3.0.txt"
 
 cd "${ROOT}"
@@ -38,16 +38,17 @@ curl -fsSL "https://raw.githubusercontent.com/SonyCSLParis/pesto/master/LICENSE.
 
 echo "--- Model export complete ---"
 ls -lh "${OUT_WEB}" "${OUT_IOS}"
-python - <<'PY'
+python - <<PY
 import time
 import numpy as np
 import onnxruntime as ort
 
-model = "pesto-mir1k-g7-48000-480.onnx"
+model = "${OUT_WEB}"
 session = ort.InferenceSession(model)
 cache_size = session.get_inputs()[1].shape[1]
+print(f"Cache size: {cache_size}")
 cache = np.zeros((1, cache_size), dtype=np.float32)
-audio = np.random.randn(1, 480).astype(np.float32) * 0.1
+audio = np.random.randn(1, 240).astype(np.float32) * 0.1
 
 # warmup
 for _ in range(5):

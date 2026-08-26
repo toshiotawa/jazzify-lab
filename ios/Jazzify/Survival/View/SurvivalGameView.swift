@@ -1202,6 +1202,7 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     @State private var mapSpec: SurvivalCodeRunNativeMapSpec
+    @ObservedObject private var noteInputManager = NoteInputManager.shared
     @State private var player: SurvivalCodeRunNativePlayer
     @State private var enemies: [SurvivalCodeRunNativeEnemy]
     @State private var elapsed: TimeInterval = 0
@@ -1288,6 +1289,21 @@ private struct SurvivalCodeRunGameContent: View {
             }
             .background(Color.black)
             .overlay { resultOverlay }
+            .overlay {
+                if NoteInputPreferences.inputMethod == .voice && noteInputManager.voicePreparing {
+                    ZStack {
+                        Color.black.opacity(0.55)
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .tint(.white)
+                            Text(locale == .ja ? "マイクを準備中…" : "Preparing microphone…")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .ignoresSafeArea()
+                }
+            }
         }
         .background {
             SurvivalCodeRunDisplayLinkDriver(frameClock: frameClock)

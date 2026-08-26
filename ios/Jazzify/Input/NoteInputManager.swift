@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// MIDI とマイク（PESTO）入力を 1 本の購読 API に統合する。
@@ -9,8 +10,10 @@ import Foundation
 /// 配信は MIDIManager と同じく呼び出し元スレッド（CoreMIDI スレッド / 推論キュー）で
 /// 同期的に行う。main へホップさせると既存 12 画面の MIDI レイテンシが悪化する。
 @MainActor
-final class NoteInputManager {
+final class NoteInputManager: ObservableObject {
     static let shared = NoteInputManager()
+
+    @Published private(set) var voicePreparing = false
 
     private let midiManager = MIDIManager.shared
     private let pitchEngine = PitchInputEngine.shared
@@ -85,13 +88,17 @@ final class NoteInputManager {
 
         switch activeMethod {
         case .midi:
+            voicePreparing = false
             pitchEngine.stop()
         case .voice:
             guard hasSubscribers else {
+                voicePreparing = false
                 pitchEngine.stop()
                 return
             }
             pitchEngine.setSensitivity(NoteInputPreferences.micSensitivity)
+            voicePreparing = true
+            defer { voicePreparing = false }
             do {
                 try await pitchEngine.start()
             } catch {
@@ -143,6 +150,7 @@ final class NoteInputManager {
         guard !hasSubscribers else { return }
         upstream.forEach { $0.cancel() }
         upstream.removeAll()
+        voicePreparing = false
         // 最後の購読が外れたらマイクを解放し、AVAudioSession を .playback に戻す。
         pitchEngine.stop()
     }

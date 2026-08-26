@@ -1,11 +1,11 @@
 /**
  * pesto-capture-worklet.js
- * 128 サンプル入力を 480 サンプル（48kHz / 10ms）に整形し Worker へ直接転送する。
+ * 128 サンプル入力を 240 サンプル（48kHz / 5ms）に整形し Worker へ直接転送する。
  * process() はオーディオレンダースレッドで動くため新規割当を行わない。
  * チャンク用バッファは Worker と貸し借り（transfer + recycle）して再利用する。
  */
 
-const TARGET_CHUNK = 480;
+const TARGET_CHUNK = 240;
 const TARGET_RATE = 48000;
 const POOL_SIZE = 8;
 const RESAMPLE_SCRATCH = 4096;

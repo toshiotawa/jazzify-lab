@@ -13,8 +13,8 @@ final class AppAudioSession {
 
     /// 通常プレイ時の IO バッファ（20ms）。鍵盤 / 正解ルート / デモプレイの低レイテンシを維持する。
     private static let normalIOBufferDuration: TimeInterval = 0.02
-    /// マイク入力（PESTO）有効時の IO バッファ（10ms）。オンセット検出レイテンシ短縮。
-    private static let recordingIOBufferDuration: TimeInterval = 0.01
+    /// マイク入力（PESTO）有効時の IO バッファ（5ms）。オンセット検出レイテンシ短縮。
+    private static let recordingIOBufferDuration: TimeInterval = 0.005
     /// 画面録画・ミラーリング中のみ要求する IO バッファ（40ms）。録画 CPU 負荷下のアンダーラン耐性向上。
     private static let capturedIOBufferDuration: TimeInterval = 0.04
     /// 画面キャプチャ / ルート変更後、オーディオ経路が落ち着くまで待つ秒数。

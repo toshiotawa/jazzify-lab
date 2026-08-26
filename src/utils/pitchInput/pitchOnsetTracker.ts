@@ -10,7 +10,7 @@ export interface PitchOnsetTrackerConfig {
   releaseLevelDb: number;
   /** 最小 confidence [0,1] */
   minConfidence: number;
-  /** ピッチ安定フレーム数 (10ms/frame) */
+  /** ピッチ安定フレーム数 (5ms/frame) */
   pitchStableFrames: number;
   /** release 連続フレーム数 */
   releaseFrames: number;
@@ -30,11 +30,11 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   onsetLevelDb: -35,
   releaseLevelDb: -45,
   minConfidence: 0.5,
-  pitchStableFrames: 2,
-  releaseFrames: 2,
-  minNoteFrames: 3,
+  pitchStableFrames: 4,
+  releaseFrames: 4,
+  minNoteFrames: 6,
   attackRiseDb: 6,
-  retriggerGuardFrames: 3,
+  retriggerGuardFrames: 6,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
 };

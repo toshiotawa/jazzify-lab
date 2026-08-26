@@ -9,8 +9,8 @@ import {
   type PitchOnsetTrackerConfig,
 } from '@/utils/pitchInput/pitchOnsetTracker';
 
-const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-480.onnx';
-const CHUNK_SIZE = 480;
+const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-240.onnx';
+const CHUNK_SIZE = 240;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
@@ -66,6 +66,11 @@ type WorkerOutbound =
   | WorkerErrorMessage
   | WorkerMonitorMessage;
 
+interface PendingChunk {
+  samples: Float32Array;
+  audioContextTime: number;
+}
+
 let session: ort.InferenceSession | null = null;
 let cacheTensor: ort.Tensor | null = null;
 let audioTensor: ort.Tensor | null = null;
@@ -75,19 +80,20 @@ let tracker: PitchOnsetTracker | null = null;
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
+let pendingChunk: PendingChunk | null = null;
 let lastChunkTime = 0;
 let emaCaptureIntervalMs = 0;
 let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
 
 const LATENCY_EMA_ALPHA = 0.1;
-const MONITOR_POST_INTERVAL = 30;
+const MONITOR_POST_INTERVAL = 60;
 
 const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
 };
 
-const CACHE_SIZE = 3856;
+const CACHE_SIZE = 3976;
 
 /** Worklet から transfer されたバッファを返却して割当を発生させない。 */
 const recycle = (samples: Float32Array): void => {
@@ -138,63 +144,76 @@ const initSession = async (): Promise<void> => {
   audioTensor = new ort.Tensor('float32', audioData, [1, CHUNK_SIZE]);
 };
 
+const runInference = async (
+  samples: Float32Array,
+  audioContextTime: number,
+): Promise<void> => {
+  if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
+    recycle(samples);
+    return;
+  }
+
+  const inferenceStart = performance.now();
+  audioData.set(samples);
+
+  const outputs = await session.run({
+    audio: audioTensor,
+    cache: cacheTensor,
+  });
+
+  emaInferenceMs = updateEma(emaInferenceMs, performance.now() - inferenceStart);
+
+  const predictionArr = outputs.prediction.data as Float32Array;
+  const confidenceArr = outputs.confidence.data as Float32Array;
+  const volumeArr = outputs.volume.data as Float32Array;
+  const cacheOut = outputs.cache_out.data as Float32Array;
+  cacheData.set(cacheOut);
+
+  const frame = {
+    prediction: predictionArr[0] ?? 0,
+    confidence: confidenceArr[0] ?? 0,
+    volume: volumeArr[0] ?? 0,
+  };
+
+  const events = tracker.processFrame(frame, frameIndex);
+  frameIndex += 1;
+  maybePostMonitor();
+
+  for (const event of events) {
+    if (event.type === 'noteOn') {
+      post({ type: 'noteOn', note: event.note, audioContextTime });
+    } else {
+      post({ type: 'noteOff', note: event.note, audioContextTime });
+    }
+  }
+
+  recycle(samples);
+};
+
 const processChunk = async (
   samples: Float32Array,
   audioContextTime: number,
 ): Promise<void> => {
   // cacheTensor は逐次更新される再帰状態なので同時実行させない。
-  // 推論が 10ms に間に合わないときはフレームを捨てて遅延の蓄積を防ぐ。
-  if (
-    isInferring ||
-    !session ||
-    !cacheTensor ||
-    !audioTensor ||
-    !cacheData ||
-    !audioData ||
-    !tracker
-  ) {
-    recycle(samples);
+  // 推論が 5ms に間に合わないときは最新 1 チャンクだけ保留し、古い保留は破棄する。
+  if (isInferring) {
+    if (pendingChunk) {
+      recycle(pendingChunk.samples);
+    }
+    pendingChunk = { samples, audioContextTime };
     return;
   }
 
   isInferring = true;
-  const inferenceStart = performance.now();
   try {
-    audioData.set(samples);
-
-    const outputs = await session.run({
-      audio: audioTensor,
-      cache: cacheTensor,
-    });
-
-    emaInferenceMs = updateEma(emaInferenceMs, performance.now() - inferenceStart);
-
-    const predictionArr = outputs.prediction.data as Float32Array;
-    const confidenceArr = outputs.confidence.data as Float32Array;
-    const volumeArr = outputs.volume.data as Float32Array;
-    const cacheOut = outputs.cache_out.data as Float32Array;
-    cacheData.set(cacheOut);
-
-    const frame = {
-      prediction: predictionArr[0] ?? 0,
-      confidence: confidenceArr[0] ?? 0,
-      volume: volumeArr[0] ?? 0,
-    };
-
-    const events = tracker.processFrame(frame, frameIndex);
-    frameIndex += 1;
-    maybePostMonitor();
-
-    for (const event of events) {
-      if (event.type === 'noteOn') {
-        post({ type: 'noteOn', note: event.note, audioContextTime });
-      } else {
-        post({ type: 'noteOff', note: event.note, audioContextTime });
-      }
+    await runInference(samples, audioContextTime);
+    while (pendingChunk) {
+      const next = pendingChunk;
+      pendingChunk = null;
+      await runInference(next.samples, next.audioContextTime);
     }
   } finally {
     isInferring = false;
-    recycle(samples);
   }
 };
 
@@ -222,6 +241,10 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       tracker = new PitchOnsetTracker({ ...config, ...data.config });
       frameIndex = 0;
       isInferring = false;
+      if (pendingChunk) {
+        recycle(pendingChunk.samples);
+        pendingChunk = null;
+      }
       resetLatencyStats();
       // 再接続時に前セッションの再帰状態を持ち越さない
       cacheData?.fill(0);

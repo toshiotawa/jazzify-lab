@@ -16,10 +16,10 @@ import QuartzCore
 final class PitchInputEngine: @unchecked Sendable {
     static let shared = PitchInputEngine()
 
-    private static let chunkSize = 480
+    private static let chunkSize = 240
     /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕。
     private static let poolSlotCount = 4
-    private static let cacheElementCount = 3_856
+    private static let cacheElementCount = 3_976
     private static let targetSampleRate: Double = 48_000
     /// モニタ UI 用: -60dB〜0dB を 0..1 にマップ。
     private static let monitorMinDb: Double = -60
@@ -43,10 +43,12 @@ final class PitchInputEngine: @unchecked Sendable {
 
     // MARK: - スレッド間共有（ロック保護）
 
-    /// 推論中フラグ。10ms に間に合わないフレームは捨てて遅延の蓄積を防ぐ。
+    /// 推論中フラグ。5ms に間に合わないフレームは最新 1 件だけ保留し、それ以前は捨てる。
     /// レンダースレッドから触るため os_unfair_lock を使用。
     private var inferringLock = os_unfair_lock()
     nonisolated(unsafe) private var isInferring = false
+    nonisolated(unsafe) private var pendingInferenceSlot: Int?
+    nonisolated(unsafe) private var pendingInferenceHostTime: UInt64 = 0
     private let stateLock = NSLock()
     /// stop() 時の取りこぼし解放用。押されているノート。
     nonisolated(unsafe) private var activeNote: Int?
@@ -550,7 +552,7 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func loadModelIfNeeded() async throws {
         guard let modelURL = Bundle.main.url(
-            forResource: "pesto-mir1k-g7-48000-480",
+            forResource: "pesto-mir1k-g7-48000-240",
             withExtension: "onnx"
         ) else {
             throw PitchInputEngineError.modelMissing
@@ -666,6 +668,8 @@ final class PitchInputEngine: @unchecked Sendable {
     private func enqueueInference(slot: Int, hostTime: UInt64) {
         os_unfair_lock_lock(&inferringLock)
         if isInferring {
+            pendingInferenceSlot = slot
+            pendingInferenceHostTime = hostTime
             os_unfair_lock_unlock(&inferringLock)
             return
         }
@@ -673,9 +677,24 @@ final class PitchInputEngine: @unchecked Sendable {
         os_unfair_lock_unlock(&inferringLock)
 
         inferenceQueue.async { [self] in
+            drainInference(startSlot: slot, startHostTime: hostTime)
+        }
+    }
+
+    private func drainInference(startSlot: Int, startHostTime: UInt64) {
+        var slot = startSlot
+        var hostTime = startHostTime
+        while true {
             runInference(slot: slot, hostTime: hostTime)
             os_unfair_lock_lock(&inferringLock)
-            isInferring = false
+            guard let nextSlot = pendingInferenceSlot else {
+                isInferring = false
+                os_unfair_lock_unlock(&inferringLock)
+                return
+            }
+            slot = nextSlot
+            hostTime = pendingInferenceHostTime
+            pendingInferenceSlot = nil
             os_unfair_lock_unlock(&inferringLock)
         }
     }
