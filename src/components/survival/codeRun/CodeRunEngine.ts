@@ -1,4 +1,5 @@
 import type {
+  CodeRunChordNameText,
   CodeRunEnemy,
   CodeRunInputState,
   CodeRunJumpFeedbackEffect,
@@ -21,6 +22,7 @@ const COYOTE_FRAMES = 7;
 const JUMP_BUFFER_FRAMES = 8;
 const PLATFORM_LAND_EPSILON = 0.01;
 const JUMP_FEEDBACK_DURATION_SEC = 0.36;
+const CHORD_NAME_TEXT_DURATION_SEC = 1;
 
 export const CODE_RUN_MAX_HP = 10;
 export const CODE_RUN_DAMAGE_INVUL_FRAMES = 90;
@@ -106,6 +108,8 @@ export function createInitialCodeRunState(map: CodeRunState['map']): CodeRunStat
     cameraY: 0,
     status: 'playing',
     jumpFeedbackEffect: null,
+    pendingJumpChordName: null,
+    chordNameTexts: [],
   };
   return { ...state, enemies: makeEnemies(state) };
 }
@@ -162,6 +166,19 @@ const makeJumpFeedbackEffect = (player: CodeRunPlayer, startedAtSec: number): Co
   durationSec: JUMP_FEEDBACK_DURATION_SEC,
 });
 
+const makeChordNameText = (chordName: string, startedAtSec: number): CodeRunChordNameText => ({
+  text: chordName,
+  startedAtSec,
+  durationSec: CHORD_NAME_TEXT_DURATION_SEC,
+});
+
+const expireChordNameTexts = (
+  texts: readonly CodeRunChordNameText[],
+  elapsedSec: number,
+): readonly CodeRunChordNameText[] => (
+  texts.filter(text => elapsedSec - text.startedAtSec < text.durationSec)
+);
+
 const updateCoyoteFrames = (player: CodeRunPlayer): CodeRunPlayer => {
   if (player.onGround) {
     return { ...player, coyoteFrames: COYOTE_FRAMES };
@@ -175,27 +192,43 @@ const updateCoyoteFrames = (player: CodeRunPlayer): CodeRunPlayer => {
 const processJumpBuffer = (
   player: CodeRunPlayer,
   startedAtSec: number,
-): { player: CodeRunPlayer; jumpFeedbackEffect: CodeRunJumpFeedbackEffect | null } => {
-  if (player.jumpBufferFrames <= 0) return { player, jumpFeedbackEffect: null };
+  pendingJumpChordName: string | null,
+): {
+  player: CodeRunPlayer;
+  jumpFeedbackEffect: CodeRunJumpFeedbackEffect | null;
+  newChordNameText: CodeRunChordNameText | null;
+  pendingJumpChordName: string | null;
+} => {
+  if (player.jumpBufferFrames <= 0) {
+    return { player, jumpFeedbackEffect: null, newChordNameText: null, pendingJumpChordName };
+  }
   if (canExecuteBufferedJump(player)) {
     return {
       player: applyBufferedJump(player),
       jumpFeedbackEffect: makeJumpFeedbackEffect(player, startedAtSec),
+      newChordNameText: pendingJumpChordName
+        ? makeChordNameText(pendingJumpChordName, startedAtSec)
+        : null,
+      pendingJumpChordName: null,
     };
   }
+  const nextPlayer = { ...player, jumpBufferFrames: player.jumpBufferFrames - 1 };
   return {
-    player: { ...player, jumpBufferFrames: player.jumpBufferFrames - 1 },
+    player: nextPlayer,
     jumpFeedbackEffect: null,
+    newChordNameText: null,
+    pendingJumpChordName: nextPlayer.jumpBufferFrames <= 0 ? null : pendingJumpChordName,
   };
 };
 
-export function triggerCodeRunJump(state: CodeRunState): CodeRunState {
+export function triggerCodeRunJump(state: CodeRunState, chordName: string): CodeRunState {
   if (state.status !== 'playing') return state;
   const player = { ...state.player };
   if (player.jumpCount >= 2 || player.chordLockedUntilLanding) return state;
   return {
     ...state,
     player: { ...player, jumpBufferFrames: JUMP_BUFFER_FRAMES },
+    pendingJumpChordName: chordName,
   };
 }
 
@@ -274,7 +307,7 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   player.vy = clamp(player.vy + GRAVITY * step, -99, MAX_FALL);
   player.runPhase += Math.abs(player.vx) * 0.035 * step;
   player = updateCoyoteFrames(player);
-  const jumpResult = processJumpBuffer(player, state.elapsedSec);
+  const jumpResult = processJumpBuffer(player, state.elapsedSec, state.pendingJumpChordName);
   player = jumpResult.player;
 
   player = movePlayerX(player, state.map.solids, step);
@@ -282,12 +315,20 @@ export function tickCodeRun(state: CodeRunState, input: CodeRunInputState, dtSec
   player = movePlayerY(player, state.map.solids, step);
   player = decrementTimedFrames(player, step);
 
+  const elapsedSec = state.elapsedSec + dtSec;
+  let chordNameTexts = expireChordNameTexts(state.chordNameTexts, elapsedSec);
+  if (jumpResult.newChordNameText) {
+    chordNameTexts = [...chordNameTexts, jumpResult.newChordNameText];
+  }
+
   let next: CodeRunState = {
     ...state,
     player,
     enemies: updateEnemies(state, step),
-    elapsedSec: state.elapsedSec + dtSec,
+    elapsedSec,
     jumpFeedbackEffect: jumpResult.jumpFeedbackEffect ?? state.jumpFeedbackEffect,
+    pendingJumpChordName: jumpResult.pendingJumpChordName,
+    chordNameTexts,
   };
 
   if (next.player.y > next.map.worldHeight + 96) {

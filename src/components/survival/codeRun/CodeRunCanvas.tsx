@@ -3,7 +3,7 @@ import { cn } from '@/utils/cn';
 import { getEffectiveCanvasDpr } from '@/utils/getEffectiveCanvasDpr';
 import type { CodeRunPixelScaleMode } from '@/utils/codeRunLayout';
 import { computeCodeRunPixelScale, computeCodeRunVisibleCameraAxis } from '@/utils/codeRunLayout';
-import type { CodeRunJumpFeedbackEffect, CodeRunMapSpec, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
+import type { CodeRunChordNameText, CodeRunJumpFeedbackEffect, CodeRunMapSpec, CodeRunPlayer, CodeRunState, CodeRunTileKind } from './CodeRunTypes';
 
 type ImageMap = Record<string, HTMLImageElement>;
 
@@ -297,6 +297,33 @@ const drawJumpFeedbackEffect = (
   ctx.restore();
 };
 
+const drawChordNameTexts = (
+  ctx: CanvasRenderingContext2D,
+  texts: readonly CodeRunChordNameText[],
+  player: CodeRunPlayer,
+  elapsedSec: number,
+): void => {
+  const headX = player.x + player.width / 2;
+  const headY = player.y - 12;
+  for (const text of texts) {
+    const progress = (elapsedSec - text.startedAtSec) / text.durationSec;
+    if (progress < 0 || progress >= 1) continue;
+    const alpha = 1 - progress;
+    const offsetY = -40 * progress;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.lineWidth = 3;
+    ctx.strokeText(text.text, headX + 1.5, headY + offsetY - 1.5);
+    ctx.fillStyle = '#d9f2ff';
+    ctx.fillText(text.text, headX, headY + offsetY);
+    ctx.restore();
+  }
+};
+
 const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
   if (state.player.invulFrames <= 0) return false;
   const tick = Math.floor(state.elapsedSec * 60);
@@ -442,6 +469,7 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelSc
       const playerImage = images[frameUrl];
       drawPlayerSprite(ctx, playerImage, state.player, '#e9d7ff');
     }
+    drawChordNameTexts(ctx, state.chordNameTexts, state.player, state.elapsedSec);
 
     ctx.restore();
     ctx.setTransform(1, 0, 0, 1, 0, 0);

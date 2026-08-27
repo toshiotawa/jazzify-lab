@@ -466,7 +466,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     const bassRoot =
       progressionBassRootName(chord.displayName) ?? progressionBassRootName(chord.root) ?? chord.root;
     FantasySoundManager.playCorrectRootBassNote(bassRoot).catch(() => undefined);
-    const jumped = triggerCodeRunJump(stateRef.current);
+    const jumped = triggerCodeRunJump(stateRef.current, chord.displayName);
     stateRef.current = jumped;
     setRunState(jumped);
     if (isRandomStage) {

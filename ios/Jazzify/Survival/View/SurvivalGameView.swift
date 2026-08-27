@@ -335,6 +335,12 @@ private struct SurvivalCodeRunJumpFeedbackEffect: Equatable {
     let duration: TimeInterval
 }
 
+private struct SurvivalCodeRunChordNameText: Equatable {
+    let text: String
+    let startedAt: TimeInterval
+    let lifetime: TimeInterval
+}
+
 private enum SurvivalCodeRunNativeLayout {
     /// Web 版の固定ビューポート表示に対する追加ズームアウト係数。
     static let zoomOutFactor: CGFloat = 0.88
@@ -371,6 +377,7 @@ private enum SurvivalCodeRunNativeRules {
     static let coyoteFrames: CGFloat = 7
     static let jumpBufferFrames: CGFloat = 8
     static let jumpFeedbackDuration: TimeInterval = 0.36
+    static let chordNameTextLifetime: TimeInterval = 1.0
     static let startInvulnerability: TimeInterval = 40.0 / 60.0
     static let damageInvulnerability: TimeInterval = 90.0 / 60.0
     static let hurtDuration: TimeInterval = 26.0 / 60.0
@@ -1212,6 +1219,8 @@ private struct SurvivalCodeRunGameContent: View {
     @State private var randomCurrentChord: SurvivalResolvedChord?
     @State private var randomNextChord: SurvivalResolvedChord?
     @State private var jumpFeedbackEffect: SurvivalCodeRunJumpFeedbackEffect?
+    @State private var pendingJumpChordName: String?
+    @State private var chordNameTexts: [SurvivalCodeRunChordNameText] = []
     @State private var completedPitchClasses: Set<Int> = []
     @State private var heldKeys: Set<Int> = []
     @State private var showSettings = false
@@ -1592,6 +1601,25 @@ private struct SurvivalCodeRunGameContent: View {
                 context.draw(playerImage, in: playerRect)
             }
         }
+        drawChordNameTexts(context: &context, playerCenterX: playerCenterX)
+    }
+
+    private func drawChordNameTexts(context: inout GraphicsContext, playerCenterX: CGFloat) {
+        let headY = player.y - 12
+        for text in chordNameTexts {
+            let age = elapsed - text.startedAt
+            guard age >= 0, age < text.lifetime else { continue }
+            let progress = age / text.lifetime
+            let alpha = 1 - progress
+            let offsetY = -40 * progress
+            let position = CGPoint(x: playerCenterX, y: headY + offsetY)
+            context.draw(
+                Text(text.text)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(Color(red: 0.85, green: 0.95, blue: 1.00).opacity(Double(alpha))),
+                at: position
+            )
+        }
     }
 
     private func drawJumpFeedback(context: inout GraphicsContext) {
@@ -1679,11 +1707,16 @@ private struct SurvivalCodeRunGameContent: View {
         nextPlayer.vy = min(SurvivalCodeRunNativeRules.maxFall, nextPlayer.vy + SurvivalCodeRunNativeRules.gravity * step)
         nextPlayer.runPhase += abs(nextPlayer.vx) * 0.035 * step
         nextPlayer = updateCoyoteFrames(player: nextPlayer)
-        let jumpResult = processJumpBuffer(player: nextPlayer)
+        let jumpResult = processJumpBuffer(player: nextPlayer, pendingJumpChordName: pendingJumpChordName)
         nextPlayer = jumpResult.player
+        pendingJumpChordName = jumpResult.pendingJumpChordName
         if let feedback = jumpResult.jumpFeedbackEffect {
             jumpFeedbackEffect = feedback
         }
+        if let chordText = jumpResult.newChordNameText {
+            chordNameTexts.append(chordText)
+        }
+        chordNameTexts.removeAll { elapsed - $0.startedAt >= $0.lifetime }
         let movedPlayer = movePlayer(player: nextPlayer, step: step)
         nextPlayer = movedPlayer.player
         if movedPlayer.fellOffWorld {
@@ -1707,6 +1740,8 @@ private struct SurvivalCodeRunGameContent: View {
     private struct CodeRunJumpBufferResult {
         var player: SurvivalCodeRunNativePlayer
         var jumpFeedbackEffect: SurvivalCodeRunJumpFeedbackEffect?
+        var newChordNameText: SurvivalCodeRunChordNameText?
+        var pendingJumpChordName: String?
     }
 
     private struct CodeRunMovePlayerResult {
@@ -1724,16 +1759,30 @@ private struct SurvivalCodeRunGameContent: View {
         return next
     }
 
-    private func processJumpBuffer(player: SurvivalCodeRunNativePlayer) -> CodeRunJumpBufferResult {
+    private func processJumpBuffer(
+        player: SurvivalCodeRunNativePlayer,
+        pendingJumpChordName: String?
+    ) -> CodeRunJumpBufferResult {
         guard player.jumpBufferFrames > 0 else {
-            return CodeRunJumpBufferResult(player: player, jumpFeedbackEffect: nil)
+            return CodeRunJumpBufferResult(
+                player: player,
+                jumpFeedbackEffect: nil,
+                newChordNameText: nil,
+                pendingJumpChordName: pendingJumpChordName
+            )
         }
         if canExecuteBufferedJump(player: player) {
-            return applyBufferedJump(player: player)
+            return applyBufferedJump(player: player, pendingJumpChordName: pendingJumpChordName)
         }
         var next = player
         next.jumpBufferFrames -= 1
-        return CodeRunJumpBufferResult(player: next, jumpFeedbackEffect: nil)
+        let clearedPending = next.jumpBufferFrames <= 0 ? nil : pendingJumpChordName
+        return CodeRunJumpBufferResult(
+            player: next,
+            jumpFeedbackEffect: nil,
+            newChordNameText: nil,
+            pendingJumpChordName: clearedPending
+        )
     }
 
     private func canExecuteBufferedJump(player: SurvivalCodeRunNativePlayer) -> Bool {
@@ -1741,7 +1790,10 @@ private struct SurvivalCodeRunGameContent: View {
         return true
     }
 
-    private func applyBufferedJump(player: SurvivalCodeRunNativePlayer) -> CodeRunJumpBufferResult {
+    private func applyBufferedJump(
+        player: SurvivalCodeRunNativePlayer,
+        pendingJumpChordName: String?
+    ) -> CodeRunJumpBufferResult {
         var next = player
         let feedback = SurvivalCodeRunJumpFeedbackEffect(
             x: next.x + 17,
@@ -1749,6 +1801,13 @@ private struct SurvivalCodeRunGameContent: View {
             startedAt: elapsed,
             duration: SurvivalCodeRunNativeRules.jumpFeedbackDuration
         )
+        let chordText = pendingJumpChordName.map {
+            SurvivalCodeRunChordNameText(
+                text: $0,
+                startedAt: elapsed,
+                lifetime: SurvivalCodeRunNativeRules.chordNameTextLifetime
+            )
+        }
         next.vy = SurvivalCodeRunNativeRules.jumpVelocity
         next.onGround = false
         next.jumpCount += 1
@@ -1758,7 +1817,12 @@ private struct SurvivalCodeRunGameContent: View {
             next.chordLockedUntilLanding = true
             completedPitchClasses.removeAll()
         }
-        return CodeRunJumpBufferResult(player: next, jumpFeedbackEffect: feedback)
+        return CodeRunJumpBufferResult(
+            player: next,
+            jumpFeedbackEffect: feedback,
+            newChordNameText: chordText,
+            pendingJumpChordName: nil
+        )
     }
 
     private func movePlayer(player: SurvivalCodeRunNativePlayer, step: CGFloat) -> CodeRunMovePlayerResult {
@@ -1844,7 +1908,7 @@ private struct SurvivalCodeRunGameContent: View {
         completedPitchClasses.insert(pc)
         if Set(chord.pitchClasses).isSubset(of: completedPitchClasses) {
             audio.playSynthBassRoot(midi: 36 + chord.rootPitchClass)
-            triggerJump()
+            triggerJump(chordName: chord.displayName)
             advanceChordAfterCompletion(completedChordId: chord.id)
             completedPitchClasses.removeAll()
         }
@@ -1903,11 +1967,12 @@ private struct SurvivalCodeRunGameContent: View {
         heldKeys.remove(midi)
     }
 
-    private func triggerJump() {
+    private func triggerJump(chordName: String) {
         guard player.jumpCount < 2, !player.chordLockedUntilLanding else { return }
         var nextPlayer = player
         nextPlayer.jumpBufferFrames = SurvivalCodeRunNativeRules.jumpBufferFrames
         player = nextPlayer
+        pendingJumpChordName = chordName
     }
 
     private func applyDamage(sourceCenterX: CGFloat) {
@@ -1938,6 +2003,8 @@ private struct SurvivalCodeRunGameContent: View {
         player = SurvivalCodeRunNativePlayer(x: nextMap.spawn.x, y: nextMap.spawn.y)
         enemies = nextMap.enemies()
         jumpFeedbackEffect = nil
+        pendingJumpChordName = nil
+        chordNameTexts.removeAll()
         completedPitchClasses.removeAll()
         heldKeys.removeAll()
     }
@@ -1954,6 +2021,8 @@ private struct SurvivalCodeRunGameContent: View {
         player = SurvivalCodeRunNativePlayer(x: mapSpec.spawn.x, y: mapSpec.spawn.y)
         enemies = mapSpec.enemies()
         jumpFeedbackEffect = nil
+        pendingJumpChordName = nil
+        chordNameTexts.removeAll()
         elapsed = 0
         frameTick = 0
         status = .playing

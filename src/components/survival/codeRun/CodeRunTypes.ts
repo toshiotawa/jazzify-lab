@@ -99,6 +99,12 @@ export interface CodeRunJumpFeedbackEffect {
   durationSec: number;
 }
 
+export interface CodeRunChordNameText {
+  text: string;
+  startedAtSec: number;
+  durationSec: number;
+}
+
 export interface CodeRunState {
   map: CodeRunMapSpec;
   player: CodeRunPlayer;
@@ -108,6 +114,8 @@ export interface CodeRunState {
   cameraY: number;
   status: CodeRunStatus;
   jumpFeedbackEffect: CodeRunJumpFeedbackEffect | null;
+  pendingJumpChordName: string | null;
+  chordNameTexts: readonly CodeRunChordNameText[];
 }
 
 export interface CodeRunInputState {

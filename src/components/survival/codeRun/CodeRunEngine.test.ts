@@ -78,7 +78,7 @@ describe('CodeRunEngine jump helpers', () => {
     state = triggerCodeRunJump({
       ...state,
       player: { ...state.player, ...basePlayer(), onGround: false, coyoteFrames: 0, vy: 2 },
-    });
+    }, 'Dm7');
     expect(state.player.jumpBufferFrames).toBe(ENGINE_JUMP_BUFFER_FRAMES);
     const airborneJump = tickCodeRun(state, idleInput, 1 / 60);
     expect(airborneJump.player.vy).toBe(ENGINE_JUMP_VEL);
@@ -104,9 +104,10 @@ describe('CodeRunEngine integration', () => {
   it('triggerCodeRunJump は即 vy を変えずバッファを積む', () => {
     const map = createDefaultCodeRunMap();
     const state = createInitialCodeRunState(map);
-    const triggered = triggerCodeRunJump(state);
+    const triggered = triggerCodeRunJump(state, 'Dm7');
     expect(triggered.player.vy).toBe(0);
     expect(triggered.player.jumpBufferFrames).toBe(ENGINE_JUMP_BUFFER_FRAMES);
+    expect(triggered.pendingJumpChordName).toBe('Dm7');
     expect(triggered.jumpFeedbackEffect).toBeNull();
   });
 
@@ -115,6 +116,7 @@ describe('CodeRunEngine integration', () => {
     let state = createInitialCodeRunState(map);
     state = {
       ...state,
+      pendingJumpChordName: 'Dm7',
       player: {
         ...state.player,
         onGround: true,
@@ -131,12 +133,58 @@ describe('CodeRunEngine integration', () => {
       startedAtSec: state.elapsedSec,
       durationSec: 0.36,
     });
+    expect(next.chordNameTexts).toEqual([{
+      text: 'Dm7',
+      startedAtSec: state.elapsedSec,
+      durationSec: 1,
+    }]);
+    expect(next.pendingJumpChordName).toBeNull();
+  });
+
+  it('ジャンプ拒否時は chordNameTexts を積まない', () => {
+    const map = createDefaultCodeRunMap();
+    const state = {
+      ...createInitialCodeRunState(map),
+      pendingJumpChordName: 'Dm7',
+      player: {
+        ...basePlayer(),
+        y: 200,
+        onGround: false,
+        jumpCount: 2,
+        chordLockedUntilLanding: true,
+        jumpBufferFrames: ENGINE_JUMP_BUFFER_FRAMES,
+      },
+    };
+    const next = tickCodeRun(state, idleInput, 1 / 60);
+    expect(next.player.vy).not.toBe(ENGINE_JUMP_VEL);
+    expect(next.chordNameTexts).toEqual([]);
+    expect(next.pendingJumpChordName).toBe('Dm7');
+  });
+
+  it('chordNameTexts は duration 経過後に除去される', () => {
+    const map = createDefaultCodeRunMap();
+    const state = {
+      ...createInitialCodeRunState(map),
+      elapsedSec: 1.2,
+      chordNameTexts: [{
+        text: 'Dm7',
+        startedAtSec: 0,
+        durationSec: 1,
+      }],
+      player: {
+        ...basePlayer(),
+        onGround: true,
+        coyoteFrames: ENGINE_COYOTE_FRAMES,
+      },
+    };
+    const next = tickCodeRun(state, idleInput, 1 / 60);
+    expect(next.chordNameTexts).toEqual([]);
   });
 
   it('2段ジャンプ後は chordLockedUntilLanding になる', () => {
     const map = createDefaultCodeRunMap();
     let state = createInitialCodeRunState(map);
-    state = triggerCodeRunJump(state);
+    state = triggerCodeRunJump(state, 'Dm7');
     state = tickCodeRun(state, idleInput, 1 / 60);
     state = {
       ...state,
@@ -266,7 +314,7 @@ describe('CodeRunEngine integration', () => {
     state = triggerCodeRunJump({
       ...state,
       player: { ...state.player, jumpBufferFrames: 0 },
-    });
+    }, 'Cmaj7');
     state = {
       ...state,
       player: {
