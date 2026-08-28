@@ -815,14 +815,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             midi: midi,
             phraseTimeSec: phraseTime,
             windowSec: windowSec,
-            ignoreOctave: NoteInputPreferences.ignoreOctave
+            ignoreOctave: NoteInputPreferences.inputMethod == .voice
         ) else {
             let nearest = EarTrainingPrecisionJudge.findNearestPendingNote(
                 notes: precisionNotes,
                 states: runtimeStates,
                 midi: midi,
                 phraseTimeSec: phraseTime,
-                ignoreOctave: NoteInputPreferences.ignoreOctave
+                ignoreOctave: NoteInputPreferences.inputMethod == .voice
             )
             EarTrainingInputTimingTelemetry.logUnmatched(
                 mode: .chordPrecision,

@@ -8,6 +8,8 @@ import {
   midiToPitchClass,
   type EarTrainingDamageConfig,
 } from '@/utils/earTrainingEngine';
+import { orderedPitchClassesFromMidis } from '@/utils/orderedChordInput';
+import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 export interface ChordVoicingEvaluationResult {
   attempt: EarTrainingChordVoicingAttempt;
@@ -32,6 +34,24 @@ const noteNameToPitchClassSafe = (name: string): number | null => {
 export const chordHasVoicingNotes = (chord: EarTrainingPhraseChord): boolean => (
   (chord.voicing?.length ?? 0) > 0
 );
+
+export const getOrderedVoicingPitchClasses = (chord: EarTrainingPhraseChord): number[] => {
+  const voicing = chord.voicing ?? [];
+  const midis: number[] = [];
+  voicing.forEach(noteName => {
+    const trimmed = noteName.trim();
+    if (!trimmed) return;
+    try {
+      midis.push(parseVoicingNoteName(trimmed).midi);
+    } catch {
+      const pc = noteNameToPitchClassSafe(trimmed);
+      if (pc !== null) {
+        midis.push(pc);
+      }
+    }
+  });
+  return [...orderedPitchClassesFromMidis(midis)];
+};
 
 export const getVoicingPitchClasses = (chord: EarTrainingPhraseChord): number[] => {
   const voicing = chord.voicing ?? [];
@@ -127,6 +147,7 @@ export const handleChordVoicingNoteOn = (
   options?: {
     readonly suppressMissRecording?: boolean;
     readonly wrongNotesPolicy?: ChordVoicingNoteOnWrongNotesPolicy;
+    readonly sequential?: boolean;
   },
 ): ChordVoicingEvaluationResult => {
   if (!activeChord) {
@@ -154,7 +175,9 @@ export const handleChordVoicingNoteOn = (
     };
   }
 
-  const targetPcs = getVoicingPitchClasses(activeChord);
+  const targetPcs = options?.sequential
+    ? getOrderedVoicingPitchClasses(activeChord)
+    : getVoicingPitchClasses(activeChord);
   if (targetPcs.length === 0) {
     return {
       attempt,
@@ -192,6 +215,21 @@ export const handleChordVoicingNoteOn = (
       evaluationMissAdded: false,
       firstWrongJustHappened: false,
     };
+  }
+
+  if (options?.sequential) {
+    const nextPc = targetPcs.find(pc => !pressedSet.has(pc)) ?? null;
+    if (nextPc !== inputPc) {
+      return {
+        attempt,
+        hitPitchClass: null,
+        chordJustCompleted: false,
+        enemyDamage: 0,
+        playerDamage: 0,
+        evaluationMissAdded: false,
+        firstWrongJustHappened: false,
+      };
+    }
   }
 
   const next = cloneAttempt(attempt);

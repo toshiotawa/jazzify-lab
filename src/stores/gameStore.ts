@@ -19,7 +19,6 @@ const defaultSettings: GameSettings = {
   notesSpeed: 1.0,
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
-  allowOctaveError: false,
   noteOctaveShift: 0,
   timingAdjustment: 0,
   showNoteNames: true,

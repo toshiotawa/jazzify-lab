@@ -107,6 +107,7 @@ import {
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
+  chordOsmdTargetCanConsumeInput,
   consumeChordOsmdMidi,
   createChordOsmdRemainingCounts,
   earTrainingOsmdUsesScoreTargets,
@@ -346,6 +347,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
   const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const handleNoteInputRef = useRef<(note: number, domTimeStampMs?: number) => void>(() => undefined);
+  const completeTargetRef = useRef<(target: ChordOsmdRhythmTarget, state: RuntimeTargetState, hitPhraseTimeSec: number) => void>(() => undefined);
   const battlePianoAudioPromiseRef = useRef<Promise<void> | null>(null);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
   const gameStateRef = useRef<EarTrainingGameState>('idle');
@@ -362,6 +364,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
   const lastStatusUpdateAtRef = useRef(0);
   const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
+  const voiceActiveMidisRef = useRef<Set<number>>(new Set());
+  const voiceHoldSessionByMidiRef = useRef<Map<number, number>>(new Map());
+  const voiceSustainAppliedByTargetRef = useRef<Map<string, Map<number, number>>>(new Map());
   const battleEffectIdRef = useRef(0);
   const parryChainAnchorRef = useRef<ChordOsmdParrySpanAnchor | null>(null);
   const progressSaveStartedRef = useRef(false);
@@ -1220,6 +1225,85 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
   }, [resolveCalibratedTargetTimeSec, resolveEffectivePracticeBpm, stage.loop_measures, triggerBattleEffect]);
 
+  const applyVoiceSustainedNotesAtPhraseTimeRef = useRef<(phraseTimeSec: number) => void>(() => undefined);
+
+  const applyVoiceSustainedNotesAtPhraseTime = useCallback((phraseTimeSec: number) => {
+    if (settings.inputMethod !== 'voice' || osmdSelfPacedRef.current) {
+      return;
+    }
+    const state = gameStateRef.current;
+    if (state !== 'playingPhrase' && state !== 'countIn') {
+      return;
+    }
+    const activeMidis = voiceActiveMidisRef.current;
+    if (activeMidis.size === 0) {
+      return;
+    }
+    const allowPitchClass = true;
+    const matchLateGrace = VOICE_JUDGMENT_ARRIVAL_GRACE_SEC;
+    const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
+    const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
+    const phraseTargets = targetsRef.current;
+
+    for (const midiNote of activeMidis) {
+      const session = voiceHoldSessionByMidiRef.current.get(midiNote) ?? 0;
+      const matchedIndex = pickNearestChordOsmdTargetIndex(
+        phraseTargets.length,
+        phraseTimeSec,
+        (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
+        (index) => {
+          const target = phraseTargets[index];
+          const targetState = runtimeByTargetIdRef.current.get(target.id);
+          if (!targetState || targetState.completed || targetState.failed) {
+            return false;
+          }
+          if (!chordOsmdTargetCanConsumeInput(targetState.remainingCounts, midiNote, allowPitchClass)) {
+            return false;
+          }
+          return voiceSustainAppliedByTargetRef.current.get(target.id)?.get(midiNote) !== session;
+        },
+        earlyW,
+        lateW,
+        matchLateGrace,
+      );
+      if (matchedIndex === null) {
+        continue;
+      }
+      const target = phraseTargets[matchedIndex];
+      const targetState = runtimeByTargetIdRef.current.get(target.id);
+      if (!targetState) {
+        continue;
+      }
+      const nextRemaining = consumeChordOsmdMidi(targetState.remainingCounts, midiNote, allowPitchClass);
+      if (!nextRemaining) {
+        continue;
+      }
+      targetState.remainingCounts = nextRemaining;
+      let appliedForTarget = voiceSustainAppliedByTargetRef.current.get(target.id);
+      if (!appliedForTarget) {
+        appliedForTarget = new Map();
+        voiceSustainAppliedByTargetRef.current.set(target.id, appliedForTarget);
+      }
+      appliedForTarget.set(midiNote, session);
+      if (practiceModeRef.current) {
+        syncPracticeVoicingHints();
+      }
+      if (chordOsmdTargetIsComplete(nextRemaining)) {
+        completeTargetRef.current(target, targetState, phraseTimeSec);
+      }
+    }
+  }, [
+    completeTargetRef,
+    resolveCalibratedTargetTimeSec,
+    resolveEffectiveTimingWindowSec,
+    settings.inputMethod,
+    syncPracticeVoicingHints,
+  ]);
+
+  useEffect(() => {
+    applyVoiceSustainedNotesAtPhraseTimeRef.current = applyVoiceSustainedNotesAtPhraseTime;
+  }, [applyVoiceSustainedNotesAtPhraseTime]);
+
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
     const arrivalGraceSec = settings.inputMethod === 'voice' ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0;
@@ -1313,6 +1397,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     spawnDueApproachCircles(phraseTimeSec);
     autoCompleteDueTargetsInTimingCalibrationRef.current(phraseTimeSec);
     failExpiredTargets(phraseTimeSec);
+    applyVoiceSustainedNotesAtPhraseTimeRef.current(phraseTimeSec);
     applyMusicXmlLyricQuotes(phraseTimeSec);
     syncPracticeVoicingHints();
 
@@ -1946,6 +2031,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     triggerBattleEffect,
   ]);
 
+  useEffect(() => {
+    completeTargetRef.current = completeTarget;
+  }, [completeTarget]);
+
   const autoCompleteDueTargetsInTimingCalibration = useCallback((phraseTimeSec: number) => {
     if (!timingCalibrationMode) {
       return;
@@ -1980,6 +2069,21 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (gameStateRef.current !== 'playingPhrase' && gameStateRef.current !== 'countIn') {
       return;
     }
+    const allowPitchClass = settings.inputMethod === 'voice';
+    const matchLateGrace = allowPitchClass ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0;
+
+    const markVoiceSustainApplied = (targetId: string) => {
+      if (!allowPitchClass) {
+        return;
+      }
+      const session = voiceHoldSessionByMidiRef.current.get(midiNote) ?? 0;
+      let appliedForTarget = voiceSustainAppliedByTargetRef.current.get(targetId);
+      if (!appliedForTarget) {
+        appliedForTarget = new Map();
+        voiceSustainAppliedByTargetRef.current.set(targetId, appliedForTarget);
+      }
+      appliedForTarget.set(midiNote, session);
+    };
 
     if (osmdSelfPacedRef.current) {
       if (gameStateRef.current !== 'playingPhrase') {
@@ -1996,11 +2100,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         return;
       }
-      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
+      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote, allowPitchClass);
       if (!nextRemaining) {
         return;
       }
       state.remainingCounts = nextRemaining;
+      markVoiceSustainApplied(firstTarget.id);
       syncSelfPacedMeasureAndHints();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
         completeTarget(firstTarget, state, Number.NaN);
@@ -2028,10 +2133,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         if (!state || state.completed || state.failed) {
           return false;
         }
-        return (state.remainingCounts.get(midiNote) ?? 0) > 0;
+        return chordOsmdTargetCanConsumeInput(state.remainingCounts, midiNote, allowPitchClass);
       },
       earlyW,
       lateW,
+      matchLateGrace,
     );
     if (matchedIndex === null) {
       const nearest = findNearestPendingChordOsmdTarget(
@@ -2044,7 +2150,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           if (!state || state.completed || state.failed) {
             return false;
           }
-          return (state.remainingCounts.get(midiNote) ?? 0) > 0;
+          return chordOsmdTargetCanConsumeInput(state.remainingCounts, midiNote, allowPitchClass);
         },
       );
       logEarTrainingUnmatchedInputTimingTelemetry({
@@ -2071,25 +2177,39 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       inputSec: phraseT,
       midi: midiNote,
     });
-    const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote);
+    const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote, allowPitchClass);
     if (!nextRemaining) {
       return;
     }
     state.remainingCounts = nextRemaining;
+    markVoiceSustainApplied(target.id);
     if (practiceModeRef.current) {
       syncPracticeVoicingHints();
     }
     if (chordOsmdTargetIsComplete(nextRemaining)) {
       completeTarget(target, state, phraseT);
     }
-  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
   }, [handleNoteInput]);
 
   const { isConnected: isStandaloneInputConnected } = useStandaloneNoteInput({
-    onNoteOn: (note, domTimeStampMs) => handleMidiNoteOn(note, domTimeStampMs),
+    onNoteOn: (note, domTimeStampMs) => {
+      if (settings.inputMethod === 'voice') {
+        const midi = Math.round(note);
+        voiceActiveMidisRef.current.add(midi);
+        voiceHoldSessionByMidiRef.current.set(
+          midi,
+          (voiceHoldSessionByMidiRef.current.get(midi) ?? 0) + 1,
+        );
+      }
+      handleMidiNoteOn(note, domTimeStampMs);
+    },
+    onNoteOff: (note) => {
+      voiceActiveMidisRef.current.delete(Math.round(note));
+    },
     onKeyHighlight: (note, active) => pianoOverlayRef.current?.highlightKey(note, active),
   });
 

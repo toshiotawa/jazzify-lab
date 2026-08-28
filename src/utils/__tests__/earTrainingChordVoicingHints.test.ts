@@ -6,15 +6,25 @@ describe('computeVoicingKeyboardHints', () => {
     expect(computeVoicingKeyboardHints(null, undefined)).toEqual({
       pendingMidis: [],
       completedMidis: [],
+      nextMidi: null,
     });
     expect(computeVoicingKeyboardHints(undefined, new Set())).toEqual({
       pendingMidis: [],
       completedMidis: [],
+      nextMidi: null,
     });
     expect(computeVoicingKeyboardHints([], new Set())).toEqual({
       pendingMidis: [],
       completedMidis: [],
+      nextMidi: null,
     });
+  });
+
+  it('sequential モードでは次ターゲットを nextMidi に返す', () => {
+    const result = computeVoicingKeyboardHints(['C4', 'E4', 'G4'], new Set([0]), true);
+    expect(result.nextMidi).toBe(64);
+    expect(result.completedMidis).toEqual([60]);
+    expect(result.pendingMidis).toEqual([67]);
   });
 
   it('押下ピッチクラスが無いとき全ノートが pending', () => {

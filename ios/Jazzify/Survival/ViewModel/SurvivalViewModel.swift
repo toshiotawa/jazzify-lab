@@ -15,6 +15,7 @@ final class SurvivalViewModel: ObservableObject {
     @Published private(set) var isBossStage: Bool
     /// 鍵盤ヒント用。`SurvivalChordPadView` へ渡す MIDI 集合。
     @Published private(set) var chordPadHintMidis: Set<Int> = []
+    @Published private(set) var chordPadNextHintMidis: Set<Int> = []
     /// HINT 構成音のうち、現在のスロット入力で満たされた pitch class に対応するハイライト MIDI。
     @Published private(set) var chordPadCompletedHintMidis: Set<Int> = []
     @Published private(set) var chordPadHintPendingOpacity: CGFloat = 1
@@ -29,6 +30,7 @@ final class SurvivalViewModel: ObservableObject {
         bossHud: SurvivalBossHUDSnapshot?,
         isBossStage: Bool,
         chordPadHintMidis: Set<Int>,
+        chordPadNextHintMidis: Set<Int> = [],
         chordPadCompletedHintMidis: Set<Int>,
         chordPadHintPendingOpacity: CGFloat,
         chordPadScrollAnchorMidi: Int?,
@@ -39,6 +41,7 @@ final class SurvivalViewModel: ObservableObject {
         self.bossHud = bossHud
         self.isBossStage = isBossStage
         self.chordPadHintMidis = chordPadHintMidis
+        self.chordPadNextHintMidis = chordPadNextHintMidis
         self.chordPadCompletedHintMidis = chordPadCompletedHintMidis
         self.chordPadHintPendingOpacity = chordPadHintPendingOpacity
         self.chordPadScrollAnchorMidi = chordPadScrollAnchorMidi
@@ -127,6 +130,11 @@ final class SurvivalViewModel: ObservableObject {
             chordPadHintMidis = nextHints
         }
 
+        let nextTargetHints = gameLoop.currentHintNextHighlightMidis()
+        if nextTargetHints != chordPadNextHintMidis {
+            chordPadNextHintMidis = nextTargetHints
+        }
+
         let nextCompletedHints = gameLoop.currentHintCompletedHighlightMidis()
         if nextCompletedHints != chordPadCompletedHintMidis {
             chordPadCompletedHintMidis = nextCompletedHints
@@ -177,6 +185,7 @@ final class SurvivalViewModel: ObservableObject {
         bossHud = gameLoop.bossBattle.map(Self.makeBossHudSnapshot(from:))
         lastBossHudPublishAt = now
         chordPadHintMidis = gameLoop.currentHintHighlightMidis()
+        chordPadNextHintMidis = gameLoop.currentHintNextHighlightMidis()
         chordPadCompletedHintMidis = gameLoop.currentHintCompletedHighlightMidis()
         chordPadHintPendingOpacity = gameLoop.currentKeyboardHintPendingOpacity()
         syncPhraseStaff(from: gameLoop)

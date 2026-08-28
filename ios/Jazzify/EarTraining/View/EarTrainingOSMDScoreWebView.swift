@@ -673,7 +673,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                     slotRenderInFlight = false
                     slotRenderInFlightSemitone = nil
                     if EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(
-                        usesScoreSlots: pendingScoreXmlBySemitone.count > 1
+                        preparedSlotCount: pendingScoreXmlBySemitone.count
                     ) {
                         sendActiveScoreSlotIfNeeded()
                     }

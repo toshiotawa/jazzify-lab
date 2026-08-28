@@ -8,7 +8,6 @@ struct InputMethodSection: View {
 
     @ObservedObject private var midiManager = MIDIManager.shared
     @State private var inputMethod: NoteInputMethod = NoteInputPreferences.inputMethod
-    @State private var ignoreOctave: Bool = NoteInputPreferences.ignoreOctave
     @State private var micSensitivity: Double = Double(NoteInputPreferences.micSensitivity)
     @State private var permission: PitchInputEngine.MicrophonePermission = .undetermined
     @State private var hasHeadphones = true
@@ -51,27 +50,9 @@ struct InputMethodSection: View {
                 voiceSettings
             }
 
-            Divider().opacity(0.3)
-
-            Toggle(
-                isEnglishCopy ? "Ignore octave differences" : "オクターブ違いを無視",
-                isOn: $ignoreOctave
-            )
-            .onChange(of: ignoreOctave) { newValue in
-                NoteInputPreferences.ignoreOctave = newValue
-            }
-
-            Text(
-                isEnglishCopy
-                    ? "Affects Precision mode. Other modes already compare pitch classes."
-                    : "オクターブ無視は主に Precision モード向けです。他モードは既にピッチクラス判定です。"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
         }
         .onAppear {
             inputMethod = NoteInputPreferences.inputMethod
-            ignoreOctave = NoteInputPreferences.ignoreOctave
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
             permission = PitchInputEngine.microphonePermission
             refreshHeadphoneState()
@@ -214,6 +195,13 @@ struct InputMethodSection: View {
                     NoteInputPreferences.micSensitivity = level
                     PitchInputEngine.shared.setSensitivity(level)
                 }
+            Text(
+                isEnglishCopy
+                    ? "Higher values detect quieter sounds more easily. Lower if notes are picked up too often."
+                    : "高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。"
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
     }
 

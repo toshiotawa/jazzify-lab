@@ -217,8 +217,12 @@ private struct EarTrainingPianoKeyButton: View {
         switch voicingHint {
         case .completed:
             return PianoKeyboardTheme.voicingHintCompleted
+        case .next:
+            let base = isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
+            return Color.earTrainingLerp(from: base, toward: PianoKeyboardTheme.voicingHintPending, t: 0.95)
         case .pending:
-            return PianoKeyboardTheme.voicingHintPending
+            let base = isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
+            return Color.earTrainingLerp(from: base, toward: PianoKeyboardTheme.voicingHintPending, t: 0.55)
         case .none:
             return isBlack ? PianoKeyboardTheme.blackKey : PianoKeyboardTheme.whiteKey
         }

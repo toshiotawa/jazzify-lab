@@ -1419,7 +1419,7 @@ private struct SurvivalCodeRunGameContent: View {
 
     private var chordPadSnapshot: SurvivalChordPadSnapshot {
         guard status == .playing, !player.chordLockedUntilLanding, let chord = currentChord else {
-            return SurvivalChordPadSnapshot(hintMidis: [], completedHintMidis: [], hintPendingOpacity: 0, midiHeldKeys: heldKeys, isEnabled: true, scrollAnchorMidi: keyboardScrollAnchorMidi)
+            return SurvivalChordPadSnapshot(hintMidis: [], nextHintMidis: [], completedHintMidis: [], hintPendingOpacity: 0, midiHeldKeys: heldKeys, isEnabled: true, scrollAnchorMidi: keyboardScrollAnchorMidi)
         }
         let completedMidis = Set(chord.midiNotes.filter { completedPitchClasses.contains(Self.pitchClass($0)) })
         let pendingOpacity = SurvivalStaffHintOpacity.computeKeyboardHintOpacity(
@@ -1429,8 +1429,19 @@ private struct SurvivalCodeRunGameContent: View {
             productionHintMode: keyboardHintMode,
             phase: .playing
         )
+        let nextHintMidis: Set<Int>
+        if NoteInputManager.shared.isVoiceInputActive,
+           let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+               fromMidis: chord.midiNotes,
+               inputPitchClasses: Array(completedPitchClasses)
+           ) {
+            nextHintMidis = Set(chord.midiNotes.filter { Self.pitchClass($0) == nextPc })
+        } else {
+            nextHintMidis = []
+        }
         return SurvivalChordPadSnapshot(
             hintMidis: Set(chord.midiNotes),
+            nextHintMidis: nextHintMidis,
             completedHintMidis: completedMidis,
             hintPendingOpacity: pendingOpacity,
             midiHeldKeys: heldKeys,
@@ -1965,7 +1976,17 @@ private struct SurvivalCodeRunGameContent: View {
         heldKeys.insert(midi)
         guard status == .playing, !player.chordLockedUntilLanding, let chord = currentChord else { return }
         let pc = Self.pitchClass(midi)
-        guard chord.pitchClasses.contains(pc) else { return }
+        let sequential = NoteInputManager.shared.isVoiceInputActive
+        if sequential {
+            let prefix = orderedCompletedPrefix(for: chord)
+            guard SurvivalChordResolver.acceptsSequentialInput(
+                inputPc: pc,
+                inputPitchClasses: prefix,
+                target: chord
+            ) else { return }
+        } else {
+            guard chord.pitchClasses.contains(pc) else { return }
+        }
         completedPitchClasses.insert(pc)
         if Set(chord.pitchClasses).isSubset(of: completedPitchClasses) {
             audio.playSynthBassRoot(midi: 36 + chord.rootPitchClass)
@@ -1973,6 +1994,16 @@ private struct SurvivalCodeRunGameContent: View {
             advanceChordAfterCompletion(completedChordId: chord.id)
             completedPitchClasses.removeAll()
         }
+    }
+
+    private func orderedCompletedPrefix(for chord: SurvivalResolvedChord) -> [Int] {
+        let ordered = SurvivalChordResolver.orderedPitchClasses(from: chord)
+        var prefix: [Int] = []
+        for pitchClass in ordered {
+            guard completedPitchClasses.contains(pitchClass) else { break }
+            prefix.append(pitchClass)
+        }
+        return prefix
     }
 
     private func advanceChordAfterCompletion(completedChordId: String) {
@@ -2635,6 +2666,7 @@ struct SurvivalGameContent<Session: SurvivalPlaySession>: View {
         SurvivalChordPadView(
             snapshot: SurvivalChordPadSnapshot(
                 hintMidis: vm.chordPadHintMidis,
+                nextHintMidis: vm.chordPadNextHintMidis,
                 completedHintMidis: vm.chordPadCompletedHintMidis,
                 hintPendingOpacity: vm.chordPadHintPendingOpacity,
                 midiHeldKeys: vm.midiHeldKeys,

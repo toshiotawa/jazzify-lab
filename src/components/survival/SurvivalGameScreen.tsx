@@ -230,10 +230,15 @@ import {
 } from '@/utils/survivalPhraseDrumLoop';
 import { buildRandomStaffSnapshotFromChord } from '@/utils/survivalRandomStaffSnapshot';
 import {
+  applySequentialSurvivalVoicingHints,
   applySurvivalVoicingHintsWithOpacity,
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
 } from '@/utils/survivalStaffHintOpacity';
+import {
+  computeOrderedChordKeyboardHintsFromMidis,
+  shouldAcceptChordPitchClassInput,
+} from '@/utils/orderedChordInput';
 import { resolveProductionHintModes } from '@/utils/resolveProductionHintModes';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
@@ -1189,7 +1194,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(loadSurvivalDisplaySettings);
   
   // handleNoteInputの最新参照を保持するref
-  const handleNoteInputRef = useRef<(note: number) => void>(() => {});
+  const handleNoteInputRef = useRef<(note: number, sequential?: boolean) => void>(() => {});
 
   const lessonRandomChordOverridesRef = useRef(lessonRandomChordOverrides);
   lessonRandomChordOverridesRef.current = lessonRandomChordOverrides;
@@ -1583,10 +1588,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
     return survivalMidi.registerNoteHandler((note) => {
       if (handleNoteInputRef.current) {
-        handleNoteInputRef.current(note);
+        handleNoteInputRef.current(note, settings.inputMethod === 'voice');
       }
     });
-  }, [survivalMidi]);
+  }, [survivalMidi, settings.inputMethod]);
 
   useEffect(() => {
     if (!survivalMidi) {
@@ -1620,7 +1625,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           voiceControllerRef.current = new PitchInputController({
             onNoteOn: (note: number) => {
               if (handleNoteInputRef.current) {
-                handleNoteInputRef.current(note);
+                handleNoteInputRef.current(note, true);
               }
               const renderer = pixiRendererRef.current;
               if (renderer) {
@@ -2693,7 +2698,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, []);
 
   // ノート入力処理
-  const handleNoteInput = useCallback((note: number) => {
+  const handleNoteInput = useCallback((note: number, sequential = false) => {
     const scenario = scenarioOverridesRef.current;
     const midiBlocked = scenario.isActive && scenario.blockMidiGameInput;
     const inputFullyBlocked =
@@ -2770,6 +2775,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (index === 3 && prev.dSlotCooldown > 0) return false;
         const isMagicSlot = (index === 0 && isAMagicSlot) || (index === 1 && isBMagicSlot) || index === 2 || index === 3;
         if (isMagicSlot && availableMagicsForSlot.length === 0) return false;
+        if (sequential) {
+          return shouldAcceptChordPitchClassInput(
+            slot.chord.notes,
+            slot.correctNotes,
+            note,
+            true,
+          ).accept;
+        }
         if (slot.correctNotes.includes(noteMod12)) return false;
         // targetNotes に含まれるかチェック（アロケーション最小化のため Set を作らない）
         const notes = slot.chord.notes;
@@ -2815,6 +2828,31 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (isMagicSlot && availableMagicsForSlot.length === 0) return slot;
 
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
+        if (sequential) {
+          const acceptance = shouldAcceptChordPitchClassInput(
+            slot.chord.notes,
+            slot.correctNotes,
+            note,
+            true,
+          );
+          if (!acceptance.accept) return slot;
+          const newCorrectNotes = [...slot.correctNotes, acceptance.inputPc];
+          const blockEval = scenarioOverridesRef.current.isActive
+            && scenarioOverridesRef.current.blockSlotEvaluation;
+          const isComplete = !blockEval && newCorrectNotes.length >= targetNotes.length;
+          if (isComplete) {
+            completedSlotIndices.push(index);
+            if (index === 1 && scenarioSlotBCompletionPulseRef) {
+              scenarioSlotBCompletionPulseRef.current += 1;
+            }
+          }
+          return {
+            ...slot,
+            correctNotes: newCorrectNotes,
+            isCompleted: isComplete,
+            completedTime: isComplete ? Date.now() : undefined,
+          };
+        }
         if (!targetNotes.includes(noteMod12)) return slot;
         if (slot.correctNotes.includes(noteMod12)) return slot;
 
@@ -6349,6 +6387,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     const pendingMidi: number[] = [];
     const completedMidi: number[] = [];
+    if (settings.inputMethod === 'voice') {
+      const hints = computeOrderedChordKeyboardHintsFromMidis(notes, slot.correctNotes);
+      applySequentialSurvivalVoicingHints(renderer, hints, survivalKeyboardHintOpacity);
+      return undefined;
+    }
     for (let i = 0; i < notes.length; i += 1) {
       const midiNote = notes[i];
       const noteMod12 = ((midiNote % 12) + 12) % 12;
@@ -6362,7 +6405,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     applySurvivalVoicingHintsWithOpacity(renderer, pendingMidi, completedMidi, survivalKeyboardHintOpacity);
 
     return undefined;
-  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, bossUiTick, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current, isCompositePhraseBossStage]);
+  }, [isPhraseMode, shouldShowKeyboardHints, survivalKeyboardHintOpacity, bossUiTick, phraseUiTick, scenarioMode, scenarioUiTick, gameState.player.statusEffects, gameState.codeSlots.current, isCompositePhraseBossStage, settings.inputMethod]);
   
   // バッファー/デバッファーレベル取得ヘルパー
   const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {

@@ -462,12 +462,15 @@ final class EarTrainingOsmdScoreScrollTests: XCTestCase {
         XCTAssertFalse(EarTrainingOsmdScoreScroll.osmdMessageReportsRenderProgressOnly("ready"))
     }
 
-    func testShouldSendActiveScoreSlotOnSlotReady_onlyInSlotMode() {
+    func testShouldSendActiveScoreSlotOnSlotReady_whenSlotsPrepared() {
         XCTAssertTrue(
-            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(usesScoreSlots: true)
+            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(preparedSlotCount: 2)
+        )
+        XCTAssertTrue(
+            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(preparedSlotCount: 1)
         )
         XCTAssertFalse(
-            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(usesScoreSlots: false)
+            EarTrainingOsmdScoreScroll.shouldSendActiveScoreSlotOnSlotReady(preparedSlotCount: 0)
         )
     }
 }

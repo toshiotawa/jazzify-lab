@@ -1908,7 +1908,13 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     if (!judgmentChord) {
       return;
     }
-    const result = handleChordVoicingNoteOn(currentAttempt, judgmentChord, note, activeDamageConfig);
+    const result = handleChordVoicingNoteOn(
+      currentAttempt,
+      judgmentChord,
+      note,
+      activeDamageConfig,
+      { sequential: settings.inputMethod === 'voice' },
+    );
     if (result.attempt !== currentAttempt) {
       setAttempt(result.attempt);
       attemptRef.current = result.attempt;
@@ -1995,6 +2001,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     phrases,
     rankRule,
     registerBattleEffectImpact,
+    settings.inputMethod,
     triggerBattleEffect,
     triggerCompletionPulse,
     triggerFeedback,
@@ -2432,8 +2439,12 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       return null;
     }
     const pressed = attempt?.pressedByChord.get(activeChord.id);
-    return computeVoicingKeyboardHints(activeChord.voicing, pressed);
-  }, [showKeyboardTargetHints, activeChord, attempt, showVoicingTargetHints]);
+    return computeVoicingKeyboardHints(
+      activeChord.voicing,
+      pressed,
+      settings.inputMethod === 'voice',
+    );
+  }, [showKeyboardTargetHints, activeChord, attempt, showVoicingTargetHints, settings.inputMethod]);
 
   useEffect(() => {
     const overlay = pianoOverlayRef.current;
@@ -2444,8 +2455,17 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       overlay.clearVoicingHints();
       return;
     }
+    if (voicingKeyboardHints.nextMidi !== null && settings.inputMethod === 'voice') {
+      overlay.setVoicingHintsByIntensity(
+        [voicingKeyboardHints.nextMidi],
+        voicingKeyboardHints.pendingMidis,
+        [],
+        voicingKeyboardHints.completedMidis,
+      );
+      return;
+    }
     overlay.setVoicingHints(voicingKeyboardHints.pendingMidis, voicingKeyboardHints.completedMidis);
-  }, [voicingKeyboardHints, gameState, phraseRunId]);
+  }, [voicingKeyboardHints, gameState, phraseRunId, settings.inputMethod]);
 
   useEffect(() => {
     phaserGameRef.current?.setPlayerQuote(playerQuoteBubbleText);

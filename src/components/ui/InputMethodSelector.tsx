@@ -141,6 +141,11 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
               onChange={(e) => updateSettings({ voiceSensitivity: Number(e.target.value) })}
               className="w-full"
             />
+            <p className="text-xs text-gray-400 mt-1">
+              {en
+                ? 'Higher values detect quieter sounds more easily. Lower if notes are picked up too often.'
+                : '高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。'}
+            </p>
           </label>
           <p className="text-xs text-gray-400 font-mono">
             {en
@@ -149,23 +154,6 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
           </p>
         </div>
       )}
-
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={settings.allowOctaveError}
-          onChange={(e) => updateSettings({ allowOctaveError: e.target.checked })}
-          className="checkbox checkbox-sm checkbox-primary"
-        />
-        <span className="text-sm text-gray-200">
-          {en ? 'Ignore octave errors' : 'オクターブ違いを無視する'}
-        </span>
-      </label>
-      <p className="text-xs text-gray-500 -mt-1">
-        {en
-          ? 'When enabled, notes match by pitch class (C4 = C5). Precision mode only; other modes already ignore octave.'
-          : '有効時はピッチクラスで判定（ド4=ド5）。主にPrecisionモード向け。他モードは既にオクターブ無視です。'}
-      </p>
     </div>
   );
 };

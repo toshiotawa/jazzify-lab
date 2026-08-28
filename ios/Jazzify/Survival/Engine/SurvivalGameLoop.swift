@@ -715,6 +715,22 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         return completed
     }
 
+    func currentHintNextHighlightMidis() -> Set<Int> {
+        guard NoteInputManager.shared.isVoiceInputActive else { return [] }
+        guard let target = currentHintTargetSlot() else { return [] }
+        guard let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+            inputPitchClasses: runtime.slots[target.index].inputPitchClasses,
+            target: target.chord
+        ) else { return [] }
+        for midi in target.chord.midiNotes.sorted() {
+            let pc = ((midi % 12) + 12) % 12
+            if pc == nextPc {
+                return [midi]
+            }
+        }
+        return []
+    }
+
     /// 値が変わったときだけ更新する（Progression+HINT で同一スロット固定時の無駄な再計算を避ける）。
     private func setHintSlotIndexIfChanged(_ newValue: Int?) {
         guard currentHintSlotIndex != newValue else { return }
@@ -769,12 +785,12 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             if runtime.scenario.blockSlotEvaluation {
                 continue
             }
-            events.append(contentsOf: evaluateSlots(for: on.midi))
+            events.append(contentsOf: evaluateSlots(for: on.midi, sequential: on.sequential))
         }
         return events
     }
 
-    private func evaluateSlots(for note: Int) -> [SurvivalFrameEvent] {
+    private func evaluateSlots(for note: Int, sequential: Bool = false) -> [SurvivalFrameEvent] {
         if runtime.scenario.blockSlotEvaluation { return [] }
         if isPhraseMode {
             if isCompositePhraseBossStage {
@@ -786,6 +802,13 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         let pc = ((note % 12) + 12) % 12
         for idx in runtime.slots.indices {
             guard runtime.slots[idx].isEnabled else { continue }
+            if sequential, let target = runtime.slots[idx].chord {
+                guard SurvivalChordResolver.acceptsSequentialInput(
+                    inputPc: pc,
+                    inputPitchClasses: runtime.slots[idx].inputPitchClasses,
+                    target: target
+                ) else { continue }
+            }
             if !runtime.slots[idx].inputPitchClasses.contains(pc) {
                 runtime.slots[idx].inputPitchClasses.append(pc)
             }

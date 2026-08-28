@@ -181,7 +181,6 @@ export interface GameSettings {
   instrumentMode: InstrumentMode;
   
   // 判定設定
-  allowOctaveError: boolean;   // オクターブ違いを正解にする
   noteOctaveShift: number;     // -2 to +2
   
   // タイミング調整設定

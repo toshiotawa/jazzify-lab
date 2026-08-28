@@ -15,7 +15,12 @@ import {
   isCodeRunRandomStage,
   pickCodeRunRandomChord,
 } from './codeRunRandomChords';
-import { applySurvivalVoicingHintsWithOpacity, computeKeyboardHintOpacity } from '@/utils/survivalStaffHintOpacity';
+import { applySequentialSurvivalVoicingHints, applySurvivalVoicingHintsWithOpacity, computeKeyboardHintOpacity } from '@/utils/survivalStaffHintOpacity';
+import {
+  computeOrderedChordKeyboardHintsFromMidis,
+  normalizePitchClass,
+  shouldAcceptChordPitchClassInput,
+} from '@/utils/orderedChordInput';
 import type { ProductionHintMode } from '@/types';
 import { fetchSurvivalRunMap } from '@/platform/supabaseSurvival';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
@@ -237,7 +242,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const randomNextChordRef = useRef<CodeRunActiveChord | null>(null);
   const [completedPitchClasses, setCompletedPitchClasses] = useState<Set<number>>(() => new Set());
   const completedPitchClassesRef = useRef<Set<number>>(new Set());
-  const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
+  const handleNoteInputRef = useRef<(note: number, sequential?: boolean) => void>(() => undefined);
 
   const syncRandomChordRefs = useCallback((current: CodeRunActiveChord | null, next: CodeRunActiveChord | null) => {
     randomCurrentChordRef.current = current;
@@ -459,21 +464,26 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     return () => cancelAnimationFrame(raf);
   }, [demoMode, finishRun, isPaused]);
 
-  const handleNoteInput = useCallback((note: number) => {
+  const handleNoteInput = useCallback((note: number, sequential = false) => {
     const latestState = stateRef.current;
     if (latestState.player.chordLockedUntilLanding || resultRef.current) return;
     const chord = isRandomStage
       ? randomCurrentChordRef.current
       : progressionChords[currentChordIndexRef.current % Math.max(1, progressionChords.length)];
     if (!chord) return;
-    const targetPitchClasses = new Set(chord.notes.map(pitchClass));
-    const pc = pitchClass(note);
-    if (!targetPitchClasses.has(pc)) return;
+    const completedArray = [...completedPitchClassesRef.current];
+    const acceptance = shouldAcceptChordPitchClassInput(
+      chord.notes,
+      completedArray,
+      note,
+      sequential,
+    );
+    if (!acceptance.accept) return;
     const nextCompleted = new Set(completedPitchClassesRef.current);
-    nextCompleted.add(pc);
+    nextCompleted.add(acceptance.inputPc);
     completedPitchClassesRef.current = nextCompleted;
     setCompletedPitchClasses(new Set(nextCompleted));
-    if (nextCompleted.size < targetPitchClasses.size) return;
+    if (nextCompleted.size < acceptance.orderedTargetPcs.length) return;
 
     const bassRoot =
       progressionBassRootName(chord.displayName) ?? progressionBassRootName(chord.root) ?? chord.root;
@@ -518,9 +528,9 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
 
   useEffect(() => {
     return survivalMidi.registerNoteHandler((note) => {
-      handleNoteInputRef.current(note);
+      handleNoteInputRef.current(note, settings.inputMethod === 'voice');
     });
-  }, [survivalMidi]);
+  }, [survivalMidi, settings.inputMethod]);
 
   useEffect(() => {
     return survivalMidi.registerKeyHighlightTarget(() => pixiRendererRef.current);
@@ -557,6 +567,20 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       renderer.clearVoicingHints();
       return;
     }
+    const completedArray = [...completedPitchClasses];
+    if (settings.inputMethod === 'voice') {
+      const hints = computeOrderedChordKeyboardHintsFromMidis(currentChord.notes, completedArray);
+      const opacity = computeKeyboardHintOpacity(runState.elapsedSec, {
+        hintMode,
+        hintBuffActive: false,
+        productionHintMode: keyboardProductionMode,
+        isStageMode: true,
+        isPlaying: !isPaused && !result,
+        isGameOver: !!result,
+      });
+      applySequentialSurvivalVoicingHints(renderer, hints, opacity);
+      return;
+    }
     const completed = currentChord.notes.filter((note) => completedPitchClasses.has(pitchClass(note)));
     const pending = currentChord.notes.filter((note) => !completedPitchClasses.has(pitchClass(note)));
     const opacity = computeKeyboardHintOpacity(runState.elapsedSec, {
@@ -568,7 +592,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       isGameOver: !!result,
     });
     applySurvivalVoicingHintsWithOpacity(renderer, pending, completed, opacity);
-  }, [chordLocked, completedPitchClasses, currentChord, hintMode, isPaused, keyboardProductionMode, result, runState.elapsedSec]);
+  }, [chordLocked, completedPitchClasses, currentChord, hintMode, isPaused, keyboardProductionMode, result, runState.elapsedSec, settings.inputMethod]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

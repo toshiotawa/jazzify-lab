@@ -195,7 +195,7 @@ describe('earTrainingPrecisionNotes', () => {
 });
 
 describe('earTrainingPrecisionJudge', () => {
-  it('allowOctaveError で pitch class 一致を許容する', () => {
+  it('ignoreOctave で pitch class 一致を許容する（音声入力相当）', () => {
     const notes = [
       { id: 'a', midi: 72, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
     ];

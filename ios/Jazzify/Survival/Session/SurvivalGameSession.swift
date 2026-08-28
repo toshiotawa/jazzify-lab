@@ -75,6 +75,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
             bossHud: loop.bossBattle.map(Self.makeBossHudSnapshot(from:)),
             isBossStage: loop.isBossStage,
             chordPadHintMidis: loop.currentHintHighlightMidis(),
+            chordPadNextHintMidis: loop.currentHintNextHighlightMidis(),
             chordPadCompletedHintMidis: loop.currentHintCompletedHighlightMidis(),
             chordPadHintPendingOpacity: loop.currentKeyboardHintPendingOpacity(),
             chordPadScrollAnchorMidi: loop.keyboardScrollAnchorMidi,
@@ -342,7 +343,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
         audioController.pianoNoteOnRealtime(midi: note, velocity: velocity)
         if gameLoop.runtime.scenario.blockChordPadInput { return }
         userInputNotePulse &+= 1
-        input.enqueueNoteOn(note, velocity: velocity)
+        input.enqueueNoteOn(note, velocity: velocity, sequential: false)
     }
 
     func chordPadNoteOff(_ note: Int) {
@@ -357,7 +358,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
         guard state != .disposed else { return }
         if gameLoop.runtime.scenario.blockMidiGameInput { return }
         userInputNotePulse &+= 1
-        input.enqueueNoteOn(note, velocity: velocity)
+        input.enqueueNoteOn(note, velocity: velocity, sequential: NoteInputManager.shared.isVoiceInputActive)
     }
 
     func midiGameNoteOff(_ note: Int) {

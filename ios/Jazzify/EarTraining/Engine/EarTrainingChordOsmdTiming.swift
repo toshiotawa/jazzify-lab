@@ -33,10 +33,11 @@ enum EarTrainingChordOsmdTiming {
         phraseTimeSec: Double,
         judgedTargetTimeSec: Double,
         earlySec: Double = judgmentWindowEarlySec,
-        lateSec: Double = judgmentWindowLateSec
+        lateSec: Double = judgmentWindowLateSec,
+        matchLateGraceSec: Double = 0
     ) -> Bool {
         let delta = phraseTimeSec - judgedTargetTimeSec
-        return delta >= -earlySec && delta <= lateSec
+        return delta >= -earlySec && delta <= lateSec + matchLateGraceSec
     }
 
     /// 鍵盤ヒント点灯範囲：ジャスト（delta 0）から `durationSec` 後まで。
@@ -55,7 +56,8 @@ enum EarTrainingChordOsmdTiming {
         judgedTargetTimeSec: (Int) -> Double,
         canMatchTarget: (Int) -> Bool,
         earlySec: Double = judgmentWindowEarlySec,
-        lateSec: Double = judgmentWindowLateSec
+        lateSec: Double = judgmentWindowLateSec,
+        matchLateGraceSec: Double = 0
     ) -> Int? {
         var bestIndex: Int?
         var bestAbsDelta = Double.infinity
@@ -63,7 +65,7 @@ enum EarTrainingChordOsmdTiming {
             guard canMatchTarget(index) else { continue }
             let judged = judgedTargetTimeSec(index)
             let delta = phraseTimeSec - judged
-            guard delta >= -earlySec, delta <= lateSec else { continue }
+            guard delta >= -earlySec, delta <= lateSec + matchLateGraceSec else { continue }
             let absDelta = abs(delta)
             if absDelta < bestAbsDelta {
                 bestAbsDelta = absDelta

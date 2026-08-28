@@ -1357,13 +1357,14 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     const windowSec = resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC);
+    const ignoreOctave = settings.inputMethod === 'voice';
     const matched = findPrecisionNoteForInput(
       notesRef.current,
       runtimeStatesRef.current,
       midiNote,
       phraseTime,
       windowSec,
-      settings.allowOctaveError,
+      ignoreOctave,
     );
     if (!matched) {
       const nearest = findNearestPendingPrecisionNote(
@@ -1371,7 +1372,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         runtimeStatesRef.current,
         midiNote,
         phraseTime,
-        settings.allowOctaveError,
+        ignoreOctave,
       );
       logEarTrainingUnmatchedInputTimingTelemetry({
         mode: 'chord_precision',
@@ -1404,7 +1405,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     activeGoodNotesByMidiRef.current.set(midiNote, matched.id);
     notesRendererRef.current?.highlightKey(midiNote, true);
     syncRendererStates();
-  }, [resolveEffectiveTimingWindowSec, syncRendererStates]);
+  }, [resolveEffectiveTimingWindowSec, settings.inputMethod, syncRendererStates]);
 
   const handleNoteRelease = useCallback((note: number) => {
     const midiNote = Math.round(note);

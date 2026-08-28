@@ -79,9 +79,10 @@ export const isPhraseTimeInChordOsmdJudgmentWindow = (
   judgedTargetTimeSec: number,
   earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  matchLateGraceSec = 0,
 ): boolean => {
   const delta = phraseTimeSec - judgedTargetTimeSec;
-  return delta >= -earlySec && delta <= lateSec;
+  return delta >= -earlySec && delta <= lateSec + matchLateGraceSec;
 };
 
 /**
@@ -114,6 +115,7 @@ export const pickNearestChordOsmdTargetIndex = (
   canMatchTarget: (index: number) => boolean,
   earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  matchLateGraceSec = 0,
 ): number | null => {
   let bestIndex: number | null = null;
   let bestAbsDelta = Number.POSITIVE_INFINITY;
@@ -123,7 +125,7 @@ export const pickNearestChordOsmdTargetIndex = (
     }
     const judged = resolveJudgedTargetTimeSec(index);
     const delta = phraseTimeSec - judged;
-    if (delta < -earlySec || delta > lateSec) {
+    if (delta < -earlySec || delta > lateSec + matchLateGraceSec) {
       continue;
     }
     const absDelta = Math.abs(delta);
@@ -2064,16 +2066,48 @@ export const createChordOsmdRemainingCounts = (
   new Map(target.midiCounts.map(item => [item.midi, item.count]))
 );
 
+export const findConsumableMidiInRemainingCounts = (
+  remainingCounts: ReadonlyMap<number, number>,
+  midi: number,
+  allowPitchClass = false,
+): number | null => {
+  const rounded = Math.round(midi);
+  if ((remainingCounts.get(rounded) ?? 0) > 0) {
+    return rounded;
+  }
+  if (!allowPitchClass) {
+    return null;
+  }
+  const inputPc = ((rounded % 12) + 12) % 12;
+  for (const [targetMidi, count] of remainingCounts) {
+    if (count > 0 && ((targetMidi % 12) + 12) % 12 === inputPc) {
+      return targetMidi;
+    }
+  }
+  return null;
+};
+
+export const chordOsmdTargetCanConsumeInput = (
+  remainingCounts: ReadonlyMap<number, number>,
+  midi: number,
+  allowPitchClass = false,
+): boolean => findConsumableMidiInRemainingCounts(remainingCounts, midi, allowPitchClass) !== null;
+
 export const consumeChordOsmdMidi = (
   remainingCounts: ReadonlyMap<number, number>,
   midi: number,
+  allowPitchClass = false,
 ): Map<number, number> | null => {
-  const current = remainingCounts.get(Math.round(midi)) ?? 0;
+  const consumable = findConsumableMidiInRemainingCounts(remainingCounts, midi, allowPitchClass);
+  if (consumable === null) {
+    return null;
+  }
+  const current = remainingCounts.get(consumable) ?? 0;
   if (current <= 0) {
     return null;
   }
   const next = new Map(remainingCounts);
-  next.set(Math.round(midi), current - 1);
+  next.set(consumable, current - 1);
   return next;
 };
 

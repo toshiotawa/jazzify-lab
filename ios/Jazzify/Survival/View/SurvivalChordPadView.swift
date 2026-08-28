@@ -3,6 +3,7 @@ import SwiftUI
 /// 鍵盤 UI に閉じた入力。親が差分のみで構築し `.equatable()` で再評価を抑える。
 struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let hintMidis: Set<Int>
+    let nextHintMidis: Set<Int>
     let completedHintMidis: Set<Int>
     let hintPendingOpacity: CGFloat
     let midiHeldKeys: Set<Int>
@@ -44,7 +45,8 @@ struct SurvivalChordPadView: View, Equatable {
                         PianoKeyButton(
                             label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                             isBlack: false,
-                            isHinted: snapshot.hintMidis.contains(midi),
+                            isHinted: snapshot.hintMidis.contains(midi) || snapshot.nextHintMidis.contains(midi),
+                            isNextHinted: snapshot.nextHintMidis.contains(midi),
                             isHintCompleted: snapshot.completedHintMidis.contains(midi),
                             hintPendingOpacity: snapshot.hintPendingOpacity,
                             isMidiHeld: snapshot.midiHeldKeys.contains(midi),
@@ -73,7 +75,8 @@ struct SurvivalChordPadView: View, Equatable {
                     PianoKeyButton(
                         label: "",
                         isBlack: true,
-                        isHinted: snapshot.hintMidis.contains(midi),
+                        isHinted: snapshot.hintMidis.contains(midi) || snapshot.nextHintMidis.contains(midi),
+                        isNextHinted: snapshot.nextHintMidis.contains(midi),
                         isHintCompleted: snapshot.completedHintMidis.contains(midi),
                         hintPendingOpacity: snapshot.hintPendingOpacity,
                         isMidiHeld: snapshot.midiHeldKeys.contains(midi),
@@ -146,6 +149,7 @@ private struct PianoKeyButton: View {
     let label: String
     let isBlack: Bool
     let isHinted: Bool
+    let isNextHinted: Bool
     let isHintCompleted: Bool
     let hintPendingOpacity: CGFloat
     let isMidiHeld: Bool
@@ -201,11 +205,18 @@ private struct PianoKeyButton: View {
                         Double(PianoKeyboardTheme.voicingHintOverlayOpacity)
                     )
                 )
+        } else if isNextHinted {
+            RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                .fill(
+                    PianoKeyboardTheme.voicingHintPending.opacity(
+                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity)
+                    )
+                )
         } else if isHinted {
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                 .fill(
                     PianoKeyboardTheme.voicingHintPending.opacity(
-                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity * hintPendingOpacity)
+                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity * hintPendingOpacity * 0.55)
                     )
                 )
         }

@@ -4,23 +4,23 @@ import Foundation
 /// 1 フレーム分にまとめた入力。`SurvivalScene.update` で `SurvivalInputBuffer.drain()` により取得する。
 struct SurvivalFrameInput: Sendable {
     var analog: CGVector
-    /// コード評価用ノートオン（velocity はピアノ音量用。ゲームロジックでは主に pitch class のみ使用）
-    var noteOns: [(midi: Int, velocity: Int)]
+    /// コード評価用ノートオン（velocity はピアノ音量用。sequential は音声入力の順序判定）
+    var noteOns: [(midi: Int, velocity: Int, sequential: Bool)]
     var noteOffs: [Int]
 }
 
 @MainActor
 final class SurvivalInputBuffer {
     private var analog: CGVector = .zero
-    private var noteOnQueue: [(Int, Int)] = []
+    private var noteOnQueue: [(Int, Int, Bool)] = []
     private var noteOffQueue: [Int] = []
 
     func setAnalog(_ value: CGVector) {
         analog = value
     }
 
-    func enqueueNoteOn(_ midi: Int, velocity: Int = 100) {
-        noteOnQueue.append((midi, velocity))
+    func enqueueNoteOn(_ midi: Int, velocity: Int = 100, sequential: Bool = false) {
+        noteOnQueue.append((midi, velocity, sequential))
     }
 
     func enqueueNoteOff(_ midi: Int) {

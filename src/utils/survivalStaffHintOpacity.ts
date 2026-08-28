@@ -1,4 +1,5 @@
 import type { ProductionHintMode } from '@/types';
+import type { OrderedChordKeyboardHints } from '@/utils/orderedChordInput';
 
 const FADE_15S_STEPS: Record<number, number> = {
   11: 0.8,
@@ -117,4 +118,32 @@ export const applySurvivalVoicingHintsWithOpacity = (
   } else {
     renderer.setVoicingHintsByIntensity([], [], pendingMidi, completedMidi);
   }
+};
+
+/** 音声順序入力: 次ターゲットを strong、残り pending を medium/soft で表示。 */
+export const applySequentialSurvivalVoicingHints = (
+  renderer: SurvivalVoicingHintRenderer,
+  hints: OrderedChordKeyboardHints,
+  opacity: number,
+): void => {
+  const { nextMidi, pendingMidis, completedMidis } = hints;
+  if (nextMidi === null && pendingMidis.length === 0 && completedMidis.length === 0) {
+    renderer.clearVoicingHints();
+    return;
+  }
+  if (opacity <= 0) {
+    renderer.setVoicingHints([], completedMidis);
+    return;
+  }
+  if (nextMidi !== null) {
+    if (opacity >= 0.75) {
+      renderer.setVoicingHintsByIntensity([nextMidi], pendingMidis, [], completedMidis);
+    } else if (opacity >= 0.5) {
+      renderer.setVoicingHintsByIntensity([], [nextMidi, ...pendingMidis], [], completedMidis);
+    } else {
+      renderer.setVoicingHintsByIntensity([], [], [nextMidi, ...pendingMidis], completedMidis);
+    }
+    return;
+  }
+  applySurvivalVoicingHintsWithOpacity(renderer, pendingMidis, completedMidis, opacity);
 };

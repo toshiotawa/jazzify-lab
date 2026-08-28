@@ -397,6 +397,26 @@ describe('Chord OSMD target consumption', () => {
     expect(third ? chordOsmdTargetIsComplete(third) : false).toBe(true);
   });
 
+  it('allowPitchClass でオクターブ違いの入力を消費できる', () => {
+    const remaining = new Map([[60, 1]]);
+    expect(consumeChordOsmdMidi(remaining, 72, true)).toEqual(new Map([[60, 0]]));
+    expect(consumeChordOsmdMidi(remaining, 72, false)).toBeNull();
+  });
+
+  it('pickNearestChordOsmdTargetIndex は voice 用 matchLateGraceSec を反映する', () => {
+    const judgedTimes = [1.0];
+    const index = pickNearestChordOsmdTargetIndex(
+      1,
+      1.45,
+      (i) => judgedTimes[i] ?? 0,
+      () => true,
+      0.25,
+      0.25,
+      0.25,
+    );
+    expect(index).toBe(0);
+  });
+
   it('同じタイミングの和音は1音だけでは完了しない', () => {
     const [target] = buildChordOsmdRhythmTargets(
       phrase([

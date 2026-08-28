@@ -475,6 +475,58 @@ enum SurvivalChordResolver {
         )
     }
 
+    /// target の構成音を MIDI 昇順のピッチクラス列で返す（重複除去）。
+    static func orderedPitchClasses(from target: SurvivalResolvedChord) -> [Int] {
+        orderedPitchClasses(fromMidis: target.midiNotes)
+    }
+
+    static func orderedPitchClasses(fromMidis midiNotes: [Int]) -> [Int] {
+        var seen = Set<Int>()
+        var ordered: [Int] = []
+        for midi in midiNotes.sorted() {
+            let pc = ((midi % 12) + 12) % 12
+            if seen.insert(pc).inserted {
+                ordered.append(pc)
+            }
+        }
+        return ordered
+    }
+
+    /// 音声順序入力: 次に期待されるピッチクラス。既入力は prefix として扱う。
+    static func nextExpectedPitchClass(
+        inputPitchClasses: [Int],
+        target: SurvivalResolvedChord
+    ) -> Int? {
+        nextExpectedPitchClass(fromMidis: target.midiNotes, inputPitchClasses: inputPitchClasses)
+    }
+
+    static func nextExpectedPitchClass(
+        fromMidis midiNotes: [Int],
+        inputPitchClasses: [Int]
+    ) -> Int? {
+        let ordered = orderedPitchClasses(fromMidis: midiNotes)
+        let normalized = inputPitchClasses.map { (($0 % 12) + 12) % 12 }
+        var prefixCount = 0
+        for (index, pc) in ordered.enumerated() {
+            guard index < normalized.count, normalized[index] == pc else { break }
+            prefixCount += 1
+        }
+        guard prefixCount < ordered.count else { return nil }
+        return ordered[prefixCount]
+    }
+
+    static func acceptsSequentialInput(
+        inputPc: Int,
+        inputPitchClasses: [Int],
+        target: SurvivalResolvedChord
+    ) -> Bool {
+        guard let next = nextExpectedPitchClass(inputPitchClasses: inputPitchClasses, target: target) else {
+            return false
+        }
+        let pc = ((inputPc % 12) + 12) % 12
+        return next == pc
+    }
+
     /// 与えた入力ピッチクラス配列が target コードを満たしているか判定
     static func isMatch(inputPitchClasses: [Int], target: SurvivalResolvedChord) -> Bool {
         guard !target.pitchClasses.isEmpty else { return false }

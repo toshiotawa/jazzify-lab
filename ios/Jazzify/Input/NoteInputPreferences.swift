@@ -7,7 +7,6 @@ enum NoteInputMethod: String {
 
 enum NoteInputPreferences {
     private static let methodKey = "jazzify.input.method"
-    private static let ignoreOctaveKey = "jazzify.input.ignoreOctave"
     private static let micSensitivityKey = "jazzify.input.micSensitivity"
 
     static var inputMethod: NoteInputMethod {
@@ -21,11 +20,6 @@ enum NoteInputPreferences {
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: methodKey)
         }
-    }
-
-    static var ignoreOctave: Bool {
-        get { UserDefaults.standard.bool(forKey: ignoreOctaveKey) }
-        set { UserDefaults.standard.set(newValue, forKey: ignoreOctaveKey) }
     }
 
     static var micSensitivity: Int {

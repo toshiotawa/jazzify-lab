@@ -14,6 +14,8 @@ struct EarTrainingChordVoicingAttempt: Sendable, Equatable {
 /// Web `src/utils/earTrainingChordVoicingHints.ts` と同じ意味。
 enum VoicingHintState: Sendable, Equatable {
     case pending
+    /// 音声順序入力時の次ターゲット（pending より濃い表示）
+    case next
     case completed
 }
 
@@ -62,6 +64,12 @@ enum EarTrainingChordVoicingEngine {
             index = trimmed.index(after: index)
         }
         return ((pc % 12) + 12) % 12
+    }
+
+    static func voicingOrderedPitchClasses(for chord: EarTrainingPhraseChordDetail) -> [Int] {
+        guard let voicing = chord.voicing, !voicing.isEmpty else { return [] }
+        let midis = voicing.compactMap { noteNameToMidi($0) }
+        return SurvivalChordResolver.orderedPitchClasses(fromMidis: midis)
     }
 
     static func voicingPitchClasses(for chord: EarTrainingPhraseChordDetail) -> [Int] {
@@ -115,9 +123,39 @@ enum EarTrainingChordVoicingEngine {
     /// それ以外は `.pending` として返す。
     static func voicingKeyboardHints(
         voicing: [String]?,
-        pressedPitchClasses: Set<Int>
+        pressedPitchClasses: Set<Int>,
+        sequential: Bool = false
     ) -> [Int: VoicingHintState] {
         guard let voicing, !voicing.isEmpty else { return [:] }
+        var midis: [Int] = []
+        var seenMidis = Set<Int>()
+        for name in voicing {
+            guard let midi = noteNameToMidi(name), !seenMidis.contains(midi) else { continue }
+            seenMidis.insert(midi)
+            midis.append(midi)
+        }
+        guard !midis.isEmpty else { return [:] }
+
+        if sequential {
+            let ordered = SurvivalChordResolver.orderedPitchClasses(fromMidis: midis)
+            let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+                fromMidis: midis,
+                inputPitchClasses: Array(pressedPitchClasses)
+            )
+            var result: [Int: VoicingHintState] = [:]
+            for midi in midis.sorted() {
+                let pc = midiToPitchClass(midi)
+                if pressedPitchClasses.contains(pc) {
+                    result[midi] = .completed
+                } else if pc == nextPc {
+                    result[midi] = .next
+                } else {
+                    result[midi] = .pending
+                }
+            }
+            return result
+        }
+
         var result: [Int: VoicingHintState] = [:]
         for name in voicing {
             guard let midi = noteNameToMidi(name), result[midi] == nil else { continue }
@@ -195,7 +233,8 @@ enum EarTrainingChordVoicingEngine {
         midiNote: Int,
         damage: EarTrainingDamageConfig,
         suppressMissRecording: Bool = false,
-        wrongNotesPolicy: WrongNotesPolicy = .default
+        wrongNotesPolicy: WrongNotesPolicy = .default,
+        sequential: Bool = false
     ) -> InputResult {
         guard let chord = activeChord else {
             return InputResult(
@@ -220,7 +259,9 @@ enum EarTrainingChordVoicingEngine {
                 firstWrongJustHappened: false
             )
         }
-        let targetPcs = voicingPitchClasses(for: chord)
+        let targetPcs = sequential
+            ? voicingOrderedPitchClasses(for: chord)
+            : voicingPitchClasses(for: chord)
         if targetPcs.isEmpty {
             return InputResult(
                 attempt: attempt,
@@ -256,6 +297,20 @@ enum EarTrainingChordVoicingEngine {
                 evaluationMissAdded: false,
                 firstWrongJustHappened: false
             )
+        }
+        if sequential {
+            let nextPc = targetPcs.first(where: { !pressed.contains($0) })
+            if nextPc != inputPc {
+                return InputResult(
+                    attempt: attempt,
+                    hitPitchClass: nil,
+                    chordJustCompleted: false,
+                    enemyDamage: 0,
+                    playerDamage: 0,
+                    evaluationMissAdded: false,
+                    firstWrongJustHappened: false
+                )
+            }
         }
         pressed.insert(inputPc)
         var next = attempt

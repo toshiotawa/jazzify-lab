@@ -236,9 +236,9 @@ enum EarTrainingOsmdScoreScroll {
         }
     }
 
-    /// `slotReady` 受信後に JS へ `setActiveScoreSlot` を送るべきか（練習スロットモードのみ）。
-    static func shouldSendActiveScoreSlotOnSlotReady(usesScoreSlots: Bool) -> Bool {
-        usesScoreSlots
+    /// `slotReady` 受信後に JS へ `setActiveScoreSlot` を送るべきか（`prepareScoreSlots` 利用時）。
+    static func shouldSendActiveScoreSlotOnSlotReady(preparedSlotCount: Int) -> Bool {
+        preparedSlotCount >= 1
     }
 
     static func shouldResyncPlayheadTimeline(

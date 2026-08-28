@@ -105,6 +105,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private var nextAutoCompleteTargetIndex: Int = 0
     private var parryChainAnchor: EarTrainingChordOsmdParrySpanAnchor?
     private var lastInputAtByNote: [Int: Double] = [:]
+    private var voiceActiveMidis: Set<Int> = []
+    private var voiceHoldSessionByMidi: [Int: Int] = [:]
+    private var voiceSustainAppliedByTarget: [String: [Int: Int]] = [:]
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
     private var totalCompletedTargets: Int = 0
@@ -473,6 +476,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         if nowMs - (lastInputAtByNote[midi] ?? 0) < Self.inputCooldownMs { return }
         lastInputAtByNote[midi] = nowMs
         guard gameState == .playingPhrase || gameState == .countIn else { return }
+        let allowPitchClass = NoteInputPreferences.inputMethod == .voice
+        let matchLateGrace = allowPitchClass ? EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec : 0
+        if allowPitchClass {
+            voiceActiveMidis.insert(midi)
+            voiceHoldSessionByMidi[midi, default: 0] += 1
+        }
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
             phraseTime = fromMidi
@@ -492,11 +501,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             },
             canMatchTarget: { [self] index in
                 guard targets[index].completed == false, targets[index].failed == false else { return false }
-                guard let count = targets[index].remainingMidiCounts[midi], count > 0 else { return false }
-                return true
+                return targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass)
             },
             earlySec: judgmentWindowEarly,
-            lateSec: judgmentWindowLate
+            lateSec: judgmentWindowLate,
+            matchLateGraceSec: matchLateGrace
         )
         guard let matchedIndex else {
             let nearest = EarTrainingChordOsmdTiming.pickNearestPendingTargetIndex(
@@ -507,8 +516,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 },
                 canMatchTarget: { [self] index in
                     guard targets[index].completed == false, targets[index].failed == false else { return false }
-                    guard let count = targets[index].remainingMidiCounts[midi], count > 0 else { return false }
-                    return true
+                    return targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass)
                 }
             )
             EarTrainingInputTimingTelemetry.logUnmatched(
@@ -532,9 +540,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             inputSec: phraseTime,
             midi: midi
         )
-        guard targets[matchedIndex].consume(midi: midi) else {
+        guard targets[matchedIndex].consume(midi: midi, allowPitchClass: allowPitchClass) else {
             refreshPracticeVoicingHints()
             return
+        }
+        if allowPitchClass {
+            markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
         }
         if targets[matchedIndex].isComplete {
             completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
@@ -545,6 +556,50 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     func handleNoteOff(midi: Int, playAudio: Bool = true) {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
+        }
+        voiceActiveMidis.remove(midi)
+    }
+
+    private func markVoiceSustainApplied(targetId: String, midi: Int) {
+        let session = voiceHoldSessionByMidi[midi] ?? 0
+        var applied = voiceSustainAppliedByTarget[targetId] ?? [:]
+        applied[midi] = session
+        voiceSustainAppliedByTarget[targetId] = applied
+    }
+
+    private func applyVoiceSustainedNotes(at phraseTime: Double) {
+        guard NoteInputPreferences.inputMethod == .voice else { return }
+        guard gameState == .playingPhrase || gameState == .countIn else { return }
+        guard !voiceActiveMidis.isEmpty else { return }
+
+        let allowPitchClass = true
+        let matchLateGrace = EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec
+        let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
+        let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
+
+        for midi in voiceActiveMidis {
+            let session = voiceHoldSessionByMidi[midi] ?? 0
+            let matchedIndex = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+                targetCount: targets.count,
+                phraseTimeSec: phraseTime,
+                judgedTargetTimeSec: { [self] index in
+                    resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
+                },
+                canMatchTarget: { [self] index in
+                    guard targets[index].completed == false, targets[index].failed == false else { return false }
+                    guard targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass) else { return false }
+                    return voiceSustainAppliedByTarget[targets[index].id.uuidString]?[midi] != session
+                },
+                earlySec: judgmentWindowEarly,
+                lateSec: judgmentWindowLate,
+                matchLateGraceSec: matchLateGrace
+            )
+            guard let matchedIndex else { continue }
+            guard targets[matchedIndex].consume(midi: midi, allowPitchClass: allowPitchClass) else { continue }
+            markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
+            if targets[matchedIndex].isComplete {
+                completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
+            }
         }
     }
 
@@ -1038,6 +1093,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         spawnDueApproachCircles(at: phraseTime)
         autoCompleteDueTargetsInTimingCalibration(at: phraseTime)
         failExpiredTargets(at: phraseTime)
+        applyVoiceSustainedNotes(at: phraseTime)
         refreshPracticeVoicingHints()
         applyMusicXmlLyricQuotesIfNeeded(phraseTime: phraseTime)
 
@@ -2162,10 +2218,30 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             remainingMidiCounts.values.allSatisfy { $0 <= 0 }
         }
 
-        mutating func consume(midi: Int) -> Bool {
-            guard let count = remainingMidiCounts[midi], count > 0 else { return false }
-            remainingMidiCounts[midi] = count - 1
-            return true
+        func canConsume(midi: Int, allowPitchClass: Bool) -> Bool {
+            if (remainingMidiCounts[midi] ?? 0) > 0 { return true }
+            guard allowPitchClass else { return false }
+            let inputPc = ((midi % 12) + 12) % 12
+            for (targetMidi, count) in remainingMidiCounts where count > 0 {
+                if ((targetMidi % 12) + 12) % 12 == inputPc { return true }
+            }
+            return false
+        }
+
+        mutating func consume(midi: Int, allowPitchClass: Bool = false) -> Bool {
+            if let count = remainingMidiCounts[midi], count > 0 {
+                remainingMidiCounts[midi] = count - 1
+                return true
+            }
+            guard allowPitchClass else { return false }
+            let inputPc = ((midi % 12) + 12) % 12
+            for (targetMidi, count) in remainingMidiCounts where count > 0 {
+                if ((targetMidi % 12) + 12) % 12 == inputPc {
+                    remainingMidiCounts[targetMidi] = count - 1
+                    return true
+                }
+            }
+            return false
         }
 
         mutating func merge(
