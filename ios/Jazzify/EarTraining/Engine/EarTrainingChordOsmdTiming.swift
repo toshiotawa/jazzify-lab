@@ -4,6 +4,8 @@ import Foundation
 enum EarTrainingChordOsmdTiming {
     static let judgmentWindowEarlySec: Double = 0.12
     static let judgmentWindowLateSec: Double = 0.15
+    /// 音声入力時：推論遅延でイベント到着が遅れてもミス確定 tick まで猶予する秒数。
+    static let voiceJudgmentArrivalGraceSec: Double = 0.25
     /// 鍵盤ヒントをジャスト到達から光らせておく長さ（100ms）。判定窓とは独立で、手前では光らせない。
     static let voicingHintDurationSec: Double = 0.1
     static let approachLeadBeats: Double = 1

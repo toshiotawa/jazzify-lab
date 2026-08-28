@@ -1210,6 +1210,11 @@ describe('chord osmd asymmetric judgment window', () => {
     expect(hasChordOsmdJudgmentWindowExpired(0.15, 0)).toBe(false);
     expect(hasChordOsmdJudgmentWindowExpired(0.151, 0)).toBe(true);
   });
+
+  it('音声入力の到着猶予でミス確定を遅延できる', () => {
+    expect(hasChordOsmdJudgmentWindowExpired(0.35, 0, 0.15, 0.25)).toBe(false);
+    expect(hasChordOsmdJudgmentWindowExpired(0.401, 0, 0.15, 0.25)).toBe(true);
+  });
 });
 
 describe('isPhraseTimeInChordOsmdVoicingHintWindow', () => {

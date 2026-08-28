@@ -9,7 +9,12 @@ import golden from '@/utils/pitchInput/__fixtures__/onsetGolden.json';
 describe('PitchOnsetTracker', () => {
   it('matches golden fixture events', () => {
     const tracker = new PitchOnsetTracker(golden.config);
-    const allEvents: Array<{ type: string; note: number; frameIndex: number }> = [];
+    const allEvents: Array<{
+      type: string;
+      note: number;
+      frameIndex: number;
+      onsetFrameIndex?: number;
+    }> = [];
 
     golden.frames.forEach((frame, frameIndex) => {
       const events = tracker.processFrame(frame as PitchFrame, frameIndex);
@@ -31,14 +36,14 @@ describe('PitchOnsetTracker', () => {
 
     expect(tracker.processFrame(silent, 0)).toEqual([]);
     expect(tracker.processFrame(highConfidence, 1)).toEqual([
-      { type: 'noteOn', note: 60, frameIndex: 1 },
+      { type: 'noteOn', note: 60, frameIndex: 1, onsetFrameIndex: 1 },
     ]);
 
     tracker.reset();
     expect(tracker.processFrame(silent, 0)).toEqual([]);
     expect(tracker.processFrame(lowConfidence, 1)).toEqual([]);
     expect(tracker.processFrame(lowConfidence, 2)).toEqual([
-      { type: 'noteOn', note: 60, frameIndex: 2 },
+      { type: 'noteOn', note: 60, frameIndex: 2, onsetFrameIndex: 1 },
     ]);
   });
 
@@ -54,7 +59,7 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.processFrame(silent, 0)).toEqual([]);
     expect(tracker.processFrame(voiced, 1)).toEqual([]);
     expect(tracker.processFrame(voiced, 2)).toEqual([
-      { type: 'noteOn', note: 60, frameIndex: 2 },
+      { type: 'noteOn', note: 60, frameIndex: 2, onsetFrameIndex: 1 },
     ]);
   });
 
@@ -128,7 +133,23 @@ describe('PitchOnsetTracker', () => {
     tracker.processFrame(silent, 0);
     expect(tracker.processFrame(wobbleA, 1)).toEqual([]);
     expect(tracker.processFrame(wobbleB, 2)).toEqual([
-      { type: 'noteOn', note: 60, frameIndex: 2 },
+      { type: 'noteOn', note: 60, frameIndex: 2, onsetFrameIndex: 1 },
+    ]);
+  });
+
+  it('records onsetFrameIndex at stable-count start frame', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      onsetImmediateConfidence: 2,
+    });
+    const voiced: PitchFrame = { prediction: 60, confidence: 0.7, volume: 0.01 };
+
+    expect(tracker.processFrame(voiced, 0)).toEqual([]);
+    expect(tracker.processFrame(voiced, 1)).toEqual([]);
+    expect(tracker.processFrame(voiced, 2)).toEqual([]);
+    expect(tracker.processFrame(voiced, 3)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 3, onsetFrameIndex: 0 },
     ]);
   });
 
@@ -151,7 +172,7 @@ describe('PitchOnsetTracker', () => {
     const events = tracker.processFrame(loud, 4);
     expect(events).toEqual([
       { type: 'noteOff', note: 60, frameIndex: 4 },
-      { type: 'noteOn', note: 60, frameIndex: 4 },
+      { type: 'noteOn', note: 60, frameIndex: 4, onsetFrameIndex: 4 },
     ]);
   });
 });

@@ -38,6 +38,8 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
 export const CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC = 0.12;
 /** OSMD リズム耳コピ：ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。 */
 export const CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC = 0.15;
+/** 音声入力時：推論遅延でイベント到着が遅れてもミス確定 tick まで猶予する秒数。 */
+export const VOICE_JUDGMENT_ARRIVAL_GRACE_SEC = 0.25;
 /** @deprecated `CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC` を使用 */
 export const CHORD_OSMD_JUDGMENT_WINDOW_SEC = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC;
 import { OSMD_TIMING_ADJUSTMENT_MS_DEFAULT } from '@/utils/earTrainingOsmdTimingAdjustment';
@@ -102,7 +104,8 @@ export const hasChordOsmdJudgmentWindowExpired = (
   phraseTimeSec: number,
   judgedTargetTimeSec: number,
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
-): boolean => phraseTimeSec > judgedTargetTimeSec + lateSec;
+  arrivalGraceSec = 0,
+): boolean => phraseTimeSec > judgedTargetTimeSec + lateSec + arrivalGraceSec;
 
 export const pickNearestChordOsmdTargetIndex = (
   targetCount: number,

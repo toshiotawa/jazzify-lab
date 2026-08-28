@@ -9,7 +9,7 @@ const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
 
 export interface PitchInputCallbacks {
-  onNoteOn: (note: number, velocity?: number) => void;
+  onNoteOn: (note: number, velocity?: number, domTimeStampMs?: number) => void;
   onNoteOff: (note: number) => void;
   onConnectionChange?: (connected: boolean) => void;
   onError?: (error: string) => void;
@@ -65,7 +65,7 @@ export class PitchInputController {
     PitchInputController._permissionGranted = false;
   }
 
-  private onNoteOn: (note: number, velocity?: number) => void;
+  private onNoteOn: (note: number, velocity?: number, domTimeStampMs?: number) => void;
   private onNoteOff: (note: number) => void;
   private onConnectionChange?: (connected: boolean) => void;
   private onError?: (error: string) => void;
@@ -266,6 +266,16 @@ export class PitchInputController {
     }
   }
 
+  private resolveDomTimeStampMs(audioContextTime: number | undefined): number | undefined {
+    if (typeof audioContextTime !== 'number' || !Number.isFinite(audioContextTime)) {
+      return undefined;
+    }
+    const ctx = this.audioContext;
+    if (!ctx) return undefined;
+    const deltaSec = audioContextTime - ctx.currentTime;
+    return performance.now() + deltaSec * 1000;
+  }
+
   private async setupWorker(): Promise<void> {
     this.worker = new Worker(
       new URL('../workers/pestoPitchWorker.ts', import.meta.url),
@@ -282,7 +292,8 @@ export class PitchInputController {
           this.onNoteOff(this.currentNote);
         }
         this.currentNote = data.note;
-        this.onNoteOn(data.note, 64);
+        const domTimeStampMs = this.resolveDomTimeStampMs(data.audioContextTime);
+        this.onNoteOn(data.note, 64, domTimeStampMs);
       } else if (data?.type === 'noteOff') {
         if (this.currentNote === data.note) {
           this.onNoteOff(data.note);

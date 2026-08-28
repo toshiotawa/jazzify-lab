@@ -17,6 +17,7 @@ final class PitchInputEngine: @unchecked Sendable {
     static let shared = PitchInputEngine()
 
     private static let chunkSize = 240
+    private static let frameSec = Double(chunkSize) / targetSampleRate
     /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕。
     private static let poolSlotCount = 4
     private static let cacheElementCount = 3_976
@@ -552,7 +553,7 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func loadModelIfNeeded() async throws {
         guard let modelURL = Bundle.main.url(
-            forResource: "pesto-mir1k-g7-48000-240",
+            forResource: "pesto-mir1k-g7-48000-240-refill",
             withExtension: "onnx"
         ) else {
             throw PitchInputEngineError.modelMissing
@@ -757,8 +758,13 @@ final class PitchInputEngine: @unchecked Sendable {
 
             for event in events {
                 switch event {
-                case let .noteOn(note, _):
-                    notify(status: 0x90, note: note, velocity: 64, hostTime: hostTime)
+                case let .noteOn(note, frameIndex, onsetFrameIndex):
+                    let backdatedFrames = frameIndex - onsetFrameIndex
+                    let onsetHostTime = Self.hostTimeBackdated(
+                        bySec: Double(backdatedFrames) * Self.frameSec,
+                        from: hostTime
+                    )
+                    notify(status: 0x90, note: note, velocity: 64, hostTime: onsetHostTime)
                 case let .noteOff(note, _):
                     notify(status: 0x80, note: note, velocity: 0, hostTime: hostTime)
                 }
@@ -807,6 +813,19 @@ final class PitchInputEngine: @unchecked Sendable {
         for handler in hostTimed {
             handler(status, noteByte, velocity, hostTime)
         }
+    }
+
+    private static let machTimebaseInfo: mach_timebase_info_data_t = {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return info
+    }()
+
+    private static func hostTimeBackdated(bySec sec: Double, from hostTime: UInt64) -> UInt64 {
+        guard sec > 0 else { return hostTime }
+        let info = machTimebaseInfo
+        let ticks = UInt64((sec * 1_000_000_000 * Double(info.denom) / Double(info.numer)).rounded())
+        return hostTime &- ticks
     }
 }
 

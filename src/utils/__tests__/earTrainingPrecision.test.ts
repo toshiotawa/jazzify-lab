@@ -234,6 +234,17 @@ describe('earTrainingPrecisionJudge', () => {
     expect(states.get('a')?.judgment).toBe('miss');
   });
 
+  it('音声入力の到着猶予で miss 確定を遅延できる', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    expect(markExpiredPrecisionNotesAsMiss(notes, states, 1.45, 0.25, 0.25)).toBe(0);
+    expect(states.get('a')?.judgment).toBe('pending');
+    expect(markExpiredPrecisionNotesAsMiss(notes, states, 1.501, 0.25, 0.25)).toBe(1);
+    expect(states.get('a')?.judgment).toBe('miss');
+  });
+
   it('good率から D/C/B/A/S ランクを決める', () => {
     expect(precisionRankForGoodRate(0.96)).toBe('S');
     expect(precisionRankForGoodRate(0.91)).toBe('A');

@@ -870,10 +870,13 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
 
     private func failExpiredTargets(at time: Double) {
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
+        let arrivalGraceSec = NoteInputPreferences.inputMethod == .voice
+            ? EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec
+            : 0
         var changed = false
         while nextMissTargetIndex < targets.count {
             let target = targets[nextMissTargetIndex]
-            guard time > resolveCalibratedTargetTimeSec(target.base.targetTimeSec) + judgmentWindowLate else { break }
+            guard time > resolveCalibratedTargetTimeSec(target.base.targetTimeSec) + judgmentWindowLate + arrivalGraceSec else { break }
             if targets[nextMissTargetIndex].completed == false, targets[nextMissTargetIndex].failed == false {
                 dismissOsuCircle(for: nextMissTargetIndex)
                 targets[nextMissTargetIndex].failed = true

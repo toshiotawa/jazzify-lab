@@ -25,6 +25,7 @@ final class PitchOnsetTrackerTests: XCTestCase {
         let type: String
         let note: Int
         let frameIndex: Int
+        let onsetFrameIndex: Int?
     }
 
     private struct GoldenFixture: Decodable {
@@ -70,10 +71,19 @@ final class PitchOnsetTrackerTests: XCTestCase {
             let events = tracker.processFrame(pitchFrame, frameIndex: index)
             for event in events {
                 switch event {
-                case let .noteOn(note, frameIndex):
-                    allEvents.append(GoldenEvent(type: "noteOn", note: note, frameIndex: frameIndex))
+                case let .noteOn(note, frameIndex, onsetFrameIndex):
+                    allEvents.append(
+                        GoldenEvent(
+                            type: "noteOn",
+                            note: note,
+                            frameIndex: frameIndex,
+                            onsetFrameIndex: onsetFrameIndex
+                        )
+                    )
                 case let .noteOff(note, frameIndex):
-                    allEvents.append(GoldenEvent(type: "noteOff", note: note, frameIndex: frameIndex))
+                    allEvents.append(
+                        GoldenEvent(type: "noteOff", note: note, frameIndex: frameIndex, onsetFrameIndex: nil)
+                    )
                 }
             }
         }

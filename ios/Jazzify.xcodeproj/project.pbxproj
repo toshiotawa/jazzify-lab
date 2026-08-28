@@ -79,7 +79,7 @@
 		28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */; };
 		2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */; };
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
-		2B22AB05F6D11E30BDC9E66B /* pesto-mir1k-g7-48000-240.onnx in Resources */ = {isa = PBXBuildFile; fileRef = 737208F1FD8209AFCAC93B7C /* pesto-mir1k-g7-48000-240.onnx */; };
+		2B22AB05F6D11E30BDC9E66B /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */ = {isa = PBXBuildFile; fileRef = 737208F1FD8209AFCAC93B7C /* pesto-mir1k-g7-48000-240-refill.onnx */; };
 		2B76B1D155DCB527CB5ADFE0 /* EarTrainingChordVoicingStaffLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E190F8D43A08235F59D9E1F4 /* EarTrainingChordVoicingStaffLayout.swift */; };
 		2BBDA267DF7174A67AB0B3E9 /* EarTrainingChordQuiz.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A40E7856D4F083ED04A38D /* EarTrainingChordQuiz.swift */; };
 		2BF822C5DDCE3051A995D6D8 /* OnboardingBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5765329A2A3A975DF4607783 /* OnboardingBootstrap.swift */; };
@@ -523,7 +523,7 @@
 		710661B97325754204CE9621 /* OrientationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationManager.swift; sourceTree = "<group>"; };
 		713874BF16B04572CFB46CC5 /* BalloonRushGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameLoop.swift; sourceTree = "<group>"; };
 		71C2F9F67A38214BDBCA8195 /* AnnouncementDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementDetailView.swift; sourceTree = "<group>"; };
-		737208F1FD8209AFCAC93B7C /* pesto-mir1k-g7-48000-240.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; path = "pesto-mir1k-g7-48000-240.onnx"; sourceTree = "<group>"; };
+		737208F1FD8209AFCAC93B7C /* pesto-mir1k-g7-48000-240-refill.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; path = "pesto-mir1k-g7-48000-240-refill.onnx"; sourceTree = "<group>"; };
 		73A3841554CFAB32D1715AB1 /* AppReleaseVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReleaseVersion.swift; sourceTree = "<group>"; };
 		748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalHUDView.swift; sourceTree = "<group>"; };
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
@@ -1305,7 +1305,7 @@
 				2AA6502C749876A952A425C8 /* Gameover.mp3 */,
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				A2F6F94B04EBCE40147CE417 /* opensheetmusicdisplay.min.js */,
-				737208F1FD8209AFCAC93B7C /* pesto-mir1k-g7-48000-240.onnx */,
+				737208F1FD8209AFCAC93B7C /* pesto-mir1k-g7-48000-240-refill.onnx */,
 				381E12BED6CB73533234D66B /* クエスト完了.mp3 */,
 				E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */,
 			);
@@ -1634,7 +1634,7 @@
 				F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */,
 				8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */,
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
-				2B22AB05F6D11E30BDC9E66B /* pesto-mir1k-g7-48000-240.onnx in Resources */,
+				2B22AB05F6D11E30BDC9E66B /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */,
 				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
 				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,

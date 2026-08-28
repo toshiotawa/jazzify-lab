@@ -100,6 +100,7 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   CHORD_OSMD_VOICING_HINT_DURATION_SEC,
   hasChordOsmdJudgmentWindowExpired,
+  VOICE_JUDGMENT_ARRIVAL_GRACE_SEC,
   pickNearestChordOsmdTargetIndex,
   isPhraseTimeInChordOsmdVoicingHintWindow,
   chordOsmdNoteHitRatio,
@@ -1220,17 +1221,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
 
   const failExpiredTargets = useCallback((phraseTimeSec: number) => {
     const phraseTargets = targetsRef.current;
+    const arrivalGraceSec = settings.inputMethod === 'voice' ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0;
     while (nextMissTargetIndexRef.current < phraseTargets.length) {
       const target = phraseTargets[nextMissTargetIndexRef.current];
       const judged = resolveCalibratedTargetTimeSec(target.targetTimeSec);
       const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
-      if (!hasChordOsmdJudgmentWindowExpired(phraseTimeSec, judged, lateW)) {
+      if (!hasChordOsmdJudgmentWindowExpired(phraseTimeSec, judged, lateW, arrivalGraceSec)) {
         break;
       }
       failTargetIfNeeded(target.id);
       nextMissTargetIndexRef.current += 1;
     }
-  }, [failTargetIfNeeded, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec]);
+  }, [failTargetIfNeeded, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod]);
 
   const applyMusicXmlLyricQuotes = useCallback((phraseTimeSec: number) => {
     const lyrics = phraseLyricsRef.current;

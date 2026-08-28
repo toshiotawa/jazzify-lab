@@ -667,11 +667,15 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
 
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
+        let arrivalGraceSec = NoteInputPreferences.inputMethod == .voice
+            ? EarTrainingPrecisionJudge.voiceJudgmentArrivalGraceSec
+            : 0
         _ = EarTrainingPrecisionJudge.markExpiredNotesAsMiss(
             notes: precisionNotes,
             states: &runtimeStates,
             phraseTimeSec: phraseTime,
-            windowSec: windowSec
+            windowSec: windowSec,
+            arrivalGraceSec: arrivalGraceSec
         )
         processAutoPlayIfNeeded(phraseTimeSec: phraseTime)
         applyLyricsIfNeeded(phraseTimeSec: phraseTime)

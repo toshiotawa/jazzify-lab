@@ -21,7 +21,7 @@ struct PitchFrame {
 }
 
 enum PitchInputEvent: Equatable {
-    case noteOn(note: Int, frameIndex: Int)
+    case noteOn(note: Int, frameIndex: Int, onsetFrameIndex: Int)
     case noteOff(note: Int, frameIndex: Int)
 }
 
@@ -78,12 +78,22 @@ final class PitchOnsetTracker {
 
             if currentNote < 0 {
                 if shouldEmitNoteOn(pitchStableCount: pitchStableCount, confidence: frame.confidence) {
-                    emitNoteOn(&events, note: quantized, frameIndex: frameIndex)
+                    emitNoteOn(
+                        &events,
+                        note: quantized,
+                        frameIndex: frameIndex,
+                        onsetFrameIndex: frameIndex - pitchStableCount + 1
+                    )
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
                 if shouldEmitNoteOn(pitchStableCount: pitchStableCount, confidence: frame.confidence) {
                     emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
-                    emitNoteOn(&events, note: quantized, frameIndex: frameIndex)
+                    emitNoteOn(
+                        &events,
+                        note: quantized,
+                        frameIndex: frameIndex,
+                        onsetFrameIndex: frameIndex - pitchStableCount + 1
+                    )
                 }
             } else {
                 tryRetrigger(&events, levelDb: levelDb, frameIndex: frameIndex)
@@ -126,12 +136,17 @@ final class PitchOnsetTracker {
         abs(a - b) * 100 <= centsTolerance
     }
 
-    private func emitNoteOn(_ events: inout [PitchInputEvent], note: Int, frameIndex: Int) {
+    private func emitNoteOn(
+        _ events: inout [PitchInputEvent],
+        note: Int,
+        frameIndex: Int,
+        onsetFrameIndex: Int
+    ) {
         currentNote = note
         noteOnFrame = frameIndex
         lastNoteOnFrame = frameIndex
         recentMinDb = .infinity
-        events.append(.noteOn(note: note, frameIndex: frameIndex))
+        events.append(.noteOn(note: note, frameIndex: frameIndex, onsetFrameIndex: onsetFrameIndex))
     }
 
     private func emitNoteOff(_ events: inout [PitchInputEvent], note: Int, frameIndex: Int) {
@@ -172,7 +187,7 @@ final class PitchOnsetTracker {
         if rise >= config.attackRiseDb {
             let note = currentNote
             emitNoteOff(&events, note: note, frameIndex: frameIndex)
-            emitNoteOn(&events, note: note, frameIndex: frameIndex)
+            emitNoteOn(&events, note: note, frameIndex: frameIndex, onsetFrameIndex: frameIndex)
         }
     }
 }

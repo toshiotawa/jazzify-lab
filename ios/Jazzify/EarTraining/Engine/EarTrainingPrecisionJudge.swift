@@ -4,6 +4,7 @@ import CoreGraphics
 /// Web `earTrainingPrecisionJudge.ts` 相当。
 enum EarTrainingPrecisionJudge {
     static let judgmentWindowSec: Double = 0.25
+    static let voiceJudgmentArrivalGraceSec: Double = EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec
     static let noteCullMarginPx: CGFloat = 20
 
     enum NoteJudgment: Equatable, Sendable {
@@ -125,12 +126,13 @@ enum EarTrainingPrecisionJudge {
         notes: [EarTrainingPrecisionNote],
         states: inout [String: NoteRuntimeState],
         phraseTimeSec: Double,
-        windowSec: Double
+        windowSec: Double,
+        arrivalGraceSec: Double = 0
     ) -> Int {
         var newlyMissed = 0
         for note in notes {
             guard var state = states[note.id], state.judgment == .pending else { continue }
-            if phraseTimeSec > note.startSec + windowSec {
+            if phraseTimeSec > note.startSec + windowSec + arrivalGraceSec {
                 state.judgment = .miss
                 states[note.id] = state
                 newlyMissed += 1

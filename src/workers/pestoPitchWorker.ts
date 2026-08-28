@@ -9,8 +9,9 @@ import {
   type PitchOnsetTrackerConfig,
 } from '@/utils/pitchInput/pitchOnsetTracker';
 
-const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-240.onnx';
+const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-240-refill.onnx';
 const CHUNK_SIZE = 240;
+const FRAME_SEC = CHUNK_SIZE / 48000;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
@@ -181,7 +182,9 @@ const runInference = async (
 
   for (const event of events) {
     if (event.type === 'noteOn') {
-      post({ type: 'noteOn', note: event.note, audioContextTime });
+      const backdatedFrames = event.frameIndex - event.onsetFrameIndex;
+      const onsetAudioContextTime = audioContextTime - backdatedFrames * FRAME_SEC;
+      post({ type: 'noteOn', note: event.note, audioContextTime: onsetAudioContextTime });
     } else {
       post({ type: 'noteOff', note: event.note, audioContextTime });
     }

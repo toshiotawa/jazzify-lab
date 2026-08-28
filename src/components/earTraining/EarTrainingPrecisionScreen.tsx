@@ -119,6 +119,7 @@ import {
   mapPrecisionRankToLessonRank,
   markExpiredPrecisionNotesAsMiss,
   PRECISION_JUDGMENT_WINDOW_SEC,
+  VOICE_JUDGMENT_ARRIVAL_GRACE_SEC,
   precisionGoodRate,
   precisionRankForGoodRate,
   resetPrecisionRuntimeStatesFromTime,
@@ -1027,6 +1028,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       runtimeStatesRef.current,
       phraseTimeSec,
       resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC),
+      settings.inputMethod === 'voice' ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0,
     );
     if (newlyMissed > 0) {
       syncRendererStates();
@@ -1084,6 +1086,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     syncPlayheadForTimeline,
     resolveCalibratedTargetTimeSec,
     resolveEffectiveTimingWindowSec,
+    settings.inputMethod,
     syncRendererStates,
     syncRendererTime,
     updateSeekSliderUi,

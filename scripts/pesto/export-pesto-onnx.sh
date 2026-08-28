@@ -8,9 +8,9 @@ CHECKPOINT="mir-1k_g7"
 SR=48000
 CHUNK=240
 BATCH=1
-MODEL_NAME="${CHECKPOINT}_${SR}_${CHUNK}.onnx"
-OUT_WEB="${ROOT}/public/models/pesto/pesto-mir1k-g7-48000-240.onnx"
-OUT_IOS="${ROOT}/ios/Jazzify/Resources/pesto-mir1k-g7-48000-240.onnx"
+MODEL_NAME="${CHECKPOINT}_${SR}_${CHUNK}_refill.onnx"
+OUT_WEB="${ROOT}/public/models/pesto/pesto-mir1k-g7-48000-240-refill.onnx"
+OUT_IOS="${ROOT}/ios/Jazzify/Resources/pesto-mir1k-g7-48000-240-refill.onnx"
 LICENSE_OUT="${ROOT}/public/licenses/pesto-LGPL-3.0.txt"
 
 cd "${ROOT}"
@@ -26,6 +26,12 @@ uv pip install "torch==2.5.1" "torchaudio==2.5.1" pesto-pitch onnx onnxruntime o
 
 if [[ ! -d "${CACHE}" ]]; then
   git clone --depth 1 https://github.com/SonyCSLParis/pesto "${CACHE}"
+fi
+
+# buffer refilling (RefillPad1d) をデフォルトに。論文 m=0.5 + mirror=1.0 エクスポート向け。
+CACHED_CONV="${CACHE}/pesto/utils/cached_conv.py"
+if [[ -f "${CACHED_CONV}" ]]; then
+  sed -i '' 's/mirror_fn = kwargs.pop("mirror_fn", "zeros")/mirror_fn = kwargs.pop("mirror_fn", "refill")/' "${CACHED_CONV}"
 fi
 
 cd "${CACHE}"

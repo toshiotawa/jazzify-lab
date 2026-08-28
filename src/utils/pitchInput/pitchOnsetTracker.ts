@@ -62,7 +62,7 @@ export interface PitchFrame {
 }
 
 export type PitchInputEvent =
-  | { type: 'noteOn'; note: number; frameIndex: number }
+  | { type: 'noteOn'; note: number; frameIndex: number; onsetFrameIndex: number }
   | { type: 'noteOff'; note: number; frameIndex: number };
 
 const volumeToDb = (volume: number): number =>
@@ -130,14 +130,24 @@ export class PitchOnsetTracker {
 
       if (this.currentNote < 0) {
         if (this.shouldEmitNoteOn(frame.confidence)) {
-          this.emitNoteOn(events, quantized, frameIndex);
+          this.emitNoteOn(
+            events,
+            quantized,
+            frameIndex,
+            frameIndex - this.pitchStableCount + 1,
+          );
         }
       } else if (
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
         if (this.shouldEmitNoteOn(frame.confidence)) {
           this.emitNoteOff(events, this.currentNote, frameIndex);
-          this.emitNoteOn(events, quantized, frameIndex);
+          this.emitNoteOn(
+            events,
+            quantized,
+            frameIndex,
+            frameIndex - this.pitchStableCount + 1,
+          );
         }
       } else {
         this.tryRetrigger(events, levelDb, frameIndex);
@@ -177,12 +187,13 @@ export class PitchOnsetTracker {
     events: PitchInputEvent[],
     note: number,
     frameIndex: number,
+    onsetFrameIndex: number,
   ): void {
     this.currentNote = note;
     this.noteOnFrame = frameIndex;
     this.lastNoteOnFrame = frameIndex;
     this.recentMinDb = Infinity;
-    events.push({ type: 'noteOn', note, frameIndex });
+    events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
   }
 
   private emitNoteOff(
@@ -236,7 +247,7 @@ export class PitchOnsetTracker {
     if (rise >= this.config.attackRiseDb) {
       const note = this.currentNote;
       this.emitNoteOff(events, note, frameIndex);
-      this.emitNoteOn(events, note, frameIndex);
+      this.emitNoteOn(events, note, frameIndex, frameIndex);
     }
   }
 

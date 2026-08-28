@@ -1,7 +1,9 @@
 import type { PrecisionLessonRank } from '@/types';
 import type { PrecisionNote } from '@/utils/earTrainingPrecisionNotes';
+import { VOICE_JUDGMENT_ARRIVAL_GRACE_SEC } from '@/utils/earTrainingChordOsmd';
 
 export const PRECISION_JUDGMENT_WINDOW_SEC = 0.25;
+export { VOICE_JUDGMENT_ARRIVAL_GRACE_SEC };
 
 export type PrecisionNoteJudgment = 'pending' | 'good' | 'miss';
 
@@ -119,6 +121,7 @@ export const markExpiredPrecisionNotesAsMiss = (
   states: Map<string, PrecisionNoteRuntimeState>,
   phraseTimeSec: number,
   windowSec: number,
+  arrivalGraceSec = 0,
 ): number => {
   let newlyMissed = 0;
   for (const note of notes) {
@@ -126,7 +129,7 @@ export const markExpiredPrecisionNotesAsMiss = (
     if (!state || state.judgment !== 'pending') {
       continue;
     }
-    if (phraseTimeSec > note.startSec + windowSec) {
+    if (phraseTimeSec > note.startSec + windowSec + arrivalGraceSec) {
       state.judgment = 'miss';
       newlyMissed += 1;
     }

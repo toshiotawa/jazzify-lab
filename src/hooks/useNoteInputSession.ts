@@ -68,8 +68,8 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
     midiControllerRef.current = midiController;
 
     const pitchController = new PitchInputController({
-      onNoteOn: (note: number) => {
-        noteHandlerRef.current(note);
+      onNoteOn: (note: number, _velocity?: number, domTimeStampMs?: number) => {
+        noteHandlerRef.current(note, domTimeStampMs);
         keyHighlightHandlerRef.current(note, true);
       },
       onNoteOff: (note: number) => {

@@ -63,8 +63,8 @@ export const useStandaloneNoteInput = ({
     midiRef.current = midi;
 
     const pitch = new PitchInputController({
-      onNoteOn: (note) => {
-        onNoteOnRef.current(note);
+      onNoteOn: (note, _velocity, domTimeStampMs) => {
+        onNoteOnRef.current(note, domTimeStampMs);
         onKeyHighlightRef.current?.(note, true);
       },
       onNoteOff: (note) => {
