@@ -17,8 +17,9 @@ describe('defaultCodeRunMap', () => {
   it('builds bundled auto_run_01 fallback map', () => {
     const map = createAutoRun01Map();
     expect(map.id).toBe('auto_run_01');
-    expect(map.worldWidth).toBeGreaterThan(960);
+    expect(map.worldWidth).toBe(220 * 48);
     expect(map.goalX).toBeGreaterThan(0);
+    expect(map.enemies).toHaveLength(14);
   });
 
   it('registers auto_run_01 in map builders', () => {
