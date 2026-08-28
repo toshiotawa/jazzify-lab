@@ -11,7 +11,6 @@ import {
 
 export type SurvivalPhraseNoteResult =
   | 'progress'
-  | 'resync'
   | 'chord-hold'
   | 'measure-complete'
   | 'miss';

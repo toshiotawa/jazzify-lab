@@ -9,7 +9,6 @@ struct PhraseChordStep: Equatable {
 enum SurvivalPhraseChordSteps {
     enum AdvanceResult: Equatable {
         case progress
-        case resync
         case chordHold
         case measureComplete
         case miss
@@ -117,21 +116,6 @@ enum SurvivalPhraseChordSteps {
 
         if requiredInStep.contains(pc), playedInStep.contains(pc) {
             return (.chordHold, state)
-        }
-
-        if state.targetStepIndex > 0, let firstStep = steps.first {
-            let firstRequired = Set(pitchClasses(notes: notes, noteIndices: firstStep.noteIndices))
-            if firstRequired.contains(pc) {
-                let nextState = applyMatch(
-                    notes: notes,
-                    steps: steps,
-                    stepIndex: 0,
-                    correctNoteIndices: [],
-                    revealedNoteIndices: [],
-                    pitchClass: pc
-                )
-                return (.resync, nextState)
-            }
         }
 
         return (.miss, state)

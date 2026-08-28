@@ -74,21 +74,19 @@ describe('SurvivalPhraseEngine', () => {
     expect(state.targetNoteIndex).toBe(0);
   });
 
-  it('resyncs to phrase head when replaying opening pitch mid-chord', () => {
+  it('ignores opening pitch replay mid-chord without rewinding', () => {
     let state = createInitialPhraseState(samplePhrase);
     state = evaluatePhraseNoteOn(state, 2).nextState;
     state = evaluatePhraseNoteOn(state, 4).nextState;
     state = evaluatePhraseNoteOn(state, 5).nextState;
     expect(state.targetNoteIndex).toBe(3);
 
-    const resync = evaluatePhraseNoteOn(state, 2);
-    expect(resync.result).toBe('resync');
-    expect(resync.nextState.targetNoteIndex).toBe(1);
-    expect(resync.nextState.correctNoteIndices).toEqual(new Set([0]));
+    const miss = evaluatePhraseNoteOn(state, 2);
+    expect(miss.result).toBe('miss');
+    expect(miss.nextState.targetNoteIndex).toBe(3);
+    expect(miss.nextState.correctNoteIndices).toEqual(new Set([0, 1, 2]));
 
-    state = resync.nextState;
-    state = evaluatePhraseNoteOn(state, 4).nextState;
-    state = evaluatePhraseNoteOn(state, 5).nextState;
+    state = miss.nextState;
     const done = evaluatePhraseNoteOn(state, 7);
     expect(done.result).toBe('measure-complete');
   });

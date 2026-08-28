@@ -56,26 +56,26 @@ final class SurvivalPhraseEngineTests: XCTestCase {
         XCTAssertEqual(r4.nextState.chordIndex, 1)
     }
 
-    func testResyncWhenReplayingOpeningPitchMidChord() {
+    func testIgnoresOpeningPitchReplayMidChord() {
         var state = SurvivalPhraseEngine.createInitialState(phrase: samplePhrase)
         state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2).nextState
         state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 4).nextState
         state = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 5).nextState
         XCTAssertEqual(state.targetNoteIndex, 3)
 
-        let resync = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)
-        XCTAssertEqual(resync.result, .resync)
-        XCTAssertEqual(resync.nextState.targetNoteIndex, 1)
-        XCTAssertEqual(resync.nextState.correctNoteIndices, Set([0]))
+        let miss = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)
+        XCTAssertEqual(miss.result, .miss)
+        XCTAssertEqual(miss.nextState.targetNoteIndex, 3)
+        XCTAssertEqual(miss.nextState.correctNoteIndices, Set([0, 1, 2]))
     }
 
-    func testMissResetsChord() {
+    func testMissKeepsChordProgress() {
         var state = SurvivalPhraseEngine.createInitialState(phrase: samplePhrase)
         let ok = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 2)
         state = ok.nextState
         let miss = SurvivalPhraseEngine.evaluateNoteOn(state: state, pitchClass: 0)
         XCTAssertEqual(miss.result, .miss)
-        XCTAssertTrue(miss.nextState.correctNoteIndices.isEmpty)
+        XCTAssertEqual(miss.nextState.correctNoteIndices, Set([0]))
         XCTAssertEqual(miss.nextState.chordIndex, 0)
     }
 

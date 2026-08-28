@@ -3,7 +3,6 @@ import Foundation
 /// Web `compositePhraseEngine.ts` の Swift 移植（耳コピソースは UUID）。全候補 KMP 並列判定。
 enum EarTrainingCompositePhraseNoteResult: Equatable {
     case progress
-    case resync
     case measureComplete
     case phraseComplete
     case miss
@@ -133,8 +132,7 @@ enum EarTrainingCompositePhraseEngine {
             return accepted.first(where: { $0.matchedLength == bestMatchedLength })
         }()
 
-        let primaryResync = selectedStep?.resync == true
-        let result = resolveAggregateResult(selectedStep: selectedStep, primaryResync: primaryResync)
+        let result = resolveAggregateResult(selectedStep: selectedStep)
 
         var next = state
         next.candidates = steps.map(\.candidate)
@@ -209,7 +207,6 @@ enum EarTrainingCompositePhraseEngine {
         let accepted: Bool
         let matchedLength: Int
         let beforeMatchedLength: Int
-        let resync: Bool
     }
 
     private static func candidateFromPhrase(_ phrase: EarTrainingCompositePhraseDefinition) -> EarTrainingCompositePhraseCandidateState {
@@ -257,8 +254,7 @@ enum EarTrainingCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: 0,
-                resync: false
+                beforeMatchedLength: 0
             )
         }
 
@@ -267,12 +263,11 @@ enum EarTrainingCompositePhraseEngine {
             chordIndex: c.chordIndex,
             targetNoteIndex: c.targetNoteIndex
         )
-        let advance = PhraseStreamMatching.advanceSequential(
+        let nextMatchedLength = PhraseStreamMatching.advanceSequential(
             pattern: cache.pattern,
             matchedLength: beforeMatchedLength,
             pitchClass: pc
         )
-        let nextMatchedLength = advance.matchedLength
 
         if nextMatchedLength == 0 {
             return CandidateStep(
@@ -280,8 +275,7 @@ enum EarTrainingCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: beforeMatchedLength,
-                resync: false
+                beforeMatchedLength: beforeMatchedLength
             )
         }
 
@@ -293,8 +287,7 @@ enum EarTrainingCompositePhraseEngine {
                 result: .phraseComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength,
-                resync: false
+                beforeMatchedLength: beforeMatchedLength
             )
         }
 
@@ -307,8 +300,7 @@ enum EarTrainingCompositePhraseEngine {
                 result: .measureComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength,
-                resync: false
+                beforeMatchedLength: beforeMatchedLength
             )
         }
 
@@ -317,8 +309,7 @@ enum EarTrainingCompositePhraseEngine {
             result: .progress,
             accepted: true,
             matchedLength: nextMatchedLength,
-            beforeMatchedLength: beforeMatchedLength,
-            resync: advance.resync
+            beforeMatchedLength: beforeMatchedLength
         )
     }
 
@@ -387,12 +378,8 @@ enum EarTrainingCompositePhraseEngine {
     }
 
     private static func resolveAggregateResult(
-        selectedStep: CandidateStep?,
-        primaryResync: Bool
+        selectedStep: CandidateStep?
     ) -> EarTrainingCompositePhraseNoteResult {
-        if primaryResync {
-            return .resync
-        }
         if selectedStep?.result == .measureComplete {
             return .measureComplete
         }

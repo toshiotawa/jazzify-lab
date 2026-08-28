@@ -1,38 +1,29 @@
 /**
  * Sequential prefix matching for phrase note streams (pitch class sequences).
- * Advances only on the next expected note; opening-pitch replay mid-progress resyncs to index 1.
+ * Advances only on the next expected note; unexpected notes are ignored.
  */
 
 export function normalizePitchClass(pitchClass: number): number {
   return ((pitchClass % 12) + 12) % 12;
 }
 
-export interface SequentialAdvanceResult {
-  readonly matchedLength: number;
-  readonly resync: boolean;
-}
-
 export function advanceSequential(
   pattern: readonly number[],
   matchedLength: number,
   pitchClass: number,
-): SequentialAdvanceResult {
+): number {
   if (pattern.length === 0) {
-    return { matchedLength: 0, resync: false };
+    return 0;
   }
 
   const pc = normalizePitchClass(pitchClass);
   const before = Math.max(0, Math.min(matchedLength, pattern.length));
 
   if (before < pattern.length && pattern[before] === pc) {
-    return { matchedLength: before + 1, resync: false };
+    return before + 1;
   }
 
-  if (before > 0 && pattern[0] === pc) {
-    return { matchedLength: 1, resync: true };
-  }
-
-  return { matchedLength: 0, resync: false };
+  return 0;
 }
 
 export function prefixIndexSet(length: number): ReadonlySet<number> {

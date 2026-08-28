@@ -6,32 +6,23 @@ enum PhraseStreamMatching {
         ((pitchClass % 12) + 12) % 12
     }
 
-    struct SequentialAdvanceResult: Equatable {
-        let matchedLength: Int
-        let resync: Bool
-    }
-
     static func advanceSequential(
         pattern: [Int],
         matchedLength: Int,
         pitchClass: Int
-    ) -> SequentialAdvanceResult {
+    ) -> Int {
         guard !pattern.isEmpty else {
-            return SequentialAdvanceResult(matchedLength: 0, resync: false)
+            return 0
         }
 
         let pc = normalizedPitchClass(pitchClass)
         let before = max(0, min(matchedLength, pattern.count))
 
         if before < pattern.count, pattern[before] == pc {
-            return SequentialAdvanceResult(matchedLength: before + 1, resync: false)
+            return before + 1
         }
 
-        if before > 0, pattern[0] == pc {
-            return SequentialAdvanceResult(matchedLength: 1, resync: true)
-        }
-
-        return SequentialAdvanceResult(matchedLength: 0, resync: false)
+        return 0
     }
 
     static func prefixIndexSet(_ length: Int) -> Set<Int> {

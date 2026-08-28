@@ -606,11 +606,6 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
 
         compositePhraseRuntime = evaluation.nextState
 
-        if evaluation.result == .resync {
-            scheduleCompositeProgressIdleReset()
-            return
-        }
-
         if evaluation.result == .phraseComplete {
             cancelCompositeProgressIdleTimer()
         } else {

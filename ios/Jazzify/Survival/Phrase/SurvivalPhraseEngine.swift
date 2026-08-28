@@ -2,7 +2,6 @@ import Foundation
 
 enum SurvivalPhraseNoteResult: Equatable {
     case progress
-    case resync
     case chordHold
     case measureComplete
     case miss
@@ -60,10 +59,9 @@ enum SurvivalPhraseEngine {
         case .measureComplete:
             let progressed = applyStepState(state: state, chord: chord, stepState: evaluation.nextState, steps: steps)
             return (.measureComplete, advanceChord(progressed))
-        case .resync, .progress:
+        case .progress:
             let progressed = applyStepState(state: state, chord: chord, stepState: evaluation.nextState, steps: steps)
-            let result: SurvivalPhraseNoteResult = evaluation.result == .resync ? .resync : .progress
-            return (result, progressed)
+            return (.progress, progressed)
         }
     }
 

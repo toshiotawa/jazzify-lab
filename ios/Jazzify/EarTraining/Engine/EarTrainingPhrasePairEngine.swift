@@ -36,7 +36,6 @@ enum EarTrainingPhrasePairEngine {
     enum NoteResult: Sendable, Equatable {
         case progress
         case complete
-        case resync
         case miss
     }
 
@@ -163,18 +162,12 @@ enum EarTrainingPhrasePairEngine {
             )
         }
 
-        let nextBuffer = longestSuffixPrefix(trial, patterns: patterns)
-        if !nextBuffer.isEmpty {
-            let wasResync =
-                !state.buffer.isEmpty
-                && nextBuffer.count == 1
-                && nextBuffer[0] == normalizedPc
-
+        if isPrefixOfAny(trial, patterns: patterns) {
             return Evaluation(
-                result: wasResync ? .resync : .progress,
+                result: .progress,
                 completedPattern: nil,
                 nextState: RuntimeState(
-                    buffer: nextBuffer,
+                    buffer: trial,
                     lastCompletedPatternId: state.lastCompletedPatternId
                 )
             )

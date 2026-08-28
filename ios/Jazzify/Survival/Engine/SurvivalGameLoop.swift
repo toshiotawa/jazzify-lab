@@ -845,9 +845,6 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
             return []
         case .chordHold:
             return []
-        case .resync:
-            lastPhraseProgressAt = CACurrentMediaTime()
-            return []
         case .progress:
             if SurvivalPhraseEngine.hasPartialProgress(evaluation.nextState) {
                 lastPhraseProgressAt = CACurrentMediaTime()
@@ -955,11 +952,6 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
         switch evaluation.result {
         case .miss:
             return []
-        case .resync:
-            if SurvivalCompositePhraseEngine.hasPartialProgress(evaluation.nextState) {
-                lastPhraseProgressAt = CACurrentMediaTime()
-            }
-            return []
         case .progress, .measureComplete, .phraseComplete:
             if evaluation.result == .phraseComplete {
                 lastPhraseProgressAt = nil
@@ -1017,7 +1009,7 @@ final class SurvivalGameLoop: SurvivalPlayLoopFacade {
                 return clampPhraseOutgoingDamageIfNeeded(
                     raw: compositeDamage?.measureRange ?? SurvivalCompositePhraseDamage.measureRange
                 )
-            case .progress, .resync, .miss:
+            case .progress, .miss:
                 return 0
             }
         }()

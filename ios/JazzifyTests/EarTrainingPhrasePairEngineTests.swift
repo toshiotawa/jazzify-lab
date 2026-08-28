@@ -65,12 +65,40 @@ final class EarTrainingPhrasePairEngineTests: XCTestCase {
         XCTAssertNotEqual(results[2].result, .complete)
     }
 
-    func testResync() {
+    func testIgnoresWrongNoteThatWouldRewindBuffer() {
         var state = EarTrainingPhrasePairEngine.createInitialState()
         state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 0, patterns: patterns).nextState
         let ev = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 4, patterns: patterns)
-        XCTAssertEqual(ev.result, .resync)
-        XCTAssertEqual(ev.nextState.buffer, [4])
+        XCTAssertEqual(ev.result, .miss)
+        XCTAssertEqual(ev.nextState.buffer, [0])
+    }
+
+    func testBranchesToDifferentPatternsAfterSharedPrefix() {
+        let patternA = EarTrainingPhrasePairEngine.Pattern(
+            id: "p1", label: "1", pcs: [2, 4, 5, 9], familyId: "f1", carryTailLength: 0
+        )
+        let patternB = EarTrainingPhrasePairEngine.Pattern(
+            id: "p2", label: "2", pcs: [2, 4, 5, 7], familyId: "f2", carryTailLength: 0
+        )
+        let branchPatterns = [patternA, patternB]
+
+        var state = EarTrainingPhrasePairEngine.createInitialState()
+        state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 2, patterns: branchPatterns).nextState
+        state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 4, patterns: branchPatterns).nextState
+        state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 5, patterns: branchPatterns).nextState
+
+        let toA = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 9, patterns: branchPatterns)
+        XCTAssertEqual(toA.result, .complete)
+        XCTAssertEqual(toA.completedPattern?.id, "p1")
+
+        state = EarTrainingPhrasePairEngine.createInitialState()
+        state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 2, patterns: branchPatterns).nextState
+        state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 4, patterns: branchPatterns).nextState
+        state = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 5, patterns: branchPatterns).nextState
+
+        let toG = EarTrainingPhrasePairEngine.evaluateNoteOn(state: state, pitchClass: 7, patterns: branchPatterns)
+        XCTAssertEqual(toG.result, .complete)
+        XCTAssertEqual(toG.completedPattern?.id, "p2")
     }
 
     func testChordChangeClearsIncompatibleBuffer() {

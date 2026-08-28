@@ -2345,10 +2345,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           lastPhraseProgressAtRef.current = survivalComboClockSec();
         }
 
-        if (evaluation.result === 'resync') {
-          return prev;
-        }
-
         const phraseComboAfter = prev.comboCount + 1;
         const firePlayerCombat = shouldFirePhrasePlayerAttacks(phraseComboAfter);
         const aShotDamage = clampPhraseOutgoingDamage(
@@ -2527,7 +2523,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
         setPhraseUiTick((t) => t + 1);
 
-        if (evaluation.result === 'resync' || evaluation.result === 'chord-hold') {
+        if (evaluation.result === 'chord-hold') {
           return prev;
         }
 

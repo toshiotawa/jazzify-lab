@@ -23,7 +23,7 @@ export interface AdlibRuntimeState {
   readonly lastCompletedPatternId: string | null;
 }
 
-export type AdlibNoteResult = 'progress' | 'complete' | 'resync' | 'miss';
+export type AdlibNoteResult = 'progress' | 'complete' | 'miss';
 
 export interface AdlibEvaluation {
   readonly result: AdlibNoteResult;
@@ -152,19 +152,12 @@ export function evaluateAdlibNote(
     };
   }
 
-  const nextBuffer = longestSuffixPrefix(trial, patterns);
-
-  if (nextBuffer.length > 0) {
-    const wasResync =
-      state.buffer.length > 0
-      && nextBuffer.length === 1
-      && nextBuffer[0] === normalizedPc;
-
+  if (isPrefixOfAny(trial, patterns)) {
     return {
-      result: wasResync ? 'resync' : 'progress',
+      result: 'progress',
       completedPattern: null,
       nextState: {
-        buffer: nextBuffer,
+        buffer: trial,
         lastCompletedPatternId: state.lastCompletedPatternId,
       },
     };

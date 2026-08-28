@@ -654,7 +654,6 @@ const EarTrainingPhrasePairAdlibScreen: React.FC<EarTrainingPhrasePairAdlibScree
     if (
       result.evaluation.result === 'progress'
       || result.evaluation.result === 'complete'
-      || result.evaluation.result === 'resync'
     ) {
       scheduleProgressIdleReset();
     }

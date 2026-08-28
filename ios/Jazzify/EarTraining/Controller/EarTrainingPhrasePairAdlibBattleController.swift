@@ -235,7 +235,7 @@ final class EarTrainingPhrasePairAdlibBattleController: ObservableObject {
         }
 
         switch result.evaluation.result {
-        case .progress, .complete, .resync:
+        case .progress, .complete:
             scheduleProgressIdleReset()
         default:
             break

@@ -3,6 +3,7 @@ import {
   createInitialAdlibRuntimeState,
   evaluateAdlibNote,
   handleChordChange,
+  type AdlibPattern,
   type AdlibRuntimeState,
 } from '@/utils/earTrainingPhrasePairEngine';
 
@@ -100,14 +101,51 @@ describe('earTrainingPhrasePairEngine CM7', () => {
     expect(results[0].nextState.buffer).toEqual([]);
   });
 
-  it('resync when wrong note matches new phrase start', () => {
+  it('ignores wrong note that would rewind buffer', () => {
     let state = createInitialAdlibRuntimeState();
     state = evaluateAdlibNote(state, 0, patterns).nextState;
     expect(state.buffer).toEqual([0]);
 
     const ev = evaluateAdlibNote(state, 4, patterns);
-    expect(ev.result).toBe('resync');
-    expect(ev.nextState.buffer).toEqual([4]);
+    expect(ev.result).toBe('miss');
+    expect(ev.nextState.buffer).toEqual([0]);
+  });
+
+  it('branches to different patterns after shared prefix D E F', () => {
+    const patternA: AdlibPattern = {
+      id: 'p1',
+      label: '1',
+      pcs: [2, 4, 5, 9],
+      familyId: 'f1',
+      carryTailLength: 0,
+    };
+    const patternB: AdlibPattern = {
+      id: 'p2',
+      label: '2',
+      pcs: [2, 4, 5, 7],
+      familyId: 'f2',
+      carryTailLength: 0,
+    };
+    const branchPatterns = [patternA, patternB];
+
+    let state = createInitialAdlibRuntimeState();
+    state = evaluateAdlibNote(state, 2, branchPatterns).nextState;
+    state = evaluateAdlibNote(state, 4, branchPatterns).nextState;
+    state = evaluateAdlibNote(state, 5, branchPatterns).nextState;
+    expect(state.buffer).toEqual([2, 4, 5]);
+
+    const toA = evaluateAdlibNote(state, 9, branchPatterns);
+    expect(toA.result).toBe('complete');
+    expect(toA.completedPattern?.id).toBe('p1');
+
+    state = createInitialAdlibRuntimeState();
+    state = evaluateAdlibNote(state, 2, branchPatterns).nextState;
+    state = evaluateAdlibNote(state, 4, branchPatterns).nextState;
+    state = evaluateAdlibNote(state, 5, branchPatterns).nextState;
+
+    const toG = evaluateAdlibNote(state, 7, branchPatterns);
+    expect(toG.result).toBe('complete');
+    expect(toG.completedPattern?.id).toBe('p2');
   });
 });
 

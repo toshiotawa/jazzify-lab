@@ -80,4 +80,35 @@ describe('advanceChordStep', () => {
     expect(miss.result).toBe('miss');
     expect(miss.nextState).toEqual(state);
   });
+
+  it('does not rewind when replaying opening pitch mid-phrase (Fa So La Fa Mi Re)', () => {
+    const faSoLaFaMiRe: readonly PhraseChordStepNote[] = [
+      { pitchClass: 5 },
+      { pitchClass: 7 },
+      { pitchClass: 9 },
+      { pitchClass: 5 },
+      { pitchClass: 4 },
+      { pitchClass: 2 },
+    ];
+    const { steps } = getPhraseChordSteps(faSoLaFaMiRe);
+    let state = {
+      targetStepIndex: 0,
+      correctNoteIndices: new Set<number>(),
+      revealedNoteIndices: new Set<number>(),
+    };
+
+    state = advanceChordStep(faSoLaFaMiRe, steps, state, 5).nextState;
+    state = advanceChordStep(faSoLaFaMiRe, steps, state, 7).nextState;
+    expect(state.targetStepIndex).toBe(2);
+
+    const wrongFa = advanceChordStep(faSoLaFaMiRe, steps, state, 5);
+    expect(wrongFa.result).toBe('miss');
+    expect(wrongFa.nextState).toEqual(state);
+
+    state = advanceChordStep(faSoLaFaMiRe, steps, state, 9).nextState;
+    state = advanceChordStep(faSoLaFaMiRe, steps, state, 5).nextState;
+    state = advanceChordStep(faSoLaFaMiRe, steps, state, 4).nextState;
+    const done = advanceChordStep(faSoLaFaMiRe, steps, state, 2);
+    expect(done.result).toBe('measure-complete');
+  });
 });

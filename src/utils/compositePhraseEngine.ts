@@ -34,7 +34,6 @@ export interface CompositePhraseDefinition {
 
 export type CompositePhraseNoteResult =
   | 'progress'
-  | 'resync'
   | 'measure-complete'
   | 'phrase-complete'
   | 'miss';
@@ -66,7 +65,6 @@ interface CompositeCandidateStep {
   readonly accepted: boolean;
   readonly matchedLength: number;
   readonly beforeMatchedLength: number;
-  readonly resync: boolean;
 }
 
 function candidateFromPhrase(phrase: CompositePhraseDefinition): CompositePhraseCandidateState {
@@ -155,7 +153,6 @@ function applyStreamingCandidateStep(
       accepted: false,
       matchedLength: 0,
       beforeMatchedLength: 0,
-      resync: false,
     };
   }
 
@@ -164,7 +161,7 @@ function applyStreamingCandidateStep(
     c.chordIndex,
     c.targetNoteIndex,
   );
-  const { matchedLength: nextMatchedLength, resync } = advanceSequential(
+  const nextMatchedLength = advanceSequential(
     pattern,
     beforeMatchedLength,
     pitchClass,
@@ -177,7 +174,6 @@ function applyStreamingCandidateStep(
       accepted: false,
       matchedLength: 0,
       beforeMatchedLength,
-      resync: false,
     };
   }
 
@@ -190,7 +186,6 @@ function applyStreamingCandidateStep(
       accepted: true,
       matchedLength: nextMatchedLength,
       beforeMatchedLength,
-      resync: false,
     };
   }
 
@@ -201,7 +196,6 @@ function applyStreamingCandidateStep(
       accepted: true,
       matchedLength: nextMatchedLength,
       beforeMatchedLength,
-      resync: false,
     };
   }
 
@@ -211,7 +205,6 @@ function applyStreamingCandidateStep(
     accepted: true,
     matchedLength: nextMatchedLength,
     beforeMatchedLength,
-    resync,
   };
 }
 
@@ -283,12 +276,7 @@ function resolvePrimarySourcePhraseId(
 
 function resolveAggregateResult(
   selectedStep: CompositeCandidateStep | undefined,
-  primaryResync: boolean,
 ): CompositePhraseNoteResult {
-  if (primaryResync) {
-    return 'resync';
-  }
-
   if (selectedStep?.result === 'measure-complete') {
     return 'measure-complete';
   }
@@ -351,9 +339,7 @@ export function evaluateCompositePhraseNoteOn(
     ? steps.find((s) => s.candidate.sourcePhraseId === nextPrimarySourcePhraseId)
     : accepted.find((s) => s.matchedLength === bestMatchedLength);
 
-  const primaryResync = selectedStep?.resync === true;
-
-  const result = resolveAggregateResult(selectedStep, primaryResync);
+  const result = resolveAggregateResult(selectedStep);
 
   return {
     result,

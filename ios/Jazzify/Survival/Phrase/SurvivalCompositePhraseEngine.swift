@@ -3,7 +3,6 @@ import Foundation
 /// Web `compositePhraseEngine.ts` の Swift 移植。全候補 KMP 並列判定（コードループなし）。
 enum SurvivalCompositePhraseNoteResult: Equatable {
     case progress
-    case resync
     case measureComplete
     case phraseComplete
     case miss
@@ -88,8 +87,7 @@ enum SurvivalCompositePhraseEngine {
             return accepted.first(where: { $0.matchedLength == bestMatchedLength })
         }()
 
-        let primaryResync = selectedStep?.resync == true
-        let result = resolveAggregateResult(selectedStep: selectedStep, primaryResync: primaryResync)
+        let result = resolveAggregateResult(selectedStep: selectedStep)
 
         var next = state
         next.candidates = steps.map(\.candidate)
@@ -164,7 +162,6 @@ enum SurvivalCompositePhraseEngine {
         let accepted: Bool
         let matchedLength: Int
         let beforeMatchedLength: Int
-        let resync: Bool
     }
 
     private static func candidateFromPhrase(_ phrase: SurvivalPhraseDefinition) -> SurvivalCompositePhraseCandidateState {
@@ -212,8 +209,7 @@ enum SurvivalCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: 0,
-                resync: false
+                beforeMatchedLength: 0
             )
         }
 
@@ -222,12 +218,11 @@ enum SurvivalCompositePhraseEngine {
             chordIndex: c.chordIndex,
             targetNoteIndex: c.targetNoteIndex
         )
-        let advance = PhraseStreamMatching.advanceSequential(
+        let nextMatchedLength = PhraseStreamMatching.advanceSequential(
             pattern: cache.pattern,
             matchedLength: beforeMatchedLength,
             pitchClass: pc
         )
-        let nextMatchedLength = advance.matchedLength
 
         if nextMatchedLength == 0 {
             return CandidateStep(
@@ -235,8 +230,7 @@ enum SurvivalCompositePhraseEngine {
                 result: .miss,
                 accepted: false,
                 matchedLength: 0,
-                beforeMatchedLength: beforeMatchedLength,
-                resync: false
+                beforeMatchedLength: beforeMatchedLength
             )
         }
 
@@ -248,8 +242,7 @@ enum SurvivalCompositePhraseEngine {
                 result: .phraseComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength,
-                resync: false
+                beforeMatchedLength: beforeMatchedLength
             )
         }
 
@@ -262,8 +255,7 @@ enum SurvivalCompositePhraseEngine {
                 result: .measureComplete,
                 accepted: true,
                 matchedLength: nextMatchedLength,
-                beforeMatchedLength: beforeMatchedLength,
-                resync: false
+                beforeMatchedLength: beforeMatchedLength
             )
         }
 
@@ -272,8 +264,7 @@ enum SurvivalCompositePhraseEngine {
             result: .progress,
             accepted: true,
             matchedLength: nextMatchedLength,
-            beforeMatchedLength: beforeMatchedLength,
-            resync: advance.resync
+            beforeMatchedLength: beforeMatchedLength
         )
     }
 
@@ -342,12 +333,8 @@ enum SurvivalCompositePhraseEngine {
     }
 
     private static func resolveAggregateResult(
-        selectedStep: CandidateStep?,
-        primaryResync: Bool
+        selectedStep: CandidateStep?
     ) -> SurvivalCompositePhraseNoteResult {
-        if primaryResync {
-            return .resync
-        }
         if selectedStep?.result == .measureComplete {
             return .measureComplete
         }

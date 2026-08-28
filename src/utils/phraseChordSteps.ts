@@ -67,7 +67,6 @@ export function getPhraseChordSteps(
 
 export type ChordStepAdvanceResult =
   | 'progress'
-  | 'resync'
   | 'chord-hold'
   | 'measure-complete'
   | 'miss';
@@ -217,26 +216,6 @@ export function advanceChordStep(
 
   if (requiredInStep.has(pc) && playedInStep.has(pc)) {
     return { result: 'chord-hold', nextState: state };
-  }
-
-  if (state.targetStepIndex > 0) {
-    const firstStep = steps[0];
-    if (firstStep) {
-      const firstRequired = new Set(
-        pitchClassesForStepIndices(notes, firstStep.noteIndices),
-      );
-      if (firstRequired.has(pc)) {
-        const nextState = applyStepMatch(
-          notes,
-          steps,
-          0,
-          new Set(),
-          new Set(),
-          pc,
-        );
-        return { result: 'resync', nextState };
-      }
-    }
   }
 
   return { result: 'miss', nextState: state };

@@ -18,31 +18,27 @@ describe('phraseStreamMatching', () => {
     const pattern = [2, 4, 5, 7];
     let matched = 0;
     for (const pc of [2, 4, 5] as const) {
-      const step = advanceSequential(pattern, matched, pc);
-      expect(step.resync).toBe(false);
-      matched = step.matchedLength;
+      matched = advanceSequential(pattern, matched, pc);
     }
     expect(matched).toBe(3);
   });
 
-  it('resyncs to opening pitch when replayed mid-progress', () => {
+  it('ignores opening pitch replay mid-progress without rewinding', () => {
     const pattern = [2, 4, 5, 7];
     let matched = 0;
     for (const pc of [2, 4, 5] as const) {
-      matched = advanceSequential(pattern, matched, pc).matchedLength;
+      matched = advanceSequential(pattern, matched, pc);
     }
     expect(matched).toBe(3);
 
     const replay = advanceSequential(pattern, matched, 2);
-    expect(replay.resync).toBe(true);
-    expect(replay.matchedLength).toBe(1);
+    expect(replay).toBe(0);
   });
 
   it('returns miss on unexpected pitch', () => {
     const pattern = [2, 4, 5, 7];
     const miss = advanceSequential(pattern, 1, 0);
-    expect(miss.matchedLength).toBe(0);
-    expect(miss.resync).toBe(false);
+    expect(miss).toBe(0);
   });
 
   it('prefixIndexSet builds contiguous indices', () => {

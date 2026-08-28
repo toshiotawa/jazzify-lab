@@ -1739,11 +1739,6 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     compositePhraseRuntimeRef.current = evaluation.nextState;
     setCompositeUiTick((x) => x + 1);
 
-    if (evaluation.result === 'resync') {
-      scheduleCompositeProgressIdleReset();
-      return;
-    }
-
     if (evaluation.result === 'phrase-complete') {
       clearCompositeProgressIdleTimer();
     } else {

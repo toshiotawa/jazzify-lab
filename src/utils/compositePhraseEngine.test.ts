@@ -191,7 +191,7 @@ describe('compositePhraseEngine', () => {
     }
   });
 
-  it('resyncs primary phrase when replaying opening pitch mid-phrase', () => {
+  it('ignores opening pitch replay mid-phrase without rewinding', () => {
     const p = chordChain(81, [[4, 2, 9, 5, 4, 2]]);
     let state = createInitialCompositePhraseRuntimeState([p]);
     state = evaluateCompositePhraseNoteOn(state, 4).nextState;
@@ -200,8 +200,8 @@ describe('compositePhraseEngine', () => {
     expect(state.primarySourcePhraseId).toBe('81');
 
     const ev = evaluateCompositePhraseNoteOn(state, 4);
-    expect(ev.result).toBe('resync');
-    expect(ev.nextState.candidates[0]?.targetNoteIndex).toBe(1);
+    expect(ev.result).toBe('miss');
+    expect(ev.nextState).toEqual(state);
   });
 
   it('staff view shows first note after progress', () => {
