@@ -817,6 +817,22 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             windowSec: windowSec,
             ignoreOctave: NoteInputPreferences.ignoreOctave
         ) else {
+            let nearest = EarTrainingPrecisionJudge.findNearestPendingNote(
+                notes: precisionNotes,
+                states: runtimeStates,
+                midi: midi,
+                phraseTimeSec: phraseTime,
+                ignoreOctave: NoteInputPreferences.ignoreOctave
+            )
+            EarTrainingInputTimingTelemetry.logUnmatched(
+                mode: .chordPrecision,
+                slug: stage.slug,
+                timingSource: timingSource.rawValue,
+                inputSec: phraseTime,
+                midi: midi,
+                nearestTargetSec: nearest?.note.startSec,
+                nearestDeltaMs: nearest.map { (($0.deltaSec * 1000 * 10).rounded()) / 10 }
+            )
             return
         }
 

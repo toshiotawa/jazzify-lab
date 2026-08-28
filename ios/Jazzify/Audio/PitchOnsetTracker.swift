@@ -34,6 +34,7 @@ final class PitchOnsetTracker {
     private var lastStableNote = -1
     private var releaseCount = 0
     private var recentMinDb = Double.infinity
+    private var recentMinDbFrame = -1
     private var pendingOff = false
     private var pendingOffFrame = -1
 
@@ -53,6 +54,7 @@ final class PitchOnsetTracker {
         lastStableNote = -1
         releaseCount = 0
         recentMinDb = .infinity
+        recentMinDbFrame = -1
         pendingOff = false
         pendingOffFrame = -1
     }
@@ -146,6 +148,7 @@ final class PitchOnsetTracker {
         noteOnFrame = frameIndex
         lastNoteOnFrame = frameIndex
         recentMinDb = .infinity
+        recentMinDbFrame = -1
         events.append(.noteOn(note: note, frameIndex: frameIndex, onsetFrameIndex: onsetFrameIndex))
     }
 
@@ -176,18 +179,26 @@ final class PitchOnsetTracker {
         }
     }
 
+    private func trackRecentMinDb(levelDb: Double, frameIndex: Int) {
+        if levelDb < recentMinDb {
+            recentMinDb = levelDb
+            recentMinDbFrame = frameIndex
+        }
+    }
+
     private func tryRetrigger(_ events: inout [PitchInputEvent], levelDb: Double, frameIndex: Int) {
         guard currentNote >= 0 else { return }
         if frameIndex - lastNoteOnFrame < config.retriggerGuardFrames {
-            recentMinDb = min(recentMinDb, levelDb)
+            trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
             return
         }
-        recentMinDb = min(recentMinDb, levelDb)
+        trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
         let rise = levelDb - recentMinDb
         if rise >= config.attackRiseDb {
             let note = currentNote
+            let onsetFrameIndex = max(lastNoteOnFrame + 1, recentMinDbFrame + 1)
             emitNoteOff(&events, note: note, frameIndex: frameIndex)
-            emitNoteOn(&events, note: note, frameIndex: frameIndex, onsetFrameIndex: frameIndex)
+            emitNoteOn(&events, note: note, frameIndex: frameIndex, onsetFrameIndex: onsetFrameIndex)
         }
     }
 }

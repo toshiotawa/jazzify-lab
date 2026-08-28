@@ -31,6 +31,8 @@ interface DescentSidePanelProps {
   selectedStageIsCleared: boolean;
   hintMode: boolean;
   onHintModeChange: (v: boolean) => void;
+  autoRun: boolean;
+  onAutoRunChange: (v: boolean) => void;
   playLocked: boolean;
   onStart: () => void;
   onRequestUpgrade: () => void;
@@ -51,6 +53,8 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   selectedStageIsCleared,
   hintMode,
   onHintModeChange,
+  autoRun,
+  onAutoRunChange,
   playLocked,
   onStart,
   onRequestUpgrade,
@@ -264,6 +268,41 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                   : '複合フレーズボス専用: 練習(HINT)は利用できません。本番でも譜面ガイドはありません。'}
               </div>
             )}
+
+            {codeRunPanel ? (
+              <fieldset
+                className={cn(
+                  'mb-3 space-y-2 rounded-md border border-cyan-500/25 bg-black/40 p-2.5',
+                  playLocked && 'opacity-50',
+                )}
+              >
+                <legend className="px-1 text-xs font-bold text-cyan-200">
+                  {isEnglishCopy ? 'Character control' : 'キャラ操作'}
+                </legend>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-200">
+                  <input
+                    type="radio"
+                    name="code-run-control"
+                    checked={!autoRun}
+                    disabled={playLocked}
+                    onChange={() => onAutoRunChange(false)}
+                    className="h-3.5 w-3.5 border-gray-500 text-cyan-400 focus:ring-cyan-400"
+                  />
+                  <span>{isEnglishCopy ? 'Manual' : 'マニュアル'}</span>
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-200">
+                  <input
+                    type="radio"
+                    name="code-run-control"
+                    checked={autoRun}
+                    disabled={playLocked}
+                    onChange={() => onAutoRunChange(true)}
+                    className="h-3.5 w-3.5 border-gray-500 text-cyan-400 focus:ring-cyan-400"
+                  />
+                  <span>{isEnglishCopy ? 'Auto (run right)' : 'オート（右へ自動移動）'}</span>
+                </label>
+              </fieldset>
+            ) : null}
             {!selectedStageIsUnlocked && (
               <div className="mb-2 flex items-center gap-2 rounded-md border border-red-500/20 bg-red-950/20 px-2 py-1.5 text-xs text-red-300">
                 <FaLock />

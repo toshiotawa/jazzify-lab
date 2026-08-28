@@ -17,6 +17,7 @@ struct SurvivalDescentSidePanel: View {
     let selectedStageIsUnlocked: Bool
     let selectedStageIsCleared: Bool
     @Binding var hintMode: Bool
+    @Binding var autoRun: Bool
     let playLocked: Bool
     let onStart: () -> Void
     let onRequestUpgrade: () -> Void
@@ -210,6 +211,10 @@ struct SurvivalDescentSidePanel: View {
                     compositePhraseHintNotice
                 } else {
                     hintToggle(disabled: playLocked)
+                }
+
+                if stage.playMode == .codeRun {
+                    autoRunToggle(disabled: playLocked)
                 }
 
                 if !selectedStageIsUnlocked && !playLocked {
@@ -417,6 +422,59 @@ struct SurvivalDescentSidePanel: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .opacity(disabled ? 0.5 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    private func autoRunToggle(disabled: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(isEnglishCopy ? "Character control" : "キャラ操作")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(hex: "67e8f9"))
+            HStack(spacing: 8) {
+                controlModeButton(
+                    title: isEnglishCopy ? "Manual" : "マニュアル",
+                    selected: !autoRun,
+                    disabled: disabled
+                ) {
+                    autoRun = false
+                }
+                controlModeButton(
+                    title: isEnglishCopy ? "Auto" : "オート",
+                    selected: autoRun,
+                    disabled: disabled
+                ) {
+                    autoRun = true
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.black.opacity(0.35))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.cyan.opacity(0.25), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .opacity(disabled ? 0.5 : 1.0)
+    }
+
+    private func controlModeButton(
+        title: String,
+        selected: Bool,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: {
+            if !disabled { action() }
+        }) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(selected ? Color.black : Color(hex: "cffafe"))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(selected ? Color(hex: "22d3ee") : Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
         .disabled(disabled)

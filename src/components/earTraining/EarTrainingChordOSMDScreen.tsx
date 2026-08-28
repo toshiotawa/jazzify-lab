@@ -102,6 +102,7 @@ import {
   hasChordOsmdJudgmentWindowExpired,
   VOICE_JUDGMENT_ARRIVAL_GRACE_SEC,
   pickNearestChordOsmdTargetIndex,
+  findNearestPendingChordOsmdTarget,
   isPhraseTimeInChordOsmdVoicingHintWindow,
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
@@ -135,7 +136,7 @@ import {
   resolveOsmdPlayheadTimelineSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
-import { logEarTrainingInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
+import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
   buildChordOsmdRhythmTargetsWithMeta,
   type EarTrainingTimingSource,
@@ -2033,6 +2034,28 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       lateW,
     );
     if (matchedIndex === null) {
+      const nearest = findNearestPendingChordOsmdTarget(
+        phraseTargets.length,
+        phraseT,
+        (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
+        (index) => {
+          const target = phraseTargets[index];
+          const state = runtimeByTargetIdRef.current.get(target.id);
+          if (!state || state.completed || state.failed) {
+            return false;
+          }
+          return (state.remainingCounts.get(midiNote) ?? 0) > 0;
+        },
+      );
+      logEarTrainingUnmatchedInputTimingTelemetry({
+        mode: 'chord_osmd',
+        slug: stage.slug,
+        timingSource: timingSourceRef.current,
+        inputSec: phraseT,
+        midi: midiNote,
+        nearestTargetSec: nearest?.judgedTargetSec ?? null,
+        nearestDeltaMs: nearest != null ? Math.round(nearest.deltaSec * 1000 * 10) / 10 : null,
+      });
       return;
     }
     const target = phraseTargets[matchedIndex];

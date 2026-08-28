@@ -60,6 +60,8 @@ export interface StageDefinition {
   chordProgression?: SurvivalChordProgressionEntry[];
   /** CodeRun 用マップ ID（DB `survival_run_maps.id`）。 */
   runMapId?: string;
+  /** CodeRun オートラン用マップ ID（DB `survival_stages.auto_run_map_id`）。未設定時は auto_run_01。 */
+  autoRunMapId?: string;
   /** 旧 DB 互換フィールド。CodeRun のプレイ制限時間には使用しない。 */
   runTimeLimitSec?: number;
   /** CodeRun 用吹き出し台本。秒数指定で表示し、duration 未設定時は 4 秒。 */
@@ -411,6 +413,7 @@ interface SurvivalStageRow {
   map_category?: string;
   lesson_only?: boolean;
   run_map_id?: string;
+  auto_run_map_id?: string;
   run_time_limit_sec?: number;
   run_dialogue_script?: unknown;
   production_staff_hint_mode?: string;
@@ -461,6 +464,7 @@ function rowToStageDefinition(row: SurvivalStageRow | Record<string, unknown>): 
     mixedGroupKey,
     chordProgression: parseChordProgression(row.chord_progression),
     runMapId: typeof row.run_map_id === 'string' && row.run_map_id.trim() ? row.run_map_id.trim() : undefined,
+    autoRunMapId: typeof row.auto_run_map_id === 'string' && row.auto_run_map_id.trim() ? row.auto_run_map_id.trim() : undefined,
     runTimeLimitSec: parsePositiveSeconds(row.run_time_limit_sec),
     runDialogueScript: parseRunDialogueScript(row.run_dialogue_script),
     mapCategory,

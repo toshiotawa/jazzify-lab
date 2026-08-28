@@ -9,7 +9,7 @@ import {
   resolveAdlibCallResponseActiveChordSlotIndex,
   resolveAdlibCallResponseActiveHintGuideMidis,
 } from '@/utils/earTrainingAdlibCallResponse';
-import { collectChordOsmdHarmonyEvents, collectChordOsmdMusicXmlAttacks } from '@/utils/earTrainingChordOsmd';
+import { collectChordOsmdHarmonyEvents, collectChordOsmdMusicXmlAttacks, CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC } from '@/utils/earTrainingChordOsmd';
 
 const miniScore = (measureInner: string): string => `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="3.1">
@@ -240,7 +240,7 @@ describe('hint groups / active guide', () => {
   });
 
   it('射出開始で点灯し、前音群が残る間は次音群へ切り替えない（ユーザー例）', () => {
-    // 120BPM 4/4 → 1小節 = 2秒。hammer lead 1小節 = 2秒。late = 0.15
+    // 120BPM 4/4 → 1小節 = 2秒。hammer lead 1小節 = 2秒。late = 250ms
     const cde = [60, 62, 64];
     const cdef = [60, 62, 64, 65];
     const targets = [
@@ -257,7 +257,7 @@ describe('hint groups / active guide', () => {
     ];
     const groups = buildAdlibCallResponseHintGroups(targets);
     const hammerLeadSec = 2;
-    const lateWindowSec = 0.15;
+    const lateWindowSec = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC;
     const settled = new Set<string>();
     const resolve = (phraseTimeSec: number) => resolveAdlibCallResponseActiveHintGuideMidis(
       targets,
@@ -277,16 +277,16 @@ describe('hint groups / active guide', () => {
     expect(resolve(-0.01)).toBeNull();
     // 2小節目頭 = 2秒: CDEF も射出開始するが CDE 継続
     expect(resolve(2)).toEqual(cde);
-    // 2小節目4拍目ターゲット時刻 = 2 + 1.5 = 3.5。窓終了 = 3.65
-    expect(resolve(3.64)).toEqual(cde);
-    expect(resolve(3.66)).toEqual(cdef);
+    // 2小節目4拍目ターゲット時刻 = 2 + 1.5 = 3.5。窓終了 = 3.75
+    expect(resolve(3.74)).toEqual(cde);
+    expect(resolve(3.76)).toEqual(cdef);
     // 早期終了: 末尾 settle で即 CDEF
     settled.add('a3');
     expect(resolve(3.5)).toEqual(cdef);
     settled.clear();
-    // 3小節目4拍目 = 4 + 1.5 = 5.5。窓終了 = 5.65 で消灯
-    expect(resolve(5.64)).toEqual(cdef);
-    expect(resolve(5.66)).toBeNull();
+    // 3小節目4拍目 = 4 + 1.5 = 5.5。窓終了 = 5.75 で消灯
+    expect(resolve(5.74)).toEqual(cdef);
+    expect(resolve(5.76)).toBeNull();
     settled.add('b3');
     expect(resolve(5.5)).toBeNull();
   });

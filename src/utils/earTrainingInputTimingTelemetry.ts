@@ -11,6 +11,16 @@ export interface EarTrainingInputTimingTelemetryParams {
   midi: number;
 }
 
+export interface EarTrainingUnmatchedInputTimingTelemetryParams {
+  mode: EarTrainingInputTimingMode;
+  slug?: string;
+  timingSource?: string;
+  inputSec: number;
+  midi: number;
+  nearestTargetSec: number | null;
+  nearestDeltaMs: number | null;
+}
+
 /** 入力イベント時のみ debug ログ（本番 silent）。C/F 差の型切り分け用。 */
 export const logEarTrainingInputTimingTelemetry = (
   params: EarTrainingInputTimingTelemetryParams,
@@ -24,6 +34,23 @@ export const logEarTrainingInputTimingTelemetry = (
     inputSec: params.inputSec,
     deltaMs: Math.round(deltaMs * 10) / 10,
     midi: params.midi,
+    matched: true,
+  });
+};
+
+/** 判定ウィンドウ外の入力。最近傍 pending ターゲットとの delta を記録。 */
+export const logEarTrainingUnmatchedInputTimingTelemetry = (
+  params: EarTrainingUnmatchedInputTimingTelemetryParams,
+): void => {
+  log.debug('[earTrainingInputTiming]', {
+    mode: params.mode,
+    slug: params.slug ?? '',
+    timingSource: params.timingSource ?? 'unknown',
+    inputSec: params.inputSec,
+    nearestTargetSec: params.nearestTargetSec,
+    nearestDeltaMs: params.nearestDeltaMs,
+    midi: params.midi,
+    matched: false,
   });
 };
 

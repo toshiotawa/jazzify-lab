@@ -96,6 +96,43 @@ export const findPrecisionNoteForInput = (
   return bestNote;
 };
 
+export const findNearestPendingPrecisionNote = (
+  notes: readonly PrecisionNote[],
+  states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
+  midi: number,
+  phraseTimeSec: number,
+  allowOctaveError = false,
+): { note: PrecisionNote; deltaSec: number } | null => {
+  const roundedMidi = Math.round(midi);
+  const inputPitchClass = ((roundedMidi % 12) + 12) % 12;
+  let bestNote: PrecisionNote | null = null;
+  let bestAbsDelta = Number.POSITIVE_INFINITY;
+  for (const note of notes) {
+    const midiMatches = allowOctaveError
+      ? ((note.midi % 12) + 12) % 12 === inputPitchClass
+      : note.midi === roundedMidi;
+    if (!midiMatches) {
+      continue;
+    }
+    const state = states.get(note.id);
+    if (!state || state.judgment !== 'pending') {
+      continue;
+    }
+    const absDelta = Math.abs(phraseTimeSec - note.startSec);
+    if (absDelta < bestAbsDelta) {
+      bestAbsDelta = absDelta;
+      bestNote = note;
+    }
+  }
+  if (!bestNote) {
+    return null;
+  }
+  return {
+    note: bestNote,
+    deltaSec: phraseTimeSec - bestNote.startSec,
+  };
+};
+
 export const PRECISION_NOTE_CULL_MARGIN_PX = 20;
 
 /** レーン描画から除外するか（pending / miss / good でカリング境界が異なる） */

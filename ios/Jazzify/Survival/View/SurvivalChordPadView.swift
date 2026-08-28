@@ -17,12 +17,14 @@ struct SurvivalChordPadView: View, Equatable {
     let displayRange: PianoStagePitchRange
     let onPress: (Int) -> Void
     let onRelease: (Int) -> Void
+    var keyboardHeight: CGFloat = 120
 
     static func == (lhs: SurvivalChordPadView, rhs: SurvivalChordPadView) -> Bool {
-        lhs.snapshot == rhs.snapshot && lhs.displayRange == rhs.displayRange
+        lhs.snapshot == rhs.snapshot
+            && lhs.displayRange == rhs.displayRange
+            && lhs.keyboardHeight == rhs.keyboardHeight
     }
 
-    private let keyboardHeight: CGFloat = 120
     private let blackKeyHeightRatio: CGFloat = 0.62
     private let blackKeyWidthRatio: CGFloat = 0.6
 

@@ -70,10 +70,10 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
 
     func testJudgmentWindowMatchesWebOffsetAndWidth() {
         let targetTimeSec = 0.0
-        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.08, targetTimeSec: targetTimeSec))
-        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.09, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.19, targetTimeSec: targetTimeSec))
-        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.191, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.20, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: -0.211, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.29, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.isWithinWindow(phraseTime: 0.291, targetTimeSec: targetTimeSec))
         XCTAssertEqual(OsmdJudgmentTiming.judgedCenter(targetTimeSec: 1.0), 1.04)
     }
 
@@ -83,8 +83,8 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
 
     func testActiveTargetPruneUsesOffsetPlusWindow() {
         let targetTimeSec = 1.0
-        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.19, targetTimeSec: targetTimeSec))
-        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.191, targetTimeSec: targetTimeSec))
+        XCTAssertFalse(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.29, targetTimeSec: targetTimeSec))
+        XCTAssertTrue(OsmdJudgmentTiming.shouldPruneActiveTarget(currentTime: 1.291, targetTimeSec: targetTimeSec))
     }
 
     func testPickNearestTargetIndexPrefersClosestJudgedTime() {

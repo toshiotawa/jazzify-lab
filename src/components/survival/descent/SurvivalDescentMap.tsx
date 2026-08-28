@@ -107,6 +107,7 @@ interface SurvivalDescentMapProps {
     stageDefinition: StageDefinition,
     character?: SurvivalCharacter,
     hintMode?: boolean,
+    autoRun?: boolean,
   ) => void;
   onBackToMenu: () => void;
   embedded?: boolean;
@@ -343,6 +344,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [stageClearCounts, setStageClearCounts] = useState<Map<number, number>>(() => new Map());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
+  const [autoRun, setAutoRun] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(() => {
     return !getWindow().matchMedia('(min-width: 768px)').matches;
@@ -745,7 +747,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }, []);
 
   const runConfirmedStageStart = useCallback(
-    async (startHintMode: boolean) => {
+    async (startHintMode: boolean, startAutoRun = false) => {
       if (!selectedStage) return;
       markAudioUserInteraction();
       SurvivalMapAudio.stopBgmImmediately();
@@ -772,7 +774,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       const effectiveHint = survivalStageUsesCompositePhrasePattern(selectedStage)
         ? false
         : startHintMode;
-      onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, effectiveHint);
+      onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, effectiveHint, startAutoRun);
     },
     [
       selectedStage,
@@ -791,13 +793,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       setShowPaywall(true);
       return;
     }
-    void runConfirmedStageStart(hintMode);
+    void runConfirmedStageStart(hintMode, autoRun);
   }, [
     selectedStage,
     isStageUnlocked,
     freeTierAccessOnly,
     freeTierStageNumberSet,
     hintMode,
+    autoRun,
     runConfirmedStageStart,
   ]);
 
@@ -1047,6 +1050,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
             hintMode={hintMode}
             onHintModeChange={setHintMode}
+            autoRun={autoRun}
+            onAutoRunChange={setAutoRun}
             playLocked={selectedStagePlayPaywalled}
             onStart={handleStart}
             onRequestUpgrade={() => setShowPaywall(true)}
@@ -1097,6 +1102,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
                 hintMode={hintMode}
                 onHintModeChange={setHintMode}
+                autoRun={autoRun}
+                onAutoRunChange={setAutoRun}
                 playLocked={selectedStagePlayPaywalled}
                 onStart={handleStart}
                 onRequestUpgrade={() => setShowPaywall(true)}

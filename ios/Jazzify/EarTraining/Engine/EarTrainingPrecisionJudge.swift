@@ -104,6 +104,33 @@ enum EarTrainingPrecisionJudge {
         return best
     }
 
+    static func findNearestPendingNote(
+        notes: [EarTrainingPrecisionNote],
+        states: [String: NoteRuntimeState],
+        midi: Int,
+        phraseTimeSec: Double,
+        ignoreOctave: Bool = false
+    ) -> (note: EarTrainingPrecisionNote, deltaSec: Double)? {
+        let roundedMidi = midi
+        let inputPitchClass = ((roundedMidi % 12) + 12) % 12
+        var best: EarTrainingPrecisionNote?
+        var bestDelta = Double.greatestFiniteMagnitude
+        for note in notes {
+            let midiMatches = ignoreOctave
+                ? ((note.midi % 12) + 12) % 12 == inputPitchClass
+                : note.midi == roundedMidi
+            guard midiMatches else { continue }
+            guard let state = states[note.id], state.judgment == .pending else { continue }
+            let delta = abs(phraseTimeSec - note.startSec)
+            if delta < bestDelta {
+                bestDelta = delta
+                best = note
+            }
+        }
+        guard let best else { return nil }
+        return (best, phraseTimeSec - best.startSec)
+    }
+
     static func shouldCullNoteFromLane(
         judgment: NoteJudgment,
         bottom: CGFloat,

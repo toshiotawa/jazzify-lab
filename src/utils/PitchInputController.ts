@@ -80,6 +80,7 @@ export class PitchInputController {
   private isProcessing = false;
   private sensitivityLevel = 5;
   private currentNote = -1;
+  private cachedInputLatencySec = 0;
   /**
    * connect / disconnect は AudioContext と Worker（ONNX セッション 17MB）を作り直すため、
    * 並行実行すると孤児リソースが残る。直列化して必ず順番に処理する。
@@ -242,6 +243,8 @@ export class PitchInputController {
         await this.audioContext.resume();
       }
 
+      this.cachedInputLatencySec = this.resolveCachedInputLatencySec();
+
       await this.setupWorker();
       await this.setupWorklet();
 
@@ -266,13 +269,33 @@ export class PitchInputController {
     }
   }
 
+  private resolveCachedInputLatencySec(): number {
+    const track = this.mediaStream?.getAudioTracks()[0];
+    if (track) {
+      const settings = track.getSettings() as MediaTrackSettings & { latency?: number };
+      if (
+        typeof settings.latency === 'number'
+        && Number.isFinite(settings.latency)
+        && settings.latency > 0
+      ) {
+        return settings.latency;
+      }
+    }
+    const ctx = this.audioContext;
+    if (ctx && typeof ctx.baseLatency === 'number' && Number.isFinite(ctx.baseLatency)) {
+      return ctx.baseLatency;
+    }
+    return 0;
+  }
+
   private resolveDomTimeStampMs(audioContextTime: number | undefined): number | undefined {
     if (typeof audioContextTime !== 'number' || !Number.isFinite(audioContextTime)) {
       return undefined;
     }
     const ctx = this.audioContext;
     if (!ctx) return undefined;
-    const deltaSec = audioContextTime - ctx.currentTime;
+    const adjustedCtxTime = audioContextTime - this.cachedInputLatencySec;
+    const deltaSec = adjustedCtxTime - ctx.currentTime;
     return performance.now() + deltaSec * 1000;
   }
 
@@ -387,6 +410,7 @@ export class PitchInputController {
 
   private async disconnectInternal(notify: boolean): Promise<void> {
     this.isProcessing = false;
+    this.cachedInputLatencySec = 0;
     PitchInputController.resetLatencyStats();
 
     if (this.workletNode) {

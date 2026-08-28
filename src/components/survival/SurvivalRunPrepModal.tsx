@@ -23,9 +23,11 @@ interface SurvivalRunPrepModalProps {
   isEnglishCopy: boolean;
   /** モーダルを開いたときの初期 HINT（練習）状態 */
   initialHintMode: boolean;
+  /** コードラン: モーダルを開いたときの初期オートラン状態 */
+  initialAutoRun?: boolean;
   onCancel: () => void;
-  /** true = HINT（練習） */
-  onConfirm: (hintMode: boolean) => void;
+  /** true = HINT（練習）。コードラン時は第2引数 autoRun = オート操作 */
+  onConfirm: (hintMode: boolean, autoRun?: boolean) => void;
 }
 
 const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
@@ -35,16 +37,19 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
   lessonRuntime,
   isEnglishCopy,
   initialHintMode,
+  initialAutoRun = false,
   onCancel,
   onConfirm,
 }) => {
   const [hintLocal, setHintLocal] = useState(initialHintMode);
+  const [autoRunLocal, setAutoRunLocal] = useState(initialAutoRun);
 
   useEffect(() => {
     if (isOpen) {
       setHintLocal(initialHintMode);
+      setAutoRunLocal(initialAutoRun);
     }
-  }, [isOpen, initialHintMode]);
+  }, [isOpen, initialHintMode, initialAutoRun]);
 
   if (!isOpen || !stage) {
     return null;
@@ -175,11 +180,39 @@ const SurvivalRunPrepModal: React.FC<SurvivalRunPrepModalProps> = ({
           </fieldset>
         )}
 
+        {stage.playMode === 'code_run' ? (
+          <fieldset className="mb-5 space-y-2">
+            <legend className="mb-2 text-sm font-semibold text-gray-300">
+              {isEnglishCopy ? 'Character control' : 'キャラ操作'}
+            </legend>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 hover:bg-white/5">
+              <input
+                type="radio"
+                name="code-run-control-mode"
+                checked={!autoRunLocal}
+                onChange={() => setAutoRunLocal(false)}
+                className="radio radio-sm radio-warning"
+              />
+              <span>{isEnglishCopy ? 'Manual' : 'マニュアル'}</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 hover:bg-white/5">
+              <input
+                type="radio"
+                name="code-run-control-mode"
+                checked={autoRunLocal}
+                onChange={() => setAutoRunLocal(true)}
+                className="radio radio-sm radio-warning"
+              />
+              <span>{isEnglishCopy ? 'Auto (run right)' : 'オート（右へ自動移動）'}</span>
+            </label>
+          </fieldset>
+        ) : null}
+
         <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-end">
           <button
             type="button"
             className="btn btn-warning btn-sm sm:btn-md"
-            onClick={() => onConfirm(compositeLocked ? false : hintLocal)}
+            onClick={() => onConfirm(compositeLocked ? false : hintLocal, stage.playMode === 'code_run' ? autoRunLocal : undefined)}
           >
             {startLabel}
           </button>

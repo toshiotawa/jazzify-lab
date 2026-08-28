@@ -6,9 +6,9 @@ import {
 
 describe('codeRunLayout', () => {
   it('computes keyboard height within bounds', () => {
-    expect(computeCodeRunKeyboardHeight(400)).toBe(150);
-    expect(computeCodeRunKeyboardHeight(1000)).toBe(190);
-    expect(computeCodeRunKeyboardHeight(800)).toBe(176);
+    expect(computeCodeRunKeyboardHeight(400)).toBe(76);
+    expect(computeCodeRunKeyboardHeight(1000)).toBe(96);
+    expect(computeCodeRunKeyboardHeight(800)).toBe(88);
   });
 
   it('fit scale never overflows the container', () => {
@@ -30,10 +30,11 @@ describe('codeRunLayout', () => {
     expect(528 * cover).toBeGreaterThanOrEqual(640 * 0.95);
   });
 
-  it('cover is never smaller than fit', () => {
-    const fit = computeCodeRunPixelScale(853, 632, 960, 528, 'fit');
-    const cover = computeCodeRunPixelScale(853, 632, 960, 528, 'cover');
-    expect(cover).toBeGreaterThanOrEqual(fit);
+  it('applies optional scale factor for mobile zoom-out', () => {
+    const base = computeCodeRunPixelScale(480, 640, 960, 528, 'cover');
+    const zoomed = computeCodeRunPixelScale(480, 640, 960, 528, 'cover', 0.8);
+    expect(zoomed).toBeLessThan(base);
+    expect(zoomed / base).toBeCloseTo(0.8, 1);
   });
 
   describe('computeCodeRunVisibleCameraAxis', () => {

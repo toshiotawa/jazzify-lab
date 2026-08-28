@@ -7,9 +7,9 @@ import os.log
 /// OSMD でリズム譜を表示し、Swift 側でオクターブ込みのコード同時タイミング判定を行う耳コピバトル。
 @MainActor
 final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingOsmdPlayheadBinding {
-    /// ターゲットより早い入力の受付幅（120ms）。
+    /// 精密モードと同じ対称 ±250ms 判定窓。
     private static let judgmentWindowEarlySec: Double = EarTrainingChordOsmdTiming.judgmentWindowEarlySec
-    /// ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。
+    /// 精密モードと同じ対称 ±250ms 判定窓。
     private static let judgmentWindowLateSec: Double = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
@@ -499,6 +499,27 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             lateSec: judgmentWindowLate
         )
         guard let matchedIndex else {
+            let nearest = EarTrainingChordOsmdTiming.pickNearestPendingTargetIndex(
+                targetCount: targets.count,
+                phraseTimeSec: phraseTime,
+                judgedTargetTimeSec: { [self] index in
+                    resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
+                },
+                canMatchTarget: { [self] index in
+                    guard targets[index].completed == false, targets[index].failed == false else { return false }
+                    guard let count = targets[index].remainingMidiCounts[midi], count > 0 else { return false }
+                    return true
+                }
+            )
+            EarTrainingInputTimingTelemetry.logUnmatched(
+                mode: .chordOsmd,
+                slug: stage.slug,
+                timingSource: timingSource.rawValue,
+                inputSec: phraseTime,
+                midi: midi,
+                nearestTargetSec: nearest?.judgedTargetSec,
+                nearestDeltaMs: nearest.map { (($0.deltaSec * 1000 * 10).rounded()) / 10 }
+            )
             refreshPracticeVoicingHints()
             return
         }

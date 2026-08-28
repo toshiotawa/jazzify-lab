@@ -30,7 +30,7 @@ import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 import { duckBgmForVoiceInput } from '@/utils/voiceInputBgmDuck';
 import CodeRunCanvas from './CodeRunCanvas';
 import CodeRunVirtualStick from './CodeRunVirtualStick';
-import { createCodeRunMapById, createCodeRunMapFromDb } from './defaultCodeRunMap';
+import { createCodeRunMapById, createCodeRunMapFromDb, resolveCodeRunMapId } from './defaultCodeRunMap';
 import {
   CODE_RUN_MAX_HP,
   createInitialCodeRunState,
@@ -39,9 +39,11 @@ import {
 } from './CodeRunEngine';
 import type { CodeRunInputState, CodeRunMapSpec, CodeRunState } from './CodeRunTypes';
 import {
+  CODE_RUN_MOBILE_SCALE_FACTOR,
   computeCodeRunKeyboardHeight,
   isCodeRunMobileViewport,
 } from '@/utils/codeRunLayout';
+import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import {
   canUseElementFullscreen,
   exitAppFullscreen,
@@ -67,6 +69,7 @@ interface CodeRunGameScreenProps {
   onMissionStageClear?: () => void;
   isLessonMode?: boolean;
   hintMode?: boolean;
+  autoRun?: boolean;
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
   onNextStage?: () => void;
@@ -146,6 +149,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   onMissionStageClear,
   isLessonMode = false,
   hintMode = false,
+  autoRun = false,
   onRetryWithHint,
   onRetryWithoutHint,
   onNextStage,
@@ -166,7 +170,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     country: profile?.country ?? geoCountry,
     preferredLocale: preferredLocale ?? profile?.preferred_locale,
   });
-  const runMapId = stageDefinition.runMapId ?? 'night_city_run_01';
+  const runMapId = resolveCodeRunMapId(stageDefinition, autoRun);
   const [mapSpec, setMapSpec] = useState<CodeRunMapSpec>(() => createCodeRunMapById(runMapId));
   const mapSpecRef = useRef(mapSpec);
   const [runState, setRunState] = useState<CodeRunState>(() => createInitialCodeRunState(mapSpec));
@@ -188,14 +192,14 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const [needsFocusHint, setNeedsFocusHint] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(() =>
-    typeof window === 'undefined' ? 150 : computeCodeRunKeyboardHeight(window.innerHeight),
+    typeof window === 'undefined' ? 88 : computeCodeRunKeyboardHeight(window.innerHeight),
   );
   const [isMobileViewport, setIsMobileViewport] = useState(() =>
     typeof window === 'undefined' ? false : isCodeRunMobileViewport(),
   );
   const [pianoSize, setPianoSize] = useState({
     width: typeof window === 'undefined' ? 960 : window.innerWidth,
-    height: 150,
+    height: 88,
   });
 
   const randomAllowedChords = (
@@ -298,11 +302,19 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
+  const applyAutoRunInput = useCallback((): void => {
+    if (autoRun) {
+      inputRef.current = { left: false, right: true, analogX: 0 };
+      return;
+    }
+    inputRef.current = { left: false, right: false, analogX: 0 };
+  }, [autoRun]);
+
   const resetRun = useCallback((nextMap?: CodeRunMapSpec) => {
     const targetMap = nextMap ?? mapSpecRef.current;
     const initial = createInitialCodeRunState(targetMap);
     stateRef.current = initial;
-    inputRef.current = { left: false, right: false, analogX: 0 };
+    applyAutoRunInput();
     resultRef.current = null;
     setRunState(initial);
     setResult(null);
@@ -317,7 +329,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       syncRandomChordRefs(null, null);
     }
     restoreFocus();
-  }, [drawRandomChords, isRandomStage, restoreFocus, syncRandomChordRefs]);
+  }, [applyAutoRunInput, drawRandomChords, isRandomStage, restoreFocus, syncRandomChordRefs]);
 
   useEffect(() => {
     if (isRandomStage) {
@@ -327,7 +339,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    const mapId = stageDefinition.runMapId ?? 'night_city_run_01';
+    const mapId = resolveCodeRunMapId(stageDefinition, autoRun);
     const fallback = createCodeRunMapById(mapId);
     setMapSpec(fallback);
     resetRun(fallback);
@@ -340,14 +352,14 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [resetRun, stageDefinition.runMapId]);
+  }, [autoRun, resetRun, stageDefinition]);
 
   useEffect(() => {
     const host = pianoHostRef.current;
     if (!host) return;
     const update = () => {
       const rect = host.getBoundingClientRect();
-      setPianoSize({ width: Math.max(1, Math.floor(rect.width)), height: Math.max(120, Math.floor(rect.height)) });
+      setPianoSize({ width: Math.max(1, Math.floor(rect.width)), height: Math.max(60, Math.floor(rect.height)) });
     };
     update();
     const observer = new ResizeObserver(update);
@@ -560,6 +572,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (autoRun) return;
       if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') {
         inputRef.current = { ...inputRef.current, left: true };
         event.preventDefault();
@@ -571,6 +584,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
+      if (autoRun) return;
       if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') {
         inputRef.current = { ...inputRef.current, left: false };
       } else if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') {
@@ -583,7 +597,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, []);
+  }, [autoRun]);
 
   const handleToggleFullscreen = useCallback(async () => {
     const root = fullscreenRootRef?.current ?? localRootRef.current;
@@ -613,7 +627,10 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const showVoicePreparing =
     settings.inputMethod === 'voice' && !survivalMidi.isInputConnected && !result;
 
+  const mobilePixelScaleFactor = isMobileViewport ? CODE_RUN_MOBILE_SCALE_FACTOR : 1;
+
   return (
+    <>
     <div
       ref={localRootRef}
       className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-black text-white"
@@ -635,6 +652,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
             state={runState}
             className="h-full w-full"
             pixelScaleMode={isMobileViewport ? 'cover' : 'fit'}
+            pixelScaleFactor={mobilePixelScaleFactor}
           />
         </div>
 
@@ -701,7 +719,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           )}
         </div>
 
-        <div className="code-run-chord-display pointer-events-none absolute left-1/2 top-[72px] z-20 flex -translate-x-1/2 flex-col items-center gap-1.5 text-center sm:top-[12%]">
+        <div className="code-run-chord-display pointer-events-none absolute left-1/2 top-1 z-20 flex -translate-x-1/2 flex-col items-center gap-0.5 text-center sm:top-2">
           <div
             className="min-w-40 max-w-60 px-3 py-1 text-[34px] leading-none text-[#ffe04d] sm:text-[40px]"
             style={{
@@ -789,10 +807,12 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           </div>
         )}
 
-        <CodeRunVirtualStick
-          disabled={stickDisabled}
-          onAnalogChange={(value) => { inputRef.current = { ...inputRef.current, analogX: value }; }}
-        />
+        {!autoRun ? (
+          <CodeRunVirtualStick
+            disabled={stickDisabled}
+            onAnalogChange={(value) => { inputRef.current = { ...inputRef.current, analogX: value }; }}
+          />
+        ) : null}
       </div>
 
       <div
@@ -859,6 +879,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         />
       )}
     </div>
+    <OrientationLandscapePrompt isEnglishCopy={isEnglishCopy} />
+    </>
   );
 };
 

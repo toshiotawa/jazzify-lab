@@ -8,9 +8,9 @@ import os.log
 /// 楽譜表示・remainingCounts 消化型の和音判定は行わない（Web `earTrainingAdlibCallResponse.ts` 相当）。
 @MainActor
 final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
-    /// ターゲットより早い入力の受付幅（120ms）。
+    /// 精密モードと同じ対称 ±250ms 判定窓。
     private static let judgmentWindowEarlySec: Double = EarTrainingChordOsmdTiming.judgmentWindowEarlySec
-    /// ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。
+    /// 精密モードと同じ対称 ±250ms 判定窓。
     private static let judgmentWindowLateSec: Double = EarTrainingChordOsmdTiming.judgmentWindowLateSec
     /// 正解パリィ成立時は timing offset に関わらずオレンジ精密リングを表示する
     static let parryPreciseRingOnSuccess = true
@@ -357,6 +357,10 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
     }
 
     func handleNoteOn(midi: Int, velocity: Int = 100, playAudio: Bool = true) {
+        handleNoteOn(midi: midi, velocity: velocity, playAudio: playAudio, midiHostTime: nil)
+    }
+
+    func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool, midiHostTime: UInt64?) {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
@@ -364,7 +368,13 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
         if nowMs - (lastInputAtByNote[midi] ?? 0) < Self.inputCooldownMs { return }
         lastInputAtByNote[midi] = nowMs
         guard gameState == .playingPhrase || gameState == .countIn else { return }
-        guard let phraseTime = phraseTimelineSecNow() else { return }
+        let phraseTime: Double
+        if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
+            phraseTime = fromMidi
+        } else {
+            guard let wall = phraseTimelineSecNow() else { return }
+            phraseTime = wall
+        }
 
         let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)

@@ -84,6 +84,7 @@ export class PitchOnsetTracker {
   private lastStableNote = -1;
   private releaseCount = 0;
   private recentMinDb = Infinity;
+  private recentMinDbFrame = -1;
   private pendingOff = false;
   private pendingOffFrame = -1;
 
@@ -103,6 +104,7 @@ export class PitchOnsetTracker {
     this.lastStableNote = -1;
     this.releaseCount = 0;
     this.recentMinDb = Infinity;
+    this.recentMinDbFrame = -1;
     this.pendingOff = false;
     this.pendingOffFrame = -1;
   }
@@ -193,6 +195,7 @@ export class PitchOnsetTracker {
     this.noteOnFrame = frameIndex;
     this.lastNoteOnFrame = frameIndex;
     this.recentMinDb = Infinity;
+    this.recentMinDbFrame = -1;
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
   }
 
@@ -231,6 +234,13 @@ export class PitchOnsetTracker {
     }
   }
 
+  private trackRecentMinDb(levelDb: number, frameIndex: number): void {
+    if (levelDb < this.recentMinDb) {
+      this.recentMinDb = levelDb;
+      this.recentMinDbFrame = frameIndex;
+    }
+  }
+
   private tryRetrigger(
     events: PitchInputEvent[],
     levelDb: number,
@@ -238,16 +248,20 @@ export class PitchOnsetTracker {
   ): void {
     if (this.currentNote < 0) return;
     if (frameIndex - this.lastNoteOnFrame < this.config.retriggerGuardFrames) {
-      this.recentMinDb = Math.min(this.recentMinDb, levelDb);
+      this.trackRecentMinDb(levelDb, frameIndex);
       return;
     }
 
-    this.recentMinDb = Math.min(this.recentMinDb, levelDb);
+    this.trackRecentMinDb(levelDb, frameIndex);
     const rise = levelDb - this.recentMinDb;
     if (rise >= this.config.attackRiseDb) {
       const note = this.currentNote;
+      const onsetFrameIndex = Math.max(
+        this.lastNoteOnFrame + 1,
+        this.recentMinDbFrame + 1,
+      );
       this.emitNoteOff(events, note, frameIndex);
-      this.emitNoteOn(events, note, frameIndex, frameIndex);
+      this.emitNoteOn(events, note, frameIndex, onsetFrameIndex);
     }
   }
 

@@ -11,6 +11,7 @@ interface CodeRunCanvasProps {
   state: CodeRunState;
   className?: string;
   pixelScaleMode?: CodeRunPixelScaleMode;
+  pixelScaleFactor?: number;
 }
 
 const loadImage = (url: string): HTMLImageElement => {
@@ -330,7 +331,12 @@ const shouldBlinkInvulnerable = (state: CodeRunState): boolean => {
   return Math.floor(tick / 4) % 2 === 0;
 };
 
-const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelScaleMode = 'fit' }) => {
+const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({
+  state,
+  className,
+  pixelScaleMode = 'fit',
+  pixelScaleFactor = 1,
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useImages(state.map);
@@ -346,14 +352,14 @@ const CodeRunCanvas: React.FC<CodeRunCanvasProps> = ({ state, className, pixelSc
       const { width, height } = el.getBoundingClientRect();
       containerSizeRef.current.width = width;
       containerSizeRef.current.height = height;
-      setPixelScale(computeCodeRunPixelScale(width, height, viewWidth, viewHeight, pixelScaleMode));
+      setPixelScale(computeCodeRunPixelScale(width, height, viewWidth, viewHeight, pixelScaleMode, pixelScaleFactor));
     };
 
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewWidth, viewHeight, pixelScaleMode]);
+  }, [viewWidth, viewHeight, pixelScaleMode, pixelScaleFactor]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

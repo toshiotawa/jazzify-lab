@@ -105,7 +105,7 @@ import {
   canonicalNotesToPrecisionNotes,
   type EarTrainingTimingSource,
 } from '@/utils/earTrainingCanonicalPhraseNotes';
-import { logEarTrainingInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
+import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
   calibratePrecisionNotes,
   resolvePrecisionDisplayKeyboardRange,
@@ -115,6 +115,7 @@ import {
 import {
   createPrecisionRuntimeStates,
   findPrecisionNoteForInput,
+  findNearestPendingPrecisionNote,
   isPrecisionClearRank,
   mapPrecisionRankToLessonRank,
   markExpiredPrecisionNotesAsMiss,
@@ -1365,6 +1366,22 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       settings.allowOctaveError,
     );
     if (!matched) {
+      const nearest = findNearestPendingPrecisionNote(
+        notesRef.current,
+        runtimeStatesRef.current,
+        midiNote,
+        phraseTime,
+        settings.allowOctaveError,
+      );
+      logEarTrainingUnmatchedInputTimingTelemetry({
+        mode: 'chord_precision',
+        slug: stage.slug,
+        timingSource: timingSourceRef.current,
+        inputSec: phraseTime,
+        midi: midiNote,
+        nearestTargetSec: nearest?.note.startSec ?? null,
+        nearestDeltaMs: nearest != null ? Math.round(nearest.deltaSec * 1000 * 10) / 10 : null,
+      });
       return;
     }
     logEarTrainingInputTimingTelemetry({

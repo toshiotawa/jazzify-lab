@@ -1274,6 +1274,7 @@ private struct SurvivalLessonLaunch: Identifiable {
     let id = UUID()
     let stage: SurvivalStageDefinition
     let hintMode: Bool
+    let autoRun: Bool
     let configOverride: SurvivalStageConfig?
     let inlineCompositePhrases: [SurvivalPhraseDefinition]?
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
@@ -1703,6 +1704,7 @@ struct LessonDetailView: View {
                 SurvivalGameView(
                     stage: launch.stage,
                     hintMode: launch.hintMode,
+                    autoRun: launch.autoRun,
                     characterId: "fai",
                     locale: locale,
                     onClose: { survivalLessonLaunch = nil },
@@ -1726,12 +1728,13 @@ struct LessonDetailView: View {
                     initialHintMode: prep.hintMode,
                     lessonRuntime: prep.lessonRuntime,
                     onCancel: { survivalLessonPrep = nil },
-                    onConfirm: { hintMode in
+                    onConfirm: { hintMode, autoRun in
                         queuePresentationAfterDismiss(
                             .launchSurvival(
                                 SurvivalLessonLaunch(
                                     stage: prep.stage,
                                     hintMode: hintMode,
+                                    autoRun: prep.stage.playMode == .codeRun ? autoRun : false,
                                     configOverride: prep.configOverride,
                                     inlineCompositePhrases: prep.inlineCompositePhrases,
                                     lessonRuntime: prep.lessonRuntime,
@@ -1753,7 +1756,7 @@ struct LessonDetailView: View {
                     locale: locale,
                     initialHintMode: false,
                     onCancel: { balloonRushPrep = nil },
-                    onConfirm: { hintMode in
+                    onConfirm: { hintMode, _ in
                         queuePresentationAfterDismiss(
                             .launchBalloonRush(
                                 BalloonRushLessonLaunch(
@@ -3376,6 +3379,7 @@ struct LessonDetailView: View {
                         survivalLessonPrep = SurvivalLessonLaunch(
                             stage: lessonStage,
                             hintMode: false,
+                            autoRun: false,
                             configOverride: lessonConfig,
                             inlineCompositePhrases: phrases,
                             lessonRuntime: runtime,
@@ -3438,6 +3442,7 @@ struct LessonDetailView: View {
                     survivalLessonPrep = SurvivalLessonLaunch(
                         stage: lessonStage,
                         hintMode: false,
+                        autoRun: false,
                         configOverride: lessonConfig,
                         inlineCompositePhrases: nil,
                         lessonRuntime: runtime,

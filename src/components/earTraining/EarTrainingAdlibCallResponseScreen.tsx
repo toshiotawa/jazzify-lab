@@ -125,6 +125,7 @@ import {
   resolveOsmdCalibratedTargetTimeSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
+import { resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import { applyTutorialBattleSnapshot } from '@/components/earTraining/tutorial/applyTutorialBattleSnapshot';
 import {
   clampTutorialPlayerHp,
@@ -340,7 +341,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
   const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
-  const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
+  const handleNoteInputRef = useRef<(note: number, domTimeStampMs?: number) => void>(() => undefined);
   const battlePianoAudioPromiseRef = useRef<Promise<void> | null>(null);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
   const gameStateRef = useRef<EarTrainingGameState>('idle');
@@ -1377,9 +1378,9 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     settings.soundEffectVolume,
   ]);
 
-  const handleMidiNoteOn = useCallback((note: number) => {
+  const handleMidiNoteOn = useCallback((note: number, domTimeStampMs?: number) => {
     ensureBattlePianoAudioLazy();
-    handleNoteInputRef.current(note);
+    handleNoteInputRef.current(note, domTimeStampMs);
   }, [ensureBattlePianoAudioLazy]);
 
   const ensureBattleAudioReady = useCallback(async (): Promise<void> => {
@@ -1614,7 +1615,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
     triggerBattleEffect,
   ]);
 
-  const handleNoteInput = useCallback((note: number) => {
+  const handleNoteInput = useCallback((note: number, domTimeStampMs?: number) => {
     const now = performance.now();
     const midiNote = Math.round(note);
     const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
@@ -1626,7 +1627,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
       return;
     }
 
-    const phraseT = phrasePlayerRef.current?.getPhraseTimelineSec();
+    const phraseT = resolveEarTrainingInputPhraseTimeSec(phrasePlayerRef.current, domTimeStampMs);
     if (phraseT == null || !Number.isFinite(phraseT)) {
       return;
     }
@@ -1664,7 +1665,7 @@ const EarTrainingAdlibCallResponseScreen: React.FC<EarTrainingAdlibCallResponseS
   }, [handleNoteInput]);
 
   const { isConnected: isStandaloneInputConnected } = useStandaloneNoteInput({
-    onNoteOn: (note) => handleMidiNoteOn(note),
+    onNoteOn: (note, domTimeStampMs) => handleMidiNoteOn(note, domTimeStampMs),
     onKeyHighlight: (note, active) => pianoOverlayRef.current?.highlightKey(note, active),
   });
 

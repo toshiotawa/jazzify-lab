@@ -1,5 +1,5 @@
 export const computeCodeRunKeyboardHeight = (viewportHeight: number): number =>
-  Math.min(190, Math.max(150, viewportHeight * 0.22));
+  Math.min(96, Math.max(76, viewportHeight * 0.11));
 
 export type CodeRunPixelScaleMode = 'fit' | 'cover';
 
@@ -14,13 +14,17 @@ export const computeCodeRunPixelScale = (
   viewW: number,
   viewH: number,
   mode: CodeRunPixelScaleMode = 'fit',
+  scaleFactor = 1,
 ): number => {
   if (containerW <= 0 || containerH <= 0 || viewW <= 0 || viewH <= 0) return 1;
   const widthScale = containerW / viewW;
   const heightScale = containerH / viewH;
   const raw = mode === 'cover' ? Math.max(widthScale, heightScale) : Math.min(widthScale, heightScale);
-  return Math.max(MIN_PIXEL_SCALE, Math.floor(raw * PIXEL_SCALE_STEP) / PIXEL_SCALE_STEP);
+  const scaled = raw * scaleFactor;
+  return Math.max(MIN_PIXEL_SCALE, Math.floor(scaled * PIXEL_SCALE_STEP) / PIXEL_SCALE_STEP);
 };
+
+export const CODE_RUN_MOBILE_SCALE_FACTOR = 0.8;
 
 /**
  * cover 表示ではビューの左右（または上下）が切り取られるため、エンジンのカメラ値のままだと

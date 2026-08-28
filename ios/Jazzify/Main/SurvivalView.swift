@@ -25,6 +25,7 @@ struct SurvivalView: View {
     @State private var isLoading: Bool = true
     @State private var selectedStageNumber: Int?
     @State private var hintMode: Bool = false
+    @State private var autoRun: Bool = false
     /// 表示マップカテゴリ。Web 版 `SurvivalDescentMap` と同様、初期は `.basic`。
     @State private var mapCategory: SurvivalMapCategory = .basic
     /// `SurvivalStageDefinition.id` が同一だと SwiftUI が同じシート/カバーを再利用するため、
@@ -106,6 +107,7 @@ struct SurvivalView: View {
                         clearedStages: clearedStages,
                         stageClearCounts: stageClearCounts,
                         hintMode: $hintMode,
+                        autoRun: $autoRun,
                         playLockedForUpsell: playLockedForUpsell,
                         freeStageNumbers: freeStageNumbers,
                         phrasesBgmSettingUrl: phrasesBgmSettingUrl,
@@ -239,6 +241,7 @@ struct SurvivalView: View {
             selectedStageIsUnlocked: unlocked,
             selectedStageIsCleared: cleared,
             hintMode: $hintMode,
+            autoRun: $autoRun,
             playLocked: playLocked,
             onStart: {
                 if let stage { startStage(stage) }
@@ -379,7 +382,8 @@ struct SurvivalView: View {
         phrasePreviewModel.stopPlayback(restoreMapBgm: false)
         stageLaunchSession = StageLaunchSession(
             stage: stage,
-            hintMode: stage.survivalUsesCompositePhrasePattern ? false : hintMode
+            hintMode: stage.survivalUsesCompositePhrasePattern ? false : hintMode,
+            autoRun: stage.playMode == .codeRun ? autoRun : false
         )
     }
 
@@ -487,6 +491,7 @@ private struct SurvivalViewPresentationModifier<MobileDetail: View>: ViewModifie
                 SurvivalGameView(
                     stage: session.stage,
                     hintMode: session.hintMode,
+                    autoRun: session.autoRun,
                     characterId: "fai",
                     locale: locale,
                     onClose: { stageLaunchSession = nil }
@@ -521,6 +526,7 @@ private struct SurvivalMobileDetailSheet: View {
     let clearedStages: Set<Int>
     let stageClearCounts: [Int: Int]
     @Binding var hintMode: Bool
+    @Binding var autoRun: Bool
     let playLockedForUpsell: Bool
     let freeStageNumbers: Set<Int>
     let phrasesBgmSettingUrl: String
@@ -548,6 +554,7 @@ private struct SurvivalMobileDetailSheet: View {
                 selectedStageIsUnlocked: isStageUnlocked(stage.stageNumber),
                 selectedStageIsCleared: clearedStages.contains(stage.stageNumber),
                 hintMode: $hintMode,
+                autoRun: $autoRun,
                 playLocked: playLocked,
                 onStart: onStart,
                 onRequestUpgrade: onRequestUpgrade,
@@ -649,6 +656,7 @@ private struct StageLaunchSession: Identifiable {
     let id = UUID()
     let stage: SurvivalStageDefinition
     let hintMode: Bool
+    let autoRun: Bool
 }
 
 private struct SurvivalProgressSnapshot {

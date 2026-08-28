@@ -66,6 +66,7 @@ final class PitchInputEngine: @unchecked Sendable {
     nonisolated(unsafe) private var emaCaptureIntervalMs: Double = 0
     nonisolated(unsafe) private var emaInferenceMs: Double = 0
     nonisolated(unsafe) private var lastCaptureTime: Double = 0
+    nonisolated(unsafe) private var cachedInputLatencySec: Double = 0
     private static let latencyEmaAlpha = 0.1
 
     // MARK: - main 専有
@@ -326,6 +327,7 @@ final class PitchInputEngine: @unchecked Sendable {
         monitorLock.unlock()
         updateMonitorVolume(0)
         updateMonitorDetectedNote(nil)
+        cachedInputLatencySec = AVAudioSession.sharedInstance().inputLatency
 
         let pipeline = CapturePipeline(
             engine: self,
@@ -661,7 +663,11 @@ final class PitchInputEngine: @unchecked Sendable {
                 let slot = poolSlot
                 poolSlot = (poolSlot + 1) % Self.poolSlotCount
                 slotBase = chunkPool + poolSlot * chunkSize
-                enqueueInference(slot: slot, hostTime: hostTime)
+                let adjustedHostTime = Self.hostTimeBackdated(
+                    bySec: cachedInputLatencySec,
+                    from: hostTime
+                )
+                enqueueInference(slot: slot, hostTime: adjustedHostTime)
             }
         }
     }

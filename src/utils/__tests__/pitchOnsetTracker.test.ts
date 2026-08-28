@@ -157,13 +157,13 @@ describe('PitchOnsetTracker', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 1,
-      retriggerGuardFrames: 3,
+      retriggerGuardFrames: 2,
       attackRiseDb: 6,
       onsetImmediateConfidence: 2,
     });
-    const soft: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.001 };
+    const soft: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.002 };
     const loud: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.02 };
-    const quiet: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.001 };
 
     tracker.processFrame(soft, 0);
     tracker.processFrame(quiet, 1);
@@ -172,7 +172,7 @@ describe('PitchOnsetTracker', () => {
     const events = tracker.processFrame(loud, 4);
     expect(events).toEqual([
       { type: 'noteOff', note: 60, frameIndex: 4 },
-      { type: 'noteOn', note: 60, frameIndex: 4, onsetFrameIndex: 4 },
+      { type: 'noteOn', note: 60, frameIndex: 4, onsetFrameIndex: 2 },
     ]);
   });
 });

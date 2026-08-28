@@ -166,6 +166,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [selectedCharacter, setSelectedCharacter] = useState<SurvivalCharacter | undefined>(undefined);
   const [activeStageDefinition, setActiveStageDefinition] = useState<StageDefinition | null>(null);
   const [activeHintMode, setActiveHintMode] = useState(false);
+  const [activeAutoRun, setActiveAutoRun] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
   const [survivalSessionNonce, setSurvivalSessionNonce] = useState(0);
@@ -539,6 +540,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     stageDefinition: StageDefinition,
     character?: SurvivalCharacter,
     hintMode?: boolean,
+    autoRun?: boolean,
   ) => {
     markAudioUserInteraction();
     setSelectedDifficulty(difficulty);
@@ -553,6 +555,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setSelectedCharacter(character);
     setActiveStageDefinition(stageDefinition);
     setActiveHintMode(hintMode ?? false);
+    setActiveAutoRun(stageDefinition.playMode === 'code_run' ? (autoRun ?? false) : false);
     setScreen('game');
   }, []);
 
@@ -626,6 +629,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setSelectedCharacter(undefined);
     setActiveStageDefinition(null);
     setActiveHintMode(false);
+    setActiveAutoRun(false);
   }, [isIOSSurvival, lessonMode, lessonContext, navigateBackToLessonDetail]);
 
   const handleBackToMenu = useCallback(() => {
@@ -705,8 +709,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
             onCancel={() => {
               navigateBackToLessonDetail();
             }}
-            onConfirm={(hint) => {
+            onConfirm={(hint, autoRun) => {
               setActiveHintMode(hint);
+              setActiveAutoRun(activeStageDefinition.playMode === 'code_run' ? (autoRun ?? false) : false);
               setSurvivalSessionNonce(n => n + 1);
               setScreen('game');
             }}
@@ -744,7 +749,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     if (activeStageDefinition?.playMode === 'code_run') {
       return (
         <CodeRunGameScreen
-          key={`cr-${activeStageDefinition.mapCategory}-${activeStageDefinition.stageNumber}-${activeHintMode}-${survivalSessionNonce}`}
+          key={`cr-${activeStageDefinition.mapCategory}-${activeStageDefinition.stageNumber}-${activeHintMode}-${activeAutoRun}-${survivalSessionNonce}`}
           difficulty={selectedDifficulty}
           config={selectedConfig}
           onBackToSelect={handleBackToSelect}
@@ -757,6 +762,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
           onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
           isLessonMode={!!lessonMode}
           hintMode={activeHintMode}
+          autoRun={activeAutoRun}
           onRetryWithHint={handleRetryWithHint}
           onRetryWithoutHint={handleRetryWithoutHint}
           onNextStage={survivalOnNextStage}

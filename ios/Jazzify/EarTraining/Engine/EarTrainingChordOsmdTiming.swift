@@ -2,8 +2,9 @@ import Foundation
 
 /// Web `earTrainingChordOsmd.ts` の OSMD タイミング定数。
 enum EarTrainingChordOsmdTiming {
-    static let judgmentWindowEarlySec: Double = 0.12
-    static let judgmentWindowLateSec: Double = 0.15
+    /// 精密モードと同じ対称 ±250ms 判定窓。
+    static let judgmentWindowEarlySec: Double = EarTrainingPrecisionJudge.judgmentWindowSec
+    static let judgmentWindowLateSec: Double = EarTrainingPrecisionJudge.judgmentWindowSec
     /// 音声入力時：推論遅延でイベント到着が遅れてもミス確定 tick まで猶予する秒数。
     static let voiceJudgmentArrivalGraceSec: Double = 0.25
     /// 鍵盤ヒントをジャスト到達から光らせておく長さ（100ms）。判定窓とは独立で、手前では光らせない。
@@ -70,5 +71,28 @@ enum EarTrainingChordOsmdTiming {
             }
         }
         return bestIndex
+    }
+
+    static func pickNearestPendingTargetIndex(
+        targetCount: Int,
+        phraseTimeSec: Double,
+        judgedTargetTimeSec: (Int) -> Double,
+        canMatchTarget: (Int) -> Bool
+    ) -> (index: Int, judgedTargetSec: Double, deltaSec: Double)? {
+        var bestIndex: Int?
+        var bestJudged = 0.0
+        var bestAbsDelta = Double.infinity
+        for index in 0..<targetCount {
+            guard canMatchTarget(index) else { continue }
+            let judged = judgedTargetTimeSec(index)
+            let absDelta = abs(phraseTimeSec - judged)
+            if absDelta < bestAbsDelta {
+                bestAbsDelta = absDelta
+                bestIndex = index
+                bestJudged = judged
+            }
+        }
+        guard let bestIndex else { return nil }
+        return (bestIndex, bestJudged, phraseTimeSec - bestJudged)
     }
 }

@@ -10,9 +10,25 @@ import { mainCharSprite } from './codeRunSpriteUrls';
 import graveyardRun02LayoutJson from './layouts/graveyard_run_02.layout.json';
 import tutorialLayoutJson from './layouts/tutorial.layout.json';
 import snowRun01LayoutJson from './layouts/snow_run_01.layout.json';
+import autoRun01LayoutJson from './layouts/auto_run_01.layout.json';
+import type { StageDefinition } from '../SurvivalStageDefinitions';
 
 export const CODE_RUN_TILE = 48;
 export const CODE_RUN_PLAYER_H = 42;
+export const DEFAULT_AUTO_RUN_MAP_ID = 'auto_run_01';
+export const DEFAULT_MANUAL_RUN_MAP_ID = 'night_city_run_01';
+
+export const resolveCodeRunMapId = (
+  stage: Pick<StageDefinition, 'runMapId' | 'autoRunMapId'>,
+  autoRun: boolean,
+): string => {
+  if (autoRun) {
+    const autoId = stage.autoRunMapId?.trim();
+    return autoId && autoId.length > 0 ? autoId : DEFAULT_AUTO_RUN_MAP_ID;
+  }
+  const manualId = stage.runMapId?.trim();
+  return manualId && manualId.length > 0 ? manualId : DEFAULT_MANUAL_RUN_MAP_ID;
+};
 
 const TILE = CODE_RUN_TILE;
 const VIEW_W = 960;
@@ -356,6 +372,14 @@ const SNOW_RUN_01_LAYOUT: CodeRunLayoutData = {
   ...(snowRun01LayoutJson as SnowRun01LayoutFields),
 };
 
+type AutoRun01LayoutFields = Omit<CodeRunLayoutData, 'id' | 'name'>;
+
+const AUTO_RUN_01_LAYOUT: CodeRunLayoutData = {
+  id: 'auto_run_01',
+  name: 'オートラン1',
+  ...(autoRun01LayoutJson as AutoRun01LayoutFields),
+};
+
 const TOWER_RUN_01_LAYOUT: CodeRunLayoutData = {
   id: 'tower_run_01',
   name: 'Tower Run 01',
@@ -442,12 +466,19 @@ export function createSnowRun01Map(
   return buildMapFromLayout(SNOW_RUN_01_LAYOUT, assets);
 }
 
+export function createAutoRun01Map(
+  assets?: CodeRunAssetsOverride,
+): CodeRunMapSpec {
+  return buildMapFromLayout(AUTO_RUN_01_LAYOUT, assets);
+}
+
 const MAP_BUILDERS: Record<string, CodeRunMapBuilder> = {
   night_city_run_01: createDefaultCodeRunMap,
   graveyard_run_02: createGraveyardRun02Map,
   tutorial: createTutorialMap,
   tower_run_01: createTowerRun01Map,
   snow_run_01: createSnowRun01Map,
+  auto_run_01: createAutoRun01Map,
 };
 
 export function createCodeRunMapById(

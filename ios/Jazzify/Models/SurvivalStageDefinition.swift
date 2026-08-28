@@ -217,6 +217,7 @@ struct SurvivalStageRow: Decodable, Sendable {
     let production_keyboard_hint_mode: String?
     let hide_chord_names_in_battle: Bool?
     let run_map_id: String?
+    let auto_run_map_id: String?
     let run_time_limit_sec: Int?
     let run_dialogue_script: SurvivalRunDialogueScript?
 }
@@ -333,6 +334,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
     let productionKeyboardHintMode: ProductionHintMode
     let hideChordNamesInBattle: Bool
     let runMapId: String?
+    let autoRunMapId: String?
     let runTimeLimitSec: Int?
     let runDialogueScript: SurvivalRunDialogueScript?
 
@@ -364,6 +366,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         hideChordNamesInBattle: Bool = false,
         playMode: SurvivalPlayMode = .survival,
         runMapId: String? = nil,
+        autoRunMapId: String? = nil,
         runTimeLimitSec: Int? = nil,
         runDialogueScript: SurvivalRunDialogueScript? = nil
     ) {
@@ -394,6 +397,7 @@ struct SurvivalStageDefinition: Identifiable, Sendable, Hashable {
         self.productionKeyboardHintMode = productionKeyboardHintMode
         self.hideChordNamesInBattle = hideChordNamesInBattle
         self.runMapId = runMapId
+        self.autoRunMapId = autoRunMapId
         self.runTimeLimitSec = runTimeLimitSec
         self.runDialogueScript = runDialogueScript
     }
@@ -785,6 +789,10 @@ enum SurvivalStageCatalog {
                 playMode: playMode,
                 runMapId: {
                     let v = row.run_map_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    return v.isEmpty ? nil : v
+                }(),
+                autoRunMapId: {
+                    let v = row.auto_run_map_id?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     return v.isEmpty ? nil : v
                 }(),
                 runTimeLimitSec: row.run_time_limit_sec,
@@ -1242,5 +1250,17 @@ extension SurvivalStageDefinition {
             return "Objective: survive \(sec)s and defeat \(quota) enemies (HINT runs do not record clears)."
         }
         return "目標: \(sec)秒生存 + \(quota)体撃破（HINT時はクリア記録されません）。"
+    }
+
+    static let defaultAutoRunMapId = "auto_run_01"
+    static let defaultManualRunMapId = "night_city_run_01"
+
+    func resolvedCodeRunMapId(autoRun: Bool) -> String {
+        if autoRun {
+            let id = autoRunMapId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return id.isEmpty ? Self.defaultAutoRunMapId : id
+        }
+        let id = runMapId?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return id.isEmpty ? Self.defaultManualRunMapId : id
     }
 }

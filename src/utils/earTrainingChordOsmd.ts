@@ -34,10 +34,10 @@ export const resolveEarTrainingOsmdTargetsFromScore = (
   return true;
 };
 
-/** OSMD リズム耳コピ：ターゲットより早い入力の受付幅（120ms）。 */
-export const CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC = 0.12;
-/** OSMD リズム耳コピ：ターゲットより遅い入力の受付幅・遅れミス確定（150ms）。 */
-export const CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC = 0.15;
+/** OSMD リズム耳コピ：ターゲットより早い入力の受付幅（精密モードと同じ 250ms）。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC = 0.25;
+/** OSMD リズム耳コピ：ターゲットより遅い入力の受付幅・遅れミス確定（精密モードと同じ 250ms）。 */
+export const CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC = 0.25;
 /** 音声入力時：推論遅延でイベント到着が遅れてもミス確定 tick まで猶予する秒数。 */
 export const VOICE_JUDGMENT_ARRIVAL_GRACE_SEC = 0.25;
 /** @deprecated `CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC` を使用 */
@@ -133,6 +133,37 @@ export const pickNearestChordOsmdTargetIndex = (
     }
   }
   return bestIndex;
+};
+
+export const findNearestPendingChordOsmdTarget = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  canMatchTarget: (index: number) => boolean,
+): { index: number; judgedTargetSec: number; deltaSec: number } | null => {
+  let bestIndex: number | null = null;
+  let bestJudged = 0;
+  let bestAbsDelta = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < targetCount; index += 1) {
+    if (!canMatchTarget(index)) {
+      continue;
+    }
+    const judged = resolveJudgedTargetTimeSec(index);
+    const absDelta = Math.abs(phraseTimeSec - judged);
+    if (absDelta < bestAbsDelta) {
+      bestAbsDelta = absDelta;
+      bestIndex = index;
+      bestJudged = judged;
+    }
+  }
+  if (bestIndex === null) {
+    return null;
+  }
+  return {
+    index: bestIndex,
+    judgedTargetSec: bestJudged,
+    deltaSec: phraseTimeSec - bestJudged,
+  };
 };
 
 const SAME_TARGET_EPSILON_SEC = 0.0005;

@@ -33,6 +33,7 @@ struct SurvivalGameView: View {
     init(
         stage: SurvivalStageDefinition,
         hintMode: Bool,
+        autoRun: Bool = false,
         characterId: String,
         locale: AppLocale,
         onClose: @escaping () -> Void,
@@ -68,10 +69,12 @@ struct SurvivalGameView: View {
         self.externalPlayerBubbleText = externalPlayerBubbleText
         self.onSessionReady = onSessionReady
         _activeHintMode = State(initialValue: hintMode)
+        _activeAutoRun = State(initialValue: autoRun)
     }
 
     @State private var session: SurvivalGameSession?
     @State private var activeHintMode: Bool
+    @State private var activeAutoRun: Bool
     @State private var bootstrapTask: Task<Void, Never>?
     @State private var bootstrapID = UUID()
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
@@ -86,6 +89,7 @@ struct SurvivalGameView: View {
                 SurvivalCodeRunGameContent(
                     stage: stage,
                     hintMode: activeHintMode,
+                    autoRun: activeAutoRun,
                     characterId: characterId,
                     locale: locale,
                     lessonRuntime: lessonRuntime,
@@ -97,7 +101,7 @@ struct SurvivalGameView: View {
                     },
                     onClose: onClose
                 )
-                .id(activeHintMode)
+                .id("\(activeHintMode)-\(activeAutoRun)")
             } else if let session = session {
                 SurvivalGameContent(
                     session: session,
@@ -344,7 +348,9 @@ private struct SurvivalCodeRunChordNameText: Equatable {
 private enum SurvivalCodeRunNativeLayout {
     /// Web 版の固定ビューポート表示に対する追加ズームアウト係数。
     static let zoomOutFactor: CGFloat = 0.88
-    static let chordBadgeTopPadding: CGFloat = 72
+    /// iPhone 擬似横画面向けの引き表示係数。
+    static let phoneZoomOutFactor: CGFloat = 0.8
+    static let chordBadgeTopPadding: CGFloat = 6
     static let gameAreaBackground = Color(red: 0.027, green: 0.063, blue: 0.149)
 
     static func computeCanvasSize(available: CGSize, viewSize: CGSize) -> CGSize {
@@ -841,6 +847,9 @@ private struct SurvivalCodeRunNativeMapSpec: Equatable {
     static func fallback(mapId: String?) -> SurvivalCodeRunNativeMapSpec {
         let id = mapId ?? "night_city_run_01"
         switch id {
+        case "auto_run_01":
+            return bundledFromResource(id: "auto_run_01", name: "オートラン1", resourceName: "auto_run_01")
+                ?? bundled(id: "night_city_run_01", name: "Night City Run 01", data: .nightCityRun01)
         case "graveyard_run_02":
             return bundled(id: "graveyard_run_02", name: "Graveyard Run 02", data: .graveyardRun02)
         case "tutorial":
@@ -850,6 +859,16 @@ private struct SurvivalCodeRunNativeMapSpec: Equatable {
         default:
             return bundled(id: "night_city_run_01", name: "Night City Run 01", data: .nightCityRun01)
         }
+    }
+
+    private static func bundledFromResource(id: String, name: String, resourceName: String) -> SurvivalCodeRunNativeMapSpec? {
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "layout.json"),
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode(SurvivalCodeRunMapData.self, from: data),
+              let spec = build(id: id, name: name, data: decoded) else {
+            return nil
+        }
+        return spec
     }
 
     static func from(row: SurvivalCodeRunMapRow) -> SurvivalCodeRunNativeMapSpec? {
@@ -1108,6 +1127,7 @@ private struct SurvivalCodeRunSettingsSheet: View {
 private struct SurvivalCodeRunGameContent: View {
     let stage: SurvivalStageDefinition
     let hintMode: Bool
+    let autoRun: Bool
     let characterId: String
     let locale: AppLocale
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
@@ -1123,6 +1143,7 @@ private struct SurvivalCodeRunGameContent: View {
     init(
         stage: SurvivalStageDefinition,
         hintMode: Bool,
+        autoRun: Bool,
         characterId: String,
         locale: AppLocale,
         lessonRuntime: ResolvedSurvivalLessonRuntime?,
@@ -1134,6 +1155,7 @@ private struct SurvivalCodeRunGameContent: View {
     ) {
         self.stage = stage
         self.hintMode = hintMode
+        self.autoRun = autoRun
         self.characterId = characterId
         self.locale = locale
         self.lessonRuntime = lessonRuntime
@@ -1172,7 +1194,7 @@ private struct SurvivalCodeRunGameContent: View {
                 displayMode: initialKeyboardDisplayMode
             )
         )
-        let initialMap = SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.runMapId)
+        let initialMap = SurvivalCodeRunNativeMapSpec.fallback(mapId: stage.resolvedCodeRunMapId(autoRun: autoRun))
         _mapSpec = State(initialValue: initialMap)
         _player = State(initialValue: SurvivalCodeRunNativePlayer(x: initialMap.spawn.x, y: initialMap.spawn.y))
         _enemies = State(initialValue: initialMap.enemies())
@@ -1256,61 +1278,24 @@ private struct SurvivalCodeRunGameContent: View {
     ]
 
     var body: some View {
-        GeometryReader { proxy in
-            let keyboardHeight: CGFloat = min(190, max(150, proxy.size.height * 0.22))
-            let gameAreaHeight = max(1, proxy.size.height - keyboardHeight)
-            let isPad = Self.isPad
-            let availableGameArea = CGSize(width: proxy.size.width, height: gameAreaHeight)
-            let canvasSize = isPad
-                ? SurvivalCodeRunNativeLayout.computeCanvasSize(
-                    available: availableGameArea,
-                    viewSize: mapSpec.viewSize
-                )
-                : availableGameArea
-            VStack(spacing: 0) {
-                ZStack {
-                    SurvivalCodeRunNativeLayout.gameAreaBackground
-                    gameCanvas(size: canvasSize, letterboxed: isPad)
-                    SurvivalJoystickRepresentable(
-                        hitMask: .full,
-                        isInteractive: status == .playing && !showSettings
-                    ) { analog in
-                        inputX = max(-1, min(1, analog.dx))
-                    }
-                    .allowsHitTesting(status == .playing && !showSettings)
-                    chordBadges
-                        .padding(.top, SurvivalCodeRunNativeLayout.chordBadgeTopPadding)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .allowsHitTesting(false)
+        Group {
+            if Self.isPhone {
+                GeometryReader { proxy in
+                    let portraitSize = proxy.size
+                    let landscapeSize = CGSize(
+                        width: max(1, portraitSize.height),
+                        height: max(1, portraitSize.width)
+                    )
+                    codeRunRoot(size: landscapeSize, letterboxed: false, applyPhoneZoom: true)
+                        .frame(width: landscapeSize.width, height: landscapeSize.height)
+                        .clipped()
+                        .rotationEffect(.degrees(90))
+                        .frame(width: portraitSize.width, height: portraitSize.height)
+                        .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
                 }
-                .frame(width: proxy.size.width, height: gameAreaHeight)
-                .overlay(alignment: .topLeading) { topButtons }
-                .overlay(alignment: .topTrailing) { statusBadges }
-                SurvivalChordPadView(
-                    snapshot: chordPadSnapshot,
-                    displayRange: chordPadDisplayRange,
-                    onPress: { noteOn($0, playPiano: true) },
-                    onRelease: { noteOff($0, playPiano: true) }
-                )
-                .equatable()
-                .id("\(chordPadDisplayRange.minMidi)-\(chordPadDisplayRange.maxMidi)")
-                .frame(height: keyboardHeight)
-            }
-            .background(Color.black)
-            .overlay { resultOverlay }
-            .overlay {
-                if NoteInputPreferences.inputMethod == .voice && noteInputManager.voicePreparing {
-                    ZStack {
-                        Color.black.opacity(0.55)
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .tint(.white)
-                            Text(locale == .ja ? "マイクを準備中…" : "Preparing microphone…")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                        }
-                    }
-                    .ignoresSafeArea()
+            } else {
+                GeometryReader { proxy in
+                    codeRunRoot(size: proxy.size, letterboxed: Self.isPad, applyPhoneZoom: false)
                 }
             }
         }
@@ -1324,6 +1309,8 @@ private struct SurvivalCodeRunGameContent: View {
         .onChange(of: showSettings) { isOpen in
             if isOpen {
                 inputX = 0
+            } else if autoRun {
+                inputX = 1
             }
         }
         .onReceive(frameClock.publisher) { dt in
@@ -1334,6 +1321,9 @@ private struct SurvivalCodeRunGameContent: View {
             recordAssignmentStartIfNeeded()
             let id = UUID()
             lifecycleID = id
+            if autoRun {
+                inputX = 1
+            }
             OrientationManager.shared.lock(.portrait)
             startAudioAndMidi(lifecycleID: id)
         }
@@ -1355,6 +1345,68 @@ private struct SurvivalCodeRunGameContent: View {
                 onApplyHintModeAndRestart: onApplyHintModeAndRestart,
                 onClose: { showSettings = false }
             )
+        }
+    }
+
+    @ViewBuilder
+    private func codeRunRoot(size: CGSize, letterboxed: Bool, applyPhoneZoom: Bool) -> some View {
+        let keyboardHeight: CGFloat = min(96, max(76, size.height * 0.11))
+        let gameAreaHeight = max(1, size.height - keyboardHeight)
+        let availableGameArea = CGSize(width: size.width, height: gameAreaHeight)
+        let canvasSize = letterboxed
+            ? SurvivalCodeRunNativeLayout.computeCanvasSize(
+                available: availableGameArea,
+                viewSize: mapSpec.viewSize
+            )
+            : availableGameArea
+        VStack(spacing: 0) {
+            ZStack {
+                SurvivalCodeRunNativeLayout.gameAreaBackground
+                gameCanvas(size: canvasSize, letterboxed: letterboxed, applyPhoneZoom: applyPhoneZoom)
+                if !autoRun {
+                    SurvivalJoystickRepresentable(
+                        hitMask: .full,
+                        isInteractive: status == .playing && !showSettings
+                    ) { analog in
+                        inputX = max(-1, min(1, analog.dx))
+                    }
+                    .allowsHitTesting(status == .playing && !showSettings)
+                }
+                chordBadges
+                    .padding(.top, SurvivalCodeRunNativeLayout.chordBadgeTopPadding)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+            }
+            .frame(width: size.width, height: gameAreaHeight)
+            .overlay(alignment: .topLeading) { topButtons }
+            .overlay(alignment: .topTrailing) { statusBadges }
+            SurvivalChordPadView(
+                snapshot: chordPadSnapshot,
+                displayRange: chordPadDisplayRange,
+                onPress: { noteOn($0, playPiano: true) },
+                onRelease: { noteOff($0, playPiano: true) },
+                keyboardHeight: keyboardHeight
+            )
+            .equatable()
+            .id("\(chordPadDisplayRange.minMidi)-\(chordPadDisplayRange.maxMidi)")
+            .frame(height: keyboardHeight)
+        }
+        .background(Color.black)
+        .overlay { resultOverlay }
+        .overlay {
+            if NoteInputPreferences.inputMethod == .voice && noteInputManager.voicePreparing {
+                ZStack {
+                    Color.black.opacity(0.55)
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .tint(.white)
+                        Text(locale == .ja ? "マイクを準備中…" : "Preparing microphone…")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .ignoresSafeArea()
+            }
         }
     }
 
@@ -1447,7 +1499,7 @@ private struct SurvivalCodeRunGameContent: View {
     }
 
     private var chordBadges: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
             codeBadge(title: "", value: player.chordLockedUntilLanding ? "-" : (currentChord?.displayName ?? "-"), primary: true)
             codeBadge(title: "next", value: player.chordLockedUntilLanding ? "-" : (nextChord?.displayName ?? "-"), primary: false)
         }
@@ -1455,6 +1507,10 @@ private struct SurvivalCodeRunGameContent: View {
 
     private static var isPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    private static var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
     }
 
     private func codeBadge(title: String, value: String, primary: Bool) -> some View {
@@ -1501,7 +1557,7 @@ private struct SurvivalCodeRunGameContent: View {
         }
     }
 
-    private func gameCanvas(size: CGSize, letterboxed: Bool) -> some View {
+    private func gameCanvas(size: CGSize, letterboxed: Bool, applyPhoneZoom: Bool) -> some View {
         Canvas { context, canvasSize in
             let viewW = mapSpec.viewSize.width
             let viewH = mapSpec.viewSize.height
@@ -1515,7 +1571,11 @@ private struct SurvivalCodeRunGameContent: View {
                 visibleWorldHeight = viewH
             } else {
                 let coverScale = max(canvasSize.width / viewW, canvasSize.height / viewH)
-                scale = min(coverScale, fitScale * 2.2)
+                var coverLimited = min(coverScale, fitScale * 2.2)
+                if applyPhoneZoom {
+                    coverLimited *= SurvivalCodeRunNativeLayout.phoneZoomOutFactor
+                }
+                scale = coverLimited
                 visibleWorldWidth = max(1, canvasSize.width / max(scale, 0.01))
                 visibleWorldHeight = max(1, canvasSize.height / max(scale, 0.01))
             }
@@ -1697,9 +1757,10 @@ private struct SurvivalCodeRunGameContent: View {
         elapsed += dt
         let step = CGFloat(dt * 60)
         var nextPlayer = player
-        if abs(inputX) > 0.08 {
-            nextPlayer.vx = max(-SurvivalCodeRunNativeRules.walkMax, min(SurvivalCodeRunNativeRules.walkMax, nextPlayer.vx + SurvivalCodeRunNativeRules.walkAccel * inputX * step))
-            nextPlayer.facing = inputX >= 0 ? 1 : -1
+        let effectiveInputX = autoRun ? CGFloat(1) : inputX
+        if abs(effectiveInputX) > 0.08 {
+            nextPlayer.vx = max(-SurvivalCodeRunNativeRules.walkMax, min(SurvivalCodeRunNativeRules.walkMax, nextPlayer.vx + SurvivalCodeRunNativeRules.walkAccel * effectiveInputX * step))
+            nextPlayer.facing = effectiveInputX >= 0 ? 1 : -1
         } else {
             let decel = (nextPlayer.onGround ? SurvivalCodeRunNativeRules.groundDecel : SurvivalCodeRunNativeRules.airDecel) * step
             if abs(nextPlayer.vx) <= decel { nextPlayer.vx = 0 } else { nextPlayer.vx -= nextPlayer.vx.sign == .minus ? -decel : decel }
@@ -2029,7 +2090,7 @@ private struct SurvivalCodeRunGameContent: View {
         showResult = false
         submittedClear = false
         currentChordIndex = 0
-        inputX = 0
+        inputX = autoRun ? 1 : 0
         completedPitchClasses.removeAll()
         if isRandomStage {
             drawRandomChords()
@@ -2056,7 +2117,7 @@ private struct SurvivalCodeRunGameContent: View {
             }
         }
         mapLoadTask = Task {
-            let mapId = stage.runMapId ?? "night_city_run_01"
+            let mapId = stage.resolvedCodeRunMapId(autoRun: autoRun)
             guard let row = try? await SupabaseService.shared.fetchSurvivalCodeRunMap(id: mapId),
                   let nextMap = SurvivalCodeRunNativeMapSpec.from(row: row)
             else { return }

@@ -1198,22 +1198,22 @@ describe('areAllChordOsmdTargetsCompleted', () => {
   });
 });
 
-describe('chord osmd asymmetric judgment window', () => {
-  it('早め120ms・遅れ150msの非対称窓で入力を受け付ける', () => {
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.15, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.151, 0)).toBe(false);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.12, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.121, 0)).toBe(false);
+describe('chord osmd symmetric judgment window', () => {
+  it('精密モードと同じ ±250ms 窓で入力を受け付ける', () => {
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.25, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.251, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.25, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.251, 0)).toBe(false);
   });
 
-  it('遅れミスはターゲット+150ms超過で確定', () => {
-    expect(hasChordOsmdJudgmentWindowExpired(0.15, 0)).toBe(false);
-    expect(hasChordOsmdJudgmentWindowExpired(0.151, 0)).toBe(true);
+  it('遅れミスはターゲット+250ms超過で確定', () => {
+    expect(hasChordOsmdJudgmentWindowExpired(0.25, 0)).toBe(false);
+    expect(hasChordOsmdJudgmentWindowExpired(0.251, 0)).toBe(true);
   });
 
   it('音声入力の到着猶予でミス確定を遅延できる', () => {
-    expect(hasChordOsmdJudgmentWindowExpired(0.35, 0, 0.15, 0.25)).toBe(false);
-    expect(hasChordOsmdJudgmentWindowExpired(0.401, 0, 0.15, 0.25)).toBe(true);
+    expect(hasChordOsmdJudgmentWindowExpired(0.5, 0, 0.25, 0.25)).toBe(false);
+    expect(hasChordOsmdJudgmentWindowExpired(0.501, 0, 0.25, 0.25)).toBe(true);
   });
 });
 
@@ -1415,12 +1415,12 @@ describe('pickNearestChordOsmdTargetIndex', () => {
 });
 
 describe('CHORD_OSMD judgment window constants', () => {
-  it('early 120ms / late 150ms', () => {
-    expect(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC).toBe(0.12);
-    expect(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC).toBe(0.15);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.14, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.16, 0)).toBe(false);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.11, 0)).toBe(true);
-    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.13, 0)).toBe(false);
+  it('early 250ms / late 250ms', () => {
+    expect(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC).toBe(0.25);
+    expect(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC).toBe(0.25);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.24, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.26, 0)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.24, 0)).toBe(true);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(-0.26, 0)).toBe(false);
   });
 });

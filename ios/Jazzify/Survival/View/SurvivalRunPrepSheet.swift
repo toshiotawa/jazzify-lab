@@ -27,12 +27,14 @@ struct SurvivalRunPrepSheet: View {
     let locale: AppLocale
     let variant: SurvivalRunPrepVariant
     let initialHintMode: Bool
+    let initialAutoRun: Bool
     let lessonRuntime: ResolvedSurvivalLessonRuntime?
     let onCancel: () -> Void
-    let onConfirm: (Bool) -> Void
+    let onConfirm: (Bool, Bool) -> Void
     private let balloonStage: BalloonRushStageDefinition?
 
     @State private var hintDraft: Bool
+    @State private var autoRunDraft: Bool
     @State private var sheetHeight: CGFloat = SurvivalRunPrepSheetLayout.fallbackSheetHeight
 
     private var isEnglishCopy: Bool { locale == .en }
@@ -42,19 +44,22 @@ struct SurvivalRunPrepSheet: View {
         locale: AppLocale,
         variant: SurvivalRunPrepVariant = .map,
         initialHintMode: Bool,
+        initialAutoRun: Bool = false,
         lessonRuntime: ResolvedSurvivalLessonRuntime? = nil,
         onCancel: @escaping () -> Void,
-        onConfirm: @escaping (Bool) -> Void
+        onConfirm: @escaping (Bool, Bool) -> Void
     ) {
         self.stage = stage
         self.locale = locale
         self.variant = variant
         self.initialHintMode = initialHintMode
+        self.initialAutoRun = initialAutoRun
         self.lessonRuntime = lessonRuntime
         self.onCancel = onCancel
         self.onConfirm = onConfirm
         self.balloonStage = nil
         _hintDraft = State(initialValue: initialHintMode)
+        _autoRunDraft = State(initialValue: initialAutoRun)
     }
 
     init(
@@ -62,17 +67,19 @@ struct SurvivalRunPrepSheet: View {
         locale: AppLocale,
         initialHintMode: Bool,
         onCancel: @escaping () -> Void,
-        onConfirm: @escaping (Bool) -> Void
+        onConfirm: @escaping (Bool, Bool) -> Void
     ) {
         self.stage = BalloonRushSurvivalBridge.presentationStage(from: balloonStage)
         self.locale = locale
         self.variant = .balloonRush
         self.initialHintMode = initialHintMode
+        self.initialAutoRun = false
         self.lessonRuntime = nil
         self.onCancel = onCancel
         self.onConfirm = onConfirm
         self.balloonStage = balloonStage
         _hintDraft = State(initialValue: initialHintMode)
+        _autoRunDraft = State(initialValue: false)
     }
 
     var body: some View {
@@ -129,6 +136,28 @@ struct SurvivalRunPrepSheet: View {
                             selected: hintDraft
                         ) {
                             hintDraft = true
+                        }
+                    }
+                }
+
+                if stage.playMode == .codeRun {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(isEnglishCopy ? "Character control" : "キャラ操作")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color(hex: "fde68a"))
+
+                        runModeRow(
+                            title: isEnglishCopy ? "Manual" : "マニュアル",
+                            selected: !autoRunDraft
+                        ) {
+                            autoRunDraft = false
+                        }
+
+                        runModeRow(
+                            title: isEnglishCopy ? "Auto (run right)" : "オート（右へ自動移動）",
+                            selected: autoRunDraft
+                        ) {
+                            autoRunDraft = true
                         }
                     }
                 }
@@ -227,7 +256,7 @@ struct SurvivalRunPrepSheet: View {
 
     private var startButton: some View {
         Button {
-            onConfirm(isCompositeLocked ? false : hintDraft)
+            onConfirm(isCompositeLocked ? false : hintDraft, stage.playMode == .codeRun ? autoRunDraft : false)
         } label: {
             Text(isEnglishCopy ? "Start" : "開始")
                 .font(.headline)

@@ -200,6 +200,7 @@
 		809DF71D453828E9409EA113 /* AppReleaseVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A3841554CFAB32D1715AB1 /* AppReleaseVersion.swift */; };
 		8147A819F56B4898C892A831 /* EarTrainingOsmdCameraEffectPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95D64D5494D20256EEB835EE /* EarTrainingOsmdCameraEffectPreferences.swift */; };
 		8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = D1E8E57E80A86CD8B5085935 /* onboarding-v1.script.json */; };
+		F1A2B3C4D5E6789012345679 /* auto_run_01.layout.json in Resources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6789012345678 /* auto_run_01.layout.json */; };
 		85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */ = {isa = PBXBuildFile; fileRef = 3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */; };
 		869BE1E60A0D21977667B064 /* EarTrainingOsmdCameraEffectPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA8DA3D5BFD1A94646DBCC5 /* EarTrainingOsmdCameraEffectPreferencesTests.swift */; };
 		86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88453408DE12301997E620A /* MarketingEmailOptIn.swift */; };
@@ -666,6 +667,7 @@
 		CF7628682E3A1A524E570D3F /* EarTrainingChordOsmdRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdRhythm.swift; sourceTree = "<group>"; };
 		D0D52543D5D2C698BD559C23 /* SurvivalDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentLayout.swift; sourceTree = "<group>"; };
 		D1E8E57E80A86CD8B5085935 /* onboarding-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "onboarding-v1.script.json"; sourceTree = "<group>"; };
+		F1A2B3C4D5E6789012345678 /* auto_run_01.layout.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = auto_run_01.layout.json; sourceTree = "<group>"; };
 		D235B58DC036F1F82F4CC6BC /* EarTrainingBattleJustParryBodyGlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleJustParryBodyGlow.swift; sourceTree = "<group>"; };
 		D27335D573691EFA7C446A20 /* TaskClearNextStepSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskClearNextStepSheet.swift; sourceTree = "<group>"; };
 		D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordPadView.swift; sourceTree = "<group>"; };
@@ -976,10 +978,19 @@
 				8EBC1B8C026BEEE707EA526A /* Scenario */,
 				48A5B3B1D1968EBD1F85545F /* Session */,
 				90184DE2716D9A44D3FB00AA /* StageIntro */,
+				E7C0DE001234567890ABCDEF /* Resources */,
 				97CD0D02A4CEF9F8D15D9BEC /* View */,
 				C9758DD5AFD03D4FB576B0F8 /* ViewModel */,
 			);
 			path = Survival;
+			sourceTree = "<group>";
+		};
+		E7C0DE001234567890ABCDEF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F1A2B3C4D5E6789012345678 /* auto_run_01.layout.json */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		54525A056DC14D2ED6016B4D /* Input */ = {
@@ -1632,6 +1643,7 @@
 				B8CECCAD88030BE5D41E89C0 /* ear-training-developer-full-v1.script.json in Resources */,
 				A2B8F955DBF8C3A314F178BC /* ear-training-osmd-timing-adjustment-v1.script.json in Resources */,
 				F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */,
+				F1A2B3C4D5E6789012345679 /* auto_run_01.layout.json in Resources */,
 				8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */,
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
 				2B22AB05F6D11E30BDC9E66B /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */,
