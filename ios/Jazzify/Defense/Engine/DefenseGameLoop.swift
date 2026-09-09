@@ -7,6 +7,7 @@ enum DefenseGameLoop {
     private static let fireballSpeed: CGFloat = 420
     private static let fireballHitRadius: CGFloat = 28
     private static let spawnX: CGFloat = 760
+    private static let attackHitPhase = DefenseEnemyConfig.attackLungeSec * 0.5
 
     static func tick(
         runtime: inout DefenseRuntimeState,
@@ -54,17 +55,18 @@ enum DefenseGameLoop {
         runtime.spawnTimerSec = 0
         guard let index = runtime.enemies.firstIndex(where: { !$0.isActive }) else { return }
 
-        let jitter = CGFloat((runtime.nextEnemyIndex % 7) - 3) * 12
         let types = DefenseEnemyType.allCases
+        let enemyType = types[runtime.nextEnemyIndex % types.count]
         runtime.enemies[index].isActive = true
-        runtime.enemies[index].type = types[runtime.nextEnemyIndex % types.count]
+        runtime.enemies[index].type = enemyType
         runtime.enemies[index].x = spawnX
-        runtime.enemies[index].y = max(40, min(560, runtime.playerY + jitter))
+        runtime.enemies[index].y = DefenseEnemyConfig.centerY(for: enemyType)
         runtime.enemies[index].hp = difficulty.enemyHp
         runtime.enemies[index].maxHp = difficulty.enemyHp
         runtime.enemies[index].knockbackVx = 0
-        runtime.enemies[index].knockbackVy = 0
-        runtime.enemies[index].lastAttackAt = runtime.elapsedSec
+        runtime.enemies[index].lastAttackAt = 0
+        runtime.enemies[index].isMoving = false
+        runtime.enemies[index].attackHitPending = false
         runtime.nextEnemyIndex += 1
     }
 
@@ -76,29 +78,47 @@ enum DefenseGameLoop {
         let dt = CGFloat(deltaTime)
         for index in runtime.enemies.indices where runtime.enemies[index].isActive {
             var enemy = runtime.enemies[index]
-            let dx = runtime.playerX - enemy.x
-            let dy = runtime.playerY - enemy.y
-            let dist = max(1, sqrt(dx * dx + dy * dy))
+            let absDx = abs(runtime.playerX - enemy.x)
+            let inRange = absDx <= CGFloat(difficulty.attackRangePx)
+            let attackElapsed = runtime.elapsedSec - enemy.lastAttackAt
 
-            if dist > CGFloat(difficulty.attackRangePx) {
-                let speed = CGFloat(difficulty.enemySpeedPxPerSec) * dt
-                enemy.x += (dx / dist) * speed
-                enemy.y += (dy / dist) * speed
-            } else if runtime.elapsedSec - enemy.lastAttackAt >= difficulty.attackIntervalSec {
+            if enemy.attackHitPending && attackElapsed >= attackHitPhase {
                 runtime.playerHp = max(0, runtime.playerHp - difficulty.enemyDamage)
-                enemy.lastAttackAt = runtime.elapsedSec
+                runtime.impactAt = runtime.elapsedSec
+                runtime.impactX = runtime.playerX
+                runtime.impactY = runtime.playerY
+                enemy.attackHitPending = false
                 if runtime.playerHp <= 0 {
                     runtime.result = .gameOver
                 }
             }
 
-            if enemy.knockbackVx != 0 || enemy.knockbackVy != 0 {
+            let isLunging = enemy.attackHitPending
+                || (enemy.lastAttackAt > 0 && attackElapsed < DefenseEnemyConfig.attackLungeSec)
+
+            if !isLunging && !inRange {
+                let speed = CGFloat(difficulty.enemySpeedPxPerSec) * dt
+                if enemy.x > runtime.playerX {
+                    enemy.x -= speed
+                } else if enemy.x < runtime.playerX {
+                    enemy.x += speed
+                }
+                enemy.isMoving = true
+            } else if inRange
+                && !enemy.attackHitPending
+                && !isLunging
+                && runtime.elapsedSec - enemy.lastAttackAt >= difficulty.attackIntervalSec {
+                enemy.lastAttackAt = runtime.elapsedSec
+                enemy.attackHitPending = true
+                enemy.isMoving = false
+            } else {
+                enemy.isMoving = false
+            }
+
+            if enemy.knockbackVx != 0 {
                 enemy.x += enemy.knockbackVx * dt
-                enemy.y += enemy.knockbackVy * dt
                 enemy.knockbackVx *= knockbackDecay
-                enemy.knockbackVy *= knockbackDecay
                 if abs(enemy.knockbackVx) < 0.5 { enemy.knockbackVx = 0 }
-                if abs(enemy.knockbackVy) < 0.5 { enemy.knockbackVy = 0 }
             }
             runtime.enemies[index] = enemy
         }
@@ -121,10 +141,7 @@ enum DefenseGameLoop {
                 var enemy = runtime.enemies[hitIndex]
                 enemy.hp -= 1
                 let kbDx = enemy.x - runtime.playerX
-                let kbDy = enemy.y - runtime.playerY
-                let kbDist = max(1, sqrt(kbDx * kbDx + kbDy * kbDy))
-                enemy.knockbackVx = (kbDx / kbDist) * knockbackImpulse
-                enemy.knockbackVy = (kbDy / kbDist) * knockbackImpulse
+                enemy.knockbackVx = (kbDx >= 0 ? 1 : -1) * knockbackImpulse
                 if enemy.hp <= 0 {
                     enemy.isActive = false
                     runtime.enemiesDefeated += 1

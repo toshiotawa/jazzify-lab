@@ -22,10 +22,21 @@ enum DefensePhraseJudge {
         )
     }
 
+    struct KeyboardHints: Equatable {
+        var nextMidis: Set<Int>
+        var pendingMidis: Set<Int>
+        var completedMidis: Set<Int>
+
+        var allMidis: Set<Int> {
+            nextMidis.union(pendingMidis).union(completedMidis)
+        }
+    }
+
     static func evaluateNoteOn(
         state: DefensePhraseJudgeState,
         stageRequiredCompletionCount: Int,
-        pitchClass: Int
+        pitchClass: Int,
+        sequential: Bool = false
     ) -> Evaluation {
         guard let phrase = state.phrases[safe: state.phraseIndex],
               let chord = phrase.chords[safe: state.chordIndex],
@@ -41,6 +52,30 @@ enum DefensePhraseJudge {
         }
 
         let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
+        if sequential,
+           let currentStep = steps[safe: state.targetStepIndex] {
+            let midis = stepMidis(chord: chord, step: currentStep)
+            let completed = sequentialCompletedPitchClasses(
+                chord: chord,
+                step: currentStep,
+                correctNoteIndices: state.correctNoteIndices
+            )
+            let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+                fromMidis: midis,
+                inputPitchClasses: completed
+            )
+            let pc = ((pitchClass % 12) + 12) % 12
+            if nextPc != pc {
+                return Evaluation(
+                    attack: false,
+                    phraseCompleted: false,
+                    pendingSwitch: state.pendingSwitch,
+                    completionCount: state.completionCount,
+                    nextState: state
+                )
+            }
+        }
+
         let stepState = SurvivalPhraseChordSteps.AdvanceState(
             targetStepIndex: state.targetStepIndex,
             correctNoteIndices: state.correctNoteIndices,
@@ -107,15 +142,56 @@ enum DefensePhraseJudge {
     }
 
     static func targetMidis(state: DefensePhraseJudgeState) -> [Int] {
+        Array(keyboardHints(state: state, sequential: false).pendingMidis)
+    }
+
+    static func keyboardHints(state: DefensePhraseJudgeState, sequential: Bool) -> KeyboardHints {
+        let empty = KeyboardHints(nextMidis: [], pendingMidis: [], completedMidis: [])
         guard let phrase = state.phrases[safe: state.phraseIndex],
               let chord = phrase.chords[safe: state.chordIndex]
-        else { return [] }
+        else { return empty }
         let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
-        guard let step = steps[safe: state.targetStepIndex] else { return [] }
-        return step.noteIndices.compactMap { index in
-            guard !state.correctNoteIndices.contains(index) else { return nil }
-            return chord.notes[safe: index]?.pitchMidi
+        guard let step = steps[safe: state.targetStepIndex] else { return empty }
+        let midis = stepMidis(chord: chord, step: step)
+        if sequential {
+            let completedPcs = sequentialCompletedPitchClasses(
+                chord: chord,
+                step: step,
+                correctNoteIndices: state.correctNoteIndices
+            )
+            let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+                fromMidis: midis,
+                inputPitchClasses: completedPcs
+            )
+            var nextMidis = Set<Int>()
+            var pending = Set<Int>()
+            var completed = Set<Int>()
+            let ordered = SurvivalChordResolver.orderedPitchClasses(fromMidis: midis)
+            let completedSet = Set(completedPcs)
+            for midi in midis {
+                let pc = ((midi % 12) + 12) % 12
+                if completedSet.contains(pc) {
+                    completed.insert(midi)
+                } else if pc == nextPc {
+                    nextMidis.insert(midi)
+                } else if ordered.contains(pc) {
+                    pending.insert(midi)
+                }
+            }
+            return KeyboardHints(nextMidis: nextMidis, pendingMidis: pending, completedMidis: completed)
         }
+
+        var pending = Set<Int>()
+        var completed = Set<Int>()
+        for index in step.noteIndices {
+            guard let note = chord.notes[safe: index] else { continue }
+            if state.correctNoteIndices.contains(index) {
+                completed.insert(note.pitchMidi)
+            } else {
+                pending.insert(note.pitchMidi)
+            }
+        }
+        return KeyboardHints(nextMidis: [], pendingMidis: pending, completedMidis: completed)
     }
 
     static func nextPhraseIndex(phrases: [DefensePhraseDefinition], current: Int) -> Int {
@@ -134,6 +210,30 @@ enum DefensePhraseJudge {
         next.correctNoteIndices = []
         next.revealedNoteIndices = []
         return next
+    }
+
+    private static func stepMidis(chord: SurvivalPhraseChord, step: PhraseChordStep) -> [Int] {
+        step.noteIndices.compactMap { chord.notes[safe: $0]?.pitchMidi }
+    }
+
+    private static func sequentialCompletedPitchClasses(
+        chord: SurvivalPhraseChord,
+        step: PhraseChordStep,
+        correctNoteIndices: Set<Int>
+    ) -> [Int] {
+        let midis = stepMidis(chord: chord, step: step)
+        let ordered = SurvivalChordResolver.orderedPitchClasses(fromMidis: midis)
+        var completed: [Int] = []
+        for pc in ordered {
+            let matched = step.noteIndices.contains { index in
+                guard let note = chord.notes[safe: index] else { return false }
+                return correctNoteIndices.contains(index)
+                    && ((note.pitchClass % 12) + 12) % 12 == pc
+            }
+            if !matched { break }
+            completed.append(pc)
+        }
+        return completed
     }
 }
 

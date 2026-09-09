@@ -4,6 +4,8 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
+import { loadDefenseEnemySprites } from '@/game/defense/defenseEnemySprites';
+import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import { drawDefenseScene } from '@/game/defense/drawDefenseScene';
 import type { DefenseRuntime } from '@/game/defense/defenseTypes';
 
@@ -20,6 +22,7 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
     const sizeRef = useRef({ width: 0, height: 0 });
+    const atlasRef = useRef<DefenseEnemySpriteAtlas | null>(null);
 
     useImperativeHandle(ref, () => ({
       draw: (runtime: DefenseRuntime) => {
@@ -27,9 +30,22 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
         if (!ctx) return;
         const { width, height } = sizeRef.current;
         if (width <= 0 || height <= 0) return;
-        drawDefenseScene(ctx, width, height, runtime);
+        drawDefenseScene(ctx, width, height, runtime, atlasRef.current);
       },
     }), []);
+
+    useEffect(() => {
+      let cancelled = false;
+      void loadDefenseEnemySprites().then((atlas) => {
+        if (!cancelled && atlas) {
+          atlasRef.current = atlas;
+        }
+      });
+      return () => {
+        cancelled = true;
+        atlasRef.current = null;
+      };
+    }, []);
 
     useEffect(() => {
       const canvas = canvasRef.current;

@@ -47,21 +47,7 @@ struct DefenseDifficultyDefinition: Sendable, Equatable {
 }
 
 enum DefenseEnemyType: String, Sendable, CaseIterable {
-    case slime, goblin, skeleton, zombie, bat, ghost, orc, demon, dragon
-
-    var emoji: String {
-        switch self {
-        case .slime: return "🫠"
-        case .goblin: return "👺"
-        case .skeleton: return "💀"
-        case .zombie: return "🧟"
-        case .bat: return "🦇"
-        case .ghost: return "👻"
-        case .orc: return "👹"
-        case .demon: return "😈"
-        case .dragon: return "🐲"
-        }
-    }
+    case slime, bat, goblin, skeleton, ghost, mushroom, wolf, golem, mimic, dragon
 }
 
 struct DefenseEnemyState: Identifiable, Sendable {
@@ -73,8 +59,11 @@ struct DefenseEnemyState: Identifiable, Sendable {
     var hp: Int
     var maxHp: Int
     var knockbackVx: CGFloat
-    var knockbackVy: CGFloat
+    /// Attack cycle start time (seconds); 0 = never attacked.
     var lastAttackAt: TimeInterval
+    var isMoving: Bool
+    var attackHitPending: Bool
+    let slotIndex: Int
 }
 
 struct DefenseFireballState: Identifiable, Sendable {
@@ -104,6 +93,9 @@ struct DefenseRuntimeState: Sendable {
     var nextEnemyIndex: Int = 0
     var enemies: [DefenseEnemyState]
     var fireballs: [DefenseFireballState]
+    var impactAt: TimeInterval = DefenseEnemyConfig.noImpact
+    var impactX: CGFloat = 80
+    var impactY: CGFloat = 300
     let playerX: CGFloat = 80
     let playerY: CGFloat = 300
 
@@ -121,8 +113,10 @@ struct DefenseRuntimeState: Sendable {
                 hp: 1,
                 maxHp: 1,
                 knockbackVx: 0,
-                knockbackVy: 0,
-                lastAttackAt: 0
+                lastAttackAt: 0,
+                isMoving: false,
+                attackHitPending: false,
+                slotIndex: index
             )
         }
         self.fireballs = (0..<16).map { _ in

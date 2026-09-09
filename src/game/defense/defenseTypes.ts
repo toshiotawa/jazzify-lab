@@ -65,26 +65,32 @@ export interface DefenseDifficulty {
 
 export type DefenseEnemyType =
   | 'slime'
+  | 'bat'
   | 'goblin'
   | 'skeleton'
-  | 'zombie'
-  | 'bat'
   | 'ghost'
-  | 'orc'
-  | 'demon'
+  | 'mushroom'
+  | 'wolf'
+  | 'golem'
+  | 'mimic'
   | 'dragon';
 
 export interface DefenseEnemy {
   readonly id: string;
+  /** Stable pool index (used for animation phase offsets). */
+  readonly slotIndex: number;
   active: boolean;
   type: DefenseEnemyType;
   x: number;
+  /** Sprite center Y (fixed per type: ground-aligned or hovering). */
   y: number;
   hp: number;
   maxHp: number;
   knockbackVx: number;
-  knockbackVy: number;
+  /** Attack cycle start time (seconds); 0 = never attacked. */
   lastAttackAt: number;
+  moving: boolean;
+  attackHitPending: boolean;
 }
 
 export interface DefenseFireball {
@@ -114,6 +120,10 @@ export interface DefenseRuntime {
   activeFireballCount: number;
   playerX: number;
   playerY: number;
+  /** -1 when no active impact effect. */
+  impactAt: number;
+  impactX: number;
+  impactY: number;
 }
 
 export const DEFENSE_MAP_WIDTH = 800;
@@ -122,6 +132,7 @@ export const DEFENSE_PLAYER_X = 80;
 export const DEFENSE_PLAYER_Y = DEFENSE_MAP_HEIGHT / 2;
 export const DEFENSE_SPAWN_X = DEFENSE_MAP_WIDTH - 40;
 export const DEFENSE_FIREBALL_SPEED = 420;
+export const DEFENSE_NO_IMPACT = -1;
 
 export const createDefenseRuntime = (
   playerMaxHp: number,
@@ -138,6 +149,7 @@ export const createDefenseRuntime = (
   nextEnemyIndex: 0,
   enemies: Array.from({ length: maxEnemies }, (_, index) => ({
     id: `enemy-slot-${index}`,
+    slotIndex: index,
     active: false,
     type: 'slime',
     x: DEFENSE_SPAWN_X,
@@ -145,8 +157,9 @@ export const createDefenseRuntime = (
     hp: 1,
     maxHp: 1,
     knockbackVx: 0,
-    knockbackVy: 0,
     lastAttackAt: 0,
+    moving: false,
+    attackHitPending: false,
   })),
   activeEnemyCount: 0,
   fireballs: Array.from({ length: 16 }, (_, index) => ({
@@ -161,4 +174,7 @@ export const createDefenseRuntime = (
   activeFireballCount: 0,
   playerX: DEFENSE_PLAYER_X,
   playerY: DEFENSE_PLAYER_Y,
+  impactAt: DEFENSE_NO_IMPACT,
+  impactX: DEFENSE_PLAYER_X,
+  impactY: DEFENSE_PLAYER_Y,
 });

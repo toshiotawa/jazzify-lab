@@ -1,5 +1,7 @@
+import { getDefenseEnemyCenterY } from '@/game/defense/defenseEnemyConfig';
 import {
   createDefenseRuntime,
+  DEFENSE_NO_IMPACT,
   DEFENSE_PLAYER_X,
   DEFENSE_SPAWN_X,
 } from '@/game/defense/defenseTypes';
@@ -23,27 +25,65 @@ const easyDifficulty: DefenseDifficulty = {
 };
 
 describe('defenseEngine', () => {
-  it('spawns enemy after interval', () => {
+  it('spawns enemy on ground line after interval', () => {
     const runtime = createDefenseRuntime(5, 120, 3);
     spawnEnemyIfDue(runtime, easyDifficulty, 0.6);
     expect(runtime.activeEnemyCount).toBe(1);
     expect(runtime.enemies[0]?.active).toBe(true);
     expect(runtime.enemies[0]?.x).toBeCloseTo(DEFENSE_SPAWN_X);
+    expect(runtime.enemies[0]?.y).toBeCloseTo(getDefenseEnemyCenterY('slime'));
   });
 
-  it('enemy stops in attack range and damages player', () => {
+  it('moves enemy on x axis only toward player', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy slot');
+    enemy.active = true;
+    enemy.type = 'goblin';
+    enemy.x = DEFENSE_PLAYER_X + 120;
+    enemy.y = getDefenseEnemyCenterY('goblin');
+    runtime.activeEnemyCount = 1;
+
+    updateDefenseEnemies(runtime, easyDifficulty, 0.1);
+    expect(enemy.x).toBeLessThan(DEFENSE_PLAYER_X + 120);
+    expect(enemy.y).toBeCloseTo(getDefenseEnemyCenterY('goblin'));
+    expect(enemy.moving).toBe(true);
+  });
+
+  it('applies damage at attack peak and records impact', () => {
     const runtime = createDefenseRuntime(5, 120, 3);
     const enemy = runtime.enemies[0];
     if (!enemy) throw new Error('missing enemy slot');
     enemy.active = true;
     enemy.x = DEFENSE_PLAYER_X + 40;
-    enemy.y = runtime.playerY;
-    enemy.lastAttackAt = 0;
-    runtime.elapsedSec = 1.5;
+    enemy.y = getDefenseEnemyCenterY('goblin');
+    enemy.lastAttackAt = 1.0;
+    enemy.attackHitPending = true;
+    runtime.elapsedSec = 1.19;
     runtime.activeEnemyCount = 1;
 
-    updateDefenseEnemies(runtime, easyDifficulty, 1.5);
-    expect(runtime.playerHp).toBeLessThan(5);
+    updateDefenseEnemies(runtime, easyDifficulty, 0);
+    expect(runtime.playerHp).toBe(4);
+    expect(runtime.impactAt).toBeCloseTo(1.19);
+    expect(runtime.impactX).toBeCloseTo(DEFENSE_PLAYER_X);
+    expect(enemy.attackHitPending).toBe(false);
+  });
+
+  it('does not damage before attack peak', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy slot');
+    enemy.active = true;
+    enemy.x = DEFENSE_PLAYER_X + 40;
+    enemy.y = getDefenseEnemyCenterY('goblin');
+    enemy.lastAttackAt = 1.0;
+    enemy.attackHitPending = true;
+    runtime.elapsedSec = 1.1;
+    runtime.activeEnemyCount = 1;
+
+    updateDefenseEnemies(runtime, easyDifficulty, 0);
+    expect(runtime.playerHp).toBe(5);
+    expect(runtime.impactAt).toBe(DEFENSE_NO_IMPACT);
   });
 
   it('fireball defeats enemy with 1 hp', () => {
@@ -52,7 +92,7 @@ describe('defenseEngine', () => {
     if (!enemy) throw new Error('missing enemy slot');
     enemy.active = true;
     enemy.x = DEFENSE_PLAYER_X + 100;
-    enemy.y = runtime.playerY;
+    enemy.y = getDefenseEnemyCenterY('goblin');
     enemy.hp = 1;
     runtime.activeEnemyCount = 1;
 

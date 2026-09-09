@@ -29,6 +29,7 @@ import {
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
+  getDefensePhraseKeyboardHints,
   getDefensePhraseTargetMidis,
   nextPhraseIndex,
   type DefensePhraseJudgeState,
@@ -42,9 +43,12 @@ import type {
 import { createDefenseRuntime } from '@/game/defense/defenseTypes';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
+import { useGameStore } from '@/stores/gameStore';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
+  applySequentialSurvivalVoicingHints,
+  applySurvivalVoicingHintsWithOpacity,
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
 } from '@/utils/survivalStaffHintOpacity';
@@ -96,6 +100,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [elapsedInt, setElapsedInt] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
+  const inputMethod = useGameStore((state) => state.settings.inputMethod);
+  const voiceSequential = inputMethod === 'voice';
 
   useEffect(() => {
     onClearRef.current = onClear;
@@ -109,12 +115,25 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const currentPhrase = stage.phrases[judgeSnapshot.phraseIndex] ?? stage.phrases[0] ?? null;
   const phraseKeyFifths = currentPhrase?.keyFifths ?? stage.keyFifths;
 
+  const keyboardHints = useMemo(
+    () => getDefensePhraseKeyboardHints(stage.phrases, judgeSnapshot, voiceSequential),
+    [stage.phrases, judgeSnapshot, voiceSequential],
+  );
+
   const targetMidis = useMemo(
     () => getDefensePhraseTargetMidis(stage.phrases, judgeSnapshot),
     [stage.phrases, judgeSnapshot],
   );
 
-  const keyboardRange = useResolvedWebKeyboardRange(targetMidis);
+  const keyboardRangeMidis = useMemo(() => {
+    const midis = [...keyboardHints.pendingMidis, ...keyboardHints.completedMidis];
+    if (keyboardHints.nextMidi !== null) {
+      midis.push(keyboardHints.nextMidi);
+    }
+    return midis.length > 0 ? midis : targetMidis;
+  }, [keyboardHints, targetMidis]);
+
+  const keyboardRange = useResolvedWebKeyboardRange(keyboardRangeMidis);
 
   const staffHintOpacity = useMemo(() => {
     if (practiceMode) return 1;
@@ -158,7 +177,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
   }, [stage.phrases]);
 
-  const handleNoteOn = useCallback((midiNote: number) => {
+  const handleNoteOn = useCallback((midiNote: number, sequential = false) => {
     const runtime = runtimeRef.current;
     if (runtime.result !== 'playing') return;
 
@@ -167,6 +186,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       stage.requiredCompletionCount,
       judgeRef.current,
       normalizePitchClass(midiNote % 12),
+      sequential,
     );
 
     if (evaluation.nextState === judgeRef.current) return;
@@ -194,7 +214,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
     void playNote(midiNote, 100);
-    handleNoteOn(midiNote);
+    handleNoteOn(midiNote, false);
   }, [handleNoteOn]);
 
   const handlePianoKeyUp = useCallback((midiNote: number) => {
@@ -202,7 +222,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, []);
 
   useStandaloneNoteInput({
-    onNoteOn: handleNoteOn,
+    onNoteOn: (note) => {
+      handleNoteOn(note, voiceSequential);
+    },
     onKeyHighlight: (note, active) => {
       pianoRef.current?.highlightKey(note, active);
     },
@@ -292,15 +314,25 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [difficulty, applyPhraseSwitch, practiceMode, trackElapsedForHints]);
 
   useEffect(() => {
-    if (!showTargetHints || keyboardHintOpacity <= 0) {
-      pianoRef.current?.clearVoicingHints();
+    const overlay = pianoRef.current;
+    if (!overlay) {
       return;
     }
-    pianoRef.current?.setVoicingHints(
-      targetMidis.map((midi) => Math.round(midi)),
-      [],
+    if (!showTargetHints || keyboardHintOpacity <= 0) {
+      overlay.clearVoicingHints();
+      return;
+    }
+    if (voiceSequential) {
+      applySequentialSurvivalVoicingHints(overlay, keyboardHints, keyboardHintOpacity);
+      return;
+    }
+    applySurvivalVoicingHintsWithOpacity(
+      overlay,
+      keyboardHints.pendingMidis.map((midi) => Math.round(midi)),
+      keyboardHints.completedMidis.map((midi) => Math.round(midi)),
+      keyboardHintOpacity,
     );
-  }, [targetMidis, showTargetHints, keyboardHintOpacity]);
+  }, [keyboardHints, showTargetHints, keyboardHintOpacity, voiceSequential]);
 
   if (finalStats) {
     return (

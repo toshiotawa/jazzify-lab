@@ -66,7 +66,7 @@ struct DefenseGameView: View {
                     snapshot: chordPadSnapshot,
                     displayRange: chordPadRange,
                     onPress: { midi in
-                        session.handleNoteOn(pitchClass: ((midi % 12) + 12) % 12)
+                        session.handleNoteOn(pitchClass: ((midi % 12) + 12) % 12, sequential: false)
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
                     },
                     onRelease: { midi in
@@ -129,14 +129,21 @@ struct DefenseGameView: View {
     }
 
     private var targetMidis: Set<Int> {
-        Set(DefensePhraseJudge.targetMidis(state: session.judgeState))
+        keyboardHints.allMidis
+    }
+
+    private var keyboardHints: DefensePhraseJudge.KeyboardHints {
+        DefensePhraseJudge.keyboardHints(
+            state: session.judgeState,
+            sequential: NoteInputManager.shared.isVoiceInputActive
+        )
     }
 
     private var chordPadSnapshot: SurvivalChordPadSnapshot {
         SurvivalChordPadSnapshot(
-            hintMidis: targetMidis,
-            nextHintMidis: [],
-            completedHintMidis: [],
+            hintMidis: keyboardHints.pendingMidis.union(keyboardHints.nextMidis),
+            nextHintMidis: keyboardHints.nextMidis,
+            completedHintMidis: keyboardHints.completedMidis,
             hintPendingOpacity: keyboardHintOpacity,
             midiHeldKeys: [],
             isEnabled: session.hud.result == .playing,

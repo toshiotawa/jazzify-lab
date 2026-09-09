@@ -3,10 +3,18 @@
  */
 import type { DefensePhrase, DefensePhraseChord } from '@/game/defense/defenseTypes';
 import {
+  computeOrderedChordKeyboardHintsFromMidis,
+  orderedPitchClassesFromMidis,
+  shouldAcceptChordPitchClassInput,
+  type OrderedChordKeyboardHints,
+} from '@/utils/orderedChordInput';
+import {
   advanceChordStep,
   getPhraseChordSteps,
   type ChordStepAdvanceState,
+  type PhraseChordStep,
 } from '@/utils/phraseChordSteps';
+import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 
 export interface DefensePhraseJudgeState {
   readonly phraseIndex: number;
@@ -89,11 +97,51 @@ const requiredCompletionCountForPhrase = (
   stageDefault: number,
 ): number => phrase.requiredCompletionCount ?? stageDefault;
 
+const stepMidiNotes = (
+  chord: DefensePhraseChord,
+  step: PhraseChordStep,
+): number[] => {
+  const midis: number[] = [];
+  for (const noteIndex of step.noteIndices) {
+    const note = chord.notes[noteIndex];
+    if (note) {
+      midis.push(note.pitchMidi);
+    }
+  }
+  return midis;
+};
+
+const sequentialCompletedPitchClasses = (
+  chord: DefensePhraseChord,
+  step: PhraseChordStep,
+  correctNoteIndices: ReadonlySet<number>,
+): number[] => {
+  const midis = stepMidiNotes(chord, step);
+  const orderedPcs = orderedPitchClassesFromMidis(midis);
+  const completed: number[] = [];
+  for (const pc of orderedPcs) {
+    const matched = step.noteIndices.some((noteIndex) => {
+      const note = chord.notes[noteIndex];
+      return Boolean(
+        note
+        && correctNoteIndices.has(noteIndex)
+        && normalizePitchClass(note.pitchClass) === pc,
+      );
+    });
+    if (!matched) {
+      break;
+    }
+    completed.push(pc);
+  }
+  return completed;
+};
+
 export const evaluateDefensePhraseNoteOn = (
   phrases: readonly DefensePhrase[],
   stageRequiredCompletionCount: number,
   state: DefensePhraseJudgeState,
   pitchClass: number,
+  sequential = false,
 ): DefensePhraseNoteEvaluation => {
   const phrase = phrases[state.phraseIndex] ?? null;
   const chord = getCurrentChord(phrase, state.chordIndex);
@@ -108,6 +156,25 @@ export const evaluateDefensePhraseNoteOn = (
   }
 
   const { steps } = getPhraseChordSteps(chord.notes);
+  const currentStep = steps[state.targetStepIndex];
+  if (sequential && currentStep) {
+    const acceptance = shouldAcceptChordPitchClassInput(
+      stepMidiNotes(chord, currentStep),
+      sequentialCompletedPitchClasses(chord, currentStep, state.correctNoteIndices),
+      pitchClass,
+      true,
+    );
+    if (!acceptance.accept) {
+      return {
+        attack: false,
+        phraseCompleted: false,
+        pendingSwitch: state.pendingSwitch,
+        completionCount: state.completionCount,
+        nextState: state,
+      };
+    }
+  }
+
   const stepState: ChordStepAdvanceState = {
     targetStepIndex: state.targetStepIndex,
     correctNoteIndices: state.correctNoteIndices,
@@ -181,24 +248,50 @@ export const getDefensePhraseTargetMidis = (
   phrases: readonly DefensePhrase[],
   state: DefensePhraseJudgeState,
 ): readonly number[] => {
+  const hints = getDefensePhraseKeyboardHints(phrases, state, false);
+  return [...hints.pendingMidis, ...(hints.nextMidi === null ? [] : [hints.nextMidi])];
+};
+
+export const getDefensePhraseKeyboardHints = (
+  phrases: readonly DefensePhrase[],
+  state: DefensePhraseJudgeState,
+  sequential: boolean,
+): OrderedChordKeyboardHints => {
+  const empty: OrderedChordKeyboardHints = {
+    nextMidi: null,
+    pendingMidis: [],
+    completedMidis: [],
+  };
   const phrase = phrases[state.phraseIndex] ?? null;
   const chord = getCurrentChord(phrase, state.chordIndex);
-  if (!phrase || !chord) return [];
+  if (!phrase || !chord) return empty;
 
   const { steps } = getPhraseChordSteps(chord.notes);
   const step = steps[state.targetStepIndex];
-  if (!step) return [];
+  if (!step) return empty;
 
-  const midis: number[] = [];
+  const midis = stepMidiNotes(chord, step);
+  if (midis.length === 0) return empty;
+
+  if (sequential) {
+    return computeOrderedChordKeyboardHintsFromMidis(
+      midis,
+      sequentialCompletedPitchClasses(chord, step, state.correctNoteIndices),
+    );
+  }
+
+  const pendingMidis: number[] = [];
+  const completedMidis: number[] = [];
   for (const noteIndex of step.noteIndices) {
-    if (!state.correctNoteIndices.has(noteIndex)) {
-      const note = chord.notes[noteIndex];
-      if (note) {
-        midis.push(note.pitchMidi);
-      }
+    const note = chord.notes[noteIndex];
+    if (!note) continue;
+    if (state.correctNoteIndices.has(noteIndex)) {
+      completedMidis.push(note.pitchMidi);
+    } else {
+      pendingMidis.push(note.pitchMidi);
     }
   }
-  return midis;
+  return { nextMidi: null, pendingMidis, completedMidis };
 };
 
 export const nextPhraseIndex = (

@@ -1,6 +1,7 @@
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
+  getDefensePhraseKeyboardHints,
   nextPhraseIndex,
 } from '@/game/defense/defensePhraseJudge';
 import type { DefensePhrase } from '@/game/defense/defenseTypes';
@@ -65,5 +66,50 @@ describe('defensePhraseJudge', () => {
 
   it('nextPhraseIndex wraps', () => {
     expect(nextPhraseIndex([phraseA, { ...phraseA, id: 'b', orderIndex: 1 }], 1)).toBe(0);
+  });
+
+  it('voice sequential requires lowest MIDI first in a simultaneous chord', () => {
+    const chordPhrase: DefensePhrase = {
+      ...phraseA,
+      chords: [
+        {
+          id: 'c-sim',
+          orderIndex: 0,
+          chordName: 'C',
+          measureNumber: 1,
+          notes: [
+            { orderIndex: 0, pitchMidi: 67, pitchClass: 7, noteName: 'G4', staff: 1, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 60, pitchClass: 0, noteName: 'C4', staff: 1, stepIndex: 0 },
+            { orderIndex: 2, pitchMidi: 64, pitchClass: 4, noteName: 'E4', staff: 1, stepIndex: 0 },
+          ],
+        },
+      ],
+    };
+    const phrases = [chordPhrase];
+    const initial = createInitialPhraseJudgeState(0);
+
+    const skipHigh = evaluateDefensePhraseNoteOn(phrases, 1, initial, 7, true);
+    expect(skipHigh.attack).toBe(false);
+    expect(skipHigh.nextState).toBe(initial);
+
+    const anyOrderMidi = evaluateDefensePhraseNoteOn(phrases, 1, initial, 7, false);
+    expect(anyOrderMidi.nextState.correctNoteIndices.size).toBe(1);
+
+    const lowest = evaluateDefensePhraseNoteOn(phrases, 1, initial, 0, true);
+    expect(lowest.nextState.correctNoteIndices.size).toBe(1);
+    expect(lowest.attack).toBe(false);
+
+    const middle = evaluateDefensePhraseNoteOn(phrases, 1, lowest.nextState, 4, true);
+    expect(middle.nextState.correctNoteIndices.size).toBe(2);
+    expect(middle.attack).toBe(false);
+
+    const top = evaluateDefensePhraseNoteOn(phrases, 1, middle.nextState, 7, true);
+    expect(top.attack).toBe(true);
+    expect(top.phraseCompleted).toBe(true);
+
+    const hints = getDefensePhraseKeyboardHints(phrases, initial, true);
+    expect(hints.nextMidi).toBe(60);
+    expect(hints.pendingMidis).toEqual(expect.arrayContaining([64, 67]));
+    expect(hints.completedMidis).toEqual([]);
   });
 });

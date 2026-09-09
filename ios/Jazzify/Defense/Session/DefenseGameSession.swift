@@ -96,7 +96,10 @@ final class DefenseGameSession: ObservableObject {
                     if playPiano {
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
                     }
-                    self.handleNoteOn(pitchClass: ((note % 12) + 12) % 12)
+                    self.handleNoteOn(
+                        pitchClass: ((note % 12) + 12) % 12,
+                        sequential: NoteInputManager.shared.isVoiceInputActive
+                    )
                 } else if isNoteOff, playPiano {
                     SurvivalGameAudio.shared.pianoNoteOff(midi: note)
                 }
@@ -104,12 +107,13 @@ final class DefenseGameSession: ObservableObject {
         }
     }
 
-    func handleNoteOn(pitchClass: Int) {
+    func handleNoteOn(pitchClass: Int, sequential: Bool = false) {
         guard runtime.result == .playing else { return }
         let evaluation = DefensePhraseJudge.evaluateNoteOn(
             state: judgeState,
             stageRequiredCompletionCount: stage.requiredCompletionCount,
-            pitchClass: pitchClass
+            pitchClass: pitchClass,
+            sequential: sequential
         )
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState

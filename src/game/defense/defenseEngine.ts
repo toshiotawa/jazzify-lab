@@ -1,6 +1,11 @@
 /**
  * Defense mode combat simulation (pure functions, mutable runtime).
  */
+import {
+  DEFENSE_ATTACK_LUNGE_SEC,
+  DEFENSE_ENEMY_TYPES,
+  getDefenseEnemyCenterY,
+} from '@/game/defense/defenseEnemyConfig';
 import type {
   DefenseDifficulty,
   DefenseEnemy,
@@ -10,23 +15,17 @@ import type {
 } from '@/game/defense/defenseTypes';
 import {
   DEFENSE_FIREBALL_SPEED,
-  DEFENSE_MAP_HEIGHT,
   DEFENSE_PLAYER_X,
-  DEFENSE_PLAYER_Y,
   DEFENSE_SPAWN_X,
 } from '@/game/defense/defenseTypes';
 
-const ENEMY_TYPES: readonly DefenseEnemyType[] = [
-  'slime', 'goblin', 'skeleton', 'zombie', 'bat', 'ghost', 'orc', 'demon', 'dragon',
-];
-
 const KNOCKBACK_DECAY = 0.9;
 const FIREBALL_HIT_RADIUS = 28;
-const FIREBALL_LIFETIME_SEC = 2;
 const KNOCKBACK_IMPULSE = 180;
+const ATTACK_HIT_PHASE = DEFENSE_ATTACK_LUNGE_SEC * 0.5;
 
 const pickEnemyType = (index: number): DefenseEnemyType => (
-  ENEMY_TYPES[index % ENEMY_TYPES.length] ?? 'slime'
+  DEFENSE_ENEMY_TYPES[index % DEFENSE_ENEMY_TYPES.length] ?? 'slime'
 );
 
 const findInactiveEnemySlot = (runtime: DefenseRuntime): DefenseEnemy | null => {
@@ -64,16 +63,17 @@ export const spawnEnemyIfDue = (
   const slot = findInactiveEnemySlot(runtime);
   if (!slot) return;
 
-  const jitterY = ((runtime.nextEnemyIndex % 7) - 3) * 12;
+  const enemyType = pickEnemyType(runtime.nextEnemyIndex);
   slot.active = true;
-  slot.type = pickEnemyType(runtime.nextEnemyIndex);
+  slot.type = enemyType;
   slot.x = DEFENSE_SPAWN_X;
-  slot.y = Math.max(40, Math.min(DEFENSE_MAP_HEIGHT - 40, DEFENSE_PLAYER_Y + jitterY));
+  slot.y = getDefenseEnemyCenterY(enemyType);
   slot.hp = difficulty.enemyHp;
   slot.maxHp = difficulty.enemyHp;
   slot.knockbackVx = 0;
-  slot.knockbackVy = 0;
-  slot.lastAttackAt = runtime.elapsedSec;
+  slot.lastAttackAt = 0;
+  slot.moving = false;
+  slot.attackHitPending = false;
   runtime.nextEnemyIndex += 1;
   runtime.activeEnemyCount += 1;
 };
@@ -88,30 +88,51 @@ export const updateDefenseEnemies = (
   for (const enemy of runtime.enemies) {
     if (!enemy.active) continue;
 
-    const dx = runtime.playerX - enemy.x;
-    const dy = runtime.playerY - enemy.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const inRange = dist <= difficulty.attackRangePx;
+    const absDx = Math.abs(runtime.playerX - enemy.x);
+    const inRange = absDx <= difficulty.attackRangePx;
+    const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
 
-    if (!inRange) {
-      const speed = difficulty.enemySpeedPxPerSec * dt;
-      enemy.x += (dx / dist) * speed;
-      enemy.y += (dy / dist) * speed;
-    } else if (runtime.elapsedSec - enemy.lastAttackAt >= difficulty.attackIntervalSec) {
+    if (enemy.attackHitPending && attackElapsed >= ATTACK_HIT_PHASE) {
       runtime.playerHp = Math.max(0, runtime.playerHp - difficulty.enemyDamage);
-      enemy.lastAttackAt = runtime.elapsedSec;
+      runtime.impactAt = runtime.elapsedSec;
+      runtime.impactX = runtime.playerX;
+      runtime.impactY = runtime.playerY;
+      enemy.attackHitPending = false;
       if (runtime.playerHp <= 0) {
         runtime.result = 'gameover';
       }
     }
 
-    if (enemy.knockbackVx !== 0 || enemy.knockbackVy !== 0) {
+    const isLunging = enemy.attackHitPending
+      || (enemy.lastAttackAt > 0 && attackElapsed < DEFENSE_ATTACK_LUNGE_SEC);
+
+    if (!isLunging && !inRange) {
+      const speed = difficulty.enemySpeedPxPerSec * dt;
+      if (enemy.x > runtime.playerX) {
+        enemy.x -= speed;
+      } else if (enemy.x < runtime.playerX) {
+        enemy.x += speed;
+      }
+      enemy.moving = true;
+    } else if (
+      inRange
+      && !enemy.attackHitPending
+      && !isLunging
+      && runtime.elapsedSec - enemy.lastAttackAt >= difficulty.attackIntervalSec
+    ) {
+      enemy.lastAttackAt = runtime.elapsedSec;
+      enemy.attackHitPending = true;
+      enemy.moving = false;
+    } else {
+      enemy.moving = false;
+    }
+
+    if (enemy.knockbackVx !== 0) {
       enemy.x += enemy.knockbackVx * dt;
-      enemy.y += enemy.knockbackVy * dt;
       enemy.knockbackVx *= KNOCKBACK_DECAY;
-      enemy.knockbackVy *= KNOCKBACK_DECAY;
-      if (Math.abs(enemy.knockbackVx) < 0.5) enemy.knockbackVx = 0;
-      if (Math.abs(enemy.knockbackVy) < 0.5) enemy.knockbackVy = 0;
+      if (Math.abs(enemy.knockbackVx) < 0.5) {
+        enemy.knockbackVx = 0;
+      }
     }
   }
 };
@@ -174,10 +195,7 @@ const updateDefenseFireballs = (
     if (hitEnemy) {
       hitEnemy.hp -= 1;
       const kbDx = hitEnemy.x - runtime.playerX;
-      const kbDy = hitEnemy.y - runtime.playerY;
-      const kbDist = Math.sqrt(kbDx * kbDx + kbDy * kbDy) || 1;
-      hitEnemy.knockbackVx = (kbDx / kbDist) * KNOCKBACK_IMPULSE;
-      hitEnemy.knockbackVy = (kbDy / kbDist) * KNOCKBACK_IMPULSE;
+      hitEnemy.knockbackVx = (kbDx >= 0 ? 1 : -1) * KNOCKBACK_IMPULSE;
 
       if (hitEnemy.hp <= 0) {
         hitEnemy.active = false;
