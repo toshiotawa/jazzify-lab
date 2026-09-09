@@ -59,15 +59,35 @@ final class PitchOnsetTracker {
         pendingOffFrame = -1
     }
 
+    /// MIDI ノート番号として扱える prediction か（非有限・範囲外は除外して Int 変換トラップを防ぐ）。
+    private static func quantizePrediction(_ prediction: Double) -> Int? {
+        guard prediction.isFinite,
+              prediction > 0,
+              prediction < 128 else { return nil }
+        return Int(prediction.rounded())
+    }
+
     func processFrame(_ frame: PitchFrame, frameIndex: Int) -> [PitchInputEvent] {
         var events: [PitchInputEvent] = []
+        guard frame.confidence.isFinite,
+              frame.volume.isFinite,
+              frame.volume >= 0 else {
+            pitchStableCount = 0
+            lastStableNote = -1
+            flushPendingOff(&events, frameIndex: frameIndex)
+            return events
+        }
+
         let levelDb = volumeToDb(frame.volume)
         let voiced = levelDb > config.onsetLevelDb
             && frame.confidence >= config.minConfidence
-            && frame.prediction > 0
+            && Self.quantizePrediction(frame.prediction) != nil
 
         if voiced {
-            let quantized = Int(frame.prediction.rounded())
+            guard let quantized = Self.quantizePrediction(frame.prediction) else {
+                flushPendingOff(&events, frameIndex: frameIndex)
+                return events
+            }
             if lastStableNote == quantized {
                 pitchStableCount += 1
             } else {

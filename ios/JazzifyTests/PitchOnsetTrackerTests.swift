@@ -90,4 +90,26 @@ final class PitchOnsetTrackerTests: XCTestCase {
 
         XCTAssertEqual(allEvents, fixture.expectedEvents)
     }
+
+    func testIgnoresNonFinitePredictionWithoutCrashing() {
+        let tracker = PitchOnsetTracker()
+        let loud = PitchFrame(prediction: .infinity, confidence: 0.95, volume: 0.5)
+        let nan = PitchFrame(prediction: .nan, confidence: 0.95, volume: 0.5)
+        let huge = PitchFrame(prediction: 1_000_000, confidence: 0.95, volume: 0.5)
+
+        XCTAssertTrue(tracker.processFrame(loud, frameIndex: 0).isEmpty)
+        XCTAssertTrue(tracker.processFrame(nan, frameIndex: 1).isEmpty)
+        XCTAssertTrue(tracker.processFrame(huge, frameIndex: 2).isEmpty)
+        XCTAssertEqual(tracker.getCurrentNote(), -1)
+    }
+
+    func testIgnoresNonFiniteConfidenceOrVolume() {
+        let tracker = PitchOnsetTracker()
+        let badConfidence = PitchFrame(prediction: 60, confidence: .nan, volume: 0.5)
+        let badVolume = PitchFrame(prediction: 60, confidence: 0.95, volume: -.infinity)
+
+        XCTAssertTrue(tracker.processFrame(badConfidence, frameIndex: 0).isEmpty)
+        XCTAssertTrue(tracker.processFrame(badVolume, frameIndex: 1).isEmpty)
+        XCTAssertEqual(tracker.getCurrentNote(), -1)
+    }
 }

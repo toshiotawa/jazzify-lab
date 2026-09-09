@@ -18,8 +18,14 @@ final class PitchInputEngine: @unchecked Sendable {
 
     private static let chunkSize = 240
     private static let frameSec = Double(chunkSize) / targetSampleRate
-    /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕。
-    private static let poolSlotCount = 4
+    /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕（80ms @ 5ms hop）。
+    private static let poolSlotCount = 16
+    /// connect/start 前に HW フォーマットが揃うまで待つ最大回数。
+    private static let inputFormatRetryCount = 10
+    private static let inputFormatRetryDelayNs: UInt64 = 100_000_000
+    /// route 変更直後の restart 失敗時に再試行する最大回数。
+    private static let restartRetryMaxAttempts = 3
+    private static let restartRetryDelaySec: TimeInterval = 0.5
     private static let cacheElementCount = 3_976
     private static let targetSampleRate: Double = 48_000
     /// モニタ UI 用: -60dB〜0dB を 0..1 にマップ。
@@ -45,11 +51,13 @@ final class PitchInputEngine: @unchecked Sendable {
     // MARK: - スレッド間共有（ロック保護）
 
     /// 推論中フラグ。5ms に間に合わないフレームは最新 1 件だけ保留し、それ以前は捨てる。
-    /// レンダースレッドから触るため os_unfair_lock を使用。
-    private var inferringLock = os_unfair_lock()
-    nonisolated(unsafe) private var isInferring = false
-    nonisolated(unsafe) private var pendingInferenceSlot: Int?
-    nonisolated(unsafe) private var pendingInferenceHostTime: UInt64 = 0
+    private struct InferenceDispatchState {
+        var isInferring = false
+        var pendingSlot: Int?
+        var pendingHostTime: UInt64 = 0
+    }
+
+    private let inferenceDispatchLock = OSAllocatedUnfairLock(initialState: InferenceDispatchState())
     private let stateLock = NSLock()
     /// stop() 時の取りこぼし解放用。押されているノート。
     nonisolated(unsafe) private var activeNote: Int?
@@ -74,11 +82,16 @@ final class PitchInputEngine: @unchecked Sendable {
     private var audioEngine: AVAudioEngine?
     private var isRunning = false
     private var isStarting = false
+    /// stop() ごとにインクリメント。start/restart の各 await 後に一致を確認する。
+    private var lifecycleGeneration = 0
+    private var restartPending = false
+    private var restartRetryAttempt = 0
     private var observersRegistered = false
     private var routeChangeObserver: NSObjectProtocol?
     private var sessionReconfigureObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
+    private var engineConfigurationChangeObserver: NSObjectProtocol?
     private var restartWorkItem: DispatchWorkItem?
     private var activeVoiceProcessing = false
     private var activeTapSampleRate: Double = 0
@@ -252,22 +265,29 @@ final class PitchInputEngine: @unchecked Sendable {
         guard !isRunning else { return }
         guard !isStarting else { return }
         isStarting = true
+        restartPending = false
+        restartRetryAttempt = 0
+        let generation = lifecycleGeneration
         defer { isStarting = false }
 
         guard await Self.requestMicrophonePermission() else {
             setMonitorError(PitchInputEngineError.microphonePermissionDenied.localizedDescription)
             throw PitchInputEngineError.microphonePermissionDenied
         }
-        guard !isRunning else { return }
+        guard lifecycleGeneration == generation, !isRunning else { return }
 
         try await loadModelIfNeeded()
+        guard lifecycleGeneration == generation, !isRunning else { return }
+
         AppAudioSession.shared.setRecordingEnabled(true)
 
         do {
-            try await startEngineInternal()
+            try await startEngineInternal(generation: generation)
+            guard lifecycleGeneration == generation else { return }
             registerObserversIfNeeded()
             setMonitorError(nil)
         } catch {
+            guard lifecycleGeneration == generation else { return }
             AppAudioSession.shared.setRecordingEnabled(false)
             setMonitorError(error.localizedDescription)
             throw error
@@ -275,7 +295,16 @@ final class PitchInputEngine: @unchecked Sendable {
     }
 
     @MainActor
-    private func startEngineInternal() async throws {
+    private func startEngineInternal(generation: Int) async throws {
+        guard lifecycleGeneration == generation else {
+            throw CancellationError()
+        }
+
+        let session = AVAudioSession.sharedInstance()
+        guard session.isInputAvailable, session.category == .playAndRecord else {
+            throw PitchInputEngineError.inputUnavailable
+        }
+
         let useVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput()
 
         AppAudioSession.shared.suppressAutomaticReconfigure(for: 1.0)
@@ -293,12 +322,22 @@ final class PitchInputEngine: @unchecked Sendable {
             }
         }
 
-        var inputFormat = inputNode.outputFormat(forBus: 0)
-        if inputFormat.sampleRate <= 0 {
-            try await Task.sleep(nanoseconds: 100_000_000)
-            inputFormat = inputNode.outputFormat(forBus: 0)
+        let inputFormat = try await Self.waitForStableInputFormat(on: inputNode) { [weak self] in
+            self?.lifecycleGeneration == generation
         }
-        guard inputFormat.sampleRate > 0 else {
+        guard lifecycleGeneration == generation else {
+            throw CancellationError()
+        }
+
+        let connectFormat: AVAudioFormat
+        if inputFormat.commonFormat == .pcmFormatFloat32, !inputFormat.isInterleaved {
+            connectFormat = inputFormat
+        } else if let standard = AVAudioFormat(
+            standardFormatWithSampleRate: inputFormat.sampleRate,
+            channels: inputFormat.channelCount
+        ) {
+            connectFormat = standard
+        } else {
             throw PitchInputEngineError.inputUnavailable
         }
 
@@ -307,12 +346,12 @@ final class PitchInputEngine: @unchecked Sendable {
             sampleRate: Self.targetSampleRate,
             channels: 1,
             interleaved: false
-        ), let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+        ), let converter = AVAudioConverter(from: connectFormat, to: outputFormat) else {
             throw PitchInputEngineError.inputUnavailable
         }
 
-        let scratchCapacity = AVAudioFrameCount(max(inputFormat.sampleRate, Self.targetSampleRate) * 0.1)
-        guard let inputScratch = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: scratchCapacity),
+        let scratchCapacity = AVAudioFrameCount(max(connectFormat.sampleRate, Self.targetSampleRate) * 0.1)
+        guard let inputScratch = AVAudioPCMBuffer(pcmFormat: connectFormat, frameCapacity: scratchCapacity),
               let outputScratch = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: scratchCapacity) else {
             throw PitchInputEngineError.inputUnavailable
         }
@@ -327,12 +366,11 @@ final class PitchInputEngine: @unchecked Sendable {
         monitorLock.unlock()
         updateMonitorVolume(0)
         updateMonitorDetectedNote(nil)
-        cachedInputLatencySec = AVAudioSession.sharedInstance().inputLatency
+        cachedInputLatencySec = session.inputLatency
 
         let pipeline = CapturePipeline(
             engine: self,
             converter: converter,
-            inputFormat: inputFormat,
             inputScratch: inputScratch,
             outputScratch: outputScratch
         )
@@ -344,15 +382,26 @@ final class PitchInputEngine: @unchecked Sendable {
             )
         }
         engine.attach(sink)
-        engine.connect(inputNode, to: sink, format: inputFormat)
+        engine.connect(inputNode, to: sink, format: connectFormat)
+
+        registerEngineConfigurationObserver(for: engine)
 
         engine.prepare()
         do {
             try engine.start()
         } catch {
+            unregisterEngineConfigurationObserver()
             engine.disconnectNodeInput(sink)
             engine.detach(sink)
             throw error
+        }
+
+        guard lifecycleGeneration == generation else {
+            unregisterEngineConfigurationObserver()
+            engine.stop()
+            engine.disconnectNodeInput(sink)
+            engine.detach(sink)
+            throw CancellationError()
         }
 
         audioEngine = engine
@@ -360,8 +409,31 @@ final class PitchInputEngine: @unchecked Sendable {
         capturePipeline = pipeline
         isRunning = true
         activeVoiceProcessing = useVoiceProcessing
-        activeTapSampleRate = inputFormat.sampleRate
+        activeTapSampleRate = connectFormat.sampleRate
         SurvivalGameAudio.shared.setVoiceInputDucking(true)
+    }
+
+    @MainActor
+    private static func waitForStableInputFormat(
+        on inputNode: AVAudioInputNode,
+        isStillValid: @escaping () -> Bool
+    ) async throws -> AVAudioFormat {
+        for attempt in 0..<inputFormatRetryCount {
+            let outputFormat = inputNode.outputFormat(forBus: 0)
+            let hardwareFormat = inputNode.inputFormat(forBus: 0)
+            if outputFormat.sampleRate > 0,
+               outputFormat.channelCount > 0,
+               hardwareFormat.sampleRate > 0,
+               hardwareFormat.channelCount > 0,
+               abs(outputFormat.sampleRate - hardwareFormat.sampleRate) < 1.0 {
+                return outputFormat
+            }
+            guard isStillValid() else { throw CancellationError() }
+            if attempt + 1 < inputFormatRetryCount {
+                try await Task.sleep(nanoseconds: inputFormatRetryDelayNs)
+            }
+        }
+        throw PitchInputEngineError.inputUnavailable
     }
 
     @MainActor
@@ -376,22 +448,62 @@ final class PitchInputEngine: @unchecked Sendable {
 
     @MainActor
     private func restart() async {
-        guard isRunning else { return }
-        if engineConfigurationMatchesDesired() {
+        guard isRunning || AppAudioSession.shared.isRecordingEnabled else { return }
+        guard !isStarting else {
+            restartPending = true
             return
         }
+        if engineConfigurationMatchesDesired() {
+            restartRetryAttempt = 0
+            return
+        }
+
+        isStarting = true
+        restartPending = false
+        let generation = lifecycleGeneration
+        defer {
+            isStarting = false
+            if restartPending {
+                restartPending = false
+                scheduleRestartIfRunning()
+            }
+        }
+
         tearDownEngine(releaseRecordingSession: false)
         do {
-            try await startEngineInternal()
+            try await startEngineInternal(generation: generation)
+            guard lifecycleGeneration == generation else { return }
+            restartRetryAttempt = 0
             setMonitorError(nil)
+        } catch is CancellationError {
+            return
         } catch {
             isRunning = false
             setMonitorError(error.localizedDescription)
+            scheduleRestartRetryIfNeeded(failureGeneration: generation)
         }
     }
 
     @MainActor
+    private func scheduleRestartRetryIfNeeded(failureGeneration: Int) {
+        guard lifecycleGeneration == failureGeneration else { return }
+        guard restartRetryAttempt < Self.restartRetryMaxAttempts else { return }
+        restartRetryAttempt += 1
+        restartWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                await self?.restart()
+            }
+        }
+        restartWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.restartRetryDelaySec, execute: work)
+    }
+
+    @MainActor
     func stop() {
+        lifecycleGeneration += 1
+        restartPending = false
+        restartRetryAttempt = 0
         restartWorkItem?.cancel()
         restartWorkItem = nil
         if isRunning || audioEngine != nil {
@@ -405,6 +517,7 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func tearDownEngine(releaseRecordingSession: Bool) {
         SurvivalGameAudio.shared.setVoiceInputDucking(false)
+        unregisterEngineConfigurationObserver()
         if let engine = audioEngine, let sink = captureSinkNode {
             engine.stop()
             engine.disconnectNodeInput(sink)
@@ -539,7 +652,7 @@ final class PitchInputEngine: @unchecked Sendable {
 
     @MainActor
     private func scheduleRestartIfRunning() {
-        guard isRunning else { return }
+        guard isRunning || AppAudioSession.shared.isRecordingEnabled else { return }
         restartWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             Task { @MainActor in
@@ -548,6 +661,27 @@ final class PitchInputEngine: @unchecked Sendable {
         }
         restartWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+    }
+
+    @MainActor
+    private func registerEngineConfigurationObserver(for engine: AVAudioEngine) {
+        unregisterEngineConfigurationObserver()
+        engineConfigurationChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.scheduleRestartIfRunning()
+            }
+        }
+    }
+
+    @MainActor
+    private func unregisterEngineConfigurationObserver() {
+        guard let engineConfigurationChangeObserver else { return }
+        NotificationCenter.default.removeObserver(engineConfigurationChangeObserver)
+        self.engineConfigurationChangeObserver = nil
     }
 
     // MARK: - モデル
@@ -586,9 +720,11 @@ final class PitchInputEngine: @unchecked Sendable {
             frameIndex = 0
             cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
         }
-        os_unfair_lock_lock(&inferringLock)
-        isInferring = false
-        os_unfair_lock_unlock(&inferringLock)
+        inferenceDispatchLock.withLock { state in
+            state.isInferring = false
+            state.pendingSlot = nil
+            state.pendingHostTime = 0
+        }
     }
 
     fileprivate func recordCaptureInterval() {
@@ -620,43 +756,18 @@ final class PitchInputEngine: @unchecked Sendable {
 
     // MARK: - オーディオレンダースレッド
 
-    fileprivate func handleInputBuffer(
-        _ buffer: AVAudioPCMBuffer,
-        hostTime: UInt64,
-        converter: AVAudioConverter,
-        inputScratch: AVAudioPCMBuffer,
-        outputScratch: AVAudioPCMBuffer
+    fileprivate func handleConvertedSamples(
+        _ samples: UnsafePointer<Float>,
+        count: Int,
+        hostTime: UInt64
     ) {
-        let frameCount = Int(buffer.frameLength)
-        guard frameCount > 0,
-              frameCount <= Int(inputScratch.frameCapacity),
-              let src = buffer.floatChannelData?[0],
-              let scratchDst = inputScratch.floatChannelData?[0] else { return }
-
-        inputScratch.frameLength = AVAudioFrameCount(frameCount)
-        scratchDst.update(from: src, count: frameCount)
-
-        var conversionError: NSError?
-        var consumed = false
-        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-            if consumed {
-                outStatus.pointee = .noDataNow
-                return nil
-            }
-            consumed = true
-            outStatus.pointee = .haveData
-            return inputScratch
-        }
-        converter.convert(to: outputScratch, error: &conversionError, withInputFrom: inputBlock)
-        guard conversionError == nil,
-              let out = outputScratch.floatChannelData?[0] else { return }
+        guard count > 0 else { return }
 
         let chunkSize = Self.chunkSize
-        let outCount = Int(outputScratch.frameLength)
         var slotBase = chunkPool + poolSlot * chunkSize
 
-        for i in 0..<outCount {
-            slotBase[ringWriteIndex] = out[i]
+        for i in 0..<count {
+            slotBase[ringWriteIndex] = samples[i]
             ringWriteIndex += 1
             if ringWriteIndex >= chunkSize {
                 ringWriteIndex = 0
@@ -673,15 +784,16 @@ final class PitchInputEngine: @unchecked Sendable {
     }
 
     private func enqueueInference(slot: Int, hostTime: UInt64) {
-        os_unfair_lock_lock(&inferringLock)
-        if isInferring {
-            pendingInferenceSlot = slot
-            pendingInferenceHostTime = hostTime
-            os_unfair_lock_unlock(&inferringLock)
-            return
+        let shouldDispatch = inferenceDispatchLock.withLock { state -> Bool in
+            if state.isInferring {
+                state.pendingSlot = slot
+                state.pendingHostTime = hostTime
+                return false
+            }
+            state.isInferring = true
+            return true
         }
-        isInferring = true
-        os_unfair_lock_unlock(&inferringLock)
+        guard shouldDispatch else { return }
 
         inferenceQueue.async { [self] in
             drainInference(startSlot: slot, startHostTime: hostTime)
@@ -693,16 +805,18 @@ final class PitchInputEngine: @unchecked Sendable {
         var hostTime = startHostTime
         while true {
             runInference(slot: slot, hostTime: hostTime)
-            os_unfair_lock_lock(&inferringLock)
-            guard let nextSlot = pendingInferenceSlot else {
-                isInferring = false
-                os_unfair_lock_unlock(&inferringLock)
-                return
+            let next = inferenceDispatchLock.withLock { state -> (slot: Int, hostTime: UInt64)? in
+                guard let nextSlot = state.pendingSlot else {
+                    state.isInferring = false
+                    return nil
+                }
+                let nextHostTime = state.pendingHostTime
+                state.pendingSlot = nil
+                return (nextSlot, nextHostTime)
             }
-            slot = nextSlot
-            hostTime = pendingInferenceHostTime
-            pendingInferenceSlot = nil
-            os_unfair_lock_unlock(&inferringLock)
+            guard let next else { return }
+            slot = next.slot
+            hostTime = next.hostTime
         }
     }
 
@@ -748,13 +862,24 @@ final class PitchInputEngine: @unchecked Sendable {
             if let cacheOut = outputs["cache_out"] {
                 let data = try cacheOut.tensorData()
                 let byteCount = min(data.length, cacheCount * MemoryLayout<Float>.size)
-                memcpy(cacheBuffer, data.bytes, byteCount)
+                if !Self.copyFiniteFloats(from: data.bytes, byteCount: byteCount, into: cacheBuffer) {
+                    cacheBuffer.update(repeating: 0, count: cacheCount)
+                    return
+                }
+            }
+
+            let prediction = Double(readScalar(outputs["prediction"]))
+            let confidence = Double(readScalar(outputs["confidence"]))
+            let volume = Double(readScalar(outputs["volume"]))
+            guard prediction.isFinite, confidence.isFinite, volume.isFinite, volume >= 0 else {
+                cacheBuffer.update(repeating: 0, count: cacheCount)
+                return
             }
 
             let frame = PitchFrame(
-                prediction: Double(readScalar(outputs["prediction"])),
-                confidence: Double(readScalar(outputs["confidence"])),
-                volume: Double(readScalar(outputs["volume"]))
+                prediction: prediction,
+                confidence: confidence,
+                volume: volume
             )
 
             updateMonitorVolume(frame.volume)
@@ -784,7 +909,25 @@ final class PitchInputEngine: @unchecked Sendable {
         guard let value,
               let data = try? value.tensorData(),
               data.length >= MemoryLayout<Float>.size else { return 0 }
-        return data.bytes.assumingMemoryBound(to: Float.self).pointee
+        let scalar = data.bytes.assumingMemoryBound(to: Float.self).pointee
+        return scalar.isFinite ? scalar : 0
+    }
+
+    /// cache_out を cacheBuffer へコピー。非有限値が 1 つでもあれば false。
+    private static func copyFiniteFloats(
+        from bytes: UnsafeRawPointer,
+        byteCount: Int,
+        into destination: UnsafeMutablePointer<Float>
+    ) -> Bool {
+        let count = byteCount / MemoryLayout<Float>.size
+        guard count > 0 else { return false }
+        let source = bytes.assumingMemoryBound(to: Float.self)
+        for index in 0..<count {
+            let value = source[index]
+            guard value.isFinite else { return false }
+            destination[index] = value
+        }
+        return true
     }
 
     // MARK: - 通知
@@ -852,25 +995,39 @@ enum PitchInputEngineError: LocalizedError {
     }
 }
 
+private final class ConversionConsumedFlag {
+    var value = false
+}
+
 private final class CapturePipeline {
     let converter: AVAudioConverter
     let inputScratch: AVAudioPCMBuffer
     let outputScratch: AVAudioPCMBuffer
-    let inputFormat: AVAudioFormat
     unowned let engine: PitchInputEngine
+    private let conversionConsumed = ConversionConsumedFlag()
+    private let conversionInputBlock: AVAudioConverterInputBlock
 
     init(
         engine: PitchInputEngine,
         converter: AVAudioConverter,
-        inputFormat: AVAudioFormat,
         inputScratch: AVAudioPCMBuffer,
         outputScratch: AVAudioPCMBuffer
     ) {
         self.engine = engine
         self.converter = converter
-        self.inputFormat = inputFormat
         self.inputScratch = inputScratch
         self.outputScratch = outputScratch
+        let consumed = conversionConsumed
+        let scratch = inputScratch
+        self.conversionInputBlock = { _, outStatus in
+            if consumed.value {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            consumed.value = true
+            outStatus.pointee = .haveData
+            return scratch
+        }
     }
 
     func process(
@@ -878,18 +1035,47 @@ private final class CapturePipeline {
         frameCount: AVAudioFrameCount,
         bufferList: UnsafePointer<AudioBufferList>
     ) -> OSStatus {
-        guard frameCount > 0,
-              let buffer = AVAudioPCMBuffer(pcmFormat: inputFormat, bufferListNoCopy: bufferList) else {
+        guard frameCount > 0 else { return noErr }
+
+        let bufferListPointer = UnsafeMutableAudioBufferListPointer(
+            UnsafeMutablePointer(mutating: bufferList)
+        )
+        guard let firstBuffer = bufferListPointer.first,
+              let sourceBytes = firstBuffer.mData else {
             return noErr
         }
-        buffer.frameLength = frameCount
+
+        let availableSamples = Int(firstBuffer.mDataByteSize) / MemoryLayout<Float>.size
+        let copyCount = min(
+            Int(frameCount),
+            availableSamples,
+            Int(inputScratch.frameCapacity)
+        )
+        guard copyCount > 0,
+              let scratchDst = inputScratch.floatChannelData?[0] else {
+            return noErr
+        }
+
+        let source = sourceBytes.assumingMemoryBound(to: Float.self)
+        scratchDst.update(from: source, count: copyCount)
+        inputScratch.frameLength = AVAudioFrameCount(copyCount)
+
+        conversionConsumed.value = false
+        var conversionError: NSError?
+        converter.convert(to: outputScratch, error: &conversionError, withInputFrom: conversionInputBlock)
+        guard conversionError == nil,
+              let out = outputScratch.floatChannelData?[0] else {
+            return noErr
+        }
+
+        let outCount = Int(outputScratch.frameLength)
+        guard outCount > 0 else { return noErr }
+
         engine.recordCaptureInterval()
-        engine.handleInputBuffer(
-            buffer,
-            hostTime: timestamp.pointee.mHostTime,
-            converter: converter,
-            inputScratch: inputScratch,
-            outputScratch: outputScratch
+        engine.handleConvertedSamples(
+            out,
+            count: outCount,
+            hostTime: timestamp.pointee.mHostTime
         )
         return noErr
     }
