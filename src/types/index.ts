@@ -663,7 +663,7 @@ export interface LessonContext {
   lessonId: string;
   lessonSongId: string; // lesson_songs.id（進捗記録用）
   clearConditions: ClearConditions;
-  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson';
+  sourceType: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson' | 'defense';
 }
 
 export type EarTrainingGameState =
@@ -979,6 +979,16 @@ export interface VideoLessonStageRow {
   required_watch_ratio?: number;
 }
 
+/** `lesson_songs` からネスト取得する `defense_stages` 行（一覧・詳細表示用） */
+export interface DefenseStageRow {
+  id: string;
+  slug: string;
+  title: string;
+  title_en?: string | null;
+  survive_seconds?: number;
+  difficulty_level?: number;
+}
+
 export interface LessonSong {
   id: string;
   lesson_id: string;
@@ -991,6 +1001,9 @@ export interface LessonSong {
   is_video_lesson?: boolean;
   video_lesson_stage_id?: string | null;
   video_lesson_stage?: VideoLessonStageRow | null;
+  is_defense?: boolean;
+  defense_stage_id?: string | null;
+  defense_stage?: DefenseStageRow | null;
   is_fantasy: boolean;
   is_survival?: boolean;
   is_survival_tutorial?: boolean;

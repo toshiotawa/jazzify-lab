@@ -28,6 +28,9 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
             id, slug, title, title_en, video_url, video_url_en,
             duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
           ),
+          defense_stage:defense_stages (
+            id, slug, title, title_en, survive_seconds, difficulty_level
+          ),
           ear_training_stage:ear_training_stages (
             *,
             chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -105,6 +108,9 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
           id, slug, title, title_en, video_url, video_url_en,
           duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
         ),
+        defense_stage:defense_stages (
+          id, slug, title, title_en, survive_seconds, difficulty_level
+        ),
         ear_training_stage:ear_training_stages (
           *,
           chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -141,6 +147,9 @@ const LESSON_DETAIL_SELECT = `
     video_lesson_stage:video_lesson_stages (
       id, slug, title, title_en, video_url, video_url_en,
       duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
+    ),
+    defense_stage:defense_stages (
+      id, slug, title, title_en, survive_seconds, difficulty_level
     ),
     ear_training_stage:ear_training_stages (
       id,

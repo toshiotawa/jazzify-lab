@@ -38,7 +38,7 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
 import { grantAndToastUserBadges } from '@/utils/badgeToasts';
-import { Course, CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow, type EarTrainingMode, type VideoLessonStageRow } from '@/types';
+import { Course, CourseDifficultyTier, Lesson, LessonSong, type BalloonRushStageRow, type DefenseStageRow, type EarTrainingMode, type VideoLessonStageRow } from '@/types';
 import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import {
   getFirstBlock1LessonId,
@@ -309,6 +309,9 @@ const LessonDetailPage: React.FC = () => {
           is_video_lesson: ls.is_video_lesson,
           video_lesson_stage_id: ls.video_lesson_stage_id,
           video_lesson_stage: ls.video_lesson_stage,
+          is_defense: ls.is_defense,
+          defense_stage_id: ls.defense_stage_id,
+          defense_stage: ls.defense_stage,
           ear_training_stage: ls.ear_training_stage,
           ear_training_stage_id: ls.ear_training_stage_id,
           fantasy_stage: ls.fantasy_stage,
@@ -316,7 +319,7 @@ const LessonDetailPage: React.FC = () => {
           title: ls.title,
           title_en: ls.title_en,
           is_clear_required: ls.is_clear_required,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_video_lesson?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; video_lesson_stage_id?: string | null; video_lesson_stage?: VideoLessonStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_balloon_rush?: boolean; is_video_lesson?: boolean; is_defense?: boolean; is_ear_training?: boolean; balloon_rush_stage_id?: string | null; balloon_rush_stage?: BalloonRushStageRow | null; video_lesson_stage_id?: string | null; video_lesson_stage?: VideoLessonStageRow | null; defense_stage_id?: string | null; defense_stage?: DefenseStageRow | null; survival_random_chords?: import('@/types').SurvivalLessonRandomChordEntry[]; survival_stage_number?: number; survival_map_category?: 'basic' | 'songs' | 'phrases' | 'lesson' | null; fantasy_stage?: unknown; fantasy_stage_id?: string; ear_training_stage?: unknown; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -473,6 +476,7 @@ const LessonDetailPage: React.FC = () => {
       is_ear_training?: boolean;
       is_balloon_rush?: boolean;
       is_video_lesson?: boolean;
+      is_defense?: boolean;
     };
     const isFantasy = extended.is_fantasy || false;
     const isSurvivalTutorial = extended.is_survival_tutorial || false;
@@ -481,9 +485,10 @@ const LessonDetailPage: React.FC = () => {
     const isEarTraining = extended.is_ear_training || isEarTrainingTutorial || false;
     const isBalloonRush = extended.is_balloon_rush === true;
     const isVideoLesson = extended.is_video_lesson === true;
+    const isDefense = extended.is_defense === true;
 
     if (
-      (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson)
+      (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson || isDefense)
       && !isPremiumMember
       && !(
         lessonCourseMeta
@@ -512,6 +517,10 @@ const LessonDetailPage: React.FC = () => {
       } else if (isVideoLesson) {
         toast.warning(
           isEnglishCopy ? 'Video lesson stage is not configured.' : '動画視聴ステージが設定されていません。',
+        );
+      } else if (isDefense) {
+        toast.warning(
+          isEnglishCopy ? 'Defense stage is not configured.' : 'ディフェンスステージが設定されていません。',
         );
       }
       return;
@@ -1270,6 +1279,7 @@ const LessonDetailPage: React.FC = () => {
                     const isEarTraining = req.is_ear_training || isEarTrainingTutorial || false;
                     const isBalloonRush = req.is_balloon_rush === true;
                     const isVideoLesson = req.is_video_lesson === true;
+                    const isDefense = req.is_defense === true;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -1383,6 +1393,25 @@ const LessonDetailPage: React.FC = () => {
                             <div className="mb-3 text-sm">
                               <div className="text-gray-400 text-xs mt-1">{lines.taskTypeLine}</div>
                               <div className="text-gray-400 text-xs mt-1">{lines.clearLine}</div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* ディフェンス */}
+                        {isDefense && (() => {
+                          const ds = req.defense_stage as DefenseStageRow | undefined | null;
+                          const surviveSec = ds?.survive_seconds ?? 120;
+                          return (
+                            <div className="mb-3 text-sm">
+                              <div className="text-gray-400 text-xs mt-1">
+                                {isEnglishCopy ? 'Task type: Defense' : '課題タイプ: ディフェンス'}
+                                {ds?.difficulty_level ? ` (Lv.${ds.difficulty_level})` : ''}
+                              </div>
+                              <div className="text-gray-400 text-xs mt-1">
+                                {isEnglishCopy
+                                  ? `Clear: survive ${surviveSec}s (performance mode)`
+                                  : `クリア条件: 本番モードで${surviveSec}秒生存`}
+                              </div>
                             </div>
                           );
                         })()}

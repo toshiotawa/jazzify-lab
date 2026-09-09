@@ -307,6 +307,31 @@ struct VideoLessonStageSummary: Codable, Identifiable, Sendable {
     }
 }
 
+/// `lesson_songs` からネストで取得する `defense_stages` の要約（一覧・詳細表示用）。
+struct DefenseStageSummary: Codable, Identifiable, Sendable {
+    let id: UUID
+    let slug: String?
+    let title: String
+    let titleEn: String?
+    let surviveSeconds: Int?
+    let difficultyLevel: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug, title
+        case titleEn = "title_en"
+        case surviveSeconds = "survive_seconds"
+        case difficultyLevel = "difficulty_level"
+    }
+
+    func localizedTitle(_ locale: AppLocale) -> String {
+        if locale == .en {
+            let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? title : en
+        }
+        return title
+    }
+}
+
 struct LessonSong: Codable, Identifiable, Sendable {
     let id: UUID
     let lessonId: UUID
@@ -317,6 +342,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let balloonRushStageId: UUID?
     let isVideoLesson: Bool?
     let videoLessonStageId: UUID?
+    let isDefense: Bool?
+    let defenseStageId: UUID?
     let isFantasy: Bool
     let isSurvival: Bool?
     let isSurvivalTutorial: Bool?
@@ -343,6 +370,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let earTrainingStage: EarTrainingStage?
     let balloonRushStage: BalloonRushStageSummary?
     let videoLessonStage: VideoLessonStageSummary?
+    let defenseStage: DefenseStageSummary?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -357,6 +385,9 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case isVideoLesson = "is_video_lesson"
         case videoLessonStageId = "video_lesson_stage_id"
         case videoLessonStage
+        case isDefense = "is_defense"
+        case defenseStageId = "defense_stage_id"
+        case defenseStage
         case isFantasy = "is_fantasy"
         case isSurvival = "is_survival"
         case isSurvivalTutorial = "is_survival_tutorial"

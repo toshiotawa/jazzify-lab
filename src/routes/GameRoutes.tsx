@@ -17,6 +17,7 @@ const LazyEarTrainingTimingAdjustmentMain = React.lazy(
   () => import('@/components/earTraining/tutorial/EarTrainingTimingAdjustmentMain'),
 );
 const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/BalloonRushMain'));
+const LazyDefenseMain = React.lazy(() => import('@/components/defense/DefenseMain'));
 const LazyVideoLessonMain = React.lazy(() => import('@/components/videoLesson/VideoLessonMain'));
 
 interface GameRoutesProps {
@@ -95,6 +96,14 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       element={
         <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyEarTrainingTimingAdjustmentMain />
+        </React.Suspense>
+      }
+    />
+    <Route
+      path="defense"
+      element={
+        <React.Suspense fallback={<LoadingScreen compact />}>
+          <LazyDefenseMain />
         </React.Suspense>
       }
     />

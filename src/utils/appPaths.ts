@@ -51,6 +51,7 @@ export const APP_HASH_BASES = new Set([
   '#survival',
   '#survival-lesson',
   '#survival-tutorial-lesson',
+  '#defense-lesson',
   '#balloon-rush-lesson',
 ]);
 

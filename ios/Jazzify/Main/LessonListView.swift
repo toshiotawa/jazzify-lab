@@ -1258,6 +1258,23 @@ private struct VideoLessonLaunch: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// ディフェンス課題の練習/本番選択用（ステージ・難易度は読み込み済み）。
+private struct DefensePrepContext: Identifiable {
+    let id = UUID()
+    let stage: DefenseStageDefinition
+    let difficulty: DefenseDifficultyDefinition
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
+/// ディフェンス課題（ネイティブ `DefenseGameView`）の起動コンテキスト。
+private struct DefenseLessonLaunch: Identifiable {
+    let id = UUID()
+    let prep: DefensePrepContext
+    let practiceMode: Bool
+}
+
 /// 風船ラッシュ開始前の準備シート用。
 private struct BalloonRushPrepContext: Identifiable {
     let id = UUID()
@@ -1322,6 +1339,8 @@ struct LessonDetailView: View {
     @State private var balloonRushPrep: BalloonRushPrepContext?
     @State private var balloonRushLessonLaunch: BalloonRushLessonLaunch?
     @State private var videoLessonLaunch: VideoLessonLaunch?
+    @State private var defensePrep: DefensePrepContext?
+    @State private var defenseLessonLaunch: DefenseLessonLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1408,6 +1427,7 @@ struct LessonDetailView: View {
             || survivalLessonLaunch != nil
             || balloonRushLessonLaunch != nil
             || videoLessonLaunch != nil
+            || defenseLessonLaunch != nil
     }
 
     private var hasActivePresentation: Bool {
@@ -1421,6 +1441,7 @@ struct LessonDetailView: View {
             || taskClearNextStepTarget != nil
             || survivalLessonPrep != nil
             || balloonRushPrep != nil
+            || defensePrep != nil
     }
 
     private var sortedRequirements: [LessonSong] {
@@ -1801,6 +1822,45 @@ struct LessonDetailView: View {
                     }
                 )
             }
+            .confirmationDialog(
+                locale == .ja ? "ディフェンス" : "Defense",
+                isPresented: Binding(
+                    get: { defensePrep != nil },
+                    set: { if !$0 { defensePrep = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: defensePrep
+            ) { prep in
+                Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
+                    defensePrep = nil
+                    defenseLessonLaunch = DefenseLessonLaunch(prep: prep, practiceMode: true)
+                }
+                Button(locale == .ja ? "本番" : "Performance") {
+                    defensePrep = nil
+                    defenseLessonLaunch = DefenseLessonLaunch(prep: prep, practiceMode: false)
+                }
+                Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
+                    defensePrep = nil
+                }
+            } message: { prep in
+                Text(locale == .ja
+                     ? "\(prep.stage.title) — \(prep.stage.surviveSeconds)秒生存でクリア"
+                     : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — survive \(prep.stage.surviveSeconds)s")
+            }
+            .fullScreenCover(item: $defenseLessonLaunch) { launch in
+                DefenseGameView(
+                    stage: launch.prep.stage,
+                    difficulty: launch.prep.difficulty,
+                    practiceMode: launch.practiceMode,
+                    lessonContext: DefenseLessonContext(
+                        lessonId: launch.prep.lessonId,
+                        lessonSongId: launch.prep.lessonSongId,
+                        clearConditions: launch.prep.clearConditions
+                    ),
+                    locale: locale,
+                    onClose: { defenseLessonLaunch = nil }
+                )
+            }
     }
 
     @ViewBuilder
@@ -2173,6 +2233,23 @@ struct LessonDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.gray)
                     Text("\(clearPrefix): \(clearBody)")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+            }
+
+            if requirement.isDefense == true, let ds = requirement.defenseStage {
+                let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
+                let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
+                let level = ds.difficultyLevel.map { " (Lv.\($0))" } ?? ""
+                let surviveSec = ds.surviveSeconds ?? 120
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(taskPrefix): \(locale == .ja ? "ディフェンス" : "Defense")\(level)")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text("\(clearPrefix): \(locale == .ja ? "本番モードで\(surviveSec)秒生存" : "survive \(surviveSec)s in performance mode")")
                         .font(.caption2)
                         .foregroundStyle(.gray)
                 }
@@ -3192,6 +3269,9 @@ struct LessonDetailView: View {
         if requirement.isVideoLesson == true, let vs = requirement.videoLessonStage {
             return "\(index + 1). \(vs.localizedTitle(locale))"
         }
+        if requirement.isDefense == true, let ds = requirement.defenseStage {
+            return "\(index + 1). \(ds.localizedTitle(locale))"
+        }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
     }
 
@@ -3249,6 +3329,9 @@ struct LessonDetailView: View {
             return slug
         }
         if requirement.isVideoLesson == true, let slug = requirement.videoLessonStage?.slug, !slug.isEmpty {
+            return slug
+        }
+        if requirement.isDefense == true, let slug = requirement.defenseStage?.slug, !slug.isEmpty {
             return slug
         }
         return requirement.id.uuidString
@@ -3502,6 +3585,47 @@ struct LessonDetailView: View {
                         alertMessage = locale == .ja
                             ? "風船ラッシュステージの読み込みに失敗しました。"
                             : "Failed to load balloon rush stage."
+                    }
+                }
+            }
+            return
+        }
+
+        if requirement.isDefense == true {
+            guard let stageId = requirement.defenseStage?.id ?? requirement.defenseStageId else {
+                alertMessage = locale == .ja
+                    ? "ディフェンスステージが設定されていません。"
+                    : "Defense stage is not configured."
+                return
+            }
+            Task {
+                do {
+                    guard let stage = try await SupabaseService.shared.fetchDefenseStageDetail(stageId: stageId.uuidString.lowercased()),
+                          !stage.phrases.isEmpty,
+                          let difficulty = try await SupabaseService.shared.fetchDefenseDifficultyLevel(level: stage.difficultyLevel)
+                    else {
+                        await MainActor.run {
+                            alertMessage = locale == .ja
+                                ? "ディフェンスステージを読み込めませんでした。"
+                                : "Could not load the defense stage."
+                        }
+                        return
+                    }
+                    await MainActor.run {
+                        LessonMapAudio.shared.stopImmediately()
+                        defensePrep = DefensePrepContext(
+                            stage: stage,
+                            difficulty: difficulty,
+                            lessonId: activeLesson.id,
+                            lessonSongId: requirement.id,
+                            clearConditions: requirement.clearConditions
+                        )
+                    }
+                } catch {
+                    await MainActor.run {
+                        alertMessage = locale == .ja
+                            ? "ディフェンスステージの読み込みに失敗しました。"
+                            : "Failed to load defense stage."
                     }
                 }
             }

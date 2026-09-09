@@ -61,6 +61,23 @@ describe('buildLessonRequirementLaunchHash', () => {
     expect(hash).toBeNull();
   });
 
+  it('returns defense lesson hash', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_defense: true,
+      defense_stage_id: 'df-stage-1',
+    }));
+    expect(hash).toContain('#defense-lesson?');
+    expect(hash).toContain('stageId=df-stage-1');
+    expect(hash).toContain('lessonSongId=ls-1');
+  });
+
+  it('returns null for defense without stage id', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_defense: true,
+    }));
+    expect(hash).toBeNull();
+  });
+
   it('returns ear training lesson hash', () => {
     const hash = buildLessonRequirementLaunchHash(baseReq({
       is_ear_training: true,

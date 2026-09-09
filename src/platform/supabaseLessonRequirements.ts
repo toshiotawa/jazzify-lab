@@ -54,7 +54,7 @@ export async function updateLessonRequirementProgress(
   rank: string,
   clearConditions: ClearConditions | Record<string, unknown>,
   options?: {
-    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson';
+    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson' | 'defense';
     lessonSongId?: string;
   }
 ): Promise<boolean> {
@@ -93,7 +93,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, is_ear_training_tutorial, is_video_lesson, ear_training_stage_id, is_clear_required')
+    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, is_ear_training_tutorial, is_video_lesson, is_defense, ear_training_stage_id, is_clear_required')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;
@@ -143,6 +143,9 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
       video_lesson_stage:video_lesson_stages (
         id, slug, title, title_en, video_url, video_url_en,
         duration_sec, duration_en_sec, thumbnail_url, thumbnail_url_en, required_watch_ratio
+      ),
+      defense_stage:defense_stages (
+        id, slug, title, title_en, survive_seconds, difficulty_level
       )
     `)
     .eq('lesson_id', lessonId)

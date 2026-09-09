@@ -229,7 +229,7 @@ const drawBackground = (
   drawCachedBackground(ctx, width, height, runtime.backgroundCache, runtime.loadedImages, runtime.timingCalibrationLayout);
 };
 
-const drawHpBar = (
+export const drawHpBar = (
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,

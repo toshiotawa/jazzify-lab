@@ -459,6 +459,14 @@ final class SupabaseService: Sendable {
                     thumbnail_url_en,
                     required_watch_ratio
                 ),
+                defenseStage:defense_stages (
+                    id,
+                    slug,
+                    title,
+                    title_en,
+                    survive_seconds,
+                    difficulty_level
+                ),
                 earTrainingStage:ear_training_stages (*)
             )
             """)
@@ -1923,6 +1931,228 @@ final class SupabaseService: Sendable {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw SupabaseServiceError.serverError(statusCode: httpResponse.statusCode, message: body)
         }
+    }
+
+    // MARK: - Defense mode
+
+    func fetchDefenseStageDetail(stageId: String) async throws -> DefenseStageDefinition? {
+        struct StageRow: Decodable {
+            let id: String
+            let slug: String
+            let stage_number: Int
+            let title: String
+            let title_en: String
+            let bpm: Double
+            let beats_per_bar: Int
+            let phrase_bars: Int
+            let staff_layout: String
+            let key_fifths: Int
+            let required_completion_count: Int
+            let difficulty_level: Int
+            let survive_seconds: Int
+            let player_hp: Int
+            let production_staff_hint_mode: String
+            let production_keyboard_hint_mode: String
+        }
+        struct PhraseRow: Decodable {
+            let id: String
+            let order_index: Int
+            let title: String
+            let audio_url: String
+            let key_fifths: Int?
+            let required_completion_count: Int?
+        }
+        struct ChordRow: Decodable {
+            let id: String
+            let phrase_id: String
+            let order_index: Int
+            let chord_name: String
+            let measure_number: Int
+        }
+        struct NoteRow: Decodable {
+            let chord_id: String
+            let order_index: Int
+            let pitch_midi: Int
+            let pitch_class: Int
+            let note_name: String
+            let staff: Int
+            let step_index: Int?
+        }
+
+        let stages: [StageRow] = try await client
+            .from("defense_stages")
+            .select("""
+                id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
+                staff_layout, key_fifths, required_completion_count, difficulty_level,
+                survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
+            """)
+            .eq("id", value: stageId)
+            .limit(1)
+            .execute()
+            .value
+        guard let stage = stages.first else { return nil }
+
+        let phraseRows: [PhraseRow] = try await client
+            .from("defense_phrases")
+            .select("id, order_index, title, audio_url, key_fifths, required_completion_count")
+            .eq("stage_id", value: stageId)
+            .order("order_index")
+            .execute()
+            .value
+        guard !phraseRows.isEmpty else { return nil }
+
+        let phraseIds = phraseRows.map(\.id)
+        let chordRows: [ChordRow] = try await client
+            .from("defense_phrase_chords")
+            .select("id, phrase_id, order_index, chord_name, measure_number")
+            .in("phrase_id", values: phraseIds)
+            .order("order_index")
+            .execute()
+            .value
+
+        let chordIds = chordRows.map(\.id)
+        let noteRows: [NoteRow] = chordIds.isEmpty ? [] : try await client
+            .from("defense_phrase_chord_notes")
+            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index")
+            .in("chord_id", values: chordIds)
+            .order("order_index")
+            .execute()
+            .value
+
+        var notesByChord: [String: [SurvivalPhraseChordNote]] = [:]
+        for row in noteRows {
+            let note = SurvivalPhraseChordNote(
+                orderIndex: row.order_index,
+                pitchMidi: row.pitch_midi,
+                pitchClass: row.pitch_class,
+                noteName: row.note_name,
+                staff: row.staff,
+                stepIndex: row.step_index
+            )
+            notesByChord[row.chord_id, default: []].append(note)
+        }
+
+        var chordsByPhrase: [String: [SurvivalPhraseChord]] = [:]
+        for row in chordRows {
+            let chord = SurvivalPhraseChord(
+                id: row.id,
+                orderIndex: row.order_index,
+                chordName: row.chord_name,
+                measureNumber: row.measure_number,
+                notes: notesByChord[row.id] ?? []
+            )
+            chordsByPhrase[row.phrase_id, default: []].append(chord)
+        }
+
+        let phrases = phraseRows.map { row in
+            DefensePhraseDefinition(
+                id: row.id,
+                orderIndex: row.order_index,
+                title: row.title,
+                audioUrl: row.audio_url,
+                keyFifths: row.key_fifths,
+                requiredCompletionCount: row.required_completion_count,
+                chords: chordsByPhrase[row.id] ?? []
+            )
+        }
+
+        return DefenseStageDefinition(
+            id: stage.id,
+            slug: stage.slug,
+            stageNumber: stage.stage_number,
+            title: stage.title,
+            titleEn: stage.title_en,
+            bpm: stage.bpm,
+            beatsPerBar: stage.beats_per_bar,
+            phraseBars: stage.phrase_bars,
+            staffLayout: stage.staff_layout == "grand" ? .grand : .treble,
+            keyFifths: stage.key_fifths,
+            requiredCompletionCount: stage.required_completion_count,
+            difficultyLevel: stage.difficulty_level,
+            surviveSeconds: stage.survive_seconds,
+            playerHp: stage.player_hp,
+            productionStaffHintMode: stage.production_staff_hint_mode,
+            productionKeyboardHintMode: stage.production_keyboard_hint_mode,
+            phrases: phrases
+        )
+    }
+
+    func fetchDefenseDifficultyLevel(level: Int) async throws -> DefenseDifficultyDefinition? {
+        struct Row: Decodable {
+            let level: Int
+            let enemy_hp: Int
+            let spawn_interval_sec: Double
+            let max_enemies: Int
+            let enemy_speed_px_per_sec: Double
+            let enemy_damage: Int
+            let attack_interval_sec: Double
+            let attack_range_px: Double
+        }
+        let rows: [Row] = try await client
+            .from("defense_difficulty_levels")
+            .select("""
+                level, enemy_hp, spawn_interval_sec, max_enemies,
+                enemy_speed_px_per_sec, enemy_damage, attack_interval_sec, attack_range_px
+            """)
+            .eq("level", value: level)
+            .limit(1)
+            .execute()
+            .value
+        guard let row = rows.first else { return nil }
+        return DefenseDifficultyDefinition(
+            level: row.level,
+            enemyHp: row.enemy_hp,
+            spawnIntervalSec: row.spawn_interval_sec,
+            maxEnemies: row.max_enemies,
+            enemySpeedPxPerSec: row.enemy_speed_px_per_sec,
+            enemyDamage: row.enemy_damage,
+            attackIntervalSec: row.attack_interval_sec,
+            attackRangePx: row.attack_range_px
+        )
+    }
+
+    func upsertDefenseStageClear(
+        userId: UUID,
+        stageId: String,
+        surviveSec: Int,
+        enemiesDefeated: Int
+    ) async throws -> Bool {
+        struct Existing: Decodable { let id: String; let clear_count: Int? }
+        struct ClearUpsert: Encodable {
+            let user_id: UUID
+            let stage_id: String
+            let best_survive_sec: Int
+            let best_enemies_defeated: Int
+            let cleared_at: String
+            let clear_count: Int
+        }
+
+        let existing: [Existing] = try await client
+            .from("defense_stage_clears")
+            .select("id, clear_count")
+            .eq("user_id", value: userId.uuidString)
+            .eq("stage_id", value: stageId)
+            .limit(1)
+            .execute()
+            .value
+        let isFirst = existing.isEmpty
+        let priorClearCount = existing.first?.clear_count ?? 1
+        let nextClearCount = isFirst ? 1 : max(2, priorClearCount + 1)
+        try await client
+            .from("defense_stage_clears")
+            .upsert(
+                ClearUpsert(
+                    user_id: userId,
+                    stage_id: stageId,
+                    best_survive_sec: surviveSec,
+                    best_enemies_defeated: enemiesDefeated,
+                    cleared_at: ISO8601DateFormatter().string(from: Date()),
+                    clear_count: nextClearCount
+                ),
+                onConflict: "user_id,stage_id"
+            )
+            .execute()
+        return isFirst
     }
 }
 

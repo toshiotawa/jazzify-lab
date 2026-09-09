@@ -21,6 +21,9 @@ export type LessonRequirementLaunchInput = LessonRequirement & {
   is_video_lesson?: boolean;
   video_lesson_stage_id?: string | null;
   video_lesson_stage?: { id?: string } | null;
+  is_defense?: boolean;
+  defense_stage_id?: string | null;
+  defense_stage?: { id?: string } | null;
   ear_training_stage?: { id?: string } | null;
   ear_training_stage_id?: string | null;
   fantasy_stage?: { id?: string } | null;
@@ -39,6 +42,20 @@ export function buildLessonRequirementLaunchHash(req: LessonRequirementLaunchInp
   const isBalloonRush = req.is_balloon_rush === true;
   const isFantasy = req.is_fantasy === true;
   const isVideoLesson = req.is_video_lesson === true;
+  const isDefense = req.is_defense === true;
+
+  if (isDefense) {
+    const stageId = req.defense_stage?.id ?? req.defense_stage_id ?? '';
+    if (!stageId) {
+      return null;
+    }
+    const params = new URLSearchParams();
+    params.set('lessonId', req.lesson_id);
+    params.set('lessonSongId', req.lesson_song_id ?? '');
+    params.set('stageId', stageId);
+    params.set('clearConditions', JSON.stringify(req.clear_conditions));
+    return `#defense-lesson?${params.toString()}`;
+  }
 
   if (isSurvivalTutorial) {
     const params = new URLSearchParams();
