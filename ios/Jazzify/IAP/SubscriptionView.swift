@@ -233,6 +233,7 @@ struct SubscriptionView: View {
             VStack(spacing: 4) {
                 featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエスト全チャプター・目的別コースなどすべてのクエスト" : "All Main Quest chapters, topic courses, and quests")
                 featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
+                featureRow(icon: "dumbbell.fill", text: locale == .ja ? "トレーニング全カテゴリ" : "All Training categories")
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
             }
         }
@@ -280,6 +281,7 @@ struct SubscriptionView: View {
 
                 featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエスト全チャプター・目的別コースなどすべてのクエスト" : "All Main Quest chapters, topic courses, and quests")
                 featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
+                featureRow(icon: "dumbbell.fill", text: locale == .ja ? "トレーニング全カテゴリ" : "All Training categories")
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
             }
             .padding()
@@ -692,6 +694,7 @@ struct SubscriptionView: View {
         VStack(spacing: 8) {
             featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエスト全チャプター・目的別コースなどすべてのクエスト" : "All Main Quest chapters, topic courses, and quests")
             featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
+            featureRow(icon: "dumbbell.fill", text: locale == .ja ? "トレーニング全カテゴリ" : "All Training categories")
             featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
         }
         .padding()
@@ -705,6 +708,7 @@ struct SubscriptionView: View {
             featureRow(icon: "music.note.list", text: locale == .ja ? "メインクエストの全チャプター" : "All Main Quest chapters")
             featureRow(icon: "waveform.path", text: locale == .ja ? "ブルースで使える音・リズム・コードを段階的に習得" : "Learn blues notes, rhythm, and chords step by step")
             featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "サバイバルで繰り返し実践" : "Practice repeatedly in Survival")
+            featureRow(icon: "dumbbell.fill", text: locale == .ja ? "トレーニングでスコアを伸ばす" : "Improve your scores in Training")
             featureRow(icon: "chart.bar.fill", text: locale == .ja ? "学習記録を保存" : "Save your learning records")
         }
         .padding()

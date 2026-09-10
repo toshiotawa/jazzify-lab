@@ -6,6 +6,7 @@ export type PaywallSource =
   | 'lesson_list'
   | 'resume_modal'
   | 'survival'
+  | 'training'
   | 'pricing_table'
   | 'account_modal';
 

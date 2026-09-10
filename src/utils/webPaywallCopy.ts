@@ -57,6 +57,7 @@ const COPY = {
       '初心者向けメインクエストを最後まで進められる',
       'アドリブ・両手ヴォイシングなど目的別に練習できる',
       'サバイバル全ステージで反復練習できる',
+      'トレーニング全カテゴリで反復練習できる',
       '学習記録で成長を確認できる',
     ],
     chapterCompleteFeatures: [
@@ -93,6 +94,7 @@ const COPY = {
       'Finish the beginner Main Quest from start to end',
       'Practice by goal—improv, two-hand voicings, and more',
       'Drill every Survival stage tier',
+      'Unlock every Training category',
       'Track your progress with learning records',
     ],
     chapterCompleteFeatures: [

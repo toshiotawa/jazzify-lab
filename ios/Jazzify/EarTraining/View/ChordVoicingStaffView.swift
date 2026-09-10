@@ -487,8 +487,26 @@ struct ChordVoicingStaffView: View {
     let voicing: [String]
     let voicingStaves: [Int]
     let chordName: String
-    let keyFifths: Int = 0
-    let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
+    let keyFifths: Int
+    let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout
+    /// Web `ChordVoicingStaff.ignoreNotationInstrument` と同等。true のとき記譜楽器オフセットを無視する。
+    let ignoreNotationInstrument: Bool
+
+    init(
+        voicing: [String],
+        voicingStaves: [Int],
+        chordName: String,
+        keyFifths: Int = 0,
+        noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow,
+        ignoreNotationInstrument: Bool = false
+    ) {
+        self.voicing = voicing
+        self.voicingStaves = voicingStaves
+        self.chordName = chordName
+        self.keyFifths = keyFifths
+        self.noteCollisionLayout = noteCollisionLayout
+        self.ignoreNotationInstrument = ignoreNotationInstrument
+    }
 
     @State private var simplifyEnharmonics = EnharmonicDisplayPreferences.load()
 
@@ -961,6 +979,8 @@ struct ChordVoicingStaffGroupsView: View {
     let staffSpacingScale: CGFloat
     /// 指定時は現フレームの音符有無に関わらず 1|2 段表示を固定する（demo シーン向け）。
     let fixedActiveStaves: [Int]?
+    /// Web `ChordVoicingStaff.ignoreNotationInstrument` と同等。
+    let ignoreNotationInstrument: Bool
 
     @State private var simplifyEnharmonics = EnharmonicDisplayPreferences.load()
 
@@ -984,7 +1004,8 @@ struct ChordVoicingStaffGroupsView: View {
         fadeAllMeasureNotes: Bool = false,
         alwaysShowTopPointer: Bool = false,
         staffSpacingScale: CGFloat = 1,
-        fixedActiveStaves: [Int]? = nil
+        fixedActiveStaves: [Int]? = nil,
+        ignoreNotationInstrument: Bool = false
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -1006,6 +1027,12 @@ struct ChordVoicingStaffGroupsView: View {
         self.alwaysShowTopPointer = alwaysShowTopPointer
         self.staffSpacingScale = staffSpacingScale
         self.fixedActiveStaves = fixedActiveStaves
+        self.ignoreNotationInstrument = ignoreNotationInstrument
+    }
+
+    private var effectiveKeyFifths: Int {
+        // iOS では記譜楽器プリセット未実装。将来オフセット適用時も ignoreNotationInstrument で抑制する。
+        ignoreNotationInstrument ? keyFifths : keyFifths
     }
 
     private var effectiveUnpressedNoteOpacity: CGFloat {

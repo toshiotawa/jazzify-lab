@@ -106,6 +106,8 @@ const AppShell: React.FC = () => {
         '#survival-lesson',
         '#survival-tutorial-lesson',
         '#defense-lesson',
+        '#training',
+        '#training-lesson',
         '#balloon-rush-lesson',
         '#ear-training-lesson',
         '#ear-training-tutorial-lesson',

@@ -152,6 +152,8 @@ export type ScaleType =
   | 'whole_half_diminished'    // Whole Half Diminished
   | 'lydian_dominant'          // リディアン7th (Lydian Dominant)
   | 'mixolydian_b6'            // ミクソリディアン♭6th
+  | 'locrian_natural2'         // ロクリアン♮2
+  | 'whole_tone'               // ホールトーン
   | 'major_pentatonic'         // メジャーペンタトニック
   | 'minor_pentatonic';        // マイナーペンタトニック
 
@@ -206,6 +208,12 @@ export const SCALE_TEMPLATES: Record<ScaleType, string[]> = {
   
   // ミクソリディアン♭6th
   'mixolydian_b6': ['1P', '2M', '3M', '4P', '5P', '6m', '7m'],
+
+  // ロクリアン♮2
+  'locrian_natural2': ['1P', '2M', '3m', '4P', '5d', '6m', '7m'],
+
+  // ホールトーン
+  'whole_tone': ['1P', '2M', '3M', '4A', '5A', '6M'],
   
   // メジャーペンタトニック
   'major_pentatonic': ['1P', '2M', '3M', '5P', '6M'],

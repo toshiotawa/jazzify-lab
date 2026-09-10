@@ -312,6 +312,9 @@ const LessonDetailPage: React.FC = () => {
           is_defense: ls.is_defense,
           defense_stage_id: ls.defense_stage_id,
           defense_stage: ls.defense_stage,
+          is_training: ls.is_training,
+          training_id: ls.training_id,
+          training: ls.training,
           ear_training_stage: ls.ear_training_stage,
           ear_training_stage_id: ls.ear_training_stage_id,
           fantasy_stage: ls.fantasy_stage,
@@ -477,6 +480,7 @@ const LessonDetailPage: React.FC = () => {
       is_balloon_rush?: boolean;
       is_video_lesson?: boolean;
       is_defense?: boolean;
+      is_training?: boolean;
     };
     const isFantasy = extended.is_fantasy || false;
     const isSurvivalTutorial = extended.is_survival_tutorial || false;
@@ -486,9 +490,10 @@ const LessonDetailPage: React.FC = () => {
     const isBalloonRush = extended.is_balloon_rush === true;
     const isVideoLesson = extended.is_video_lesson === true;
     const isDefense = extended.is_defense === true;
+    const isTraining = extended.is_training === true;
 
     if (
-      (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson || isDefense)
+      (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson || isDefense || isTraining)
       && !isPremiumMember
       && !(
         lessonCourseMeta
@@ -521,6 +526,10 @@ const LessonDetailPage: React.FC = () => {
       } else if (isDefense) {
         toast.warning(
           isEnglishCopy ? 'Defense stage is not configured.' : 'ディフェンスステージが設定されていません。',
+        );
+      } else if (isTraining) {
+        toast.warning(
+          isEnglishCopy ? 'Training is not configured.' : 'トレーニングが設定されていません。',
         );
       }
       return;
@@ -1280,6 +1289,7 @@ const LessonDetailPage: React.FC = () => {
                     const isBalloonRush = req.is_balloon_rush === true;
                     const isVideoLesson = req.is_video_lesson === true;
                     const isDefense = req.is_defense === true;
+                    const isTraining = req.is_training === true;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -1412,6 +1422,29 @@ const LessonDetailPage: React.FC = () => {
                                   ? `Clear: survive ${surviveSec}s (performance mode)`
                                   : `クリア条件: 本番モードで${surviveSec}秒生存`}
                               </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* トレーニング */}
+                        {isTraining && (() => {
+                          const tr = req.training as { title_ja?: string; title_en?: string | null } | undefined | null;
+                          const rank = req.clear_conditions?.rank ?? 'C';
+                          return (
+                            <div className="mb-3 text-sm">
+                              <div className="text-gray-400 text-xs mt-1">
+                                {isEnglishCopy ? 'Task type: Training' : '課題タイプ: トレーニング'}
+                              </div>
+                              <div className="text-gray-400 text-xs mt-1">
+                                {isEnglishCopy
+                                  ? `Clear: rank ${rank} or better in 1-minute production mode`
+                                  : `クリア条件: 本番モード1分でランク${rank}以上`}
+                              </div>
+                              {tr && (
+                                <div className="text-gray-400 text-xs mt-1">
+                                  {isEnglishCopy ? (tr.title_en ?? tr.title_ja) : tr.title_ja}
+                                </div>
+                              )}
                             </div>
                           );
                         })()}

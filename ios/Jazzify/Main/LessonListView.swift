@@ -1275,6 +1275,26 @@ private struct DefenseLessonLaunch: Identifiable {
     let practiceMode: Bool
 }
 
+/// トレーニング課題の練習/本番選択用。
+private struct TrainingPrepContext: Identifiable {
+    let id = UUID()
+    let trainingId: UUID
+    let trainingTitle: String
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
+/// トレーニング課題（ネイティブ `TrainingListView`）の起動コンテキスト。
+private struct TrainingLessonLaunch: Identifiable {
+    let id = UUID()
+    let trainingId: UUID
+    let practiceMode: Bool
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 /// 風船ラッシュ開始前の準備シート用。
 private struct BalloonRushPrepContext: Identifiable {
     let id = UUID()
@@ -1341,6 +1361,8 @@ struct LessonDetailView: View {
     @State private var videoLessonLaunch: VideoLessonLaunch?
     @State private var defensePrep: DefensePrepContext?
     @State private var defenseLessonLaunch: DefenseLessonLaunch?
+    @State private var trainingPrep: TrainingPrepContext?
+    @State private var trainingLessonLaunch: TrainingLessonLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1442,6 +1464,8 @@ struct LessonDetailView: View {
             || survivalLessonPrep != nil
             || balloonRushPrep != nil
             || defensePrep != nil
+            || trainingPrep != nil
+            || trainingLessonLaunch != nil
     }
 
     private var sortedRequirements: [LessonSong] {
@@ -1861,6 +1885,54 @@ struct LessonDetailView: View {
                     onClose: { defenseLessonLaunch = nil }
                 )
             }
+            .confirmationDialog(
+                locale == .ja ? "トレーニング" : "Training",
+                isPresented: Binding(
+                    get: { trainingPrep != nil },
+                    set: { if !$0 { trainingPrep = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: trainingPrep
+            ) { prep in
+                Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
+                    trainingPrep = nil
+                    trainingLessonLaunch = TrainingLessonLaunch(
+                        trainingId: prep.trainingId,
+                        practiceMode: true,
+                        lessonId: prep.lessonId,
+                        lessonSongId: prep.lessonSongId,
+                        clearConditions: prep.clearConditions
+                    )
+                }
+                Button(locale == .ja ? "本番" : "Performance") {
+                    trainingPrep = nil
+                    trainingLessonLaunch = TrainingLessonLaunch(
+                        trainingId: prep.trainingId,
+                        practiceMode: false,
+                        lessonId: prep.lessonId,
+                        lessonSongId: prep.lessonSongId,
+                        clearConditions: prep.clearConditions
+                    )
+                }
+                Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
+                    trainingPrep = nil
+                }
+            } message: { prep in
+                Text(prep.trainingTitle)
+            }
+            .fullScreenCover(item: $trainingLessonLaunch) { launch in
+                TrainingListView(
+                    forcedTrainingId: launch.trainingId,
+                    forcedPracticeMode: launch.practiceMode,
+                    lessonContext: TrainingLessonContext(
+                        lessonId: launch.lessonId,
+                        lessonSongId: launch.lessonSongId,
+                        clearConditions: launch.clearConditions
+                    ),
+                    onLessonExit: { trainingLessonLaunch = nil }
+                )
+                .environmentObject(appState)
+            }
     }
 
     @ViewBuilder
@@ -2250,6 +2322,25 @@ struct LessonDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.gray)
                     Text("\(clearPrefix): \(locale == .ja ? "本番モードで\(surviveSec)秒生存" : "survive \(surviveSec)s in performance mode")")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+            }
+
+            if requirement.isTraining == true, let training = requirement.training {
+                let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
+                let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
+                let requiredRank = requirement.clearConditions?.rank ?? "C"
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(taskPrefix): \(locale == .ja ? "トレーニング" : "Training")")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text("\(clearPrefix): \(locale == .ja ? "本番モードでランク\(requiredRank)以上" : "rank \(requiredRank)+ in performance mode")")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text(training.localizedTitle(locale))
                         .font(.caption2)
                         .foregroundStyle(.gray)
                 }
@@ -3272,6 +3363,9 @@ struct LessonDetailView: View {
         if requirement.isDefense == true, let ds = requirement.defenseStage {
             return "\(index + 1). \(ds.localizedTitle(locale))"
         }
+        if requirement.isTraining == true, let training = requirement.training {
+            return "\(index + 1). \(training.localizedTitle(locale))"
+        }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
     }
 
@@ -3332,6 +3426,9 @@ struct LessonDetailView: View {
             return slug
         }
         if requirement.isDefense == true, let slug = requirement.defenseStage?.slug, !slug.isEmpty {
+            return slug
+        }
+        if requirement.isTraining == true, let slug = requirement.training?.slug, !slug.isEmpty {
             return slug
         }
         return requirement.id.uuidString
@@ -3588,6 +3685,26 @@ struct LessonDetailView: View {
                     }
                 }
             }
+            return
+        }
+
+        if requirement.isTraining == true {
+            guard let trainingId = requirement.training?.id ?? requirement.trainingId else {
+                alertMessage = locale == .ja
+                    ? "トレーニングが設定されていません。"
+                    : "Training is not configured."
+                return
+            }
+            let title = requirement.training?.localizedTitle(locale)
+                ?? (locale == .ja ? "トレーニング" : "Training")
+            LessonMapAudio.shared.stopImmediately()
+            trainingPrep = TrainingPrepContext(
+                trainingId: trainingId,
+                trainingTitle: title,
+                lessonId: activeLesson.id,
+                lessonSongId: requirement.id,
+                clearConditions: requirement.clearConditions
+            )
             return
         }
 

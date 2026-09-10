@@ -36,14 +36,14 @@ struct MainTabView: View {
                     }
                     .tag(Tab.courses)
 
-                SurvivalView()
+                PlayHubView()
                     .tabItem {
                         Label(
-                            locale == .ja ? "サバイバル" : "Survival",
-                            systemImage: "flame.fill"
+                            locale == .ja ? "プレイ" : "Play",
+                            systemImage: "gamecontroller.fill"
                         )
                     }
-                    .tag(Tab.survival)
+                    .tag(Tab.play)
 
                 SettingsView()
                     .tabItem {
@@ -71,6 +71,6 @@ enum Tab: Hashable {
     case top
     case lessons
     case courses
-    case survival
+    case play
     case settings
 }

@@ -97,6 +97,8 @@ interface ChordVoicingStaffProps {
   fadeAllMeasureNotes?: boolean;
   /** true のとき未正解符頭を隠していても逆三角マーカーを表示する */
   alwaysShowTopPointer?: boolean;
+  /** true のとき移調楽器設定を無視し concert 記譜のまま描画する（トレーニング concert 固定用） */
+  ignoreNotationInstrument?: boolean;
   className?: string;
 }
 
@@ -1491,6 +1493,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   noteCollisionLayout = 'anchor-low',
   fadeAllMeasureNotes = false,
   alwaysShowTopPointer = false,
+  ignoreNotationInstrument = false,
   className,
 }) => {
   const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
@@ -1501,14 +1504,18 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     [notationInstrumentId],
   );
   const writtenOffset = useMemo(
-    () => getWrittenSemitoneOffset(notationPreset, notationOctaveShift),
-    [notationPreset, notationOctaveShift],
+    () => (ignoreNotationInstrument ? 0 : getWrittenSemitoneOffset(notationPreset, notationOctaveShift)),
+    [ignoreNotationInstrument, notationPreset, notationOctaveShift],
   );
   const writtenFifths = useMemo(
     () => transposeKeyFifths(keyFifths, writtenOffset),
     [keyFifths, writtenOffset],
   );
-  const clefOverride = notationPreset.clef === 'grand' ? undefined : notationPreset.clef;
+  const clefOverride = ignoreNotationInstrument
+    ? undefined
+    : notationPreset.clef === 'grand'
+      ? undefined
+      : notationPreset.clef;
   const notationParseOptions = useMemo((): NotationParseOptions => ({
     writtenOffset,
     originalFifths: keyFifths,

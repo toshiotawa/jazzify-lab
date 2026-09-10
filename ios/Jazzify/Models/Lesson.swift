@@ -307,6 +307,28 @@ struct VideoLessonStageSummary: Codable, Identifiable, Sendable {
     }
 }
 
+/// `lesson_songs` からネストで取得する `trainings` の要約（一覧・詳細表示用）。
+struct TrainingRowSummary: Codable, Identifiable, Sendable {
+    let id: UUID
+    let slug: String?
+    let titleJa: String
+    let titleEn: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug
+        case titleJa = "title_ja"
+        case titleEn = "title_en"
+    }
+
+    func localizedTitle(_ locale: AppLocale) -> String {
+        if locale == .en {
+            let en = titleEn?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return en.isEmpty ? titleJa : en
+        }
+        return titleJa
+    }
+}
+
 /// `lesson_songs` からネストで取得する `defense_stages` の要約（一覧・詳細表示用）。
 struct DefenseStageSummary: Codable, Identifiable, Sendable {
     let id: UUID
@@ -344,6 +366,8 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let videoLessonStageId: UUID?
     let isDefense: Bool?
     let defenseStageId: UUID?
+    let isTraining: Bool?
+    let trainingId: UUID?
     let isFantasy: Bool
     let isSurvival: Bool?
     let isSurvivalTutorial: Bool?
@@ -371,6 +395,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let balloonRushStage: BalloonRushStageSummary?
     let videoLessonStage: VideoLessonStageSummary?
     let defenseStage: DefenseStageSummary?
+    let training: TrainingRowSummary?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -388,6 +413,9 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case isDefense = "is_defense"
         case defenseStageId = "defense_stage_id"
         case defenseStage
+        case isTraining = "is_training"
+        case trainingId = "training_id"
+        case training
         case isFantasy = "is_fantasy"
         case isSurvival = "is_survival"
         case isSurvivalTutorial = "is_survival_tutorial"

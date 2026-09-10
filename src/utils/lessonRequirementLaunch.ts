@@ -24,6 +24,9 @@ export type LessonRequirementLaunchInput = LessonRequirement & {
   is_defense?: boolean;
   defense_stage_id?: string | null;
   defense_stage?: { id?: string } | null;
+  is_training?: boolean;
+  training_id?: string | null;
+  training?: { id?: string } | null;
   ear_training_stage?: { id?: string } | null;
   ear_training_stage_id?: string | null;
   fantasy_stage?: { id?: string } | null;
@@ -43,6 +46,20 @@ export function buildLessonRequirementLaunchHash(req: LessonRequirementLaunchInp
   const isFantasy = req.is_fantasy === true;
   const isVideoLesson = req.is_video_lesson === true;
   const isDefense = req.is_defense === true;
+  const isTraining = req.is_training === true;
+
+  if (isTraining) {
+    const trainingId = req.training?.id ?? req.training_id ?? '';
+    if (!trainingId) {
+      return null;
+    }
+    const params = new URLSearchParams();
+    params.set('lessonId', req.lesson_id);
+    params.set('lessonSongId', req.lesson_song_id ?? '');
+    params.set('trainingId', trainingId);
+    params.set('clearConditions', JSON.stringify(req.clear_conditions));
+    return `#training-lesson?${params.toString()}`;
+  }
 
   if (isDefense) {
     const stageId = req.defense_stage?.id ?? req.defense_stage_id ?? '';

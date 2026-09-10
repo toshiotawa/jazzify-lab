@@ -31,6 +31,9 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
           defense_stage:defense_stages (
             id, slug, title, title_en, survive_seconds, difficulty_level
           ),
+          training:trainings (
+            id, slug, title_ja, title_en
+          ),
           ear_training_stage:ear_training_stages (
             *,
             chord_quiz_items:ear_training_chord_quiz_items (*)

@@ -479,6 +479,12 @@ final class SupabaseService: Sendable {
                     survive_seconds,
                     difficulty_level
                 ),
+                training:trainings (
+                    id,
+                    slug,
+                    title_ja,
+                    title_en
+                ),
                 earTrainingStage:ear_training_stages (*)
             )
             """)
@@ -2165,6 +2171,183 @@ final class SupabaseService: Sendable {
             )
             .execute()
         return isFirst
+    }
+
+    // MARK: - Training mode
+
+    func fetchTrainingCatalog() async throws -> [TrainingCategoryWithTrainings] {
+        struct TrainingCatalogTrainingRow: Decodable {
+            let id: UUID
+            let category_id: UUID
+            let slug: String
+            let title_ja: String
+            let title_en: String
+            let sort_order: Int
+            let kind: TrainingKind
+            let clef_mode: TrainingClefMode
+            let use_key_signature: Bool
+            let play_root_on_correct: Bool
+            let bgm_url: String
+            let config: TrainingConfig
+            let is_active: Bool
+
+            func toTrainingRow() -> TrainingRow {
+                TrainingRow(
+                    id: id,
+                    categoryId: category_id,
+                    slug: slug,
+                    titleJa: title_ja,
+                    titleEn: title_en,
+                    sortOrder: sort_order,
+                    kind: kind,
+                    clefMode: clef_mode,
+                    useKeySignature: use_key_signature,
+                    playRootOnCorrect: play_root_on_correct,
+                    bgmUrl: bgm_url,
+                    config: config,
+                    isActive: is_active
+                )
+            }
+        }
+
+        struct CategoryRow: Decodable {
+            let id: UUID
+            let slug: String
+            let title_ja: String
+            let title_en: String
+            let sort_order: Int
+            let is_free: Bool
+            let is_active: Bool
+            let trainings: [TrainingCatalogTrainingRow]?
+        }
+
+        let rows: [CategoryRow] = try await client
+            .from("training_categories")
+            .select("""
+                id, slug, title_ja, title_en, sort_order, is_free, is_active,
+                trainings (
+                    id, category_id, slug, title_ja, title_en, sort_order, kind,
+                    clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active
+                )
+            """)
+            .eq("is_active", value: true)
+            .order("sort_order")
+            .execute()
+            .value
+
+        return rows.map { row in
+            let category = TrainingCategoryRow(
+                id: row.id,
+                slug: row.slug,
+                titleJa: row.title_ja,
+                titleEn: row.title_en,
+                sortOrder: row.sort_order,
+                isFree: row.is_free,
+                isActive: row.is_active
+            )
+            let trainings = (row.trainings ?? [])
+                .filter(\.is_active)
+                .sorted { $0.sort_order < $1.sort_order }
+                .map { $0.toTrainingRow() }
+            return TrainingCategoryWithTrainings(category: category, trainings: trainings)
+        }
+    }
+
+    func fetchMyTrainingSummary() async throws -> [TrainingScoreSummary] {
+        struct SummaryRow: Decodable {
+            let training_id: UUID
+            let best_score: Int
+            let best_rank: String
+            let rank_position: Int?
+        }
+
+        let rows: [SummaryRow] = try await client
+            .rpc("rpc_get_my_training_summary")
+            .execute()
+            .value
+
+        return rows.map { row in
+            TrainingScoreSummary(
+                trainingId: row.training_id,
+                bestScore: row.best_score,
+                bestRank: TrainingRank.parseLetterRank(row.best_rank),
+                rankPosition: row.rank_position
+            )
+        }
+    }
+
+    func fetchTrainingRanking(trainingId: UUID, limit: Int = 100) async throws -> [TrainingRankingEntry] {
+        struct RankingRow: Decodable {
+            let rank_position: Int
+            let user_id: UUID
+            let nickname: String
+            let avatar_url: String?
+            let player_level: Int
+            let best_score: Int
+            let best_rank: String
+        }
+
+        struct RpcParams: Encodable {
+            let p_training_id: UUID
+            let limit_count: Int
+        }
+
+        let rows: [RankingRow] = try await client
+            .rpc("rpc_get_training_ranking", params: RpcParams(p_training_id: trainingId, limit_count: limit))
+            .execute()
+            .value
+
+        return rows.map { row in
+            TrainingRankingEntry(
+                rankPosition: row.rank_position,
+                userId: row.user_id,
+                nickname: row.nickname,
+                avatarUrl: row.avatar_url,
+                playerLevel: row.player_level,
+                bestScore: row.best_score,
+                bestRank: TrainingRank.parseLetterRank(row.best_rank)
+            )
+        }
+    }
+
+    func upsertTrainingScore(trainingId: UUID, score: Int) async throws -> TrainingUpsertResult {
+        struct RpcParams: Encodable {
+            let p_training_id: UUID
+            let p_score: Int
+        }
+
+        struct UpsertRow: Decodable {
+            let best_score: Int
+            let best_rank: String
+            let is_new_best: Bool
+        }
+
+        let rows: [UpsertRow] = try await client
+            .rpc("rpc_upsert_training_score", params: RpcParams(p_training_id: trainingId, p_score: score))
+            .execute()
+            .value
+
+        let row = rows.first
+        return TrainingUpsertResult(
+            bestScore: row?.best_score ?? score,
+            bestRank: TrainingRank.parseLetterRank(row?.best_rank ?? TrainingRank.scoreToRank(score).rawValue),
+            isNewBest: row?.is_new_best ?? false
+        )
+    }
+
+    @discardableResult
+    func recordTrainingLessonProgress(
+        lessonId: UUID,
+        lessonSongId: UUID,
+        rank: String,
+        clearConditions: LessonClearConditions?
+    ) async throws -> Bool {
+        try await recordEarTrainingLessonProgress(
+            lessonId: lessonId,
+            lessonSongId: lessonSongId,
+            rank: rank,
+            clearConditions: clearConditions
+        )
     }
 }
 
