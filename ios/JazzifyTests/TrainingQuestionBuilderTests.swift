@@ -9,6 +9,7 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         interval: String? = nil,
         direction: String? = nil,
         clef: String? = nil,
+        includeAccidentals: Bool? = nil,
         intervals: [String]? = nil,
         staves: [Int]? = nil,
         voicingNotes: [String]? = nil,
@@ -22,6 +23,7 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             interval: interval,
             direction: direction,
             clef: clef,
+            includeAccidentals: includeAccidentals,
             intervals: intervals,
             staves: staves,
             voicingNotes: voicingNotes,
@@ -78,12 +80,42 @@ final class TrainingQuestionBuilderTests: XCTestCase {
     }
 
     func testNoteReadingUsesNaturalNotesInTrebleRange() {
-        let row = training(kind: .noteReading, config: config(clef: "treble"))
+        let row = training(kind: .noteReading, config: config(clef: "treble", includeAccidentals: false))
         for _ in 0..<30 {
             let q = build(row)
             XCTAssertEqual(q.notes.count, 1)
             XCTAssertGreaterThanOrEqual(q.notes[0].midi, 60)
             XCTAssertLessThanOrEqual(q.notes[0].midi, 81)
+            XCTAssertTrue([0, 2, 4, 5, 7, 9, 11].contains(q.notes[0].pitchClass))
+        }
+    }
+
+    func testNoteReadingIncludesAccidentalsWhenEnabled() {
+        let row = training(kind: .noteReading, config: config(clef: "treble", includeAccidentals: true))
+        var sawAccidental = false
+        for _ in 0..<80 {
+            let q = build(row)
+            XCTAssertGreaterThanOrEqual(q.notes[0].midi, 60)
+            XCTAssertLessThanOrEqual(q.notes[0].midi, 81)
+            if ![0, 2, 4, 5, 7, 9, 11].contains(q.notes[0].pitchClass) {
+                sawAccidental = true
+                XCTAssertTrue(q.notes[0].noteName.contains("#") || q.notes[0].noteName.contains("b"))
+            }
+        }
+        XCTAssertTrue(sawAccidental)
+    }
+
+    func testBassNoteReadingUsesInCFixedRange() {
+        let row = training(
+            kind: .noteReading,
+            clefMode: .bassConcert,
+            config: config(clef: "bass", includeAccidentals: false)
+        )
+        for _ in 0..<30 {
+            let q = build(row)
+            XCTAssertGreaterThanOrEqual(q.notes[0].midi, 40)
+            XCTAssertLessThanOrEqual(q.notes[0].midi, 60)
+            XCTAssertEqual(q.notes[0].staff, 2)
             XCTAssertTrue([0, 2, 4, 5, 7, 9, 11].contains(q.notes[0].pitchClass))
         }
     }

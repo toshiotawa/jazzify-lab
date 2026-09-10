@@ -19,18 +19,50 @@ type StaffNumber = 1 | 2;
 
 const NATURAL_PITCH_CLASSES: ReadonlySet<number> = new Set([0, 2, 4, 5, 7, 9, 11]);
 
-const naturalMidisInRange = (min: number, max: number): number[] => {
-  const out: number[] = [];
+/** 譜読み: 加線1本まで。ト音 C4-A5 / ヘ音 E2-C4 */
+const NOTE_READING_RANGES: Record<Clef, { min: number; max: number }> = {
+  treble: { min: 60, max: 81 },
+  bass: { min: 40, max: 60 },
+};
+
+/** ピッチクラスごとの綴り（E# B# Cb Fb は含めない） */
+const SPELLINGS_BY_PC: readonly string[][] = [
+  ['C'],
+  ['C#', 'Db'],
+  ['D'],
+  ['D#', 'Eb'],
+  ['E'],
+  ['F'],
+  ['F#', 'Gb'],
+  ['G'],
+  ['G#', 'Ab'],
+  ['A'],
+  ['A#', 'Bb'],
+  ['B'],
+];
+
+const buildNoteReadingSpellings = (clef: Clef, includeAccidentals: boolean): string[] => {
+  const { min, max } = NOTE_READING_RANGES[clef];
+  const out: string[] = [];
   for (let midi = min; midi <= max; midi += 1) {
-    if (NATURAL_PITCH_CLASSES.has(((midi % 12) + 12) % 12)) out.push(midi);
+    const pc = ((midi % 12) + 12) % 12;
+    if (!includeAccidentals && !NATURAL_PITCH_CLASSES.has(pc)) continue;
+    const octave = Math.floor(midi / 12) - 1;
+    for (const spelling of SPELLINGS_BY_PC[pc] ?? ['C']) {
+      out.push(`${spelling}${octave}`);
+    }
   }
   return out;
 };
 
-/** 譜読み: 加線1本までの幹音（記譜音）。ト音 C4-A5 / ヘ音 E2-C4 */
-const NOTE_READING_CANDIDATES: Record<Clef, readonly number[]> = {
-  treble: naturalMidisInRange(60, 81),
-  bass: naturalMidisInRange(40, 60),
+const NOTE_READING_NATURALS: Record<Clef, readonly string[]> = {
+  treble: buildNoteReadingSpellings('treble', false),
+  bass: buildNoteReadingSpellings('bass', false),
+};
+
+const NOTE_READING_WITH_ACCIDENTALS: Record<Clef, readonly string[]> = {
+  treble: buildNoteReadingSpellings('treble', true),
+  bass: buildNoteReadingSpellings('bass', true),
 };
 
 /** コンサート音高を♭系の綴りで音名にする（移調楽器は全て♭系のため記譜上は幹音になる） */
@@ -237,16 +269,22 @@ export const buildTrainingQuestion = (
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
     if (training.kind === 'note_reading') {
-      // 記譜上の白鍵（幹音）のみを出題する
-      const writtenMidi = pickRandom(NOTE_READING_CANDIDATES[singleClef]);
+      const includeAccidentals = config.includeAccidentals === true;
+      const forcedClef = config.clef === 'bass' || effectiveClef === 'bass' ? 'bass' : 'treble';
+      const spellings = includeAccidentals
+        ? NOTE_READING_WITH_ACCIDENTALS[forcedClef]
+        : NOTE_READING_NATURALS[forcedClef];
+      const writtenSpelling = pickRandom(spellings);
+      const writtenMidi = parseVoicingNoteName(writtenSpelling).midi;
       const concertMidi = writtenMidi - writtenOffset;
-      const questionKey = `note:${concertMidi}`;
+      const questionKey = `note:${concertMidi}:${writtenSpelling}`;
       if (questionKey === previousQuestionKey) continue;
+      const noteName = writtenOffset === 0 ? writtenSpelling : flatSpelledName(concertMidi);
       return makeQuestion(
         questionKey,
         '',
-        [flatSpelledName(concertMidi)],
-        [defaultStaff],
+        [noteName],
+        [forcedClef === 'bass' ? 2 : 1],
         [true],
         'stacked',
         false,

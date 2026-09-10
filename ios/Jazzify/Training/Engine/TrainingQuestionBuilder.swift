@@ -10,10 +10,48 @@ enum TrainingQuestionBuilder {
 
     private static let naturalPitchClasses: Set<Int> = [0, 2, 4, 5, 7, 9, 11]
 
-    /// 譜読み: 加線1本までの幹音。ト音 C4-A5 / ヘ音 E2-C4
-    private static let noteReadingCandidates: [String: [Int]] = [
-        "treble": (60...81).filter { naturalPitchClasses.contains($0 % 12) },
-        "bass": (40...60).filter { naturalPitchClasses.contains($0 % 12) },
+    private static let noteReadingRanges: [String: ClosedRange<Int>] = [
+        "treble": 60...81,
+        "bass": 40...60,
+    ]
+
+    private static let spellingsByPc: [[String]] = [
+        ["C"],
+        ["C#", "Db"],
+        ["D"],
+        ["D#", "Eb"],
+        ["E"],
+        ["F"],
+        ["F#", "Gb"],
+        ["G"],
+        ["G#", "Ab"],
+        ["A"],
+        ["A#", "Bb"],
+        ["B"],
+    ]
+
+    private static func buildNoteReadingSpellings(clef: String, includeAccidentals: Bool) -> [String] {
+        guard let range = noteReadingRanges[clef] else { return [] }
+        var out: [String] = []
+        for midi in range {
+            let pc = ((midi % 12) + 12) % 12
+            if !includeAccidentals && !naturalPitchClasses.contains(pc) { continue }
+            let octave = midi / 12 - 1
+            for spelling in spellingsByPc[pc] {
+                out.append("\(spelling)\(octave)")
+            }
+        }
+        return out
+    }
+
+    private static let noteReadingNaturals: [String: [String]] = [
+        "treble": buildNoteReadingSpellings(clef: "treble", includeAccidentals: false),
+        "bass": buildNoteReadingSpellings(clef: "bass", includeAccidentals: false),
+    ]
+
+    private static let noteReadingWithAccidentals: [String: [String]] = [
+        "treble": buildNoteReadingSpellings(clef: "treble", includeAccidentals: true),
+        "bass": buildNoteReadingSpellings(clef: "bass", includeAccidentals: true),
     ]
 
     /// 音程トレーニングの基準音候補（綴りを固定）
@@ -52,19 +90,26 @@ enum TrainingQuestionBuilder {
         for _ in 0..<12 {
             switch training.kind {
             case .noteReading:
-                guard let midi = noteReadingCandidates[singleClef]?.randomElement() else { continue }
-                let questionKey = "note:\(midi)"
+                let includeAccidentals = mergedConfig.includeAccidentals == true
+                let forcedClef = mergedConfig.clef == "bass" || effectiveClef == "bass" ? "bass" : "treble"
+                let spellings = includeAccidentals
+                    ? noteReadingWithAccidentals[forcedClef]
+                    : noteReadingNaturals[forcedClef]
+                guard let writtenSpelling = spellings?.randomElement(),
+                      let writtenMidi = TrainingMusicTheory.parseVoicingMidi(writtenSpelling)
+                else { continue }
+                let questionKey = "note:\(writtenMidi):\(writtenSpelling)"
                 if questionKey == previousQuestionKey { continue }
                 return makeQuestion(
                     questionKey: questionKey,
                     promptLabel: "",
-                    noteNames: [TrainingMusicTheory.flatSpelledName(midi)],
-                    staves: [defaultStaff],
+                    noteNames: [writtenSpelling],
+                    staves: [forcedClef == "bass" ? 2 : 1],
                     targets: [true],
                     layout: .stacked,
                     ordered: false,
                     keyFifths: keyFifths,
-                    rootMidi: midi
+                    rootMidi: writtenMidi
                 )
 
             case .interval:
@@ -221,6 +266,7 @@ enum TrainingQuestionBuilder {
             interval: override.interval ?? base.interval,
             direction: override.direction ?? base.direction,
             clef: override.clef ?? base.clef,
+            includeAccidentals: override.includeAccidentals ?? base.includeAccidentals,
             intervals: override.intervals ?? base.intervals,
             staves: override.staves ?? base.staves,
             voicingNotes: override.voicingNotes ?? base.voicingNotes,

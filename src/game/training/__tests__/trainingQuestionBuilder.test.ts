@@ -24,7 +24,10 @@ describe('trainingQuestionBuilder', () => {
   it('builds note reading questions within treble range using natural notes only', () => {
     for (let i = 0; i < 30; i += 1) {
       const q = buildTrainingQuestion({
-        training: baseTraining({ kind: 'note_reading', config: { clef: 'treble' } }),
+        training: baseTraining({
+          kind: 'note_reading',
+          config: { clef: 'treble', includeAccidentals: false },
+        }),
         ...piano,
       });
       expect(q.notes).toHaveLength(1);
@@ -32,6 +35,44 @@ describe('trainingQuestionBuilder', () => {
       expect(q.notes[0]?.midi).toBeLessThanOrEqual(81);
       expect([0, 2, 4, 5, 7, 9, 11]).toContain(q.notes[0]?.pitchClass);
       expect(q.promptLabel).toBe('');
+    }
+  });
+
+  it('includes sharps and flats in treble note reading when enabled', () => {
+    let sawAccidental = false;
+    for (let i = 0; i < 80; i += 1) {
+      const q = buildTrainingQuestion({
+        training: baseTraining({
+          kind: 'note_reading',
+          config: { clef: 'treble', includeAccidentals: true },
+        }),
+        ...piano,
+      });
+      expect(q.notes[0]?.midi).toBeGreaterThanOrEqual(60);
+      expect(q.notes[0]?.midi).toBeLessThanOrEqual(81);
+      if (![0, 2, 4, 5, 7, 9, 11].includes(q.notes[0]?.pitchClass ?? 0)) {
+        sawAccidental = true;
+        expect(q.notes[0]?.noteName).toMatch(/[#b]/);
+      }
+    }
+    expect(sawAccidental).toBe(true);
+  });
+
+  it('uses bass clef In C fixed range for bass note reading', () => {
+    for (let i = 0; i < 30; i += 1) {
+      const q = buildTrainingQuestion({
+        training: baseTraining({
+          kind: 'note_reading',
+          clefMode: 'bass_concert',
+          config: { clef: 'bass', includeAccidentals: false },
+        }),
+        ...piano,
+        ignoreNotationInstrument: true,
+      });
+      expect(q.notes[0]?.midi).toBeGreaterThanOrEqual(40);
+      expect(q.notes[0]?.midi).toBeLessThanOrEqual(60);
+      expect(q.notes[0]?.staff).toBe(2);
+      expect([0, 2, 4, 5, 7, 9, 11]).toContain(q.notes[0]?.pitchClass);
     }
   });
 

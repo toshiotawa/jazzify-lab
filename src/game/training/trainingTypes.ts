@@ -22,6 +22,7 @@ export interface TrainingConfigBase {
   readonly interval?: string;
   readonly direction?: 'up' | 'down';
   readonly clef?: 'auto' | 'treble' | 'bass';
+  readonly includeAccidentals?: boolean;
   readonly intervals?: readonly string[];
   readonly staves?: readonly number[];
   readonly voicingNotes?: readonly string[];

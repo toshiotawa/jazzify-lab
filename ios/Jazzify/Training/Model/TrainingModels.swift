@@ -22,6 +22,7 @@ struct TrainingConfig: Codable, Sendable {
     let interval: String?
     let direction: String?
     let clef: String?
+    let includeAccidentals: Bool?
     let intervals: [String]?
     let staves: [Int]?
     let voicingNotes: [String]?
@@ -30,6 +31,7 @@ struct TrainingConfig: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case roots, quality, scale, interval, direction, clef, intervals, staves
+        case includeAccidentals = "include_accidentals"
         case voicingNotes = "voicing_notes"
         case referenceRoot = "reference_root"
         case minLowestNote = "min_lowest_note"
