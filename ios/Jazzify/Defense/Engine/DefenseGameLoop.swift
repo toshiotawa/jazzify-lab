@@ -4,8 +4,6 @@ import Foundation
 enum DefenseGameLoop {
     private static let knockbackDecay: CGFloat = 0.9
     private static let knockbackImpulse: CGFloat = 180
-    private static let fireballSpeed: CGFloat = 420
-    private static let fireballHitRadius: CGFloat = 28
     private static let spawnX: CGFloat = 760
     private static let attackHitPhase = DefenseEnemyConfig.attackLungeSec * 0.5
 
@@ -23,23 +21,28 @@ enum DefenseGameLoop {
 
         spawnIfDue(runtime: &runtime, difficulty: difficulty, deltaTime: deltaTime)
         updateEnemies(runtime: &runtime, difficulty: difficulty, deltaTime: deltaTime)
-        updateFireballs(runtime: &runtime, deltaTime: deltaTime)
     }
 
-    static func fireProjectile(runtime: inout DefenseRuntimeState) -> Bool {
+    static func performSlash(runtime: inout DefenseRuntimeState) -> Bool {
         guard runtime.result == .playing else { return false }
-        guard let target = nearestEnemy(runtime: runtime) else { return false }
-        guard let slotIndex = runtime.fireballs.firstIndex(where: { !$0.isActive }) else { return false }
+        guard let targetIndex = frontmostEnemyIndex(runtime: runtime) else { return false }
 
-        let dx = target.x - runtime.playerX
-        let dy = target.y - runtime.playerY
-        let dist = max(1, sqrt(dx * dx + dy * dy))
-        runtime.fireballs[slotIndex].isActive = true
-        runtime.fireballs[slotIndex].x = runtime.playerX
-        runtime.fireballs[slotIndex].y = runtime.playerY
-        runtime.fireballs[slotIndex].vx = (dx / dist) * fireballSpeed
-        runtime.fireballs[slotIndex].vy = (dy / dist) * fireballSpeed
-        runtime.fireballs[slotIndex].targetEnemyId = target.id
+        var target = runtime.enemies[targetIndex]
+        // Interrupt any in-progress lunge so its peak damage never lands.
+        target.attackHitPending = false
+        target.hp -= 1
+        let kbDx = target.x - runtime.playerX
+        target.knockbackVx = (kbDx >= 0 ? 1 : -1) * knockbackImpulse
+        if target.hp <= 0 {
+            target.isActive = false
+            runtime.enemiesDefeated += 1
+        }
+        runtime.enemies[targetIndex] = target
+
+        runtime.slashAt = runtime.elapsedSec
+        runtime.slashFromX = runtime.playerX
+        runtime.slashToX = target.x
+        runtime.slashY = target.y
         return true
     }
 
@@ -124,46 +127,16 @@ enum DefenseGameLoop {
         }
     }
 
-    private static func updateFireballs(runtime: inout DefenseRuntimeState, deltaTime: TimeInterval) {
-        let dt = CGFloat(deltaTime)
-        for ballIndex in runtime.fireballs.indices where runtime.fireballs[ballIndex].isActive {
-            var ball = runtime.fireballs[ballIndex]
-            ball.x += ball.vx * dt
-            ball.y += ball.vy * dt
-
-            if let hitIndex = runtime.enemies.firstIndex(where: { enemy in
-                guard enemy.isActive else { return false }
-                if let targetId = ball.targetEnemyId, enemy.id != targetId { return false }
-                let dx = ball.x - enemy.x
-                let dy = ball.y - enemy.y
-                return (dx * dx + dy * dy) <= fireballHitRadius * fireballHitRadius
-            }) {
-                var enemy = runtime.enemies[hitIndex]
-                enemy.hp -= 1
-                let kbDx = enemy.x - runtime.playerX
-                enemy.knockbackVx = (kbDx >= 0 ? 1 : -1) * knockbackImpulse
-                if enemy.hp <= 0 {
-                    enemy.isActive = false
-                    runtime.enemiesDefeated += 1
-                }
-                runtime.enemies[hitIndex] = enemy
-                ball.isActive = false
-            } else if ball.x < -40 || ball.x > 900 || ball.y < -40 || ball.y > 640 {
-                ball.isActive = false
+    private static func frontmostEnemyIndex(runtime: DefenseRuntimeState) -> Int? {
+        var bestIndex: Int?
+        var minX = CGFloat.greatestFiniteMagnitude
+        for index in runtime.enemies.indices where runtime.enemies[index].isActive {
+            let x = runtime.enemies[index].x
+            if x < minX {
+                minX = x
+                bestIndex = index
             }
-            runtime.fireballs[ballIndex] = ball
         }
-    }
-
-    private static func nearestEnemy(runtime: DefenseRuntimeState) -> DefenseEnemyState? {
-        runtime.enemies
-            .filter(\.isActive)
-            .min(by: { lhs, rhs in
-                let dl = (lhs.x - runtime.playerX) * (lhs.x - runtime.playerX)
-                    + (lhs.y - runtime.playerY) * (lhs.y - runtime.playerY)
-                let dr = (rhs.x - runtime.playerX) * (rhs.x - runtime.playerX)
-                    + (rhs.y - runtime.playerY) * (rhs.y - runtime.playerY)
-                return dl < dr
-            })
+        return bestIndex
     }
 }

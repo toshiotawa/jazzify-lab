@@ -66,16 +66,6 @@ struct DefenseEnemyState: Identifiable, Sendable {
     let slotIndex: Int
 }
 
-struct DefenseFireballState: Identifiable, Sendable {
-    let id: UUID
-    var isActive: Bool
-    var x: CGFloat
-    var y: CGFloat
-    var vx: CGFloat
-    var vy: CGFloat
-    var targetEnemyId: UUID?
-}
-
 enum DefenseGameResult: Equatable {
     case playing
     case clear
@@ -92,10 +82,13 @@ struct DefenseRuntimeState: Sendable {
     var spawnTimerSec: TimeInterval = 0
     var nextEnemyIndex: Int = 0
     var enemies: [DefenseEnemyState]
-    var fireballs: [DefenseFireballState]
     var impactAt: TimeInterval = DefenseEnemyConfig.noImpact
     var impactX: CGFloat = 80
     var impactY: CGFloat = 300
+    var slashAt: TimeInterval = DefenseEnemyConfig.noSlash
+    var slashFromX: CGFloat = 80
+    var slashToX: CGFloat = 80
+    var slashY: CGFloat = 300
     let playerX: CGFloat = 80
     let playerY: CGFloat = 300
 
@@ -117,17 +110,6 @@ struct DefenseRuntimeState: Sendable {
                 isMoving: false,
                 attackHitPending: false,
                 slotIndex: index
-            )
-        }
-        self.fireballs = (0..<16).map { _ in
-            DefenseFireballState(
-                id: UUID(),
-                isActive: false,
-                x: 80,
-                y: 300,
-                vx: 0,
-                vy: 0,
-                targetEnemyId: nil
             )
         }
     }

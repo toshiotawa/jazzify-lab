@@ -61,4 +61,75 @@ final class DefenseGameLoopTests: XCTestCase {
         let mid = DefenseEnemyConfig.attackOffset(attackElapsed: DefenseEnemyConfig.attackLungeSec * 0.5, flying: false)
         XCTAssertEqual(mid.x, -DefenseEnemyConfig.lungeDist, accuracy: 0.001)
     }
+
+    func testSlashInstantlyDamagesFarEnemyAndAppliesKnockback() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].x = 760
+        runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
+        runtime.enemies[0].hp = 2
+
+        let slashed = DefenseGameLoop.performSlash(runtime: &runtime)
+        XCTAssertTrue(slashed)
+        XCTAssertEqual(runtime.enemies[0].hp, 1)
+        XCTAssertEqual(runtime.enemies[0].knockbackVx, 180, accuracy: 0.001)
+        XCTAssertEqual(runtime.slashAt, 0, accuracy: 0.001)
+        XCTAssertEqual(runtime.slashToX, 760, accuracy: 0.001)
+    }
+
+    func testSlashHitsFrontmostEnemyByMinX() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
+        runtime.enemies[0].x = runtime.playerX + 80
+        runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
+        runtime.enemies[0].hp = 2
+
+        runtime.enemies[1].isActive = true
+        runtime.enemies[1].type = .bat
+        runtime.enemies[1].x = runtime.playerX + 200
+        runtime.enemies[1].y = DefenseEnemyConfig.centerY(for: .bat)
+        runtime.enemies[1].hp = 2
+
+        _ = DefenseGameLoop.performSlash(runtime: &runtime)
+
+        XCTAssertEqual(runtime.enemies[0].hp, 1)
+        XCTAssertEqual(runtime.enemies[1].hp, 2)
+        XCTAssertEqual(runtime.slashToX, runtime.enemies[0].x, accuracy: 0.001)
+    }
+
+    func testSlashDefeatsEnemyWithOneHpImmediately() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].x = runtime.playerX + 100
+        runtime.enemies[0].hp = 1
+
+        _ = DefenseGameLoop.performSlash(runtime: &runtime)
+
+        XCTAssertFalse(runtime.enemies[0].isActive)
+        XCTAssertEqual(runtime.enemiesDefeated, 1)
+    }
+
+    func testSlashReturnsFalseWhenNoEnemies() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
+        let slashed = DefenseGameLoop.performSlash(runtime: &runtime)
+        XCTAssertFalse(slashed)
+        XCTAssertEqual(runtime.slashAt, DefenseEnemyConfig.noSlash)
+    }
+
+    func testSlashCancelsPendingEnemyAttackBeforePeak() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].x = runtime.playerX + 40
+        runtime.enemies[0].lastAttackAt = 1.0
+        runtime.enemies[0].attackHitPending = true
+        runtime.elapsedSec = 1.1
+
+        _ = DefenseGameLoop.performSlash(runtime: &runtime)
+        XCTAssertFalse(runtime.enemies[0].attackHitPending)
+
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0.1)
+        XCTAssertEqual(runtime.playerHp, 5)
+        XCTAssertEqual(runtime.impactAt, DefenseEnemyConfig.noImpact)
+    }
 }

@@ -119,7 +119,7 @@ final class DefenseGameSession: ObservableObject {
             judgeState = evaluation.nextState
         }
         if evaluation.attack {
-            _ = DefenseGameLoop.fireProjectile(runtime: &runtime)
+            _ = DefenseGameLoop.performSlash(runtime: &runtime)
         }
         if evaluation.pendingSwitch, pendingSwitchPhraseIndex == nil {
             let nextIndex = DefensePhraseJudge.nextPhraseIndex(

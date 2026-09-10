@@ -208,8 +208,8 @@ const DefenseMain: React.FC = () => {
             </div>
             <p className="mt-3 text-sm text-slate-300">
               {isEnglishCopy
-                ? 'Play the notated phrase in order to launch fireballs. Survive until the timer ends. Only performance mode counts toward the assignment.'
-                : '譜面の音を順番に演奏すると火球が飛びます。タイマー終了まで生き残ればクリア。課題の達成は本番モードのみ記録されます。'}
+                ? 'Play the notated phrase in order to slash the frontmost enemy. Survive until the timer ends. Only performance mode counts toward the assignment.'
+                : '譜面の音を順番に演奏すると、一番手前の敵を横一閃で攻撃します。タイマー終了まで生き残ればクリア。課題の達成は本番モードのみ記録されます。'}
             </p>
             <div className="mt-4 flex gap-2">
               <button

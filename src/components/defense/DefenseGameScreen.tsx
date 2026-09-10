@@ -19,7 +19,7 @@ import DeferredEarTrainingPianoOverlay, {
   type EarTrainingPianoOverlayHandle,
 } from '@/components/earTraining/DeferredEarTrainingPianoOverlay';
 import {
-  fireDefenseProjectile,
+  performDefenseSlash,
   tickDefenseSimulation,
 } from '@/game/defense/defenseEngine';
 import {
@@ -195,7 +195,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     setJudgeSnapshot(evaluation.nextState);
 
     if (evaluation.attack) {
-      fireDefenseProjectile(runtime);
+      performDefenseSlash(runtime);
     }
 
     if (evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {

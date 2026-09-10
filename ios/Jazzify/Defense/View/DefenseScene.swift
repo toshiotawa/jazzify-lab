@@ -6,10 +6,11 @@ final class DefenseScene: SKScene {
 
     private var enemyNodes: [UUID: SKSpriteNode] = [:]
     private var enemyFrameKeys: [UUID: String] = [:]
-    private var fireballNodes: [UUID: SKLabelNode] = [:]
     private let playerNode = SKLabelNode(text: "🧙")
     private let impactRing = SKShapeNode(circleOfRadius: 10)
     private var impactSparks: [SKShapeNode] = []
+    private let slashGlow = SKShapeNode()
+    private let slashCore = SKShapeNode()
     private var textures: [String: SKTexture] = [:]
 
     override func didMove(to view: SKView) {
@@ -24,6 +25,7 @@ final class DefenseScene: SKScene {
 
         preloadTextures()
         setupImpactEffect()
+        setupSlashEffect()
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -66,6 +68,28 @@ final class DefenseScene: SKScene {
             addChild(spark)
             impactSparks.append(spark)
         }
+    }
+
+    private func setupSlashEffect() {
+        let unitPath = CGMutablePath()
+        unitPath.move(to: .zero)
+        unitPath.addLine(to: CGPoint(x: 1, y: 0))
+
+        slashGlow.path = unitPath
+        slashGlow.strokeColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
+        slashGlow.lineWidth = 6
+        slashGlow.lineCap = .butt
+        slashGlow.zPosition = 150
+        slashGlow.isHidden = true
+        addChild(slashGlow)
+
+        slashCore.path = unitPath
+        slashCore.strokeColor = SKColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
+        slashCore.lineWidth = 2
+        slashCore.lineCap = .butt
+        slashCore.zPosition = 151
+        slashCore.isHidden = true
+        addChild(slashCore)
     }
 
     private func render(runtime: DefenseRuntimeState) {
@@ -130,21 +154,7 @@ final class DefenseScene: SKScene {
         }
 
         renderImpact(runtime: runtime)
-
-        var activeBallIds = Set<UUID>()
-        for ball in runtime.fireballs where ball.isActive {
-            activeBallIds.insert(ball.id)
-            let node = fireballNodes[ball.id] ?? makeEmojiNode("🔥")
-            node.fontSize = 18
-            node.zPosition = 150
-            node.position = CGPoint(x: ball.x, y: size.height - ball.y)
-            if node.parent == nil { addChild(node) }
-            fireballNodes[ball.id] = node
-        }
-        for (id, node) in fireballNodes where !activeBallIds.contains(id) {
-            node.removeFromParent()
-            fireballNodes[id] = nil
-        }
+        renderSlash(runtime: runtime)
     }
 
     private func renderImpact(runtime: DefenseRuntimeState) {
@@ -177,17 +187,34 @@ final class DefenseScene: SKScene {
         }
     }
 
+    private func renderSlash(runtime: DefenseRuntimeState) {
+        let age = runtime.elapsedSec - runtime.slashAt
+        let visible = runtime.slashAt != DefenseEnemyConfig.noSlash
+            && age >= 0
+            && age <= DefenseEnemyConfig.slashSec
+        slashGlow.isHidden = !visible
+        slashCore.isHidden = !visible
+        guard visible else { return }
+
+        let alpha = CGFloat(1 - age / DefenseEnemyConfig.slashSec)
+        let fromX = runtime.slashFromX
+        let toX = runtime.slashToX
+        let length = max(1, toX - fromX)
+        let y = size.height - runtime.slashY
+
+        slashGlow.position = CGPoint(x: fromX, y: y)
+        slashGlow.xScale = length
+        slashGlow.alpha = alpha
+
+        slashCore.position = CGPoint(x: fromX, y: y)
+        slashCore.xScale = length
+        slashCore.alpha = alpha
+    }
+
     private func makeEnemySprite(for type: DefenseEnemyType) -> SKSpriteNode {
         let node = SKSpriteNode(texture: textures[type.assetName(frame: .idle)])
         node.size = CGSize(width: DefenseEnemyConfig.spriteWidth(for: type), height: type.spriteHeight)
         node.zPosition = type.zDepth
-        return node
-    }
-
-    private func makeEmojiNode(_ text: String) -> SKLabelNode {
-        let node = SKLabelNode(text: text)
-        node.verticalAlignmentMode = .center
-        node.horizontalAlignmentMode = .center
         return node
     }
 }

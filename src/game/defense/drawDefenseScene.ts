@@ -8,6 +8,7 @@ import {
   DEFENSE_IMPACT_HITBACK_SEC,
   DEFENSE_IMPACT_SEC,
   DEFENSE_IMPACT_SPARK_ANGLES,
+  DEFENSE_SLASH_SEC,
   getDefenseEnemyAttackDx,
   getDefenseEnemyAttackDy,
   getDefenseFlyingBobOffset,
@@ -20,16 +21,18 @@ import {
   DEFENSE_MAP_HEIGHT,
   DEFENSE_MAP_WIDTH,
   DEFENSE_NO_IMPACT,
+  DEFENSE_NO_SLASH,
 } from '@/game/defense/defenseTypes';
 import { drawHpBar } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import { getHpBarLayout } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 
 const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 const PLAYER_FONT = `32px ${EMOJI_FONT}`;
-const FIREBALL_FONT = `18px ${EMOJI_FONT}`;
 const HUD_FONT = '14px sans-serif';
 const IMPACT_RING_COLOR = '#fbbf24';
 const IMPACT_SPARK_COLOR = '#fef08a';
+const SLASH_GLOW_COLOR = 'rgba(34, 211, 238, 0.55)';
+const SLASH_CORE_COLOR = '#f8fafc';
 
 const drawImpactEffect = (
   ctx: CanvasRenderingContext2D,
@@ -68,6 +71,43 @@ const drawImpactEffect = (
     ctx.lineTo(cx + cos * sparkOuter, cy + sin * sparkOuter);
   }
   ctx.stroke();
+  ctx.restore();
+};
+
+const drawSlashEffect = (
+  ctx: CanvasRenderingContext2D,
+  runtime: DefenseRuntime,
+  scaleX: number,
+  scaleY: number,
+  spriteScale: number,
+): void => {
+  if (runtime.slashAt === DEFENSE_NO_SLASH) return;
+  const age = runtime.elapsedSec - runtime.slashAt;
+  if (age < 0 || age > DEFENSE_SLASH_SEC) return;
+
+  const fromX = runtime.slashFromX * scaleX;
+  const toX = runtime.slashToX * scaleX;
+  const y = runtime.slashY * scaleY;
+  const alpha = 1 - age / DEFENSE_SLASH_SEC;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.lineCap = 'round';
+
+  ctx.strokeStyle = SLASH_GLOW_COLOR;
+  ctx.lineWidth = 6 * spriteScale;
+  ctx.beginPath();
+  ctx.moveTo(fromX, y);
+  ctx.lineTo(toX, y);
+  ctx.stroke();
+
+  ctx.strokeStyle = SLASH_CORE_COLOR;
+  ctx.lineWidth = 2 * spriteScale;
+  ctx.beginPath();
+  ctx.moveTo(fromX, y);
+  ctx.lineTo(toX, y);
+  ctx.stroke();
+
   ctx.restore();
 };
 
@@ -162,14 +202,7 @@ export const drawDefenseScene = (
   ctx.fillText('🧙', playerDrawX, runtime.playerY * scaleY);
 
   drawImpactEffect(ctx, runtime, scaleX, scaleY, spriteScale);
-
-  ctx.font = FIREBALL_FONT;
-  const fireballs = runtime.fireballs;
-  for (let i = 0; i < fireballs.length; i += 1) {
-    const ball = fireballs[i];
-    if (!ball.active) continue;
-    ctx.fillText('🔥', ball.x * scaleX, ball.y * scaleY);
-  }
+  drawSlashEffect(ctx, runtime, scaleX, scaleY, spriteScale);
 
   const hpLayout = getHpBarLayout(width);
   drawHpBar(ctx, hpLayout.leftX, 16, hpLayout.barWidth, runtime.playerHp, runtime.playerMaxHp, true);

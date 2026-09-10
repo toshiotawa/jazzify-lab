@@ -93,16 +93,6 @@ export interface DefenseEnemy {
   attackHitPending: boolean;
 }
 
-export interface DefenseFireball {
-  readonly id: string;
-  active: boolean;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  targetEnemyId: string | null;
-}
-
 export type DefenseGameResult = 'playing' | 'clear' | 'gameover';
 
 export interface DefenseRuntime {
@@ -116,14 +106,17 @@ export interface DefenseRuntime {
   nextEnemyIndex: number;
   enemies: DefenseEnemy[];
   activeEnemyCount: number;
-  fireballs: DefenseFireball[];
-  activeFireballCount: number;
   playerX: number;
   playerY: number;
   /** -1 when no active impact effect. */
   impactAt: number;
   impactX: number;
   impactY: number;
+  /** -1 when no active slash effect. */
+  slashAt: number;
+  slashFromX: number;
+  slashToX: number;
+  slashY: number;
 }
 
 export const DEFENSE_MAP_WIDTH = 800;
@@ -131,8 +124,8 @@ export const DEFENSE_MAP_HEIGHT = 600;
 export const DEFENSE_PLAYER_X = 80;
 export const DEFENSE_PLAYER_Y = DEFENSE_MAP_HEIGHT / 2;
 export const DEFENSE_SPAWN_X = DEFENSE_MAP_WIDTH - 40;
-export const DEFENSE_FIREBALL_SPEED = 420;
 export const DEFENSE_NO_IMPACT = -1;
+export const DEFENSE_NO_SLASH = -1;
 
 export const createDefenseRuntime = (
   playerMaxHp: number,
@@ -162,19 +155,13 @@ export const createDefenseRuntime = (
     attackHitPending: false,
   })),
   activeEnemyCount: 0,
-  fireballs: Array.from({ length: 16 }, (_, index) => ({
-    id: `fireball-slot-${index}`,
-    active: false,
-    x: DEFENSE_PLAYER_X,
-    y: DEFENSE_PLAYER_Y,
-    vx: 0,
-    vy: 0,
-    targetEnemyId: null,
-  })),
-  activeFireballCount: 0,
   playerX: DEFENSE_PLAYER_X,
   playerY: DEFENSE_PLAYER_Y,
   impactAt: DEFENSE_NO_IMPACT,
   impactX: DEFENSE_PLAYER_X,
   impactY: DEFENSE_PLAYER_Y,
+  slashAt: DEFENSE_NO_SLASH,
+  slashFromX: DEFENSE_PLAYER_X,
+  slashToX: DEFENSE_PLAYER_X,
+  slashY: DEFENSE_PLAYER_Y,
 });

@@ -10,17 +10,14 @@ import type {
   DefenseDifficulty,
   DefenseEnemy,
   DefenseEnemyType,
-  DefenseFireball,
   DefenseRuntime,
 } from '@/game/defense/defenseTypes';
 import {
-  DEFENSE_FIREBALL_SPEED,
   DEFENSE_PLAYER_X,
   DEFENSE_SPAWN_X,
 } from '@/game/defense/defenseTypes';
 
 const KNOCKBACK_DECAY = 0.9;
-const FIREBALL_HIT_RADIUS = 28;
 const KNOCKBACK_IMPULSE = 180;
 const ATTACK_HIT_PHASE = DEFENSE_ATTACK_LUNGE_SEC * 0.5;
 
@@ -33,19 +30,6 @@ const findInactiveEnemySlot = (runtime: DefenseRuntime): DefenseEnemy | null => 
     if (!enemy.active) return enemy;
   }
   return null;
-};
-
-const findInactiveFireballSlot = (runtime: DefenseRuntime): DefenseFireball | null => {
-  for (const ball of runtime.fireballs) {
-    if (!ball.active) return ball;
-  }
-  return null;
-};
-
-const distanceSq = (x1: number, y1: number, x2: number, y2: number): number => {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  return dx * dx + dy * dy;
 };
 
 export const spawnEnemyIfDue = (
@@ -137,83 +121,45 @@ export const updateDefenseEnemies = (
   }
 };
 
-const findNearestActiveEnemy = (runtime: DefenseRuntime): DefenseEnemy | null => {
-  let nearest: DefenseEnemy | null = null;
-  let nearestDistSq = Number.POSITIVE_INFINITY;
+const findFrontmostActiveEnemy = (runtime: DefenseRuntime): DefenseEnemy | null => {
+  let frontmost: DefenseEnemy | null = null;
+  let minX = Number.POSITIVE_INFINITY;
   for (const enemy of runtime.enemies) {
     if (!enemy.active) continue;
-    const distSq = distanceSq(runtime.playerX, runtime.playerY, enemy.x, enemy.y);
-    if (distSq < nearestDistSq) {
-      nearestDistSq = distSq;
-      nearest = enemy;
+    if (enemy.x < minX) {
+      minX = enemy.x;
+      frontmost = enemy;
     }
   }
-  return nearest;
+  return frontmost;
 };
 
-export const fireDefenseProjectile = (runtime: DefenseRuntime): boolean => {
+const applySlashHit = (runtime: DefenseRuntime, target: DefenseEnemy): void => {
+  // Interrupt any in-progress lunge so its peak damage never lands.
+  target.attackHitPending = false;
+  target.hp -= 1;
+  const kbDx = target.x - runtime.playerX;
+  target.knockbackVx = (kbDx >= 0 ? 1 : -1) * KNOCKBACK_IMPULSE;
+
+  if (target.hp <= 0) {
+    target.active = false;
+    runtime.activeEnemyCount = Math.max(0, runtime.activeEnemyCount - 1);
+    runtime.enemiesDefeated += 1;
+  }
+
+  runtime.slashAt = runtime.elapsedSec;
+  runtime.slashFromX = runtime.playerX;
+  runtime.slashToX = target.x;
+  runtime.slashY = target.y;
+};
+
+export const performDefenseSlash = (runtime: DefenseRuntime): boolean => {
   if (runtime.result !== 'playing') return false;
-  const target = findNearestActiveEnemy(runtime);
+  const target = findFrontmostActiveEnemy(runtime);
   if (!target) return false;
 
-  const slot = findInactiveFireballSlot(runtime);
-  if (!slot) return false;
-
-  const dx = target.x - runtime.playerX;
-  const dy = target.y - runtime.playerY;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-  slot.active = true;
-  slot.x = runtime.playerX;
-  slot.y = runtime.playerY;
-  slot.vx = (dx / dist) * DEFENSE_FIREBALL_SPEED;
-  slot.vy = (dy / dist) * DEFENSE_FIREBALL_SPEED;
-  slot.targetEnemyId = target.id;
-  runtime.activeFireballCount += 1;
+  applySlashHit(runtime, target);
   return true;
-};
-
-const updateDefenseFireballs = (
-  runtime: DefenseRuntime,
-  dt: number,
-): void => {
-  for (const ball of runtime.fireballs) {
-    if (!ball.active) continue;
-    ball.x += ball.vx * dt;
-    ball.y += ball.vy * dt;
-
-    let hitEnemy: DefenseEnemy | null = null;
-    for (const enemy of runtime.enemies) {
-      if (!enemy.active) continue;
-      if (ball.targetEnemyId && enemy.id !== ball.targetEnemyId) continue;
-      const hitRadius = FIREBALL_HIT_RADIUS;
-      if (distanceSq(ball.x, ball.y, enemy.x, enemy.y) <= hitRadius * hitRadius) {
-        hitEnemy = enemy;
-        break;
-      }
-    }
-
-    if (hitEnemy) {
-      hitEnemy.hp -= 1;
-      const kbDx = hitEnemy.x - runtime.playerX;
-      hitEnemy.knockbackVx = (kbDx >= 0 ? 1 : -1) * KNOCKBACK_IMPULSE;
-
-      if (hitEnemy.hp <= 0) {
-        hitEnemy.active = false;
-        runtime.activeEnemyCount = Math.max(0, runtime.activeEnemyCount - 1);
-        runtime.enemiesDefeated += 1;
-      }
-
-      ball.active = false;
-      runtime.activeFireballCount = Math.max(0, runtime.activeFireballCount - 1);
-      continue;
-    }
-
-    const outOfBounds = ball.x < -40 || ball.x > 900 || ball.y < -40 || ball.y > 640;
-    if (outOfBounds) {
-      ball.active = false;
-      runtime.activeFireballCount = Math.max(0, runtime.activeFireballCount - 1);
-    }
-  }
 };
 
 const tickDefenseTimer = (runtime: DefenseRuntime, dt: number): void => {
@@ -232,5 +178,4 @@ export const tickDefenseSimulation = (
   tickDefenseTimer(runtime, dt);
   spawnEnemyIfDue(runtime, difficulty, dt);
   updateDefenseEnemies(runtime, difficulty, dt);
-  updateDefenseFireballs(runtime, dt);
 };
