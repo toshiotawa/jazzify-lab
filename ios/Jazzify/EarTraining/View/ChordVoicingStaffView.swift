@@ -350,6 +350,30 @@ private struct ParsedVoicingNote: Hashable {
     }
 }
 
+private func applyEnharmonicSimplificationIfEnabled(
+    to note: ParsedVoicingNote,
+    enabled: Bool
+) -> ParsedVoicingNote {
+    guard enabled,
+          let simplified = EarTrainingMusicXmlEnharmonicSimplifier.simplifySpelledPitch(
+            step: note.step,
+            alter: note.alter,
+            octave: note.octave
+          ) else {
+        return note
+    }
+    return ParsedVoicingNote(
+        step: simplified.step,
+        alter: simplified.alter,
+        octave: simplified.octave,
+        midi: note.midi,
+        staff: note.staff,
+        pitchClass: note.pitchClass,
+        voicingIndex: note.voicingIndex,
+        displayAccidentalAlter: nil
+    )
+}
+
 private enum VoicingNoteParser {
     static func parse(name: String, staff: Int?, voicingIndex: Int) -> ParsedVoicingNote? {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
@@ -466,6 +490,8 @@ struct ChordVoicingStaffView: View {
     let keyFifths: Int = 0
     let noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout = .anchorLow
 
+    @State private var simplifyEnharmonics = EnharmonicDisplayPreferences.load()
+
     private static let notationColor = Color.white
     private static let labelHeight: CGFloat = 28
     private static let trebleReferenceDegree = 4 * 7 + 6
@@ -491,6 +517,9 @@ struct ChordVoicingStaffView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(chordName))
+        .onReceive(NotificationCenter.default.publisher(for: .enharmonicDisplayDidChange)) { _ in
+            simplifyEnharmonics = EnharmonicDisplayPreferences.load()
+        }
     }
 
     private func draw(context: inout GraphicsContext, size: CGSize) {
@@ -499,7 +528,10 @@ struct ChordVoicingStaffView: View {
             let staff = shouldInferStaves || !voicingStaves.indices.contains(offset)
                 ? nil
                 : (voicingStaves[offset] == 2 ? 2 : 1)
-            return VoicingNoteParser.parse(name: name, staff: staff, voicingIndex: offset)
+            guard let parsed = VoicingNoteParser.parse(name: name, staff: staff, voicingIndex: offset) else {
+                return nil
+            }
+            return applyEnharmonicSimplificationIfEnabled(to: parsed, enabled: simplifyEnharmonics)
         }
         let parsedNotes = applyRequiredAccidentals(to: rawParsedNotes, keyFifths: keyFifths)
         guard !parsedNotes.isEmpty else { return }
@@ -930,6 +962,8 @@ struct ChordVoicingStaffGroupsView: View {
     /// 指定時は現フレームの音符有無に関わらず 1|2 段表示を固定する（demo シーン向け）。
     let fixedActiveStaves: [Int]?
 
+    @State private var simplifyEnharmonics = EnharmonicDisplayPreferences.load()
+
     init(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
         denseCurrentMeasureLayout: Bool,
@@ -996,7 +1030,8 @@ struct ChordVoicingStaffGroupsView: View {
             unpressedNoteOpacity: effectiveUnpressedNoteOpacity,
             activeGroupId: activeGroupId,
             keyFifths: keyFifths,
-            fadeAllMeasureNotes: fadeAllMeasureNotes
+            fadeAllMeasureNotes: fadeAllMeasureNotes,
+            simplifyEnharmonics: simplifyEnharmonics
         )
     }
 
@@ -1006,12 +1041,14 @@ struct ChordVoicingStaffGroupsView: View {
         unpressedNoteOpacity: CGFloat,
         activeGroupId: UUID?,
         keyFifths: Int,
-        fadeAllMeasureNotes: Bool
+        fadeAllMeasureNotes: Bool,
+        simplifyEnharmonics: Bool
     ) -> Int {
         var hasher = Hasher()
         hasher.combine(unpressedNoteOpacity)
         hasher.combine(keyFifths)
         hasher.combine(fadeAllMeasureNotes)
+        hasher.combine(simplifyEnharmonics)
         hasher.combine(activeGroupId)
         for group in groups {
             hasher.combine(group.id)
@@ -1051,7 +1088,8 @@ struct ChordVoicingStaffGroupsView: View {
                 phraseTightTopLedgerPadding: phraseTightTopLedgerPadding,
                 staffSpacingScale: staffSpacingScale,
                 showEmptyStaff: showEmptyStaff,
-                fixedActiveStaves: fixedActiveStaves
+                fixedActiveStaves: fixedActiveStaves,
+                simplifyEnharmonics: simplifyEnharmonics
             )
             let activeLabelGlobalFrame = activeLabelGlobalRect(
                 proxy: proxy,
@@ -1079,7 +1117,8 @@ struct ChordVoicingStaffGroupsView: View {
                         fadeAllMeasureNotes: fadeAllMeasureNotes,
                         staffSpacingScale: staffSpacingScale,
                         showEmptyStaff: showEmptyStaff,
-                        fixedActiveStaves: fixedActiveStaves
+                        fixedActiveStaves: fixedActiveStaves,
+                        simplifyEnharmonics: simplifyEnharmonics
                     )
                 }
                 .id(staffCanvasRenderIdentity)
@@ -1096,6 +1135,9 @@ struct ChordVoicingStaffGroupsView: View {
                 }
             }
             .preference(key: ChordVoicingActiveChordLabelFrameKey.self, value: activeLabelGlobalFrame)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .enharmonicDisplayDidChange)) { _ in
+            simplifyEnharmonics = EnharmonicDisplayPreferences.load()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Chord voicing staff"))
@@ -1230,7 +1272,8 @@ struct ChordVoicingStaffGroupsView: View {
     /// 1. 入力グループを解析し、小節内スロットと臨時記号を付与した描画アイテムを返す。
     private static func buildParsedRenderItems(
         groups: [EarTrainingChordVoicingStaffLayout.GroupInput],
-        keyFifths: Int
+        keyFifths: Int,
+        simplifyEnharmonics: Bool
     ) -> [ParsedGroupRenderItem] {
         var measureSlotCounts: [Int: Int] = [:]
         for g in groups {
@@ -1243,7 +1286,7 @@ struct ChordVoicingStaffGroupsView: View {
             let si = nextSlot[mo, default: 0]
             nextSlot[mo] = si + 1
             let sc = measureSlotCounts[mo] ?? 1
-            let notes = parseGroupNotes(g)
+            let notes = parseGroupNotes(g, simplifyEnharmonics: simplifyEnharmonics)
             parsedGroups.append(ParsedGroupRenderItem(group: g, slotIndex: si, slotCount: sc, notes: notes))
         }
         var accidentalStateByMeasure: [Int: [String: Int]] = [:]
@@ -1596,7 +1639,8 @@ struct ChordVoicingStaffGroupsView: View {
         fadeAllMeasureNotes: Bool = false,
         staffSpacingScale: CGFloat = 1,
         showEmptyStaff: Bool = false,
-        fixedActiveStaves: [Int]? = nil
+        fixedActiveStaves: [Int]? = nil,
+        simplifyEnharmonics: Bool = true
     ) {
         guard !groups.isEmpty || showEmptyStaff else { return }
         let w = size.width
@@ -1606,7 +1650,11 @@ struct ChordVoicingStaffGroupsView: View {
             wideFirstMeasure: dense,
             singleMeasureLayout: singleMeasureLayout
         )
-        let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
+        let parsedGroups = buildParsedRenderItems(
+            groups: groups,
+            keyFifths: keyFifths,
+            simplifyEnharmonics: simplifyEnharmonics
+        )
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
         let activeStaves = fixedActiveStaves ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
@@ -1751,7 +1799,10 @@ struct ChordVoicingStaffGroupsView: View {
         return left + slotWidth * (CGFloat(slotIndex) + 0.5)
     }
 
-    private static func parseGroupNotes(_ group: EarTrainingChordVoicingStaffLayout.GroupInput) -> [ParsedVoicingNote] {
+    private static func parseGroupNotes(
+        _ group: EarTrainingChordVoicingStaffLayout.GroupInput,
+        simplifyEnharmonics: Bool
+    ) -> [ParsedVoicingNote] {
         let v = group.voicing
         let st = group.voicingStaves
         let shouldInferStaves = st.isEmpty
@@ -1759,7 +1810,10 @@ struct ChordVoicingStaffGroupsView: View {
             let staff = shouldInferStaves || !st.indices.contains(offset)
                 ? nil
                 : (st[offset] == 2 ? 2 : 1)
-            return VoicingNoteParser.parse(name: name, staff: staff, voicingIndex: offset)
+            guard let parsed = VoicingNoteParser.parse(name: name, staff: staff, voicingIndex: offset) else {
+                return nil
+            }
+            return applyEnharmonicSimplificationIfEnabled(to: parsed, enabled: simplifyEnharmonics)
         }
     }
 
@@ -2094,7 +2148,8 @@ struct ChordVoicingStaffGroupsView: View {
         phraseTightTopLedgerPadding: Bool = false,
         staffSpacingScale: CGFloat = 1,
         showEmptyStaff: Bool = false,
-        fixedActiveStaves: [Int]? = nil
+        fixedActiveStaves: [Int]? = nil,
+        simplifyEnharmonics: Bool = true
     ) -> OverlayLayout {
         guard (!groups.isEmpty || showEmptyStaff), size.width > 0, size.height > 0 else {
             return OverlayLayout(
@@ -2110,7 +2165,11 @@ struct ChordVoicingStaffGroupsView: View {
             wideFirstMeasure: dense,
             singleMeasureLayout: singleMeasureLayout
         )
-        let parsedGroups = buildParsedRenderItems(groups: groups, keyFifths: keyFifths)
+        let parsedGroups = buildParsedRenderItems(
+            groups: groups,
+            keyFifths: keyFifths,
+            simplifyEnharmonics: simplifyEnharmonics
+        )
         let hasRest = parsedGroups.contains { $0.group.isRest }
         let activeStaves = fixedActiveStaves ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }

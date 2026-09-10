@@ -10,6 +10,8 @@ import {
   type OsmdScorePdfSection,
 } from '@/utils/osmdScorePdfExport';
 import { ensureMusicXmlDeclaration, stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
+import { simplifyMusicXmlEnharmonics } from '@/utils/enharmonicSimplify';
+import { useGameStore } from '@/stores/gameStore';
 
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
@@ -64,7 +66,11 @@ const preparePrintMusicXml = (
 ): string => {
   const normalized = ensureMusicXmlDeclaration(normalizeChordOsmdMusicXml(musicXmlText));
   const withoutLyrics = showScoreLyrics ? normalized : stripLyricsFromMusicXml(normalized);
-  return hideOsmdPdfAlternateVoiceRests(withoutLyrics);
+  const withoutRests = hideOsmdPdfAlternateVoiceRests(withoutLyrics);
+  if (!useGameStore.getState().settings.simpleDisplayMode) {
+    return withoutRests;
+  }
+  return simplifyMusicXmlEnharmonics(withoutRests);
 };
 
 const collectRenderedSvgs = (container: HTMLElement): SVGSVGElement[] => {

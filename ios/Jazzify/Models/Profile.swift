@@ -14,6 +14,8 @@ struct Profile: Codable, Identifiable, Sendable {
     var isAdmin: Bool
     /// メルマガ許諾。列が無い古いレスポンスでも壊れないよう optional で受ける
     var marketingEmailOptIn: Bool?
+    /// 異名同音の簡略表示。列が無い古いレスポンスでも壊れないよう optional で受ける
+    var simpleEnharmonicDisplay: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, email, nickname, rank, xp, level, country
@@ -22,6 +24,7 @@ struct Profile: Codable, Identifiable, Sendable {
         case signupPlatform = "signup_platform"
         case isAdmin = "is_admin"
         case marketingEmailOptIn = "marketing_email_opt_in"
+        case simpleEnharmonicDisplay = "simple_enharmonic_display"
     }
 }
 

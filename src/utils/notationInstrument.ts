@@ -116,7 +116,6 @@ export const transposeWrittenNoteName = (
   noteName: string,
   semitones: number,
   originalFifths: number,
-  simpleMode = false,
 ): string => {
   if (semitones === 0) {
     return noteName;
@@ -146,7 +145,7 @@ export const transposeWrittenNoteName = (
     return noteName;
   }
   const noteNameWithoutOctave = `${noteInfo.letter}${formatAccidentalSuffix(noteInfo.acc)}`;
-  const adjusted = adjustNoteToKeyScale(noteNameWithoutOctave, targetKeyName, simpleMode);
+  const adjusted = adjustNoteToKeyScale(noteNameWithoutOctave, targetKeyName, false);
   const adjustedInfo = Note.get(adjusted);
   const letter = adjustedInfo.letter ?? noteInfo.letter;
   const acc = adjustedInfo.acc ?? noteInfo.acc;
@@ -186,14 +185,13 @@ export const applyNotationInstrumentToMusicXml = (
   xmlString: string,
   preset: NotationInstrumentPreset,
   userOctaveShift: number,
-  simpleMode = false,
 ): string => {
   const offset = getWrittenSemitoneOffset(preset, userOctaveShift);
   if (offset === 0 && preset.clef === 'grand') {
     return xmlString;
   }
 
-  let result = transposeMusicXml(xmlString, offset, simpleMode);
+  let result = transposeMusicXml(xmlString, offset, false);
   if (preset.clef !== 'grand') {
     result = rewriteClefsInMusicXml(result, preset.clef);
   }

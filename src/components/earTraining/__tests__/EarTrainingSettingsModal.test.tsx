@@ -10,6 +10,7 @@ const mockGameState = {
     soundEffectVolume: 1,
     notationInstrumentId: 'piano',
     notationOctaveShift: 0,
+    simpleDisplayMode: true,
   },
   updateSettings: vi.fn(),
 };
@@ -21,9 +22,13 @@ vi.mock('@/stores/gameStore', () => ({
 }));
 
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: () => ({
-    updateNotationInstrument: vi.fn(),
-  }),
+  useAuthStore: (selector?: (state: { updateNotationInstrument: ReturnType<typeof vi.fn>; updateSimpleEnharmonicDisplay: ReturnType<typeof vi.fn> }) => unknown) => {
+    const state = {
+      updateNotationInstrument: vi.fn(),
+      updateSimpleEnharmonicDisplay: vi.fn(),
+    };
+    return selector ? selector(state) : state;
+  },
 }));
 
 vi.mock('@/components/ui/InputMethodSelector', () => ({

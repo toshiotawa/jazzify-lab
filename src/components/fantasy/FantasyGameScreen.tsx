@@ -691,7 +691,6 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
           measureCount={currentSheetMeasureCount}
           countInMeasures={currentSheetCountInMeasures}
           disablePreview={gameState.isCombiningMode && !nextSectionSheetInfo}
-          simpleMode={currentSimpleNoteName}
           nextMusicXml={nextSectionSheetInfo?.musicXml}
           nextBpm={nextSectionSheetInfo?.bpm}
           nextTimeSignature={nextSectionSheetInfo?.timeSignature}

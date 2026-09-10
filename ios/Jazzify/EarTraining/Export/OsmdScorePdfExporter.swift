@@ -153,7 +153,8 @@ enum OsmdScorePdfExportService {
             let withoutLyrics = showScoreLyrics
                 ? normalized
                 : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(normalized)
-            let displayXml = hideAlternateVoiceRests(withoutLyrics)
+            let withoutRests = hideAlternateVoiceRests(withoutLyrics)
+            let displayXml = EarTrainingMusicXmlEnharmonicSimplifier.simplifyMusicXml(withoutRests)
             sections.append(OsmdScorePdfSectionInput(title: nil, musicXmlText: displayXml))
         }
 

@@ -299,6 +299,10 @@ final class AppState: ObservableObject {
             self.locale = loc
         }
 
+        if let simpleEnharmonicDisplay = profile.simpleEnharmonicDisplay {
+            EnharmonicDisplayPreferences.save(simpleEnharmonicDisplay)
+        }
+
         self.authState = .authenticated(userId)
         store.setCurrentUserId(userId)
         await refreshBillingStatus()
@@ -311,6 +315,16 @@ final class AppState: ObservableObject {
 
         guard let userId = profile?.id else { return }
         try? await supabase.updatePreferredLocale(userId: userId, locale: newLocale)
+    }
+
+    func updateSimpleEnharmonicDisplay(_ enabled: Bool) async {
+        EnharmonicDisplayPreferences.save(enabled)
+        guard let userId = profile?.id else { return }
+        try? await supabase.updateSimpleEnharmonicDisplay(userId: userId, enabled: enabled)
+        if var currentProfile = profile {
+            currentProfile.simpleEnharmonicDisplay = enabled
+            self.profile = currentProfile
+        }
     }
 
     /// Web の `updateNickname`（profiles 更新）と同じ

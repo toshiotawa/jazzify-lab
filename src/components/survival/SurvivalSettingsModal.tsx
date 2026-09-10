@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { WebKeyboardDisplayModeSection } from '@/components/settings/WebKeyboardDisplayModeSection';
 import { NotationInstrumentSection } from '@/components/settings/NotationInstrumentSection';
+import { EnharmonicDisplaySection } from '@/components/settings/EnharmonicDisplaySection';
 
 const SURVIVAL_SETTINGS_KEY = 'survival_display_settings';
 
@@ -301,6 +302,8 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
           <WebKeyboardDisplayModeSection isEnglishCopy={isEnglishCopy} />
 
           <NotationInstrumentSection isEnglishCopy={isEnglishCopy} />
+
+          <EnharmonicDisplaySection isEnglishCopy={isEnglishCopy} />
 
           {/* 区切り線 */}
           <div className="border-t border-gray-600 pt-4">

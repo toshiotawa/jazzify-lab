@@ -19,6 +19,7 @@ import {
 import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
 import { stripLyricsFromMusicXml, convertToRhythmNotation, convertMeasuresToRests } from '@/utils/musicXmlMapper';
+import { simplifyMusicXmlEnharmonics } from '@/utils/enharmonicSimplify';
 import {
   computeXPositionFromTimeMapping,
   type TimeMappingEntry
@@ -43,7 +44,6 @@ interface FantasySheetMusicDisplayProps {
   measureCount: number;
   countInMeasures?: number;
   disablePreview?: boolean;
-  simpleMode?: boolean;
   nextMusicXml?: string;
   nextBpm?: number;
   nextTimeSignature?: number;
@@ -126,7 +126,6 @@ function areFantasySheetMusicDisplayPropsEqual(
     prev.measureCount === next.measureCount &&
     prev.countInMeasures === next.countInMeasures &&
     prev.disablePreview === next.disablePreview &&
-    prev.simpleMode === next.simpleMode &&
     prev.nextMusicXml === next.nextMusicXml &&
     prev.nextBpm === next.nextBpm &&
     prev.nextTimeSignature === next.nextTimeSignature &&
@@ -148,7 +147,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   measureCount,
   countInMeasures = 0,
   disablePreview = false,
-  simpleMode = false,
   nextMusicXml,
   nextBpm,
   nextTimeSignature,
@@ -161,6 +159,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
 }) => {
   const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
   const notationOctaveShift = useGameStore((state) => state.settings.notationOctaveShift);
+  const simpleDisplayMode = useGameStore((state) => state.settings.simpleDisplayMode);
   const renderContainerRef = useRef<HTMLDivElement>(null);
   const preRenderContainerRef = useRef<HTMLDivElement>(null);
   const preloadContainerRef = useRef<HTMLDivElement>(null);
@@ -187,20 +186,19 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     return { secPerBeat, secPerMeasure, loopDuration };
   }, [bpm, timeSignature, measureCount]);
 
-  const applyNotationInstrumentXml = useCallback((xml: string, useSimpleMode: boolean): string => {
+  const applyDisplayMusicXml = useCallback((xml: string): string => {
     const preset = getNotationInstrumentPreset(notationInstrumentId);
-    return applyNotationInstrumentToMusicXml(
+    const transposed = applyNotationInstrumentToMusicXml(
       xml,
       preset,
       notationOctaveShift,
-      useSimpleMode,
     );
-  }, [notationInstrumentId, notationOctaveShift]);
+    return simpleDisplayMode ? simplifyMusicXmlEnharmonics(transposed) : transposed;
+  }, [notationInstrumentId, notationOctaveShift, simpleDisplayMode]);
   
   const renderSheet = useCallback(async (
     xml: string,
     container: HTMLDivElement,
-    useSimpleMode: boolean,
     overrideBpm?: number,
     overrideTimeSig?: number,
     overrideListenBars?: [number, number] | null,
@@ -225,7 +223,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         displayXml = new XMLSerializer().serializeToString(doc);
       }
 
-      displayXml = applyNotationInstrumentXml(displayXml, useSimpleMode);
+      displayXml = applyDisplayMusicXml(displayXml);
       
       const options: IOSMDOptions = {
         autoResize: false,
@@ -314,7 +312,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       devLog.debug('⚠️ 楽譜レンダリングエラー:', err);
       return null;
     }
-  }, [bpm, timeSignature, listenBars, useRhythmNotation, countInMeasures, applyNotationInstrumentXml]);
+  }, [bpm, timeSignature, listenBars, useRhythmNotation, countInMeasures, applyDisplayMusicXml]);
   
   const initializeSheet = useCallback(async () => {
     if (!musicXml || !renderContainerRef.current) {
@@ -323,7 +321,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     const cacheKey = getSheetCacheKey(
-      musicXml, bpm || 120, timeSignature || 4, simpleMode, listenBars, useRhythmNotation,
+      musicXml, bpm || 120, timeSignature || 4, simpleDisplayMode, listenBars, useRhythmNotation,
       notationInstrumentId, notationOctaveShift,
     );
     const cached = sheetRenderCache.get(cacheKey);
@@ -345,7 +343,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         renderContainerRef.current.innerHTML = '';
       }
       
-      const result = await renderSheet(musicXml, renderContainerRef.current!, simpleMode);
+      const result = await renderSheet(musicXml, renderContainerRef.current!);
       if (result) {
         sheetWidthRef.current = result.sheetWidth;
         timeMappingRef.current = result.mapping;
@@ -362,7 +360,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, renderSheet, bpm, timeSignature, simpleMode, listenBars, useRhythmNotation, notationInstrumentId, notationOctaveShift]);
+  }, [musicXml, renderSheet, bpm, timeSignature, simpleDisplayMode, listenBars, useRhythmNotation, notationInstrumentId, notationOctaveShift]);
   
   useEffect(() => {
     if (musicXml) {
@@ -380,7 +378,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     const nextLB = nextListenBars;
     const nextRhythm = nextUseRhythmNotation ?? false;
     const cacheKey = getSheetCacheKey(
-      nextMusicXml, prBpm, prTimeSig, simpleMode, nextLB, nextRhythm,
+      nextMusicXml, prBpm, prTimeSig, simpleDisplayMode, nextLB, nextRhythm,
       notationInstrumentId, notationOctaveShift,
     );
 
@@ -400,7 +398,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       try {
         if (container) container.innerHTML = '';
         const result = await renderSheet(
-          xmlToRender, container, simpleMode, prBpm, prTimeSig, nextLB ?? null, nextRhythm ?? null
+          xmlToRender, container, prBpm, prTimeSig, nextLB ?? null, nextRhythm ?? null
         );
         if (gen !== preRenderGenRef.current) return;
         if (result) {
@@ -409,7 +407,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
       } catch {}
     })();
-  }, [nextMusicXml, nextBpm, nextTimeSignature, nextListenBars, nextUseRhythmNotation, bpm, timeSignature, simpleMode, renderSheet, notationInstrumentId, notationOctaveShift]);
+  }, [nextMusicXml, nextBpm, nextTimeSignature, nextListenBars, nextUseRhythmNotation, bpm, timeSignature, simpleDisplayMode, renderSheet, notationInstrumentId, notationOctaveShift]);
   
   const preloadGenRef = useRef(0);
   useEffect(() => {
@@ -418,7 +416,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     
     const uncached = preloadSections.filter(s => {
       const key = getSheetCacheKey(
-        s.musicXml, s.bpm, s.timeSignature, simpleMode, s.listenBars, s.useRhythmNotation,
+        s.musicXml, s.bpm, s.timeSignature, simpleDisplayMode, s.listenBars, s.useRhythmNotation,
         notationInstrumentId, notationOctaveShift,
       );
       return !sheetRenderCache.has(key);
@@ -432,14 +430,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       for (const section of uncached) {
         if (gen !== preloadGenRef.current) return;
         const cacheKey = getSheetCacheKey(
-          section.musicXml, section.bpm, section.timeSignature, simpleMode, section.listenBars, section.useRhythmNotation,
+          section.musicXml, section.bpm, section.timeSignature, simpleDisplayMode, section.listenBars, section.useRhythmNotation,
           notationInstrumentId, notationOctaveShift,
         );
         if (sheetRenderCache.has(cacheKey)) continue;
 
         if (container) container.innerHTML = '';
         const result = await renderSheet(
-          section.musicXml, container, simpleMode, section.bpm, section.timeSignature, section.listenBars ?? null, section.useRhythmNotation ?? null
+          section.musicXml, container, section.bpm, section.timeSignature, section.listenBars ?? null, section.useRhythmNotation ?? null
         );
         if (gen !== preloadGenRef.current) return;
         if (result) {
@@ -447,7 +445,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
       }
     })();
-  }, [preloadSections, simpleMode, renderSheet, notationInstrumentId, notationOctaveShift]);
+  }, [preloadSections, simpleDisplayMode, renderSheet, notationInstrumentId, notationOctaveShift]);
   
   const rightSheetImage = nextSectionResult?.imageData ?? (disablePreview ? null : sheetImage);
   const rightSheetWidth = nextSectionResult?.sheetWidth ?? (disablePreview ? 0 : sheetWidth);

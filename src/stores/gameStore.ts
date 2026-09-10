@@ -28,7 +28,7 @@ const defaultSettings: GameSettings = {
   timingAdjustment: 0,
   showNoteNames: true,
   noteNameStyle: 'abc',
-  simpleDisplayMode: false,
+  simpleDisplayMode: true,
   showSheetMusic: true,
   sheetMusicChordsOnly: false,
   showFPS: false,

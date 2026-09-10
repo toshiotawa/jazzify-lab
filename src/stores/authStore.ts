@@ -67,6 +67,7 @@ interface AuthState {
     marketing_email_opt_in?: boolean | null;
     instrument?: string | null;
     notation_instrument?: string | null;
+    simple_enharmonic_display?: boolean | null;
   } | null;
 }
 
@@ -96,6 +97,7 @@ interface AuthActions {
   ) => Promise<{ success: boolean; message: string }>;
   updateNickname: (nickname: string) => Promise<{ success: boolean; message: string }>;
   updateNotationInstrument: (instrumentId: NotationInstrumentId) => Promise<{ success: boolean; message: string }>;
+  updateSimpleEnharmonicDisplay: (enabled: boolean) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
   setOptimisticAvatarUrl: (url: string | null) => void;
 }
@@ -610,7 +612,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in, instrument, notation_instrument')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in, instrument, notation_instrument, simple_enharmonic_display')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -658,6 +660,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               marketing_email_opt_in: data.marketing_email_opt_in ?? null,
               instrument: data.instrument ?? null,
               notation_instrument: data.notation_instrument ?? null,
+              simple_enharmonic_display: data.simple_enharmonic_display ?? null,
             };
             persistPreferredLocale(data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null);
           } else {
@@ -670,6 +673,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           if (isNotationInstrumentId(data.notation_instrument)) {
             useGameStore.getState().updateSettings({
               notationInstrumentId: data.notation_instrument,
+            });
+          }
+          if (typeof data.simple_enharmonic_display === 'boolean') {
+            useGameStore.getState().updateSettings({
+              simpleDisplayMode: data.simple_enharmonic_display,
             });
           }
           console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
@@ -791,6 +799,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           marketing_email_opt_in_text: marketingEmailOptIn ? (options?.marketingEmailOptInText ?? null) : null,
           instrument: instrumentId,
           notation_instrument: instrumentId,
+          simple_enharmonic_display: true,
         });
         persistPreferredLocale(initialLocale);
 
@@ -798,7 +807,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           throw error;
         }
 
-        useGameStore.getState().updateSettings({ notationInstrumentId: instrumentId });
+        useGameStore.getState().updateSettings({
+          notationInstrumentId: instrumentId,
+          simpleDisplayMode: true,
+        });
 
         trackEvent('sign_up', { method: 'email_otp' });
 
@@ -1021,6 +1033,36 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         return {
           success: false,
           message: err instanceof Error ? err.message : '記譜楽器の更新に失敗しました',
+        };
+      }
+    },
+
+    updateSimpleEnharmonicDisplay: async (enabled: boolean) => {
+      const supabase = getSupabaseClient();
+      const { user, profile } = get();
+      if (!user || !profile) {
+        return { success: false, message: 'ログインが必要です' };
+      }
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ simple_enharmonic_display: enabled })
+          .eq('id', user.id);
+        if (error) {
+          throw error;
+        }
+        clearCacheByKey(`profile:${user.id}`);
+        set(state => {
+          if (state.profile) {
+            state.profile.simple_enharmonic_display = enabled;
+          }
+        });
+        useGameStore.getState().updateSettings({ simpleDisplayMode: enabled });
+        return { success: true, message: '簡略表示設定を更新しました' };
+      } catch (err) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : '簡略表示設定の更新に失敗しました',
         };
       }
     },

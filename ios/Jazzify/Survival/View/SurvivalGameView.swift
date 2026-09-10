@@ -1040,6 +1040,14 @@ private struct SurvivalCodeRunSettingsSheet: View {
                         displayMode: $keyboardDisplayMode,
                         isEnglishCopy: locale == .en
                     )
+                    EnharmonicDisplayToggle(
+                        locale: locale,
+                        tint: .yellow,
+                        labelColor: .primary,
+                        footerColor: .secondary
+                    )
+                    .padding(12)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     ScreenRotation180Toggle(
                         locale: locale,
                         tint: .yellow,

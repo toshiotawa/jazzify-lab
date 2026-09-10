@@ -1148,6 +1148,7 @@ export interface Profile {
   selected_title?: string;
   instrument?: string | null;
   notation_instrument?: string | null;
+  simple_enharmonic_display?: boolean | null;
 }
 
 export interface LessonProgress {

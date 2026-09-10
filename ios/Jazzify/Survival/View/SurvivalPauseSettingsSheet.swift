@@ -233,6 +233,23 @@ struct SurvivalPauseSettingsSheet: View {
                 )
                 .padding(.horizontal, 18)
 
+                EnharmonicDisplayToggle(
+                    locale: isEnglishCopy ? .en : .ja,
+                    tint: .yellow,
+                    labelColor: .white,
+                    footerColor: .white.opacity(0.65)
+                )
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+
                 displayRotationSection
 
                 staffSizeSection

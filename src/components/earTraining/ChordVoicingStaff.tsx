@@ -9,6 +9,7 @@ import {
   transposeWrittenNoteName,
   type NotationInstrumentClef,
 } from '@/utils/notationInstrument';
+import { simplifySpelledPitch } from '@/utils/enharmonicSimplify';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { BRAVURA_WOFF2_PUBLIC_HREF } from './bravuraStaffDocumentFonts';
 import {
@@ -400,12 +401,19 @@ const parseNotes = (
         noteName,
         writtenOffset,
         originalFifths,
-        simpleMode,
       );
       const writtenParsed = parseVoicingNoteName(writtenName);
       step = writtenParsed.step;
       alter = writtenParsed.alter;
       octave = writtenParsed.octave;
+    }
+    if (simpleMode) {
+      const simplified = simplifySpelledPitch(step, alter, octave);
+      if (simplified) {
+        step = simplified.step;
+        alter = simplified.alter;
+        octave = simplified.octave;
+      }
     }
     let staff: StaffNumber;
     if (clefOverride === 'treble') {

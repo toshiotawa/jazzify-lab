@@ -607,4 +607,21 @@ describe('ChordVoicingStaff', () => {
     expect(trumpetCy).toBeLessThan(pianoCy);
     mockGameSettings.notationInstrumentId = 'piano';
   });
+
+  it('simpleDisplayMode が ON のとき E#4 を F 表記（臨時記号なし）にする', async () => {
+    mockGameSettings.simpleDisplayMode = true;
+    const { container } = render(
+      <ChordVoicingStaff
+        chordName="F"
+        voicing={['E#4']}
+        voicingStaves={[1]}
+        keyFifths={0}
+      />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector('ellipse[data-voicing-index="0"]')).not.toBeNull();
+    });
+    expect(container.querySelector('[data-accidental-voicing-index="0"]')).toBeNull();
+    mockGameSettings.simpleDisplayMode = false;
+  });
 });

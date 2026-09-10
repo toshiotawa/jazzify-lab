@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useGameStore } from '@/stores/gameStore';
 import { NotationInstrumentSection } from '@/components/settings/NotationInstrumentSection';
+import { EnharmonicDisplaySection } from '@/components/settings/EnharmonicDisplaySection';
 import type { DisplayLang } from '@/utils/display-note';
 import type { FantasyPlayMode } from './FantasyGameEngine';
 
@@ -404,6 +405,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
 
           <NotationInstrumentSection isEnglishCopy={en} />
 
+          <EnharmonicDisplaySection isEnglishCopy={en} />
+
           {/* 音名表示設定（デイリーチャレンジ以外で表示） */}
           {!isDailyChallenge && (
             <div>
@@ -460,8 +463,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               </label>
               <p className="text-xs text-gray-400 mt-1">
                 {en
-                  ? 'Convert double sharps/flats in hints to simpler names (e.g. Fx → G).'
-                  : 'ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）'}
+                  ? 'Applies to hint note names only. Sheet music uses the shared simplified spelling setting above.'
+                  : 'ヒント表示の音名のみに適用されます。楽譜は上の共通設定「異名同音の簡略表示」を使います。'}
               </p>
             </div>
           )}

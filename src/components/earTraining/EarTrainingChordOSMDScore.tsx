@@ -15,6 +15,7 @@ import {
   applyNotationInstrumentToMusicXml,
   getNotationInstrumentPreset,
 } from '@/utils/notationInstrument';
+import { simplifyMusicXmlEnharmonics } from '@/utils/enharmonicSimplify';
 import {
   OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
   clampOsmdManualScrollOffset,
@@ -506,9 +507,11 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         stripped,
         preset,
         notationOctaveShift,
-        simpleDisplayMode,
       );
-      return applyChordOsmdGuideNoteColors(transposed);
+      const simplified = simpleDisplayMode
+        ? simplifyMusicXmlEnharmonics(transposed)
+        : transposed;
+      return applyChordOsmdGuideNoteColors(simplified);
     },
     [musicXmlText, showScoreLyrics, notationInstrumentId, notationOctaveShift, simpleDisplayMode],
   );

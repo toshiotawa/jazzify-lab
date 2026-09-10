@@ -130,6 +130,12 @@ struct SettingsView: View {
 
     private var displaySection: some View {
         Section {
+            EnharmonicDisplayToggle(
+                locale: locale,
+                tint: .purple,
+                labelColor: .white,
+                footerColor: .gray
+            )
             Toggle(isOn: $rotateScreen180) {
                 Text(locale == .ja ? "画面を180°回転" : "Rotate screen 180°")
                     .foregroundStyle(.white)

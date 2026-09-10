@@ -205,6 +205,10 @@
 		7D20885CA1974C62DCC116E7 /* GuidedSoftLandingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD951C4626370A46F118349F /* GuidedSoftLandingPreferences.swift */; };
 		7EA6F740185BF94A107352A8 /* SurvivalChordPadLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0B7737796079ADD0B4C12D /* SurvivalChordPadLayoutTests.swift */; };
 		7FC19B00C680C4C54197B045 /* ScreenRotationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9C1591815401587CD1FDD1 /* ScreenRotationPreferences.swift */; };
+		E1D2C3B4A5968776655443322 /* EnharmonicDisplayPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D2C3B4A5968776655443321 /* EnharmonicDisplayPreferences.swift */; };
+		E1D2C3B4A5968776655443324 /* EnharmonicDisplayToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D2C3B4A5968776655443323 /* EnharmonicDisplayToggle.swift */; };
+		E1D2C3B4A5968776655443326 /* EarTrainingMusicXmlEnharmonicSimplifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D2C3B4A5968776655443325 /* EarTrainingMusicXmlEnharmonicSimplifier.swift */; };
+		E1D2C3B4A5968776655443328 /* EarTrainingMusicXmlEnharmonicSimplifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1D2C3B4A5968776655443327 /* EarTrainingMusicXmlEnharmonicSimplifierTests.swift */; };
 		7FC6EA227ADEC5CF85380A63 /* DefenseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E576F5B010E2C69F58A1CC3 /* DefenseModels.swift */; };
 		DE01E0010000000000000002 /* DefenseEnemyConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE01E0010000000000000001 /* DefenseEnemyConfig.swift */; };
 		809DF71D453828E9409EA113 /* AppReleaseVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73A3841554CFAB32D1715AB1 /* AppReleaseVersion.swift */; };
@@ -534,6 +538,10 @@
 		6820F471FE060B2ADEE94EA2 /* PrecisionNotesCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrecisionNotesCanvasView.swift; sourceTree = "<group>"; };
 		69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageConfig.swift; sourceTree = "<group>"; };
 		6A9C1591815401587CD1FDD1 /* ScreenRotationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRotationPreferences.swift; sourceTree = "<group>"; };
+		E1D2C3B4A5968776655443321 /* EnharmonicDisplayPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnharmonicDisplayPreferences.swift; sourceTree = "<group>"; };
+		E1D2C3B4A5968776655443323 /* EnharmonicDisplayToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnharmonicDisplayToggle.swift; sourceTree = "<group>"; };
+		E1D2C3B4A5968776655443325 /* EarTrainingMusicXmlEnharmonicSimplifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingMusicXmlEnharmonicSimplifier.swift; sourceTree = "<group>"; };
+		E1D2C3B4A5968776655443327 /* EarTrainingMusicXmlEnharmonicSimplifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingMusicXmlEnharmonicSimplifierTests.swift; sourceTree = "<group>"; };
 		6B90E3761E8F04BD54BC31B3 /* QuestStageCardAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestStageCardAssets.swift; sourceTree = "<group>"; };
 		6C0597F2577B5F44C0665E74 /* AppAudioSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSession.swift; sourceTree = "<group>"; };
 		6C54AEF716E8FDBBE7911049 /* PhraseProgressIdleReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseProgressIdleReset.swift; sourceTree = "<group>"; };
@@ -910,6 +918,7 @@
 				60CBEE80132FA7E3E032F24D /* EarTrainingInputTimingTelemetry.swift */,
 				0A704FA6337B4D1B7DC46741 /* EarTrainingKeyboardScroll.swift */,
 				8106DE015E72BD51EF5DA841 /* EarTrainingMusicXmlTransposer.swift */,
+				E1D2C3B4A5968776655443325 /* EarTrainingMusicXmlEnharmonicSimplifier.swift */,
 				95D64D5494D20256EEB835EE /* EarTrainingOsmdCameraEffectPreferences.swift */,
 				66CED8A9F431B3C6BF2DB649 /* EarTrainingOsmdScoreScroll.swift */,
 				5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */,
@@ -1109,6 +1118,7 @@
 				2B134406DA0E0B124C908A6D /* EarTrainingKeyboardScrollTests.swift */,
 				FD4EC2AC7690D20AA02F1CBC /* EarTrainingLoadProgressTests.swift */,
 				AD358E0E638C38C13FE62E68 /* EarTrainingMusicXmlTransposerTests.swift */,
+				E1D2C3B4A5968776655443327 /* EarTrainingMusicXmlEnharmonicSimplifierTests.swift */,
 				FFA8DA3D5BFD1A94646DBCC5 /* EarTrainingOsmdCameraEffectPreferencesTests.swift */,
 				9121F89892159073FD95CE4C /* EarTrainingOsmdKeyboardScrollTests.swift */,
 				8C694911C7A252E821B53889 /* EarTrainingOsmdParrySyncTests.swift */,
@@ -1330,6 +1340,8 @@
 				A76D371097DA4FCC0586D82B /* ScreenRotation180Toggle.swift */,
 				F62F09F10B51411169A9AB54 /* ScreenRotationApplier.swift */,
 				6A9C1591815401587CD1FDD1 /* ScreenRotationPreferences.swift */,
+				E1D2C3B4A5968776655443321 /* EnharmonicDisplayPreferences.swift */,
+				E1D2C3B4A5968776655443323 /* EnharmonicDisplayToggle.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -1755,6 +1767,7 @@
 				F210EAF80C2F140DB9C25EC3 /* EarTrainingKeyboardScrollTests.swift in Sources */,
 				1ECBA9F013328937B907D2AA /* EarTrainingLoadProgressTests.swift in Sources */,
 				6AC8156247F011FCB8FD1ED8 /* EarTrainingMusicXmlTransposerTests.swift in Sources */,
+				E1D2C3B4A5968776655443328 /* EarTrainingMusicXmlEnharmonicSimplifierTests.swift in Sources */,
 				869BE1E60A0D21977667B064 /* EarTrainingOsmdCameraEffectPreferencesTests.swift in Sources */,
 				F0B555F2BCAA7D024ABA83E9 /* EarTrainingOsmdKeyboardScrollTests.swift in Sources */,
 				4B9CAC3DDC8B4B8F527D49A6 /* EarTrainingOsmdParrySyncTests.swift in Sources */,
@@ -1888,6 +1901,7 @@
 				177E75573CAD20195F88729A /* EarTrainingKeyboardScroll.swift in Sources */,
 				17221A0F7C2E3DD51A5D213C /* EarTrainingLoadProgressBar.swift in Sources */,
 				5ED209A1379DEB65B091FC3C /* EarTrainingMusicXmlTransposer.swift in Sources */,
+				E1D2C3B4A5968776655443326 /* EarTrainingMusicXmlEnharmonicSimplifier.swift in Sources */,
 				7CDA71E7ED7D03027816DCAF /* EarTrainingOSMDScoreWebView.swift in Sources */,
 				8147A819F56B4898C892A831 /* EarTrainingOsmdCameraEffectPreferences.swift in Sources */,
 				042B05486F736CD7167107E3 /* EarTrainingOsmdScoreScroll.swift in Sources */,
@@ -1988,6 +2002,8 @@
 				25EFE7F9B8BA144F9C728898 /* ScreenRotation180Toggle.swift in Sources */,
 				38E9B6ED9BB90848D3E83056 /* ScreenRotationApplier.swift in Sources */,
 				7FC19B00C680C4C54197B045 /* ScreenRotationPreferences.swift in Sources */,
+				E1D2C3B4A5968776655443322 /* EnharmonicDisplayPreferences.swift in Sources */,
+				E1D2C3B4A5968776655443324 /* EnharmonicDisplayToggle.swift in Sources */,
 				2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */,
 				B0E0CFCE3583B03B3EB51DA3 /* SignupMetadata.swift in Sources */,
 				46E8B9D41C4934FB1FD5F571 /* SoftLandingFreeTier.swift in Sources */,

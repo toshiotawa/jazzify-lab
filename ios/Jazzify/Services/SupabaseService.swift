@@ -253,6 +253,18 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    func updateSimpleEnharmonicDisplay(userId: UUID, enabled: Bool) async throws {
+        struct SimpleEnharmonicDisplayUpdate: Encodable {
+            let simple_enharmonic_display: Bool
+        }
+
+        try await client
+            .from("profiles")
+            .update(SimpleEnharmonicDisplayUpdate(simple_enharmonic_display: enabled))
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+
     /// Web の `profiles.update({ nickname })` と同じ経路
     func updateProfileNickname(userId: UUID, nickname: String) async throws {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)

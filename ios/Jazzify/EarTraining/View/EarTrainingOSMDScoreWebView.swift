@@ -175,6 +175,16 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         private var guideColorPrimaryOutput: String?
         private var guideColorInputBySemitone: [Int: String] = [:]
         private var guideColorOutputBySemitone: [Int: String] = [:]
+        /// 表示用 XML キャッシュを作った時点の簡略表示フラグ。設定変更の検出にのみ使う。
+        private var guideColorSimplifyFlag = EnharmonicDisplayPreferences.load()
+        private var enharmonicDisplayObserver: NSObjectProtocol?
+        private var lastRawMusicXMLText: String?
+        private var lastRawScoreXmlBySemitone: [Int: String] = [:]
+
+        private func prepareDisplayXml(_ raw: String) -> String {
+            let simplified = EarTrainingMusicXmlEnharmonicSimplifier.simplifyMusicXml(raw)
+            return EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(simplified)
+        }
 
         private func clearGuideColorCache() {
             guideColorPrimaryInput = nil
@@ -187,7 +197,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             if guideColorPrimaryInput == raw, let cached = guideColorPrimaryOutput {
                 return cached
             }
-            let applied = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(raw)
+            let applied = prepareDisplayXml(raw)
             guideColorPrimaryInput = raw
             guideColorPrimaryOutput = applied
             return applied
@@ -198,10 +208,37 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                let cached = guideColorOutputBySemitone[semitone] {
                 return cached
             }
-            let applied = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(raw)
+            let applied = prepareDisplayXml(raw)
             guideColorInputBySemitone[semitone] = raw
             guideColorOutputBySemitone[semitone] = applied
             return applied
+        }
+
+        /// 簡略表示設定が変わったときだけ呼ばれる。キャッシュを捨て、直前の生 XML で update を再実行して再描画する。
+        private func handleEnharmonicDisplayChange() {
+            let next = EnharmonicDisplayPreferences.load()
+            guard next != guideColorSimplifyFlag else { return }
+            guideColorSimplifyFlag = next
+            clearGuideColorCache()
+            guard let webView, !isTornDown,
+                  let raw = lastRawMusicXMLText,
+                  let renderKey = pendingRenderKey,
+                  let measureNumber = pendingMeasureNumber else { return }
+            update(
+                webView: webView,
+                musicXMLText: raw,
+                scoreXmlBySemitone: lastRawScoreXmlBySemitone,
+                activeSemitone: pendingActiveSemitone,
+                loopTransposeDirection: pendingTransposeDirection,
+                loopBaseSemitone: pendingTransposeBaseSemitone,
+                loopCycleIndex: pendingLoopCycleIndex,
+                renderKey: renderKey,
+                activeMeasureNumber: measureNumber,
+                measureDurationSec: pendingMeasureDurationSec,
+                phraseTimelineSec: pendingPhraseTimelineSec,
+                playheadAnimating: pendingPlayheadAnimating,
+                zoom: pendingZoom
+            )
         }
 
         private func guideColoredXmlBySemitone(
@@ -456,9 +493,22 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
 
         func attach(webView: WKWebView) {
             self.webView = webView
+            if enharmonicDisplayObserver == nil {
+                enharmonicDisplayObserver = NotificationCenter.default.addObserver(
+                    forName: .enharmonicDisplayDidChange,
+                    object: nil,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.handleEnharmonicDisplayChange()
+                }
+            }
         }
 
         func tearDown() {
+            if let enharmonicDisplayObserver {
+                NotificationCenter.default.removeObserver(enharmonicDisplayObserver)
+                self.enharmonicDisplayObserver = nil
+            }
             isTornDown = true
             renderGeneration += 1
             htmlReady = false
@@ -749,6 +799,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         ) {
             guard !isTornDown else { return }
 
+            lastRawMusicXMLText = musicXMLText
+            lastRawScoreXmlBySemitone = scoreXmlBySemitone
             let semitoneKeys = scoreXmlBySemitone.isEmpty
                 ? [0]
                 : scoreXmlBySemitone.keys.sorted()
