@@ -6,6 +6,11 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { normalizeWebKeyboardDisplayMode } from '@/utils/webKeyboardDisplayRange';
+import {
+  DEFAULT_NOTATION_INSTRUMENT_ID,
+  normalizeNotationInstrumentId,
+  clampNotationOctaveShift,
+} from '@/utils/notationInstrument';
 import type { GameSettings } from '@/types';
 
 const defaultSettings: GameSettings = {
@@ -19,7 +24,7 @@ const defaultSettings: GameSettings = {
   notesSpeed: 1.0,
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
-  noteOctaveShift: 0,
+  notationOctaveShift: 0,
   timingAdjustment: 0,
   showNoteNames: true,
   noteNameStyle: 'abc',
@@ -36,7 +41,7 @@ const defaultSettings: GameSettings = {
   selectedAudioDevice: null,
   selectedAudioOutputDevice: 'default',
   transpose: 0,
-  transposingInstrument: 'concert_pitch',
+  notationInstrumentId: DEFAULT_NOTATION_INSTRUMENT_ID,
   latencyAdjustment: 0,
   practiceGuide: 'key',
   performanceMode: 'standard',
@@ -90,10 +95,12 @@ const validateSettings = (
     normalized.transpose = Math.max(-12, Math.min(12, normalized.transpose));
   }
 
-  if (normalized.noteOctaveShift < -2 || normalized.noteOctaveShift > 2) {
-    errors.push('オクターブシフトは-2〜+2オクターブの範囲で設定してください');
-    normalized.noteOctaveShift = Math.max(-2, Math.min(2, normalized.noteOctaveShift));
+  if (normalized.notationOctaveShift < -2 || normalized.notationOctaveShift > 2) {
+    errors.push('記譜オクターブシフトは-2〜+2オクターブの範囲で設定してください');
+    normalized.notationOctaveShift = clampNotationOctaveShift(normalized.notationOctaveShift);
   }
+
+  normalized.notationInstrumentId = normalizeNotationInstrumentId(normalized.notationInstrumentId);
 
   if (normalized.viewportHeight < 400 || normalized.viewportHeight > 1200) {
     errors.push('ビューポートの高さは400-1200pxの範囲で設定してください');
@@ -183,7 +190,15 @@ if (typeof window !== 'undefined') {
   try {
     const saved = localStorage.getItem('gameSettings');
     if (saved) {
-      const parsed = JSON.parse(saved) as Partial<GameSettings>;
+      const parsed = JSON.parse(saved) as Partial<GameSettings> & {
+        noteOctaveShift?: number;
+        transposingInstrument?: string;
+      };
+      if (typeof parsed.noteOctaveShift === 'number' && parsed.notationOctaveShift === undefined) {
+        parsed.notationOctaveShift = parsed.noteOctaveShift;
+      }
+      delete parsed.noteOctaveShift;
+      delete parsed.transposingInstrument;
       delete parsed.playbackSpeed;
       delete parsed.showSheetMusic;
       delete parsed.sheetMusicChordsOnly;

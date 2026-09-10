@@ -10,6 +10,11 @@ import React, {
 } from 'react';
 import { OpenSheetMusicDisplay, type IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
+import { useGameStore } from '@/stores/gameStore';
+import {
+  applyNotationInstrumentToMusicXml,
+  getNotationInstrumentPreset,
+} from '@/utils/notationInstrument';
 import {
   OSMD_SCROLL_LAYOUT_BATTLE_DEFAULT,
   clampOsmdManualScrollOffset,
@@ -261,6 +266,9 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   drawMeasureNumbers = false,
   onContentHeightFit,
 }, ref) {
+  const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
+  const notationOctaveShift = useGameStore((state) => state.settings.notationOctaveShift);
+  const simpleDisplayMode = useGameStore((state) => state.settings.simpleDisplayMode);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const scoreContentRef = useRef<HTMLDivElement | null>(null);
   const scoreRef = useRef<HTMLDivElement | null>(null);
@@ -493,9 +501,16 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
         return null;
       }
       const stripped = showScoreLyrics ? musicXmlText : stripLyricsFromMusicXml(musicXmlText);
-      return applyChordOsmdGuideNoteColors(stripped);
+      const preset = getNotationInstrumentPreset(notationInstrumentId);
+      const transposed = applyNotationInstrumentToMusicXml(
+        stripped,
+        preset,
+        notationOctaveShift,
+        simpleDisplayMode,
+      );
+      return applyChordOsmdGuideNoteColors(transposed);
     },
-    [musicXmlText, showScoreLyrics],
+    [musicXmlText, showScoreLyrics, notationInstrumentId, notationOctaveShift, simpleDisplayMode],
   );
 
   useEffect(() => {

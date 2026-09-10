@@ -11,7 +11,6 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
-  transposingInstrument: string;
   colors: {
     visible: string | number;
     visibleBlack: string | number;
@@ -156,7 +155,6 @@ const createDefaultSettings = (): RendererSettings => ({
   hitLineY: 0,
   pianoHeight: 80,
   noteSpeed: 400,
-  transposingInstrument: 'concert_pitch',
   colors: {
     visible: '#4A90E2',
     visibleBlack: '#2C5282',

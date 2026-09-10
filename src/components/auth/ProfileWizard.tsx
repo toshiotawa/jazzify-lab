@@ -13,10 +13,13 @@ import {
   MARKETING_EMAIL_OPT_IN_TEXT_EN,
   MARKETING_EMAIL_OPT_IN_TEXT_JA,
 } from '@/utils/marketingEmailOptIn';
+import { NotationInstrumentSelect } from '@/components/settings/NotationInstrumentSelect';
+import { DEFAULT_NOTATION_INSTRUMENT_ID, type NotationInstrumentId } from '@/utils/notationInstrument';
 
 const ProfileWizard: React.FC = () => {
   const { createProfile, hasProfile, error, profile } = useAuthStore();
   const [nickname,setNickname] = useState('');
+  const [instrumentId, setInstrumentId] = useState<NotationInstrumentId>(DEFAULT_NOTATION_INSTRUMENT_ID);
   const [agreed,setAgreed] = useState(false);
   const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(true);
   const toast = useToast();
@@ -34,6 +37,7 @@ const ProfileWizard: React.FC = () => {
   const termsAgreementToast = isEnglishCopy ? 'Please agree to the Terms of Service.' : '利用規約に同意してください';
   const profileCreatedToast = isEnglishCopy ? 'Profile created.' : 'プロフィールを作成しました';
   const submitLabel = isEnglishCopy ? 'Save and start' : '登録して開始';
+  const instrumentLabel = isEnglishCopy ? 'Primary instrument' : '楽器';
   const checkboxTextIntro = isEnglishCopy ? 'I agree to the ' : '';
   const checkboxTextLinkSeparator = isEnglishCopy ? ' and ' : ' と ';
   const checkboxTextSuffix = isEnglishCopy ? '' : ' に同意します';
@@ -70,6 +74,7 @@ const ProfileWizard: React.FC = () => {
     await createProfile(nickname, agreed, {
       marketingEmailOptIn,
       marketingEmailOptInText: marketingOptInText,
+      instrumentId,
     });
     toast.success(profileCreatedToast);
   };
@@ -79,6 +84,14 @@ const ProfileWizard: React.FC = () => {
       <div className="bg-slate-800 p-6 rounded-lg w-full max-w-sm space-y-4" onClick={e=>e.stopPropagation()}>
         <h2 className="text-xl font-bold text-center">{modalTitle}</h2>
         <input className="input input-bordered w-full" placeholder={nicknamePlaceholder} value={nickname} onChange={e=>setNickname(e.target.value)} />
+        <label className="block space-y-1">
+          <span className="text-sm text-gray-200">{instrumentLabel}</span>
+          <NotationInstrumentSelect
+            value={instrumentId}
+            onChange={setInstrumentId}
+            isEnglishCopy={isEnglishCopy}
+          />
+        </label>
         <div className="border border-white/10 bg-slate-900/60 rounded-lg p-3 space-y-2 text-left">
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-semibold text-white">{termsContent.summaryHeading}</p>

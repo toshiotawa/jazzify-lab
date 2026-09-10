@@ -21,11 +21,6 @@ const JAJII_GREETING: SurvivalStageIntroLine = {
   },
 };
 
-const OCTAVE_OK: SurvivalStageIntroLine = {
-  atSeconds: 24,
-  text: { ja: 'オクターブ違いもOK。', en: 'Octave differences are OK too.' },
-};
-
 const BLOCK_BOSS: SurvivalStageIntroLine = {
   atSeconds: 10,
   text: {
@@ -145,7 +140,6 @@ export const buildBundledSurvivalStageIntroScript = (
         HINT_MODE,
         STICK,
         KEYBOARD_HINT,
-        OCTAVE_OK,
         PHRASE_ATTACK,
         CLEAR_90_PHR,
         CLOSING_PHR,
@@ -163,7 +157,6 @@ export const buildBundledSurvivalStageIntroScript = (
       HINT_MODE,
       STICK,
       KEYBOARD_HINT,
-      OCTAVE_OK,
       CORRECT_GREEN,
       COMBO_BUILD,
       COMBO_MAX,

@@ -24,6 +24,7 @@ import {
   OSMD_TIMING_ADJUSTMENT_MS_STEP,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 import { WebKeyboardDisplayModeSection } from '@/components/settings/WebKeyboardDisplayModeSection';
+import { NotationInstrumentSection } from '@/components/settings/NotationInstrumentSection';
 
 export type EarTrainingSettingsScope = 'battle' | 'tutorial';
 
@@ -267,6 +268,8 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
           </section>
 
           <WebKeyboardDisplayModeSection isEnglishCopy={isEnglishCopy} />
+
+          <NotationInstrumentSection isEnglishCopy={isEnglishCopy} />
 
           {osmdTimingAdjustment ? (
             <section className="rounded-xl border border-amber-600/40 bg-amber-950/30 p-4">

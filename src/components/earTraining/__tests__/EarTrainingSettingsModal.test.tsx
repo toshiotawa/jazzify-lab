@@ -2,15 +2,27 @@ import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 import EarTrainingSettingsModal from '../EarTrainingSettingsModal';
 
+const mockGameState = {
+  settings: {
+    masterVolume: 1,
+    musicVolume: 0.7,
+    midiVolume: 1,
+    soundEffectVolume: 1,
+    notationInstrumentId: 'piano',
+    notationOctaveShift: 0,
+  },
+  updateSettings: vi.fn(),
+};
+
 vi.mock('@/stores/gameStore', () => ({
-  useGameStore: () => ({
-    settings: {
-      masterVolume: 1,
-      musicVolume: 0.7,
-      midiVolume: 1,
-      soundEffectVolume: 1,
-    },
-    updateSettings: vi.fn(),
+  useGameStore: (selector?: (state: typeof mockGameState) => unknown) => (
+    selector ? selector(mockGameState) : mockGameState
+  ),
+}));
+
+vi.mock('@/stores/authStore', () => ({
+  useAuthStore: () => ({
+    updateNotationInstrument: vi.fn(),
   }),
 }));
 

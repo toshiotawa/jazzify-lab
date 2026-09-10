@@ -1,5 +1,4 @@
 import { Note, Interval, Key } from 'tonal';
-import type { TransposingInstrument } from '@/types';
 import { musicXmlKeySignatureAlter } from '@/utils/voicingMusicXml';
 
 /**
@@ -169,50 +168,6 @@ function getKeyFifths(keyName: string): number {
 }
 
 /**
- * 移調楽器の移調量を取得
- * @param instrument 移調楽器タイプ
- * @returns 移調量（半音）
- */
-export function getTransposingInstrumentSemitones(instrument: TransposingInstrument): number {
-  switch (instrument) {
-    case 'concert_pitch':
-      return 0;
-    case 'bb_major_2nd':
-      return 2; // in Bb (長2度上) - 実音より2半音低く聞こえる → 楽譜は2半音上に書く
-    case 'bb_major_9th':
-      return 14; // in Bb (1オクターブ+長2度上) - 実音より14半音低く聞こえる → 楽譜は14半音上に書く
-    case 'eb_major_6th':
-      return 9; // in Eb (長6度上) - 実音より9半音低く聞こえる → 楽譜は9半音上に書く
-    case 'eb_major_13th':
-      return 21; // in Eb (1オクターブ+長6度上) - 実音より21半音低く聞こえる → 楽譜は21半音上に書く
-    default:
-      return 0;
-  }
-}
-
-/**
- * 移調楽器の表示名を取得
- * @param instrument 移調楽器タイプ
- * @returns 表示名
- */
-export function getTransposingInstrumentName(instrument: TransposingInstrument): string {
-  switch (instrument) {
-    case 'concert_pitch':
-      return 'コンサートピッチ（移調なし）';
-    case 'bb_major_2nd':
-      return 'in Bb (長2度上) ソプラノサックス、トランペット、クラリネット';
-    case 'bb_major_9th':
-      return 'in Bb (1オクターブ+長2度上) テナーサックス';
-    case 'eb_major_6th':
-      return 'in Eb (長6度上) アルトサックス';
-    case 'eb_major_13th':
-      return 'in Eb (1オクターブ+長6度上) バリトンサックス';
-    default:
-      return 'コンサートピッチ（移調なし）';
-  }
-}
-
-/**
  * fifths値（五度圏）からキー名を取得
  * @param fifths fifths値
  * @returns キー名
@@ -278,7 +233,7 @@ function getKeyScaleNotesForXml(keyName: string): string[] {
  * @param simpleMode 簡易モード（ダブルシャープ/ダブルフラットを変換）
  * @returns 調整された音名
  */
-function adjustNoteToKeyScale(noteName: string, targetKey: string, simpleMode: boolean): string {
+export function adjustNoteToKeyScale(noteName: string, targetKey: string, simpleMode: boolean): string {
   const scaleNotes = getKeyScaleNotesForXml(targetKey);
   
   // 音名のクロマ（ピッチクラス）を取得
@@ -315,7 +270,7 @@ function adjustNoteToKeyScale(noteName: string, targetKey: string, simpleMode: b
  * @param semitones 半音数
  * @returns ターゲットキー名
  */
-function getTargetKeyFromTranspositionForXml(originalKeyName: string, semitones: number): string {
+export function getTargetKeyFromTranspositionForXml(originalKeyName: string, semitones: number): string {
   const originalFifths = keyNameToFifthsInternal(originalKeyName);
   const fifthsChange = semitonesToFifthsChangeInternal(semitones);
   

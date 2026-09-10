@@ -14,6 +14,8 @@ import {
   MARKETING_EMAIL_OPT_IN_TEXT_EN,
   MARKETING_EMAIL_OPT_IN_TEXT_JA,
 } from '@/utils/marketingEmailOptIn';
+import { NotationInstrumentSelect } from '@/components/settings/NotationInstrumentSelect';
+import { DEFAULT_NOTATION_INSTRUMENT_ID, type NotationInstrumentId } from '@/utils/notationInstrument';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -127,6 +129,7 @@ interface AccountModalProps {
     options?: {
       marketingEmailOptIn?: boolean;
       marketingEmailOptInText?: string;
+      instrumentId?: NotationInstrumentId;
     },
   ) => Promise<void>;
   error: string | null;
@@ -137,6 +140,7 @@ interface AccountModalProps {
 
 const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry, isEnglishCopy, termsContent }) => {
   const [nickname, setNickname] = useState('');
+  const [instrumentId, setInstrumentId] = useState<NotationInstrumentId>(DEFAULT_NOTATION_INSTRUMENT_ID);
   const [agreed, setAgreed] = useState(false);
   const [marketingEmailOptIn, setMarketingEmailOptIn] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -155,6 +159,7 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
   const marketingOptInDescription = isEnglishCopy
     ? MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_EN
     : MARKETING_EMAIL_OPT_IN_DESCRIPTION_SIGNUP_JA;
+  const instrumentLabel = isEnglishCopy ? 'Primary instrument' : '楽器';
   const marketingOptInText = isEnglishCopy
     ? MARKETING_EMAIL_OPT_IN_TEXT_EN
     : MARKETING_EMAIL_OPT_IN_TEXT_JA;
@@ -172,6 +177,7 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
       await onSubmit(nickname.trim(), agreed, {
         marketingEmailOptIn,
         marketingEmailOptInText: marketingOptInText,
+        instrumentId,
       });
     } finally {
       setSubmitting(false);
@@ -218,6 +224,14 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
                 className="w-full px-4 py-2 rounded bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={submitting}
               />
+              <label className="block space-y-1">
+                <span className="text-sm text-gray-200">{instrumentLabel}</span>
+                <NotationInstrumentSelect
+                  value={instrumentId}
+                  onChange={setInstrumentId}
+                  isEnglishCopy={isEnglishCopy}
+                />
+              </label>
               <div className="border border-white/10 bg-slate-900/60 rounded-lg p-3 space-y-2">
                 <div className="flex items-baseline justify-between">
                     <p className="text-sm font-semibold text-white">{termsSummaryHeading}</p>

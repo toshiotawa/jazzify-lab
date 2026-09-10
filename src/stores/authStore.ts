@@ -12,6 +12,12 @@ import { resolveFirstTouchForSignup, hasAttributionSignal } from '@/utils/analyt
 import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceContext';
 import { getGaClientId, trackEvent } from '@/utils/analytics/ga';
 import { MARKETING_EMAIL_OPT_IN_SOURCE } from '@/utils/marketingEmailOptIn';
+import { useGameStore } from '@/stores/gameStore';
+import {
+  isNotationInstrumentId,
+  normalizeNotationInstrumentId,
+  type NotationInstrumentId,
+} from '@/utils/notationInstrument';
 
 interface AuthState {
   user: User | null;
@@ -59,6 +65,8 @@ interface AuthState {
     lemon_subscription_status?: string | null; // on_trial, active, past_due, cancelled, expired, paused
     lemon_trial_used?: boolean | null;
     marketing_email_opt_in?: boolean | null;
+    instrument?: string | null;
+    notation_instrument?: string | null;
   } | null;
 }
 
@@ -75,6 +83,7 @@ interface AuthActions {
     options?: {
       marketingEmailOptIn?: boolean;
       marketingEmailOptInText?: string;
+      instrumentId?: NotationInstrumentId;
     },
   ) => Promise<void>;
   consumeMainQuestAutoStart: () => boolean;
@@ -86,6 +95,7 @@ interface AuthActions {
     isEnglishCopy?: boolean,
   ) => Promise<{ success: boolean; message: string }>;
   updateNickname: (nickname: string) => Promise<{ success: boolean; message: string }>;
+  updateNotationInstrument: (instrumentId: NotationInstrumentId) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
   setOptimisticAvatarUrl: (url: string | null) => void;
 }
@@ -600,7 +610,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in, instrument, notation_instrument')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -646,6 +656,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               lemon_subscription_status: data.lemon_subscription_status ?? null,
               lemon_trial_used: data.lemon_trial_used ?? null,
               marketing_email_opt_in: data.marketing_email_opt_in ?? null,
+              instrument: data.instrument ?? null,
+              notation_instrument: data.notation_instrument ?? null,
             };
             persistPreferredLocale(data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null);
           } else {
@@ -655,6 +667,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // プロフィール取得成功後、ユーザー統計も並行で取得
         if (data && !error) {
+          if (isNotationInstrumentId(data.notation_instrument)) {
+            useGameStore.getState().updateSettings({
+              notationInstrumentId: data.notation_instrument,
+            });
+          }
           console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
           const { fetchStats } = useUserStatsStore.getState();
           fetchStats(user.id).catch(console.error); // エラーは無視（統計は重要ではない）
@@ -744,6 +761,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         const gaClientId = await getGaClientId();
         const signupDevice = resolveCurrentSignupDeviceContext();
         const marketingEmailOptIn = options?.marketingEmailOptIn === true;
+        const instrumentId = normalizeNotationInstrumentId(options?.instrumentId);
         const { error } = await supabase.from('profiles').insert({
           id: user.id,
           email: user.email!,
@@ -771,12 +789,16 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           marketing_email_opt_in_at: marketingEmailOptIn ? new Date().toISOString() : null,
           marketing_email_opt_in_source: marketingEmailOptIn ? MARKETING_EMAIL_OPT_IN_SOURCE : null,
           marketing_email_opt_in_text: marketingEmailOptIn ? (options?.marketingEmailOptInText ?? null) : null,
+          instrument: instrumentId,
+          notation_instrument: instrumentId,
         });
         persistPreferredLocale(initialLocale);
 
         if (error) {
           throw error;
         }
+
+        useGameStore.getState().updateSettings({ notationInstrumentId: instrumentId });
 
         trackEvent('sign_up', { method: 'email_otp' });
 
@@ -968,6 +990,37 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         return {
           success: false,
           message: err instanceof Error ? err.message : 'ニックネームの更新に失敗しました',
+        };
+      }
+    },
+
+    updateNotationInstrument: async (instrumentId: NotationInstrumentId) => {
+      const supabase = getSupabaseClient();
+      const { user, profile } = get();
+      if (!user || !profile) {
+        return { success: false, message: 'ログインが必要です' };
+      }
+      const normalizedId = normalizeNotationInstrumentId(instrumentId);
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ notation_instrument: normalizedId })
+          .eq('id', user.id);
+        if (error) {
+          throw error;
+        }
+        clearCacheByKey(`profile:${user.id}`);
+        set(state => {
+          if (state.profile) {
+            state.profile.notation_instrument = normalizedId;
+          }
+        });
+        useGameStore.getState().updateSettings({ notationInstrumentId: normalizedId });
+        return { success: true, message: '記譜楽器を更新しました' };
+      } catch (err) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : '記譜楽器の更新に失敗しました',
         };
       }
     },

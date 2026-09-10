@@ -123,7 +123,6 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
       noteHeight: 12,
       noteWidth: Math.max(whiteKeyWidth - 2, 16),
       transpose: 0,
-      transposingInstrument: 'concert_pitch',
       practiceGuide: 'off',
       showHitLine: false,
       viewportHeight: PIANO_HEIGHT,

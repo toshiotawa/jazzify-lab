@@ -14,6 +14,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { WebKeyboardDisplayModeSection } from '@/components/settings/WebKeyboardDisplayModeSection';
+import { NotationInstrumentSection } from '@/components/settings/NotationInstrumentSection';
 
 const SURVIVAL_SETTINGS_KEY = 'survival_display_settings';
 
@@ -298,6 +299,8 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
           </div>
 
           <WebKeyboardDisplayModeSection isEnglishCopy={isEnglishCopy} />
+
+          <NotationInstrumentSection isEnglishCopy={isEnglishCopy} />
 
           {/* 区切り線 */}
           <div className="border-t border-gray-600 pt-4">

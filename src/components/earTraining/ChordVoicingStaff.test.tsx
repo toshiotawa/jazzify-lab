@@ -1,6 +1,21 @@
 import { render, waitFor } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { NotationInstrumentId } from '@/utils/notationInstrument';
 import ChordVoicingStaff from './ChordVoicingStaff';
+
+const { mockGameSettings } = vi.hoisted(() => ({
+  mockGameSettings: {
+    notationInstrumentId: 'piano' as NotationInstrumentId,
+    notationOctaveShift: 0,
+    simpleDisplayMode: false,
+  },
+}));
+
+vi.mock('@/stores/gameStore', () => ({
+  useGameStore: (
+    selector: (state: { settings: typeof mockGameSettings }) => unknown,
+  ) => selector({ settings: mockGameSettings }),
+}));
 
 const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
 const SMUFL_ACCIDENTAL_SHARP = '\uE262';
@@ -564,5 +579,32 @@ describe('ChordVoicingStaff', () => {
     expect(
       container.querySelector('[data-accidental-group-id="natural"] [data-smufl-vector-glyph="natural"]'),
     ).not.toBeNull();
+  });
+
+  it('Bb 楽器設定で C4 が D4 として描画され pitch class 判定用の midi は実音のまま', () => {
+    mockGameSettings.notationInstrumentId = 'piano';
+    const { container: pianoContainer, unmount: unmountPiano } = render(
+      <ChordVoicingStaff
+        chordName="C"
+        voicing={['C4']}
+        voicingStaves={[1]}
+        correctPitchClasses={[0]}
+      />,
+    );
+    const pianoCy = Number(pianoContainer.querySelector('ellipse[data-voicing-index="0"]')?.getAttribute('cy'));
+    unmountPiano();
+
+    mockGameSettings.notationInstrumentId = 'trumpet_bb';
+    const { container: trumpetContainer } = render(
+      <ChordVoicingStaff
+        chordName="C"
+        voicing={['C4']}
+        voicingStaves={[1]}
+        correctPitchClasses={[0]}
+      />,
+    );
+    const trumpetCy = Number(trumpetContainer.querySelector('ellipse[data-voicing-index="0"]')?.getAttribute('cy'));
+    expect(trumpetCy).toBeLessThan(pianoCy);
+    mockGameSettings.notationInstrumentId = 'piano';
   });
 });

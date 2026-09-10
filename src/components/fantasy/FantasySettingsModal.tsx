@@ -9,6 +9,7 @@ import { InputMethodSelector } from '@/components/ui/InputMethodSelector';
 import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useGameStore } from '@/stores/gameStore';
+import { NotationInstrumentSection } from '@/components/settings/NotationInstrumentSection';
 import type { DisplayLang } from '@/utils/display-note';
 import type { FantasyPlayMode } from './FantasyGameEngine';
 
@@ -400,6 +401,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                 : '鍵盤に表示される音名のスタイルを切り替えます'}
             </p>
           </div>
+
+          <NotationInstrumentSection isEnglishCopy={en} />
 
           {/* 音名表示設定（デイリーチャレンジ以外で表示） */}
           {!isDailyChallenge && (

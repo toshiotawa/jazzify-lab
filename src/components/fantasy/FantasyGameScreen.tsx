@@ -1183,7 +1183,6 @@ const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenP
           noteHeight: 16, // 音符の高さも縮小
           noteWidth: dynamicNoteWidth,
           transpose: 0,
-          transposingInstrument: 'concert_pitch',
           practiceGuide: effectiveShowGuide ? 'key' : 'off', // ガイド表示設定に基づく
           showHitLine: false, // ヒットラインを非表示
           viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示

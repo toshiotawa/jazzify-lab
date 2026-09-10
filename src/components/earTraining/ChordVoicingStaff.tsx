@@ -1,5 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
+import { useGameStore } from '@/stores/gameStore';
+import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
+import {
+  getNotationInstrumentPreset,
+  getWrittenSemitoneOffset,
+  transposeKeyFifths,
+  transposeWrittenNoteName,
+  type NotationInstrumentClef,
+} from '@/utils/notationInstrument';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { BRAVURA_WOFF2_PUBLIC_HREF } from './bravuraStaffDocumentFonts';
 import {
@@ -136,6 +145,13 @@ interface KeySignatureMark {
 }
 
 type StaffNumber = 1 | 2;
+
+interface NotationParseOptions {
+  writtenOffset: number;
+  originalFifths: number;
+  clefOverride?: NotationInstrumentClef;
+  simpleMode: boolean;
+}
 
 const NOTATION_COLOR = '#ffffff';
 const CORRECT_NOTATION_COLOR = '#22c55e';
@@ -361,24 +377,58 @@ const parseNotes = (
   voicing: readonly string[],
   voicingStaves: readonly number[],
   tiedFromPreviousVoicingIndices: readonly number[],
+  notationOptions?: NotationParseOptions,
 ): ParsedVoicingNoteWithStaff[] => {
   const shouldInferStaves = voicingStaves.length === 0;
   if (!shouldInferStaves && voicing.length !== voicingStaves.length) {
     throw new Error('voicing と voicing_staves は同じ長さである必要があります');
   }
   const tiedIndexSet = new Set(tiedFromPreviousVoicingIndices);
+  const clefOverride = notationOptions?.clefOverride;
+  const writtenOffset = notationOptions?.writtenOffset ?? 0;
+  const originalFifths = notationOptions?.originalFifths ?? 0;
+  const simpleMode = notationOptions?.simpleMode ?? false;
   return voicing.map((noteName, index) => {
     const parsed = parseVoicingNoteName(noteName);
-    const inferredStaff: StaffNumber = parsed.midi < 60 ? 2 : 1;
-    const staff = shouldInferStaves ? inferredStaff : Math.trunc(voicingStaves[index]);
-    if (staff !== 1 && staff !== 2) {
-      throw new Error(`voicing_staves の値は 1 または 2 のみ許容します (index=${index})`);
+    const concertMidi = parsed.midi;
+    const concertPitchClass = ((concertMidi % 12) + 12) % 12;
+    let step = parsed.step;
+    let alter = parsed.alter;
+    let octave = parsed.octave;
+    if (writtenOffset !== 0) {
+      const writtenName = transposeWrittenNoteName(
+        noteName,
+        writtenOffset,
+        originalFifths,
+        simpleMode,
+      );
+      const writtenParsed = parseVoicingNoteName(writtenName);
+      step = writtenParsed.step;
+      alter = writtenParsed.alter;
+      octave = writtenParsed.octave;
+    }
+    let staff: StaffNumber;
+    if (clefOverride === 'treble') {
+      staff = 1;
+    } else if (clefOverride === 'bass') {
+      staff = 2;
+    } else if (shouldInferStaves) {
+      staff = concertMidi < 60 ? 2 : 1;
+    } else {
+      const rawStaff = Math.trunc(voicingStaves[index]);
+      if (rawStaff !== 1 && rawStaff !== 2) {
+        throw new Error(`voicing_staves の値は 1 または 2 のみ許容します (index=${index})`);
+      }
+      staff = rawStaff;
     }
     return {
-      ...parsed,
+      step,
+      alter,
+      octave,
+      midi: concertMidi,
       staff,
-      degree: degreeForNote(parsed.step, parsed.octave),
-      pitchClass: ((parsed.midi % 12) + 12) % 12,
+      degree: degreeForNote(step, octave),
+      pitchClass: concertPitchClass,
       voicingIndex: index,
       displayAccidentalAlter: null,
       tiedFromPrevious: tiedIndexSet.has(index),
@@ -390,10 +440,15 @@ const parsedNoteCacheKey = (
   voicing: readonly string[],
   voicingStaves: readonly number[],
   tiedFromPreviousVoicingIndices: readonly number[],
+  notationOptions?: NotationParseOptions,
 ): string => [
   voicing.join(','),
   voicingStaves.join(','),
   tiedFromPreviousVoicingIndices.join(','),
+  notationOptions?.writtenOffset ?? 0,
+  notationOptions?.originalFifths ?? 0,
+  notationOptions?.clefOverride ?? 'grand',
+  notationOptions?.simpleMode ? '1' : '0',
 ].join('|');
 
 const parseNotesWithCache = (
@@ -401,13 +456,19 @@ const parseNotesWithCache = (
   voicing: readonly string[],
   voicingStaves: readonly number[],
   tiedFromPreviousVoicingIndices: readonly number[],
+  notationOptions?: NotationParseOptions,
 ): ParsedVoicingNoteWithStaff[] => {
-  const cacheKey = parsedNoteCacheKey(voicing, voicingStaves, tiedFromPreviousVoicingIndices);
+  const cacheKey = parsedNoteCacheKey(
+    voicing,
+    voicingStaves,
+    tiedFromPreviousVoicingIndices,
+    notationOptions,
+  );
   const cached = cache.get(cacheKey);
   if (cached) {
     return cached;
   }
-  const parsed = parseNotes(voicing, voicingStaves, tiedFromPreviousVoicingIndices);
+  const parsed = parseNotes(voicing, voicingStaves, tiedFromPreviousVoicingIndices, notationOptions);
   cache.set(cacheKey, parsed);
   if (cache.size > PARSED_NOTE_CACHE_LIMIT) {
     const firstKey = cache.keys().next().value;
@@ -1424,6 +1485,28 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   alwaysShowTopPointer = false,
   className,
 }) => {
+  const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
+  const notationOctaveShift = useGameStore((state) => state.settings.notationOctaveShift);
+  const simpleDisplayMode = useGameStore((state) => state.settings.simpleDisplayMode);
+  const notationPreset = useMemo(
+    () => getNotationInstrumentPreset(notationInstrumentId),
+    [notationInstrumentId],
+  );
+  const writtenOffset = useMemo(
+    () => getWrittenSemitoneOffset(notationPreset, notationOctaveShift),
+    [notationPreset, notationOctaveShift],
+  );
+  const writtenFifths = useMemo(
+    () => transposeKeyFifths(keyFifths, writtenOffset),
+    [keyFifths, writtenOffset],
+  );
+  const clefOverride = notationPreset.clef === 'grand' ? undefined : notationPreset.clef;
+  const notationParseOptions = useMemo((): NotationParseOptions => ({
+    writtenOffset,
+    originalFifths: keyFifths,
+    clefOverride,
+    simpleMode: simpleDisplayMode,
+  }), [writtenOffset, keyFifths, clefOverride, simpleDisplayMode]);
   const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
   const normalizedCorrectPitchClasses = correctPitchClasses ?? EMPTY_PITCH_CLASSES;
   const normalizedVoicingGroups = voicingGroups ?? EMPTY_GROUPS;
@@ -1435,6 +1518,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         .filter(group => group.isRest === true || group.voicing.length > 0)
         .map(group => ({
           ...group,
+          chordName: writtenOffset !== 0
+            ? transposeChordLabel(group.chordName, writtenOffset)
+            : group.chordName,
           measureOffset: group.measureOffset === 1 ? 1 : 0,
           isRest: group.isRest === true || group.voicing.length === 0,
         }));
@@ -1444,7 +1530,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     }
     return [{
       id: 'single',
-      chordName,
+      chordName: writtenOffset !== 0 ? transposeChordLabel(chordName, writtenOffset) : chordName,
       voicing,
       voicingStaves: normalizedVoicingStaves,
       correctPitchClasses: normalizedCorrectPitchClasses,
@@ -1456,6 +1542,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     normalizedVoicingGroups,
     normalizedVoicingStaves,
     voicing,
+    writtenOffset,
   ]);
 
   const renderState = useMemo(() => {
@@ -1480,6 +1567,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
             group.voicing,
             group.voicingStaves ?? EMPTY_STAVES,
             group.tiedFromPreviousVoicingIndices ?? EMPTY_TIED_INDICES,
+            notationParseOptions,
           ),
           measureOffset,
           slotIndex,
@@ -1489,14 +1577,14 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           exemptFromFade: group.exemptFromFade === true,
         };
       });
-      return { groups: applyRequiredAccidentals(groups, keyFifths), error: null };
+      return { groups: applyRequiredAccidentals(groups, writtenFifths), error: null };
     } catch (error) {
       return {
         groups: [] as ParsedVoicingStaffGroup[],
         error: error instanceof Error ? error.message : '譜面の生成に失敗しました',
       };
     }
-  }, [keyFifths, staffGroups]);
+  }, [writtenFifths, staffGroups, notationParseOptions]);
 
   const correctPitchClassSets = useMemo(() => {
     const sets = new Map<string, ReadonlySet<number>>();
@@ -1554,7 +1642,12 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   }, [smuflUseForeignObject]);
 
   const hasRestGroups = renderState.groups.some(group => group.isRest);
-  const activeStaves = fixedActiveStaves ?? (
+  const effectiveFixedActiveStaves = clefOverride === 'treble'
+    ? ([1] as const)
+    : clefOverride === 'bass'
+      ? ([2] as const)
+      : fixedActiveStaves;
+  const activeStaves = effectiveFixedActiveStaves ?? (
     (hasRestGroups || showEmptyStaff) ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
       renderState.groups.some(group => group.notes.some(note => note.staff === staff))
     ))
@@ -1571,10 +1664,10 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     : inferredDenseLayout;
   const effectiveSingleMeasureLayout = singleMeasureLayout || compactSingleMeasure;
   const staffLineRightX = compactSingleMeasure
-    ? compactChordStaffLineRightX(keyFifths)
+    ? compactChordStaffLineRightX(writtenFifths)
     : STAFF_LINE_RIGHT_X;
   const viewBoxWidth = staffLineRightX + VIEWBOX_EDGE_PAD_X;
-  const layout = getStaffLayoutMetrics(keyFifths, wideFirstMeasure, effectiveSingleMeasureLayout, staffLineRightX);
+  const layout = getStaffLayoutMetrics(writtenFifths, wideFirstMeasure, effectiveSingleMeasureLayout, staffLineRightX);
   const effectiveUnpressedNoteOpacity = hideUnpressedNotes
     ? 0
     : (unpressedNoteOpacityProp ?? 1);
@@ -1739,7 +1832,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
               correctPitchClassSets={correctPitchClassSets}
               correctGroupIds={correctGroupIds}
               staffTopY={systemLayout.firstStaffTopY + index * STAFF_TOP_STEP}
-              keyFifths={keyFifths}
+              keyFifths={writtenFifths}
               layout={layout}
               activeGroupId={effectiveActiveGroupId}
               unpressedNoteOpacity={effectiveUnpressedNoteOpacity}
