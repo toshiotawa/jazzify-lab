@@ -11,18 +11,19 @@ import {
  * 有料会員 Discord 同期バッチ
  * - free かつ非 admin の連携ユーザーを Discord からキック
  * - 実行スケジュール: 毎日 18:00 UTC / JST 03:00 (Supabase Dashboard Cron で設定)
- * - Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
+ * - Authorization: Bearer <DISCORD_CRON_SECRET>
  */
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  const cronSecret = Deno.env.get("DISCORD_CRON_SECRET") ?? "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const authHeader = req.headers.get("Authorization") ?? "";
   const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-  if (!serviceRoleKey || bearer !== serviceRoleKey) {
+  if (!cronSecret || !serviceRoleKey || bearer !== cronSecret) {
     return new Response("Unauthorized", { status: 401 });
   }
 
