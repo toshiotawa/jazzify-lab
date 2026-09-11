@@ -15,7 +15,7 @@ import type { ClearConditions, LessonContext, ProductionHintMode } from '@/types
 import { fetchLessonSongById } from '@/platform/supabaseLessons';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import type { BalloonRushResolvedStage } from '@/utils/balloonRushStageDefinitions';
 import { resolveBalloonRushAllowedChordIds } from '@/utils/balloonRushStageDefinitions';
 import {
@@ -215,15 +215,12 @@ const BalloonRushMain: React.FC = () => {
   }, [stageIdFromUrl, lessonContext, isEnglishCopy]);
 
   const handleBack = useCallback(() => {
-    if (lessonContext) {
-      getWindow().location.hash = buildLessonDetailHash(lessonContext.lessonId, {
-        justCleared: lessonClearedThisSessionRef.current
-          ? lessonContext.lessonSongId
-          : undefined,
-      });
-      return;
-    }
-    getWindow().location.hash = '#lessons';
+    getWindow().location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonContext?.lessonId,
+      justClearedLessonSongId: lessonClearedThisSessionRef.current
+        ? lessonContext?.lessonSongId
+        : undefined,
+    });
   }, [lessonContext]);
 
   const handleLessonClear = useCallback(async (): Promise<void> => {

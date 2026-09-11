@@ -22,7 +22,7 @@ import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignment
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { cn } from '@/utils/cn';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 
 const defaultClearConditions: ClearConditions = {
@@ -122,13 +122,12 @@ const DefenseMain: React.FC = () => {
   }, [stageId, isEnglishCopy]);
 
   const handleBackToLesson = useCallback(() => {
-    if (lessonContext) {
-      getWindow().location.hash = buildLessonDetailHash(lessonContext.lessonId, {
-        justCleared: lessonClearedThisSessionRef.current ? lessonContext.lessonSongId : undefined,
-      });
-      return;
-    }
-    getWindow().location.hash = '#lessons';
+    getWindow().location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonContext?.lessonId,
+      justClearedLessonSongId: lessonClearedThisSessionRef.current
+        ? lessonContext?.lessonSongId
+        : undefined,
+    });
   }, [lessonContext]);
 
   const startSession = useCallback((practiceMode: boolean) => {

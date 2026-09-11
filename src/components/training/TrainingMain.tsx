@@ -23,6 +23,7 @@ import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPremiumTier } from '@/utils/membership';
 import { getWindow } from '@/platform';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 
 type Screen = 'list' | 'ranking' | 'game' | 'result';
 
@@ -125,6 +126,18 @@ const TrainingMain: React.FC = () => {
     setScreen('game');
   }, [findTraining]);
 
+  const leaveLessonIfNeeded = useCallback(() => {
+    if (!lessonContext) {
+      return false;
+    }
+    getWindow().location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonContext.lessonId,
+      justClearedLessonSongId: lessonClearedRef.current ? lessonContext.lessonSongId : undefined,
+      searchParams: params,
+    });
+    return true;
+  }, [lessonContext, params]);
+
   const handleFinished = useCallback((score: number) => {
     setFinalScore(score);
     setScreen('result');
@@ -192,6 +205,9 @@ const TrainingMain: React.FC = () => {
           practiceMode={session.practiceMode}
           onFinished={handleFinished}
           onExit={() => {
+            if (leaveLessonIfNeeded()) {
+              return;
+            }
             setSession(null);
             setScreen('list');
           }}
@@ -212,6 +228,9 @@ const TrainingMain: React.FC = () => {
             setScreen('ranking');
           }}
           onExit={() => {
+            if (leaveLessonIfNeeded()) {
+              return;
+            }
             setSession(null);
             setScreen('list');
           }}

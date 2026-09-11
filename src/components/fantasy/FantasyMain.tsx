@@ -24,6 +24,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { verifyLessonPlayAccessForFreeUser } from '@/utils/lessonPlayRouteAccess';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 import { getWindow } from '@/platform';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
@@ -814,7 +815,9 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
       if (isIOSWebView()) {
         sendGameCallback('gameEnd');
       }
-      getWindow().location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      getWindow().location.hash = buildReturnFromAssignmentHash({
+        lessonId: lessonContext.lessonId,
+      });
       return;
     }
     if (isMissionMode) {

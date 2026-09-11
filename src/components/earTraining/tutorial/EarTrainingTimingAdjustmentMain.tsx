@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import type { ClearConditions } from '@/types';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import {
   parseEarTrainingTimingAdjustmentReturnHash,
   type EarTrainingTimingAdjustmentEntry,
@@ -89,13 +89,10 @@ const EarTrainingTimingAdjustmentMain: React.FC = () => {
         return;
       }
     }
-    if (lessonId) {
-      window.location.hash = buildLessonDetailHash(lessonId, {
-        justCleared: clearedThisSessionRef.current ? lessonSongId : undefined,
-      });
-    } else {
-      window.location.hash = '#lessons';
-    }
+    window.location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonId || null,
+      justClearedLessonSongId: clearedThisSessionRef.current ? lessonSongId : undefined,
+    });
   }, [entry, lessonId, lessonSongId, navigateAppHash, params]);
 
   return (

@@ -528,7 +528,10 @@ const LessonDetailPage: React.FC = () => {
     }).catch(() => undefined);
     prefetchPracticeResources(req);
 
-    const launchHash = buildLessonRequirementLaunchHash(extended);
+    const launchHash = buildLessonRequirementLaunchHash(extended, {
+      playMapNodeId: playMapNodeId ?? undefined,
+      playMapMode: playMapMode ?? undefined,
+    });
     if (!launchHash) {
       if (isBalloonRush) {
         toast.warning(
@@ -555,6 +558,8 @@ const LessonDetailPage: React.FC = () => {
     isPremiumMember,
     lesson?.block_number,
     lessonCourseMeta,
+    playMapMode,
+    playMapNodeId,
     prefetchPracticeResources,
     toast,
   ]);
@@ -606,12 +611,14 @@ const LessonDetailPage: React.FC = () => {
     }
     const nextHash = buildLessonDetailHash(lessonId, {
       justCleared: hashJustCleared ?? undefined,
+      playMapNodeId: hashPlayMapNodeId ?? undefined,
+      playMapMode: hashPlayMapMode ?? undefined,
     });
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, '', nextHash);
     }
     setHashAutoStart(false);
-  }, [lessonId, routeLessonId, hashJustCleared, searchParams, navigate]);
+  }, [lessonId, routeLessonId, hashJustCleared, hashPlayMapNodeId, hashPlayMapMode, searchParams, navigate]);
 
   const clearJustClearedFromUrl = useCallback(() => {
     if (!lessonId) {
@@ -626,12 +633,14 @@ const LessonDetailPage: React.FC = () => {
     }
     const nextHash = buildLessonDetailHash(lessonId, {
       autoStart: hashAutoStart,
+      playMapNodeId: hashPlayMapNodeId ?? undefined,
+      playMapMode: hashPlayMapMode ?? undefined,
     });
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, '', nextHash);
     }
     setHashJustCleared(null);
-  }, [lessonId, routeLessonId, hashAutoStart, searchParams, navigate]);
+  }, [lessonId, routeLessonId, hashAutoStart, hashPlayMapNodeId, hashPlayMapMode, searchParams, navigate]);
 
   useEffect(() => {
     if (loading) {

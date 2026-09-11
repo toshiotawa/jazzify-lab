@@ -64,7 +64,7 @@ import { useSurvivalMidiSession } from '@/hooks/useSurvivalMidiSession';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import GameHeader from '@/components/ui/GameHeader';
 
@@ -348,7 +348,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     } catch { /* ignore */ }
 
     if (!lessonId || !lessonSongId) {
-      window.location.hash = '#lessons';
+      window.location.hash = buildReturnFromAssignmentHash({ lessonId: lessonId || null, searchParams: lessonParams });
       return;
     }
 
@@ -367,7 +367,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       try {
         lessonSong = await fetchLessonSongById(lessonSongId);
       } catch {
-        window.location.hash = '#lessons';
+        window.location.hash = buildReturnFromAssignmentHash({ lessonId: lessonId || null, searchParams: lessonParams });
         return;
       }
 
@@ -377,13 +377,13 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       if (lessonSongHasInlineComposite(lessonSong.survival_composite_config)) {
         const compositeConfig = lessonSong.survival_composite_config;
         if (!compositeConfig) {
-          window.location.hash = '#lessons';
+          window.location.hash = buildReturnFromAssignmentHash({ lessonId: lessonId || null, searchParams: lessonParams });
           return;
         }
         try {
           inlinePhrases = buildSurvivalPhrasesFromLessonCompositeConfig(compositeConfig, lessonSongId);
         } catch {
-          window.location.hash = '#lessons';
+          window.location.hash = buildReturnFromAssignmentHash({ lessonId: lessonId || null, searchParams: lessonParams });
           return;
         }
         stageDef = buildLessonCompositeStageDefinition(
@@ -393,12 +393,12 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         );
       } else {
         if (!stageNumber) {
-          window.location.hash = '#lessons';
+          window.location.hash = buildReturnFromAssignmentHash({ lessonId: lessonId || null, searchParams: lessonParams });
           return;
         }
         stageDef = findStageForLesson(stageNumber, survivalMapCategory);
         if (!stageDef) {
-          window.location.hash = '#lessons';
+          window.location.hash = buildReturnFromAssignmentHash({ lessonId: lessonId || null, searchParams: lessonParams });
           return;
         }
       }
@@ -522,12 +522,14 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
   const navigateBackToLessonDetail = useCallback(() => {
     if (!lessonContext) return;
-    window.location.hash = buildLessonDetailHash(lessonContext.lessonId, {
-      justCleared: lessonClearedThisSessionRef.current
+    window.location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonContext.lessonId,
+      justClearedLessonSongId: lessonClearedThisSessionRef.current
         ? lessonContext.lessonSongId
         : undefined,
+      searchParams: lessonParams ?? undefined,
     });
-  }, [lessonContext]);
+  }, [lessonContext, lessonParams]);
 
   const handleSurvivalRunModeRestart = useCallback((nextHintMode: boolean) => {
     setActiveHintMode(nextHintMode);

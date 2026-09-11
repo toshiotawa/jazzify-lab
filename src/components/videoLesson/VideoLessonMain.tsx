@@ -14,7 +14,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import type { ClearConditions, LessonContext, VideoLessonStage } from '@/types';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import { LessonMapAudio } from '@/utils/LessonMapAudio';
 import { resolveVideoLessonSource } from '@/utils/videoLessonLocale';
@@ -270,15 +270,12 @@ const VideoLessonMain: React.FC = () => {
   }, [persistPosition]);
 
   const handleBack = useCallback(() => {
-    if (lessonContext) {
-      getWindow().location.hash = buildLessonDetailHash(lessonContext.lessonId, {
-        justCleared: lessonClearedThisSessionRef.current
-          ? lessonContext.lessonSongId
-          : undefined,
-      });
-      return;
-    }
-    getWindow().location.hash = '#lessons';
+    getWindow().location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonContext?.lessonId,
+      justClearedLessonSongId: lessonClearedThisSessionRef.current
+        ? lessonContext?.lessonSongId
+        : undefined,
+    });
   }, [lessonContext]);
 
   const handleComplete = useCallback(async (): Promise<void> => {

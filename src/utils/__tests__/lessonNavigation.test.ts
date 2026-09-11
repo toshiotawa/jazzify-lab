@@ -8,6 +8,7 @@ import {
   isLastLessonInBlock,
   shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell,
   sortLessonsByOrder,
+  buildReturnFromAssignmentHash,
   type LessonNavigationInfo,
   type NavigationBlockedReason,
 } from '@/utils/lessonNavigation';
@@ -329,5 +330,37 @@ describe('shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell', () => {
         nextBlockedReason: 'premium_required',
       }),
     ).toBe(false);
+  });
+});
+
+describe('buildReturnFromAssignmentHash', () => {
+  it('クエスト課題なら play map 文脈を保ったままそのクエストへ戻る', () => {
+    const params = new URLSearchParams({
+      playMapNodeId: 'node-1',
+      playMapMode: 'code_run',
+    });
+    expect(buildReturnFromAssignmentHash({
+      lessonId: 'lesson-1',
+      justClearedLessonSongId: 'song-1',
+      searchParams: params,
+    })).toBe('#lesson-detail?id=lesson-1&playMapNodeId=node-1&playMapMode=code_run&justCleared=song-1');
+  });
+
+  it('lessonId がなく defense マップ文脈ならフレーズディフェンスへ戻る', () => {
+    expect(buildReturnFromAssignmentHash({
+      searchParams: new URLSearchParams({ playMapMode: 'defense' }),
+    })).toBe('#phrase-defense');
+  });
+
+  it('lessonId がなく code_run マップ文脈ならコードランへ戻る', () => {
+    expect(buildReturnFromAssignmentHash({
+      searchParams: new URLSearchParams({ playMapMode: 'code_run' }),
+    })).toBe('#code-run');
+  });
+
+  it('文脈がなければクエスト一覧へ戻る', () => {
+    expect(buildReturnFromAssignmentHash({
+      searchParams: new URLSearchParams(),
+    })).toBe('#courses');
   });
 });

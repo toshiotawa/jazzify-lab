@@ -6,7 +6,7 @@ import type { ClearConditions } from '@/types';
 
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import { SurvivalLessonTutorialExperience } from './SurvivalLessonTutorialExperience';
 
@@ -50,13 +50,10 @@ const SurvivalTutorialMain: React.FC = () => {
   }, [profile, lessonId, lessonSongId, clearConditions]);
 
   const handleExit = useCallback(() => {
-    if (lessonId) {
-      window.location.hash = buildLessonDetailHash(lessonId, {
-        justCleared: clearedThisSessionRef.current ? lessonSongId : undefined,
-      });
-    } else {
-      window.location.hash = '#lessons';
-    }
+    window.location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonId || null,
+      justClearedLessonSongId: clearedThisSessionRef.current ? lessonSongId : undefined,
+    });
   }, [lessonId, lessonSongId]);
 
   const handlePlayable = useCallback(() => {

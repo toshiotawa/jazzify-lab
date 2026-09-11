@@ -20,7 +20,7 @@ import {
   type EarTrainingBattleEnemy,
 } from '@/utils/earTrainingBattleAvatar';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
-import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { useGameMidiSession } from '@/hooks/useGameMidiSession';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
@@ -231,15 +231,12 @@ const EarTrainingMain: React.FC = () => {
   );
 
   const handleBack = useCallback(() => {
-    if (lessonContext) {
-      getWindow().location.hash = buildLessonDetailHash(lessonContext.lessonId, {
-        justCleared: lessonClearedThisSessionRef.current
-          ? lessonContext.lessonSongId
-          : undefined,
-      });
-      return;
-    }
-    getWindow().location.hash = '#lessons';
+    getWindow().location.hash = buildReturnFromAssignmentHash({
+      lessonId: lessonContext?.lessonId,
+      justClearedLessonSongId: lessonClearedThisSessionRef.current
+        ? lessonContext?.lessonSongId
+        : undefined,
+    });
   }, [lessonContext]);
 
   const handleLessonStageClear = useCallback(async (lessonRank: 'S' | 'A' | 'B' | 'C') => {

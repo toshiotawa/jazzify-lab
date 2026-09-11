@@ -97,4 +97,15 @@ describe('buildLessonRequirementLaunchHash', () => {
     expect(hash).toContain('entry=quest');
     expect(hash).toContain('lessonId=lesson-1');
   });
+
+  it('preserves play map context on survival lesson hash', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_survival: true,
+      survival_stage_number: 3,
+      survival_map_category: 'basic',
+    }), { playMapNodeId: 'node-1', playMapMode: 'defense' });
+    expect(hash).toContain('#survival-lesson?');
+    expect(hash).toContain('playMapNodeId=node-1');
+    expect(hash).toContain('playMapMode=defense');
+  });
 });

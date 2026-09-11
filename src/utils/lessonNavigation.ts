@@ -12,6 +12,8 @@ import {
   isSoftLandingCourse,
 } from '@/utils/softLanding';
 import { log } from '@/utils/logger';
+import { getAppRouteSearchParams } from '@/utils/appPaths';
+import type { PlayMapMode } from '@/platform/supabasePlayMap';
 
 export type NavigationBlockedReason =
   | 'first_lesson'
@@ -466,13 +468,26 @@ export type QuestCompletionModalKind =
   | 'chapterCompleteOnly'
   | 'none';
 
+interface PlayMapRouteContext {
+  playMapNodeId?: string;
+  playMapMode?: PlayMapMode;
+}
+
+/** URL クエリからコードラン/ディフェンスマップ文脈を読み取る（無ければ空） */
+function readPlayMapRouteContext(params: URLSearchParams): PlayMapRouteContext {
+  const nodeId = params.get('playMapNodeId');
+  const mode = params.get('playMapMode');
+  return {
+    playMapNodeId: nodeId || undefined,
+    playMapMode: mode === 'code_run' || mode === 'defense' ? mode : undefined,
+  };
+}
+
 export function buildLessonDetailHash(
   lessonId: string,
-  options?: {
+  options?: PlayMapRouteContext & {
     autoStart?: boolean;
     justCleared?: string;
-    playMapNodeId?: string;
-    playMapMode?: 'code_run' | 'defense';
   },
 ): string {
   const params = new URLSearchParams({ id: lessonId });
@@ -489,6 +504,34 @@ export function buildLessonDetailHash(
     params.set('justCleared', options.justCleared);
   }
   return `#lesson-detail?${params.toString()}`;
+}
+
+/**
+ * 課題（ゲーム）から戻るときの遷移先。
+ * - lessonId あり: そのクエスト詳細（マップ文脈 playMapNodeId/playMapMode は URL から引き継ぐ）
+ * - lessonId なし + マップ文脈あり: コードラン / フレーズディフェンスのマップ
+ * - どちらも無し: クエスト一覧
+ * searchParams 省略時は現在の URL から読む。
+ */
+export function buildReturnFromAssignmentHash(input: {
+  lessonId?: string | null;
+  justClearedLessonSongId?: string;
+  searchParams?: URLSearchParams;
+}): string {
+  const playMap = readPlayMapRouteContext(input.searchParams ?? getAppRouteSearchParams());
+  if (input.lessonId) {
+    return buildLessonDetailHash(input.lessonId, {
+      ...playMap,
+      justCleared: input.justClearedLessonSongId,
+    });
+  }
+  if (playMap.playMapMode === 'defense') {
+    return '#phrase-defense';
+  }
+  if (playMap.playMapMode === 'code_run') {
+    return '#code-run';
+  }
+  return '#courses';
 }
 
 export function sortLessonsByOrder(lessons: Lesson[]): Lesson[] {
