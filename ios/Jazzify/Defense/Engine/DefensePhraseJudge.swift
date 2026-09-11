@@ -106,10 +106,6 @@ enum DefensePhraseJudge {
         next.correctNoteIndices = evaluation.nextState.correctNoteIndices
         next.revealedNoteIndices = evaluation.nextState.revealedNoteIndices
 
-        let stepCompleted = evaluation.nextState.targetStepIndex > state.targetStepIndex
-            || evaluation.result == .measureComplete
-        let attack = stepCompleted
-
         if evaluation.result == .measureComplete {
             next = advanceChord(next, phrase: phrase)
             if next.chordIndex == 0 {
@@ -126,10 +122,17 @@ enum DefensePhraseJudge {
                     nextState: next
                 )
             }
+            return Evaluation(
+                attack: true,
+                phraseCompleted: false,
+                pendingSwitch: state.pendingSwitch,
+                completionCount: state.completionCount,
+                nextState: next
+            )
         }
 
         return Evaluation(
-            attack: attack,
+            attack: false,
             phraseCompleted: false,
             pendingSwitch: state.pendingSwitch,
             completionCount: state.completionCount,

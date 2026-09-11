@@ -648,15 +648,11 @@ const CLEF_LEFT_X = STAFF_LINE_LEFT_X + SP * 0.8;
 const StaffClefGlyph: React.FC<{
   staff: StaffNumber;
   staffTopY: number;
-  showAnchorDebug: boolean;
-  staffLineRightX: number;
   clefFontsLoaded: boolean;
   smuflUseForeignObject: boolean;
 }> = ({
   staff,
   staffTopY,
-  showAnchorDebug,
-  staffLineRightX,
   clefFontsLoaded,
   smuflUseForeignObject,
 }) => {
@@ -665,19 +661,6 @@ const StaffClefGlyph: React.FC<{
 
   return (
     <g data-staff-clef={staff}>
-      {showAnchorDebug ? (
-        <g aria-hidden>
-          <line
-            x1={STAFF_LINE_LEFT_X}
-            x2={staffLineRightX}
-            y1={anchorLineY}
-            y2={anchorLineY}
-            stroke="#ef4444"
-            strokeWidth={1}
-          />
-          <circle cx={CLEF_LEFT_X} cy={anchorLineY} fill="#ef4444" r={4} />
-        </g>
-      ) : null}
       {smuflUseForeignObject ? (
         <g pointerEvents="none" transform={`translate(${CLEF_LEFT_X}, ${anchorLineY})`}>
           {staff === 1 ? (
@@ -1367,10 +1350,8 @@ const RenderedStaff: React.FC<{
     <g>
       <StaffLines staff={staff} topY={staffTopY} staffLineRightX={staffLineRightX} />
       <StaffClefGlyph
-        showAnchorDebug={import.meta.env.DEV}
         staff={staff}
         staffTopY={staffTopY}
-        staffLineRightX={staffLineRightX}
         clefFontsLoaded={clefFontsLoaded}
         smuflUseForeignObject={smuflUseForeignObject}
       />

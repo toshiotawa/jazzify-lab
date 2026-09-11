@@ -5,9 +5,11 @@ import { drawBattleAvatar } from '@/game/earTraining/canvas/earTrainingBattleAct
 import {
   drawCachedBackground,
   invalidateBackgroundCache,
+  PLAYER_POSE_IMAGE_URLS,
 } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { drawHpBar } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import {
+  CHARACTER_DISPLAY_SIZE,
   getFloorY,
   getHpBarLayout,
   HUD_HEIGHT,
@@ -28,21 +30,25 @@ import {
   pickDefenseEnemyFrame,
 } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
+import { defenseLogicalToScreenX } from '@/game/defense/defenseSceneLayout';
 import type { DefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import type { DefenseEnemyType, DefenseRuntime } from '@/game/defense/defenseTypes';
 import {
   DEFENSE_MAP_WIDTH,
   DEFENSE_NO_IMPACT,
   DEFENSE_NO_SLASH,
+  DEFENSE_PLAYER_X,
 } from '@/game/defense/defenseTypes';
 
 const HUD_FONT = 'Arial, sans-serif';
 const IMPACT_RING_COLOR = '#fbbf24';
 const IMPACT_SPARK_COLOR = '#fef08a';
 const SLASH_GLOW_COLOR = 'rgba(34, 211, 238, 0.55)';
-const SLASH_CORE_COLOR = '#f8fafc';
+const SLASH_CORE_COLOR = 'rgba(248, 250, 252, 0.95)';
+const SLASH_SPARK_COLOR = 'rgba(186, 230, 253, 0.9)';
 const FLYING_Y_OFFSET = 90;
-const PLAYER_X_RATIO = 0.23;
+const SLASH_GROW_PHASE = 0.4;
+const SLASH_SPARK_ANGLES = [-0.35, -0.12, 0.12, 0.35] as const;
 
 export interface DefenseSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
@@ -52,10 +58,47 @@ export interface DefenseSceneAssets {
 
 export { invalidateBackgroundCache };
 
+const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
+
+const appendTaperedSlashPath = (
+  ctx: CanvasRenderingContext2D,
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  halfWidth: number,
+): void => {
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+
+  const nx = -dy / len;
+  const ny = dx / len;
+  const midX = (fromX + toX) / 2;
+  const midY = (fromY + toY) / 2;
+  const bulge = halfWidth * 1.15;
+
+  ctx.moveTo(fromX + nx * halfWidth * 0.15, fromY + ny * halfWidth * 0.15);
+  ctx.quadraticCurveTo(
+    midX + nx * bulge,
+    midY + ny * bulge,
+    toX,
+    toY,
+  );
+  ctx.quadraticCurveTo(
+    midX - nx * bulge,
+    midY - ny * bulge,
+    fromX - nx * halfWidth * 0.15,
+    fromY - ny * halfWidth * 0.15,
+  );
+  ctx.closePath();
+};
+
 const drawImpactEffect = (
   ctx: CanvasRenderingContext2D,
   runtime: DefenseRuntime,
-  scaleX: number,
+  width: number,
   floorY: number,
   spriteScale: number,
 ): void => {
@@ -63,7 +106,7 @@ const drawImpactEffect = (
   const age = runtime.elapsedSec - runtime.impactAt;
   if (age < 0 || age > DEFENSE_IMPACT_SEC) return;
 
-  const cx = runtime.impactX * scaleX;
+  const cx = defenseLogicalToScreenX(width, runtime.impactX);
   const cy = floorY - (DEFENSE_GROUND_Y - runtime.impactY) * spriteScale;
   const progress = age / DEFENSE_IMPACT_SEC;
   const ringRadius = (10 + progress * 30) * spriteScale;
@@ -95,7 +138,7 @@ const drawImpactEffect = (
 const drawSlashEffect = (
   ctx: CanvasRenderingContext2D,
   runtime: DefenseRuntime,
-  scaleX: number,
+  width: number,
   floorY: number,
   spriteScale: number,
 ): void => {
@@ -103,28 +146,50 @@ const drawSlashEffect = (
   const age = runtime.elapsedSec - runtime.slashAt;
   if (age < 0 || age > DEFENSE_SLASH_SEC) return;
 
-  const fromX = runtime.slashFromX * scaleX;
-  const toX = runtime.slashToX * scaleX;
-  const y = floorY - 40 * spriteScale;
-  const alpha = 1 - age / DEFENSE_SLASH_SEC;
+  const playerScreenX = defenseLogicalToScreenX(width, runtime.playerX);
+  const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
+  const fromX = playerScreenX + avatarSize * 0.45;
+  const fromY = floorY - avatarSize * 0.55;
+  const toX = defenseLogicalToScreenX(width, runtime.slashToX);
+  const toY = floorY - (DEFENSE_GROUND_Y - runtime.slashY) * spriteScale;
+
+  const progress = age / DEFENSE_SLASH_SEC;
+  const growT = Math.min(1, progress / SLASH_GROW_PHASE);
+  const lengthScale = easeOutCubic(growT);
+  const endX = fromX + (toX - fromX) * lengthScale;
+  const endY = fromY + (toY - fromY) * lengthScale;
+  const alpha = progress < SLASH_GROW_PHASE
+    ? 1
+    : 1 - ((progress - SLASH_GROW_PHASE) / (1 - SLASH_GROW_PHASE));
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.lineCap = 'round';
 
-  ctx.strokeStyle = SLASH_GLOW_COLOR;
-  ctx.lineWidth = 6 * spriteScale;
   ctx.beginPath();
-  ctx.moveTo(fromX, y);
-  ctx.lineTo(toX, y);
-  ctx.stroke();
+  appendTaperedSlashPath(ctx, fromX, fromY, endX, endY, 10 * spriteScale);
+  ctx.fillStyle = SLASH_GLOW_COLOR;
+  ctx.fill();
 
-  ctx.strokeStyle = SLASH_CORE_COLOR;
-  ctx.lineWidth = 2 * spriteScale;
   ctx.beginPath();
-  ctx.moveTo(fromX, y);
-  ctx.lineTo(toX, y);
-  ctx.stroke();
+  appendTaperedSlashPath(ctx, fromX, fromY, endX, endY, 4 * spriteScale);
+  ctx.fillStyle = SLASH_CORE_COLOR;
+  ctx.fill();
+
+  if (lengthScale > 0.85) {
+    const sparkLen = 14 * spriteScale * alpha;
+    ctx.strokeStyle = SLASH_SPARK_COLOR;
+    ctx.lineWidth = 1.5 * spriteScale;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < SLASH_SPARK_ANGLES.length; i += 1) {
+      const angle = SLASH_SPARK_ANGLES[i];
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX + cos * sparkLen, endY + sin * sparkLen);
+    }
+    ctx.stroke();
+  }
 
   ctx.restore();
 };
@@ -146,7 +211,7 @@ const drawEnemiesOfType = (
   runtime: DefenseRuntime,
   type: DefenseEnemyType,
   atlas: DefenseEnemySpriteAtlas,
-  scaleX: number,
+  width: number,
   floorY: number,
   spriteScale: number,
 ): void => {
@@ -175,11 +240,15 @@ const drawEnemiesOfType = (
     );
     const img = frame === 'idle' ? sprites.idle : sprites.move;
 
-    let drawX = enemy.x * scaleX;
+    let logicalX = enemy.x;
+    if (attacking) {
+      const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
+      logicalX += getDefenseEnemyAttackDx(attackElapsed);
+    }
+    const drawX = defenseLogicalToScreenX(width, logicalX);
     let footOffset = 0;
     if (attacking) {
       const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
-      drawX += getDefenseEnemyAttackDx(attackElapsed) * scaleX;
       footOffset += getDefenseEnemyAttackDy(attackElapsed, config.isFlying) * spriteScale;
     }
     if (config.isFlying) {
@@ -285,10 +354,9 @@ export const drawDefenseScene = (
   atlas: DefenseEnemySpriteAtlas | null,
   assets: DefenseSceneAssets | null,
 ): void => {
-  const scaleX = width / DEFENSE_MAP_WIDTH;
   const floorY = getFloorY(height);
   const stageHeight = Math.max(1, floorY - HUD_HEIGHT);
-  const spriteScale = Math.min(scaleX, stageHeight / 320);
+  const spriteScale = Math.min(width / DEFENSE_MAP_WIDTH, stageHeight / 320);
 
   if (assets) {
     drawCachedBackground(ctx, width, height, assets.backgroundCache, assets.loadedImages);
@@ -304,14 +372,14 @@ export const drawDefenseScene = (
         runtime,
         DEFENSE_ENEMY_DRAW_ORDER[d],
         atlas,
-        scaleX,
+        width,
         floorY,
         spriteScale,
       );
     }
   }
 
-  let playerX = width * PLAYER_X_RATIO;
+  let playerX = defenseLogicalToScreenX(width, DEFENSE_PLAYER_X);
   if (runtime.impactAt !== DEFENSE_NO_IMPACT) {
     const impactAge = runtime.elapsedSec - runtime.impactAt;
     if (impactAge >= 0 && impactAge < DEFENSE_IMPACT_HITBACK_SEC) {
@@ -319,7 +387,13 @@ export const drawDefenseScene = (
     }
   }
 
-  const playerImg = assets?.loadedImages.get(assets.playerAvatarUrl);
+  const showGuardPose = runtime.guardPoseUntilSec > 0
+    && runtime.elapsedSec < runtime.guardPoseUntilSec;
+  const guardImg = assets?.loadedImages.get(PLAYER_POSE_IMAGE_URLS.guardD);
+  const playerImg = showGuardPose && guardImg
+    ? guardImg
+    : assets?.loadedImages.get(assets?.playerAvatarUrl ?? '');
+
   const impactActive = runtime.impactAt !== DEFENSE_NO_IMPACT
     && runtime.elapsedSec - runtime.impactAt >= 0
     && runtime.elapsedSec - runtime.impactAt < DEFENSE_IMPACT_SEC;
@@ -329,8 +403,8 @@ export const drawDefenseScene = (
     tintAlpha: impactActive ? 0.45 : undefined,
   });
 
-  drawImpactEffect(ctx, runtime, scaleX, floorY, spriteScale);
-  drawSlashEffect(ctx, runtime, scaleX, floorY, spriteScale);
+  drawImpactEffect(ctx, runtime, width, floorY, spriteScale);
+  drawSlashEffect(ctx, runtime, width, floorY, spriteScale);
   drawImpactFlash(ctx, width, height, runtime);
   drawDefenseHud(ctx, width, hud);
 };

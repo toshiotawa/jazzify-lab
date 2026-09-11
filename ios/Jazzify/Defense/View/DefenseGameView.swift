@@ -34,35 +34,36 @@ struct DefenseGameView: View {
     }
 
     var body: some View {
-        ZStack {
-            SpriteView(scene: scene, options: [.allowsTransparency])
-                .ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                SpriteView(scene: scene, options: [.allowsTransparency])
+                    .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                defenseHud
-                Spacer()
-            }
-            .ignoresSafeArea(edges: .top)
-
-            if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
-                VStack {
-                    Spacer()
-                    DefensePhraseStaffView(
-                        phrase: phrase,
-                        stageKeyFifths: session.stage.keyFifths,
-                        chordIndex: session.judgeState.chordIndex,
-                        judgeState: session.judgeState,
-                        staffLayout: session.stage.staffLayout,
-                        showTargetHints: session.practiceMode || staffOpacity > 0,
-                        unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
-                    )
-                    .padding(.horizontal)
-                    .frame(maxWidth: 720)
-                    .offset(y: -120)
+                VStack(spacing: 0) {
+                    defenseHud
                     Spacer()
                 }
-                .allowsHitTesting(false)
-            }
+                .ignoresSafeArea(edges: .top)
+
+                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+                    VStack {
+                        Spacer()
+                        DefensePhraseStaffView(
+                            phrase: phrase,
+                            stageKeyFifths: session.stage.keyFifths,
+                            chordIndex: session.judgeState.chordIndex,
+                            judgeState: session.judgeState,
+                            staffLayout: session.stage.staffLayout,
+                            showTargetHints: session.practiceMode || staffOpacity > 0,
+                            unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
+                        )
+                        .padding(.horizontal)
+                        .frame(maxWidth: min(geo.size.width * 0.63, 600))
+                        .offset(y: -120)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
 
             VStack {
                 Spacer()
@@ -83,8 +84,9 @@ struct DefenseGameView: View {
                 .opacity(keyboardHintOpacity <= 0 ? 0.4 : 1)
             }
 
-            if session.hud.result != .playing {
-                resultOverlay
+                if session.hud.result != .playing {
+                    resultOverlay
+                }
             }
         }
         .preferredColorScheme(.dark)

@@ -97,11 +97,12 @@ describe('defenseEngine', () => {
     enemy.hp = 2;
     runtime.activeEnemyCount = 1;
 
-    const slashed = performDefenseSlash(runtime);
+    const slashed = performDefenseSlash(runtime, 0.5);
     expect(slashed).toBe(true);
     expect(enemy.hp).toBe(1);
     expect(enemy.knockbackVx).toBe(180);
     expect(runtime.slashAt).toBe(0);
+    expect(runtime.guardPoseUntilSec).toBeCloseTo(0.5);
     expect(runtime.slashToX).toBeCloseTo(DEFENSE_SPAWN_X);
     expect(runtime.slashY).toBeCloseTo(getDefenseEnemyCenterY('goblin'));
   });

@@ -69,12 +69,13 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
         runtime.enemies[0].hp = 2
 
-        let slashed = DefenseGameLoop.performSlash(runtime: &runtime)
+        let slashed = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: 0.5)
         XCTAssertTrue(slashed)
         XCTAssertEqual(runtime.enemies[0].hp, 1)
         XCTAssertEqual(runtime.enemies[0].knockbackVx, 180, accuracy: 0.001)
         XCTAssertEqual(runtime.slashAt, 0, accuracy: 0.001)
         XCTAssertEqual(runtime.slashToX, 760, accuracy: 0.001)
+        XCTAssertEqual(runtime.guardPoseUntilSec, 0.5, accuracy: 0.001)
     }
 
     func testSlashHitsFrontmostEnemyByMinX() {

@@ -193,9 +193,6 @@ export const evaluateDefensePhraseNoteOn = (
   }
 
   const progressedState = applyStepState(state, evaluation.nextState);
-  const stepCompleted = evaluation.nextState.targetStepIndex > state.targetStepIndex
-    || evaluation.result === 'measure-complete';
-  const attack = stepCompleted;
 
   if (evaluation.result === 'measure-complete') {
     const afterChord = advanceChord(progressedState, phrase);
@@ -232,7 +229,7 @@ export const evaluateDefensePhraseNoteOn = (
   }
 
   return {
-    attack,
+    attack: false,
     phraseCompleted: false,
     pendingSwitch: state.pendingSwitch,
     completionCount: state.completionCount,

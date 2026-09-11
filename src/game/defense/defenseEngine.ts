@@ -153,12 +153,18 @@ const applySlashHit = (runtime: DefenseRuntime, target: DefenseEnemy): void => {
   runtime.slashY = target.y;
 };
 
-export const performDefenseSlash = (runtime: DefenseRuntime): boolean => {
+export const performDefenseSlash = (
+  runtime: DefenseRuntime,
+  guardPoseSec = 0,
+): boolean => {
   if (runtime.result !== 'playing') return false;
   const target = findFrontmostActiveEnemy(runtime);
   if (!target) return false;
 
   applySlashHit(runtime, target);
+  if (guardPoseSec > 0) {
+    runtime.guardPoseUntilSec = runtime.elapsedSec + guardPoseSec;
+  }
   return true;
 };
 

@@ -119,7 +119,8 @@ final class DefenseGameSession: ObservableObject {
             judgeState = evaluation.nextState
         }
         if evaluation.attack {
-            _ = DefenseGameLoop.performSlash(runtime: &runtime)
+            let guardPoseSec = stage.bpm > 0 ? 60 / stage.bpm : 1
+            _ = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: guardPoseSec)
         }
         if evaluation.pendingSwitch, pendingSwitchPhraseIndex == nil {
             let nextIndex = DefensePhraseJudge.nextPhraseIndex(
@@ -127,6 +128,7 @@ final class DefenseGameSession: ObservableObject {
                 current: judgeState.phraseIndex
             )
             pendingSwitchPhraseIndex = nextIndex
+            judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
             Task {
                 guard let phrase = stage.phrases[safe: nextIndex],
                       let url = URL(string: phrase.audioUrl)
@@ -150,11 +152,20 @@ final class DefenseGameSession: ObservableObject {
         DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: dt)
 
         let switchGen = DefenseBackingAudio.shared.didSwitchGeneration
-        if switchGen != lastSwitchGeneration, let nextIndex = pendingSwitchPhraseIndex {
+        if switchGen != lastSwitchGeneration, let switchedToIndex = pendingSwitchPhraseIndex {
             lastSwitchGeneration = switchGen
-            judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
             pendingSwitchPhraseIndex = nil
             DefenseBackingAudio.shared.commitSwitchFromMainThread()
+            let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
+                phrases: stage.phrases,
+                current: switchedToIndex
+            )
+            if let phrase = stage.phrases[safe: preloadIndex],
+               let url = URL(string: phrase.audioUrl) {
+                Task {
+                    try? await DefenseBackingAudio.shared.preload(urls: [url])
+                }
+            }
         }
 
         let elapsedInt = Int(runtime.elapsedSec)

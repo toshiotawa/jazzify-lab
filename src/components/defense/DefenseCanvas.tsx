@@ -4,7 +4,10 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
-import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
+import {
+  BACKGROUND_IMAGE_URLS,
+  PLAYER_POSE_IMAGE_URLS,
+} from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import type { BackgroundCacheState } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import { loadDefenseEnemySprites } from '@/game/defense/defenseEnemySprites';
@@ -58,6 +61,7 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
           loadDefenseEnemySprites(),
           preloadEarTrainingBattleImages([
             EAR_TRAINING_PLAYER_AVATAR_URL,
+            PLAYER_POSE_IMAGE_URLS.guardD,
             ...Object.values(BACKGROUND_IMAGE_URLS),
           ]),
         ]);

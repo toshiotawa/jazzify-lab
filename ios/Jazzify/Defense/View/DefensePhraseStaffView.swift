@@ -28,7 +28,6 @@ struct DefensePhraseStaffView: View {
                     fadeAllMeasureNotes: true,
                     fixedActiveStaves: staffLayout == .grand ? [1, 2] : [1]
                 )
-                .frame(maxWidth: 420)
             }
         }
     }

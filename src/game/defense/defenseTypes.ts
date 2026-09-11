@@ -117,6 +117,8 @@ export interface DefenseRuntime {
   slashFromX: number;
   slashToX: number;
   slashY: number;
+  /** Elapsed seconds until which GuardD pose is shown; 0 = inactive. */
+  guardPoseUntilSec: number;
 }
 
 export const DEFENSE_MAP_WIDTH = 800;
@@ -164,4 +166,5 @@ export const createDefenseRuntime = (
   slashFromX: DEFENSE_PLAYER_X,
   slashToX: DEFENSE_PLAYER_X,
   slashY: DEFENSE_PLAYER_Y,
+  guardPoseUntilSec: 0,
 });

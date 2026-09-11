@@ -397,6 +397,7 @@
 		TRNQBT001BUILD000000001 /* TrainingQuestionBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRNQBT001FILE000000001 /* TrainingQuestionBuilderTests.swift */; };
 		TRNENG001BUILD000000001 /* TrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRNENG001FILE000000001 /* TrainingEngine.swift */; };
 		DEFKB001BUILD0000000001 /* DefenseKeyboardRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFKB001FILE00000000001 /* DefenseKeyboardRange.swift */; };
+		DEFSL001BUILD0000000001 /* DefenseSceneLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFSL001FILE00000000001 /* DefenseSceneLayout.swift */; };
 		TRNKB001BUILD0000000001 /* TrainingKeyboardRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRNKB001FILE00000000001 /* TrainingKeyboardRange.swift */; };
 		ETBSK001BUILD0000000001 /* EarTrainingBattleStageKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = ETBSK001FILE00000000001 /* EarTrainingBattleStageKit.swift */; };
 		TRNGAME001BUILD00000001 /* TrainingGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TRNGAME001FILE00000001 /* TrainingGameView.swift */; };
@@ -808,6 +809,7 @@
 		TRNQBT001FILE000000001 /* TrainingQuestionBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingQuestionBuilderTests.swift; sourceTree = "<group>"; };
 		TRNENG001FILE000000001 /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
 		DEFKB001FILE00000000001 /* DefenseKeyboardRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseKeyboardRange.swift; sourceTree = "<group>"; };
+		DEFSL001FILE00000000001 /* DefenseSceneLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSceneLayout.swift; sourceTree = "<group>"; };
 		TRNKB001FILE00000000001 /* TrainingKeyboardRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingKeyboardRange.swift; sourceTree = "<group>"; };
 		ETBSK001FILE00000000001 /* EarTrainingBattleStageKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleStageKit.swift; sourceTree = "<group>"; };
 		TRNGAME001FILE00000001 /* TrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGameView.swift; sourceTree = "<group>"; };
@@ -1054,6 +1056,7 @@
 				3D0B0608B905C210B1DA2EE2 /* DefenseGameView.swift */,
 				E4E5F56CD5622CFF2B912FFF /* DefensePhraseStaffView.swift */,
 				F9FC0B1FA0561C858199879A /* DefenseScene.swift */,
+				DEFSL001FILE00000000001 /* DefenseSceneLayout.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -1963,6 +1966,7 @@
 				DEFKB001BUILD0000000001 /* DefenseKeyboardRange.swift in Sources */,
 				EF256CF18B6971EF2B9B061F /* DefensePhraseStaffView.swift in Sources */,
 				624FFEA8E4C2B2D5B5FD2B32 /* DefenseScene.swift in Sources */,
+				DEFSL001BUILD0000000001 /* DefenseSceneLayout.swift in Sources */,
 				2E234F2055DE2F724FAAFAE5 /* DefenseTransport.swift in Sources */,
 				271E4AA704F4A1ADE6622B8B /* EarTrainingAdlibBattleController.swift in Sources */,
 				B90AC100700723AC06C94EEF /* EarTrainingAdlibCallResponseBattleController.swift in Sources */,

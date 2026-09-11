@@ -172,12 +172,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     hud.practiceMode = practiceMode;
   }, [judgeSnapshot, stage.phrases, practiceMode]);
 
-  const applyPhraseSwitch = useCallback((phraseIndex: number): void => {
+  const applyImmediatePhraseSwitch = useCallback((phraseIndex: number): void => {
     const nextPhrase = stage.phrases[phraseIndex];
     if (!nextPhrase) return;
 
     judgeRef.current = createInitialPhraseJudgeState(phraseIndex);
     setJudgeSnapshot(judgeRef.current);
+  }, [stage.phrases]);
+
+  const commitScheduledAudioSwitch = useCallback((phraseIndex: number): void => {
     defenseBackingDeck.commitSwitch();
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
@@ -206,7 +209,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     setJudgeSnapshot(evaluation.nextState);
 
     if (evaluation.attack) {
-      performDefenseSlash(runtime);
+      const guardPoseSec = stage.bpm > 0 ? 60 / stage.bpm : 1;
+      performDefenseSlash(runtime, guardPoseSec);
     }
 
     if (evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
@@ -214,13 +218,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       const nextPhrase = stage.phrases[nextIndex];
       if (!nextPhrase) return;
       scheduledNextPhraseIndexRef.current = nextIndex;
+      applyImmediatePhraseSwitch(nextIndex);
       void (async () => {
         const buffer = await defenseBackingDeck.decodeForDeck(nextPhrase.audioUrl);
         if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
         pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(buffer);
       })();
     }
-  }, [stage.phrases, stage.requiredCompletionCount]);
+  }, [stage.phrases, stage.requiredCompletionCount, stage.bpm, applyImmediatePhraseSwitch]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -284,7 +289,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       if (pendingAt !== null && defenseBackingDeck.getCurrentTime() >= pendingAt) {
         const nextIdx = scheduledNextPhraseIndexRef.current;
         if (nextIdx !== null) {
-          applyPhraseSwitch(nextIdx);
+          commitScheduledAudioSwitch(nextIdx);
         }
       }
 
@@ -327,7 +332,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         rafRef.current = null;
       }
     };
-  }, [difficulty, applyPhraseSwitch, practiceMode, trackElapsedForHints]);
+  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints]);
 
   useEffect(() => {
     const overlay = pianoRef.current;

@@ -23,7 +23,7 @@ enum DefenseGameLoop {
         updateEnemies(runtime: &runtime, difficulty: difficulty, deltaTime: deltaTime)
     }
 
-    static func performSlash(runtime: inout DefenseRuntimeState) -> Bool {
+    static func performSlash(runtime: inout DefenseRuntimeState, guardPoseSec: TimeInterval = 0) -> Bool {
         guard runtime.result == .playing else { return false }
         guard let targetIndex = frontmostEnemyIndex(runtime: runtime) else { return false }
 
@@ -43,6 +43,9 @@ enum DefenseGameLoop {
         runtime.slashFromX = runtime.playerX
         runtime.slashToX = target.x
         runtime.slashY = target.y
+        if guardPoseSec > 0 {
+            runtime.guardPoseUntilSec = runtime.elapsedSec + guardPoseSec
+        }
         return true
     }
 

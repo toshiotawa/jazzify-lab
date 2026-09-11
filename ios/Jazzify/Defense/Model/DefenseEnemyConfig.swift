@@ -8,7 +8,7 @@ enum DefenseEnemyConfig {
     static let lungeHeight: CGFloat = 14
     static let impactSec: TimeInterval = 0.3
     static let impactHitbackSec: TimeInterval = 0.12
-    static let slashSec: TimeInterval = 0.2
+    static let slashSec: TimeInterval = 0.35
     static let noSlash: TimeInterval = -1
     static let flyingYOffset: CGFloat = 90
     static let noImpact: TimeInterval = -1

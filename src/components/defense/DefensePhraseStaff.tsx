@@ -151,7 +151,7 @@ export const DefensePhraseStaff = React.memo<DefensePhraseStaffProps>(({
       {rows.map((row, rowIndex) => (
         <div
           key={`defense-staff-row-${rowIndex}`}
-          className="min-w-0 flex-1 max-w-[min(420px,78vw)] overflow-visible [&_svg]:origin-top [&_svg]:scale-[1.35] [&_svg]:transform-gpu [&_svg]:h-auto [&_svg]:w-full md:[&_svg]:scale-[1.22]"
+          className="min-w-0 flex-1 w-full overflow-visible"
         >
           <ChordVoicingStaff
             keyFifths={keyFifths}

@@ -89,6 +89,7 @@ struct DefenseRuntimeState: Sendable {
     var slashFromX: CGFloat = 80
     var slashToX: CGFloat = 80
     var slashY: CGFloat = 300
+    var guardPoseUntilSec: TimeInterval = 0
     let playerX: CGFloat = 80
     let playerY: CGFloat = 300
 
