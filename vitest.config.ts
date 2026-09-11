@@ -10,6 +10,8 @@ export default defineConfig({
     setupFiles: './src/setupTests.ts',
     css: true,
     reporters: ['verbose'],
+    /** Deno 向けテスト（Supabase Edge Functions）は vitest 対象外 */
+    exclude: ['**/node_modules/**', '**/dist/**', 'supabase/functions/**'],
     /** fork worker 落ちを避けるためテストファイルを逐次実行（CI/低メモリ向け） */
     fileParallelism: false,
     maxWorkers: 1,

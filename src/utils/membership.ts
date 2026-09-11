@@ -4,7 +4,8 @@ export type LegacyMembershipRank =
   | 'standard_global'
   | 'premium'
   | 'platinum'
-  | 'black';
+  | 'black'
+  | 'coaching';
 
 export type MembershipTier = 'free' | 'premium';
 
@@ -26,6 +27,9 @@ export const getMembershipLabel = (
   rank: string | null | undefined,
   locale: 'ja' | 'en',
 ): string => {
+  if (rank === 'coaching') {
+    return locale === 'en' ? 'Coaching' : 'コーチング';
+  }
   const tier = normalizeMembershipTier(rank);
   if (locale === 'en') {
     return tier === 'premium' ? 'Premium' : 'Free';

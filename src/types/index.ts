@@ -1106,7 +1106,7 @@ export interface Course {
   is_tutorial?: boolean;
   /** レッスン一覧の難易度セクション（DB: difficulty_tier） */
   difficulty_tier?: CourseDifficultyTier | null;
-  min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+  min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black' | 'coaching';
   audience?: CourseAudience;
   /** レッスン一覧に表示するか（DB 既定 true。未設定は表示扱い） */
   is_visible?: boolean;
@@ -1147,10 +1147,10 @@ export interface Profile {
   signup_browser?: 'safari' | 'chrome' | 'firefox' | 'edge' | 'other' | null;
   // Stripe subscription fields
   stripe_customer_id?: string;
-  rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+  rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black' | 'coaching';
   will_cancel?: boolean;
   cancel_date?: string;
-  downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+  downgrade_to?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black' | 'coaching';
   downgrade_date?: string;
   stripe_trial_start?: string;
   stripe_trial_end?: string;

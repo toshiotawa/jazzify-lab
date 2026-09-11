@@ -28,6 +28,7 @@ import MarketingOptInBanner from '@/components/dashboard/MarketingOptInBanner';
 import PlayerLevelSection from '@/components/dashboard/PlayerLevelSection';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import AchievementSummarySection from '@/components/achievements/AchievementSummarySection';
+import DiscordCommunitySection from '@/components/dashboard/DiscordCommunitySection';
 import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
 /**
@@ -37,7 +38,7 @@ import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 const Dashboard: React.FC = () => {
   const open = useAppRouteOpen({ hash: '#dashboard', path: '/main/dashboard' });
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
-  const { profile, optimisticAvatarUrl } = useAuthStore();
+  const { profile, optimisticAvatarUrl, session } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
@@ -150,6 +151,14 @@ const Dashboard: React.FC = () => {
             </button>
           )}
           <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} source="dashboard" />
+          {profile && (
+            <DiscordCommunitySection
+              isEnglishCopy={isEnglishCopy}
+              isPremiumMember={isPremiumMember}
+              userId={profile.id}
+              accessToken={session?.access_token}
+            />
+          )}
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
               <div className="flex items-center space-x-4">

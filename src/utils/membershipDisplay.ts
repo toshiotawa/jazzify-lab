@@ -65,6 +65,9 @@ export function getMembershipDisplayLabel(
   billingPayload: BillingStatusPayload | null,
   locale: 'ja' | 'en',
 ): string {
+  if (rank === 'coaching') {
+    return getMembershipLabel('coaching', locale);
+  }
   const tier = getDisplayMembershipTier(rank, billingPayload);
   const base = getMembershipLabel(tier === 'premium' ? 'premium' : 'free', locale);
   if (tier !== 'premium' || !billingPayload) {

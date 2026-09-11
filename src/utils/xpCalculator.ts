@@ -1,7 +1,7 @@
 // XP 計算エンジン
 // すべての倍率を受け取り、最終経験値を返す。将来的にサーバー側と共通化する場合は同一ロジックを保つこと。
 
-export type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+export type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black' | 'coaching';
 export type ScoreRank = 'S' | 'A' | 'B' | 'C' | 'D' | 'E';
 
 export interface XPCalcParams {
@@ -45,6 +45,7 @@ function baseXPFromRank(rank: ScoreRank): number {
 function rankMultiplier(rank: MembershipRank): number {
   switch (rank) {
     case 'premium':
+    case 'coaching':
       return 1.5;
     case 'platinum':
     case 'black':

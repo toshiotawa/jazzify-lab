@@ -10,7 +10,7 @@ import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSla
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 
-const ranks = ['free','standard','standard_global','premium','platinum','black'] as const;
+const ranks = ['free','standard','standard_global','premium','platinum','black','coaching'] as const;
 
 type Rank = typeof ranks[number];
 

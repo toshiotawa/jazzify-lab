@@ -8,6 +8,7 @@ const PREMIUM_RANKS: ReadonlySet<MembershipRank> = new Set([
   'premium',
   'platinum',
   'black',
+  'coaching',
 ]);
 
 const DEFAULT_RANK: MembershipRank = 'free';

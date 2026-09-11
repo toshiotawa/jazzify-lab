@@ -306,6 +306,10 @@ deno_version = 1
 [functions.apple-webhook]
 verify_jwt = false
 
+# Discord OAuth callback: no Supabase JWT on GET redirect from Discord.
+[functions.discord-oauth-callback]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
