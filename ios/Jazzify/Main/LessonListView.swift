@@ -1459,6 +1459,7 @@ struct LessonDetailView: View {
             || balloonRushLessonLaunch != nil
             || videoLessonLaunch != nil
             || defenseLessonLaunch != nil
+            || trainingLessonLaunch != nil
     }
 
     private var hasActivePresentation: Bool {
@@ -1474,7 +1475,6 @@ struct LessonDetailView: View {
             || balloonRushPrep != nil
             || defensePrep != nil
             || trainingPrep != nil
-            || trainingLessonLaunch != nil
     }
 
     private var sortedRequirements: [LessonSong] {
