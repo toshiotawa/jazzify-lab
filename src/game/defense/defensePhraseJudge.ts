@@ -244,14 +244,6 @@ export const evaluateDefensePhraseNoteOn = (
   };
 };
 
-export const getDefensePhraseTargetMidis = (
-  phrases: readonly DefensePhrase[],
-  state: DefensePhraseJudgeState,
-): readonly number[] => {
-  const hints = getDefensePhraseKeyboardHints(phrases, state, false);
-  return [...hints.pendingMidis, ...(hints.nextMidi === null ? [] : [hints.nextMidi])];
-};
-
 export const getDefensePhraseKeyboardHints = (
   phrases: readonly DefensePhrase[],
   state: DefensePhraseJudgeState,

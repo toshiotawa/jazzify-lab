@@ -30,7 +30,6 @@ import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
   getDefensePhraseKeyboardHints,
-  getDefensePhraseTargetMidis,
   nextPhraseIndex,
   type DefensePhraseJudgeState,
 } from '@/game/defense/defensePhraseJudge';
@@ -40,7 +39,10 @@ import type {
   DefenseRuntime,
   DefenseStage,
 } from '@/game/defense/defenseTypes';
+import { computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
+import type { MutableDefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import { createDefenseRuntime } from '@/game/defense/defenseTypes';
+import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
 import { useGameStore } from '@/stores/gameStore';
@@ -93,6 +95,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const pianoRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const canvasRef = useRef<DefenseCanvasHandle | null>(null);
   const onClearRef = useRef(onClear);
+  const hudRef = useRef<MutableDefenseSceneHud>({
+    playerHp: stage.playerHp,
+    playerMaxHp: stage.playerHp,
+    remainSec: stage.surviveSeconds,
+    enemiesDefeated: 0,
+    practiceMode,
+    chordNames: stage.phrases[0]?.chords.map((chord) => chord.chordName) ?? [],
+    chordIndex: 0,
+  });
 
   const [judgeSnapshot, setJudgeSnapshot] = useState<DefensePhraseJudgeState>(
     createInitialPhraseJudgeState(0),
@@ -120,20 +131,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     [stage.phrases, judgeSnapshot, voiceSequential],
   );
 
-  const targetMidis = useMemo(
-    () => getDefensePhraseTargetMidis(stage.phrases, judgeSnapshot),
-    [stage.phrases, judgeSnapshot],
+  const stageMidiMidis = useMemo(
+    () => computeDefenseStageMidis(stage.phrases),
+    [stage.phrases],
   );
 
-  const keyboardRangeMidis = useMemo(() => {
-    const midis = [...keyboardHints.pendingMidis, ...keyboardHints.completedMidis];
-    if (keyboardHints.nextMidi !== null) {
-      midis.push(keyboardHints.nextMidi);
-    }
-    return midis.length > 0 ? midis : targetMidis;
-  }, [keyboardHints, targetMidis]);
-
-  const keyboardRange = useResolvedWebKeyboardRange(keyboardRangeMidis);
+  const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);
 
   const staffHintOpacity = useMemo(() => {
     if (practiceMode) return 1;
@@ -160,6 +163,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [practiceMode, elapsedInt, stage.productionKeyboardHintMode, finalStats]);
 
   const showTargetHints = practiceMode || staffHintOpacity > 0;
+
+  useEffect(() => {
+    const phrase = stage.phrases[judgeSnapshot.phraseIndex] ?? stage.phrases[0] ?? null;
+    const hud = hudRef.current;
+    hud.chordNames = phrase?.chords.map((chord) => chord.chordName) ?? [];
+    hud.chordIndex = judgeSnapshot.chordIndex;
+    hud.practiceMode = practiceMode;
+  }, [judgeSnapshot, stage.phrases, practiceMode]);
 
   const applyPhraseSwitch = useCallback((phraseIndex: number): void => {
     const nextPhrase = stage.phrases[phraseIndex];
@@ -285,7 +296,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         }
       }
 
-      canvasRef.current?.draw(runtime);
+      const hud = hudRef.current;
+      hud.playerHp = runtime.playerHp;
+      hud.playerMaxHp = runtime.playerMaxHp;
+      hud.remainSec = Math.max(0, Math.ceil(runtime.surviveSeconds - runtime.elapsedSec));
+      hud.enemiesDefeated = runtime.enemiesDefeated;
+      canvasRef.current?.draw(runtime, hudRef.current);
 
       if (runtime.result !== 'playing') {
         const result = runtime.result;
@@ -350,23 +366,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }
 
   return (
-    <div className="relative flex h-[100dvh] flex-col bg-slate-950 text-white">
-      <div className="absolute left-2 top-2 z-40">
-        <button
-          type="button"
-          className="rounded bg-black/50 px-3 py-1 text-sm"
-          onClick={onExit}
-        >
-          戻る
-        </button>
-      </div>
+    <div className="relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
+      <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
-      <div className="relative min-h-0 flex-1">
-        <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-      </div>
-
-      <div className="relative z-30 flex shrink-0 flex-col items-center gap-1 px-2 pb-1 pt-2">
-        {currentPhrase && currentPhrase.chords.length > 0 && (
+      {currentPhrase && currentPhrase.chords.length > 0 && (
+        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
           <DefensePhraseStaff
             chords={currentPhrase.chords}
             chordIndex={judgeSnapshot.chordIndex}
@@ -378,13 +382,27 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             showTargetHints={showTargetHints}
             unpressedNoteOpacity={staffHintOpacity}
           />
-        )}
-        {!audioReady && (
-          <p className="text-xs text-slate-400">伴奏を読み込み中…</p>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className={cn('relative z-30 shrink-0', keyboardHintOpacity <= 0 && 'opacity-40')}>
+      {!audioReady && (
+        <p className="pointer-events-none absolute bottom-[96px] left-1/2 z-30 -translate-x-1/2 text-xs text-slate-400">
+          伴奏を読み込み中…
+        </p>
+      )}
+
+      <button
+        type="button"
+        className="absolute right-3 top-[56px] z-40 rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+        onClick={onExit}
+      >
+        戻る
+      </button>
+
+      <div
+        className={cn('absolute bottom-0 left-0 right-0 z-30', keyboardHintOpacity <= 0 && 'opacity-40')}
+        style={{ height: PIANO_OVERLAY_HEIGHT }}
+      >
         <DeferredEarTrainingPianoOverlay
           ref={pianoRef}
           minMidi={keyboardRange.minMidi}

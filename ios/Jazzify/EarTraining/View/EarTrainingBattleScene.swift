@@ -3540,11 +3540,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let maxFloorY = sliderBandTop - Self.characterDisplaySize * 0.9
             return min(max(preferredFloorY, minFloorY), maxFloorY)
         }
-        let baselineFootY =
-            Self.approximateEarTrainingKeyboardVisualTopFromBottom + Self.battleFloorAirAboveKeyboardKeys
-        let preferredFloorY = max(baselineFootY, height * 0.15)
-        let maximumFloorY = height - Self.hudHeight - Self.characterDisplaySize * 1.1
-        return min(preferredFloorY, maximumFloorY)
+        return EarTrainingBattleStageKit.battleFloorY(sceneHeight: height)
     }
 
     private func rankColor(label: String) -> UIColor {

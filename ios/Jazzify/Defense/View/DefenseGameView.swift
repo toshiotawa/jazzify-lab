@@ -4,6 +4,7 @@ import SwiftUI
 struct DefenseGameView: View {
     @StateObject private var session: DefenseGameSession
     @State private var scene: DefenseScene
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     let locale: AppLocale
     let onClose: () -> Void
     let playMapNodeId: UUID?
@@ -37,25 +38,15 @@ struct DefenseGameView: View {
             SpriteView(scene: scene, options: [.allowsTransparency])
                 .ignoresSafeArea()
 
-            VStack {
-                HStack {
-                    Button(locale == .ja ? "戻る" : "Back") { onClose() }
-                        .padding(8)
-                        .background(.black.opacity(0.4))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    Spacer()
-                    hpBadge
-                    Text("\(session.hud.remainSec)s")
-                        .font(.headline)
-                        .padding(8)
-                        .background(.black.opacity(0.4))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .padding()
-
+            VStack(spacing: 0) {
+                defenseHud
                 Spacer()
+            }
+            .ignoresSafeArea(edges: .top)
 
-                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+            if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+                VStack {
+                    Spacer()
                     DefensePhraseStaffView(
                         phrase: phrase,
                         stageKeyFifths: session.stage.keyFifths,
@@ -66,8 +57,15 @@ struct DefenseGameView: View {
                         unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
                     )
                     .padding(.horizontal)
+                    .frame(maxWidth: 720)
+                    .offset(y: -120)
+                    Spacer()
                 }
+                .allowsHitTesting(false)
+            }
 
+            VStack {
+                Spacer()
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
                     displayRange: chordPadRange,
@@ -78,10 +76,11 @@ struct DefenseGameView: View {
                     onRelease: { midi in
                         SurvivalGameAudio.shared.pianoNoteOff(midi: midi)
                     },
-                    keyboardHeight: 120
+                    keyboardHeight: 88
                 )
                 .equatable()
-                .frame(height: 120)
+                .frame(height: 88)
+                .opacity(keyboardHintOpacity <= 0 ? 0.4 : 1)
             }
 
             if session.hud.result != .playing {
@@ -89,6 +88,7 @@ struct DefenseGameView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onAppear {
             scene.session = session
         }
@@ -105,16 +105,44 @@ struct DefenseGameView: View {
         }
     }
 
-    private var hpBadge: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<session.hud.playerMaxHp, id: \.self) { index in
-                Text(index < session.hud.playerHp ? "♥" : "♡")
-                    .foregroundStyle(.red)
-            }
-        }
-        .padding(8)
-        .background(.black.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+    private var defenseHud: some View {
+        let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
+        let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex]
+        let chips = phrase?.chords.enumerated().map { index, chord in
+            EarTrainingChordChip(
+                id: UUID(),
+                name: chord.chordName,
+                active: index == session.judgeState.chordIndex
+            )
+        } ?? []
+
+        return EarTrainingHUDView(
+            hud: EarTrainingHudModel(
+                playerHp: session.hud.playerHp,
+                playerMaxHp: session.hud.playerMaxHp,
+                enemyHp: 0,
+                enemyMaxHp: 1,
+                practiceMode: session.practiceMode,
+                timeRemaining: session.hud.remainSec,
+                timeLabel: "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)",
+                hideTimeLabel: false,
+                hidePlayerHpBar: false,
+                hideSettingsButton: true,
+                hideBackButton: false,
+                enemyAttackGaugePercent: 0,
+                hideEnemyAttackGauge: true,
+                hideChordChips: chips.isEmpty,
+                hideSlotsRow: true,
+                hudLabels: labels,
+                gameState: .playingPhrase,
+                phraseRunId: 0,
+                chordChips: chips,
+                slotRow: .melody(slots: [], revealed: [], currentIndex: 0)
+            ),
+            showsSlotsRow: false,
+            onSettings: {},
+            onBack: onClose
+        )
     }
 
     private var staffOpacity: Double {
@@ -125,7 +153,6 @@ struct DefenseGameView: View {
         CGFloat(hintOpacity(mode: session.stage.productionKeyboardHintMode))
     }
 
-    /// Web `survivalStaffHintOpacity` と同じ段階フェード（11〜14 秒で 0.8→0.2、15 秒で 0）。
     private func hintOpacity(mode: String) -> Double {
         if session.practiceMode { return 1 }
         switch mode {
@@ -137,10 +164,6 @@ struct DefenseGameView: View {
             if t >= 15 { return 0 }
             return 1 - Double(t - 10) * 0.2
         }
-    }
-
-    private var targetMidis: Set<Int> {
-        keyboardHints.allMidis
     }
 
     private var keyboardHints: DefensePhraseJudge.KeyboardHints {
@@ -163,10 +186,10 @@ struct DefenseGameView: View {
     }
 
     private var chordPadRange: PianoStagePitchRange {
-        let midis = targetMidis.isEmpty ? [60] : Array(targetMidis)
-        let minMidi = (midis.min() ?? 48) - 5
-        let maxMidi = (midis.max() ?? 72) + 5
-        return PianoStagePitchRange(minMidi: max(21, minMidi), maxMidi: min(108, maxMidi))
+        DefenseKeyboardRange.resolvedDisplayRange(
+            for: session.stage,
+            displayMode: keyboardDisplayMode
+        )
     }
 
     private var resultOverlay: some View {

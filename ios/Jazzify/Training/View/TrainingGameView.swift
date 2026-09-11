@@ -4,6 +4,8 @@ import SwiftUI
 struct TrainingGameView: View {
     @StateObject private var session: TrainingGameSession
     @State private var scene: TrainingScene
+    @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    @State private var accumulatedKeyboardRange: PianoStagePitchRange?
     let locale: AppLocale
     let onClose: () -> Void
     let onFinished: (Int) -> Void
@@ -37,30 +39,15 @@ struct TrainingGameView: View {
                 }
                 .onDisappear { session.stop() }
 
-            VStack {
-                HStack {
-                    Button(locale == .ja ? "終了" : "Exit") { onClose() }
-                        .padding(8)
-                        .background(.black.opacity(0.4))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    Spacer()
-                    if session.hud.phase == .countdown {
-                        Text("\(session.hud.countdownSec)")
-                            .font(.system(size: 26, weight: .heavy, design: .rounded))
-                    } else {
-                        Text("\(session.hud.remainSec)s")
-                            .font(.system(size: 26, weight: .heavy, design: .rounded))
-                    }
-                    Spacer()
-                    Text("\(session.hud.score)")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.yellow)
-                }
-                .padding()
-
+            VStack(spacing: 0) {
+                trainingHud
                 Spacer()
+            }
+            .ignoresSafeArea(edges: .top)
 
-                if let question = session.question, session.hud.phase != .countdown {
+            if let question = session.question, session.hud.phase != .countdown {
+                VStack {
+                    Spacer()
                     VStack(spacing: 8) {
                         if !question.promptLabel.isEmpty {
                             Text(question.promptLabel)
@@ -74,8 +61,21 @@ struct TrainingGameView: View {
                         )
                     }
                     .padding(.horizontal)
+                    .frame(maxWidth: 720)
+                    .offset(y: -120)
+                    Spacer()
                 }
+                .allowsHitTesting(false)
+            }
 
+            if session.hud.phase == .countdown {
+                Color.black.opacity(0.35).ignoresSafeArea()
+                Text("\(session.hud.countdownSec)")
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
+            }
+
+            VStack {
+                Spacer()
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
                     displayRange: chordPadRange,
@@ -84,23 +84,60 @@ struct TrainingGameView: View {
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
                     },
                     onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
-                    keyboardHeight: 120
+                    keyboardHeight: 88
                 )
-                .frame(height: 120)
+                .frame(height: 88)
                 .opacity(session.practiceMode ? 1 : 0.45)
             }
-
-            if session.hud.phase == .countdown {
-                Color.black.opacity(0.35).ignoresSafeArea()
-                Text("\(session.hud.countdownSec)")
-                    .font(.system(size: 72, weight: .bold, design: .rounded))
-            }
+        }
+        .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .onChange(of: session.question?.questionKey) { _ in
+            guard let question = session.question else { return }
+            accumulatedKeyboardRange = TrainingKeyboardRange.expandRange(
+                accumulated: accumulatedKeyboardRange,
+                questionMidis: TrainingKeyboardRange.questionMidis(from: question)
+            )
         }
         .onChange(of: session.hud.phase) { phase in
             if phase == .finished {
                 onFinished(session.runtime.score)
             }
         }
+    }
+
+    private var trainingHud: some View {
+        let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
+        let timeLabel = session.hud.phase == .countdown
+            ? "\(session.hud.countdownSec)"
+            : "\(session.hud.remainSec)s"
+
+        return EarTrainingHUDView(
+            hud: EarTrainingHudModel(
+                playerHp: session.hud.phase == .countdown ? 1 : max(0, session.runtime.enemy.fadeAlpha >= 0.99 ? 1 : 0),
+                playerMaxHp: 1,
+                enemyHp: session.hud.phase == .countdown ? 1 : max(0, session.runtime.enemy.fadeAlpha >= 0.99 ? 1 : 0),
+                enemyMaxHp: 1,
+                practiceMode: session.practiceMode,
+                timeRemaining: session.hud.phase == .countdown ? session.hud.countdownSec : session.hud.remainSec,
+                timeLabel: timeLabel,
+                hideTimeLabel: false,
+                hidePlayerHpBar: true,
+                hideSettingsButton: true,
+                hideBackButton: false,
+                enemyAttackGaugePercent: 0,
+                hideEnemyAttackGauge: true,
+                hideChordChips: true,
+                hideSlotsRow: true,
+                hudLabels: labels,
+                gameState: .playingPhrase,
+                phraseRunId: 0,
+                chordChips: [],
+                slotRow: .melody(slots: ["KO \(session.hud.score)"], revealed: [], currentIndex: 0)
+            ),
+            showsSlotsRow: session.hud.phase != .countdown,
+            onSettings: {},
+            onBack: onClose
+        )
     }
 
     private var hintMidis: Set<Int> {
@@ -125,9 +162,9 @@ struct TrainingGameView: View {
     }
 
     private var chordPadRange: PianoStagePitchRange {
-        let midis = hintMidis.isEmpty ? [60] : Array(hintMidis)
-        let minMidi = (midis.min() ?? 48) - 5
-        let maxMidi = (midis.max() ?? 72) + 5
-        return PianoStagePitchRange(minMidi: max(21, minMidi), maxMidi: min(108, maxMidi))
+        TrainingKeyboardRange.resolvedDisplayRange(
+            accumulated: accumulatedKeyboardRange,
+            displayMode: keyboardDisplayMode
+        )
     }
 }

@@ -6,9 +6,6 @@ import {
   wrapTutorialQuoteSegmentsToLines,
 } from '@/game/earTraining/tutorialQuoteSegmentsLayout';
 import {
-  CHARACTER_DISPLAY_SIZE,
-  CHARACTER_SHADOW_HEIGHT,
-  CHARACTER_SHADOW_WIDTH,
   clampPercent,
   colorForHp,
   getChordHudLayout,
@@ -69,134 +66,9 @@ import {
 import {
   drawCachedBackground,
 } from './earTrainingBattleBackground';
+import { drawBattleAvatar } from './earTrainingBattleActorDraw';
 
 const HUD_FONT = 'Arial, sans-serif';
-
-const RIM_SCALE = 1.048;
-const RIM_ALPHA = 0.12;
-const RIM_TINT_PLAYER = 'rgb(255, 195, 130)';
-const RIM_TINT_ENEMY = 'rgb(255, 175, 150)';
-
-let tintCanvas: HTMLCanvasElement | null = null;
-let tintCtx: CanvasRenderingContext2D | null = null;
-
-interface RimTintCacheEntry {
-  canvas: HTMLCanvasElement;
-  width: number;
-  height: number;
-}
-
-const rimTintCache = new Map<string, RimTintCacheEntry>();
-
-const getRimTintCacheKey = (
-  imageSrc: string,
-  width: number,
-  height: number,
-  tintColor: string,
-): string => `${imageSrc}|${Math.round(width)}|${Math.round(height)}|${tintColor}`;
-
-const getCachedRimTintCanvas = (
-  img: HTMLImageElement,
-  width: number,
-  height: number,
-  tintColor: string,
-): HTMLCanvasElement | null => {
-  if (typeof document === 'undefined') return null;
-  const key = getRimTintCacheKey(img.src, width, height, tintColor);
-  const cached = rimTintCache.get(key);
-  if (cached) {
-    return cached.canvas;
-  }
-  const offCtx = getTintCanvasContext(width, height);
-  if (!offCtx || !tintCanvas) return null;
-  offCtx.drawImage(img, 0, 0, width, height);
-  offCtx.globalCompositeOperation = 'source-atop';
-  offCtx.fillStyle = tintColor;
-  offCtx.fillRect(0, 0, width, height);
-  const cacheCanvas = document.createElement('canvas');
-  cacheCanvas.width = width;
-  cacheCanvas.height = height;
-  const cacheCtx = cacheCanvas.getContext('2d');
-  if (!cacheCtx) return null;
-  cacheCtx.drawImage(tintCanvas, 0, 0, width, height);
-  rimTintCache.set(key, { canvas: cacheCanvas, width, height });
-  return cacheCanvas;
-};
-
-const drawCachedRimTint = (
-  targetCtx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  tintColor: string,
-  tintAlpha: number,
-): void => {
-  const cached = getCachedRimTintCanvas(img, width, height, tintColor);
-  if (!cached) return;
-  targetCtx.save();
-  targetCtx.globalAlpha = tintAlpha;
-  targetCtx.drawImage(cached, x, y, width, height);
-  targetCtx.restore();
-};
-
-const getTintCanvasContext = (width: number, height: number): CanvasRenderingContext2D | null => {
-  if (typeof document === 'undefined') return null;
-  if (!tintCanvas) {
-    tintCanvas = document.createElement('canvas');
-    tintCtx = tintCanvas.getContext('2d');
-  }
-  if (!tintCtx || !tintCanvas) return null;
-  if (tintCanvas.width < width) tintCanvas.width = width;
-  if (tintCanvas.height < height) tintCanvas.height = height;
-  tintCtx.setTransform(1, 0, 0, 1, 0, 0);
-  tintCtx.globalCompositeOperation = 'source-over';
-  tintCtx.globalAlpha = 1;
-  tintCtx.clearRect(0, 0, width, height);
-  return tintCtx;
-};
-
-const drawTintedImageCopy = (
-  targetCtx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  tintColor: string,
-  tintAlpha: number,
-): void => {
-  const offCtx = getTintCanvasContext(width, height);
-  if (!offCtx || !tintCanvas) return;
-  offCtx.drawImage(img, 0, 0, width, height);
-  offCtx.globalCompositeOperation = 'source-atop';
-  offCtx.fillStyle = tintColor;
-  offCtx.fillRect(0, 0, width, height);
-  targetCtx.save();
-  targetCtx.globalAlpha = tintAlpha;
-  targetCtx.drawImage(tintCanvas, x, y, width, height);
-  targetCtx.restore();
-};
-
-const drawCharacterImage = (
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  drawX: number,
-  drawY: number,
-  drawW: number,
-  drawH: number,
-  flip: boolean,
-): void => {
-  ctx.save();
-  if (flip) {
-    ctx.scale(-1, 1);
-    ctx.drawImage(img, -drawW / 2, drawY, drawW, drawH);
-  } else {
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
-  }
-  ctx.restore();
-};
 
 const drawRoundedRect = (
   ctx: CanvasRenderingContext2D,
@@ -399,71 +271,20 @@ const drawCharacter = (
   const view = side === 'player' ? runtime.player : runtime.enemy;
   updateCharacterPositions(view, now);
   const floorY = resolveFloorY(runtime.height, runtime.timingCalibrationLayout);
-  const x = view.x;
   const poseKey = view.poseKey && now < view.poseUntil ? view.poseKey : null;
   const poseImg = poseKey && side === 'player' ? runtime.loadedImages.get(poseKey) : null;
   const img = poseImg ?? runtime.loadedImages.get(view.avatarUrl);
   const flashAlpha = getCharacterFlashAlpha(view, now);
-  const rimTint = side === 'player' ? RIM_TINT_PLAYER : RIM_TINT_ENEMY;
+  const tintActive = view.tintColor && now < view.tintUntil;
 
-  ctx.save();
-  ctx.translate(x, floorY + view.yOffset);
-  ctx.rotate(view.rotation * Math.PI / 180);
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
-  ctx.beginPath();
-  ctx.ellipse(0, 4 - view.yOffset, CHARACTER_SHADOW_WIDTH / 2, CHARACTER_SHADOW_HEIGHT / 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (img) {
-    const drawW = CHARACTER_DISPLAY_SIZE;
-    const drawH = CHARACTER_DISPLAY_SIZE;
-    const drawX = -drawW / 2;
-    const drawY = -drawH;
-    const flip = view.flipX && !poseImg;
-    const rimW = drawW * RIM_SCALE;
-    const rimH = drawH * RIM_SCALE;
-    const rimOffsetX = (rimW - drawW) * 0.5;
-    const rimOffsetY = (rimH - drawH) * 0.5;
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    if (flip) {
-      ctx.scale(-1, 1);
-      drawCachedRimTint(ctx, img, -rimW / 2, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
-    } else {
-      drawCachedRimTint(ctx, img, drawX - rimOffsetX, drawY - rimOffsetY, rimW, rimH, rimTint, RIM_ALPHA);
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = flashAlpha;
-    drawCharacterImage(ctx, img, drawX, drawY, drawW, drawH, flip);
-    if (view.tintColor && now < view.tintUntil) {
-      ctx.save();
-      if (flip) ctx.scale(-1, 1);
-      drawTintedImageCopy(
-        ctx,
-        img,
-        flip ? -drawW / 2 : drawX,
-        drawY,
-        drawW,
-        drawH,
-        view.tintColor,
-        0.45 * flashAlpha,
-      );
-      ctx.restore();
-    }
-    ctx.restore();
-  } else {
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `900 48px ${HUD_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.globalAlpha = flashAlpha;
-    ctx.fillText(side === 'player' ? 'P' : 'E', 0, 0);
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
+  drawBattleAvatar(ctx, img, view.x, floorY, side, {
+    flip: view.flipX && !poseImg,
+    yOffset: view.yOffset,
+    rotationDeg: view.rotation,
+    alpha: flashAlpha,
+    tintColor: tintActive ? view.tintColor : null,
+    tintAlpha: tintActive ? 0.45 * flashAlpha : undefined,
+  });
 };
 
 const drawPhraseSlots = (

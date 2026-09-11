@@ -11,6 +11,7 @@ import { TrainingStaff } from '@/components/training/TrainingStaff';
 import DeferredEarTrainingPianoOverlay, {
   type EarTrainingPianoOverlayHandle,
 } from '@/components/earTraining/DeferredEarTrainingPianoOverlay';
+import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import {
   evaluateTrainingNoteOn,
   getTrainingKeyboardHintMidis,
@@ -18,6 +19,11 @@ import {
   tickTrainingEnemy,
   tickTrainingTimer,
 } from '@/game/training/trainingEngine';
+import {
+  computeTrainingQuestionMidis,
+  expandTrainingKeyboardMidis,
+} from '@/game/training/trainingKeyboardRange';
+import type { MutableTrainingSceneHud } from '@/game/training/trainingSceneHud';
 import {
   buildTrainingQuestion,
   createInitialTrainingRuntime,
@@ -58,7 +64,16 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const prevQuestionKeyRef = useRef<string | null>(null);
   const pendingNextRef = useRef(false);
   const onFinishedRef = useRef(onFinished);
-  const displayTimeRef = useRef(TRAINING_GAME_DURATION_SEC);
+  const keyboardMidisRef = useRef<number[]>([]);
+  const [keyboardMidisVersion, setKeyboardMidisVersion] = useState(0);
+  const hudRef = useRef<MutableTrainingSceneHud>({
+    phase: 'countdown',
+    countdownSec: TRAINING_COUNTDOWN_SEC,
+    remainSec: TRAINING_GAME_DURATION_SEC,
+    score: 0,
+    enemyHp: 1,
+    enemyMaxHp: 1,
+  });
 
   const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
   const notationOctaveShift = useGameStore((state) => state.settings.notationOctaveShift);
@@ -67,8 +82,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdownSec, setCountdownSec] = useState(TRAINING_COUNTDOWN_SEC);
-  const [displayTimeSec, setDisplayTimeSec] = useState(TRAINING_GAME_DURATION_SEC);
-  const [displayScore, setDisplayScore] = useState(0);
   const [question, setQuestion] = useState<TrainingQuestion | null>(null);
   const [correctIndices, setCorrectIndices] = useState<readonly number[]>([]);
 
@@ -90,6 +103,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     prevQuestionKeyRef.current = built.questionKey;
     runtimeRef.current.question = built;
     runtimeRef.current.correctTargetIndices = [];
+    runtimeRef.current.enemy.fadeAlpha = 1;
     setQuestion(built);
     setCorrectIndices([]);
     return built;
@@ -97,6 +111,8 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
   useEffect(() => {
     runtimeRef.current.durationSec = TRAINING_GAME_DURATION_SEC;
+    keyboardMidisRef.current = [];
+    setKeyboardMidisVersion(0);
     spawnQuestion();
   }, [spawnQuestion]);
 
@@ -129,12 +145,30 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     };
   }, [phase, training.bgmUrl]);
 
+  useEffect(() => {
+    if (!question) return;
+    const prev = keyboardMidisRef.current;
+    const next = expandTrainingKeyboardMidis(prev, computeTrainingQuestionMidis(question));
+    if (
+      prev.length !== next.length
+      || prev[0] !== next[0]
+      || prev[1] !== next[1]
+    ) {
+      keyboardMidisRef.current = next;
+      setKeyboardMidisVersion((v) => v + 1);
+    }
+  }, [question]);
+
   const hintMidis = useMemo(
     () => (question ? getTrainingKeyboardHintMidis(question, correctIndices, showHints) : []),
     [question, correctIndices, showHints],
   );
 
-  const keyboardRange = useResolvedWebKeyboardRange(hintMidis);
+  const keyboardRangeMidis = useMemo(
+    () => keyboardMidisRef.current,
+    [keyboardMidisVersion],
+  );
+  const keyboardRange = useResolvedWebKeyboardRange(keyboardRangeMidis);
 
   useEffect(() => {
     pianoRef.current?.setVoicingHints(hintMidis, []);
@@ -165,7 +199,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     pendingNextRef.current = true;
     performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec);
     runtimeRef.current.score += 1;
-    setDisplayScore(runtimeRef.current.score);
   }, [phase, training.playRootOnCorrect, voiceSequential]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
@@ -193,30 +226,41 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       const dt = Math.min(0.05, (now - last) / 1000);
       lastFrameRef.current = now;
 
-      if (phase === 'playing') {
-        const finished = tickTrainingTimer(runtimeRef.current, dt);
-        const remaining = Math.max(0, Math.ceil(runtimeRef.current.durationSec - runtimeRef.current.elapsedSec));
-        if (remaining !== displayTimeRef.current) {
-          displayTimeRef.current = remaining;
-          setDisplayTimeSec(remaining);
-        }
+      const runtime = runtimeRef.current;
+      const hud = hudRef.current;
 
-        const enemyReady = tickTrainingEnemy(runtimeRef.current, runtimeRef.current.elapsedSec, dt);
+      if (phase === 'countdown') {
+        hud.phase = 'countdown';
+        hud.countdownSec = countdownSec;
+        hud.remainSec = TRAINING_GAME_DURATION_SEC;
+        hud.score = runtime.score;
+        hud.enemyHp = 1;
+        hud.enemyMaxHp = 1;
+      } else {
+        const finished = tickTrainingTimer(runtime, dt);
+        const enemyReady = tickTrainingEnemy(runtime, runtime.elapsedSec, dt);
         if (enemyReady) {
           pendingNextRef.current = false;
           spawnQuestion();
         }
 
-        canvasRef.current?.draw(runtimeRef.current);
+        hud.phase = 'playing';
+        hud.countdownSec = 0;
+        hud.remainSec = Math.max(0, Math.ceil(runtime.durationSec - runtime.elapsedSec));
+        hud.score = runtime.score;
+        hud.enemyHp = runtime.enemy.fadeAlpha >= 0.99 ? 1 : 0;
+        hud.enemyMaxHp = 1;
 
         if (finished) {
-          runtimeRef.current.result = 'finished';
+          runtime.result = 'finished';
           setPhase('finished');
           bgmRef.current?.stop();
-          onFinishedRef.current(runtimeRef.current.score);
+          onFinishedRef.current(runtime.score);
+          return;
         }
       }
 
+      canvasRef.current?.draw(runtime, hudRef.current);
       rafRef.current = window.requestAnimationFrame(tick);
     };
 
@@ -227,13 +271,35 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       }
       lastFrameRef.current = null;
     };
-  }, [phase, spawnQuestion]);
+  }, [phase, spawnQuestion, countdownSec]);
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-slate-950 landscape:flex-row">
+    <div className="fixed inset-0 z-40 overflow-hidden bg-slate-950">
+      <TrainingCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+      {question && phase !== 'countdown' && (
+        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
+          {question.promptLabel !== '' && (
+            <p className="mb-1 text-center text-lg font-semibold text-white">{question.promptLabel}</p>
+          )}
+          <TrainingStaff
+            question={question}
+            correctIndices={correctIndices}
+            showHints={showHints}
+            clefMode={training.clefMode}
+          />
+        </div>
+      )}
+
+      {phase === 'countdown' && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/40">
+          <span className="text-6xl font-bold text-white">{countdownSec}</span>
+        </div>
+      )}
+
       <button
         type="button"
-        className="absolute left-3 top-3 z-50 rounded-lg bg-slate-800/80 px-3 py-1 text-sm text-white"
+        className="absolute right-3 top-[56px] z-40 rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
         onClick={() => {
           markAudioUserInteraction();
           onExit();
@@ -243,41 +309,9 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       </button>
 
       <div
-        className="pointer-events-none absolute left-4 top-4 z-30 font-bold text-white"
-        style={{ font: 'bold 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif' }}
+        className={cn('absolute bottom-0 left-0 right-0 z-30', !showHints && 'opacity-40')}
+        style={{ height: PIANO_OVERLAY_HEIGHT }}
       >
-        {phase === 'countdown' ? countdownSec : `${displayTimeSec}s`}
-      </div>
-      <div
-        className="pointer-events-none absolute right-4 top-4 z-30 font-bold text-amber-300"
-        style={{ font: 'bold 26px system-ui, -apple-system, BlinkMacSystemFont, sans-serif' }}
-      >
-        {displayScore}
-      </div>
-
-      <div className="relative min-h-0 flex-1">
-        <TrainingCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-        {question && phase !== 'countdown' && (
-          <div className="absolute left-1/2 top-[42%] z-20 w-[min(720px,82vw)] -translate-x-1/2">
-            {question.promptLabel !== '' && (
-              <p className="mb-1 text-center text-lg font-semibold text-white">{question.promptLabel}</p>
-            )}
-            <TrainingStaff
-              question={question}
-              correctIndices={correctIndices}
-              showHints={showHints}
-              clefMode={training.clefMode}
-            />
-          </div>
-        )}
-        {phase === 'countdown' && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40">
-            <span className="text-6xl font-bold text-white">{countdownSec}</span>
-          </div>
-        )}
-      </div>
-
-      <div className={cn('relative z-30 shrink-0', !showHints && 'opacity-40')}>
         <DeferredEarTrainingPianoOverlay
           ref={pianoRef}
           minMidi={keyboardRange.minMidi}

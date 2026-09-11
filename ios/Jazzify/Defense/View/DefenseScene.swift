@@ -6,32 +6,64 @@ final class DefenseScene: SKScene {
 
     private var enemyNodes: [UUID: SKSpriteNode] = [:]
     private var enemyFrameKeys: [UUID: String] = [:]
-    private let playerNode = SKLabelNode(text: "🧙")
+    private var playerNode: SKNode?
+    private let backgroundLayer = SKNode()
+    private let characterLayer = SKNode()
+    private let effectLayer = SKNode()
     private let impactRing = SKShapeNode(circleOfRadius: 10)
     private var impactSparks: [SKShapeNode] = []
     private let slashGlow = SKShapeNode()
     private let slashCore = SKShapeNode()
+    private let impactFlash = SKSpriteNode(color: .clear, size: .zero)
     private var textures: [String: SKTexture] = [:]
+    private var lastBuiltSize: CGSize = .zero
 
     override func didMove(to view: SKView) {
-        backgroundColor = SKColor(red: 0.06, green: 0.09, blue: 0.16, alpha: 1)
+        backgroundColor = .clear
         scaleMode = .resizeFill
 
-        playerNode.fontSize = 32
-        playerNode.verticalAlignmentMode = .center
-        playerNode.horizontalAlignmentMode = .center
-        playerNode.zPosition = 100
-        addChild(playerNode)
+        backgroundLayer.zPosition = 0
+        characterLayer.zPosition = 10
+        effectLayer.zPosition = 100
+        for node in [backgroundLayer, characterLayer, effectLayer] where node.parent == nil {
+            addChild(node)
+        }
 
         preloadTextures()
         setupImpactEffect()
         setupSlashEffect()
+        rebuildStage()
+    }
+
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+        if size != lastBuiltSize {
+            rebuildStage()
+        }
     }
 
     override func update(_ currentTime: TimeInterval) {
         guard let session else { return }
         session.advanceFrame(currentTime: currentTime)
         render(runtime: session.runtime)
+    }
+
+    private func rebuildStage() {
+        guard size.width > 0, size.height > 0 else { return }
+        lastBuiltSize = size
+        EarTrainingBattleStageKit.installBattleBackdrop(into: backgroundLayer, size: size)
+
+        characterLayer.removeAllChildren()
+        playerNode = nil
+
+        let floorY = EarTrainingBattleStageKit.battleFloorY(sceneHeight: size.height)
+        let player = EarTrainingBattleStageKit.makeAvatarContainer(
+            assetName: EarTrainingBattleController.playerAvatarAssetName,
+            position: CGPoint(x: size.width * 0.23, y: floorY),
+            isPlayer: true
+        )
+        characterLayer.addChild(player)
+        playerNode = player
     }
 
     private func preloadTextures() {
@@ -52,9 +84,8 @@ final class DefenseScene: SKScene {
         impactRing.lineWidth = 2
         impactRing.zPosition = 200
         impactRing.isHidden = true
-        addChild(impactRing)
+        effectLayer.addChild(impactRing)
 
-        // Unit-length spark along +x; per frame only position / xScale / zRotation change.
         let unitPath = CGMutablePath()
         unitPath.move(to: .zero)
         unitPath.addLine(to: CGPoint(x: 1, y: 0))
@@ -65,9 +96,14 @@ final class DefenseScene: SKScene {
             spark.zRotation = angle
             spark.zPosition = 201
             spark.isHidden = true
-            addChild(spark)
+            effectLayer.addChild(spark)
             impactSparks.append(spark)
         }
+
+        impactFlash.color = UIColor(red: 239 / 255, green: 68 / 255, blue: 68 / 255, alpha: 1)
+        impactFlash.alpha = 0
+        impactFlash.zPosition = 300
+        effectLayer.addChild(impactFlash)
     }
 
     private func setupSlashEffect() {
@@ -81,7 +117,7 @@ final class DefenseScene: SKScene {
         slashGlow.lineCap = .butt
         slashGlow.zPosition = 150
         slashGlow.isHidden = true
-        addChild(slashGlow)
+        effectLayer.addChild(slashGlow)
 
         slashCore.path = unitPath
         slashCore.strokeColor = SKColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 1)
@@ -89,18 +125,21 @@ final class DefenseScene: SKScene {
         slashCore.lineCap = .butt
         slashCore.zPosition = 151
         slashCore.isHidden = true
-        addChild(slashCore)
+        effectLayer.addChild(slashCore)
     }
 
     private func render(runtime: DefenseRuntimeState) {
-        var playerX = runtime.playerX
+        let floorY = EarTrainingBattleStageKit.battleFloorY(sceneHeight: size.height)
+        let scaleX = size.width / 800
+
+        var playerX = size.width * 0.23
         if runtime.impactAt != DefenseEnemyConfig.noImpact {
             let impactAge = runtime.elapsedSec - runtime.impactAt
             if impactAge >= 0 && impactAge < DefenseEnemyConfig.impactHitbackSec {
-                playerX -= 3
+                playerX -= 8
             }
         }
-        playerNode.position = CGPoint(x: playerX, y: size.height - runtime.playerY)
+        playerNode?.position = CGPoint(x: playerX, y: floorY)
 
         var activeEnemyIds = Set<UUID>()
         for enemy in runtime.enemies where enemy.isActive {
@@ -125,25 +164,26 @@ final class DefenseScene: SKScene {
                 enemyFrameKeys[enemy.id] = textureKey
             }
 
-            var drawX = enemy.x
-            var drawY = enemy.y
+            var drawX = enemy.x * scaleX
+            var footOffset: CGFloat = 0
             if attacking {
                 let offset = DefenseEnemyConfig.attackOffset(
                     attackElapsed: runtime.elapsedSec - enemy.lastAttackAt,
                     flying: enemy.type.isFlying
                 )
-                drawX += offset.x
-                drawY += offset.y
+                drawX += offset.x * scaleX
+                footOffset += offset.y
             }
             if enemy.type.isFlying {
-                drawY += DefenseEnemyConfig.flyingBobOffset(
+                footOffset -= 90
+                footOffset += DefenseEnemyConfig.flyingBobOffset(
                     elapsedSec: runtime.elapsedSec,
                     slotIndex: enemy.slotIndex
                 )
             }
 
-            node.position = CGPoint(x: drawX, y: size.height - drawY)
-            if node.parent == nil { addChild(node) }
+            node.position = CGPoint(x: drawX, y: floorY + footOffset)
+            if node.parent == nil { characterLayer.addChild(node) }
             enemyNodes[enemy.id] = node
         }
 
@@ -153,17 +193,20 @@ final class DefenseScene: SKScene {
             enemyFrameKeys[id] = nil
         }
 
-        renderImpact(runtime: runtime)
-        renderSlash(runtime: runtime)
+        renderImpact(runtime: runtime, floorY: floorY, scaleX: scaleX)
+        renderSlash(runtime: runtime, floorY: floorY, scaleX: scaleX)
     }
 
-    private func renderImpact(runtime: DefenseRuntimeState) {
+    private func renderImpact(runtime: DefenseRuntimeState, floorY: CGFloat, scaleX: CGFloat) {
         let age = runtime.elapsedSec - runtime.impactAt
         let visible = runtime.impactAt != DefenseEnemyConfig.noImpact
             && age >= 0
             && age <= DefenseEnemyConfig.impactSec
         impactRing.isHidden = !visible
         for spark in impactSparks { spark.isHidden = !visible }
+        impactFlash.size = size
+        impactFlash.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        impactFlash.alpha = visible ? CGFloat(0.18 * (1 - age / DefenseEnemyConfig.impactSec)) : 0
         guard visible else { return }
 
         let progress = age / DefenseEnemyConfig.impactSec
@@ -171,8 +214,8 @@ final class DefenseScene: SKScene {
         let ringRadius = CGFloat(10 + progress * 30)
         let sparkInner = ringRadius * 0.5
         let sparkLen = CGFloat(8 + progress * 20)
-        let cx = runtime.impactX
-        let cy = size.height - runtime.impactY
+        let cx = runtime.impactX * scaleX
+        let cy = floorY - (DefenseEnemyConfig.groundY - runtime.impactY)
 
         impactRing.position = CGPoint(x: cx, y: cy)
         impactRing.xScale = ringRadius / 10
@@ -187,7 +230,7 @@ final class DefenseScene: SKScene {
         }
     }
 
-    private func renderSlash(runtime: DefenseRuntimeState) {
+    private func renderSlash(runtime: DefenseRuntimeState, floorY: CGFloat, scaleX: CGFloat) {
         let age = runtime.elapsedSec - runtime.slashAt
         let visible = runtime.slashAt != DefenseEnemyConfig.noSlash
             && age >= 0
@@ -197,10 +240,10 @@ final class DefenseScene: SKScene {
         guard visible else { return }
 
         let alpha = CGFloat(1 - age / DefenseEnemyConfig.slashSec)
-        let fromX = runtime.slashFromX
-        let toX = runtime.slashToX
+        let fromX = runtime.slashFromX * scaleX
+        let toX = runtime.slashToX * scaleX
         let length = max(1, toX - fromX)
-        let y = size.height - runtime.slashY
+        let y = floorY - 40
 
         slashGlow.position = CGPoint(x: fromX, y: y)
         slashGlow.xScale = length
@@ -214,6 +257,7 @@ final class DefenseScene: SKScene {
     private func makeEnemySprite(for type: DefenseEnemyType) -> SKSpriteNode {
         let node = SKSpriteNode(texture: textures[type.assetName(frame: .idle)])
         node.size = CGSize(width: DefenseEnemyConfig.spriteWidth(for: type), height: type.spriteHeight)
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
         node.zPosition = type.zDepth
         return node
     }
