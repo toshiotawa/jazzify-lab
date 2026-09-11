@@ -2,7 +2,6 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import type {
   TrainingCategoryRow,
   TrainingCategoryWithTrainings,
-  TrainingConfigBase,
   TrainingKind,
   TrainingClefMode,
   TrainingRankingEntry,
@@ -10,6 +9,7 @@ import type {
   TrainingScoreSummary,
 } from '@/game/training/trainingTypes';
 import type { TrainingLetterRank } from '@/game/training/trainingRank';
+import { mapTrainingConfig } from '@/game/training/mapTrainingConfig';
 import { dispatchBadgesUpdated, grantUserBadgesForEvent } from '@/platform/supabaseBadges';
 
 interface CategoryRow {
@@ -34,7 +34,7 @@ interface TrainingDbRow {
   use_key_signature: boolean;
   play_root_on_correct: boolean;
   bgm_url: string;
-  config: TrainingConfigBase;
+  config: unknown;
   is_active: boolean;
 }
 
@@ -100,7 +100,7 @@ const mapTraining = (row: TrainingDbRow): TrainingRow => ({
   useKeySignature: row.use_key_signature,
   playRootOnCorrect: row.play_root_on_correct,
   bgmUrl: row.bgm_url,
-  config: row.config ?? {},
+  config: mapTrainingConfig(row.config),
   isActive: row.is_active,
 });
 
