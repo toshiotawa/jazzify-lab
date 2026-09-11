@@ -3,14 +3,18 @@ import React, { useMemo } from 'react';
 import ChordVoicingStaff, {
   type ChordVoicingStaffGroup,
 } from '@/components/earTraining/ChordVoicingStaff';
-import type { TrainingQuestion } from '@/game/training/trainingTypes';
-import type { TrainingClefMode } from '@/game/training/trainingTypes';
+import {
+  trainingStaffDisplayNotes,
+  trainingStaffHintedPitchClasses,
+} from '@/game/training/trainingStaffLayout';
+import type { TrainingClefMode, TrainingKind, TrainingQuestion } from '@/game/training/trainingTypes';
 import { cn } from '@/utils/cn';
 
 interface TrainingStaffProps {
   readonly question: TrainingQuestion;
   readonly correctIndices: readonly number[];
   readonly showHints: boolean;
+  readonly kind: TrainingKind;
   readonly unpressedNoteOpacity: number;
   readonly clefMode: TrainingClefMode;
   readonly fitParentHeight?: boolean;
@@ -21,6 +25,7 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
   question,
   correctIndices,
   showHints,
+  kind,
   unpressedNoteOpacity,
   clefMode,
   fitParentHeight = false,
@@ -33,16 +38,21 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
       ? ([1, 2] as const)
       : undefined;
 
+  const displayNotes = useMemo(
+    () => trainingStaffDisplayNotes(question.notes, showHints, kind),
+    [question.notes, showHints, kind],
+  );
+
   const correctPitchClasses = useMemo(
-    () => correctIndices.map((i) => question.notes[i]?.pitchClass).filter((pc): pc is number => pc != null),
-    [correctIndices, question.notes],
+    () => trainingStaffHintedPitchClasses(question.notes, correctIndices, showHints, kind),
+    [question.notes, correctIndices, showHints, kind],
   );
 
   const voicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
     if (question.layout !== 'horizontal') {
       return [];
     }
-    return question.notes.map((note, index) => ({
+    return displayNotes.map((note, index) => ({
       id: `note-${index}`,
       chordName: '',
       voicing: [note.noteName],
@@ -50,7 +60,7 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
       correctPitchClasses: correctIndices.includes(index) ? [note.pitchClass] : [],
       measureOffset: 0 as const,
     }));
-  }, [question, correctIndices]);
+  }, [question.layout, displayNotes, correctIndices]);
 
   const staffWrapperClass = cn(
     'flex h-full w-full items-center justify-center',
@@ -85,8 +95,8 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
     <div className={staffWrapperClass} aria-hidden>
       <ChordVoicingStaff
         keyFifths={question.keyFifths}
-        voicing={question.notes.map((n) => n.noteName)}
-        voicingStaves={question.notes.map((n) => n.staff)}
+        voicing={displayNotes.map((n) => n.noteName)}
+        voicingStaves={displayNotes.map((n) => n.staff)}
         correctPitchClasses={correctPitchClasses}
         singleMeasureLayout
         {...sharedProps}

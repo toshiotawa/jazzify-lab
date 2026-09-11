@@ -68,6 +68,7 @@ struct TrainingGameView: View {
                             question: question,
                             correctIndices: session.correctIndices,
                             showHints: session.practiceMode,
+                            kind: session.training.kind,
                             unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
                                 practiceMode: session.practiceMode,
                                 kind: session.training.kind
@@ -182,6 +183,11 @@ struct TrainingGameView: View {
         ))
     }
 
+    private var referenceHintMidis: Set<Int> {
+        guard let question = session.question else { return [] }
+        return Set(TrainingEngine.keyboardReferenceMidis(question: question))
+    }
+
     private var chordPadSnapshot: SurvivalChordPadSnapshot {
         SurvivalChordPadSnapshot(
             hintMidis: hintMidis,
@@ -190,7 +196,8 @@ struct TrainingGameView: View {
             hintPendingOpacity: session.practiceMode ? 1 : 0,
             midiHeldKeys: [],
             isEnabled: session.hud.phase == .playing && !isSettingsOpen,
-            scrollAnchorMidi: nil
+            scrollAnchorMidi: nil,
+            referenceHintMidis: referenceHintMidis
         )
     }
 

@@ -23,6 +23,7 @@ interface RendererSettings {
     correctKey: string | number; // 正解済み鍵盤の色
     voicingHintPending: string | number; // 耳コピヴォイシング: 未押下構成音ヒント
     voicingHintCompleted: string | number; // 耳コピヴォイシング: 押下済み構成音ヒント
+    voicingHintReference: string | number; // 音程トレーニング: 基準音（灰色）
     background: string | number;
     // 右手/左手/両手ユニゾン色
     rightHand: string | number;
@@ -167,6 +168,7 @@ const createDefaultSettings = (): RendererSettings => ({
     correctKey: '#EF4444',
     voicingHintPending: '#f39800',
     voicingHintCompleted: '#22c55e',
+    voicingHintReference: '#9ca3af',
     background: '#05060A',
     // 右手: スカイブルー
     rightHand: '#93C5FD',
@@ -216,6 +218,7 @@ export class PIXINotesRendererInstance {
   private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
   private voicingHintPendingKeys = new Set<number>(); // 耳コピヴォイシング: 未押下構成音ヒント
   private voicingHintCompletedKeys = new Set<number>(); // 耳コピヴォイシング: 押下済み構成音ヒント
+  private voicingHintReferenceKeys = new Set<number>(); // 音程トレーニング: 基準音（灰色）
   /** OSMD バトル用: 判定距離別の未押下ヒント（単色 pending と排他） */
   private voicingHintPendingStrongKeys = new Set<number>();
   private voicingHintPendingMediumKeys = new Set<number>();
@@ -415,17 +418,25 @@ export class PIXINotesRendererInstance {
    * pending = マリーゴールド、completed = 緑。判定はピッチクラスのため、
    * 別オクターブが押されても呼び出し元で completed に振り分けられる。
    */
-  setVoicingHints(pendingMidiNotes: readonly number[], completedMidiNotes: readonly number[]): void {
+  setVoicingHints(
+    pendingMidiNotes: readonly number[],
+    completedMidiNotes: readonly number[],
+    referenceMidiNotes: readonly number[] = [],
+  ): void {
     this.voicingHintPendingStrongKeys.clear();
     this.voicingHintPendingMediumKeys.clear();
     this.voicingHintPendingSoftKeys.clear();
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintReferenceKeys.clear();
     for (let i = 0; i < pendingMidiNotes.length; i += 1) {
       this.voicingHintPendingKeys.add(this.clampMidi(pendingMidiNotes[i]));
     }
     for (let i = 0; i < completedMidiNotes.length; i += 1) {
       this.voicingHintCompletedKeys.add(this.clampMidi(completedMidiNotes[i]));
+    }
+    for (let i = 0; i < referenceMidiNotes.length; i += 1) {
+      this.voicingHintReferenceKeys.add(this.clampMidi(referenceMidiNotes[i]));
     }
     this.requestRender();
   }
@@ -445,6 +456,7 @@ export class PIXINotesRendererInstance {
     this.voicingHintPendingMediumKeys.clear();
     this.voicingHintPendingSoftKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintReferenceKeys.clear();
     for (let i = 0; i < strongMidis.length; i += 1) {
       this.voicingHintPendingStrongKeys.add(this.clampMidi(strongMidis[i]));
     }
@@ -464,6 +476,7 @@ export class PIXINotesRendererInstance {
     if (
       this.voicingHintPendingKeys.size === 0
       && this.voicingHintCompletedKeys.size === 0
+      && this.voicingHintReferenceKeys.size === 0
       && this.voicingHintPendingStrongKeys.size === 0
       && this.voicingHintPendingMediumKeys.size === 0
       && this.voicingHintPendingSoftKeys.size === 0
@@ -472,6 +485,7 @@ export class PIXINotesRendererInstance {
     }
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintReferenceKeys.clear();
     this.voicingHintPendingStrongKeys.clear();
     this.voicingHintPendingMediumKeys.clear();
     this.voicingHintPendingSoftKeys.clear();
@@ -484,6 +498,7 @@ export class PIXINotesRendererInstance {
     this.correctHighlightedKeys.clear();
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintReferenceKeys.clear();
     this.voicingHintPendingStrongKeys.clear();
     this.voicingHintPendingMediumKeys.clear();
     this.voicingHintPendingSoftKeys.clear();
@@ -514,6 +529,7 @@ export class PIXINotesRendererInstance {
     this.correctHighlightedKeys.clear();
     this.voicingHintPendingKeys.clear();
     this.voicingHintCompletedKeys.clear();
+    this.voicingHintReferenceKeys.clear();
     this.voicingHintPendingStrongKeys.clear();
     this.voicingHintPendingMediumKeys.clear();
     this.voicingHintPendingSoftKeys.clear();
@@ -611,6 +627,7 @@ export class PIXINotesRendererInstance {
       correctKey: toColor(colors.correctKey),
       voicingHintPending: toColor(colors.voicingHintPending),
       voicingHintCompleted: toColor(colors.voicingHintCompleted),
+      voicingHintReference: toColor(colors.voicingHintReference),
       background: toColor(colors.background),
       rightHand: toColor(colors.rightHand),
       rightHandBlack: toColor(colors.rightHandBlack),
@@ -1417,6 +1434,8 @@ export class PIXINotesRendererInstance {
     };
     // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 音程トレーニング: 基準音（灰色）。オレンジ／緑より下に描画する
+    this.voicingHintReferenceKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintReference, 0.7));
     // OSMD: 判定距離別マリーゴールド（不透明度のみ切り替え）
     this.voicingHintPendingStrongKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.85));
     this.voicingHintPendingMediumKeys.forEach((midi) => drawHighlight(midi, this.colors.voicingHintPending, 0.55));

@@ -5,11 +5,32 @@ struct SurvivalChordPadSnapshot: Equatable, Sendable {
     let hintMidis: Set<Int>
     let nextHintMidis: Set<Int>
     let completedHintMidis: Set<Int>
+    let referenceHintMidis: Set<Int>
     let hintPendingOpacity: CGFloat
     let midiHeldKeys: Set<Int>
     let isEnabled: Bool
     /// 互換用（スクロール廃止後もスナップショット形状を維持）。
     let scrollAnchorMidi: Int?
+
+    init(
+        hintMidis: Set<Int>,
+        nextHintMidis: Set<Int>,
+        completedHintMidis: Set<Int>,
+        hintPendingOpacity: CGFloat,
+        midiHeldKeys: Set<Int>,
+        isEnabled: Bool,
+        scrollAnchorMidi: Int?,
+        referenceHintMidis: Set<Int> = []
+    ) {
+        self.hintMidis = hintMidis
+        self.nextHintMidis = nextHintMidis
+        self.completedHintMidis = completedHintMidis
+        self.referenceHintMidis = referenceHintMidis
+        self.hintPendingOpacity = hintPendingOpacity
+        self.midiHeldKeys = midiHeldKeys
+        self.isEnabled = isEnabled
+        self.scrollAnchorMidi = scrollAnchorMidi
+    }
 }
 
 /// 画面右下のピアノ鍵盤。表示レンジ全体を画面幅へフィットさせる。
@@ -53,6 +74,7 @@ struct SurvivalChordPadView: View, Equatable {
                             isHinted: snapshot.hintMidis.contains(midi) || snapshot.nextHintMidis.contains(midi),
                             isNextHinted: snapshot.nextHintMidis.contains(midi),
                             isHintCompleted: snapshot.completedHintMidis.contains(midi),
+                            isReferenceHinted: snapshot.referenceHintMidis.contains(midi),
                             hintPendingOpacity: snapshot.hintPendingOpacity,
                             isMidiHeld: snapshot.midiHeldKeys.contains(midi),
                             width: whiteKeyWidth,
@@ -83,6 +105,7 @@ struct SurvivalChordPadView: View, Equatable {
                         isHinted: snapshot.hintMidis.contains(midi) || snapshot.nextHintMidis.contains(midi),
                         isNextHinted: snapshot.nextHintMidis.contains(midi),
                         isHintCompleted: snapshot.completedHintMidis.contains(midi),
+                        isReferenceHinted: snapshot.referenceHintMidis.contains(midi),
                         hintPendingOpacity: snapshot.hintPendingOpacity,
                         isMidiHeld: snapshot.midiHeldKeys.contains(midi),
                         width: blackKeyWidth,
@@ -164,6 +187,7 @@ private struct PianoKeyButton: View {
     let isHinted: Bool
     let isNextHinted: Bool
     let isHintCompleted: Bool
+    let isReferenceHinted: Bool
     let hintPendingOpacity: CGFloat
     let isMidiHeld: Bool
     let width: CGFloat
@@ -230,6 +254,13 @@ private struct PianoKeyButton: View {
                 .fill(
                     PianoKeyboardTheme.voicingHintPending.opacity(
                         Double(PianoKeyboardTheme.voicingHintOverlayOpacity * hintPendingOpacity * 0.55)
+                    )
+                )
+        } else if isReferenceHinted {
+            RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                .fill(
+                    PianoKeyboardTheme.voicingHintReference.opacity(
+                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity)
                     )
                 )
         }

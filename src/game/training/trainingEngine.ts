@@ -133,3 +133,15 @@ export const getTrainingKeyboardHintMidis = (
     .map((note, index) => (note.isTarget && !correctIndices.includes(index) ? note.midi : null))
     .filter((m): m is number => m != null);
 };
+
+/** 音程の基準音など、入力対象外の鍵盤ハイライト（練習・本番とも表示） */
+export const getTrainingKeyboardReferenceMidis = (
+  question: TrainingQuestion,
+): readonly number[] => {
+  const out: number[] = [];
+  for (let i = 0; i < question.notes.length; i += 1) {
+    const note = question.notes[i];
+    if (note && !note.isTarget) out.push(note.midi);
+  }
+  return out;
+};

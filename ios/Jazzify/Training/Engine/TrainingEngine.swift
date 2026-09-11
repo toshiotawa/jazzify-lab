@@ -127,6 +127,50 @@ enum TrainingEngine {
         return out
     }
 
+    /// 音程の基準音など、入力対象外の鍵盤ハイライト（練習・本番とも表示）
+    static func keyboardReferenceMidis(question: TrainingQuestion) -> [Int] {
+        question.notes.compactMap { note in
+            note.isTarget ? nil : note.midi
+        }
+    }
+
+    static func staffDisplayNotes(
+        question: TrainingQuestion,
+        practiceMode: Bool,
+        kind: TrainingKind
+    ) -> [TrainingQuestionNote] {
+        if kind == .interval, !practiceMode {
+            return question.notes.filter { !$0.isTarget }
+        }
+        return question.notes
+    }
+
+    static func staffHintedPitchClasses(
+        question: TrainingQuestion,
+        correctIndices: [Int],
+        practiceMode: Bool,
+        kind: TrainingKind
+    ) -> [Int] {
+        var out: [Int] = []
+        var seen = Set<Int>()
+        let push: (Int) -> Void = { pitchClass in
+            if seen.insert(pitchClass).inserted {
+                out.append(pitchClass)
+            }
+        }
+        for index in correctIndices {
+            if let pitchClass = question.notes[safe: index]?.pitchClass {
+                push(pitchClass)
+            }
+        }
+        if kind == .interval, practiceMode {
+            for note in question.notes where note.isTarget {
+                push(note.pitchClass)
+            }
+        }
+        return out
+    }
+
     static func createInitialRuntime() -> TrainingRuntime {
         TrainingRuntime(
             durationSec: TrainingConstants.gameDurationSec,

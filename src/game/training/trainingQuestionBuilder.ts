@@ -122,6 +122,12 @@ const normalizeSpelling = (name: string): string => name.replace(/##/g, 'x');
 
 const midiOf = (name: string): number => parseVoicingNoteName(name).midi;
 
+/** 出題文用にオクターブを除いた音名（例: C4 → C, F#5 → F#） */
+const pitchNameWithoutOctave = (name: string): string => {
+  const parsed = parseVoicingNoteName(name);
+  return `${parsed.step}${accidentalText(parsed.alter)}`;
+};
+
 /** 綴りを保ってオクターブだけずらす */
 const shiftOctave = (name: string, delta: number): string => {
   const parsed = parseVoicingNoteName(name);
@@ -318,7 +324,7 @@ export const buildTrainingQuestion = (
       if (questionKey === previousQuestionKey) continue;
       return makeQuestion(
         questionKey,
-        training.titleJa,
+        `${pitchNameWithoutOctave(picked.base)} ${training.titleJa}`,
         [picked.base, picked.target],
         [defaultStaff, defaultStaff],
         [false, true],

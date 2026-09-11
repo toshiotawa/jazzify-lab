@@ -13,7 +13,11 @@ import { countWhiteKeysInMidiRange } from '@/utils/webKeyboardDisplayRange';
 
 export interface EarTrainingPianoOverlayHandle {
   highlightKey: (midiNote: number, active: boolean) => void;
-  setVoicingHints: (pendingMidiNotes: readonly number[], completedMidiNotes: readonly number[]) => void;
+  setVoicingHints: (
+    pendingMidiNotes: readonly number[],
+    completedMidiNotes: readonly number[],
+    referenceMidiNotes?: readonly number[],
+  ) => void;
   setVoicingHintsByIntensity: (
     strongMidis: readonly number[],
     mediumMidis: readonly number[],
@@ -58,8 +62,8 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
 
   useImperativeHandle(ref, () => ({
     highlightKey: (midiNote, active) => rendererRef.current?.highlightKey(midiNote, active),
-    setVoicingHints: (pendingMidiNotes, completedMidiNotes) => {
-      rendererRef.current?.setVoicingHints(pendingMidiNotes, completedMidiNotes);
+    setVoicingHints: (pendingMidiNotes, completedMidiNotes, referenceMidiNotes) => {
+      rendererRef.current?.setVoicingHints(pendingMidiNotes, completedMidiNotes, referenceMidiNotes ?? []);
     },
     setVoicingHintsByIntensity: (strongMidis, mediumMidis, softMidis, completedMidiNotes) => {
       rendererRef.current?.setVoicingHintsByIntensity(strongMidis, mediumMidis, softMidis, completedMidiNotes);

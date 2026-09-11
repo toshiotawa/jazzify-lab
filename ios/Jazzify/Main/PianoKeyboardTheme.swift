@@ -15,6 +15,8 @@ enum PianoKeyboardTheme {
     static let voicingHintPending = Color(hex: "F39800")
     /// Web `PIXINotesRenderer.colors.voicingHintCompleted` — 押下済み構成音ヒント
     static let voicingHintCompleted = Color(hex: "22C55E")
+    /// Web `PIXINotesRenderer.colors.voicingHintReference` — 音程の基準音
+    static let voicingHintReference = Color(hex: "9CA3AF")
 
     /// Web `drawHighlight` デフォルト: 白鍵 activeKey オーバーレイ不透明度
     static let activeKeyOverlayOpacityWhite: CGFloat = 0.35

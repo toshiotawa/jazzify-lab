@@ -20,6 +20,7 @@ import {
 import {
   evaluateTrainingNoteOn,
   getTrainingKeyboardHintMidis,
+  getTrainingKeyboardReferenceMidis,
   performTrainingDefeat,
   tickTrainingEnemy,
   tickTrainingTimer,
@@ -169,6 +170,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     () => (question ? getTrainingKeyboardHintMidis(question, correctIndices, showHints) : []),
     [question, correctIndices, showHints],
   );
+  const referenceMidis = useMemo(
+    () => (question ? getTrainingKeyboardReferenceMidis(question) : []),
+    [question],
+  );
 
   const stageKeyboardMidis = useMemo(
     () => computeTrainingStageMidis(training, {
@@ -181,8 +186,8 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const keyboardRange = useResolvedWebKeyboardRange(stageKeyboardMidis);
 
   useEffect(() => {
-    pianoRef.current?.setVoicingHints(hintMidis, []);
-  }, [hintMidis]);
+    pianoRef.current?.setVoicingHints(hintMidis, [], referenceMidis);
+  }, [hintMidis, referenceMidis]);
 
   const handleNoteOn = useCallback((midiNote: number) => {
     if (isSettingsOpenRef.current) return;
@@ -308,6 +313,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
               question={question}
               correctIndices={correctIndices}
               showHints={showHints}
+              kind={training.kind}
               unpressedNoteOpacity={staffNoteOpacity}
               clefMode={training.clefMode}
               fitParentHeight

@@ -28,4 +28,44 @@ final class TrainingEngineTests: XCTestCase {
         TrainingEngine.tickEnemy(runtime: &runtime, nowSec: 2.0, dt: 0.5)
         XCTAssertFalse(runtime.dyingEnemy.active)
     }
+
+    func testIntervalKeyboardHintsSplitReferenceAndTarget() {
+        let question = TrainingQuestion(
+            questionKey: "interval",
+            promptLabel: "C テスト",
+            notes: [
+                TrainingQuestionNote(noteName: "C4", midi: 60, pitchClass: 0, staff: 1, isTarget: false),
+                TrainingQuestionNote(noteName: "E4", midi: 64, pitchClass: 4, staff: 1, isTarget: true),
+            ],
+            layout: .stacked,
+            ordered: false,
+            keyFifths: 0,
+            rootMidi: 60
+        )
+        XCTAssertEqual(TrainingEngine.keyboardReferenceMidis(question: question), [60])
+        XCTAssertEqual(TrainingEngine.keyboardHintMidis(question: question, correctIndices: [], showHints: true), [64])
+        XCTAssertEqual(TrainingEngine.keyboardHintMidis(question: question, correctIndices: [], showHints: false), [])
+        XCTAssertEqual(
+            TrainingEngine.staffDisplayNotes(question: question, practiceMode: false, kind: .interval).map(\.noteName),
+            ["C4"]
+        )
+        XCTAssertEqual(
+            TrainingEngine.staffHintedPitchClasses(
+                question: question,
+                correctIndices: [],
+                practiceMode: true,
+                kind: .interval
+            ),
+            [4]
+        )
+        XCTAssertEqual(
+            TrainingEngine.staffHintedPitchClasses(
+                question: question,
+                correctIndices: [],
+                practiceMode: false,
+                kind: .interval
+            ),
+            []
+        )
+    }
 }

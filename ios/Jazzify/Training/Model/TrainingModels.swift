@@ -228,6 +228,6 @@ enum TrainingConstants {
     }
 
     static func staffNoteOpacity(practiceMode: Bool, kind: TrainingKind) -> CGFloat {
-        practiceMode || kind == .noteReading ? 1 : 0
+        practiceMode || kind == .noteReading || kind == .interval ? 1 : 0
     }
 }

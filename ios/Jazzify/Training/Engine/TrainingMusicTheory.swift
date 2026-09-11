@@ -18,6 +18,11 @@ enum TrainingMusicTheory {
             "\(letters[letterIndex])\(accidentalText(alter))\(octave)"
         }
 
+        /// 出題文用にオクターブを除いた音名（例: C4 → C）
+        var pitchName: String {
+            "\(letters[letterIndex])\(accidentalText(alter))"
+        }
+
         var pitchClass: Int {
             normalizePitchClass(midi)
         }

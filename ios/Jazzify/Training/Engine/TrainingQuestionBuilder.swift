@@ -136,7 +136,7 @@ enum TrainingQuestionBuilder {
                 if questionKey == previousQuestionKey { continue }
                 return makeQuestion(
                     questionKey: questionKey,
-                    promptLabel: training.titleJa,
+                    promptLabel: "\(picked.base.pitchName) \(training.titleJa)",
                     noteNames: [picked.base.name, picked.target.name],
                     staves: [defaultStaff, defaultStaff],
                     targets: [false, true],

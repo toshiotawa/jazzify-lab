@@ -1,4 +1,10 @@
-import { evaluateTrainingNoteOn, performTrainingDefeat, tickTrainingEnemy } from '@/game/training/trainingEngine';
+import {
+  evaluateTrainingNoteOn,
+  getTrainingKeyboardHintMidis,
+  getTrainingKeyboardReferenceMidis,
+  performTrainingDefeat,
+  tickTrainingEnemy,
+} from '@/game/training/trainingEngine';
 import { createInitialTrainingRuntime } from '@/game/training/trainingQuestionBuilder';
 import type { TrainingQuestion } from '@/game/training/trainingTypes';
 
@@ -70,5 +76,18 @@ describe('trainingEngine', () => {
     expect(runtime.dyingEnemy.offsetX).toBeGreaterThan(0);
     tickTrainingEnemy(runtime, 2.0, 0.5);
     expect(runtime.dyingEnemy.active).toBe(false);
+  });
+
+  it('highlights interval reference keys in both modes and target keys only in practice', () => {
+    const q = makeQuestion({
+      notes: [
+        { noteName: 'C4', midi: 60, pitchClass: 0, staff: 1, isTarget: false },
+        { noteName: 'E4', midi: 64, pitchClass: 4, staff: 1, isTarget: true },
+      ],
+    });
+    expect(getTrainingKeyboardReferenceMidis(q)).toEqual([60]);
+    expect(getTrainingKeyboardHintMidis(q, [], true)).toEqual([64]);
+    expect(getTrainingKeyboardHintMidis(q, [], false)).toEqual([]);
+    expect(getTrainingKeyboardHintMidis(q, [1], true)).toEqual([]);
   });
 });

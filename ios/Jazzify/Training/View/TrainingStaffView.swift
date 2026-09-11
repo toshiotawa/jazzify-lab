@@ -4,6 +4,7 @@ struct TrainingStaffView: View {
     let question: TrainingQuestion
     let correctIndices: [Int]
     let showHints: Bool
+    let kind: TrainingKind
     let unpressedNoteOpacity: CGFloat
     let clefMode: TrainingClefMode
 
@@ -19,9 +20,17 @@ struct TrainingStaffView: View {
         }
     }
 
+    private var displayNotes: [TrainingQuestionNote] {
+        TrainingEngine.staffDisplayNotes(
+            question: question,
+            practiceMode: showHints,
+            kind: kind
+        )
+    }
+
     private var staffGroups: [EarTrainingChordVoicingStaffLayout.GroupInput] {
         if question.layout == .horizontal {
-            return question.notes.enumerated().map { index, note in
+            return displayNotes.enumerated().map { index, note in
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: stableGroupId(index: index),
                     chordName: "",
@@ -36,8 +45,8 @@ struct TrainingStaffView: View {
             EarTrainingChordVoicingStaffLayout.GroupInput(
                 id: stableGroupId(index: 0),
                 chordName: "",
-                voicing: question.notes.map(\.noteName),
-                voicingStaves: question.notes.map(\.staff),
+                voicing: displayNotes.map(\.noteName),
+                voicingStaves: displayNotes.map(\.staff),
                 measureOffset: 0,
                 isRest: false
             ),
@@ -46,16 +55,19 @@ struct TrainingStaffView: View {
 
     private var correctPitchClassesByGroupId: [UUID: Set<Int>] {
         if question.layout == .horizontal {
-            return Dictionary(uniqueKeysWithValues: question.notes.enumerated().map { index, note in
+            return Dictionary(uniqueKeysWithValues: displayNotes.enumerated().map { index, note in
                 let groupId = stableGroupId(index: index)
                 let pcs = correctIndices.contains(index) ? [note.pitchClass] : []
                 return (groupId, Set(pcs))
             })
         }
         let groupId = stableGroupId(index: 0)
-        let pcs = question.notes.enumerated()
-            .filter { correctIndices.contains($0.offset) }
-            .map(\.element.pitchClass)
+        let pcs = TrainingEngine.staffHintedPitchClasses(
+            question: question,
+            correctIndices: correctIndices,
+            practiceMode: showHints,
+            kind: kind
+        )
         return [groupId: Set(pcs)]
     }
 

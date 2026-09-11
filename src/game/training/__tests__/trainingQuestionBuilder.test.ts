@@ -223,6 +223,8 @@ describe('trainingQuestionBuilder', () => {
       expect((q.notes[0]?.midi ?? 0) - (q.notes[1]?.midi ?? 0)).toBe(6);
       expect(q.notes[1]?.midi).toBeGreaterThanOrEqual(64);
       expect(q.notes[1]?.noteName).not.toMatch(/x|bb|E#|B#|Cb|Fb/);
+      const basePitch = (q.notes[0]?.noteName ?? '').replace(/\d+$/, '');
+      expect(q.promptLabel).toBe(`${basePitch} テスト`);
     }
   });
 });

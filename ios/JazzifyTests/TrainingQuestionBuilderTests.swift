@@ -207,6 +207,12 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             XCTAssertEqual(q.notes[0].midi - q.notes[1].midi, 6)
             XCTAssertGreaterThanOrEqual(q.notes[1].midi, 64)
             XCTAssertNil(q.notes[1].noteName.range(of: "x|bb|E#|B#|Cb|Fb", options: .regularExpression))
+            let basePitch = q.notes[0].noteName.replacingOccurrences(
+                of: #"\d+$"#,
+                with: "",
+                options: .regularExpression
+            )
+            XCTAssertEqual(q.promptLabel, "\(basePitch) テスト")
         }
     }
 
