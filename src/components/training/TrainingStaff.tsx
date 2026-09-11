@@ -11,7 +11,9 @@ interface TrainingStaffProps {
   readonly question: TrainingQuestion;
   readonly correctIndices: readonly number[];
   readonly showHints: boolean;
+  readonly unpressedNoteOpacity: number;
   readonly clefMode: TrainingClefMode;
+  readonly fitParentHeight?: boolean;
   readonly className?: string;
 }
 
@@ -19,7 +21,9 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
   question,
   correctIndices,
   showHints,
+  unpressedNoteOpacity,
   clefMode,
+  fitParentHeight = false,
   className,
 }) => {
   const ignoreNotationInstrument = clefMode === 'bass_concert' || clefMode === 'grand_concert';
@@ -40,7 +44,7 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
     }
     return question.notes.map((note, index) => ({
       id: `note-${index}`,
-      chordName: index === 0 ? question.promptLabel : '',
+      chordName: '',
       voicing: [note.noteName],
       voicingStaves: [note.staff],
       correctPitchClasses: correctIndices.includes(index) ? [note.pitchClass] : [],
@@ -48,41 +52,44 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
     }));
   }, [question, correctIndices]);
 
+  const staffWrapperClass = cn(
+    'flex h-full w-full items-center justify-center',
+    className,
+  );
+
+  const sharedProps = {
+    showTargetHints: showHints,
+    unpressedNoteOpacity,
+    hideChordLabels: true as const,
+    fixedActiveStaves,
+    ignoreNotationInstrument,
+    smuflUseForeignObject: true as const,
+    fitParentHeight,
+  };
+
   if (question.layout === 'horizontal') {
     return (
-      <div className={cn('pointer-events-none', className)} aria-hidden>
+      <div className={staffWrapperClass} aria-hidden>
         <ChordVoicingStaff
           keyFifths={question.keyFifths}
           voicingGroups={voicingGroups}
           denseCurrentMeasureLayout
           singleMeasureLayout
-          compactSingleMeasure
-          showTargetHints={showHints}
-          unpressedNoteOpacity={1}
-          hideChordLabels={false}
-          fixedActiveStaves={fixedActiveStaves}
-          ignoreNotationInstrument={ignoreNotationInstrument}
-          smuflUseForeignObject
+          {...sharedProps}
         />
       </div>
     );
   }
 
   return (
-    <div className={cn('pointer-events-none', className)} aria-hidden>
+    <div className={staffWrapperClass} aria-hidden>
       <ChordVoicingStaff
         keyFifths={question.keyFifths}
-        chordName={question.promptLabel}
         voicing={question.notes.map((n) => n.noteName)}
         voicingStaves={question.notes.map((n) => n.staff)}
         correctPitchClasses={correctPitchClasses}
         singleMeasureLayout
-        compactSingleMeasure
-        showTargetHints={showHints}
-        unpressedNoteOpacity={1}
-        fixedActiveStaves={fixedActiveStaves}
-        ignoreNotationInstrument={ignoreNotationInstrument}
-        smuflUseForeignObject
+        {...sharedProps}
       />
     </div>
   );

@@ -99,6 +99,8 @@ interface ChordVoicingStaffProps {
   alwaysShowTopPointer?: boolean;
   /** true のとき移調楽器設定を無視し concert 記譜のまま描画する（トレーニング concert 固定用） */
   ignoreNotationInstrument?: boolean;
+  /** true のとき親の高さに合わせて SVG をスケール（幅はアスペクト比維持） */
+  fitParentHeight?: boolean;
   className?: string;
 }
 
@@ -1475,6 +1477,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   fadeAllMeasureNotes = false,
   alwaysShowTopPointer = false,
   ignoreNotationInstrument = false,
+  fitParentHeight = false,
   className,
 }) => {
   const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
@@ -1755,7 +1758,12 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   const svgHeight = systemLayout.svgHeight;
 
   return (
-    <div className={cn('relative flex w-full justify-center', className)}>
+    <div className={cn(
+      'relative flex w-full justify-center',
+      fitParentHeight && 'h-full',
+      className,
+    )}
+    >
       {renderState.error ? (
         <div className="rounded bg-red-950/80 px-3 py-1 text-xs text-red-100">
           {renderState.error}
@@ -1764,7 +1772,10 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         <svg
           aria-busy={!clefFontsLoaded}
           aria-label={chordName ? `${chordName} battle mode staff` : 'Battle mode staff'}
-          className="h-auto w-full overflow-visible drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]"
+          className={cn(
+            'overflow-visible drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]',
+            fitParentHeight ? 'h-full w-auto max-w-full' : 'h-auto w-full',
+          )}
           role="img"
           viewBox={`0 0 ${viewBoxWidth} ${svgHeight}`}
         >

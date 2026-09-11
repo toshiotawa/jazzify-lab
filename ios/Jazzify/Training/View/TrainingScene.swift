@@ -4,7 +4,9 @@ final class TrainingScene: SKScene {
     weak var session: TrainingGameSession?
 
     private var enemyNode = SKSpriteNode()
+    private var dyingEnemyNode = SKSpriteNode()
     private var enemyFrameKey = ""
+    private var dyingEnemyFrameKey = ""
     private var playerNode: SKNode?
     private var playerSpriteNode: SKSpriteNode?
     private var playerRimNode: SKSpriteNode?
@@ -35,6 +37,7 @@ final class TrainingScene: SKScene {
 
         preloadTextures()
         setupSlashEffect()
+        characterLayer.addChild(dyingEnemyNode)
         characterLayer.addChild(enemyNode)
         rebuildStage()
     }
@@ -58,6 +61,7 @@ final class TrainingScene: SKScene {
         EarTrainingBattleStageKit.installBattleBackdrop(into: backgroundLayer, size: size)
 
         characterLayer.removeAllChildren()
+        characterLayer.addChild(dyingEnemyNode)
         characterLayer.addChild(enemyNode)
         playerNode = nil
         playerSpriteNode = nil
@@ -146,43 +150,79 @@ final class TrainingScene: SKScene {
             }
         }
 
-        let enemyTypes = DefenseEnemyType.allCases
-        let type = enemyTypes[runtime.enemy.typeIndex % enemyTypes.count]
-        let frame = DefenseEnemyConfig.pickFrame(
+        if runtime.dyingEnemy.active {
+            renderEnemyNode(
+                node: dyingEnemyNode,
+                frameKey: &dyingEnemyFrameKey,
+                typeIndex: runtime.dyingEnemy.typeIndex,
+                alpha: runtime.dyingEnemy.alpha,
+                offsetX: runtime.dyingEnemy.offsetX,
+                elapsedSec: runtime.elapsedSec,
+                floorY: floorY
+            )
+        } else {
+            dyingEnemyNode.isHidden = true
+        }
+
+        renderEnemyNode(
+            node: enemyNode,
+            frameKey: &enemyFrameKey,
+            typeIndex: runtime.enemy.typeIndex,
+            alpha: runtime.enemy.fadeAlpha,
+            offsetX: 0,
             elapsedSec: runtime.elapsedSec,
-            slotIndex: 0,
+            floorY: floorY
+        )
+
+        renderSlash(runtime: runtime, floorY: floorY, avatarSize: avatarSize)
+    }
+
+    private func renderEnemyNode(
+        node: SKSpriteNode,
+        frameKey: inout String,
+        typeIndex: Int,
+        alpha: CGFloat,
+        offsetX: CGFloat,
+        elapsedSec: TimeInterval,
+        floorY: CGFloat
+    ) {
+        let enemyTypes = DefenseEnemyType.allCases
+        let type = enemyTypes[typeIndex % enemyTypes.count]
+        let frame = DefenseEnemyConfig.pickFrame(
+            elapsedSec: elapsedSec,
+            slotIndex: typeIndex,
             moving: false,
             flying: type.isFlying,
             attacking: false
         )
         let textureKey = type.assetName(frame: frame)
-        if enemyFrameKey != textureKey, let texture = textures[textureKey] {
-            enemyNode.texture = texture
-            enemyFrameKey = textureKey
+        if frameKey != textureKey, let texture = textures[textureKey] {
+            node.texture = texture
+            frameKey = textureKey
         }
 
         var footOffset: CGFloat = 0
         if type.isFlying {
             footOffset -= DefenseEnemyConfig.flyingYOffset
-            footOffset += DefenseEnemyConfig.flyingBobOffset(elapsedSec: runtime.elapsedSec, slotIndex: 0)
+            footOffset += DefenseEnemyConfig.flyingBobOffset(elapsedSec: elapsedSec, slotIndex: typeIndex)
         }
 
-        enemyNode.anchorPoint = CGPoint(x: 0.5, y: 0)
-        enemyNode.position = CGPoint(x: size.width * Self.enemyXRatio, y: floorY + footOffset)
-        enemyNode.alpha = CGFloat(runtime.enemy.fadeAlpha)
-        enemyNode.size = CGSize(width: DefenseEnemyConfig.spriteWidth(for: type), height: type.spriteHeight)
-        enemyNode.zPosition = type.zDepth
-
-        renderSlash(runtime: runtime, floorY: floorY, avatarSize: avatarSize)
+        node.isHidden = false
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.position = CGPoint(x: size.width * Self.enemyXRatio + offsetX, y: floorY + footOffset)
+        node.alpha = alpha
+        node.size = CGSize(width: DefenseEnemyConfig.spriteWidth(for: type), height: type.spriteHeight)
+        node.zPosition = type.zDepth
     }
 
     private func renderSlash(runtime: TrainingRuntime, floorY: CGFloat, avatarSize: CGFloat) {
-        guard runtime.enemy.slashUntilSec > 0 else {
+        let slashUntilSec = runtime.dyingEnemy.slashUntilSec
+        guard runtime.dyingEnemy.active, slashUntilSec > 0 else {
             slashGlow.isHidden = true
             slashCore.isHidden = true
             return
         }
-        let remaining = runtime.enemy.slashUntilSec - runtime.elapsedSec
+        let remaining = slashUntilSec - runtime.elapsedSec
         guard remaining > 0, remaining <= DefenseEnemyConfig.slashSec else {
             slashGlow.isHidden = true
             slashCore.isHidden = true
@@ -199,7 +239,7 @@ final class TrainingScene: SKScene {
 
         let fromX = size.width * Self.playerXRatio + avatarSize * 0.45
         let fromY = floorY - avatarSize * 0.55
-        let toX = size.width * Self.enemyXRatio
+        let toX = size.width * Self.enemyXRatio + runtime.dyingEnemy.offsetX
         let toY = fromY
         let endX = fromX + (toX - fromX) * lengthScale
         let endY = fromY + (toY - fromY) * lengthScale

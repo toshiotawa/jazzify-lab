@@ -506,6 +506,7 @@ export const createInitialTrainingRuntime = (): import('@/game/training/training
   score: 0,
   result: 'playing',
   enemy: { typeIndex: 0, active: true, fadeAlpha: 1, slashUntilSec: 0 },
+  dyingEnemy: { active: false, typeIndex: 0, alpha: 0, slashUntilSec: 0, offsetX: 0 },
   question: null,
   correctTargetIndices: [],
   nextQuestionKey: null,

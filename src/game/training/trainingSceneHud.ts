@@ -3,8 +3,6 @@ export interface TrainingSceneHud {
   readonly countdownSec: number;
   readonly remainSec: number;
   readonly score: number;
-  readonly enemyHp: number;
-  readonly enemyMaxHp: number;
 }
 
 export type MutableTrainingSceneHud = {

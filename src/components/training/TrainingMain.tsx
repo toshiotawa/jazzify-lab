@@ -163,7 +163,7 @@ const TrainingMain: React.FC = () => {
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col bg-slate-950">
-      <GameHeader />
+      {screen !== 'game' && <GameHeader />}
       {screen === 'list' && (
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <TrainingList

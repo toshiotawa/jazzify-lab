@@ -4,6 +4,7 @@ struct TrainingStaffView: View {
     let question: TrainingQuestion
     let correctIndices: [Int]
     let showHints: Bool
+    let unpressedNoteOpacity: CGFloat
     let clefMode: TrainingClefMode
 
     private var ignoreNotationInstrument: Bool {
@@ -23,7 +24,7 @@ struct TrainingStaffView: View {
             return question.notes.enumerated().map { index, note in
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: stableGroupId(index: index),
-                    chordName: index == 0 ? question.promptLabel : "",
+                    chordName: "",
                     voicing: [note.noteName],
                     voicingStaves: [note.staff],
                     measureOffset: 0,
@@ -34,7 +35,7 @@ struct TrainingStaffView: View {
         return [
             EarTrainingChordVoicingStaffLayout.GroupInput(
                 id: stableGroupId(index: 0),
-                chordName: question.promptLabel,
+                chordName: "",
                 voicing: question.notes.map(\.noteName),
                 voicingStaves: question.notes.map(\.staff),
                 measureOffset: 0,
@@ -67,11 +68,12 @@ struct TrainingStaffView: View {
             correctPitchClassesByGroupId: correctPitchClassesByGroupId,
             showTargetHints: showHints,
             singleMeasureLayout: true,
-            hideChordLabels: question.layout == .horizontal,
-            unpressedNoteOpacity: 1,
+            hideChordLabels: true,
+            unpressedNoteOpacity: unpressedNoteOpacity,
             fixedActiveStaves: fixedActiveStaves,
             ignoreNotationInstrument: ignoreNotationInstrument
         )
+        .frame(maxHeight: .infinity)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

@@ -4,12 +4,9 @@ import {
   invalidateBackgroundCache,
   PLAYER_POSE_IMAGE_URLS,
 } from '@/game/earTraining/canvas/earTrainingBattleBackground';
-import { drawHpBar } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import {
   CHARACTER_DISPLAY_SIZE,
   getFloorY,
-  getHpBarLayout,
-  HUD_HEIGHT,
 } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import type { BackgroundCacheState } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
@@ -22,6 +19,7 @@ import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites
 import { DEFENSE_ENEMY_TYPES } from '@/game/defense/defenseEnemyConfig';
 import type { TrainingSceneHud } from '@/game/training/trainingSceneHud';
 import type { TrainingRuntime } from '@/game/training/trainingTypes';
+import { TRAINING_HUD_HEIGHT_PX } from '@/game/training/trainingTypes';
 
 const HUD_FONT = 'Arial, sans-serif';
 const SLASH_GLOW_COLOR = 'rgba(34, 211, 238, 0.55)';
@@ -83,11 +81,12 @@ const drawSlash = (
   ctx: CanvasRenderingContext2D,
   width: number,
   floorY: number,
-  runtime: TrainingRuntime,
+  elapsedSec: number,
+  slashUntilSec: number,
   spriteScale: number,
 ): void => {
-  if (runtime.enemy.slashUntilSec <= 0) return;
-  const remaining = runtime.enemy.slashUntilSec - runtime.elapsedSec;
+  if (slashUntilSec <= 0) return;
+  const remaining = slashUntilSec - elapsedSec;
   if (remaining <= 0 || remaining > DEFENSE_SLASH_SEC) return;
 
   const progress = 1 - remaining / DEFENSE_SLASH_SEC;
@@ -141,34 +140,68 @@ const drawTrainingHud = (
   ctx.fillStyle = 'rgba(2, 6, 23, 0.66)';
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
   ctx.lineWidth = 1;
-  ctx.fillRect(0, 0, width, HUD_HEIGHT);
-  ctx.strokeRect(0, 0, width, HUD_HEIGHT);
+  ctx.fillRect(0, 0, width, TRAINING_HUD_HEIGHT_PX);
+  ctx.strokeRect(0, 0, width, TRAINING_HUD_HEIGHT_PX);
+
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = `900 18px ${HUD_FONT}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`SCORE ${hud.score}`, 18, TRAINING_HUD_HEIGHT_PX / 2);
 
   ctx.fillStyle = '#ffffff';
   ctx.font = `900 30px ${HUD_FONT}`;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = 'middle';
   if (hud.phase === 'countdown') {
-    ctx.fillText(String(hud.countdownSec), width / 2, 18);
+    ctx.fillText(String(hud.countdownSec), width / 2, TRAINING_HUD_HEIGHT_PX / 2);
   } else {
-    ctx.fillText(`${hud.remainSec}s`, width / 2, 18);
+    ctx.fillText(`${hud.remainSec}s`, width / 2, TRAINING_HUD_HEIGHT_PX / 2);
+  }
+};
+
+const drawTrainingEnemySprite = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  floorY: number,
+  typeIndex: number,
+  alpha: number,
+  offsetX: number,
+  elapsedSec: number,
+  spriteScale: number,
+  atlas: DefenseEnemySpriteAtlas | null,
+): void => {
+  const enemyType = DEFENSE_ENEMY_TYPES[typeIndex % DEFENSE_ENEMY_TYPES.length] ?? 'slime';
+  const config = DEFENSE_ENEMY_CONFIG[enemyType];
+  const sprites = atlas?.get(enemyType);
+  const drawHeight = config.spriteHeight * spriteScale;
+  const drawWidth = drawHeight * config.aspectRatio;
+  const ex = width * TRAINING_ENEMY_X_RATIO + offsetX;
+  let footOffset = 0;
+  if (config.isFlying) {
+    footOffset -= FLYING_Y_OFFSET * spriteScale;
+    footOffset += getDefenseFlyingBobOffset(elapsedSec, typeIndex) * spriteScale;
   }
 
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = `900 22px ${HUD_FONT}`;
-  ctx.textAlign = 'right';
-  ctx.fillText(`KO ${hud.score}`, width - 18, 22);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.beginPath();
+  ctx.ellipse(ex, floorY + 4, 18 * spriteScale, 5 * spriteScale, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-  const hpLayout = getHpBarLayout(width);
-  drawHpBar(
-    ctx,
-    hpLayout.rightX,
-    16,
-    hpLayout.barWidth,
-    hud.enemyHp,
-    hud.enemyMaxHp,
-    false,
-  );
+  if (sprites) {
+    const frame = pickDefenseEnemyFrame(
+      elapsedSec,
+      typeIndex,
+      false,
+      config.isFlying,
+      false,
+    );
+    const img = frame === 'idle' ? sprites.idle : sprites.move;
+    ctx.drawImage(img, ex - drawWidth / 2, floorY + footOffset - drawHeight, drawWidth, drawHeight);
+  }
+  ctx.restore();
 };
 
 export const drawTrainingScene = (
@@ -181,7 +214,7 @@ export const drawTrainingScene = (
   assets: TrainingSceneAssets | null,
 ): void => {
   const floorY = getFloorY(height);
-  const stageHeight = Math.max(1, floorY - HUD_HEIGHT);
+  const stageHeight = Math.max(1, floorY - TRAINING_HUD_HEIGHT_PX);
   const spriteScale = Math.min(width / 800, stageHeight / 320);
 
   if (assets) {
@@ -191,37 +224,32 @@ export const drawTrainingScene = (
     ctx.fillRect(0, 0, width, height);
   }
 
-  const enemyType = DEFENSE_ENEMY_TYPES[runtime.enemy.typeIndex % DEFENSE_ENEMY_TYPES.length] ?? 'slime';
-  const config = DEFENSE_ENEMY_CONFIG[enemyType];
-  const sprites = atlas?.get(enemyType);
-  const drawHeight = config.spriteHeight * spriteScale;
-  const drawWidth = drawHeight * config.aspectRatio;
-  const ex = width * TRAINING_ENEMY_X_RATIO;
-  let footOffset = 0;
-  if (config.isFlying) {
-    footOffset -= FLYING_Y_OFFSET * spriteScale;
-    footOffset += getDefenseFlyingBobOffset(runtime.elapsedSec, runtime.enemy.typeIndex) * spriteScale;
-  }
-
-  ctx.save();
-  ctx.globalAlpha = runtime.enemy.fadeAlpha;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-  ctx.beginPath();
-  ctx.ellipse(ex, floorY + 4, 18 * spriteScale, 5 * spriteScale, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (sprites) {
-    const frame = pickDefenseEnemyFrame(
+  const dying = runtime.dyingEnemy;
+  if (dying.active) {
+    drawTrainingEnemySprite(
+      ctx,
+      width,
+      floorY,
+      dying.typeIndex,
+      dying.alpha,
+      dying.offsetX,
       runtime.elapsedSec,
-      runtime.enemy.typeIndex,
-      false,
-      config.isFlying,
-      false,
+      spriteScale,
+      atlas,
     );
-    const img = frame === 'idle' ? sprites.idle : sprites.move;
-    ctx.drawImage(img, ex - drawWidth / 2, floorY + footOffset - drawHeight, drawWidth, drawHeight);
   }
-  ctx.restore();
+
+  drawTrainingEnemySprite(
+    ctx,
+    width,
+    floorY,
+    runtime.enemy.typeIndex,
+    runtime.enemy.fadeAlpha,
+    0,
+    runtime.elapsedSec,
+    spriteScale,
+    atlas,
+  );
 
   const showGuardPose = runtime.guardPoseUntilSec > 0
     && runtime.elapsedSec < runtime.guardPoseUntilSec;
@@ -231,6 +259,8 @@ export const drawTrainingScene = (
     : assets?.loadedImages.get(assets?.playerAvatarUrl ?? '');
   drawBattleAvatar(ctx, playerImg, width * TRAINING_PLAYER_X_RATIO, floorY, 'player');
 
-  drawSlash(ctx, width, floorY, runtime, spriteScale);
+  if (dying.active && dying.slashUntilSec > 0) {
+    drawSlash(ctx, width, floorY, runtime.elapsedSec, dying.slashUntilSec, spriteScale);
+  }
   drawTrainingHud(ctx, width, hud);
 };

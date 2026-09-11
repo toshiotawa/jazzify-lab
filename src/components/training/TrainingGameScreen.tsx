@@ -14,6 +14,10 @@ import DeferredEarTrainingPianoOverlay, {
 } from '@/components/earTraining/DeferredEarTrainingPianoOverlay';
 import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import {
+  trainingStaffHeightRatio,
+  trainingStaffNoteOpacity,
+} from '@/game/training/trainingStaffLayout';
+import {
   evaluateTrainingNoteOn,
   getTrainingKeyboardHintMidis,
   performTrainingDefeat,
@@ -31,6 +35,7 @@ import {
   TRAINING_COUNTDOWN_SEC,
   TRAINING_GAME_DURATION_SEC,
   TRAINING_GUARD_POSE_SEC,
+  TRAINING_HUD_HEIGHT_PX,
 } from '@/game/training/trainingTypes';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
@@ -40,6 +45,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { EarTrainingChordVoicingDrumLoop, CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
+import { cn } from '@/utils/cn';
 
 interface TrainingGameScreenProps {
   readonly training: TrainingRow;
@@ -49,6 +55,8 @@ interface TrainingGameScreenProps {
 }
 
 type Phase = 'countdown' | 'playing' | 'finished';
+
+const STAFF_BAND_MARGIN_PX = 16;
 
 export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   training,
@@ -70,8 +78,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     countdownSec: TRAINING_COUNTDOWN_SEC,
     remainSec: TRAINING_GAME_DURATION_SEC,
     score: 0,
-    enemyHp: 1,
-    enemyMaxHp: 1,
   });
 
   const profile = useAuthStore((state) => state.profile);
@@ -101,6 +107,11 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
   const ignoreNotationInstrument = training.clefMode === 'bass_concert' || training.clefMode === 'grand_concert';
   const showHints = practiceMode;
+  const staffNoteOpacity = trainingStaffNoteOpacity(practiceMode, training.kind);
+  const staffBandHeight = useMemo(
+    () => `calc((100dvh - ${TRAINING_HUD_HEIGHT_PX + PIANO_OVERLAY_HEIGHT + STAFF_BAND_MARGIN_PX}px) * ${trainingStaffHeightRatio(training.clefMode)})`,
+    [training.clefMode],
+  );
 
   const spawnQuestion = useCallback((): TrainingQuestion => {
     const built = buildTrainingQuestion({
@@ -240,8 +251,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         hud.countdownSec = countdownSec;
         hud.remainSec = TRAINING_GAME_DURATION_SEC;
         hud.score = runtime.score;
-        hud.enemyHp = 1;
-        hud.enemyMaxHp = 1;
       } else {
         const finished = tickTrainingTimer(runtime, dt);
         tickTrainingEnemy(runtime, runtime.elapsedSec, dt);
@@ -250,8 +259,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         hud.countdownSec = 0;
         hud.remainSec = Math.max(0, Math.ceil(runtime.durationSec - runtime.elapsedSec));
         hud.score = runtime.score;
-        hud.enemyHp = runtime.enemy.fadeAlpha >= 0.99 ? 1 : 0;
-        hud.enemyMaxHp = 1;
 
         if (finished) {
           runtime.result = 'finished';
@@ -276,20 +283,37 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   }, [phase, countdownSec, isSettingsOpen]);
 
   return (
-    <div className="fixed inset-0 z-40 overflow-hidden bg-slate-950">
+    <div className="fixed inset-0 z-[70] overflow-hidden bg-slate-950">
       <TrainingCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {question && phase !== 'countdown' && (
-        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
+        <div
+          className="pointer-events-none absolute left-1/2 z-20 flex w-[min(720px,82vw)] -translate-x-1/2 flex-col items-center"
+          style={{
+            top: TRAINING_HUD_HEIGHT_PX + 8,
+            height: staffBandHeight,
+          }}
+        >
           {question.promptLabel !== '' && (
-            <p className="mb-1 text-center text-lg font-semibold text-white">{question.promptLabel}</p>
+            <p className={cn(
+              'mb-1 shrink-0 text-center font-semibold text-white',
+              'text-lg',
+            )}
+            >
+              {question.promptLabel}
+            </p>
           )}
-          <TrainingStaff
-            question={question}
-            correctIndices={correctIndices}
-            showHints={showHints}
-            clefMode={training.clefMode}
-          />
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            <TrainingStaff
+              question={question}
+              correctIndices={correctIndices}
+              showHints={showHints}
+              unpressedNoteOpacity={staffNoteOpacity}
+              clefMode={training.clefMode}
+              fitParentHeight
+              className="h-full w-full"
+            />
+          </div>
         </div>
       )}
 
@@ -299,7 +323,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         </div>
       )}
 
-      <div className="absolute right-3 top-[56px] z-40 flex gap-2">
+      <div className="absolute right-3 top-3 z-40 flex gap-2">
         <button
           type="button"
           className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"

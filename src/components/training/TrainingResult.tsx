@@ -60,14 +60,15 @@ export const TrainingResult: React.FC<TrainingResultProps> = ({
       userName,
       rank: savedRank,
       score,
+      rankPosition: practiceMode ? null : rankPosition,
     });
-  }, [trainingTitle, userName, savedRank, score]);
+  }, [trainingTitle, userName, savedRank, score, practiceMode, rankPosition]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-gradient-to-b from-indigo-950 to-slate-900 p-8 text-center shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-4 sm:items-center">
+      <div className="my-4 w-full max-h-[90dvh] max-w-md overflow-y-auto rounded-2xl bg-gradient-to-b from-indigo-950 to-slate-900 p-8 text-center shadow-2xl sm:my-0">
         <p className="text-sm uppercase tracking-widest text-indigo-300">Training Result</p>
-        <h2 className="mt-2 text-2xl font-bold text-white">{trainingTitle}</h2>
+        <h2 className="mt-2 break-words px-1 text-xl font-bold leading-tight text-white sm:text-2xl">{trainingTitle}</h2>
         <p className="mt-1 text-slate-300">{userName}</p>
         <p className="mt-6 text-7xl font-black text-amber-300">{savedRank}</p>
         <p className="mt-2 text-5xl font-bold text-white">{score}</p>

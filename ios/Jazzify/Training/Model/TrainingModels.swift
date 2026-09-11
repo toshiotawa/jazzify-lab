@@ -141,6 +141,14 @@ struct TrainingRuntimeEnemy: Sendable {
     var slashUntilSec: TimeInterval
 }
 
+struct TrainingRuntimeDyingEnemy: Sendable {
+    var active: Bool
+    var typeIndex: Int
+    var alpha: CGFloat
+    var slashUntilSec: TimeInterval
+    var offsetX: CGFloat
+}
+
 enum TrainingGameResult: String, Sendable {
     case playing
     case finished
@@ -152,6 +160,7 @@ struct TrainingRuntime: Sendable {
     var score: Int
     var result: TrainingGameResult
     var enemy: TrainingRuntimeEnemy
+    var dyingEnemy: TrainingRuntimeDyingEnemy
     var question: TrainingQuestion?
     var correctTargetIndices: [Int]
     var nextQuestionKey: String?
@@ -210,4 +219,15 @@ enum TrainingConstants {
     static let enemyCount = 10
     static let catalogTTL: TimeInterval = 60
     static let guardPoseSec: TimeInterval = 1
+    static let hudHeight: CGFloat = 64
+    static let dyingFadeSpeed: CGFloat = 2.5
+    static let dyingKnockbackPxPerSec: CGFloat = 120
+
+    static func staffHeightRatio(clefMode: TrainingClefMode) -> CGFloat {
+        clefMode == .grandConcert ? 0.5 : 0.34
+    }
+
+    static func staffNoteOpacity(practiceMode: Bool, kind: TrainingKind) -> CGFloat {
+        practiceMode || kind == .noteReading ? 1 : 0
+    }
 }

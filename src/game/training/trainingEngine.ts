@@ -1,5 +1,9 @@
 import type { TrainingQuestion, TrainingRuntime } from '@/game/training/trainingTypes';
-import { TRAINING_ENEMY_COUNT } from '@/game/training/trainingTypes';
+import {
+  TRAINING_DYING_FADE_SPEED,
+  TRAINING_DYING_KNOCKBACK_PX_PER_SEC,
+  TRAINING_ENEMY_COUNT,
+} from '@/game/training/trainingTypes';
 import { DEFENSE_SLASH_SEC } from '@/game/defense/defenseEnemyConfig';
 import { orderedPitchClassesFromMidis } from '@/utils/orderedChordInput';
 
@@ -77,9 +81,17 @@ export const performTrainingDefeat = (
   nowSec: number,
   guardPoseSec = 0,
 ): void => {
-  runtime.enemy.slashUntilSec = nowSec + DEFENSE_SLASH_SEC;
+  const dying = runtime.dyingEnemy;
+  dying.active = true;
+  dying.typeIndex = runtime.enemy.typeIndex;
+  dying.alpha = 1;
+  dying.offsetX = 0;
+  dying.slashUntilSec = nowSec + DEFENSE_SLASH_SEC;
+
+  runtime.enemy.slashUntilSec = 0;
   runtime.enemy.typeIndex = (runtime.enemy.typeIndex + 1) % TRAINING_ENEMY_COUNT;
   runtime.enemy.fadeAlpha = 1;
+
   if (guardPoseSec > 0) {
     runtime.guardPoseUntilSec = nowSec + guardPoseSec;
   }
@@ -87,11 +99,17 @@ export const performTrainingDefeat = (
 
 /** Slash / fade の視覚更新のみ。次問スポーンは正解時に同期で行う。 */
 export const tickTrainingEnemy = (runtime: TrainingRuntime, nowSec: number, dt: number): void => {
-  if (runtime.enemy.slashUntilSec > 0 && nowSec >= runtime.enemy.slashUntilSec) {
-    runtime.enemy.slashUntilSec = 0;
+  const dying = runtime.dyingEnemy;
+  if (dying.active) {
+    dying.alpha = Math.max(0, dying.alpha - dt * TRAINING_DYING_FADE_SPEED);
+    dying.offsetX += dt * TRAINING_DYING_KNOCKBACK_PX_PER_SEC;
+    if (dying.alpha <= 0) {
+      dying.active = false;
+      dying.slashUntilSec = 0;
+    }
   }
-  if (runtime.enemy.fadeAlpha > 0 && runtime.enemy.fadeAlpha < 1) {
-    runtime.enemy.fadeAlpha = Math.max(0, runtime.enemy.fadeAlpha - dt * 2.5);
+  if (dying.slashUntilSec > 0 && nowSec >= dying.slashUntilSec) {
+    dying.slashUntilSec = 0;
   }
 };
 

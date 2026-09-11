@@ -88,12 +88,22 @@ interface TrainingRuntimeEnemy {
   slashUntilSec: number;
 }
 
+export interface TrainingRuntimeDyingEnemy {
+  active: boolean;
+  typeIndex: number;
+  alpha: number;
+  slashUntilSec: number;
+  offsetX: number;
+}
+
 export interface TrainingRuntime {
   durationSec: number;
   elapsedSec: number;
   score: number;
   result: 'playing' | 'finished';
   enemy: TrainingRuntimeEnemy;
+  /** Pre-allocated slot for defeat fade animation (no per-hit allocation). */
+  dyingEnemy: TrainingRuntimeDyingEnemy;
   question: TrainingQuestion | null;
   correctTargetIndices: readonly number[];
   nextQuestionKey: string | null;
@@ -122,3 +132,6 @@ export const TRAINING_GAME_DURATION_SEC = 60;
 export const TRAINING_COUNTDOWN_SEC = 3;
 export const TRAINING_ENEMY_COUNT = 10;
 export const TRAINING_GUARD_POSE_SEC = 1;
+export const TRAINING_HUD_HEIGHT_PX = 64;
+export const TRAINING_DYING_FADE_SPEED = 2.5;
+export const TRAINING_DYING_KNOCKBACK_PX_PER_SEC = 120;

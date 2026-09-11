@@ -25,53 +25,59 @@ struct TrainingResultView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                Text(locale == .ja ? "トレーニング結果" : "Training Result")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.indigo.opacity(0.8))
-                Text(training.localizedTitle(locale))
-                    .font(.title2.bold())
-                Text(appState.profile?.nickname ?? "Player")
-                    .foregroundStyle(.secondary)
-                Text(savedRank.rawValue)
-                    .font(.system(size: 88, weight: .black, design: .rounded))
-                    .foregroundStyle(.yellow)
-                Text("\(score)")
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                if let rankPosition, !practiceMode {
-                    Text(locale == .ja ? "あなたの順位 … \(rankPosition)位" : "Your rank … #\(rankPosition)")
-                        .font(.subheadline)
-                        .foregroundStyle(.indigo.opacity(0.9))
-                }
-                if !practiceMode {
-                    Text(saved
-                         ? (locale == .ja ? "スコアを保存しました" : "Score saved")
-                         : (locale == .ja ? "保存中…" : "Saving…"))
-                        .font(.caption2)
+            ScrollView {
+                VStack(spacing: 16) {
+                    Text(locale == .ja ? "トレーニング結果" : "Training Result")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.indigo.opacity(0.8))
+                    Text(training.localizedTitle(locale))
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.6)
+                        .padding(.horizontal, 4)
+                    Text(appState.profile?.nickname ?? "Player")
                         .foregroundStyle(.secondary)
-                }
+                    Text(savedRank.rawValue)
+                        .font(.system(size: 88, weight: .black, design: .rounded))
+                        .foregroundStyle(.yellow)
+                    Text("\(score)")
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                    if let rankPosition, !practiceMode {
+                        Text(locale == .ja ? "あなたの順位 … \(rankPosition)位" : "Your rank … #\(rankPosition)")
+                            .font(.subheadline)
+                            .foregroundStyle(.indigo.opacity(0.9))
+                    }
+                    if !practiceMode {
+                        Text(saved
+                             ? (locale == .ja ? "スコアを保存しました" : "Score saved")
+                             : (locale == .ja ? "保存中…" : "Saving…"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
 
-                VStack(spacing: 10) {
-                    HStack {
-                        Button(locale == .ja ? "再挑戦" : "Retry", action: onRetry)
-                            .buttonStyle(.borderedProminent)
-                        Button(locale == .ja ? "ランキング" : "Ranking", action: onRanking)
+                    VStack(spacing: 10) {
+                        HStack {
+                            Button(locale == .ja ? "再挑戦" : "Retry", action: onRetry)
+                                .buttonStyle(.borderedProminent)
+                            Button(locale == .ja ? "ランキング" : "Ranking", action: onRanking)
+                                .buttonStyle(.bordered)
+                        }
+                        Button(locale == .ja ? "画像保存" : "Save image") {
+                            shareImage = renderShareImage()
+                            if let shareImage {
+                                let controller = UIActivityViewController(activityItems: [shareImage], applicationActivities: nil)
+                                UIApplication.shared.firstKeyWindow?.rootViewController?.present(controller, animated: true)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button(locale == .ja ? "終了" : "Exit", action: onExit)
                             .buttonStyle(.bordered)
                     }
-                    Button(locale == .ja ? "画像保存" : "Save image") {
-                        shareImage = renderShareImage()
-                        if let shareImage {
-                            let controller = UIActivityViewController(activityItems: [shareImage], applicationActivities: nil)
-                            UIApplication.shared.firstKeyWindow?.rootViewController?.present(controller, animated: true)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    Button(locale == .ja ? "終了" : "Exit", action: onExit)
-                        .buttonStyle(.bordered)
+                    .padding(.top, 8)
                 }
-                .padding(.top, 8)
+                .padding(24)
             }
-            .padding(24)
         }
         .task { await saveScoreIfNeeded() }
     }
@@ -96,10 +102,23 @@ struct TrainingResultView: View {
     private func renderShareImage() -> UIImage? {
         let view = VStack(spacing: 20) {
             Text("Jazzify Training").font(.title3.bold())
-            Text(training.localizedTitle(locale)).font(.title.bold())
+            Text(training.localizedTitle(locale))
+                .font(.title.bold())
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
+                .padding(.horizontal, 20)
             Text(appState.profile?.nickname ?? "Player")
             Text(savedRank.rawValue).font(.system(size: 120, weight: .black, design: .rounded))
             Text("\(score)").font(.system(size: 72, weight: .bold, design: .rounded))
+            if let rankPosition, !practiceMode {
+                Text(locale == .ja ? "あなたの順位 … \(rankPosition)位" : "Your rank … #\(rankPosition)")
+                    .font(.title3.bold())
+                    .foregroundStyle(Color(red: 0.78, green: 0.82, blue: 0.996))
+            }
+            Text(locale == .ja ? "1分間の正解数" : "Correct answers in 1 minute")
+                .font(.title3)
+                .foregroundStyle(.secondary)
         }
         .padding(40)
         .frame(width: 1080, height: 1080)

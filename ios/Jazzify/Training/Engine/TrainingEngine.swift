@@ -74,9 +74,16 @@ enum TrainingEngine {
     }
 
     static func performDefeat(runtime: inout TrainingRuntime, nowSec: TimeInterval, guardPoseSec: TimeInterval = 0) {
-        runtime.enemy.slashUntilSec = nowSec + DefenseEnemyConfig.slashSec
+        runtime.dyingEnemy.active = true
+        runtime.dyingEnemy.typeIndex = runtime.enemy.typeIndex
+        runtime.dyingEnemy.alpha = 1
+        runtime.dyingEnemy.offsetX = 0
+        runtime.dyingEnemy.slashUntilSec = nowSec + DefenseEnemyConfig.slashSec
+
+        runtime.enemy.slashUntilSec = 0
         runtime.enemy.typeIndex = (runtime.enemy.typeIndex + 1) % TrainingConstants.enemyCount
         runtime.enemy.fadeAlpha = 1
+
         if guardPoseSec > 0 {
             runtime.guardPoseUntilSec = nowSec + guardPoseSec
         }
@@ -84,11 +91,16 @@ enum TrainingEngine {
 
     /// Slash / fade の視覚更新のみ。次問スポーンは正解時に同期で行う。
     static func tickEnemy(runtime: inout TrainingRuntime, nowSec: TimeInterval, dt: TimeInterval) {
-        if runtime.enemy.slashUntilSec > 0, nowSec >= runtime.enemy.slashUntilSec {
-            runtime.enemy.slashUntilSec = 0
+        if runtime.dyingEnemy.active {
+            runtime.dyingEnemy.alpha = max(0, runtime.dyingEnemy.alpha - CGFloat(dt) * TrainingConstants.dyingFadeSpeed)
+            runtime.dyingEnemy.offsetX += CGFloat(dt) * TrainingConstants.dyingKnockbackPxPerSec
+            if runtime.dyingEnemy.alpha <= 0 {
+                runtime.dyingEnemy.active = false
+                runtime.dyingEnemy.slashUntilSec = 0
+            }
         }
-        if runtime.enemy.fadeAlpha > 0, runtime.enemy.fadeAlpha < 1 {
-            runtime.enemy.fadeAlpha = max(0, runtime.enemy.fadeAlpha - CGFloat(dt * 2.5))
+        if runtime.dyingEnemy.slashUntilSec > 0, nowSec >= runtime.dyingEnemy.slashUntilSec {
+            runtime.dyingEnemy.slashUntilSec = 0
         }
     }
 
@@ -122,6 +134,13 @@ enum TrainingEngine {
             score: 0,
             result: .playing,
             enemy: TrainingRuntimeEnemy(typeIndex: 0, active: true, fadeAlpha: 1, slashUntilSec: 0),
+            dyingEnemy: TrainingRuntimeDyingEnemy(
+                active: false,
+                typeIndex: 0,
+                alpha: 0,
+                slashUntilSec: 0,
+                offsetX: 0
+            ),
             question: nil,
             correctTargetIndices: [],
             nextQuestionKey: nil,

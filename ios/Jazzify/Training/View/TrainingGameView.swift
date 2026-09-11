@@ -11,6 +11,9 @@ struct TrainingGameView: View {
     let onClose: () -> Void
     let onFinished: (Int) -> Void
 
+    private static let pianoHeight: CGFloat = 88
+    private static let staffBandMargin: CGFloat = 16
+
     init(
         training: TrainingRow,
         practiceMode: Bool,
@@ -32,63 +35,76 @@ struct TrainingGameView: View {
     }
 
     var body: some View {
-        ZStack {
-            SpriteView(scene: scene, options: [.allowsTransparency])
-                .ignoresSafeArea()
-                .onAppear {
-                    scene.session = session
-                    Task { await session.start() }
-                }
-                .onDisappear { session.stop() }
+        GeometryReader { geometry in
+            ZStack {
+                SpriteView(scene: scene, options: [.allowsTransparency])
+                    .ignoresSafeArea()
+                    .onAppear {
+                        scene.session = session
+                        Task { await session.start() }
+                    }
+                    .onDisappear { session.stop() }
 
-            VStack(spacing: 0) {
-                trainingHud
-                Spacer()
-            }
-            .ignoresSafeArea(edges: .top)
-
-            if let question = session.question, session.hud.phase != .countdown {
-                VStack {
+                VStack(spacing: 0) {
+                    trainingHud
                     Spacer()
+                }
+                .ignoresSafeArea(edges: .top)
+
+                if let question = session.question, session.hud.phase != .countdown {
+                    let staffBandHeight = (geometry.size.height
+                        - TrainingConstants.hudHeight
+                        - Self.pianoHeight
+                        - Self.staffBandMargin)
+                        * TrainingConstants.staffHeightRatio(clefMode: session.training.clefMode)
+
                     VStack(spacing: 8) {
                         if !question.promptLabel.isEmpty {
                             Text(question.promptLabel)
                                 .font(.headline)
+                                .foregroundStyle(.white)
                         }
                         TrainingStaffView(
                             question: question,
                             correctIndices: session.correctIndices,
                             showHints: session.practiceMode,
+                            unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
+                                practiceMode: session.practiceMode,
+                                kind: session.training.kind
+                            ),
                             clefMode: session.training.clefMode
                         )
                     }
                     .padding(.horizontal)
                     .frame(maxWidth: 720)
-                    .offset(y: -80)
-                    Spacer()
+                    .frame(height: max(0, staffBandHeight))
+                    .position(
+                        x: geometry.size.width / 2,
+                        y: TrainingConstants.hudHeight + 8 + max(0, staffBandHeight) / 2
+                    )
+                    .allowsHitTesting(false)
                 }
-                .allowsHitTesting(false)
-            }
 
-            if session.hud.phase == .countdown {
-                Color.black.opacity(0.35).ignoresSafeArea()
-                Text("\(session.hud.countdownSec)")
-                    .font(.system(size: 72, weight: .bold, design: .rounded))
-            }
+                if session.hud.phase == .countdown {
+                    Color.black.opacity(0.35).ignoresSafeArea()
+                    Text("\(session.hud.countdownSec)")
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                }
 
-            VStack {
-                Spacer()
-                SurvivalChordPadView(
-                    snapshot: chordPadSnapshot,
-                    displayRange: chordPadRange,
-                    onPress: { midi in
-                        session.handleNoteOn(midiNote: midi)
-                        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
-                    },
-                    onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
-                    keyboardHeight: 88
-                )
-                .frame(height: 88)
+                VStack {
+                    Spacer()
+                    SurvivalChordPadView(
+                        snapshot: chordPadSnapshot,
+                        displayRange: chordPadRange,
+                        onPress: { midi in
+                            session.handleNoteOn(midiNote: midi)
+                            SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
+                        },
+                        onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
+                        keyboardHeight: Self.pianoHeight
+                    )
+                    .frame(height: Self.pianoHeight)
+                }
             }
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
@@ -109,41 +125,52 @@ struct TrainingGameView: View {
     }
 
     private var trainingHud: some View {
-        let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
         let timeLabel = session.hud.phase == .countdown
             ? "\(session.hud.countdownSec)"
             : "\(session.hud.remainSec)s"
 
-        return EarTrainingHUDView(
-            hud: EarTrainingHudModel(
-                playerHp: session.hud.phase == .countdown ? 1 : max(0, session.runtime.enemy.fadeAlpha >= 0.99 ? 1 : 0),
-                playerMaxHp: 1,
-                enemyHp: session.hud.phase == .countdown ? 1 : max(0, session.runtime.enemy.fadeAlpha >= 0.99 ? 1 : 0),
-                enemyMaxHp: 1,
-                practiceMode: session.practiceMode,
-                timeRemaining: session.hud.phase == .countdown ? session.hud.countdownSec : session.hud.remainSec,
-                timeLabel: timeLabel,
-                hideTimeLabel: false,
-                hidePlayerHpBar: true,
-                hideSettingsButton: false,
-                hideBackButton: false,
-                enemyAttackGaugePercent: 0,
-                hideEnemyAttackGauge: true,
-                hideChordChips: true,
-                hideSlotsRow: true,
-                hudLabels: labels,
-                gameState: .playingPhrase,
-                phraseRunId: 0,
-                chordChips: [],
-                slotRow: .melody(slots: ["KO \(session.hud.score)"], revealed: [], currentIndex: 0)
-            ),
-            showsSlotsRow: session.hud.phase != .countdown,
-            onSettings: {
-                session.isPaused = true
-                isSettingsOpen = true
-            },
-            onBack: onClose
-        )
+        return HStack {
+            Text("SCORE \(session.hud.score)")
+                .font(.system(size: 18, weight: .black, design: .rounded))
+                .foregroundStyle(.yellow)
+
+            Spacer()
+
+            Text(timeLabel)
+                .font(.system(size: 30, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button {
+                    session.isPaused = true
+                    isSettingsOpen = true
+                } label: {
+                    Text(locale == .en ? "Settings" : "設定")
+                        .font(.caption.weight(.black))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.75))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onClose) {
+                    Text(locale == .en ? "Exit" : "終了")
+                        .font(.caption.weight(.black))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.75))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 18)
+        .frame(height: TrainingConstants.hudHeight)
+        .frame(maxWidth: .infinity)
+        .background(Color(red: 0.01, green: 0.02, blue: 0.09).opacity(0.66))
     }
 
     private var hintMidis: Set<Int> {

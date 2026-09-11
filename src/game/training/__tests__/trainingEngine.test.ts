@@ -1,4 +1,4 @@
-import { evaluateTrainingNoteOn, performTrainingDefeat } from '@/game/training/trainingEngine';
+import { evaluateTrainingNoteOn, performTrainingDefeat, tickTrainingEnemy } from '@/game/training/trainingEngine';
 import { createInitialTrainingRuntime } from '@/game/training/trainingQuestionBuilder';
 import type { TrainingQuestion } from '@/game/training/trainingTypes';
 
@@ -48,12 +48,27 @@ describe('trainingEngine', () => {
     expect(wrong.completed).toBe(false);
   });
 
-  it('sets guard pose until on defeat', () => {
+  it('activates dying slot and spawns next enemy immediately on defeat', () => {
     const runtime = createInitialTrainingRuntime();
     performTrainingDefeat(runtime, 1.5, 1);
-    expect(runtime.enemy.slashUntilSec).toBeGreaterThan(1.5);
+    expect(runtime.dyingEnemy.active).toBe(true);
+    expect(runtime.dyingEnemy.typeIndex).toBe(0);
+    expect(runtime.dyingEnemy.alpha).toBe(1);
+    expect(runtime.dyingEnemy.offsetX).toBe(0);
+    expect(runtime.dyingEnemy.slashUntilSec).toBeGreaterThan(1.5);
+    expect(runtime.enemy.slashUntilSec).toBe(0);
     expect(runtime.guardPoseUntilSec).toBeCloseTo(2.5);
     expect(runtime.enemy.typeIndex).toBe(1);
     expect(runtime.enemy.fadeAlpha).toBe(1);
+  });
+
+  it('fades dying enemy and deactivates when alpha reaches zero', () => {
+    const runtime = createInitialTrainingRuntime();
+    performTrainingDefeat(runtime, 1.5, 0);
+    tickTrainingEnemy(runtime, 1.6, 0.5);
+    expect(runtime.dyingEnemy.alpha).toBeLessThan(1);
+    expect(runtime.dyingEnemy.offsetX).toBeGreaterThan(0);
+    tickTrainingEnemy(runtime, 2.0, 0.5);
+    expect(runtime.dyingEnemy.active).toBe(false);
   });
 });
