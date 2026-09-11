@@ -10,6 +10,7 @@ import {
   nextSwitchTime,
   scheduleDeadlineSec,
 } from '@/game/defense/defenseTransport';
+import { VOICE_INPUT_BGM_DUCK } from '@/utils/voiceInputBgmDuck';
 
 const START_LEAD_SEC = 0.15;
 const FADE_OUT_LEAD_SEC = 0.006;
@@ -60,6 +61,7 @@ class DefenseBackingDeck {
   private transportStart = 0;
   private bpm = 120;
   private beatsPerBar = 4;
+  private voiceInputDucking = false;
   private readonly bufferByUrl = new Map<string, Promise<AudioBuffer>>();
 
   private ensureGraph(): DeckGraph {
@@ -77,6 +79,18 @@ class DefenseBackingDeck {
   setTransportConfig(bpm: number, beatsPerBar: number): void {
     this.bpm = Math.max(1, bpm);
     this.beatsPerBar = Math.max(1, beatsPerBar);
+  }
+
+  setVoiceInputDucking(enabled: boolean): void {
+    if (this.voiceInputDucking === enabled) {
+      return;
+    }
+    this.voiceInputDucking = enabled;
+    const graph = this.graph;
+    if (!graph) {
+      return;
+    }
+    graph.masterGain.gain.value = enabled ? VOICE_INPUT_BGM_DUCK : 1;
   }
 
   getCurrentTime(): number {

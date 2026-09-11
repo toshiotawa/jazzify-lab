@@ -411,6 +411,7 @@ final class PitchInputEngine: @unchecked Sendable {
         activeVoiceProcessing = useVoiceProcessing
         activeTapSampleRate = connectFormat.sampleRate
         SurvivalGameAudio.shared.setVoiceInputDucking(true)
+        DefenseBackingAudio.shared.setVoiceInputDucking(true)
     }
 
     @MainActor
@@ -517,6 +518,7 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func tearDownEngine(releaseRecordingSession: Bool) {
         SurvivalGameAudio.shared.setVoiceInputDucking(false)
+        DefenseBackingAudio.shared.setVoiceInputDucking(false)
         unregisterEngineConfigurationObserver()
         if let engine = audioEngine, let sink = captureSinkNode {
             engine.stop()

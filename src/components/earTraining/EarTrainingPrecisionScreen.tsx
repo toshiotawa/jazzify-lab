@@ -28,6 +28,11 @@ import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceConte
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { cn } from '@/utils/cn';
+import { VoiceInputDebugOverlay } from '@/components/voice/VoiceInputDebugOverlay';
+import {
+  createVoiceInputDebugSnapshot,
+  type VoiceInputDebugSnapshot,
+} from '@/utils/voiceInputDebugSnapshot';
 import LoadProgressBar from '@/components/ui/LoadProgressBar';
 import {
   markAudioUserInteraction,
@@ -256,6 +261,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [voiceDebugSnapshot, setVoiceDebugSnapshot] = useState<VoiceInputDebugSnapshot | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
@@ -1383,6 +1389,12 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         nearestTargetSec: nearest?.note.startSec ?? null,
         nearestDeltaMs: nearest != null ? Math.round(nearest.deltaSec * 1000 * 10) / 10 : null,
       });
+      if (ignoreOctave) {
+        const deltaText = nearest != null
+          ? `nearestΔ=${Math.round(nearest.deltaSec * 1000)}ms @${nearest.note.startSec.toFixed(3)}s`
+          : 'no pending note';
+        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(midiNote, false, deltaText));
+      }
       return;
     }
     logEarTrainingInputTimingTelemetry({
@@ -1404,8 +1416,16 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     activeGoodNotesByMidiRef.current.set(midiNote, matched.id);
     notesRendererRef.current?.highlightKey(midiNote, true);
+    if (ignoreOctave) {
+      const deltaMs = Math.round((phraseTime - matched.startSec) * 1000);
+      setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+        midiNote,
+        true,
+        `note ${matched.id} Δ=${deltaMs}ms`,
+      ));
+    }
     syncRendererStates();
-  }, [resolveEffectiveTimingWindowSec, settings.inputMethod, syncRendererStates]);
+  }, [resolveEffectiveTimingWindowSec, settings.inputMethod, stage.slug, syncRendererStates]);
 
   const handleNoteRelease = useCallback((note: number) => {
     const midiNote = Math.round(note);
@@ -1831,6 +1851,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
   return (
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
+      <VoiceInputDebugOverlay
+        enabled={settings.inputMethod === 'voice'}
+        snapshot={voiceDebugSnapshot}
+      />
       <header className="relative z-40 flex shrink-0 items-center justify-between px-3 py-2">
         <button
           type="button"

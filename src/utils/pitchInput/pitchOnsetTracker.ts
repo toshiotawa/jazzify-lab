@@ -20,6 +20,8 @@ export interface PitchOnsetTrackerConfig {
   attackRiseDb: number;
   /** 同音リアタック: ガードフレーム数 */
   retriggerGuardFrames: number;
+  /** 同音リアタック: 直近 N フレームとの dB 差で立ち上がり判定 */
+  retriggerLookbackFrames: number;
   /** グリッサンド抑制: cents 許容 */
   centsTolerance: number;
   /** 1 フレーム目でも confidence がこの値以上なら即 noteOn */
@@ -35,6 +37,7 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   minNoteFrames: 6,
   attackRiseDb: 6,
   retriggerGuardFrames: 6,
+  retriggerLookbackFrames: 4,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
 };
@@ -85,6 +88,7 @@ export class PitchOnsetTracker {
   private releaseCount = 0;
   private recentMinDb = Infinity;
   private recentMinDbFrame = -1;
+  private recentLevelDbRing: number[] = [];
   private pendingOff = false;
   private pendingOffFrame = -1;
 
@@ -105,6 +109,7 @@ export class PitchOnsetTracker {
     this.releaseCount = 0;
     this.recentMinDb = Infinity;
     this.recentMinDbFrame = -1;
+    this.recentLevelDbRing = [];
     this.pendingOff = false;
     this.pendingOffFrame = -1;
   }
@@ -131,7 +136,7 @@ export class PitchOnsetTracker {
       this.pendingOff = false;
 
       if (this.currentNote < 0) {
-        if (this.shouldEmitNoteOn(frame.confidence)) {
+        if (this.shouldEmitNoteOn(frame.confidence, true)) {
           this.emitNoteOn(
             events,
             quantized,
@@ -142,7 +147,9 @@ export class PitchOnsetTracker {
       } else if (
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
-        if (this.shouldEmitNoteOn(frame.confidence)) {
+        if (this.isLikelyOctaveJump(quantized, levelDb)) {
+          // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
+        } else if (this.shouldEmitNoteOn(frame.confidence, false)) {
           this.emitNoteOff(events, this.currentNote, frameIndex);
           this.emitNoteOn(
             events,
@@ -177,12 +184,29 @@ export class PitchOnsetTracker {
     return events;
   }
 
-  private shouldEmitNoteOn(confidence: number): boolean {
+  private shouldEmitNoteOn(confidence: number, allowImmediate: boolean): boolean {
     if (this.pitchStableCount >= this.config.pitchStableFrames) return true;
-    if (this.pitchStableCount === 1 && confidence >= this.config.onsetImmediateConfidence) {
+    if (
+      allowImmediate
+      && this.pitchStableCount === 1
+      && confidence >= this.config.onsetImmediateConfidence
+    ) {
       return true;
     }
     return false;
+  }
+
+  private isLikelyOctaveJump(quantized: number, levelDb: number): boolean {
+    if (this.currentNote < 0) return false;
+    const diff = Math.abs(quantized - this.currentNote);
+    if (diff !== 12 && diff !== 24) return false;
+    const lookback = this.config.retriggerLookbackFrames;
+    const start = Math.max(0, this.recentLevelDbRing.length - lookback);
+    let minRecent = levelDb;
+    for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
+      minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
+    }
+    return levelDb - minRecent < this.config.attackRiseDb;
   }
 
   private emitNoteOn(
@@ -196,6 +220,7 @@ export class PitchOnsetTracker {
     this.lastNoteOnFrame = frameIndex;
     this.recentMinDb = Infinity;
     this.recentMinDbFrame = -1;
+    this.recentLevelDbRing = [];
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
   }
 
@@ -235,10 +260,25 @@ export class PitchOnsetTracker {
   }
 
   private trackRecentMinDb(levelDb: number, frameIndex: number): void {
+    this.recentLevelDbRing.push(levelDb);
+    const maxRing = Math.max(this.config.retriggerLookbackFrames, this.config.retriggerGuardFrames);
+    if (this.recentLevelDbRing.length > maxRing) {
+      this.recentLevelDbRing.shift();
+    }
     if (levelDb < this.recentMinDb) {
       this.recentMinDb = levelDb;
       this.recentMinDbFrame = frameIndex;
     }
+  }
+
+  private recentLevelRise(levelDb: number): number {
+    const lookback = this.config.retriggerLookbackFrames;
+    const start = Math.max(0, this.recentLevelDbRing.length - lookback);
+    let minRecent = levelDb;
+    for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
+      minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
+    }
+    return levelDb - minRecent;
   }
 
   private tryRetrigger(
@@ -253,7 +293,7 @@ export class PitchOnsetTracker {
     }
 
     this.trackRecentMinDb(levelDb, frameIndex);
-    const rise = levelDb - this.recentMinDb;
+    const rise = this.recentLevelRise(levelDb);
     if (rise >= this.config.attackRiseDb) {
       const note = this.currentNote;
       const onsetFrameIndex = Math.max(

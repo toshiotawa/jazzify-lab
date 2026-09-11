@@ -2097,6 +2097,7 @@ export const consumeChordOsmdMidi = (
   remainingCounts: ReadonlyMap<number, number>,
   midi: number,
   allowPitchClass = false,
+  completeOnAnyMatch = false,
 ): Map<number, number> | null => {
   const consumable = findConsumableMidiInRemainingCounts(remainingCounts, midi, allowPitchClass);
   if (consumable === null) {
@@ -2107,6 +2108,12 @@ export const consumeChordOsmdMidi = (
     return null;
   }
   const next = new Map(remainingCounts);
+  if (completeOnAnyMatch) {
+    for (const key of next.keys()) {
+      next.set(key, 0);
+    }
+    return next;
+  }
   next.set(consumable, current - 1);
   return next;
 };

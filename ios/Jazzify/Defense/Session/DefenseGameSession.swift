@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import QuartzCore
 import SpriteKit
 
 /// レッスン課題としての起動コンテキスト（本番クリア時に進捗を記録する）。
@@ -24,6 +25,9 @@ final class DefenseGameSession: ObservableObject {
     private(set) var runtime: DefenseRuntimeState
     @Published private(set) var judgeState: DefensePhraseJudgeState
     @Published private(set) var hud: DefenseHudState
+    #if DEBUG
+    @Published private(set) var voiceInputDebugDetail: String?
+    #endif
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
@@ -36,6 +40,8 @@ final class DefenseGameSession: ObservableObject {
     private var resultHandled = false
     var isPaused = false
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
+    private var lastVoicePcAtMs: [Int: Double] = [:]
+    private static let voiceSamePcDebounceMs: Double = 120
 
     init(
         stage: DefenseStageDefinition,
@@ -110,12 +116,32 @@ final class DefenseGameSession: ObservableObject {
 
     func handleNoteOn(pitchClass: Int, sequential: Bool = false) {
         guard !isPaused, runtime.result == .playing else { return }
+        let normalizedPc = ((pitchClass % 12) + 12) % 12
+        if sequential {
+            let nowMs = CACurrentMediaTime() * 1000
+            if let lastAt = lastVoicePcAtMs[normalizedPc],
+               nowMs - lastAt < Self.voiceSamePcDebounceMs {
+                #if DEBUG
+                voiceInputDebugDetail = "pc=\(normalizedPc) debounced"
+                #endif
+                return
+            }
+            lastVoicePcAtMs[normalizedPc] = nowMs
+        }
         let evaluation = DefensePhraseJudge.evaluateNoteOn(
             state: judgeState,
             stageRequiredCompletionCount: stage.requiredCompletionCount,
-            pitchClass: pitchClass,
+            pitchClass: normalizedPc,
             sequential: sequential
         )
+        #if DEBUG
+        if sequential {
+            let progressed = evaluation.nextState != judgeState
+            voiceInputDebugDetail = progressed
+                ? (evaluation.attack ? "pc=\(normalizedPc) attack" : "pc=\(normalizedPc) progress")
+                : "pc=\(normalizedPc) ignored"
+        }
+        #endif
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState
         }

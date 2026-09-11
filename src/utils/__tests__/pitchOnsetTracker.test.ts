@@ -153,6 +153,44 @@ describe('PitchOnsetTracker', () => {
     ]);
   });
 
+  it('ignores octave jump without attack rise while sustaining', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      attackRiseDb: 6,
+      onsetImmediateConfidence: 2,
+    });
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced72: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.0105 };
+
+    tracker.processFrame(voiced60, 0);
+    tracker.processFrame(voiced60, 1);
+    expect(tracker.processFrame(voiced72, 2)).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(60);
+  });
+
+  it('does not use immediate noteOn when pitch changes mid-note', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      onsetImmediateConfidence: 0.85,
+    });
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced64: PitchFrame = { prediction: 64, confidence: 0.95, volume: 0.012 };
+
+    tracker.processFrame(voiced60, 0);
+    tracker.processFrame(voiced60, 1);
+    tracker.processFrame(voiced60, 2);
+    tracker.processFrame(voiced60, 3);
+    expect(tracker.processFrame(voiced64, 4)).toEqual([]);
+    expect(tracker.processFrame(voiced64, 5)).toEqual([]);
+    expect(tracker.processFrame(voiced64, 6)).toEqual([]);
+    expect(tracker.processFrame(voiced64, 7)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 7 },
+      { type: 'noteOn', note: 64, frameIndex: 7, onsetFrameIndex: 4 },
+    ]);
+  });
+
   it('retriggers same note after retriggerGuardFrames with attack rise', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,

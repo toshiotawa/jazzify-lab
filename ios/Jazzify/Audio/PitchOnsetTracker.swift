@@ -9,6 +9,7 @@ struct PitchOnsetTrackerConfig: Equatable {
     var minNoteFrames: Int = 6
     var attackRiseDb: Double = 6
     var retriggerGuardFrames: Int = 6
+    var retriggerLookbackFrames: Int = 4
     var centsTolerance: Double = 40
     /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 5ms）。
     var onsetImmediateConfidence: Double = 0.85
@@ -35,6 +36,7 @@ final class PitchOnsetTracker {
     private var releaseCount = 0
     private var recentMinDb = Double.infinity
     private var recentMinDbFrame = -1
+    private var recentLevelDbRing: [Double] = []
     private var pendingOff = false
     private var pendingOffFrame = -1
 
@@ -55,6 +57,7 @@ final class PitchOnsetTracker {
         releaseCount = 0
         recentMinDb = .infinity
         recentMinDbFrame = -1
+        recentLevelDbRing = []
         pendingOff = false
         pendingOffFrame = -1
     }
@@ -99,7 +102,11 @@ final class PitchOnsetTracker {
             pendingOff = false
 
             if currentNote < 0 {
-                if shouldEmitNoteOn(pitchStableCount: pitchStableCount, confidence: frame.confidence) {
+                if shouldEmitNoteOn(
+                    pitchStableCount: pitchStableCount,
+                    confidence: frame.confidence,
+                    allowImmediate: true
+                ) {
                     emitNoteOn(
                         &events,
                         note: quantized,
@@ -108,7 +115,13 @@ final class PitchOnsetTracker {
                     )
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
-                if shouldEmitNoteOn(pitchStableCount: pitchStableCount, confidence: frame.confidence) {
+                if isLikelyOctaveJump(quantized: quantized, levelDb: levelDb) {
+                    // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
+                } else if shouldEmitNoteOn(
+                    pitchStableCount: pitchStableCount,
+                    confidence: frame.confidence,
+                    allowImmediate: false
+                ) {
                     emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
                     emitNoteOn(
                         &events,
@@ -144,10 +157,23 @@ final class PitchOnsetTracker {
 
     func getCurrentNote() -> Int { currentNote }
 
-    private func shouldEmitNoteOn(pitchStableCount: Int, confidence: Double) -> Bool {
+    private func shouldEmitNoteOn(
+        pitchStableCount: Int,
+        confidence: Double,
+        allowImmediate: Bool
+    ) -> Bool {
         if pitchStableCount >= config.pitchStableFrames { return true }
-        if pitchStableCount == 1, confidence >= config.onsetImmediateConfidence { return true }
+        if allowImmediate,
+           pitchStableCount == 1,
+           confidence >= config.onsetImmediateConfidence { return true }
         return false
+    }
+
+    private func isLikelyOctaveJump(quantized: Int, levelDb: Double) -> Bool {
+        guard currentNote >= 0 else { return false }
+        let diff = abs(quantized - currentNote)
+        guard diff == 12 || diff == 24 else { return false }
+        return recentLevelRise(levelDb: levelDb) < config.attackRiseDb
     }
 
     private func volumeToDb(_ volume: Double) -> Double {
@@ -169,6 +195,7 @@ final class PitchOnsetTracker {
         lastNoteOnFrame = frameIndex
         recentMinDb = .infinity
         recentMinDbFrame = -1
+        recentLevelDbRing = []
         events.append(.noteOn(note: note, frameIndex: frameIndex, onsetFrameIndex: onsetFrameIndex))
     }
 
@@ -200,10 +227,27 @@ final class PitchOnsetTracker {
     }
 
     private func trackRecentMinDb(levelDb: Double, frameIndex: Int) {
+        recentLevelDbRing.append(levelDb)
+        let maxRing = max(config.retriggerLookbackFrames, config.retriggerGuardFrames)
+        if recentLevelDbRing.count > maxRing {
+            recentLevelDbRing.removeFirst()
+        }
         if levelDb < recentMinDb {
             recentMinDb = levelDb
             recentMinDbFrame = frameIndex
         }
+    }
+
+    private func recentLevelRise(levelDb: Double) -> Double {
+        let lookback = config.retriggerLookbackFrames
+        let start = max(0, recentLevelDbRing.count - lookback)
+        var minRecent = levelDb
+        if start < recentLevelDbRing.count {
+            for index in start..<recentLevelDbRing.count {
+                minRecent = min(minRecent, recentLevelDbRing[index])
+            }
+        }
+        return levelDb - minRecent
     }
 
     private func tryRetrigger(_ events: inout [PitchInputEvent], levelDb: Double, frameIndex: Int) {
@@ -213,7 +257,7 @@ final class PitchOnsetTracker {
             return
         }
         trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
-        let rise = levelDb - recentMinDb
+        let rise = recentLevelRise(levelDb: levelDb)
         if rise >= config.attackRiseDb {
             let note = currentNote
             let onsetFrameIndex = max(lastNoteOnFrame + 1, recentMinDbFrame + 1)

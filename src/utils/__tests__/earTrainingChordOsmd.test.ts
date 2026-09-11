@@ -403,6 +403,18 @@ describe('Chord OSMD target consumption', () => {
     expect(consumeChordOsmdMidi(remaining, 72, false)).toBeNull();
   });
 
+  it('completeOnAnyMatch で voice 入力時は 1 音一致でクラスタを完了する', () => {
+    const remaining = new Map([[60, 1], [64, 1], [67, 1]]);
+    expect(consumeChordOsmdMidi(remaining, 72, true, true)).toEqual(
+      new Map([[60, 0], [64, 0], [67, 0]]),
+    );
+  });
+
+  it('sustain 再適用は early 窓 0 ではターゲット前の入力を受け付けない', () => {
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(0.9, 1.0, 0, 0.25, 0.25)).toBe(false);
+    expect(isPhraseTimeInChordOsmdJudgmentWindow(1.0, 1.0, 0, 0.25, 0.25)).toBe(true);
+  });
+
   it('pickNearestChordOsmdTargetIndex は voice 用 matchLateGraceSec を反映する', () => {
     const judgedTimes = [1.0];
     const index = pickNearestChordOsmdTargetIndex(

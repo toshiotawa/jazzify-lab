@@ -37,6 +37,9 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     @Published var isMidiConnected: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published var precisionAutoPlayEnabled: Bool = false
+    #if DEBUG
+    @Published private(set) var voiceInputDebugDetail: String?
+    #endif
 
     let stage: EarTrainingStageDetail
     let phrases: [EarTrainingPhraseDetail]
@@ -833,6 +836,15 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
                 nearestTargetSec: nearest?.note.startSec,
                 nearestDeltaMs: nearest.map { (($0.deltaSec * 1000 * 10).rounded()) / 10 }
             )
+            #if DEBUG
+            if NoteInputPreferences.inputMethod == .voice {
+                if let nearest {
+                    voiceInputDebugDetail = "MIDI \(midi) unmatched nearestΔ=\(Int((nearest.deltaSec * 1000).rounded()))ms"
+                } else {
+                    voiceInputDebugDetail = "MIDI \(midi) unmatched no pending note"
+                }
+            }
+            #endif
             return
         }
 
@@ -853,6 +865,12 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
         runtimeStates[matched.id] = state
         activeGoodNotesByMidi[midi] = matched.id
+        #if DEBUG
+        if NoteInputPreferences.inputMethod == .voice {
+            let deltaMs = Int(((phraseTime - matched.startSec) * 1000).rounded())
+            voiceInputDebugDetail = "MIDI \(midi) matched Δ=\(deltaMs)ms"
+        }
+        #endif
     }
 
     func handleNoteOff(midi: Int, playAudio: Bool = true) {

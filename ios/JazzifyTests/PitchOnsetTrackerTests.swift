@@ -112,4 +112,18 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.processFrame(badVolume, frameIndex: 1).isEmpty)
         XCTAssertEqual(tracker.getCurrentNote(), -1)
     }
+
+    func testIgnoresOctaveJumpWithoutAttackRiseWhileSustaining() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced60 = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let voiced72 = PitchFrame(prediction: 72, confidence: 0.9, volume: 0.0105)
+
+        _ = tracker.processFrame(voiced60, frameIndex: 0)
+        _ = tracker.processFrame(voiced60, frameIndex: 1)
+        XCTAssertTrue(tracker.processFrame(voiced72, frameIndex: 2).isEmpty)
+        XCTAssertEqual(tracker.getCurrentNote(), 60)
+    }
 }

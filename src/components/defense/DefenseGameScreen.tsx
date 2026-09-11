@@ -58,6 +58,11 @@ import {
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
 } from '@/utils/survivalStaffHintOpacity';
+import { VoiceInputDebugOverlay } from '@/components/voice/VoiceInputDebugOverlay';
+import {
+  createVoiceInputDebugSnapshot,
+  type VoiceInputDebugSnapshot,
+} from '@/utils/voiceInputDebugSnapshot';
 
 interface DefenseGameScreenProps {
   readonly stage: DefenseStage;
@@ -77,6 +82,7 @@ interface FinalStats {
 
 /** fade_15s は 15 秒で完了するため、それ以降は秒カウンタの再レンダーを止める */
 const HINT_FADE_TRACK_LIMIT_SEC = 16;
+const VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS = 120;
 
 export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   stage,
@@ -115,7 +121,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [audioReady, setAudioReady] = useState(false);
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [voiceDebugSnapshot, setVoiceDebugSnapshot] = useState<VoiceInputDebugSnapshot | null>(null);
   const isSettingsOpenRef = useRef(false);
+  const lastVoicePcAtRef = useRef<Map<number, number>>(new Map());
   const profile = useAuthStore((state) => state.profile);
   const geoCountry = useGeoStore((state) => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({
@@ -210,13 +218,39 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     const runtime = runtimeRef.current;
     if (runtime.result !== 'playing') return;
 
+    const pitchClass = normalizePitchClass(midiNote % 12);
+    if (sequential) {
+      const now = performance.now();
+      const lastAt = lastVoicePcAtRef.current.get(pitchClass) ?? 0;
+      if (now - lastAt < VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS) {
+        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+          midiNote,
+          false,
+          `debounced pc=${pitchClass}`,
+        ));
+        return;
+      }
+      lastVoicePcAtRef.current.set(pitchClass, now);
+    }
+
     const evaluation = evaluateDefensePhraseNoteOn(
       stage.phrases,
       stage.requiredCompletionCount,
       judgeRef.current,
-      normalizePitchClass(midiNote % 12),
+      pitchClass,
       sequential,
     );
+
+    if (sequential) {
+      const progressed = evaluation.nextState !== judgeRef.current;
+      setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+        midiNote,
+        progressed,
+        progressed
+          ? (evaluation.attack ? 'attack' : 'progress')
+          : 'ignored (miss/hold/sequential reject)',
+      ));
+    }
 
     if (evaluation.nextState === judgeRef.current) return;
 
@@ -264,6 +298,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       pianoRef.current?.highlightKey(note, active);
     },
   });
+
+  useEffect(() => {
+    defenseBackingDeck.setVoiceInputDucking(voiceSequential);
+    return () => {
+      defenseBackingDeck.setVoiceInputDucking(false);
+    };
+  }, [voiceSequential]);
 
   useEffect(() => {
     let cancelled = false;
@@ -393,6 +434,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
+      <VoiceInputDebugOverlay
+        enabled={voiceSequential}
+        snapshot={voiceDebugSnapshot}
+      />
       <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {currentPhrase && currentPhrase.chords.length > 0 && (

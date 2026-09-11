@@ -366,6 +366,17 @@ private struct EarTrainingChordOSMDContent: View {
                     onSettings: { controller.handleOpenSettings() },
                     onBack: { controller.handleBack() }
                 )
+                #if DEBUG
+                HStack {
+                    VoiceInputDebugOverlay(
+                        detail: controller.voiceInputDebugDetail,
+                        enabled: NoteInputManager.shared.isVoiceInputActive
+                    )
+                    Spacer()
+                }
+                .padding(.leading, hudHorizontalPadding)
+                .padding(.top, 4)
+                #endif
                 Spacer()
             }
 

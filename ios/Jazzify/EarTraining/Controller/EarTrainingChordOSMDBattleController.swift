@@ -75,6 +75,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     /// MusicXML / 判定ターゲット由来の鍵盤スクロールアンカー（白鍵 MIDI）。無いときは C4 中央へフォールバック。
     @Published private(set) var keyboardScrollAnchorMidi: Int?
     @Published private(set) var keyboardDisplayRange: PianoStagePitchRange
+    #if DEBUG
+    @Published private(set) var voiceInputDebugDetail: String?
+    #endif
 
     var scoreScrollActive: Bool {
         scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase)
@@ -477,6 +480,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         lastInputAtByNote[midi] = nowMs
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         let allowPitchClass = NoteInputPreferences.inputMethod == .voice
+        let completeOnAnyMatch = allowPitchClass
         let matchLateGrace = allowPitchClass ? EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec : 0
         if allowPitchClass {
             voiceActiveMidis.insert(midi)
@@ -528,6 +532,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 nearestTargetSec: nearest?.judgedTargetSec,
                 nearestDeltaMs: nearest.map { (($0.deltaSec * 1000 * 10).rounded()) / 10 }
             )
+            #if DEBUG
+            if allowPitchClass {
+                if let nearest {
+                    voiceInputDebugDetail = "MIDI \(midi) unmatched nearestΔ=\(Int((nearest.deltaSec * 1000).rounded()))ms"
+                } else {
+                    voiceInputDebugDetail = "MIDI \(midi) unmatched no pending target"
+                }
+            }
+            #endif
             refreshPracticeVoicingHints()
             return
         }
@@ -540,12 +553,25 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             inputSec: phraseTime,
             midi: midi
         )
-        guard targets[matchedIndex].consume(midi: midi, allowPitchClass: allowPitchClass) else {
+        guard targets[matchedIndex].consume(
+            midi: midi,
+            allowPitchClass: allowPitchClass,
+            completeOnAnyMatch: completeOnAnyMatch
+        ) else {
+            #if DEBUG
+            if allowPitchClass {
+                voiceInputDebugDetail = "MIDI \(midi) no consumable pitch class"
+            }
+            #endif
             refreshPracticeVoicingHints()
             return
         }
         if allowPitchClass {
             markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
+            #if DEBUG
+            let deltaMs = Int(((phraseTime - resolveCalibratedTargetTimeSec(targets[matchedIndex].targetTimeSec)) * 1000).rounded())
+            voiceInputDebugDetail = "MIDI \(midi) matched Δ=\(deltaMs)ms"
+            #endif
         }
         if targets[matchedIndex].isComplete {
             completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
@@ -573,8 +599,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         guard !voiceActiveMidis.isEmpty else { return }
 
         let allowPitchClass = true
+        let completeOnAnyMatch = true
         let matchLateGrace = EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec
-        let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
+        let judgmentWindowEarly: Double = 0
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
 
         for midi in voiceActiveMidis {
@@ -595,7 +622,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 matchLateGraceSec: matchLateGrace
             )
             guard let matchedIndex else { continue }
-            guard targets[matchedIndex].consume(midi: midi, allowPitchClass: allowPitchClass) else { continue }
+            guard targets[matchedIndex].consume(
+                midi: midi,
+                allowPitchClass: allowPitchClass,
+                completeOnAnyMatch: completeOnAnyMatch
+            ) else { continue }
             markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
             if targets[matchedIndex].isComplete {
                 completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
@@ -2228,8 +2259,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             return false
         }
 
-        mutating func consume(midi: Int, allowPitchClass: Bool = false) -> Bool {
+        mutating func consume(
+            midi: Int,
+            allowPitchClass: Bool = false,
+            completeOnAnyMatch: Bool = false
+        ) -> Bool {
             if let count = remainingMidiCounts[midi], count > 0 {
+                if completeOnAnyMatch {
+                    for key in remainingMidiCounts.keys {
+                        remainingMidiCounts[key] = 0
+                    }
+                    return true
+                }
                 remainingMidiCounts[midi] = count - 1
                 return true
             }
@@ -2237,6 +2278,12 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             let inputPc = ((midi % 12) + 12) % 12
             for (targetMidi, count) in remainingMidiCounts where count > 0 {
                 if ((targetMidi % 12) + 12) % 12 == inputPc {
+                    if completeOnAnyMatch {
+                        for key in remainingMidiCounts.keys {
+                            remainingMidiCounts[key] = 0
+                        }
+                        return true
+                    }
                     remainingMidiCounts[targetMidi] = count - 1
                     return true
                 }

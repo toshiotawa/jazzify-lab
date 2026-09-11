@@ -26,6 +26,11 @@ import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange
 import { collectMidisFromMusicXmlText, computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
+import { VoiceInputDebugOverlay } from '@/components/voice/VoiceInputDebugOverlay';
+import {
+  createVoiceInputDebugSnapshot,
+  type VoiceInputDebugSnapshot,
+} from '@/utils/voiceInputDebugSnapshot';
 import {
   markAudioUserInteraction,
   playNote,
@@ -342,6 +347,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
+  const [voiceDebugSnapshot, setVoiceDebugSnapshot] = useState<VoiceInputDebugSnapshot | null>(null);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
@@ -1241,7 +1247,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const allowPitchClass = true;
     const matchLateGrace = VOICE_JUDGMENT_ARRIVAL_GRACE_SEC;
-    const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
+    const earlyW = 0;
     const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
     const phraseTargets = targetsRef.current;
 
@@ -1274,7 +1280,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!targetState) {
         continue;
       }
-      const nextRemaining = consumeChordOsmdMidi(targetState.remainingCounts, midiNote, allowPitchClass);
+      const nextRemaining = consumeChordOsmdMidi(
+        targetState.remainingCounts,
+        midiNote,
+        allowPitchClass,
+        true,
+      );
       if (!nextRemaining) {
         continue;
       }
@@ -2071,6 +2082,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const allowPitchClass = settings.inputMethod === 'voice';
     const matchLateGrace = allowPitchClass ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0;
+    const completeOnAnyMatch = allowPitchClass;
 
     const markVoiceSustainApplied = (targetId: string) => {
       if (!allowPitchClass) {
@@ -2100,12 +2112,31 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       if (!state || state.completed || state.failed) {
         return;
       }
-      const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote, allowPitchClass);
+      const nextRemaining = consumeChordOsmdMidi(
+        state.remainingCounts,
+        midiNote,
+        allowPitchClass,
+        completeOnAnyMatch,
+      );
       if (!nextRemaining) {
+        if (allowPitchClass) {
+          setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+            midiNote,
+            false,
+            'self-paced: no consumable pitch class',
+          ));
+        }
         return;
       }
       state.remainingCounts = nextRemaining;
       markVoiceSustainApplied(firstTarget.id);
+      if (allowPitchClass) {
+        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+          midiNote,
+          true,
+          `self-paced target ${firstTarget.id}`,
+        ));
+      }
       syncSelfPacedMeasureAndHints();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
         completeTarget(firstTarget, state, Number.NaN);
@@ -2162,6 +2193,12 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nearestTargetSec: nearest?.judgedTargetSec ?? null,
         nearestDeltaMs: nearest != null ? Math.round(nearest.deltaSec * 1000 * 10) / 10 : null,
       });
+      if (allowPitchClass) {
+        const deltaText = nearest != null
+          ? `nearestΔ=${Math.round(nearest.deltaSec * 1000)}ms @${nearest.judgedTargetSec.toFixed(3)}s`
+          : 'no pending target';
+        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(midiNote, false, deltaText));
+      }
       return;
     }
     const target = phraseTargets[matchedIndex];
@@ -2177,19 +2214,39 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       inputSec: phraseT,
       midi: midiNote,
     });
-    const nextRemaining = consumeChordOsmdMidi(state.remainingCounts, midiNote, allowPitchClass);
+    const nextRemaining = consumeChordOsmdMidi(
+      state.remainingCounts,
+      midiNote,
+      allowPitchClass,
+      completeOnAnyMatch,
+    );
     if (!nextRemaining) {
+      if (allowPitchClass) {
+        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+          midiNote,
+          false,
+          `target ${target.id}: no consumable pitch class`,
+        ));
+      }
       return;
     }
     state.remainingCounts = nextRemaining;
     markVoiceSustainApplied(target.id);
+    if (allowPitchClass) {
+      const deltaMs = Math.round((phraseT - resolveCalibratedTargetTimeSec(target.targetTimeSec)) * 1000);
+      setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
+        midiNote,
+        true,
+        `target ${target.id} Δ=${deltaMs}ms`,
+      ));
+    }
     if (practiceModeRef.current) {
       syncPracticeVoicingHints();
     }
     if (chordOsmdTargetIsComplete(nextRemaining)) {
       completeTarget(target, state, phraseT);
     }
-  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod, stage.slug, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
@@ -2464,6 +2521,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           onPianoKeyUp={handlePianoKeyUp}
         />
       ) : null}
+
+      <VoiceInputDebugOverlay
+        enabled={settings.inputMethod === 'voice'}
+        snapshot={voiceDebugSnapshot}
+      />
 
       {timingCalibrationMode ? (
         <EarTrainingTimingAdjustmentSlider

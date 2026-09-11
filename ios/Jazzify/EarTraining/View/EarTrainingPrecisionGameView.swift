@@ -301,6 +301,17 @@ private struct EarTrainingPrecisionGameContent: View {
         let layout = resolvedLayout(viewportHeight: size.height)
         return ZStack {
             VStack(spacing: 0) {
+                #if DEBUG
+                HStack {
+                    VoiceInputDebugOverlay(
+                        detail: controller.voiceInputDebugDetail,
+                        enabled: NoteInputManager.shared.isVoiceInputActive
+                    )
+                    Spacer()
+                }
+                .padding(.leading, Self.landscapeLeadingInset() + 8)
+                .padding(.top, 4)
+                #endif
                 HStack(spacing: 0) {
                     Color.clear.frame(width: Self.landscapeLeadingInset())
                     controlRail

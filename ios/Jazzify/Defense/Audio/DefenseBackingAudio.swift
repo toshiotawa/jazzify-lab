@@ -33,6 +33,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var fadeInSamplesRemaining = 0
     private let fadeOutLength = 256
     private let fadeInLength = 64
+    private var voiceInputDucking = false
+    private static let voiceInputDuckFactor: Float = 0.5
 
     private var lock = os_unfair_lock()
 
@@ -42,6 +44,12 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         self.bpm = max(1, bpm)
         self.beatsPerBar = max(1, beatsPerBar)
+        os_unfair_lock_unlock(&lock)
+    }
+
+    func setVoiceInputDucking(_ enabled: Bool) {
+        os_unfair_lock_lock(&lock)
+        voiceInputDucking = enabled
         os_unfair_lock_unlock(&lock)
     }
 
@@ -186,6 +194,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 let progress = Float(fadeOutSamplesRemaining) / Float(fadeOutLength)
                 sample *= max(0, min(1, progress))
                 fadeOutSamplesRemaining -= 1
+            }
+
+            if voiceInputDucking {
+                sample *= Self.voiceInputDuckFactor
             }
 
             for outBuffer in outBuffers {
