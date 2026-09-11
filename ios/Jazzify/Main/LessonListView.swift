@@ -1386,6 +1386,8 @@ struct LessonDetailView: View {
     @State private var taskClearNextStepTarget: LessonSong?
     @State private var taskClearPromptMode: TaskClearPromptMode = .afterClear
     @State private var pendingAutoStartFirstRequirement: Bool
+    private let playMapNodeId: UUID?
+    private let playMapMode: PlayMapMode?
     @State private var presentationQueue = SerialPresentationQueue<LessonDetailPendingStep>()
 
     private enum LessonDetailPendingStep {
@@ -1407,9 +1409,16 @@ struct LessonDetailView: View {
         let wasCompletedBefore: Bool
     }
 
-    init(lesson: Lesson, autoStartFirstRequirement: Bool = false) {
+    init(
+        lesson: Lesson,
+        autoStartFirstRequirement: Bool = false,
+        playMapNodeId: UUID? = nil,
+        playMapMode: PlayMapMode? = nil
+    ) {
         _activeLesson = State(initialValue: lesson)
         _pendingAutoStartFirstRequirement = State(initialValue: autoStartFirstRequirement)
+        self.playMapNodeId = playMapNodeId
+        self.playMapMode = playMapMode
     }
 
     private var locale: AppLocale { appState.locale }
@@ -1943,6 +1952,16 @@ struct LessonDetailView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                if playMapNodeId != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(locale == .ja ? "マップに戻る" : "Back to map") {
+                            dismiss()
+                        }
+                        .foregroundStyle(.white)
+                    }
+                }
+            }
             .onAppear {
                 LessonMapAudio.shared.stop()
             }
@@ -1978,7 +1997,7 @@ struct LessonDetailView: View {
             } else if let detail {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        if let navigationState {
+                        if playMapNodeId == nil, let navigationState {
                             lessonNavigationBar(navigationState)
                         }
                         summaryCard(detail)
@@ -3169,9 +3188,42 @@ struct LessonDetailView: View {
                 /* XP は初回のみ。RPC 失敗や重複は非致命的 */
             }
 
+            if let playMapNodeId, let playMapMode {
+                await recordPlayMapQuestClear(nodeId: playMapNodeId, mode: playMapMode)
+            }
+
+            if playMapNodeId != nil {
+                dismiss()
+                return
+            }
+
             await presentQuestCompletionSheet(courseId: courseId, userId: userId)
         } catch {
             alertMessage = error.localizedDescription
+        }
+    }
+
+    private func recordPlayMapQuestClear(nodeId: UUID, mode: PlayMapMode) async {
+        do {
+            // quest ノードはメトリクス無し（RPC 側で node_kind='quest' を判定）
+            let result = try await SupabaseService.shared.recordPlayMapNodeClear(nodeId: nodeId)
+            if result.isFirstClear {
+                let reason = mode == .codeRun ? "code_run_node_first_clear" : "defense_node_first_clear"
+                let award = try await SupabaseService.shared.awardPlayerXp(
+                    reason: reason,
+                    sourceId: nodeId.uuidString,
+                    amount: 80
+                )
+                await MainActor.run {
+                    PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: locale == .en)
+                }
+                let badges = try await SupabaseService.shared.grantUserBadgesForEvent(event: "play_map_node_clear")
+                await MainActor.run {
+                    PlayerLevelHub.shared.ingestAchievementBadges(badges, usesEnglishUi: locale == .en)
+                }
+            }
+        } catch {
+            /* non-fatal */
         }
     }
 

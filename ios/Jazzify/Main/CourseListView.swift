@@ -3,6 +3,7 @@ import SwiftUI
 struct CourseListView: View {
     @EnvironmentObject var appState: AppState
     @State private var courses: [Course] = []
+    @State private var mainQuestCourses: [Course] = []
     @State private var lessonsMap: [UUID: [Lesson]] = [:]
     @State private var progressMap: [UUID: Set<UUID>] = [:]
     @State private var isLoading = true
@@ -49,6 +50,10 @@ struct CourseListView: View {
                                 PaymentIssueBannerView(kind: bannerKind, locale: locale)
                             }
 
+                            if !mainQuestCourses.isEmpty {
+                                mainQuestSection
+                            }
+
                             ForEach(CourseDifficultyTier.displayOrder, id: \.rawValue) { tier in
                                 let tierCourses = courses.filter { $0.resolvedDifficultyTier == tier }
                                 if !tierCourses.isEmpty {
@@ -68,7 +73,7 @@ struct CourseListView: View {
                     }
                 }
             }
-            .navigationTitle(locale == .ja ? "コース" : "Courses")
+            .navigationTitle(locale == .ja ? "クエスト" : "Quest")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
@@ -143,6 +148,75 @@ struct CourseListView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+    }
+
+    private var mainQuestSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(locale == .ja ? "メインクエスト" : "Main Quest")
+                .font(.subheadline.bold())
+                .foregroundStyle(Color.cyan.opacity(0.9))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            ForEach(mainQuestCourses) { course in
+                mainQuestCard(course)
+            }
+        }
+    }
+
+    private func mainQuestCard(_ course: Course) -> some View {
+        let lessons = lessonsMap[course.id] ?? []
+        let completed = progressMap[course.id] ?? []
+        let total = lessons.count
+        let done = min(completed.count, max(total, 1))
+        let percent = total > 0 ? Int((Double(done) / Double(total) * 100).rounded()) : 0
+        let isPiano = course.mainQuestInstrument != "all"
+
+        return Button {
+            openJourney(for: course)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: isPiano ? "pianokeys" : "music.note.list")
+                    .font(.title2)
+                    .foregroundStyle(.cyan)
+                    .frame(width: 36)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(course.localizedTitle(locale))
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    if let desc = course.localizedDescription(locale) {
+                        Text(desc)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer()
+
+                Text("\(percent)%")
+                    .font(.caption.bold())
+                    .foregroundStyle(progressColor(percent: percent))
+
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.gray)
+            }
+            .padding(16)
+            .background(
+                LinearGradient(
+                    colors: [Color(hex: "0c4a6e").opacity(0.55), Color(hex: "1e293b")],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ),
+                in: RoundedRectangle(cornerRadius: 12)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.cyan.opacity(0.25), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 
     private func courseRow(_ course: Course) -> some View {
@@ -232,6 +306,14 @@ struct CourseListView: View {
                 let a = course.audience ?? "both"
                 return a == "both" || a == audienceFilter
             }
+            mainQuestCourses = filtered
+                .filter { $0.isMainCourse == true }
+                .sorted { lhs, rhs in
+                    let left = lhs.mainQuestInstrument == "piano" ? 0 : 1
+                    let right = rhs.mainQuestInstrument == "piano" ? 0 : 1
+                    if left != right { return left < right }
+                    return lhs.orderIndex < rhs.orderIndex
+                }
             courses = filtered.filter { $0.isMainCourse != true }.sorted { a, b in
                 let ta = a.resolvedDifficultyTier.sortIndex
                 let tb = b.resolvedDifficultyTier.sortIndex
@@ -247,7 +329,7 @@ struct CourseListView: View {
 
     private func prefetchAllCourseProgress() async {
         let userId = appState.profile?.id
-        let targetCourses = courses
+        let targetCourses = mainQuestCourses + courses
 
         await withTaskGroup(of: (UUID, [Lesson]).self) { group in
             for course in targetCourses {

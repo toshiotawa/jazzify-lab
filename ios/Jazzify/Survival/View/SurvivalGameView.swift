@@ -27,6 +27,11 @@ struct SurvivalGameView: View {
     /// チュートリアル等: ステージ intro より優先するファイ吹き出し。
     var externalPlayerBubbleText: String = ""
     var onSessionReady: ((SurvivalGameSession) -> Void)? = nil
+    var playMapNodeId: UUID? = nil
+    var playMapMode: PlayMapMode? = nil
+    var rankThresholds: [CodeRunRankThreshold] = CodeRunRankCalculator.defaultThresholds
+    var onPlayMapCleared: ((Double) -> Void)? = nil
+    var onPlayMapNextNode: (() -> Void)? = nil
 
     @EnvironmentObject private var appState: AppState
 
@@ -49,7 +54,12 @@ struct SurvivalGameView: View {
         lessonContext: SurvivalLessonContext? = nil,
         externalJajiiBubbleText: String = "",
         externalPlayerBubbleText: String = "",
-        onSessionReady: ((SurvivalGameSession) -> Void)? = nil
+        onSessionReady: ((SurvivalGameSession) -> Void)? = nil,
+        playMapNodeId: UUID? = nil,
+        playMapMode: PlayMapMode? = nil,
+        rankThresholds: [CodeRunRankThreshold] = CodeRunRankCalculator.defaultThresholds,
+        onPlayMapCleared: ((Double) -> Void)? = nil,
+        onPlayMapNextNode: (() -> Void)? = nil
     ) {
         self.stage = stage
         self.characterId = characterId
@@ -68,6 +78,11 @@ struct SurvivalGameView: View {
         self.externalJajiiBubbleText = externalJajiiBubbleText
         self.externalPlayerBubbleText = externalPlayerBubbleText
         self.onSessionReady = onSessionReady
+        self.playMapNodeId = playMapNodeId
+        self.playMapMode = playMapMode
+        self.rankThresholds = rankThresholds
+        self.onPlayMapCleared = onPlayMapCleared
+        self.onPlayMapNextNode = onPlayMapNextNode
         _activeHintMode = State(initialValue: hintMode)
         _activeAutoRun = State(initialValue: autoRun)
     }
@@ -96,6 +111,10 @@ struct SurvivalGameView: View {
                     productionHintModes: productionHintModes,
                     randomChordOverrides: randomChordOverrides,
                     lessonContext: lessonContext,
+                    playMapNodeId: playMapNodeId,
+                    rankThresholds: rankThresholds,
+                    onPlayMapCleared: onPlayMapCleared,
+                    onPlayMapNextNode: onPlayMapNextNode,
                     onApplyHintModeAndRestart: isDemo ? nil : { nextHint in
                         activeHintMode = nextHint
                     },
@@ -1142,6 +1161,10 @@ private struct SurvivalCodeRunGameContent: View {
     let productionHintModes: ResolvedProductionHintModes?
     let randomChordOverrides: [String: SurvivalResolvedChord]
     let lessonContext: SurvivalLessonContext?
+    let playMapNodeId: UUID?
+    let rankThresholds: [CodeRunRankThreshold]
+    let onPlayMapCleared: ((Double) -> Void)?
+    let onPlayMapNextNode: (() -> Void)?
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
     let onClose: () -> Void
     private let isRandomStage: Bool
@@ -1158,6 +1181,10 @@ private struct SurvivalCodeRunGameContent: View {
         productionHintModes: ResolvedProductionHintModes?,
         randomChordOverrides: [String: SurvivalResolvedChord] = [:],
         lessonContext: SurvivalLessonContext?,
+        playMapNodeId: UUID? = nil,
+        rankThresholds: [CodeRunRankThreshold] = CodeRunRankCalculator.defaultThresholds,
+        onPlayMapCleared: ((Double) -> Void)? = nil,
+        onPlayMapNextNode: (() -> Void)? = nil,
         onApplyHintModeAndRestart: ((Bool) -> Void)?,
         onClose: @escaping () -> Void
     ) {
@@ -1170,6 +1197,10 @@ private struct SurvivalCodeRunGameContent: View {
         self.productionHintModes = productionHintModes
         self.randomChordOverrides = randomChordOverrides
         self.lessonContext = lessonContext
+        self.playMapNodeId = playMapNodeId
+        self.rankThresholds = rankThresholds
+        self.onPlayMapCleared = onPlayMapCleared
+        self.onPlayMapNextNode = onPlayMapNextNode
         self.onApplyHintModeAndRestart = onApplyHintModeAndRestart
         self.onClose = onClose
         let randomStage = stage.stageType == .random && !stage.allowedChords.isEmpty
@@ -2197,6 +2228,7 @@ private struct SurvivalCodeRunGameContent: View {
     private func submitClearIfNeeded() {
         guard !hintMode, !submittedClear else { return }
         submittedClear = true
+        let elapsedSec = elapsed
         Task {
             do {
                 if let lessonContext {
@@ -2206,12 +2238,19 @@ private struct SurvivalCodeRunGameContent: View {
                         rank: "S",
                         clearConditions: lessonContext.clearConditions
                     )
+                    return
+                }
+                if let playMapNodeId {
+                    await MainActor.run {
+                        onPlayMapCleared?(elapsedSec)
+                    }
+                    return
                 }
                 let userId = try await SupabaseService.shared.currentUserId()
                 let first = try await SupabaseService.shared.upsertSurvivalStageClear(
                     userId: userId,
                     stageNumber: stage.stageNumber,
-                    survivalTimeSeconds: Int(elapsed.rounded()),
+                    survivalTimeSeconds: Int(elapsedSec.rounded()),
                     finalLevel: 1,
                     enemiesDefeated: 0,
                     characterId: characterId,

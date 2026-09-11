@@ -52,6 +52,7 @@ struct Course: Codable, Identifiable, Sendable {
     let difficultyTier: String?
     let isDeveloperOnly: Bool?
     let isMainCourse: Bool?
+    let mainQuestInstrument: String?
     let softLandingOrder: Int?
 
     enum CodingKeys: String, CodingKey {
@@ -64,6 +65,7 @@ struct Course: Codable, Identifiable, Sendable {
         case difficultyTier = "difficulty_tier"
         case isDeveloperOnly = "is_developer_only"
         case isMainCourse = "is_main_course"
+        case mainQuestInstrument = "main_quest_instrument"
         case softLandingOrder = "soft_landing_order"
     }
 

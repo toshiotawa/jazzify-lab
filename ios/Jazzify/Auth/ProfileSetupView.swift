@@ -8,6 +8,7 @@ struct ProfileSetupView: View {
     @State private var nickname = ""
     @State private var agreed = false
     @State private var marketingEmailOptIn = true
+    @State private var usesPianoOrKeyboard = true
     @State private var isSubmitting = false
     @FocusState private var isNicknameFocused: Bool
 
@@ -96,6 +97,20 @@ struct ProfileSetupView: View {
                             }
                             .foregroundStyle(.purple)
 
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(locale == .ja ? "楽器" : "Instrument")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+
+                                Picker("", selection: $usesPianoOrKeyboard) {
+                                    Text(locale == .ja ? "ピアノ / キーボード" : "Piano / Keyboard")
+                                        .tag(true)
+                                    Text(locale == .ja ? "その他の楽器" : "Other instrument")
+                                        .tag(false)
+                                }
+                                .pickerStyle(.segmented)
+                            }
+
                             VStack(alignment: .leading, spacing: 4) {
                                 Toggle(isOn: $marketingEmailOptIn) {
                                     Text(MarketingEmailOptIn.label(locale: locale))
@@ -168,7 +183,8 @@ struct ProfileSetupView: View {
             await appState.createProfile(
                 nickname: trimmedNickname,
                 agreed: agreed,
-                marketingEmailOptIn: marketingEmailOptIn
+                marketingEmailOptIn: marketingEmailOptIn,
+                instrument: usesPianoOrKeyboard ? "piano" : "other"
             )
             isSubmitting = false
         }

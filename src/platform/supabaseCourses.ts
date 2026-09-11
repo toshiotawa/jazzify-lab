@@ -695,18 +695,28 @@ export interface MainQuestProgress {
   } | null;
 }
 
-/** audience によらずメインクエストは1コース（is_main_course=true） */
-export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null> {
+export type MainQuestInstrument = 'piano' | 'all';
+
+export function resolveMainQuestInstrument(profileInstrument: string | null | undefined): MainQuestInstrument {
+  return profileInstrument === 'piano' || profileInstrument == null ? 'piano' : 'all';
+}
+
+/** 楽器に応じたメインクエストコース（is_main_course=true + main_quest_instrument） */
+export async function fetchMainQuestProgress(
+  instrument?: MainQuestInstrument,
+): Promise<MainQuestProgress | null> {
   const supabase = getSupabaseClient();
+  const targetInstrument = instrument ?? 'piano';
 
   const { data: courseData, error: courseError } = await fetchWithCache(
-    'main_quest_course',
+    `main_quest_course_${targetInstrument}`,
     async () => await supabase
       .from('courses')
       .select('id, title')
       .eq('is_main_course', true)
       .eq('is_visible', true)
       .eq('is_developer_only', false)
+      .eq('main_quest_instrument', targetInstrument)
       .order('order_index', { ascending: true })
       .limit(1)
       .maybeSingle(),
@@ -779,6 +789,23 @@ export async function fetchMainQuestProgress(): Promise<MainQuestProgress | null
         }
       : null,
   };
+}
+
+export async function fetchMainQuestCourses(): Promise<Course[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await fetchWithCache(
+    'main_quest_courses_all',
+    async () => await supabase
+      .from('courses')
+      .select('id, title, title_en, description, description_en, order_index, main_quest_instrument, lessons(id)')
+      .eq('is_main_course', true)
+      .eq('is_visible', true)
+      .eq('is_developer_only', false)
+      .order('order_index', { ascending: true }),
+    60 * 60 * 1000,
+  );
+  if (error) throw error;
+  return (data ?? []) as Course[];
 }
 
 export { clearCacheByPattern as clearSupabaseCache };

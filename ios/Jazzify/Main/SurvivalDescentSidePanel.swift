@@ -213,10 +213,6 @@ struct SurvivalDescentSidePanel: View {
                     hintToggle(disabled: playLocked)
                 }
 
-                if stage.playMode == .codeRun {
-                    autoRunToggle(disabled: playLocked)
-                }
-
                 if !selectedStageIsUnlocked && !playLocked {
                     HStack(spacing: 6) {
                         Image(systemName: "lock.fill")

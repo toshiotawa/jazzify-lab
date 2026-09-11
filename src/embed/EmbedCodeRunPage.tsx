@@ -278,6 +278,7 @@ const EmbedCodeRunPage: React.FC = () => {
             difficulty={stageDefinition.difficulty}
             config={gameConfig}
             stageDefinition={stageDefinition}
+            autoRun
             hintMode={demoConfig.hintMode}
             onBackToSelect={() => setScreen('pre')}
             onBackToMenu={() => setScreen('pre')}

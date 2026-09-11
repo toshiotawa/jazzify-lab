@@ -34,7 +34,6 @@ import { EmbedMidiSettingsModal } from '@/embed/EmbedMidiSettingsModal';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 import { duckBgmForVoiceInput } from '@/utils/voiceInputBgmDuck';
 import CodeRunCanvas from './CodeRunCanvas';
-import CodeRunVirtualStick from './CodeRunVirtualStick';
 import { createCodeRunMapById, createCodeRunMapFromDb, resolveCodeRunMapId } from './defaultCodeRunMap';
 import {
   CODE_RUN_MAX_HP,
@@ -90,6 +89,8 @@ interface CodeRunGameScreenProps {
   preferredLocale?: 'ja' | 'en';
   fullscreenRootRef?: React.RefObject<HTMLElement | null>;
   onOpenFullscreenTab?: () => void;
+  playMapNodeId?: string;
+  onPlayMapClear?: (elapsedSec: number) => void | Promise<void>;
 }
 
 const EMPTY_STATS: PlayerStats = {
@@ -154,7 +155,7 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   onMissionStageClear,
   isLessonMode = false,
   hintMode = false,
-  autoRun = false,
+  autoRun = true,
   onRetryWithHint,
   onRetryWithoutHint,
   onNextStage,
@@ -166,6 +167,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   preferredLocale,
   fullscreenRootRef,
   onOpenFullscreenTab,
+  playMapNodeId,
+  onPlayMapClear,
 }) => {
   const settings = useGameStore(state => state.settings);
   const { profile } = useAuthStore();
@@ -647,7 +650,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
     ? isEnglishCopy && activeDialogue.textEn ? activeDialogue.textEn : activeDialogue.text
     : '';
   const showNativeFullscreen = canUseElementFullscreen();
-  const stickDisabled = isPaused || !!result || isSettingsOpen;
   const showVoicePreparing =
     settings.inputMethod === 'voice' && !survivalMidi.isInputConnected && !result;
 
@@ -831,12 +833,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           </div>
         )}
 
-        {!autoRun ? (
-          <CodeRunVirtualStick
-            disabled={stickDisabled}
-            onAnalogChange={(value) => { inputRef.current = { ...inputRef.current, analogX: value }; }}
-          />
-        ) : null}
       </div>
 
       <div
@@ -872,6 +868,8 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           onRetryWithHint={onRetryWithHint}
           onRetryWithoutHint={onRetryWithoutHint}
           onNextStage={onNextStage}
+          playMapNodeId={playMapNodeId}
+          onPlayMapClear={onPlayMapClear}
         />
       )}
 

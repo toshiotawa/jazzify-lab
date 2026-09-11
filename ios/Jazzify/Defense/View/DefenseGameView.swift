@@ -6,6 +6,8 @@ struct DefenseGameView: View {
     @State private var scene: DefenseScene
     let locale: AppLocale
     let onClose: () -> Void
+    let playMapNodeId: UUID?
+    let onPlayMapCleared: (() -> Void)?
 
     init(
         stage: DefenseStageDefinition,
@@ -13,7 +15,9 @@ struct DefenseGameView: View {
         practiceMode: Bool,
         lessonContext: DefenseLessonContext?,
         locale: AppLocale,
-        onClose: @escaping () -> Void
+        playMapNodeId: UUID? = nil,
+        onClose: @escaping () -> Void,
+        onPlayMapCleared: (() -> Void)? = nil
     ) {
         _session = StateObject(wrappedValue: DefenseGameSession(
             stage: stage,
@@ -23,7 +27,9 @@ struct DefenseGameView: View {
         ))
         _scene = State(initialValue: DefenseScene(size: CGSize(width: 800, height: 600)))
         self.locale = locale
+        self.playMapNodeId = playMapNodeId
         self.onClose = onClose
+        self.onPlayMapCleared = onPlayMapCleared
     }
 
     var body: some View {
@@ -91,6 +97,11 @@ struct DefenseGameView: View {
         }
         .onDisappear {
             session.stop()
+        }
+        .onChange(of: session.hud.result) { result in
+            if result == .clear, playMapNodeId != nil {
+                onPlayMapCleared?()
+            }
         }
     }
 

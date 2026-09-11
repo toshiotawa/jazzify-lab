@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FaChevronRight, FaGift } from 'react-icons/fa';
-import { fetchMainQuestProgress } from '@/platform/supabaseCourses';
+import { fetchMainQuestProgress, resolveMainQuestInstrument } from '@/platform/supabaseCourses';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -56,7 +56,8 @@ const SoftLandingSection: React.FC = () => {
     let cancelled = false;
     void (async () => {
       try {
-        const progress = await fetchMainQuestProgress();
+        const instrument = resolveMainQuestInstrument(profile?.instrument ?? null);
+        const progress = await fetchMainQuestProgress(instrument);
         if (cancelled || !progress) {
           return;
         }
@@ -68,7 +69,7 @@ const SoftLandingSection: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [isPremiumMember, profile?.id]);
+  }, [isPremiumMember, profile?.id, profile?.instrument]);
 
   useEffect(() => {
     if (!isPremiumMember && mainQuestBlocked) {

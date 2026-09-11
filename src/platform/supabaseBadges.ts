@@ -1,16 +1,25 @@
 import { getSupabaseClient, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import { getBadgeDefinitionById, type BadgeDefinition } from '@/utils/badgeDefinitions';
 import type { SurvivalMapCategory } from '@/components/survival/SurvivalTypes';
+import type { PlayMapMode, PlayMapTier } from '@/platform/supabasePlayMap';
 
 export const BADGES_UPDATED_EVENT = 'jazzify:badges-updated';
 
-type BadgeGrantEvent = 'survival_stage_clear' | 'level_reached' | 'quest_clear' | 'sync';
+type BadgeGrantEvent =
+  | 'survival_stage_clear'
+  | 'level_reached'
+  | 'quest_clear'
+  | 'play_map_node_clear'
+  | 'training_score'
+  | 'sync';
 
 export interface BadgeEventParams {
   event: BadgeGrantEvent;
   mapCategory?: Extract<SurvivalMapCategory, 'basic' | 'songs' | 'phrases'>;
   stageNumber?: number;
   playerLevel?: number;
+  mode?: PlayMapMode;
+  tier?: PlayMapTier;
 }
 
 export interface EarnedBadge {
@@ -75,6 +84,8 @@ export async function grantUserBadgesForEvent(params: BadgeEventParams): Promise
     p_map_category: params.mapCategory ?? null,
     p_stage_number: params.stageNumber ?? null,
     p_player_level: params.playerLevel ?? null,
+    p_mode: params.mode ?? null,
+    p_tier: params.tier ?? null,
   });
 
   if (error) throw new Error(error.message);

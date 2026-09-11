@@ -73,6 +73,10 @@ const COPY = {
     ctaSubscribeGeneric: 'すべてのクエストを解放する',
     ctaSubscribeChapter: '次のチャプターへ進む',
     ctaSubscribeSoftLanding: 'コースの続きへ進む',
+    codeRunHeadline: 'コードランの続きをプレイ',
+    codeRunSubheadline: 'プレミアムで全ブロック・全ステージを開放できます。',
+    phraseDefenseHeadline: 'フレーズディフェンスの続きをプレイ',
+    phraseDefenseSubheadline: 'プレミアムで全ブロック・全ステージを開放できます。',
   },
   en: {
     headline: 'Take your jazz practice further.',
@@ -110,6 +114,10 @@ const COPY = {
     ctaSubscribeGeneric: 'Unlock all quests',
     ctaSubscribeChapter: 'Continue to the next chapter',
     ctaSubscribeSoftLanding: 'Continue this course',
+    codeRunHeadline: 'Continue Code Run',
+    codeRunSubheadline: 'Unlock all blocks and stages with Premium.',
+    phraseDefenseHeadline: 'Continue Phrase Defense',
+    phraseDefenseSubheadline: 'Unlock all blocks and stages with Premium.',
   },
 } as const;
 
@@ -161,6 +169,28 @@ export function resolveWebPaywallCopy(
         : base.mainQuestSubheadlineTrial,
       features: base.features,
       ctaLabel: trialUsed ? base.ctaSubscribeChapter : base.ctaTrialChapter,
+      trialUsedNotice,
+      ctaFootnote: trialCtaFootnote,
+    };
+  }
+
+  if (source === 'code_run') {
+    return {
+      headline: base.codeRunHeadline,
+      subheadline: base.codeRunSubheadline,
+      features: base.features,
+      ctaLabel: trialUsed ? base.ctaSubscribeGeneric : base.ctaTrialGeneric,
+      trialUsedNotice,
+      ctaFootnote: trialCtaFootnote,
+    };
+  }
+
+  if (source === 'phrase_defense') {
+    return {
+      headline: base.phraseDefenseHeadline,
+      subheadline: base.phraseDefenseSubheadline,
+      features: base.features,
+      ctaLabel: trialUsed ? base.ctaSubscribeGeneric : base.ctaTrialGeneric,
       trialUsedNotice,
       ctaFootnote: trialCtaFootnote,
     };

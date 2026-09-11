@@ -87,7 +87,8 @@ final class SupabaseService: Sendable {
         nickname: String,
         locale: AppLocale,
         marketingEmailOptIn: Bool,
-        marketingEmailOptInText: String?
+        marketingEmailOptInText: String?,
+        instrument: String
     ) async throws {
         struct NewProfile: Encodable {
             let id: UUID
@@ -107,6 +108,8 @@ final class SupabaseService: Sendable {
             let marketing_email_opt_in_at: String?
             let marketing_email_opt_in_source: String?
             let marketing_email_opt_in_text: String?
+            let instrument: String
+            let notation_instrument: String
             let first_touch_utm_source: String?
             let first_touch_utm_medium: String?
             let first_touch_utm_campaign: String?
@@ -132,6 +135,8 @@ final class SupabaseService: Sendable {
                 marketing_email_opt_in_at: marketingEmailOptIn ? capturedAt : nil,
                 marketing_email_opt_in_source: marketingEmailOptIn ? MarketingEmailOptIn.source : nil,
                 marketing_email_opt_in_text: marketingEmailOptIn ? marketingEmailOptInText : nil,
+                instrument: instrument,
+                notation_instrument: instrument,
                 first_touch_utm_source: "app_store",
                 first_touch_utm_medium: "organic",
                 first_touch_utm_campaign: nil,
@@ -420,6 +425,17 @@ final class SupabaseService: Sendable {
         return rows.first
     }
 
+    func fetchLesson(lessonId: UUID) async throws -> Lesson? {
+        let rows: [Lesson] = try await client
+            .from("lessons")
+            .select()
+            .eq("id", value: lessonId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
     func fetchLessons(courseId: UUID) async throws -> [Lesson] {
         try await client
             .from("lessons")
@@ -567,13 +583,17 @@ final class SupabaseService: Sendable {
         let lastPlayedAt: Date?
     }
 
-    func fetchMainQuestProgress(userId: UUID) async throws -> MainQuestProgressResult? {
+    func fetchMainQuestProgress(
+        userId: UUID,
+        instrument: MainQuestInstrument = .piano
+    ) async throws -> MainQuestProgressResult? {
         let courses: [Course] = try await client
             .from("courses")
             .select()
             .eq("is_main_course", value: true)
             .eq("is_visible", value: true)
             .eq("is_developer_only", value: false)
+            .eq("main_quest_instrument", value: instrument.rawValue)
             .order("order_index")
             .limit(1)
             .execute()
@@ -631,6 +651,197 @@ final class SupabaseService: Sendable {
             nextLesson: nextLesson,
             lastPlayedAt: lastPlayedAt
         )
+    }
+
+    // MARK: - Play Map
+
+    func fetchPlayMapBlocks(mode: PlayMapMode) async throws -> [PlayMapBlock] {
+        try await client
+            .from("play_map_blocks")
+            .select("id, mode, tier, block_key, label, label_en, sort_order")
+            .eq("mode", value: mode.rawValue)
+            .eq("is_active", value: true)
+            .order("tier")
+            .order("sort_order")
+            .execute()
+            .value
+    }
+
+    func fetchPlayMapNodes(mode: PlayMapMode) async throws -> [PlayMapNode] {
+        struct NodeRow: Decodable {
+            let id: UUID
+            let block_id: UUID
+            let sort_order: Int
+            let node_kind: PlayMapNodeKind
+            let survival_map_category: String?
+            let survival_stage_number: Int?
+            let defense_stage_id: String?
+            let lesson_id: UUID?
+            let title: String
+            let title_en: String
+            let required_rank: String
+            let play_map_blocks: BlockModeRow
+
+            struct BlockModeRow: Decodable {
+                let mode: PlayMapMode
+            }
+        }
+
+        let rows: [NodeRow] = try await client
+            .from("play_map_nodes")
+            .select("""
+                id, block_id, sort_order, node_kind,
+                survival_map_category, survival_stage_number,
+                defense_stage_id, lesson_id,
+                title, title_en, required_rank,
+                play_map_blocks!inner(mode)
+            """)
+            .eq("play_map_blocks.mode", value: mode.rawValue)
+            .eq("is_active", value: true)
+            .order("sort_order")
+            .execute()
+            .value
+
+        return rows.map { row in
+            PlayMapNode(
+                id: row.id,
+                blockId: row.block_id,
+                sortOrder: row.sort_order,
+                nodeKind: row.node_kind,
+                survivalMapCategory: row.survival_map_category,
+                survivalStageNumber: row.survival_stage_number,
+                defenseStageId: row.defense_stage_id,
+                lessonId: row.lesson_id,
+                title: row.title,
+                titleEn: row.title_en,
+                requiredRank: CodeRunLetterRank(rawValue: row.required_rank) ?? .C
+            )
+        }
+    }
+
+    func fetchPlayMapNodeClears(mode: PlayMapMode) async throws -> [PlayMapNodeClear] {
+        let userId = try await currentUserId()
+        struct ClearRow: Decodable {
+            let node_id: UUID
+            let best_time_sec: Double?
+            let best_rank: String?
+            let best_survive_sec: Int?
+            let clear_count: Int
+        }
+
+        let rows: [ClearRow] = try await client
+            .from("play_map_node_clears")
+            .select("""
+                node_id, best_time_sec, best_rank, best_survive_sec, clear_count,
+                play_map_nodes!inner(
+                    play_map_blocks!inner(mode)
+                )
+            """)
+            .eq("user_id", value: userId.uuidString)
+            .eq("play_map_nodes.play_map_blocks.mode", value: mode.rawValue)
+            .execute()
+            .value
+
+        return rows.map { row in
+            PlayMapNodeClear(
+                nodeId: row.node_id,
+                bestTimeSec: row.best_time_sec,
+                bestRank: row.best_rank.flatMap { CodeRunLetterRank(rawValue: $0) },
+                bestSurviveSec: row.best_survive_sec,
+                clearCount: row.clear_count
+            )
+        }
+    }
+
+    func fetchCodeRunRankThresholds() async throws -> [CodeRunRankThreshold] {
+        try await client
+            .from("code_run_rank_thresholds")
+            .select("rank, max_seconds, sort_order")
+            .order("sort_order")
+            .execute()
+            .value
+    }
+
+    func recordPlayMapNodeClear(
+        nodeId: UUID,
+        timeSec: Double? = nil,
+        rank: CodeRunLetterRank? = nil,
+        surviveSec: Int? = nil
+    ) async throws -> RecordPlayMapNodeClearResult {
+        struct Params: Encodable {
+            let p_node_id: UUID
+            let p_time_sec: Double?
+            let p_rank: String?
+            let p_survive_sec: Int?
+        }
+
+        struct Payload: Decodable {
+            let is_first_clear: Bool?
+            let node_id: UUID?
+            let mode: String?
+            let error: String?
+        }
+
+        let payload: Payload = try await client
+            .rpc(
+                "rpc_record_play_map_node_clear",
+                params: Params(
+                    p_node_id: nodeId,
+                    p_time_sec: timeSec,
+                    p_rank: rank?.rawValue,
+                    p_survive_sec: surviveSec
+                )
+            )
+            .execute()
+            .value
+
+        if let error = payload.error {
+            return RecordPlayMapNodeClearResult(
+                isFirstClear: false,
+                nodeId: nodeId,
+                mode: PlayMapMode(rawValue: payload.mode ?? "") ?? .codeRun,
+                error: error
+            )
+        }
+
+        return RecordPlayMapNodeClearResult(
+            isFirstClear: payload.is_first_clear ?? false,
+            nodeId: payload.node_id ?? nodeId,
+            mode: PlayMapMode(rawValue: payload.mode ?? "") ?? .codeRun,
+            error: nil
+        )
+    }
+
+    struct ActiveBadgeRow: Decodable, Sendable {
+        let id: String
+        let category: String
+        let rank: Int
+        let titleJa: String
+        let titleEn: String
+        let descriptionJa: String
+        let descriptionEn: String
+        let imageUrl: String
+        let sortOrder: Int
+
+        enum CodingKeys: String, CodingKey {
+            case id, category, rank
+            case titleJa = "title_ja"
+            case titleEn = "title_en"
+            case descriptionJa = "description_ja"
+            case descriptionEn = "description_en"
+            case imageUrl = "image_url"
+            case sortOrder = "sort_order"
+        }
+    }
+
+    func fetchActiveBadges() async throws -> [ActiveBadgeRow] {
+        try await client
+            .from("badges")
+            .select("id, category, rank, title_ja, title_en, description_ja, description_en, image_url, sort_order")
+            .eq("is_active", value: true)
+            .order("sort_order")
+            .execute()
+            .value
     }
 
     // MARK: - Announcements
@@ -1889,6 +2100,8 @@ final class SupabaseService: Sendable {
         let p_map_category: String?
         let p_stage_number: Int?
         let p_player_level: Int?
+        let p_mode: String?
+        let p_tier: String?
     }
 
     func fetchUserBadges(userId: UUID) async throws -> [UserBadgeRow] {
@@ -1905,13 +2118,17 @@ final class SupabaseService: Sendable {
         event: String,
         mapCategory: String? = nil,
         stageNumber: Int? = nil,
-        playerLevel: Int? = nil
+        playerLevel: Int? = nil,
+        mode: String? = nil,
+        tier: String? = nil
     ) async throws -> [UserBadgeRow] {
         let params = BadgeGrantParams(
             p_event: event,
             p_map_category: mapCategory,
             p_stage_number: stageNumber,
-            p_player_level: playerLevel
+            p_player_level: playerLevel,
+            p_mode: mode,
+            p_tier: tier
         )
         return try await client
             .rpc("grant_user_badges_for_event", params: params)

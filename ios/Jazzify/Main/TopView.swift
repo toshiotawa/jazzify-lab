@@ -655,6 +655,7 @@ struct TopView: View {
             mainQuestProgress = nil
             return
         }
+        let profileInstrument = profile?.instrument
 
         async let statsTask: UserStats? = {
             do {
@@ -666,7 +667,8 @@ struct TopView: View {
 
         async let mainQuestTask: SupabaseService.MainQuestProgressResult? = {
             do {
-                return try await SupabaseService.shared.fetchMainQuestProgress(userId: userId)
+                let instrument = MainQuestInstrument.resolve(profileInstrument: profileInstrument)
+                return try await SupabaseService.shared.fetchMainQuestProgress(userId: userId, instrument: instrument)
             } catch {
                 return nil
             }
@@ -879,6 +881,7 @@ struct AchievementBadgeDefinition: Identifiable, Equatable {
     let conditionJa: String
     let conditionEn: String
     let imagePath: String
+    let isActive: Bool
 
     var imageURL: URL? {
         let base = Config.webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -896,39 +899,84 @@ struct AchievementBadgeDefinition: Identifiable, Equatable {
 
 enum AchievementBadgeCatalog {
     static let categories: [AchievementBadgeCategory] = [
-        AchievementBadgeCategory(id: "survival_basic", labelJa: "Basicクリアステージ数", labelEn: "Basic stage clears"),
-        AchievementBadgeCategory(id: "survival_songs", labelJa: "Songsクリアステージ数", labelEn: "Songs stage clears"),
-        AchievementBadgeCategory(id: "survival_phrases", labelJa: "Phrasesクリアステージ数", labelEn: "Phrases stage clears"),
+        AchievementBadgeCategory(id: "code_run", labelJa: "コードラン", labelEn: "Code Run"),
+        AchievementBadgeCategory(id: "defense", labelJa: "フレーズディフェンス", labelEn: "Phrase Defense"),
         AchievementBadgeCategory(id: "player_level", labelJa: "到達レベル", labelEn: "Player level reached"),
         AchievementBadgeCategory(id: "quest_clear", labelJa: "クエストクリア数", labelEn: "Quest clears")
     ]
 
     static let definitions: [AchievementBadgeDefinition] = [
-        AchievementBadgeDefinition(id: "survival_basic_1", categoryId: "survival_basic", rank: 1, nameJa: "基礎の第一歩", nameEn: "Basic Starter", conditionJa: "サバイバル Basic のステージ1を初回クリア", conditionEn: "Clear Survival Basic stage 1 for the first time", imagePath: "/achivement/achievement_monster_02.png"),
-        AchievementBadgeDefinition(id: "survival_basic_50", categoryId: "survival_basic", rank: 2, nameJa: "基礎固め", nameEn: "Basic Builder", conditionJa: "サバイバル Basic のステージ50を初回クリア", conditionEn: "Clear Survival Basic stage 50 for the first time", imagePath: "/achivement/achievement_monster_09.png"),
-        AchievementBadgeDefinition(id: "survival_basic_100", categoryId: "survival_basic", rank: 3, nameJa: "基礎の達人", nameEn: "Basic Master", conditionJa: "サバイバル Basic のステージ100を初回クリア", conditionEn: "Clear Survival Basic stage 100 for the first time", imagePath: "/achivement/achievement_monster_11.png"),
-        AchievementBadgeDefinition(id: "survival_songs_1", categoryId: "survival_songs", rank: 1, nameJa: "曲に挑む者", nameEn: "Song Challenger", conditionJa: "サバイバル Songs のステージ1を初回クリア", conditionEn: "Clear Survival Songs stage 1 for the first time", imagePath: "/achivement/achievement_monster_13.png"),
-        AchievementBadgeDefinition(id: "survival_songs_50", categoryId: "survival_songs", rank: 2, nameJa: "曲を渡る者", nameEn: "Song Voyager", conditionJa: "サバイバル Songs のステージ50を初回クリア", conditionEn: "Clear Survival Songs stage 50 for the first time", imagePath: "/achivement/achievement_monster_19.png"),
-        AchievementBadgeDefinition(id: "survival_songs_100", categoryId: "survival_songs", rank: 3, nameJa: "曲を制する者", nameEn: "Song Conqueror", conditionJa: "サバイバル Songs のステージ100を初回クリア", conditionEn: "Clear Survival Songs stage 100 for the first time", imagePath: "/achivement/achievement_monster_22.png"),
-        AchievementBadgeDefinition(id: "survival_phrases_1", categoryId: "survival_phrases", rank: 1, nameJa: "フレーズ見習い", nameEn: "Phrase Apprentice", conditionJa: "サバイバル Phrases のステージ1を初回クリア", conditionEn: "Clear Survival Phrases stage 1 for the first time", imagePath: "/achivement/achievement_monster_33.png"),
-        AchievementBadgeDefinition(id: "survival_phrases_50", categoryId: "survival_phrases", rank: 2, nameJa: "フレーズ使い", nameEn: "Phrase Handler", conditionJa: "サバイバル Phrases のステージ50を初回クリア", conditionEn: "Clear Survival Phrases stage 50 for the first time", imagePath: "/achivement/achievement_monster_35.png"),
-        AchievementBadgeDefinition(id: "survival_phrases_100", categoryId: "survival_phrases", rank: 3, nameJa: "フレーズマスター", nameEn: "Phrase Master", conditionJa: "サバイバル Phrases のステージ100を初回クリア", conditionEn: "Clear Survival Phrases stage 100 for the first time", imagePath: "/achivement/achievement_monster_45.png"),
-        AchievementBadgeDefinition(id: "player_level_2", categoryId: "player_level", rank: 1, nameJa: "駆け出しプレイヤー", nameEn: "Rising Player", conditionJa: "プレイヤーレベル2に到達", conditionEn: "Reach player level 2", imagePath: "/achivement/achievement_monster_47.png"),
-        AchievementBadgeDefinition(id: "player_level_50", categoryId: "player_level", rank: 2, nameJa: "実力派プレイヤー", nameEn: "Skilled Player", conditionJa: "プレイヤーレベル50に到達", conditionEn: "Reach player level 50", imagePath: "/achivement/achievement_monster_49.png"),
-        AchievementBadgeDefinition(id: "player_level_100", categoryId: "player_level", rank: 3, nameJa: "熟練プレイヤー", nameEn: "Veteran Player", conditionJa: "プレイヤーレベル100に到達", conditionEn: "Reach player level 100", imagePath: "/achivement/achievement_monster_51.png"),
-        AchievementBadgeDefinition(id: "quest_clear_1", categoryId: "quest_clear", rank: 1, nameJa: "クエスト見習い", nameEn: "Quest Rookie", conditionJa: "クエストを1個完了", conditionEn: "Complete 1 quest", imagePath: "/achivement/achievement_monster_53.png"),
-        AchievementBadgeDefinition(id: "quest_clear_50", categoryId: "quest_clear", rank: 2, nameJa: "クエスト冒険者", nameEn: "Quest Adventurer", conditionJa: "クエストを50個完了", conditionEn: "Complete 50 quests", imagePath: "/achivement/achievement_monster_55.png"),
-        AchievementBadgeDefinition(id: "quest_clear_100", categoryId: "quest_clear", rank: 3, nameJa: "クエスト制覇者", nameEn: "Quest Champion", conditionJa: "クエストを100個完了", conditionEn: "Complete 100 quests", imagePath: "/achivement/achievement_monster_59.png")
+        AchievementBadgeDefinition(id: "code_run_first_1", categoryId: "code_run", rank: 1, nameJa: "コードランナー", nameEn: "Code Runner", conditionJa: "コードランを初めてクリア", conditionEn: "Clear your first Code Run node", imagePath: "/achivement/achievement_monster_02.png", isActive: true),
+        AchievementBadgeDefinition(id: "code_run_basic_all_2", categoryId: "code_run", rank: 2, nameJa: "コードラン Basic 制覇", nameEn: "Code Run Basic Master", conditionJa: "コードラン Basic を全クリア", conditionEn: "Clear all Code Run Basic nodes", imagePath: "/achivement/achievement_monster_09.png", isActive: true),
+        AchievementBadgeDefinition(id: "code_run_advanced_all_3", categoryId: "code_run", rank: 3, nameJa: "コードラン Advanced 制覇", nameEn: "Code Run Advanced Master", conditionJa: "コードラン Advanced を全クリア", conditionEn: "Clear all Code Run Advanced nodes", imagePath: "/achivement/achievement_monster_11.png", isActive: true),
+        AchievementBadgeDefinition(id: "defense_first_1", categoryId: "defense", rank: 1, nameJa: "ディフェンダー", nameEn: "Defender", conditionJa: "フレーズディフェンスを初めてクリア", conditionEn: "Clear your first Phrase Defense node", imagePath: "/achivement/achievement_monster_13.png", isActive: true),
+        AchievementBadgeDefinition(id: "defense_basic_all_2", categoryId: "defense", rank: 2, nameJa: "ディフェンス Basic 制覇", nameEn: "Defense Basic Master", conditionJa: "フレーズディフェンス Basic を全クリア", conditionEn: "Clear all Phrase Defense Basic nodes", imagePath: "/achivement/achievement_monster_19.png", isActive: true),
+        AchievementBadgeDefinition(id: "defense_advanced_all_3", categoryId: "defense", rank: 3, nameJa: "ディフェンス Advanced 制覇", nameEn: "Defense Advanced Master", conditionJa: "フレーズディフェンス Advanced を全クリア", conditionEn: "Clear all Phrase Defense Advanced nodes", imagePath: "/achivement/achievement_monster_22.png", isActive: true),
+        AchievementBadgeDefinition(id: "player_level_2", categoryId: "player_level", rank: 1, nameJa: "駆け出しプレイヤー", nameEn: "Rising Player", conditionJa: "プレイヤーレベル2に到達", conditionEn: "Reach player level 2", imagePath: "/achivement/achievement_monster_47.png", isActive: true),
+        AchievementBadgeDefinition(id: "player_level_50", categoryId: "player_level", rank: 2, nameJa: "実力派プレイヤー", nameEn: "Skilled Player", conditionJa: "プレイヤーレベル50に到達", conditionEn: "Reach player level 50", imagePath: "/achivement/achievement_monster_49.png", isActive: true),
+        AchievementBadgeDefinition(id: "player_level_100", categoryId: "player_level", rank: 3, nameJa: "熟練プレイヤー", nameEn: "Veteran Player", conditionJa: "プレイヤーレベル100に到達", conditionEn: "Reach player level 100", imagePath: "/achivement/achievement_monster_51.png", isActive: true),
+        AchievementBadgeDefinition(id: "quest_clear_1", categoryId: "quest_clear", rank: 1, nameJa: "クエスト見習い", nameEn: "Quest Rookie", conditionJa: "クエストを1個完了", conditionEn: "Complete 1 quest", imagePath: "/achivement/achievement_monster_53.png", isActive: true),
+        AchievementBadgeDefinition(id: "quest_clear_50", categoryId: "quest_clear", rank: 2, nameJa: "クエスト冒険者", nameEn: "Quest Adventurer", conditionJa: "クエストを50個完了", conditionEn: "Complete 50 quests", imagePath: "/achivement/achievement_monster_55.png", isActive: true),
+        AchievementBadgeDefinition(id: "quest_clear_100", categoryId: "quest_clear", rank: 3, nameJa: "クエスト制覇者", nameEn: "Quest Champion", conditionJa: "クエストを100個完了", conditionEn: "Complete 100 quests", imagePath: "/achivement/achievement_monster_59.png", isActive: true)
     ]
 
-    static var totalCount: Int { definitions.count }
+    @MainActor
+    private static var trainingDefinitions: [AchievementBadgeDefinition] = []
+    @MainActor
+    private static var trainingCategories: [AchievementBadgeCategory] = []
 
-    static func definition(id: String) -> AchievementBadgeDefinition? {
-        definitions.first { $0.id == id }
+    static var activeDefinitions: [AchievementBadgeDefinition] {
+        definitions.filter(\.isActive)
     }
 
+    @MainActor
+    static var displayDefinitions: [AchievementBadgeDefinition] {
+        activeDefinitions + trainingDefinitions
+    }
+
+    @MainActor
+    static var displayCategories: [AchievementBadgeCategory] {
+        categories + trainingCategories
+    }
+
+    static var totalCount: Int { activeDefinitions.count }
+
+    @MainActor
+    static func definition(id: String) -> AchievementBadgeDefinition? {
+        displayDefinitions.first { $0.id == id }
+    }
+
+    @MainActor
     static func definitionsForCategory(_ categoryId: String) -> [AchievementBadgeDefinition] {
-        definitions.filter { $0.categoryId == categoryId }
+        displayDefinitions.filter { $0.categoryId == categoryId }
+    }
+
+    @MainActor
+    static func refreshTrainingBadgesFromServer() async {
+        guard let rows = try? await SupabaseService.shared.fetchActiveBadges() else { return }
+        let trainingRows = rows.filter { $0.category.hasPrefix("training_") }
+        trainingDefinitions = trainingRows.map { row in
+            AchievementBadgeDefinition(
+                id: row.id,
+                categoryId: row.category,
+                rank: row.rank,
+                nameJa: row.titleJa,
+                nameEn: row.titleEn,
+                conditionJa: row.descriptionJa,
+                conditionEn: row.descriptionEn,
+                imagePath: row.imageUrl,
+                isActive: true
+            )
+        }
+        let categoryIds = Array(Set(trainingRows.map(\.category))).sorted()
+        trainingCategories = categoryIds.map { categoryId in
+            let sample = trainingRows.first { $0.category == categoryId }
+            return AchievementBadgeCategory(
+                id: categoryId,
+                labelJa: sample?.titleJa.components(separatedBy: " ").first ?? categoryId,
+                labelEn: sample?.titleEn.components(separatedBy: " ").first ?? categoryId
+            )
+        }
     }
 }
 
@@ -970,7 +1018,7 @@ struct AchievementListView: View {
                             .padding(.vertical, 40)
                     } else {
                         LazyVStack(spacing: 14) {
-                            ForEach(AchievementBadgeCatalog.categories) { category in
+                            ForEach(AchievementBadgeCatalog.displayCategories) { category in
                                 achievementCategorySection(category)
                             }
                         }
@@ -1091,6 +1139,8 @@ struct AchievementListView: View {
     private func loadBadges() async {
         isLoading = true
         defer { isLoading = false }
+
+        await AchievementBadgeCatalog.refreshTrainingBadgesFromServer()
 
         do {
             let granted = try await SupabaseService.shared.syncUserBadges()

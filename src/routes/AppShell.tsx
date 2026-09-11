@@ -25,7 +25,6 @@ const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard'));
 const AccountPage = React.lazy(() => import('@/components/ui/AccountModal'));
 const MypagePage = React.lazy(() => import('@/components/ui/MypageModal'));
-const LessonPage = React.lazy(() => import('@/components/lesson/LessonPage'));
 const CourseListPage = React.lazy(() => import('@/components/lesson/CourseListPage'));
 const CoursePage = React.lazy(() => import('@/components/lesson/CoursePage'));
 const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
@@ -96,8 +95,8 @@ const AppShell: React.FC = () => {
         '#account',
         '#pricing',
         '#plan-comparison',
-        '#lessons',
         '#courses',
+        '#play',
         '#course',
         '#lesson-detail',
         '#information',
@@ -124,6 +123,10 @@ const AppShell: React.FC = () => {
         '/main/courses/',
         '/main/information',
         '/main/achievements',
+        '/main/play',
+        '/main/play/code-run',
+        '/main/play/phrase-defense',
+        '/main/play/training',
         '/main/play/survival',
         '/main/play/survival-lesson',
         '/main/play/survival-tutorial',
@@ -216,14 +219,7 @@ const AppShell: React.FC = () => {
           <Routes>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={renderDashboard()} />
-            <Route
-              path="lessons"
-              element={
-                <React.Suspense fallback={<LoadingScreen compact />}>
-                  <LessonPage />
-                </React.Suspense>
-              }
-            />
+            <Route path="lessons" element={<Navigate to="/main/courses" replace />} />
             <Route
               path="lessons/:lessonId"
               element={

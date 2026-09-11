@@ -141,7 +141,12 @@ final class AppState: ObservableObject {
             .map { Int($0) ?? 0 }
     }
 
-    func createProfile(nickname: String, agreed: Bool, marketingEmailOptIn: Bool) async {
+    func createProfile(
+        nickname: String,
+        agreed: Bool,
+        marketingEmailOptIn: Bool,
+        instrument: String = "piano"
+    ) async {
         let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedNickname.isEmpty else {
@@ -174,7 +179,8 @@ final class AppState: ObservableObject {
                 nickname: trimmedNickname,
                 locale: locale,
                 marketingEmailOptIn: marketingEmailOptIn,
-                marketingEmailOptInText: marketingEmailOptIn ? MarketingEmailOptIn.consentText(locale: locale) : nil
+                marketingEmailOptInText: marketingEmailOptIn ? MarketingEmailOptIn.consentText(locale: locale) : nil,
+                instrument: instrument
             )
 
             guard let createdProfile = try await supabase.fetchProfileIfExists(userId: userId) else {

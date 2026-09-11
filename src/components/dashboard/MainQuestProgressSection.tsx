@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { fetchMainQuestProgress, MainQuestProgress } from '@/platform/supabaseCourses';
+import {
+  fetchMainQuestProgress,
+  MainQuestProgress,
+  resolveMainQuestInstrument,
+} from '@/platform/supabaseCourses';
 import { FaLock, FaPlay, FaStar } from 'react-icons/fa';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { useAuthStore } from '@/stores/authStore';
@@ -44,7 +48,8 @@ const MainQuestProgressSection: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchMainQuestProgress();
+        const instrument = resolveMainQuestInstrument(profile?.instrument ?? null);
+        const data = await fetchMainQuestProgress(instrument);
         if (!cancelled) {
           setProgress(data);
         }
@@ -55,7 +60,7 @@ const MainQuestProgressSection: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [profile?.instrument]);
 
   useEffect(() => {
     if (!pendingMainQuestAutoStart || !progress?.nextLesson || !profile) {

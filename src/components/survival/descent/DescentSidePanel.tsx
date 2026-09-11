@@ -270,38 +270,11 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
             )}
 
             {codeRunPanel ? (
-              <fieldset
-                className={cn(
-                  'mb-3 space-y-2 rounded-md border border-cyan-500/25 bg-black/40 p-2.5',
-                  playLocked && 'opacity-50',
-                )}
-              >
-                <legend className="px-1 text-xs font-bold text-cyan-200">
-                  {isEnglishCopy ? 'Character control' : 'キャラ操作'}
-                </legend>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-200">
-                  <input
-                    type="radio"
-                    name="code-run-control"
-                    checked={!autoRun}
-                    disabled={playLocked}
-                    onChange={() => onAutoRunChange(false)}
-                    className="h-3.5 w-3.5 border-gray-500 text-cyan-400 focus:ring-cyan-400"
-                  />
-                  <span>{isEnglishCopy ? 'Manual' : 'マニュアル'}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-200">
-                  <input
-                    type="radio"
-                    name="code-run-control"
-                    checked={autoRun}
-                    disabled={playLocked}
-                    onChange={() => onAutoRunChange(true)}
-                    className="h-3.5 w-3.5 border-gray-500 text-cyan-400 focus:ring-cyan-400"
-                  />
-                  <span>{isEnglishCopy ? 'Auto (run right)' : 'オート（右へ自動移動）'}</span>
-                </label>
-              </fieldset>
+              <p className="mb-3 rounded-md border border-cyan-500/25 bg-black/40 p-2.5 text-[10px] leading-relaxed text-cyan-100">
+                {isEnglishCopy
+                  ? 'Auto-run only: your character moves right automatically.'
+                  : 'オート操作のみ: キャラクターは自動で右へ進みます。'}
+              </p>
             ) : null}
             {!selectedStageIsUnlocked && (
               <div className="mb-2 flex items-center gap-2 rounded-md border border-red-500/20 bg-red-950/20 px-2 py-1.5 text-xs text-red-300">

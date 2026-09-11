@@ -46,6 +46,8 @@ interface SurvivalGameOverProps {
   isBalloonRushMode?: boolean;
   stageTimeLimitSec?: number;
   stageKillQuota?: number;
+  playMapNodeId?: string;
+  onPlayMapClear?: (elapsedSec: number) => void | Promise<void>;
 }
 
 const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
@@ -67,6 +69,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   isBalloonRushMode = false,
   stageTimeLimitSec: stageTimeLimitSecProp,
   stageKillQuota: stageKillQuotaProp,
+  playMapNodeId,
+  onPlayMapClear,
 }) => {
   const { profile, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -109,7 +113,15 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
       if (!profile) return;
 
-      if (isStageClear && !stageSaved && (!isLessonMode || isCodeRunStage)) {
+      if (isStageClear && !stageSaved && playMapNodeId && onPlayMapClear) {
+        try {
+          await onPlayMapClear(survivalTime);
+          setStageSaved(true);
+          clearUserStatsCache(profile.id);
+        } catch {
+          /* play map clear failed */
+        }
+      } else if (isStageClear && !stageSaved && (!isLessonMode || isCodeRunStage)) {
         try {
           const stageCategory = stageDefinition!.mapCategory;
           const clearResult = await upsertSurvivalStageClear(

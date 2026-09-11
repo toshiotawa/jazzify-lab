@@ -2,7 +2,9 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 
 type PlayerXpReason =
   | 'survival_stage_first_clear'
-  | 'lesson_first_clear';
+  | 'lesson_first_clear'
+  | 'code_run_node_first_clear'
+  | 'defense_node_first_clear';
 
 export interface AwardPlayerXpResult {
   gainedXp: number;

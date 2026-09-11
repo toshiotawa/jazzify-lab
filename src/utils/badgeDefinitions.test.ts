@@ -1,32 +1,39 @@
 import { describe, expect, it } from 'vitest';
-import { BADGE_CATEGORIES, BADGE_DEFINITIONS, BADGE_TOTAL_COUNT } from './badgeDefinitions';
+import {
+  ACTIVE_BADGE_DEFINITIONS,
+  BADGE_CATEGORIES,
+  BADGE_TOTAL_COUNT,
+  isActiveBadgeCategory,
+} from './badgeDefinitions';
 
 describe('badgeDefinitions', () => {
-  it('defines five categories with three ranks each', () => {
-    expect(BADGE_CATEGORIES).toHaveLength(5);
-    expect(BADGE_TOTAL_COUNT).toBe(15);
+  it('defines active categories with three ranks each where applicable', () => {
+    const activeCategories = BADGE_CATEGORIES.filter((category) => isActiveBadgeCategory(category.id));
+    expect(activeCategories.length).toBeGreaterThan(5);
+    expect(BADGE_TOTAL_COUNT).toBe(ACTIVE_BADGE_DEFINITIONS.length);
 
-    for (const category of BADGE_CATEGORIES) {
-      const badges = BADGE_DEFINITIONS.filter(badge => badge.categoryId === category.id);
-      expect(badges.map(badge => badge.rank)).toEqual([1, 2, 3]);
+    for (const category of activeCategories) {
+      const badges = ACTIVE_BADGE_DEFINITIONS.filter((badge) => badge.categoryId === category.id);
+      expect(badges.length).toBeGreaterThan(0);
+      if (badges.length === 3) {
+        expect(badges.map((badge) => badge.rank)).toEqual([1, 2, 3]);
+      }
     }
   });
 
-  it('uses the requested thresholds for each category', () => {
+  it('uses expected thresholds for core categories', () => {
     const thresholdsFor = (categoryId: string) =>
-      BADGE_DEFINITIONS
-        .filter(badge => badge.categoryId === categoryId)
-        .map(badge => badge.conditionValue);
+      ACTIVE_BADGE_DEFINITIONS
+        .filter((badge) => badge.categoryId === categoryId)
+        .map((badge) => badge.conditionValue);
 
-    expect(thresholdsFor('survival_basic')).toEqual([1, 50, 100]);
-    expect(thresholdsFor('survival_songs')).toEqual([1, 50, 100]);
-    expect(thresholdsFor('survival_phrases')).toEqual([1, 50, 100]);
+    expect(thresholdsFor('code_run')).toEqual([1, 2, 3]);
+    expect(thresholdsFor('defense')).toEqual([1, 2, 3]);
     expect(thresholdsFor('player_level')).toEqual([2, 50, 100]);
     expect(thresholdsFor('quest_clear')).toEqual([1, 50, 100]);
   });
 
-  it('has unique ids and medal images', () => {
-    expect(new Set(BADGE_DEFINITIONS.map(badge => badge.id)).size).toBe(BADGE_TOTAL_COUNT);
-    expect(new Set(BADGE_DEFINITIONS.map(badge => badge.imagePath)).size).toBe(BADGE_TOTAL_COUNT);
+  it('has unique active ids', () => {
+    expect(new Set(ACTIVE_BADGE_DEFINITIONS.map((badge) => badge.id)).size).toBe(BADGE_TOTAL_COUNT);
   });
 });

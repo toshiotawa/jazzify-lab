@@ -10,6 +10,7 @@ import type {
   TrainingScoreSummary,
 } from '@/game/training/trainingTypes';
 import type { TrainingLetterRank } from '@/game/training/trainingRank';
+import { dispatchBadgesUpdated, grantUserBadgesForEvent } from '@/platform/supabaseBadges';
 
 interface CategoryRow {
   id: string;
@@ -214,11 +215,22 @@ export const upsertTrainingScore = async (
 
   const row = (data as Array<{ best_score: number; best_rank: string; is_new_best: boolean }> | null)?.[0];
   const bestRankRaw = row?.best_rank ?? 'F';
-  return {
+  const result = {
     bestScore: row?.best_score ?? score,
     bestRank: isLetterRank(bestRankRaw) ? bestRankRaw : 'F',
     isNewBest: row?.is_new_best ?? false,
   };
+
+  if (result.isNewBest) {
+    try {
+      const granted = await grantUserBadgesForEvent({ event: 'training_score' });
+      dispatchBadgesUpdated(granted);
+    } catch {
+      /* 称号付与失敗はスコア保存を妨げない */
+    }
+  }
+
+  return result;
 };
 
 export const invalidateTrainingCaches = (): void => {

@@ -18,23 +18,14 @@ struct MainTabView: View {
                     }
                     .tag(Tab.top)
 
-                LessonListView()
-                    .tabItem {
-                        Label(
-                            locale == .ja ? "クエスト" : "Quests",
-                            systemImage: "book.fill"
-                        )
-                    }
-                    .tag(Tab.lessons)
-
                 CourseListView()
                     .tabItem {
                         Label(
-                            locale == .ja ? "コース" : "Courses",
-                            systemImage: "square.grid.2x2.fill"
+                            locale == .ja ? "クエスト" : "Quest",
+                            systemImage: "book.fill"
                         )
                     }
-                    .tag(Tab.courses)
+                    .tag(Tab.quest)
 
                 PlayHubView()
                     .tabItem {
@@ -45,18 +36,27 @@ struct MainTabView: View {
                     }
                     .tag(Tab.play)
 
+                TrainingListView()
+                    .tabItem {
+                        Label(
+                            locale == .ja ? "トレーニング" : "Training",
+                            systemImage: "figure.strengthtraining.traditional"
+                        )
+                    }
+                    .tag(Tab.training)
+
                 SettingsView()
                     .tabItem {
                         Label(
-                            locale == .ja ? "設定" : "Settings",
-                            systemImage: "gearshape.fill"
+                            locale == .ja ? "アカウント" : "Account",
+                            systemImage: "person.crop.circle.fill"
                         )
                     }
-                    .tag(Tab.settings)
+                    .tag(Tab.account)
             }
             .tint(.purple)
             .onChange(of: selectedTab) { newTab in
-                if newTab != .lessons && newTab != .courses {
+                if newTab != .quest {
                     LessonMapAudio.shared.stop()
                 }
             }
@@ -69,8 +69,8 @@ struct MainTabView: View {
 
 enum Tab: Hashable {
     case top
-    case lessons
-    case courses
+    case quest
     case play
-    case settings
+    case training
+    case account
 }

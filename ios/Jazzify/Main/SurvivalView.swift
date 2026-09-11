@@ -383,7 +383,7 @@ struct SurvivalView: View {
         stageLaunchSession = StageLaunchSession(
             stage: stage,
             hintMode: stage.survivalUsesCompositePhrasePattern ? false : hintMode,
-            autoRun: stage.playMode == .codeRun ? autoRun : false
+            autoRun: stage.playMode == .codeRun
         )
     }
 

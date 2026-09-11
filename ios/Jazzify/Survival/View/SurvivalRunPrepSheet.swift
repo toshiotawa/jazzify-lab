@@ -140,28 +140,6 @@ struct SurvivalRunPrepSheet: View {
                     }
                 }
 
-                if stage.playMode == .codeRun {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(isEnglishCopy ? "Character control" : "キャラ操作")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(Color(hex: "fde68a"))
-
-                        runModeRow(
-                            title: isEnglishCopy ? "Manual" : "マニュアル",
-                            selected: !autoRunDraft
-                        ) {
-                            autoRunDraft = false
-                        }
-
-                        runModeRow(
-                            title: isEnglishCopy ? "Auto (run right)" : "オート（右へ自動移動）",
-                            selected: autoRunDraft
-                        ) {
-                            autoRunDraft = true
-                        }
-                    }
-                }
-
                 startButton
             }
             .padding(20)
@@ -256,7 +234,7 @@ struct SurvivalRunPrepSheet: View {
 
     private var startButton: some View {
         Button {
-            onConfirm(isCompositeLocked ? false : hintDraft, stage.playMode == .codeRun ? autoRunDraft : false)
+            onConfirm(isCompositeLocked ? false : hintDraft, stage.playMode == .codeRun ? true : false)
         } label: {
             Text(isEnglishCopy ? "Start" : "開始")
                 .font(.headline)

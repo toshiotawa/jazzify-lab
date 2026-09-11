@@ -100,11 +100,6 @@ const CoursePage: React.FC = () => {
           return;
         }
 
-        if (courseData.is_main_course === true) {
-          window.location.hash = '#lessons';
-          return;
-        }
-
         setCourse(courseData);
         clearNavigationCacheForCourse(courseId);
 

@@ -71,7 +71,7 @@ export const useAppIdlePrefetch = ({
     if (!skipBulkWarmup) {
       cancels.push(
         runWhenIdleDelayed('chunk:lesson-page', () => {
-          void import('@/components/lesson/LessonPage').catch(() => {});
+          void import('@/components/lesson/CourseListPage').catch(() => {});
         }, PREFETCH_LESSON_DELAY_MS),
         runWhenIdleDelayed('chunk:survival-main', () => {
           void import('@/components/survival/SurvivalMain').catch(() => {});

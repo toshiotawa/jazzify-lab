@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Course, CourseDifficultyTier } from '@/types';
-import { fetchCoursesForLessonList, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
+import {
+  fetchCoursesForLessonList,
+  fetchUserCompletedCourses,
+  fetchMainQuestCourses,
+  canAccessCourse,
+} from '@/platform/supabaseCourses';
 import { fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -30,6 +35,7 @@ const CourseListPage: React.FC = () => {
     path: (pathname) => pathname === '/main/courses',
   });
   const [specificCourses, setSpecificCourses] = useState<Course[]>([]);
+  const [mainQuestCourses, setMainQuestCourses] = useState<Course[]>([]);
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [allCoursesProgress, setAllCoursesProgress] = useState<Record<string, number>>({});
   const [lessonCounts, setLessonCounts] = useState<Record<string, number>>({});
@@ -70,10 +76,11 @@ const CourseListPage: React.FC = () => {
       setLoading(true);
       try {
         const includeDevCourses = shouldIncludeDeveloperLessonCoursesForUser(profile.isAdmin);
-        const [coursesData, completedCourses, progressRows] = await Promise.all([
+        const [coursesData, completedCourses, progressRows, mainQuestRows] = await Promise.all([
           fetchCoursesForLessonList({ includeDeveloperCourses: includeDevCourses }),
           fetchUserCompletedCourses(profile.id, { includeDeveloperCourses: includeDevCourses }),
           fetchUserLessonProgressAll(),
+          fetchMainQuestCourses(),
         ]);
 
         const audienceFilter = isEnglishCopy ? 'global' : 'japan';
@@ -87,11 +94,13 @@ const CourseListPage: React.FC = () => {
 
         if (cancelled) return;
         setSpecificCourses(sortedSpecific);
+        setMainQuestCourses(mainQuestRows);
         setCompletedCourseIds(completedCourses);
 
+        const allListedCourses = [...mainQuestRows, ...sortedSpecific];
         const counts: Record<string, number> = {};
         const completedCountByCourse: Record<string, number> = {};
-        sortedSpecific.forEach(course => {
+        allListedCourses.forEach(course => {
           counts[course.id] = course.lessons?.length ?? 0;
         });
 
@@ -103,7 +112,7 @@ const CourseListPage: React.FC = () => {
         });
 
         const progressMap: Record<string, number> = {};
-        sortedSpecific.forEach(course => {
+        allListedCourses.forEach(course => {
           const total = counts[course.id] ?? 0;
           const completed = completedCountByCourse[course.id] ?? 0;
           progressMap[course.id] = total > 0 ? Math.round((completed / total) * 100) : 0;
@@ -282,7 +291,7 @@ const CourseListPage: React.FC = () => {
                 {isEnglishCopy ? 'Courses' : 'コース'}
               </h1>
               <p className="text-sm text-violet-200/70">
-                {isEnglishCopy ? 'Choose focused courses outside the main quest.' : 'メインクエスト以外のコースを選べます。'}
+                {isEnglishCopy ? 'Main quest and focused courses.' : 'メインクエストと目的別コースを選べます。'}
               </p>
             </div>
 
@@ -292,6 +301,55 @@ const CourseListPage: React.FC = () => {
               </div>
             ) : (
               <>
+                {mainQuestCourses.length > 0 ? (
+                  <section>
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <span className="w-1 h-5 bg-cyan-400 rounded-full" />
+                      {isEnglishCopy ? 'Main Quest' : 'メインクエスト'}
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {mainQuestCourses.map((course) => {
+                        const instrument = course.main_quest_instrument ?? 'piano';
+                        const subtitle = instrument === 'all'
+                          ? (isEnglishCopy ? 'All instruments' : '全楽器')
+                          : (isEnglishCopy ? 'Piano / keyboard' : 'ピアノ / キーボード');
+                        return (
+                          <button
+                            key={course.id}
+                            type="button"
+                            className="group relative text-left w-full border border-cyan-400/30 bg-cyan-950/20 hover:bg-cyan-950/35 transition-all duration-200 rounded-xl p-5"
+                            onClick={() => { openCourse(course.id); }}
+                          >
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-200 font-bold tracking-wide border border-cyan-500/30">
+                              {subtitle}
+                            </span>
+                            <h3 className="font-semibold mt-2 mb-1 line-clamp-2 text-base">
+                              {courseDisplayTitle(course, isEnglishCopy)}
+                            </h3>
+                            {courseDisplayDescription(course, isEnglishCopy) ? (
+                              <p className="text-xs text-gray-400 line-clamp-2 mb-3">
+                                {courseDisplayDescription(course, isEnglishCopy)}
+                              </p>
+                            ) : null}
+                            <div className="flex justify-between items-center text-xs text-gray-400 mb-1.5">
+                              <span>
+                                {lessonCounts[course.id] ?? 0} {isEnglishCopy ? 'quests' : 'クエスト'}
+                              </span>
+                              <span>{allCoursesProgress[course.id] ?? 0}%</span>
+                            </div>
+                            <div className="h-1.5 bg-slate-900/70 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-cyan-500 transition-all duration-500"
+                                style={{ width: `${allCoursesProgress[course.id] ?? 0}%` }}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : null}
+
                 {COURSE_DIFFICULTY_TIER_ORDER.map(tier => {
                   const list = coursesByTier.get(tier) ?? [];
                   if (list.length === 0) return null;

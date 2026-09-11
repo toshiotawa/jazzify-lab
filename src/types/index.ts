@@ -1114,6 +1114,8 @@ export interface Course {
   is_developer_only?: boolean;
   /** メインクエスト用コース（サブクエストと区別。DB: is_main_course） */
   is_main_course?: boolean;
+  /** メインクエストの楽器向け（piano / all）。DB: main_quest_instrument */
+  main_quest_instrument?: 'piano' | 'all' | null;
   /** ソフトランディング対象の提示順（NULL は対象外） */
   soft_landing_order?: number | null;
   prerequisites?: CoursePrerequisite[];

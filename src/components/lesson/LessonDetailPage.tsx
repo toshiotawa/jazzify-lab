@@ -94,6 +94,7 @@ import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
 import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
 import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
 import { lessonDetailPath } from '@/utils/appNavigation';
+import { recordPlayMapNodeClear, type PlayMapMode } from '@/platform/supabasePlayMap';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
 import type { PaywallSource } from '@/utils/analytics/paywallSource';
@@ -121,6 +122,15 @@ const LessonDetailPage: React.FC = () => {
   const lessonId = routeLessonId ?? hashLessonId;
   const routeAutoStart = searchParams.get('autoStart') === '1';
   const routeJustCleared = searchParams.get('justCleared');
+  const routePlayMapNodeId = searchParams.get('playMapNodeId');
+  const routePlayMapMode = searchParams.get('playMapMode');
+  const [hashPlayMapNodeId, setHashPlayMapNodeId] = useState<string | null>(null);
+  const [hashPlayMapMode, setHashPlayMapMode] = useState<PlayMapMode | null>(null);
+  const playMapNodeId = routePlayMapNodeId ?? hashPlayMapNodeId;
+  const playMapModeRaw = routePlayMapMode ?? hashPlayMapMode;
+  const playMapMode: PlayMapMode | null =
+    playMapModeRaw === 'code_run' || playMapModeRaw === 'defense' ? playMapModeRaw : null;
+  const isPlayMapQuestContext = Boolean(playMapNodeId);
   const autoStartFirstRequirement = routeLessonId ? routeAutoStart : hashAutoStart;
   const justClearedParam = resolveJustClearedLessonSongId({
     routeLessonId,
@@ -237,10 +247,15 @@ const LessonDetailPage: React.FC = () => {
         setHashLessonId(params.get('id'));
         setHashAutoStart(params.get('autoStart') === '1');
         setHashJustCleared(params.get('justCleared'));
+        setHashPlayMapNodeId(params.get('playMapNodeId'));
+        const mode = params.get('playMapMode');
+        setHashPlayMapMode(mode === 'code_run' || mode === 'defense' ? mode : null);
       } else {
         setHashLessonId(null);
         setHashAutoStart(false);
         setHashJustCleared(null);
+        setHashPlayMapNodeId(null);
+        setHashPlayMapMode(null);
       }
       setIsNavigating(false);
     };
@@ -781,15 +796,58 @@ const LessonDetailPage: React.FC = () => {
         /* noop */
       }
 
+      if (isPlayMapQuestContext && playMapNodeId) {
+        const clearResult = await recordPlayMapNodeClear(playMapNodeId, {});
+        if (clearResult.error) {
+          throw new Error(clearResult.error);
+        }
+        toast.success(
+          isEnglishCopy ? 'Quest node cleared!' : 'クエストノードをクリアしました！',
+          { duration: 3000 },
+        );
+        if (clearResult.isFirstClear && clearResult.mode === 'code_run') {
+          try {
+            const xpAward = await awardPlayerXp('code_run_node_first_clear', playMapNodeId, 80);
+            showPlayerXpToasts(toast, xpAward, isEnglishCopy);
+          } catch {
+            /* noop */
+          }
+        }
+        if (clearResult.isFirstClear && clearResult.mode === 'defense') {
+          try {
+            const xpAward = await awardPlayerXp('defense_node_first_clear', playMapNodeId, 80);
+            showPlayerXpToasts(toast, xpAward, isEnglishCopy);
+          } catch {
+            /* noop */
+          }
+        }
+        if (clearResult.isFirstClear) {
+          try {
+            await grantAndToastUserBadges(
+              {
+                event: 'play_map_node_clear',
+                mode: clearResult.mode,
+              },
+              toast,
+              isEnglishCopy,
+            );
+          } catch {
+            /* noop */
+          }
+        }
+        setAllRequirementsCompleted(true);
+        setShowNextLessonPrompt(false);
+        navigate(playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run');
+        return;
+      }
+
       await updateLessonProgress(lessonId, lesson.course_id, true);
-      
-      // キャッシュを無効化してデータの即座反映を確保
+
       if (profile?.id) {
         clearCacheByKey(LESSON_PROGRESS_CACHE_KEY(lesson.course_id, profile.id));
       }
-      clearSupabaseCache(); // 全体キャッシュもクリア
-      
-      // ユーザー統計を更新
+      clearSupabaseCache();
+
       fetchStats().catch(() => {
         /* 統計更新失敗は非致命 */
       });
@@ -826,9 +884,8 @@ const LessonDetailPage: React.FC = () => {
         /* RPC 失敗でもクエスト完了は維持 */
       }
 
-      // 完了状態を即座に反映（ページに留まる）
-      setLessonProgress(prev => prev 
-        ? { ...prev, completed: true, completion_date: new Date().toISOString() } 
+      setLessonProgress(prev => prev
+        ? { ...prev, completed: true, completion_date: new Date().toISOString() }
         : {
             id: '',
             user_id: profile?.id || '',
@@ -842,8 +899,6 @@ const LessonDetailPage: React.FC = () => {
       );
       setAllRequirementsCompleted(true);
 
-      // ナビゲーション情報を再取得（完了後の最新状態で判定）
-      // 完了直後は Supabase 側の反映が僅かに遅れることがあるため、1 回だけ再試行する。
       if (lesson.course_id) {
         let freshNavInfo: LessonNavigationInfo | null = null;
         let courseLessons: Lesson[] | null = null;
@@ -1021,11 +1076,15 @@ const LessonDetailPage: React.FC = () => {
     }
     markSoftLandingSessionDismissed();
     setShowSoftLandingOffer(false);
-    window.location.hash = '#lessons';
+    window.location.hash = '#courses';
   }, [nextSoftLandingCourse, trackOfferDismissed]);
 
   const handleClose = () => {
-    window.location.hash = '#lessons';
+    if (isPlayMapQuestContext) {
+      navigate(playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run');
+      return;
+    }
+    window.location.hash = '#courses';
   };
 
   const handleNavigateToPrevious = () => {
@@ -1083,9 +1142,13 @@ const LessonDetailPage: React.FC = () => {
   };
 
   const handleBackToCourse = () => {
+    if (isPlayMapQuestContext) {
+      navigate(playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run');
+      return;
+    }
     const courseId = lesson?.course_id;
-    if (lessonCourseIsMainQuest || !courseId) {
-      window.location.hash = '#lessons';
+    if (!courseId) {
+      window.location.hash = '#courses';
       return;
     }
     window.location.hash = `#course?id=${courseId}`;
@@ -1139,7 +1202,7 @@ const LessonDetailPage: React.FC = () => {
           {/* ワンカラムレイアウト */}
           <div className="max-w-4xl mx-auto p-4 space-y-6">
             {/* ナビゲーションボタン */}
-            {navigationInfo && (
+            {navigationInfo && !isPlayMapQuestContext && (
               <div className="flex items-center justify-between gap-4 mb-4">
                 <button
                   onClick={handleNavigateToPrevious}

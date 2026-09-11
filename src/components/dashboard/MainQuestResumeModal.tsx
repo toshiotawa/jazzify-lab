@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { FaCrown, FaPlay } from 'react-icons/fa';
-import { fetchMainQuestProgress, MainQuestProgress } from '@/platform/supabaseCourses';
+import {
+  fetchMainQuestProgress,
+  MainQuestProgress,
+  resolveMainQuestInstrument,
+} from '@/platform/supabaseCourses';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -39,7 +43,8 @@ const MainQuestResumeModal: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchMainQuestProgress();
+        const instrument = resolveMainQuestInstrument(profile?.instrument ?? null);
+        const data = await fetchMainQuestProgress(instrument);
         if (cancelled || !data?.nextLesson || !profile?.id) {
           return;
         }
@@ -82,7 +87,7 @@ const MainQuestResumeModal: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [isPremiumMember, profile?.id]);
+  }, [isPremiumMember, profile?.id, profile?.instrument]);
 
   const nextLesson = progress?.nextLesson ?? null;
 

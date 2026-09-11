@@ -468,9 +468,20 @@ export type QuestCompletionModalKind =
 
 export function buildLessonDetailHash(
   lessonId: string,
-  options?: { autoStart?: boolean; justCleared?: string },
+  options?: {
+    autoStart?: boolean;
+    justCleared?: string;
+    playMapNodeId?: string;
+    playMapMode?: 'code_run' | 'defense';
+  },
 ): string {
   const params = new URLSearchParams({ id: lessonId });
+  if (options?.playMapNodeId) {
+    params.set('playMapNodeId', options.playMapNodeId);
+  }
+  if (options?.playMapMode) {
+    params.set('playMapMode', options.playMapMode);
+  }
   if (options?.autoStart === true) {
     params.set('autoStart', '1');
   }

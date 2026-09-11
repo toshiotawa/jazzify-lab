@@ -1,85 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaUserCircle } from 'react-icons/fa';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
+import { cn } from '@/utils/cn';
 
-/**
- * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
- * GameScreen だけでなくマイページやアカウントページでも再利用する。
- */
 const GameHeader: React.FC = () => {
-      const { profile } = useAuthStore();
-      const geoCountry = useGeoStore(state => state.country);
-      const isEnglishCopy = shouldUseEnglishCopy({
-        rank: profile?.rank,
-        country: profile?.country ?? geoCountry,
-        preferredLocale: profile?.preferred_locale ?? null,
-      });
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore((state) => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
 
   return (
     <>
-    <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
-      <div className="flex justify-between items-center gap-2">
-        {/* 左側ナビゲーション */}
-        <div className="flex-1 min-w-0 flex items-center space-x-1 sm:space-x-2 overflow-x-auto whitespace-nowrap pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
-            {/* トップ (ダッシュボード) */}
-          <button
-            className="text-white hover:text-primary-400 font-accent font-bold px-2"
-            onClick={() => {
-              if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
-              window.location.href = '/main#dashboard';
-            }}
-          >
+      <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
+        <div className="flex justify-between items-center gap-2">
+          <div className="flex-1 min-w-0 flex items-center space-x-1 sm:space-x-2 overflow-x-auto whitespace-nowrap pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+            <NavPathButton path="/main/dashboard" onIos={() => sendGameCallback('gameEnd')}>
               {isEnglishCopy ? 'Home' : 'トップ'}
-          </button>
-
-            <HashButton hash="#lessons">{isEnglishCopy ? 'Quests' : 'クエスト'}</HashButton>
-            <HashButton hash="#courses">{isEnglishCopy ? 'Courses' : 'コース'}</HashButton>
-            <HashButton hash="#survival">{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>
-            <HashButton hash="#training">{isEnglishCopy ? 'Training' : 'トレーニング'}</HashButton>
-        </div>
-
-          {/* 右側のコントロール */}
+            </NavPathButton>
+            <NavPathButton path="/main/courses">
+              {isEnglishCopy ? 'Quests' : 'クエスト'}
+            </NavPathButton>
+            <NavPathButton path="/main/play" excludePathPrefix="/main/play/training">
+              {isEnglishCopy ? 'Play' : 'プレイ'}
+            </NavPathButton>
+            <NavPathButton path="/main/play/training">
+              {isEnglishCopy ? 'Training' : 'トレーニング'}
+            </NavPathButton>
+          </div>
           <HeaderRightControls isEnglishCopy={isEnglishCopy} />
-      </div>
-    </header>
-    <PaymentIssueBanner />
+        </div>
+      </header>
+      <PaymentIssueBanner />
     </>
   );
 };
 
-/******************** サブコンポーネント ********************/
-interface HashButtonProps {
-  hash: string;
+interface NavPathButtonProps {
+  path: string;
   children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
+  onIos?: () => void;
+  /** このプレフィックス配下は別タブ扱いにして active にしない */
+  excludePathPrefix?: string;
 }
 
-const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabled }) => {
-  const [currentHash, setCurrentHash] = useState(window.location.hash);
-
-  useEffect(() => {
-    const handler = () => setCurrentHash(window.location.hash);
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
-  }, []);
-
-  const active = currentHash === hash;
+const NavPathButton: React.FC<NavPathButtonProps> = ({ path, children, onIos, excludePathPrefix }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const excluded = excludePathPrefix != null && location.pathname.startsWith(excludePathPrefix);
+  const active = !excluded && (location.pathname === path || location.pathname.startsWith(`${path}/`));
 
   return (
     <button
+      type="button"
+      className={cn(
+        'px-2 py-1 text-xs sm:text-sm whitespace-nowrap font-accent font-bold',
+        active ? 'tab-active' : 'tab-inactive',
+      )}
       onClick={() => {
-        if (!disabled) {
-          window.location.hash = hash;
-          onClick?.();
+        if (isIOSWebView() && onIos) {
+          onIos();
+          return;
         }
+        navigate(path);
       }}
-      className={`px-2 py-1 text-xs sm:text-sm whitespace-nowrap font-accent font-bold ${active ? 'tab-active' : 'tab-inactive'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-      disabled={disabled}
     >
       {children}
     </button>
@@ -91,26 +82,32 @@ interface HeaderRightControlsProps {
 }
 
 const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy }) => {
-    const { user } = useAuthStore();
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   return (
     <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 whitespace-nowrap">
       {user ? (
         <>
-          <a 
-            href="#account" 
+          <button
+            type="button"
             className="sm:hidden p-2 text-white hover:text-primary-400 transition-colors"
             aria-label={isEnglishCopy ? 'Account' : 'アカウント'}
+            onClick={() => navigate('/main/account')}
           >
             <FaUserCircle size={24} />
-          </a>
-          <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary font-accent font-bold">
+          </button>
+          <button
+            type="button"
+            className="hidden sm:inline-flex btn btn-sm btn-primary font-accent font-bold"
+            onClick={() => navigate('/main/account')}
+          >
             {isEnglishCopy ? 'Account' : 'アカウント'}
-          </a>
+          </button>
         </>
       ) : null}
     </div>
   );
 };
 
-export default GameHeader; 
+export default GameHeader;

@@ -20,6 +20,9 @@ const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/Ba
 const LazyDefenseMain = React.lazy(() => import('@/components/defense/DefenseMain'));
 const LazyTrainingMain = React.lazy(() => import('@/components/training/TrainingMain'));
 const LazyVideoLessonMain = React.lazy(() => import('@/components/videoLesson/VideoLessonMain'));
+const LazyPlayHubPage = React.lazy(() => import('@/components/play/PlayHubPage'));
+const LazyCodeRunMapMain = React.lazy(() => import('@/components/play/CodeRunMapMain'));
+const LazyDefenseMapMain = React.lazy(() => import('@/components/play/DefenseMapMain'));
 
 interface GameRoutesProps {
   isPremiumMember: boolean;
@@ -109,6 +112,30 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       }
     />
     <Route
+      index
+      element={
+        <React.Suspense fallback={<LoadingScreen compact />}>
+          <LazyPlayHubPage />
+        </React.Suspense>
+      }
+    />
+    <Route
+      path="code-run"
+      element={
+        <React.Suspense fallback={<LoadingScreen compact />}>
+          <LazyCodeRunMapMain />
+        </React.Suspense>
+      }
+    />
+    <Route
+      path="phrase-defense"
+      element={
+        <React.Suspense fallback={<LoadingScreen compact />}>
+          <LazyDefenseMapMain />
+        </React.Suspense>
+      }
+    />
+    <Route
       path="training"
       element={
         <React.Suspense fallback={<LoadingScreen compact />}>
@@ -132,7 +159,7 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
         </React.Suspense>
       }
     />
-    <Route path="*" element={renderDashboard()} />
+    <Route path="*" element={<Navigate to="/main/play" replace />} />
   </Routes>
 );
 

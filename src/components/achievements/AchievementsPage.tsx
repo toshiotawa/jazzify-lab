@@ -6,7 +6,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { useToast } from '@/stores/toastStore';
 import { fetchUserBadges, type EarnedBadge } from '@/platform/supabaseBadges';
-import { BADGE_CATEGORIES, BADGE_DEFINITIONS, BADGE_TOTAL_COUNT, type BadgeDefinition } from '@/utils/badgeDefinitions';
+import {
+  ACTIVE_BADGE_DEFINITIONS,
+  BADGE_CATEGORIES,
+  BADGE_TOTAL_COUNT,
+  isActiveBadgeCategory,
+  type BadgeDefinition,
+} from '@/utils/badgeDefinitions';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { syncAndToastUserBadges } from '@/utils/badgeToasts';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -91,10 +97,13 @@ const AchievementsPage: React.FC = () => {
   }, [earnedBadges]);
 
   const groupedBadges = useMemo(
-    () => BADGE_CATEGORIES.map(category => ({
-      category,
-      badges: BADGE_DEFINITIONS.filter(badge => badge.categoryId === category.id),
-    })),
+    () => BADGE_CATEGORIES
+      .filter((category) => isActiveBadgeCategory(category.id))
+      .map((category) => ({
+        category,
+        badges: ACTIVE_BADGE_DEFINITIONS.filter((badge) => badge.categoryId === category.id),
+      }))
+      .filter((group) => group.badges.length > 0),
     [],
   );
 

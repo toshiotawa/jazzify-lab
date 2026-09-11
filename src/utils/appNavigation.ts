@@ -62,9 +62,11 @@ export const hashToAppPath = (hash: string): string | null => {
     case '#dashboard':
       return dashboardPath();
     case '#lessons':
-      return `${lessonsListPath()}${search}`;
+      return coursesListPath();
     case '#courses':
       return coursesListPath();
+    case '#play':
+      return `${APP_BASE_PATH}/play${search}`;
     case '#course': {
       const id = params.get('id');
       if (!id) return null;
@@ -95,6 +97,10 @@ export const hashToAppPath = (hash: string): string | null => {
       return `${APP_BASE_PATH}/play/fantasy${search}`;
     case '#Story':
       return `${APP_BASE_PATH}/play/story${search}`;
+    case '#code-run':
+      return `${APP_BASE_PATH}/play/code-run${search}`;
+    case '#phrase-defense':
+      return `${APP_BASE_PATH}/play/phrase-defense${search}`;
     case '#survival':
       return `${APP_BASE_PATH}/play/survival${search}`;
     case '#training':
