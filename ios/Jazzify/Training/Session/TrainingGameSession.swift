@@ -21,8 +21,8 @@ final class TrainingGameSession: ObservableObject {
     private let lessonContext: TrainingLessonContext?
 
     private var lastFrameTime: TimeInterval?
-    private var pendingNextQuestion = false
     private var previousQuestionKey: String?
+    var isPaused = false
     private var countdownTask: Task<Void, Never>?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
 
@@ -62,6 +62,11 @@ final class TrainingGameSession: ObservableObject {
     }
 
     func advanceFrame(currentTime: TimeInterval) {
+        if isPaused {
+            lastFrameTime = currentTime
+            return
+        }
+
         let last = lastFrameTime ?? currentTime
         let dt = min(0.05, currentTime - last)
         lastFrameTime = currentTime
@@ -74,15 +79,11 @@ final class TrainingGameSession: ObservableObject {
             hud.remainSec = remainSec
         }
 
-        let enemyReady = TrainingEngine.tickEnemy(
+        TrainingEngine.tickEnemy(
             runtime: &runtime,
             nowSec: runtime.elapsedSec,
             dt: dt
         )
-        if enemyReady {
-            pendingNextQuestion = false
-            spawnQuestion()
-        }
 
         if finished {
             runtime.result = .finished
@@ -135,8 +136,8 @@ final class TrainingGameSession: ObservableObject {
     }
 
     func handleNoteOn(midiNote: Int) {
-        guard hud.phase == .playing, runtime.result == .playing else { return }
-        guard let current = runtime.question, !pendingNextQuestion else { return }
+        guard !isPaused, hud.phase == .playing, runtime.result == .playing else { return }
+        guard let current = runtime.question else { return }
 
         let result = TrainingEngine.evaluateNoteOn(
             question: current,
@@ -156,7 +157,6 @@ final class TrainingGameSession: ObservableObject {
 
         guard result.completed else { return }
 
-        pendingNextQuestion = true
         TrainingEngine.performDefeat(
             runtime: &runtime,
             nowSec: runtime.elapsedSec,
@@ -166,6 +166,7 @@ final class TrainingGameSession: ObservableObject {
         if runtime.score != hud.score {
             hud.score = runtime.score
         }
+        spawnQuestion()
     }
 
     private func spawnQuestion() {

@@ -209,4 +209,19 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             XCTAssertNil(q.notes[1].noteName.range(of: "x|bb|E#|B#|Cb|Fb", options: .regularExpression))
         }
     }
+
+    func testCollectStageMidisCoversNoteReadingRange() {
+        let row = training(kind: .noteReading, config: config(clef: "treble", includeAccidentals: false))
+        let midis = TrainingQuestionBuilder.collectStageMidis(training: row)
+        XCTAssertEqual(midis.min(), 60)
+        XCTAssertEqual(midis.max(), 81)
+    }
+
+    func testCollectStageMidisIncludesEveryChordRoot() {
+        let row = training(kind: .chord, config: config(roots: ["C", "G"], quality: "maj"))
+        let midis = Set(TrainingQuestionBuilder.collectStageMidis(training: row))
+        XCTAssertTrue(midis.contains(72))
+        XCTAssertTrue(midis.contains(79))
+        XCTAssertTrue(midis.contains(74))
+    }
 }

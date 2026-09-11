@@ -53,5 +53,7 @@ describe('trainingEngine', () => {
     performTrainingDefeat(runtime, 1.5, 1);
     expect(runtime.enemy.slashUntilSec).toBeGreaterThan(1.5);
     expect(runtime.guardPoseUntilSec).toBeCloseTo(2.5);
+    expect(runtime.enemy.typeIndex).toBe(1);
+    expect(runtime.enemy.fadeAlpha).toBe(1);
   });
 });

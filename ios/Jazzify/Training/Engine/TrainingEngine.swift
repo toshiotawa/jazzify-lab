@@ -75,24 +75,21 @@ enum TrainingEngine {
 
     static func performDefeat(runtime: inout TrainingRuntime, nowSec: TimeInterval, guardPoseSec: TimeInterval = 0) {
         runtime.enemy.slashUntilSec = nowSec + DefenseEnemyConfig.slashSec
-        runtime.enemy.fadeAlpha = 0.35
+        runtime.enemy.typeIndex = (runtime.enemy.typeIndex + 1) % TrainingConstants.enemyCount
+        runtime.enemy.fadeAlpha = 1
         if guardPoseSec > 0 {
             runtime.guardPoseUntilSec = nowSec + guardPoseSec
         }
     }
 
-    static func tickEnemy(runtime: inout TrainingRuntime, nowSec: TimeInterval, dt: TimeInterval) -> Bool {
+    /// Slash / fade の視覚更新のみ。次問スポーンは正解時に同期で行う。
+    static func tickEnemy(runtime: inout TrainingRuntime, nowSec: TimeInterval, dt: TimeInterval) {
         if runtime.enemy.slashUntilSec > 0, nowSec >= runtime.enemy.slashUntilSec {
             runtime.enemy.slashUntilSec = 0
-            runtime.enemy.fadeAlpha = 0
-            runtime.enemy.typeIndex = (runtime.enemy.typeIndex + 1) % TrainingConstants.enemyCount
-            runtime.enemy.fadeAlpha = 1
-            return true
         }
         if runtime.enemy.fadeAlpha > 0, runtime.enemy.fadeAlpha < 1 {
             runtime.enemy.fadeAlpha = max(0, runtime.enemy.fadeAlpha - CGFloat(dt * 2.5))
         }
-        return false
     }
 
     static func tickTimer(runtime: inout TrainingRuntime, dt: TimeInterval) -> Bool {

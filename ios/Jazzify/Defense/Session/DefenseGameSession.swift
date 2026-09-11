@@ -34,6 +34,7 @@ final class DefenseGameSession: ObservableObject {
     private var pendingSwitchPhraseIndex: Int?
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
+    var isPaused = false
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
 
     init(
@@ -108,7 +109,7 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func handleNoteOn(pitchClass: Int, sequential: Bool = false) {
-        guard runtime.result == .playing else { return }
+        guard !isPaused, runtime.result == .playing else { return }
         let evaluation = DefensePhraseJudge.evaluateNoteOn(
             state: judgeState,
             stageRequiredCompletionCount: stage.requiredCompletionCount,
@@ -140,6 +141,10 @@ final class DefenseGameSession: ObservableObject {
 
     /// SpriteKit の `update` から毎フレーム呼ばれる。React 相当の publish は値変化時のみ。
     func advanceFrame(currentTime: TimeInterval) {
+        if isPaused {
+            lastFrameTime = currentTime
+            return
+        }
         guard runtime.result == .playing else { return }
         let dt: TimeInterval
         if let last = lastFrameTime {

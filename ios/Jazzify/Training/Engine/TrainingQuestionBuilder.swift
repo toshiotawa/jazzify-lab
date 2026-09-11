@@ -195,6 +195,85 @@ enum TrainingQuestionBuilder {
         ))
     }
 
+    /// ステージ内で出題しうる全 MIDI。音域フィットを問題ごとに動かさないために使う。
+    static func collectStageMidis(training: TrainingRow) -> [Int] {
+        let mergedConfig = training.config
+        let roots = mergedConfig.roots ?? ["C"]
+        let effectiveClef = resolveEffectiveClef(clefMode: training.clefMode, configClef: mergedConfig.clef)
+        let singleClef = effectiveClef == "bass" ? "bass" : "treble"
+        let staffBottom = staffBottomMidi[singleClef] ?? 64
+        var midis: [Int] = []
+
+        switch training.kind {
+        case .noteReading:
+            let includeAccidentals = mergedConfig.includeAccidentals == true
+            let forcedClef = mergedConfig.clef == "bass" || effectiveClef == "bass" ? "bass" : "treble"
+            let spellings = includeAccidentals
+                ? noteReadingWithAccidentals[forcedClef]
+                : noteReadingNaturals[forcedClef]
+            if let spellings {
+                for spelling in spellings {
+                    if let midi = TrainingMusicTheory.parseVoicingMidi(spelling) {
+                        midis.append(midi)
+                    }
+                }
+            }
+
+        case .interval:
+            let interval = mergedConfig.interval ?? "2m"
+            let directionUp = (mergedConfig.direction ?? "up") == "up"
+            guard let spec = TrainingMusicTheory.parseInterval(directionUp ? interval : "-\(interval)") else {
+                return midis
+            }
+            for spelling in intervalBaseSpellings {
+                guard let raw = TrainingMusicTheory.parseSpelled("\(spelling)4") else { continue }
+                guard let base = TrainingMusicTheory.placeLowestInOctaveAbove([raw], minMidi: staffBottom).first else {
+                    continue
+                }
+                let target = TrainingMusicTheory.transpose(base, by: spec)
+                guard TrainingMusicTheory.isSimpleSpelling(target) else { continue }
+                if target.midi < staffBottom {
+                    midis.append(TrainingMusicTheory.shiftOctave(base, by: 1).midi)
+                    midis.append(TrainingMusicTheory.shiftOctave(target, by: 1).midi)
+                } else {
+                    midis.append(base.midi)
+                    midis.append(target.midi)
+                }
+            }
+
+        case .scale:
+            let scaleType = mergedConfig.scale ?? "major"
+            guard let intervals = TrainingMusicTheory.scaleTemplates[scaleType] else { return midis }
+            for root in roots {
+                let notes = TrainingMusicTheory.placeLowestInOctaveAbove(
+                    TrainingMusicTheory.spelledFromIntervals(root: root, octave: 4, intervals: intervals),
+                    minMidi: staffBottom
+                )
+                midis.append(contentsOf: notes.map(\.midi))
+            }
+
+        case .chord, .voicing:
+            let defaultStaff = singleClef == "bass" ? 2 : 1
+            for root in roots {
+                guard let built = buildChordVoicingQuestion(
+                    training: training,
+                    config: mergedConfig,
+                    root: root,
+                    defaultStaff: defaultStaff,
+                    staffBottom: staffBottom,
+                    previousQuestionKey: nil,
+                    keyFifths: 0
+                ) else { continue }
+                midis.append(contentsOf: built.notes.map(\.midi))
+            }
+
+        case .progression:
+            break
+        }
+
+        return midis
+    }
+
     private static func buildChordVoicingQuestion(
         training: TrainingRow,
         config: TrainingConfig,

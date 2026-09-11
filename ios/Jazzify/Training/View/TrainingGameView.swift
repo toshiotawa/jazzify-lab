@@ -5,7 +5,8 @@ struct TrainingGameView: View {
     @StateObject private var session: TrainingGameSession
     @State private var scene: TrainingScene
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
-    @State private var accumulatedKeyboardRange: PianoStagePitchRange?
+    @State private var stageKeyboardRange: PianoStagePitchRange?
+    @State private var isSettingsOpen = false
     let locale: AppLocale
     let onClose: () -> Void
     let onFinished: (Int) -> Void
@@ -27,6 +28,7 @@ struct TrainingGameView: View {
         self.locale = locale
         self.onClose = onClose
         self.onFinished = onFinished
+        _stageKeyboardRange = State(initialValue: TrainingKeyboardRange.stageRange(training: training))
     }
 
     var body: some View {
@@ -48,27 +50,24 @@ struct TrainingGameView: View {
             if let question = session.question, session.hud.phase != .countdown {
                 VStack {
                     Spacer()
-                    ScrollView {
-                        VStack(spacing: 8) {
-                            if !question.promptLabel.isEmpty {
-                                Text(question.promptLabel)
-                                    .font(.headline)
-                            }
-                            TrainingStaffView(
-                                question: question,
-                                correctIndices: session.correctIndices,
-                                showHints: session.practiceMode,
-                                clefMode: session.training.clefMode
-                            )
+                    VStack(spacing: 8) {
+                        if !question.promptLabel.isEmpty {
+                            Text(question.promptLabel)
+                                .font(.headline)
                         }
-                        .padding(.horizontal)
-                        .frame(maxWidth: 720)
+                        TrainingStaffView(
+                            question: question,
+                            correctIndices: session.correctIndices,
+                            showHints: session.practiceMode,
+                            clefMode: session.training.clefMode
+                        )
                     }
-                    .frame(maxHeight: 280)
+                    .padding(.horizontal)
+                    .frame(maxWidth: 720)
                     .offset(y: -80)
                     Spacer()
                 }
-                .allowsHitTesting(true)
+                .allowsHitTesting(false)
             }
 
             if session.hud.phase == .countdown {
@@ -87,24 +86,25 @@ struct TrainingGameView: View {
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
                     },
                     onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
-                    keyboardHeight: 88,
-                    minWhiteKeyWidth: 22
+                    keyboardHeight: 88
                 )
                 .frame(height: 88)
             }
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
-        .onChange(of: session.question?.questionKey) { _ in
-            guard let question = session.question else { return }
-            accumulatedKeyboardRange = TrainingKeyboardRange.expandRange(
-                accumulated: accumulatedKeyboardRange,
-                questionMidis: TrainingKeyboardRange.questionMidis(from: question)
-            )
-        }
         .onChange(of: session.hud.phase) { phase in
             if phase == .finished {
                 onFinished(session.runtime.score)
             }
+        }
+        .sheet(isPresented: $isSettingsOpen, onDismiss: {
+            session.isPaused = false
+        }) {
+            EarTrainingSettingsSheet(
+                isEnglishCopy: locale == .en,
+                onDismiss: { isSettingsOpen = false },
+                onExit: onClose
+            )
         }
     }
 
@@ -125,7 +125,7 @@ struct TrainingGameView: View {
                 timeLabel: timeLabel,
                 hideTimeLabel: false,
                 hidePlayerHpBar: true,
-                hideSettingsButton: true,
+                hideSettingsButton: false,
                 hideBackButton: false,
                 enemyAttackGaugePercent: 0,
                 hideEnemyAttackGauge: true,
@@ -138,7 +138,10 @@ struct TrainingGameView: View {
                 slotRow: .melody(slots: ["KO \(session.hud.score)"], revealed: [], currentIndex: 0)
             ),
             showsSlotsRow: session.hud.phase != .countdown,
-            onSettings: {},
+            onSettings: {
+                session.isPaused = true
+                isSettingsOpen = true
+            },
             onBack: onClose
         )
     }
@@ -159,14 +162,14 @@ struct TrainingGameView: View {
             completedHintMidis: [],
             hintPendingOpacity: session.practiceMode ? 1 : 0,
             midiHeldKeys: [],
-            isEnabled: session.hud.phase == .playing,
+            isEnabled: session.hud.phase == .playing && !isSettingsOpen,
             scrollAnchorMidi: nil
         )
     }
 
     private var chordPadRange: PianoStagePitchRange {
         TrainingKeyboardRange.resolvedDisplayRange(
-            accumulated: accumulatedKeyboardRange,
+            stageRange: stageKeyboardRange,
             displayMode: keyboardDisplayMode
         )
     }

@@ -5,31 +5,26 @@ enum TrainingKeyboardRange {
         question.notes.map(\.midi)
     }
 
-    static func expandRange(
-        accumulated: PianoStagePitchRange?,
-        questionMidis: [Int]
-    ) -> PianoStagePitchRange? {
-        guard !questionMidis.isEmpty else { return accumulated }
-        guard let minMidi = questionMidis.min(), let maxMidi = questionMidis.max() else {
-            return accumulated
+    static func stageRange(training: TrainingRow) -> PianoStagePitchRange? {
+        let midis = TrainingQuestionBuilder.collectStageMidis(training: training)
+        guard let minMidi = midis.min(), let maxMidi = midis.max() else {
+            return nil
         }
-        let nextMin = min(accumulated?.minMidi ?? minMidi, minMidi)
-        let nextMax = max(accumulated?.maxMidi ?? maxMidi, maxMidi)
         return PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
-            minNoteMidi: nextMin,
-            maxNoteMidi: nextMax
+            minNoteMidi: minMidi,
+            maxNoteMidi: maxMidi
         )
     }
 
     static func resolvedDisplayRange(
-        accumulated: PianoStagePitchRange?,
+        stageRange: PianoStagePitchRange?,
         displayMode: PianoKeyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     ) -> PianoStagePitchRange {
         switch displayMode {
         case .full88Keys:
             return .full88
         case .questionRangeFit:
-            return accumulated ?? .full88
+            return stageRange ?? .full88
         }
     }
 }

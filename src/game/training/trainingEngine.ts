@@ -78,24 +78,21 @@ export const performTrainingDefeat = (
   guardPoseSec = 0,
 ): void => {
   runtime.enemy.slashUntilSec = nowSec + DEFENSE_SLASH_SEC;
-  runtime.enemy.fadeAlpha = 0.35;
+  runtime.enemy.typeIndex = (runtime.enemy.typeIndex + 1) % TRAINING_ENEMY_COUNT;
+  runtime.enemy.fadeAlpha = 1;
   if (guardPoseSec > 0) {
     runtime.guardPoseUntilSec = nowSec + guardPoseSec;
   }
 };
 
-export const tickTrainingEnemy = (runtime: TrainingRuntime, nowSec: number, dt: number): boolean => {
+/** Slash / fade の視覚更新のみ。次問スポーンは正解時に同期で行う。 */
+export const tickTrainingEnemy = (runtime: TrainingRuntime, nowSec: number, dt: number): void => {
   if (runtime.enemy.slashUntilSec > 0 && nowSec >= runtime.enemy.slashUntilSec) {
     runtime.enemy.slashUntilSec = 0;
-    runtime.enemy.fadeAlpha = 0;
-    runtime.enemy.typeIndex = (runtime.enemy.typeIndex + 1) % TRAINING_ENEMY_COUNT;
-    runtime.enemy.fadeAlpha = 1;
-    return true;
   }
   if (runtime.enemy.fadeAlpha > 0 && runtime.enemy.fadeAlpha < 1) {
     runtime.enemy.fadeAlpha = Math.max(0, runtime.enemy.fadeAlpha - dt * 2.5);
   }
-  return false;
 };
 
 export const tickTrainingTimer = (runtime: TrainingRuntime, dt: number): boolean => {

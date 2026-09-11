@@ -162,10 +162,10 @@ const TrainingMain: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="absolute inset-0 flex min-h-0 flex-col bg-slate-950">
       <GameHeader />
       {screen === 'list' && (
-        <>
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <TrainingList
             categories={categories}
             summaryByTrainingId={summaryMap}
@@ -189,14 +189,16 @@ const TrainingMain: React.FC = () => {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
       {screen === 'ranking' && (
-        <TrainingRanking
-          categories={categories}
-          isEnglish={isEnglish}
-          onBack={() => setScreen('list')}
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <TrainingRanking
+            categories={categories}
+            isEnglish={isEnglish}
+            onBack={() => setScreen('list')}
+          />
+        </div>
       )}
       {screen === 'game' && session && (
         <TrainingGameScreen
@@ -214,27 +216,29 @@ const TrainingMain: React.FC = () => {
         />
       )}
       {screen === 'result' && session && (
-        <TrainingResult
-          trainingTitle={isEnglish ? session.training.titleEn : session.training.titleJa}
-          trainingId={session.training.id}
-          score={finalScore}
-          practiceMode={session.practiceMode}
-          onRetry={() => {
-            setSession({ ...session, nonce: Date.now() });
-            setScreen('game');
-          }}
-          onRanking={() => {
-            setSession(null);
-            setScreen('ranking');
-          }}
-          onExit={() => {
-            if (leaveLessonIfNeeded()) {
-              return;
-            }
-            setSession(null);
-            setScreen('list');
-          }}
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <TrainingResult
+            trainingTitle={isEnglish ? session.training.titleEn : session.training.titleJa}
+            trainingId={session.training.id}
+            score={finalScore}
+            practiceMode={session.practiceMode}
+            onRetry={() => {
+              setSession({ ...session, nonce: Date.now() });
+              setScreen('game');
+            }}
+            onRanking={() => {
+              setSession(null);
+              setScreen('ranking');
+            }}
+            onExit={() => {
+              if (leaveLessonIfNeeded()) {
+                return;
+              }
+              setSession(null);
+              setScreen('list');
+            }}
+          />
+        </div>
       )}
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglish} source="training" />
     </div>

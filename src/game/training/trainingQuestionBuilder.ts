@@ -401,6 +401,105 @@ export const buildTrainingQuestion = (
   return buildTrainingQuestion({ ...options, previousQuestionKey: null });
 };
 
+/**
+ * ステージ内で出題しうる全 MIDI を列挙する（ランダム出題に依存しない）。
+ * 音域フィットの鍵盤位置を問題ごとに動かさないために使う。
+ */
+export const collectTrainingStageMidis = (
+  options: Pick<
+    TrainingQuestionBuilderOptions,
+    'training' | 'notationInstrumentId' | 'notationOctaveShift' | 'ignoreNotationInstrument'
+  >,
+): number[] => {
+  const { training } = options;
+  const preset = getNotationInstrumentPreset(normalizeNotationInstrumentId(options.notationInstrumentId));
+  const writtenOffset = options.ignoreNotationInstrument
+    ? 0
+    : getWrittenSemitoneOffset(preset, options.notationOctaveShift);
+  const config = training.config;
+  const roots = config.roots ?? ['C'];
+  const effectiveClef = resolveEffectiveClef(training.clefMode, preset.clef, config.clef);
+  const singleClef: Clef = effectiveClef === 'bass' ? 'bass' : 'treble';
+  const concertStaffBottom = STAFF_BOTTOM_MIDI[singleClef] - writtenOffset;
+  const midis: number[] = [];
+
+  const pushNames = (names: readonly string[]): void => {
+    for (let i = 0; i < names.length; i += 1) {
+      midis.push(midiOf(names[i]));
+    }
+  };
+
+  if (training.kind === 'note_reading') {
+    const includeAccidentals = config.includeAccidentals === true;
+    const forcedClef = config.clef === 'bass' || effectiveClef === 'bass' ? 'bass' : 'treble';
+    const spellings = includeAccidentals
+      ? NOTE_READING_WITH_ACCIDENTALS[forcedClef]
+      : NOTE_READING_NATURALS[forcedClef];
+    for (let i = 0; i < spellings.length; i += 1) {
+      const writtenMidi = parseVoicingNoteName(spellings[i]).midi;
+      midis.push(writtenMidi - writtenOffset);
+    }
+    return midis;
+  }
+
+  if (training.kind === 'interval') {
+    const interval = config.interval ?? '2m';
+    const direction = config.direction ?? 'up';
+    const tonalInterval = direction === 'up' ? interval : `-${interval}`;
+    for (const spelling of INTERVAL_BASE_SPELLINGS) {
+      const [base] = placeLowestInOctaveAbove([`${spelling}4`], concertStaffBottom);
+      if (!base) continue;
+      const target = transpose(base, tonalInterval);
+      if (!target) continue;
+      const normalizedTarget = normalizeSpelling(target);
+      if (!isSimpleSpelling(normalizedTarget)) continue;
+      if (midiOf(normalizedTarget) < concertStaffBottom) {
+        pushNames([shiftOctave(base, 1), shiftOctave(normalizedTarget, 1)]);
+      } else {
+        pushNames([base, normalizedTarget]);
+      }
+    }
+    return midis;
+  }
+
+  if (training.kind === 'scale') {
+    const scaleType = config.scale ?? 'major';
+    const intervals = SCALE_TEMPLATES[scaleType];
+    if (!intervals) return midis;
+    for (let i = 0; i < roots.length; i += 1) {
+      const root = roots[i] ?? 'C';
+      pushNames(placeLowestInOctaveAbove(spelledFromIntervals(`${root}4`, intervals), concertStaffBottom));
+    }
+    return midis;
+  }
+
+  if (training.kind === 'chord' || training.kind === 'voicing') {
+    for (let i = 0; i < roots.length; i += 1) {
+      const root = roots[i] ?? 'C';
+      let names: string[] | null = null;
+      if (config.voicingNotes && config.voicingNotes.length > 0) {
+        const transposed = transposeVoicingToRoot(config.voicingNotes, config.referenceRoot ?? 'C', root);
+        names = config.minLowestNote
+          ? placeLowestInOctaveAbove(transposed, midiOf(config.minLowestNote))
+          : placeLowestInOctaveAbove(transposed, concertStaffBottom);
+      } else if (config.intervals && config.intervals.length > 0) {
+        const raw = spelledFromIntervals(`${root}3`, config.intervals);
+        names = placeLowestInOctaveAbove(
+          raw,
+          config.minLowestNote ? midiOf(config.minLowestNote) : concertStaffBottom,
+        );
+      } else if (config.quality) {
+        const intervals = CHORD_TEMPLATES[config.quality];
+        if (!intervals) continue;
+        names = placeLowestInOctaveAbove(spelledFromIntervals(`${root}4`, intervals), concertStaffBottom);
+      }
+      if (names) pushNames(names);
+    }
+  }
+
+  return midis;
+};
+
 export const createInitialTrainingRuntime = (): import('@/game/training/trainingTypes').TrainingRuntime => ({
   durationSec: 60,
   elapsedSec: 0,

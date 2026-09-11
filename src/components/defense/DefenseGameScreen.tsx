@@ -15,6 +15,7 @@ import React, {
 import { DefenseCanvas, type DefenseCanvasHandle } from '@/components/defense/DefenseCanvas';
 import { DefensePhraseStaff } from '@/components/defense/DefensePhraseStaff';
 import { DefenseResult } from '@/components/defense/DefenseResult';
+import EarTrainingSettingsModal from '@/components/earTraining/EarTrainingSettingsModal';
 import DeferredEarTrainingPianoOverlay, {
   type EarTrainingPianoOverlayHandle,
 } from '@/components/earTraining/DeferredEarTrainingPianoOverlay';
@@ -45,7 +46,10 @@ import { createDefenseRuntime } from '@/game/defense/defenseTypes';
 import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
+import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
@@ -110,8 +114,19 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [elapsedInt, setElapsedInt] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
-  const inputMethod = useGameStore((state) => state.settings.inputMethod);
-  const voiceSequential = inputMethod === 'voice';
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const isSettingsOpenRef = useRef(false);
+  const profile = useAuthStore((state) => state.profile);
+  const geoCountry = useGeoStore((state) => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const settings = useGameStore((state) => state.settings);
+  const updateSettings = useGameStore((state) => state.updateSettings);
+  const voiceSequential = settings.inputMethod === 'voice';
+  isSettingsOpenRef.current = isSettingsOpen;
 
   useEffect(() => {
     onClearRef.current = onClear;
@@ -191,6 +206,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [stage.phrases]);
 
   const handleNoteOn = useCallback((midiNote: number, sequential = false) => {
+    if (isSettingsOpenRef.current) return;
     const runtime = runtimeRef.current;
     if (runtime.result !== 'playing') return;
 
@@ -236,7 +252,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     void stopNote(midiNote);
   }, []);
 
-  useStandaloneNoteInput({
+  const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
+    updateSettings({ selectedMidiDevice: deviceId });
+  }, [updateSettings]);
+
+  const { isConnected: isMidiConnected } = useStandaloneNoteInput({
     onNoteOn: (note) => {
       handleNoteOn(note, voiceSequential);
     },
@@ -270,6 +290,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [stage]);
 
   useEffect(() => {
+    if (isSettingsOpen) return undefined;
+    lastFrameRef.current = null;
     // rAF ループ: シミュレーション tick と Canvas 描画のみ。React state は結果確定時と秒境界だけ更新する。
     const loop = (now: number): void => {
       if (runtimeRef.current.result !== 'playing') {
@@ -331,7 +353,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         rafRef.current = null;
       }
     };
-  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints]);
+  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints, isSettingsOpen]);
 
   useEffect(() => {
     const overlay = pianoRef.current;
@@ -395,13 +417,22 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         </p>
       )}
 
-      <button
-        type="button"
-        className="absolute right-3 top-[56px] z-40 rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
-        onClick={onExit}
-      >
-        戻る
-      </button>
+      <div className="absolute right-3 top-[56px] z-40 flex gap-2">
+        <button
+          type="button"
+          className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+          onClick={() => setIsSettingsOpen(true)}
+        >
+          {isEnglishCopy ? 'Settings' : '設定'}
+        </button>
+        <button
+          type="button"
+          className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+          onClick={onExit}
+        >
+          {isEnglishCopy ? 'Back' : '戻る'}
+        </button>
+      </div>
 
       <div
         className="absolute bottom-0 left-0 right-0 z-30"
@@ -415,6 +446,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           onPianoKeyUp={handlePianoKeyUp}
         />
       </div>
+
+      <EarTrainingSettingsModal
+        isOpen={isSettingsOpen}
+        isEnglishCopy={isEnglishCopy}
+        onClose={() => setIsSettingsOpen(false)}
+        midiDeviceId={settings.selectedMidiDevice}
+        onMidiDeviceChange={handleMidiDeviceChange}
+        isMidiConnected={isMidiConnected}
+      />
     </div>
   );
 };

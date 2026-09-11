@@ -5,6 +5,7 @@ struct DefenseGameView: View {
     @StateObject private var session: DefenseGameSession
     @State private var scene: DefenseScene
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
+    @State private var isSettingsOpen = false
     let locale: AppLocale
     let onClose: () -> Void
     let playMapNodeId: UUID?
@@ -104,6 +105,15 @@ struct DefenseGameView: View {
                 onPlayMapCleared?()
             }
         }
+        .sheet(isPresented: $isSettingsOpen, onDismiss: {
+            session.isPaused = false
+        }) {
+            EarTrainingSettingsSheet(
+                isEnglishCopy: locale == .en,
+                onDismiss: { isSettingsOpen = false },
+                onExit: onClose
+            )
+        }
     }
 
     private var defenseHud: some View {
@@ -128,7 +138,7 @@ struct DefenseGameView: View {
                 timeLabel: "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)",
                 hideTimeLabel: false,
                 hidePlayerHpBar: false,
-                hideSettingsButton: true,
+                hideSettingsButton: false,
                 hideBackButton: false,
                 enemyAttackGaugePercent: 0,
                 hideEnemyAttackGauge: true,
@@ -141,7 +151,10 @@ struct DefenseGameView: View {
                 slotRow: .melody(slots: [], revealed: [], currentIndex: 0)
             ),
             showsSlotsRow: false,
-            onSettings: {},
+            onSettings: {
+                session.isPaused = true
+                isSettingsOpen = true
+            },
             onBack: onClose
         )
     }
@@ -181,7 +194,7 @@ struct DefenseGameView: View {
             completedHintMidis: keyboardHints.completedMidis,
             hintPendingOpacity: keyboardHintOpacity,
             midiHeldKeys: [],
-            isEnabled: session.hud.result == .playing,
+            isEnabled: session.hud.result == .playing && !isSettingsOpen,
             scrollAnchorMidi: nil
         )
     }

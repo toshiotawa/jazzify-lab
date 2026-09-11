@@ -46,7 +46,7 @@ enum EarTrainingSettingsScope {
 /// - マスター / フレーズ音源 / 入力ピアノ / 効果音 のスライダー
 struct EarTrainingSettingsSheet: View {
     let isEnglishCopy: Bool
-    let audio: EarTrainingAudio
+    var audio: EarTrainingAudio? = nil
     var scope: EarTrainingSettingsScope = .battle
     var stageRunMode: EarTrainingStageRunModeConfig?
     var practiceTranspose: EarTrainingPracticeTransposeConfig?
@@ -776,7 +776,12 @@ struct EarTrainingSettingsSheet: View {
     }
 
     private func applyAll() {
-        audio.setVolumes(master: masterVolume, music: musicVolume, piano: pianoVolume, sfx: sfxVolume)
+        if let audio {
+            audio.setVolumes(master: masterVolume, music: musicVolume, piano: pianoVolume, sfx: sfxVolume)
+        } else {
+            SurvivalGameAudio.shared.setPianoVolume(Float(max(0, min(1, pianoVolume))))
+            SurvivalGameAudio.shared.setSfxVolume(Float(max(0, min(1, sfxVolume))))
+        }
     }
 
     private func persistAll() {

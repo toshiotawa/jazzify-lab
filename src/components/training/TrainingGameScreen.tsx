@@ -6,6 +6,7 @@ import React, {
   useState,
 } from 'react';
 
+import EarTrainingSettingsModal from '@/components/earTraining/EarTrainingSettingsModal';
 import { TrainingCanvas, type TrainingCanvasHandle } from '@/components/training/TrainingCanvas';
 import { TrainingStaff } from '@/components/training/TrainingStaff';
 import DeferredEarTrainingPianoOverlay, {
@@ -19,10 +20,7 @@ import {
   tickTrainingEnemy,
   tickTrainingTimer,
 } from '@/game/training/trainingEngine';
-import {
-  computeTrainingQuestionMidis,
-  expandTrainingKeyboardMidis,
-} from '@/game/training/trainingKeyboardRange';
+import { computeTrainingStageMidis } from '@/game/training/trainingKeyboardRange';
 import type { MutableTrainingSceneHud } from '@/game/training/trainingSceneHud';
 import {
   buildTrainingQuestion,
@@ -36,8 +34,11 @@ import {
 } from '@/game/training/trainingTypes';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
+import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
+import { useGeoStore } from '@/stores/geoStore';
 import { EarTrainingChordVoicingDrumLoop, CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL } from '@/utils/earTrainingChordVoicingDrumLoop';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 
 interface TrainingGameScreenProps {
@@ -62,10 +63,8 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const lastFrameRef = useRef<number | null>(null);
   const bgmRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const prevQuestionKeyRef = useRef<string | null>(null);
-  const pendingNextRef = useRef(false);
   const onFinishedRef = useRef(onFinished);
-  const keyboardMidisRef = useRef<number[]>([]);
-  const [keyboardMidisVersion, setKeyboardMidisVersion] = useState(0);
+  const isSettingsOpenRef = useRef(false);
   const hudRef = useRef<MutableTrainingSceneHud>({
     phase: 'countdown',
     countdownSec: TRAINING_COUNTDOWN_SEC,
@@ -75,19 +74,30 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     enemyMaxHp: 1,
   });
 
-  const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
-  const notationOctaveShift = useGameStore((state) => state.settings.notationOctaveShift);
-  const inputMethod = useGameStore((state) => state.settings.inputMethod);
-  const voiceSequential = inputMethod === 'voice';
+  const profile = useAuthStore((state) => state.profile);
+  const geoCountry = useGeoStore((state) => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const settings = useGameStore((state) => state.settings);
+  const updateSettings = useGameStore((state) => state.updateSettings);
+  const notationInstrumentId = settings.notationInstrumentId;
+  const notationOctaveShift = settings.notationOctaveShift;
+  const voiceSequential = settings.inputMethod === 'voice';
 
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdownSec, setCountdownSec] = useState(TRAINING_COUNTDOWN_SEC);
   const [question, setQuestion] = useState<TrainingQuestion | null>(null);
   const [correctIndices, setCorrectIndices] = useState<readonly number[]>([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     onFinishedRef.current = onFinished;
   }, [onFinished]);
+
+  isSettingsOpenRef.current = isSettingsOpen;
 
   const ignoreNotationInstrument = training.clefMode === 'bass_concert' || training.clefMode === 'grand_concert';
   const showHints = practiceMode;
@@ -111,12 +121,11 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
   useEffect(() => {
     runtimeRef.current.durationSec = TRAINING_GAME_DURATION_SEC;
-    keyboardMidisRef.current = [];
-    setKeyboardMidisVersion(0);
     spawnQuestion();
   }, [spawnQuestion]);
 
   useEffect(() => {
+    if (isSettingsOpen) return undefined;
     if (phase !== 'countdown') return undefined;
     if (countdownSec <= 0) {
       setPhase('playing');
@@ -127,7 +136,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       setCountdownSec((prev) => prev - 1);
     }, 1000);
     return () => window.clearTimeout(timer);
-  }, [phase, countdownSec]);
+  }, [phase, countdownSec, isSettingsOpen]);
 
   useEffect(() => {
     if (phase !== 'playing') return undefined;
@@ -145,39 +154,30 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     };
   }, [phase, training.bgmUrl]);
 
-  useEffect(() => {
-    if (!question) return;
-    const prev = keyboardMidisRef.current;
-    const next = expandTrainingKeyboardMidis(prev, computeTrainingQuestionMidis(question));
-    if (
-      prev.length !== next.length
-      || prev[0] !== next[0]
-      || prev[1] !== next[1]
-    ) {
-      keyboardMidisRef.current = next;
-      setKeyboardMidisVersion((v) => v + 1);
-    }
-  }, [question]);
-
   const hintMidis = useMemo(
     () => (question ? getTrainingKeyboardHintMidis(question, correctIndices, showHints) : []),
     [question, correctIndices, showHints],
   );
 
-  const keyboardRangeMidis = useMemo(
-    () => keyboardMidisRef.current,
-    [keyboardMidisVersion],
+  const stageKeyboardMidis = useMemo(
+    () => computeTrainingStageMidis(training, {
+      notationInstrumentId,
+      notationOctaveShift,
+      ignoreNotationInstrument,
+    }),
+    [training, notationInstrumentId, notationOctaveShift, ignoreNotationInstrument],
   );
-  const keyboardRange = useResolvedWebKeyboardRange(keyboardRangeMidis);
+  const keyboardRange = useResolvedWebKeyboardRange(stageKeyboardMidis);
 
   useEffect(() => {
     pianoRef.current?.setVoicingHints(hintMidis, []);
   }, [hintMidis]);
 
   const handleNoteOn = useCallback((midiNote: number) => {
+    if (isSettingsOpenRef.current) return;
     if (phase !== 'playing' || runtimeRef.current.result !== 'playing') return;
     const current = runtimeRef.current.question;
-    if (!current || pendingNextRef.current) return;
+    if (!current) return;
 
     const result = evaluateTrainingNoteOn(
       current,
@@ -196,10 +196,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
     if (!result.completed) return;
 
-    pendingNextRef.current = true;
     performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
     runtimeRef.current.score += 1;
-  }, [phase, training.playRootOnCorrect, voiceSequential]);
+    spawnQuestion();
+  }, [phase, spawnQuestion, training.playRootOnCorrect, voiceSequential]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -211,7 +211,11 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     void stopNote(midiNote);
   }, []);
 
-  useStandaloneNoteInput({
+  const handleMidiDeviceChange = useCallback((deviceId: string | null) => {
+    updateSettings({ selectedMidiDevice: deviceId });
+  }, [updateSettings]);
+
+  const { isConnected: isMidiConnected } = useStandaloneNoteInput({
     onNoteOn: (note) => handleNoteOn(note),
     onKeyHighlight: (note, active) => {
       pianoRef.current?.highlightKey(note, active);
@@ -219,7 +223,9 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   });
 
   useEffect(() => {
+    if (isSettingsOpen) return undefined;
     if (phase !== 'playing' && phase !== 'countdown') return undefined;
+    lastFrameRef.current = null;
 
     const tick = (now: number): void => {
       const last = lastFrameRef.current ?? now;
@@ -238,11 +244,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         hud.enemyMaxHp = 1;
       } else {
         const finished = tickTrainingTimer(runtime, dt);
-        const enemyReady = tickTrainingEnemy(runtime, runtime.elapsedSec, dt);
-        if (enemyReady) {
-          pendingNextRef.current = false;
-          spawnQuestion();
-        }
+        tickTrainingEnemy(runtime, runtime.elapsedSec, dt);
 
         hud.phase = 'playing';
         hud.countdownSec = 0;
@@ -271,14 +273,14 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       }
       lastFrameRef.current = null;
     };
-  }, [phase, spawnQuestion, countdownSec]);
+  }, [phase, countdownSec, isSettingsOpen]);
 
   return (
     <div className="fixed inset-0 z-40 overflow-hidden bg-slate-950">
       <TrainingCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {question && phase !== 'countdown' && (
-        <div className="pointer-events-auto absolute left-1/2 top-[44%] z-20 max-h-[calc(100dvh-250px)] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
+        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
           {question.promptLabel !== '' && (
             <p className="mb-1 text-center text-lg font-semibold text-white">{question.promptLabel}</p>
           )}
@@ -297,16 +299,25 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         </div>
       )}
 
-      <button
-        type="button"
-        className="absolute right-3 top-[56px] z-40 rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
-        onClick={() => {
-          markAudioUserInteraction();
-          onExit();
-        }}
-      >
-        終了
-      </button>
+      <div className="absolute right-3 top-[56px] z-40 flex gap-2">
+        <button
+          type="button"
+          className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+          onClick={() => setIsSettingsOpen(true)}
+        >
+          {isEnglishCopy ? 'Settings' : '設定'}
+        </button>
+        <button
+          type="button"
+          className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+          onClick={() => {
+            markAudioUserInteraction();
+            onExit();
+          }}
+        >
+          {isEnglishCopy ? 'Exit' : '終了'}
+        </button>
+      </div>
 
       <div
         className="absolute bottom-0 left-0 right-0 z-30"
@@ -316,11 +327,19 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
           ref={pianoRef}
           minMidi={keyboardRange.minMidi}
           maxMidi={keyboardRange.maxMidi}
-          allowHorizontalScroll
           onPianoKeyDown={handlePianoKeyDown}
           onPianoKeyUp={handlePianoKeyUp}
         />
       </div>
+
+      <EarTrainingSettingsModal
+        isOpen={isSettingsOpen}
+        isEnglishCopy={isEnglishCopy}
+        onClose={() => setIsSettingsOpen(false)}
+        midiDeviceId={settings.selectedMidiDevice}
+        onMidiDeviceChange={handleMidiDeviceChange}
+        isMidiConnected={isMidiConnected}
+      />
     </div>
   );
 };
