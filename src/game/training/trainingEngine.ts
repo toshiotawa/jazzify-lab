@@ -72,9 +72,16 @@ export const evaluateTrainingNoteOn = (
   };
 };
 
-export const performTrainingDefeat = (runtime: TrainingRuntime, nowSec: number): void => {
+export const performTrainingDefeat = (
+  runtime: TrainingRuntime,
+  nowSec: number,
+  guardPoseSec = 0,
+): void => {
   runtime.enemy.slashUntilSec = nowSec + DEFENSE_SLASH_SEC;
   runtime.enemy.fadeAlpha = 0.35;
+  if (guardPoseSec > 0) {
+    runtime.guardPoseUntilSec = nowSec + guardPoseSec;
+  }
 };
 
 export const tickTrainingEnemy = (runtime: TrainingRuntime, nowSec: number, dt: number): boolean => {

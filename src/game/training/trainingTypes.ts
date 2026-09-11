@@ -97,6 +97,8 @@ export interface TrainingRuntime {
   question: TrainingQuestion | null;
   correctTargetIndices: readonly number[];
   nextQuestionKey: string | null;
+  /** Elapsed seconds until which GuardD pose is shown; 0 = inactive. */
+  guardPoseUntilSec: number;
 }
 
 export interface TrainingScoreSummary {
@@ -119,3 +121,4 @@ export interface TrainingRankingEntry {
 export const TRAINING_GAME_DURATION_SEC = 60;
 export const TRAINING_COUNTDOWN_SEC = 3;
 export const TRAINING_ENEMY_COUNT = 10;
+export const TRAINING_GUARD_POSE_SEC = 1;

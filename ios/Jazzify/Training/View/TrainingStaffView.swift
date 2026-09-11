@@ -18,21 +18,9 @@ struct TrainingStaffView: View {
         }
     }
 
-    private var unpressedOpacity: CGFloat {
-        showHints ? 1 : 0
-    }
-
-    private func isNoteVisible(_ isTarget: Bool) -> Bool {
-        !isTarget || showHints
-    }
-
-    private var visibleNotes: [(offset: Int, element: TrainingQuestionNote)] {
-        question.notes.enumerated().filter { isNoteVisible($0.element.isTarget) }
-    }
-
     private var staffGroups: [EarTrainingChordVoicingStaffLayout.GroupInput] {
         if question.layout == .horizontal {
-            return visibleNotes.map { index, note in
+            return question.notes.enumerated().map { index, note in
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: stableGroupId(index: index),
                     chordName: index == 0 ? question.promptLabel : "",
@@ -47,8 +35,8 @@ struct TrainingStaffView: View {
             EarTrainingChordVoicingStaffLayout.GroupInput(
                 id: stableGroupId(index: 0),
                 chordName: question.promptLabel,
-                voicing: visibleNotes.map(\.element.noteName),
-                voicingStaves: visibleNotes.map(\.element.staff),
+                voicing: question.notes.map(\.noteName),
+                voicingStaves: question.notes.map(\.staff),
                 measureOffset: 0,
                 isRest: false
             ),
@@ -57,14 +45,14 @@ struct TrainingStaffView: View {
 
     private var correctPitchClassesByGroupId: [UUID: Set<Int>] {
         if question.layout == .horizontal {
-            return Dictionary(uniqueKeysWithValues: visibleNotes.map { index, note in
+            return Dictionary(uniqueKeysWithValues: question.notes.enumerated().map { index, note in
                 let groupId = stableGroupId(index: index)
                 let pcs = correctIndices.contains(index) ? [note.pitchClass] : []
                 return (groupId, Set(pcs))
             })
         }
         let groupId = stableGroupId(index: 0)
-        let pcs = visibleNotes
+        let pcs = question.notes.enumerated()
             .filter { correctIndices.contains($0.offset) }
             .map(\.element.pitchClass)
         return [groupId: Set(pcs)]
@@ -80,7 +68,7 @@ struct TrainingStaffView: View {
             showTargetHints: showHints,
             singleMeasureLayout: true,
             hideChordLabels: question.layout == .horizontal,
-            unpressedNoteOpacity: unpressedOpacity,
+            unpressedNoteOpacity: 1,
             fixedActiveStaves: fixedActiveStaves,
             ignoreNotationInstrument: ignoreNotationInstrument
         )

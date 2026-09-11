@@ -28,15 +28,18 @@ interface EarTrainingPianoOverlayProps {
   maxMidi: number;
   onPianoKeyDown: (midiNote: number) => void;
   onPianoKeyUp: (midiNote: number) => void;
+  allowHorizontalScroll?: boolean;
 }
 
 const PIANO_HEIGHT = 88;
+const MIN_SCROLL_WHITE_KEY_WIDTH = 28;
 
 const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTrainingPianoOverlayProps>(({
   minMidi,
   maxMidi,
   onPianoKeyDown,
   onPianoKeyUp,
+  allowHorizontalScroll = false,
 }, ref) => {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
@@ -95,6 +98,11 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
     () => countWhiteKeysInMidiRange(minMidi, maxMidi),
     [minMidi, maxMidi],
   );
+  const pianoWidth = useMemo(() => {
+    const viewportWidth = containerWidth || getWindow().innerWidth;
+    if (!allowHorizontalScroll) return viewportWidth;
+    return Math.max(viewportWidth, whiteKeyCount * MIN_SCROLL_WHITE_KEY_WIDTH);
+  }, [allowHorizontalScroll, containerWidth, whiteKeyCount]);
 
   const handleRendererReady = useCallback((nextRenderer: PIXINotesRendererInstance | null) => {
     rendererRef.current = nextRenderer;
@@ -115,7 +123,10 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
     }
 
     const viewportWidth = containerWidth || getWindow().innerWidth;
-    const whiteKeyWidth = viewportWidth / Math.max(1, whiteKeyCount);
+    const fittedWhiteKeyWidth = viewportWidth / Math.max(1, whiteKeyCount);
+    const whiteKeyWidth = allowHorizontalScroll
+      ? Math.max(fittedWhiteKeyWidth, MIN_SCROLL_WHITE_KEY_WIDTH)
+      : fittedWhiteKeyWidth;
     renderer.updateSettings({
       noteNameStyle: 'abc',
       simpleDisplayMode: true,
@@ -128,23 +139,28 @@ const EarTrainingPianoOverlay = forwardRef<EarTrainingPianoOverlayHandle, EarTra
       viewportHeight: PIANO_HEIGHT,
       timingAdjustment: 0,
     });
-    renderer.setTouchActionMode('none');
-  }, [containerWidth, renderer, whiteKeyCount]);
+    renderer.setTouchActionMode(allowHorizontalScroll ? 'pan-x' : 'none');
+  }, [allowHorizontalScroll, containerWidth, renderer, whiteKeyCount]);
 
   return (
     <div
       ref={rootRef}
       className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 h-[88px] bg-black/20"
     >
-      <div className="absolute inset-0 overflow-hidden">
-        <PIXINotesRenderer
-          width={containerWidth || getWindow().innerWidth}
-          height={PIANO_HEIGHT}
-          minMidi={minMidi}
-          maxMidi={maxMidi}
-          onReady={handleRendererReady}
-          className="h-full w-full"
-        />
+      <div className={allowHorizontalScroll ? 'absolute inset-0 overflow-x-auto overflow-y-hidden' : 'absolute inset-0 overflow-hidden'}>
+        <div
+          className={allowHorizontalScroll ? 'h-[88px]' : 'h-full w-full'}
+          style={allowHorizontalScroll ? { width: pianoWidth, height: PIANO_HEIGHT } : undefined}
+        >
+          <PIXINotesRenderer
+            width={pianoWidth}
+            height={PIANO_HEIGHT}
+            minMidi={minMidi}
+            maxMidi={maxMidi}
+            onReady={handleRendererReady}
+            className={allowHorizontalScroll ? 'h-[88px]' : 'h-full w-full'}
+          />
+        </div>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ interface DeferredEarTrainingPianoOverlayProps {
   maxMidi: number;
   onPianoKeyDown: (note: number) => void;
   onPianoKeyUp: (note: number) => void;
+  allowHorizontalScroll?: boolean;
 }
 
 const PIANO_OVERLAY_FALLBACK = (

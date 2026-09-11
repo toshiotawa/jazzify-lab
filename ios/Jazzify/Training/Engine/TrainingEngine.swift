@@ -73,9 +73,12 @@ enum TrainingEngine {
         )
     }
 
-    static func performDefeat(runtime: inout TrainingRuntime, nowSec: TimeInterval) {
+    static func performDefeat(runtime: inout TrainingRuntime, nowSec: TimeInterval, guardPoseSec: TimeInterval = 0) {
         runtime.enemy.slashUntilSec = nowSec + DefenseEnemyConfig.slashSec
         runtime.enemy.fadeAlpha = 0.35
+        if guardPoseSec > 0 {
+            runtime.guardPoseUntilSec = nowSec + guardPoseSec
+        }
     }
 
     static func tickEnemy(runtime: inout TrainingRuntime, nowSec: TimeInterval, dt: TimeInterval) -> Bool {
@@ -124,7 +127,8 @@ enum TrainingEngine {
             enemy: TrainingRuntimeEnemy(typeIndex: 0, active: true, fadeAlpha: 1, slashUntilSec: 0),
             question: nil,
             correctTargetIndices: [],
-            nextQuestionKey: nil
+            nextQuestionKey: nil,
+            guardPoseUntilSec: 0
         )
     }
 }

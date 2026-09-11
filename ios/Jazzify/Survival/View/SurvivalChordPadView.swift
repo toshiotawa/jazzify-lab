@@ -19,11 +19,14 @@ struct SurvivalChordPadView: View, Equatable {
     let onPress: (Int) -> Void
     let onRelease: (Int) -> Void
     var keyboardHeight: CGFloat = 120
+    /// When set, white keys never shrink below this width and the keyboard becomes horizontally scrollable.
+    var minWhiteKeyWidth: CGFloat? = nil
 
     static func == (lhs: SurvivalChordPadView, rhs: SurvivalChordPadView) -> Bool {
         lhs.snapshot == rhs.snapshot
             && lhs.displayRange == rhs.displayRange
             && lhs.keyboardHeight == rhs.keyboardHeight
+            && lhs.minWhiteKeyWidth == rhs.minWhiteKeyWidth
     }
 
     private let blackKeyHeightRatio: CGFloat = 0.62
@@ -35,11 +38,13 @@ struct SurvivalChordPadView: View, Equatable {
             let whites = layout.whiteMidiNotes
             let viewportWidth = max(1, proxy.size.width)
             let whiteKeyCount = max(1, whites.count)
-            let whiteKeyWidth = viewportWidth / CGFloat(whiteKeyCount)
+            let fittedWidth = viewportWidth / CGFloat(whiteKeyCount)
+            let whiteKeyWidth = max(fittedWidth, minWhiteKeyWidth ?? 0)
+            let contentWidth = whiteKeyWidth * CGFloat(whiteKeyCount)
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
 
-            ZStack(alignment: .topLeading) {
+            let keyboard = ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(whites, id: \.self) { midi in
                         PianoKeyButton(
@@ -64,7 +69,7 @@ struct SurvivalChordPadView: View, Equatable {
                         .id(midi)
                     }
                 }
-                .frame(width: viewportWidth, height: keyboardHeight)
+                .frame(width: contentWidth, height: keyboardHeight)
 
                 ForEach(layout.blackMidiNotes, id: \.self) { midi in
                     let x = Self.blackKeyCenterX(
@@ -94,8 +99,16 @@ struct SurvivalChordPadView: View, Equatable {
                     .offset(x: x - blackKeyWidth / 2, y: 0)
                 }
             }
-            .frame(width: viewportWidth, height: keyboardHeight)
+            .frame(width: contentWidth, height: keyboardHeight)
             .background(Color.black.opacity(0.55))
+
+            if contentWidth > viewportWidth + 0.5 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    keyboard
+                }
+            } else {
+                keyboard
+            }
         }
         .frame(height: keyboardHeight)
     }

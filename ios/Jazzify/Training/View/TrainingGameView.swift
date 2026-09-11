@@ -48,24 +48,27 @@ struct TrainingGameView: View {
             if let question = session.question, session.hud.phase != .countdown {
                 VStack {
                     Spacer()
-                    VStack(spacing: 8) {
-                        if !question.promptLabel.isEmpty {
-                            Text(question.promptLabel)
-                                .font(.headline)
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            if !question.promptLabel.isEmpty {
+                                Text(question.promptLabel)
+                                    .font(.headline)
+                            }
+                            TrainingStaffView(
+                                question: question,
+                                correctIndices: session.correctIndices,
+                                showHints: session.practiceMode,
+                                clefMode: session.training.clefMode
+                            )
                         }
-                        TrainingStaffView(
-                            question: question,
-                            correctIndices: session.correctIndices,
-                            showHints: session.practiceMode,
-                            clefMode: session.training.clefMode
-                        )
+                        .padding(.horizontal)
+                        .frame(maxWidth: 720)
                     }
-                    .padding(.horizontal)
-                    .frame(maxWidth: 720)
-                    .offset(y: -120)
+                    .frame(maxHeight: 280)
+                    .offset(y: -80)
                     Spacer()
                 }
-                .allowsHitTesting(false)
+                .allowsHitTesting(true)
             }
 
             if session.hud.phase == .countdown {
@@ -84,10 +87,10 @@ struct TrainingGameView: View {
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
                     },
                     onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
-                    keyboardHeight: 88
+                    keyboardHeight: 88,
+                    minWhiteKeyWidth: 22
                 )
                 .frame(height: 88)
-                .opacity(session.practiceMode ? 1 : 0.45)
             }
         }
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)

@@ -32,13 +32,13 @@ import type { TrainingQuestion, TrainingRow, TrainingRuntime } from '@/game/trai
 import {
   TRAINING_COUNTDOWN_SEC,
   TRAINING_GAME_DURATION_SEC,
+  TRAINING_GUARD_POSE_SEC,
 } from '@/game/training/trainingTypes';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
 import { useGameStore } from '@/stores/gameStore';
 import { EarTrainingChordVoicingDrumLoop, CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
-import { cn } from '@/utils/cn';
 
 interface TrainingGameScreenProps {
   readonly training: TrainingRow;
@@ -197,7 +197,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     if (!result.completed) return;
 
     pendingNextRef.current = true;
-    performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec);
+    performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
     runtimeRef.current.score += 1;
   }, [phase, training.playRootOnCorrect, voiceSequential]);
 
@@ -278,7 +278,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       <TrainingCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {question && phase !== 'countdown' && (
-        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
+        <div className="pointer-events-auto absolute left-1/2 top-[44%] z-20 max-h-[calc(100dvh-250px)] w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
           {question.promptLabel !== '' && (
             <p className="mb-1 text-center text-lg font-semibold text-white">{question.promptLabel}</p>
           )}
@@ -309,13 +309,14 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       </button>
 
       <div
-        className={cn('absolute bottom-0 left-0 right-0 z-30', !showHints && 'opacity-40')}
+        className="absolute bottom-0 left-0 right-0 z-30"
         style={{ height: PIANO_OVERLAY_HEIGHT }}
       >
         <DeferredEarTrainingPianoOverlay
           ref={pianoRef}
           minMidi={keyboardRange.minMidi}
           maxMidi={keyboardRange.maxMidi}
+          allowHorizontalScroll
           onPianoKeyDown={handlePianoKeyDown}
           onPianoKeyUp={handlePianoKeyUp}
         />

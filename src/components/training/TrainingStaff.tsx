@@ -22,7 +22,6 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
   clefMode,
   className,
 }) => {
-  const isNoteVisible = (isTarget: boolean): boolean => !isTarget || showHints;
   const ignoreNotationInstrument = clefMode === 'bass_concert' || clefMode === 'grand_concert';
   const fixedActiveStaves = clefMode === 'bass_concert'
     ? ([2] as const)
@@ -39,20 +38,15 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
     if (question.layout !== 'horizontal') {
       return [];
     }
-    return question.notes
-      .map((note, index) => ({ note, index }))
-      .filter(({ note }) => isNoteVisible(note.isTarget))
-      .map(({ note, index }) => ({
-        id: `note-${index}`,
-        chordName: index === 0 ? question.promptLabel : '',
-        voicing: [note.noteName],
-        voicingStaves: [note.staff],
-        correctPitchClasses: correctIndices.includes(index) ? [note.pitchClass] : [],
-        measureOffset: 0 as const,
-      }));
-  }, [question, correctIndices, showHints]);
-
-  const unpressedOpacity = showHints ? 1 : 0;
+    return question.notes.map((note, index) => ({
+      id: `note-${index}`,
+      chordName: index === 0 ? question.promptLabel : '',
+      voicing: [note.noteName],
+      voicingStaves: [note.staff],
+      correctPitchClasses: correctIndices.includes(index) ? [note.pitchClass] : [],
+      measureOffset: 0 as const,
+    }));
+  }, [question, correctIndices]);
 
   if (question.layout === 'horizontal') {
     return (
@@ -64,7 +58,7 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
           singleMeasureLayout
           compactSingleMeasure
           showTargetHints={showHints}
-          unpressedNoteOpacity={unpressedOpacity}
+          unpressedNoteOpacity={1}
           hideChordLabels={false}
           fixedActiveStaves={fixedActiveStaves}
           ignoreNotationInstrument={ignoreNotationInstrument}
@@ -74,25 +68,18 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
     );
   }
 
-  const visibleEntries = question.notes
-    .map((note, index) => ({ note, index }))
-    .filter(({ note }) => isNoteVisible(note.isTarget));
-  const visibleNotes = visibleEntries.map(({ note }) => note);
-
   return (
     <div className={cn('pointer-events-none', className)} aria-hidden>
       <ChordVoicingStaff
         keyFifths={question.keyFifths}
         chordName={question.promptLabel}
-        voicing={visibleNotes.map((n) => n.noteName)}
-        voicingStaves={visibleNotes.map((n) => n.staff)}
-        correctPitchClasses={visibleEntries
-          .filter(({ index }) => correctIndices.includes(index))
-          .map(({ note }) => note.pitchClass)}
+        voicing={question.notes.map((n) => n.noteName)}
+        voicingStaves={question.notes.map((n) => n.staff)}
+        correctPitchClasses={correctPitchClasses}
         singleMeasureLayout
         compactSingleMeasure
         showTargetHints={showHints}
-        unpressedNoteOpacity={unpressedOpacity}
+        unpressedNoteOpacity={1}
         fixedActiveStaves={fixedActiveStaves}
         ignoreNotationInstrument={ignoreNotationInstrument}
         smuflUseForeignObject

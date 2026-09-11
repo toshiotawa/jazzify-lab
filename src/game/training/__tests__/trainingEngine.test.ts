@@ -1,4 +1,5 @@
-import { evaluateTrainingNoteOn } from '@/game/training/trainingEngine';
+import { evaluateTrainingNoteOn, performTrainingDefeat } from '@/game/training/trainingEngine';
+import { createInitialTrainingRuntime } from '@/game/training/trainingQuestionBuilder';
 import type { TrainingQuestion } from '@/game/training/trainingTypes';
 
 const makeQuestion = (overrides?: Partial<TrainingQuestion>): TrainingQuestion => ({
@@ -45,5 +46,12 @@ describe('trainingEngine', () => {
     const wrong = evaluateTrainingNoteOn(q, [], 61, false);
     expect(wrong.accepted).toBe(false);
     expect(wrong.completed).toBe(false);
+  });
+
+  it('sets guard pose until on defeat', () => {
+    const runtime = createInitialTrainingRuntime();
+    performTrainingDefeat(runtime, 1.5, 1);
+    expect(runtime.enemy.slashUntilSec).toBeGreaterThan(1.5);
+    expect(runtime.guardPoseUntilSec).toBeCloseTo(2.5);
   });
 });

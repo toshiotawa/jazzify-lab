@@ -155,6 +155,7 @@ struct TrainingRuntime: Sendable {
     var question: TrainingQuestion?
     var correctTargetIndices: [Int]
     var nextQuestionKey: String?
+    var guardPoseUntilSec: TimeInterval
 }
 
 struct TrainingScoreSummary: Identifiable, Sendable {
@@ -208,4 +209,5 @@ enum TrainingConstants {
     static let countdownSec = 3
     static let enemyCount = 10
     static let catalogTTL: TimeInterval = 60
+    static let guardPoseSec: TimeInterval = 1
 }

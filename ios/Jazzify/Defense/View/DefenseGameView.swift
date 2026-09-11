@@ -81,7 +81,6 @@ struct DefenseGameView: View {
                 )
                 .equatable()
                 .frame(height: 88)
-                .opacity(keyboardHintOpacity <= 0 ? 0.4 : 1)
             }
 
                 if session.hud.result != .playing {

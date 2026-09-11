@@ -157,7 +157,11 @@ final class TrainingGameSession: ObservableObject {
         guard result.completed else { return }
 
         pendingNextQuestion = true
-        TrainingEngine.performDefeat(runtime: &runtime, nowSec: runtime.elapsedSec)
+        TrainingEngine.performDefeat(
+            runtime: &runtime,
+            nowSec: runtime.elapsedSec,
+            guardPoseSec: TrainingConstants.guardPoseSec
+        )
         runtime.score += 1
         if runtime.score != hud.score {
             hud.score = runtime.score

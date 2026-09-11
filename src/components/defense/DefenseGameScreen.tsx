@@ -54,7 +54,6 @@ import {
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
 } from '@/utils/survivalStaffHintOpacity';
-import { cn } from '@/utils/cn';
 
 interface DefenseGameScreenProps {
   readonly stage: DefenseStage;
@@ -405,7 +404,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       </button>
 
       <div
-        className={cn('absolute bottom-0 left-0 right-0 z-30', keyboardHintOpacity <= 0 && 'opacity-40')}
+        className="absolute bottom-0 left-0 right-0 z-30"
         style={{ height: PIANO_OVERLAY_HEIGHT }}
       >
         <DeferredEarTrainingPianoOverlay

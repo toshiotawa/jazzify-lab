@@ -410,4 +410,5 @@ export const createInitialTrainingRuntime = (): import('@/game/training/training
   question: null,
   correctTargetIndices: [],
   nextQuestionKey: null,
+  guardPoseUntilSec: 0,
 });
