@@ -155,13 +155,14 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   );
 
   const scale = useMemo(() => {
-    const fitted = Math.min(Math.max(0.6, viewport.width / MAP_LOGICAL_WIDTH), 2.2);
-    return Math.round(fitted * 0.88 * 100) / 100;
+    const fitted = Math.min(Math.max(0.55, viewport.width / MAP_LOGICAL_WIDTH), 1.15);
+    return Math.round(fitted * 0.75 * 100) / 100;
   }, [viewport.width]);
 
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
   const mapHeightPx = layout.totalHeight * scale;
-  const worldWidthPx = Math.max(viewport.width, mapWidthPx);
+  const worldWidthPx = mapWidthPx;
+  const worldOffsetX = Math.max(0, (viewport.width - worldWidthPx) / 2);
 
   const { cameraY, focusCamera, adjustCamera } = useDescentCamera({
     viewportHeight: viewport.height,
@@ -375,7 +376,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
         }
       `}</style>
 
-      <div className="mx-auto grid w-full max-w-[1700px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="mx-auto grid w-full max-w-[1180px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col">
           <div className="flex gap-2 px-4 py-2">
             {(['basic', 'advanced'] as const).map((tab) => (
@@ -408,8 +409,9 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
             }}
           >
             <div
-              className="absolute left-0 top-0 will-change-transform"
+              className="absolute top-0 will-change-transform"
               style={{
+                left: worldOffsetX,
                 width: worldWidthPx,
                 height: mapHeightPx,
                 transform: `translate3d(0, ${-cameraY}px, 0)`,
