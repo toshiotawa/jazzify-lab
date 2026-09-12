@@ -135,6 +135,12 @@ struct TrainingGameView: View {
 
     @ViewBuilder
     private func staffOverlay(question: TrainingQuestion, size: CGSize) -> some View {
+        let staffPlacement = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+            sceneHeight: size.height,
+            hudHeight: TrainingConstants.hudHeight,
+            hasLabelBand: !question.promptLabel.isEmpty,
+            keyboardHeight: Self.pianoHeight
+        )
         TrainingStaffView(
             question: question,
             correctIndices: session.correctIndices,
@@ -147,8 +153,14 @@ struct TrainingGameView: View {
             clefMode: session.training.clefMode
         )
         .padding(.horizontal, 12)
-        .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
-        .position(x: size.width / 2, y: size.height * 0.44)
+        .frame(
+            width: min(
+                size.width * EarTrainingBattleStaffBandLayout.defaultStaffWidthRatio,
+                EarTrainingBattleStaffBandLayout.defaultStaffMaxWidth
+            ),
+            height: staffPlacement.height
+        )
+        .position(x: size.width / 2, y: staffPlacement.centerY)
         .allowsHitTesting(false)
     }
 

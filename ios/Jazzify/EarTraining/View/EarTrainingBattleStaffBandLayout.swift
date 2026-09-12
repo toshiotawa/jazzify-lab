@@ -5,6 +5,54 @@ import UIKit
 /// SwiftUI 座標系（上端 Y=0、下向き正）で下端 Y を返す。
 enum EarTrainingBattleStaffBandLayout {
     static let bandMargin: CGFloat = 10
+    /// HUD 直下のコード名 / プロンプト行（padding 含む）の目安高さ。2 行プロンプトも想定。
+    static let chordOrPromptLabelBand: CGFloat = 56
+    /// ラベル行が無いときの HUD と譜面の間隔。
+    static let staffTopGapWithoutLabel: CGFloat = 8
+    /// `EarTrainingHUDView` の HP/時間行のみ（Defense 等）の目安高さ。
+    static let compactBattleHudHeight: CGFloat = 48
+    static let defaultStaffHeightRatio: CGFloat = 0.5
+    static let defaultStaffWidthRatio: CGFloat = 0.82
+    static let defaultStaffMaxWidth: CGFloat = 720
+
+    struct StaffOverlayPlacement {
+        let centerY: CGFloat
+        let height: CGFloat
+    }
+
+    /// HUD とラベル帯の下から譜面を置き、鍵盤に食い込まないよう center Y / 高さを返す。
+    static func staffOverlayPlacement(
+        sceneHeight: CGFloat,
+        hudHeight: CGFloat,
+        hasLabelBand: Bool,
+        keyboardHeight: CGFloat,
+        heightRatio: CGFloat = defaultStaffHeightRatio
+    ) -> StaffOverlayPlacement {
+        let labelReserve = hasLabelBand ? chordOrPromptLabelBand : staffTopGapWithoutLabel
+        let staffTop = hudHeight + labelReserve
+        let availableBottom = sceneHeight - keyboardHeight
+        let availableHeight = max(0, availableBottom - staffTop)
+        let preferredHeight = sceneHeight * heightRatio
+        let staffHeight = min(preferredHeight, availableHeight)
+        let centerY = staffTop + staffHeight / 2
+        return StaffOverlayPlacement(centerY: centerY, height: staffHeight)
+    }
+
+    static func staffOverlayCenterY(
+        sceneHeight: CGFloat,
+        hudHeight: CGFloat,
+        hasLabelBand: Bool,
+        keyboardHeight: CGFloat,
+        heightRatio: CGFloat = defaultStaffHeightRatio
+    ) -> CGFloat {
+        staffOverlayPlacement(
+            sceneHeight: sceneHeight,
+            hudHeight: hudHeight,
+            hasLabelBand: hasLabelBand,
+            keyboardHeight: keyboardHeight,
+            heightRatio: heightRatio
+        ).centerY
+    }
 
     static func canvasStaffBottomY(
         sceneSize: CGSize,

@@ -49,4 +49,40 @@ final class EarTrainingBattleStageKitTests: XCTestCase {
         // backdrop + local vignette + 2 cones + 2 pools + 2 floor shadows + final vignette
         XCTAssertGreaterThanOrEqual(layer.children.count, 8)
     }
+
+    func testStaffOverlayPlacementPlacesStaffBelowLabelBand() {
+        let sceneHeight: CGFloat = 390
+        let hudHeight: CGFloat = 64
+        let keyboardHeight: CGFloat = 88
+
+        let withLabel = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+            sceneHeight: sceneHeight,
+            hudHeight: hudHeight,
+            hasLabelBand: true,
+            keyboardHeight: keyboardHeight
+        )
+        let withoutLabel = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+            sceneHeight: sceneHeight,
+            hudHeight: hudHeight,
+            hasLabelBand: false,
+            keyboardHeight: keyboardHeight
+        )
+
+        let labelStaffTop = withLabel.centerY - withLabel.height / 2
+        let expectedMinTop = hudHeight + EarTrainingBattleStaffBandLayout.chordOrPromptLabelBand
+        XCTAssertEqual(labelStaffTop, expectedMinTop, accuracy: 0.5)
+        XCTAssertGreaterThan(withLabel.centerY, withoutLabel.centerY)
+    }
+
+    func testStaffOverlayPlacementClearsKeyboardBand() {
+        let sceneHeight: CGFloat = 390
+        let placement = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+            sceneHeight: sceneHeight,
+            hudHeight: 64,
+            hasLabelBand: true,
+            keyboardHeight: 88
+        )
+        let staffBottom = placement.centerY + placement.height / 2
+        XCTAssertLessThanOrEqual(staffBottom, sceneHeight - 88 + 0.5)
+    }
 }

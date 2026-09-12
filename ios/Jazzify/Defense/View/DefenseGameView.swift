@@ -109,9 +109,16 @@ struct DefenseGameView: View {
                 }
                 Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .ignoresSafeArea(edges: .top)
 
             if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+                let staffPlacement = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+                    sceneHeight: size.height,
+                    hudHeight: EarTrainingBattleStaffBandLayout.compactBattleHudHeight,
+                    hasLabelBand: !phrase.chords.isEmpty,
+                    keyboardHeight: Self.pianoHeight
+                )
                 DefensePhraseStaffView(
                     phrase: phrase,
                     stageKeyFifths: session.stage.keyFifths,
@@ -122,8 +129,14 @@ struct DefenseGameView: View {
                     unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
                 )
                 .padding(.horizontal, 12)
-                .frame(maxWidth: min(size.width * 0.82, 720))
-                .position(x: size.width / 2, y: size.height * 0.44)
+                .frame(
+                    width: min(
+                        size.width * EarTrainingBattleStaffBandLayout.defaultStaffWidthRatio,
+                        EarTrainingBattleStaffBandLayout.defaultStaffMaxWidth
+                    ),
+                    height: staffPlacement.height
+                )
+                .position(x: size.width / 2, y: staffPlacement.centerY)
                 .allowsHitTesting(false)
             }
 
