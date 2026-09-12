@@ -60,12 +60,19 @@ struct PlayHubView: View {
                 }
             }
             .navigationBarHidden(true)
-            .navigationDestination(item: $destination) { dest in
-                switch dest {
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { destination != nil },
+                    set: { if !$0 { destination = nil } }
+                )
+            ) {
+                switch destination {
                 case .codeRun:
                     CodeRunWorldView()
                 case .defense:
                     DefenseDescentView()
+                case nil:
+                    EmptyView()
                 }
             }
         }
