@@ -41,7 +41,7 @@ struct CodeRunWorldView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "7ec8f0").ignoresSafeArea()
+            Color(hex: "120c18").ignoresSafeArea()
 
             if isLoading {
                 ProgressView().tint(.purple)

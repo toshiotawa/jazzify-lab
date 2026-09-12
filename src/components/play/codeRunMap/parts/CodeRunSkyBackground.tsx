@@ -48,13 +48,21 @@ export const CodeRunSkyBackground: React.FC<CodeRunSkyBackgroundProps> = ({
               }}
             />
             <div
-              className="absolute left-0 w-full opacity-35"
+              className="absolute left-0 w-full opacity-[0.18]"
               style={{
                 top,
                 height,
                 backgroundImage: `url('${CODE_RUN_MAP_TEXTURE_URLS.clouds}')`,
                 backgroundRepeat: 'repeat',
                 backgroundSize: `${cloudTile}px ${cloudTile}px`,
+              }}
+            />
+            <div
+              className="absolute left-0 w-full"
+              style={{
+                top,
+                height,
+                background: 'rgba(8,6,18,0.35)',
               }}
             />
           </React.Fragment>

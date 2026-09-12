@@ -213,7 +213,7 @@ const CodeRunMapMain: React.FC = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#7ec8f0]">
+    <div className="min-h-[100dvh] bg-[#120c18]">
       <GameHeader />
       <CodeRunDescentMap
         isEnglishCopy={isEnglishCopy}

@@ -16,6 +16,6 @@ describe('codeRunMapTheme', () => {
   it('returns theme matching biome', () => {
     expect(getCodeRunMapTheme(0).biome).toBe('grass');
     expect(getCodeRunMapTheme(3).biome).toBe('stone');
-    expect(getCodeRunMapTheme(0).skyTop).toBe('#7ec8f0');
+    expect(getCodeRunMapTheme(0).skyTop).toBe('#12182a');
   });
 });

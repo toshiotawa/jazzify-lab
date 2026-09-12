@@ -55,14 +55,14 @@ export const CodeRunDescentSidePanel: React.FC<CodeRunDescentSidePanelProps> = (
 
   return (
     <aside
-      className="flex h-full w-full flex-col gap-4 overflow-y-auto border border-sky-400/20 bg-gradient-to-b from-[#1a2840]/90 to-[#0a1428]/95 p-5 text-white font-sans shadow-[inset_0_0_60px_rgba(0,0,0,0.35)] rounded-xl md:rounded-l-none md:rounded-r-xl md:border-l-0"
+      className="flex h-full w-full flex-col gap-4 overflow-y-auto border border-amber-500/20 bg-gradient-to-b from-[#140c1f]/90 to-[#060410]/95 p-5 text-white font-sans shadow-[inset_0_0_60px_rgba(0,0,0,0.45)] rounded-xl md:rounded-l-none md:rounded-r-xl md:border-l-0"
       aria-label={isEnglishCopy ? 'Code Run info panel' : 'コードラン情報パネル'}
     >
       <div className="rounded-lg border border-white/5 bg-black/20 p-3">
-        <p className="text-[10px] font-bold tracking-[0.2em] text-sky-200/70">
+        <p className="text-[10px] font-bold tracking-[0.2em] text-amber-200/70">
           {isEnglishCopy ? 'CODE RUN' : 'コードラン'}
         </p>
-        <h2 className="mt-1 text-lg font-extrabold text-sky-100">
+        <h2 className="mt-1 text-lg font-extrabold text-amber-100">
           {isEnglishCopy ? 'World Map' : 'ワールドマップ'}
         </h2>
         <p className="mt-2 text-xs text-slate-300">
@@ -72,7 +72,7 @@ export const CodeRunDescentSidePanel: React.FC<CodeRunDescentSidePanelProps> = (
 
       {activeBlock && (
         <div className="rounded-lg border border-white/5 bg-black/20 p-3">
-          <p className="text-xs font-bold text-sky-200/80">
+          <p className="text-xs font-bold text-violet-200/80">
             {isEnglishCopy ? activeBlock.labelEn : activeBlock.label}
           </p>
           <p className="mt-1 text-xs text-slate-300">
@@ -82,7 +82,7 @@ export const CodeRunDescentSidePanel: React.FC<CodeRunDescentSidePanelProps> = (
       )}
 
       {selectedNode ? (
-        <div className="rounded-lg border border-sky-400/20 bg-black/25 p-4">
+        <div className="rounded-lg border border-amber-500/20 bg-black/25 p-4">
           <h3 className="text-base font-bold text-white">
             {isEnglishCopy ? selectedNode.titleEn : selectedNode.title}
           </h3>

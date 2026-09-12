@@ -109,7 +109,7 @@ struct CodeRunDescentMapView: View {
                 }
             }
         }
-        .background(Color(hex: "7ec8f0"))
+        .background(Color(hex: "120c18"))
         .sheet(isPresented: Binding(
             get: { !showSidePanelInline && showMobileSheet && selectedNode != nil },
             set: { if !$0 { showMobileSheet = false } }
@@ -137,23 +137,34 @@ struct CodeRunDescentMapView: View {
     }
 
     private var tierPicker: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             ForEach(PlayMapTier.allCases, id: \.rawValue) { tab in
                 Button {
                     tier = tab
                 } label: {
                     Text(tab == .basic ? "Basic" : "Advanced")
                         .font(.subheadline.bold())
-                        .foregroundStyle(tier == tab ? Color(hex: "0f172a") : .white)
+                        .foregroundStyle(tier == tab ? Color(hex: "0f172a") : Color(hex: "fef3c7").opacity(0.85))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 6)
-                        .background(tier == tab ? Color.white : Color.white.opacity(0.2))
+                        .background(
+                            tier == tab
+                                ? Color(hex: "e8a040")
+                                : Color.clear
+                        )
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
             Spacer()
         }
+        .padding(4)
+        .background(Color.black.opacity(0.55))
+        .overlay(
+            Capsule()
+                .stroke(Color(hex: "e8a040").opacity(0.25), lineWidth: 1)
+        )
+        .clipShape(Capsule())
         .padding(.horizontal)
         .padding(.vertical, 8)
     }

@@ -356,7 +356,7 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
   }
 
   return (
-    <div className="relative flex h-[calc(100dvh-56px)] flex-col bg-[#7ec8f0]">
+    <div className="relative flex h-[calc(100dvh-56px)] flex-col bg-[#120c18]">
       <style>{`
         @keyframes descent-breath {
           0%, 100% { transform: translateY(0); }
@@ -370,33 +370,37 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
 
       <div className="mx-auto grid w-full max-w-[1180px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col">
-          <div className="flex gap-2 px-4 py-2">
-            {(['basic', 'advanced'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={cn(
-                  'rounded-full px-4 py-1 text-sm font-bold',
-                  tier === tab ? 'bg-white text-slate-900' : 'bg-white/20 text-white',
-                )}
-                onClick={() => {
-                  setTier(tab);
-                  setSelectedNodeId(null);
-                  setIsMobileDetailOpen(false);
-                }}
-              >
-                {tab === 'basic'
-                  ? (isEnglishCopy ? 'Basic' : 'Basic')
-                  : (isEnglishCopy ? 'Advanced' : 'Advanced')}
-              </button>
-            ))}
+          <div className="flex px-4 py-2">
+            <div className="flex gap-1 rounded-full border border-amber-500/25 bg-black/55 p-1">
+              {(['basic', 'advanced'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={cn(
+                    'rounded-full px-4 py-1 text-sm font-bold transition-colors',
+                    tier === tab
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'text-amber-100/85 hover:bg-white/10',
+                  )}
+                  onClick={() => {
+                    setTier(tab);
+                    setSelectedNodeId(null);
+                    setIsMobileDetailOpen(false);
+                  }}
+                >
+                  {tab === 'basic'
+                    ? (isEnglishCopy ? 'Basic' : 'Basic')
+                    : (isEnglishCopy ? 'Advanced' : 'Advanced')}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div
             ref={viewportRef}
             className="relative min-h-0 flex-1 overflow-hidden touch-none select-none"
             style={{
-              boxShadow: 'inset 0 0 80px 10px rgba(255,255,255,0.15)',
+              boxShadow: 'inset 0 0 120px 20px rgba(0,0,0,0.55)',
               cursor: 'grab',
             }}
           >
@@ -472,7 +476,7 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
           </div>
 
           {lockedNotice && !selectedNode && (
-            <div className="border-t border-white/20 bg-sky-900/80 p-4 text-xs text-amber-100">
+            <div className="border-t border-amber-500/20 bg-[#120c18]/90 p-4 text-xs text-amber-100">
               {isEnglishCopy
                 ? 'Clear every stage in the previous block to unlock this block.'
                 : '前のブロックの全ステージをクリアすると解放されます。'}
@@ -507,7 +511,7 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
             className="absolute inset-0 bg-black/50"
             onClick={() => setIsMobileDetailOpen(false)}
           />
-          <div className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t border-sky-400/30 bg-gradient-to-b from-[#1a2840]/95 to-[#0a1428]/95 shadow-[0_-10px_40px_rgba(0,0,0,0.45)]">
+          <div className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t border-amber-500/30 bg-gradient-to-b from-[#140c1f]/95 to-[#060410]/95 shadow-[0_-10px_40px_rgba(0,0,0,0.45)]">
             <div className="flex items-center justify-between px-4 pt-3 pb-1">
               <div className="mx-auto h-1.5 w-10 rounded-full bg-white/20" />
             </div>

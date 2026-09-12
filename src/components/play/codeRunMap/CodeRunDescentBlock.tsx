@@ -66,9 +66,9 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
           dim={dim}
           highlighted={!dim && c.highlighted}
           hueDeg={theme.connectorHueDeg}
-          mainStroke="rgba(255,248,235,0.95)"
-          innerStroke="rgba(255,255,255,0.85)"
-          glowColor="rgba(255,240,210,0.35)"
+          mainStroke="rgba(200,210,230,0.7)"
+          innerStroke="rgba(180,190,210,0.55)"
+          glowColor="rgba(160,170,200,0.25)"
           highlightedMainStroke="rgba(255,210,80,1)"
           highlightedInnerStroke="rgba(255,248,210,0.95)"
           highlightedGlowColor="rgba(255,200,60,0.85)"
@@ -144,7 +144,7 @@ export const CodeRunBlockDimVeil: React.FC<{
         width: widthPx,
         height: heightPx,
         background:
-          'linear-gradient(to bottom, rgba(255,255,255,0.15) 0%, rgba(200,210,230,0.45) 55%, rgba(160,170,190,0.65) 100%)',
+          'linear-gradient(to bottom, rgba(4,4,10,0.55) 0%, rgba(2,2,8,0.85) 45%, rgba(0,0,4,0.95) 100%)',
         backdropFilter: 'blur(1px)',
         zIndex: 40,
       }}

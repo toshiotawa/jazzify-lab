@@ -26,8 +26,8 @@ export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
   const widthPx = logicalWidth * scale;
   const heightPx = logicalHeight * scale;
   const filter = dim
-    ? 'brightness(0.55) saturate(0.6)'
-    : 'brightness(1.05) drop-shadow(0 8px 10px rgba(0,0,0,0.28))';
+    ? 'brightness(0.4) saturate(0.45)'
+    : 'brightness(0.82) saturate(0.85) drop-shadow(0 8px 10px rgba(0,0,0,0.45))';
 
   return (
     <div

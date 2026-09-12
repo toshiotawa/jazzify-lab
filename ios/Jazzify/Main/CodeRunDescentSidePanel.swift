@@ -46,7 +46,7 @@ struct CodeRunDescentSidePanel: View {
         .background(panelBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.cyan.opacity(0.18), lineWidth: 1)
+                .stroke(Color(hex: "e8a040").opacity(0.2), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
@@ -56,10 +56,10 @@ struct CodeRunDescentSidePanel: View {
             Text(isEnglishCopy ? "CODE RUN" : "コードラン")
                 .font(.system(size: 10, weight: .bold))
                 .tracking(2)
-                .foregroundStyle(Color.cyan.opacity(0.7))
+                .foregroundStyle(Color(hex: "fde68a").opacity(0.7))
             Text(isEnglishCopy ? "World Map" : "ワールドマップ")
                 .font(.title3.bold())
-                .foregroundStyle(Color(hex: "bae6fd"))
+                .foregroundStyle(Color(hex: "fef3c7"))
             Text(totalProgressText)
                 .font(.caption)
                 .foregroundStyle(.gray)
@@ -74,7 +74,7 @@ struct CodeRunDescentSidePanel: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(block.localizedLabel(locale))
                 .font(.subheadline.bold())
-                .foregroundStyle(Color.cyan.opacity(0.85))
+                .foregroundStyle(Color(hex: "ddd6fe").opacity(0.85))
             Text(blockProgressText)
                 .font(.caption)
                 .foregroundStyle(.gray)
@@ -114,7 +114,7 @@ struct CodeRunDescentSidePanel: View {
             .background(Color.black.opacity(0.25))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.cyan.opacity(0.2), lineWidth: 1)
+                    .stroke(Color(hex: "e8a040").opacity(0.2), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 12))
         } else {
@@ -171,8 +171,8 @@ struct CodeRunDescentSidePanel: View {
     private var panelBackground: LinearGradient {
         LinearGradient(
             colors: [
-                Color(red: 26 / 255, green: 40 / 255, blue: 64 / 255).opacity(0.9),
-                Color(red: 10 / 255, green: 20 / 255, blue: 40 / 255).opacity(0.95),
+                Color(red: 20 / 255, green: 12 / 255, blue: 31 / 255).opacity(0.9),
+                Color(red: 6 / 255, green: 4 / 255, blue: 16 / 255).opacity(0.95),
             ],
             startPoint: .top,
             endPoint: .bottom

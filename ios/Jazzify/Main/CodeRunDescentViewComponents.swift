@@ -28,8 +28,18 @@ struct CodeRunSkyBackgroundView: View {
             let cloudTile = max(120, 256 * scale)
             CodeRunTiledPatternImage(imageName: "CodeRunMap/code_run_map_clouds", tileSize: cloudTile)
                 .frame(width: widthPx, height: heightPx)
-                .opacity(0.35)
+                .opacity(0.18)
                 .allowsHitTesting(false)
+
+            ForEach(tintBlocks, id: \.blockKey) { blockLayout in
+                let bandHeight = max(0, (blockLayout.endY - blockLayout.startY) * scale)
+                Color(red: 8 / 255, green: 6 / 255, blue: 18 / 255).opacity(0.35)
+                    .frame(width: widthPx, height: bandHeight)
+                    .position(
+                        x: widthPx / 2,
+                        y: (blockLayout.startY + blockLayout.endY) / 2 * scale
+                    )
+            }
         }
         .frame(width: widthPx, height: heightPx)
         .clipped()
@@ -56,9 +66,9 @@ struct CodeRunIslandPlatformView: View {
             .resizable()
             .interpolation(.none)
             .frame(width: width, height: height)
-            .brightness(dim ? -0.25 : 0.05)
-            .saturation(dim ? 0.55 : 1.05)
-            .opacity(dim ? 0.65 : 1.0)
+            .brightness(dim ? -0.45 : -0.12)
+            .saturation(dim ? 0.4 : 0.82)
+            .opacity(dim ? 0.5 : 0.92)
             .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 6)
             .position(x: xPx, y: yPx)
             .allowsHitTesting(false)
@@ -129,10 +139,10 @@ struct CodeRunStairConnectorView: View {
 
         let mainStroke: Color = highlighted
             ? Color(red: 1, green: 210 / 255, blue: 80 / 255)
-            : Color(red: 1, green: 248 / 255, blue: 235 / 255).opacity(0.95)
+            : Color(red: 200 / 255, green: 210 / 255, blue: 230 / 255).opacity(0.7)
         let innerStroke: Color = highlighted
             ? Color(red: 1, green: 248 / 255, blue: 210 / 255).opacity(0.95)
-            : Color.white.opacity(0.85)
+            : Color(red: 180 / 255, green: 190 / 255, blue: 210 / 255).opacity(0.55)
         let mainWidth = max(4, 7 * scale)
         let shadowWidth = max(8, 12 * scale)
         let innerWidth = max(1.5, 2.6 * scale)
@@ -245,9 +255,9 @@ struct CodeRunBlockDimVeil: View {
     var body: some View {
         LinearGradient(
             colors: [
-                Color.white.opacity(0.15),
-                Color(red: 200 / 255, green: 210 / 255, blue: 230 / 255).opacity(0.45),
-                Color(red: 160 / 255, green: 170 / 255, blue: 190 / 255).opacity(0.65),
+                Color(red: 4 / 255, green: 4 / 255, blue: 10 / 255).opacity(0.55),
+                Color(red: 2 / 255, green: 2 / 255, blue: 8 / 255).opacity(0.85),
+                Color(red: 0 / 255, green: 0 / 255, blue: 4 / 255).opacity(0.95),
             ],
             startPoint: .top,
             endPoint: .bottom
