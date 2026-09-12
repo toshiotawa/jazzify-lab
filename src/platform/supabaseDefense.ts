@@ -3,6 +3,7 @@
  */
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import type {
+  DefenseAttackTrigger,
   DefenseDifficulty,
   DefensePhrase,
   DefensePhraseChord,
@@ -23,6 +24,7 @@ interface StageRow {
   beats_per_bar: number;
   phrase_bars: number;
   staff_layout: string;
+  attack_trigger: string;
   key_fifths: number;
   required_completion_count: number;
   difficulty_level: number;
@@ -75,6 +77,10 @@ const parseStaffLayout = (value: string): DefenseStaffLayout => (
   value === 'grand' ? 'grand' : 'treble'
 );
 
+const parseAttackTrigger = (value: string): DefenseAttackTrigger => (
+  value === 'measure' ? 'measure' : 'note'
+);
+
 const mapNoteRow = (row: NoteRow): DefensePhraseChordNote => ({
   orderIndex: row.order_index,
   pitchMidi: row.pitch_midi,
@@ -91,7 +97,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     .from('defense_stages')
     .select(`
       id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-      staff_layout, key_fifths, required_completion_count, difficulty_level,
+      staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
       survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
     `)
     .eq('id', stageId)
@@ -183,6 +189,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     beatsPerBar: stage.beats_per_bar,
     phraseBars: stage.phrase_bars,
     staffLayout: parseStaffLayout(stage.staff_layout),
+    attackTrigger: parseAttackTrigger(stage.attack_trigger),
     keyFifths: stage.key_fifths,
     requiredCompletionCount: stage.required_completion_count,
     difficultyLevel: stage.difficulty_level,

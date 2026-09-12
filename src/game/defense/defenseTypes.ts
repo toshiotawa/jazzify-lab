@@ -5,6 +5,9 @@ import type { ProductionHintMode } from '@/types';
 
 export type DefenseStaffLayout = 'treble' | 'grand';
 
+/** When player slash fires: each correct pitch (`note`) or chord/measure complete (`measure`). */
+export type DefenseAttackTrigger = 'note' | 'measure';
+
 export interface DefensePhraseChordNote {
   readonly orderIndex: number;
   readonly pitchMidi: number;
@@ -42,6 +45,7 @@ export interface DefenseStage {
   readonly beatsPerBar: number;
   readonly phraseBars: number;
   readonly staffLayout: DefenseStaffLayout;
+  readonly attackTrigger: DefenseAttackTrigger;
   readonly keyFifths: number;
   readonly requiredCompletionCount: number;
   readonly difficultyLevel: number;

@@ -37,7 +37,7 @@ const phraseA: DefensePhrase = {
 };
 
 describe('defensePhraseJudge', () => {
-  it('fires attack on each correct note', () => {
+  it('fires attack on each correct note in note mode', () => {
     let state = createInitialPhraseJudgeState(0);
     const phrases = [phraseA];
 
@@ -52,6 +52,27 @@ describe('defensePhraseJudge', () => {
     state = second.nextState;
 
     const third = evaluateDefensePhraseNoteOn(phrases, 1, state, 7);
+    expect(third.attack).toBe(true);
+    expect(third.phraseCompleted).toBe(true);
+    expect(third.completionCount).toBe(1);
+    expect(third.pendingSwitch).toBe(true);
+  });
+
+  it('fires attack only on measure complete in measure mode', () => {
+    let state = createInitialPhraseJudgeState(0);
+    const phrases = [phraseA];
+
+    const first = evaluateDefensePhraseNoteOn(phrases, 1, state, 2, false, 'measure');
+    expect(first.attack).toBe(false);
+    expect(first.phraseCompleted).toBe(false);
+    state = first.nextState;
+
+    const second = evaluateDefensePhraseNoteOn(phrases, 1, state, 4, false, 'measure');
+    expect(second.attack).toBe(true);
+    expect(second.phraseCompleted).toBe(false);
+    state = second.nextState;
+
+    const third = evaluateDefensePhraseNoteOn(phrases, 1, state, 7, false, 'measure');
     expect(third.attack).toBe(true);
     expect(third.phraseCompleted).toBe(true);
     expect(third.completionCount).toBe(1);

@@ -5,6 +5,12 @@ enum DefenseStaffLayout: String, Sendable {
     case grand
 }
 
+/// When player slash fires: each correct pitch (`.note`) or chord/measure complete (`.measure`).
+enum DefenseAttackTrigger: String, Sendable {
+    case note
+    case measure
+}
+
 struct DefensePhraseDefinition: Sendable, Equatable, Identifiable {
     let id: String
     let orderIndex: Int
@@ -25,6 +31,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let beatsPerBar: Int
     let phraseBars: Int
     let staffLayout: DefenseStaffLayout
+    let attackTrigger: DefenseAttackTrigger
     let keyFifths: Int
     let requiredCompletionCount: Int
     let difficultyLevel: Int

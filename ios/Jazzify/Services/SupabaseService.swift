@@ -2274,6 +2274,7 @@ final class SupabaseService: Sendable {
             let beats_per_bar: Int
             let phrase_bars: Int
             let staff_layout: String
+            let attack_trigger: String
             let key_fifths: Int
             let required_completion_count: Int
             let difficulty_level: Int
@@ -2311,7 +2312,7 @@ final class SupabaseService: Sendable {
             .from("defense_stages")
             .select("""
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-                staff_layout, key_fifths, required_completion_count, difficulty_level,
+                staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
                 survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
             """)
             .eq("id", value: stageId)
@@ -2394,6 +2395,7 @@ final class SupabaseService: Sendable {
             beatsPerBar: stage.beats_per_bar,
             phraseBars: stage.phrase_bars,
             staffLayout: stage.staff_layout == "grand" ? .grand : .treble,
+            attackTrigger: stage.attack_trigger == "measure" ? .measure : .note,
             keyFifths: stage.key_fifths,
             requiredCompletionCount: stage.required_completion_count,
             difficultyLevel: stage.difficulty_level,

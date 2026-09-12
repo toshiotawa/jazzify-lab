@@ -32,6 +32,35 @@ final class DefensePhraseJudgeTests: XCTestCase {
         ]
     )
 
+    func testMeasureModeFiresAttackOnlyOnMeasureComplete() {
+        var state = DefensePhraseJudge.createInitialState(phrases: [phrase])
+        let first = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 2,
+            attackTrigger: .measure
+        )
+        XCTAssertFalse(first.attack)
+        state = first.nextState
+        let second = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 4,
+            attackTrigger: .measure
+        )
+        XCTAssertTrue(second.attack)
+        state = second.nextState
+        let final = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 7,
+            attackTrigger: .measure
+        )
+        XCTAssertTrue(final.attack)
+        XCTAssertTrue(final.phraseCompleted)
+        XCTAssertTrue(final.pendingSwitch)
+    }
+
     func testPhraseCompletionSetsPendingSwitch() {
         var state = DefensePhraseJudge.createInitialState(phrases: [phrase])
         let first = DefensePhraseJudge.evaluateNoteOn(state: state, stageRequiredCompletionCount: 1, pitchClass: 2)

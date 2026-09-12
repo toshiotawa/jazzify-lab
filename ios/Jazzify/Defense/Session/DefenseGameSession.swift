@@ -140,7 +140,8 @@ final class DefenseGameSession: ObservableObject {
             state: judgeState,
             stageRequiredCompletionCount: stage.requiredCompletionCount,
             pitchClass: normalizedPc,
-            sequential: sequential
+            sequential: sequential,
+            attackTrigger: stage.attackTrigger
         )
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState

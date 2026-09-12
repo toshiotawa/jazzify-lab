@@ -1,7 +1,11 @@
 /**
  * Defense mode phrase judgment: sequential steps across N measures, completion count, pending switch.
  */
-import type { DefensePhrase, DefensePhraseChord } from '@/game/defense/defenseTypes';
+import type {
+  DefenseAttackTrigger,
+  DefensePhrase,
+  DefensePhraseChord,
+} from '@/game/defense/defenseTypes';
 import {
   computeOrderedChordKeyboardHintsFromMidis,
   orderedPitchClassesFromMidis,
@@ -142,6 +146,7 @@ export const evaluateDefensePhraseNoteOn = (
   state: DefensePhraseJudgeState,
   pitchClass: number,
   sequential = false,
+  attackTrigger: DefenseAttackTrigger = 'note',
 ): DefensePhraseNoteEvaluation => {
   const phrase = phrases[state.phraseIndex] ?? null;
   const chord = getCurrentChord(phrase, state.chordIndex);
@@ -229,7 +234,7 @@ export const evaluateDefensePhraseNoteOn = (
   }
 
   return {
-    attack: true,
+    attack: attackTrigger === 'note',
     phraseCompleted: false,
     pendingSwitch: state.pendingSwitch,
     completionCount: state.completionCount,

@@ -232,6 +232,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       judgeRef.current,
       pitchClass,
       sequential,
+      stage.attackTrigger,
     );
 
     if (evaluation.nextState === judgeRef.current) return;
@@ -256,7 +257,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(buffer);
       })();
     }
-  }, [stage.phrases, stage.requiredCompletionCount, stage.bpm, applyImmediatePhraseSwitch]);
+  }, [stage.phrases, stage.requiredCompletionCount, stage.attackTrigger, stage.bpm, applyImmediatePhraseSwitch]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
