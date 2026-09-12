@@ -21,13 +21,13 @@ struct DefensePhraseStaffView: View {
                     correctPitchClassesByGroupId: built.correctMap,
                     showTargetHints: showTargetHints,
                     singleMeasureLayout: true,
+                    hideChordLabels: true,
                     phraseTightTopLedgerPadding: true,
                     unpressedNoteOpacity: CGFloat(unpressedNoteOpacity),
                     compactChordLabelGap: true,
                     compactVerticalLayout: true,
                     fadeAllMeasureNotes: true,
-                    fixedActiveStaves: staffLayout == .grand ? [1, 2] : [1],
-                    neonChordLabels: true
+                    fixedActiveStaves: staffLayout == .grand ? [1, 2] : [1]
                 )
             }
         }

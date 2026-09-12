@@ -13,7 +13,6 @@ struct TrainingGameView: View {
     let onFinished: (Int) -> Void
 
     private static let pianoHeight: CGFloat = EarTrainingBattleStageKit.chordPadKeyboardHeight
-    private static let staffBandMargin: CGFloat = 16
 
     init(
         training: TrainingRow,
@@ -97,6 +96,12 @@ struct TrainingGameView: View {
 
             VStack(spacing: 0) {
                 trainingHud
+                if let question = session.question,
+                   session.hud.phase != .countdown,
+                   !question.promptLabel.isEmpty {
+                    trainingPromptLabel(question.promptLabel)
+                        .padding(.top, 4)
+                }
                 Spacer(minLength: 0)
             }
             .ignoresSafeArea(edges: .top)
@@ -130,43 +135,33 @@ struct TrainingGameView: View {
 
     @ViewBuilder
     private func staffOverlay(question: TrainingQuestion, size: CGSize) -> some View {
-        let staffBandHeight = (size.height
-            - TrainingConstants.hudHeight
-            - Self.pianoHeight
-            - Self.staffBandMargin)
-            * TrainingConstants.staffHeightRatio(clefMode: session.training.clefMode)
-
-        VStack(spacing: 8) {
-            if !question.promptLabel.isEmpty {
-                Text(question.promptLabel)
-                    .font(.system(size: Self.isPhone ? 26 : 28, weight: .heavy, design: .rounded))
-                    .foregroundStyle(Color(red: 1.0, green: 0.88, blue: 0.30))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(0.9), radius: 4, x: 0, y: 2)
-                    .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
-            }
-            TrainingStaffView(
-                question: question,
-                correctIndices: session.correctIndices,
-                showHints: session.practiceMode,
-                kind: session.training.kind,
-                unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
-                    practiceMode: session.practiceMode,
-                    kind: session.training.kind
-                ),
-                clefMode: session.training.clefMode
-            )
-        }
-        .padding(.horizontal)
-        .frame(maxWidth: min(size.width * 0.82, 720))
-        .frame(height: max(0, staffBandHeight))
-        .position(
-            x: size.width / 2,
-            y: TrainingConstants.hudHeight + 8 + max(0, staffBandHeight) / 2
+        TrainingStaffView(
+            question: question,
+            correctIndices: session.correctIndices,
+            showHints: session.practiceMode,
+            kind: session.training.kind,
+            unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
+                practiceMode: session.practiceMode,
+                kind: session.training.kind
+            ),
+            clefMode: session.training.clefMode
         )
+        .padding(.horizontal, 12)
+        .frame(width: min(size.width * 0.82, 720), height: size.height * 0.5)
+        .position(x: size.width / 2, y: size.height * 0.44)
         .allowsHitTesting(false)
+    }
+
+    private func trainingPromptLabel(_ label: String) -> some View {
+        Text(label)
+            .font(.system(size: Self.isPhone ? 26 : 28, weight: .heavy, design: .rounded))
+            .foregroundStyle(Color(red: 1.0, green: 0.88, blue: 0.30))
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.7)
+            .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(0.9), radius: 4, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
+            .allowsHitTesting(false)
     }
 
     private static var isPhone: Bool {

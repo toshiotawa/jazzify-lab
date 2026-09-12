@@ -194,36 +194,21 @@ struct DefenseGameView: View {
     }
 
     private func defenseNeonChordDisplay(labels: DefenseChordHudLabels) -> some View {
-        VStack(spacing: 0) {
-            defenseNeonCodeBadge(title: "", value: labels.current, primary: true)
-            defenseNeonCodeBadge(title: "next", value: labels.next, primary: false)
-        }
-        .allowsHitTesting(false)
+        defenseNeonCodeBadge(value: labels.current)
+            .allowsHitTesting(false)
     }
 
-    private func defenseNeonCodeBadge(title: String, value: String, primary: Bool) -> some View {
-        let titleFontSize: CGFloat = Self.isPhone ? 11 : (primary ? 11 : 10)
-        let valueFontSize: CGFloat = primary ? (Self.isPhone ? 42 : 34) : (Self.isPhone ? 26 : 20)
-        let minWidth: CGFloat = primary ? (Self.isPhone ? 180 : 160) : (Self.isPhone ? 110 : 96)
-        let maxWidth: CGFloat = primary ? (Self.isPhone ? 280 : 240) : (Self.isPhone ? 150 : 128)
-        return VStack(spacing: 2) {
-            if !title.isEmpty {
-                Text(title)
-                    .font(.system(size: titleFontSize, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.68))
-                    .shadow(color: .black.opacity(0.75), radius: 2, x: 0, y: 1)
-            }
-            Text(value)
-                .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
-                .foregroundStyle(primary ? Color(red: 1.0, green: 0.88, blue: 0.30) : .white.opacity(0.88))
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-                .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(primary ? 0.9 : 0.55), radius: primary ? 4 : 2, x: 0, y: 2)
-                .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
-        }
-        .frame(minWidth: minWidth, maxWidth: maxWidth)
-        .padding(.horizontal, primary ? 12 : 6)
-        .padding(.vertical, primary ? 6 : 4)
+    private func defenseNeonCodeBadge(value: String) -> some View {
+        Text(value)
+            .font(.system(size: 34, weight: .heavy, design: .rounded))
+            .foregroundStyle(Color(red: 1.0, green: 0.88, blue: 0.30))
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+            .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(0.9), radius: 4, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
+            .frame(minWidth: 160, maxWidth: 240)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
     }
 
     private var staffOpacity: Double {

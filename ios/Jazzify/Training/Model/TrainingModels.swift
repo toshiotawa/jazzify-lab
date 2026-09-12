@@ -222,10 +222,6 @@ enum TrainingConstants {
     static let dyingFadeSpeed: CGFloat = 2.5
     static let dyingKnockbackPxPerSec: CGFloat = 120
 
-    static func staffHeightRatio(clefMode: TrainingClefMode) -> CGFloat {
-        clefMode == .grandConcert ? 0.5 : 0.34
-    }
-
     static func staffNoteOpacity(practiceMode: Bool, kind: TrainingKind) -> CGFloat {
         practiceMode || kind == .noteReading || kind == .interval ? 1 : 0
     }

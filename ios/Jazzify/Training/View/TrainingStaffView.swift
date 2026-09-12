@@ -81,7 +81,10 @@ struct TrainingStaffView: View {
             showTargetHints: showHints,
             singleMeasureLayout: true,
             hideChordLabels: true,
+            phraseTightTopLedgerPadding: true,
             unpressedNoteOpacity: unpressedNoteOpacity,
+            compactChordLabelGap: true,
+            compactVerticalLayout: true,
             fixedActiveStaves: fixedActiveStaves,
             ignoreNotationInstrument: ignoreNotationInstrument
         )
