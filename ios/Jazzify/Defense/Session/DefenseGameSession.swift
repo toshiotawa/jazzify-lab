@@ -25,6 +25,7 @@ final class DefenseGameSession: ObservableObject {
     private(set) var runtime: DefenseRuntimeState
     @Published private(set) var judgeState: DefensePhraseJudgeState
     @Published private(set) var hud: DefenseHudState
+    @Published private(set) var midiHeldKeys: Set<Int> = []
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
@@ -82,6 +83,7 @@ final class DefenseGameSession: ObservableObject {
 
     func stop() {
         midiSubscriptionHolder.cancel()
+        midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()
     }
 
@@ -100,15 +102,27 @@ final class DefenseGameSession: ObservableObject {
                     if playPiano {
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
                     }
+                    self.registerMidiKeyDown(note)
                     self.handleNoteOn(
                         pitchClass: ((note % 12) + 12) % 12,
                         sequential: NoteInputManager.shared.isVoiceInputActive
                     )
-                } else if isNoteOff, playPiano {
-                    SurvivalGameAudio.shared.pianoNoteOff(midi: note)
+                } else if isNoteOff {
+                    self.registerMidiKeyUp(note)
+                    if playPiano {
+                        SurvivalGameAudio.shared.pianoNoteOff(midi: note)
+                    }
                 }
             }
         }
+    }
+
+    func registerMidiKeyDown(_ midi: Int) {
+        guard midiHeldKeys.insert(midi).inserted else { return }
+    }
+
+    func registerMidiKeyUp(_ midi: Int) {
+        guard midiHeldKeys.remove(midi) != nil else { return }
     }
 
     func handleNoteOn(pitchClass: Int, sequential: Bool = false) {

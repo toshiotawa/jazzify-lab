@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import type { ActiveNote } from '@/types';
 import { pianoKeyboardTheme } from '@/theme/pianoKeyboardTheme';
 import { cn } from '@/utils/cn';
+import { mapMidiToVisibleKeyboard } from '@/utils/webKeyboardDisplayRange';
 
 type NoteNameStyle = 'off' | 'abc' | 'solfege';
 
@@ -1447,7 +1448,12 @@ export class PIXINotesRendererInstance {
     // 正解済みハイライト（赤色）- ガイドより上に描画
     this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
     // アクティブハイライト（水色・入力中）- 最前面
-    this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
+    this.highlightedKeys.forEach((midi) => {
+      drawHighlight(
+        mapMidiToVisibleKeyboard(midi, this.displayMinMidi, this.displayMaxMidi),
+        this.colors.activeKey,
+      );
+    });
     ctx.restore();
   }
 

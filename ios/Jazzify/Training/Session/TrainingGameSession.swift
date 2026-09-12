@@ -14,6 +14,7 @@ final class TrainingGameSession: ObservableObject {
     @Published private(set) var hud: TrainingHudState
     @Published private(set) var question: TrainingQuestion?
     @Published private(set) var correctIndices: [Int] = []
+    @Published private(set) var midiHeldKeys: Set<Int> = []
 
     let training: TrainingRow
     let practiceMode: Bool
@@ -58,6 +59,7 @@ final class TrainingGameSession: ObservableObject {
         countdownTask?.cancel()
         countdownTask = nil
         midiSubscriptionHolder.cancel()
+        midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()
     }
 
@@ -127,12 +129,24 @@ final class TrainingGameSession: ObservableObject {
                     if playPiano {
                         SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
                     }
+                    self.registerMidiKeyDown(note)
                     self.handleNoteOn(midiNote: note)
-                } else if isNoteOff, playPiano {
-                    SurvivalGameAudio.shared.pianoNoteOff(midi: note)
+                } else if isNoteOff {
+                    self.registerMidiKeyUp(note)
+                    if playPiano {
+                        SurvivalGameAudio.shared.pianoNoteOff(midi: note)
+                    }
                 }
             }
         }
+    }
+
+    func registerMidiKeyDown(_ midi: Int) {
+        guard midiHeldKeys.insert(midi).inserted else { return }
+    }
+
+    func registerMidiKeyUp(_ midi: Int) {
+        guard midiHeldKeys.remove(midi) != nil else { return }
     }
 
     func handleNoteOn(midiNote: Int) {

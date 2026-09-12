@@ -239,6 +239,31 @@ export const absorbMidiIntoRange = (
   };
 };
 
+/** 表示鍵盤にない MIDI を、同じピッチクラスの最も近い可視鍵へ折り返す。 */
+export const mapMidiToVisibleKeyboard = (
+  midi: number,
+  minMidi: number,
+  maxMidi: number,
+): number => {
+  if (midi >= minMidi && midi <= maxMidi) {
+    return midi;
+  }
+  const pitchClass = ((midi % 12) + 12) % 12;
+  let best: number | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (let candidate = minMidi; candidate <= maxMidi; candidate += 1) {
+    if (((candidate % 12) + 12) % 12 !== pitchClass) {
+      continue;
+    }
+    const dist = Math.abs(candidate - midi);
+    if (dist < bestDist) {
+      best = candidate;
+      bestDist = dist;
+    }
+  }
+  return best ?? midi;
+};
+
 export const resolveWebKeyboardDisplayRange = (
   noteMidis: readonly number[],
   mode: WebKeyboardDisplayMode,

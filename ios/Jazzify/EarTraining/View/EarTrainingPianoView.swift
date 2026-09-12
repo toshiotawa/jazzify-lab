@@ -65,6 +65,10 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
             let totalWidth = viewportWidth
+            let visibleHeldKeys = PianoKeyboardScrollGeometry.visibleHeldKeys(
+                player.midiHeldKeys,
+                range: displayRange
+            )
 
             keyboardStack(
                 keyboardLayout: keyboardLayout,
@@ -72,7 +76,8 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                 whiteKeyWidth: whiteKeyWidth,
                 blackKeyWidth: blackKeyWidth,
                 blackKeyHeight: blackKeyHeight,
-                totalWidth: totalWidth
+                totalWidth: totalWidth,
+                visibleHeldKeys: visibleHeldKeys
             )
             .frame(width: totalWidth, height: keyboardHeight)
             .background(Color.black.opacity(0.55))
@@ -87,7 +92,8 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
         whiteKeyWidth: CGFloat,
         blackKeyWidth: CGFloat,
         blackKeyHeight: CGFloat,
-        totalWidth: CGFloat
+        totalWidth: CGFloat,
+        visibleHeldKeys: Set<Int>
     ) -> some View {
         ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
@@ -96,7 +102,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                         midi: midi,
                         label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                         isBlack: false,
-                        isMidiHeld: player.midiHeldKeys.contains(midi),
+                        isMidiHeld: visibleHeldKeys.contains(midi),
                         voicingHintIntensity: player.voicingHintIntensitiesByMidi?[midi],
                         voicingHint: player.voicingHintsByMidi[midi],
                         width: whiteKeyWidth,
@@ -115,7 +121,7 @@ struct EarTrainingPianoView<Player: EarTrainingPianoPlayable>: View {
                     midi: midi,
                     label: "",
                     isBlack: true,
-                    isMidiHeld: player.midiHeldKeys.contains(midi),
+                    isMidiHeld: visibleHeldKeys.contains(midi),
                     voicingHintIntensity: player.voicingHintIntensitiesByMidi?[midi],
                     voicingHint: player.voicingHintsByMidi[midi],
                     width: blackKeyWidth,

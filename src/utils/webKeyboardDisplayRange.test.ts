@@ -4,6 +4,7 @@ import {
   ensureMinimumDisplaySpan,
   expandMidiRangeWithWhiteKeyPadding,
   FULL_88_KEYBOARD_RANGE,
+  mapMidiToVisibleKeyboard,
   MIN_DISPLAY_SPAN_SEMITONES,
   normalizeWebKeyboardDisplayMode,
   resolveWebKeyboardDisplayRange,
@@ -99,6 +100,17 @@ describe('ensureMinimumDisplaySpan', () => {
     const expanded = ensureMinimumDisplaySpan(padded);
     expect(expanded.maxMidi).toBe(108);
     expect(expanded.maxMidi - expanded.minMidi).toBeGreaterThanOrEqual(MIN_DISPLAY_SPAN_SEMITONES);
+  });
+});
+
+describe('mapMidiToVisibleKeyboard', () => {
+  it('keeps notes that are already visible', () => {
+    expect(mapMidiToVisibleKeyboard(60, 59, 72)).toBe(60);
+  });
+
+  it('folds an out-of-range octave onto the nearest visible pitch class', () => {
+    expect(mapMidiToVisibleKeyboard(48, 59, 72)).toBe(60);
+    expect(mapMidiToVisibleKeyboard(84, 59, 72)).toBe(72);
   });
 });
 

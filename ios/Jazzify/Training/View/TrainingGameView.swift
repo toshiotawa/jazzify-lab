@@ -194,7 +194,7 @@ struct TrainingGameView: View {
             nextHintMidis: hintMidis,
             completedHintMidis: [],
             hintPendingOpacity: session.practiceMode ? 1 : 0,
-            midiHeldKeys: [],
+            midiHeldKeys: session.midiHeldKeys,
             isEnabled: session.hud.phase == .playing && !isSettingsOpen,
             scrollAnchorMidi: nil,
             referenceHintMidis: referenceHintMidis

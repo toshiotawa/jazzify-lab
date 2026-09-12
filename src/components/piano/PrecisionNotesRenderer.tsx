@@ -12,6 +12,7 @@ import {
 import { computePrecisionVanishEffectCenter } from '@/utils/earTrainingPrecisionVanishEffect';
 import { pianoKeyboardTheme } from '@/theme/pianoKeyboardTheme';
 import { cn } from '@/utils/cn';
+import { mapMidiToVisibleKeyboard } from '@/utils/webKeyboardDisplayRange';
 
 export const PRECISION_NOTE_FALL_LEAD_SEC = 3;
 
@@ -670,8 +671,12 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
     if (!this.practiceHighlight && this.activeKeys.size === 0) {
       return;
     }
+    const visibleActiveKeys = new Set<number>();
+    this.activeKeys.forEach((midi) => {
+      visibleActiveKeys.add(mapMidiToVisibleKeyboard(midi, this.minMidi, this.maxMidi));
+    });
     for (const key of this.keyGeometries) {
-      if (!this.guideKeys.has(key.midi) || this.activeKeys.has(key.midi)) {
+      if (!this.guideKeys.has(key.midi) || visibleActiveKeys.has(key.midi)) {
         continue;
       }
       ctx.fillStyle = 'rgba(251, 191, 36, 0.45)';
@@ -683,7 +688,7 @@ class PrecisionNotesRendererEngine implements PrecisionNotesRendererInstance {
       }
     }
     for (const key of this.keyGeometries) {
-      if (!this.activeKeys.has(key.midi)) {
+      if (!visibleActiveKeys.has(key.midi)) {
         continue;
       }
       ctx.fillStyle = 'rgba(56,189,248,0.55)';

@@ -185,6 +185,30 @@ enum PianoKeyboardScrollGeometry {
         )
     }
 
+    /// 表示鍵盤にない MIDI を、同じピッチクラスの最も近い可視鍵へ折り返す。
+    static func mapMidiToVisibleKeyboard(_ midi: Int, range: PianoStagePitchRange) -> Int {
+        if midi >= range.minMidi && midi <= range.maxMidi {
+            return midi
+        }
+        let pitchClass = ((midi % 12) + 12) % 12
+        var best: Int?
+        var bestDist = Int.max
+        guard range.minMidi <= range.maxMidi else { return midi }
+        for candidate in range.minMidi...range.maxMidi {
+            if ((candidate % 12) + 12) % 12 != pitchClass { continue }
+            let dist = abs(candidate - midi)
+            if dist < bestDist {
+                best = candidate
+                bestDist = dist
+            }
+        }
+        return best ?? midi
+    }
+
+    static func visibleHeldKeys(_ held: Set<Int>, range: PianoStagePitchRange) -> Set<Int> {
+        Set(held.map { mapMidiToVisibleKeyboard($0, range: range) })
+    }
+
     static func resolveDisplayKeyboardRange(
         noteMidis: [Int],
         displayMode: PianoKeyboardDisplayMode

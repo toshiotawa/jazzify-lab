@@ -498,11 +498,15 @@ final class PrecisionNotesCanvasUIView: UIView {
     }
 
     private func drawKeyHighlights(context: CGContext, controller: EarTrainingPrecisionBattleController) {
+        let visibleHeldKeys = PianoKeyboardScrollGeometry.visibleHeldKeys(
+            controller.midiHeldKeys,
+            range: PianoStagePitchRange(minMidi: minMidi, maxMidi: maxMidi)
+        )
         for key in keyGeometries {
-            guard guideMidis.contains(key.midi), !controller.midiHeldKeys.contains(key.midi) else { continue }
+            guard guideMidis.contains(key.midi), !visibleHeldKeys.contains(key.midi) else { continue }
             fillKeyHighlight(context: context, key: key, color: PrecisionNoteColors.guideHighlight)
         }
-        for key in keyGeometries where controller.midiHeldKeys.contains(key.midi) {
+        for key in keyGeometries where visibleHeldKeys.contains(key.midi) {
             fillKeyHighlight(context: context, key: key, color: PrecisionNoteColors.activeKeyHighlight)
         }
     }

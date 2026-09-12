@@ -193,7 +193,7 @@ struct DefenseGameView: View {
             nextHintMidis: keyboardHints.nextMidis,
             completedHintMidis: keyboardHints.completedMidis,
             hintPendingOpacity: keyboardHintOpacity,
-            midiHeldKeys: [],
+            midiHeldKeys: session.midiHeldKeys,
             isEnabled: session.hud.result == .playing && !isSettingsOpen,
             scrollAnchorMidi: nil
         )

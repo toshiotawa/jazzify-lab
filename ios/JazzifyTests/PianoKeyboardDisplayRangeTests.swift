@@ -159,4 +159,19 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
             57
         )
     }
+
+    func testMapMidiToVisibleKeyboardKeepsInRangeNotes() {
+        let range = PianoStagePitchRange(minMidi: 59, maxMidi: 72)
+        XCTAssertEqual(PianoKeyboardScrollGeometry.mapMidiToVisibleKeyboard(60, range: range), 60)
+    }
+
+    func testMapMidiToVisibleKeyboardFoldsOutOfRangeOctave() {
+        let range = PianoStagePitchRange(minMidi: 59, maxMidi: 72)
+        XCTAssertEqual(PianoKeyboardScrollGeometry.mapMidiToVisibleKeyboard(48, range: range), 60)
+        XCTAssertEqual(PianoKeyboardScrollGeometry.mapMidiToVisibleKeyboard(84, range: range), 72)
+        XCTAssertEqual(
+            PianoKeyboardScrollGeometry.visibleHeldKeys(Set([48, 60]), range: range),
+            Set([60])
+        )
+    }
 }

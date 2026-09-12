@@ -64,6 +64,10 @@ struct SurvivalChordPadView: View, Equatable {
             let contentWidth = whiteKeyWidth * CGFloat(whiteKeyCount)
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
+            let visibleHeldKeys = PianoKeyboardScrollGeometry.visibleHeldKeys(
+                snapshot.midiHeldKeys,
+                range: displayRange
+            )
 
             let keyboard = ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
@@ -76,7 +80,7 @@ struct SurvivalChordPadView: View, Equatable {
                             isHintCompleted: snapshot.completedHintMidis.contains(midi),
                             isReferenceHinted: snapshot.referenceHintMidis.contains(midi),
                             hintPendingOpacity: snapshot.hintPendingOpacity,
-                            isMidiHeld: snapshot.midiHeldKeys.contains(midi),
+                            isMidiHeld: visibleHeldKeys.contains(midi),
                             width: whiteKeyWidth,
                             height: keyboardHeight,
                             onPress: {
@@ -107,7 +111,7 @@ struct SurvivalChordPadView: View, Equatable {
                         isHintCompleted: snapshot.completedHintMidis.contains(midi),
                         isReferenceHinted: snapshot.referenceHintMidis.contains(midi),
                         hintPendingOpacity: snapshot.hintPendingOpacity,
-                        isMidiHeld: snapshot.midiHeldKeys.contains(midi),
+                        isMidiHeld: visibleHeldKeys.contains(midi),
                         width: blackKeyWidth,
                         height: blackKeyHeight,
                         onPress: {
