@@ -74,13 +74,19 @@ struct EarTrainingHUDView: View {
                     .frame(minWidth: 64)
             }
 
-            hpPanel(
-                current: hud.enemyHp,
-                max: hud.enemyMaxHp,
-                horizontalAlignment: .trailing,
-                frameAlignment: .trailing,
-                depleteFromLeading: false
-            )
+            if hud.hideEnemyHpBar {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .accessibilityHidden(true)
+            } else {
+                hpPanel(
+                    current: hud.enemyHp,
+                    max: hud.enemyMaxHp,
+                    horizontalAlignment: .trailing,
+                    frameAlignment: .trailing,
+                    depleteFromLeading: false
+                )
+            }
         }
         .padding(.trailing, healthRowTrailingReserve)
     }

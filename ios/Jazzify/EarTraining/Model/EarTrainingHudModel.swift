@@ -19,6 +19,8 @@ struct EarTrainingHudModel: Equatable {
     let hideTimeLabel: Bool
     /// チュートリアル等: プレイヤー／敵 HP 行を省略する（Web `hidePlayerHpBar` 相当）。
     let hidePlayerHpBar: Bool
+    /// ディフェンス等: 敵 HP バーだけ省略する（プレイヤー HP は残す）。
+    let hideEnemyHpBar: Bool
     let hideSettingsButton: Bool
     let hideBackButton: Bool
     let enemyAttackGaugePercent: Double

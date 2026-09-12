@@ -982,6 +982,7 @@ final class EarTrainingChordQuizBattleController: ObservableObject {
             timeLabel: timeLabel,
             hideTimeLabel: tutorialHooks != nil,
             hidePlayerHpBar: false,
+            hideEnemyHpBar: false,
             hideSettingsButton: false,
             hideBackButton: false,
             enemyAttackGaugePercent: practiceMode ? 0 : enemyAttackGaugePercent,

@@ -697,6 +697,7 @@ final class EarTrainingAdlibBattleController: ObservableObject {
             timeLabel: timeLabel,
             hideTimeLabel: false,
             hidePlayerHpBar: false,
+            hideEnemyHpBar: false,
             hideSettingsButton: false,
             hideBackButton: false,
             enemyAttackGaugePercent: 0,

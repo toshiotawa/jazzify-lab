@@ -1344,6 +1344,7 @@ final class EarTrainingAdlibCallResponseBattleController: ObservableObject {
             timeLabel: "\(min(phraseIndex + 1, max(1, phrases.count)))/\(max(1, phrases.count))",
             hideTimeLabel: true,
             hidePlayerHpBar: false,
+            hideEnemyHpBar: false,
             hideSettingsButton: false,
             hideBackButton: false,
             enemyAttackGaugePercent: 0,

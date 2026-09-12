@@ -12,6 +12,7 @@ extension EarTrainingTutorialUiOverrides {
             timeLabel: hud.timeLabel,
             hideTimeLabel: hideLobby || hud.hideTimeLabel,
             hidePlayerHpBar: hidePlayerHpBar,
+            hideEnemyHpBar: hud.hideEnemyHpBar,
             hideSettingsButton: timingCalibrationMode ? hideSettingsButton : false,
             hideBackButton: hideBackButton,
             enemyAttackGaugePercent: noCombat ? 0 : hud.enemyAttackGaugePercent,

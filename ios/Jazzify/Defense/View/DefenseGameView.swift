@@ -171,6 +171,7 @@ struct DefenseGameView: View {
                 timeLabel: "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)",
                 hideTimeLabel: false,
                 hidePlayerHpBar: false,
+                hideEnemyHpBar: true,
                 hideSettingsButton: false,
                 hideBackButton: false,
                 enemyAttackGaugePercent: 0,
