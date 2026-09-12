@@ -90,6 +90,8 @@ struct TrainingGameView: View {
     @ViewBuilder
     private func playfield(size: CGSize) -> some View {
         ZStack {
+            Color(uiColor: EarTrainingBattleStageKit.jazzBackdropEdgeColor)
+                .ignoresSafeArea()
             SpriteView(scene: scene, options: [.allowsTransparency])
                 .ignoresSafeArea()
 
@@ -137,8 +139,13 @@ struct TrainingGameView: View {
         VStack(spacing: 8) {
             if !question.promptLabel.isEmpty {
                 Text(question.promptLabel)
-                    .font(.headline)
-                    .foregroundStyle(.white)
+                    .font(.system(size: Self.isPhone ? 26 : 28, weight: .heavy, design: .rounded))
+                    .foregroundStyle(Color(red: 1.0, green: 0.88, blue: 0.30))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(0.9), radius: 4, x: 0, y: 2)
+                    .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
             }
             TrainingStaffView(
                 question: question,

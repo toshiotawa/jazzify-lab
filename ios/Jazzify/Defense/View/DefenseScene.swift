@@ -30,7 +30,7 @@ final class DefenseScene: SKScene {
     private var lastBuiltSize: CGSize = .zero
 
     override func didMove(to view: SKView) {
-        backgroundColor = .clear
+        backgroundColor = EarTrainingBattleStageKit.jazzBackdropEdgeColor
         scaleMode = .resizeFill
 
         backgroundLayer.zPosition = 0

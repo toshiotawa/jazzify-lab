@@ -9,6 +9,9 @@ import {
 export const DEFENSE_PLAYER_X_RATIO = 0.23;
 export const DEFENSE_SPAWN_X_RATIO = 0.97;
 
+/** Defense HUD omits chord chips; React overlay shows current/next neon labels. */
+export const DEFENSE_HUD_HEIGHT_PX = 88;
+
 export const defenseLogicalToScreenX = (
   width: number,
   logicalX: number,

@@ -5,8 +5,6 @@ export interface DefenseSceneHud {
   readonly remainSec: number;
   readonly enemiesDefeated: number;
   readonly practiceMode: boolean;
-  readonly chordNames: readonly string[];
-  readonly chordIndex: number;
 }
 
 export type MutableDefenseSceneHud = {

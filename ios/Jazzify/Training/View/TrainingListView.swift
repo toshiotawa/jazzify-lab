@@ -15,7 +15,7 @@ struct TrainingListView: View {
     @State private var practiceMode = false
     @State private var finalScore = 0
     @State private var showSubscription = false
-    @State private var gameSessionNonce = UUID()
+    @State private var playSession: TrainingPlaySession?
     @State private var didLaunchForcedTraining = false
 
     init(
@@ -42,27 +42,6 @@ struct TrainingListView: View {
                 TrainingRankingView(categories: categories) {
                     screen = .list
                 }
-            case .game:
-                if let training = activeTraining {
-                    TrainingGameView(
-                        training: training,
-                        practiceMode: practiceMode,
-                        lessonContext: lessonContext,
-                        locale: locale,
-                        onClose: {
-                            if isLessonLaunch {
-                                onLessonExit?()
-                            } else {
-                                screen = .list
-                            }
-                        },
-                        onFinished: { score in
-                            finalScore = score
-                            screen = .result
-                        }
-                    )
-                    .id(gameSessionNonce)
-                }
             case .result:
                 if let training = activeTraining {
                     TrainingResultView(
@@ -72,8 +51,7 @@ struct TrainingListView: View {
                         lessonContext: lessonContext,
                         locale: locale,
                         onRetry: {
-                            gameSessionNonce = UUID()
-                            screen = .game
+                            presentGame(training: training, practice: practiceMode)
                         },
                         onRanking: {
                             activeTraining = nil
@@ -91,6 +69,31 @@ struct TrainingListView: View {
                     )
                 }
             }
+        }
+        .toolbar(playSession == nil ? .visible : .hidden, for: .tabBar)
+        .fullScreenCover(item: $playSession) { session in
+            TrainingGameView(
+                training: session.training,
+                practiceMode: session.practiceMode,
+                lessonContext: lessonContext,
+                locale: locale,
+                onClose: {
+                    playSession = nil
+                    if isLessonLaunch {
+                        onLessonExit?()
+                    } else {
+                        screen = .list
+                    }
+                },
+                onFinished: { score in
+                    finalScore = score
+                    activeTraining = session.training
+                    practiceMode = session.practiceMode
+                    screen = .result
+                    playSession = nil
+                }
+            )
+            .id(session.id)
         }
         .task { await reload() }
     }
@@ -181,10 +184,13 @@ struct TrainingListView: View {
             showSubscription = true
             return
         }
+        presentGame(training: training, practice: practice)
+    }
+
+    private func presentGame(training: TrainingRow, practice: Bool) {
         activeTraining = training
         practiceMode = practice
-        gameSessionNonce = UUID()
-        screen = .game
+        playSession = TrainingPlaySession(training: training, practiceMode: practice)
     }
 
     private func reload() async {
@@ -212,9 +218,12 @@ struct TrainingListView: View {
             return
         }
         didLaunchForcedTraining = true
-        activeTraining = training
-        practiceMode = forcedPracticeMode
-        gameSessionNonce = UUID()
-        screen = .game
+        presentGame(training: training, practice: forcedPracticeMode)
     }
+}
+
+private struct TrainingPlaySession: Identifiable {
+    let id = UUID()
+    let training: TrainingRow
+    let practiceMode: Bool
 }

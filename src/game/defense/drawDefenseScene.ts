@@ -12,8 +12,8 @@ import {
   CHARACTER_DISPLAY_SIZE,
   getFloorY,
   getHpBarLayout,
-  HUD_HEIGHT,
 } from '@/game/earTraining/canvas/earTrainingBattleLayout';
+import { DEFENSE_HUD_HEIGHT_PX } from '@/game/defense/defenseSceneLayout';
 import type { BackgroundCacheState } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
   DEFENSE_ENEMY_CONFIG,
@@ -270,8 +270,8 @@ const drawDefenseHud = (
   ctx.fillStyle = 'rgba(2, 6, 23, 0.66)';
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
   ctx.lineWidth = 1;
-  ctx.fillRect(0, 0, width, HUD_HEIGHT);
-  ctx.strokeRect(0, 0, width, HUD_HEIGHT);
+  ctx.fillRect(0, 0, width, DEFENSE_HUD_HEIGHT_PX);
+  ctx.strokeRect(0, 0, width, DEFENSE_HUD_HEIGHT_PX);
 
   const hpLayout = getHpBarLayout(width);
   drawHpBar(ctx, hpLayout.leftX, 16, hpLayout.barWidth, hud.playerHp, hud.playerMaxHp, true);
@@ -286,36 +286,6 @@ const drawDefenseHud = (
   ctx.font = `900 14px ${HUD_FONT}`;
   ctx.textAlign = 'center';
   ctx.fillText(`KO ${hud.enemiesDefeated}`, width / 2, 56);
-
-  const itemWidth = 82;
-  const leftMargin = 16;
-  const availableWidth = Math.max(itemWidth, width - leftMargin * 2);
-  const visibleCount = Math.max(1, Math.min(hud.chordNames.length, Math.floor(availableWidth / itemWidth)));
-  const activeIndex = Math.min(Math.max(hud.chordIndex, 0), Math.max(0, hud.chordNames.length - 1));
-  const firstVisibleIndex = Math.max(0, Math.min(activeIndex - visibleCount + 1, hud.chordNames.length - visibleCount));
-  const chordsCount = Math.min(visibleCount, hud.chordNames.length - firstVisibleIndex);
-  const startX = leftMargin + (availableWidth - itemWidth * chordsCount) / 2;
-  const chipY = 104;
-
-  for (let index = 0; index < chordsCount; index += 1) {
-    const chordIndex = firstVisibleIndex + index;
-    const name = hud.chordNames[chordIndex] ?? '';
-    const active = chordIndex === activeIndex;
-    const x = startX + index * itemWidth;
-    const boxW = itemWidth - 6;
-    const boxH = 26;
-    const boxX = x + (itemWidth - boxW) / 2;
-    ctx.fillStyle = active ? '#facc15' : 'rgba(2, 6, 23, 0.72)';
-    ctx.strokeStyle = active ? 'rgba(254, 240, 138, 0.9)' : 'rgba(255, 255, 255, 0.12)';
-    ctx.lineWidth = 1;
-    ctx.fillRect(boxX, chipY, boxW, boxH);
-    ctx.strokeRect(boxX, chipY, boxW, boxH);
-    ctx.fillStyle = active ? '#020617' : '#e2e8f0';
-    ctx.font = `900 13px ${HUD_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name, boxX + boxW / 2, chipY + boxH / 2);
-  }
 
   if (hud.practiceMode) {
     const badge = 'PRACTICE';
@@ -355,7 +325,7 @@ export const drawDefenseScene = (
   assets: DefenseSceneAssets | null,
 ): void => {
   const floorY = getFloorY(height);
-  const stageHeight = Math.max(1, floorY - HUD_HEIGHT);
+  const stageHeight = Math.max(1, floorY - DEFENSE_HUD_HEIGHT_PX);
   const spriteScale = Math.min(width / DEFENSE_MAP_WIDTH, stageHeight / 320);
 
   if (assets) {

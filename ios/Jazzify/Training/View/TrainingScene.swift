@@ -28,7 +28,7 @@ final class TrainingScene: SKScene {
     private static let playerXRatio: CGFloat = 0.23
 
     override func didMove(to view: SKView) {
-        backgroundColor = .clear
+        backgroundColor = EarTrainingBattleStageKit.jazzBackdropEdgeColor
         scaleMode = .resizeFill
 
         backgroundLayer.zPosition = 0
@@ -74,7 +74,11 @@ final class TrainingScene: SKScene {
         playerRimNode = nil
         isShowingGuardPose = false
 
-        let floorY = EarTrainingBattleStageKit.battleFloorY(sceneHeight: size.height)
+        let floorY = EarTrainingBattleStageKit.battleFloorY(
+            sceneHeight: size.height,
+            keyboardHeight: Self.stageKeyboardHeight,
+            clearanceFromKeyboard: Self.stageFloorClearance
+        )
         let player = EarTrainingBattleStageKit.makeAvatarContainer(
             assetName: EarTrainingBattleController.playerAvatarAssetName,
             position: CGPoint(x: size.width * Self.playerXRatio, y: floorY),

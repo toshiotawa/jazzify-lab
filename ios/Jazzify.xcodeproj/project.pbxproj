@@ -360,6 +360,7 @@
 		DE01E0010000000000000002 /* DefenseEnemyConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE01E0010000000000000001 /* DefenseEnemyConfig.swift */; };
 		DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7FB73F72A914199E51C1D /* LessonProgress.swift */; };
 		DEFKB001BUILD0000000001 /* DefenseKeyboardRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFKB001FILE00000000001 /* DefenseKeyboardRange.swift */; };
+		DEFCH001BUILD0000000001 /* DefenseChordHudLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFCH001FILE00000000001 /* DefenseChordHudLabels.swift */; };
 		DEFSL001BUILD0000000001 /* DefenseSceneLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFSL001FILE00000000001 /* DefenseSceneLayout.swift */; };
 		E09259FB92854762EA40D533 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546BECBA781840253623CBDC /* StoreManager.swift */; };
 		E1C037ED84DB49B0BBC7A01B /* TrainingRankingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42DF193B5904E4499A646F5 /* TrainingRankingView.swift */; };
@@ -768,6 +769,7 @@
 		DE01E0010000000000000001 /* DefenseEnemyConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseEnemyConfig.swift; sourceTree = "<group>"; };
 		DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStatusEffectEngine.swift; sourceTree = "<group>"; };
 		DEFKB001FILE00000000001 /* DefenseKeyboardRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseKeyboardRange.swift; sourceTree = "<group>"; };
+		DEFCH001FILE00000000001 /* DefenseChordHudLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseChordHudLabels.swift; sourceTree = "<group>"; };
 		DEFSL001FILE00000000001 /* DefenseSceneLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSceneLayout.swift; sourceTree = "<group>"; };
 		DF31C081985352B1BF99F1F6 /* OnboardingDeviceConnectedBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingDeviceConnectedBannerView.swift; sourceTree = "<group>"; };
 		DF477622755B4DD8358B1BF6 /* BalloonRushGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushGameView.swift; sourceTree = "<group>"; };
@@ -1393,6 +1395,7 @@
 			isa = PBXGroup;
 			children = (
 				5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */,
+				DEFCH001FILE00000000001 /* DefenseChordHudLabels.swift */,
 				DEFKB001FILE00000000001 /* DefenseKeyboardRange.swift */,
 				7ED993F78D97573F2ACB0326 /* DefensePhraseJudge.swift */,
 				6F66608CB479A750BF6AF893 /* DefenseTransport.swift */,
@@ -1988,6 +1991,7 @@
 				7FC6EA227ADEC5CF85380A63 /* DefenseModels.swift in Sources */,
 				DE01E0010000000000000002 /* DefenseEnemyConfig.swift in Sources */,
 				AF11AB45821720FD44629F49 /* DefensePhraseJudge.swift in Sources */,
+				DEFCH001BUILD0000000001 /* DefenseChordHudLabels.swift in Sources */,
 				DEFKB001BUILD0000000001 /* DefenseKeyboardRange.swift in Sources */,
 				EF256CF18B6971EF2B9B061F /* DefensePhraseStaffView.swift in Sources */,
 				624FFEA8E4C2B2D5B5FD2B32 /* DefenseScene.swift in Sources */,

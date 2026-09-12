@@ -981,6 +981,8 @@ struct ChordVoicingStaffGroupsView: View {
     let fixedActiveStaves: [Int]?
     /// Web `ChordVoicingStaff.ignoreNotationInstrument` と同等。
     let ignoreNotationInstrument: Bool
+    /// ディフェンス等: コード名をコードラン風ネオン黄＋ピンク影で描画する。
+    let neonChordLabels: Bool
 
     @State private var simplifyEnharmonics = EnharmonicDisplayPreferences.load()
 
@@ -1005,7 +1007,8 @@ struct ChordVoicingStaffGroupsView: View {
         alwaysShowTopPointer: Bool = false,
         staffSpacingScale: CGFloat = 1,
         fixedActiveStaves: [Int]? = nil,
-        ignoreNotationInstrument: Bool = false
+        ignoreNotationInstrument: Bool = false,
+        neonChordLabels: Bool = false
     ) {
         self.groups = groups
         self.denseCurrentMeasureLayout = denseCurrentMeasureLayout
@@ -1028,6 +1031,7 @@ struct ChordVoicingStaffGroupsView: View {
         self.staffSpacingScale = staffSpacingScale
         self.fixedActiveStaves = fixedActiveStaves
         self.ignoreNotationInstrument = ignoreNotationInstrument
+        self.neonChordLabels = neonChordLabels
     }
 
     private var effectiveKeyFifths: Int {
@@ -1045,6 +1049,8 @@ struct ChordVoicingStaffGroupsView: View {
     static let nextTargetColor = Color(red: 243 / 255, green: 152 / 255, blue: 0 / 255)
     static let topPointerColor = nextTargetColor
     static let activeLabelColor = Color(red: 0.98, green: 0.8, blue: 0.09)
+    static let neonActiveLabelColor = Color(red: 1.0, green: 0.88, blue: 0.30)
+    static let neonInactiveLabelColor = Color.white.opacity(0.88)
     private static let trebleReferenceDegree = 4 * 7 + 6
     private static let bassReferenceDegree = 3 * 7 + 1
 
@@ -1145,7 +1151,8 @@ struct ChordVoicingStaffGroupsView: View {
                         staffSpacingScale: staffSpacingScale,
                         showEmptyStaff: showEmptyStaff,
                         fixedActiveStaves: fixedActiveStaves,
-                        simplifyEnharmonics: simplifyEnharmonics
+                        simplifyEnharmonics: simplifyEnharmonics,
+                        neonChordLabels: neonChordLabels
                     )
                 }
                 .id(staffCanvasRenderIdentity)
@@ -1382,7 +1389,8 @@ struct ChordVoicingStaffGroupsView: View {
         leftBound: CGFloat,
         rightBound: CGFloat,
         sp: CGFloat,
-        activeGroupId: UUID?
+        activeGroupId: UUID?,
+        neonChordLabels: Bool = false
     ) -> [ChordLabelFrame] {
         let named = parsedItems.filter { !$0.group.chordName.isEmpty }
         guard !named.isEmpty else { return [] }
@@ -1390,9 +1398,15 @@ struct ChordVoicingStaffGroupsView: View {
         let horizontalPadding = sp * 0.8
         var fontSize: CGFloat = 18
         let minFont: CGFloat = 12
+        let labelColor: (UUID) -> Color = { groupId in
+            if neonChordLabels {
+                return groupId == activeGroupId ? neonActiveLabelColor : neonInactiveLabelColor
+            }
+            return groupId == activeGroupId ? activeLabelColor : notationColor
+        }
         while fontSize >= minFont {
             var rows: [ChordLabelLayoutRow] = named.map { item in
-                let color = item.group.id == activeGroupId ? activeLabelColor : notationColor
+                let color = labelColor(item.group.id)
                 let desiredX = groupBaseX(
                     group: item.group,
                     slotIndex: item.slotIndex,
@@ -1437,7 +1451,7 @@ struct ChordVoicingStaffGroupsView: View {
             fontSize -= 1
         }
         var rows: [ChordLabelLayoutRow] = named.map { item in
-            let color = item.group.id == activeGroupId ? activeLabelColor : notationColor
+            let color = labelColor(item.group.id)
             let desiredX = groupBaseX(
                 group: item.group,
                 slotIndex: item.slotIndex,
@@ -1473,14 +1487,31 @@ struct ChordVoicingStaffGroupsView: View {
         }
     }
 
-    private static func drawChordLabels(context: inout GraphicsContext, labels: [ChordLabelFrame]) {
+    private static func drawChordLabels(
+        context: inout GraphicsContext,
+        labels: [ChordLabelFrame],
+        neonStyle: Bool = false
+    ) {
         for label in labels {
             let resolved = context.resolve(
                 Text(label.text)
                     .font(.system(size: label.fontSize, weight: .heavy, design: .rounded))
                     .foregroundColor(label.color)
             )
-            context.draw(resolved, at: label.center, anchor: .center)
+            if neonStyle {
+                context.drawLayer { layerContext in
+                    layerContext.addFilter(.shadow(
+                        color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(0.9),
+                        radius: 4,
+                        x: 0,
+                        y: 2
+                    ))
+                    layerContext.addFilter(.shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1))
+                    layerContext.draw(resolved, at: label.center, anchor: .center)
+                }
+            } else {
+                context.draw(resolved, at: label.center, anchor: .center)
+            }
         }
     }
 
@@ -1667,7 +1698,8 @@ struct ChordVoicingStaffGroupsView: View {
         staffSpacingScale: CGFloat = 1,
         showEmptyStaff: Bool = false,
         fixedActiveStaves: [Int]? = nil,
-        simplifyEnharmonics: Bool = true
+        simplifyEnharmonics: Bool = true,
+        neonChordLabels: Bool = false
     ) {
         guard !groups.isEmpty || showEmptyStaff else { return }
         let w = size.width
@@ -1710,7 +1742,8 @@ struct ChordVoicingStaffGroupsView: View {
                 leftBound: leftBound,
                 rightBound: rightBound,
                 sp: geo.sp,
-                activeGroupId: activeGroupId
+                activeGroupId: activeGroupId,
+                neonChordLabels: neonChordLabels
             )
 
         let battleHints = computeVoicingBattleHints(
@@ -1807,7 +1840,7 @@ struct ChordVoicingStaffGroupsView: View {
             dividerX: layout.measureDividerX
         )
 
-        drawChordLabels(context: &context, labels: labelFrames)
+        drawChordLabels(context: &context, labels: labelFrames, neonStyle: neonChordLabels)
 
         if let tp = battleHints.topPointer {
             groupsDrawTopPointer(context: &context, xCenter: tp.x, yCenter: tp.y, staffSpacing: geo.staffSpacing)

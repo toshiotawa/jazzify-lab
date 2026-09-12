@@ -288,7 +288,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   }, [phase, countdownSec, isSettingsOpen]);
 
   return (
-    <div className="fixed inset-0 z-[70] overflow-hidden bg-slate-950">
+    <div className="training-game-screen fixed inset-0 z-[70] overflow-hidden bg-slate-950">
       <TrainingCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {question && phase !== 'countdown' && (
@@ -301,8 +301,8 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         >
           {question.promptLabel !== '' && (
             <p className={cn(
-              'mb-1 shrink-0 text-center font-semibold text-white',
-              'text-lg',
+              'neon-game-prompt-label mb-1 shrink-0 text-center',
+              'text-2xl leading-tight sm:text-[28px]',
             )}
             >
               {question.promptLabel}

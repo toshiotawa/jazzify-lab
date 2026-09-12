@@ -1,3 +1,4 @@
+import SpriteKit
 import XCTest
 @testable import Jazzify
 
@@ -34,5 +35,17 @@ final class EarTrainingBattleStageKitTests: XCTestCase {
             clearanceFromKeyboard: EarTrainingBattleStageKit.chordPadFloorClearance
         )
         XCTAssertGreaterThan(chordPadFloorY, earTrainingFloorY)
+    }
+
+    func testInstallBattleBackdropAddsCeilingLightingLayers() {
+        let layer = SKNode()
+        EarTrainingBattleStageKit.installBattleBackdrop(
+            into: layer,
+            size: CGSize(width: 800, height: 390),
+            keyboardHeight: EarTrainingBattleStageKit.chordPadKeyboardHeight,
+            clearanceFromKeyboard: EarTrainingBattleStageKit.chordPadFloorClearance
+        )
+        // backdrop + local vignette + 2 cones + 2 pools + 2 floor shadows + final vignette
+        XCTAssertGreaterThanOrEqual(layer.children.count, 8)
     }
 }

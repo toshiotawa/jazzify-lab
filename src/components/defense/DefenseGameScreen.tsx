@@ -41,7 +41,9 @@ import type {
   DefenseStage,
 } from '@/game/defense/defenseTypes';
 import { computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
+import { getDefenseChordHudLabels } from '@/game/defense/defenseChordHudLabels';
 import type { MutableDefenseSceneHud } from '@/game/defense/defenseSceneHud';
+import { DEFENSE_HUD_HEIGHT_PX } from '@/game/defense/defenseSceneLayout';
 import { createDefenseRuntime } from '@/game/defense/defenseTypes';
 import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
@@ -105,8 +107,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     remainSec: stage.surviveSeconds,
     enemiesDefeated: 0,
     practiceMode,
-    chordNames: stage.phrases[0]?.chords.map((chord) => chord.chordName) ?? [],
-    chordIndex: 0,
   });
 
   const [judgeSnapshot, setJudgeSnapshot] = useState<DefensePhraseJudgeState>(
@@ -141,6 +141,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   const currentPhrase = stage.phrases[judgeSnapshot.phraseIndex] ?? stage.phrases[0] ?? null;
   const phraseKeyFifths = currentPhrase?.keyFifths ?? stage.keyFifths;
+
+  const chordHudLabels = useMemo(
+    () => getDefenseChordHudLabels(
+      currentPhrase?.chords.map((chord) => chord.chordName) ?? [],
+      judgeSnapshot.chordIndex,
+    ),
+    [currentPhrase, judgeSnapshot.chordIndex],
+  );
 
   const keyboardHints = useMemo(
     () => getDefensePhraseKeyboardHints(stage.phrases, judgeSnapshot, voiceSequential),
@@ -181,12 +189,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const showTargetHints = practiceMode || staffHintOpacity > 0;
 
   useEffect(() => {
-    const phrase = stage.phrases[judgeSnapshot.phraseIndex] ?? stage.phrases[0] ?? null;
-    const hud = hudRef.current;
-    hud.chordNames = phrase?.chords.map((chord) => chord.chordName) ?? [];
-    hud.chordIndex = judgeSnapshot.chordIndex;
-    hud.practiceMode = practiceMode;
-  }, [judgeSnapshot, stage.phrases, practiceMode]);
+    hudRef.current.practiceMode = practiceMode;
+  }, [practiceMode]);
 
   const applyImmediatePhraseSwitch = useCallback((phraseIndex: number): void => {
     const nextPhrase = stage.phrases[phraseIndex];
@@ -411,8 +415,40 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
+    <div className="defense-game-screen relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
       <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+      {currentPhrase && currentPhrase.chords.length > 0 && (
+        <div
+          className="code-run-chord-display pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-0.5 text-center"
+          style={{ top: DEFENSE_HUD_HEIGHT_PX + 4 }}
+        >
+          <div
+            className="min-w-40 max-w-60 px-3 py-1 text-[34px] leading-none text-[#ffe04d] sm:text-[40px]"
+            style={{
+              textShadow: '0 3px 8px rgba(230,56,87,0.9), 0 1px 2px rgba(0,0,0,0.85)',
+            }}
+          >
+            {chordHudLabels.current}
+          </div>
+          <div className="min-w-24 max-w-32 px-1 py-0.5">
+            <div
+              className="text-[10px] uppercase leading-none text-white/70"
+              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
+            >
+              next
+            </div>
+            <div
+              className="mt-0.5 text-xl leading-none text-white/90"
+              style={{
+                textShadow: '0 2px 5px rgba(230,56,87,0.55), 0 1px 2px rgba(0,0,0,0.85)',
+              }}
+            >
+              {chordHudLabels.next}
+            </div>
+          </div>
+        </div>
+      )}
 
       {currentPhrase && currentPhrase.chords.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">

@@ -90,11 +90,23 @@ struct DefenseGameView: View {
     @ViewBuilder
     private func playfield(size: CGSize) -> some View {
         ZStack {
+            Color(uiColor: EarTrainingBattleStageKit.jazzBackdropEdgeColor)
+                .ignoresSafeArea()
             SpriteView(scene: scene, options: [.allowsTransparency])
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 defenseHud
+                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex],
+                   !phrase.chords.isEmpty {
+                    defenseNeonChordDisplay(
+                        labels: DefenseChordHudLabels.make(
+                            chordNames: phrase.chords.map(\.chordName),
+                            chordIndex: session.judgeState.chordIndex
+                        )
+                    )
+                    .padding(.top, 4)
+                }
                 Spacer(minLength: 0)
             }
             .ignoresSafeArea(edges: .top)
@@ -147,14 +159,6 @@ struct DefenseGameView: View {
 
     private var defenseHud: some View {
         let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
-        let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex]
-        let chips = phrase?.chords.enumerated().map { index, chord in
-            EarTrainingChordChip(
-                id: UUID(),
-                name: chord.chordName,
-                active: index == session.judgeState.chordIndex
-            )
-        } ?? []
 
         return EarTrainingHUDView(
             hud: EarTrainingHudModel(
@@ -171,12 +175,12 @@ struct DefenseGameView: View {
                 hideBackButton: false,
                 enemyAttackGaugePercent: 0,
                 hideEnemyAttackGauge: true,
-                hideChordChips: chips.isEmpty,
+                hideChordChips: true,
                 hideSlotsRow: true,
                 hudLabels: labels,
                 gameState: .playingPhrase,
                 phraseRunId: 0,
-                chordChips: chips,
+                chordChips: [],
                 slotRow: .melody(slots: [], revealed: [], currentIndex: 0)
             ),
             showsSlotsRow: false,
@@ -186,6 +190,39 @@ struct DefenseGameView: View {
             },
             onBack: onClose
         )
+    }
+
+    private func defenseNeonChordDisplay(labels: DefenseChordHudLabels) -> some View {
+        VStack(spacing: 0) {
+            defenseNeonCodeBadge(title: "", value: labels.current, primary: true)
+            defenseNeonCodeBadge(title: "next", value: labels.next, primary: false)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func defenseNeonCodeBadge(title: String, value: String, primary: Bool) -> some View {
+        let titleFontSize: CGFloat = Self.isPhone ? 11 : (primary ? 11 : 10)
+        let valueFontSize: CGFloat = primary ? (Self.isPhone ? 42 : 34) : (Self.isPhone ? 26 : 20)
+        let minWidth: CGFloat = primary ? (Self.isPhone ? 180 : 160) : (Self.isPhone ? 110 : 96)
+        let maxWidth: CGFloat = primary ? (Self.isPhone ? 280 : 240) : (Self.isPhone ? 150 : 128)
+        return VStack(spacing: 2) {
+            if !title.isEmpty {
+                Text(title)
+                    .font(.system(size: titleFontSize, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .shadow(color: .black.opacity(0.75), radius: 2, x: 0, y: 1)
+            }
+            Text(value)
+                .font(.system(size: valueFontSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(primary ? Color(red: 1.0, green: 0.88, blue: 0.30) : .white.opacity(0.88))
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(primary ? 0.9 : 0.55), radius: primary ? 4 : 2, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
+        }
+        .frame(minWidth: minWidth, maxWidth: maxWidth)
+        .padding(.horizontal, primary ? 12 : 6)
+        .padding(.vertical, primary ? 6 : 4)
     }
 
     private var staffOpacity: Double {

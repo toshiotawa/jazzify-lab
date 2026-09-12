@@ -209,7 +209,6 @@ enum TrainingGamePhase: Equatable {
 enum TrainingScreen: Equatable {
     case list
     case ranking
-    case game
     case result
 }
 
