@@ -24,6 +24,14 @@ struct DefenseDescentNodePosition: Identifiable, Hashable, Sendable {
     let displayLabel: String
 
     var id: UUID { nodeId }
+
+    static func == (lhs: DefenseDescentNodePosition, rhs: DefenseDescentNodePosition) -> Bool {
+        lhs.nodeId == rhs.nodeId
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(nodeId)
+    }
 }
 
 struct DefenseDescentBlockLayout: Identifiable, Hashable, Sendable {
@@ -170,7 +178,8 @@ enum DefenseDescentAccess {
     ) -> Bool {
         if blockIndex == 0 { return true }
         if !isPremium && blockIndex >= 1 { return false }
-        guard let prev = blockLayouts[safe: blockIndex - 1] else { return blockIndex == 0 }
+        guard blockIndex > 0, blockIndex - 1 < blockLayouts.count else { return blockIndex == 0 }
+        let prev = blockLayouts[blockIndex - 1]
         let stageNodes = prev.nodes.filter { $0.node.nodeKind == .stage }
         if stageNodes.isEmpty { return true }
         return stageNodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
