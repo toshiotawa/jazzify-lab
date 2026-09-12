@@ -1,41 +1,31 @@
 /**
- * コードラン草原ワールドマップ: Kenney 浮島タイル
+ * コードラン草原ワールドマップ: 本編と同じちくわ足場
  * ディフェンスの LandingPlatform と同じ論理サイズで配置する。
  */
 
 import React from 'react';
-import { codeRunMapIslandUrl } from '@/utils/codeRunMapAssets';
-import type { CodeRunMapBiome } from '@/utils/codeRunMapTheme';
+import { CODE_RUN_MAP_TEXTURE_URLS } from '@/utils/codeRunMapAssets';
 
 interface CodeRunIslandPlatformProps {
   type: 'small' | 'big';
-  biome: CodeRunMapBiome;
   xPx: number;
   yPx: number;
   scale: number;
   dim?: boolean;
-  islandFilter?: string;
 }
 
 export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
   type,
-  biome,
   xPx,
   yPx,
   scale,
   dim,
-  islandFilter,
 }) => {
   const logicalWidth = type === 'big' ? 240 : 128;
   const logicalHeight = type === 'big' ? 96 : 60;
   const widthPx = logicalWidth * scale;
   const heightPx = logicalHeight * scale;
-  const baseBrightness = dim ? 'brightness(0.55) saturate(0.6)' : 'brightness(1.05)';
-  const filter = dim
-    ? baseBrightness
-    : islandFilter
-      ? `${islandFilter} ${baseBrightness}`
-      : baseBrightness;
+  const filter = dim ? 'brightness(0.55) saturate(0.6)' : 'brightness(1.05)';
 
   return (
     <div
@@ -46,7 +36,7 @@ export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
         top: yPx - heightPx / 2,
         width: widthPx,
         height: heightPx,
-        backgroundImage: `url('${codeRunMapIslandUrl(biome)}')`,
+        backgroundImage: `url('${CODE_RUN_MAP_TEXTURE_URLS.platform}')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         imageRendering: 'pixelated',

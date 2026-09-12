@@ -417,7 +417,6 @@ private struct CodeRunDescentBlockContent: View {
         ForEach(blockLayout.nodes) { nodePos in
             CodeRunIslandPlatformView(
                 type: nodePos.landingType == .big ? .big : .small,
-                biome: theme.biome,
                 xPx: nodePos.x * scale + horizontalOffset,
                 yPx: nodePos.y * scale,
                 scale: scale,

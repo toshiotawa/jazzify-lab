@@ -17,7 +17,6 @@ export interface CodeRunMapBiomeTheme {
   signPlateBorder: string;
   signText: string;
   signDepthText: string;
-  islandFilter: string;
   connectorHueDeg: number;
 }
 
@@ -31,7 +30,6 @@ const BIOME_THEMES: Record<CodeRunMapBiome, CodeRunMapBiomeTheme> = {
     signPlateBorder: '#8fd49a',
     signText: '#f0fff4',
     signDepthText: '#c8f0d0',
-    islandFilter: 'brightness(1.05) saturate(1.05)',
     connectorHueDeg: 0,
   },
   sand: {
@@ -43,7 +41,6 @@ const BIOME_THEMES: Record<CodeRunMapBiome, CodeRunMapBiomeTheme> = {
     signPlateBorder: '#f0c878',
     signText: '#fff8e8',
     signDepthText: '#ffe0a8',
-    islandFilter: 'brightness(1.02) saturate(0.95) hue-rotate(-8deg)',
     connectorHueDeg: 18,
   },
   snow: {
@@ -55,7 +52,6 @@ const BIOME_THEMES: Record<CodeRunMapBiome, CodeRunMapBiomeTheme> = {
     signPlateBorder: '#c8e0f8',
     signText: '#f0f8ff',
     signDepthText: '#d0e8ff',
-    islandFilter: 'brightness(1.08) saturate(0.85) hue-rotate(180deg)',
     connectorHueDeg: 200,
   },
   stone: {
@@ -67,7 +63,6 @@ const BIOME_THEMES: Record<CodeRunMapBiome, CodeRunMapBiomeTheme> = {
     signPlateBorder: '#b0b8c0',
     signText: '#f0f4f8',
     signDepthText: '#c8d0d8',
-    islandFilter: 'brightness(0.98) saturate(0.75) hue-rotate(210deg)',
     connectorHueDeg: 220,
   },
   purple: {
@@ -79,7 +74,6 @@ const BIOME_THEMES: Record<CodeRunMapBiome, CodeRunMapBiomeTheme> = {
     signPlateBorder: '#d0a8f0',
     signText: '#f8f0ff',
     signDepthText: '#e8c8ff',
-    islandFilter: 'brightness(1.02) saturate(1.1) hue-rotate(280deg)',
     connectorHueDeg: 280,
   },
 };

@@ -89,12 +89,10 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
         <CodeRunIslandPlatform
           key={`island-${nodePos.nodeId}`}
           type={nodePos.landingType}
-          biome={theme.biome}
           xPx={nodePos.x * scale}
           yPx={nodePos.y * scale}
           scale={scale}
           dim={dim}
-          islandFilter={theme.islandFilter}
         />
       ))}
 

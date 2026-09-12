@@ -86,12 +86,6 @@ enum CodeRunMapThemeCatalog {
             )
         }
     }
-
-    static func islandAssetName(biome: CodeRunMapBiome, big: Bool) -> String {
-        big
-            ? "CodeRunMap/code_run_map_island_big_\(biome.rawValue)"
-            : "CodeRunMap/code_run_map_island_small_\(biome.rawValue)"
-    }
 }
 
 enum CodeRunRankFormatter {

@@ -41,7 +41,6 @@ struct CodeRunIslandPlatformView: View {
     enum LandingType { case small, big }
 
     let type: LandingType
-    let biome: CodeRunMapBiome
     let xPx: CGFloat
     let yPx: CGFloat
     let scale: CGFloat
@@ -53,7 +52,7 @@ struct CodeRunIslandPlatformView: View {
         let width = widthLogical * scale
         let height = heightLogical * scale
 
-        Image(CodeRunMapThemeCatalog.islandAssetName(biome: biome, big: type == .big))
+        Image("code_run_platform")
             .resizable()
             .interpolation(.none)
             .frame(width: width, height: height)
