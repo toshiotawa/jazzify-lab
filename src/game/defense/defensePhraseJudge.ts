@@ -229,7 +229,7 @@ export const evaluateDefensePhraseNoteOn = (
   }
 
   return {
-    attack: false,
+    attack: true,
     phraseCompleted: false,
     pendingSwitch: state.pendingSwitch,
     completionCount: state.completionCount,

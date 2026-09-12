@@ -1,5 +1,6 @@
 import SpriteKit
 import SwiftUI
+import UIKit
 
 struct DefenseGameView: View {
     @StateObject private var session: DefenseGameSession
@@ -35,69 +36,39 @@ struct DefenseGameView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                SpriteView(scene: scene, options: [.allowsTransparency])
-                    .ignoresSafeArea()
+        Group {
+            if Self.isPhone {
+                GeometryReader { proxy in
+                    let portraitSize = proxy.size
+                    let landscapeSize = CGSize(
+                        width: max(1, portraitSize.height),
+                        height: max(1, portraitSize.width)
+                    )
 
-                VStack(spacing: 0) {
-                    defenseHud
-                    Spacer()
+                    playfield(size: landscapeSize)
+                        .frame(width: landscapeSize.width, height: landscapeSize.height)
+                        .clipped()
+                        .rotationEffect(.degrees(90))
+                        .frame(width: portraitSize.width, height: portraitSize.height)
+                        .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
                 }
-                .ignoresSafeArea(edges: .top)
-
-                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
-                    VStack {
-                        Spacer()
-                        DefensePhraseStaffView(
-                            phrase: phrase,
-                            stageKeyFifths: session.stage.keyFifths,
-                            chordIndex: session.judgeState.chordIndex,
-                            judgeState: session.judgeState,
-                            staffLayout: session.stage.staffLayout,
-                            showTargetHints: session.practiceMode || staffOpacity > 0,
-                            unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
-                        )
-                        .padding(.horizontal)
-                        .frame(maxWidth: min(geo.size.width * 0.63, 600))
-                        .offset(y: -120)
-                        Spacer()
-                    }
-                    .allowsHitTesting(false)
-                }
-
-            VStack {
-                Spacer()
-                SurvivalChordPadView(
-                    snapshot: chordPadSnapshot,
-                    displayRange: chordPadRange,
-                    onPress: { midi in
-                        session.handleNoteOn(pitchClass: ((midi % 12) + 12) % 12, sequential: false)
-                        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
-                    },
-                    onRelease: { midi in
-                        SurvivalGameAudio.shared.pianoNoteOff(midi: midi)
-                    },
-                    keyboardHeight: 88
-                )
-                .equatable()
-                .frame(height: 88)
-            }
-
-                if session.hud.result != .playing {
-                    resultOverlay
+            } else {
+                GeometryReader { proxy in
+                    playfield(size: proxy.size)
                 }
             }
         }
         .preferredColorScheme(.dark)
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
         .onAppear {
+            OrientationManager.shared.lock(.portrait)
             scene.session = session
         }
         .task {
             await session.start()
         }
         .onDisappear {
+            OrientationManager.shared.lock(.portrait)
             session.stop()
         }
         .onChange(of: session.hud.result) { result in
@@ -114,6 +85,56 @@ struct DefenseGameView: View {
                 onExit: onClose
             )
         }
+    }
+
+    @ViewBuilder
+    private func playfield(size: CGSize) -> some View {
+        ZStack {
+            SpriteView(scene: scene, options: [.allowsTransparency])
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                defenseHud
+                Spacer(minLength: 0)
+                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+                    DefensePhraseStaffView(
+                        phrase: phrase,
+                        stageKeyFifths: session.stage.keyFifths,
+                        chordIndex: session.judgeState.chordIndex,
+                        judgeState: session.judgeState,
+                        staffLayout: session.stage.staffLayout,
+                        showTargetHints: session.practiceMode || staffOpacity > 0,
+                        unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
+                    )
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: min(size.width * 0.63, 600))
+                    .allowsHitTesting(false)
+                }
+                SurvivalChordPadView(
+                    snapshot: chordPadSnapshot,
+                    displayRange: chordPadRange,
+                    onPress: { midi in
+                        session.handleNoteOn(pitchClass: ((midi % 12) + 12) % 12, sequential: false)
+                        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
+                    },
+                    onRelease: { midi in
+                        SurvivalGameAudio.shared.pianoNoteOff(midi: midi)
+                    },
+                    keyboardHeight: 88
+                )
+                .equatable()
+                .frame(height: 88)
+            }
+            .ignoresSafeArea(edges: .top)
+
+            if session.hud.result != .playing {
+                resultOverlay
+            }
+        }
+    }
+
+    private static var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
     }
 
     private var defenseHud: some View {

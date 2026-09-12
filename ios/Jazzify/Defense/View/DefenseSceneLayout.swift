@@ -14,4 +14,9 @@ enum DefenseSceneLayout {
         let t = (logicalX - playerLogicalX) / logicalSpan
         return playerScreenX + t * (spawnScreenX - playerScreenX)
     }
+
+    /// Canvas (Y-down) の床からのオフセットを SpriteKit (Y-up) の screen Y に変換する。
+    static func screenY(floorY: CGFloat, canvasDeltaFromFloor: CGFloat) -> CGFloat {
+        floorY - canvasDeltaFromFloor
+    }
 }

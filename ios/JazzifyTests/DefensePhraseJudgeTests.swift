@@ -35,7 +35,7 @@ final class DefensePhraseJudgeTests: XCTestCase {
     func testPhraseCompletionSetsPendingSwitch() {
         var state = DefensePhraseJudge.createInitialState(phrases: [phrase])
         let first = DefensePhraseJudge.evaluateNoteOn(state: state, stageRequiredCompletionCount: 1, pitchClass: 2)
-        XCTAssertFalse(first.attack)
+        XCTAssertTrue(first.attack)
         state = first.nextState
         let second = DefensePhraseJudge.evaluateNoteOn(state: state, stageRequiredCompletionCount: 1, pitchClass: 4)
         XCTAssertTrue(second.attack)
