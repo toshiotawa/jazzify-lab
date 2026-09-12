@@ -28,11 +28,6 @@ import { resolveCurrentSignupDeviceContext } from '@/utils/analytics/deviceConte
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { cn } from '@/utils/cn';
-import { VoiceInputDebugOverlay } from '@/components/voice/VoiceInputDebugOverlay';
-import {
-  createVoiceInputDebugSnapshot,
-  type VoiceInputDebugSnapshot,
-} from '@/utils/voiceInputDebugSnapshot';
 import LoadProgressBar from '@/components/ui/LoadProgressBar';
 import {
   markAudioUserInteraction,
@@ -44,10 +39,10 @@ import type { GameMidiBindings } from '@/hooks/useGameMidiSession';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import {
   fetchEarTrainingMidi,
+  fetchEarTrainingMusicXml,
   getCachedEarTrainingMusicXml,
   getCachedEarTrainingMidi,
   prefetchEarTrainingLobbyAssetsFromStage,
-  storeEarTrainingMusicXml,
   storeEarTrainingMidi,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
 import {
@@ -67,7 +62,6 @@ import {
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   collectChordOsmdScoreLyricEvents,
-  normalizeChordOsmdMusicXml,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
   joinScoreLyricVerseTexts,
   resolveActiveScoreLyricTextAtTime,
@@ -261,7 +255,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
   const [phraseRunId, setPhraseRunId] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [voiceDebugSnapshot, setVoiceDebugSnapshot] = useState<VoiceInputDebugSnapshot | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
   const [lastRank, setLastRank] = useState<PrecisionLessonRank | null>(null);
   const [lastGoodRate, setLastGoodRate] = useState<number | null>(null);
@@ -778,36 +771,20 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       const offset = practiceModeRef.current ? loopBaseSemitoneRef.current : 0;
       return applyPracticeTransposeToMusicXml(normalizedBase, offset);
     };
-    const cached = getCachedEarTrainingMusicXml(rawUrl);
-    if (cached) {
-      setBaseMusicXmlText(cached);
-      const displayXml = resolveDisplayXml(cached);
-      setMusicXmlText(displayXml);
-      setScoreErrorText(null);
-      return displayXml;
-    }
-    try {
-      const response = await fetch(toCdnProxyUrl(rawUrl));
-      if (!response.ok) {
-        throw new Error(String(response.status));
-      }
-      const text = await response.text();
-      if (phraseRunIdRef.current !== runId) {
-        return null;
-      }
-      const normalizedText = ensureMusicXmlDeclaration(normalizeChordOsmdMusicXml(text));
-      storeEarTrainingMusicXml(rawUrl, normalizedText);
-      setBaseMusicXmlText(normalizedText);
-      const displayXml = resolveDisplayXml(normalizedText);
-      setMusicXmlText(displayXml);
-      setScoreErrorText(null);
-      return displayXml;
-    } catch {
-      if (phraseRunIdRef.current === runId) {
-        setScoreErrorText(isEnglishCopy ? 'Could not load MusicXML.' : 'MusicXMLを読み込めませんでした');
-      }
+    const text = await fetchEarTrainingMusicXml(rawUrl);
+    if (phraseRunIdRef.current !== runId) {
       return null;
     }
+    if (!text) {
+      setScoreErrorText(isEnglishCopy ? 'Could not load MusicXML.' : 'MusicXMLを読み込めませんでした');
+      return null;
+    }
+    const normalizedText = ensureMusicXmlDeclaration(text);
+    setBaseMusicXmlText(normalizedText);
+    const displayXml = resolveDisplayXml(normalizedText);
+    setMusicXmlText(displayXml);
+    setScoreErrorText(null);
+    return displayXml;
   }, [isEnglishCopy]);
 
   const finishStageClear = useCallback(async (rank: PrecisionLessonRank, goodRate: number) => {
@@ -1389,12 +1366,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
         nearestTargetSec: nearest?.note.startSec ?? null,
         nearestDeltaMs: nearest != null ? Math.round(nearest.deltaSec * 1000 * 10) / 10 : null,
       });
-      if (ignoreOctave) {
-        const deltaText = nearest != null
-          ? `nearestΔ=${Math.round(nearest.deltaSec * 1000)}ms @${nearest.note.startSec.toFixed(3)}s`
-          : 'no pending note';
-        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(midiNote, false, deltaText));
-      }
       return;
     }
     logEarTrainingInputTimingTelemetry({
@@ -1416,14 +1387,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     activeGoodNotesByMidiRef.current.set(midiNote, matched.id);
     notesRendererRef.current?.highlightKey(midiNote, true);
-    if (ignoreOctave) {
-      const deltaMs = Math.round((phraseTime - matched.startSec) * 1000);
-      setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-        midiNote,
-        true,
-        `note ${matched.id} Δ=${deltaMs}ms`,
-      ));
-    }
     syncRendererStates();
   }, [resolveEffectiveTimingWindowSec, settings.inputMethod, stage.slug, syncRendererStates]);
 
@@ -1851,10 +1814,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
 
   return (
     <div className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
-      <VoiceInputDebugOverlay
-        enabled={settings.inputMethod === 'voice'}
-        snapshot={voiceDebugSnapshot}
-      />
       <header className="relative z-40 flex shrink-0 items-center justify-between px-3 py-2">
         <button
           type="button"
@@ -1882,7 +1841,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             ref={loopOsmdScoreRef}
             scoreXmlBySemitone={loopScoreXmlBySemitone}
             activeSemitone={loopActiveSemitone}
-            scoreErrorText={scoreErrorText}
             activeMeasureNumber={activeMeasureNumber}
             measureDurationSec={measureDurationSec}
             countInDurationSec={countInDurationSec}
@@ -1902,7 +1860,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
           <EarTrainingChordOSMDScore
             ref={osmdScoreRef}
             musicXmlText={musicXmlText}
-            scoreErrorText={scoreErrorText}
             activeMeasureNumber={activeMeasureNumber}
             measureDurationSec={measureDurationSec}
             countInDurationSec={countInDurationSec}

@@ -58,11 +58,6 @@ import {
   computeKeyboardHintOpacity,
   computeUnpressedNoteOpacity,
 } from '@/utils/survivalStaffHintOpacity';
-import { VoiceInputDebugOverlay } from '@/components/voice/VoiceInputDebugOverlay';
-import {
-  createVoiceInputDebugSnapshot,
-  type VoiceInputDebugSnapshot,
-} from '@/utils/voiceInputDebugSnapshot';
 
 interface DefenseGameScreenProps {
   readonly stage: DefenseStage;
@@ -121,7 +116,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [audioReady, setAudioReady] = useState(false);
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [voiceDebugSnapshot, setVoiceDebugSnapshot] = useState<VoiceInputDebugSnapshot | null>(null);
   const isSettingsOpenRef = useRef(false);
   const lastVoicePcAtRef = useRef<Map<number, number>>(new Map());
   const profile = useAuthStore((state) => state.profile);
@@ -223,11 +217,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       const now = performance.now();
       const lastAt = lastVoicePcAtRef.current.get(pitchClass) ?? 0;
       if (now - lastAt < VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS) {
-        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-          midiNote,
-          false,
-          `debounced pc=${pitchClass}`,
-        ));
         return;
       }
       lastVoicePcAtRef.current.set(pitchClass, now);
@@ -240,17 +229,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       pitchClass,
       sequential,
     );
-
-    if (sequential) {
-      const progressed = evaluation.nextState !== judgeRef.current;
-      setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-        midiNote,
-        progressed,
-        progressed
-          ? (evaluation.attack ? 'attack' : 'progress')
-          : 'ignored (miss/hold/sequential reject)',
-      ));
-    }
 
     if (evaluation.nextState === judgeRef.current) return;
 
@@ -434,10 +412,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
-      <VoiceInputDebugOverlay
-        enabled={voiceSequential}
-        snapshot={voiceDebugSnapshot}
-      />
       <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {currentPhrase && currentPhrase.chords.length > 0 && (

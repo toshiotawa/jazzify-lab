@@ -27,6 +27,40 @@ export const storeEarTrainingMusicXml = (rawUrl: string, normalizedText: string)
   musicXmlCache.set(key, normalizedText);
 };
 
+export const fetchEarTrainingMusicXml = async (rawUrl: string): Promise<string | null> => {
+  const key = rawUrl.trim();
+  if (key.length === 0) {
+    return null;
+  }
+  const cached = musicXmlCache.get(key);
+  if (cached) {
+    return cached;
+  }
+  const inFlight = musicXmlInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+  const promise = (async (): Promise<string | null> => {
+    const response = await fetch(toCdnProxyUrl(key));
+    if (!response.ok) {
+      return null;
+    }
+    const text = await response.text();
+    if (!text.trim()) {
+      return null;
+    }
+    const normalized = normalizeChordOsmdMusicXml(text);
+    musicXmlCache.set(key, normalized);
+    return normalized;
+  })()
+    .catch(() => null)
+    .finally(() => {
+      musicXmlInFlight.delete(key);
+    });
+  musicXmlInFlight.set(key, promise);
+  return promise;
+};
+
 export const getCachedEarTrainingMidi = (rawUrl: string): Uint8Array | undefined => {
   const key = rawUrl.trim();
   if (key.length === 0) {
@@ -110,28 +144,7 @@ export const prefetchEarTrainingPhraseAudio = (rawUrl: string): void => {
 };
 
 export const prefetchEarTrainingMusicXml = (rawUrl: string): void => {
-  const key = rawUrl.trim();
-  if (key.length === 0 || musicXmlCache.has(key) || musicXmlInFlight.has(key)) {
-    return;
-  }
-  const promise = (async (): Promise<string | null> => {
-    const response = await fetch(toCdnProxyUrl(key));
-    if (!response.ok) {
-      return null;
-    }
-    const text = await response.text();
-    if (!text.trim()) {
-      return null;
-    }
-    const normalized = normalizeChordOsmdMusicXml(text);
-    musicXmlCache.set(key, normalized);
-    return normalized;
-  })()
-    .catch(() => null)
-    .finally(() => {
-      musicXmlInFlight.delete(key);
-    });
-  musicXmlInFlight.set(key, promise);
+  void fetchEarTrainingMusicXml(rawUrl);
 };
 
 export const prefetchEarTrainingLobbyAssetsFromStage = (stage: EarTrainingStage): void => {

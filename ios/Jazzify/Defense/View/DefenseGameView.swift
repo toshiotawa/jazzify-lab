@@ -42,17 +42,6 @@ struct DefenseGameView: View {
 
                 VStack(spacing: 0) {
                     defenseHud
-                    #if DEBUG
-                    HStack {
-                        VoiceInputDebugOverlay(
-                            detail: session.voiceInputDebugDetail,
-                            enabled: NoteInputManager.shared.isVoiceInputActive
-                        )
-                        Spacer()
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                    #endif
                     Spacer()
                 }
                 .ignoresSafeArea(edges: .top)

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearEarTrainingLobbyAssetCacheForTests,
+  fetchEarTrainingMusicXml,
   getCachedEarTrainingMusicXml,
   prefetchEarTrainingMusicXml,
   prefetchEarTrainingPhraseAudio,
@@ -66,6 +67,21 @@ describe('prefetchEarTrainingLobbyAssets', () => {
     storeEarTrainingMusicXml('https://example.com/score.xml', 'normalized-xml');
 
     expect(getCachedEarTrainingMusicXml('https://example.com/score.xml')).toBe('normalized-xml');
+  });
+
+  it('shares in-flight music xml fetches for the same url', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      text: async () => '<score-partwise></score-partwise>',
+    } as Response);
+
+    const first = fetchEarTrainingMusicXml('https://example.com/race.xml');
+    const second = fetchEarTrainingMusicXml('https://example.com/race.xml');
+    const [firstText, secondText] = await Promise.all([first, second]);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(firstText).toBe('<score-partwise></score-partwise>');
+    expect(secondText).toBe(firstText);
   });
 
   it('deduplicates phrase audio prefetch requests', () => {

@@ -37,9 +37,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     @Published var isMidiConnected: Bool = false
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published var precisionAutoPlayEnabled: Bool = false
-    #if DEBUG
-    @Published private(set) var voiceInputDebugDetail: String?
-    #endif
 
     let stage: EarTrainingStageDetail
     let phrases: [EarTrainingPhraseDetail]
@@ -99,6 +96,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private var wasPlayingBeforeSeekInteraction = false
     private var seekInteractionActive = false
     private var musicXmlCache: [String: String] = [:]
+    private var musicXmlLoadGeneration = 0
     private var midiCache: [String: Data] = [:]
     private var lobbyPreloadTask: Task<Void, Never>?
     private var phrasePrepareTask: Task<Void, Never>?
@@ -319,6 +317,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     private func loadMusicXml(for phrase: EarTrainingPhraseDetail, runId: Int?) async {
+        musicXmlLoadGeneration += 1
+        let generation = musicXmlLoadGeneration
         guard let xmlUrl = phrase.musicXmlUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !xmlUrl.isEmpty else {
             return
         }
@@ -329,13 +329,26 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         guard let url = URL(string: xmlUrl) else { return }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
+            guard musicXmlLoadGeneration == generation else { return }
             if let runId, phraseRunId != runId { return }
             let text = String(data: data, encoding: .utf8) ?? ""
             let normalized = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXml(text)
             musicXmlCache[xmlUrl] = normalized
-            baseMusicXmlText = normalized
+            if musicXmlLoadGeneration == generation, runId == nil || phraseRunId == runId {
+                baseMusicXmlText = normalized
+            } else if baseMusicXmlText == nil {
+                baseMusicXmlText = normalized
+            }
         } catch {
-            scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+            guard musicXmlLoadGeneration == generation else { return }
+            if let runId, phraseRunId != runId { return }
+            if let cached = musicXmlCache[xmlUrl] {
+                baseMusicXmlText = cached
+                return
+            }
+            if baseMusicXmlText == nil {
+                scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+            }
         }
     }
 
@@ -836,15 +849,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
                 nearestTargetSec: nearest?.note.startSec,
                 nearestDeltaMs: nearest.map { (($0.deltaSec * 1000 * 10).rounded()) / 10 }
             )
-            #if DEBUG
-            if NoteInputPreferences.inputMethod == .voice {
-                if let nearest {
-                    voiceInputDebugDetail = "MIDI \(midi) unmatched nearestΔ=\(Int((nearest.deltaSec * 1000).rounded()))ms"
-                } else {
-                    voiceInputDebugDetail = "MIDI \(midi) unmatched no pending note"
-                }
-            }
-            #endif
             return
         }
 
@@ -865,12 +869,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
         runtimeStates[matched.id] = state
         activeGoodNotesByMidi[midi] = matched.id
-        #if DEBUG
-        if NoteInputPreferences.inputMethod == .voice {
-            let deltaMs = Int(((phraseTime - matched.startSec) * 1000).rounded())
-            voiceInputDebugDetail = "MIDI \(midi) matched Δ=\(deltaMs)ms"
-        }
-        #endif
     }
 
     func handleNoteOff(midi: Int, playAudio: Bool = true) {

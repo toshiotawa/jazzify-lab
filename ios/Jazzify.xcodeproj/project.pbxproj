@@ -337,7 +337,6 @@
 		D5BE4E937A112C7A889D0E13 /* SurvivalSpeechBubbleBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3001046848789F93B6B91D /* SurvivalSpeechBubbleBuilder.swift */; };
 		D5D62F4BC2A677D3CF3944A7 /* EarTrainingBattleOsuCircleColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = E464D061B361CB1F32B3D071 /* EarTrainingBattleOsuCircleColors.swift */; };
 		D687F2785A420874FB8B81FA /* SurvivalRandomHintStaff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40D441F66330C1FAE7C95A05 /* SurvivalRandomHintStaff.swift */; };
-		D7B18F4A2C935E61B0D84C27 /* VoiceInputDebugOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C91E27B8D046F3A5E17C90 /* VoiceInputDebugOverlay.swift */; };
 		D831F538CDB3901677BB1813 /* MidiKeyboardBuyingGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E78C2E227D4D2FC37302A8E /* MidiKeyboardBuyingGuideView.swift */; };
 		D852F87150F3CD5F7A7A3142 /* SurvivalGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */; };
 		D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */; };
@@ -662,7 +661,6 @@
 		A2F6F94B04EBCE40147CE417 /* opensheetmusicdisplay.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = opensheetmusicdisplay.min.js; sourceTree = "<group>"; };
 		A41975E96B01514F6DFBFEDF /* AchievementBadgeAssets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementBadgeAssets.swift; sourceTree = "<group>"; };
 		A43BC0A05D209E54BAAB95B5 /* SurvivalRunPrepSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRunPrepSheet.swift; sourceTree = "<group>"; };
-		A4C91E27B8D046F3A5E17C90 /* VoiceInputDebugOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputDebugOverlay.swift; sourceTree = "<group>"; };
 		A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSettingsSheet.swift; sourceTree = "<group>"; };
 		A4FF09CB883DC0DE9465A711 /* EarTrainingTutorialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialView.swift; sourceTree = "<group>"; };
 		A6D845C8D387564681D354C5 /* auto_run_01.layout.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = auto_run_01.layout.json; sourceTree = "<group>"; };
@@ -1021,7 +1019,6 @@
 				C77327E57080D73ACB7B4CFC /* InputMethodSection.swift */,
 				C2BF6C494A016B05F05097EC /* NoteInputManager.swift */,
 				E22237A0C211ADA4D6D3A332 /* NoteInputPreferences.swift */,
-				A4C91E27B8D046F3A5E17C90 /* VoiceInputDebugOverlay.swift */,
 			);
 			path = Input;
 			sourceTree = "<group>";
@@ -2240,7 +2237,6 @@
 				2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */,
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,
 				10341AFE546C003CFEE5CC5F /* VideoLessonView.swift in Sources */,
-				D7B18F4A2C935E61B0D84C27 /* VoiceInputDebugOverlay.swift in Sources */,
 				0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

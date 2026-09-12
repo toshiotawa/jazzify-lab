@@ -75,9 +75,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     /// MusicXML / 判定ターゲット由来の鍵盤スクロールアンカー（白鍵 MIDI）。無いときは C4 中央へフォールバック。
     @Published private(set) var keyboardScrollAnchorMidi: Int?
     @Published private(set) var keyboardDisplayRange: PianoStagePitchRange
-    #if DEBUG
-    @Published private(set) var voiceInputDebugDetail: String?
-    #endif
 
     var scoreScrollActive: Bool {
         scoreTimelineArmed && (gameState == .countIn || gameState == .playingPhrase)
@@ -132,6 +129,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     }
 
     private var musicXMLCache: [String: MusicXmlPrepared] = [:]
+    private var musicXmlLoadGeneration = 0
     private var midiCache: [String: Data] = [:]
     private var baseMidiData: Data?
     private var timingSource: EarTrainingCanonicalPhraseNotes.TimingSource = .musicxml
@@ -532,15 +530,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 nearestTargetSec: nearest?.judgedTargetSec,
                 nearestDeltaMs: nearest.map { (($0.deltaSec * 1000 * 10).rounded()) / 10 }
             )
-            #if DEBUG
-            if allowPitchClass {
-                if let nearest {
-                    voiceInputDebugDetail = "MIDI \(midi) unmatched nearestΔ=\(Int((nearest.deltaSec * 1000).rounded()))ms"
-                } else {
-                    voiceInputDebugDetail = "MIDI \(midi) unmatched no pending target"
-                }
-            }
-            #endif
             refreshPracticeVoicingHints()
             return
         }
@@ -558,20 +547,11 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             allowPitchClass: allowPitchClass,
             completeOnAnyMatch: completeOnAnyMatch
         ) else {
-            #if DEBUG
-            if allowPitchClass {
-                voiceInputDebugDetail = "MIDI \(midi) no consumable pitch class"
-            }
-            #endif
             refreshPracticeVoicingHints()
             return
         }
         if allowPitchClass {
             markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
-            #if DEBUG
-            let deltaMs = Int(((phraseTime - resolveCalibratedTargetTimeSec(targets[matchedIndex].targetTimeSec)) * 1000).rounded())
-            voiceInputDebugDetail = "MIDI \(midi) matched Δ=\(deltaMs)ms"
-            #endif
         }
         if targets[matchedIndex].isComplete {
             completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
@@ -911,21 +891,18 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     }
 
     private func loadMusicXML(for phrase: EarTrainingPhraseDetail) async {
+        musicXmlLoadGeneration += 1
+        let generation = musicXmlLoadGeneration
         let cacheKey = Self.musicXmlCacheKey(phraseId: phrase.id)
         if let cached = musicXMLCache[cacheKey] {
             applyMusicXmlPrepared(cached)
             return
         }
         guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
-            musicXMLText = nil
-            musicXMLMaxStaffLayers = 1
-            rhythmMusicXmlForAttacks = nil
-            rhythmAttacks = []
-            phraseLyricEvents = []
-            practiceOriginalKeyFifths = 0
-            practiceOriginalKeyName = "—"
-            scoreErrorText = isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
-            keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+            guard musicXmlLoadGeneration == generation else { return }
+            clearMusicXmlDisplay(
+                scoreErrorText: isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
+            )
             return
         }
         do {
@@ -933,27 +910,19 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             request.cachePolicy = .reloadIgnoringLocalCacheData
             let (data, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                musicXMLText = nil
-                musicXMLMaxStaffLayers = 1
-                rhythmMusicXmlForAttacks = nil
-                rhythmAttacks = []
-                phraseLyricEvents = []
-                practiceOriginalKeyFifths = 0
-                practiceOriginalKeyName = "—"
-                scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
-                keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+                finishMusicXmlLoadFailure(
+                    generation: generation,
+                    cacheKey: cacheKey,
+                    scoreErrorText: isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+                )
                 return
             }
             guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-                musicXMLText = nil
-                musicXMLMaxStaffLayers = 1
-                rhythmMusicXmlForAttacks = nil
-                rhythmAttacks = []
-                phraseLyricEvents = []
-                practiceOriginalKeyFifths = 0
-                practiceOriginalKeyName = "—"
-                scoreErrorText = isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
-                keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+                finishMusicXmlLoadFailure(
+                    generation: generation,
+                    cacheKey: cacheKey,
+                    scoreErrorText: isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
+                )
                 return
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
@@ -971,18 +940,37 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 lyricEvents: lyricEvents
             )
             musicXMLCache[cacheKey] = boxed
-            applyMusicXmlPrepared(boxed)
+            if musicXmlLoadGeneration == generation || musicXMLText == nil {
+                applyMusicXmlPrepared(boxed)
+            }
         } catch {
-            musicXMLText = nil
-            musicXMLMaxStaffLayers = 1
-            rhythmMusicXmlForAttacks = nil
-            rhythmAttacks = []
-            phraseLyricEvents = []
-            practiceOriginalKeyFifths = 0
-            practiceOriginalKeyName = "—"
-            scoreErrorText = isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
-            keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
+            finishMusicXmlLoadFailure(
+                generation: generation,
+                cacheKey: cacheKey,
+                scoreErrorText: isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+            )
         }
+    }
+
+    private func finishMusicXmlLoadFailure(generation: Int, cacheKey: String, scoreErrorText: String) {
+        guard musicXmlLoadGeneration == generation else { return }
+        if let cached = musicXMLCache[cacheKey] {
+            applyMusicXmlPrepared(cached)
+            return
+        }
+        clearMusicXmlDisplay(scoreErrorText: scoreErrorText)
+    }
+
+    private func clearMusicXmlDisplay(scoreErrorText: String) {
+        musicXMLText = nil
+        musicXMLMaxStaffLayers = 1
+        rhythmMusicXmlForAttacks = nil
+        rhythmAttacks = []
+        phraseLyricEvents = []
+        practiceOriginalKeyFifths = 0
+        practiceOriginalKeyName = "—"
+        self.scoreErrorText = scoreErrorText
+        keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
     }
 
     private func loadMidi(for phrase: EarTrainingPhraseDetail, runId: Int?) async {

@@ -25,9 +25,6 @@ final class DefenseGameSession: ObservableObject {
     private(set) var runtime: DefenseRuntimeState
     @Published private(set) var judgeState: DefensePhraseJudgeState
     @Published private(set) var hud: DefenseHudState
-    #if DEBUG
-    @Published private(set) var voiceInputDebugDetail: String?
-    #endif
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
@@ -121,9 +118,6 @@ final class DefenseGameSession: ObservableObject {
             let nowMs = CACurrentMediaTime() * 1000
             if let lastAt = lastVoicePcAtMs[normalizedPc],
                nowMs - lastAt < Self.voiceSamePcDebounceMs {
-                #if DEBUG
-                voiceInputDebugDetail = "pc=\(normalizedPc) debounced"
-                #endif
                 return
             }
             lastVoicePcAtMs[normalizedPc] = nowMs
@@ -134,14 +128,6 @@ final class DefenseGameSession: ObservableObject {
             pitchClass: normalizedPc,
             sequential: sequential
         )
-        #if DEBUG
-        if sequential {
-            let progressed = evaluation.nextState != judgeState
-            voiceInputDebugDetail = progressed
-                ? (evaluation.attack ? "pc=\(normalizedPc) attack" : "pc=\(normalizedPc) progress")
-                : "pc=\(normalizedPc) ignored"
-        }
-        #endif
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState
         }

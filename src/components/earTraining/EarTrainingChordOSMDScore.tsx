@@ -53,7 +53,6 @@ import LoadProgressBar from '@/components/ui/LoadProgressBar';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
-  scoreErrorText: string | null;
   activeMeasureNumber: number;
   /** 小節内プレイヘッドが左→右へ流れる時間（秒）。BPM × 拍子から算出。 */
   measureDurationSec: number;
@@ -248,7 +247,6 @@ const applyOsmdMeasureNumberRules = (osmd: OpenSheetMusicDisplay): void => {
 const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandle, EarTrainingChordOSMDScoreProps>(
   function EarTrainingChordOSMDScore({
   musicXmlText,
-  scoreErrorText,
   activeMeasureNumber,
   measureDurationSec,
   countInDurationSec = 0,
@@ -846,7 +844,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     useImperativePlayhead,
   ]);
 
-  const statusText = renderError ?? scoreErrorText;
+  const statusText = renderError;
   const showPlayhead = scrollActive && !hidden && Boolean(musicXmlText);
   const measureHighlight = useMemo(
     () => computeOsmdActiveMeasureHighlight({

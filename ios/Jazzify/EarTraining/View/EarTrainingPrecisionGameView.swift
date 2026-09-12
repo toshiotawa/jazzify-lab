@@ -301,17 +301,6 @@ private struct EarTrainingPrecisionGameContent: View {
         let layout = resolvedLayout(viewportHeight: size.height)
         return ZStack {
             VStack(spacing: 0) {
-                #if DEBUG
-                HStack {
-                    VoiceInputDebugOverlay(
-                        detail: controller.voiceInputDebugDetail,
-                        enabled: NoteInputManager.shared.isVoiceInputActive
-                    )
-                    Spacer()
-                }
-                .padding(.leading, Self.landscapeLeadingInset() + 8)
-                .padding(.top, 4)
-                #endif
                 HStack(spacing: 0) {
                     Color.clear.frame(width: Self.landscapeLeadingInset())
                     controlRail
@@ -515,12 +504,12 @@ private struct EarTrainingPrecisionGameContent: View {
                         }
                     }
                 )
-                if controller.musicXMLText == nil {
+                if controller.musicXMLText == nil, controller.scoreErrorText == nil {
                     Color.black.opacity(0.35)
                         .allowsHitTesting(false)
                     EarTrainingScoreLoadingOverlay(
-                        message: controller.scoreErrorText ?? (locale == .ja ? "譜面を読み込み中…" : "Loading score…"),
-                        progress: controller.scoreErrorText == nil ? 0.2 : nil
+                        message: locale == .ja ? "譜面を読み込み中…" : "Loading score…",
+                        progress: 0.2
                     )
                     .allowsHitTesting(false)
                 } else if controller.osmdPlaybackPreparing {

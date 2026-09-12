@@ -17,7 +17,6 @@ export interface EarTrainingPrecisionLoopOsmdScoreHandle {
 interface EarTrainingPrecisionLoopOsmdScoreProps {
   scoreXmlBySemitone: ReadonlyMap<number, string>;
   activeSemitone: number;
-  scoreErrorText: string | null;
   activeMeasureNumber: number;
   measureDurationSec: number;
   countInDurationSec?: number;
@@ -40,7 +39,6 @@ const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
 >(function EarTrainingPrecisionLoopOsmdScore({
   scoreXmlBySemitone,
   activeSemitone,
-  scoreErrorText,
   activeMeasureNumber,
   measureDurationSec,
   countInDurationSec = 0,
@@ -85,7 +83,6 @@ const EarTrainingPrecisionLoopOsmdScore = memo(forwardRef<
                 }
               }}
               musicXmlText={xmlText}
-              scoreErrorText={scoreErrorText}
               activeMeasureNumber={activeMeasureNumber}
               measureDurationSec={measureDurationSec}
               countInDurationSec={countInDurationSec}

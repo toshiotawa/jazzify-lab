@@ -26,11 +26,6 @@ import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange
 import { collectMidisFromMusicXmlText, computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
-import { VoiceInputDebugOverlay } from '@/components/voice/VoiceInputDebugOverlay';
-import {
-  createVoiceInputDebugSnapshot,
-  type VoiceInputDebugSnapshot,
-} from '@/utils/voiceInputDebugSnapshot';
 import {
   markAudioUserInteraction,
   playNote,
@@ -41,12 +36,11 @@ import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import { preloadEarTrainingPianoOverlay } from '@/utils/preloadEarTrainingPianoOverlay';
 import {
   fetchEarTrainingMidi,
+  fetchEarTrainingMusicXml,
   getCachedEarTrainingMidi,
-  getCachedEarTrainingMusicXml,
   prefetchEarTrainingLobbyAssetsFromStage,
   prefetchEarTrainingMusicXml,
   storeEarTrainingMidi,
-  storeEarTrainingMusicXml,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
 import {
   preloadBattleCountInClick,
@@ -117,7 +111,6 @@ import {
   createChordOsmdRemainingCounts,
   earTrainingOsmdUsesScoreTargets,
   getChordOsmdTotalNoteCount,
-  normalizeChordOsmdMusicXml,
   type ChordOsmdLyricEvent,
   type ChordOsmdRhythmTarget,
 } from '@/utils/earTrainingChordOsmd';
@@ -347,7 +340,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
-  const [voiceDebugSnapshot, setVoiceDebugSnapshot] = useState<VoiceInputDebugSnapshot | null>(null);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
@@ -855,44 +847,22 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         : 0;
       return applyPracticeTransposeToMusicXml(normalizedBase, offset);
     };
-    const cached = getCachedEarTrainingMusicXml(rawUrl);
-    if (cached) {
-      setBaseMusicXmlText(cached);
-      const displayXml = resolveDisplayXml(cached);
-      setMusicXmlText(displayXml);
-      setScoreErrorText(null);
-      return displayXml;
-    }
-    try {
-      const response = await fetch(toCdnProxyUrl(rawUrl));
-      if (!response.ok) {
-        throw new Error(String(response.status));
-      }
-      const text = await response.text();
-      if (phraseRunIdRef.current !== runId) {
-        return null;
-      }
-      if (!text.trim()) {
-        setMusicXmlText(null);
-        setBaseMusicXmlText(null);
-        setScoreErrorText(isEnglishCopy ? 'MusicXML is empty.' : 'MusicXMLが空です');
-        return null;
-      }
-      const normalizedText = ensureMusicXmlDeclaration(normalizeChordOsmdMusicXml(text));
-      storeEarTrainingMusicXml(rawUrl, normalizedText);
-      setBaseMusicXmlText(normalizedText);
-      const displayXml = resolveDisplayXml(normalizedText);
-      setMusicXmlText(displayXml);
-      setScoreErrorText(null);
-      return displayXml;
-    } catch {
-      if (phraseRunIdRef.current === runId) {
-        setMusicXmlText(null);
-        setBaseMusicXmlText(null);
-        setScoreErrorText(isEnglishCopy ? 'Could not load MusicXML.' : 'MusicXMLを読み込めませんでした');
-      }
+    const text = await fetchEarTrainingMusicXml(rawUrl);
+    if (phraseRunIdRef.current !== runId) {
       return null;
     }
+    if (!text) {
+      setMusicXmlText(null);
+      setBaseMusicXmlText(null);
+      setScoreErrorText(isEnglishCopy ? 'Could not load MusicXML.' : 'MusicXMLを読み込めませんでした');
+      return null;
+    }
+    const normalizedText = ensureMusicXmlDeclaration(text);
+    setBaseMusicXmlText(normalizedText);
+    const displayXml = resolveDisplayXml(normalizedText);
+    setMusicXmlText(displayXml);
+    setScoreErrorText(null);
+    return displayXml;
   }, [isEnglishCopy, practiceTransposeEnabled]);
 
   const loadMidiData = useCallback(async (
@@ -2119,24 +2089,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         completeOnAnyMatch,
       );
       if (!nextRemaining) {
-        if (allowPitchClass) {
-          setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-            midiNote,
-            false,
-            'self-paced: no consumable pitch class',
-          ));
-        }
         return;
       }
       state.remainingCounts = nextRemaining;
       markVoiceSustainApplied(firstTarget.id);
-      if (allowPitchClass) {
-        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-          midiNote,
-          true,
-          `self-paced target ${firstTarget.id}`,
-        ));
-      }
       syncSelfPacedMeasureAndHints();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
         completeTarget(firstTarget, state, Number.NaN);
@@ -2193,12 +2149,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         nearestTargetSec: nearest?.judgedTargetSec ?? null,
         nearestDeltaMs: nearest != null ? Math.round(nearest.deltaSec * 1000 * 10) / 10 : null,
       });
-      if (allowPitchClass) {
-        const deltaText = nearest != null
-          ? `nearestΔ=${Math.round(nearest.deltaSec * 1000)}ms @${nearest.judgedTargetSec.toFixed(3)}s`
-          : 'no pending target';
-        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(midiNote, false, deltaText));
-      }
       return;
     }
     const target = phraseTargets[matchedIndex];
@@ -2221,25 +2171,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       completeOnAnyMatch,
     );
     if (!nextRemaining) {
-      if (allowPitchClass) {
-        setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-          midiNote,
-          false,
-          `target ${target.id}: no consumable pitch class`,
-        ));
-      }
       return;
     }
     state.remainingCounts = nextRemaining;
     markVoiceSustainApplied(target.id);
-    if (allowPitchClass) {
-      const deltaMs = Math.round((phraseT - resolveCalibratedTargetTimeSec(target.targetTimeSec)) * 1000);
-      setVoiceDebugSnapshot(createVoiceInputDebugSnapshot(
-        midiNote,
-        true,
-        `target ${target.id} Δ=${deltaMs}ms`,
-      ));
-    }
     if (practiceModeRef.current) {
       syncPracticeVoicingHints();
     }
@@ -2498,7 +2433,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         <EarTrainingChordOSMDScore
           ref={osmdScoreRef}
           musicXmlText={musicXmlText}
-          scoreErrorText={scoreErrorText}
           activeMeasureNumber={activeMeasureNumber}
           measureDurationSec={measureDurationSec}
           countInDurationSec={countInDurationSec}
@@ -2510,6 +2444,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           useImperativePlayhead
           showScoreLyrics={stage.show_score_lyrics_in_battle === true}
         />
+      ) : scoreErrorText && !showLobbyControls && !timingCalibrationMode ? (
+        <div className="pointer-events-none absolute left-1/2 top-[36%] z-10 w-[min(360px,90vw)] -translate-x-1/2 -translate-y-1/2 px-4 text-center text-xs font-semibold text-white/75">
+          {scoreErrorText}
+        </div>
       ) : null}
 
       {!timingCalibrationMode ? (
@@ -2521,11 +2459,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
           onPianoKeyUp={handlePianoKeyUp}
         />
       ) : null}
-
-      <VoiceInputDebugOverlay
-        enabled={settings.inputMethod === 'voice'}
-        snapshot={voiceDebugSnapshot}
-      />
 
       {timingCalibrationMode ? (
         <EarTrainingTimingAdjustmentSlider
