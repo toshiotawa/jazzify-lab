@@ -155,8 +155,8 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   );
 
   const scale = useMemo(() => {
-    const raw = Math.min(Math.max(0.6, viewport.width / MAP_LOGICAL_WIDTH), 2.2);
-    return Math.round(raw * 100) / 100;
+    const fitted = Math.min(Math.max(0.6, viewport.width / MAP_LOGICAL_WIDTH), 2.2);
+    return Math.round(fitted * 0.88 * 100) / 100;
   }, [viewport.width]);
 
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
