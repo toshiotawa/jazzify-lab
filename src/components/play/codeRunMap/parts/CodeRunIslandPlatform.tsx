@@ -1,6 +1,5 @@
 /**
- * コードラン草原ワールドマップ: 本編と同じちくわ足場
- * ディフェンスの LandingPlatform と同じ論理サイズで配置する。
+ * コードラン Night City ワールドマップ: Kenney タイル連結足場
  */
 
 import React from 'react';
@@ -21,13 +20,16 @@ export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
   scale,
   dim,
 }) => {
-  const logicalWidth = type === 'big' ? 240 : 128;
-  const logicalHeight = type === 'big' ? 96 : 60;
+  const logicalWidth = type === 'big' ? 216 : 108;
+  const logicalHeight = type === 'big' ? 66 : 48;
   const widthPx = logicalWidth * scale;
   const heightPx = logicalHeight * scale;
+  const platformUrl = type === 'big'
+    ? CODE_RUN_MAP_TEXTURE_URLS.platformBig
+    : CODE_RUN_MAP_TEXTURE_URLS.platformSmall;
   const filter = dim
-    ? 'brightness(0.4) saturate(0.45)'
-    : 'brightness(0.82) saturate(0.85) drop-shadow(0 8px 10px rgba(0,0,0,0.45))';
+    ? 'brightness(0.45) saturate(0.5)'
+    : 'drop-shadow(0 8px 10px rgba(0,0,0,0.45))';
 
   return (
     <div
@@ -39,8 +41,8 @@ export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
         width: widthPx,
         height: heightPx,
         overflow: 'hidden',
-        backgroundImage: `url('${CODE_RUN_MAP_TEXTURE_URLS.platform}')`,
-        backgroundSize: 'cover',
+        backgroundImage: `url('${platformUrl}')`,
+        backgroundSize: '100% 100%',
         backgroundPosition: 'center top',
         backgroundRepeat: 'no-repeat',
         imageRendering: 'pixelated',

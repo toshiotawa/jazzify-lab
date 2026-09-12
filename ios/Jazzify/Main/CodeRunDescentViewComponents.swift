@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// コードラン草原ワールドマップの描画パーツ。
+/// コードラン Night City ワールドマップの描画パーツ。
 struct CodeRunSkyBackgroundView: View {
     let widthPx: CGFloat
     let heightPx: CGFloat
@@ -18,27 +18,12 @@ struct CodeRunSkyBackgroundView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
+                .opacity(0.45)
                 .frame(width: widthPx, height: bandHeight)
                 .position(
                     x: widthPx / 2,
                     y: (blockLayout.startY + blockLayout.endY) / 2 * scale
                 )
-            }
-
-            let cloudTile = max(120, 256 * scale)
-            CodeRunTiledPatternImage(imageName: "CodeRunMap/code_run_map_clouds", tileSize: cloudTile)
-                .frame(width: widthPx, height: heightPx)
-                .opacity(0.18)
-                .allowsHitTesting(false)
-
-            ForEach(tintBlocks, id: \.blockKey) { blockLayout in
-                let bandHeight = max(0, (blockLayout.endY - blockLayout.startY) * scale)
-                Color(red: 8 / 255, green: 6 / 255, blue: 18 / 255).opacity(0.35)
-                    .frame(width: widthPx, height: bandHeight)
-                    .position(
-                        x: widthPx / 2,
-                        y: (blockLayout.startY + blockLayout.endY) / 2 * scale
-                    )
             }
         }
         .frame(width: widthPx, height: heightPx)
@@ -57,18 +42,19 @@ struct CodeRunIslandPlatformView: View {
     let dim: Bool
 
     var body: some View {
-        let widthLogical: CGFloat = type == .big ? 240 : 128
-        let heightLogical: CGFloat = type == .big ? 96 : 60
+        let widthLogical: CGFloat = type == .big ? 216 : 108
+        let heightLogical: CGFloat = type == .big ? 66 : 48
         let width = widthLogical * scale
         let height = heightLogical * scale
+        let imageName = type == .big ? "code_run_map_platform_big" : "code_run_map_platform_small"
 
-        Image("code_run_platform")
+        Image(imageName)
             .resizable()
             .interpolation(.none)
             .frame(width: width, height: height)
-            .brightness(dim ? -0.45 : -0.12)
-            .saturation(dim ? 0.4 : 0.82)
-            .opacity(dim ? 0.5 : 0.92)
+            .brightness(dim ? -0.45 : 0)
+            .saturation(dim ? 0.5 : 1)
+            .opacity(dim ? 0.5 : 1)
             .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 6)
             .position(x: xPx, y: yPx)
             .allowsHitTesting(false)
@@ -196,53 +182,6 @@ struct CodeRunStairConnectorView: View {
         path.addLine(to: CGPoint(x: to.x, y: to.y - 16))
         path.addLine(to: to)
         return path
-    }
-}
-
-private struct CodeRunTiledPatternImage: UIViewRepresentable {
-    let imageName: String
-    let tileSize: CGFloat
-
-    func makeUIView(context: Context) -> CodeRunTiledPatternUIView {
-        let view = CodeRunTiledPatternUIView()
-        view.isUserInteractionEnabled = false
-        view.apply(imageName: imageName, tileSize: tileSize)
-        return view
-    }
-
-    func updateUIView(_ uiView: CodeRunTiledPatternUIView, context: Context) {
-        uiView.apply(imageName: imageName, tileSize: tileSize)
-    }
-}
-
-private final class CodeRunTiledPatternUIView: UIView {
-    private static var patternCache: [String: UIImage] = [:]
-    private var appliedKey = ""
-
-    func apply(imageName: String, tileSize: CGFloat) {
-        let px = max(32, Int(tileSize.rounded()))
-        let key = "\(imageName)@\(px)"
-        guard appliedKey != key else { return }
-        appliedKey = key
-        let image = Self.patternCache[key] ?? Self.makePattern(imageName: imageName, sizePx: CGFloat(px))
-        Self.patternCache[key] = image
-        if let image {
-            layer.contents = nil
-            backgroundColor = UIColor(patternImage: image)
-        } else {
-            backgroundColor = UIColor.clear
-        }
-    }
-
-    private static func makePattern(imageName: String, sizePx: CGFloat) -> UIImage? {
-        guard let src = UIImage(named: imageName) else { return nil }
-        let size = CGSize(width: sizePx, height: sizePx)
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = true
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            src.draw(in: CGRect(origin: .zero, size: size))
-        }
     }
 }
 

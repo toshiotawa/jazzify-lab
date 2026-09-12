@@ -1,9 +1,8 @@
 /**
- * コードラン草原ワールドマップ: 空背景（バイオームごとに色味を変える）
+ * コードラン Night City ワールドマップ: バイオームごとの半透明ティント帯
  */
 
 import React from 'react';
-import { CODE_RUN_MAP_TEXTURE_URLS } from '@/utils/codeRunMapAssets';
 import { getCodeRunMapTheme } from '@/utils/codeRunMapTheme';
 
 export interface CodeRunSkyBand {
@@ -26,7 +25,6 @@ export const CodeRunSkyBackground: React.FC<CodeRunSkyBackgroundProps> = ({
   scale,
   layouts,
 }) => {
-  const cloudTile = Math.round(256 * scale);
   return (
     <div
       aria-hidden
@@ -38,34 +36,16 @@ export const CodeRunSkyBackground: React.FC<CodeRunSkyBackgroundProps> = ({
         const top = layout.startY * scale;
         const height = (layout.endY - layout.startY) * scale;
         return (
-          <React.Fragment key={`sky-${layout.blockKey}`}>
-            <div
-              className="absolute left-0 w-full"
-              style={{
-                top,
-                height,
-                background: `linear-gradient(to bottom, ${theme.skyTop} 0%, ${theme.skyBottom} 100%)`,
-              }}
-            />
-            <div
-              className="absolute left-0 w-full opacity-[0.18]"
-              style={{
-                top,
-                height,
-                backgroundImage: `url('${CODE_RUN_MAP_TEXTURE_URLS.clouds}')`,
-                backgroundRepeat: 'repeat',
-                backgroundSize: `${cloudTile}px ${cloudTile}px`,
-              }}
-            />
-            <div
-              className="absolute left-0 w-full"
-              style={{
-                top,
-                height,
-                background: 'rgba(8,6,18,0.35)',
-              }}
-            />
-          </React.Fragment>
+          <div
+            key={`sky-${layout.blockKey}`}
+            className="absolute left-0 w-full"
+            style={{
+              top,
+              height,
+              background: `linear-gradient(to bottom, ${theme.skyTop} 0%, ${theme.skyBottom} 100%)`,
+              opacity: 0.45,
+            }}
+          />
         );
       })}
     </div>

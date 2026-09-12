@@ -9,7 +9,7 @@ import {
 } from '@/platform/supabasePlayMap';
 import { useDescentCamera } from '@/components/survival/descent/useDescentCamera';
 import { MAP_LOGICAL_WIDTH } from '@/components/survival/descent/descentLayout';
-import { CODE_RUN_MAP_PRELOAD_IMAGES } from '@/utils/codeRunMapAssets';
+import { CODE_RUN_MAP_PRELOAD_IMAGES, CODE_RUN_MAP_TEXTURE_URLS } from '@/utils/codeRunMapAssets';
 import { cn } from '@/utils/cn';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -404,6 +404,24 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
               cursor: 'grab',
             }}
           >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: `url('${CODE_RUN_MAP_TEXTURE_URLS.nightCityBg}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center bottom',
+                backgroundRepeat: 'no-repeat',
+              }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(to bottom, rgba(8,6,18,0.55) 0%, rgba(4,2,10,0.72) 55%, rgba(0,0,4,0.88) 100%)',
+              }}
+            />
             <div
               className="absolute top-0 will-change-transform"
               style={{

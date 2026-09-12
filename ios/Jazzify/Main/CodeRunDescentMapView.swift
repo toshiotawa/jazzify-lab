@@ -197,31 +197,51 @@ struct CodeRunDescentMapView: View {
         let worldHeight = ceil(layout.totalHeight * mapScale)
         let contentToken = mapScrollSignature(selectedNodeId: selectedNodeId)
 
-        UIKitVerticalScrollView(
-            contentSize: CGSize(width: worldWidth, height: worldHeight),
-            scrollTargetY: $scrollTargetY,
-            animated: scrollAnimated,
-            contentToken: contentToken
-        ) {
-            CodeRunDescentMapContent(
-                layout: layout,
-                locale: locale,
-                clearedNodeIds: clearedNodeIds,
-                accessibleBlockIndex: accessibleBlockIndex,
-                frontierNodeId: frontierNodeId,
-                selectedNodeId: $selectedNodeId,
-                worldWidth: worldWidth,
-                worldHeight: worldHeight,
-                scale: mapScale,
-                isPremium: isPremium,
-                onNodeTap: handleNodeTap
+        ZStack {
+            Image("code_run_background")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .allowsHitTesting(false)
+
+            LinearGradient(
+                colors: [
+                    Color(red: 8 / 255, green: 6 / 255, blue: 18 / 255).opacity(0.55),
+                    Color(red: 4 / 255, green: 2 / 255, blue: 10 / 255).opacity(0.72),
+                    Color(red: 0 / 255, green: 0 / 255, blue: 4 / 255).opacity(0.88),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
             )
-        }
-        .onAppear {
-            refreshScroll(scale: mapScale, animated: false)
-        }
-        .onChange(of: contentToken) { _ in
-            refreshScroll(scale: mapScale, animated: false)
+            .allowsHitTesting(false)
+
+            UIKitVerticalScrollView(
+                contentSize: CGSize(width: worldWidth, height: worldHeight),
+                scrollTargetY: $scrollTargetY,
+                animated: scrollAnimated,
+                contentToken: contentToken
+            ) {
+                CodeRunDescentMapContent(
+                    layout: layout,
+                    locale: locale,
+                    clearedNodeIds: clearedNodeIds,
+                    accessibleBlockIndex: accessibleBlockIndex,
+                    frontierNodeId: frontierNodeId,
+                    selectedNodeId: $selectedNodeId,
+                    worldWidth: worldWidth,
+                    worldHeight: worldHeight,
+                    scale: mapScale,
+                    isPremium: isPremium,
+                    onNodeTap: handleNodeTap
+                )
+            }
+            .onAppear {
+                refreshScroll(scale: mapScale, animated: false)
+            }
+            .onChange(of: contentToken) { _ in
+                refreshScroll(scale: mapScale, animated: false)
+            }
         }
     }
 
