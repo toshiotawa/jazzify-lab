@@ -96,6 +96,9 @@ describe('appPaths', () => {
 describe('hashToAppPath', () => {
   it('maps common legacy hashes to path routes', () => {
     expect(hashToAppPath('#dashboard')).toBe(`${APP_BASE_PATH}/dashboard`);
+    expect(hashToAppPath('#dashboard?discord=joined')).toBe(
+      `${APP_BASE_PATH}/dashboard?discord=joined`,
+    );
     expect(hashToAppPath('#lessons')).toBe(`${APP_BASE_PATH}/courses`);
     expect(hashToAppPath('#lesson-detail?id=abc')).toBe(`${APP_BASE_PATH}/lessons/abc`);
     expect(hashToAppPath('#course?id=xyz')).toBe(`${APP_BASE_PATH}/courses/xyz`);

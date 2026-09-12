@@ -3,9 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildDiscordAuthorizeUrl,
   canStartDiscordLink,
+  createDiscordOAuthState,
   readDiscordEnv,
   resolveGuildId,
   type AppLocale,
+  type DiscordLinkClient,
 } from "../_shared/discord.ts";
 
 const corsHeaders = {
@@ -21,6 +23,10 @@ function parseLocale(value: unknown): AppLocale | null {
     return value;
   }
   return null;
+}
+
+function parseClient(value: unknown): DiscordLinkClient {
+  return value === "ios" ? "ios" : "web";
 }
 
 Deno.serve(async (req: Request) => {
@@ -58,7 +64,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body = await req.json() as { locale?: unknown };
+    const body = await req.json() as { locale?: unknown; client?: unknown };
     const locale = parseLocale(body.locale);
     if (!locale) {
       return new Response(JSON.stringify({ error: "Invalid locale" }), {
@@ -66,6 +72,7 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const client = parseClient(body.client);
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
@@ -89,7 +96,7 @@ Deno.serve(async (req: Request) => {
 
     const config = readDiscordEnv();
     const guildId = resolveGuildId(locale, config);
-    const state = crypto.randomUUID();
+    const state = createDiscordOAuthState(client);
     const expiresAt = new Date(Date.now() + STATE_TTL_MS).toISOString();
 
     const { error: insertError } = await supabase

@@ -72,5 +72,18 @@
 	</array>
 	<key>WEB_APP_BASE_URL</key>
 	<string>https://$(WEB_APP_HOST)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>jp.jazzify.app.discord</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>jazzify</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

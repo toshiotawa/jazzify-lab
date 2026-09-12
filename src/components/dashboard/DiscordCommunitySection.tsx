@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FaExternalLinkAlt } from 'react-icons/fa';
 import { SiDiscord } from 'react-icons/si';
+import { useLocation } from 'react-router-dom';
 import { useToast } from '@/stores/toastStore';
 import {
   fetchMyDiscordMembership,
   startDiscordLink,
   type DiscordMembership,
 } from '@/platform/supabaseDiscord';
+import { parseDiscordCallbackStatus } from '@/utils/discordCallback';
 
 interface DiscordCommunitySectionProps {
   isEnglishCopy: boolean;
@@ -15,28 +17,11 @@ interface DiscordCommunitySectionProps {
   accessToken: string | null | undefined;
 }
 
-function parseDiscordCallbackStatus(rawHash: string): 'joined' | 'error' | null {
-  const hashBase = rawHash.split('?')[0];
-  if (hashBase !== '#dashboard') {
-    return null;
-  }
-  const queryIndex = rawHash.indexOf('?');
-  if (queryIndex === -1) {
-    return null;
-  }
-  const params = new URLSearchParams(rawHash.slice(queryIndex + 1));
-  const discord = params.get('discord');
-  if (discord === 'joined' || discord === 'error') {
-    return discord;
-  }
-  return null;
-}
-
 function clearDiscordCallbackQuery(): void {
   if (typeof window === 'undefined') {
     return;
   }
-  window.history.replaceState(null, '', `${window.location.pathname}#dashboard`);
+  window.history.replaceState(null, '', window.location.pathname);
 }
 
 const DiscordCommunitySection: React.FC<DiscordCommunitySectionProps> = ({
@@ -46,6 +31,7 @@ const DiscordCommunitySection: React.FC<DiscordCommunitySectionProps> = ({
   accessToken,
 }) => {
   const toast = useToast();
+  const location = useLocation();
   const [membership, setMembership] = useState<DiscordMembership | null>(null);
   const [loadingMembership, setLoadingMembership] = useState(true);
   const [linking, setLinking] = useState(false);
@@ -96,8 +82,11 @@ const DiscordCommunitySection: React.FC<DiscordCommunitySectionProps> = ({
       return;
     }
 
-    const handleHashChange = (): void => {
-      const status = parseDiscordCallbackStatus(window.location.hash);
+    const handleCallback = (): void => {
+      const status = parseDiscordCallbackStatus({
+        search: location.search,
+        hash: window.location.hash,
+      });
       if (!status) {
         return;
       }
@@ -128,10 +117,10 @@ const DiscordCommunitySection: React.FC<DiscordCommunitySectionProps> = ({
       void reloadMembership();
     };
 
-    handleHashChange();
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isEnglishCopy, isPremiumMember, reloadMembership, toast]);
+    handleCallback();
+    window.addEventListener('hashchange', handleCallback);
+    return () => window.removeEventListener('hashchange', handleCallback);
+  }, [isEnglishCopy, isPremiumMember, location.search, reloadMembership, toast]);
 
   const handleJoin = useCallback(async (): Promise<void> => {
     if (!accessToken) {

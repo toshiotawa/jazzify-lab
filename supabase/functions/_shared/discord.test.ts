@@ -1,6 +1,8 @@
 import {
   buildAppRedirectUrl,
   canStartDiscordLink,
+  createDiscordOAuthState,
+  resolveDiscordLinkClientFromState,
   resolveGuildId,
   shouldKickFromDiscord,
 } from './discord.ts';
@@ -52,9 +54,42 @@ Deno.test('canStartDiscordLink allows paid and admin users', () => {
   }
 });
 
-Deno.test('buildAppRedirectUrl appends dashboard hash query', () => {
+Deno.test('createDiscordOAuthState prefixes iOS state', () => {
+  const state = createDiscordOAuthState('ios', 'abc');
+  if (state !== 'ios.abc') {
+    throw new Error(`unexpected ios state: ${state}`);
+  }
+});
+
+Deno.test('createDiscordOAuthState keeps web state unprefixed', () => {
+  const state = createDiscordOAuthState('web', 'abc');
+  if (state !== 'abc') {
+    throw new Error(`unexpected web state: ${state}`);
+  }
+});
+
+Deno.test('resolveDiscordLinkClientFromState detects iOS prefix', () => {
+  if (resolveDiscordLinkClientFromState('ios.abc') !== 'ios') {
+    throw new Error('expected ios client');
+  }
+  if (resolveDiscordLinkClientFromState('abc') !== 'web') {
+    throw new Error('expected web client');
+  }
+  if (resolveDiscordLinkClientFromState(null) !== 'web') {
+    throw new Error('expected web client for null state');
+  }
+});
+
+Deno.test('buildAppRedirectUrl uses dashboard path query for web', () => {
   const url = buildAppRedirectUrl('https://jazzify.jp/', 'joined');
-  if (url !== 'https://jazzify.jp/#dashboard?discord=joined') {
+  if (url !== 'https://jazzify.jp/main/dashboard?discord=joined') {
     throw new Error(`unexpected redirect url: ${url}`);
+  }
+});
+
+Deno.test('buildAppRedirectUrl uses app callback scheme for iOS', () => {
+  const url = buildAppRedirectUrl('https://jazzify.jp/', 'joined', 'ios');
+  if (url !== 'jazzify://discord?status=joined') {
+    throw new Error(`unexpected ios redirect url: ${url}`);
   }
 });

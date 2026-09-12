@@ -22,6 +22,7 @@ final class SoftLandingFreeTierTests: XCTestCase {
             difficultyTier: nil,
             isDeveloperOnly: nil,
             isMainCourse: isMainCourse,
+            mainQuestInstrument: nil,
             softLandingOrder: softLandingOrder
         )
     }

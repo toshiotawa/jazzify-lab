@@ -96,20 +96,27 @@ struct DefenseGameView: View {
             VStack(spacing: 0) {
                 defenseHud
                 Spacer(minLength: 0)
-                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
-                    DefensePhraseStaffView(
-                        phrase: phrase,
-                        stageKeyFifths: session.stage.keyFifths,
-                        chordIndex: session.judgeState.chordIndex,
-                        judgeState: session.judgeState,
-                        staffLayout: session.stage.staffLayout,
-                        showTargetHints: session.practiceMode || staffOpacity > 0,
-                        unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
-                    )
-                    .padding(.horizontal, 12)
-                    .frame(maxWidth: min(size.width * 0.63, 600))
-                    .allowsHitTesting(false)
-                }
+            }
+            .ignoresSafeArea(edges: .top)
+
+            if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+                DefensePhraseStaffView(
+                    phrase: phrase,
+                    stageKeyFifths: session.stage.keyFifths,
+                    chordIndex: session.judgeState.chordIndex,
+                    judgeState: session.judgeState,
+                    staffLayout: session.stage.staffLayout,
+                    showTargetHints: session.practiceMode || staffOpacity > 0,
+                    unpressedNoteOpacity: session.practiceMode ? 1 : staffOpacity
+                )
+                .padding(.horizontal, 12)
+                .frame(maxWidth: min(size.width * 0.82, 720))
+                .position(x: size.width / 2, y: size.height * 0.44)
+                .allowsHitTesting(false)
+            }
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
                 SurvivalChordPadView(
                     snapshot: chordPadSnapshot,
                     displayRange: chordPadRange,
@@ -120,18 +127,19 @@ struct DefenseGameView: View {
                     onRelease: { midi in
                         SurvivalGameAudio.shared.pianoNoteOff(midi: midi)
                     },
-                    keyboardHeight: 88
+                    keyboardHeight: Self.pianoHeight
                 )
                 .equatable()
-                .frame(height: 88)
+                .frame(height: Self.pianoHeight)
             }
-            .ignoresSafeArea(edges: .top)
 
             if session.hud.result != .playing {
                 resultOverlay
             }
         }
     }
+
+    private static let pianoHeight: CGFloat = EarTrainingBattleStageKit.chordPadKeyboardHeight
 
     private static var isPhone: Bool {
         UIDevice.current.userInterfaceIdiom == .phone

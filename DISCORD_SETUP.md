@@ -153,4 +153,4 @@ Supabase Dashboard → **Integrations → Cron**（または Scheduled Functions
 | 403 Missing Permissions | Bot に Kick + Create Instant Invite、ロール順序を確認 |
 | OAuth redirect mismatch | `DISCORD_REDIRECT_URI` と Developer Portal の Redirects を完全一致 |
 | 参加後に発言できない | Rules Screening のルール同意が必要（pending 状態） |
-| iOS で OAuth が開かない | 実機で WKWebView 挙動を確認。必要なら外部ブラウザ導線を検討 |
+| iOS で OAuth 後に WEB ログインへ落ちる | Edge Function を再デプロイ。iOS は `jazzify://discord` に戻す |

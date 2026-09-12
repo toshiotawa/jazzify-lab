@@ -1,6 +1,9 @@
 import SpriteKit
 
 final class TrainingScene: SKScene {
+    private static let stageKeyboardHeight = EarTrainingBattleStageKit.chordPadKeyboardHeight
+    private static let stageFloorClearance = EarTrainingBattleStageKit.chordPadFloorClearance
+
     weak var session: TrainingGameSession?
 
     private var enemyNode = SKSpriteNode()
@@ -56,7 +59,12 @@ final class TrainingScene: SKScene {
     private func rebuildStage() {
         guard size.width > 0, size.height > 0 else { return }
         lastBuiltSize = size
-        EarTrainingBattleStageKit.installBattleBackdrop(into: backgroundLayer, size: size)
+        EarTrainingBattleStageKit.installBattleBackdrop(
+            into: backgroundLayer,
+            size: size,
+            keyboardHeight: Self.stageKeyboardHeight,
+            clearanceFromKeyboard: Self.stageFloorClearance
+        )
 
         characterLayer.removeAllChildren()
         characterLayer.addChild(dyingEnemyNode)
@@ -136,7 +144,11 @@ final class TrainingScene: SKScene {
     }
 
     private func render(runtime: TrainingRuntime) {
-        let floorY = EarTrainingBattleStageKit.battleFloorY(sceneHeight: size.height)
+        let floorY = EarTrainingBattleStageKit.battleFloorY(
+            sceneHeight: size.height,
+            keyboardHeight: Self.stageKeyboardHeight,
+            clearanceFromKeyboard: Self.stageFloorClearance
+        )
         let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
         playerNode?.position = CGPoint(x: size.width * Self.playerXRatio, y: floorY)
 

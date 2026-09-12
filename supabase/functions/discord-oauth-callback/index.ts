@@ -6,6 +6,7 @@ import {
   exchangeDiscordCode,
   fetchDiscordUser,
   readDiscordEnv,
+  resolveDiscordLinkClientFromState,
 } from "../_shared/discord.ts";
 
 Deno.serve(async (req: Request) => {
@@ -24,9 +25,10 @@ Deno.serve(async (req: Request) => {
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const oauthError = url.searchParams.get("error");
+  const client = resolveDiscordLinkClientFromState(state);
 
   if (oauthError || !code || !state) {
-    return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error"), 302);
+    return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error", client), 302);
   }
 
   const supabase = createClient(
@@ -42,7 +44,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (stateError || !oauthState) {
-      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error"), 302);
+      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error", client), 302);
     }
 
     await supabase
@@ -51,7 +53,7 @@ Deno.serve(async (req: Request) => {
       .eq("state", state);
 
     if (new Date(oauthState.expires_at).getTime() < Date.now()) {
-      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error"), 302);
+      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error", client), 302);
     }
 
     const accessToken = await exchangeDiscordCode(config, code);
@@ -65,7 +67,7 @@ Deno.serve(async (req: Request) => {
     );
 
     if (!addResult.ok && addResult.status !== 204) {
-      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error"), 302);
+      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error", client), 302);
     }
 
     const now = new Date().toISOString();
@@ -80,11 +82,11 @@ Deno.serve(async (req: Request) => {
       }, { onConflict: "user_id" });
 
     if (upsertError) {
-      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error"), 302);
+      return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error", client), 302);
     }
 
-    return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "joined"), 302);
+    return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "joined", client), 302);
   } catch (_err) {
-    return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error"), 302);
+    return Response.redirect(buildAppRedirectUrl(config.appBaseUrl, "error", client), 302);
   }
 });

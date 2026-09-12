@@ -2,6 +2,9 @@ import SpriteKit
 import SwiftUI
 
 final class DefenseScene: SKScene {
+    private static let stageKeyboardHeight = EarTrainingBattleStageKit.chordPadKeyboardHeight
+    private static let stageFloorClearance = EarTrainingBattleStageKit.chordPadFloorClearance
+
     weak var session: DefenseGameSession?
 
     private var enemyNodes: [UUID: SKSpriteNode] = [:]
@@ -59,7 +62,12 @@ final class DefenseScene: SKScene {
     private func rebuildStage() {
         guard size.width > 0, size.height > 0 else { return }
         lastBuiltSize = size
-        EarTrainingBattleStageKit.installBattleBackdrop(into: backgroundLayer, size: size)
+        EarTrainingBattleStageKit.installBattleBackdrop(
+            into: backgroundLayer,
+            size: size,
+            keyboardHeight: Self.stageKeyboardHeight,
+            clearanceFromKeyboard: Self.stageFloorClearance
+        )
 
         characterLayer.removeAllChildren()
         playerNode = nil
@@ -67,7 +75,11 @@ final class DefenseScene: SKScene {
         playerRimNode = nil
         isShowingGuardPose = false
 
-        let floorY = EarTrainingBattleStageKit.battleFloorY(sceneHeight: size.height)
+        let floorY = EarTrainingBattleStageKit.battleFloorY(
+            sceneHeight: size.height,
+            keyboardHeight: Self.stageKeyboardHeight,
+            clearanceFromKeyboard: Self.stageFloorClearance
+        )
         let playerX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: 80)
         let player = EarTrainingBattleStageKit.makeAvatarContainer(
             assetName: EarTrainingBattleController.playerAvatarAssetName,
@@ -182,7 +194,11 @@ final class DefenseScene: SKScene {
     }
 
     private func render(runtime: DefenseRuntimeState) {
-        let floorY = EarTrainingBattleStageKit.battleFloorY(sceneHeight: size.height)
+        let floorY = EarTrainingBattleStageKit.battleFloorY(
+            sceneHeight: size.height,
+            keyboardHeight: Self.stageKeyboardHeight,
+            clearanceFromKeyboard: Self.stageFloorClearance
+        )
         let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
 
         var playerX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.playerX)

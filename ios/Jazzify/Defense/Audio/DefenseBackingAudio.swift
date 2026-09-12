@@ -119,7 +119,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
             throw URLError(.cannotDecodeContentData)
         }
         try file.read(into: buffer)
-        return buffer
+        guard let converted = PCMBufferConverter.convertToPreferredOutputFormat(buffer) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        return converted
     }
 
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {

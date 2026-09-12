@@ -2207,8 +2207,9 @@ final class SupabaseService: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         struct Body: Encodable {
             let locale: String
+            let client: String
         }
-        request.httpBody = try JSONEncoder().encode(Body(locale: locale.rawValue))
+        request.httpBody = try JSONEncoder().encode(Body(locale: locale.rawValue, client: "ios"))
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {

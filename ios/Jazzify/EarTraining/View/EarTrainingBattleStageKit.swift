@@ -6,6 +6,10 @@ enum EarTrainingBattleStageKit {
     static let hudHeight: CGFloat = 104
     static let pianoVisualTopFromBottom: CGFloat = 80
     static let floorAirAboveKeyboard: CGFloat = 6
+    /// SurvivalChordPad 等 88pt 鍵盤向け（WEB `PIANO_OVERLAY_HEIGHT` と揃える）。
+    static let chordPadKeyboardHeight: CGFloat = 88
+    /// 88pt 鍵盤上の床余白（WEB `FLOOR_CLEARANCE_FROM_PIANO` と揃える）。
+    static let chordPadFloorClearance: CGFloat = 56
     static let battleCharacterVisualScale: CGFloat = 2.0 / 3.0
 
     static var characterDisplaySize: CGFloat { battleLayoutPt(88) }
@@ -16,18 +20,31 @@ enum EarTrainingBattleStageKit {
         base * battleCharacterVisualScale
     }
 
-    static func battleFloorY(sceneHeight: CGFloat) -> CGFloat {
-        let baselineFootY = pianoVisualTopFromBottom + floorAirAboveKeyboard
+    static func battleFloorY(
+        sceneHeight: CGFloat,
+        keyboardHeight: CGFloat = pianoVisualTopFromBottom,
+        clearanceFromKeyboard: CGFloat = floorAirAboveKeyboard
+    ) -> CGFloat {
+        let baselineFootY = keyboardHeight + clearanceFromKeyboard
         let preferredFloorY = max(baselineFootY, sceneHeight * 0.15)
         let maximumFloorY = sceneHeight - hudHeight - characterDisplaySize * 1.1
         return min(preferredFloorY, maximumFloorY)
     }
 
-    static func installBattleBackdrop(into layer: SKNode, size: CGSize) {
+    static func installBattleBackdrop(
+        into layer: SKNode,
+        size: CGSize,
+        keyboardHeight: CGFloat = pianoVisualTopFromBottom,
+        clearanceFromKeyboard: CGFloat = floorAirAboveKeyboard
+    ) {
         layer.removeAllChildren()
         guard size.width > 0, size.height > 0 else { return }
 
-        let floorY = battleFloorY(sceneHeight: size.height)
+        let floorY = battleFloorY(
+            sceneHeight: size.height,
+            keyboardHeight: keyboardHeight,
+            clearanceFromKeyboard: clearanceFromKeyboard
+        )
 
         if let interior = UIImage(named: "ear-training-bg-jazz-club-interior") {
             let backdrop = SKSpriteNode(texture: SKTexture(image: interior))

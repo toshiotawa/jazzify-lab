@@ -304,6 +304,8 @@
 		BE235741779F7647638FFAFF /* SurvivalTutorialV3DrumLoopPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EACD167A81EDA542E86E8E5 /* SurvivalTutorialV3DrumLoopPlayer.swift */; };
 		BEE0811FA11541DA85F15B20 /* PlayHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 226309395C0E476BB9BC4700 /* PlayHubView.swift */; };
 		D1SC0RD1A2B3C4D5E6F70891 /* DiscordCommunitySectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1SC0RD1A2B3C4D5E6F70890 /* DiscordCommunitySectionView.swift */; };
+		D1SC0RD2A2B3C4D5E6F70891 /* DiscordOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1SC0RD2A2B3C4D5E6F70890 /* DiscordOAuth.swift */; };
+		D1SC0RD2A2B3C4D5E6F70893 /* DiscordOAuthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1SC0RD2A2B3C4D5E6F70892 /* DiscordOAuthTests.swift */; };
 		BF4DF80F1EB3B446913254CD /* drumstick-count.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 6330A57F0845AE5002BC0184 /* drumstick-count.mp3 */; };
 		C2066F3C674DE5E97A286AE5 /* SurvivalStageConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */; };
 		C261FBF9974FB8B2007415C2 /* AnnouncementDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71C2F9F67A38214BDBCA8195 /* AnnouncementDetailView.swift */; };
@@ -351,6 +353,9 @@
 		DEFDM001BUILD0000000001 /* DefenseDescentMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */; };
 		DEFDS001BUILD0000000001 /* DefenseDescentSidePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */; };
 		DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */; };
+		A1PCMCONV000000000000002 /* PCMBufferConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1PCMCONV000000000000001 /* PCMBufferConverter.swift */; };
+		A1PCMTEST000000000000002 /* PCMBufferConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1PCMTEST000000000000001 /* PCMBufferConverterTests.swift */; };
+		A1STGKIT000000000000002 /* EarTrainingBattleStageKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1STGKIT000000000000001 /* EarTrainingBattleStageKitTests.swift */; };
 		DDE97362E5FE0DE0E45766F5 /* RemoteAudioFileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */; };
 		DE01E0010000000000000002 /* DefenseEnemyConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE01E0010000000000000001 /* DefenseEnemyConfig.swift */; };
 		DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7FB73F72A914199E51C1D /* LessonProgress.swift */; };
@@ -462,6 +467,8 @@
 		21D8C540CF4648A19E15F4A0 /* TrainingGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGameSession.swift; sourceTree = "<group>"; };
 		226309395C0E476BB9BC4700 /* PlayHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayHubView.swift; sourceTree = "<group>"; };
 		D1SC0RD1A2B3C4D5E6F70890 /* DiscordCommunitySectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordCommunitySectionView.swift; sourceTree = "<group>"; };
+		D1SC0RD2A2B3C4D5E6F70890 /* DiscordOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordOAuth.swift; sourceTree = "<group>"; };
+		D1SC0RD2A2B3C4D5E6F70892 /* DiscordOAuthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscordOAuthTests.swift; sourceTree = "<group>"; };
 		22BBE5A49757C0B62C14A75D /* EarTrainingPrecisionMidi.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionMidi.swift; sourceTree = "<group>"; };
 		22BD2D3BC73DAEB9E0A13AFE /* SurvivalLessonRandomChords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonRandomChords.swift; sourceTree = "<group>"; };
 		235F56B9C1F187793F59B3A1 /* EarTrainingChordOsmdMusicXmlNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordOsmdMusicXmlNormalizer.swift; sourceTree = "<group>"; };
@@ -577,6 +584,9 @@
 		6E48683B3B737009938D6CE8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhraseSlotsView.swift; sourceTree = "<group>"; };
 		6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAudioFileCache.swift; sourceTree = "<group>"; };
+		A1PCMCONV000000000000001 /* PCMBufferConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PCMBufferConverter.swift; sourceTree = "<group>"; };
+		A1PCMTEST000000000000001 /* PCMBufferConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PCMBufferConverterTests.swift; sourceTree = "<group>"; };
+		A1STGKIT000000000000001 /* EarTrainingBattleStageKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleStageKitTests.swift; sourceTree = "<group>"; };
 		6F66608CB479A750BF6AF893 /* DefenseTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTransport.swift; sourceTree = "<group>"; };
 		6F8BFE37B198C035761B13AD /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		70A7A7F3CB010C53F374B81E /* TutorialScriptPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorialScriptPresets.swift; sourceTree = "<group>"; };
@@ -1163,7 +1173,9 @@
 				TRNQBT001FILE000000001 /* TrainingQuestionBuilderTests.swift */,
 				CCAF5923DBBEF6C3DEFA3F16 /* DefensePhraseJudgeTests.swift */,
 				84BE9512747AC50BF5059458 /* DefenseTransportTests.swift */,
+				A1STGKIT000000000000001 /* EarTrainingBattleStageKitTests.swift */,
 				C19CE4C88C2E79AE483C7398 /* EarTrainingAdlibCallResponseTargetsTests.swift */,
+				A1PCMTEST000000000000001 /* PCMBufferConverterTests.swift */,
 				B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */,
 				B4B32E381A4EBA54C3DA3624 /* EarTrainingCanonicalPhraseNotesTests.swift */,
 				192633CABD146818E6B56477 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift */,
@@ -1194,6 +1206,7 @@
 				289CA97441CEE07922D7EF2A /* EarTrainingTutorialOsmdDrumLoopResolverTests.swift */,
 				7E3E6A8480E757AE462E8D01 /* LessonLocalizationTests.swift */,
 				E758BD476D51D3A10AD7B7A2 /* LessonNavigationHelpersTests.swift */,
+				D1SC0RD2A2B3C4D5E6F70892 /* DiscordOAuthTests.swift */,
 				DA1F0878B82656E43D73E126 /* PianoKeyboardDisplayRangeTests.swift */,
 				3E55DE62A334F6CFC0698D44 /* PianoKeyboardScrollGeometryTests.swift */,
 				C7EC1358AF809BB683C1BF59 /* PianoVelocityCurveTests.swift */,
@@ -1357,6 +1370,7 @@
 				39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */,
 				4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */,
 				2E4DC894813C1800B8E45772 /* QuestJinglePlayer.swift */,
+				A1PCMCONV000000000000001 /* PCMBufferConverter.swift */,
 				6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */,
 			);
 			path = Audio;
@@ -1603,6 +1617,7 @@
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
 				226309395C0E476BB9BC4700 /* PlayHubView.swift */,
 				D1SC0RD1A2B3C4D5E6F70890 /* DiscordCommunitySectionView.swift */,
+				D1SC0RD2A2B3C4D5E6F70890 /* DiscordOAuth.swift */,
 				CC33DD44EE55FF6677AA11BB /* CodeRunWorldView.swift */,
 				DD44EE55FF6677AA11BB22CC /* DefenseDescentView.swift */,
 				DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */,
@@ -1871,7 +1886,9 @@
 				7110A125B7F64F5A546D2D80 /* DefenseGameLoopTests.swift in Sources */,
 				0B18AFAF841CF7E5CFDA41AF /* DefensePhraseJudgeTests.swift in Sources */,
 				1FDD1086A70B5098523B27DC /* DefenseTransportTests.swift in Sources */,
+				A1STGKIT000000000000002 /* EarTrainingBattleStageKitTests.swift in Sources */,
 				766F62D9EC19BFBDED4C6A0E /* EarTrainingAdlibCallResponseTargetsTests.swift in Sources */,
+				A1PCMTEST000000000000002 /* PCMBufferConverterTests.swift in Sources */,
 				FB6A8B415144A1D9DD2C001C /* EarTrainingAudioCaptureTests.swift in Sources */,
 				9657204BD40C8A2B3D6D93D0 /* EarTrainingCanonicalPhraseNotesTests.swift in Sources */,
 				9822C044B046A4A5DD7687E9 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift in Sources */,
@@ -1902,6 +1919,7 @@
 				D251595EAE1DE1BA3C068D12 /* EarTrainingTutorialOsmdDrumLoopResolverTests.swift in Sources */,
 				C7E18C0EC1875405DC0A69AD /* LessonLocalizationTests.swift in Sources */,
 				EC8D245E66D2CA889D49A103 /* LessonNavigationHelpersTests.swift in Sources */,
+				D1SC0RD2A2B3C4D5E6F70893 /* DiscordOAuthTests.swift in Sources */,
 				FC63B0AAE8812BA34265A56B /* PianoKeyboardDisplayRangeTests.swift in Sources */,
 				F0AE21C35900B961AE2BCF6B /* PianoKeyboardScrollGeometryTests.swift in Sources */,
 				70BF445A4167DD4784A1C64A /* PianoVelocityCurveTests.swift in Sources */,
@@ -2121,6 +2139,7 @@
 				67487F8C540FBDDEF829E620 /* QuestJinglePlayer.swift in Sources */,
 				94C146835E10F5E6F75844BA /* QuestReadyToCompleteSheet.swift in Sources */,
 				4B717F97871B7B6B06082BC8 /* QuestStageCardAssets.swift in Sources */,
+				A1PCMCONV000000000000002 /* PCMBufferConverter.swift in Sources */,
 				DDE97362E5FE0DE0E45766F5 /* RemoteAudioFileCache.swift in Sources */,
 				25EFE7F9B8BA144F9C728898 /* ScreenRotation180Toggle.swift in Sources */,
 				38E9B6ED9BB90848D3E83056 /* ScreenRotationApplier.swift in Sources */,
@@ -2142,6 +2161,7 @@
 				909E625206C747D78DD45844 /* TrainingListView.swift in Sources */,
 				BEE0811FA11541DA85F15B20 /* PlayHubView.swift in Sources */,
 				D1SC0RD1A2B3C4D5E6F70891 /* DiscordCommunitySectionView.swift in Sources */,
+				D1SC0RD2A2B3C4D5E6F70891 /* DiscordOAuth.swift in Sources */,
 				AA11BB22CC33DD44EE55FF67 /* PlayMapModels.swift in Sources */,
 				BB22CC33DD44EE55FF6677AB /* PlayWorldMapView.swift in Sources */,
 				CC33DD44EE55FF6677AA11BC /* CodeRunWorldView.swift in Sources */,

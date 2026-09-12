@@ -1,5 +1,6 @@
 import SpriteKit
 import SwiftUI
+import UIKit
 
 struct TrainingGameView: View {
     @StateObject private var session: TrainingGameSession
@@ -11,7 +12,7 @@ struct TrainingGameView: View {
     let onClose: () -> Void
     let onFinished: (Int) -> Void
 
-    private static let pianoHeight: CGFloat = 88
+    private static let pianoHeight: CGFloat = EarTrainingBattleStageKit.chordPadKeyboardHeight
     private static let staffBandMargin: CGFloat = 16
 
     init(
@@ -35,80 +36,41 @@ struct TrainingGameView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                SpriteView(scene: scene, options: [.allowsTransparency])
-                    .ignoresSafeArea()
-                    .onAppear {
-                        scene.session = session
-                        Task { await session.start() }
-                    }
-                    .onDisappear { session.stop() }
-
-                VStack(spacing: 0) {
-                    trainingHud
-                    Spacer()
-                }
-                .ignoresSafeArea(edges: .top)
-
-                if let question = session.question, session.hud.phase != .countdown {
-                    let staffBandHeight = (geometry.size.height
-                        - TrainingConstants.hudHeight
-                        - Self.pianoHeight
-                        - Self.staffBandMargin)
-                        * TrainingConstants.staffHeightRatio(clefMode: session.training.clefMode)
-
-                    VStack(spacing: 8) {
-                        if !question.promptLabel.isEmpty {
-                            Text(question.promptLabel)
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                        }
-                        TrainingStaffView(
-                            question: question,
-                            correctIndices: session.correctIndices,
-                            showHints: session.practiceMode,
-                            kind: session.training.kind,
-                            unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
-                                practiceMode: session.practiceMode,
-                                kind: session.training.kind
-                            ),
-                            clefMode: session.training.clefMode
-                        )
-                    }
-                    .padding(.horizontal)
-                    .frame(maxWidth: 720)
-                    .frame(height: max(0, staffBandHeight))
-                    .position(
-                        x: geometry.size.width / 2,
-                        y: TrainingConstants.hudHeight + 8 + max(0, staffBandHeight) / 2
+        Group {
+            if Self.isPhone {
+                GeometryReader { proxy in
+                    let portraitSize = proxy.size
+                    let landscapeSize = CGSize(
+                        width: max(1, portraitSize.height),
+                        height: max(1, portraitSize.width)
                     )
-                    .allowsHitTesting(false)
-                }
 
-                if session.hud.phase == .countdown {
-                    Color.black.opacity(0.35).ignoresSafeArea()
-                    Text("\(session.hud.countdownSec)")
-                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                    playfield(size: landscapeSize)
+                        .frame(width: landscapeSize.width, height: landscapeSize.height)
+                        .clipped()
+                        .rotationEffect(.degrees(90))
+                        .frame(width: portraitSize.width, height: portraitSize.height)
+                        .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
                 }
-
-                VStack {
-                    Spacer()
-                    SurvivalChordPadView(
-                        snapshot: chordPadSnapshot,
-                        displayRange: chordPadRange,
-                        onPress: { midi in
-                            session.handleNoteOn(midiNote: midi)
-                            SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
-                        },
-                        onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
-                        keyboardHeight: Self.pianoHeight
-                    )
-                    .frame(height: Self.pianoHeight)
+            } else {
+                GeometryReader { proxy in
+                    playfield(size: proxy.size)
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .syncPianoKeyboardDisplayMode($keyboardDisplayMode)
+        .onAppear {
+            OrientationManager.shared.lock(.portrait)
+            scene.session = session
+        }
+        .task {
+            await session.start()
+        }
+        .onDisappear {
+            OrientationManager.shared.lock(.portrait)
+            session.stop()
+        }
         .onChange(of: session.hud.phase) { phase in
             if phase == .finished {
                 onFinished(session.runtime.score)
@@ -123,6 +85,85 @@ struct TrainingGameView: View {
                 onExit: onClose
             )
         }
+    }
+
+    @ViewBuilder
+    private func playfield(size: CGSize) -> some View {
+        ZStack {
+            SpriteView(scene: scene, options: [.allowsTransparency])
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                trainingHud
+                Spacer(minLength: 0)
+            }
+            .ignoresSafeArea(edges: .top)
+
+            if let question = session.question, session.hud.phase != .countdown {
+                staffOverlay(question: question, size: size)
+            }
+
+            if session.hud.phase == .countdown {
+                Color.black.opacity(0.35).ignoresSafeArea()
+                Text("\(session.hud.countdownSec)")
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
+            }
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                SurvivalChordPadView(
+                    snapshot: chordPadSnapshot,
+                    displayRange: chordPadRange,
+                    onPress: { midi in
+                        session.handleNoteOn(midiNote: midi)
+                        SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: 100)
+                    },
+                    onRelease: { midi in SurvivalGameAudio.shared.pianoNoteOff(midi: midi) },
+                    keyboardHeight: Self.pianoHeight
+                )
+                .frame(height: Self.pianoHeight)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func staffOverlay(question: TrainingQuestion, size: CGSize) -> some View {
+        let staffBandHeight = (size.height
+            - TrainingConstants.hudHeight
+            - Self.pianoHeight
+            - Self.staffBandMargin)
+            * TrainingConstants.staffHeightRatio(clefMode: session.training.clefMode)
+
+        VStack(spacing: 8) {
+            if !question.promptLabel.isEmpty {
+                Text(question.promptLabel)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
+            TrainingStaffView(
+                question: question,
+                correctIndices: session.correctIndices,
+                showHints: session.practiceMode,
+                kind: session.training.kind,
+                unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
+                    practiceMode: session.practiceMode,
+                    kind: session.training.kind
+                ),
+                clefMode: session.training.clefMode
+            )
+        }
+        .padding(.horizontal)
+        .frame(maxWidth: min(size.width * 0.82, 720))
+        .frame(height: max(0, staffBandHeight))
+        .position(
+            x: size.width / 2,
+            y: TrainingConstants.hudHeight + 8 + max(0, staffBandHeight) / 2
+        )
+        .allowsHitTesting(false)
+    }
+
+    private static var isPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
     }
 
     private var trainingHud: some View {

@@ -10,6 +10,7 @@ struct DiscordCommunitySectionView: View {
     @State private var isLoading = true
     @State private var isLinking = false
     @State private var alertMessage: String?
+    @State private var toast: DiscordLinkToast?
 
     private var isEnglishCopy: Bool { locale == .en }
 
@@ -58,7 +59,7 @@ struct DiscordCommunitySectionView: View {
                 } label: {
                     Label(
                         isLinking
-                            ? (isEnglishCopy ? "Redirecting..." : "移動中...")
+                            ? (isEnglishCopy ? "Connecting..." : "連携中...")
                             : (isEnglishCopy ? "Join Discord Server" : "Discordサーバーに参加する"),
                         systemImage: "bubble.left.and.bubble.right.fill"
                     )
@@ -86,6 +87,32 @@ struct DiscordCommunitySectionView: View {
                 .stroke(Color.indigo.opacity(0.35), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(alignment: .top) {
+            if let toast {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(toast.title)
+                        .font(.caption.bold())
+                        .foregroundStyle(toast.isError ? Color.red.opacity(0.9) : Color.cyan)
+                    Text(toast.message)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(hex: "1e293b").opacity(0.98))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke((toast.isError ? Color.red : Color.cyan).opacity(0.35), lineWidth: 1)
+                )
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: toast)
         .task { await reloadMembership() }
         .alert(
             isEnglishCopy ? "Discord error" : "Discord エラー",
@@ -117,8 +144,16 @@ struct DiscordCommunitySectionView: View {
         defer { isLinking = false }
         do {
             let authorizeUrl = try await SupabaseService.shared.startDiscordLink(locale: locale)
-            await MainActor.run {
-                openURL(authorizeUrl)
+            let authenticator = DiscordOAuthAuthenticator()
+            let status = await authenticator.authenticate(url: authorizeUrl)
+            switch status {
+            case .joined:
+                showToast(isError: false)
+                await reloadMembership()
+            case .error:
+                showToast(isError: true)
+            case .cancelled:
+                break
             }
         } catch {
             alertMessage = isEnglishCopy
@@ -126,6 +161,34 @@ struct DiscordCommunitySectionView: View {
                 : "Discord 連携の開始に失敗しました: \(error.localizedDescription)"
         }
     }
+
+    private func showToast(isError: Bool) {
+        toast = DiscordLinkToast(
+            isError: isError,
+            title: isError
+                ? (isEnglishCopy ? "Discord error" : "Discord エラー")
+                : (isEnglishCopy ? "Discord connected" : "Discord 連携完了"),
+            message: isError
+                ? (isEnglishCopy
+                    ? "Could not connect to Discord. Please try again."
+                    : "Discord 連携に失敗しました。もう一度お試しください。")
+                : (isEnglishCopy
+                    ? "You joined the Discord server."
+                    : "Discordサーバーに参加しました。")
+        )
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await MainActor.run {
+                toast = nil
+            }
+        }
+    }
+}
+
+private struct DiscordLinkToast: Equatable {
+    let isError: Bool
+    let title: String
+    let message: String
 }
 
 struct DiscordMembership: Decodable, Sendable {

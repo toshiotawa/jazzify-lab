@@ -60,7 +60,7 @@ export const hashToAppPath = (hash: string): string | null => {
 
   switch (base) {
     case '#dashboard':
-      return dashboardPath();
+      return `${dashboardPath()}${search}`;
     case '#lessons':
       return coursesListPath();
     case '#courses':

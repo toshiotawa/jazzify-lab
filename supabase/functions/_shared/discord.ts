@@ -29,6 +29,13 @@ export interface KickEligibilityInput {
   isAdmin: boolean | null | undefined;
 }
 
+export type DiscordLinkClient = 'web' | 'ios';
+export type DiscordOAuthStatus = 'joined' | 'error';
+
+const DISCORD_IOS_CALLBACK_SCHEME = 'jazzify';
+const DISCORD_IOS_CALLBACK_HOST = 'discord';
+const DISCORD_IOS_OAUTH_STATE_PREFIX = 'ios.';
+
 export function readDiscordEnv(): DiscordEnvConfig {
   const clientId = Deno.env.get('DISCORD_CLIENT_ID') ?? '';
   const clientSecret = Deno.env.get('DISCORD_CLIENT_SECRET') ?? '';
@@ -87,9 +94,27 @@ export function buildDiscordAuthorizeUrl(
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }
 
-export function buildAppRedirectUrl(appBaseUrl: string, discordStatus: 'joined' | 'error'): string {
+export function createDiscordOAuthState(
+  client: DiscordLinkClient,
+  nonce: string = crypto.randomUUID(),
+): string {
+  return client === 'ios' ? `${DISCORD_IOS_OAUTH_STATE_PREFIX}${nonce}` : nonce;
+}
+
+export function resolveDiscordLinkClientFromState(state: string | null): DiscordLinkClient {
+  return state !== null && state.startsWith(DISCORD_IOS_OAUTH_STATE_PREFIX) ? 'ios' : 'web';
+}
+
+export function buildAppRedirectUrl(
+  appBaseUrl: string,
+  discordStatus: DiscordOAuthStatus,
+  client: DiscordLinkClient = 'web',
+): string {
+  if (client === 'ios') {
+    return `${DISCORD_IOS_CALLBACK_SCHEME}://${DISCORD_IOS_CALLBACK_HOST}?status=${discordStatus}`;
+  }
   const base = appBaseUrl.replace(/\/$/, '');
-  return `${base}/#dashboard?discord=${discordStatus}`;
+  return `${base}/main/dashboard?discord=${discordStatus}`;
 }
 
 function parseRetryAfterSeconds(response: Response, body: unknown): number | null {
