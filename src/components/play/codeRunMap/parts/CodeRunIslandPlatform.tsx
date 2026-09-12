@@ -25,7 +25,9 @@ export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
   const logicalHeight = type === 'big' ? 96 : 60;
   const widthPx = logicalWidth * scale;
   const heightPx = logicalHeight * scale;
-  const filter = dim ? 'brightness(0.55) saturate(0.6)' : 'brightness(1.05)';
+  const filter = dim
+    ? 'brightness(0.55) saturate(0.6)'
+    : 'brightness(1.05) drop-shadow(0 8px 10px rgba(0,0,0,0.28))';
 
   return (
     <div
@@ -36,12 +38,13 @@ export const CodeRunIslandPlatform: React.FC<CodeRunIslandPlatformProps> = ({
         top: yPx - heightPx / 2,
         width: widthPx,
         height: heightPx,
+        overflow: 'hidden',
         backgroundImage: `url('${CODE_RUN_MAP_TEXTURE_URLS.platform}')`,
-        backgroundSize: '100% 100%',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center top',
         backgroundRepeat: 'no-repeat',
         imageRendering: 'pixelated',
         filter,
-        boxShadow: '0 10px 22px rgba(0,0,0,0.25), 0 0 10px rgba(255,255,255,0.08)',
       }}
     />
   );
