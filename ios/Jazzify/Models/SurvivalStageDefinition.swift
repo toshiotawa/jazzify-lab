@@ -503,6 +503,9 @@ enum SurvivalStageCatalog {
         .lesson: [:]
     ]
 
+    nonisolated(unsafe) private static var loadedAt: Date?
+    private static let catalogTTL: TimeInterval = 600
+
     fileprivate static func blockDbKillQuota(for blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> Int? {
         guard let q = _blockBalanceByCategory[category]?[blockKey]?.killQuota else { return nil }
         return q > 0 ? q : nil
@@ -599,6 +602,29 @@ enum SurvivalStageCatalog {
 
     static func block(byKey blockKey: SurvivalBlockKey, in category: SurvivalMapCategory) -> SurvivalBlockMeta? {
         blocks(in: category).first { $0.blockKey == blockKey }
+    }
+
+    /// Supabase からステージカタログを取得してロードする（TTL 内はスキップ）。
+    static func ensureLoaded() async {
+        let stale = loadedAt.map { Date().timeIntervalSince($0) > catalogTTL } ?? true
+        guard stale else { return }
+
+        async let fetchedStages = SupabaseService.shared.fetchSurvivalStages()
+        async let fetchedBlocks = SupabaseService.shared.fetchSurvivalStageBlocks()
+        async let fetchedCompositeStages = SupabaseService.shared.fetchSurvivalCompositePhraseStages()
+        async let fetchedCompositeSources = SupabaseService.shared.fetchSurvivalCompositePhraseSources()
+        let rows = try? await fetchedStages
+        let blockRows = (try? await fetchedBlocks) ?? []
+        let compositeStages = (try? await fetchedCompositeStages) ?? []
+        let compositeSources = (try? await fetchedCompositeSources) ?? []
+        if let rows, !rows.isEmpty {
+            load(
+                rows: rows,
+                blockLabelRows: blockRows,
+                compositeStageRows: compositeStages,
+                compositeSourceRows: compositeSources
+            )
+        }
     }
 
     /// Web `enrichStagesWithComposite` 相当。
@@ -828,6 +854,7 @@ enum SurvivalStageCatalog {
 
         _stagesByCategory = stagesByCategory
         _blocksByCategory = blocksByCategory
+        loadedAt = Date()
     }
 
     private static func ingestBlockBalances(from rows: [SurvivalStageBlockRow]) {

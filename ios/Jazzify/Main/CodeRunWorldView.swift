@@ -15,6 +15,7 @@ struct CodeRunWorldView: View {
     @State private var activeStage: SurvivalStageDefinition?
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var lessonToOpen: LessonPlayMapLaunch?
+    @State private var alertMessage: String?
 
     private var locale: AppLocale { appState.locale }
 
@@ -54,7 +55,7 @@ struct CodeRunWorldView: View {
                     clears: clears,
                     rankThresholds: rankThresholds,
                     onSelectNode: { node in
-                        startStageNode(node)
+                        Task { await startStageNode(node) }
                     },
                     onSelectQuestNode: { node in
                         Task { await startQuestNode(node) }
@@ -109,10 +110,22 @@ struct CodeRunWorldView: View {
         .sheet(isPresented: $showSubscription) {
             SubscriptionView(entry: .lessonList)
         }
+        .alert(
+            locale == .ja ? "ステージを開始できません" : "Cannot start stage",
+            isPresented: Binding(
+                get: { alertMessage != nil },
+                set: { if !$0 { alertMessage = nil } }
+            )
+        ) {
+            Button(locale == .ja ? "OK" : "OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage ?? "")
+        }
     }
 
     private func reloadMap() async {
         isLoading = true
+        await SurvivalStageCatalog.ensureLoaded()
         do {
             async let blocksTask = SupabaseService.shared.fetchPlayMapBlocks(mode: .codeRun)
             async let nodesTask = SupabaseService.shared.fetchPlayMapNodes(mode: .codeRun)
@@ -135,10 +148,18 @@ struct CodeRunWorldView: View {
         isLoading = false
     }
 
-    private func startStageNode(_ node: PlayMapNode) {
+    private func startStageNode(_ node: PlayMapNode) async {
         guard let stageNumber = node.survivalStageNumber else { return }
         let category = SurvivalMapCategory(rawValue: node.survivalMapCategory ?? "basic") ?? .basic
-        guard let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: category) else { return }
+        if SurvivalStageCatalog.stage(byNumber: stageNumber, in: category) == nil {
+            await SurvivalStageCatalog.ensureLoaded()
+        }
+        guard let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: category) else {
+            alertMessage = locale == .ja
+                ? "ステージ情報の読み込みに失敗しました。通信環境を確認して再度お試しください。"
+                : "Failed to load stage data. Check your connection and try again."
+            return
+        }
         activeNode = node
         activeStage = stage
         stageLaunchSession = StageLaunchSession(node: node, stage: stage)
@@ -197,7 +218,7 @@ struct CodeRunWorldView: View {
             await reloadMap()
             return
         }
-        startStageNode(next)
+        await startStageNode(next)
     }
 }
 

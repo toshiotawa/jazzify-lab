@@ -49,6 +49,9 @@ struct TopView: View {
                         mainQuestCard
                         softLandingCard
                         profileCard
+                        if appState.isPremium, let userId = profile?.id {
+                            DiscordCommunitySectionView(locale: locale, userId: userId)
+                        }
                         if !appState.isPremium {
                             Button {
                                 subscriptionEntry = .dashboard
@@ -512,10 +515,16 @@ struct TopView: View {
                             color: .green
                         )
                         StatItem(
-                            icon: "flame.fill",
-                            value: "\(stats.survivalClearCount)",
-                            label: locale == .ja ? "サバイバルクリア" : "Survival cleared",
+                            icon: "figure.run",
+                            value: "\(stats.codeRunClearCount)",
+                            label: locale == .ja ? "コードランクリア" : "Code Run cleared",
                             color: .orange
+                        )
+                        StatItem(
+                            icon: "shield.fill",
+                            value: "\(stats.defenseClearCount)",
+                            label: locale == .ja ? "ディフェンスクリア" : "Defense cleared",
+                            color: .mint
                         )
                     }
                 }

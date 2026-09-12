@@ -401,10 +401,23 @@ export const buildTrainingQuestion = (
       );
     }
 
+    if (training.kind === 'progression') {
+      continue;
+    }
+
     throw new Error(`Unsupported training kind: ${training.kind}`);
   }
 
-  return buildTrainingQuestion({ ...options, previousQuestionKey: null });
+  return makeQuestion(
+    `fallback:${training.id}:c4`,
+    '',
+    ['C4'],
+    [defaultStaff],
+    [true],
+    'stacked',
+    false,
+    60,
+  );
 };
 
 /**

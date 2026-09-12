@@ -1591,10 +1591,12 @@ private struct SurvivalCodeRunGameContent: View {
     @ViewBuilder private var resultOverlay: some View {
         if showResult {
             VStack(spacing: 14) {
-                Text(status == .clear ? "STAGE CLEAR!" : "TIME UP")
+                Text(status == .clear ? "STAGE CLEAR!" : (locale == .ja ? "ゲームオーバー" : "GAME OVER"))
                     .font(.title.bold())
                     .foregroundStyle(status == .clear ? .green : .red)
-                Text(locale == .ja ? "クリア時間: \(formatElapsed())" : "Clear time: \(formatElapsed())")
+                Text(status == .clear
+                     ? (locale == .ja ? "クリア時間: \(formatElapsed())" : "Clear time: \(formatElapsed())")
+                     : (locale == .ja ? "経過時間: \(formatElapsed())" : "Elapsed time: \(formatElapsed())"))
                     .font(.headline.monospacedDigit())
                 HStack {
                     Button(locale == .ja ? "リトライ" : "Retry") { resetRun() }.buttonStyle(.borderedProminent)

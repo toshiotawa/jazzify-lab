@@ -288,7 +288,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             <>
               <div className="text-4xl mb-2">💀</div>
               <div className="text-3xl font-bold text-red-500 font-sans mb-1">
-                {isCodeRunStage ? (isEnglishCopy ? 'TIME UP' : 'TIME UP') : 'GAME OVER'}
+                {isEnglishCopy ? 'GAME OVER' : 'ゲームオーバー'}
               </div>
 
               {isNewHighScore && (
@@ -348,7 +348,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               {formatTime(result.survivalTime)}
             </div>
             <div className="text-[10px] text-gray-400">
-              {isCodeRunStage ? (isEnglishCopy ? 'Clear Time' : 'クリア時間') : (isEnglishCopy ? 'Survival Time' : '生存時間')}
+              {isCodeRunStage
+                ? (result.isStageClear
+                  ? (isEnglishCopy ? 'Clear Time' : 'クリア時間')
+                  : (isEnglishCopy ? 'Elapsed Time' : '経過時間'))
+                : (isEnglishCopy ? 'Survival Time' : '生存時間')}
             </div>
           </div>
 

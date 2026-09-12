@@ -28,6 +28,14 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { useSurvivalMidiSession } from '@/hooks/useSurvivalMidiSession';
 import { markAudioUserInteraction } from '@/utils/MidiController';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
+import {
+  DEFAULT_SURVIVAL_BGM_SETTINGS,
+  fetchSurvivalBgmSettings,
+  resolveStageBgmUrl,
+  toSurvivalBgmSettingsMap,
+} from '@/platform/supabaseSurvival';
 import {
   scoreToCodeRunRank,
   meetsCodeRunRankRequirement,
@@ -82,6 +90,22 @@ const CodeRunMapMain: React.FC = () => {
       (node.survivalMapCategory ?? 'basic') as 'basic',
     );
     if (!stage) return;
+    markAudioUserInteraction();
+    try {
+      await Promise.race([
+        (async () => {
+          await FantasySoundManager.unlock();
+          await ensureSurvivalBattleAudio();
+        })(),
+        new Promise<void>((resolve) => { setTimeout(resolve, 3000); }),
+      ]);
+    } catch { /* ignore */ }
+
+    let bgmSettings = DEFAULT_SURVIVAL_BGM_SETTINGS;
+    try {
+      bgmSettings = toSurvivalBgmSettingsMap(await fetchSurvivalBgmSettings());
+    } catch { /* defaults */ }
+
     const base = DIFFICULTY_CONFIGS.find((c) => c.difficulty === stage.difficulty)
       ?? DIFFICULTY_CONFIGS[0];
     const config: DifficultyConfig = {
@@ -90,9 +114,8 @@ const CodeRunMapMain: React.FC = () => {
       description: stage.name,
       descriptionEn: stage.nameEn,
       allowedChords: stage.allowedChords,
-      bgmUrl: null,
+      bgmUrl: resolveStageBgmUrl(stage, bgmSettings),
     };
-    markAudioUserInteraction();
     setActiveNode(node);
     setActiveStage(stage);
     setActiveConfig(config);

@@ -1,9 +1,13 @@
 import SwiftUI
 
+private enum PlayHubDestination: Hashable {
+    case codeRun
+    case defense
+}
+
 struct PlayHubView: View {
     @EnvironmentObject var appState: AppState
-    @State private var showCodeRun = false
-    @State private var showDefense = false
+    @State private var destination: PlayHubDestination?
 
     private var locale: AppLocale { appState.locale }
     private var isEnglishCopy: Bool { locale == .en }
@@ -38,7 +42,7 @@ struct PlayHubView: View {
                             accent: [Color(hex: "92400e"), Color(hex: "7c2d12")],
                             border: Color(hex: "f59e0b").opacity(0.4)
                         ) {
-                            showCodeRun = true
+                            destination = .codeRun
                         }
 
                         playModeCard(
@@ -49,18 +53,20 @@ struct PlayHubView: View {
                             accent: [Color(hex: "064e3b"), Color(hex: "134e4a")],
                             border: Color(hex: "34d399").opacity(0.4)
                         ) {
-                            showDefense = true
+                            destination = .defense
                         }
                     }
                     .padding()
                 }
             }
             .navigationBarHidden(true)
-            .navigationDestination(isPresented: $showCodeRun) {
-                CodeRunWorldView()
-            }
-            .navigationDestination(isPresented: $showDefense) {
-                DefenseDescentView()
+            .navigationDestination(item: $destination) { dest in
+                switch dest {
+                case .codeRun:
+                    CodeRunWorldView()
+                case .defense:
+                    DefenseDescentView()
+                }
             }
         }
     }

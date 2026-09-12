@@ -211,6 +211,16 @@ describe('trainingQuestionBuilder', () => {
     expect(q.notes.map((n) => n.noteName)).toEqual(['D3', 'Ab3', 'C4', 'E4', 'G4']);
   });
 
+  it('returns a fallback question for progression kind without recursing', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({ kind: 'progression', config: {} }),
+      ...piano,
+    });
+    expect(q.questionKey.startsWith('fallback:')).toBe(true);
+    expect(q.notes).toHaveLength(1);
+    expect(q.notes[0]?.midi).toBe(60);
+  });
+
   it('builds interval questions with a visible reference note and a simple-spelled target', () => {
     for (let i = 0; i < 40; i += 1) {
       const q = buildTrainingQuestion({

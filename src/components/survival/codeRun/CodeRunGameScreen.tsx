@@ -197,7 +197,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
   const pianoHostRef = useRef<HTMLDivElement | null>(null);
   const focusRef = useRef<HTMLDivElement | null>(null);
   const localRootRef = useRef<HTMLDivElement | null>(null);
-  const [needsFocusHint, setNeedsFocusHint] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(() =>
     typeof window === 'undefined' ? 88 : computeCodeRunKeyboardHeight(window.innerHeight),
@@ -281,7 +280,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
 
   const restoreFocus = useCallback(() => {
     focusRef.current?.focus({ preventScroll: true });
-    setNeedsFocusHint(false);
   }, []);
 
   useEffect(() => {
@@ -670,7 +668,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard focus target for iframe embed
         tabIndex={0}
         className="relative min-h-0 flex-1 bg-[#071026] outline-none"
-        onBlur={() => setNeedsFocusHint(true)}
         onPointerDown={restoreFocus}
       >
         <div className="absolute inset-0 overflow-hidden">
@@ -783,18 +780,6 @@ const CodeRunGameScreen: React.FC<CodeRunGameScreenProps> = ({
           >
             {dialogueText}
           </div>
-        )}
-
-        {needsFocusHint && !isMobileViewport && (
-          <button
-            type="button"
-            onClick={restoreFocus}
-            className="absolute inset-x-4 bottom-4 z-30 rounded-lg border border-cyan-300/40 bg-black/70 px-4 py-3 text-center text-sm text-cyan-100 backdrop-blur"
-          >
-            {isEnglishCopy
-              ? 'Click here to resume keyboard controls (← →)'
-              : 'クリックしてキーボード操作を再開（← →）'}
-          </button>
         )}
 
         {isPaused && !result && !demoMode && (

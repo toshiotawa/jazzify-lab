@@ -16,6 +16,7 @@ struct DefenseDescentView: View {
     @State private var gameSessionNonce = 0
     @State private var showGame = false
     @State private var lessonToOpen: LessonPlayMapLaunch?
+    @State private var alertMessage: String?
 
     private var locale: AppLocale { appState.locale }
 
@@ -102,6 +103,17 @@ struct DefenseDescentView: View {
         .sheet(isPresented: $showSubscription) {
             SubscriptionView(entry: .lessonList)
         }
+        .alert(
+            locale == .ja ? "ステージを開始できません" : "Cannot start stage",
+            isPresented: Binding(
+                get: { alertMessage != nil },
+                set: { if !$0 { alertMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage ?? "")
+        }
     }
 
     private func reloadMap() async {
@@ -123,12 +135,36 @@ struct DefenseDescentView: View {
     }
 
     private func startStageNode(_ node: PlayMapNode) async {
-        guard let stageId = node.defenseStageId else { return }
-        guard let stage = try? await SupabaseService.shared.fetchDefenseStageDetail(stageId: stageId),
-              !stage.phrases.isEmpty
-        else { return }
+        guard let stageId = node.defenseStageId else {
+            alertMessage = locale == .ja
+                ? "ステージ情報が見つかりません。"
+                : "Stage information is missing."
+            return
+        }
+        let stage: DefenseStageDefinition
+        do {
+            guard let fetched = try await SupabaseService.shared.fetchDefenseStageDetail(stageId: stageId),
+                  !fetched.phrases.isEmpty
+            else {
+                alertMessage = locale == .ja
+                    ? "ステージの譜面データが見つかりません。"
+                    : "Stage phrase data is missing."
+                return
+            }
+            stage = fetched
+        } catch {
+            alertMessage = locale == .ja
+                ? "ステージ情報の読み込みに失敗しました。"
+                : "Failed to load stage data."
+            return
+        }
         guard let difficulty = try? await SupabaseService.shared.fetchDefenseDifficultyLevel(level: stage.difficultyLevel)
-        else { return }
+        else {
+            alertMessage = locale == .ja
+                ? "難易度設定の読み込みに失敗しました。"
+                : "Failed to load difficulty settings."
+            return
+        }
         activeNode = node
         activeStage = stage
         activeDifficulty = difficulty

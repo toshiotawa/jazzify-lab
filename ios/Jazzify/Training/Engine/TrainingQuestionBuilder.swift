@@ -184,15 +184,29 @@ enum TrainingQuestionBuilder {
             }
         }
 
-        return buildQuestion(options: TrainingQuestionBuilderOptions(
+        return buildFallbackQuestion(
             training: training,
-            ignoreNotationInstrument: options.ignoreNotationInstrument,
-            lessonRoots: options.lessonRoots,
-            lessonOrder: options.lessonOrder,
-            lessonItems: options.lessonItems,
-            lessonItemIndex: options.lessonItemIndex,
-            previousQuestionKey: nil
-        ))
+            defaultStaff: defaultStaff,
+            keyFifths: keyFifths
+        )
+    }
+
+    private static func buildFallbackQuestion(
+        training: TrainingRow,
+        defaultStaff: Int,
+        keyFifths: Int
+    ) -> TrainingQuestion {
+        makeQuestion(
+            questionKey: "fallback:\(training.id.uuidString):c4",
+            promptLabel: "",
+            noteNames: ["C4"],
+            staves: [defaultStaff],
+            targets: [true],
+            layout: .stacked,
+            ordered: false,
+            keyFifths: keyFifths,
+            rootMidi: 60
+        )
     }
 
     /// ステージ内で出題しうる全 MIDI。音域フィットを問題ごとに動かさないために使う。

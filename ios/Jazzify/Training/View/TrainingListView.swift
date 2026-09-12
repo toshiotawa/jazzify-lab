@@ -194,7 +194,11 @@ struct TrainingListView: View {
             async let catalog = SupabaseService.shared.fetchTrainingCatalog()
             async let summary = SupabaseService.shared.fetchMyTrainingSummary()
             categories = try await catalog
-            summaryById = Dictionary(uniqueKeysWithValues: (try await summary).map { ($0.trainingId, $0) })
+            var nextSummaryById: [UUID: TrainingScoreSummary] = [:]
+            for row in try await summary {
+                nextSummaryById[row.trainingId] = row
+            }
+            summaryById = nextSummaryById
             launchForcedTrainingIfNeeded()
         } catch {
             categories = []

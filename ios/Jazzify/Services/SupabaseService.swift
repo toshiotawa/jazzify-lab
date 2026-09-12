@@ -911,11 +911,32 @@ final class SupabaseService: Sendable {
             return response.count ?? 0
         }()
 
-        let survivalClears: Int = try await {
+        let codeRunClears: Int = try await {
             let response = try await client
-                .from("survival_stage_clears")
-                .select("stage_number", head: false, count: .exact)
+                .from("play_map_node_clears")
+                .select("""
+                    node_id,
+                    play_map_nodes!inner(
+                        play_map_blocks!inner(mode)
+                    )
+                """, head: false, count: .exact)
                 .eq("user_id", value: userId.uuidString)
+                .eq("play_map_nodes.play_map_blocks.mode", value: PlayMapMode.codeRun.rawValue)
+                .execute()
+            return response.count ?? 0
+        }()
+
+        let defenseClears: Int = try await {
+            let response = try await client
+                .from("play_map_node_clears")
+                .select("""
+                    node_id,
+                    play_map_nodes!inner(
+                        play_map_blocks!inner(mode)
+                    )
+                """, head: false, count: .exact)
+                .eq("user_id", value: userId.uuidString)
+                .eq("play_map_nodes.play_map_blocks.mode", value: PlayMapMode.defense.rawValue)
                 .execute()
             return response.count ?? 0
         }()
@@ -923,7 +944,8 @@ final class SupabaseService: Sendable {
         return UserStats(
             lessonCompletedCount: lessonCount,
             dailyChallengeParticipationDays: challengeDays,
-            survivalClearCount: survivalClears
+            codeRunClearCount: codeRunClears,
+            defenseClearCount: defenseClears
         )
     }
 
@@ -2138,6 +2160,58 @@ final class SupabaseService: Sendable {
 
     func syncUserBadges() async throws -> [UserBadgeRow] {
         try await grantUserBadgesForEvent(event: "sync")
+    }
+
+    // MARK: - Discord
+
+    func fetchMyDiscordMembership(userId: UUID) async throws -> DiscordMembership? {
+        let rows: [DiscordMembership] = try await client
+            .from("discord_memberships")
+            .select("user_id, discord_user_id, guild_id")
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
+    func startDiscordLink(locale: AppLocale) async throws -> URL {
+        let token = try await accessToken()
+        let url = Config.supabaseURL
+            .appendingPathComponent("functions")
+            .appendingPathComponent("v1")
+            .appendingPathComponent("discord-link-start")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Config.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        struct Body: Encodable {
+            let locale: String
+        }
+        request.httpBody = try JSONEncoder().encode(Body(locale: locale.rawValue))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        if httpResponse.statusCode != 200 {
+            struct ErrorBody: Decodable { let error: String? }
+            let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error
+                ?? String(data: data, encoding: .utf8)
+                ?? "Unknown error"
+            throw SupabaseServiceError.serverError(statusCode: httpResponse.statusCode, message: message)
+        }
+
+        struct LinkResponse: Decodable {
+            let authorize_url: String
+        }
+        let payload = try JSONDecoder().decode(LinkResponse.self, from: data)
+        guard let authorizeUrl = URL(string: payload.authorize_url) else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        return authorizeUrl
     }
 
     // MARK: - Account Deletion

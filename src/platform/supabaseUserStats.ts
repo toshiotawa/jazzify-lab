@@ -4,8 +4,10 @@ export interface UserStats {
   missionCompletedCount: number;
   lessonCompletedCount: number;
   dailyChallengeParticipationDays: number;
-  /** `survival_stage_clears` の件数（アプリ版 TopView の Survival cleared と同じ） */
-  survivalClearCount: number;
+  /** `play_map_node_clears`（mode = code_run）の件数 */
+  codeRunClearCount: number;
+  /** `play_map_node_clears`（mode = defense）の件数 */
+  defenseClearCount: number;
   survivalBestTimeSeconds: number;
   survivalBestDifficulty: string | null;
 }
@@ -45,8 +47,15 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
 
 async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseClient>, targetUserId: string): Promise<UserStats> {
   try {
-    // ミッション、レッスン、デイリーチャレンジ、サバイバルの統計を並行取得
-    const [missionResult, lessonResult, dailyChallengeResult, survivalClearResult, survivalResult] = await Promise.all([
+    // ミッション、レッスン、デイリーチャレンジ、プレイマップクリア、サバイバルベストの統計を並行取得
+    const [
+      missionResult,
+      lessonResult,
+      dailyChallengeResult,
+      codeRunClearResult,
+      defenseClearResult,
+      survivalResult,
+    ] = await Promise.all([
       supabase
         .from('user_challenge_progress')
         .select('challenge_id')
@@ -62,11 +71,16 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
         .from('daily_challenge_records')
         .select('played_on')
         .eq('user_id', targetUserId),
-      // サバイバル ステージクリア数（アプリと同じ survival_stage_clears）
       supabase
-        .from('survival_stage_clears')
-        .select('stage_number', { count: 'exact', head: true })
-        .eq('user_id', targetUserId),
+        .from('play_map_node_clears')
+        .select('node_id, play_map_nodes!inner(play_map_blocks!inner(mode))', { count: 'exact', head: true })
+        .eq('user_id', targetUserId)
+        .eq('play_map_nodes.play_map_blocks.mode', 'code_run'),
+      supabase
+        .from('play_map_node_clears')
+        .select('node_id, play_map_nodes!inner(play_map_blocks!inner(mode))', { count: 'exact', head: true })
+        .eq('user_id', targetUserId)
+        .eq('play_map_nodes.play_map_blocks.mode', 'defense'),
       // サバイバルモードのベストスコア（日記等）
       supabase
         .from('survival_high_scores')
@@ -88,8 +102,11 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       throw new Error(`デイリーチャレンジ統計の取得に失敗しました: ${dailyChallengeResult.error.message}`);
     }
     // survivalResult.errorは致命的ではないのでログのみ
-    if (survivalClearResult.error) {
-      console.warn('サバイバルクリア数の取得に失敗:', survivalClearResult.error.message);
+    if (codeRunClearResult.error) {
+      console.warn('コードランクリア数の取得に失敗:', codeRunClearResult.error.message);
+    }
+    if (defenseClearResult.error) {
+      console.warn('ディフェンスクリア数の取得に失敗:', defenseClearResult.error.message);
     }
     if (survivalResult.error) {
       console.warn('サバイバル統計の取得に失敗:', survivalResult.error.message);
@@ -104,7 +121,8 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       missionCompletedCount: missionResult.data?.length || 0,
       lessonCompletedCount: lessonResult.data?.length || 0,
       dailyChallengeParticipationDays: uniqueDays.size,
-      survivalClearCount: survivalClearResult.count ?? 0,
+      codeRunClearCount: codeRunClearResult.count ?? 0,
+      defenseClearCount: defenseClearResult.count ?? 0,
       survivalBestTimeSeconds: Number(survivalResult.data?.survival_time_seconds) || 0,
       survivalBestDifficulty: survivalResult.data?.difficulty as string | null || null,
     };
@@ -122,7 +140,8 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       missionCompletedCount: 0,
       lessonCompletedCount: 0,
       dailyChallengeParticipationDays: 0,
-      survivalClearCount: 0,
+      codeRunClearCount: 0,
+      defenseClearCount: 0,
       survivalBestTimeSeconds: 0,
       survivalBestDifficulty: null,
     };

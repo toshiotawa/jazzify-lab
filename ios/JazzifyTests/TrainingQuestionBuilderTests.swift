@@ -216,6 +216,14 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         }
     }
 
+    func testProgressionKindReturnsFallbackWithoutRecursion() {
+        let row = training(kind: .progression, config: config())
+        let q = build(row)
+        XCTAssertTrue(q.questionKey.hasPrefix("fallback:"))
+        XCTAssertEqual(q.notes.count, 1)
+        XCTAssertEqual(q.notes.first?.midi, 60)
+    }
+
     func testCollectStageMidisCoversNoteReadingRange() {
         let row = training(kind: .noteReading, config: config(clef: "treble", includeAccidentals: false))
         let midis = TrainingQuestionBuilder.collectStageMidis(training: row)

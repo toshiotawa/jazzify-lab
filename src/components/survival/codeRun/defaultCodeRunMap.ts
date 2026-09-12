@@ -289,6 +289,7 @@ type CodeRunMapBuilder = (assets?: CodeRunAssetsOverride) => CodeRunMapSpec;
 const mergeAssets = (assets?: CodeRunAssetsOverride): CodeRunAssets => ({
   ...DEFAULT_ASSETS,
   ...assets,
+  background: assets?.background?.trim() ? assets.background : DEFAULT_ASSETS.background,
   player: assets?.player?.length ? assets.player : DEFAULT_ASSETS.player,
   playerHurt: assets?.playerHurt ?? DEFAULT_ASSETS.playerHurt,
   slime: assets?.slime?.length ? assets.slime : DEFAULT_ASSETS.slime,
