@@ -14,7 +14,6 @@ struct LessonListView: View {
     @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var selectedMainQuestBlockNumber: Int?
     @State private var lessonToOpen: Lesson?
-    @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
     @State private var chapterScrollTargetY: CGFloat?
     @State private var chapterScrollAnimated = false
     @State private var chapterDetailScrollTargetY: CGFloat?
@@ -24,13 +23,6 @@ struct LessonListView: View {
     @State private var lessonTabVisibleTick = 0
 
     private var locale: AppLocale { appState.locale }
-
-    /// クエスト一覧画面でのみ BGM を再開（詳細 push 中は鳴らさない）。
-    private func resumeQuestBgmIfEligible() {
-        guard lessonToOpen == nil else { return }
-        guard !LessonMapAudio.shared.isMuted else { return }
-        LessonMapAudio.shared.play()
-    }
 
     var body: some View {
         NavigationStack {
@@ -84,8 +76,6 @@ struct LessonListView: View {
             .onAppear {
                 lessonTabVisibleTick += 1
                 Task { await appState.ensureFreshBilling() }
-                isSoundMuted = LessonMapAudio.shared.isMuted
-                resumeQuestBgmIfEligible()
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -100,21 +90,8 @@ struct LessonListView: View {
                     )
                 }
             }
-            .onChange(of: lessonToOpen?.id) { _ in
-                resumeQuestBgmIfEligible()
-            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        let muted = LessonMapAudio.shared.toggleMuted()
-                        isSoundMuted = muted
-                        if !muted {
-                            resumeQuestBgmIfEligible()
-                        }
-                    } label: {
-                        Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .foregroundStyle(.white)
-                    }
                     Button { showLessonInfo = true } label: {
                         Image(systemName: "info.circle")
                             .foregroundStyle(.gray)
@@ -1957,9 +1934,6 @@ struct LessonDetailView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .onAppear {
-                LessonMapAudio.shared.stop()
-            }
             .task(id: activeLesson.id) {
                 isNavigating = false
                 pendingClearCheck = nil
@@ -3610,7 +3584,6 @@ struct LessonDetailView: View {
                     let appliedRandom = Self.appliedLessonRandomChords(for: requirement, stage: stage)
                     let lessonStage = SurvivalLessonRandomChords.survivalStage(stage, applied: appliedRandom)
                     await MainActor.run {
-                        LessonMapAudio.shared.stopImmediately()
                         survivalLessonPrep = SurvivalLessonLaunch(
                             stage: lessonStage,
                             hintMode: false,
@@ -3673,7 +3646,6 @@ struct LessonDetailView: View {
                 let appliedRandom = Self.appliedLessonRandomChords(for: requirement, stage: stage)
                 let lessonStage = SurvivalLessonRandomChords.survivalStage(stage, applied: appliedRandom)
                 await MainActor.run {
-                    LessonMapAudio.shared.stopImmediately()
                     survivalLessonPrep = SurvivalLessonLaunch(
                         stage: lessonStage,
                         hintMode: false,
@@ -3708,7 +3680,6 @@ struct LessonDetailView: View {
                         return
                     }
                     await MainActor.run {
-                        LessonMapAudio.shared.stopImmediately()
                         let appliedRandom = Self.appliedLessonRandomChords(for: requirement, balloonStage: stage)
                         let presentation = BalloonRushSurvivalBridge.presentationStage(
                             from: stage,
@@ -3752,7 +3723,6 @@ struct LessonDetailView: View {
             }
             let title = requirement.training?.localizedTitle(locale)
                 ?? (locale == .ja ? "トレーニング" : "Training")
-            LessonMapAudio.shared.stopImmediately()
             trainingPrep = TrainingPrepContext(
                 trainingId: trainingId,
                 trainingTitle: title,
@@ -3784,7 +3754,6 @@ struct LessonDetailView: View {
                         return
                     }
                     await MainActor.run {
-                        LessonMapAudio.shared.stopImmediately()
                         defensePrep = DefensePrepContext(
                             stage: stage,
                             difficulty: difficulty,
@@ -3815,7 +3784,6 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "動画 URL がありません。" : "Video URL is missing."
                 return
             }
-            LessonMapAudio.shared.stopImmediately()
             videoLessonLaunch = VideoLessonLaunch(
                 stage: stage,
                 lessonId: activeLesson.id,

@@ -26,7 +26,6 @@ struct LessonJourneyView: View {
     @State private var launchLesson: Lesson?
     @State private var showSheet = false
     @State private var pendingLaunchLesson: Lesson?
-    @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
     @State private var scrollTargetLessonId: UUID?
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated: Bool = false
@@ -248,7 +247,6 @@ struct LessonJourneyView: View {
                                 isFrontier: lesson.id == frontierLessonId,
                                 blockLabel: blockLabel(for: lesson),
                                 onStart: {
-                                    LessonMapAudio.shared.stop()
                                     launchLesson = lesson
                                 },
                                 onClose: { selectedLesson = nil }
@@ -280,25 +278,6 @@ struct LessonJourneyView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(Color(hex: "0b0624"), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    let muted = LessonMapAudio.shared.toggleMuted()
-                    isSoundMuted = muted
-                    if !muted {
-                        LessonMapAudio.shared.play()
-                    }
-                } label: {
-                    Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .foregroundStyle(.white)
-                }
-            }
-        }
-        .onAppear {
-            if !LessonMapAudio.shared.isMuted {
-                LessonMapAudio.shared.play()
-            }
-        }
         .onDisappear {
             onCompletedIdsChanged?(completedLessonIds)
         }
@@ -335,7 +314,6 @@ struct LessonJourneyView: View {
                     isFrontier: lesson.id == frontierLessonId,
                     blockLabel: blockLabel(for: lesson),
                     onStart: {
-                        LessonMapAudio.shared.stop()
                         pendingLaunchLesson = lesson
                         showSheet = false
                     },
@@ -363,9 +341,6 @@ struct LessonJourneyView: View {
         .onChange(of: launchLesson == nil) { isNil in
             if isNil {
                 Task { await reloadProgress() }
-                if !LessonMapAudio.shared.isMuted {
-                    LessonMapAudio.shared.play()
-                }
             }
         }
     }

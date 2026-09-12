@@ -12,19 +12,12 @@ struct CourseListView: View {
     @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var journeyCourse: JourneyCourseLaunch?
     @State private var lastJourneyCourseId: UUID?
-    @State private var isSoundMuted: Bool = LessonMapAudio.shared.isMuted
 
     private var locale: AppLocale { appState.locale }
 
     private struct JourneyCourseLaunch: Identifiable {
         let id: UUID
         let course: Course
-    }
-
-    private func resumeCourseBgmIfEligible() {
-        guard journeyCourse == nil else { return }
-        guard !LessonMapAudio.shared.isMuted else { return }
-        LessonMapAudio.shared.play()
     }
 
     var body: some View {
@@ -81,8 +74,6 @@ struct CourseListView: View {
             .task { await loadCourses() }
             .onAppear {
                 Task { await appState.ensureFreshBilling() }
-                isSoundMuted = LessonMapAudio.shared.isMuted
-                resumeCourseBgmIfEligible()
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -110,21 +101,8 @@ struct CourseListView: View {
                 lastJourneyCourseId = nil
                 Task { await reloadProgressForCourse(courseId: courseId) }
             }
-            .onChange(of: journeyCourse?.id) { _ in
-                resumeCourseBgmIfEligible()
-            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        let muted = LessonMapAudio.shared.toggleMuted()
-                        isSoundMuted = muted
-                        if !muted {
-                            resumeCourseBgmIfEligible()
-                        }
-                    } label: {
-                        Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .foregroundStyle(.white)
-                    }
                     Button { showCourseInfo = true } label: {
                         Image(systemName: "info.circle")
                             .foregroundStyle(.gray)

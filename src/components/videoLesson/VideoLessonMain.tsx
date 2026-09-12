@@ -16,7 +16,6 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
-import { LessonMapAudio } from '@/utils/LessonMapAudio';
 import { resolveVideoLessonSource } from '@/utils/videoLessonLocale';
 import {
   accumulateWatchedSeconds,
@@ -127,10 +126,6 @@ const VideoLessonMain: React.FC = () => {
   );
 
   const requiredRatio = stage?.required_watch_ratio ?? 0.9;
-
-  useEffect(() => {
-    LessonMapAudio.stopBgm();
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

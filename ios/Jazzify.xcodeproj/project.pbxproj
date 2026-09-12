@@ -320,7 +320,6 @@
 		C97B6E06B221250A890A0171 /* SurvivalCodeRunRandomChordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0B6768B12EFBB46CA04DD3 /* SurvivalCodeRunRandomChordsTests.swift */; };
 		CB19406828C418DB3A880E17 /* SurvivalBossEffectRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E80A364FA44BA2E07326B46 /* SurvivalBossEffectRenderer.swift */; };
 		CC33DD44EE55FF6677AA11BC /* CodeRunWorldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33DD44EE55FF6677AA11BB /* CodeRunWorldView.swift */; };
-		CCB6491A5865F030BB55F323 /* LessonMapAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */; };
 		CCF2C4B96BA696CBDA71D0FA /* EarTrainingTimingAdjustmentSliderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D7D39FE42E2C3C147CB29FB /* EarTrainingTimingAdjustmentSliderView.swift */; };
 		CD3107E623F660267F32BD9A /* SurvivalPauseSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */; };
 		CDA0FF3F7CC1F482C2E2921B /* EarTrainingAdlibCallResponseTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCFA864013086E71B71E5C5 /* EarTrainingAdlibCallResponseTargets.swift */; };
@@ -480,7 +479,6 @@
 		289CA97441CEE07922D7EF2A /* EarTrainingTutorialOsmdDrumLoopResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialOsmdDrumLoopResolverTests.swift; sourceTree = "<group>"; };
 		2AA6502C749876A952A425C8 /* Gameover.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = Gameover.mp3; sourceTree = "<group>"; };
 		2B134406DA0E0B124C908A6D /* EarTrainingKeyboardScrollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingKeyboardScrollTests.swift; sourceTree = "<group>"; };
-		2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonMapAudio.swift; sourceTree = "<group>"; };
 		2C9FEDD89746BFAFA9E680E8 /* EarTrainingBattleOsuCircleTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleTiming.swift; sourceTree = "<group>"; };
 		2E4DC894813C1800B8E45772 /* QuestJinglePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestJinglePlayer.swift; sourceTree = "<group>"; };
 		2E78C2E227D4D2FC37302A8E /* MidiKeyboardBuyingGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MidiKeyboardBuyingGuideView.swift; sourceTree = "<group>"; };
@@ -1149,7 +1147,6 @@
 			isa = PBXGroup;
 			children = (
 				44BB606E44E08242A371BE80 /* BillingService.swift */,
-				2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */,
 				400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */,
 				360D198BE9A0BD17E0F535A3 /* SurvivalMapAudio.swift */,
 			);
@@ -2090,7 +2087,6 @@
 				7CFB37256570B028A4C1E5EA /* LessonJourneyView.swift in Sources */,
 				D2083E728F663A949957D7DE /* LessonJourneyViewComponents.swift in Sources */,
 				16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */,
-				CCB6491A5865F030BB55F323 /* LessonMapAudio.swift in Sources */,
 				E8E19D25D4087433885B21FD /* LessonNavigationHelpers.swift in Sources */,
 				DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */,
 				E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */,

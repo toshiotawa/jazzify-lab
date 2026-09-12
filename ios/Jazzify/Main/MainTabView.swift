@@ -55,11 +55,6 @@ struct MainTabView: View {
                     .tag(Tab.account)
             }
             .tint(.purple)
-            .onChange(of: selectedTab) { newTab in
-                if newTab != .quest {
-                    LessonMapAudio.shared.stop()
-                }
-            }
 
             // アプリ全体で 1 箇所のみ。子画面（LessonDetailView / SurvivalGameView 等）に重ねるとトーストが二重表示になる。
             PlayerXpToastOverlay()

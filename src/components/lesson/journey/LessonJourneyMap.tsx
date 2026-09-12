@@ -7,13 +7,11 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { Course, Lesson } from '@/types';
 import { lessonDisplayBlockName, lessonDisplayTitle } from '@/utils/lessonCopy';
 import { courseDisplayTitle } from '@/utils/courseCopy';
 import { LessonAccessGraph } from '@/utils/lessonAccess';
 import { LessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
-import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
 import { getWindow } from '@/platform';
 import {
   buildJourneyLayout,
@@ -59,7 +57,6 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   });
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
-  const [soundMuted, setSoundMuted] = useState<boolean>(() => LessonMapAudio.isMuted());
   const [didInitialFocus, setDidInitialFocus] = useState(false);
   const [didMeasureViewport, setDidMeasureViewport] = useState(false);
 
@@ -113,46 +110,6 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-
-  // --- BGM --------------------------------------------------------------
-  // アンマウント時の停止には猶予時間付きの stopBgm() を使うことで、
-  // コース切替の unmount→remount の間に BGM が途切れるのを防ぐ。
-  useEffect(() => {
-    if (LessonMapAudio.isMuted()) {
-      return undefined;
-    }
-    const cancelDeferredBgm = LessonMapAudio.scheduleDeferredBgm(LESSON_MAP_BGM_URL);
-    return () => {
-      cancelDeferredBgm();
-      LessonMapAudio.stopBgm();
-    };
-  }, []);
-
-  useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const unlock = (): void => {
-      void LessonMapAudio.unlock().catch(() => { /* ignore */ });
-    };
-    const onceOpts: AddEventListenerOptions = { once: true };
-    el.addEventListener('pointerdown', unlock, onceOpts);
-    el.addEventListener('touchstart', unlock, onceOpts);
-    getWindow().addEventListener?.('keydown', unlock, onceOpts);
-    return () => {
-      try { el.removeEventListener('pointerdown', unlock); } catch { /* ignore */ }
-      try { el.removeEventListener('touchstart', unlock); } catch { /* ignore */ }
-      try { getWindow().removeEventListener?.('keydown', unlock); } catch { /* ignore */ }
-    };
-  }, []);
-
-  const handleToggleSound = useCallback(() => {
-    const next = LessonMapAudio.toggleMuted();
-    setSoundMuted(next);
-    if (!next) {
-      void LessonMapAudio.unlock().catch(() => { /* ignore */ });
-      void LessonMapAudio.playBgm(LESSON_MAP_BGM_URL).catch(() => { /* ignore */ });
-    }
   }, []);
 
   // --- 状態ヘルパ --------------------------------------------------------
@@ -249,7 +206,6 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   const handleStart = useCallback(() => {
     if (!selectedLessonId) return;
     if (!isLessonUnlocked(selectedLessonId)) return;
-    void LessonMapAudio.stopBgmImmediately();
     setIsMobileDetailOpen(false);
     onStartLesson(selectedLessonId);
   }, [selectedLessonId, isLessonUnlocked, onStartLesson]);
@@ -547,41 +503,11 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleToggleSound}
-            onPointerDown={e => e.stopPropagation()}
-            onTouchStart={e => e.stopPropagation()}
-            aria-label={
-              soundMuted
-                ? isEnglishCopy
-                  ? 'Unmute map sound'
-                  : 'マップのサウンドをオンにする'
-                : isEnglishCopy
-                  ? 'Mute map sound'
-                  : 'マップのサウンドをオフにする'
-            }
-            aria-pressed={!soundMuted}
-            className="absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border border-violet-300/40 bg-black/55 px-3 py-2 text-xs font-semibold text-violet-100 backdrop-blur-sm transition-colors hover:bg-black/75 hover:border-violet-300/70 active:scale-95 sm:bottom-4 sm:right-4 sm:px-4 sm:py-2.5 sm:text-sm"
-            style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.55)' }}
-          >
-            {soundMuted ? (
-              <FaVolumeMute aria-hidden className="text-base sm:text-lg" />
-            ) : (
-              <FaVolumeUp aria-hidden className="text-base sm:text-lg" />
-            )}
-            <span className="tracking-wide">
-              {soundMuted
-                ? isEnglishCopy ? 'Sound OFF' : 'サウンド OFF'
-                : isEnglishCopy ? 'Sound ON' : 'サウンド ON'}
-            </span>
-          </button>
-
           {/* デスクトップ: 右下詳細カード (選択時) */}
           {!isMobileLayout && selectedLesson && selectedLessonState && (
             <div
               className="absolute z-30 w-[320px] max-w-[90%]"
-              style={{ right: 16, bottom: 72 }}
+              style={{ right: 16, bottom: 16 }}
             >
               <LessonDetailCard
                 isEnglishCopy={isEnglishCopy}

@@ -21,7 +21,6 @@ import {
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment';
-import { LessonMapAudio, LESSON_MAP_BGM_URL } from '@/utils/LessonMapAudio';
 import { FaCheck, FaChevronRight, FaLock } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
@@ -55,18 +54,6 @@ const CourseListPage: React.FC = () => {
     () => (isEnglishCopy ? filterCoursesForEnglishUi(specificCourses) : specificCourses),
     [isEnglishCopy, specificCourses],
   );
-
-  useEffect(() => {
-    if (!open || !profile) return;
-    if (LessonMapAudio.isMuted()) {
-      return undefined;
-    }
-    const cancelDeferredBgm = LessonMapAudio.scheduleDeferredBgm(LESSON_MAP_BGM_URL);
-    return () => {
-      cancelDeferredBgm();
-      LessonMapAudio.stopBgm();
-    };
-  }, [open, profile]);
 
   useEffect(() => {
     if (!open || !profile) return;

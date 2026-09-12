@@ -16,7 +16,6 @@ import {
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { syncAndToastUserBadges } from '@/utils/badgeToasts';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
-import { LessonMapAudio } from '@/utils/LessonMapAudio';
 import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 
 const formatEarnedDate = (earnedAt: string, isEnglishCopy: boolean): string => {
@@ -46,7 +45,6 @@ const AchievementsPage: React.FC = () => {
   });
 
   useEffect(() => {
-    void LessonMapAudio.stopBgmImmediately();
     void SurvivalMapAudio.stopBgm();
   }, []);
 

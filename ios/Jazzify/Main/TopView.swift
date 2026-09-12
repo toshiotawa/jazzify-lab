@@ -1044,7 +1044,6 @@ struct AchievementListView: View {
         .task { await loadBadges() }
         .refreshable { await loadBadges() }
         .onAppear {
-            LessonMapAudio.shared.stop()
             SurvivalMapAudio.shared.stop()
         }
         .sheet(item: $selectedBadge) { badge in
