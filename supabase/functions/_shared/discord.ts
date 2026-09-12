@@ -30,7 +30,8 @@ export interface KickEligibilityInput {
 }
 
 export type DiscordLinkClient = 'web' | 'ios';
-export type DiscordOAuthStatus = 'joined' | 'error';
+
+type DiscordOAuthStatus = 'joined' | 'error';
 
 const DISCORD_IOS_CALLBACK_SCHEME = 'jazzify';
 const DISCORD_IOS_CALLBACK_HOST = 'discord';

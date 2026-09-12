@@ -19,7 +19,10 @@ final class DiscordOAuthTests: XCTestCase {
     }
 
     func testResolveStatusMapsCanceledLogin() {
-        let error = ASWebAuthenticationSessionError(.canceledLogin)
+        let error = NSError(
+            domain: ASWebAuthenticationSessionError.errorDomain,
+            code: ASWebAuthenticationSessionError.Code.canceledLogin.rawValue
+        )
         let status = DiscordOAuthAuthenticator.resolveStatus(callbackURL: nil, error: error)
         XCTAssertEqual(status, .cancelled)
     }

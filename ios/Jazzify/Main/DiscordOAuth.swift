@@ -52,7 +52,9 @@ final class DiscordOAuthAuthenticator: NSObject, ASWebAuthenticationPresentation
         if let callbackURL, let status = DiscordOAuthCallback.status(fromCallbackURL: callbackURL) {
             return status
         }
-        if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
+        let nsError = error as NSError?
+        if nsError?.domain == ASWebAuthenticationSessionError.errorDomain,
+           nsError?.code == ASWebAuthenticationSessionError.Code.canceledLogin.rawValue {
             return .cancelled
         }
         return .error
