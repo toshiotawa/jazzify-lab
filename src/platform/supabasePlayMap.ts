@@ -126,6 +126,20 @@ export async function fetchPlayMapNodeClears(mode: PlayMapMode): Promise<PlayMap
   }));
 }
 
+export async function hasPlayMapNodeClear(nodeId: string): Promise<boolean> {
+  const uid = await getCurrentUserIdCached();
+  if (!uid) return false;
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('play_map_node_clears')
+    .select('node_id')
+    .eq('user_id', uid)
+    .eq('node_id', nodeId)
+    .maybeSingle();
+  if (error) throw error;
+  return data != null;
+}
+
 export async function fetchCodeRunRankThresholds(): Promise<CodeRunRankThresholdRow[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await fetchWithCache(

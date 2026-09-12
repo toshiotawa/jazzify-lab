@@ -753,6 +753,24 @@ final class SupabaseService: Sendable {
         }
     }
 
+    func hasPlayMapNodeClear(nodeId: UUID) async throws -> Bool {
+        let userId = try await currentUserId()
+        struct ClearIdRow: Decodable {
+            let node_id: UUID
+        }
+
+        let rows: [ClearIdRow] = try await client
+            .from("play_map_node_clears")
+            .select("node_id")
+            .eq("user_id", value: userId.uuidString)
+            .eq("node_id", value: nodeId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+
+        return !rows.isEmpty
+    }
+
     func fetchCodeRunRankThresholds() async throws -> [CodeRunRankThreshold] {
         try await client
             .from("code_run_rank_thresholds")

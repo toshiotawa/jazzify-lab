@@ -91,7 +91,12 @@ struct DefenseDescentView: View {
         .navigationDestination(
             isPresented: Binding(
                 get: { lessonToOpen != nil },
-                set: { if !$0 { lessonToOpen = nil } }
+                set: { isPresented in
+                    if !isPresented {
+                        lessonToOpen = nil
+                        Task { await reloadMap() }
+                    }
+                }
             )
         ) {
             if let launch = lessonToOpen {
@@ -119,7 +124,10 @@ struct DefenseDescentView: View {
     }
 
     private func reloadMap() async {
-        isLoading = true
+        let showLoading = blocks.isEmpty
+        if showLoading {
+            isLoading = true
+        }
         do {
             async let blocksTask = SupabaseService.shared.fetchPlayMapBlocks(mode: .defense)
             async let nodesTask = SupabaseService.shared.fetchPlayMapNodes(mode: .defense)

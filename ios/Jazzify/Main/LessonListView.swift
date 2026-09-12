@@ -1345,6 +1345,7 @@ struct LessonDetailView: View {
     @State private var attachments: [LessonAttachmentResource] = []
     @State private var requirementProgress: [LessonRequirementProgressRow] = []
     @State private var isLessonCompleted = false
+    @State private var isPlayMapNodeCleared = false
     @State private var isLoading = true
     @State private var isCompleting = false
     @State private var currentVideoIndex = 0
@@ -1441,6 +1442,10 @@ struct LessonDetailView: View {
         LessonNavigationHelpers.areAllClearRequiredCompleted(sortedRequirements) { requirement in
             progress(for: requirement)?.isCompleted == true
         }
+    }
+
+    private var isQuestCompletedForUi: Bool {
+        playMapNodeId != nil ? isPlayMapNodeCleared : isLessonCompleted
     }
 
     private var nextIncompleteRequirements: (required: LessonSong?, optional: LessonSong?) {
@@ -1952,16 +1957,6 @@ struct LessonDetailView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                if playMapNodeId != nil {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(locale == .ja ? "マップに戻る" : "Back to map") {
-                            dismiss()
-                        }
-                        .foregroundStyle(.white)
-                    }
-                }
-            }
             .onAppear {
                 LessonMapAudio.shared.stop()
             }
@@ -2123,7 +2118,7 @@ struct LessonDetailView: View {
 
                 Spacer()
 
-                if isLessonCompleted {
+                if isQuestCompletedForUi {
                     Text(locale == .ja ? "完了" : "Done")
                         .font(.caption.bold())
                         .foregroundStyle(.green)
@@ -2624,7 +2619,7 @@ struct LessonDetailView: View {
     }
 
     private var completionUiState: LessonCompletionUiState {
-        if isLessonCompleted { return .completed }
+        if isQuestCompletedForUi { return .completed }
         if isCompleting { return .submitting }
         if allRequirementsCompleted { return .ready }
         return .blocked
@@ -2660,7 +2655,7 @@ struct LessonDetailView: View {
                     if isCompleting {
                         ProgressView()
                             .tint(.white)
-                    } else if isLessonCompleted {
+                    } else if isQuestCompletedForUi {
                         Image(systemName: "checkmark.circle.fill")
                     } else {
                         Image(systemName: "flag.checkered")
@@ -2690,7 +2685,7 @@ struct LessonDetailView: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(isCompleting || isLessonCompleted)
+            .disabled(isCompleting || isQuestCompletedForUi)
         }
         .padding(18)
         .background(Color(hex: "1e293b"))
@@ -2817,7 +2812,7 @@ struct LessonDetailView: View {
         }
 
         // 最後の課題クリア後: 無料枠 block1 最終なら完了シートへ直行、それ以外は確認シート
-        if !sortedRequirements.isEmpty {
+        if !sortedRequirements.isEmpty, !isQuestCompletedForUi {
             let skipReadyModal = navigationState.map {
                 LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
                     courseKind: courseKind,
@@ -2899,6 +2894,12 @@ struct LessonDetailView: View {
                     userId: userId
                 )) ?? []
 
+                if let playMapNodeId {
+                    isPlayMapNodeCleared = (try? await SupabaseService.shared.hasPlayMapNodeClear(nodeId: playMapNodeId)) ?? false
+                } else {
+                    isPlayMapNodeCleared = false
+                }
+
                 if let courseId = activeLesson.courseId {
                     let progressRows = try? await SupabaseService.shared.fetchLessonProgress(
                         courseId: courseId,
@@ -2924,7 +2925,7 @@ struct LessonDetailView: View {
                             return LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
                                 hasRequirements: !sortedRequirements.isEmpty,
                                 allRequirementsCompleted: allRequirementsCompleted,
-                                isLessonCompleted: isLessonCompleted
+                                isLessonCompleted: isQuestCompletedForUi
                             )
                         }
                         if LessonNavigationHelpers.shouldSkipQuestReadyToCompleteForFreeTierPremiumUpsell(
@@ -2939,7 +2940,7 @@ struct LessonDetailView: View {
                         return LessonNavigationHelpers.shouldShowQuestReadyToCompletePrompt(
                             hasRequirements: !sortedRequirements.isEmpty,
                             allRequirementsCompleted: allRequirementsCompleted,
-                            isLessonCompleted: isLessonCompleted
+                            isLessonCompleted: isQuestCompletedForUi
                         )
                     }()
                     syncReadyToCompletePrompt(shouldShow: shouldShowReadyToComplete)
@@ -2947,6 +2948,7 @@ struct LessonDetailView: View {
             } else {
                 requirementProgress = []
                 isLessonCompleted = false
+                isPlayMapNodeCleared = false
                 navigationState = nil
                 syncReadyToCompletePrompt(shouldShow: false)
             }
@@ -3111,7 +3113,7 @@ struct LessonDetailView: View {
     }
 
     private func completeLesson() async {
-        guard !isCompleting, !isLessonCompleted else { return }
+        guard !isCompleting, !isQuestCompletedForUi else { return }
         isCompleting = true
         defer { isCompleting = false }
 
@@ -3190,6 +3192,7 @@ struct LessonDetailView: View {
 
             if let playMapNodeId, let playMapMode {
                 await recordPlayMapQuestClear(nodeId: playMapNodeId, mode: playMapMode)
+                isPlayMapNodeCleared = true
             }
 
             if playMapNodeId != nil {

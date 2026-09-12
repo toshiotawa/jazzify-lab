@@ -6,6 +6,13 @@ type LessonCompletionStateInput = {
   allRequirementsCompleted: boolean;
 };
 
+export const isLessonDetailQuestCompleted = (input: {
+  isPlayMapQuest: boolean;
+  playMapNodeCleared: boolean;
+  lessonCompleted: boolean;
+}): boolean =>
+  input.isPlayMapQuest ? input.playMapNodeCleared : input.lessonCompleted;
+
 export const resolveLessonCompletionState = ({
   isCompleted,
   isSubmitting,
@@ -22,6 +29,9 @@ export const resolveLessonCompletionState = ({
   }
   return 'blocked';
 };
+
+export const playMapReturnToMapButtonCopy = (isEnglish: boolean): string =>
+  isEnglish ? 'Back to map' : 'マップに戻る';
 
 export const lessonCompletionSectionTitle = (isEnglish: boolean): string =>
   isEnglish ? 'Final step' : '最後のステップ';

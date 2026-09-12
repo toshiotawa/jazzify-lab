@@ -49,6 +49,7 @@ import {
 } from '@/utils/softLanding';
 import { markSoftLandingSessionDismissed } from '@/utils/softLandingResume';
 import {
+  isLessonDetailQuestCompleted,
   lessonCompletionBlockedToastCopy,
   lessonCompletionButtonCopy,
   lessonCompletionCalloutCopy,
@@ -56,6 +57,7 @@ import {
   lessonCompletionSectionTitle,
   lessonCompletionSuccessToastCopy,
   lessonCompletionSuccessToastTitleCopy,
+  playMapReturnToMapButtonCopy,
   resolveLessonCompletionState,
 } from '@/utils/lessonCompletionCopy';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
@@ -94,7 +96,7 @@ import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
 import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
 import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
 import { lessonDetailPath } from '@/utils/appNavigation';
-import { recordPlayMapNodeClear, type PlayMapMode } from '@/platform/supabasePlayMap';
+import { hasPlayMapNodeClear, recordPlayMapNodeClear, type PlayMapMode } from '@/platform/supabasePlayMap';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
 import type { PaywallSource } from '@/utils/analytics/paywallSource';
@@ -131,6 +133,7 @@ const LessonDetailPage: React.FC = () => {
   const playMapMode: PlayMapMode | null =
     playMapModeRaw === 'code_run' || playMapModeRaw === 'defense' ? playMapModeRaw : null;
   const isPlayMapQuestContext = Boolean(playMapNodeId);
+  const playMapReturnPath = playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run';
   const autoStartFirstRequirement = routeLessonId ? routeAutoStart : hashAutoStart;
   const justClearedParam = resolveJustClearedLessonSongId({
     routeLessonId,
@@ -147,6 +150,12 @@ const LessonDetailPage: React.FC = () => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [playMapNodeCleared, setPlayMapNodeCleared] = useState(false);
+  const isQuestMarkedComplete = isLessonDetailQuestCompleted({
+    isPlayMapQuest: isPlayMapQuestContext,
+    playMapNodeCleared,
+    lessonCompleted: lessonProgress?.completed === true,
+  });
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadingOsmdScoreKey, setDownloadingOsmdScoreKey] = useState<string | null>(null);
@@ -278,12 +287,15 @@ const LessonDetailPage: React.FC = () => {
 
     try {
       // レッスン情報、動画、進捗を並行取得
-      const [lessonData, videosData, requirementsProgress, allCompleted, attachmentsData] = await Promise.all([
+      const [lessonData, videosData, requirementsProgress, allCompleted, attachmentsData, playMapCleared] = await Promise.all([
         fetchLessonByIdForDetail(targetLessonId),
         fetchLessonVideos(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy }),
         fetchLessonRequirementsProgress(targetLessonId),
         checkAllRequirementsCompleted(targetLessonId),
-        fetchLessonAttachments(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy })
+        fetchLessonAttachments(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy }),
+        playMapNodeId
+          ? hasPlayMapNodeClear(playMapNodeId).catch(() => false)
+          : Promise.resolve(false),
       ]);
 
       if (isStale()) {
@@ -291,6 +303,7 @@ const LessonDetailPage: React.FC = () => {
       }
 
       setLesson(lessonData);
+      setPlayMapNodeCleared(playMapCleared);
       if (lessonData?.course_id) {
         clearCacheByKey(LESSONS_CACHE_KEY(lessonData.course_id));
       }
@@ -443,7 +456,7 @@ const LessonDetailPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [isEnglishCopy, isPremiumMember, profile?.id, profile?.isAdmin, effectiveRank]);
+  }, [isEnglishCopy, isPremiumMember, profile?.id, profile?.isAdmin, effectiveRank, playMapNodeId]);
 
   useEffect(() => {
     if (open && lessonId) {
@@ -657,14 +670,14 @@ const LessonDetailPage: React.FC = () => {
         : shouldShowQuestReadyToCompletePrompt({
           hasRequirements: requirements.length > 0,
           allRequirementsCompleted,
-          isLessonCompleted: lessonProgress?.completed === true,
+          isLessonCompleted: isQuestMarkedComplete,
         }),
     );
   }, [
     loading,
     requirements.length,
     allRequirementsCompleted,
-    lessonProgress?.completed,
+    isQuestMarkedComplete,
     lessonId,
     showTaskClearNextStepModal,
     skipReadyModalForFreeTierPremiumUpsell,
@@ -701,7 +714,7 @@ const LessonDetailPage: React.FC = () => {
     }
 
     // 最後の課題クリア後: 無料枠 block1 最終なら完了モーダルへ直行、それ以外は確認モーダル
-    if (requirements.length > 0 && lessonProgress?.completed !== true) {
+    if (requirements.length > 0 && !isQuestMarkedComplete) {
       if (skipReadyModalForFreeTierPremiumUpsell) {
         void handleCompleteRef.current?.();
       } else {
@@ -713,7 +726,7 @@ const LessonDetailPage: React.FC = () => {
     justClearedParam,
     requirements,
     requirementsProgress,
-    lessonProgress?.completed,
+    isQuestMarkedComplete,
     clearJustClearedFromUrl,
     skipReadyModalForFreeTierPremiumUpsell,
   ]);
@@ -772,7 +785,7 @@ const LessonDetailPage: React.FC = () => {
   }, [showReadyToCompletePrompt]);
 
   const completionState = resolveLessonCompletionState({
-    isCompleted: lessonProgress?.completed === true,
+    isCompleted: isQuestMarkedComplete,
     isSubmitting: completing,
     allRequirementsCompleted,
   });
@@ -780,7 +793,7 @@ const LessonDetailPage: React.FC = () => {
   const completionCalloutCopy = lessonCompletionCalloutCopy(completionState, isEnglishCopy);
 
   const handleComplete = async () => {
-    if (!lessonId || !lesson) return;
+    if (!lessonId || !lesson || isQuestMarkedComplete) return;
     
     // 実習課題が全て完了しているかチェック（全ユーザー対象）
     if (!allRequirementsCompleted) {
@@ -845,8 +858,9 @@ const LessonDetailPage: React.FC = () => {
           }
         }
         setAllRequirementsCompleted(true);
+        setPlayMapNodeCleared(true);
         setShowNextLessonPrompt(false);
-        navigate(playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run');
+        navigate(playMapReturnPath);
         return;
       }
 
@@ -1090,7 +1104,7 @@ const LessonDetailPage: React.FC = () => {
 
   const handleClose = () => {
     if (isPlayMapQuestContext) {
-      navigate(playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run');
+      navigate(playMapReturnPath);
       return;
     }
     window.location.hash = '#courses';
@@ -1152,7 +1166,7 @@ const LessonDetailPage: React.FC = () => {
 
   const handleBackToCourse = () => {
     if (isPlayMapQuestContext) {
-      navigate(playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run');
+      navigate(playMapReturnPath);
       return;
     }
     const courseId = lesson?.course_id;
@@ -1211,7 +1225,18 @@ const LessonDetailPage: React.FC = () => {
           {/* ワンカラムレイアウト */}
           <div className="max-w-4xl mx-auto p-4 space-y-6">
             {/* ナビゲーションボタン */}
-            {navigationInfo && !isPlayMapQuestContext && (
+            {isPlayMapQuestContext ? (
+              <div className="flex items-center mb-4">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex items-center space-x-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                >
+                  <FaChevronLeft className="w-4 h-4" aria-hidden />
+                  <span>{playMapReturnToMapButtonCopy(isEnglishCopy)}</span>
+                </button>
+              </div>
+            ) : navigationInfo ? (
               <div className="flex items-center justify-between gap-4 mb-4">
                 <button
                   onClick={handleNavigateToPrevious}
@@ -1272,7 +1297,7 @@ const LessonDetailPage: React.FC = () => {
                   <FaChevronRight className="w-4 h-4" />
                 </button>
               </div>
-            )}
+            ) : null}
 
             {/* レッスンタイトル */}
             <div className="bg-slate-800 rounded-lg p-6">
@@ -1868,7 +1893,7 @@ const LessonDetailPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleComplete}
-                disabled={completing || lessonProgress?.completed}
+                disabled={completing || isQuestMarkedComplete}
                 className={`w-full flex items-center justify-center gap-3 rounded-xl px-4 py-4 text-white transition-colors ${
                   completionState === 'ready'
                     ? 'bg-gradient-to-r from-emerald-600 to-green-600 font-bold shadow-lg ring-2 ring-emerald-400/50 hover:from-emerald-500 hover:to-green-500'
@@ -1893,6 +1918,20 @@ const LessonDetailPage: React.FC = () => {
                   ) : null}
                 </span>
               </button>
+              {isPlayMapQuestContext ? (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className={`w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-white transition-colors ${
+                    completionState === 'completed'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 font-semibold hover:from-blue-500 hover:to-indigo-500'
+                      : 'bg-slate-600 hover:bg-slate-500'
+                  }`}
+                >
+                  <FaChevronLeft className="w-4 h-4" aria-hidden />
+                  <span>{playMapReturnToMapButtonCopy(isEnglishCopy)}</span>
+                </button>
+              ) : null}
             </div>
 
             {showNextLessonPrompt && lesson && questCompletionModalKind !== 'none' ? (

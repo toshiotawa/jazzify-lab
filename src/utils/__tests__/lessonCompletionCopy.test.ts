@@ -1,12 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isLessonDetailQuestCompleted,
   lessonCompletionBlockedToastCopy,
   lessonCompletionButtonCopy,
   lessonCompletionCalloutCopy,
   lessonCompletionSectionTitle,
+  playMapReturnToMapButtonCopy,
   questReadyToCompletePromptCopy,
   resolveLessonCompletionState,
 } from '@/utils/lessonCompletionCopy';
+
+describe('isLessonDetailQuestCompleted', () => {
+  it('プレイマップ文脈ではノードクリアを見る', () => {
+    expect(
+      isLessonDetailQuestCompleted({
+        isPlayMapQuest: true,
+        playMapNodeCleared: true,
+        lessonCompleted: false,
+      }),
+    ).toBe(true);
+    expect(
+      isLessonDetailQuestCompleted({
+        isPlayMapQuest: true,
+        playMapNodeCleared: false,
+        lessonCompleted: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('通常クエストではレッスン完了を見る', () => {
+    expect(
+      isLessonDetailQuestCompleted({
+        isPlayMapQuest: false,
+        playMapNodeCleared: true,
+        lessonCompleted: false,
+      }),
+    ).toBe(false);
+    expect(
+      isLessonDetailQuestCompleted({
+        isPlayMapQuest: false,
+        playMapNodeCleared: false,
+        lessonCompleted: true,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('playMapReturnToMapButtonCopy', () => {
+  it('日本語と英語でマップ戻りラベルを返す', () => {
+    expect(playMapReturnToMapButtonCopy(false)).toBe('マップに戻る');
+    expect(playMapReturnToMapButtonCopy(true)).toBe('Back to map');
+  });
+});
 
 describe('resolveLessonCompletionState', () => {
   it('完了済みを最優先する', () => {
