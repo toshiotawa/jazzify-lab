@@ -75,6 +75,34 @@ final class DefensePhraseJudgeTests: XCTestCase {
         XCTAssertTrue(final.pendingSwitch)
     }
 
+    func testAutoAdvanceFalseDoesNotSetPendingSwitch() {
+        var state = DefensePhraseJudge.createInitialState(phrases: [phrase])
+        let first = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 2,
+            autoAdvance: false
+        )
+        state = first.nextState
+        let second = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 4,
+            autoAdvance: false
+        )
+        state = second.nextState
+        let final = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 7,
+            autoAdvance: false
+        )
+        XCTAssertTrue(final.phraseCompleted)
+        XCTAssertEqual(final.completionCount, 1)
+        XCTAssertFalse(final.pendingSwitch)
+        XCTAssertFalse(final.nextState.pendingSwitch)
+    }
+
     func testVoiceSequentialRequiresLowestMidiFirst() {
         let chordPhrase = DefensePhraseDefinition(
             id: "c",

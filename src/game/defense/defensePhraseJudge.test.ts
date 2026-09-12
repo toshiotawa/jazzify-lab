@@ -90,6 +90,22 @@ describe('defensePhraseJudge', () => {
     expect(nextPhraseIndex([phraseA, { ...phraseA, id: 'b', orderIndex: 1 }], 1)).toBe(0);
   });
 
+  it('does not set pendingSwitch when autoAdvance is false', () => {
+    let state = createInitialPhraseJudgeState(0);
+    const phrases = [phraseA];
+
+    const first = evaluateDefensePhraseNoteOn(phrases, 1, state, 2, false, 'note', false);
+    state = first.nextState;
+    const second = evaluateDefensePhraseNoteOn(phrases, 1, state, 4, false, 'note', false);
+    state = second.nextState;
+    const third = evaluateDefensePhraseNoteOn(phrases, 1, state, 7, false, 'note', false);
+
+    expect(third.phraseCompleted).toBe(true);
+    expect(third.completionCount).toBe(1);
+    expect(third.pendingSwitch).toBe(false);
+    expect(third.nextState.pendingSwitch).toBe(false);
+  });
+
   it('voice sequential requires lowest MIDI first in a simultaneous chord', () => {
     const chordPhrase: DefensePhrase = {
       ...phraseA,

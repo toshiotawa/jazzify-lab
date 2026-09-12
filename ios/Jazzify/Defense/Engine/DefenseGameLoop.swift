@@ -14,7 +14,7 @@ enum DefenseGameLoop {
     ) {
         guard runtime.result == .playing else { return }
         runtime.elapsedSec += deltaTime
-        if runtime.elapsedSec >= runtime.surviveSeconds {
+        if !runtime.practiceMode && runtime.elapsedSec >= runtime.surviveSeconds {
             runtime.result = .clear
             return
         }
@@ -89,13 +89,15 @@ enum DefenseGameLoop {
             let attackElapsed = runtime.elapsedSec - enemy.lastAttackAt
 
             if enemy.attackHitPending && attackElapsed >= attackHitPhase {
-                runtime.playerHp = max(0, runtime.playerHp - difficulty.enemyDamage)
                 runtime.impactAt = runtime.elapsedSec
                 runtime.impactX = runtime.playerX
                 runtime.impactY = runtime.playerY
                 enemy.attackHitPending = false
-                if runtime.playerHp <= 0 {
-                    runtime.result = .gameOver
+                if !runtime.practiceMode {
+                    runtime.playerHp = max(0, runtime.playerHp - difficulty.enemyDamage)
+                    if runtime.playerHp <= 0 {
+                        runtime.result = .gameOver
+                    }
                 }
             }
 

@@ -4,6 +4,8 @@
  * The next phrase is started on the audio clock at the next bar head; the current deck fades
  * out over ~6ms before the boundary and the next deck fades in over ~3ms after it.
  */
+import { processOffline } from '@soundtouchjs/audio-worklet';
+import soundtouchProcessorUrl from '@soundtouchjs/audio-worklet/processor?url';
 import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import {
   barSeconds,
@@ -97,24 +99,39 @@ class DefenseBackingDeck {
     return this.graph?.ctx.currentTime ?? 0;
   }
 
-  async preload(urls: readonly string[]): Promise<void> {
+  async preload(urls: readonly string[], speedRatio = 1): Promise<void> {
     const { ctx } = this.ensureGraph();
     const unique = [...new Set(urls.filter((url) => url.length > 0))];
-    await Promise.all(unique.map((url) => this.decodeUrl(ctx, url)));
+    await Promise.all(unique.map((url) => this.decodeUrl(ctx, url, speedRatio)));
   }
 
-  decodeForDeck(url: string): Promise<AudioBuffer> {
-    return this.decodeUrl(this.ensureGraph().ctx, url);
+  decodeForDeck(url: string, speedRatio = 1): Promise<AudioBuffer> {
+    return this.decodeUrl(this.ensureGraph().ctx, url, speedRatio);
   }
 
-  private decodeUrl(ctx: AudioContext, url: string): Promise<AudioBuffer> {
-    let promise = this.bufferByUrl.get(url);
+  private static bufferCacheKey(url: string, speedRatio: number): string {
+    return `${url}\0${speedRatio.toFixed(4)}`;
+  }
+
+  private decodeUrl(ctx: AudioContext, url: string, speedRatio = 1): Promise<AudioBuffer> {
+    const safeRatio = Math.max(0.1, Math.min(8, speedRatio));
+    const cacheKey = DefenseBackingDeck.bufferCacheKey(url, safeRatio);
+    let promise = this.bufferByUrl.get(cacheKey);
     if (!promise) {
       promise = (async () => {
         const arrayBuffer = await fetchCachedFullAudioBuffer(url);
-        return await ctx.decodeAudioData(arrayBuffer.slice(0));
+        const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+        if (Math.abs(safeRatio - 1) < 0.0001) {
+          return decoded;
+        }
+        return processOffline({
+          input: decoded,
+          processorUrl: soundtouchProcessorUrl,
+          pitchSemitones: 0,
+          playbackRate: safeRatio,
+        });
       })();
-      this.bufferByUrl.set(url, promise);
+      this.bufferByUrl.set(cacheKey, promise);
     }
     return promise;
   }

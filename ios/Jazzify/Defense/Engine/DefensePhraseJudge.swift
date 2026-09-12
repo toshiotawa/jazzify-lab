@@ -37,7 +37,8 @@ enum DefensePhraseJudge {
         stageRequiredCompletionCount: Int,
         pitchClass: Int,
         sequential: Bool = false,
-        attackTrigger: DefenseAttackTrigger = .note
+        attackTrigger: DefenseAttackTrigger = .note,
+        autoAdvance: Bool = true
     ) -> Evaluation {
         guard let phrase = state.phrases[safe: state.phraseIndex],
               let chord = phrase.chords[safe: state.chordIndex],
@@ -112,7 +113,7 @@ enum DefensePhraseJudge {
             if next.chordIndex == 0 {
                 let required = phrase.requiredCompletionCount ?? stageRequiredCompletionCount
                 let nextCount = state.pendingSwitch ? state.completionCount : state.completionCount + 1
-                let pending = nextCount >= required || state.pendingSwitch
+                let pending = autoAdvance && (nextCount >= required || state.pendingSwitch)
                 next.completionCount = nextCount
                 next.pendingSwitch = pending
                 return Evaluation(

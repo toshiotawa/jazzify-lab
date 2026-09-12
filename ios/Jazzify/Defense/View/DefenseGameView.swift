@@ -140,6 +140,15 @@ struct DefenseGameView: View {
                 .allowsHitTesting(false)
             }
 
+            if session.practiceMode {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    defensePracticeHud
+                        .padding(.leading, 12)
+                        .padding(.bottom, 8)
+                }
+            }
+
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 SurvivalChordPadView(
@@ -170,8 +179,78 @@ struct DefenseGameView: View {
         UIDevice.current.userInterfaceIdiom == .phone
     }
 
+    private var defensePracticeHud: some View {
+        let phraseLabel = locale == .ja
+            ? "フレーズ\(session.judgeState.phraseIndex + 1)"
+            : "Phrase \(session.judgeState.phraseIndex + 1)"
+        let speedLabel = "\(session.practiceSpeedPercent)%"
+        let canStepPhrase = session.stage.phrases.count > 1
+        let canDecreaseSpeed = session.practiceSpeedPercent > DefensePracticeSpeed.minPercent
+        let canIncreaseSpeed = session.practiceSpeedPercent < DefensePracticeSpeed.maxPercent
+
+        return VStack(alignment: .leading, spacing: 6) {
+            defensePracticeStepperRow(
+                label: phraseLabel,
+                canDecrease: canStepPhrase,
+                canIncrease: canStepPhrase,
+                onDecrease: { session.stepPhrase(-1) },
+                onIncrease: { session.stepPhrase(1) }
+            )
+            defensePracticeStepperRow(
+                label: speedLabel,
+                canDecrease: canDecreaseSpeed,
+                canIncrease: canIncreaseSpeed,
+                onDecrease: { session.stepSpeed(-1) },
+                onIncrease: { session.stepSpeed(1) }
+            )
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.55))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func defensePracticeStepperRow(
+        label: String,
+        canDecrease: Bool,
+        canIncrease: Bool,
+        onDecrease: @escaping () -> Void,
+        onIncrease: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 6) {
+            Button(action: onDecrease) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .disabled(!canDecrease)
+            .opacity(canDecrease ? 1 : 0.35)
+
+            Text(label)
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .frame(minWidth: 88)
+                .multilineTextAlignment(.center)
+
+            Button(action: onIncrease) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .frame(width: 28, height: 28)
+            }
+            .disabled(!canIncrease)
+            .opacity(canIncrease ? 1 : 0.35)
+        }
+        .foregroundColor(.white)
+    }
+
     private var defenseHud: some View {
         let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
+        let timeLabel = session.practiceMode
+            ? "∞  ·  KO \(session.runtime.enemiesDefeated)"
+            : "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)"
 
         return EarTrainingHUDView(
             hud: EarTrainingHudModel(
@@ -181,7 +260,7 @@ struct DefenseGameView: View {
                 enemyMaxHp: 1,
                 practiceMode: session.practiceMode,
                 timeRemaining: session.hud.remainSec,
-                timeLabel: "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)",
+                timeLabel: timeLabel,
                 hideTimeLabel: false,
                 hidePlayerHpBar: false,
                 hideEnemyHpBar: true,

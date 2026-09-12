@@ -104,6 +104,7 @@ export interface DefenseRuntime {
   playerHp: number;
   playerMaxHp: number;
   surviveSeconds: number;
+  practiceMode: boolean;
   result: DefenseGameResult;
   enemiesDefeated: number;
   spawnTimerSec: number;
@@ -137,11 +138,13 @@ export const createDefenseRuntime = (
   playerMaxHp: number,
   surviveSeconds: number,
   maxEnemies: number,
+  practiceMode = false,
 ): DefenseRuntime => ({
   elapsedSec: 0,
   playerHp: playerMaxHp,
   playerMaxHp,
   surviveSeconds,
+  practiceMode,
   result: 'playing',
   enemiesDefeated: 0,
   spawnTimerSec: 0,

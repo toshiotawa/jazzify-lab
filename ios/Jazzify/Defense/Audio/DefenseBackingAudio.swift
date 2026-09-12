@@ -8,6 +8,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private let engine = AVAudioEngine()
     private let masterMixer = AVAudioMixerNode()
+    private let timePitch = AVAudioUnitTimePitch()
     private let playerA = AVAudioPlayerNode()
     private let playerB = AVAudioPlayerNode()
     private let cache = RemoteAudioFileCache(subdirectory: "defense-backing")
@@ -47,6 +48,21 @@ final class DefenseBackingAudio: @unchecked Sendable {
         self.bpm = max(1, bpm)
         self.beatsPerBar = max(1, beatsPerBar)
         os_unfair_lock_unlock(&lock)
+    }
+
+    func setPlaybackRate(_ rate: Float) {
+        let apply = { [weak self] in
+            guard let self else { return }
+            let clamped = max(0.5, min(1.5, rate))
+            self.timePitch.rate = clamped
+            self.timePitch.pitch = 0
+            self.timePitch.bypass = abs(clamped - 1) < 0.0001
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
     }
 
     func setVoiceInputDucking(_ enabled: Bool) {
@@ -127,9 +143,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private func ensureGraph() {
         guard !graphReady else { return }
         engine.attach(masterMixer)
+        engine.attach(timePitch)
         engine.attach(playerA)
         engine.attach(playerB)
+        engine.connect(timePitch, to: masterMixer, format: nil)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
+        timePitch.rate = 1
+        timePitch.pitch = 0
+        timePitch.bypass = true
         graphReady = true
     }
 
@@ -151,7 +172,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         activeIsA = true
         bufferA = buffer
         bufferB = nil
-        engine.connect(playerA, to: masterMixer, format: buffer.format)
+        engine.connect(playerA, to: timePitch, format: buffer.format)
         playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
         os_unfair_lock_lock(&lock)
         let ducking = voiceInputDucking
@@ -190,7 +211,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         incoming.stop()
         incoming.reset()
-        engine.connect(incoming, to: masterMixer, format: buffer.format)
+        engine.connect(incoming, to: timePitch, format: buffer.format)
         incoming.scheduleBuffer(buffer, at: when, options: [.loops])
         incoming.play()
 

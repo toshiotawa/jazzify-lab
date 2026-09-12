@@ -19,6 +19,33 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertEqual(runtime.result, .clear)
     }
 
+    func testPracticeModeDoesNotClearAfterSurviveSeconds() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 2, maxEnemies: 3, practiceMode: true)
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 2.1)
+        XCTAssertEqual(runtime.result, .playing)
+        XCTAssertGreaterThanOrEqual(runtime.elapsedSec, 2)
+    }
+
+    func testPracticeModeRecordsImpactWithoutReducingPlayerHp() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3, practiceMode: true)
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
+        runtime.enemies[0].x = runtime.playerX + 40
+        runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
+        runtime.enemies[0].lastAttackAt = 1.0
+        runtime.enemies[0].attackHitPending = true
+        runtime.elapsedSec = 1.1
+
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0.0)
+        XCTAssertEqual(runtime.playerHp, 5)
+        XCTAssertEqual(runtime.impactAt, DefenseEnemyConfig.noImpact)
+
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0.1)
+        XCTAssertEqual(runtime.playerHp, 5)
+        XCTAssertEqual(runtime.impactAt, 1.2, accuracy: 0.001)
+        XCTAssertFalse(runtime.enemies[0].attackHitPending)
+    }
+
     func testSpawnPlacesGroundEnemyOnGroundLine() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
         let quickSpawn = DefenseDifficultyDefinition(

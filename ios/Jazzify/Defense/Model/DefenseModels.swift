@@ -84,6 +84,7 @@ struct DefenseRuntimeState: Sendable {
     var playerHp: Int
     var playerMaxHp: Int
     var surviveSeconds: TimeInterval
+    var practiceMode: Bool
     var result: DefenseGameResult = .playing
     var enemiesDefeated: Int = 0
     var spawnTimerSec: TimeInterval = 0
@@ -100,10 +101,11 @@ struct DefenseRuntimeState: Sendable {
     let playerX: CGFloat = 80
     let playerY: CGFloat = 300
 
-    init(playerHp: Int, surviveSeconds: TimeInterval, maxEnemies: Int) {
+    init(playerHp: Int, surviveSeconds: TimeInterval, maxEnemies: Int, practiceMode: Bool = false) {
         self.playerHp = playerHp
         self.playerMaxHp = playerHp
         self.surviveSeconds = surviveSeconds
+        self.practiceMode = practiceMode
         self.enemies = (0..<maxEnemies).map { index in
             DefenseEnemyState(
                 id: UUID(),

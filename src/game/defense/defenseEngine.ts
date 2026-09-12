@@ -77,13 +77,15 @@ export const updateDefenseEnemies = (
     const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
 
     if (enemy.attackHitPending && attackElapsed >= ATTACK_HIT_PHASE) {
-      runtime.playerHp = Math.max(0, runtime.playerHp - difficulty.enemyDamage);
       runtime.impactAt = runtime.elapsedSec;
       runtime.impactX = runtime.playerX;
       runtime.impactY = runtime.playerY;
       enemy.attackHitPending = false;
-      if (runtime.playerHp <= 0) {
-        runtime.result = 'gameover';
+      if (!runtime.practiceMode) {
+        runtime.playerHp = Math.max(0, runtime.playerHp - difficulty.enemyDamage);
+        if (runtime.playerHp <= 0) {
+          runtime.result = 'gameover';
+        }
       }
     }
 
@@ -171,7 +173,7 @@ export const performDefenseSlash = (
 const tickDefenseTimer = (runtime: DefenseRuntime, dt: number): void => {
   if (runtime.result !== 'playing') return;
   runtime.elapsedSec += dt;
-  if (runtime.elapsedSec >= runtime.surviveSeconds) {
+  if (!runtime.practiceMode && runtime.elapsedSec >= runtime.surviveSeconds) {
     runtime.result = 'clear';
   }
 };

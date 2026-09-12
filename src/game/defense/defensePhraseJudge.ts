@@ -147,6 +147,7 @@ export const evaluateDefensePhraseNoteOn = (
   pitchClass: number,
   sequential = false,
   attackTrigger: DefenseAttackTrigger = 'note',
+  autoAdvance = true,
 ): DefensePhraseNoteEvaluation => {
   const phrase = phrases[state.phraseIndex] ?? null;
   const chord = getCurrentChord(phrase, state.chordIndex);
@@ -207,7 +208,7 @@ export const evaluateDefensePhraseNoteOn = (
       const nextCount = state.pendingSwitch
         ? state.completionCount
         : state.completionCount + 1;
-      const pendingSwitch = nextCount >= required || state.pendingSwitch;
+      const pendingSwitch = autoAdvance && (nextCount >= required || state.pendingSwitch);
       return {
         attack: true,
         phraseCompleted: true,

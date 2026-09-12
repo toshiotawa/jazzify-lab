@@ -13,6 +13,7 @@ import React, {
 } from 'react';
 
 import { DefenseCanvas, type DefenseCanvasHandle } from '@/components/defense/DefenseCanvas';
+import { DefensePracticeHud } from '@/components/defense/DefensePracticeHud';
 import { DefensePhraseStaff } from '@/components/defense/DefensePhraseStaff';
 import { DefenseResult } from '@/components/defense/DefenseResult';
 import EarTrainingSettingsModal from '@/components/earTraining/EarTrainingSettingsModal';
@@ -27,6 +28,10 @@ import {
   defenseBackingDeck,
   unlockDefenseBackingAudioContext,
 } from '@/game/defense/defenseBackingDeck';
+import {
+  defensePracticeSpeedRatio,
+  stepDefensePracticeSpeedPercent,
+} from '@/game/defense/defensePracticeSpeed';
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
@@ -90,11 +95,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   onClear,
 }) => {
   const runtimeRef = useRef<DefenseRuntime>(
-    createDefenseRuntime(stage.playerHp, stage.surviveSeconds, difficulty.maxEnemies),
+    createDefenseRuntime(stage.playerHp, stage.surviveSeconds, difficulty.maxEnemies, practiceMode),
   );
   const judgeRef = useRef<DefensePhraseJudgeState>(createInitialPhraseJudgeState(0));
   const pendingSwitchAtRef = useRef<number | null>(null);
   const scheduledNextPhraseIndexRef = useRef<number | null>(null);
+  const backingRestartGenerationRef = useRef(0);
+  const practiceSpeedPercentRef = useRef(100);
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
   const elapsedIntRef = useRef(0);
@@ -112,6 +119,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [judgeSnapshot, setJudgeSnapshot] = useState<DefensePhraseJudgeState>(
     createInitialPhraseJudgeState(0),
   );
+  const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
   const [elapsedInt, setElapsedInt] = useState(0);
   const [audioReady, setAudioReady] = useState(false);
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
@@ -133,6 +141,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   useEffect(() => {
     onClearRef.current = onClear;
   }, [onClear]);
+
+  useEffect(() => {
+    practiceSpeedPercentRef.current = practiceSpeedPercent;
+  }, [practiceSpeedPercent]);
 
   const trackElapsedForHints = !practiceMode && (
     stage.productionStaffHintMode === 'fade_15s'
@@ -200,6 +212,64 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     setJudgeSnapshot(judgeRef.current);
   }, [stage.phrases]);
 
+  const restartBackingForPhrase = useCallback(async (
+    phraseIndex: number,
+    speedPercent: number,
+  ): Promise<void> => {
+    const phrase = stage.phrases[phraseIndex];
+    if (!phrase) return;
+
+    const generation = backingRestartGenerationRef.current + 1;
+    backingRestartGenerationRef.current = generation;
+    pendingSwitchAtRef.current = null;
+    scheduledNextPhraseIndexRef.current = null;
+    setAudioReady(false);
+
+    const ratio = defensePracticeSpeedRatio(speedPercent);
+    try {
+      const buffer = await defenseBackingDeck.decodeForDeck(phrase.audioUrl, ratio);
+      if (backingRestartGenerationRef.current !== generation) return;
+      defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
+      defenseBackingDeck.start(buffer);
+      setAudioReady(true);
+    } catch {
+      if (backingRestartGenerationRef.current === generation) {
+        setAudioReady(false);
+      }
+    }
+  }, [stage.phrases, stage.bpm, stage.beatsPerBar]);
+
+  const handlePrevPhrase = useCallback((): void => {
+    if (!practiceMode || stage.phrases.length <= 1) return;
+    const currentIndex = judgeRef.current.phraseIndex;
+    const prevIndex = (currentIndex - 1 + stage.phrases.length) % stage.phrases.length;
+    applyImmediatePhraseSwitch(prevIndex);
+    void restartBackingForPhrase(prevIndex, practiceSpeedPercentRef.current);
+  }, [practiceMode, stage.phrases.length, applyImmediatePhraseSwitch, restartBackingForPhrase]);
+
+  const handleNextPhrase = useCallback((): void => {
+    if (!practiceMode || stage.phrases.length <= 1) return;
+    const nextIndex = nextPhraseIndex(stage.phrases, judgeRef.current.phraseIndex);
+    applyImmediatePhraseSwitch(nextIndex);
+    void restartBackingForPhrase(nextIndex, practiceSpeedPercentRef.current);
+  }, [practiceMode, stage.phrases, applyImmediatePhraseSwitch, restartBackingForPhrase]);
+
+  const handleSpeedDown = useCallback((): void => {
+    if (!practiceMode) return;
+    const nextSpeed = stepDefensePracticeSpeedPercent(practiceSpeedPercentRef.current, -1);
+    if (nextSpeed === practiceSpeedPercentRef.current) return;
+    setPracticeSpeedPercent(nextSpeed);
+    void restartBackingForPhrase(judgeRef.current.phraseIndex, nextSpeed);
+  }, [practiceMode, restartBackingForPhrase]);
+
+  const handleSpeedUp = useCallback((): void => {
+    if (!practiceMode) return;
+    const nextSpeed = stepDefensePracticeSpeedPercent(practiceSpeedPercentRef.current, 1);
+    if (nextSpeed === practiceSpeedPercentRef.current) return;
+    setPracticeSpeedPercent(nextSpeed);
+    void restartBackingForPhrase(judgeRef.current.phraseIndex, nextSpeed);
+  }, [practiceMode, restartBackingForPhrase]);
+
   const commitScheduledAudioSwitch = useCallback((phraseIndex: number): void => {
     defenseBackingDeck.commitSwitch();
     pendingSwitchAtRef.current = null;
@@ -233,6 +303,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       pitchClass,
       sequential,
       stage.attackTrigger,
+      !practiceMode,
     );
 
     if (evaluation.nextState === judgeRef.current) return;
@@ -241,11 +312,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     setJudgeSnapshot(evaluation.nextState);
 
     if (evaluation.attack) {
-      const guardPoseSec = stage.bpm > 0 ? 60 / stage.bpm : 1;
+      const speedRatio = practiceMode
+        ? defensePracticeSpeedRatio(practiceSpeedPercentRef.current)
+        : 1;
+      const effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60;
+      const guardPoseSec = 60 / effectiveBpm;
       performDefenseSlash(runtime, guardPoseSec);
     }
 
-    if (evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
+    if (!practiceMode && evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
       const nextIndex = nextPhraseIndex(stage.phrases, judgeRef.current.phraseIndex);
       const nextPhrase = stage.phrases[nextIndex];
       if (!nextPhrase) return;
@@ -257,7 +332,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(buffer);
       })();
     }
-  }, [stage.phrases, stage.requiredCompletionCount, stage.attackTrigger, stage.bpm, applyImmediatePhraseSwitch]);
+  }, [
+    stage.phrases,
+    stage.requiredCompletionCount,
+    stage.attackTrigger,
+    stage.bpm,
+    practiceMode,
+    applyImmediatePhraseSwitch,
+  ]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();
@@ -291,17 +373,23 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    defenseBackingDeck.setTransportConfig(stage.bpm, stage.beatsPerBar);
+    const initialRatio = practiceMode ? defensePracticeSpeedRatio(100) : 1;
+    defenseBackingDeck.setTransportConfig(stage.bpm * initialRatio, stage.beatsPerBar);
 
     void (async () => {
       unlockDefenseBackingAudioContext();
       const firstPhrase = stage.phrases[0];
       if (!firstPhrase) return;
-      const secondPhrase = stage.phrases[1];
-      await defenseBackingDeck.preload(
-        secondPhrase ? [firstPhrase.audioUrl, secondPhrase.audioUrl] : [firstPhrase.audioUrl],
-      );
-      const buffer = await defenseBackingDeck.decodeForDeck(firstPhrase.audioUrl);
+      const preloadUrls = practiceMode
+        ? stage.phrases.map((phrase) => phrase.audioUrl)
+        : (() => {
+          const secondPhrase = stage.phrases[1];
+          return secondPhrase
+            ? [firstPhrase.audioUrl, secondPhrase.audioUrl]
+            : [firstPhrase.audioUrl];
+        })();
+      await defenseBackingDeck.preload(preloadUrls, initialRatio);
+      const buffer = await defenseBackingDeck.decodeForDeck(firstPhrase.audioUrl, initialRatio);
       if (cancelled) return;
       defenseBackingDeck.start(buffer);
       setAudioReady(true);
@@ -311,7 +399,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       cancelled = true;
       defenseBackingDeck.stop();
     };
-  }, [stage]);
+  }, [stage, practiceMode]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
@@ -471,6 +559,24 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         <p className="pointer-events-none absolute bottom-[96px] left-1/2 z-30 -translate-x-1/2 text-xs text-slate-400">
           伴奏を読み込み中…
         </p>
+      )}
+
+      {practiceMode && currentPhrase && (
+        <div
+          className="absolute left-3 z-40"
+          style={{ bottom: PIANO_OVERLAY_HEIGHT + 8 }}
+        >
+          <DefensePracticeHud
+            phraseIndex={judgeSnapshot.phraseIndex}
+            phraseCount={stage.phrases.length}
+            speedPercent={practiceSpeedPercent}
+            isEnglishCopy={isEnglishCopy}
+            onPrevPhrase={handlePrevPhrase}
+            onNextPhrase={handleNextPhrase}
+            onSpeedDown={handleSpeedDown}
+            onSpeedUp={handleSpeedUp}
+          />
+        </div>
       )}
 
       <div className="absolute right-3 top-[56px] z-40 flex gap-2">

@@ -276,28 +276,22 @@ const drawDefenseHud = (
   const hpLayout = getHpBarLayout(width);
   drawHpBar(ctx, hpLayout.leftX, 16, hpLayout.barWidth, hud.playerHp, hud.playerMaxHp, true);
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `900 30px ${HUD_FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillText(`${hud.remainSec}s`, width / 2, 18);
+  if (hud.practiceMode) {
+    ctx.fillStyle = '#67e8f9';
+    ctx.font = `900 30px ${HUD_FONT}`;
+    ctx.fillText('PRACTICE', width / 2, 18);
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 30px ${HUD_FONT}`;
+    ctx.fillText(`${hud.remainSec}s`, width / 2, 18);
+  }
 
   ctx.fillStyle = '#fbbf24';
   ctx.font = `900 14px ${HUD_FONT}`;
   ctx.textAlign = 'center';
   ctx.fillText(`KO ${hud.enemiesDefeated}`, width / 2, 56);
-
-  if (hud.practiceMode) {
-    const badge = 'PRACTICE';
-    ctx.font = `900 11px ${HUD_FONT}`;
-    const badgeW = ctx.measureText(badge).width + 16;
-    ctx.fillStyle = '#67e8f9';
-    ctx.fillRect(width / 2 + 60, 26, badgeW, 20);
-    ctx.fillStyle = '#083344';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(badge, width / 2 + 68, 29);
-  }
 };
 
 const drawImpactFlash = (

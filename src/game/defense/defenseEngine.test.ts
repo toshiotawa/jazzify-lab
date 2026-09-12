@@ -183,4 +183,29 @@ describe('defenseEngine', () => {
     tickDefenseSimulation(runtime, easyDifficulty, 2.1);
     expect(runtime.result).toBe('clear');
   });
+
+  it('practice mode does not clear after survive seconds', () => {
+    const runtime = createDefenseRuntime(5, 2, 3, true);
+    tickDefenseSimulation(runtime, easyDifficulty, 2.1);
+    expect(runtime.result).toBe('playing');
+    expect(runtime.elapsedSec).toBeGreaterThanOrEqual(2);
+  });
+
+  it('practice mode records impact without reducing player hp', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, true);
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy slot');
+    enemy.active = true;
+    enemy.x = DEFENSE_PLAYER_X + 40;
+    enemy.y = getDefenseEnemyCenterY('goblin');
+    enemy.lastAttackAt = 1.0;
+    enemy.attackHitPending = true;
+    runtime.elapsedSec = 1.19;
+    runtime.activeEnemyCount = 1;
+
+    updateDefenseEnemies(runtime, easyDifficulty, 0);
+    expect(runtime.playerHp).toBe(5);
+    expect(runtime.impactAt).toBeCloseTo(1.19);
+    expect(enemy.attackHitPending).toBe(false);
+  });
 });

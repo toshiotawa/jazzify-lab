@@ -26,6 +26,7 @@ final class DefenseGameSession: ObservableObject {
     @Published private(set) var judgeState: DefensePhraseJudgeState
     @Published private(set) var hud: DefenseHudState
     @Published private(set) var midiHeldKeys: Set<Int> = []
+    @Published private(set) var practiceSpeedPercent = 100
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
@@ -54,7 +55,8 @@ final class DefenseGameSession: ObservableObject {
         let runtime = DefenseRuntimeState(
             playerHp: stage.playerHp,
             surviveSeconds: TimeInterval(stage.surviveSeconds),
-            maxEnemies: difficulty.maxEnemies
+            maxEnemies: difficulty.maxEnemies,
+            practiceMode: practiceMode
         )
         self.runtime = runtime
         self.judgeState = DefensePhraseJudge.createInitialState(phrases: stage.phrases)
@@ -73,12 +75,42 @@ final class DefenseGameSession: ObservableObject {
               let firstUrl = URL(string: first.audioUrl)
         else { return }
         DefenseBackingAudio.shared.setTransportConfig(bpm: stage.bpm, beatsPerBar: stage.beatsPerBar)
-        var urls = [firstUrl]
-        if stage.phrases.count > 1, let secondUrl = URL(string: stage.phrases[1].audioUrl) {
-            urls.append(secondUrl)
+        let urls: [URL]
+        if practiceMode {
+            urls = stage.phrases.compactMap { URL(string: $0.audioUrl) }
+        } else {
+            urls = [firstUrl] + (stage.phrases.count > 1
+                ? stage.phrases[1...].prefix(1).compactMap { URL(string: $0.audioUrl) }
+                : [])
         }
         try? await DefenseBackingAudio.shared.preload(urls: urls)
+        DefenseBackingAudio.shared.setPlaybackRate(1)
         try? await DefenseBackingAudio.shared.start(firstUrl: firstUrl)
+    }
+
+    func stepPhrase(_ delta: Int) {
+        guard practiceMode, stage.phrases.count > 1 else { return }
+        let currentIndex = judgeState.phraseIndex
+        let nextIndex = (currentIndex + delta + stage.phrases.count) % stage.phrases.count
+        pendingSwitchPhraseIndex = nil
+        judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+        guard let url = URL(string: stage.phrases[nextIndex].audioUrl) else { return }
+        Task {
+            try? await DefenseBackingAudio.shared.start(firstUrl: url)
+        }
+    }
+
+    func stepSpeed(_ delta: Int) {
+        guard practiceMode else { return }
+        let nextSpeed = DefensePracticeSpeed.stepped(practiceSpeedPercent, delta: delta)
+        guard nextSpeed != practiceSpeedPercent else { return }
+        practiceSpeedPercent = nextSpeed
+        let ratio = Float(DefensePracticeSpeed.ratio(nextSpeed))
+        DefenseBackingAudio.shared.setPlaybackRate(ratio)
+        DefenseBackingAudio.shared.setTransportConfig(
+            bpm: stage.bpm * DefensePracticeSpeed.ratio(nextSpeed),
+            beatsPerBar: stage.beatsPerBar
+        )
     }
 
     func stop() {
@@ -141,16 +173,19 @@ final class DefenseGameSession: ObservableObject {
             stageRequiredCompletionCount: stage.requiredCompletionCount,
             pitchClass: normalizedPc,
             sequential: sequential,
-            attackTrigger: stage.attackTrigger
+            attackTrigger: stage.attackTrigger,
+            autoAdvance: !practiceMode
         )
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState
         }
         if evaluation.attack {
-            let guardPoseSec = stage.bpm > 0 ? 60 / stage.bpm : 1
+            let speedRatio = practiceMode ? DefensePracticeSpeed.ratio(practiceSpeedPercent) : 1
+            let effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60
+            let guardPoseSec = 60 / effectiveBpm
             _ = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: guardPoseSec)
         }
-        if evaluation.pendingSwitch, pendingSwitchPhraseIndex == nil {
+        if !practiceMode, evaluation.pendingSwitch, pendingSwitchPhraseIndex == nil {
             let nextIndex = DefensePhraseJudge.nextPhraseIndex(
                 phrases: stage.phrases,
                 current: judgeState.phraseIndex
