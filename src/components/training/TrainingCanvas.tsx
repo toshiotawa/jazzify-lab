@@ -4,9 +4,15 @@ import {
   BACKGROUND_IMAGE_URLS,
   PLAYER_POSE_IMAGE_URLS,
 } from '@/game/earTraining/canvas/earTrainingBattleBackground';
-import { preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
+import {
+  copyCachedBattleImages,
+  preloadEarTrainingBattleImages,
+} from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 import type { BackgroundCacheState } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
-import { loadDefenseEnemySprites } from '@/game/defense/defenseEnemySprites';
+import {
+  getCachedDefenseEnemySprites,
+  loadDefenseEnemySprites,
+} from '@/game/defense/defenseEnemySprites';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import {
   drawTrainingScene,
@@ -24,6 +30,12 @@ export interface TrainingCanvasHandle {
 interface TrainingCanvasProps {
   readonly className?: string;
 }
+
+const TRAINING_SCENE_IMAGE_URLS = [
+  EAR_TRAINING_PLAYER_AVATAR_URL,
+  PLAYER_POSE_IMAGE_URLS.guardD,
+  ...Object.values(BACKGROUND_IMAGE_URLS),
+] as const;
 
 export const TrainingCanvas = forwardRef<TrainingCanvasHandle, TrainingCanvasProps>(
   ({ className }, ref) => {
@@ -52,14 +64,24 @@ export const TrainingCanvas = forwardRef<TrainingCanvasHandle, TrainingCanvasPro
         canvas: null,
       };
 
+      const cachedAtlas = getCachedDefenseEnemySprites();
+      if (cachedAtlas) {
+        atlasRef.current = cachedAtlas;
+      }
+
+      const cachedImages = copyCachedBattleImages(TRAINING_SCENE_IMAGE_URLS);
+      if (cachedImages.size > 0) {
+        assetsRef.current = {
+          loadedImages: cachedImages,
+          backgroundCache,
+          playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
+        };
+      }
+
       void (async () => {
         const [atlas, imageMap] = await Promise.all([
           loadDefenseEnemySprites(),
-          preloadEarTrainingBattleImages([
-            EAR_TRAINING_PLAYER_AVATAR_URL,
-            PLAYER_POSE_IMAGE_URLS.guardD,
-            ...Object.values(BACKGROUND_IMAGE_URLS),
-          ]),
+          preloadEarTrainingBattleImages(TRAINING_SCENE_IMAGE_URLS),
         ]);
         if (cancelled) return;
         if (atlas) {

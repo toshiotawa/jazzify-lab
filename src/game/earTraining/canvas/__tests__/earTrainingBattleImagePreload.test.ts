@@ -4,13 +4,18 @@ import {
   getEarTrainingBattleDeferredUrls,
   getEarTrainingBattleSecondaryUrls,
 } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
-import { preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
+import {
+  clearBattleImageCacheForTests,
+  copyCachedBattleImages,
+  preloadEarTrainingBattleImages,
+} from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 
 describe('earTrainingBattleImagePreload', () => {
   const originalImage = global.Image;
 
   afterEach(() => {
     global.Image = originalImage;
+    clearBattleImageCacheForTests();
   });
 
   it('getEarTrainingBattleCriticalUrls はアバターと UI スプライトのみ含む', () => {
@@ -55,6 +60,109 @@ describe('earTrainingBattleImagePreload', () => {
     const urls = getEarTrainingBattleDeferredUrls();
     expect(urls.some((url) => url.includes('fireball'))).toBe(true);
     expect(urls.some((url) => url.includes('Frame2'))).toBe(true);
+  });
+
+  it('2回目の preload は Image を新規作成しない', async () => {
+    let attempts = 0;
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+
+      constructor() {
+        attempts += 1;
+        queueMicrotask(() => {
+          this.onload?.();
+        });
+      }
+    }
+    global.Image = MockImage as unknown as typeof Image;
+
+    await preloadEarTrainingBattleImages(['/cache/a.webp']);
+    expect(attempts).toBe(1);
+
+    await preloadEarTrainingBattleImages(['/cache/a.webp']);
+    expect(attempts).toBe(1);
+
+    const sync = copyCachedBattleImages(['/cache/a.webp']);
+    expect(sync.get('/cache/a.webp')).toBeInstanceOf(MockImage);
+  });
+
+  it('同一 URL の並行 preload は 1 回だけ Image を作成する', async () => {
+    let attempts = 0;
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+
+      constructor() {
+        attempts += 1;
+        queueMicrotask(() => {
+          this.onload?.();
+        });
+      }
+    }
+    global.Image = MockImage as unknown as typeof Image;
+
+    const url = '/cache/parallel.webp';
+    await Promise.all([
+      preloadEarTrainingBattleImages([url]),
+      preloadEarTrainingBattleImages([url]),
+    ]);
+    expect(attempts).toBe(1);
+  });
+
+  it('失敗 URL はキャッシュしない（リトライ後の成功はキャッシュする）', async () => {
+    let failAttempts = 0;
+    class AlwaysFailImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+
+      constructor() {
+        failAttempts += 1;
+        queueMicrotask(() => {
+          this.onerror?.();
+        });
+      }
+    }
+    global.Image = AlwaysFailImage as unknown as typeof Image;
+
+    const failedMap = await preloadEarTrainingBattleImages(['/cache/fail.webp']);
+    expect(failedMap.has('/cache/fail.webp')).toBe(false);
+    expect(failAttempts).toBe(3);
+
+    const attemptsBeforeRetry = failAttempts;
+    const retryMap = await preloadEarTrainingBattleImages(['/cache/fail.webp']);
+    expect(retryMap.has('/cache/fail.webp')).toBe(false);
+    expect(failAttempts).toBe(attemptsBeforeRetry + 3);
+
+    let successAttempts = 0;
+    class FailOnceImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+
+      constructor() {
+        successAttempts += 1;
+        queueMicrotask(() => {
+          if (successAttempts === 1) {
+            this.onerror?.();
+            return;
+          }
+          this.onload?.();
+        });
+      }
+    }
+    global.Image = FailOnceImage as unknown as typeof Image;
+    clearBattleImageCacheForTests();
+
+    const firstSuccessMap = await preloadEarTrainingBattleImages(['/cache/retry-success.webp']);
+    expect(successAttempts).toBe(2);
+    expect(firstSuccessMap.get('/cache/retry-success.webp')).toBeInstanceOf(FailOnceImage);
+
+    await preloadEarTrainingBattleImages(['/cache/retry-success.webp']);
+    expect(successAttempts).toBe(2);
   });
 
   it('preloadEarTrainingBattleImages は失敗時にリトライする', async () => {

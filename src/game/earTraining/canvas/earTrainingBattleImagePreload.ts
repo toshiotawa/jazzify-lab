@@ -11,13 +11,34 @@ import { invalidateBackgroundCache } from '@/game/earTraining/canvas/earTraining
 const MAX_CONCURRENT = 4;
 const MAX_RETRIES = 2;
 
-const loadBattleImage = (url: string, attempt: number): Promise<HTMLImageElement | null> =>
+/** Survives canvas remounts so replay does not re-decode battle sprites. */
+const battleImageCache = new Map<string, HTMLImageElement>();
+const battleImageInFlight = new Map<string, Promise<HTMLImageElement | null>>();
+
+export const copyCachedBattleImages = (urls: readonly string[]): Map<string, HTMLImageElement> => {
+  const map = new Map<string, HTMLImageElement>();
+  urls.forEach((url) => {
+    if (!url) return;
+    const cached = battleImageCache.get(url);
+    if (cached) {
+      map.set(url, cached);
+    }
+  });
+  return map;
+};
+
+export const clearBattleImageCacheForTests = (): void => {
+  battleImageCache.clear();
+  battleImageInFlight.clear();
+};
+
+const loadBattleImageUncached = (url: string, attempt: number): Promise<HTMLImageElement | null> =>
   new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => {
       if (attempt < MAX_RETRIES) {
-        void loadBattleImage(url, attempt + 1).then(resolve);
+        void loadBattleImageUncached(url, attempt + 1).then(resolve);
         return;
       }
       resolve(null);
@@ -26,15 +47,47 @@ const loadBattleImage = (url: string, attempt: number): Promise<HTMLImageElement
     img.src = `${url}${retrySuffix}`;
   });
 
+const loadBattleImage = (url: string): Promise<HTMLImageElement | null> => {
+  const cached = battleImageCache.get(url);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  const inFlight = battleImageInFlight.get(url);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const promise = loadBattleImageUncached(url, 0).then((img) => {
+    battleImageInFlight.delete(url);
+    if (img) {
+      battleImageCache.set(url, img);
+    }
+    return img;
+  });
+  battleImageInFlight.set(url, promise);
+  return promise;
+};
+
 export const preloadEarTrainingBattleImages = async (
   urls: readonly string[],
 ): Promise<Map<string, HTMLImageElement>> => {
   const map = new Map<string, HTMLImageElement>();
   const unique = [...new Set(urls.filter(Boolean))];
+  const toLoad: string[] = [];
 
-  for (let index = 0; index < unique.length; index += MAX_CONCURRENT) {
-    const batch = unique.slice(index, index + MAX_CONCURRENT);
-    const results = await Promise.all(batch.map((url) => loadBattleImage(url, 0)));
+  unique.forEach((url) => {
+    const cached = battleImageCache.get(url);
+    if (cached) {
+      map.set(url, cached);
+    } else {
+      toLoad.push(url);
+    }
+  });
+
+  for (let index = 0; index < toLoad.length; index += MAX_CONCURRENT) {
+    const batch = toLoad.slice(index, index + MAX_CONCURRENT);
+    const results = await Promise.all(batch.map((url) => loadBattleImage(url)));
     batch.forEach((url, batchIndex) => {
       const img = results[batchIndex];
       if (img) {

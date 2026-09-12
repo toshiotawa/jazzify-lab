@@ -32,8 +32,10 @@ import {
   syncCharactersFromSnapshot,
 } from '@/game/earTraining/canvas/earTrainingBattleCharacterMotion';
 import { drawEarTrainingBattle } from '@/game/earTraining/canvas/drawEarTrainingBattle';
+import { getEarTrainingBattleCriticalUrls } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
 import {
   applyEarTrainingBattleImageMap,
+  copyCachedBattleImages,
   preloadEarTrainingBattleCriticalImages,
   preloadEarTrainingBattleSecondaryImages,
   scheduleEarTrainingBattleDeferredImages,
@@ -359,6 +361,15 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       snapshot.playerAvatarUrl,
       snapshot.enemyAvatarUrl,
     ];
+
+    const criticalUrls = getEarTrainingBattleCriticalUrls(avatarUrls, battleMode);
+    const cachedImages = copyCachedBattleImages(criticalUrls);
+    if (cachedImages.size > 0) {
+      const width = Math.max(320, container.clientWidth);
+      const height = Math.max(480, container.clientHeight);
+      const runtime = ensureRuntime(width, height);
+      applyEarTrainingBattleImageMap(runtime, cachedImages, avatarUrls, battleMode);
+    }
 
     void preloadEarTrainingBattleCriticalImages(avatarUrls, battleMode).then((map) => {
       if (cancelled || !runtimeRef.current) {
