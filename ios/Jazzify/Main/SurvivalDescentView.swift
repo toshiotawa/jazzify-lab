@@ -232,7 +232,14 @@ private struct SurvivalDescentMapContent: View {
                 widthPx: worldWidth,
                 heightPx: worldHeight,
                 scale: scale,
-                tintBlocks: layout.blocks,
+                tintBlocks: layout.blocks.map {
+                    DescentMapTintBand(
+                        blockKey: $0.blockKey.rawValue,
+                        blockIndex: $0.blockIndex,
+                        startY: $0.startY,
+                        endY: $0.endY
+                    )
+                },
                 accessibleBlockIndex: accessibleBlockIndex
             )
 

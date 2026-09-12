@@ -19,6 +19,8 @@ interface UseDescentCameraParams {
   clearedStages: ReadonlySet<number>;
   /** 対象マップ */
   mapCategory?: SurvivalMapCategory;
+  /** mapCategory 以外のマップ高さ（論理px） */
+  mapLogicalHeight?: number;
 }
 
 interface CameraState {
@@ -35,6 +37,7 @@ export const useDescentCamera = ({
   frontierStageNumber: _frontierStageNumber,
   clearedStages: _clearedStages,
   mapCategory = DEFAULT_SURVIVAL_MAP_CATEGORY,
+  mapLogicalHeight: mapLogicalHeightOverride,
 }: UseDescentCameraParams): CameraState => {
   const [cameraY, setCameraY] = useState(0);
 
@@ -45,7 +48,7 @@ export const useDescentCamera = ({
   const lastTimeRef = useRef<number | null>(null);
   const maxCameraYRef = useRef(0);
 
-  const mapLogicalHeight = getMapLogicalHeightByCategory(mapCategory);
+  const mapLogicalHeight = mapLogicalHeightOverride ?? getMapLogicalHeightByCategory(mapCategory);
   // 未解放ブロックは DescentBlock 側の dim で示す。カメラ下限はマップ全体まで許可し、
   // Web でも iOS（UIScrollView）と同様に最下段フロアまで閲覧・検証できるようにする。
   const maxCameraY = Math.max(0, mapLogicalHeight * scale - viewportHeight);

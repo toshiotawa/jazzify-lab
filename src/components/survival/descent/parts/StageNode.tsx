@@ -18,8 +18,12 @@ interface StageNodeProps {
   state: StageNodeState;
   selected: boolean;
   onSelect: (stageNumber: number) => void;
+  /** 指定時は onSelect の代わりにこちらを呼ぶ（プレイマップ等） */
+  onActivate?: () => void;
   dim?: boolean;
   isFrontier?: boolean;
+  /** 省略時は stageNumber を表示 */
+  displayLabel?: string;
 }
 
 export const StageNode: React.FC<StageNodeProps> = ({
@@ -30,21 +34,32 @@ export const StageNode: React.FC<StageNodeProps> = ({
   state,
   selected,
   onSelect,
+  onActivate,
   dim,
   isFrontier,
+  displayLabel,
 }) => {
   const diameter = Math.round(52 * scale);
+  const labelText = displayLabel ?? String(stageNumber);
 
   const handleClick = useCallback(() => {
+    if (onActivate) {
+      onActivate();
+      return;
+    }
     onSelect(stageNumber);
-  }, [onSelect, stageNumber]);
+  }, [onActivate, onSelect, stageNumber]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      if (onActivate) {
+        onActivate();
+        return;
+      }
       onSelect(stageNumber);
     }
-  }, [onSelect, stageNumber]);
+  }, [onActivate, onSelect, stageNumber]);
 
   const base = 'absolute flex items-center justify-center rounded-full border-2 font-bold select-none transition-transform duration-150 ease-out';
 
@@ -101,7 +116,7 @@ export const StageNode: React.FC<StageNodeProps> = ({
       >
         {state === 'cleared' ? (
           <>
-            <span style={{ lineHeight: 1 }}>{stageNumber}</span>
+            <span style={{ lineHeight: 1 }}>{labelText}</span>
             <span
               aria-hidden
               className="absolute flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-bold"
@@ -121,7 +136,7 @@ export const StageNode: React.FC<StageNodeProps> = ({
         ) : state === 'locked' ? (
           <FaLock style={{ fontSize: Math.max(12, 16 * scale), opacity: 0.7 }} />
         ) : (
-          stageNumber
+          labelText
         )}
       </button>
     </>

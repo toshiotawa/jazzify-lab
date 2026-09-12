@@ -347,6 +347,9 @@
 		DC4BC9B093F9DEEC1EB81AD6 /* AchievementBadgeAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41975E96B01514F6DFBFEDF /* AchievementBadgeAssets.swift */; };
 		DD3680C1F6BD479D6540BA0F /* EarTrainingCompositePhraseDamage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122513166C7477AAC026DA06 /* EarTrainingCompositePhraseDamage.swift */; };
 		DD44EE55FF6677AA11BB22CD /* DefenseDescentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD44EE55FF6677AA11BB22CC /* DefenseDescentView.swift */; };
+		DEFDL001BUILD0000000001 /* DefenseDescentLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */; };
+		DEFDM001BUILD0000000001 /* DefenseDescentMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */; };
+		DEFDS001BUILD0000000001 /* DefenseDescentSidePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */; };
 		DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */; };
 		DDE97362E5FE0DE0E45766F5 /* RemoteAudioFileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */; };
 		DE01E0010000000000000002 /* DefenseEnemyConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE01E0010000000000000001 /* DefenseEnemyConfig.swift */; };
@@ -748,6 +751,9 @@
 		DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentIssueBannerView.swift; sourceTree = "<group>"; };
 		DD16418FE79E122CE5868E08 /* EarTrainingOsmdTimingAdjustmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdTimingAdjustmentTests.swift; sourceTree = "<group>"; };
 		DD44EE55FF6677AA11BB22CC /* DefenseDescentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentView.swift; sourceTree = "<group>"; };
+		DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentLayout.swift; sourceTree = "<group>"; };
+		DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentMapView.swift; sourceTree = "<group>"; };
+		DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentSidePanel.swift; sourceTree = "<group>"; };
 		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE01E0010000000000000001 /* DefenseEnemyConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseEnemyConfig.swift; sourceTree = "<group>"; };
 		DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStatusEffectEngine.swift; sourceTree = "<group>"; };
@@ -1599,6 +1605,9 @@
 				D1SC0RD1A2B3C4D5E6F70890 /* DiscordCommunitySectionView.swift */,
 				CC33DD44EE55FF6677AA11BB /* CodeRunWorldView.swift */,
 				DD44EE55FF6677AA11BB22CC /* DefenseDescentView.swift */,
+				DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */,
+				DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */,
+				DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */,
 				BB22CC33DD44EE55FF6677AA /* PlayWorldMapView.swift */,
 				10DD1CE67E095CAEF6F59BC7 /* MarketingOptInBannerView.swift */,
 				CE37C824003D0142D6E454EB /* PianoKeyboardDisplayModeSection.swift */,
@@ -2137,6 +2146,9 @@
 				BB22CC33DD44EE55FF6677AB /* PlayWorldMapView.swift in Sources */,
 				CC33DD44EE55FF6677AA11BC /* CodeRunWorldView.swift in Sources */,
 				DD44EE55FF6677AA11BB22CD /* DefenseDescentView.swift in Sources */,
+				DEFDL001BUILD0000000001 /* DefenseDescentLayout.swift in Sources */,
+				DEFDM001BUILD0000000001 /* DefenseDescentMapView.swift in Sources */,
+				DEFDS001BUILD0000000001 /* DefenseDescentSidePanel.swift in Sources */,
 				E1C037ED84DB49B0BBC7A01B /* TrainingRankingView.swift in Sources */,
 				E1CC1A6B570E400D99D79F03 /* TrainingScene.swift in Sources */,
 				E1D1541988F0473184493181 /* TrainingQuestionBuilder.swift in Sources */,

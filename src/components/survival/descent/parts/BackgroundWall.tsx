@@ -6,16 +6,23 @@
 
 import React from 'react';
 import { DESCENT_MAP_TEXTURE_URLS } from '@/utils/descentMapAssets';
-import { BlockLayout, getBlockLayoutsByCategory } from '../descentLayout';
+import { getBlockLayoutsByCategory } from '../descentLayout';
 import { getBlockFilter, getBlockTint } from '../blockTheme';
 import { SurvivalMapCategory, DEFAULT_SURVIVAL_MAP_CATEGORY } from '../../SurvivalTypes';
+
+export interface DescentBackgroundBand {
+  blockKey: string;
+  blockIndex: number;
+  startY: number;
+  endY: number;
+}
 
 interface BackgroundWallProps {
   widthPx: number;
   heightPx: number;
   scale: number;
   /** 描画対象のレイアウト（未指定時は mapCategory から解決） */
-  layouts?: BlockLayout[];
+  layouts?: readonly DescentBackgroundBand[];
   mapCategory?: SurvivalMapCategory;
 }
 

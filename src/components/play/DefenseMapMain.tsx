@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
-import PlayWorldMap from '@/components/play/PlayWorldMap';
+import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
 import type { PlayMapNode } from '@/platform/supabasePlayMap';
 import {
@@ -121,10 +121,9 @@ const DefenseMapMain: React.FC = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-slate-950 via-emerald-950 to-slate-950">
+    <div className="min-h-[100dvh] bg-[#09070f]">
       <GameHeader />
-      <PlayWorldMap
-        mode="defense"
+      <DefenseDescentMap
         isEnglishCopy={isEnglishCopy}
         isPremiumMember={isPremiumMember}
         onSelectNode={(node) => { void startFromNode(node); }}

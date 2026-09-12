@@ -40,19 +40,17 @@ struct DefenseDescentView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "022c22").ignoresSafeArea()
+            Color(hex: "09070f").ignoresSafeArea()
 
             if isLoading {
                 ProgressView().tint(.green)
             } else {
-                PlayWorldMapView(
-                    mode: .defense,
+                DefenseDescentMapView(
                     locale: locale,
                     isPremium: appState.isPremium,
                     blocks: blocks,
                     nodes: nodes,
                     clears: clears,
-                    rankThresholds: [],
                     onSelectNode: { node in
                         Task { await startStageNode(node) }
                     },

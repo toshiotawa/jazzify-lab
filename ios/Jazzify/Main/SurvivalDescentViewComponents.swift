@@ -7,6 +7,15 @@ import UIKit
 
 // MARK: - Background
 
+struct DescentMapTintBand: Identifiable, Hashable, Sendable {
+    let blockKey: String
+    let blockIndex: Int
+    let startY: CGFloat
+    let endY: CGFloat
+
+    var id: String { blockKey }
+}
+
 /// マップの縦長背景。レンガは世界全体を 1 枚のタイルパターンで連続させ、スクロール・カテゴリ切替で縞模様がずれないようにする。
 /// ブロックごとの雰囲気 tint は viewport 内ブロックのみ重ねる（レンガ・全体グラデは world 全体）。
 struct SurvivalDescentBackgroundView: View {
@@ -14,7 +23,7 @@ struct SurvivalDescentBackgroundView: View {
     let heightPx: CGFloat
     let scale: CGFloat
     /// viewport 内（+ frontier/selected 強制含有）のブロック tint のみ描画する。
-    let tintBlocks: [SurvivalDescentBlockLayout]
+    let tintBlocks: [DescentMapTintBand]
     let accessibleBlockIndex: Int
 
     var body: some View {
@@ -552,6 +561,8 @@ struct SurvivalDescentStageNode: View {
     let isMixed: Bool
     let dim: Bool
     let onTap: () -> Void
+    /// 指定時は stageNumber の代わりに表示（プレイマップ quest=? 等）
+    var displayLabel: String?
 
     @State private var pulse: Bool = false
 
@@ -579,10 +590,10 @@ struct SurvivalDescentStageNode: View {
                         .frame(width: diameter, height: diameter)
 
                     VStack(spacing: 0) {
-                        Text("\(stageNumber)")
+                        Text(displayLabel ?? "\(stageNumber)")
                             .font(.system(size: max(12, 18 * scale), weight: .heavy))
                             .foregroundStyle(textColor)
-                        if isMixed {
+                        if isMixed, displayLabel == nil {
                             Text("MIX")
                                 .font(.system(size: max(7, 9 * scale), weight: .bold))
                                 .foregroundStyle(Color.yellow)
