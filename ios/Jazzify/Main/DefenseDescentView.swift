@@ -10,15 +10,19 @@ struct DefenseDescentView: View {
     @State private var isLoading = true
     @State private var showSubscription = false
 
-    @State private var activeNode: PlayMapNode?
-    @State private var activeStage: DefenseStageDefinition?
-    @State private var activeDifficulty: DefenseDifficultyDefinition?
-    @State private var gameSessionNonce = 0
-    @State private var showGame = false
+    @State private var stageLaunchSession: StageLaunchSession?
+    @State private var isStarting = false
     @State private var lessonToOpen: LessonPlayMapLaunch?
     @State private var alertMessage: String?
 
     private var locale: AppLocale { appState.locale }
+
+    private struct StageLaunchSession: Identifiable {
+        let id = UUID()
+        let node: PlayMapNode
+        let stage: DefenseStageDefinition
+        let difficulty: DefenseDifficultyDefinition
+    }
 
     private struct LessonPlayMapLaunch: Identifiable, Hashable {
         let id = UUID()
@@ -58,33 +62,33 @@ struct DefenseDescentView: View {
                     onRequestUpgrade: { showSubscription = true }
                 )
             }
+
+            if isStarting {
+                Color.black.opacity(0.35).ignoresSafeArea()
+                ProgressView()
+                    .tint(.green)
+            }
         }
         .navigationTitle(locale == .ja ? "フレーズディフェンス" : "Phrase Defense")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reloadMap() }
-        .fullScreenCover(isPresented: $showGame) {
-            if let stage = activeStage, let difficulty = activeDifficulty {
-                DefenseGameView(
-                    stage: stage,
-                    difficulty: difficulty,
-                    practiceMode: false,
-                    lessonContext: nil,
-                    locale: locale,
-                    playMapNodeId: activeNode?.id,
-                    onClose: {
-                        showGame = false
-                        activeNode = nil
-                        activeStage = nil
-                        activeDifficulty = nil
-                        Task { await reloadMap() }
-                    },
-                    onPlayMapCleared: {
-                        Task { await handlePlayMapClear() }
-                    }
-                )
-                .id(gameSessionNonce)
-            }
+        .fullScreenCover(item: $stageLaunchSession) { session in
+            DefenseGameView(
+                stage: session.stage,
+                difficulty: session.difficulty,
+                practiceMode: false,
+                lessonContext: nil,
+                locale: locale,
+                playMapNodeId: session.node.id,
+                onClose: {
+                    stageLaunchSession = nil
+                    Task { await reloadMap() }
+                },
+                onPlayMapCleared: {
+                    Task { await handlePlayMapClear(session: session) }
+                }
+            )
         }
         .navigationDestination(
             isPresented: Binding(
@@ -135,6 +139,10 @@ struct DefenseDescentView: View {
     }
 
     private func startStageNode(_ node: PlayMapNode) async {
+        guard !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
+
         guard let stageId = node.defenseStageId else {
             alertMessage = locale == .ja
                 ? "ステージ情報が見つかりません。"
@@ -165,11 +173,7 @@ struct DefenseDescentView: View {
                 : "Failed to load difficulty settings."
             return
         }
-        activeNode = node
-        activeStage = stage
-        activeDifficulty = difficulty
-        gameSessionNonce += 1
-        showGame = true
+        stageLaunchSession = StageLaunchSession(node: node, stage: stage, difficulty: difficulty)
     }
 
     private func startQuestNode(_ node: PlayMapNode) async {
@@ -179,8 +183,9 @@ struct DefenseDescentView: View {
         }
     }
 
-    private func handlePlayMapClear() async {
-        guard let node = activeNode, let stage = activeStage else { return }
+    private func handlePlayMapClear(session: StageLaunchSession) async {
+        let node = session.node
+        let stage = session.stage
         do {
             let result = try await SupabaseService.shared.recordPlayMapNodeClear(
                 nodeId: node.id,

@@ -14,6 +14,7 @@ struct PlayWorldMapView: View {
 
     @State private var tier: PlayMapTier = .basic
     @State private var selectedNode: PlayMapNode?
+    @State private var pendingLaunchNode: PlayMapNode?
     @State private var scrollOffset: CGFloat = 0
 
     private var isEnglishCopy: Bool { locale == .en }
@@ -56,7 +57,7 @@ struct PlayWorldMapView: View {
                 )
             }
         }
-        .sheet(item: $selectedNode) { node in
+        .sheet(item: $selectedNode, onDismiss: launchPendingNodeIfNeeded) { node in
             nodeDetailSheet(node)
         }
     }
@@ -174,12 +175,8 @@ struct PlayWorldMapView: View {
                         .foregroundStyle(.gray)
                 }
                 Button(isEnglishCopy ? "Start" : "開始") {
+                    pendingLaunchNode = node
                     selectedNode = nil
-                    if node.nodeKind == .quest {
-                        onSelectQuestNode(node)
-                    } else {
-                        onSelectNode(node)
-                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.purple)
@@ -195,5 +192,15 @@ struct PlayWorldMapView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+
+    private func launchPendingNodeIfNeeded() {
+        guard let node = pendingLaunchNode else { return }
+        pendingLaunchNode = nil
+        if node.nodeKind == .quest {
+            onSelectQuestNode(node)
+        } else {
+            onSelectNode(node)
+        }
     }
 }

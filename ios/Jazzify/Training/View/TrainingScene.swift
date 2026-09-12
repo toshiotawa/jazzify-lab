@@ -37,8 +37,6 @@ final class TrainingScene: SKScene {
 
         preloadTextures()
         setupSlashEffect()
-        characterLayer.addChild(dyingEnemyNode)
-        characterLayer.addChild(enemyNode)
         rebuildStage()
     }
 
@@ -93,6 +91,7 @@ final class TrainingScene: SKScene {
     }
 
     private func preloadTextures() {
+        guard textures.isEmpty else { return }
         for type in DefenseEnemyType.allCases {
             for frame in [DefenseEnemyFrame.idle, .move] {
                 let name = type.assetName(frame: frame)
@@ -105,6 +104,7 @@ final class TrainingScene: SKScene {
     }
 
     private func setupSlashEffect() {
+        guard slashGlow.parent == nil else { return }
         slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: 10)
         slashGlow.fillColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
         slashGlow.strokeColor = .clear

@@ -90,6 +90,7 @@ final class DefenseScene: SKScene {
     }
 
     private func preloadTextures() {
+        guard textures.isEmpty else { return }
         for type in DefenseEnemyType.allCases {
             for frame in [DefenseEnemyFrame.idle, .move] {
                 let name = type.assetName(frame: frame)
@@ -102,6 +103,7 @@ final class DefenseScene: SKScene {
     }
 
     private func setupImpactEffect() {
+        guard impactRing.parent == nil else { return }
         impactRing.strokeColor = SKColor(red: 0.98, green: 0.75, blue: 0.14, alpha: 1)
         impactRing.fillColor = .clear
         impactRing.lineWidth = 2
@@ -130,6 +132,7 @@ final class DefenseScene: SKScene {
     }
 
     private func setupSlashEffect() {
+        guard slashGlow.parent == nil else { return }
         slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: 10)
         slashGlow.fillColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
         slashGlow.strokeColor = .clear
