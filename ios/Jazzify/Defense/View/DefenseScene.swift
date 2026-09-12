@@ -148,14 +148,16 @@ final class DefenseScene: SKScene {
 
     private func setupSlashEffect() {
         guard slashGlow.parent == nil else { return }
-        slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: 10)
+        let slashHalfGlow = DefenseEnemyConfig.displayLayoutPt(10)
+        let slashHalfCore = DefenseEnemyConfig.displayLayoutPt(4)
+        slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfGlow)
         slashGlow.fillColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
         slashGlow.strokeColor = .clear
         slashGlow.zPosition = 150
         slashGlow.isHidden = true
         effectLayer.addChild(slashGlow)
 
-        slashCore.path = Self.makeTaperedSlashUnitPath(halfWidth: 4)
+        slashCore.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfCore)
         slashCore.fillColor = SKColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 0.95)
         slashCore.strokeColor = .clear
         slashCore.zPosition = 151
@@ -205,7 +207,7 @@ final class DefenseScene: SKScene {
         if runtime.impactAt != DefenseEnemyConfig.noImpact {
             let impactAge = runtime.elapsedSec - runtime.impactAt
             if impactAge >= 0 && impactAge < DefenseEnemyConfig.impactHitbackSec {
-                playerX -= 8
+                playerX -= DefenseEnemyConfig.displayLayoutPt(DefenseEnemyConfig.playerImpactHitbackPt)
             }
         }
         playerNode?.position = CGPoint(x: playerX, y: floorY)
@@ -254,15 +256,14 @@ final class DefenseScene: SKScene {
             var drawX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: logicalX)
             var footOffset: CGFloat = 0
             if attacking {
-                let offset = DefenseEnemyConfig.attackOffset(
+                footOffset += DefenseEnemyConfig.displayAttackFootOffset(
                     attackElapsed: runtime.elapsedSec - enemy.lastAttackAt,
                     flying: enemy.type.isFlying
                 )
-                footOffset += offset.y
             }
             if enemy.type.isFlying {
-                footOffset -= DefenseEnemyConfig.flyingYOffset
-                footOffset += DefenseEnemyConfig.flyingBobOffset(
+                footOffset -= DefenseEnemyConfig.displayFlyingYOffset
+                footOffset += DefenseEnemyConfig.displayFlyingBobOffset(
                     elapsedSec: runtime.elapsedSec,
                     slotIndex: enemy.slotIndex
                 )
@@ -300,13 +301,16 @@ final class DefenseScene: SKScene {
 
         let progress = age / DefenseEnemyConfig.impactSec
         let alpha = CGFloat(1 - progress)
-        let ringRadius = CGFloat(10 + progress * 30)
+        let scale = DefenseEnemyConfig.battleDisplayScale
+        let ringRadius = CGFloat(10 + progress * 30) * scale
         let sparkInner = ringRadius * 0.5
-        let sparkLen = CGFloat(8 + progress * 20)
+        let sparkLen = CGFloat(8 + progress * 20) * scale
         let cx = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.impactX)
         let cy = DefenseSceneLayout.screenY(
             floorY: floorY,
-            canvasDeltaFromFloor: -(DefenseEnemyConfig.groundY - runtime.impactY)
+            canvasDeltaFromFloor: DefenseEnemyConfig.displayCanvasDeltaFromFloor(
+                -(DefenseEnemyConfig.groundY - runtime.impactY)
+            )
         )
 
         impactRing.position = CGPoint(x: cx, y: cy)
@@ -348,7 +352,9 @@ final class DefenseScene: SKScene {
         let toX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.slashToX)
         let toY = DefenseSceneLayout.screenY(
             floorY: floorY,
-            canvasDeltaFromFloor: -(DefenseEnemyConfig.groundY - runtime.slashY)
+            canvasDeltaFromFloor: DefenseEnemyConfig.displayCanvasDeltaFromFloor(
+                -(DefenseEnemyConfig.groundY - runtime.slashY)
+            )
         )
 
         let endX = fromX + (toX - fromX) * lengthScale
@@ -371,7 +377,7 @@ final class DefenseScene: SKScene {
         slashCore.alpha = alpha
 
         let showSparks = lengthScale > 0.85
-        let sparkLen = CGFloat(14 * alpha)
+        let sparkLen = DefenseEnemyConfig.displayLayoutPt(14 * alpha)
         for (index, spark) in slashSparks.enumerated() {
             spark.isHidden = !showSparks
             guard showSparks else { continue }
@@ -385,7 +391,10 @@ final class DefenseScene: SKScene {
 
     private func makeEnemySprite(for type: DefenseEnemyType) -> SKSpriteNode {
         let node = SKSpriteNode(texture: textures[type.assetName(frame: .idle)])
-        node.size = CGSize(width: DefenseEnemyConfig.spriteWidth(for: type), height: type.spriteHeight)
+        node.size = CGSize(
+            width: DefenseEnemyConfig.displaySpriteWidth(for: type),
+            height: DefenseEnemyConfig.displaySpriteHeight(for: type)
+        )
         node.anchorPoint = CGPoint(x: 0.5, y: 0)
         node.zPosition = type.zDepth
         return node

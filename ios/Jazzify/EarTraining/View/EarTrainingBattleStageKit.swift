@@ -8,8 +8,8 @@ enum EarTrainingBattleStageKit {
     static let floorAirAboveKeyboard: CGFloat = 6
     /// SurvivalChordPad 等 88pt 鍵盤向け（WEB `PIANO_OVERLAY_HEIGHT` と揃える）。
     static let chordPadKeyboardHeight: CGFloat = 88
-    /// 88pt 鍵盤上の床余白（WEB `FLOOR_CLEARANCE_FROM_PIANO` と揃える）。
-    static let chordPadFloorClearance: CGFloat = 56
+    /// 88pt 鍵盤上の床余白（耳コピ `floorAirAboveKeyboard` と同じ）。
+    static let chordPadFloorClearance: CGFloat = floorAirAboveKeyboard
     static let battleCharacterVisualScale: CGFloat = 2.0 / 3.0
 
     static var characterDisplaySize: CGFloat { battleLayoutPt(88) }
@@ -48,7 +48,13 @@ enum EarTrainingBattleStageKit {
             clearanceFromKeyboard: clearanceFromKeyboard
         )
 
-        addProceduralBackdrop(into: layer, size: size, floorY: floorY, keyboardHeight: keyboardHeight)
+        addProceduralBackdrop(
+            into: layer,
+            size: size,
+            floorY: floorY,
+            keyboardHeight: keyboardHeight,
+            clearanceFromKeyboard: clearanceFromKeyboard
+        )
         addStageSpotlights(into: layer, size: size, floorY: floorY)
         addStageProps(into: layer, width: size.width, floorY: floorY)
         addFloorShadows(into: layer, width: size.width, floorY: floorY)
@@ -185,25 +191,38 @@ enum EarTrainingBattleStageKit {
         }
     }
 
+    private enum JazzStagePropLayout {
+        static let doubleBassWidthFrac: CGFloat = 0.10
+        static let pianoWidthFrac: CGFloat = 0.13
+        static let drumWidthFrac: CGFloat = 0.138
+        static let drumCenterXPreferredFrac: CGFloat = 0.91
+        static let drumMarginFromSceneRightPt: CGFloat = 16
+        static let instrumentTint = UIColor(red: 38 / 255, green: 30 / 255, blue: 28 / 255, alpha: 1)
+        static let instrumentBlendFactor: CGFloat = 0.68
+    }
+
     private static func addProceduralBackdrop(
         into layer: SKNode,
         size: CGSize,
         floorY: CGFloat,
-        keyboardHeight: CGFloat
+        keyboardHeight: CGFloat,
+        clearanceFromKeyboard: CGFloat
     ) {
         let key = generatedTextureCacheKey(
             "jazzBackdrop",
             textureCacheComponent(size.width),
             textureCacheComponent(size.height),
             textureCacheComponent(floorY),
-            textureCacheComponent(keyboardHeight)
+            textureCacheComponent(keyboardHeight),
+            textureCacheComponent(clearanceFromKeyboard)
         )
         let texture = makePaintedTexture(key: key, size: size) { cg, textureSize in
             paintJazzBarBackdrop(
                 cgContext: cg,
                 size: textureSize,
                 floorY: floorY,
-                keyboardHeight: keyboardHeight
+                keyboardHeight: keyboardHeight,
+                clearanceFromKeyboard: clearanceFromKeyboard
             )
         }
         let backdrop = SKSpriteNode(texture: texture)
@@ -369,27 +388,31 @@ enum EarTrainingBattleStageKit {
             assetName: "ear-training-bg-double-bass",
             centerX: width * 0.075,
             floorY: floorY,
-            maxWidth: width * 0.12,
+            maxWidth: width * JazzStagePropLayout.doubleBassWidthFrac,
             alpha: 0.82,
             z: SpotlightLayout.Z.doubleBass,
+            tintColor: JazzStagePropLayout.instrumentTint,
+            tintBlendFactor: JazzStagePropLayout.instrumentBlendFactor,
             layer: layer
         )
         addPropIfAvailable(
             assetName: "ear-training-bg-upright-piano",
             centerX: width * 0.352,
             floorY: floorY,
-            maxWidth: width * 0.15,
+            maxWidth: width * JazzStagePropLayout.pianoWidthFrac,
             alpha: 0.82,
             z: SpotlightLayout.Z.piano,
+            tintColor: JazzStagePropLayout.instrumentTint,
+            tintBlendFactor: JazzStagePropLayout.instrumentBlendFactor,
             layer: layer
         )
 
-        let drumMaxW = max(1, floor(width * 0.158))
+        let drumMaxW = max(1, floor(width * JazzStagePropLayout.drumWidthFrac))
         let drumHalfW = drumMaxW * 0.5
         let enemyApproxRightEdgeX = width * 0.77 + characterDisplaySize * 0.48
-        let drumMaxCenterX = width - 16 - drumHalfW
+        let drumMaxCenterX = width - JazzStagePropLayout.drumMarginFromSceneRightPt - drumHalfW
         let minimumCenterPastEnemy = enemyApproxRightEdgeX + drumHalfW * 0.32 + 10
-        var drumCenterX = width * 0.91
+        var drumCenterX = width * JazzStagePropLayout.drumCenterXPreferredFrac
         drumCenterX = max(drumCenterX, min(minimumCenterPastEnemy, drumMaxCenterX))
         drumCenterX = min(drumCenterX, drumMaxCenterX)
         addPropIfAvailable(
@@ -399,6 +422,8 @@ enum EarTrainingBattleStageKit {
             maxWidth: drumMaxW,
             alpha: 0.84,
             z: SpotlightLayout.Z.drumKit,
+            tintColor: JazzStagePropLayout.instrumentTint,
+            tintBlendFactor: JazzStagePropLayout.instrumentBlendFactor,
             layer: layer
         )
     }
@@ -421,6 +446,8 @@ enum EarTrainingBattleStageKit {
         maxWidth: CGFloat,
         alpha: CGFloat,
         z: CGFloat,
+        tintColor: UIColor? = nil,
+        tintBlendFactor: CGFloat = 0,
         layer: SKNode
     ) {
         guard let image = UIImage(named: assetName), image.size.width > 1 else { return }
@@ -433,6 +460,10 @@ enum EarTrainingBattleStageKit {
         sprite.position = CGPoint(x: centerX, y: floorY)
         sprite.alpha = alpha
         sprite.zPosition = z
+        if let tintColor, tintBlendFactor > 0 {
+            sprite.color = tintColor
+            sprite.colorBlendFactor = tintBlendFactor
+        }
         layer.addChild(sprite)
     }
 
@@ -671,7 +702,8 @@ enum EarTrainingBattleStageKit {
         cgContext cg: CGContext,
         size textureSize: CGSize,
         floorY: CGFloat,
-        keyboardHeight: CGFloat
+        keyboardHeight: CGFloat,
+        clearanceFromKeyboard: CGFloat
     ) {
         let width = textureSize.width
         let height = textureSize.height
@@ -855,7 +887,7 @@ enum EarTrainingBattleStageKit {
         }
         cg.restoreGState()
 
-        let barSkCapDesired = min(keyboardHeight + 56, max(12, fyClamped - 10))
+        let barSkCapDesired = min(keyboardHeight + clearanceFromKeyboard, max(12, fyClamped - 10))
         let parquetH = fyClamped - barSkCapDesired
         if parquetH > 12 {
             let pqRectUIKit = CGRect(x: 0, y: height - fyClamped, width: width, height: parquetH)

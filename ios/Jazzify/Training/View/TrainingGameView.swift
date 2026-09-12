@@ -92,7 +92,7 @@ struct TrainingGameView: View {
         ZStack {
             Color(uiColor: EarTrainingBattleStageKit.jazzBackdropEdgeColor)
                 .ignoresSafeArea()
-            SpriteView(scene: scene, options: [.allowsTransparency])
+            TrainingSceneContainer(scene: scene, sceneSize: size)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -254,5 +254,82 @@ struct TrainingGameView: View {
             stageRange: stageKeyboardRange,
             displayMode: keyboardDisplayMode
         )
+    }
+}
+
+private struct TrainingSceneContainer: UIViewRepresentable {
+    let scene: TrainingScene
+    let sceneSize: CGSize
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> SKView {
+        let initialFrame = CGRect(origin: .zero, size: normalizedSceneSize(sceneSize))
+        let view = SKView(frame: initialFrame)
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.ignoresSiblingOrder = true
+        view.preferredFramesPerSecond = 60
+        view.isAsynchronous = false
+        view.isPaused = false
+        view.allowsTransparency = true
+
+        scene.scaleMode = .resizeFill
+        scene.isPaused = false
+        if view.scene !== scene {
+            view.presentScene(scene)
+        }
+        context.coordinator.attach(view: view, scene: scene)
+        return view
+    }
+
+    func updateUIView(_ uiView: SKView, context: Context) {
+        context.coordinator.update(sceneSize: normalizedSceneSize(sceneSize))
+    }
+
+    private func normalizedSceneSize(_ size: CGSize) -> CGSize {
+        CGSize(width: max(1, size.width), height: max(1, size.height))
+    }
+
+    static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var view: SKView?
+        private weak var scene: TrainingScene?
+        private var activeObserver: NSObjectProtocol?
+
+        func attach(view: SKView, scene: TrainingScene) {
+            self.view = view
+            self.scene = scene
+            activeObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                if let view = self?.view, view.isPaused { view.isPaused = false }
+                if let scene = self?.scene, scene.isPaused { scene.isPaused = false }
+            }
+        }
+
+        @MainActor
+        func update(sceneSize: CGSize) {
+            view?.bounds = CGRect(origin: .zero, size: sceneSize)
+            guard let scene else { return }
+            if scene.size != sceneSize {
+                scene.size = sceneSize
+            }
+        }
+
+        func detach() {
+            if let observer = activeObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            activeObserver = nil
+            view?.isPaused = true
+            view?.presentScene(nil)
+            view = nil
+            scene = nil
+        }
     }
 }

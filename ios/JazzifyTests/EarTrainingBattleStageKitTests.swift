@@ -22,7 +22,8 @@ final class EarTrainingBattleStageKitTests: XCTestCase {
             clearanceFromKeyboard: EarTrainingBattleStageKit.chordPadFloorClearance
         )
         let minimumFootY = EarTrainingBattleStageKit.chordPadKeyboardHeight
-            + EarTrainingBattleStageKit.chordPadFloorClearance
+            + EarTrainingBattleStageKit.floorAirAboveKeyboard
+        XCTAssertEqual(EarTrainingBattleStageKit.chordPadFloorClearance, EarTrainingBattleStageKit.floorAirAboveKeyboard)
         XCTAssertGreaterThanOrEqual(floorY, minimumFootY)
     }
 

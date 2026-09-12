@@ -117,14 +117,16 @@ final class TrainingScene: SKScene {
 
     private func setupSlashEffect() {
         guard slashGlow.parent == nil else { return }
-        slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: 10)
+        let slashHalfGlow = DefenseEnemyConfig.displayLayoutPt(10)
+        let slashHalfCore = DefenseEnemyConfig.displayLayoutPt(4)
+        slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfGlow)
         slashGlow.fillColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
         slashGlow.strokeColor = .clear
         slashGlow.zPosition = 150
         slashGlow.isHidden = true
         effectLayer.addChild(slashGlow)
 
-        slashCore.path = Self.makeTaperedSlashUnitPath(halfWidth: 4)
+        slashCore.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfCore)
         slashCore.fillColor = SKColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 0.95)
         slashCore.strokeColor = .clear
         slashCore.zPosition = 151
@@ -219,15 +221,18 @@ final class TrainingScene: SKScene {
 
         var footOffset: CGFloat = 0
         if type.isFlying {
-            footOffset -= DefenseEnemyConfig.flyingYOffset
-            footOffset += DefenseEnemyConfig.flyingBobOffset(elapsedSec: elapsedSec, slotIndex: typeIndex)
+            footOffset -= DefenseEnemyConfig.displayFlyingYOffset
+            footOffset += DefenseEnemyConfig.displayFlyingBobOffset(elapsedSec: elapsedSec, slotIndex: typeIndex)
         }
 
         node.isHidden = false
         node.anchorPoint = CGPoint(x: 0.5, y: 0)
         node.position = CGPoint(x: size.width * Self.enemyXRatio + offsetX, y: floorY + footOffset)
         node.alpha = alpha
-        node.size = CGSize(width: DefenseEnemyConfig.spriteWidth(for: type), height: type.spriteHeight)
+        node.size = CGSize(
+            width: DefenseEnemyConfig.displaySpriteWidth(for: type),
+            height: DefenseEnemyConfig.displaySpriteHeight(for: type)
+        )
         node.zPosition = type.zDepth
     }
 

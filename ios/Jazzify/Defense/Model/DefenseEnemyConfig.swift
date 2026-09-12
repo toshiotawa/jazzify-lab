@@ -12,6 +12,35 @@ enum DefenseEnemyConfig {
     static let noSlash: TimeInterval = -1
     static let flyingYOffset: CGFloat = 90
     static let noImpact: TimeInterval = -1
+    static let playerImpactHitbackPt: CGFloat = 8
+
+    static var battleDisplayScale: CGFloat { EarTrainingBattleStageKit.battleCharacterVisualScale }
+
+    static func displaySpriteHeight(for type: DefenseEnemyType) -> CGFloat {
+        type.spriteHeight * battleDisplayScale
+    }
+
+    static func displaySpriteWidth(for type: DefenseEnemyType) -> CGFloat {
+        displaySpriteHeight(for: type) * type.aspectRatio
+    }
+
+    static var displayFlyingYOffset: CGFloat { flyingYOffset * battleDisplayScale }
+
+    static func displayFlyingBobOffset(elapsedSec: TimeInterval, slotIndex: Int) -> CGFloat {
+        flyingBobOffset(elapsedSec: elapsedSec, slotIndex: slotIndex) * battleDisplayScale
+    }
+
+    static func displayAttackFootOffset(attackElapsed: TimeInterval, flying: Bool) -> CGFloat {
+        attackOffset(attackElapsed: attackElapsed, flying: flying).y * battleDisplayScale
+    }
+
+    static func displayCanvasDeltaFromFloor(_ logicalDelta: CGFloat) -> CGFloat {
+        logicalDelta * battleDisplayScale
+    }
+
+    static func displayLayoutPt(_ base: CGFloat) -> CGFloat {
+        base * battleDisplayScale
+    }
 
     static let sparkAngles: [CGFloat] = [
         0,
