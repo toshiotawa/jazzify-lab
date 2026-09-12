@@ -20,6 +20,13 @@ interface StairConnectorProps {
   highlighted?: boolean;
   /** 通常線に適用する色相回転 (度) */
   hueDeg?: number;
+  /** カスタム stroke 色（未指定時は降下マップ既定） */
+  mainStroke?: string;
+  innerStroke?: string;
+  glowColor?: string;
+  highlightedMainStroke?: string;
+  highlightedInnerStroke?: string;
+  highlightedGlowColor?: string;
 }
 
 function buildStepPath(from: Point, to: Point): string {
@@ -40,7 +47,20 @@ function buildStepPath(from: Point, to: Point): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 }
 
-export const StairConnector: React.FC<StairConnectorProps> = ({ from, to, scale, dim, highlighted, hueDeg = 0 }) => {
+export const StairConnector: React.FC<StairConnectorProps> = ({
+  from,
+  to,
+  scale,
+  dim,
+  highlighted,
+  hueDeg = 0,
+  mainStroke: mainStrokeOverride,
+  innerStroke: innerStrokeOverride,
+  glowColor: glowColorOverride,
+  highlightedMainStroke,
+  highlightedInnerStroke,
+  highlightedGlowColor,
+}) => {
   const padX = 20;
   const padY = 10;
   const minX = Math.min(from.x, to.x) - padX;
@@ -52,10 +72,16 @@ export const StairConnector: React.FC<StairConnectorProps> = ({ from, to, scale,
   const path = buildStepPath(localFrom, localTo);
 
   const opacity = dim ? 0.3 : 1;
-  const mainStroke = highlighted ? 'rgba(255,218,140,1)' : 'rgba(200,212,238,0.92)';
+  const mainStroke = highlighted
+    ? (highlightedMainStroke ?? 'rgba(255,218,140,1)')
+    : (mainStrokeOverride ?? 'rgba(200,212,238,0.92)');
   const shadowStroke = 'rgba(0,0,0,0.6)';
-  const innerStroke = highlighted ? 'rgba(255,248,220,0.9)' : 'rgba(240,245,255,0.75)';
-  const glowColor = highlighted ? 'rgba(255,200,96,0.8)' : 'rgba(180,200,240,0.45)';
+  const innerStroke = highlighted
+    ? (highlightedInnerStroke ?? 'rgba(255,248,220,0.9)')
+    : (innerStrokeOverride ?? 'rgba(240,245,255,0.75)');
+  const glowColor = highlighted
+    ? (highlightedGlowColor ?? 'rgba(255,200,96,0.8)')
+    : (glowColorOverride ?? 'rgba(180,200,240,0.45)');
 
   const mainWidth = Math.max(4, 7 * scale);
   const shadowWidth = Math.max(8, 12 * scale);

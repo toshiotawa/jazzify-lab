@@ -7,6 +7,26 @@ final class DefenseTransportTests: XCTestCase {
         XCTAssertEqual(samples, 88200)
     }
 
+    func testBarSeconds120Bpm44() {
+        XCTAssertEqual(DefenseTransport.barSeconds(bpm: 120, beatsPerBar: 4), 2, accuracy: 0.0001)
+    }
+
+    func testNextSwitchTimeTargetsNextBarHead() {
+        XCTAssertEqual(
+            DefenseTransport.nextSwitchTime(now: 11.2, transportStart: 10, barSec: 2, deadlineSec: 0.1),
+            12,
+            accuracy: 0.0001
+        )
+    }
+
+    func testNextSwitchTimeSkipsBarWhenDeadlineWouldBeMissed() {
+        XCTAssertEqual(
+            DefenseTransport.nextSwitchTime(now: 11.95, transportStart: 10, barSec: 2, deadlineSec: 0.1),
+            14,
+            accuracy: 0.0001
+        )
+    }
+
     func testNextSwitchSample() {
         let bar: Int64 = 88200
         let switchAt = DefenseTransport.nextSwitchSample(

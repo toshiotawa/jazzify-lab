@@ -299,7 +299,6 @@
 		B8E7E486557C767370E527B6 /* EarTrainingPracticeSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E61246F5E583E2666BE252D /* EarTrainingPracticeSpeed.swift */; };
 		B90AC100700723AC06C94EEF /* EarTrainingAdlibCallResponseBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F81049A4FCE2B486366727A /* EarTrainingAdlibCallResponseBattleController.swift */; };
 		BA004B9D31A1DFBAF189D6D0 /* EarTrainingPhrasePairEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F025416B60CF0EC0AB90A07 /* EarTrainingPhrasePairEngine.swift */; };
-		BB22CC33DD44EE55FF6677AB /* PlayWorldMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF6677AA /* PlayWorldMapView.swift */; };
 		BC9FBB70910F7F22178BE29D /* MarketingOptInBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10DD1CE67E095CAEF6F59BC7 /* MarketingOptInBannerView.swift */; };
 		BE235741779F7647638FFAFF /* SurvivalTutorialV3DrumLoopPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EACD167A81EDA542E86E8E5 /* SurvivalTutorialV3DrumLoopPlayer.swift */; };
 		BEE0811FA11541DA85F15B20 /* PlayHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 226309395C0E476BB9BC4700 /* PlayHubView.swift */; };
@@ -351,9 +350,11 @@
 		DEFDL001BUILD0000000001 /* DefenseDescentLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */; };
 		DEFDM001BUILD0000000001 /* DefenseDescentMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */; };
 		DEFDS001BUILD0000000001 /* DefenseDescentSidePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */; };
+		CRDM001BUILD00000000001 /* CodeRunDescentMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CRDM001FILE00000000001 /* CodeRunDescentMapView.swift */; };
+		CRDS001BUILD00000000001 /* CodeRunDescentSidePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CRDS001FILE00000000001 /* CodeRunDescentSidePanel.swift */; };
+		CRVC001BUILD00000000001 /* CodeRunDescentViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CRVC001FILE00000000001 /* CodeRunDescentViewComponents.swift */; };
+		CRTM001BUILD00000000001 /* CodeRunMapTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CRTM001FILE00000000001 /* CodeRunMapTheme.swift */; };
 		DD6CB384F0986D73E24D0390 /* EarTrainingChordVoicingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FCFF1BA9E9B2B7C1843B0C6 /* EarTrainingChordVoicingBattleController.swift */; };
-		A1PCMCONV000000000000002 /* PCMBufferConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1PCMCONV000000000000001 /* PCMBufferConverter.swift */; };
-		A1PCMTEST000000000000002 /* PCMBufferConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1PCMTEST000000000000001 /* PCMBufferConverterTests.swift */; };
 		A1STGKIT000000000000002 /* EarTrainingBattleStageKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1STGKIT000000000000001 /* EarTrainingBattleStageKitTests.swift */; };
 		DDE97362E5FE0DE0E45766F5 /* RemoteAudioFileCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */; };
 		DE01E0010000000000000002 /* DefenseEnemyConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE01E0010000000000000001 /* DefenseEnemyConfig.swift */; };
@@ -582,8 +583,6 @@
 		6E48683B3B737009938D6CE8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhraseSlotsView.swift; sourceTree = "<group>"; };
 		6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteAudioFileCache.swift; sourceTree = "<group>"; };
-		A1PCMCONV000000000000001 /* PCMBufferConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PCMBufferConverter.swift; sourceTree = "<group>"; };
-		A1PCMTEST000000000000001 /* PCMBufferConverterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PCMBufferConverterTests.swift; sourceTree = "<group>"; };
 		A1STGKIT000000000000001 /* EarTrainingBattleStageKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleStageKitTests.swift; sourceTree = "<group>"; };
 		6F66608CB479A750BF6AF893 /* DefenseTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTransport.swift; sourceTree = "<group>"; };
 		6F8BFE37B198C035761B13AD /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
@@ -708,7 +707,6 @@
 		B89D81207B3C7BA9E51011AC /* SurvivalScenarioOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioOverrides.swift; sourceTree = "<group>"; };
 		B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEngine.swift; sourceTree = "<group>"; };
 		BA491A99A19542D3A7969933 /* TrainingScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingScene.swift; sourceTree = "<group>"; };
-		BB22CC33DD44EE55FF6677AA /* PlayWorldMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayWorldMapView.swift; sourceTree = "<group>"; };
 		BF8ECC214ED50933CFC7AC74 /* SurvivalGameResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameResultView.swift; sourceTree = "<group>"; };
 		C19CE4C88C2E79AE483C7398 /* EarTrainingAdlibCallResponseTargetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseTargetsTests.swift; sourceTree = "<group>"; };
 		C1E478DD1771E668946C75BA /* SurvivalLessonRandomChordsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonRandomChordsTests.swift; sourceTree = "<group>"; };
@@ -762,6 +760,10 @@
 		DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentLayout.swift; sourceTree = "<group>"; };
 		DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentMapView.swift; sourceTree = "<group>"; };
 		DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentSidePanel.swift; sourceTree = "<group>"; };
+		CRDM001FILE00000000001 /* CodeRunDescentMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeRunDescentMapView.swift; sourceTree = "<group>"; };
+		CRDS001FILE00000000001 /* CodeRunDescentSidePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeRunDescentSidePanel.swift; sourceTree = "<group>"; };
+		CRVC001FILE00000000001 /* CodeRunDescentViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeRunDescentViewComponents.swift; sourceTree = "<group>"; };
+		CRTM001FILE00000000001 /* CodeRunMapTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeRunMapTheme.swift; sourceTree = "<group>"; };
 		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE01E0010000000000000001 /* DefenseEnemyConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseEnemyConfig.swift; sourceTree = "<group>"; };
 		DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStatusEffectEngine.swift; sourceTree = "<group>"; };
@@ -1172,7 +1174,6 @@
 				84BE9512747AC50BF5059458 /* DefenseTransportTests.swift */,
 				A1STGKIT000000000000001 /* EarTrainingBattleStageKitTests.swift */,
 				C19CE4C88C2E79AE483C7398 /* EarTrainingAdlibCallResponseTargetsTests.swift */,
-				A1PCMTEST000000000000001 /* PCMBufferConverterTests.swift */,
 				B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */,
 				B4B32E381A4EBA54C3DA3624 /* EarTrainingCanonicalPhraseNotesTests.swift */,
 				192633CABD146818E6B56477 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift */,
@@ -1367,7 +1368,6 @@
 				39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */,
 				4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */,
 				2E4DC894813C1800B8E45772 /* QuestJinglePlayer.swift */,
-				A1PCMCONV000000000000001 /* PCMBufferConverter.swift */,
 				6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */,
 			);
 			path = Audio;
@@ -1616,11 +1616,14 @@
 				D1SC0RD1A2B3C4D5E6F70890 /* DiscordCommunitySectionView.swift */,
 				D1SC0RD2A2B3C4D5E6F70890 /* DiscordOAuth.swift */,
 				CC33DD44EE55FF6677AA11BB /* CodeRunWorldView.swift */,
+				CRDM001FILE00000000001 /* CodeRunDescentMapView.swift */,
+				CRDS001FILE00000000001 /* CodeRunDescentSidePanel.swift */,
+				CRVC001FILE00000000001 /* CodeRunDescentViewComponents.swift */,
+				CRTM001FILE00000000001 /* CodeRunMapTheme.swift */,
 				DD44EE55FF6677AA11BB22CC /* DefenseDescentView.swift */,
 				DEFDL001FILE00000000001 /* DefenseDescentLayout.swift */,
 				DEFDM001FILE00000000001 /* DefenseDescentMapView.swift */,
 				DEFDS001FILE00000000001 /* DefenseDescentSidePanel.swift */,
-				BB22CC33DD44EE55FF6677AA /* PlayWorldMapView.swift */,
 				10DD1CE67E095CAEF6F59BC7 /* MarketingOptInBannerView.swift */,
 				CE37C824003D0142D6E454EB /* PianoKeyboardDisplayModeSection.swift */,
 				AD142C35C72EBF8541B8AC85 /* PianoKeyboardDisplayPreferences.swift */,
@@ -1885,7 +1888,6 @@
 				1FDD1086A70B5098523B27DC /* DefenseTransportTests.swift in Sources */,
 				A1STGKIT000000000000002 /* EarTrainingBattleStageKitTests.swift in Sources */,
 				766F62D9EC19BFBDED4C6A0E /* EarTrainingAdlibCallResponseTargetsTests.swift in Sources */,
-				A1PCMTEST000000000000002 /* PCMBufferConverterTests.swift in Sources */,
 				FB6A8B415144A1D9DD2C001C /* EarTrainingAudioCaptureTests.swift in Sources */,
 				9657204BD40C8A2B3D6D93D0 /* EarTrainingCanonicalPhraseNotesTests.swift in Sources */,
 				9822C044B046A4A5DD7687E9 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift in Sources */,
@@ -2135,7 +2137,6 @@
 				67487F8C540FBDDEF829E620 /* QuestJinglePlayer.swift in Sources */,
 				94C146835E10F5E6F75844BA /* QuestReadyToCompleteSheet.swift in Sources */,
 				4B717F97871B7B6B06082BC8 /* QuestStageCardAssets.swift in Sources */,
-				A1PCMCONV000000000000002 /* PCMBufferConverter.swift in Sources */,
 				DDE97362E5FE0DE0E45766F5 /* RemoteAudioFileCache.swift in Sources */,
 				25EFE7F9B8BA144F9C728898 /* ScreenRotation180Toggle.swift in Sources */,
 				38E9B6ED9BB90848D3E83056 /* ScreenRotationApplier.swift in Sources */,
@@ -2159,8 +2160,11 @@
 				D1SC0RD1A2B3C4D5E6F70891 /* DiscordCommunitySectionView.swift in Sources */,
 				D1SC0RD2A2B3C4D5E6F70891 /* DiscordOAuth.swift in Sources */,
 				AA11BB22CC33DD44EE55FF67 /* PlayMapModels.swift in Sources */,
-				BB22CC33DD44EE55FF6677AB /* PlayWorldMapView.swift in Sources */,
 				CC33DD44EE55FF6677AA11BC /* CodeRunWorldView.swift in Sources */,
+				CRDM001BUILD00000000001 /* CodeRunDescentMapView.swift in Sources */,
+				CRDS001BUILD00000000001 /* CodeRunDescentSidePanel.swift in Sources */,
+				CRVC001BUILD00000000001 /* CodeRunDescentViewComponents.swift in Sources */,
+				CRTM001BUILD00000000001 /* CodeRunMapTheme.swift in Sources */,
 				DD44EE55FF6677AA11BB22CD /* DefenseDescentView.swift in Sources */,
 				DEFDL001BUILD0000000001 /* DefenseDescentLayout.swift in Sources */,
 				DEFDM001BUILD0000000001 /* DefenseDescentMapView.swift in Sources */,

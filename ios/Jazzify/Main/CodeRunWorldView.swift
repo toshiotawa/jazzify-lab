@@ -41,13 +41,12 @@ struct CodeRunWorldView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "020617").ignoresSafeArea()
+            Color(hex: "7ec8f0").ignoresSafeArea()
 
             if isLoading {
                 ProgressView().tint(.purple)
             } else {
-                PlayWorldMapView(
-                    mode: .codeRun,
+                CodeRunDescentMapView(
                     locale: locale,
                     isPremium: appState.isPremium,
                     blocks: blocks,

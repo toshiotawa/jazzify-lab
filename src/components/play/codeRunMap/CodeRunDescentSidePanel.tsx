@@ -1,0 +1,154 @@
+import React from 'react';
+import { FaCheck, FaLock, FaPlay } from 'react-icons/fa';
+import { cn } from '@/utils/cn';
+import type { PlayMapNode } from '@/platform/supabasePlayMap';
+import type { PlayBlockLayout } from '@/components/play/defenseDescent/playDescentLayout';
+import {
+  formatCodeRunRankCondition,
+  type CodeRunLetterRank,
+} from '@/utils/codeRunRank';
+
+interface RankThreshold {
+  rank: CodeRunLetterRank;
+  maxSeconds: number;
+  sortOrder: number;
+}
+
+interface CodeRunDescentSidePanelProps {
+  isEnglishCopy: boolean;
+  totalClearedCount: number;
+  totalStageNodes: number;
+  activeBlock: PlayBlockLayout | null;
+  blockClearedCount: number;
+  selectedNode: PlayMapNode | null;
+  selectedNodeCleared: boolean;
+  selectedNodeUnlocked: boolean;
+  bestRank: string | null;
+  rankThresholds: readonly RankThreshold[];
+  onStart: () => void;
+  onRequestUpgrade: () => void;
+  startLocked: boolean;
+}
+
+export const CodeRunDescentSidePanel: React.FC<CodeRunDescentSidePanelProps> = ({
+  isEnglishCopy,
+  totalClearedCount,
+  totalStageNodes,
+  activeBlock,
+  blockClearedCount,
+  selectedNode,
+  selectedNodeCleared,
+  selectedNodeUnlocked,
+  bestRank,
+  rankThresholds,
+  onStart,
+  onRequestUpgrade,
+  startLocked,
+}) => {
+  const totalProgressPct = Math.round((totalClearedCount / Math.max(1, totalStageNodes)) * 100);
+  const blockStageCount = activeBlock
+    ? activeBlock.nodes.filter((n) => n.node.nodeKind === 'stage').length
+    : 0;
+  const blockProgressPct = blockStageCount > 0
+    ? Math.round((blockClearedCount / blockStageCount) * 100)
+    : 0;
+
+  return (
+    <aside
+      className="flex h-full w-full flex-col gap-4 overflow-y-auto border border-sky-400/20 bg-gradient-to-b from-[#1a2840]/90 to-[#0a1428]/95 p-5 text-white font-sans shadow-[inset_0_0_60px_rgba(0,0,0,0.35)] rounded-xl md:rounded-l-none md:rounded-r-xl md:border-l-0"
+      aria-label={isEnglishCopy ? 'Code Run info panel' : 'コードラン情報パネル'}
+    >
+      <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+        <p className="text-[10px] font-bold tracking-[0.2em] text-sky-200/70">
+          {isEnglishCopy ? 'CODE RUN' : 'コードラン'}
+        </p>
+        <h2 className="mt-1 text-lg font-extrabold text-sky-100">
+          {isEnglishCopy ? 'World Map' : 'ワールドマップ'}
+        </h2>
+        <p className="mt-2 text-xs text-slate-300">
+          {isEnglishCopy ? 'Total progress' : '全体進捗'}: {totalClearedCount}/{totalStageNodes} ({totalProgressPct}%)
+        </p>
+      </div>
+
+      {activeBlock && (
+        <div className="rounded-lg border border-white/5 bg-black/20 p-3">
+          <p className="text-xs font-bold text-sky-200/80">
+            {isEnglishCopy ? activeBlock.labelEn : activeBlock.label}
+          </p>
+          <p className="mt-1 text-xs text-slate-300">
+            {isEnglishCopy ? 'Block progress' : 'ブロック進捗'}: {blockClearedCount}/{blockStageCount} ({blockProgressPct}%)
+          </p>
+        </div>
+      )}
+
+      {selectedNode ? (
+        <div className="rounded-lg border border-sky-400/20 bg-black/25 p-4">
+          <h3 className="text-base font-bold text-white">
+            {isEnglishCopy ? selectedNode.titleEn : selectedNode.title}
+          </h3>
+          <p className="mt-2 flex items-center gap-2 text-xs text-slate-300">
+            {selectedNodeCleared ? (
+              <>
+                <FaCheck className="text-emerald-400" aria-hidden />
+                {isEnglishCopy ? 'Cleared' : 'クリア済み'}
+              </>
+            ) : selectedNodeUnlocked ? (
+              isEnglishCopy ? 'Ready to play' : 'プレイ可能'
+            ) : (
+              <>
+                <FaLock className="text-slate-500" aria-hidden />
+                {isEnglishCopy ? 'Locked' : 'ロック中'}
+              </>
+            )}
+          </p>
+          {selectedNode.nodeKind === 'stage' && (
+            <p className="mt-1 text-xs text-slate-300">
+              {formatCodeRunRankCondition(
+                selectedNode.requiredRank,
+                rankThresholds,
+                isEnglishCopy,
+              )}
+            </p>
+          )}
+          {bestRank && (
+            <p className="mt-1 text-xs text-emerald-300">
+              {isEnglishCopy ? `Best rank: ${bestRank}` : `最高ランク: ${bestRank}`}
+            </p>
+          )}
+          {startLocked ? (
+            <button
+              type="button"
+              className="mt-4 w-full rounded-lg bg-amber-600 py-2.5 text-sm font-bold text-white hover:bg-amber-500"
+              onClick={onRequestUpgrade}
+            >
+              {isEnglishCopy ? 'Upgrade to unlock' : 'アップグレードして解放'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className={cn(
+                'mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-white',
+                selectedNodeUnlocked
+                  ? 'bg-indigo-600 hover:bg-indigo-500'
+                  : 'cursor-not-allowed bg-slate-700 text-slate-400',
+              )}
+              onClick={onStart}
+              disabled={!selectedNodeUnlocked}
+            >
+              <FaPlay aria-hidden />
+              {isEnglishCopy ? 'Start' : '開始'}
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="text-center text-xs text-slate-400">
+          {isEnglishCopy
+            ? 'Tap a node on the map to view details.'
+            : 'マップのノードをタップすると詳細が表示されます。'}
+        </p>
+      )}
+    </aside>
+  );
+};
+
+export default CodeRunDescentSidePanel;

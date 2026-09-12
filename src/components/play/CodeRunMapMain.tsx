@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
-import PlayWorldMap from '@/components/play/PlayWorldMap';
+import CodeRunDescentMap from '@/components/play/codeRunMap/CodeRunDescentMap';
 import CodeRunGameScreen from '@/components/survival/codeRun/CodeRunGameScreen';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
@@ -213,10 +213,9 @@ const CodeRunMapMain: React.FC = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+    <div className="min-h-[100dvh] bg-[#7ec8f0]">
       <GameHeader />
-      <PlayWorldMap
-        mode="code_run"
+      <CodeRunDescentMap
         isEnglishCopy={isEnglishCopy}
         isPremiumMember={isPremiumMember}
         onSelectNode={(node) => { void startFromNode(node); }}
