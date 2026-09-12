@@ -17,7 +17,7 @@ import { getWindow } from '@/platform';
 import CodeRunDescentBlock, { CodeRunBlockDimVeil } from '@/components/play/codeRunMap/CodeRunDescentBlock';
 import CodeRunDescentSidePanel from '@/components/play/codeRunMap/CodeRunDescentSidePanel';
 import CodeRunSkyBackground from '@/components/play/codeRunMap/parts/CodeRunSkyBackground';
-import CodeRunMapCharacter from '@/components/play/codeRunMap/parts/CodeRunMapCharacter';
+import DescentCharacter from '@/components/survival/descent/parts/DescentCharacter';
 import {
   buildPlayDescentLayout,
   countClearedStageNodes,
@@ -358,7 +358,7 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
   return (
     <div className="relative flex h-[calc(100dvh-56px)] flex-col bg-[#7ec8f0]">
       <style>{`
-        @keyframes code-run-map-breath {
+        @keyframes descent-breath {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-2px); }
         }
@@ -432,7 +432,6 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
                     clearedNodeIds,
                     isPremiumMember,
                   );
-                  const hasNextBlock = blockLayout.blockIndex + 1 < layout.blocks.length;
                   return (
                     <CodeRunDescentBlock
                       key={blockLayout.blockId}
@@ -445,7 +444,6 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
                       dim={dim}
                       isEnglishCopy={isEnglishCopy}
                       frontierNodeId={frontierNodeId}
-                      hasNextBlock={hasNextBlock}
                     />
                   );
                 })}
@@ -462,7 +460,7 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
                 ))}
 
                 {frontierPosition && (
-                  <CodeRunMapCharacter
+                  <DescentCharacter
                     xPx={frontierPosition.x * scale}
                     yPx={frontierPosition.y * scale}
                     scale={scale}

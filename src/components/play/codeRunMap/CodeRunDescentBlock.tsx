@@ -17,7 +17,6 @@ interface CodeRunDescentBlockProps {
   dim: boolean;
   isEnglishCopy: boolean;
   frontierNodeId: string | null;
-  hasNextBlock: boolean;
 }
 
 export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
@@ -30,14 +29,8 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
   dim,
   isEnglishCopy,
   frontierNodeId,
-  hasNextBlock,
 }) => {
   const theme = getCodeRunMapTheme(layout.blockIndex);
-
-  const lastNode = layout.nodes[layout.nodes.length - 1];
-  const stageNodes = layout.nodes.filter((n) => n.node.nodeKind === 'stage');
-  const blockCleared = stageNodes.length > 0
-    && stageNodes.every((n) => clearedNodeIds.has(n.nodeId));
 
   const connectors = useMemo(() => {
     const pairs: Array<{ from: { x: number; y: number }; to: { x: number; y: number }; highlighted: boolean }> = [];
@@ -56,9 +49,7 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
     return pairs;
   }, [layout.nodes, clearedNodeIds, blockUnlocked]);
 
-  const worldLabel = isEnglishCopy
-    ? `WORLD ${layout.blockIndex + 1}`
-    : `WORLD ${layout.blockIndex + 1}`;
+  const worldLabel = `WORLD ${layout.blockIndex + 1}`;
   const blockLabel = isEnglishCopy ? layout.labelEn : layout.label;
 
   const headerXPx = LANE_X.C * scale;
@@ -93,28 +84,6 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
         dim={dim}
         theme={theme}
       />
-
-      {hasNextBlock && lastNode && blockCleared && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute flex items-center justify-center font-bold text-white"
-          style={{
-            left: lastNode.x * scale - Math.round(14 * scale),
-            top: (lastNode.y - 52) * scale,
-            width: Math.round(28 * scale),
-            height: Math.round(28 * scale),
-            fontSize: Math.max(10, 14 * scale),
-            background: 'linear-gradient(to bottom, #fbbf24, #d97706)',
-            borderRadius: '50%',
-            border: '2px solid #fff8dc',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-            zIndex: 12,
-            opacity: dim ? 0.4 : 1,
-          }}
-        >
-          →
-        </div>
-      )}
 
       {layout.nodes.map((nodePos) => (
         <CodeRunIslandPlatform

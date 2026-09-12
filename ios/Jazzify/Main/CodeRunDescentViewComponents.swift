@@ -48,14 +48,14 @@ struct CodeRunIslandPlatformView: View {
     let dim: Bool
 
     var body: some View {
-        let widthLogical: CGFloat = type == .big ? 240 : 144
-        let heightLogical: CGFloat = 96
+        let widthLogical: CGFloat = type == .big ? 240 : 128
+        let heightLogical: CGFloat = type == .big ? 96 : 60
         let width = widthLogical * scale
         let height = heightLogical * scale
 
         Image(CodeRunMapThemeCatalog.islandAssetName(biome: biome, big: type == .big))
             .resizable()
-            .interpolation(.medium)
+            .interpolation(.none)
             .frame(width: width, height: height)
             .brightness(dim ? -0.25 : 0.05)
             .saturation(dim ? 0.55 : 1.05)
@@ -76,90 +76,37 @@ struct CodeRunWorldSignView: View {
     let dim: Bool
 
     var body: some View {
-        let beamHeight = max(6, 8 * scale)
-        let plateWidth = max(160, 220 * scale)
-        let plateHeight = max(48, 64 * scale)
-        let archWidth = max(200, 280 * scale)
+        let width = max(160, 220 * scale)
+        let height = max(48, 64 * scale)
 
-        VStack(spacing: beamHeight / 2) {
-            RoundedRectangle(cornerRadius: max(2, 3 * scale))
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "8b5a2b"), Color(hex: "5c3a18")],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(height: beamHeight)
-
-            VStack(spacing: 2) {
-                Text(worldLabel)
-                    .font(.system(size: max(8, 10 * scale), weight: .semibold))
-                    .kerning(2)
-                    .foregroundStyle(theme.signDepthText)
-                Text(blockLabel)
-                    .font(.system(size: max(13, 20 * scale), weight: .bold))
-                    .foregroundStyle(theme.signText)
-                    .shadow(color: .black.opacity(0.45), radius: 1, x: 0, y: 1)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .frame(width: plateWidth, height: plateHeight)
-            .background(
-                LinearGradient(
-                    colors: [theme.signPlateTop, theme.signPlateBottom],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(theme.signPlateBorder, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            RoundedRectangle(cornerRadius: max(2, 3 * scale))
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "8b5a2b"), Color(hex: "5c3a18")],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(height: beamHeight)
+        VStack(spacing: 2) {
+            Text(worldLabel)
+                .font(.system(size: max(8, 10 * scale), weight: .semibold))
+                .kerning(2)
+                .foregroundStyle(theme.signDepthText)
+            Text(blockLabel)
+                .font(.system(size: max(14, 20 * scale), weight: .bold))
+                .foregroundStyle(theme.signText)
+                .shadow(color: .black.opacity(0.45), radius: 1, x: 0, y: 1)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
-        .frame(width: archWidth)
+        .frame(width: width, height: height)
+        .background(
+            LinearGradient(
+                colors: [theme.signPlateTop, theme.signPlateBottom],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(theme.signPlateBorder, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
         .opacity(dim ? 0.45 : 1.0)
-        .position(x: xPx, y: yPx - plateHeight / 2)
+        .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
-    }
-}
-
-struct CodeRunMapCharacterView: View {
-    let xPx: CGFloat
-    let yPx: CGFloat
-    let scale: CGFloat
-    var facing: SurvivalDescentCharacterView.Facing = .right
-
-    var body: some View {
-        let width = max(44, 39 * scale * 1.4)
-        let height = max(72, 64 * scale * 1.4)
-        let offsetX: CGFloat = {
-            switch facing {
-            case .center: return 0
-            case .right: return max(18, 28 * scale)
-            case .left: return -max(18, 28 * scale)
-            }
-        }()
-
-        Image("code_run_player_1")
-            .resizable()
-            .interpolation(.medium)
-            .frame(width: width, height: height)
-            .scaleEffect(x: facing == .left ? -1 : 1, y: 1)
-            .shadow(color: .black.opacity(0.35), radius: 4, x: 0, y: 4)
-            .position(x: xPx + offsetX, y: yPx - height / 2 - max(6, 8 * scale))
-            .allowsHitTesting(false)
     }
 }
 

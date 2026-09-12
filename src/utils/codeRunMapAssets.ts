@@ -1,35 +1,32 @@
-import { CODE_RUN_HERO_SPRITE_URL } from '@/components/survival/codeRun/codeRunSpriteUrls';
+import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import type { CodeRunMapBiome } from '@/utils/codeRunMapTheme';
 
-export const CODE_RUN_MAP_ASSET_VERSION = '20260912a';
+export const CODE_RUN_MAP_ASSET_VERSION = '20260912b';
 
 export const codeRunMapAssetUrl = (path: string): string => {
   const base = path.split('?')[0] ?? path;
   return `${base}?v=${CODE_RUN_MAP_ASSET_VERSION}`;
 };
 
+const KENNEY_TILE_BASE = '/RUN/kenney_new-platformer-pack-1/Sprites/Tiles/Default';
+const KENNEY_BG_BASE = '/RUN/kenney_new-platformer-pack-1/Sprites/Backgrounds/Default';
+
 export const CODE_RUN_MAP_TEXTURE_URLS = {
-  sky: codeRunMapAssetUrl('/code-run-map/sky.webp'),
-  clouds: codeRunMapAssetUrl('/code-run-map/clouds.webp'),
+  sky: codeRunMapAssetUrl(`${KENNEY_BG_BASE}/background_solid_sky.png`),
+  clouds: codeRunMapAssetUrl(`${KENNEY_BG_BASE}/background_clouds.png`),
 } as const;
 
-export const codeRunMapIslandUrl = (
-  biome: CodeRunMapBiome,
-  size: 'small' | 'big',
-): string => codeRunMapAssetUrl(`/code-run-map/island_${size}_${biome}.webp`);
+export const codeRunMapIslandUrl = (biome: CodeRunMapBiome): string =>
+  codeRunMapAssetUrl(`${KENNEY_TILE_BASE}/terrain_${biome}_cloud.png`);
 
 export const CODE_RUN_MAP_PRELOAD_IMAGES: readonly string[] = [
   CODE_RUN_MAP_TEXTURE_URLS.sky,
   CODE_RUN_MAP_TEXTURE_URLS.clouds,
-  codeRunMapAssetUrl('/code-run-map/island_small_grass.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_big_grass.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_small_sand.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_big_sand.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_small_snow.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_big_snow.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_small_stone.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_big_stone.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_small_purple.webp'),
-  codeRunMapAssetUrl('/code-run-map/island_big_purple.webp'),
-  codeRunMapAssetUrl(CODE_RUN_HERO_SPRITE_URL),
+  codeRunMapIslandUrl('grass'),
+  codeRunMapIslandUrl('sand'),
+  codeRunMapIslandUrl('snow'),
+  codeRunMapIslandUrl('stone'),
+  codeRunMapIslandUrl('purple'),
+  codeRunMapAssetUrl(SURVIVAL_DEFAULT_SPRITE_PATHS.migi),
+  codeRunMapAssetUrl(SURVIVAL_DEFAULT_SPRITE_PATHS.shita),
 ];

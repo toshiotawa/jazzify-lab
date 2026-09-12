@@ -215,8 +215,8 @@ struct CodeRunDescentMapView: View {
     }
 
     private func currentScale(for width: CGFloat) -> CGFloat {
-        let raw = min(max(0.55, width / SurvivalDescentLayoutConstants.logicalWidth), 1.15)
-        return ((raw * 0.75) * 100).rounded() / 100
+        let raw = min(max(0.6, width / SurvivalDescentLayoutConstants.logicalWidth), 2.2)
+        return (raw * 100).rounded() / 100
     }
 
     private func mapScrollSignature(selectedNodeId: UUID?) -> AnyHashable {
@@ -311,7 +311,6 @@ private struct CodeRunDescentMapContent: View {
                 CodeRunDescentBlockContent(
                     blockLayout: blockLayout,
                     allBlockLayouts: layout.blocks,
-                    hasNextBlock: blockLayout.blockIndex + 1 < layout.blocks.count,
                     clearedNodeIds: clearedNodeIds,
                     accessibleBlockIndex: accessibleBlockIndex,
                     frontierNodeId: frontierNodeId,
@@ -337,11 +336,12 @@ private struct CodeRunDescentMapContent: View {
 
             if let frontierNodeId,
                let frontierPos = layout.position(for: frontierNodeId) {
-                CodeRunMapCharacterView(
+                SurvivalDescentCharacterView(
                     xPx: frontierPos.x * scale + horizontalOffset,
                     yPx: frontierPos.y * scale,
                     scale: scale,
-                    facing: frontierFacing(for: frontierNodeId)
+                    facing: frontierFacing(for: frontierNodeId),
+                    animateBreathe: false
                 )
             }
         }
@@ -365,7 +365,6 @@ private struct CodeRunDescentMapContent: View {
 private struct CodeRunDescentBlockContent: View {
     let blockLayout: DefenseDescentBlockLayout
     let allBlockLayouts: [DefenseDescentBlockLayout]
-    let hasNextBlock: Bool
     let clearedNodeIds: Set<UUID>
     let accessibleBlockIndex: Int
     let frontierNodeId: UUID?
@@ -385,9 +384,6 @@ private struct CodeRunDescentBlockContent: View {
             clearedNodeIds: clearedNodeIds,
             isPremium: isPremium
         )
-        let stageNodes = blockLayout.nodes.filter { $0.node.nodeKind == .stage }
-        let blockCleared = !stageNodes.isEmpty
-            && stageNodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
         let isEnglishCopy = locale == .en
         let worldLabel = "WORLD \(blockLayout.blockIndex + 1)"
         let blockLabel = isEnglishCopy ? blockLayout.labelEn : blockLayout.label
@@ -417,29 +413,6 @@ private struct CodeRunDescentBlockContent: View {
             scale: scale,
             dim: locked
         )
-
-        if hasNextBlock, let lastNode = blockLayout.nodes.last, blockCleared {
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "fbbf24"), Color(hex: "d97706")],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: max(22, 28 * scale), height: max(22, 28 * scale))
-                .overlay(
-                    Text("→")
-                        .font(.system(size: max(10, 14 * scale), weight: .bold))
-                        .foregroundStyle(.white)
-                )
-                .opacity(locked ? 0.4 : 1.0)
-                .position(
-                    x: lastNode.x * scale + horizontalOffset,
-                    y: (lastNode.y - 52) * scale
-                )
-                .allowsHitTesting(false)
-        }
 
         ForEach(blockLayout.nodes) { nodePos in
             CodeRunIslandPlatformView(
