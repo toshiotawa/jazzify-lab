@@ -8,7 +8,6 @@ struct DefenseDescentMapView: View {
     let blocks: [PlayMapBlock]
     let nodes: [PlayMapNode]
     let clears: [PlayMapNodeClear]
-    let onSwitchMode: (() -> Void)?
     let onSelectNode: (PlayMapNode) -> Void
     let onSelectQuestNode: (PlayMapNode) -> Void
     let onRequestUpgrade: () -> Void
@@ -114,30 +113,26 @@ struct DefenseDescentMapView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack(alignment: .top) {
-                HStack(spacing: 0) {
+            HStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    PlayMapTierBarView(
+                        locale: locale,
+                        mode: mode,
+                        tier: tier,
+                        tierProgress: tierProgress,
+                        onTierChange: { tier = $0 }
+                    )
                     mapViewport(width: proxy.size.width - (showSidePanelInline ? 320 : 0))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                    if showSidePanelInline {
-                        sidePanel
-                            .frame(width: 320)
-                            .padding(.trailing, 8)
-                            .padding(.vertical, 8)
-                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                PlayMapHeaderView(
-                    locale: locale,
-                    mode: mode,
-                    tier: tier,
-                    tierProgress: tierProgress,
-                    onModeChange: { nextMode in
-                        guard nextMode != mode else { return }
-                        onSwitchMode?()
-                    },
-                    onTierChange: { tier = $0 }
-                )
+                if showSidePanelInline {
+                    sidePanel
+                        .frame(width: 320)
+                        .padding(.trailing, 8)
+                        .padding(.vertical, 8)
+                }
             }
         }
         .background(Color(hex: "09070f"))

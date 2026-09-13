@@ -3,13 +3,6 @@ import SwiftUI
 private enum PlayHubDestination: Hashable {
     case codeRun
     case defense
-
-    var initialMode: PlayMapMode {
-        switch self {
-        case .codeRun: return .codeRun
-        case .defense: return .defense
-        }
-    }
 }
 
 struct PlayHubView: View {
@@ -74,7 +67,12 @@ struct PlayHubView: View {
                 )
             ) {
                 if let destination {
-                    PlayMapContainerView(initialMode: destination.initialMode)
+                    switch destination {
+                    case .codeRun:
+                        CodeRunWorldView()
+                    case .defense:
+                        DefenseDescentView()
+                    }
                 } else {
                     EmptyView()
                 }

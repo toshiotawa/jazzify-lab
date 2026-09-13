@@ -17,7 +17,7 @@ import { getWindow } from '@/platform';
 import CodeRunDescentBlock, { CodeRunBlockDimVeil } from '@/components/play/codeRunMap/CodeRunDescentBlock';
 import CodeRunDescentSidePanel from '@/components/play/codeRunMap/CodeRunDescentSidePanel';
 import CodeRunSkyBackground from '@/components/play/codeRunMap/parts/CodeRunSkyBackground';
-import PlayMapHeader from '@/components/play/PlayMapHeader';
+import PlayMapTierBar from '@/components/play/PlayMapTierBar';
 import DescentCharacter from '@/components/survival/descent/parts/DescentCharacter';
 import {
   buildPlayDescentLayout,
@@ -398,6 +398,17 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
 
       <div className="mx-auto grid w-full max-w-[1180px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col">
+          <PlayMapTierBar
+            mode="code_run"
+            tier={tier}
+            onTierChange={(nextTier) => {
+              setTier(nextTier);
+              setSelectedNodeId(null);
+              setIsMobileDetailOpen(false);
+            }}
+            tierProgress={tierProgress}
+            isEnglishCopy={isEnglishCopy}
+          />
           <div
             ref={viewportRef}
             className="relative min-h-0 flex-1 overflow-hidden touch-none select-none"
@@ -406,17 +417,6 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
               cursor: 'grab',
             }}
           >
-            <PlayMapHeader
-              mode="code_run"
-              tier={tier}
-              onTierChange={(nextTier) => {
-                setTier(nextTier);
-                setSelectedNodeId(null);
-                setIsMobileDetailOpen(false);
-              }}
-              tierProgress={tierProgress}
-              isEnglishCopy={isEnglishCopy}
-            />
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0"

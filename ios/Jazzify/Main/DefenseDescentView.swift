@@ -4,8 +4,6 @@ import SwiftUI
 struct DefenseDescentView: View {
     @EnvironmentObject var appState: AppState
 
-    var onSwitchMode: (() -> Void)? = nil
-
     @State private var blocks: [PlayMapBlock] = []
     @State private var nodes: [PlayMapNode] = []
     @State private var clears: [PlayMapNodeClear] = []
@@ -63,7 +61,6 @@ struct DefenseDescentView: View {
                     blocks: blocks,
                     nodes: nodes,
                     clears: clears,
-                    onSwitchMode: onSwitchMode,
                     onSelectNode: { node in
                         Task { await startStageNode(node) }
                     },

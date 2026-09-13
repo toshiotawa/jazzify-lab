@@ -17,7 +17,7 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getWindow } from '@/platform';
 import DefenseDescentBlock, { DefenseBlockDimVeil } from '@/components/play/defenseDescent/DefenseDescentBlock';
 import DefenseDescentSidePanel from '@/components/play/defenseDescent/DefenseDescentSidePanel';
-import PlayMapHeader from '@/components/play/PlayMapHeader';
+import PlayMapTierBar from '@/components/play/PlayMapTierBar';
 import {
   buildPlayDescentLayout,
   countClearedStageNodes,
@@ -406,6 +406,17 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
 
       <div className="mx-auto grid w-full max-w-[1180px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col">
+          <PlayMapTierBar
+            mode="defense"
+            tier={tier}
+            onTierChange={(nextTier) => {
+              setTier(nextTier);
+              setSelectedNodeId(null);
+              setIsMobileDetailOpen(false);
+            }}
+            tierProgress={tierProgress}
+            isEnglishCopy={isEnglishCopy}
+          />
           <div
             ref={viewportRef}
             className="relative min-h-0 flex-1 overflow-hidden touch-none select-none"
@@ -414,17 +425,6 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
               cursor: 'grab',
             }}
           >
-            <PlayMapHeader
-              mode="defense"
-              tier={tier}
-              onTierChange={(nextTier) => {
-                setTier(nextTier);
-                setSelectedNodeId(null);
-                setIsMobileDetailOpen(false);
-              }}
-              tierProgress={tierProgress}
-              isEnglishCopy={isEnglishCopy}
-            />
             <div
               className="absolute top-0 will-change-transform"
               style={{

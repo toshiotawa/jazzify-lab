@@ -4,8 +4,6 @@ struct CodeRunWorldView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
-    var onSwitchMode: (() -> Void)? = nil
-
     @State private var blocks: [PlayMapBlock] = []
     @State private var nodes: [PlayMapNode] = []
     @State private var clears: [PlayMapNodeClear] = []
@@ -56,7 +54,6 @@ struct CodeRunWorldView: View {
                     nodes: nodes,
                     clears: clears,
                     rankThresholds: rankThresholds,
-                    onSwitchMode: onSwitchMode,
                     onSelectNode: { node in
                         Task { await startStageNode(node) }
                     },
