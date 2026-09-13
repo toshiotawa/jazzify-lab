@@ -27,6 +27,7 @@ export interface PlayMapNode {
   title: string;
   titleEn: string;
   requiredRank: CodeRunLetterRank;
+  difficultyLevel: number | null;
 }
 
 interface PlayMapNodeClear {
@@ -78,7 +79,7 @@ export async function fetchPlayMapNodes(mode: PlayMapMode): Promise<PlayMapNode[
         id, block_id, sort_order, node_kind,
         survival_map_category, survival_stage_number,
         defense_stage_id, lesson_id,
-        title, title_en, required_rank,
+        title, title_en, required_rank, difficulty_level,
         play_map_blocks!inner(mode)
       `)
       .eq('play_map_blocks.mode', mode)
@@ -99,6 +100,7 @@ export async function fetchPlayMapNodes(mode: PlayMapMode): Promise<PlayMapNode[
     title: row.title as string,
     titleEn: (row.title_en as string) || (row.title as string),
     requiredRank: (row.required_rank as CodeRunLetterRank) || 'C',
+    difficultyLevel: row.difficulty_level != null ? Number(row.difficulty_level) : null,
   }));
 }
 

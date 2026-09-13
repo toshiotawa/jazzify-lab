@@ -14,6 +14,7 @@ import {
   fetchDefenseStageDetail,
 } from '@/platform/supabaseDefense';
 import type { DefenseDifficulty, DefenseStage } from '@/game/defense/defenseTypes';
+import { resolvePlayMapDefenseDifficultyLevel } from '@/game/defense/playMapDefenseDifficulty';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
 import { grantAndToastUserBadges } from '@/utils/badgeToasts';
 import { showPlayerXpToasts } from '@/utils/playerXpToast';
@@ -66,13 +67,17 @@ const DefenseMapMain: React.FC = () => {
     if (!node.defenseStageId) return;
     const detail = await fetchDefenseStageDetail(node.defenseStageId);
     if (!detail || detail.phrases.length === 0) return;
-    const difficulty = await fetchDefenseDifficultyLevel(
+    const difficultyLevel = resolvePlayMapDefenseDifficultyLevel(
+      node.difficultyLevel,
       detail.difficultyLevel,
+    );
+    const difficulty = await fetchDefenseDifficultyLevel(
+      difficultyLevel,
       detail.attackTrigger,
     );
     if (!difficulty) return;
     setActiveNode(node);
-    setLoaded({ stage: detail, difficulty });
+    setLoaded({ stage: { ...detail, difficultyLevel }, difficulty });
     setSession(null);
     setScreen('prep');
   }, []);

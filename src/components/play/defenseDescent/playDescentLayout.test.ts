@@ -44,6 +44,7 @@ const makeNode = (
   title: `Title ${id}`,
   titleEn: `Title EN ${id}`,
   requiredRank: 'C',
+  difficultyLevel: null,
 });
 
 describe('buildPlayDescentLayout', () => {

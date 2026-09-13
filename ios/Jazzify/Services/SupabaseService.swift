@@ -680,6 +680,7 @@ final class SupabaseService: Sendable {
             let title: String
             let title_en: String
             let required_rank: String
+            let difficulty_level: Int?
             let play_map_blocks: BlockModeRow
 
             struct BlockModeRow: Decodable {
@@ -693,7 +694,7 @@ final class SupabaseService: Sendable {
                 id, block_id, sort_order, node_kind,
                 survival_map_category, survival_stage_number,
                 defense_stage_id, lesson_id,
-                title, title_en, required_rank,
+                title, title_en, required_rank, difficulty_level,
                 play_map_blocks!inner(mode)
             """)
             .eq("play_map_blocks.mode", value: mode.rawValue)
@@ -714,7 +715,8 @@ final class SupabaseService: Sendable {
                 lessonId: row.lesson_id,
                 title: row.title,
                 titleEn: row.title_en,
-                requiredRank: CodeRunLetterRank(rawValue: row.required_rank) ?? .C
+                requiredRank: CodeRunLetterRank(rawValue: row.required_rank) ?? .C,
+                difficultyLevel: row.difficulty_level
             )
         }
     }

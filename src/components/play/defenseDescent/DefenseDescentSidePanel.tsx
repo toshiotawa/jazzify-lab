@@ -74,6 +74,11 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
           <h3 className="text-base font-bold text-white">
             {isEnglishCopy ? selectedNode.titleEn : selectedNode.title}
           </h3>
+          {selectedNode.difficultyLevel != null && (
+            <p className="mt-1 text-xs text-amber-200/80">
+              Lv.{selectedNode.difficultyLevel}
+            </p>
+          )}
           <p className="mt-2 flex items-center gap-2 text-xs text-slate-300">
             {selectedNodeCleared ? (
               <>

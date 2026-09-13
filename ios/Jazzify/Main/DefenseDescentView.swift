@@ -112,8 +112,8 @@ struct DefenseDescentView: View {
             }
         } message: { prep in
             Text(locale == .ja
-                 ? "\(prep.stage.title) — \(prep.stage.surviveSeconds)秒生存でクリア"
-                 : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — survive \(prep.stage.surviveSeconds)s")
+                 ? "\(prep.stage.title) — Lv.\(prep.difficulty.level) / \(prep.stage.surviveSeconds)秒生存でクリア"
+                 : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — Lv.\(prep.difficulty.level) / survive \(prep.stage.surviveSeconds)s")
         }
         .fullScreenCover(item: $stageLaunchSession) { session in
             DefenseGameView(
@@ -217,7 +217,7 @@ struct DefenseDescentView: View {
             return
         }
         guard let difficulty = try? await SupabaseService.shared.fetchDefenseDifficultyLevel(
-            level: stage.difficultyLevel,
+            level: node.resolvedDefenseDifficultyLevel(stageLevel: stage.difficultyLevel),
             attackTrigger: stage.attackTrigger
         )
         else {

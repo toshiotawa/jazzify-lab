@@ -91,6 +91,11 @@ struct DefenseDescentSidePanel: View {
                 Text(selectedNode.localizedTitle(locale))
                     .font(.headline.bold())
                     .foregroundStyle(.white)
+                if let level = selectedNode.difficultyLevel {
+                    Text("Lv.\(level)")
+                        .font(.caption)
+                        .foregroundStyle(Color.yellow.opacity(0.85))
+                }
                 nodeStatusRow
                 if let bestSurviveSec {
                     Text(bestSurviveText(bestSurviveSec))

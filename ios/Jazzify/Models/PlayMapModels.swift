@@ -52,6 +52,7 @@ struct PlayMapNode: Codable, Identifiable, Sendable {
     let title: String
     let titleEn: String
     let requiredRank: CodeRunLetterRank
+    let difficultyLevel: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -64,10 +65,18 @@ struct PlayMapNode: Codable, Identifiable, Sendable {
         case lessonId = "lesson_id"
         case titleEn = "title_en"
         case requiredRank = "required_rank"
+        case difficultyLevel = "difficulty_level"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
         locale == .en ? (titleEn.isEmpty ? title : titleEn) : title
+    }
+
+    func resolvedDefenseDifficultyLevel(stageLevel: Int) -> Int {
+        guard let difficultyLevel, (1...10).contains(difficultyLevel) else {
+            return stageLevel
+        }
+        return difficultyLevel
     }
 }
 
