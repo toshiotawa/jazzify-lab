@@ -1,4 +1,3 @@
-import AVFoundation
 import Combine
 import Foundation
 import QuartzCore
@@ -44,16 +43,6 @@ final class DefenseGameSession: ObservableObject {
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
     private var lastVoicePcAtMs: [Int: Double] = [:]
     private static let voiceSamePcDebounceMs: Double = 120
-    /// SP 満タン時の火炎 SE。フレーズ型のみ初期化時に一度だけロードする。
-    private let fireSePlayer: AVAudioPlayer?
-
-    private static func makeFireSePlayer() -> AVAudioPlayer? {
-        guard let url = Bundle.main.url(forResource: "fire_magic_1", withExtension: "mp3"),
-              let player = try? AVAudioPlayer(contentsOf: url)
-        else { return nil }
-        player.prepareToPlay()
-        return player
-    }
 
     init(
         stage: DefenseStageDefinition,
@@ -65,7 +54,6 @@ final class DefenseGameSession: ObservableObject {
         self.difficulty = difficulty
         self.practiceMode = practiceMode
         self.lessonContext = lessonContext
-        self.fireSePlayer = stage.attackTrigger == .note ? Self.makeFireSePlayer() : nil
         let runtime = DefenseRuntimeState(
             playerHp: stage.playerHp,
             surviveSeconds: TimeInterval(stage.surviveSeconds),
@@ -202,10 +190,7 @@ final class DefenseGameSession: ObservableObject {
             _ = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: guardPoseSec)
         }
         if evaluation.measureCompleted, stage.attackTrigger == .note {
-            if DefenseGameLoop.chargeSp(runtime: &runtime), let player = fireSePlayer {
-                player.currentTime = 0
-                player.play()
-            }
+            _ = DefenseGameLoop.chargeSp(runtime: &runtime)
         }
         if !practiceMode, evaluation.pendingSwitch, pendingSwitchPhraseIndex == nil {
             let nextIndex = DefensePhraseJudge.nextPhraseIndex(

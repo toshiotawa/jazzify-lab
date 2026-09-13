@@ -59,7 +59,6 @@ import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
-import { playFireMagicSe, preloadFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
   applySequentialSurvivalVoicingHints,
@@ -146,10 +145,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const updateSettings = useGameStore((state) => state.updateSettings);
   const voiceSequential = settings.inputMethod === 'voice';
   isSettingsOpenRef.current = isSettingsOpen;
-
-  useEffect(() => {
-    preloadFireMagicSe();
-  }, []);
 
   useEffect(() => {
     onClearRef.current = onClear;
@@ -334,9 +329,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
 
     if (evaluation.measureCompleted && stage.attackTrigger === 'note') {
-      if (chargeDefenseSp(runtime)) {
-        playFireMagicSe();
-      }
+      chargeDefenseSp(runtime);
     }
 
     if (!practiceMode && evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
