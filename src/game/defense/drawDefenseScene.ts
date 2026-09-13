@@ -384,26 +384,56 @@ const drawDefenseHud = (
   ctx.fillText(koLabel, width / 2, 56);
 };
 
-const DEFENSE_WAVE_FLASH_SEC = 1.5;
-
-const drawWaveFlash = (
+const DEFENSE_LEVEL_UP_SEC = 1.5;
+const LEVEL_UP_GREEN = '#22c55e';
+const drawLevelUpEffect = (
   ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
+  playerX: number,
+  floorY: number,
+  avatarSize: number,
   runtime: DefenseRuntime,
   hud: DefenseSceneHud,
 ): void => {
-  if (hud.wave <= 0 || runtime.waveStartedAt < 0) return;
+  if (hud.practiceMode || hud.wave <= 1 || runtime.waveStartedAt < 0) return;
   const age = runtime.elapsedSec - runtime.waveStartedAt;
-  if (age < 0 || age > DEFENSE_WAVE_FLASH_SEC) return;
+  if (age < 0 || age > DEFENSE_LEVEL_UP_SEC) return;
 
-  const alpha = 1 - age / DEFENSE_WAVE_FLASH_SEC;
+  const progress = age / DEFENSE_LEVEL_UP_SEC;
+  const alpha = 1 - progress;
+  const headY = floorY - avatarSize * 0.96;
+  const labelY = headY - 18 - progress * 28;
+
   ctx.save();
+
+  const ringRadius = avatarSize * (0.55 + progress * 0.35);
+  ctx.strokeStyle = `rgba(34, 197, 94, ${0.55 * alpha})`;
+  ctx.lineWidth = Math.max(2, avatarSize * 0.04);
+  ctx.beginPath();
+  ctx.arc(playerX, headY + avatarSize * 0.35, ringRadius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  for (let i = 0; i < DEFENSE_IMPACT_SPARK_ANGLES.length; i += 1) {
+    const angle = DEFENSE_IMPACT_SPARK_ANGLES[i] ?? 0;
+    const inner = ringRadius * 0.55;
+    const sparkLen = avatarSize * (0.12 + progress * 0.18);
+    const cx = playerX + Math.cos(angle) * inner;
+    const cy = headY + avatarSize * 0.35 + Math.sin(angle) * inner;
+    ctx.strokeStyle = `rgba(134, 239, 172, ${0.85 * alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(angle) * sparkLen, cy + Math.sin(angle) * sparkLen);
+    ctx.stroke();
+  }
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = `rgba(251, 191, 36, ${0.85 * alpha})`;
-  ctx.font = `900 ${Math.round(48 + 12 * alpha)}px ${HUD_FONT}`;
-  ctx.fillText(`WAVE ${hud.wave}`, width / 2, height * 0.38);
+  ctx.font = `900 ${Math.round(18 + 4 * alpha)}px ${HUD_FONT}`;
+  ctx.strokeStyle = `rgba(6, 78, 59, ${0.9 * alpha})`;
+  ctx.lineWidth = 4;
+  ctx.strokeText('LEVEL UP', playerX, labelY);
+  ctx.fillStyle = `rgba(74, 222, 128, ${alpha})`;
+  ctx.fillText('LEVEL UP', playerX, labelY);
   ctx.restore();
 };
 
@@ -473,11 +503,16 @@ export const drawDefenseScene = (
   const impactActive = runtime.impactAt !== DEFENSE_NO_IMPACT
     && runtime.elapsedSec - runtime.impactAt >= 0
     && runtime.elapsedSec - runtime.impactAt < DEFENSE_IMPACT_SEC;
+  const levelUpActive = !hud.practiceMode
+    && hud.wave > 1
+    && runtime.waveStartedAt >= 0
+    && runtime.elapsedSec - runtime.waveStartedAt >= 0
+    && runtime.elapsedSec - runtime.waveStartedAt < DEFENSE_LEVEL_UP_SEC;
   const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
 
   drawBattleAvatar(ctx, playerImg, playerX, floorY, 'player', {
-    tintColor: impactActive ? '#ef4444' : null,
-    tintAlpha: impactActive ? 0.45 : undefined,
+    tintColor: impactActive ? '#ef4444' : levelUpActive ? LEVEL_UP_GREEN : null,
+    tintAlpha: impactActive ? 0.45 : levelUpActive ? 0.42 : undefined,
   });
 
   if (assets && showPhraseUi) {
@@ -493,6 +528,6 @@ export const drawDefenseScene = (
     drawSpGauge(ctx, runtime, playerX, floorY, avatarSize);
   }
 
-  drawWaveFlash(ctx, width, height, runtime, hud);
+  drawLevelUpEffect(ctx, playerX, floorY, avatarSize, runtime, hud);
   drawDefenseHud(ctx, width, hud);
 };

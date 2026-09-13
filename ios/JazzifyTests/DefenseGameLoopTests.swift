@@ -69,18 +69,19 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertEqual(enemy.y, DefenseEnemyConfig.groundY - enemy.type.spriteHeight / 2, accuracy: 0.001)
     }
 
-    func testPracticeModeSpawnsAllTypesWithoutWaveChanges() {
+    func testPracticeModeSpawnsWaveOneRosterWithoutWaveChanges() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 12, practiceMode: true)
         let quickSpawn = DefenseDifficultyDefinition(
             level: 1, enemyHp: 1, spawnIntervalSec: 0.5, maxEnemies: 12,
             enemySpeedPxPerSec: 40, enemyDamage: 1, attackIntervalSec: 3, attackRangePx: 48
         )
+        let wave1 = DefenseEnemyConfig.waveRosters[0]
         DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0.6)
         DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0.6)
         DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0.6)
-        XCTAssertEqual(runtime.enemies[0].type, .slime)
-        XCTAssertEqual(runtime.enemies[1].type, .bat)
-        XCTAssertEqual(runtime.enemies[2].type, .goblin)
+        XCTAssertEqual(runtime.enemies[0].type, wave1[0])
+        XCTAssertEqual(runtime.enemies[1].type, wave1[1])
+        XCTAssertEqual(runtime.enemies[2].type, wave1[2])
         XCTAssertEqual(runtime.waveIndex, 0)
         XCTAssertEqual(runtime.waveSpawnCount, 0)
     }
@@ -122,12 +123,12 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = 760
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
-        runtime.enemies[0].hp = 2
+        runtime.enemies[0].hp = 2 * DefenseEnemyConfig.damageUnit
         applyGoblinStats(&runtime.enemies[0])
 
         let slashed = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: 0.5)
         XCTAssertTrue(slashed)
-        XCTAssertEqual(runtime.enemies[0].hp, 1)
+        XCTAssertEqual(runtime.enemies[0].hp, DefenseEnemyConfig.damageUnit)
         XCTAssertEqual(runtime.enemies[0].knockbackVx, DefenseEnemyConfig.knockbackImpulse, accuracy: 0.001)
         XCTAssertEqual(runtime.slashAt, 0, accuracy: 0.001)
         XCTAssertEqual(runtime.slashToX, 760, accuracy: 0.001)
@@ -140,14 +141,14 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = runtime.playerX + 80
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
-        runtime.enemies[0].hp = 2
+        runtime.enemies[0].hp = 2 * DefenseEnemyConfig.damageUnit
         applyGoblinStats(&runtime.enemies[0])
 
         runtime.enemies[1].isActive = true
         runtime.enemies[1].type = .bat
         runtime.enemies[1].x = runtime.playerX + 200
         runtime.enemies[1].y = DefenseEnemyConfig.centerY(for: .bat)
-        runtime.enemies[1].hp = 2
+        runtime.enemies[1].hp = 2 * DefenseEnemyConfig.damageUnit
         let batStats = DefenseEnemyConfig.resolveEnemyStats(type: .bat, difficulty: difficulty)
         runtime.enemies[1].speedPxPerSec = batStats.speedPxPerSec
         runtime.enemies[1].damage = batStats.damage
@@ -157,8 +158,8 @@ final class DefenseGameLoopTests: XCTestCase {
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
 
-        XCTAssertEqual(runtime.enemies[0].hp, 1)
-        XCTAssertEqual(runtime.enemies[1].hp, 2)
+        XCTAssertEqual(runtime.enemies[0].hp, DefenseEnemyConfig.damageUnit)
+        XCTAssertEqual(runtime.enemies[1].hp, 2 * DefenseEnemyConfig.damageUnit)
         XCTAssertEqual(runtime.slashToX, runtime.enemies[0].x, accuracy: 0.001)
     }
 
@@ -167,7 +168,7 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].isActive = true
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = runtime.playerX + 100
-        runtime.enemies[0].hp = 1
+        runtime.enemies[0].hp = DefenseEnemyConfig.damageUnit
         applyGoblinStats(&runtime.enemies[0])
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
@@ -215,7 +216,7 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertTrue(runtime.enemies.contains(where: \.isActive))
     }
 
-    func testPhraseModeWaveTwoDealsTwoSlashDamage() {
+    func testPhraseModeWaveTwoDealsOneHundredSlashDamage() {
         var runtime = DefenseRuntimeState(
             playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
             practiceMode: false, attackTrigger: .note
@@ -224,14 +225,14 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].isActive = true
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = 760
-        runtime.enemies[0].hp = 3
+        runtime.enemies[0].hp = 3 * DefenseEnemyConfig.damageUnit
         applyGoblinStats(&runtime.enemies[0])
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
-        XCTAssertEqual(runtime.enemies[0].hp, 1)
+        XCTAssertEqual(runtime.enemies[0].hp, DefenseEnemyConfig.damageUnit)
     }
 
-    func testMeasureModeAlwaysDealsOneSlashDamage() {
+    func testMeasureModeAlwaysDealsBaseSlashDamage() {
         var runtime = DefenseRuntimeState(
             playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
             practiceMode: false, attackTrigger: .measure
@@ -240,11 +241,11 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].isActive = true
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = 760
-        runtime.enemies[0].hp = 3
+        runtime.enemies[0].hp = 3 * DefenseEnemyConfig.damageUnit
         applyGoblinStats(&runtime.enemies[0])
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
-        XCTAssertEqual(runtime.enemies[0].hp, 2)
+        XCTAssertEqual(runtime.enemies[0].hp, 2 * DefenseEnemyConfig.damageUnit)
     }
 
     func testRecordsHitFlashAndDamagePopupOnPhraseSlash() {
@@ -255,12 +256,14 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].isActive = true
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = 760
-        runtime.enemies[0].hp = 2
+        runtime.enemies[0].hp = 2 * DefenseEnemyConfig.damageUnit
         applyGoblinStats(&runtime.enemies[0])
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
         XCTAssertEqual(runtime.enemies[0].hitFlashAt, 0, accuracy: 0.001)
-        XCTAssertTrue(runtime.damagePopups.contains(where: { $0.isActive && $0.value == 1 }))
+        XCTAssertTrue(runtime.damagePopups.contains(where: {
+            $0.isActive && $0.value == DefenseEnemyConfig.damageUnit
+        }))
     }
 
     func testChargesSpStartsSkillPoseAndDelaysFireball() {

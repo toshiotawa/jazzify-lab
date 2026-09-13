@@ -142,7 +142,9 @@ struct CodeRunDescentSidePanel: View {
                 .foregroundStyle(.gray)
         } else {
             Label(
-                isEnglishCopy ? "Locked" : "ロック中",
+                isEnglishCopy
+                    ? "Clear the previous stage or quest first"
+                    : "前のステージ／クエストをクリアしてください",
                 systemImage: "lock.fill"
             )
             .font(.caption)

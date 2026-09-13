@@ -28,6 +28,11 @@ final class DefenseScene: SKScene {
     private var fireballNodes: [SKSpriteNode] = []
     private var fireballTexture: SKTexture?
     private var lastSpGauge = -1
+    private var lastWaveStartedAt: TimeInterval = DefenseEnemyConfig.noWaveStart
+    private let levelUpLabel = SKLabelNode(text: "LEVEL UP")
+    private let levelUpRing = SKShapeNode(circleOfRadius: 10)
+    private var levelUpSparks: [SKShapeNode] = []
+    private static let levelUpSec: TimeInterval = 1.5
     private static let slashScaleUpSec: TimeInterval = 0.14
     private static let slashRotationRad: CGFloat = -4 * .pi / 180
     private var textures: [String: SKTexture] = [:]
@@ -50,6 +55,7 @@ final class DefenseScene: SKScene {
         setupSlashEffect()
         setupDamagePopups()
         setupFireballs()
+        setupLevelUpEffect()
         rebuildStage()
     }
 
@@ -87,6 +93,7 @@ final class DefenseScene: SKScene {
         spGaugeHost = nil
         lastPlayerPoseKey = ""
         lastSpGauge = -1
+        lastWaveStartedAt = DefenseEnemyConfig.noWaveStart
 
         let floorY = EarTrainingBattleStageKit.battleFloorY(
             sceneHeight: size.height,
@@ -237,6 +244,99 @@ final class DefenseScene: SKScene {
         effectLayer.addChild(slashNode)
     }
 
+    private func setupLevelUpEffect() {
+        guard levelUpLabel.parent == nil else { return }
+        levelUpLabel.fontName = "AvenirNext-Heavy"
+        levelUpLabel.fontSize = 20
+        levelUpLabel.fontColor = UIColor(red: 0.29, green: 0.87, blue: 0.5, alpha: 1)
+        levelUpLabel.zPosition = 260
+        levelUpLabel.isHidden = true
+        effectLayer.addChild(levelUpLabel)
+
+        levelUpRing.strokeColor = UIColor(red: 0.13, green: 0.77, blue: 0.37, alpha: 1)
+        levelUpRing.fillColor = .clear
+        levelUpRing.lineWidth = 2
+        levelUpRing.zPosition = 240
+        levelUpRing.isHidden = true
+        effectLayer.addChild(levelUpRing)
+
+        let unitPath = CGMutablePath()
+        unitPath.move(to: .zero)
+        unitPath.addLine(to: CGPoint(x: 1, y: 0))
+        for angle in DefenseEnemyConfig.sparkAngles {
+            let spark = SKShapeNode(path: unitPath)
+            spark.strokeColor = UIColor(red: 0.53, green: 0.94, blue: 0.67, alpha: 1)
+            spark.lineWidth = 2
+            spark.zRotation = angle
+            spark.zPosition = 241
+            spark.isHidden = true
+            effectLayer.addChild(spark)
+            levelUpSparks.append(spark)
+        }
+    }
+
+    private func triggerLevelUpEffect(at position: CGPoint) {
+        levelUpLabel.position = CGPoint(x: position.x, y: position.y + 40)
+        levelUpLabel.alpha = 1
+        levelUpLabel.isHidden = false
+        levelUpLabel.removeAllActions()
+        levelUpLabel.run(.sequence([
+            .group([
+                .moveBy(x: 0, y: 28, duration: Self.levelUpSec),
+                .fadeOut(withDuration: Self.levelUpSec),
+            ]),
+            .run { [weak self] in self?.levelUpLabel.isHidden = true },
+        ]))
+
+        levelUpRing.position = position
+        levelUpRing.xScale = 1
+        levelUpRing.yScale = 1
+        levelUpRing.alpha = 0.85
+        levelUpRing.isHidden = false
+        levelUpRing.removeAllActions()
+        levelUpRing.run(.sequence([
+            .group([
+                .scale(to: 2.8, duration: Self.levelUpSec),
+                .fadeOut(withDuration: Self.levelUpSec),
+            ]),
+            .run { [weak self] in self?.levelUpRing.isHidden = true },
+        ]))
+
+        let innerRadius: CGFloat = 18
+        for (index, spark) in levelUpSparks.enumerated() {
+            let angle = DefenseEnemyConfig.sparkAngles[index]
+            spark.position = CGPoint(
+                x: position.x + cos(angle) * innerRadius,
+                y: position.y + sin(angle) * innerRadius
+            )
+            spark.xScale = 1
+            spark.alpha = 0.9
+            spark.isHidden = false
+            spark.removeAllActions()
+            spark.run(.sequence([
+                .group([
+                    .scaleX(to: 18, duration: Self.levelUpSec),
+                    .fadeOut(withDuration: Self.levelUpSec),
+                ]),
+                .run { spark.isHidden = true },
+            ]))
+        }
+
+        playerSpriteNode?.removeAction(forKey: "levelUpTint")
+        playerSpriteNode?.color = UIColor(red: 0.13, green: 0.77, blue: 0.37, alpha: 1)
+        playerSpriteNode?.colorBlendFactor = 0.42
+        playerRimNode?.removeAction(forKey: "levelUpTint")
+        playerRimNode?.color = UIColor(red: 0.13, green: 0.77, blue: 0.37, alpha: 1)
+        playerRimNode?.colorBlendFactor = 0.42
+        let tintOut = SKAction.customAction(withDuration: Self.levelUpSec) { node, elapsed in
+            guard let sprite = node as? SKSpriteNode else { return }
+            let progress = elapsed / Self.levelUpSec
+            sprite.colorBlendFactor = CGFloat(0.42 * (1 - progress))
+        }
+        playerSpriteNode?.run(tintOut, withKey: "levelUpTint")
+        playerRimNode?.run(tintOut, withKey: "levelUpTint")
+    }
+
     private static func makeSlashTexture() -> SKTexture {
         let width: CGFloat = 256
         let height: CGFloat = 8
@@ -285,6 +385,15 @@ final class DefenseScene: SKScene {
             }
         }
         playerNode?.position = CGPoint(x: playerX, y: floorY)
+
+        if !runtime.practiceMode,
+           runtime.waveIndex > 0,
+           runtime.waveStartedAt != DefenseEnemyConfig.noWaveStart,
+           runtime.waveStartedAt != lastWaveStartedAt {
+            lastWaveStartedAt = runtime.waveStartedAt
+            let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
+            triggerLevelUpEffect(at: CGPoint(x: playerX, y: floorY - avatarSize * 0.35))
+        }
 
         let poseKey = DefensePlayerPose.assetName(runtime: runtime)
         if poseKey != lastPlayerPoseKey {

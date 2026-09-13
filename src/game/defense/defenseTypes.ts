@@ -116,7 +116,6 @@ export interface DefenseFireball {
   active: boolean;
   x: number;
   y: number;
-  damage: number;
   /** Bit mask of enemy slot indices already hit by this fireball. */
   hitSlotMask: number;
 }
@@ -246,7 +245,6 @@ export const createDefenseRuntime = (
     active: false,
     x: 0,
     y: 0,
-    damage: 0,
     hitSlotMask: 0,
   })),
 });

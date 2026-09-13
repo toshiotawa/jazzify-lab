@@ -12,7 +12,7 @@ interface CodeRunDescentBlockProps {
   scale: number;
   selectedNodeId: string | null;
   clearedNodeIds: ReadonlySet<string>;
-  blockUnlocked: boolean;
+  unlockedNodeIds: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
   dim: boolean;
   isEnglishCopy: boolean;
@@ -24,7 +24,7 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
   scale,
   selectedNodeId,
   clearedNodeIds,
-  blockUnlocked,
+  unlockedNodeIds,
   onSelectNode,
   dim,
   isEnglishCopy,
@@ -39,7 +39,7 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
       const b = layout.nodes[i + 1];
       const highlighted = clearedNodeIds.has(a.nodeId)
         && !clearedNodeIds.has(b.nodeId)
-        && blockUnlocked;
+        && unlockedNodeIds.has(b.nodeId);
       pairs.push({
         from: { x: a.x, y: a.y },
         to: { x: b.x, y: b.y },
@@ -47,7 +47,7 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
       });
     }
     return pairs;
-  }, [layout.nodes, clearedNodeIds, blockUnlocked]);
+  }, [layout.nodes, clearedNodeIds, unlockedNodeIds]);
 
   const worldLabel = `WORLD ${layout.blockIndex + 1}`;
   const blockLabel = isEnglishCopy ? layout.labelEn : layout.label;
@@ -98,14 +98,15 @@ export const CodeRunDescentBlock: React.FC<CodeRunDescentBlockProps> = ({
 
       {layout.nodes.map((nodePos) => {
         const cleared = clearedNodeIds.has(nodePos.nodeId);
-        const nodeState: StageNodeState = !blockUnlocked
+        const nodeUnlocked = unlockedNodeIds.has(nodePos.nodeId);
+        const nodeState: StageNodeState = !nodeUnlocked
           ? 'locked'
           : cleared
             ? 'cleared'
             : 'unlocked';
         const isFrontierNode = !dim
           && nodePos.nodeId === frontierNodeId
-          && blockUnlocked
+          && nodeUnlocked
           && !cleared;
         return (
           <StageNode

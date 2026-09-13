@@ -1,4 +1,5 @@
 import {
+  DEFENSE_DAMAGE_UNIT,
   DEFENSE_FIREBALL_SPAWN_DELAY_SEC,
   DEFENSE_WAVE_ROSTERS,
   getDefenseEnemyCenterY,
@@ -67,14 +68,14 @@ describe('defenseEngine', () => {
     expect(runtime.waveIndex).toBe(0);
   });
 
-  it('practice mode cycles all enemy types without wave changes', () => {
+  it('practice mode uses wave 1 roster without wave changes', () => {
     const runtime = createDefenseRuntime(5, 120, 12, true);
+    const wave1 = DEFENSE_WAVE_ROSTERS[0];
+    if (!wave1) throw new Error('missing wave roster');
     for (let i = 0; i < 3; i += 1) {
       spawnEnemyIfDue(runtime, easyDifficulty, 0.6);
+      expect(runtime.enemies[i]?.type).toBe(wave1[i]);
     }
-    expect(runtime.enemies[0]?.type).toBe('slime');
-    expect(runtime.enemies[1]?.type).toBe('bat');
-    expect(runtime.enemies[2]?.type).toBe('goblin');
     expect(runtime.waveIndex).toBe(0);
     expect(runtime.waveSpawnCount).toBe(0);
   });
@@ -149,13 +150,13 @@ describe('defenseEngine', () => {
     enemy.type = 'goblin';
     enemy.x = DEFENSE_SPAWN_X;
     enemy.y = getDefenseEnemyCenterY('goblin');
-    enemy.hp = 2;
+    enemy.hp = 2 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(enemy);
     runtime.activeEnemyCount = 1;
 
     const slashed = performDefenseSlash(runtime, 0.5);
     expect(slashed).toBe(true);
-    expect(enemy.hp).toBe(1);
+    expect(enemy.hp).toBe(DEFENSE_DAMAGE_UNIT);
     expect(enemy.knockbackVx).toBeCloseTo(KNOCKBACK_IMPULSE);
     expect(runtime.slashAt).toBe(0);
     expect(runtime.guardPoseUntilSec).toBeCloseTo(0.5);
@@ -173,14 +174,14 @@ describe('defenseEngine', () => {
     front.type = 'goblin';
     front.x = DEFENSE_PLAYER_X + 80;
     front.y = getDefenseEnemyCenterY('goblin');
-    front.hp = 2;
+    front.hp = 2 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(front);
 
     back.active = true;
     back.type = 'bat';
     back.x = DEFENSE_PLAYER_X + 200;
     back.y = getDefenseEnemyCenterY('bat');
-    back.hp = 2;
+    back.hp = 2 * DEFENSE_DAMAGE_UNIT;
     const batStats = resolveDefenseEnemyStats('bat', easyDifficulty);
     back.speedPxPerSec = batStats.speedPxPerSec;
     back.damage = batStats.damage;
@@ -192,8 +193,8 @@ describe('defenseEngine', () => {
 
     performDefenseSlash(runtime);
 
-    expect(front.hp).toBe(1);
-    expect(back.hp).toBe(2);
+    expect(front.hp).toBe(DEFENSE_DAMAGE_UNIT);
+    expect(back.hp).toBe(2 * DEFENSE_DAMAGE_UNIT);
     expect(runtime.slashToX).toBeCloseTo(front.x);
   });
 
@@ -205,7 +206,7 @@ describe('defenseEngine', () => {
     enemy.type = 'goblin';
     enemy.x = DEFENSE_PLAYER_X + 100;
     enemy.y = getDefenseEnemyCenterY('goblin');
-    enemy.hp = 1;
+    enemy.hp = DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(enemy);
     runtime.activeEnemyCount = 1;
 
@@ -308,7 +309,7 @@ describe('defenseEngine', () => {
     expect(moved60Fps).toBeGreaterThan(80);
   });
 
-  it('phrase mode wave 2 deals 2 slash damage in performance mode', () => {
+  it('phrase mode wave 2 deals 100 slash damage in production mode', () => {
     const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
     runtime.waveIndex = 1;
     const enemy = runtime.enemies[0];
@@ -316,15 +317,15 @@ describe('defenseEngine', () => {
     enemy.active = true;
     enemy.type = 'goblin';
     enemy.x = DEFENSE_SPAWN_X;
-    enemy.hp = 3;
+    enemy.hp = 3 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(enemy);
     runtime.activeEnemyCount = 1;
 
     performDefenseSlash(runtime);
-    expect(enemy.hp).toBe(1);
+    expect(enemy.hp).toBe(DEFENSE_DAMAGE_UNIT);
   });
 
-  it('measure mode always deals 1 slash damage regardless of wave', () => {
+  it('measure mode always deals base slash damage regardless of wave', () => {
     const runtime = createDefenseRuntime(5, 120, 3, false, 'measure');
     runtime.waveIndex = 2;
     const enemy = runtime.enemies[0];
@@ -332,12 +333,12 @@ describe('defenseEngine', () => {
     enemy.active = true;
     enemy.type = 'goblin';
     enemy.x = DEFENSE_SPAWN_X;
-    enemy.hp = 3;
+    enemy.hp = 3 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(enemy);
     runtime.activeEnemyCount = 1;
 
     performDefenseSlash(runtime);
-    expect(enemy.hp).toBe(2);
+    expect(enemy.hp).toBe(2 * DEFENSE_DAMAGE_UNIT);
   });
 
   it('records hit flash and damage popup on phrase slash', () => {
@@ -347,13 +348,13 @@ describe('defenseEngine', () => {
     enemy.active = true;
     enemy.type = 'goblin';
     enemy.x = DEFENSE_SPAWN_X;
-    enemy.hp = 2;
+    enemy.hp = 2 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(enemy);
     runtime.activeEnemyCount = 1;
 
     performDefenseSlash(runtime);
     expect(enemy.hitFlashAt).toBe(0);
-    expect(runtime.damagePopups.some((p) => p.active && p.value === 1)).toBe(true);
+    expect(runtime.damagePopups.some((p) => p.active && p.value === DEFENSE_DAMAGE_UNIT)).toBe(true);
   });
 
   it('charges SP, starts skill pose, and delays fireball spawn', () => {
@@ -373,7 +374,7 @@ describe('defenseEngine', () => {
     expect(runtime.fireballSpawnAtSec).toBe(-1);
   });
 
-  it('fireball pierces multiple enemies once each', () => {
+  it('fireball one-shots each enemy it pierces', () => {
     const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
     const front = runtime.enemies[0];
     const back = runtime.enemies[1];
@@ -382,13 +383,13 @@ describe('defenseEngine', () => {
     front.active = true;
     front.type = 'goblin';
     front.x = DEFENSE_PLAYER_X + 100;
-    front.hp = 10;
+    front.hp = 10 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(front);
 
     back.active = true;
     back.type = 'goblin';
     back.x = DEFENSE_PLAYER_X + 200;
-    back.hp = 10;
+    back.hp = 10 * DEFENSE_DAMAGE_UNIT;
     applyGoblinStats(back);
 
     runtime.activeEnemyCount = 2;
@@ -404,12 +405,12 @@ describe('defenseEngine', () => {
     fb.x = DEFENSE_PLAYER_X + 100;
 
     updateDefenseFireballs(runtime, 0);
-    expect(front.hp).toBe(7);
-    expect(back.hp).toBe(10);
+    expect(front.active).toBe(false);
+    expect(back.active).toBe(true);
 
     fb.x = DEFENSE_PLAYER_X + 200;
     updateDefenseFireballs(runtime, 0);
-    expect(back.hp).toBe(7);
+    expect(back.active).toBe(false);
   });
 
 });

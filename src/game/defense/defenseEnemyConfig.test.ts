@@ -6,6 +6,7 @@ import {
   getDefenseEnemyAttackDx,
   getDefenseEnemyAttackDy,
   getDefenseEnemyCenterY,
+  DEFENSE_DAMAGE_UNIT,
   getDefenseSlashDamage,
   getDefenseWaveHpMult,
   getDefenseWaveIndex,
@@ -69,8 +70,8 @@ describe('defenseEnemyConfig', () => {
       attackIntervalSec: 3,
       attackRangePx: 48,
     };
-    expect(resolveDefenseEnemyStats('bat', difficulty).hp).toBe(1);
-    expect(resolveDefenseEnemyStats('golem', difficulty).hp).toBe(2);
+    expect(resolveDefenseEnemyStats('bat', difficulty).hp).toBe(50);
+    expect(resolveDefenseEnemyStats('golem', difficulty).hp).toBe(100);
     expect(resolveDefenseEnemyStats('dragon', difficulty).damage).toBe(2);
   });
 
@@ -106,19 +107,19 @@ describe('defenseEnemyConfig', () => {
       attackIntervalSec: 3,
       attackRangePx: 48,
     };
-    expect(resolveDefenseEnemyStats('slime', difficulty, 1.5).hp).toBe(3);
+    expect(resolveDefenseEnemyStats('slime', difficulty, 1.5).hp).toBe(150);
   });
 
   it('returns wave-scaled slash damage when scaling enabled', () => {
-    expect(getDefenseSlashDamage(0, true)).toBe(1);
-    expect(getDefenseSlashDamage(2, true)).toBe(3);
-    expect(getDefenseSlashDamage(2, false)).toBe(1);
+    expect(getDefenseSlashDamage(0, true)).toBe(DEFENSE_DAMAGE_UNIT);
+    expect(getDefenseSlashDamage(2, true)).toBe(3 * DEFENSE_DAMAGE_UNIT);
+    expect(getDefenseSlashDamage(2, false)).toBe(DEFENSE_DAMAGE_UNIT);
   });
 
   it('returns wave hp and spawn interval multipliers', () => {
     expect(getDefenseWaveHpMult(0)).toBe(1);
-    expect(getDefenseWaveHpMult(3)).toBe(3);
-    expect(getDefenseWaveSpawnIntervalMult(1)).toBe(0.85);
-    expect(getDefenseWaveSpawnIntervalMult(3)).toBe(0.6);
+    expect(getDefenseWaveHpMult(3)).toBe(2.0);
+    expect(getDefenseWaveSpawnIntervalMult(1)).toBe(0.75);
+    expect(getDefenseWaveSpawnIntervalMult(3)).toBe(0.4);
   });
 });

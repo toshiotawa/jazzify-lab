@@ -90,6 +90,9 @@
 		28561CD496CD0B7374097A5D /* PhraseProgressIdleReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C54AEF716E8FDBBE7911049 /* PhraseProgressIdleReset.swift */; };
 		2856288099AC91BA43F46033 /* SurvivalBackgroundCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C975F62A45264DE86D940B45 /* SurvivalBackgroundCache.swift */; };
 		285FDDB26AC17B29FCFB0736 /* PlayHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914262A8998D6CA200DFB8A9 /* PlayHubView.swift */; };
+		A1B2C3D4E5F6012345678902 /* PlayMapHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6012345678901 /* PlayMapHeaderView.swift */; };
+		A1B2C3D4E5F6012345678904 /* PlayMapContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6012345678903 /* PlayMapContainerView.swift */; };
+		A1B2C3D4E5F6012345678906 /* DefenseDescentAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6012345678905 /* DefenseDescentAccessTests.swift */; };
 		28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */; };
 		2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */; };
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
@@ -667,6 +670,9 @@
 		9121F89892159073FD95CE4C /* EarTrainingOsmdKeyboardScrollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdKeyboardScrollTests.swift; sourceTree = "<group>"; };
 		9140CD76A930EFAA3062EE0D /* SurvivalCompositePhraseDamage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseDamage.swift; sourceTree = "<group>"; };
 		914262A8998D6CA200DFB8A9 /* PlayHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayHubView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678901 /* PlayMapHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayMapHeaderView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678903 /* PlayMapContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayMapContainerView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678905 /* DefenseDescentAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentAccessTests.swift; sourceTree = "<group>"; };
 		91936318FEA055405FA00EC4 /* SurvivalTutorialV4DecodeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV4DecodeTests.swift; sourceTree = "<group>"; };
 		91BCBFE071DC0D119CEC1818 /* SurvivalGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameSession.swift; sourceTree = "<group>"; };
 		926DBA64B90E47B558C0EE77 /* SurvivalTutorialV4BridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV4BridgeTests.swift; sourceTree = "<group>"; };
@@ -1224,6 +1230,7 @@
 			children = (
 				70286E8CB46BF37F45570F06 /* DefenseEnemyDisplayConfigTests.swift */,
 				2F7A966C7DBE6629C4DC5C1C /* DefenseGameLoopTests.swift */,
+				A1B2C3D4E5F6012345678905 /* DefenseDescentAccessTests.swift */,
 				C93F5E0A4FB36D8C12E3A6F4 /* DefensePlayerPoseTests.swift */,
 				CCAF5923DBBEF6C3DEFA3F16 /* DefensePhraseJudgeTests.swift */,
 				8BD2CA846EB28EE3CA39CDD4 /* DefensePracticeSpeedTests.swift */,
@@ -1703,6 +1710,8 @@
 				93536B485955BA0380712008 /* PianoKeyboardTheme.swift */,
 				9D3D03C266AE3CBAC45776DD /* PlayerLevelHub.swift */,
 				914262A8998D6CA200DFB8A9 /* PlayHubView.swift */,
+				A1B2C3D4E5F6012345678901 /* PlayMapHeaderView.swift */,
+				A1B2C3D4E5F6012345678903 /* PlayMapContainerView.swift */,
 				9BDEC3235DA37D6C97CE44D9 /* QuestCompletionSheet.swift */,
 				552B304C0B5D2AD1CF9D921A /* QuestReadyToCompleteSheet.swift */,
 				6B90E3761E8F04BD54BC31B3 /* QuestStageCardAssets.swift */,
@@ -1909,6 +1918,7 @@
 			files = (
 				C9E56979BA797BC8A54182DF /* DefenseEnemyDisplayConfigTests.swift in Sources */,
 				7110A125B7F64F5A546D2D80 /* DefenseGameLoopTests.swift in Sources */,
+				A1B2C3D4E5F6012345678906 /* DefenseDescentAccessTests.swift in Sources */,
 				DA406F1B50C47E9D23F4B7A5 /* DefensePlayerPoseTests.swift in Sources */,
 				0B18AFAF841CF7E5CFDA41AF /* DefensePhraseJudgeTests.swift in Sources */,
 				66D89AF575A639E9DD64566A /* DefensePracticeSpeedTests.swift in Sources */,
@@ -2174,6 +2184,8 @@
 				1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */,
 				361DB20434662D7CEB99F82B /* PitchOnsetTracker.swift in Sources */,
 				285FDDB26AC17B29FCFB0736 /* PlayHubView.swift in Sources */,
+				A1B2C3D4E5F6012345678902 /* PlayMapHeaderView.swift in Sources */,
+				A1B2C3D4E5F6012345678904 /* PlayMapContainerView.swift in Sources */,
 				ABC2FB013B61C1D85FDFD755 /* PlayMapModels.swift in Sources */,
 				C7A605C2EDB37E5811AD96AF /* PlayerLevelHub.swift in Sources */,
 				91EC243D7FBE0A71E9F6C375 /* PrecisionNotesCanvasView.swift in Sources */,

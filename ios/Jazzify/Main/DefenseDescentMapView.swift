@@ -4,9 +4,11 @@ import SwiftUI
 struct DefenseDescentMapView: View {
     let locale: AppLocale
     let isPremium: Bool
+    let mode: PlayMapMode
     let blocks: [PlayMapBlock]
     let nodes: [PlayMapNode]
     let clears: [PlayMapNodeClear]
+    let onSwitchMode: (() -> Void)?
     let onSelectNode: (PlayMapNode) -> Void
     let onSelectQuestNode: (PlayMapNode) -> Void
     let onRequestUpgrade: () -> Void
@@ -31,6 +33,18 @@ struct DefenseDescentMapView: View {
 
     private var layout: DefenseDescentLayout {
         DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: tier)
+    }
+
+    private var tierProgress: [PlayMapTier: PlayMapTierProgress] {
+        var result: [PlayMapTier: PlayMapTierProgress] = [:]
+        for mapTier in PlayMapTier.allCases {
+            let tierLayout = DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: mapTier)
+            result[mapTier] = PlayMapTierProgress(
+                cleared: DefenseDescentAccess.countClearedStageNodes(in: tierLayout, clearedNodeIds: clearedNodeIds),
+                total: DefenseDescentAccess.countStageNodes(in: tierLayout)
+            )
+        }
+        return result
     }
 
     private var frontierNodeId: UUID? {
@@ -72,11 +86,18 @@ struct DefenseDescentMapView: View {
         }.count
     }
 
+    private var unlockedNodeIds: Set<UUID> {
+        DefenseDescentAccess.unlockedNodeIds(
+            blockLayouts: layout.blocks,
+            clearedNodeIds: clearedNodeIds,
+            isPremium: isPremium
+        )
+    }
+
     private var selectedNodeUnlocked: Bool {
         guard let selectedNode else { return false }
-        let blockIndex = layout.blocks.firstIndex(where: { $0.blockId == selectedNode.blockId }) ?? 0
-        return DefenseDescentAccess.isBlockUnlocked(
-            blockIndex: blockIndex,
+        return DefenseDescentAccess.isNodeUnlocked(
+            nodeId: selectedNode.id,
             blockLayouts: layout.blocks,
             clearedNodeIds: clearedNodeIds,
             isPremium: isPremium
@@ -92,9 +113,8 @@ struct DefenseDescentMapView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            tierPicker
-            GeometryReader { proxy in
+        GeometryReader { proxy in
+            ZStack(alignment: .top) {
                 HStack(spacing: 0) {
                     mapViewport(width: proxy.size.width - (showSidePanelInline ? 320 : 0))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -106,6 +126,18 @@ struct DefenseDescentMapView: View {
                             .padding(.vertical, 8)
                     }
                 }
+
+                PlayMapHeaderView(
+                    locale: locale,
+                    mode: mode,
+                    tier: tier,
+                    tierProgress: tierProgress,
+                    onModeChange: { nextMode in
+                        guard nextMode != mode else { return }
+                        onSwitchMode?()
+                    },
+                    onTierChange: { tier = $0 }
+                )
             }
         }
         .background(Color(hex: "09070f"))
@@ -133,28 +165,6 @@ struct DefenseDescentMapView: View {
             scrollAnimated = false
             refreshScroll(scale: currentScale(for: UIScreen.main.bounds.width), animated: false)
         }
-    }
-
-    private var tierPicker: some View {
-        HStack(spacing: 8) {
-            ForEach(PlayMapTier.allCases, id: \.rawValue) { tab in
-                Button {
-                    tier = tab
-                } label: {
-                    Text(tab == .basic ? "Basic" : "Advanced")
-                        .font(.subheadline.bold())
-                        .foregroundStyle(tier == tab ? Color(hex: "0f172a") : .white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
-                        .background(tier == tab ? Color.white : Color.white.opacity(0.12))
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     private var sidePanel: some View {
@@ -194,6 +204,7 @@ struct DefenseDescentMapView: View {
                 layout: layout,
                 locale: locale,
                 clearedNodeIds: clearedNodeIds,
+                unlockedNodeIds: unlockedNodeIds,
                 accessibleBlockIndex: accessibleBlockIndex,
                 frontierNodeId: frontierNodeId,
                 selectedNodeId: $selectedNodeId,
@@ -241,14 +252,20 @@ struct DefenseDescentMapView: View {
     }
 
     private func handleNodeTap(_ nodeId: UUID, blockIndex: Int) {
-        let unlocked = DefenseDescentAccess.isBlockUnlocked(
-            blockIndex: blockIndex,
+        let nodeUnlocked = DefenseDescentAccess.isNodeUnlocked(
+            nodeId: nodeId,
             blockLayouts: layout.blocks,
             clearedNodeIds: clearedNodeIds,
             isPremium: isPremium
         )
-        if !unlocked {
-            if !isPremium && blockIndex >= 1 {
+        if !nodeUnlocked {
+            if !isPremium && blockIndex >= 1
+                && !DefenseDescentAccess.isBlockUnlocked(
+                    blockIndex: blockIndex,
+                    blockLayouts: layout.blocks,
+                    clearedNodeIds: clearedNodeIds,
+                    isPremium: isPremium
+                ) {
                 onRequestUpgrade()
             }
             return
@@ -278,6 +295,7 @@ private struct DefenseDescentMapContent: View {
     let layout: DefenseDescentLayout
     let locale: AppLocale
     let clearedNodeIds: Set<UUID>
+    let unlockedNodeIds: Set<UUID>
     let accessibleBlockIndex: Int
     let frontierNodeId: UUID?
     @Binding var selectedNodeId: UUID?
@@ -312,6 +330,7 @@ private struct DefenseDescentMapContent: View {
                     allBlockLayouts: layout.blocks,
                     hasNextBlock: blockLayout.blockIndex + 1 < layout.blocks.count,
                     clearedNodeIds: clearedNodeIds,
+                    unlockedNodeIds: unlockedNodeIds,
                     accessibleBlockIndex: accessibleBlockIndex,
                     frontierNodeId: frontierNodeId,
                     selectedNodeId: $selectedNodeId,
@@ -379,6 +398,7 @@ private struct DefenseDescentBlockContent: View {
     let allBlockLayouts: [DefenseDescentBlockLayout]
     let hasNextBlock: Bool
     let clearedNodeIds: Set<UUID>
+    let unlockedNodeIds: Set<UUID>
     let accessibleBlockIndex: Int
     let frontierNodeId: UUID?
     @Binding var selectedNodeId: UUID?
@@ -392,15 +412,8 @@ private struct DefenseDescentBlockContent: View {
         let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
         let filter = SurvivalDescentThemeCatalog.filter(for: blockLayout.blockIndex)
         let locked = blockLayout.blockIndex > accessibleBlockIndex
-        let blockUnlocked = DefenseDescentAccess.isBlockUnlocked(
-            blockIndex: blockLayout.blockIndex,
-            blockLayouts: allBlockLayouts,
-            clearedNodeIds: clearedNodeIds,
-            isPremium: isPremium
-        )
-        let stageNodes = blockLayout.nodes.filter { $0.node.nodeKind == .stage }
-        let doorOpened = !stageNodes.isEmpty
-            && stageNodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
+        let doorOpened = !blockLayout.nodes.isEmpty
+            && blockLayout.nodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
         let isFrontierBlock = blockLayout.blockIndex == accessibleBlockIndex
         let isEnglishCopy = locale == .en
         let depthLabel = isEnglishCopy
@@ -505,7 +518,7 @@ private struct DefenseDescentBlockContent: View {
                 theme: theme,
                 isCurrent: nodePos.nodeId == frontierNodeId,
                 isCleared: cleared,
-                isUnlocked: blockUnlocked,
+                isUnlocked: unlockedNodeIds.contains(nodePos.nodeId),
                 isSelected: selectedNodeId == nodePos.nodeId,
                 requiresPremium: false,
                 isMixed: false,
@@ -533,6 +546,7 @@ private struct DefenseDescentBlockContent: View {
             let b = nodes[i + 1]
             let highlighted = clearedNodeIds.contains(a.nodeId)
                 && !clearedNodeIds.contains(b.nodeId)
+                && unlockedNodeIds.contains(b.nodeId)
             pairs.append(
                 StairPair(
                     from: CGPoint(x: a.x, y: a.y),

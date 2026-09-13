@@ -17,7 +17,7 @@ interface DefenseDescentBlockProps {
   scale: number;
   selectedNodeId: string | null;
   clearedNodeIds: ReadonlySet<string>;
-  blockUnlocked: boolean;
+  unlockedNodeIds: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
   dim: boolean;
   isEnglishCopy: boolean;
@@ -32,7 +32,7 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
   scale,
   selectedNodeId,
   clearedNodeIds,
-  blockUnlocked,
+  unlockedNodeIds,
   onSelectNode,
   dim,
   isEnglishCopy,
@@ -45,9 +45,8 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
   const blockFilter = getBlockFilter(layout.blockIndex);
 
   const lastNode = layout.nodes[layout.nodes.length - 1];
-  const stageNodes = layout.nodes.filter((n) => n.node.nodeKind === 'stage');
-  const doorOpened = stageNodes.length > 0
-    && stageNodes.every((n) => clearedNodeIds.has(n.nodeId));
+  const doorOpened = layout.nodes.length > 0
+    && layout.nodes.every((n) => clearedNodeIds.has(n.nodeId));
 
   const connectors = useMemo(() => {
     const pairs: Array<{ from: { x: number; y: number }; to: { x: number; y: number }; highlighted: boolean }> = [];
@@ -56,7 +55,7 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
       const b = layout.nodes[i + 1];
       const highlighted = clearedNodeIds.has(a.nodeId)
         && !clearedNodeIds.has(b.nodeId)
-        && blockUnlocked;
+        && unlockedNodeIds.has(b.nodeId);
       pairs.push({
         from: { x: a.x, y: a.y },
         to: { x: b.x, y: b.y },
@@ -64,7 +63,7 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
       });
     }
     return pairs;
-  }, [layout.nodes, clearedNodeIds, blockUnlocked]);
+  }, [layout.nodes, clearedNodeIds, unlockedNodeIds]);
 
   const depthLabel = isEnglishCopy
     ? `FLOOR ${layout.blockIndex + 1}`
@@ -176,14 +175,15 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
 
       {layout.nodes.map((nodePos) => {
         const cleared = clearedNodeIds.has(nodePos.nodeId);
-        const nodeState: StageNodeState = !blockUnlocked
+        const nodeUnlocked = unlockedNodeIds.has(nodePos.nodeId);
+        const nodeState: StageNodeState = !nodeUnlocked
           ? 'locked'
           : cleared
             ? 'cleared'
             : 'unlocked';
         const isFrontierNode = !dim
           && nodePos.nodeId === frontierNodeId
-          && blockUnlocked
+          && nodeUnlocked
           && !cleared;
         return (
           <StageNode

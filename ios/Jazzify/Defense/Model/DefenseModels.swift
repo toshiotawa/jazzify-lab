@@ -92,7 +92,6 @@ struct DefenseFireballState: Sendable {
     var isActive: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var damage: Int = 0
     var hitSlotMask: Int = 0
 }
 

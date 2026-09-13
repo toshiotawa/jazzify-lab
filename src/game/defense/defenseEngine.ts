@@ -4,8 +4,6 @@
 import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_DAMAGE_POPUP_SEC,
-  DEFENSE_ENEMY_TYPES,
-  DEFENSE_FIREBALL_DAMAGE_MULT,
   DEFENSE_FIREBALL_HIT_RADIUS,
   DEFENSE_FIREBALL_SPAWN_DELAY_SEC,
   DEFENSE_FIREBALL_SPEED_PX,
@@ -43,15 +41,11 @@ const FIREBALL_SPAWN_OFFSET_Y = 40;
 const FIREBALL_DESPAWN_X = DEFENSE_MAP_WIDTH + 40;
 
 const isWaveScaling = (runtime: DefenseRuntime): boolean => (
-  runtime.attackTrigger === 'note' && !runtime.practiceMode
+  runtime.attackTrigger === 'note'
 );
 
 const isPhraseMode = (runtime: DefenseRuntime): boolean => (
   runtime.attackTrigger === 'note'
-);
-
-const pickPracticeEnemyType = (index: number): DefenseEnemyType => (
-  DEFENSE_ENEMY_TYPES[index % DEFENSE_ENEMY_TYPES.length] ?? 'slime'
 );
 
 const findInactiveEnemySlot = (runtime: DefenseRuntime): DefenseEnemy | null => {
@@ -146,16 +140,11 @@ const applyEnemyDamage = (
 };
 
 export const spawnDefenseFireball = (runtime: DefenseRuntime): boolean => {
-  const scaling = isWaveScaling(runtime);
-  const slashDamage = getDefenseSlashDamage(runtime.waveIndex, scaling);
-  const damage = slashDamage * DEFENSE_FIREBALL_DAMAGE_MULT;
-
   for (const fb of runtime.fireballs) {
     if (fb.active) continue;
     fb.active = true;
     fb.x = runtime.playerX + FIREBALL_SPAWN_OFFSET_X;
     fb.y = DEFENSE_GROUND_Y - FIREBALL_SPAWN_OFFSET_Y;
-    fb.damage = damage;
     fb.hitSlotMask = 0;
     return true;
   }
@@ -200,7 +189,7 @@ export const updateDefenseFireballs = (
       applyEnemyDamage(
         runtime,
         enemy,
-        fb.damage,
+        enemy.hp,
         KNOCKBACK_IMPULSE * 0.5,
         showPopup,
       );
@@ -240,10 +229,13 @@ export const spawnEnemyIfDue = (
   const slot = findInactiveEnemySlot(runtime);
   if (!slot) return;
 
-  const cumulative = isWaveScaling(runtime);
-  const enemyType = runtime.practiceMode
-    ? pickPracticeEnemyType(runtime.nextEnemyIndex)
-    : pickDefenseWaveEnemyType(runtime.waveIndex, runtime.waveSpawnCount, cumulative);
+  const cumulative = isWaveScaling(runtime) && !runtime.practiceMode;
+  const waveIndex = runtime.practiceMode ? 0 : runtime.waveIndex;
+  const enemyType = pickDefenseWaveEnemyType(
+    waveIndex,
+    runtime.practiceMode ? runtime.nextEnemyIndex : runtime.waveSpawnCount,
+    cumulative,
+  );
 
   slot.active = true;
   slot.x = DEFENSE_SPAWN_X;

@@ -90,7 +90,9 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
             ) : (
               <>
                 <FaLock className="text-slate-500" aria-hidden />
-                {isEnglishCopy ? 'Locked' : 'ロック中'}
+                {isEnglishCopy
+                  ? 'Clear the previous stage or quest first'
+                  : '前のステージ／クエストをクリアしてください'}
               </>
             )}
           </p>

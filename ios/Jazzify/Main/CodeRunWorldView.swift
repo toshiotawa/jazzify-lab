@@ -4,6 +4,8 @@ struct CodeRunWorldView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
+    var onSwitchMode: (() -> Void)? = nil
+
     @State private var blocks: [PlayMapBlock] = []
     @State private var nodes: [PlayMapNode] = []
     @State private var clears: [PlayMapNodeClear] = []
@@ -49,10 +51,12 @@ struct CodeRunWorldView: View {
                 CodeRunDescentMapView(
                     locale: locale,
                     isPremium: appState.isPremium,
+                    mode: .codeRun,
                     blocks: blocks,
                     nodes: nodes,
                     clears: clears,
                     rankThresholds: rankThresholds,
+                    onSwitchMode: onSwitchMode,
                     onSelectNode: { node in
                         Task { await startStageNode(node) }
                     },
@@ -216,11 +220,16 @@ struct CodeRunWorldView: View {
     }
 
     private func goToNextNode(from node: PlayMapNode) async {
+        guard clears.contains(where: { $0.nodeId == node.id }) else {
+            await reloadMap()
+            return
+        }
         let sameBlock = nodes
-            .filter { $0.blockId == node.blockId && $0.nodeKind == .stage }
+            .filter { $0.blockId == node.blockId }
             .sorted { $0.sortOrder < $1.sortOrder }
         guard let index = sameBlock.firstIndex(where: { $0.id == node.id }),
-              let next = sameBlock[safe: index + 1]
+              let next = sameBlock[safe: index + 1],
+              next.nodeKind == .stage
         else {
             await reloadMap()
             return

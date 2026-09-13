@@ -71,7 +71,7 @@ enum DefenseGameLoop {
     }
 
     private static func isWaveScaling(_ runtime: DefenseRuntimeState) -> Bool {
-        runtime.attackTrigger == .note && !runtime.practiceMode
+        runtime.attackTrigger == .note
     }
 
     private static func isPhraseMode(_ runtime: DefenseRuntimeState) -> Bool {
@@ -164,16 +164,11 @@ enum DefenseGameLoop {
     }
 
     private static func spawnFireball(runtime: inout DefenseRuntimeState) {
-        let scaling = isWaveScaling(runtime)
-        let slashDamage = DefenseEnemyConfig.slashDamage(waveIndex: runtime.waveIndex, scaling: scaling)
-        let damage = slashDamage * DefenseEnemyConfig.fireballDamageMult
-
         for index in runtime.fireballs.indices where !runtime.fireballs[index].isActive {
             runtime.fireballs[index] = DefenseFireballState(
                 isActive: true,
                 x: runtime.playerX + fireballSpawnOffsetX,
                 y: DefenseEnemyConfig.groundY - fireballSpawnOffsetY,
-                damage: damage,
                 hitSlotMask: 0
             )
             return
@@ -198,7 +193,7 @@ enum DefenseGameLoop {
                 applyEnemyDamage(
                     runtime: &runtime,
                     enemyIndex: enemyIndex,
-                    damage: runtime.fireballs[fbIndex].damage,
+                    damage: runtime.enemies[enemyIndex].hp,
                     knockbackImpulse: DefenseEnemyConfig.knockbackImpulse * 0.5,
                     showPopup: showPopup
                 )
@@ -234,17 +229,13 @@ enum DefenseGameLoop {
         runtime.spawnTimerSec = 0
         guard let index = runtime.enemies.firstIndex(where: { !$0.isActive }) else { return }
 
-        let enemyType: DefenseEnemyType
-        if runtime.practiceMode {
-            let types = DefenseEnemyType.allCases
-            enemyType = types[runtime.nextEnemyIndex % types.count]
-        } else {
-            enemyType = DefenseEnemyConfig.pickWaveEnemyType(
-                waveIndex: runtime.waveIndex,
-                spawnCount: runtime.waveSpawnCount,
-                cumulative: isWaveScaling(runtime)
-            )
-        }
+        let cumulative = isWaveScaling(runtime) && !runtime.practiceMode
+        let waveIndex = runtime.practiceMode ? 0 : runtime.waveIndex
+        let enemyType = DefenseEnemyConfig.pickWaveEnemyType(
+            waveIndex: waveIndex,
+            spawnCount: runtime.practiceMode ? runtime.nextEnemyIndex : runtime.waveSpawnCount,
+            cumulative: cumulative
+        )
 
         runtime.enemies[index].isActive = true
         runtime.enemies[index].x = spawnX

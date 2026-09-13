@@ -180,9 +180,54 @@ enum DefenseDescentAccess {
         if !isPremium && blockIndex >= 1 { return false }
         guard blockIndex > 0, blockIndex - 1 < blockLayouts.count else { return blockIndex == 0 }
         let prev = blockLayouts[blockIndex - 1]
-        let stageNodes = prev.nodes.filter { $0.node.nodeKind == .stage }
-        if stageNodes.isEmpty { return true }
-        return stageNodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
+        if prev.nodes.isEmpty { return true }
+        return prev.nodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
+    }
+
+    static func isNodeUnlocked(
+        nodeId: UUID,
+        blockLayouts: [DefenseDescentBlockLayout],
+        clearedNodeIds: Set<UUID>,
+        isPremium: Bool
+    ) -> Bool {
+        if clearedNodeIds.contains(nodeId) { return true }
+        for blockLayout in blockLayouts {
+            guard let nodeIndex = blockLayout.nodes.firstIndex(where: { $0.nodeId == nodeId }) else {
+                continue
+            }
+            guard isBlockUnlocked(
+                blockIndex: blockLayout.blockIndex,
+                blockLayouts: blockLayouts,
+                clearedNodeIds: clearedNodeIds,
+                isPremium: isPremium
+            ) else {
+                return false
+            }
+            for prior in blockLayout.nodes.prefix(nodeIndex) where !clearedNodeIds.contains(prior.nodeId) {
+                return false
+            }
+            return true
+        }
+        return false
+    }
+
+    static func unlockedNodeIds(
+        blockLayouts: [DefenseDescentBlockLayout],
+        clearedNodeIds: Set<UUID>,
+        isPremium: Bool
+    ) -> Set<UUID> {
+        var unlocked = Set<UUID>()
+        for blockLayout in blockLayouts {
+            for node in blockLayout.nodes where isNodeUnlocked(
+                nodeId: node.nodeId,
+                blockLayouts: blockLayouts,
+                clearedNodeIds: clearedNodeIds,
+                isPremium: isPremium
+            ) {
+                unlocked.insert(node.nodeId)
+            }
+        }
+        return unlocked
     }
 
     static func findFrontierNodeId(
@@ -220,9 +265,8 @@ enum DefenseDescentAccess {
             block.nodes.contains(where: { $0.nodeId == frontier })
         }) else { return 0 }
         let block = blockLayouts[blockIndex]
-        let stageNodes = block.nodes.filter { $0.node.nodeKind == .stage }
-        let blockCleared = !stageNodes.isEmpty
-            && stageNodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
+        let blockCleared = !block.nodes.isEmpty
+            && block.nodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
         if blockCleared {
             return min(blockIndex + 1, blockLayouts.count - 1)
         }

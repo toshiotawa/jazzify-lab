@@ -17,6 +17,7 @@ import { getWindow } from '@/platform';
 import CodeRunDescentBlock, { CodeRunBlockDimVeil } from '@/components/play/codeRunMap/CodeRunDescentBlock';
 import CodeRunDescentSidePanel from '@/components/play/codeRunMap/CodeRunDescentSidePanel';
 import CodeRunSkyBackground from '@/components/play/codeRunMap/parts/CodeRunSkyBackground';
+import PlayMapHeader from '@/components/play/PlayMapHeader';
 import DescentCharacter from '@/components/survival/descent/parts/DescentCharacter';
 import {
   buildPlayDescentLayout,
@@ -25,7 +26,9 @@ import {
   findFrontierNodeId,
   getAccessiblePlayBlockIndex,
   getPlayNodePosition,
+  getUnlockedPlayNodeIds,
   isPlayDescentBlockUnlocked,
+  isPlayDescentNodeUnlocked,
   type PlayBlockLayout,
 } from '@/components/play/defenseDescent/playDescentLayout';
 
@@ -157,6 +160,11 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
     [rankThresholds],
   );
 
+  const unlockedNodeIds = useMemo(
+    () => getUnlockedPlayNodeIds(layout.blocks, clearedNodeIds, isPremiumMember),
+    [layout.blocks, clearedNodeIds, isPremiumMember],
+  );
+
   const frontierNodeId = useMemo(
     () => findFrontierNodeId(layout.blocks, clearedNodeIds, isPremiumMember),
     [layout.blocks, clearedNodeIds, isPremiumMember],
@@ -257,14 +265,15 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
   }, [adjustCamera, loading, assetsReady]);
 
   const handleSelectNode = useCallback((nodeId: string, blockIndex: number) => {
-    const unlocked = isPlayDescentBlockUnlocked(
-      blockIndex,
+    const nodeUnlocked = isPlayDescentNodeUnlocked(
+      nodeId,
       layout.blocks,
       clearedNodeIds,
       isPremiumMember,
     );
-    if (!unlocked) {
-      if (!isPremiumMember && blockIndex >= 1) {
+    if (!nodeUnlocked) {
+      if (!isPremiumMember && blockIndex >= 1
+        && !isPlayDescentBlockUnlocked(blockIndex, layout.blocks, clearedNodeIds, isPremiumMember)) {
         setShowPaywall(true);
       } else {
         setLockedNotice(true);
@@ -308,8 +317,12 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
 
   const selectedNodeUnlocked = useMemo(() => {
     if (!selectedNode) return false;
-    const blockIndex = layout.blocks.findIndex((b) => b.blockId === selectedNode.blockId);
-    return isPlayDescentBlockUnlocked(blockIndex, layout.blocks, clearedNodeIds, isPremiumMember);
+    return isPlayDescentNodeUnlocked(
+      selectedNode.id,
+      layout.blocks,
+      clearedNodeIds,
+      isPremiumMember,
+    );
   }, [clearedNodeIds, isPremiumMember, layout.blocks, selectedNode]);
 
   const startLocked = Boolean(
@@ -343,6 +356,21 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
     return 'center';
   })();
 
+  const tierProgress = useMemo(() => {
+    const result = {
+      basic: { cleared: 0, total: 0 },
+      advanced: { cleared: 0, total: 0 },
+    };
+    (['basic', 'advanced'] as const).forEach((mapTier) => {
+      const tierLayout = buildPlayDescentLayout(blocks, nodes, mapTier);
+      result[mapTier] = {
+        cleared: countClearedStageNodes(tierLayout, clearedNodeIds),
+        total: countStageNodes(tierLayout),
+      };
+    });
+    return result;
+  }, [blocks, nodes, clearedNodeIds]);
+
   const totalStageNodes = useMemo(() => countStageNodes(layout), [layout]);
   const totalClearedCount = useMemo(
     () => countClearedStageNodes(layout, clearedNodeIds),
@@ -370,32 +398,6 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
 
       <div className="mx-auto grid w-full max-w-[1180px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col">
-          <div className="flex px-4 py-2">
-            <div className="flex gap-1 rounded-full border border-amber-500/25 bg-black/55 p-1">
-              {(['basic', 'advanced'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={cn(
-                    'rounded-full px-4 py-1 text-sm font-bold transition-colors',
-                    tier === tab
-                      ? 'bg-amber-400 text-slate-950'
-                      : 'text-amber-100/85 hover:bg-white/10',
-                  )}
-                  onClick={() => {
-                    setTier(tab);
-                    setSelectedNodeId(null);
-                    setIsMobileDetailOpen(false);
-                  }}
-                >
-                  {tab === 'basic'
-                    ? (isEnglishCopy ? 'Basic' : 'Basic')
-                    : (isEnglishCopy ? 'Advanced' : 'Advanced')}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div
             ref={viewportRef}
             className="relative min-h-0 flex-1 overflow-hidden touch-none select-none"
@@ -404,6 +406,17 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
               cursor: 'grab',
             }}
           >
+            <PlayMapHeader
+              mode="code_run"
+              tier={tier}
+              onTierChange={(nextTier) => {
+                setTier(nextTier);
+                setSelectedNodeId(null);
+                setIsMobileDetailOpen(false);
+              }}
+              tierProgress={tierProgress}
+              isEnglishCopy={isEnglishCopy}
+            />
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0"
@@ -448,12 +461,6 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
               >
                 {visibleBlockLayouts.map((blockLayout) => {
                   const dim = blockLayout.blockIndex > accessibleBlockIndex;
-                  const blockUnlocked = isPlayDescentBlockUnlocked(
-                    blockLayout.blockIndex,
-                    layout.blocks,
-                    clearedNodeIds,
-                    isPremiumMember,
-                  );
                   return (
                     <CodeRunDescentBlock
                       key={blockLayout.blockId}
@@ -461,7 +468,7 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
                       scale={scale}
                       selectedNodeId={selectedNodeId}
                       clearedNodeIds={clearedNodeIds}
-                      blockUnlocked={blockUnlocked}
+                      unlockedNodeIds={unlockedNodeIds}
                       onSelectNode={(nodeId) => handleSelectNode(nodeId, blockLayout.blockIndex)}
                       dim={dim}
                       isEnglishCopy={isEnglishCopy}
@@ -496,8 +503,8 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
           {lockedNotice && !selectedNode && (
             <div className="border-t border-amber-500/20 bg-[#120c18]/90 p-4 text-xs text-amber-100">
               {isEnglishCopy
-                ? 'Clear every stage in the previous block to unlock this block.'
-                : '前のブロックの全ステージをクリアすると解放されます。'}
+                ? 'Clear the previous stage or quest to unlock the next node.'
+                : '前のステージ／クエストをクリアすると解放されます。'}
             </div>
           )}
         </div>

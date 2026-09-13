@@ -21,12 +21,12 @@ struct ResolvedDefenseEnemyStats {
 
 enum DefenseEnemyConfig {
     static let waveCount = 4
-    static let waveHpMult: [Double] = [1, 1.5, 2.2, 3]
-    static let waveSpawnIntervalMult: [Double] = [1, 0.85, 0.72, 0.6]
+    static let damageUnit = 50
+    static let waveHpMult: [Double] = [1, 1.5, 1.8, 2.0]
+    static let waveSpawnIntervalMult: [Double] = [1, 0.75, 0.55, 0.4]
     static let hitFlashSec: TimeInterval = 0.15
     static let spMax = 5
     static let fireballSpeedPx: CGFloat = 520
-    static let fireballDamageMult = 3
     static let fireballHitRadius: CGFloat = 28
     static let damagePopupSec: TimeInterval = 0.6
     static let damagePopupPoolSize = 16
@@ -181,7 +181,7 @@ enum DefenseEnemyConfig {
     }
 
     static func slashDamage(waveIndex: Int, scaling: Bool) -> Int {
-        scaling ? waveIndex + 1 : 1
+        scaling ? (waveIndex + 1) * damageUnit : damageUnit
     }
 
     static func resolveEnemyStats(
@@ -191,7 +191,7 @@ enum DefenseEnemyConfig {
     ) -> ResolvedDefenseEnemyStats {
         let stats = type.combatStats
         return ResolvedDefenseEnemyStats(
-            hp: max(1, Int((Double(difficulty.enemyHp) * stats.hpMult * hpMult).rounded())),
+            hp: max(1, Int((Double(difficulty.enemyHp) * stats.hpMult * hpMult).rounded())) * damageUnit,
             speedPxPerSec: difficulty.enemySpeedPxPerSec * stats.speedMult,
             damage: difficulty.enemyDamage + stats.damageAdd,
             attackIntervalSec: difficulty.attackIntervalSec * stats.intervalMult,

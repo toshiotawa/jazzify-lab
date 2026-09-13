@@ -7,6 +7,7 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import type { PlayMapNode } from '@/platform/supabasePlayMap';
 import {
+  fetchPlayMapNodeClears,
   fetchPlayMapNodes,
   fetchCodeRunRankThresholds,
   recordPlayMapNodeClear,
@@ -175,13 +176,21 @@ const CodeRunMapMain: React.FC = () => {
       backToMap();
       return;
     }
-    const nodes = await fetchPlayMapNodes('code_run');
+    const [nodes, clears] = await Promise.all([
+      fetchPlayMapNodes('code_run'),
+      fetchPlayMapNodeClears('code_run'),
+    ]);
+    const clearedNodeIds = new Set(clears.map((c) => c.nodeId));
+    if (!clearedNodeIds.has(activeNode.id)) {
+      backToMap();
+      return;
+    }
     const sameBlock = nodes
-      .filter((n) => n.blockId === activeNode.blockId && n.nodeKind === 'stage')
+      .filter((n) => n.blockId === activeNode.blockId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = sameBlock.findIndex((n) => n.id === activeNode.id);
     const next = idx >= 0 ? sameBlock[idx + 1] : undefined;
-    if (next) {
+    if (next && next.nodeKind === 'stage') {
       setSearchParams({ nodeId: next.id });
       void startFromNode(next);
       return;

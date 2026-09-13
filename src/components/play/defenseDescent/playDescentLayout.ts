@@ -166,9 +166,53 @@ export const isPlayDescentBlockUnlocked = (
   if (!isPremium && blockIndex >= 1) return false;
   const prev = blockLayouts[blockIndex - 1];
   if (!prev) return blockIndex === 0;
-  const stageNodes = prev.nodes.filter((n) => n.node.nodeKind === 'stage');
-  if (stageNodes.length === 0) return true;
-  return stageNodes.every((n) => clearedNodeIds.has(n.nodeId));
+  if (prev.nodes.length === 0) return true;
+  return prev.nodes.every((n) => clearedNodeIds.has(n.nodeId));
+};
+
+export const isPlayDescentNodeUnlocked = (
+  nodeId: string,
+  blockLayouts: readonly PlayBlockLayout[],
+  clearedNodeIds: ReadonlySet<string>,
+  isPremium: boolean,
+): boolean => {
+  if (clearedNodeIds.has(nodeId)) return true;
+  for (const blockLayout of blockLayouts) {
+    const nodeIndex = blockLayout.nodes.findIndex((n) => n.nodeId === nodeId);
+    if (nodeIndex < 0) continue;
+    if (!isPlayDescentBlockUnlocked(
+      blockLayout.blockIndex,
+      blockLayouts,
+      clearedNodeIds,
+      isPremium,
+    )) {
+      return false;
+    }
+    for (let i = 0; i < nodeIndex; i += 1) {
+      const prior = blockLayout.nodes[i];
+      if (prior && !clearedNodeIds.has(prior.nodeId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+};
+
+export const getUnlockedPlayNodeIds = (
+  blockLayouts: readonly PlayBlockLayout[],
+  clearedNodeIds: ReadonlySet<string>,
+  isPremium: boolean,
+): ReadonlySet<string> => {
+  const unlocked = new Set<string>();
+  blockLayouts.forEach((blockLayout) => {
+    blockLayout.nodes.forEach((node) => {
+      if (isPlayDescentNodeUnlocked(node.nodeId, blockLayouts, clearedNodeIds, isPremium)) {
+        unlocked.add(node.nodeId);
+      }
+    });
+  });
+  return unlocked;
 };
 
 export const getAccessiblePlayBlockIndex = (
@@ -181,9 +225,8 @@ export const getAccessiblePlayBlockIndex = (
   const blockIndex = blockLayouts.findIndex((b) => b.nodes.some((n) => n.nodeId === frontier));
   if (blockIndex < 0) return 0;
   const block = blockLayouts[blockIndex];
-  const stageNodes = block.nodes.filter((n) => n.node.nodeKind === 'stage');
-  const blockCleared = stageNodes.length > 0
-    && stageNodes.every((n) => clearedNodeIds.has(n.nodeId));
+  const blockCleared = block.nodes.length > 0
+    && block.nodes.every((n) => clearedNodeIds.has(n.nodeId));
   if (blockCleared) {
     return Math.min(blockIndex + 1, blockLayouts.length - 1);
   }
