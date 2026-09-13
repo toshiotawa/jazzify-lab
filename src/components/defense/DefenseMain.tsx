@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
+import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
 import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { DefenseDifficulty, DefenseStage } from '@/game/defense/defenseTypes';
@@ -20,7 +21,6 @@ import { useGeoStore } from '@/stores/geoStore';
 import type { ClearConditions, LessonContext } from '@/types';
 import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import { getAppRouteSearchParams } from '@/utils/appPaths';
-import { cn } from '@/utils/cn';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { markAudioUserInteraction } from '@/utils/MidiController';
@@ -180,10 +180,6 @@ const DefenseMain: React.FC = () => {
     );
   }
 
-  const stageTitle = loaded
-    ? (isEnglishCopy && loaded.stage.titleEn ? loaded.stage.titleEn : loaded.stage.title)
-    : '';
-
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-white">
       <GameHeader />
@@ -196,37 +192,15 @@ const DefenseMain: React.FC = () => {
         )}
 
         {loaded && (
-          <section className="mt-6 rounded-xl border border-slate-700 bg-slate-900/80 p-4">
-            <div className="font-semibold">{stageTitle}</div>
-            <div className="mt-1 text-xs text-slate-400">
-              Lv.{loaded.stage.difficultyLevel} / {loaded.stage.surviveSeconds}s / HP {loaded.stage.playerHp}
-              {' / '}
-              {isEnglishCopy
-                ? `${loaded.stage.phrases.length} phrases × ${loaded.stage.requiredCompletionCount}`
-                : `${loaded.stage.phrases.length}フレーズ × ${loaded.stage.requiredCompletionCount}回`}
-            </div>
-            <p className="mt-3 text-sm text-slate-300">
-              {isEnglishCopy
-                ? 'Play the notated phrase in order to slash the frontmost enemy. Survive until the timer ends. Only performance mode counts toward the assignment.'
-                : '譜面の音を順番に演奏すると、一番手前の敵を横一閃で攻撃します。タイマー終了まで生き残ればクリア。課題の達成は本番モードのみ記録されます。'}
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm hover:bg-emerald-600"
-                onClick={() => startSession(true)}
-              >
-                {isEnglishCopy ? 'Practice' : '練習'}
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-indigo-700 px-4 py-2 text-sm hover:bg-indigo-600"
-                onClick={() => startSession(false)}
-              >
-                {isEnglishCopy ? 'Performance' : '本番'}
-              </button>
-            </div>
-          </section>
+          <div className="mt-6">
+            <DefenseRunPrepPanel
+              variant="lesson"
+              stage={loaded.stage}
+              isEnglishCopy={isEnglishCopy}
+              onStartPractice={() => startSession(true)}
+              onStartPerformance={() => startSession(false)}
+            />
+          </div>
         )}
 
         <button

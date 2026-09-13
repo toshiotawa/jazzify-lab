@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
+import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
 import type { PlayMapNode } from '@/platform/supabasePlayMap';
 import {
   fetchPlayMapNodes,
@@ -25,15 +26,19 @@ import { unlockDefenseBackingAudioContext } from '@/game/defense/defenseBackingD
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { useToast } from '@/stores/toastStore';
 
-type Screen = 'map' | 'game';
+type Screen = 'map' | 'prep' | 'game';
 
 interface LoadedStage {
   stage: DefenseStage;
   difficulty: DefenseDifficulty;
 }
 
+interface ActiveSession {
+  readonly practiceMode: boolean;
+  readonly nonce: number;
+}
+
 const DefenseMapMain: React.FC = () => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const { profile } = useAuthStore();
@@ -48,7 +53,7 @@ const DefenseMapMain: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('map');
   const [activeNode, setActiveNode] = useState<PlayMapNode | null>(null);
   const [loaded, setLoaded] = useState<LoadedStage | null>(null);
-  const [sessionNonce, setSessionNonce] = useState(0);
+  const [session, setSession] = useState<ActiveSession | null>(null);
 
   const startFromNode = useCallback(async (node: PlayMapNode) => {
     if (node.nodeKind === 'quest' && node.lessonId) {
@@ -59,16 +64,14 @@ const DefenseMapMain: React.FC = () => {
       return;
     }
     if (!node.defenseStageId) return;
-    markAudioUserInteraction();
-    unlockDefenseBackingAudioContext();
     const detail = await fetchDefenseStageDetail(node.defenseStageId);
     if (!detail || detail.phrases.length === 0) return;
     const difficulty = await fetchDefenseDifficultyLevel(detail.difficultyLevel);
     if (!difficulty) return;
     setActiveNode(node);
     setLoaded({ stage: detail, difficulty });
-    setSessionNonce((n) => n + 1);
-    setScreen('game');
+    setSession(null);
+    setScreen('prep');
   }, []);
 
   useEffect(() => {
@@ -82,6 +85,13 @@ const DefenseMapMain: React.FC = () => {
     });
     return () => { cancelled = true; };
   }, [searchParams, startFromNode]);
+
+  const startSession = useCallback((practiceMode: boolean) => {
+    markAudioUserInteraction();
+    unlockDefenseBackingAudioContext();
+    setSession((prev) => ({ practiceMode, nonce: (prev?.nonce ?? 0) + 1 }));
+    setScreen('game');
+  }, []);
 
   const handleClear = useCallback(async () => {
     if (!activeNode || !loaded) return;
@@ -103,20 +113,59 @@ const DefenseMapMain: React.FC = () => {
     setScreen('map');
     setActiveNode(null);
     setLoaded(null);
+    setSession(null);
     setSearchParams({});
   }, [setSearchParams]);
 
-  if (screen === 'game' && loaded) {
+  const backToPrep = useCallback(() => {
+    setSession(null);
+    setScreen('prep');
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setSession((prev) => (prev ? { ...prev, nonce: prev.nonce + 1 } : prev));
+  }, []);
+
+  if (screen === 'game' && loaded && session) {
     return (
       <DefenseGameScreen
-        key={sessionNonce}
+        key={session.nonce}
         stage={loaded.stage}
         difficulty={loaded.difficulty}
-        practiceMode={false}
-        onExit={backToMap}
-        onRetry={() => setSessionNonce((n) => n + 1)}
+        practiceMode={session.practiceMode}
+        onExit={backToPrep}
+        onRetry={handleRetry}
         onClear={() => { void handleClear(); }}
       />
+    );
+  }
+
+  if (screen === 'prep' && loaded) {
+    return (
+      <div className="min-h-[100dvh] bg-[#09070f] text-white">
+        <GameHeader />
+        <main className="mx-auto max-w-lg px-4 py-6">
+          <h1 className="text-2xl font-bold">
+            {isEnglishCopy ? 'Phrase Defense' : 'フレーズディフェンス'}
+          </h1>
+          <div className="mt-6">
+            <DefenseRunPrepPanel
+              variant="map"
+              stage={loaded.stage}
+              isEnglishCopy={isEnglishCopy}
+              onStartPractice={() => startSession(true)}
+              onStartPerformance={() => startSession(false)}
+            />
+          </div>
+          <button
+            type="button"
+            className="mt-6 text-sm text-slate-400 underline hover:text-slate-200"
+            onClick={backToMap}
+          >
+            {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
+          </button>
+        </main>
+      </div>
     );
   }
 

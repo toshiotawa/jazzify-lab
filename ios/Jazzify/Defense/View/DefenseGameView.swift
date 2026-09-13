@@ -72,7 +72,7 @@ struct DefenseGameView: View {
             session.stop()
         }
         .onChange(of: session.hud.result) { result in
-            if result == .clear, playMapNodeId != nil {
+            if result == .clear, playMapNodeId != nil, !session.practiceMode {
                 onPlayMapCleared?()
             }
         }

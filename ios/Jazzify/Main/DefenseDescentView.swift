@@ -10,6 +10,7 @@ struct DefenseDescentView: View {
     @State private var isLoading = true
     @State private var showSubscription = false
 
+    @State private var stagePrep: StagePrepContext?
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var isStarting = false
     @State private var lessonToOpen: LessonPlayMapLaunch?
@@ -17,11 +18,19 @@ struct DefenseDescentView: View {
 
     private var locale: AppLocale { appState.locale }
 
+    private struct StagePrepContext: Identifiable {
+        let id = UUID()
+        let node: PlayMapNode
+        let stage: DefenseStageDefinition
+        let difficulty: DefenseDifficultyDefinition
+    }
+
     private struct StageLaunchSession: Identifiable {
         let id = UUID()
         let node: PlayMapNode
         let stage: DefenseStageDefinition
         let difficulty: DefenseDifficultyDefinition
+        let practiceMode: Bool
     }
 
     private struct LessonPlayMapLaunch: Identifiable, Hashable {
@@ -71,11 +80,46 @@ struct DefenseDescentView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reloadMap() }
+        .confirmationDialog(
+            locale == .ja ? "フレーズディフェンス" : "Phrase Defense",
+            isPresented: Binding(
+                get: { stagePrep != nil },
+                set: { if !$0 { stagePrep = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: stagePrep
+        ) { prep in
+            Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
+                stagePrep = nil
+                stageLaunchSession = StageLaunchSession(
+                    node: prep.node,
+                    stage: prep.stage,
+                    difficulty: prep.difficulty,
+                    practiceMode: true
+                )
+            }
+            Button(locale == .ja ? "本番" : "Performance") {
+                stagePrep = nil
+                stageLaunchSession = StageLaunchSession(
+                    node: prep.node,
+                    stage: prep.stage,
+                    difficulty: prep.difficulty,
+                    practiceMode: false
+                )
+            }
+            Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
+                stagePrep = nil
+            }
+        } message: { prep in
+            Text(locale == .ja
+                 ? "\(prep.stage.title) — \(prep.stage.surviveSeconds)秒生存でクリア"
+                 : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — survive \(prep.stage.surviveSeconds)s")
+        }
         .fullScreenCover(item: $stageLaunchSession) { session in
             DefenseGameView(
                 stage: session.stage,
                 difficulty: session.difficulty,
-                practiceMode: false,
+                practiceMode: session.practiceMode,
                 lessonContext: nil,
                 locale: locale,
                 playMapNodeId: session.node.id,
@@ -179,7 +223,7 @@ struct DefenseDescentView: View {
                 : "Failed to load difficulty settings."
             return
         }
-        stageLaunchSession = StageLaunchSession(node: node, stage: stage, difficulty: difficulty)
+        stagePrep = StagePrepContext(node: node, stage: stage, difficulty: difficulty)
     }
 
     private func startQuestNode(_ node: PlayMapNode) async {
