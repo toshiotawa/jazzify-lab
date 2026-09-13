@@ -9,7 +9,10 @@ export const DEFENSE_GROUND_Y = DEFENSE_PLAYER_Y + 20;
 export const DEFENSE_ATTACK_LUNGE_SEC = 0.36;
 export const DEFENSE_IMPACT_SEC = 0.3;
 export const DEFENSE_IMPACT_HITBACK_SEC = 0.12;
-export const DEFENSE_SLASH_SEC = 0.35;
+export const DEFENSE_SLASH_SEC = 0.24;
+export const DEFENSE_SKILL_POSE_FRAME_SEC = 0.08;
+export const DEFENSE_SKILL_POSE_FRAME_COUNT = 6;
+export const DEFENSE_FIREBALL_SPAWN_DELAY_SEC = 0.32;
 
 const LUNGE_DIST = 22;
 const LUNGE_HEIGHT = 14;

@@ -16,6 +16,7 @@ enum DefenseGameLoop {
     ) {
         guard runtime.result == .playing else { return }
         runtime.elapsedSec += deltaTime
+        spawnPendingFireball(runtime: &runtime)
         if !runtime.practiceMode && runtime.elapsedSec >= runtime.surviveSeconds {
             runtime.result = .clear
             return
@@ -57,8 +58,16 @@ enum DefenseGameLoop {
         runtime.spGauge += 1
         guard runtime.spGauge >= DefenseEnemyConfig.spMax else { return false }
         runtime.spGauge = 0
-        spawnFireball(runtime: &runtime)
+        runtime.skillPoseStartSec = runtime.elapsedSec
+        runtime.fireballSpawnAtSec = runtime.elapsedSec + DefenseEnemyConfig.fireballSpawnDelaySec
         return true
+    }
+
+    private static func spawnPendingFireball(runtime: inout DefenseRuntimeState) {
+        guard runtime.fireballSpawnAtSec >= 0 else { return }
+        guard runtime.elapsedSec + 1e-6 >= runtime.fireballSpawnAtSec else { return }
+        runtime.fireballSpawnAtSec = DefenseEnemyConfig.noPendingFireball
+        spawnFireball(runtime: &runtime)
     }
 
     private static func isWaveScaling(_ runtime: DefenseRuntimeState) -> Bool {

@@ -15,24 +15,21 @@ final class DefenseScene: SKScene {
     private var playerSpriteNode: SKSpriteNode?
     private var playerRimNode: SKSpriteNode?
     private var spGaugeHost: SKNode?
-    private var defaultPlayerTexture: SKTexture?
-    private var guardPlayerTexture: SKTexture?
-    private var isShowingGuardPose = false
+    private var lastPlayerPoseKey = ""
+    private var playerTextures: [String: SKTexture] = [:]
     private let backgroundLayer = SKNode()
     private let characterLayer = SKNode()
     private let effectLayer = SKNode()
     private let impactRing = SKShapeNode(circleOfRadius: 10)
     private var impactSparks: [SKShapeNode] = []
-    private let slashGlow = SKShapeNode()
-    private let slashCore = SKShapeNode()
-    private var slashSparks: [SKShapeNode] = []
+    private let slashNode = SKSpriteNode()
     private let impactFlash = SKSpriteNode(color: .clear, size: .zero)
     private var damagePopupNodes: [SKLabelNode] = []
     private var fireballNodes: [SKSpriteNode] = []
     private var fireballTexture: SKTexture?
     private var lastSpGauge = -1
-    private static let slashGrowPhase: TimeInterval = 0.4
-    private static let slashSparkAngles: [CGFloat] = [-0.35, -0.12, 0.12, 0.35]
+    private static let slashScaleUpSec: TimeInterval = 0.14
+    private static let slashRotationRad: CGFloat = -4 * .pi / 180
     private var textures: [String: SKTexture] = [:]
     private var lastBuiltSize: CGSize = .zero
 
@@ -47,6 +44,7 @@ final class DefenseScene: SKScene {
             addChild(node)
         }
 
+        preloadPlayerTextures()
         preloadTextures()
         setupImpactEffect()
         setupSlashEffect()
@@ -87,7 +85,7 @@ final class DefenseScene: SKScene {
         playerSpriteNode = nil
         playerRimNode = nil
         spGaugeHost = nil
-        isShowingGuardPose = false
+        lastPlayerPoseKey = ""
         lastSpGauge = -1
 
         let floorY = EarTrainingBattleStageKit.battleFloorY(
@@ -97,18 +95,14 @@ final class DefenseScene: SKScene {
         )
         let playerX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: 80)
         let player = EarTrainingBattleStageKit.makeAvatarContainer(
-            assetName: EarTrainingBattleController.playerAvatarAssetName,
+            assetName: DefensePlayerPose.idleAssetNames[0],
             position: CGPoint(x: playerX, y: floorY),
             isPlayer: true
         )
         setupSpGauge(on: player)
         characterLayer.addChild(player)
         playerNode = player
-
-        defaultPlayerTexture = SKTexture(imageNamed: EarTrainingBattleController.playerAvatarAssetName)
-        if let guardImage = UIImage(named: "GuardD") {
-            guardPlayerTexture = SKTexture(image: guardImage)
-        }
+        lastPlayerPoseKey = DefensePlayerPose.idleAssetNames[0]
 
         for child in player.children {
             guard let sprite = child as? SKSpriteNode else { continue }
@@ -167,7 +161,16 @@ final class DefenseScene: SKScene {
         let fbTexture = SKTexture(imageNamed: "ear-training-effect-fireball")
         fbTexture.filteringMode = .linear
         fireballTexture = fbTexture
-        SKTexture.preload(Array(textures.values) + [fbTexture]) {}
+        SKTexture.preload(Array(textures.values) + Array(playerTextures.values) + [fbTexture]) {}
+    }
+
+    private func preloadPlayerTextures() {
+        guard playerTextures.isEmpty else { return }
+        for name in DefensePlayerPose.sceneAssetNames {
+            let texture = SKTexture(imageNamed: name)
+            texture.filteringMode = .nearest
+            playerTextures[name] = texture
+        }
     }
 
     private func setupDamagePopups() {
@@ -226,52 +229,43 @@ final class DefenseScene: SKScene {
     }
 
     private func setupSlashEffect() {
-        guard slashGlow.parent == nil else { return }
-        let slashHalfGlow = DefenseEnemyConfig.displayLayoutPt(10)
-        let slashHalfCore = DefenseEnemyConfig.displayLayoutPt(4)
-        slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfGlow)
-        slashGlow.fillColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
-        slashGlow.strokeColor = .clear
-        slashGlow.zPosition = 150
-        slashGlow.isHidden = true
-        effectLayer.addChild(slashGlow)
-
-        slashCore.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfCore)
-        slashCore.fillColor = SKColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 0.95)
-        slashCore.strokeColor = .clear
-        slashCore.zPosition = 151
-        slashCore.isHidden = true
-        effectLayer.addChild(slashCore)
-
-        let sparkPath = CGMutablePath()
-        sparkPath.move(to: .zero)
-        sparkPath.addLine(to: CGPoint(x: 1, y: 0))
-        for angle in Self.slashSparkAngles {
-            let spark = SKShapeNode(path: sparkPath)
-            spark.strokeColor = SKColor(red: 0.73, green: 0.90, blue: 0.99, alpha: 0.9)
-            spark.lineWidth = 1.5
-            spark.lineCap = .round
-            spark.zRotation = angle
-            spark.zPosition = 152
-            spark.isHidden = true
-            effectLayer.addChild(spark)
-            slashSparks.append(spark)
-        }
+        guard slashNode.parent == nil else { return }
+        slashNode.texture = Self.makeSlashTexture()
+        slashNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        slashNode.zPosition = 150
+        slashNode.isHidden = true
+        effectLayer.addChild(slashNode)
     }
 
-    private static func makeTaperedSlashUnitPath(halfWidth: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: halfWidth * 0.15))
-        path.addQuadCurve(
-            to: CGPoint(x: 1, y: 0),
-            control: CGPoint(x: 0.5, y: halfWidth * 1.15)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: -halfWidth * 0.15),
-            control: CGPoint(x: 0.5, y: -halfWidth * 1.15)
-        )
-        path.closeSubpath()
-        return path
+    private static func makeSlashTexture() -> SKTexture {
+        let width: CGFloat = 256
+        let height: CGFloat = 8
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
+        let image = renderer.image { rendererContext in
+            let cg = rendererContext.cgContext
+            let rgb = CGColorSpaceCreateDeviceRGB()
+            let colors = [
+                UIColor.white.withAlphaComponent(0).cgColor,
+                UIColor.white.withAlphaComponent(0.88).cgColor,
+                UIColor.white.withAlphaComponent(0.95).cgColor,
+                UIColor.white.withAlphaComponent(0.88).cgColor,
+                UIColor.white.withAlphaComponent(0).cgColor,
+            ] as CFArray
+            let locations: [CGFloat] = [0, 0.04, 0.5, 0.96, 1]
+            if let gradient = CGGradient(colorsSpace: rgb, colors: colors, locations: locations) {
+                cg.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: 0, y: height / 2),
+                    end: CGPoint(x: width, y: height / 2),
+                    options: []
+                )
+            }
+            cg.setFillColor(UIColor.white.withAlphaComponent(0.9).cgColor)
+            cg.fill(CGRect(x: width * 0.08, y: height / 2 - 1, width: width * 0.84, height: 2))
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
     }
 
     private func render(runtime: DefenseRuntimeState) {
@@ -292,11 +286,10 @@ final class DefenseScene: SKScene {
         }
         playerNode?.position = CGPoint(x: playerX, y: floorY)
 
-        let showGuardPose = runtime.guardPoseUntilSec > 0 && runtime.elapsedSec < runtime.guardPoseUntilSec
-        if showGuardPose != isShowingGuardPose {
-            isShowingGuardPose = showGuardPose
-            let texture = showGuardPose ? guardPlayerTexture : defaultPlayerTexture
-            if let texture {
+        let poseKey = DefensePlayerPose.assetName(runtime: runtime)
+        if poseKey != lastPlayerPoseKey {
+            lastPlayerPoseKey = poseKey
+            if let texture = playerTextures[poseKey] {
                 playerSpriteNode?.texture = texture
                 playerRimNode?.texture = texture
             }
@@ -533,17 +526,8 @@ final class DefenseScene: SKScene {
         let visible = runtime.slashAt != DefenseEnemyConfig.noSlash
             && age >= 0
             && age <= DefenseEnemyConfig.slashSec
-        slashGlow.isHidden = !visible
-        slashCore.isHidden = !visible
-        for spark in slashSparks { spark.isHidden = !visible }
+        slashNode.isHidden = !visible
         guard visible else { return }
-
-        let progress = age / DefenseEnemyConfig.slashSec
-        let growT = min(1, progress / Self.slashGrowPhase)
-        let lengthScale = CGFloat(1 - pow(1 - growT, 3))
-        let alpha = progress < Self.slashGrowPhase
-            ? 1
-            : CGFloat(1 - ((progress - Self.slashGrowPhase) / (1 - Self.slashGrowPhase)))
 
         let playerScreenX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.playerX)
         let fromX = playerScreenX + avatarSize * 0.45
@@ -559,36 +543,32 @@ final class DefenseScene: SKScene {
             )
         )
 
-        let endX = fromX + (toX - fromX) * lengthScale
-        let endY = fromY + (toY - fromY) * lengthScale
-        let dx = endX - fromX
-        let dy = endY - fromY
-        let length = max(1, hypot(dx, dy))
-        let angle = atan2(dy, dx)
+        let dx = toX - fromX
+        let dy = toY - fromY
+        let scale = DefenseEnemyConfig.battleDisplayScale
+        let span = hypot(dx, dy) + DefenseEnemyConfig.displayLayoutPt(48)
+        let slashHeight = max(DefenseEnemyConfig.displayLayoutPt(4), scale * 0.36)
+        let scaleT = min(1, age / Self.slashScaleUpSec)
+        let xScale = 0.5 + 0.5 * Self.easeInOut(scaleT)
+        let fadeT = age / DefenseEnemyConfig.slashSec
+        let alpha = 1 - Self.easeOut(fadeT)
 
-        slashGlow.position = CGPoint(x: fromX, y: fromY)
-        slashGlow.zRotation = angle
-        slashGlow.xScale = length
-        slashGlow.yScale = 1
-        slashGlow.alpha = alpha
+        slashNode.size = CGSize(width: span, height: slashHeight)
+        slashNode.position = CGPoint(x: (fromX + toX) / 2, y: (fromY + toY) / 2)
+        slashNode.zRotation = atan2(dy, dx) + Self.slashRotationRad
+        slashNode.xScale = xScale
+        slashNode.yScale = 1
+        slashNode.alpha = alpha
+    }
 
-        slashCore.position = CGPoint(x: fromX, y: fromY)
-        slashCore.zRotation = angle
-        slashCore.xScale = length
-        slashCore.yScale = 1
-        slashCore.alpha = alpha
+    private static func easeInOut(_ t: TimeInterval) -> CGFloat {
+        let value = CGFloat(t)
+        return value < 0.5 ? 2 * value * value : 1 - pow(-2 * value + 2, 2) / 2
+    }
 
-        let showSparks = lengthScale > 0.85
-        let sparkLen = DefenseEnemyConfig.displayLayoutPt(14 * alpha)
-        for (index, spark) in slashSparks.enumerated() {
-            spark.isHidden = !showSparks
-            guard showSparks else { continue }
-            let sparkAngle = Self.slashSparkAngles[index]
-            spark.position = CGPoint(x: endX, y: endY)
-            spark.zRotation = sparkAngle
-            spark.xScale = sparkLen
-            spark.alpha = alpha
-        }
+    private static func easeOut(_ t: TimeInterval) -> CGFloat {
+        let value = CGFloat(t)
+        return 1 - pow(1 - value, 2)
     }
 
     private func makeEnemySprite(for type: DefenseEnemyType) -> SKSpriteNode {

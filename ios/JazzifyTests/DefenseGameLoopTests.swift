@@ -263,7 +263,7 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertTrue(runtime.damagePopups.contains(where: { $0.isActive && $0.value == 1 }))
     }
 
-    func testChargesSpAndSpawnsFireballAfterFiveMeasures() {
+    func testChargesSpStartsSkillPoseAndDelaysFireball() {
         var runtime = DefenseRuntimeState(
             playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
             practiceMode: false, attackTrigger: .note
@@ -274,6 +274,16 @@ final class DefenseGameLoopTests: XCTestCase {
         }
         XCTAssertTrue(DefenseGameLoop.chargeSp(runtime: &runtime))
         XCTAssertEqual(runtime.spGauge, 0)
+        XCTAssertEqual(runtime.skillPoseStartSec, 0, accuracy: 0.001)
+        XCTAssertEqual(runtime.fireballSpawnAtSec, DefenseEnemyConfig.fireballSpawnDelaySec, accuracy: 0.001)
+        XCTAssertFalse(runtime.fireballs.contains(where: \.isActive))
+
+        DefenseGameLoop.tick(
+            runtime: &runtime,
+            difficulty: difficulty,
+            deltaTime: DefenseEnemyConfig.fireballSpawnDelaySec
+        )
         XCTAssertTrue(runtime.fireballs.contains(where: \.isActive))
+        XCTAssertEqual(runtime.fireballSpawnAtSec, DefenseEnemyConfig.noPendingFireball, accuracy: 0.001)
     }
 }

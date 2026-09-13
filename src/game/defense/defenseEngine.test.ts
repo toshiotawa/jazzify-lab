@@ -1,4 +1,5 @@
 import {
+  DEFENSE_FIREBALL_SPAWN_DELAY_SEC,
   DEFENSE_WAVE_ROSTERS,
   getDefenseEnemyCenterY,
   resolveDefenseEnemyStats,
@@ -7,6 +8,7 @@ import {
   chargeDefenseSp,
   KNOCKBACK_IMPULSE,
   performDefenseSlash,
+  spawnDefenseFireball,
   spawnEnemyIfDue,
   tickDefenseSimulation,
   updateDefenseEnemies,
@@ -354,7 +356,7 @@ describe('defenseEngine', () => {
     expect(runtime.damagePopups.some((p) => p.active && p.value === 1)).toBe(true);
   });
 
-  it('charges SP and spawns fireball after 5 measure completions', () => {
+  it('charges SP, starts skill pose, and delays fireball spawn', () => {
     const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
     for (let i = 0; i < 4; i += 1) {
       expect(chargeDefenseSp(runtime)).toBe(false);
@@ -362,7 +364,13 @@ describe('defenseEngine', () => {
     }
     expect(chargeDefenseSp(runtime)).toBe(true);
     expect(runtime.spGauge).toBe(0);
+    expect(runtime.skillPoseStartSec).toBe(0);
+    expect(runtime.fireballSpawnAtSec).toBeCloseTo(DEFENSE_FIREBALL_SPAWN_DELAY_SEC);
+    expect(runtime.fireballs.some((fb) => fb.active)).toBe(false);
+
+    tickDefenseSimulation(runtime, easyDifficulty, DEFENSE_FIREBALL_SPAWN_DELAY_SEC);
     expect(runtime.fireballs.some((fb) => fb.active)).toBe(true);
+    expect(runtime.fireballSpawnAtSec).toBe(-1);
   });
 
   it('fireball pierces multiple enemies once each', () => {
@@ -389,6 +397,7 @@ describe('defenseEngine', () => {
     chargeDefenseSp(runtime);
     chargeDefenseSp(runtime);
     chargeDefenseSp(runtime);
+    spawnDefenseFireball(runtime);
 
     const fb = runtime.fireballs.find((f) => f.active);
     if (!fb) throw new Error('missing fireball');

@@ -7,6 +7,7 @@ import {
   DEFENSE_ENEMY_TYPES,
   DEFENSE_FIREBALL_DAMAGE_MULT,
   DEFENSE_FIREBALL_HIT_RADIUS,
+  DEFENSE_FIREBALL_SPAWN_DELAY_SEC,
   DEFENSE_FIREBALL_SPEED_PX,
   DEFENSE_GROUND_Y,
   DEFENSE_HIT_FLASH_SEC,
@@ -28,6 +29,7 @@ import type {
 import {
   DEFENSE_MAP_WIDTH,
   DEFENSE_NO_HIT_FLASH,
+  DEFENSE_NO_PENDING_FIREBALL,
   DEFENSE_PLAYER_X,
   DEFENSE_SPAWN_X,
 } from '@/game/defense/defenseTypes';
@@ -165,8 +167,16 @@ export const chargeDefenseSp = (runtime: DefenseRuntime): boolean => {
   runtime.spGauge += 1;
   if (runtime.spGauge < DEFENSE_SP_MAX) return false;
   runtime.spGauge = 0;
-  spawnDefenseFireball(runtime);
+  runtime.skillPoseStartSec = runtime.elapsedSec;
+  runtime.fireballSpawnAtSec = runtime.elapsedSec + DEFENSE_FIREBALL_SPAWN_DELAY_SEC;
   return true;
+};
+
+const spawnPendingFireball = (runtime: DefenseRuntime): void => {
+  if (runtime.fireballSpawnAtSec < 0) return;
+  if (runtime.elapsedSec + 1e-6 < runtime.fireballSpawnAtSec) return;
+  runtime.fireballSpawnAtSec = DEFENSE_NO_PENDING_FIREBALL;
+  spawnDefenseFireball(runtime);
 };
 
 export const updateDefenseFireballs = (
@@ -371,6 +381,7 @@ export const tickDefenseSimulation = (
   dt: number,
 ): void => {
   tickDefenseTimer(runtime, dt);
+  spawnPendingFireball(runtime);
   spawnEnemyIfDue(runtime, difficulty, dt);
   updateDefenseEnemies(runtime, dt);
   updateDefenseFireballs(runtime, dt);

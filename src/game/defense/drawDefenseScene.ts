@@ -9,7 +9,6 @@ import { BATTLE_EFFECT_SPRITE_URLS } from '@/game/earTraining/canvas/earTraining
 import {
   drawCachedBackground,
   invalidateBackgroundCache,
-  PLAYER_POSE_IMAGE_URLS,
 } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { drawHpBar } from '@/game/earTraining/canvas/drawEarTrainingBattle';
 import {
@@ -38,6 +37,7 @@ import {
   pickDefenseEnemyFrame,
 } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
+import { pickDefensePlayerPoseUrl } from '@/game/defense/defensePlayerSprites';
 import { defenseLogicalToScreenX } from '@/game/defense/defenseSceneLayout';
 import type { DefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import type { DefenseEnemyType, DefenseRuntime } from '@/game/defense/defenseTypes';
@@ -52,57 +52,22 @@ import {
 const HUD_FONT = 'Arial, sans-serif';
 const IMPACT_RING_COLOR = '#fbbf24';
 const IMPACT_SPARK_COLOR = '#fef08a';
-const SLASH_GLOW_COLOR = 'rgba(34, 211, 238, 0.55)';
-const SLASH_CORE_COLOR = 'rgba(248, 250, 252, 0.95)';
-const SLASH_SPARK_COLOR = 'rgba(186, 230, 253, 0.9)';
 const FLYING_Y_OFFSET = 90;
-const SLASH_GROW_PHASE = 0.4;
-const SLASH_SPARK_ANGLES = [-0.35, -0.12, 0.12, 0.35] as const;
+const SLASH_SCALE_UP_SEC = 0.14;
+const SLASH_ROTATION_RAD = -4 * (Math.PI / 180);
 
 export interface DefenseSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
   readonly backgroundCache: BackgroundCacheState;
-  readonly playerAvatarUrl: string;
 }
 
 export { invalidateBackgroundCache };
 
-const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
+const easeInOut = (t: number): number => (
+  t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2
+);
 
-const appendTaperedSlashPath = (
-  ctx: CanvasRenderingContext2D,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  halfWidth: number,
-): void => {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const len = Math.hypot(dx, dy);
-  if (len < 1) return;
-
-  const nx = -dy / len;
-  const ny = dx / len;
-  const midX = (fromX + toX) / 2;
-  const midY = (fromY + toY) / 2;
-  const bulge = halfWidth * 1.15;
-
-  ctx.moveTo(fromX + nx * halfWidth * 0.15, fromY + ny * halfWidth * 0.15);
-  ctx.quadraticCurveTo(
-    midX + nx * bulge,
-    midY + ny * bulge,
-    toX,
-    toY,
-  );
-  ctx.quadraticCurveTo(
-    midX - nx * bulge,
-    midY - ny * bulge,
-    fromX - nx * halfWidth * 0.15,
-    fromY - ny * halfWidth * 0.15,
-  );
-  ctx.closePath();
-};
+const easeOut = (t: number): number => 1 - (1 - t) ** 2;
 
 const drawImpactEffect = (
   ctx: CanvasRenderingContext2D,
@@ -162,43 +127,41 @@ const drawSlashEffect = (
   const toX = defenseLogicalToScreenX(width, runtime.slashToX);
   const toY = floorY - (DEFENSE_GROUND_Y - runtime.slashY) * spriteScale;
 
-  const progress = age / DEFENSE_SLASH_SEC;
-  const growT = Math.min(1, progress / SLASH_GROW_PHASE);
-  const lengthScale = easeOutCubic(growT);
-  const endX = fromX + (toX - fromX) * lengthScale;
-  const endY = fromY + (toY - fromY) * lengthScale;
-  const alpha = progress < SLASH_GROW_PHASE
-    ? 1
-    : 1 - ((progress - SLASH_GROW_PHASE) / (1 - SLASH_GROW_PHASE));
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const span = Math.hypot(dx, dy) + 48 * spriteScale;
+  const slashWidth = span;
+  const slashHeight = Math.max(4 * spriteScale, 11.25 * spriteScale * 0.032);
+  const scaleT = Math.min(1, age / SLASH_SCALE_UP_SEC);
+  const xScale = 0.5 + 0.5 * easeInOut(scaleT);
+  const alpha = 1 - easeOut(age / DEFENSE_SLASH_SEC);
+  const angle = Math.atan2(dy, dx) + SLASH_ROTATION_RAD;
+  const midX = (fromX + toX) / 2;
+  const midY = (fromY + toY) / 2;
 
   ctx.save();
   ctx.globalAlpha = alpha;
+  ctx.translate(midX, midY);
+  ctx.rotate(angle);
+  ctx.scale(xScale, 1);
 
-  ctx.beginPath();
-  appendTaperedSlashPath(ctx, fromX, fromY, endX, endY, 10 * spriteScale);
-  ctx.fillStyle = SLASH_GLOW_COLOR;
-  ctx.fill();
+  const gradient = ctx.createLinearGradient(-slashWidth / 2, 0, slashWidth / 2, 0);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  gradient.addColorStop(0.04, 'rgba(255, 255, 255, 0.88)');
+  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
+  gradient.addColorStop(0.96, 'rgba(255, 255, 255, 0.88)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
-  ctx.beginPath();
-  appendTaperedSlashPath(ctx, fromX, fromY, endX, endY, 4 * spriteScale);
-  ctx.fillStyle = SLASH_CORE_COLOR;
-  ctx.fill();
+  ctx.fillStyle = gradient;
+  ctx.fillRect(-slashWidth / 2, -slashHeight / 2, slashWidth, slashHeight);
 
-  if (lengthScale > 0.85) {
-    const sparkLen = 14 * spriteScale * alpha;
-    ctx.strokeStyle = SLASH_SPARK_COLOR;
-    ctx.lineWidth = 1.5 * spriteScale;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (let i = 0; i < SLASH_SPARK_ANGLES.length; i += 1) {
-      const angle = SLASH_SPARK_ANGLES[i];
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(endX + cos * sparkLen, endY + sin * sparkLen);
-    }
-    ctx.stroke();
-  }
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillRect(
+    -slashWidth * 0.42,
+    -1 * spriteScale,
+    slashWidth * 0.84,
+    2 * spriteScale,
+  );
 
   ctx.restore();
 };
@@ -504,12 +467,8 @@ export const drawDefenseScene = (
     }
   }
 
-  const showGuardPose = runtime.guardPoseUntilSec > 0
-    && runtime.elapsedSec < runtime.guardPoseUntilSec;
-  const guardImg = assets?.loadedImages.get(PLAYER_POSE_IMAGE_URLS.guardD);
-  const playerImg = showGuardPose && guardImg
-    ? guardImg
-    : assets?.loadedImages.get(assets?.playerAvatarUrl ?? '');
+  const playerPoseUrl = pickDefensePlayerPoseUrl(runtime);
+  const playerImg = assets?.loadedImages.get(playerPoseUrl);
 
   const impactActive = runtime.impactAt !== DEFENSE_NO_IMPACT
     && runtime.elapsedSec - runtime.impactAt >= 0

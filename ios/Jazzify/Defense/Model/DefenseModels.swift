@@ -125,6 +125,8 @@ struct DefenseRuntimeState: Sendable {
     var slashToX: CGFloat = 80
     var slashY: CGFloat = 300
     var guardPoseUntilSec: TimeInterval = 0
+    var skillPoseStartSec: TimeInterval = DefenseEnemyConfig.noSkillPose
+    var fireballSpawnAtSec: TimeInterval = DefenseEnemyConfig.noPendingFireball
     var spGauge: Int = 0
     var damagePopups: [DefenseDamagePopupState]
     var nextPopupIndex: Int = 0

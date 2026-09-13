@@ -154,6 +154,10 @@ export interface DefenseRuntime {
   slashY: number;
   /** Elapsed seconds until which GuardD pose is shown; 0 = inactive. */
   guardPoseUntilSec: number;
+  /** Elapsed seconds when skill pose sequence started; -1 when inactive. */
+  skillPoseStartSec: number;
+  /** Elapsed seconds when pending fireball should spawn; -1 when none. */
+  fireballSpawnAtSec: number;
   /** 0..DEFENSE_SP_MAX; phrase mode only. */
   spGauge: number;
   damagePopups: DefenseDamagePopup[];
@@ -170,6 +174,8 @@ export const DEFENSE_NO_IMPACT = -1;
 export const DEFENSE_NO_SLASH = -1;
 export const DEFENSE_NO_WAVE_START = -1;
 export const DEFENSE_NO_HIT_FLASH = -1;
+export const DEFENSE_NO_SKILL_POSE = -1;
+export const DEFENSE_NO_PENDING_FIREBALL = -1;
 
 export const DEFENSE_DAMAGE_POPUP_POOL_SIZE = 16;
 export const DEFENSE_FIREBALL_POOL_SIZE = 3;
@@ -225,6 +231,8 @@ export const createDefenseRuntime = (
   slashToX: DEFENSE_PLAYER_X,
   slashY: DEFENSE_PLAYER_Y,
   guardPoseUntilSec: 0,
+  skillPoseStartSec: DEFENSE_NO_SKILL_POSE,
+  fireballSpawnAtSec: DEFENSE_NO_PENDING_FIREBALL,
   spGauge: 0,
   damagePopups: Array.from({ length: DEFENSE_DAMAGE_POPUP_POOL_SIZE }, () => ({
     active: false,

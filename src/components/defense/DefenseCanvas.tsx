@@ -4,10 +4,7 @@
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
-import {
-  BACKGROUND_IMAGE_URLS,
-  PLAYER_POSE_IMAGE_URLS,
-} from '@/game/earTraining/canvas/earTrainingBattleBackground';
+import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import { BATTLE_EFFECT_SPRITE_URLS } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
 import {
   copyCachedBattleImages,
@@ -24,9 +21,9 @@ import {
   invalidateBackgroundCache,
   type DefenseSceneAssets,
 } from '@/game/defense/drawDefenseScene';
+import { DEFENSE_PLAYER_SCENE_IMAGE_URLS } from '@/game/defense/defensePlayerSprites';
 import type { DefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import type { DefenseRuntime } from '@/game/defense/defenseTypes';
-import { EAR_TRAINING_PLAYER_AVATAR_URL } from '@/utils/constants';
 
 export interface DefenseCanvasHandle {
   draw: (runtime: DefenseRuntime, hud: DefenseSceneHud) => void;
@@ -37,8 +34,7 @@ interface DefenseCanvasProps {
 }
 
 const DEFENSE_SCENE_IMAGE_URLS = [
-  EAR_TRAINING_PLAYER_AVATAR_URL,
-  PLAYER_POSE_IMAGE_URLS.guardD,
+  ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
   BATTLE_EFFECT_SPRITE_URLS.fireball,
   ...Object.values(BACKGROUND_IMAGE_URLS),
 ] as const;
@@ -80,7 +76,6 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
         assetsRef.current = {
           loadedImages: cachedImages,
           backgroundCache,
-          playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
         };
       }
 
@@ -96,7 +91,6 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
         assetsRef.current = {
           loadedImages: imageMap,
           backgroundCache,
-          playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
         };
       })();
 

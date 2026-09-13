@@ -41,8 +41,13 @@ enum DefenseEnemyConfig {
     static let lungeHeight: CGFloat = 14
     static let impactSec: TimeInterval = 0.3
     static let impactHitbackSec: TimeInterval = 0.12
-    static let slashSec: TimeInterval = 0.35
+    static let slashSec: TimeInterval = 0.24
+    static let skillPoseFrameSec: TimeInterval = 0.08
+    static let skillPoseFrameCount = 6
+    static let fireballSpawnDelaySec: TimeInterval = 0.32
     static let noSlash: TimeInterval = -1
+    static let noSkillPose: TimeInterval = -1
+    static let noPendingFireball: TimeInterval = -1
     static let flyingYOffset: CGFloat = 90
     static let noImpact: TimeInterval = -1
     static let playerImpactHitbackPt: CGFloat = 8
