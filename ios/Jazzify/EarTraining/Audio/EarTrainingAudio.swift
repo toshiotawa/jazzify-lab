@@ -1791,7 +1791,7 @@ final class EarTrainingAudio: NSObject {
         return copy
     }
 
-    private static func convertBuffer(_ source: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+    static func convertBuffer(_ source: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
         guard let converter = AVAudioConverter(from: source.format, to: format) else {
             return nil
         }

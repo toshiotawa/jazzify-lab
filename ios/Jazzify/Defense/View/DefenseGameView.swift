@@ -144,8 +144,9 @@ struct DefenseGameView: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     defensePracticeHud
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, 12)
-                        .padding(.bottom, 8)
+                        .padding(.bottom, Self.pianoHeight + 8)
                 }
             }
 

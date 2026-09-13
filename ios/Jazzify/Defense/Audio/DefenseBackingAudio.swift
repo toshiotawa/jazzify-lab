@@ -7,6 +7,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     static let shared = DefenseBackingAudio()
 
     private let engine = AVAudioEngine()
+    private let deckMixer = AVAudioMixerNode()
     private let masterMixer = AVAudioMixerNode()
     private let timePitch = AVAudioUnitTimePitch()
     private let playerA = AVAudioPlayerNode()
@@ -17,6 +18,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var bufferA: AVAudioPCMBuffer?
     private var bufferB: AVAudioPCMBuffer?
     private var graphReady = false
+    private var deckFormat: AVAudioFormat?
 
     private var transportStartHostSec: Double = 0
     private var bpm: Double = 120
@@ -142,11 +144,18 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private func ensureGraph() {
         guard !graphReady else { return }
+        let format = EarTrainingAudio.preferredOutputFormat()
+        deckFormat = format
+
+        engine.attach(deckMixer)
         engine.attach(masterMixer)
         engine.attach(timePitch)
         engine.attach(playerA)
         engine.attach(playerB)
-        engine.connect(timePitch, to: masterMixer, format: nil)
+        engine.connect(playerA, to: deckMixer, format: format)
+        engine.connect(playerB, to: deckMixer, format: format)
+        engine.connect(deckMixer, to: timePitch, format: format)
+        engine.connect(timePitch, to: masterMixer, format: format)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
         timePitch.rate = 1
         timePitch.pitch = 0
@@ -163,7 +172,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
             throw URLError(.cannotDecodeContentData)
         }
         try file.read(into: buffer)
-        return buffer
+        let outputFormat = deckFormat ?? EarTrainingAudio.preferredOutputFormat()
+        if buffer.format.isEqual(outputFormat) {
+            return buffer
+        }
+        guard let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        return converted
     }
 
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {
@@ -172,7 +188,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
         activeIsA = true
         bufferA = buffer
         bufferB = nil
-        engine.connect(playerA, to: timePitch, format: buffer.format)
         playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
         os_unfair_lock_lock(&lock)
         let ducking = voiceInputDucking
@@ -211,7 +226,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         incoming.stop()
         incoming.reset()
-        engine.connect(incoming, to: timePitch, format: buffer.format)
         incoming.scheduleBuffer(buffer, at: when, options: [.loops])
         incoming.play()
 

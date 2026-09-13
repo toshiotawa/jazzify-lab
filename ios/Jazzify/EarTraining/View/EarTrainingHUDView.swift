@@ -77,6 +77,7 @@ struct EarTrainingHUDView: View {
             if hud.hideEnemyHpBar {
                 Color.clear
                     .frame(maxWidth: .infinity)
+                    .frame(height: 8)
                     .accessibilityHidden(true)
             } else {
                 hpPanel(
