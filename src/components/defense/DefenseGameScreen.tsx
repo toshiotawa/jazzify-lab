@@ -21,6 +21,7 @@ import DeferredEarTrainingPianoOverlay, {
   type EarTrainingPianoOverlayHandle,
 } from '@/components/earTraining/DeferredEarTrainingPianoOverlay';
 import {
+  chargeDefenseSp,
   performDefenseSlash,
   tickDefenseSimulation,
 } from '@/game/defense/defenseEngine';
@@ -58,6 +59,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
+import { playFireMagicSe, preloadFireMagicSe } from '@/utils/earTrainingFireMagicSe';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
   applySequentialSurvivalVoicingHints,
@@ -95,7 +97,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   onClear,
 }) => {
   const runtimeRef = useRef<DefenseRuntime>(
-    createDefenseRuntime(stage.playerHp, stage.surviveSeconds, difficulty.maxEnemies, practiceMode),
+    createDefenseRuntime(
+      stage.playerHp,
+      stage.surviveSeconds,
+      difficulty.maxEnemies,
+      practiceMode,
+      stage.attackTrigger,
+    ),
   );
   const judgeRef = useRef<DefensePhraseJudgeState>(createInitialPhraseJudgeState(0));
   const pendingSwitchAtRef = useRef<number | null>(null);
@@ -138,6 +146,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const updateSettings = useGameStore((state) => state.updateSettings);
   const voiceSequential = settings.inputMethod === 'voice';
   isSettingsOpenRef.current = isSettingsOpen;
+
+  useEffect(() => {
+    preloadFireMagicSe();
+  }, []);
 
   useEffect(() => {
     onClearRef.current = onClear;
@@ -319,6 +331,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       const effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60;
       const guardPoseSec = 60 / effectiveBpm;
       performDefenseSlash(runtime, guardPoseSec);
+    }
+
+    if (evaluation.measureCompleted && stage.attackTrigger === 'note') {
+      if (chargeDefenseSp(runtime)) {
+        playFireMagicSe();
+      }
     }
 
     if (!practiceMode && evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
@@ -521,22 +539,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             }}
           >
             {chordHudLabels.current}
-          </div>
-          <div className="min-w-24 max-w-32 px-1 py-0.5">
-            <div
-              className="text-[10px] uppercase leading-none text-white/70"
-              style={{ textShadow: '0 1px 4px rgba(0,0,0,0.85)' }}
-            >
-              next
-            </div>
-            <div
-              className="mt-0.5 text-xl leading-none text-white/90"
-              style={{
-                textShadow: '0 2px 5px rgba(230,56,87,0.55), 0 1px 2px rgba(0,0,0,0.85)',
-              }}
-            >
-              {chordHudLabels.next}
-            </div>
           </div>
         </div>
       )}

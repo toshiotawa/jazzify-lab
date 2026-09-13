@@ -214,4 +214,66 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertEqual(runtime.waveSpawnCount, 1)
         XCTAssertTrue(runtime.enemies.contains(where: \.isActive))
     }
+
+    func testPhraseModeWaveTwoDealsTwoSlashDamage() {
+        var runtime = DefenseRuntimeState(
+            playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
+            practiceMode: false, attackTrigger: .note
+        )
+        runtime.waveIndex = 1
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
+        runtime.enemies[0].x = 760
+        runtime.enemies[0].hp = 3
+        applyGoblinStats(&runtime.enemies[0])
+
+        _ = DefenseGameLoop.performSlash(runtime: &runtime)
+        XCTAssertEqual(runtime.enemies[0].hp, 1)
+    }
+
+    func testMeasureModeAlwaysDealsOneSlashDamage() {
+        var runtime = DefenseRuntimeState(
+            playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
+            practiceMode: false, attackTrigger: .measure
+        )
+        runtime.waveIndex = 2
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
+        runtime.enemies[0].x = 760
+        runtime.enemies[0].hp = 3
+        applyGoblinStats(&runtime.enemies[0])
+
+        _ = DefenseGameLoop.performSlash(runtime: &runtime)
+        XCTAssertEqual(runtime.enemies[0].hp, 2)
+    }
+
+    func testRecordsHitFlashAndDamagePopupOnPhraseSlash() {
+        var runtime = DefenseRuntimeState(
+            playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
+            practiceMode: false, attackTrigger: .note
+        )
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
+        runtime.enemies[0].x = 760
+        runtime.enemies[0].hp = 2
+        applyGoblinStats(&runtime.enemies[0])
+
+        _ = DefenseGameLoop.performSlash(runtime: &runtime)
+        XCTAssertEqual(runtime.enemies[0].hitFlashAt, 0, accuracy: 0.001)
+        XCTAssertTrue(runtime.damagePopups.contains(where: { $0.isActive && $0.value == 1 }))
+    }
+
+    func testChargesSpAndSpawnsFireballAfterFiveMeasures() {
+        var runtime = DefenseRuntimeState(
+            playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
+            practiceMode: false, attackTrigger: .note
+        )
+        for i in 1...4 {
+            XCTAssertFalse(DefenseGameLoop.chargeSp(runtime: &runtime))
+            XCTAssertEqual(runtime.spGauge, i)
+        }
+        XCTAssertTrue(DefenseGameLoop.chargeSp(runtime: &runtime))
+        XCTAssertEqual(runtime.spGauge, 0)
+        XCTAssertTrue(runtime.fireballs.contains(where: \.isActive))
+    }
 }

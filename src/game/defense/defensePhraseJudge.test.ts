@@ -44,16 +44,19 @@ describe('defensePhraseJudge', () => {
     const first = evaluateDefensePhraseNoteOn(phrases, 1, state, 2);
     expect(first.attack).toBe(true);
     expect(first.phraseCompleted).toBe(false);
+    expect(first.measureCompleted).toBe(false);
     state = first.nextState;
 
     const second = evaluateDefensePhraseNoteOn(phrases, 1, state, 4);
     expect(second.attack).toBe(true);
     expect(second.phraseCompleted).toBe(false);
+    expect(second.measureCompleted).toBe(true);
     state = second.nextState;
 
     const third = evaluateDefensePhraseNoteOn(phrases, 1, state, 7);
     expect(third.attack).toBe(true);
     expect(third.phraseCompleted).toBe(true);
+    expect(third.measureCompleted).toBe(true);
     expect(third.completionCount).toBe(1);
     expect(third.pendingSwitch).toBe(true);
   });
@@ -65,16 +68,19 @@ describe('defensePhraseJudge', () => {
     const first = evaluateDefensePhraseNoteOn(phrases, 1, state, 2, false, 'measure');
     expect(first.attack).toBe(false);
     expect(first.phraseCompleted).toBe(false);
+    expect(first.measureCompleted).toBe(false);
     state = first.nextState;
 
     const second = evaluateDefensePhraseNoteOn(phrases, 1, state, 4, false, 'measure');
     expect(second.attack).toBe(true);
     expect(second.phraseCompleted).toBe(false);
+    expect(second.measureCompleted).toBe(true);
     state = second.nextState;
 
     const third = evaluateDefensePhraseNoteOn(phrases, 1, state, 7, false, 'measure');
     expect(third.attack).toBe(true);
     expect(third.phraseCompleted).toBe(true);
+    expect(third.measureCompleted).toBe(true);
     expect(third.completionCount).toBe(1);
     expect(third.pendingSwitch).toBe(true);
   });

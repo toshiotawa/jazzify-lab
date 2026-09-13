@@ -91,7 +91,7 @@ const drawCachedRimTint = (
   targetCtx.restore();
 };
 
-const drawTintedImageCopy = (
+export const drawTintedImageCopy = (
   targetCtx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   x: number,

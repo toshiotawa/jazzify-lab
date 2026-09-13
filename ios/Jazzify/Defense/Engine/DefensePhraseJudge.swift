@@ -4,6 +4,7 @@ enum DefensePhraseJudge {
     struct Evaluation: Equatable {
         let attack: Bool
         let phraseCompleted: Bool
+        let measureCompleted: Bool
         let pendingSwitch: Bool
         let completionCount: Int
         let nextState: DefensePhraseJudgeState
@@ -47,6 +48,7 @@ enum DefensePhraseJudge {
             return Evaluation(
                 attack: false,
                 phraseCompleted: false,
+                measureCompleted: false,
                 pendingSwitch: state.pendingSwitch,
                 completionCount: state.completionCount,
                 nextState: state
@@ -71,6 +73,7 @@ enum DefensePhraseJudge {
                 return Evaluation(
                     attack: false,
                     phraseCompleted: false,
+                    measureCompleted: false,
                     pendingSwitch: state.pendingSwitch,
                     completionCount: state.completionCount,
                     nextState: state
@@ -95,6 +98,7 @@ enum DefensePhraseJudge {
             return Evaluation(
                 attack: false,
                 phraseCompleted: false,
+                measureCompleted: false,
                 pendingSwitch: state.pendingSwitch,
                 completionCount: state.completionCount,
                 nextState: state
@@ -119,6 +123,7 @@ enum DefensePhraseJudge {
                 return Evaluation(
                     attack: true,
                     phraseCompleted: true,
+                    measureCompleted: true,
                     pendingSwitch: pending,
                     completionCount: nextCount,
                     nextState: next
@@ -127,6 +132,7 @@ enum DefensePhraseJudge {
             return Evaluation(
                 attack: true,
                 phraseCompleted: false,
+                measureCompleted: true,
                 pendingSwitch: state.pendingSwitch,
                 completionCount: state.completionCount,
                 nextState: next
@@ -136,6 +142,7 @@ enum DefensePhraseJudge {
         return Evaluation(
             attack: attackTrigger == .note,
             phraseCompleted: false,
+            measureCompleted: false,
             pendingSwitch: state.pendingSwitch,
             completionCount: state.completionCount,
             nextState: next

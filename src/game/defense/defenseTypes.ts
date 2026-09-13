@@ -100,6 +100,25 @@ export interface DefenseEnemy {
   lastAttackAt: number;
   moving: boolean;
   attackHitPending: boolean;
+  /** Elapsed seconds when hit flash started; -1 when inactive. */
+  hitFlashAt: number;
+}
+
+export interface DefenseDamagePopup {
+  active: boolean;
+  x: number;
+  y: number;
+  value: number;
+  spawnedAt: number;
+}
+
+export interface DefenseFireball {
+  active: boolean;
+  x: number;
+  y: number;
+  damage: number;
+  /** Bit mask of enemy slot indices already hit by this fireball. */
+  hitSlotMask: number;
 }
 
 export type DefenseGameResult = 'playing' | 'clear' | 'gameover';
@@ -110,6 +129,7 @@ export interface DefenseRuntime {
   playerMaxHp: number;
   surviveSeconds: number;
   practiceMode: boolean;
+  attackTrigger: DefenseAttackTrigger;
   result: DefenseGameResult;
   enemiesDefeated: number;
   spawnTimerSec: number;
@@ -134,6 +154,11 @@ export interface DefenseRuntime {
   slashY: number;
   /** Elapsed seconds until which GuardD pose is shown; 0 = inactive. */
   guardPoseUntilSec: number;
+  /** 0..DEFENSE_SP_MAX; phrase mode only. */
+  spGauge: number;
+  damagePopups: DefenseDamagePopup[];
+  nextPopupIndex: number;
+  fireballs: DefenseFireball[];
 }
 
 export const DEFENSE_MAP_WIDTH = 800;
@@ -144,18 +169,24 @@ export const DEFENSE_SPAWN_X = DEFENSE_MAP_WIDTH - 40;
 export const DEFENSE_NO_IMPACT = -1;
 export const DEFENSE_NO_SLASH = -1;
 export const DEFENSE_NO_WAVE_START = -1;
+export const DEFENSE_NO_HIT_FLASH = -1;
+
+export const DEFENSE_DAMAGE_POPUP_POOL_SIZE = 16;
+export const DEFENSE_FIREBALL_POOL_SIZE = 3;
 
 export const createDefenseRuntime = (
   playerMaxHp: number,
   surviveSeconds: number,
   maxEnemies: number,
   practiceMode = false,
+  attackTrigger: DefenseAttackTrigger = 'note',
 ): DefenseRuntime => ({
   elapsedSec: 0,
   playerHp: playerMaxHp,
   playerMaxHp,
   surviveSeconds,
   practiceMode,
+  attackTrigger,
   result: 'playing',
   enemiesDefeated: 0,
   spawnTimerSec: 0,
@@ -181,6 +212,7 @@ export const createDefenseRuntime = (
     lastAttackAt: 0,
     moving: false,
     attackHitPending: false,
+    hitFlashAt: DEFENSE_NO_HIT_FLASH,
   })),
   activeEnemyCount: 0,
   playerX: DEFENSE_PLAYER_X,
@@ -193,4 +225,20 @@ export const createDefenseRuntime = (
   slashToX: DEFENSE_PLAYER_X,
   slashY: DEFENSE_PLAYER_Y,
   guardPoseUntilSec: 0,
+  spGauge: 0,
+  damagePopups: Array.from({ length: DEFENSE_DAMAGE_POPUP_POOL_SIZE }, () => ({
+    active: false,
+    x: 0,
+    y: 0,
+    value: 0,
+    spawnedAt: 0,
+  })),
+  nextPopupIndex: 0,
+  fireballs: Array.from({ length: DEFENSE_FIREBALL_POOL_SIZE }, () => ({
+    active: false,
+    x: 0,
+    y: 0,
+    damage: 0,
+    hitSlotMask: 0,
+  })),
 });

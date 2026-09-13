@@ -4,11 +4,13 @@ import {
   resolveDefenseEnemyStats,
 } from '@/game/defense/defenseEnemyConfig';
 import {
+  chargeDefenseSp,
   KNOCKBACK_IMPULSE,
   performDefenseSlash,
   spawnEnemyIfDue,
   tickDefenseSimulation,
   updateDefenseEnemies,
+  updateDefenseFireballs,
 } from '@/game/defense/defenseEngine';
 import {
   createDefenseRuntime,
@@ -303,4 +305,102 @@ describe('defenseEngine', () => {
     expect(Math.abs(moved60Fps - moved120Fps)).toBeLessThan(2);
     expect(moved60Fps).toBeGreaterThan(80);
   });
+
+  it('phrase mode wave 2 deals 2 slash damage in performance mode', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
+    runtime.waveIndex = 1;
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy slot');
+    enemy.active = true;
+    enemy.type = 'goblin';
+    enemy.x = DEFENSE_SPAWN_X;
+    enemy.hp = 3;
+    applyGoblinStats(enemy);
+    runtime.activeEnemyCount = 1;
+
+    performDefenseSlash(runtime);
+    expect(enemy.hp).toBe(1);
+  });
+
+  it('measure mode always deals 1 slash damage regardless of wave', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, false, 'measure');
+    runtime.waveIndex = 2;
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy slot');
+    enemy.active = true;
+    enemy.type = 'goblin';
+    enemy.x = DEFENSE_SPAWN_X;
+    enemy.hp = 3;
+    applyGoblinStats(enemy);
+    runtime.activeEnemyCount = 1;
+
+    performDefenseSlash(runtime);
+    expect(enemy.hp).toBe(2);
+  });
+
+  it('records hit flash and damage popup on phrase slash', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy slot');
+    enemy.active = true;
+    enemy.type = 'goblin';
+    enemy.x = DEFENSE_SPAWN_X;
+    enemy.hp = 2;
+    applyGoblinStats(enemy);
+    runtime.activeEnemyCount = 1;
+
+    performDefenseSlash(runtime);
+    expect(enemy.hitFlashAt).toBe(0);
+    expect(runtime.damagePopups.some((p) => p.active && p.value === 1)).toBe(true);
+  });
+
+  it('charges SP and spawns fireball after 5 measure completions', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
+    for (let i = 0; i < 4; i += 1) {
+      expect(chargeDefenseSp(runtime)).toBe(false);
+      expect(runtime.spGauge).toBe(i + 1);
+    }
+    expect(chargeDefenseSp(runtime)).toBe(true);
+    expect(runtime.spGauge).toBe(0);
+    expect(runtime.fireballs.some((fb) => fb.active)).toBe(true);
+  });
+
+  it('fireball pierces multiple enemies once each', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
+    const front = runtime.enemies[0];
+    const back = runtime.enemies[1];
+    if (!front || !back) throw new Error('missing enemy slots');
+
+    front.active = true;
+    front.type = 'goblin';
+    front.x = DEFENSE_PLAYER_X + 100;
+    front.hp = 10;
+    applyGoblinStats(front);
+
+    back.active = true;
+    back.type = 'goblin';
+    back.x = DEFENSE_PLAYER_X + 200;
+    back.hp = 10;
+    applyGoblinStats(back);
+
+    runtime.activeEnemyCount = 2;
+    chargeDefenseSp(runtime);
+    chargeDefenseSp(runtime);
+    chargeDefenseSp(runtime);
+    chargeDefenseSp(runtime);
+    chargeDefenseSp(runtime);
+
+    const fb = runtime.fireballs.find((f) => f.active);
+    if (!fb) throw new Error('missing fireball');
+    fb.x = DEFENSE_PLAYER_X + 100;
+
+    updateDefenseFireballs(runtime, 0);
+    expect(front.hp).toBe(7);
+    expect(back.hp).toBe(10);
+
+    fb.x = DEFENSE_PLAYER_X + 200;
+    updateDefenseFireballs(runtime, 0);
+    expect(back.hp).toBe(7);
+  });
+
 });

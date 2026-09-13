@@ -9,9 +9,12 @@ final class DefenseScene: SKScene {
 
     private var enemyNodes: [UUID: SKSpriteNode] = [:]
     private var enemyFrameKeys: [UUID: String] = [:]
+    private var enemyFlashing: [UUID: Bool] = [:]
+    private var enemyHpBarFill: [UUID: SKSpriteNode] = [:]
     private var playerNode: SKNode?
     private var playerSpriteNode: SKSpriteNode?
     private var playerRimNode: SKSpriteNode?
+    private var spGaugeHost: SKNode?
     private var defaultPlayerTexture: SKTexture?
     private var guardPlayerTexture: SKTexture?
     private var isShowingGuardPose = false
@@ -24,6 +27,10 @@ final class DefenseScene: SKScene {
     private let slashCore = SKShapeNode()
     private var slashSparks: [SKShapeNode] = []
     private let impactFlash = SKSpriteNode(color: .clear, size: .zero)
+    private var damagePopupNodes: [SKLabelNode] = []
+    private var fireballNodes: [SKSpriteNode] = []
+    private var fireballTexture: SKTexture?
+    private var lastSpGauge = -1
     private static let slashGrowPhase: TimeInterval = 0.4
     private static let slashSparkAngles: [CGFloat] = [-0.35, -0.12, 0.12, 0.35]
     private var textures: [String: SKTexture] = [:]
@@ -43,6 +50,8 @@ final class DefenseScene: SKScene {
         preloadTextures()
         setupImpactEffect()
         setupSlashEffect()
+        setupDamagePopups()
+        setupFireballs()
         rebuildStage()
     }
 
@@ -70,10 +79,16 @@ final class DefenseScene: SKScene {
         )
 
         characterLayer.removeAllChildren()
+        enemyNodes.removeAll()
+        enemyFrameKeys.removeAll()
+        enemyFlashing.removeAll()
+        enemyHpBarFill.removeAll()
         playerNode = nil
         playerSpriteNode = nil
         playerRimNode = nil
+        spGaugeHost = nil
         isShowingGuardPose = false
+        lastSpGauge = -1
 
         let floorY = EarTrainingBattleStageKit.battleFloorY(
             sceneHeight: size.height,
@@ -86,6 +101,7 @@ final class DefenseScene: SKScene {
             position: CGPoint(x: playerX, y: floorY),
             isPlayer: true
         )
+        setupSpGauge(on: player)
         characterLayer.addChild(player)
         playerNode = player
 
@@ -104,6 +120,40 @@ final class DefenseScene: SKScene {
         }
     }
 
+    private func setupSpGauge(on player: SKNode) {
+        let host = SKNode()
+        host.zPosition = 6
+        let barW: CGFloat = 10
+        let barH: CGFloat = 6
+        let gap: CGFloat = 3
+        let maxG = DefenseEnemyConfig.spMax
+        let totalW = CGFloat(maxG) * barW + CGFloat(maxG - 1) * gap
+        let left = -totalW / 2
+
+        let label = SKLabelNode(text: "SP")
+        label.fontName = "AvenirNext-Heavy"
+        label.fontSize = 10
+        label.fontColor = UIColor(red: 0.98, green: 0.75, blue: 0.14, alpha: 1)
+        label.horizontalAlignmentMode = .right
+        label.verticalAlignmentMode = .center
+        label.position = CGPoint(x: left - 6, y: 3)
+        host.addChild(label)
+
+        for i in 0..<maxG {
+            let rect = SKShapeNode(rectOf: CGSize(width: barW, height: barH), cornerRadius: 1)
+            rect.name = "sp\(i)"
+            rect.position = CGPoint(x: left + CGFloat(i) * (barW + gap) + barW / 2, y: 3)
+            rect.fillColor = UIColor(white: 0.45, alpha: 0.7)
+            rect.strokeColor = .clear
+            host.addChild(rect)
+        }
+
+        let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
+        host.position = CGPoint(x: 0, y: avatarSize + 14)
+        player.addChild(host)
+        spGaugeHost = host
+    }
+
     private func preloadTextures() {
         guard textures.isEmpty else { return }
         for type in DefenseEnemyType.allCases {
@@ -114,7 +164,36 @@ final class DefenseScene: SKScene {
                 textures[name] = texture
             }
         }
-        SKTexture.preload(Array(textures.values)) {}
+        let fbTexture = SKTexture(imageNamed: "ear-training-effect-fireball")
+        fbTexture.filteringMode = .linear
+        fireballTexture = fbTexture
+        SKTexture.preload(Array(textures.values) + [fbTexture]) {}
+    }
+
+    private func setupDamagePopups() {
+        guard damagePopupNodes.isEmpty else { return }
+        for _ in 0..<DefenseEnemyConfig.damagePopupPoolSize {
+            let label = SKLabelNode(text: "")
+            label.fontName = "AvenirNext-Heavy"
+            label.fontSize = 16
+            label.fontColor = UIColor(red: 0.996, green: 0.941, blue: 0.541, alpha: 1)
+            label.zPosition = 250
+            label.isHidden = true
+            effectLayer.addChild(label)
+            damagePopupNodes.append(label)
+        }
+    }
+
+    private func setupFireballs() {
+        guard fireballNodes.isEmpty else { return }
+        for _ in 0..<DefenseEnemyConfig.fireballPoolSize {
+            let node = SKSpriteNode(texture: fireballTexture)
+            node.size = CGSize(width: 64, height: 64)
+            node.zPosition = 180
+            node.isHidden = true
+            effectLayer.addChild(node)
+            fireballNodes.append(node)
+        }
     }
 
     private func setupImpactEffect() {
@@ -202,6 +281,7 @@ final class DefenseScene: SKScene {
             clearanceFromKeyboard: Self.stageFloorClearance
         )
         let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
+        let showPhraseUi = runtime.attackTrigger == .note
 
         var playerX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.playerX)
         if runtime.impactAt != DefenseEnemyConfig.noImpact {
@@ -220,6 +300,12 @@ final class DefenseScene: SKScene {
                 playerSpriteNode?.texture = texture
                 playerRimNode?.texture = texture
             }
+        }
+
+        if showPhraseUi {
+            renderSpGauge(runtime: runtime)
+        } else {
+            spGaugeHost?.isHidden = true
         }
 
         var activeEnemyIds = Set<UUID>()
@@ -253,7 +339,7 @@ final class DefenseScene: SKScene {
                 )
                 logicalX += offset.x
             }
-            var drawX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: logicalX)
+            let drawX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: logicalX)
             var footOffset: CGFloat = 0
             if attacking {
                 footOffset += DefenseEnemyConfig.displayAttackFootOffset(
@@ -275,16 +361,132 @@ final class DefenseScene: SKScene {
             )
             if node.parent == nil { characterLayer.addChild(node) }
             enemyNodes[enemy.id] = node
+
+            let hitFlashActive = enemy.hitFlashAt != DefenseEnemyConfig.noHitFlash
+                && runtime.elapsedSec - enemy.hitFlashAt < DefenseEnemyConfig.hitFlashSec
+            let wasFlashing = enemyFlashing[enemy.id] ?? false
+            if hitFlashActive != wasFlashing {
+                enemyFlashing[enemy.id] = hitFlashActive
+                node.color = .red
+                node.colorBlendFactor = hitFlashActive ? 0.55 : 0
+            }
+
+            if showPhraseUi {
+                updateEnemyHpBar(enemy: enemy, node: node)
+            } else if let fill = enemyHpBarFill[enemy.id] {
+                fill.isHidden = true
+            }
         }
 
         for (id, node) in enemyNodes where !activeEnemyIds.contains(id) {
             node.removeFromParent()
             enemyNodes[id] = nil
             enemyFrameKeys[id] = nil
+            enemyFlashing[id] = nil
+            enemyHpBarFill[id]?.removeFromParent()
+            enemyHpBarFill[id] = nil
+        }
+
+        if showPhraseUi {
+            renderDamagePopups(runtime: runtime, floorY: floorY)
+            renderFireballs(runtime: runtime, floorY: floorY)
+        } else {
+            for label in damagePopupNodes { label.isHidden = true }
+            for node in fireballNodes { node.isHidden = true }
         }
 
         renderImpact(runtime: runtime, floorY: floorY)
         renderSlash(runtime: runtime, floorY: floorY, avatarSize: avatarSize)
+    }
+
+    private func updateEnemyHpBar(enemy: DefenseEnemyState, node: SKSpriteNode) {
+        let barWidth = node.size.width * 0.8
+        let barHeight: CGFloat = 4
+        let barY = node.size.height + 6
+
+        if enemyHpBarFill[enemy.id] == nil {
+            let bg = SKSpriteNode(color: UIColor(white: 0, alpha: 0.55), size: CGSize(width: barWidth, height: barHeight))
+            bg.anchorPoint = CGPoint(x: 0.5, y: 0)
+            bg.position = CGPoint(x: 0, y: barY)
+            bg.zPosition = 5
+            node.addChild(bg)
+
+            let fill = SKSpriteNode(color: UIColor(red: 0.98, green: 0.44, blue: 0.52, alpha: 1), size: CGSize(width: barWidth, height: barHeight))
+            fill.anchorPoint = CGPoint(x: 0, y: 0)
+            fill.position = CGPoint(x: -barWidth / 2, y: barY)
+            fill.zPosition = 6
+            node.addChild(fill)
+            enemyHpBarFill[enemy.id] = fill
+        }
+
+        guard let fill = enemyHpBarFill[enemy.id] else { return }
+        fill.isHidden = false
+        let percent = enemy.maxHp > 0 ? CGFloat(enemy.hp) / CGFloat(enemy.maxHp) : 0
+        fill.xScale = max(0, min(1, percent))
+    }
+
+    private func renderSpGauge(runtime: DefenseRuntimeState) {
+        guard let host = spGaugeHost else { return }
+        host.isHidden = false
+        guard runtime.spGauge != lastSpGauge else { return }
+        lastSpGauge = runtime.spGauge
+        let maxG = DefenseEnemyConfig.spMax
+        for i in 0..<maxG {
+            guard let bar = host.childNode(withName: "sp\(i)") as? SKShapeNode else { continue }
+            bar.fillColor = i < runtime.spGauge
+                ? UIColor(red: 0.98, green: 0.75, blue: 0.14, alpha: 1)
+                : UIColor(white: 0.45, alpha: 0.7)
+        }
+    }
+
+    private func renderDamagePopups(runtime: DefenseRuntimeState, floorY: CGFloat) {
+        for (index, popup) in runtime.damagePopups.enumerated() {
+            guard damagePopupNodes.indices.contains(index) else { continue }
+            let label = damagePopupNodes[index]
+            guard popup.isActive else {
+                label.isHidden = true
+                continue
+            }
+            let age = runtime.elapsedSec - popup.spawnedAt
+            guard age >= 0, age <= DefenseEnemyConfig.damagePopupSec else {
+                label.isHidden = true
+                continue
+            }
+            let progress = age / DefenseEnemyConfig.damagePopupSec
+            let screenX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: popup.x)
+            let screenY = DefenseSceneLayout.screenY(
+                floorY: floorY,
+                canvasDeltaFromFloor: DefenseEnemyConfig.displayCanvasDeltaFromFloor(
+                    -(DefenseEnemyConfig.groundY - popup.y) - progress * 28
+                )
+            )
+            label.text = "\(popup.value)"
+            label.position = CGPoint(x: screenX, y: screenY)
+            label.alpha = CGFloat(1 - progress)
+            label.isHidden = false
+        }
+    }
+
+    private func renderFireballs(runtime: DefenseRuntimeState, floorY: CGFloat) {
+        for (index, fb) in runtime.fireballs.enumerated() {
+            guard fireballNodes.indices.contains(index) else { continue }
+            let node = fireballNodes[index]
+            guard fb.isActive else {
+                node.isHidden = true
+                continue
+            }
+            let screenX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: fb.x)
+            let screenY = DefenseSceneLayout.screenY(
+                floorY: floorY,
+                canvasDeltaFromFloor: DefenseEnemyConfig.displayCanvasDeltaFromFloor(
+                    -(DefenseEnemyConfig.groundY - fb.y)
+                )
+            )
+            let scale = DefenseEnemyConfig.battleDisplayScale
+            node.size = CGSize(width: 64 * scale, height: 64 * scale)
+            node.position = CGPoint(x: screenX, y: screenY)
+            node.isHidden = false
+        }
     }
 
     private func renderImpact(runtime: DefenseRuntimeState, floorY: CGFloat) {

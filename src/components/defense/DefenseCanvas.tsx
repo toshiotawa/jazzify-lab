@@ -8,6 +8,7 @@ import {
   BACKGROUND_IMAGE_URLS,
   PLAYER_POSE_IMAGE_URLS,
 } from '@/game/earTraining/canvas/earTrainingBattleBackground';
+import { BATTLE_EFFECT_SPRITE_URLS } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
 import {
   copyCachedBattleImages,
   preloadEarTrainingBattleImages,
@@ -38,6 +39,7 @@ interface DefenseCanvasProps {
 const DEFENSE_SCENE_IMAGE_URLS = [
   EAR_TRAINING_PLAYER_AVATAR_URL,
   PLAYER_POSE_IMAGE_URLS.guardD,
+  BATTLE_EFFECT_SPRITE_URLS.fireball,
   ...Object.values(BACKGROUND_IMAGE_URLS),
 ] as const;
 

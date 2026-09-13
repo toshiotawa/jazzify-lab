@@ -75,7 +75,25 @@ struct DefenseEnemyState: Identifiable, Sendable {
     var lastAttackAt: TimeInterval
     var isMoving: Bool
     var attackHitPending: Bool
+    /// Elapsed seconds when hit flash started; -1 when inactive.
+    var hitFlashAt: TimeInterval
     let slotIndex: Int
+}
+
+struct DefenseDamagePopupState: Sendable {
+    var isActive: Bool = false
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    var value: Int = 0
+    var spawnedAt: TimeInterval = 0
+}
+
+struct DefenseFireballState: Sendable {
+    var isActive: Bool = false
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    var damage: Int = 0
+    var hitSlotMask: Int = 0
 }
 
 enum DefenseGameResult: Equatable {
@@ -90,6 +108,7 @@ struct DefenseRuntimeState: Sendable {
     var playerMaxHp: Int
     var surviveSeconds: TimeInterval
     var practiceMode: Bool
+    var attackTrigger: DefenseAttackTrigger
     var result: DefenseGameResult = .playing
     var enemiesDefeated: Int = 0
     var spawnTimerSec: TimeInterval = 0
@@ -106,15 +125,28 @@ struct DefenseRuntimeState: Sendable {
     var slashToX: CGFloat = 80
     var slashY: CGFloat = 300
     var guardPoseUntilSec: TimeInterval = 0
+    var spGauge: Int = 0
+    var damagePopups: [DefenseDamagePopupState]
+    var nextPopupIndex: Int = 0
+    var fireballs: [DefenseFireballState]
     let playerX: CGFloat = 80
     let playerY: CGFloat = 300
 
-    init(playerHp: Int, surviveSeconds: TimeInterval, maxEnemies: Int, practiceMode: Bool = false) {
+    init(
+        playerHp: Int,
+        surviveSeconds: TimeInterval,
+        maxEnemies: Int,
+        practiceMode: Bool = false,
+        attackTrigger: DefenseAttackTrigger = .note
+    ) {
         self.playerHp = playerHp
         self.playerMaxHp = playerHp
         self.surviveSeconds = surviveSeconds
         self.practiceMode = practiceMode
+        self.attackTrigger = attackTrigger
         self.waveStartedAt = practiceMode ? DefenseEnemyConfig.noWaveStart : 0
+        self.damagePopups = Array(repeating: DefenseDamagePopupState(), count: DefenseEnemyConfig.damagePopupPoolSize)
+        self.fireballs = Array(repeating: DefenseFireballState(), count: DefenseEnemyConfig.fireballPoolSize)
         self.enemies = (0..<maxEnemies).map { index in
             DefenseEnemyState(
                 id: UUID(),
@@ -133,6 +165,7 @@ struct DefenseRuntimeState: Sendable {
                 lastAttackAt: 0,
                 isMoving: false,
                 attackHitPending: false,
+                hitFlashAt: DefenseEnemyConfig.noHitFlash,
                 slotIndex: index
             )
         }

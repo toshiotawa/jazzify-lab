@@ -21,9 +21,20 @@ struct ResolvedDefenseEnemyStats {
 
 enum DefenseEnemyConfig {
     static let waveCount = 4
+    static let waveHpMult: [Double] = [1, 1.5, 2.2, 3]
+    static let waveSpawnIntervalMult: [Double] = [1, 0.85, 0.72, 0.6]
+    static let hitFlashSec: TimeInterval = 0.15
+    static let spMax = 5
+    static let fireballSpeedPx: CGFloat = 520
+    static let fireballDamageMult = 3
+    static let fireballHitRadius: CGFloat = 28
+    static let damagePopupSec: TimeInterval = 0.6
+    static let damagePopupPoolSize = 16
+    static let fireballPoolSize = 3
     static let knockbackImpulse: CGFloat = 320
     static let knockbackDecayTauSec: TimeInterval = 0.3
     static let noWaveStart: TimeInterval = -1
+    static let noHitFlash: TimeInterval = -1
     static let groundY: CGFloat = 320
     static let attackLungeSec: TimeInterval = 0.36
     static let lungeDist: CGFloat = 22
@@ -131,6 +142,18 @@ enum DefenseEnemyConfig {
         [.golem, .wolf, .dragon, .bat],
     ]
 
+    static let waveCumulativeRosters: [[DefenseEnemyType]] = {
+        var cumulative: [[DefenseEnemyType]] = []
+        for wave in 0..<waveRosters.count {
+            var roster: [DefenseEnemyType] = []
+            for w in 0...wave {
+                roster.append(contentsOf: waveRosters[w])
+            }
+            cumulative.append(roster)
+        }
+        return cumulative
+    }()
+
     static func waveIndex(elapsedSec: TimeInterval, surviveSeconds: TimeInterval) -> Int {
         guard surviveSeconds > 0 else { return 0 }
         let waveDurationSec = surviveSeconds / Double(waveCount)
@@ -138,18 +161,32 @@ enum DefenseEnemyConfig {
         return min(waveCount - 1, max(0, index))
     }
 
-    static func pickWaveEnemyType(waveIndex: Int, spawnCount: Int) -> DefenseEnemyType {
-        let roster = waveRosters[safe: waveIndex] ?? waveRosters[0]
+    static func pickWaveEnemyType(waveIndex: Int, spawnCount: Int, cumulative: Bool = false) -> DefenseEnemyType {
+        let rosters = cumulative ? waveCumulativeRosters : waveRosters
+        let roster = rosters[safe: waveIndex] ?? rosters[0]
         return roster[spawnCount % roster.count]
+    }
+
+    static func waveHpMult(for waveIndex: Int) -> Double {
+        waveHpMult[safe: waveIndex] ?? waveHpMult.last ?? 1
+    }
+
+    static func waveSpawnIntervalMult(for waveIndex: Int) -> Double {
+        waveSpawnIntervalMult[safe: waveIndex] ?? waveSpawnIntervalMult.last ?? 1
+    }
+
+    static func slashDamage(waveIndex: Int, scaling: Bool) -> Int {
+        scaling ? waveIndex + 1 : 1
     }
 
     static func resolveEnemyStats(
         type: DefenseEnemyType,
-        difficulty: DefenseDifficultyDefinition
+        difficulty: DefenseDifficultyDefinition,
+        hpMult: Double = 1
     ) -> ResolvedDefenseEnemyStats {
         let stats = type.combatStats
         return ResolvedDefenseEnemyStats(
-            hp: max(1, Int((Double(difficulty.enemyHp) * stats.hpMult).rounded())),
+            hp: max(1, Int((Double(difficulty.enemyHp) * stats.hpMult * hpMult).rounded())),
             speedPxPerSec: difficulty.enemySpeedPxPerSec * stats.speedMult,
             damage: difficulty.enemyDamage + stats.damageAdd,
             attackIntervalSec: difficulty.attackIntervalSec * stats.intervalMult,

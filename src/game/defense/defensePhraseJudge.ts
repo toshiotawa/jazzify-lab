@@ -33,6 +33,7 @@ export interface DefensePhraseJudgeState {
 interface DefensePhraseNoteEvaluation {
   readonly attack: boolean;
   readonly phraseCompleted: boolean;
+  readonly measureCompleted: boolean;
   readonly pendingSwitch: boolean;
   readonly completionCount: number;
   readonly nextState: DefensePhraseJudgeState;
@@ -155,6 +156,7 @@ export const evaluateDefensePhraseNoteOn = (
     return {
       attack: false,
       phraseCompleted: false,
+      measureCompleted: false,
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
       nextState: state,
@@ -174,6 +176,7 @@ export const evaluateDefensePhraseNoteOn = (
       return {
         attack: false,
         phraseCompleted: false,
+        measureCompleted: false,
         pendingSwitch: state.pendingSwitch,
         completionCount: state.completionCount,
         nextState: state,
@@ -192,6 +195,7 @@ export const evaluateDefensePhraseNoteOn = (
     return {
       attack: false,
       phraseCompleted: false,
+      measureCompleted: false,
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
       nextState: state,
@@ -212,6 +216,7 @@ export const evaluateDefensePhraseNoteOn = (
       return {
         attack: true,
         phraseCompleted: true,
+        measureCompleted: true,
         pendingSwitch,
         completionCount: nextCount,
         nextState: {
@@ -224,6 +229,7 @@ export const evaluateDefensePhraseNoteOn = (
     return {
       attack: true,
       phraseCompleted: false,
+      measureCompleted: true,
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
       nextState: {
@@ -237,6 +243,7 @@ export const evaluateDefensePhraseNoteOn = (
   return {
     attack: attackTrigger === 'note',
     phraseCompleted: false,
+    measureCompleted: false,
     pendingSwitch: state.pendingSwitch,
     completionCount: state.completionCount,
     nextState: {

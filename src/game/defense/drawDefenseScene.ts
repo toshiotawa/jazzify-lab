@@ -1,7 +1,11 @@
 /**
  * Defense mode Canvas2D renderer (called imperatively from the game loop; no React state).
  */
-import { drawBattleAvatar } from '@/game/earTraining/canvas/earTrainingBattleActorDraw';
+import {
+  drawBattleAvatar,
+  drawTintedImageCopy,
+} from '@/game/earTraining/canvas/earTrainingBattleActorDraw';
+import { BATTLE_EFFECT_SPRITE_URLS } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
 import {
   drawCachedBackground,
   invalidateBackgroundCache,
@@ -21,8 +25,11 @@ import {
   DEFENSE_GROUND_Y,
   DEFENSE_IMPACT_HITBACK_SEC,
   DEFENSE_IMPACT_SEC,
+  DEFENSE_DAMAGE_POPUP_SEC,
+  DEFENSE_HIT_FLASH_SEC,
   DEFENSE_IMPACT_SPARK_ANGLES,
   DEFENSE_SLASH_SEC,
+  DEFENSE_SP_MAX,
   DEFENSE_WAVE_COUNT,
   getDefenseEnemyAttackDx,
   getDefenseEnemyAttackDy,
@@ -36,6 +43,7 @@ import type { DefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import type { DefenseEnemyType, DefenseRuntime } from '@/game/defense/defenseTypes';
 import {
   DEFENSE_MAP_WIDTH,
+  DEFENSE_NO_HIT_FLASH,
   DEFENSE_NO_IMPACT,
   DEFENSE_NO_SLASH,
   DEFENSE_PLAYER_X,
@@ -207,6 +215,26 @@ const drawEnemyShadow = (
   ctx.fill();
 };
 
+const drawEnemyHpBar = (
+  ctx: CanvasRenderingContext2D,
+  drawX: number,
+  top: number,
+  drawWidth: number,
+  hp: number,
+  maxHp: number,
+): void => {
+  const barWidth = drawWidth * 0.8;
+  const barHeight = 4;
+  const barX = drawX - barWidth / 2;
+  const barY = top - 6;
+  const percent = maxHp > 0 ? Math.max(0, Math.min(1, hp / maxHp)) : 0;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+  ctx.fillStyle = '#fb7185';
+  ctx.fillRect(barX, barY, barWidth * percent, barHeight);
+};
+
 const drawEnemiesOfType = (
   ctx: CanvasRenderingContext2D,
   runtime: DefenseRuntime,
@@ -215,6 +243,7 @@ const drawEnemiesOfType = (
   width: number,
   floorY: number,
   spriteScale: number,
+  showPhraseUi: boolean,
 ): void => {
   const sprites = atlas.get(type);
   if (!sprites) return;
@@ -260,6 +289,100 @@ const drawEnemiesOfType = (
     drawEnemyShadow(ctx, drawX, floorY, spriteScale);
     const top = floorY + footOffset - drawHeight;
     ctx.drawImage(img, drawX - drawWidth / 2, top, drawWidth, drawHeight);
+
+    const hitFlashActive = enemy.hitFlashAt !== DEFENSE_NO_HIT_FLASH
+      && runtime.elapsedSec - enemy.hitFlashAt < DEFENSE_HIT_FLASH_SEC;
+    if (hitFlashActive) {
+      drawTintedImageCopy(
+        ctx,
+        img,
+        drawX - drawWidth / 2,
+        top,
+        drawWidth,
+        drawHeight,
+        '#ef4444',
+        0.55,
+      );
+    }
+
+    if (showPhraseUi) {
+      drawEnemyHpBar(ctx, drawX, top, drawWidth, enemy.hp, enemy.maxHp);
+    }
+  }
+};
+
+const drawDamagePopups = (
+  ctx: CanvasRenderingContext2D,
+  runtime: DefenseRuntime,
+  width: number,
+  floorY: number,
+  spriteScale: number,
+): void => {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 ${Math.round(16 * spriteScale)}px ${HUD_FONT}`;
+
+  for (const popup of runtime.damagePopups) {
+    if (!popup.active) continue;
+    const age = runtime.elapsedSec - popup.spawnedAt;
+    if (age < 0 || age > DEFENSE_DAMAGE_POPUP_SEC) continue;
+
+    const progress = age / DEFENSE_DAMAGE_POPUP_SEC;
+    const screenX = defenseLogicalToScreenX(width, popup.x);
+    const screenY = floorY - (DEFENSE_GROUND_Y - popup.y) * spriteScale - progress * 28 * spriteScale;
+    ctx.globalAlpha = 1 - progress;
+    ctx.fillStyle = '#fef08a';
+    ctx.fillText(String(popup.value), screenX, screenY);
+  }
+  ctx.restore();
+};
+
+const drawSpGauge = (
+  ctx: CanvasRenderingContext2D,
+  runtime: DefenseRuntime,
+  playerX: number,
+  floorY: number,
+  avatarSize: number,
+): void => {
+  const gaugeY = floorY - avatarSize - 14;
+  const segmentWidth = 10;
+  const segmentGap = 3;
+  const totalWidth = DEFENSE_SP_MAX * segmentWidth + (DEFENSE_SP_MAX - 1) * segmentGap;
+  const startX = playerX - totalWidth / 2;
+
+  ctx.save();
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 10px ${HUD_FONT}`;
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText('SP', startX - 6, gaugeY + 3);
+
+  for (let i = 0; i < DEFENSE_SP_MAX; i += 1) {
+    const x = startX + i * (segmentWidth + segmentGap);
+    ctx.fillStyle = i < runtime.spGauge ? '#fbbf24' : 'rgba(100, 116, 139, 0.7)';
+    ctx.fillRect(x, gaugeY, segmentWidth, 6);
+  }
+  ctx.restore();
+};
+
+const drawFireballs = (
+  ctx: CanvasRenderingContext2D,
+  runtime: DefenseRuntime,
+  width: number,
+  floorY: number,
+  spriteScale: number,
+  assets: DefenseSceneAssets,
+): void => {
+  const fireballImg = assets.loadedImages.get(BATTLE_EFFECT_SPRITE_URLS.fireball);
+  if (!fireballImg) return;
+
+  const size = 64 * spriteScale;
+  for (const fb of runtime.fireballs) {
+    if (!fb.active) continue;
+    const screenX = defenseLogicalToScreenX(width, fb.x);
+    const screenY = floorY - (DEFENSE_GROUND_Y - fb.y) * spriteScale;
+    ctx.drawImage(fireballImg, screenX - size / 2, screenY - size / 2, size, size);
   }
 };
 
@@ -356,6 +479,8 @@ export const drawDefenseScene = (
     ctx.fillRect(0, 0, width, height);
   }
 
+  const showPhraseUi = runtime.attackTrigger === 'note';
+
   if (atlas) {
     for (let d = 0; d < DEFENSE_ENEMY_DRAW_ORDER.length; d += 1) {
       drawEnemiesOfType(
@@ -366,6 +491,7 @@ export const drawDefenseScene = (
         width,
         floorY,
         spriteScale,
+        showPhraseUi,
       );
     }
   }
@@ -388,15 +514,26 @@ export const drawDefenseScene = (
   const impactActive = runtime.impactAt !== DEFENSE_NO_IMPACT
     && runtime.elapsedSec - runtime.impactAt >= 0
     && runtime.elapsedSec - runtime.impactAt < DEFENSE_IMPACT_SEC;
+  const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
 
   drawBattleAvatar(ctx, playerImg, playerX, floorY, 'player', {
     tintColor: impactActive ? '#ef4444' : null,
     tintAlpha: impactActive ? 0.45 : undefined,
   });
 
+  if (assets && showPhraseUi) {
+    drawFireballs(ctx, runtime, width, floorY, spriteScale, assets);
+  }
+
   drawImpactEffect(ctx, runtime, width, floorY, spriteScale);
   drawSlashEffect(ctx, runtime, width, floorY, spriteScale);
   drawImpactFlash(ctx, width, height, runtime);
+
+  if (showPhraseUi) {
+    drawDamagePopups(ctx, runtime, width, floorY, spriteScale);
+    drawSpGauge(ctx, runtime, playerX, floorY, avatarSize);
+  }
+
   drawWaveFlash(ctx, width, height, runtime, hud);
   drawDefenseHud(ctx, width, hud);
 };

@@ -31,12 +31,41 @@ export const DEFENSE_ENEMY_TYPES: readonly DefenseEnemyType[] = [
 
 export const DEFENSE_WAVE_COUNT = 4;
 
+export const DEFENSE_WAVE_HP_MULT: readonly number[] = [1, 1.5, 2.2, 3];
+export const DEFENSE_WAVE_SPAWN_INTERVAL_MULT: readonly number[] = [1, 0.85, 0.72, 0.6];
+
+export const DEFENSE_HIT_FLASH_SEC = 0.15;
+export const DEFENSE_SP_MAX = 5;
+export const DEFENSE_FIREBALL_SPEED_PX = 520;
+export const DEFENSE_FIREBALL_DAMAGE_MULT = 3;
+export const DEFENSE_FIREBALL_HIT_RADIUS = 28;
+export const DEFENSE_DAMAGE_POPUP_SEC = 0.6;
+
 export const DEFENSE_WAVE_ROSTERS: readonly (readonly DefenseEnemyType[])[] = [
   ['slime', 'bat', 'mushroom', 'slime'],
   ['goblin', 'wolf', 'ghost', 'goblin'],
   ['skeleton', 'mimic', 'mushroom', 'slime'],
   ['golem', 'wolf', 'dragon', 'bat'],
 ];
+
+const buildCumulativeWaveRosters = (): readonly (readonly DefenseEnemyType[])[] => {
+  const cumulative: DefenseEnemyType[][] = [];
+  for (let wave = 0; wave < DEFENSE_WAVE_ROSTERS.length; wave += 1) {
+    const roster: DefenseEnemyType[] = [];
+    for (let w = 0; w <= wave; w += 1) {
+      const waveRoster = DEFENSE_WAVE_ROSTERS[w];
+      if (waveRoster) {
+        for (let i = 0; i < waveRoster.length; i += 1) {
+          roster.push(waveRoster[i] ?? 'slime');
+        }
+      }
+    }
+    cumulative.push(roster);
+  }
+  return cumulative;
+};
+
+export const DEFENSE_WAVE_CUMULATIVE_ROSTERS = buildCumulativeWaveRosters();
 
 interface DefenseEnemyTypeStats {
   readonly hpMult: number;
@@ -82,18 +111,35 @@ export const getDefenseWaveIndex = (
 export const pickDefenseWaveEnemyType = (
   waveIndex: number,
   spawnCount: number,
+  cumulative = false,
 ): DefenseEnemyType => {
-  const roster = DEFENSE_WAVE_ROSTERS[waveIndex] ?? DEFENSE_WAVE_ROSTERS[0] ?? ['slime'];
+  const rosters = cumulative ? DEFENSE_WAVE_CUMULATIVE_ROSTERS : DEFENSE_WAVE_ROSTERS;
+  const roster = rosters[waveIndex] ?? rosters[0] ?? ['slime'];
   return roster[spawnCount % roster.length] ?? 'slime';
 };
+
+export const getDefenseWaveHpMult = (waveIndex: number): number => (
+  DEFENSE_WAVE_HP_MULT[waveIndex] ?? DEFENSE_WAVE_HP_MULT[DEFENSE_WAVE_HP_MULT.length - 1] ?? 1
+);
+
+export const getDefenseWaveSpawnIntervalMult = (waveIndex: number): number => (
+  DEFENSE_WAVE_SPAWN_INTERVAL_MULT[waveIndex]
+    ?? DEFENSE_WAVE_SPAWN_INTERVAL_MULT[DEFENSE_WAVE_SPAWN_INTERVAL_MULT.length - 1]
+    ?? 1
+);
+
+export const getDefenseSlashDamage = (waveIndex: number, scaling: boolean): number => (
+  scaling ? waveIndex + 1 : 1
+);
 
 export const resolveDefenseEnemyStats = (
   type: DefenseEnemyType,
   difficulty: DefenseDifficulty,
+  hpMult = 1,
 ): ResolvedDefenseEnemyStats => {
   const stats = DEFENSE_ENEMY_STATS[type];
   return {
-    hp: Math.max(1, Math.round(difficulty.enemyHp * stats.hpMult)),
+    hp: Math.max(1, Math.round(difficulty.enemyHp * stats.hpMult * hpMult)),
     speedPxPerSec: difficulty.enemySpeedPxPerSec * stats.speedMult,
     damage: difficulty.enemyDamage + stats.damageAdd,
     attackIntervalSec: difficulty.attackIntervalSec * stats.intervalMult,

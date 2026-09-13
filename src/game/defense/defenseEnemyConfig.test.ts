@@ -2,10 +2,14 @@ import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_GROUND_Y,
   DEFENSE_WAVE_COUNT,
+  DEFENSE_WAVE_CUMULATIVE_ROSTERS,
   getDefenseEnemyAttackDx,
   getDefenseEnemyAttackDy,
   getDefenseEnemyCenterY,
+  getDefenseSlashDamage,
+  getDefenseWaveHpMult,
   getDefenseWaveIndex,
+  getDefenseWaveSpawnIntervalMult,
   isDefenseEnemyAttacking,
   pickDefenseEnemyFrame,
   pickDefenseWaveEnemyType,
@@ -82,5 +86,39 @@ describe('defenseEnemyConfig', () => {
     expect(pickDefenseWaveEnemyType(0, 0)).toBe('slime');
     expect(pickDefenseWaveEnemyType(0, 1)).toBe('bat');
     expect(pickDefenseWaveEnemyType(3, 2)).toBe('dragon');
+  });
+
+  it('picks cumulative roster including prior waves', () => {
+    const wave1Cumulative = DEFENSE_WAVE_CUMULATIVE_ROSTERS[1];
+    expect(wave1Cumulative?.[0]).toBe('slime');
+    expect(pickDefenseWaveEnemyType(1, 0, true)).toBe('slime');
+    expect(pickDefenseWaveEnemyType(1, 4, true)).toBe('goblin');
+  });
+
+  it('applies hp multiplier to resolved stats', () => {
+    const difficulty: DefenseDifficulty = {
+      level: 1,
+      enemyHp: 2,
+      spawnIntervalSec: 2,
+      maxEnemies: 3,
+      enemySpeedPxPerSec: 40,
+      enemyDamage: 1,
+      attackIntervalSec: 3,
+      attackRangePx: 48,
+    };
+    expect(resolveDefenseEnemyStats('slime', difficulty, 1.5).hp).toBe(3);
+  });
+
+  it('returns wave-scaled slash damage when scaling enabled', () => {
+    expect(getDefenseSlashDamage(0, true)).toBe(1);
+    expect(getDefenseSlashDamage(2, true)).toBe(3);
+    expect(getDefenseSlashDamage(2, false)).toBe(1);
+  });
+
+  it('returns wave hp and spawn interval multipliers', () => {
+    expect(getDefenseWaveHpMult(0)).toBe(1);
+    expect(getDefenseWaveHpMult(3)).toBe(3);
+    expect(getDefenseWaveSpawnIntervalMult(1)).toBe(0.85);
+    expect(getDefenseWaveSpawnIntervalMult(3)).toBe(0.6);
   });
 });
