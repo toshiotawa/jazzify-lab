@@ -1,7 +1,29 @@
 import CoreGraphics
 import Foundation
 
+struct DefenseEnemyTypeStats {
+    let hpMult: Double
+    let speedMult: Double
+    let damageAdd: Int
+    let intervalMult: Double
+    let rangeMult: Double
+    let knockbackMult: Double
+}
+
+struct ResolvedDefenseEnemyStats {
+    let hp: Int
+    let speedPxPerSec: Double
+    let damage: Int
+    let attackIntervalSec: Double
+    let attackRangePx: Double
+    let knockbackMult: Double
+}
+
 enum DefenseEnemyConfig {
+    static let waveCount = 4
+    static let knockbackImpulse: CGFloat = 320
+    static let knockbackDecayTauSec: TimeInterval = 0.3
+    static let noWaveStart: TimeInterval = -1
     static let groundY: CGFloat = 320
     static let attackLungeSec: TimeInterval = 0.36
     static let lungeDist: CGFloat = 22
@@ -101,6 +123,47 @@ enum DefenseEnemyConfig {
     static func flyingBobOffset(elapsedSec: TimeInterval, slotIndex: Int) -> CGFloat {
         CGFloat(sin(elapsedSec * 4 + Double(slotIndex)) * 4)
     }
+
+    static let waveRosters: [[DefenseEnemyType]] = [
+        [.slime, .bat, .mushroom, .slime],
+        [.goblin, .wolf, .ghost, .goblin],
+        [.skeleton, .mimic, .mushroom, .slime],
+        [.golem, .wolf, .dragon, .bat],
+    ]
+
+    static func waveIndex(elapsedSec: TimeInterval, surviveSeconds: TimeInterval) -> Int {
+        guard surviveSeconds > 0 else { return 0 }
+        let waveDurationSec = surviveSeconds / Double(waveCount)
+        let index = Int(floor(elapsedSec / waveDurationSec))
+        return min(waveCount - 1, max(0, index))
+    }
+
+    static func pickWaveEnemyType(waveIndex: Int, spawnCount: Int) -> DefenseEnemyType {
+        let roster = waveRosters[safe: waveIndex] ?? waveRosters[0]
+        return roster[spawnCount % roster.count]
+    }
+
+    static func resolveEnemyStats(
+        type: DefenseEnemyType,
+        difficulty: DefenseDifficultyDefinition
+    ) -> ResolvedDefenseEnemyStats {
+        let stats = type.combatStats
+        return ResolvedDefenseEnemyStats(
+            hp: max(1, Int((Double(difficulty.enemyHp) * stats.hpMult).rounded())),
+            speedPxPerSec: difficulty.enemySpeedPxPerSec * stats.speedMult,
+            damage: difficulty.enemyDamage + stats.damageAdd,
+            attackIntervalSec: difficulty.attackIntervalSec * stats.intervalMult,
+            attackRangePx: difficulty.attackRangePx * stats.rangeMult,
+            knockbackMult: stats.knockbackMult
+        )
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
+    }
 }
 
 enum DefenseEnemyFrame: String {
@@ -116,6 +179,21 @@ private struct DefenseEnemyTypeConfig {
 }
 
 extension DefenseEnemyType {
+    var combatStats: DefenseEnemyTypeStats {
+        switch self {
+        case .slime: return DefenseEnemyTypeStats(hpMult: 1.0, speedMult: 0.85, damageAdd: 0, intervalMult: 1.0, rangeMult: 1.0, knockbackMult: 1.1)
+        case .bat: return DefenseEnemyTypeStats(hpMult: 0.6, speedMult: 1.6, damageAdd: 0, intervalMult: 0.8, rangeMult: 1.0, knockbackMult: 1.3)
+        case .goblin: return DefenseEnemyTypeStats(hpMult: 1.0, speedMult: 1.1, damageAdd: 0, intervalMult: 0.9, rangeMult: 1.0, knockbackMult: 1.0)
+        case .skeleton: return DefenseEnemyTypeStats(hpMult: 1.5, speedMult: 0.9, damageAdd: 0, intervalMult: 1.0, rangeMult: 1.0, knockbackMult: 0.9)
+        case .ghost: return DefenseEnemyTypeStats(hpMult: 0.6, speedMult: 1.3, damageAdd: 0, intervalMult: 1.2, rangeMult: 1.0, knockbackMult: 1.2)
+        case .mushroom: return DefenseEnemyTypeStats(hpMult: 1.2, speedMult: 0.7, damageAdd: 0, intervalMult: 1.3, rangeMult: 1.0, knockbackMult: 0.9)
+        case .wolf: return DefenseEnemyTypeStats(hpMult: 1.0, speedMult: 1.5, damageAdd: 0, intervalMult: 0.7, rangeMult: 1.0, knockbackMult: 1.0)
+        case .golem: return DefenseEnemyTypeStats(hpMult: 2.0, speedMult: 0.6, damageAdd: 1, intervalMult: 1.5, rangeMult: 1.0, knockbackMult: 0.45)
+        case .mimic: return DefenseEnemyTypeStats(hpMult: 1.5, speedMult: 1.0, damageAdd: 0, intervalMult: 1.0, rangeMult: 1.0, knockbackMult: 0.7)
+        case .dragon: return DefenseEnemyTypeStats(hpMult: 2.5, speedMult: 0.8, damageAdd: 1, intervalMult: 1.2, rangeMult: 1.4, knockbackMult: 0.5)
+        }
+    }
+
     fileprivate var config: DefenseEnemyTypeConfig {
         switch self {
         case .slime: return DefenseEnemyTypeConfig(spriteHeight: 40, aspectRatio: 256 / 159, isFlying: false, zDepth: 70)

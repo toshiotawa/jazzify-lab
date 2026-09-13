@@ -2,7 +2,7 @@
  * Defense enemy display / combat constants shared by simulation and rendering.
  * All helpers are pure and allocation-free (called per frame from the renderer).
  */
-import type { DefenseEnemyType } from '@/game/defense/defenseTypes';
+import type { DefenseDifficulty, DefenseEnemyType } from '@/game/defense/defenseTypes';
 import { DEFENSE_PLAYER_Y } from '@/game/defense/defenseTypes';
 
 export const DEFENSE_GROUND_Y = DEFENSE_PLAYER_Y + 20;
@@ -28,6 +28,79 @@ export const DEFENSE_ENEMY_TYPES: readonly DefenseEnemyType[] = [
   'mimic',
   'dragon',
 ];
+
+export const DEFENSE_WAVE_COUNT = 4;
+
+export const DEFENSE_WAVE_ROSTERS: readonly (readonly DefenseEnemyType[])[] = [
+  ['slime', 'bat', 'mushroom', 'slime'],
+  ['goblin', 'wolf', 'ghost', 'goblin'],
+  ['skeleton', 'mimic', 'mushroom', 'slime'],
+  ['golem', 'wolf', 'dragon', 'bat'],
+];
+
+interface DefenseEnemyTypeStats {
+  readonly hpMult: number;
+  readonly speedMult: number;
+  readonly damageAdd: number;
+  readonly intervalMult: number;
+  readonly rangeMult: number;
+  readonly knockbackMult: number;
+}
+
+const DEFENSE_ENEMY_STATS: Record<DefenseEnemyType, DefenseEnemyTypeStats> = {
+  slime: { hpMult: 1.0, speedMult: 0.85, damageAdd: 0, intervalMult: 1.0, rangeMult: 1.0, knockbackMult: 1.1 },
+  bat: { hpMult: 0.6, speedMult: 1.6, damageAdd: 0, intervalMult: 0.8, rangeMult: 1.0, knockbackMult: 1.3 },
+  goblin: { hpMult: 1.0, speedMult: 1.1, damageAdd: 0, intervalMult: 0.9, rangeMult: 1.0, knockbackMult: 1.0 },
+  skeleton: { hpMult: 1.5, speedMult: 0.9, damageAdd: 0, intervalMult: 1.0, rangeMult: 1.0, knockbackMult: 0.9 },
+  ghost: { hpMult: 0.6, speedMult: 1.3, damageAdd: 0, intervalMult: 1.2, rangeMult: 1.0, knockbackMult: 1.2 },
+  mushroom: { hpMult: 1.2, speedMult: 0.7, damageAdd: 0, intervalMult: 1.3, rangeMult: 1.0, knockbackMult: 0.9 },
+  wolf: { hpMult: 1.0, speedMult: 1.5, damageAdd: 0, intervalMult: 0.7, rangeMult: 1.0, knockbackMult: 1.0 },
+  golem: { hpMult: 2.0, speedMult: 0.6, damageAdd: 1, intervalMult: 1.5, rangeMult: 1.0, knockbackMult: 0.45 },
+  mimic: { hpMult: 1.5, speedMult: 1.0, damageAdd: 0, intervalMult: 1.0, rangeMult: 1.0, knockbackMult: 0.7 },
+  dragon: { hpMult: 2.5, speedMult: 0.8, damageAdd: 1, intervalMult: 1.2, rangeMult: 1.4, knockbackMult: 0.5 },
+};
+
+interface ResolvedDefenseEnemyStats {
+  readonly hp: number;
+  readonly speedPxPerSec: number;
+  readonly damage: number;
+  readonly attackIntervalSec: number;
+  readonly attackRangePx: number;
+  readonly knockbackMult: number;
+}
+
+export const getDefenseWaveIndex = (
+  elapsedSec: number,
+  surviveSeconds: number,
+): number => {
+  if (surviveSeconds <= 0) return 0;
+  const waveDurationSec = surviveSeconds / DEFENSE_WAVE_COUNT;
+  const index = Math.floor(elapsedSec / waveDurationSec);
+  return Math.min(DEFENSE_WAVE_COUNT - 1, Math.max(0, index));
+};
+
+export const pickDefenseWaveEnemyType = (
+  waveIndex: number,
+  spawnCount: number,
+): DefenseEnemyType => {
+  const roster = DEFENSE_WAVE_ROSTERS[waveIndex] ?? DEFENSE_WAVE_ROSTERS[0] ?? ['slime'];
+  return roster[spawnCount % roster.length] ?? 'slime';
+};
+
+export const resolveDefenseEnemyStats = (
+  type: DefenseEnemyType,
+  difficulty: DefenseDifficulty,
+): ResolvedDefenseEnemyStats => {
+  const stats = DEFENSE_ENEMY_STATS[type];
+  return {
+    hp: Math.max(1, Math.round(difficulty.enemyHp * stats.hpMult)),
+    speedPxPerSec: difficulty.enemySpeedPxPerSec * stats.speedMult,
+    damage: difficulty.enemyDamage + stats.damageAdd,
+    attackIntervalSec: difficulty.attackIntervalSec * stats.intervalMult,
+    attackRangePx: difficulty.attackRangePx * stats.rangeMult,
+    knockbackMult: stats.knockbackMult,
+  };
+};
 
 /** Draw order: back (large) → front (small). */
 export const DEFENSE_ENEMY_DRAW_ORDER: readonly DefenseEnemyType[] = [

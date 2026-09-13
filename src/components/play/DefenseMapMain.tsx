@@ -66,7 +66,10 @@ const DefenseMapMain: React.FC = () => {
     if (!node.defenseStageId) return;
     const detail = await fetchDefenseStageDetail(node.defenseStageId);
     if (!detail || detail.phrases.length === 0) return;
-    const difficulty = await fetchDefenseDifficultyLevel(detail.difficultyLevel);
+    const difficulty = await fetchDefenseDifficultyLevel(
+      detail.difficultyLevel,
+      detail.attackTrigger,
+    );
     if (!difficulty) return;
     setActiveNode(node);
     setLoaded({ stage: detail, difficulty });

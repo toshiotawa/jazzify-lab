@@ -5,6 +5,9 @@ import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_ENEMY_TYPES,
   getDefenseEnemyCenterY,
+  getDefenseWaveIndex,
+  pickDefenseWaveEnemyType,
+  resolveDefenseEnemyStats,
 } from '@/game/defense/defenseEnemyConfig';
 import type {
   DefenseDifficulty,
@@ -13,15 +16,17 @@ import type {
   DefenseRuntime,
 } from '@/game/defense/defenseTypes';
 import {
+  DEFENSE_NO_WAVE_START,
   DEFENSE_PLAYER_X,
   DEFENSE_SPAWN_X,
 } from '@/game/defense/defenseTypes';
 
-const KNOCKBACK_DECAY = 0.9;
-const KNOCKBACK_IMPULSE = 180;
+const KNOCKBACK_DECAY_TAU_SEC = 0.3;
+export const KNOCKBACK_IMPULSE = 320;
 const ATTACK_HIT_PHASE = DEFENSE_ATTACK_LUNGE_SEC * 0.5;
+const KNOCKBACK_STOP_VX = 0.5;
 
-const pickEnemyType = (index: number): DefenseEnemyType => (
+const pickPracticeEnemyType = (index: number): DefenseEnemyType => (
   DEFENSE_ENEMY_TYPES[index % DEFENSE_ENEMY_TYPES.length] ?? 'slime'
 );
 
@@ -32,12 +37,46 @@ const findInactiveEnemySlot = (runtime: DefenseRuntime): DefenseEnemy | null => 
   return null;
 };
 
+const applyResolvedStatsToEnemy = (
+  enemy: DefenseEnemy,
+  type: DefenseEnemyType,
+  difficulty: DefenseDifficulty,
+): void => {
+  const resolved = resolveDefenseEnemyStats(type, difficulty);
+  enemy.type = type;
+  enemy.hp = resolved.hp;
+  enemy.maxHp = resolved.hp;
+  enemy.speedPxPerSec = resolved.speedPxPerSec;
+  enemy.damage = resolved.damage;
+  enemy.attackIntervalSec = resolved.attackIntervalSec;
+  enemy.attackRangePx = resolved.attackRangePx;
+  enemy.knockbackMult = resolved.knockbackMult;
+};
+
+const syncWaveState = (
+  runtime: DefenseRuntime,
+  spawnIntervalSec: number,
+): void => {
+  if (runtime.practiceMode) return;
+
+  const nextWaveIndex = getDefenseWaveIndex(runtime.elapsedSec, runtime.surviveSeconds);
+  if (nextWaveIndex === runtime.waveIndex) return;
+
+  runtime.waveIndex = nextWaveIndex;
+  runtime.waveSpawnCount = 0;
+  runtime.waveStartedAt = runtime.elapsedSec;
+  runtime.spawnTimerSec = spawnIntervalSec;
+};
+
 export const spawnEnemyIfDue = (
   runtime: DefenseRuntime,
   difficulty: DefenseDifficulty,
   dt: number,
 ): void => {
   if (runtime.result !== 'playing') return;
+
+  syncWaveState(runtime, difficulty.spawnIntervalSec);
+
   if (runtime.activeEnemyCount >= difficulty.maxEnemies) return;
 
   runtime.spawnTimerSec += dt;
@@ -47,24 +86,28 @@ export const spawnEnemyIfDue = (
   const slot = findInactiveEnemySlot(runtime);
   if (!slot) return;
 
-  const enemyType = pickEnemyType(runtime.nextEnemyIndex);
+  const enemyType = runtime.practiceMode
+    ? pickPracticeEnemyType(runtime.nextEnemyIndex)
+    : pickDefenseWaveEnemyType(runtime.waveIndex, runtime.waveSpawnCount);
+
   slot.active = true;
-  slot.type = enemyType;
   slot.x = DEFENSE_SPAWN_X;
   slot.y = getDefenseEnemyCenterY(enemyType);
-  slot.hp = difficulty.enemyHp;
-  slot.maxHp = difficulty.enemyHp;
   slot.knockbackVx = 0;
   slot.lastAttackAt = 0;
   slot.moving = false;
   slot.attackHitPending = false;
+  applyResolvedStatsToEnemy(slot, enemyType, difficulty);
+
   runtime.nextEnemyIndex += 1;
+  if (!runtime.practiceMode) {
+    runtime.waveSpawnCount += 1;
+  }
   runtime.activeEnemyCount += 1;
 };
 
 export const updateDefenseEnemies = (
   runtime: DefenseRuntime,
-  difficulty: DefenseDifficulty,
   dt: number,
 ): void => {
   if (runtime.result !== 'playing') return;
@@ -73,7 +116,7 @@ export const updateDefenseEnemies = (
     if (!enemy.active) continue;
 
     const absDx = Math.abs(runtime.playerX - enemy.x);
-    const inRange = absDx <= difficulty.attackRangePx;
+    const inRange = absDx <= enemy.attackRangePx;
     const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
 
     if (enemy.attackHitPending && attackElapsed >= ATTACK_HIT_PHASE) {
@@ -82,7 +125,7 @@ export const updateDefenseEnemies = (
       runtime.impactY = runtime.playerY;
       enemy.attackHitPending = false;
       if (!runtime.practiceMode) {
-        runtime.playerHp = Math.max(0, runtime.playerHp - difficulty.enemyDamage);
+        runtime.playerHp = Math.max(0, runtime.playerHp - enemy.damage);
         if (runtime.playerHp <= 0) {
           runtime.result = 'gameover';
         }
@@ -93,7 +136,7 @@ export const updateDefenseEnemies = (
       || (enemy.lastAttackAt > 0 && attackElapsed < DEFENSE_ATTACK_LUNGE_SEC);
 
     if (!isLunging && !inRange) {
-      const speed = difficulty.enemySpeedPxPerSec * dt;
+      const speed = enemy.speedPxPerSec * dt;
       if (enemy.x > runtime.playerX) {
         enemy.x -= speed;
       } else if (enemy.x < runtime.playerX) {
@@ -104,7 +147,7 @@ export const updateDefenseEnemies = (
       inRange
       && !enemy.attackHitPending
       && !isLunging
-      && runtime.elapsedSec - enemy.lastAttackAt >= difficulty.attackIntervalSec
+      && runtime.elapsedSec - enemy.lastAttackAt >= enemy.attackIntervalSec
     ) {
       enemy.lastAttackAt = runtime.elapsedSec;
       enemy.attackHitPending = true;
@@ -115,8 +158,9 @@ export const updateDefenseEnemies = (
 
     if (enemy.knockbackVx !== 0) {
       enemy.x += enemy.knockbackVx * dt;
-      enemy.knockbackVx *= KNOCKBACK_DECAY;
-      if (Math.abs(enemy.knockbackVx) < 0.5) {
+      enemy.x = Math.min(DEFENSE_SPAWN_X, enemy.x);
+      enemy.knockbackVx *= Math.exp(-dt / KNOCKBACK_DECAY_TAU_SEC);
+      if (Math.abs(enemy.knockbackVx) < KNOCKBACK_STOP_VX) {
         enemy.knockbackVx = 0;
       }
     }
@@ -141,7 +185,7 @@ const applySlashHit = (runtime: DefenseRuntime, target: DefenseEnemy): void => {
   target.attackHitPending = false;
   target.hp -= 1;
   const kbDx = target.x - runtime.playerX;
-  target.knockbackVx = (kbDx >= 0 ? 1 : -1) * KNOCKBACK_IMPULSE;
+  target.knockbackVx = (kbDx >= 0 ? 1 : -1) * KNOCKBACK_IMPULSE * target.knockbackMult;
 
   if (target.hp <= 0) {
     target.active = false;
@@ -185,5 +229,5 @@ export const tickDefenseSimulation = (
 ): void => {
   tickDefenseTimer(runtime, dt);
   spawnEnemyIfDue(runtime, difficulty, dt);
-  updateDefenseEnemies(runtime, difficulty, dt);
+  updateDefenseEnemies(runtime, dt);
 };

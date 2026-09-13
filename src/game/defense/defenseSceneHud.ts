@@ -4,6 +4,8 @@ export interface DefenseSceneHud {
   readonly playerMaxHp: number;
   readonly remainSec: number;
   readonly enemiesDefeated: number;
+  /** 1-based wave number; 0 hides wave UI (practice mode). */
+  readonly wave: number;
   readonly practiceMode: boolean;
 }
 

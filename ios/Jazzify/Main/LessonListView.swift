@@ -3744,7 +3744,10 @@ struct LessonDetailView: View {
                 do {
                     guard let stage = try await SupabaseService.shared.fetchDefenseStageDetail(stageId: stageId.uuidString.lowercased()),
                           !stage.phrases.isEmpty,
-                          let difficulty = try await SupabaseService.shared.fetchDefenseDifficultyLevel(level: stage.difficultyLevel)
+                          let difficulty = try await SupabaseService.shared.fetchDefenseDifficultyLevel(
+                              level: stage.difficultyLevel,
+                              attackTrigger: stage.attackTrigger
+                          )
                     else {
                         await MainActor.run {
                             alertMessage = locale == .ja

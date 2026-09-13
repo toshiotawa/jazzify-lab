@@ -201,7 +201,10 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
   };
 }
 
-export async function fetchDefenseDifficultyLevel(level: number): Promise<DefenseDifficulty | null> {
+export async function fetchDefenseDifficultyLevel(
+  level: number,
+  attackTrigger: DefenseAttackTrigger,
+): Promise<DefenseDifficulty | null> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('defense_difficulty_levels')
@@ -209,6 +212,7 @@ export async function fetchDefenseDifficultyLevel(level: number): Promise<Defens
       level, enemy_hp, spawn_interval_sec, max_enemies,
       enemy_speed_px_per_sec, enemy_damage, attack_interval_sec, attack_range_px
     `)
+    .eq('attack_trigger', attackTrigger)
     .eq('level', level)
     .maybeSingle();
 

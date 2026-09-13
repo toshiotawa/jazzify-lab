@@ -15,6 +15,8 @@ struct DefenseHudState: Equatable {
     var playerHp: Int
     var playerMaxHp: Int
     var remainSec: Int
+    /// 1-based wave number; 0 hides wave UI (practice mode).
+    var wave: Int
     var elapsedInt: Int
     var result: DefenseGameResult
 }
@@ -64,6 +66,7 @@ final class DefenseGameSession: ObservableObject {
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
             remainSec: Int(runtime.surviveSeconds),
+            wave: practiceMode ? 0 : 1,
             elapsedInt: 0,
             result: .playing
         )
@@ -240,6 +243,7 @@ final class DefenseGameSession: ObservableObject {
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
             remainSec: max(0, Int((runtime.surviveSeconds - runtime.elapsedSec).rounded(.up))),
+            wave: practiceMode ? 0 : runtime.waveIndex + 1,
             elapsedInt: elapsedInt,
             result: runtime.result
         )

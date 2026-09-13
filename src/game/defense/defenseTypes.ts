@@ -90,6 +90,11 @@ export interface DefenseEnemy {
   y: number;
   hp: number;
   maxHp: number;
+  speedPxPerSec: number;
+  damage: number;
+  attackIntervalSec: number;
+  attackRangePx: number;
+  knockbackMult: number;
   knockbackVx: number;
   /** Attack cycle start time (seconds); 0 = never attacked. */
   lastAttackAt: number;
@@ -109,6 +114,11 @@ export interface DefenseRuntime {
   enemiesDefeated: number;
   spawnTimerSec: number;
   nextEnemyIndex: number;
+  /** 0-based wave index; fixed at 0 in practice mode. */
+  waveIndex: number;
+  waveSpawnCount: number;
+  /** Elapsed seconds when the current wave started; -1 when inactive. */
+  waveStartedAt: number;
   enemies: DefenseEnemy[];
   activeEnemyCount: number;
   playerX: number;
@@ -133,6 +143,7 @@ export const DEFENSE_PLAYER_Y = DEFENSE_MAP_HEIGHT / 2;
 export const DEFENSE_SPAWN_X = DEFENSE_MAP_WIDTH - 40;
 export const DEFENSE_NO_IMPACT = -1;
 export const DEFENSE_NO_SLASH = -1;
+export const DEFENSE_NO_WAVE_START = -1;
 
 export const createDefenseRuntime = (
   playerMaxHp: number,
@@ -149,6 +160,9 @@ export const createDefenseRuntime = (
   enemiesDefeated: 0,
   spawnTimerSec: 0,
   nextEnemyIndex: 0,
+  waveIndex: 0,
+  waveSpawnCount: 0,
+  waveStartedAt: practiceMode ? DEFENSE_NO_WAVE_START : 0,
   enemies: Array.from({ length: maxEnemies }, (_, index) => ({
     id: `enemy-slot-${index}`,
     slotIndex: index,
@@ -158,6 +172,11 @@ export const createDefenseRuntime = (
     y: DEFENSE_PLAYER_Y,
     hp: 1,
     maxHp: 1,
+    speedPxPerSec: 40,
+    damage: 1,
+    attackIntervalSec: 3,
+    attackRangePx: 48,
+    knockbackMult: 1,
     knockbackVx: 0,
     lastAttackAt: 0,
     moving: false,

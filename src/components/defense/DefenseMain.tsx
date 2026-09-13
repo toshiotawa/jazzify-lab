@@ -98,7 +98,10 @@ const DefenseMain: React.FC = () => {
           setError(isEnglishCopy ? 'Defense stage could not be loaded.' : 'ディフェンスステージを読み込めませんでした。');
           return;
         }
-        const difficulty = await fetchDefenseDifficultyLevel(detail.difficultyLevel);
+        const difficulty = await fetchDefenseDifficultyLevel(
+          detail.difficultyLevel,
+          detail.attackTrigger,
+        );
         if (cancelled) return;
         if (!difficulty) {
           setError(isEnglishCopy ? 'Difficulty preset is missing.' : '難易度データが見つかりません。');

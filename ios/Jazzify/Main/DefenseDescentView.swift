@@ -216,7 +216,10 @@ struct DefenseDescentView: View {
                 : "Failed to load stage data."
             return
         }
-        guard let difficulty = try? await SupabaseService.shared.fetchDefenseDifficultyLevel(level: stage.difficultyLevel)
+        guard let difficulty = try? await SupabaseService.shared.fetchDefenseDifficultyLevel(
+            level: stage.difficultyLevel,
+            attackTrigger: stage.attackTrigger
+        )
         else {
             alertMessage = locale == .ja
                 ? "難易度設定の読み込みに失敗しました。"

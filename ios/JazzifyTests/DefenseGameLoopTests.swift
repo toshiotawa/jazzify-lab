@@ -13,6 +13,15 @@ final class DefenseGameLoopTests: XCTestCase {
         attackRangePx: 48
     )
 
+    private func applyGoblinStats(_ enemy: inout DefenseEnemyState) {
+        let resolved = DefenseEnemyConfig.resolveEnemyStats(type: .goblin, difficulty: difficulty)
+        enemy.speedPxPerSec = resolved.speedPxPerSec
+        enemy.damage = resolved.damage
+        enemy.attackIntervalSec = resolved.attackIntervalSec
+        enemy.attackRangePx = resolved.attackRangePx
+        enemy.knockbackMult = resolved.knockbackMult
+    }
+
     func testClearAfterSurviveSeconds() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 2, maxEnemies: 3)
         DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 2.1)
@@ -32,6 +41,7 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = runtime.playerX + 40
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
+        applyGoblinStats(&runtime.enemies[0])
         runtime.enemies[0].lastAttackAt = 1.0
         runtime.enemies[0].attackHitPending = true
         runtime.elapsedSec = 1.1
@@ -59,12 +69,29 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertEqual(enemy.y, DefenseEnemyConfig.groundY - enemy.type.spriteHeight / 2, accuracy: 0.001)
     }
 
+    func testPracticeModeSpawnsAllTypesWithoutWaveChanges() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 12, practiceMode: true)
+        let quickSpawn = DefenseDifficultyDefinition(
+            level: 1, enemyHp: 1, spawnIntervalSec: 0.5, maxEnemies: 12,
+            enemySpeedPxPerSec: 40, enemyDamage: 1, attackIntervalSec: 3, attackRangePx: 48
+        )
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0.6)
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0.6)
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0.6)
+        XCTAssertEqual(runtime.enemies[0].type, .slime)
+        XCTAssertEqual(runtime.enemies[1].type, .bat)
+        XCTAssertEqual(runtime.enemies[2].type, .goblin)
+        XCTAssertEqual(runtime.waveIndex, 0)
+        XCTAssertEqual(runtime.waveSpawnCount, 0)
+    }
+
     func testDamageAppliesAtLungePeakAndRecordsImpact() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
         runtime.enemies[0].isActive = true
         runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = runtime.playerX + 40
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
+        applyGoblinStats(&runtime.enemies[0])
         runtime.enemies[0].lastAttackAt = 1.0
         runtime.enemies[0].attackHitPending = true
         runtime.elapsedSec = 1.1
@@ -92,14 +119,16 @@ final class DefenseGameLoopTests: XCTestCase {
     func testSlashInstantlyDamagesFarEnemyAndAppliesKnockback() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
         runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = 760
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
         runtime.enemies[0].hp = 2
+        applyGoblinStats(&runtime.enemies[0])
 
         let slashed = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: 0.5)
         XCTAssertTrue(slashed)
         XCTAssertEqual(runtime.enemies[0].hp, 1)
-        XCTAssertEqual(runtime.enemies[0].knockbackVx, 180, accuracy: 0.001)
+        XCTAssertEqual(runtime.enemies[0].knockbackVx, DefenseEnemyConfig.knockbackImpulse, accuracy: 0.001)
         XCTAssertEqual(runtime.slashAt, 0, accuracy: 0.001)
         XCTAssertEqual(runtime.slashToX, 760, accuracy: 0.001)
         XCTAssertEqual(runtime.guardPoseUntilSec, 0.5, accuracy: 0.001)
@@ -112,12 +141,19 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].x = runtime.playerX + 80
         runtime.enemies[0].y = DefenseEnemyConfig.centerY(for: .goblin)
         runtime.enemies[0].hp = 2
+        applyGoblinStats(&runtime.enemies[0])
 
         runtime.enemies[1].isActive = true
         runtime.enemies[1].type = .bat
         runtime.enemies[1].x = runtime.playerX + 200
         runtime.enemies[1].y = DefenseEnemyConfig.centerY(for: .bat)
         runtime.enemies[1].hp = 2
+        let batStats = DefenseEnemyConfig.resolveEnemyStats(type: .bat, difficulty: difficulty)
+        runtime.enemies[1].speedPxPerSec = batStats.speedPxPerSec
+        runtime.enemies[1].damage = batStats.damage
+        runtime.enemies[1].attackIntervalSec = batStats.attackIntervalSec
+        runtime.enemies[1].attackRangePx = batStats.attackRangePx
+        runtime.enemies[1].knockbackMult = batStats.knockbackMult
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
 
@@ -129,8 +165,10 @@ final class DefenseGameLoopTests: XCTestCase {
     func testSlashDefeatsEnemyWithOneHpImmediately() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
         runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = runtime.playerX + 100
         runtime.enemies[0].hp = 1
+        applyGoblinStats(&runtime.enemies[0])
 
         _ = DefenseGameLoop.performSlash(runtime: &runtime)
 
@@ -148,7 +186,9 @@ final class DefenseGameLoopTests: XCTestCase {
     func testSlashCancelsPendingEnemyAttackBeforePeak() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
         runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
         runtime.enemies[0].x = runtime.playerX + 40
+        applyGoblinStats(&runtime.enemies[0])
         runtime.enemies[0].lastAttackAt = 1.0
         runtime.enemies[0].attackHitPending = true
         runtime.elapsedSec = 1.1
@@ -159,5 +199,19 @@ final class DefenseGameLoopTests: XCTestCase {
         DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0.1)
         XCTAssertEqual(runtime.playerHp, 5)
         XCTAssertEqual(runtime.impactAt, DefenseEnemyConfig.noImpact)
+    }
+
+    func testWaveAdvancesAndSpawnsImmediatelyOnChange() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 8)
+        runtime.elapsedSec = 30
+        runtime.spawnTimerSec = 0
+        let quickSpawn = DefenseDifficultyDefinition(
+            level: 1, enemyHp: 1, spawnIntervalSec: 0.5, maxEnemies: 8,
+            enemySpeedPxPerSec: 40, enemyDamage: 1, attackIntervalSec: 3, attackRangePx: 48
+        )
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: quickSpawn, deltaTime: 0)
+        XCTAssertEqual(runtime.waveIndex, 1)
+        XCTAssertEqual(runtime.waveSpawnCount, 1)
+        XCTAssertTrue(runtime.enemies.contains(where: \.isActive))
     }
 }

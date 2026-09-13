@@ -113,6 +113,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     playerMaxHp: stage.playerHp,
     remainSec: stage.surviveSeconds,
     enemiesDefeated: 0,
+    wave: practiceMode ? 0 : 1,
     practiceMode,
   });
 
@@ -439,6 +440,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       hud.playerMaxHp = runtime.playerMaxHp;
       hud.remainSec = Math.max(0, Math.ceil(runtime.surviveSeconds - runtime.elapsedSec));
       hud.enemiesDefeated = runtime.enemiesDefeated;
+      hud.wave = practiceMode ? 0 : runtime.waveIndex + 1;
       canvasRef.current?.draw(runtime, hudRef.current);
 
       if (runtime.result !== 'playing') {

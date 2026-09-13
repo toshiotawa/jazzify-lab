@@ -65,6 +65,11 @@ struct DefenseEnemyState: Identifiable, Sendable {
     var y: CGFloat
     var hp: Int
     var maxHp: Int
+    var speedPxPerSec: Double
+    var damage: Int
+    var attackIntervalSec: Double
+    var attackRangePx: Double
+    var knockbackMult: Double
     var knockbackVx: CGFloat
     /// Attack cycle start time (seconds); 0 = never attacked.
     var lastAttackAt: TimeInterval
@@ -89,6 +94,9 @@ struct DefenseRuntimeState: Sendable {
     var enemiesDefeated: Int = 0
     var spawnTimerSec: TimeInterval = 0
     var nextEnemyIndex: Int = 0
+    var waveIndex: Int = 0
+    var waveSpawnCount: Int = 0
+    var waveStartedAt: TimeInterval = DefenseEnemyConfig.noWaveStart
     var enemies: [DefenseEnemyState]
     var impactAt: TimeInterval = DefenseEnemyConfig.noImpact
     var impactX: CGFloat = 80
@@ -106,6 +114,7 @@ struct DefenseRuntimeState: Sendable {
         self.playerMaxHp = playerHp
         self.surviveSeconds = surviveSeconds
         self.practiceMode = practiceMode
+        self.waveStartedAt = practiceMode ? DefenseEnemyConfig.noWaveStart : 0
         self.enemies = (0..<maxEnemies).map { index in
             DefenseEnemyState(
                 id: UUID(),
@@ -115,6 +124,11 @@ struct DefenseRuntimeState: Sendable {
                 y: 300,
                 hp: 1,
                 maxHp: 1,
+                speedPxPerSec: 40,
+                damage: 1,
+                attackIntervalSec: 3,
+                attackRangePx: 48,
+                knockbackMult: 1,
                 knockbackVx: 0,
                 lastAttackAt: 0,
                 isMoving: false,

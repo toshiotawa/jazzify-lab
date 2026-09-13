@@ -248,9 +248,14 @@ struct DefenseGameView: View {
 
     private var defenseHud: some View {
         let labels = EarTrainingBattleHudLabels.make(isEnglish: locale == .en)
-        let timeLabel = session.practiceMode
-            ? "∞  ·  KO \(session.runtime.enemiesDefeated)"
-            : "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)"
+        let timeLabel: String
+        if session.practiceMode {
+            timeLabel = "∞  ·  KO \(session.runtime.enemiesDefeated)"
+        } else if session.hud.wave > 0 {
+            timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)  ·  WAVE \(session.hud.wave)/\(DefenseEnemyConfig.waveCount)"
+        } else {
+            timeLabel = "\(session.hud.remainSec)s  ·  KO \(session.runtime.enemiesDefeated)"
+        }
 
         return EarTrainingHUDView(
             hud: EarTrainingHudModel(

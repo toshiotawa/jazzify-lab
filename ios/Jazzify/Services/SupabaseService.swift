@@ -2407,7 +2407,10 @@ final class SupabaseService: Sendable {
         )
     }
 
-    func fetchDefenseDifficultyLevel(level: Int) async throws -> DefenseDifficultyDefinition? {
+    func fetchDefenseDifficultyLevel(
+        level: Int,
+        attackTrigger: DefenseAttackTrigger
+    ) async throws -> DefenseDifficultyDefinition? {
         struct Row: Decodable {
             let level: Int
             let enemy_hp: Int
@@ -2424,6 +2427,7 @@ final class SupabaseService: Sendable {
                 level, enemy_hp, spawn_interval_sec, max_enemies,
                 enemy_speed_px_per_sec, enemy_damage, attack_interval_sec, attack_range_px
             """)
+            .eq("attack_trigger", value: attackTrigger.rawValue)
             .eq("level", value: level)
             .limit(1)
             .execute()

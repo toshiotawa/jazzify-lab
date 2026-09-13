@@ -23,6 +23,7 @@ import {
   DEFENSE_IMPACT_SEC,
   DEFENSE_IMPACT_SPARK_ANGLES,
   DEFENSE_SLASH_SEC,
+  DEFENSE_WAVE_COUNT,
   getDefenseEnemyAttackDx,
   getDefenseEnemyAttackDy,
   getDefenseFlyingBobOffset,
@@ -291,7 +292,33 @@ const drawDefenseHud = (
   ctx.fillStyle = '#fbbf24';
   ctx.font = `900 14px ${HUD_FONT}`;
   ctx.textAlign = 'center';
-  ctx.fillText(`KO ${hud.enemiesDefeated}`, width / 2, 56);
+  const koLabel = hud.wave > 0
+    ? `KO ${hud.enemiesDefeated}  ·  WAVE ${hud.wave}/${DEFENSE_WAVE_COUNT}`
+    : `KO ${hud.enemiesDefeated}`;
+  ctx.fillText(koLabel, width / 2, 56);
+};
+
+const DEFENSE_WAVE_FLASH_SEC = 1.5;
+
+const drawWaveFlash = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  runtime: DefenseRuntime,
+  hud: DefenseSceneHud,
+): void => {
+  if (hud.wave <= 0 || runtime.waveStartedAt < 0) return;
+  const age = runtime.elapsedSec - runtime.waveStartedAt;
+  if (age < 0 || age > DEFENSE_WAVE_FLASH_SEC) return;
+
+  const alpha = 1 - age / DEFENSE_WAVE_FLASH_SEC;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = `rgba(251, 191, 36, ${0.85 * alpha})`;
+  ctx.font = `900 ${Math.round(48 + 12 * alpha)}px ${HUD_FONT}`;
+  ctx.fillText(`WAVE ${hud.wave}`, width / 2, height * 0.38);
+  ctx.restore();
 };
 
 const drawImpactFlash = (
@@ -370,5 +397,6 @@ export const drawDefenseScene = (
   drawImpactEffect(ctx, runtime, width, floorY, spriteScale);
   drawSlashEffect(ctx, runtime, width, floorY, spriteScale);
   drawImpactFlash(ctx, width, height, runtime);
+  drawWaveFlash(ctx, width, height, runtime, hud);
   drawDefenseHud(ctx, width, hud);
 };

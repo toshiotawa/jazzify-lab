@@ -1,12 +1,17 @@
 import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_GROUND_Y,
+  DEFENSE_WAVE_COUNT,
   getDefenseEnemyAttackDx,
   getDefenseEnemyAttackDy,
   getDefenseEnemyCenterY,
+  getDefenseWaveIndex,
   isDefenseEnemyAttacking,
   pickDefenseEnemyFrame,
+  pickDefenseWaveEnemyType,
+  resolveDefenseEnemyStats,
 } from '@/game/defense/defenseEnemyConfig';
+import type { DefenseDifficulty } from '@/game/defense/defenseTypes';
 
 describe('defenseEnemyConfig', () => {
   it('grounds non-flying enemies on shared ground line', () => {
@@ -47,5 +52,35 @@ describe('defenseEnemyConfig', () => {
     expect(pickDefenseEnemyFrame(0.25, 0, true, false, false)).toBe('move');
     expect(pickDefenseEnemyFrame(0.25, 0, false, false, false)).toBe('idle');
     expect(pickDefenseEnemyFrame(0.25, 0, false, true, false)).toBe('move');
+  });
+
+  it('resolves enemy stats with hp floor of 1', () => {
+    const difficulty: DefenseDifficulty = {
+      level: 1,
+      enemyHp: 1,
+      spawnIntervalSec: 2,
+      maxEnemies: 3,
+      enemySpeedPxPerSec: 40,
+      enemyDamage: 1,
+      attackIntervalSec: 3,
+      attackRangePx: 48,
+    };
+    expect(resolveDefenseEnemyStats('bat', difficulty).hp).toBe(1);
+    expect(resolveDefenseEnemyStats('golem', difficulty).hp).toBe(2);
+    expect(resolveDefenseEnemyStats('dragon', difficulty).damage).toBe(2);
+  });
+
+  it('computes wave index from elapsed time', () => {
+    expect(getDefenseWaveIndex(0, 120)).toBe(0);
+    expect(getDefenseWaveIndex(29.9, 120)).toBe(0);
+    expect(getDefenseWaveIndex(30, 120)).toBe(1);
+    expect(getDefenseWaveIndex(119, 120)).toBe(3);
+    expect(getDefenseWaveIndex(200, 120)).toBe(DEFENSE_WAVE_COUNT - 1);
+  });
+
+  it('picks wave roster enemy types cyclically', () => {
+    expect(pickDefenseWaveEnemyType(0, 0)).toBe('slime');
+    expect(pickDefenseWaveEnemyType(0, 1)).toBe('bat');
+    expect(pickDefenseWaveEnemyType(3, 2)).toBe('dragon');
   });
 });
