@@ -217,6 +217,47 @@ struct TrainingGoalSetItem: Sendable, Equatable {
     let sortOrder: Int
 }
 
+enum TrainingGoalTargetInstrument: String, Sendable, Equatable {
+    case piano
+    case all
+
+    func localizedLabel(_ locale: AppLocale) -> String {
+        switch self {
+        case .piano:
+            return locale == .ja ? "ピアノ" : "Piano"
+        case .all:
+            return locale == .ja ? "全楽器" : "All instruments"
+        }
+    }
+}
+
+enum TrainingGoalTargetLevel: String, Sendable, Equatable {
+    case beginner
+    case intermediate
+    case advanced
+
+    func localizedLabel(_ locale: AppLocale) -> String {
+        switch self {
+        case .beginner:
+            return locale == .ja ? "初心者" : "Beginner"
+        case .intermediate:
+            return locale == .ja ? "中級者" : "Intermediate"
+        case .advanced:
+            return locale == .ja ? "上級者" : "Advanced"
+        }
+    }
+}
+
+struct TrainingUiText: Sendable, Equatable {
+    let key: String
+    let textJa: String
+    let textEn: String
+
+    func localizedText(_ locale: AppLocale) -> String {
+        locale == .en ? textEn : textJa
+    }
+}
+
 struct TrainingGoalSet: Identifiable, Sendable, Equatable {
     let id: UUID
     let slug: String
@@ -224,6 +265,8 @@ struct TrainingGoalSet: Identifiable, Sendable, Equatable {
     let titleEn: String
     let descriptionJa: String
     let descriptionEn: String
+    let targetInstrument: TrainingGoalTargetInstrument
+    let targetLevel: TrainingGoalTargetLevel
     let sortOrder: Int
     let items: [TrainingGoalSetItem]
 

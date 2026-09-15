@@ -36,10 +36,13 @@ final class TrainingGameSession: ObservableObject {
         self.practiceMode = practiceMode
         self.lessonContext = lessonContext
         self.ignoreNotationInstrument = training.clefMode == .bassConcert || training.clefMode == .grandConcert
-        let runtime = TrainingEngine.createInitialRuntime()
+        var runtime = TrainingEngine.createInitialRuntime()
+        if practiceMode {
+            runtime.durationSec = .infinity
+        }
         self.runtime = runtime
         self.hud = TrainingHudState(
-            remainSec: Int(TrainingConstants.gameDurationSec),
+            remainSec: practiceMode ? 0 : Int(TrainingConstants.gameDurationSec),
             score: 0,
             countdownSec: TrainingConstants.countdownSec,
             phase: .countdown
@@ -77,10 +80,12 @@ final class TrainingGameSession: ObservableObject {
 
         guard hud.phase == .playing else { return }
 
-        let finished = TrainingEngine.tickTimer(runtime: &runtime, dt: dt)
-        let remainSec = max(0, Int(runtime.durationSec - runtime.elapsedSec.rounded(.down)))
-        if remainSec != hud.remainSec {
-            hud.remainSec = remainSec
+        let finished = !practiceMode && TrainingEngine.tickTimer(runtime: &runtime, dt: dt)
+        if !practiceMode, runtime.durationSec.isFinite {
+            let remainSec = max(0, Int(runtime.durationSec - runtime.elapsedSec.rounded(.down)))
+            if remainSec != hud.remainSec {
+                hud.remainSec = remainSec
+            }
         }
 
         TrainingEngine.tickEnemy(
@@ -93,6 +98,9 @@ final class TrainingGameSession: ObservableObject {
             runtime.result = .finished
             hud.phase = .finished
             DefenseBackingAudio.shared.stop()
+            if !practiceMode {
+                SurvivalGameAudio.shared.playEffect(.stageClear)
+            }
             recordLessonProgressIfNeeded()
         }
     }

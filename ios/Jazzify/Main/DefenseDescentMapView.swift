@@ -8,13 +8,12 @@ struct DefenseDescentMapView: View {
     let blocks: [PlayMapBlock]
     let nodes: [PlayMapNode]
     let clears: [PlayMapNodeClear]
+    @Binding var tier: PlayMapTier
     let onSelectNode: (PlayMapNode) -> Void
     let onSelectQuestNode: (PlayMapNode) -> Void
     let onRequestUpgrade: () -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    @State private var tier: PlayMapTier = .basic
     @State private var selectedNodeId: UUID?
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated = false

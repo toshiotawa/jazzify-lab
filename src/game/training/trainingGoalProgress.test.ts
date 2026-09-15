@@ -8,6 +8,8 @@ const goalSet: TrainingGoalSet = {
   titleEn: 'Test Goal',
   descriptionJa: '',
   descriptionEn: '',
+  targetInstrument: 'all',
+  targetLevel: 'beginner',
   sortOrder: 1,
   isActive: true,
   items: [

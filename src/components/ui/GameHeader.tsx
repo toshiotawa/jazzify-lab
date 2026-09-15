@@ -29,7 +29,7 @@ const GameHeader: React.FC = () => {
               {isEnglishCopy ? 'Quests' : 'クエスト'}
             </NavPathButton>
             <NavPathButton path="/main/play" excludePathPrefix="/main/play/training">
-              {isEnglishCopy ? 'Play' : 'プレイ'}
+              {isEnglishCopy ? 'Phrase' : 'フレーズ'}
             </NavPathButton>
             <NavPathButton path="/main/play/training">
               {isEnglishCopy ? 'Training' : 'トレーニング'}

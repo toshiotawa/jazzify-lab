@@ -32,7 +32,7 @@ struct MainTabView: View {
                 }
                 .tabItem {
                     Label(
-                        locale == .ja ? "プレイ" : "Play",
+                        locale == .ja ? "フレーズ" : "Phrase",
                         systemImage: "gamecontroller.fill"
                     )
                 }

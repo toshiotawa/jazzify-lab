@@ -2640,6 +2640,8 @@ final class SupabaseService: Sendable {
             let title_en: String
             let description_ja: String
             let description_en: String
+            let target_instrument: String
+            let target_level: String
             let sort_order: Int
             let training_goal_set_items: [ItemRow]?
         }
@@ -2647,7 +2649,8 @@ final class SupabaseService: Sendable {
         let rows: [GoalSetRow] = try await client
             .from("training_goal_sets")
             .select("""
-                id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_active,
+                id, slug, title_ja, title_en, description_ja, description_en,
+                target_instrument, target_level, sort_order, is_active,
                 training_goal_set_items (training_id, target_rank, sort_order)
             """)
             .eq("is_active", value: true)
@@ -2672,9 +2675,29 @@ final class SupabaseService: Sendable {
                 titleEn: row.title_en,
                 descriptionJa: row.description_ja,
                 descriptionEn: row.description_en,
+                targetInstrument: TrainingGoalTargetInstrument(rawValue: row.target_instrument) ?? .all,
+                targetLevel: TrainingGoalTargetLevel(rawValue: row.target_level) ?? .beginner,
                 sortOrder: row.sort_order,
                 items: items
             )
+        }
+    }
+
+    func fetchTrainingUiTexts() async throws -> [TrainingUiText] {
+        struct Row: Decodable {
+            let key: String
+            let text_ja: String
+            let text_en: String
+        }
+
+        let rows: [Row] = try await client
+            .from("training_ui_texts")
+            .select("key, text_ja, text_en")
+            .execute()
+            .value
+
+        return rows.map {
+            TrainingUiText(key: $0.key, textJa: $0.text_ja, textEn: $0.text_en)
         }
     }
 

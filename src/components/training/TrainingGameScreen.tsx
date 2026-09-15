@@ -81,6 +81,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     countdownSec: TRAINING_COUNTDOWN_SEC,
     remainSec: TRAINING_GAME_DURATION_SEC,
     score: 0,
+    endless: practiceMode,
   });
 
   const profile = useAuthStore((state) => state.profile);
@@ -134,9 +135,12 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   }, [training, notationInstrumentId, notationOctaveShift, ignoreNotationInstrument]);
 
   useEffect(() => {
-    runtimeRef.current.durationSec = TRAINING_GAME_DURATION_SEC;
+    runtimeRef.current.durationSec = practiceMode
+      ? Number.POSITIVE_INFINITY
+      : TRAINING_GAME_DURATION_SEC;
+    hudRef.current.endless = practiceMode;
     spawnQuestion();
-  }, [spawnQuestion]);
+  }, [spawnQuestion, practiceMode]);
 
   useEffect(() => {
     FantasySoundManager.enableRootSound(
@@ -268,21 +272,26 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       if (phase === 'countdown') {
         hud.phase = 'countdown';
         hud.countdownSec = countdownSec;
-        hud.remainSec = TRAINING_GAME_DURATION_SEC;
+        hud.remainSec = practiceMode ? 0 : TRAINING_GAME_DURATION_SEC;
+        hud.endless = practiceMode;
         hud.score = runtime.score;
       } else {
-        const finished = tickTrainingTimer(runtime, dt);
+        const finished = !practiceMode && tickTrainingTimer(runtime, dt);
         tickTrainingEnemy(runtime, runtime.elapsedSec, dt);
 
         hud.phase = 'playing';
         hud.countdownSec = 0;
-        hud.remainSec = Math.max(0, Math.ceil(runtime.durationSec - runtime.elapsedSec));
+        hud.endless = practiceMode;
+        hud.remainSec = practiceMode
+          ? 0
+          : Math.max(0, Math.ceil(runtime.durationSec - runtime.elapsedSec));
         hud.score = runtime.score;
 
         if (finished) {
           runtime.result = 'finished';
           setPhase('finished');
           bgmRef.current?.stop();
+          FantasySoundManager.playStageClear();
           onFinishedRef.current(runtime.score);
           return;
         }
@@ -299,7 +308,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       }
       lastFrameRef.current = null;
     };
-  }, [phase, countdownSec, isSettingsOpen]);
+  }, [phase, countdownSec, isSettingsOpen, practiceMode]);
 
   return (
     <div className="training-game-screen fixed inset-0 z-[70] overflow-hidden bg-slate-950">

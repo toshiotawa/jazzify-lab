@@ -5,11 +5,14 @@ import type {
   TrainingDailyBest,
   TrainingGoalSet,
   TrainingGoalSetItem,
+  TrainingGoalTargetInstrument,
+  TrainingGoalTargetLevel,
   TrainingKind,
   TrainingClefMode,
   TrainingRankingEntry,
   TrainingRow,
   TrainingScoreSummary,
+  TrainingUiText,
 } from '@/game/training/trainingTypes';
 import type { TrainingLetterRank } from '@/game/training/trainingRank';
 import { mapTrainingConfig } from '@/game/training/mapTrainingConfig';
@@ -67,6 +70,8 @@ interface GoalSetRow {
   title_en: string;
   description_ja: string;
   description_en: string;
+  target_instrument: string;
+  target_level: string;
   sort_order: number;
   is_active: boolean;
   training_goal_set_items: Array<{
@@ -74,6 +79,12 @@ interface GoalSetRow {
     target_rank: string;
     sort_order: number;
   }> | null;
+}
+
+interface TrainingUiTextRow {
+  key: string;
+  text_ja: string;
+  text_en: string;
 }
 
 interface DailyBestRow {
@@ -89,6 +100,7 @@ const rankingCache = new Map<string, { fetchedAt: number; rows: TrainingRankingE
 let summaryCache: { fetchedAt: number; rows: TrainingScoreSummary[] } | null = null;
 let catalogCache: { fetchedAt: number; rows: TrainingCategoryWithTrainings[] } | null = null;
 let goalSetsCache: { fetchedAt: number; rows: TrainingGoalSet[] } | null = null;
+let uiTextsCache: { fetchedAt: number; rows: readonly TrainingUiText[] } | null = null;
 const activityDaysCache = new Map<string, { fetchedAt: number; rows: readonly string[] }>();
 const recordMonthsCache = new Map<string, { fetchedAt: number; rows: readonly string[] }>();
 const dailyBestsCache = new Map<string, { fetchedAt: number; rows: readonly TrainingDailyBest[] }>();
@@ -108,6 +120,14 @@ const isClefMode = (value: string): value is TrainingClefMode => (
 
 const isLetterRank = (value: string): value is TrainingLetterRank => (
   value === 'S' || value === 'A' || value === 'B' || value === 'C' || value === 'D' || value === 'E' || value === 'F'
+);
+
+const isTargetInstrument = (value: string): value is TrainingGoalTargetInstrument => (
+  value === 'piano' || value === 'all'
+);
+
+const isTargetLevel = (value: string): value is TrainingGoalTargetLevel => (
+  value === 'beginner' || value === 'intermediate' || value === 'advanced'
 );
 
 const mapCategory = (row: CategoryRow): TrainingCategoryRow => ({
@@ -154,6 +174,8 @@ const mapGoalSet = (row: GoalSetRow): TrainingGoalSet => {
     titleEn: row.title_en,
     descriptionJa: row.description_ja,
     descriptionEn: row.description_en,
+    targetInstrument: isTargetInstrument(row.target_instrument) ? row.target_instrument : 'all',
+    targetLevel: isTargetLevel(row.target_level) ? row.target_level : 'beginner',
     sortOrder: row.sort_order,
     isActive: row.is_active,
     items,
@@ -206,7 +228,8 @@ export const fetchTrainingGoalSets = async (): Promise<readonly TrainingGoalSet[
   const { data, error } = await supabase
     .from('training_goal_sets')
     .select(`
-      id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_active,
+      id, slug, title_ja, title_en, description_ja, description_en,
+      target_instrument, target_level, sort_order, is_active,
       training_goal_set_items (training_id, target_rank, sort_order)
     `)
     .eq('is_active', true)
@@ -431,11 +454,36 @@ export const upsertTrainingScore = async (
   return result;
 };
 
+export const fetchTrainingUiTexts = async (): Promise<readonly TrainingUiText[]> => {
+  const now = Date.now();
+  if (uiTextsCache && now - uiTextsCache.fetchedAt < CACHE_TTL_MS) {
+    return uiTextsCache.rows;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('training_ui_texts')
+    .select('key, text_ja, text_en');
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = (data as TrainingUiTextRow[] | null ?? []).map((row) => ({
+    key: row.key,
+    textJa: row.text_ja,
+    textEn: row.text_en,
+  }));
+  uiTextsCache = { fetchedAt: now, rows };
+  return rows;
+};
+
 export const invalidateTrainingCaches = (): void => {
   summaryCache = null;
   rankingCache.clear();
   catalogCache = null;
   goalSetsCache = null;
+  uiTextsCache = null;
   activityDaysCache.clear();
   recordMonthsCache.clear();
   dailyBestsCache.clear();

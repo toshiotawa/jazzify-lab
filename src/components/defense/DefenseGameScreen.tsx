@@ -73,6 +73,8 @@ interface DefenseGameScreenProps {
   readonly practiceMode: boolean;
   readonly onExit: () => void;
   readonly onRetry: () => void;
+  /** リザルト画面の「マップに戻る」。未指定時は onExit にフォールバック */
+  readonly onResultBack?: () => void;
   /** 本番モードでクリアしたときに1回だけ呼ばれる（レッスン進捗の記録用） */
   readonly onClear?: () => void;
 }
@@ -93,6 +95,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   practiceMode,
   onExit,
   onRetry,
+  onResultBack,
   onClear,
 }) => {
   const runtimeRef = useRef<DefenseRuntime>(
@@ -510,8 +513,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         practiceMode={practiceMode}
         surviveSec={finalStats.surviveSec}
         enemiesDefeated={finalStats.enemiesDefeated}
+        isEnglishCopy={isEnglishCopy}
         onRetry={onRetry}
-        onBack={onExit}
+        onBack={onResultBack ?? onExit}
       />
     );
   }

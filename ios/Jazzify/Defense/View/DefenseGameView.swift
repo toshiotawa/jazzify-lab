@@ -11,6 +11,7 @@ struct DefenseGameView: View {
     let onClose: () -> Void
     let playMapNodeId: UUID?
     let onPlayMapCleared: (() -> Void)?
+    let onFinished: ((DefenseFinishSummary) -> Void)?
 
     init(
         stage: DefenseStageDefinition,
@@ -20,7 +21,8 @@ struct DefenseGameView: View {
         locale: AppLocale,
         playMapNodeId: UUID? = nil,
         onClose: @escaping () -> Void,
-        onPlayMapCleared: (() -> Void)? = nil
+        onPlayMapCleared: (() -> Void)? = nil,
+        onFinished: ((DefenseFinishSummary) -> Void)? = nil
     ) {
         _session = StateObject(wrappedValue: DefenseGameSession(
             stage: stage,
@@ -33,6 +35,7 @@ struct DefenseGameView: View {
         self.playMapNodeId = playMapNodeId
         self.onClose = onClose
         self.onPlayMapCleared = onPlayMapCleared
+        self.onFinished = onFinished
     }
 
     var body: some View {
@@ -74,6 +77,13 @@ struct DefenseGameView: View {
         .onChange(of: session.hud.result) { result in
             if result == .clear, playMapNodeId != nil, !session.practiceMode {
                 onPlayMapCleared?()
+            }
+            if result != .playing, let onFinished {
+                onFinished(DefenseFinishSummary(
+                    result: result,
+                    surviveSec: Int(session.runtime.elapsedSec.rounded(.down)),
+                    enemiesDefeated: session.runtime.enemiesDefeated
+                ))
             }
         }
         .sheet(isPresented: $isSettingsOpen, onDismiss: {
@@ -168,7 +178,7 @@ struct DefenseGameView: View {
                 .frame(height: Self.pianoHeight)
             }
 
-            if session.hud.result != .playing {
+            if session.hud.result != .playing, onFinished == nil {
                 resultOverlay
             }
         }

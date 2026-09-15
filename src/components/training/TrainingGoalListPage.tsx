@@ -35,7 +35,7 @@ export const TrainingGoalListPage: React.FC<TrainingGoalListPageProps> = ({
       </button>
 
       <h1 className="mb-6 text-2xl font-bold text-white">
-        {isEnglish ? 'Training Goals' : '目標一覧'}
+        {isEnglish ? 'Goal Sets' : '目標セット一覧'}
       </h1>
 
       <ul className="space-y-3">

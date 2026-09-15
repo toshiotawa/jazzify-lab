@@ -10,8 +10,10 @@ struct DefenseDescentView: View {
     @State private var isLoading = true
     @State private var showSubscription = false
 
+    @State private var mapTier: PlayMapTier = .basic
     @State private var stagePrep: StagePrepContext?
     @State private var stageLaunchSession: StageLaunchSession?
+    @State private var mapResultContext: MapResultContext?
     @State private var isStarting = false
     @State private var lessonToOpen: LessonPlayMapLaunch?
     @State private var alertMessage: String?
@@ -31,6 +33,15 @@ struct DefenseDescentView: View {
         let stage: DefenseStageDefinition
         let difficulty: DefenseDifficultyDefinition
         let practiceMode: Bool
+    }
+
+    private struct MapResultContext: Identifiable {
+        let id = UUID()
+        let node: PlayMapNode
+        let stage: DefenseStageDefinition
+        let difficulty: DefenseDifficultyDefinition
+        let practiceMode: Bool
+        let summary: DefenseFinishSummary
     }
 
     private struct LessonPlayMapLaunch: Identifiable, Hashable {
@@ -61,6 +72,7 @@ struct DefenseDescentView: View {
                     blocks: blocks,
                     nodes: nodes,
                     clears: clears,
+                    tier: $mapTier,
                     onSelectNode: { node in
                         Task { await startStageNode(node) }
                     },
@@ -130,6 +142,39 @@ struct DefenseDescentView: View {
                 },
                 onPlayMapCleared: {
                     Task { await handlePlayMapClear(session: session) }
+                },
+                onFinished: { summary in
+                    if let block = blocks.first(where: { $0.id == session.node.blockId }) {
+                        mapTier = block.tier
+                    }
+                    stageLaunchSession = nil
+                    mapResultContext = MapResultContext(
+                        node: session.node,
+                        stage: session.stage,
+                        difficulty: session.difficulty,
+                        practiceMode: session.practiceMode,
+                        summary: summary
+                    )
+                }
+            )
+        }
+        .fullScreenCover(item: $mapResultContext) { context in
+            DefenseResultView(
+                stageTitle: context.stage.title,
+                summary: context.summary,
+                locale: locale,
+                onRetry: {
+                    mapResultContext = nil
+                    stageLaunchSession = StageLaunchSession(
+                        node: context.node,
+                        stage: context.stage,
+                        difficulty: context.difficulty,
+                        practiceMode: context.practiceMode
+                    )
+                },
+                onBackToMap: {
+                    mapResultContext = nil
+                    Task { await reloadMap() }
                 }
             )
         }
@@ -226,6 +271,9 @@ struct DefenseDescentView: View {
                 ? "難易度設定の読み込みに失敗しました。"
                 : "Failed to load difficulty settings."
             return
+        }
+        if let block = blocks.first(where: { $0.id == node.blockId }) {
+            mapTier = block.tier
         }
         stagePrep = StagePrepContext(node: node, stage: stage, difficulty: difficulty)
     }

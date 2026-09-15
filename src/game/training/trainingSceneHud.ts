@@ -3,6 +3,7 @@ export interface TrainingSceneHud {
   readonly countdownSec: number;
   readonly remainSec: number;
   readonly score: number;
+  readonly endless: boolean;
 }
 
 export type MutableTrainingSceneHud = {

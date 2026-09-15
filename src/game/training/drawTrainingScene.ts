@@ -132,7 +132,7 @@ const drawTrainingHud = (
   if (hud.phase === 'countdown') {
     ctx.fillText(String(hud.countdownSec), width / 2, TRAINING_HUD_HEIGHT_PX / 2);
   } else {
-    ctx.fillText(`${hud.remainSec}s`, width / 2, TRAINING_HUD_HEIGHT_PX / 2);
+    ctx.fillText(hud.endless ? '∞' : `${hud.remainSec}s`, width / 2, TRAINING_HUD_HEIGHT_PX / 2);
   }
 };
 

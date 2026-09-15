@@ -20,7 +20,10 @@ struct TrainingListView: View {
     @State private var practiceMode = false
     @State private var finalScore = 0
     @State private var showSubscription = false
-    @State private var infoCategory: TrainingCategoryRow?
+    @State private var infoSheetItem: TrainingInfoSheetItem?
+    @State private var pageInfo: TrainingUiText?
+    @State private var collapsedCategoryIds: Set<UUID> = []
+    @State private var switchedGoalTitle: String?
     @State private var playSession: TrainingPlaySession?
     @State private var didLaunchForcedTraining = false
 
@@ -164,8 +167,21 @@ struct TrainingListView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     VStack(alignment: .leading) {
-                        Text(locale == .ja ? "トレーニング" : "Training")
-                            .font(.title2.bold())
+                        HStack(spacing: 6) {
+                            Text(locale == .ja ? "トレーニング" : "Training")
+                                .font(.title2.bold())
+                            if let pageInfo, !pageInfo.localizedText(locale).isEmpty {
+                                Button {
+                                    infoSheetItem = .pageInfo(pageInfo)
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(locale == .ja ? "トレーニング説明" : "Training info")
+                            }
+                        }
                         Text(locale == .ja ? "1分間ドリル（本番でスコア記録）" : "1-minute drills (production records score)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -206,24 +222,65 @@ struct TrainingListView: View {
             }
             .padding(.vertical)
         }
-        .sheet(item: $infoCategory) { category in
-            TrainingCategoryInfoSheet(
-                title: category.localizedTitle(locale),
-                description: category.localizedDescription(locale),
-                locale: locale
+        .sheet(item: $infoSheetItem) { item in
+            switch item {
+            case .category(let category):
+                TrainingCategoryInfoSheet(
+                    title: category.localizedTitle(locale),
+                    description: category.localizedDescription(locale),
+                    locale: locale
+                )
+            case .pageInfo(let info):
+                TrainingCategoryInfoSheet(
+                    title: locale == .ja ? "トレーニング" : "Training",
+                    description: info.localizedText(locale),
+                    locale: locale
+                )
+            }
+        }
+        .alert(
+            locale == .ja ? "目標セットを切り替えました" : "Goal set switched",
+            isPresented: Binding(
+                get: { switchedGoalTitle != nil },
+                set: { if !$0 { switchedGoalTitle = nil } }
             )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            if let title = switchedGoalTitle {
+                Text(locale == .ja ? "目標セットを「\(title)」に切り替えました。" : "Switched to \"\(title)\".")
+            }
         }
     }
 
     @ViewBuilder
     private func section(_ category: TrainingCategoryWithTrainings) -> some View {
+        let collapsed = collapsedCategoryIds.contains(category.category.id)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(category.category.localizedTitle(locale))
-                    .font(.headline)
+                Button {
+                    if collapsed {
+                        collapsedCategoryIds.remove(category.category.id)
+                    } else {
+                        collapsedCategoryIds.insert(category.category.id)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: collapsed ? "chevron.right" : "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(category.category.localizedTitle(locale))
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        if !category.category.isFree, !appState.isPremium {
+                            Text("Premium").font(.caption2).foregroundStyle(.orange)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
                 if !category.category.localizedDescription(locale).isEmpty {
                     Button {
-                        infoCategory = category.category
+                        infoSheetItem = .category(category.category)
                     } label: {
                         Image(systemName: "info.circle")
                             .font(.subheadline)
@@ -232,14 +289,14 @@ struct TrainingListView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(locale == .ja ? "カテゴリ説明" : "Category info")
                 }
-                if !category.category.isFree, !appState.isPremium {
-                    Text("Premium").font(.caption2).foregroundStyle(.orange)
-                }
+                Spacer()
             }
             .padding(.horizontal)
 
-            ForEach(category.trainings) { training in
-                trainingRow(training, category: category.category)
+            if !collapsed {
+                ForEach(category.trainings) { training in
+                    trainingRow(training, category: category.category)
+                }
             }
         }
     }
@@ -250,6 +307,7 @@ struct TrainingListView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Text(training.localizedTitle(locale))
                 .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
             if let summary {
                 Text(locale == .ja
                      ? "最高 \(summary.bestScore) / \(summary.bestRank.rawValue)\(summary.rankPosition.map { " / \($0)位" } ?? "")"
@@ -257,21 +315,27 @@ struct TrainingListView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            HStack {
+            HStack(spacing: 8) {
                 Button(locale == .ja ? "練習" : "Practice") {
                     launch(training, practice: true, locked: locked)
                 }
                 .buttonStyle(.bordered)
+                .lineLimit(1)
+                .fixedSize()
                 Button(locale == .ja ? "本番" : "Production") {
                     launch(training, practice: false, locked: locked)
                 }
                 .buttonStyle(.borderedProminent)
+                .lineLimit(1)
+                .fixedSize()
                 if !isLessonLaunch {
                     Button(locale == .ja ? "記録" : "Records") {
                         screen = .records(trainingId: training.id)
                     }
                     .buttonStyle(.bordered)
                     .tint(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
                 }
             }
         }
@@ -299,10 +363,14 @@ struct TrainingListView: View {
 
     private func selectGoal(_ goalSetId: UUID) async {
         let previous = activeGoalSetId
+        let selected = goalSets.first { $0.id == goalSetId }
         activeGoalSetId = goalSetId
         screen = .goal
         do {
             try await SupabaseService.shared.setMyTrainingGoal(goalSetId: goalSetId)
+            if let selected {
+                switchedGoalTitle = selected.localizedTitle(locale)
+            }
         } catch {
             activeGoalSetId = previous
         }
@@ -352,9 +420,11 @@ struct TrainingListView: View {
         async let goalSetsTask = SupabaseService.shared.fetchTrainingGoalSets()
         async let goalIdTask = SupabaseService.shared.fetchMyTrainingGoalId()
         async let activityTask = SupabaseService.shared.fetchTrainingActivityDays(timezone: tz)
+        async let uiTextsTask = SupabaseService.shared.fetchTrainingUiTexts()
         goalSets = (try? await goalSetsTask) ?? []
         activeGoalSetId = (try? await goalIdTask) ?? nil
         activeDays = Set((try? await activityTask) ?? [])
+        pageInfo = (try? await uiTextsTask)?.first { $0.key == "page_info" }
     }
 
     private func launchForcedTrainingIfNeeded() {
@@ -364,6 +434,20 @@ struct TrainingListView: View {
         }
         didLaunchForcedTraining = true
         presentGame(training: training, practice: forcedPracticeMode)
+    }
+}
+
+private enum TrainingInfoSheetItem: Identifiable {
+    case category(TrainingCategoryRow)
+    case pageInfo(TrainingUiText)
+
+    var id: String {
+        switch self {
+        case .category(let category):
+            return "category-\(category.id.uuidString)"
+        case .pageInfo(let info):
+            return "page-info-\(info.key)"
+        }
     }
 }
 

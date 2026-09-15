@@ -225,7 +225,7 @@ addTraining('intro', {
 });
 addTraining('intro', {
   slug: 'note-reading-treble-accidentals',
-  title_ja: '音符の読み方(ト音記号・シャープフラットあり)',
+  title_ja: '音符の読み方(ト音記号・臨時記号あり)',
   title_en: 'Note Reading (Treble, Accidentals)',
   sort_order: 3,
   kind: 'note_reading',
@@ -234,7 +234,7 @@ addTraining('intro', {
 });
 addTraining('intro', {
   slug: 'note-reading-bass-accidentals',
-  title_ja: '音符の読み方(ヘ音記号・シャープフラットあり・In C固定)',
+  title_ja: '音符の読み方(ヘ音記号・臨時記号あり・In C固定)',
   title_en: 'Note Reading (Bass, Accidentals, In C)',
   sort_order: 4,
   kind: 'note_reading',

@@ -181,9 +181,14 @@ struct TrainingGameView: View {
     }
 
     private var trainingHud: some View {
-        let timeLabel = session.hud.phase == .countdown
-            ? "\(session.hud.countdownSec)"
-            : "\(session.hud.remainSec)s"
+        let timeLabel: String
+        if session.hud.phase == .countdown {
+            timeLabel = "\(session.hud.countdownSec)"
+        } else if session.practiceMode {
+            timeLabel = "∞"
+        } else {
+            timeLabel = "\(session.hud.remainSec)s"
+        }
 
         return HStack {
             Text("SCORE \(session.hud.score)")

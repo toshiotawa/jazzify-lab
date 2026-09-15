@@ -140,6 +140,9 @@ export interface TrainingGoalSetItem {
   readonly sortOrder: number;
 }
 
+export type TrainingGoalTargetInstrument = 'piano' | 'all';
+export type TrainingGoalTargetLevel = 'beginner' | 'intermediate' | 'advanced';
+
 export interface TrainingGoalSet {
   readonly id: string;
   readonly slug: string;
@@ -147,9 +150,17 @@ export interface TrainingGoalSet {
   readonly titleEn: string;
   readonly descriptionJa: string;
   readonly descriptionEn: string;
+  readonly targetInstrument: TrainingGoalTargetInstrument;
+  readonly targetLevel: TrainingGoalTargetLevel;
   readonly sortOrder: number;
   readonly isActive: boolean;
   readonly items: readonly TrainingGoalSetItem[];
+}
+
+export interface TrainingUiText {
+  readonly key: string;
+  readonly textJa: string;
+  readonly textEn: string;
 }
 
 export interface TrainingDailyBest {

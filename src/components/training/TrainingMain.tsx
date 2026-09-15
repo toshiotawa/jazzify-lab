@@ -5,6 +5,7 @@ import { TrainingCalendarPage } from '@/components/training/TrainingCalendarPage
 import { TrainingGameScreen } from '@/components/training/TrainingGameScreen';
 import { TrainingGoalListPage } from '@/components/training/TrainingGoalListPage';
 import { TrainingGoalPage } from '@/components/training/TrainingGoalPage';
+import { TrainingInfoModal } from '@/components/training/TrainingInfoModal';
 import { TrainingList } from '@/components/training/TrainingList';
 import { TrainingRanking } from '@/components/training/TrainingRanking';
 import { TrainingRecordsPage } from '@/components/training/TrainingRecordsPage';
@@ -14,7 +15,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { resolveActiveGoalSet } from '@/game/training/trainingGoalProgress';
-import type { TrainingRow } from '@/game/training/trainingTypes';
+import type { TrainingRow, TrainingUiText } from '@/game/training/trainingTypes';
 import { meetsTrainingRankRequirement, scoreToTrainingRank, type TrainingLetterRank } from '@/game/training/trainingRank';
 import {
   fetchMyTrainingGoalId,
@@ -22,6 +23,7 @@ import {
   fetchTrainingActivityDays,
   fetchTrainingCatalog,
   fetchTrainingGoalSets,
+  fetchTrainingUiTexts,
   invalidateTrainingCaches,
   setMyTrainingGoal,
 } from '@/platform/supabaseTraining';
@@ -102,24 +104,28 @@ const TrainingMain: React.FC = () => {
   const [finalScore, setFinalScore] = useState(0);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [pageInfo, setPageInfo] = useState<TrainingUiText | null>(null);
+  const [switchedGoalTitle, setSwitchedGoalTitle] = useState<string | null>(null);
   const lessonClearedRef = useRef(false);
 
   const todayKey = useMemo(() => getLocalDateKey(new Date(), timezone), [timezone]);
 
   const reload = useCallback(async () => {
     invalidateTrainingCaches();
-    const [catalog, summary, goals, myGoalId, activityDays] = await Promise.all([
+    const [catalog, summary, goals, myGoalId, activityDays, uiTexts] = await Promise.all([
       fetchTrainingCatalog(),
       profile?.id ? fetchMyTrainingSummary() : Promise.resolve([]),
       fetchTrainingGoalSets(),
       profile?.id ? fetchMyTrainingGoalId() : Promise.resolve(null),
       profile?.id ? fetchTrainingActivityDays(timezone) : Promise.resolve([]),
+      fetchTrainingUiTexts().catch(() => [] as readonly TrainingUiText[]),
     ]);
     setCategories(catalog);
     setSummaryMap(new Map(summary.map((row) => [row.trainingId, row])));
     setGoalSets(goals);
     setSelectedGoalSetId(myGoalId);
     setActiveDays(activityDays);
+    setPageInfo(uiTexts.find((row) => row.key === 'page_info') ?? null);
   }, [profile?.id, timezone]);
 
   useEffect(() => {
@@ -244,10 +250,14 @@ const TrainingMain: React.FC = () => {
   }, [lessonContext, session, reload]);
 
   const handleSelectGoal = useCallback(async (goalSetId: string) => {
+    const nextGoalSet = goalSets.find((set) => set.id === goalSetId);
     await setMyTrainingGoal(goalSetId);
     setSelectedGoalSetId(goalSetId);
+    if (nextGoalSet) {
+      setSwitchedGoalTitle(isEnglish ? nextGoalSet.titleEn : nextGoalSet.titleJa);
+    }
     openView('goal');
-  }, [openView]);
+  }, [goalSets, isEnglish, openView]);
 
   if (loading) {
     return <LoadingScreen />;
@@ -264,6 +274,7 @@ const TrainingMain: React.FC = () => {
             activeGoalSet={activeGoalSet}
             todayKey={todayKey}
             activeDays={activeDays}
+            pageInfo={pageInfo}
             isPremium={isPremium}
             isEnglish={isEnglish}
             onSelectTraining={handleSelectTraining}
@@ -395,6 +406,17 @@ const TrainingMain: React.FC = () => {
         </div>
       )}
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglish} source="training" />
+      {switchedGoalTitle && (
+        <TrainingInfoModal
+          title={isEnglish ? 'Goal set switched' : '目標セットを切り替えました'}
+          description={
+            isEnglish
+              ? `Switched to "${switchedGoalTitle}".`
+              : `目標セットを「${switchedGoalTitle}」に切り替えました。`
+          }
+          onClose={() => setSwitchedGoalTitle(null)}
+        />
+      )}
     </div>
   );
 };

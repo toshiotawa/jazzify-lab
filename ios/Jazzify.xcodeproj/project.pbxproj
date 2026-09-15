@@ -54,6 +54,7 @@
 		1836E94E9A39B90584E12D6B /* MidiConnectionGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48EAE0378D83A7E32E3565A4 /* MidiConnectionGuideView.swift */; };
 		18AF7B0B808E9648A7ECE897 /* SurvivalPhraseEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E556118DFD8F80FDA8B4BC52 /* SurvivalPhraseEngine.swift */; };
 		19C9B64FB798B5B39894E127 /* DefenseGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D0B0608B905C210B1DA2EE2 /* DefenseGameView.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* DefenseResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* DefenseResultView.swift */; };
 		19E97A760FD91CB70434417A /* EarTrainingTutorialDialogueBattleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A88FE49722A0680190C68352 /* EarTrainingTutorialDialogueBattleView.swift */; };
 		1A03E53FE0C8C7D722EC2BA5 /* TrainingMusicTheory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107BBAD0B88E8E84331F0F80 /* TrainingMusicTheory.swift */; };
 		1A30BE7F1CDD445C7A0DCEE6 /* BalloonRushSurvivalBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60480C0EAD760C5FCA62EE0 /* BalloonRushSurvivalBridge.swift */; };
@@ -523,6 +524,7 @@
 		3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3BCF2CFB04DF8268354F4DCB /* TutorialScriptInterpreter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorialScriptInterpreter.swift; sourceTree = "<group>"; };
 		3D0B0608B905C210B1DA2EE2 /* DefenseGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseGameView.swift; sourceTree = "<group>"; };
+		B2C3D4E5F60718293A4B5C6D /* DefenseResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseResultView.swift; sourceTree = "<group>"; };
 		3DD183119AF389C09D3989F5 /* DefenseDescentMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentMapView.swift; sourceTree = "<group>"; };
 		3E55DE62A334F6CFC0698D44 /* PianoKeyboardScrollGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollGeometryTests.swift; sourceTree = "<group>"; };
 		3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */ = {isa = PBXFileReference; lastKnownFileType = folder; name = stage_cards_collection; path = ../public/stage_cards_collection; sourceTree = SOURCE_ROOT; };
@@ -1142,6 +1144,7 @@
 			isa = PBXGroup;
 			children = (
 				3D0B0608B905C210B1DA2EE2 /* DefenseGameView.swift */,
+				B2C3D4E5F60718293A4B5C6D /* DefenseResultView.swift */,
 				E4E5F56CD5622CFF2B912FFF /* DefensePhraseStaffView.swift */,
 				F9FC0B1FA0561C858199879A /* DefenseScene.swift */,
 				FBC19B3A7D42EAB4C8CAC3C4 /* DefenseSceneLayout.swift */,
@@ -2066,6 +2069,7 @@
 				54FFCB32F2C995F454A1628D /* DefenseGameLoop.swift in Sources */,
 				B07BC94786FF77545A500019 /* DefenseGameSession.swift in Sources */,
 				19C9B64FB798B5B39894E127 /* DefenseGameView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* DefenseResultView.swift in Sources */,
 				F6343BD5063EFD41DECBADD9 /* DefenseKeyboardRange.swift in Sources */,
 				7FC6EA227ADEC5CF85380A63 /* DefenseModels.swift in Sources */,
 				AF11AB45821720FD44629F49 /* DefensePhraseJudge.swift in Sources */,

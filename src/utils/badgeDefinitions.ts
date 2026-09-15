@@ -3,6 +3,8 @@ type BadgeCategoryId =
   | 'survival_songs'
   | 'survival_phrases'
   | 'defense'
+  | 'defense_basic'
+  | 'defense_advanced'
   | 'training_goal'
   | 'player_level'
   | 'quest_clear';
@@ -12,7 +14,8 @@ type BadgeConditionType =
   | 'player_level_reached'
   | 'quest_clear_count'
   | 'play_map_node_clear'
-  | 'training_goal_clear_count';
+  | 'training_goal_clear_count'
+  | 'defense_tier_clear_count';
 
 interface BadgeCategoryDefinition {
   id: BadgeCategoryId;
@@ -23,7 +26,7 @@ interface BadgeCategoryDefinition {
 export interface BadgeDefinition {
   id: string;
   categoryId: BadgeCategoryId;
-  rank: 1 | 2 | 3;
+  rank: 1 | 2 | 3 | 4;
   nameJa: string;
   nameEn: string;
   conditionType: BadgeConditionType;
@@ -77,8 +80,117 @@ const TRAINING_GOAL_BADGE_DEFINITIONS: BadgeDefinition[] = [
   },
 ];
 
+const DEFENSE_TIER_CLEAR_BADGES: BadgeDefinition[] = [
+  {
+    id: 'defense_basic_clears_50',
+    categoryId: 'defense_basic',
+    rank: 1,
+    nameJa: 'Basic 累計50回クリア',
+    nameEn: 'Basic: 50 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 50,
+    conditionJa: 'フレーズディフェンス Basic を累計50回クリア',
+    conditionEn: 'Clear Phrase Defense Basic 50 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_19.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_basic_clears_500',
+    categoryId: 'defense_basic',
+    rank: 2,
+    nameJa: 'Basic 累計500回クリア',
+    nameEn: 'Basic: 500 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 500,
+    conditionJa: 'フレーズディフェンス Basic を累計500回クリア',
+    conditionEn: 'Clear Phrase Defense Basic 500 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_19.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_basic_clears_1000',
+    categoryId: 'defense_basic',
+    rank: 3,
+    nameJa: 'Basic 累計1000回クリア',
+    nameEn: 'Basic: 1,000 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 1000,
+    conditionJa: 'フレーズディフェンス Basic を累計1000回クリア',
+    conditionEn: 'Clear Phrase Defense Basic 1,000 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_19.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_basic_clears_10000',
+    categoryId: 'defense_basic',
+    rank: 4,
+    nameJa: 'Basic 累計10000回クリア',
+    nameEn: 'Basic: 10,000 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 10000,
+    conditionJa: 'フレーズディフェンス Basic を累計10000回クリア',
+    conditionEn: 'Clear Phrase Defense Basic 10,000 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_19.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_advanced_clears_50',
+    categoryId: 'defense_advanced',
+    rank: 1,
+    nameJa: 'Advanced 累計50回クリア',
+    nameEn: 'Advanced: 50 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 50,
+    conditionJa: 'フレーズディフェンス Advanced を累計50回クリア',
+    conditionEn: 'Clear Phrase Defense Advanced 50 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_22.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_advanced_clears_500',
+    categoryId: 'defense_advanced',
+    rank: 2,
+    nameJa: 'Advanced 累計500回クリア',
+    nameEn: 'Advanced: 500 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 500,
+    conditionJa: 'フレーズディフェンス Advanced を累計500回クリア',
+    conditionEn: 'Clear Phrase Defense Advanced 500 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_22.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_advanced_clears_1000',
+    categoryId: 'defense_advanced',
+    rank: 3,
+    nameJa: 'Advanced 累計1000回クリア',
+    nameEn: 'Advanced: 1,000 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 1000,
+    conditionJa: 'フレーズディフェンス Advanced を累計1000回クリア',
+    conditionEn: 'Clear Phrase Defense Advanced 1,000 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_22.png',
+    isActive: true,
+  },
+  {
+    id: 'defense_advanced_clears_10000',
+    categoryId: 'defense_advanced',
+    rank: 4,
+    nameJa: 'Advanced 累計10000回クリア',
+    nameEn: 'Advanced: 10,000 Clears',
+    conditionType: 'defense_tier_clear_count',
+    conditionValue: 10000,
+    conditionJa: 'フレーズディフェンス Advanced を累計10000回クリア',
+    conditionEn: 'Clear Phrase Defense Advanced 10,000 times (cumulative)',
+    imagePath: '/achivement/achievement_monster_22.png',
+    isActive: true,
+  },
+];
+
 export const BADGE_CATEGORIES: BadgeCategoryDefinition[] = [
   { id: 'defense', labelJa: 'フレーズディフェンス', labelEn: 'Phrase Defense' },
+  { id: 'defense_basic', labelJa: 'フレーズディフェンス Basic', labelEn: 'Phrase Defense Basic' },
+  { id: 'defense_advanced', labelJa: 'フレーズディフェンス Advanced', labelEn: 'Phrase Defense Advanced' },
   { id: 'training_goal', labelJa: 'トレーニング目標', labelEn: 'Training goals' },
   { id: 'player_level', labelJa: '到達レベル', labelEn: 'Player level reached' },
   { id: 'quest_clear', labelJa: 'クエストクリア数', labelEn: 'Quest clears' },
@@ -229,7 +341,7 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
     conditionJa: 'フレーズディフェンス Basic を全クリア',
     conditionEn: 'Clear all Phrase Defense Basic nodes',
     imagePath: '/achivement/achievement_monster_19.png',
-    isActive: true,
+    isActive: false,
   },
   {
     id: 'defense_advanced_all_3',
@@ -242,8 +354,9 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
     conditionJa: 'フレーズディフェンス Advanced を全クリア',
     conditionEn: 'Clear all Phrase Defense Advanced nodes',
     imagePath: '/achivement/achievement_monster_22.png',
-    isActive: true,
+    isActive: false,
   },
+  ...DEFENSE_TIER_CLEAR_BADGES,
   ...TRAINING_GOAL_BADGE_DEFINITIONS,
   {
     id: 'player_level_2',

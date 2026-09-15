@@ -23,7 +23,7 @@ struct TrainingGoalListView: View {
                     .font(.subheadline)
                     .padding(.horizontal)
 
-                Text(locale == .ja ? "目標一覧" : "Training Goals")
+                Text(locale == .ja ? "目標セット一覧" : "Goal Sets")
                     .font(.title2.bold())
                     .padding(.horizontal)
 

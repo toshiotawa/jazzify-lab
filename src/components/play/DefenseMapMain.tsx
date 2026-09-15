@@ -4,8 +4,9 @@ import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
 import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
-import type { PlayMapNode } from '@/platform/supabasePlayMap';
+import type { PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
+  fetchPlayMapBlocks,
   fetchPlayMapNodes,
   recordPlayMapNodeClear,
 } from '@/platform/supabasePlayMap';
@@ -52,6 +53,7 @@ const DefenseMapMain: React.FC = () => {
   const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   const [screen, setScreen] = useState<Screen>('map');
+  const [mapTier, setMapTier] = useState<PlayMapTier>('basic');
   const [activeNode, setActiveNode] = useState<PlayMapNode | null>(null);
   const [loaded, setLoaded] = useState<LoadedStage | null>(null);
   const [session, setSession] = useState<ActiveSession | null>(null);
@@ -65,8 +67,15 @@ const DefenseMapMain: React.FC = () => {
       return;
     }
     if (!node.defenseStageId) return;
-    const detail = await fetchDefenseStageDetail(node.defenseStageId);
+    const [blocks, detail] = await Promise.all([
+      fetchPlayMapBlocks('defense'),
+      fetchDefenseStageDetail(node.defenseStageId),
+    ]);
     if (!detail || detail.phrases.length === 0) return;
+    const block = blocks.find((entry) => entry.id === node.blockId);
+    if (block) {
+      setMapTier(block.tier);
+    }
     const difficultyLevel = resolvePlayMapDefenseDifficultyLevel(
       node.difficultyLevel,
       detail.difficultyLevel,
@@ -142,6 +151,7 @@ const DefenseMapMain: React.FC = () => {
         difficulty={loaded.difficulty}
         practiceMode={session.practiceMode}
         onExit={backToPrep}
+        onResultBack={backToMap}
         onRetry={handleRetry}
         onClear={() => { void handleClear(); }}
       />
@@ -183,6 +193,8 @@ const DefenseMapMain: React.FC = () => {
       <DefenseDescentMap
         isEnglishCopy={isEnglishCopy}
         isPremiumMember={isPremiumMember}
+        tier={mapTier}
+        onTierChange={setMapTier}
         onSelectNode={(node) => { void startFromNode(node); }}
         onSelectQuestNode={(node) => { void startFromNode(node); }}
       />

@@ -1,7 +1,12 @@
 import React, { useMemo } from 'react';
 
+import { TrainingGoalSetListCard } from '@/components/training/TrainingGoalSetListCard';
 import { DonutChart } from '@/components/ui/DonutChart';
 import { computeTrainingGoalProgress } from '@/game/training/trainingGoalProgress';
+import {
+  formatTrainingGoalInstrument,
+  formatTrainingGoalLevel,
+} from '@/game/training/trainingGoalLabels';
 import type {
   TrainingGoalSet,
   TrainingRow,
@@ -60,22 +65,35 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
         </div>
       </div>
 
-      {(isEnglish ? goalSet.descriptionEn : goalSet.descriptionJa) && (
-        <section className="mb-6 rounded-xl border border-slate-700 bg-slate-900/70 p-4">
-          <p className="text-sm leading-relaxed text-slate-300">
+      <section className="mb-6 rounded-xl border border-slate-700 bg-slate-900/70 p-4">
+        <dl className="space-y-2 text-sm text-slate-300">
+          <div className="flex gap-2">
+            <dt className="shrink-0 font-medium text-slate-400">
+              {isEnglish ? 'Target instrument' : '対象楽器'}
+              :
+            </dt>
+            <dd>{formatTrainingGoalInstrument(goalSet.targetInstrument, isEnglish)}</dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="shrink-0 font-medium text-slate-400">
+              {isEnglish ? 'Target level' : '対象レベル'}
+              :
+            </dt>
+            <dd>{formatTrainingGoalLevel(goalSet.targetLevel, isEnglish)}</dd>
+          </div>
+        </dl>
+        {(isEnglish ? goalSet.descriptionEn : goalSet.descriptionJa) && (
+          <p className="mt-4 border-t border-slate-700 pt-4 text-sm leading-relaxed text-slate-300">
             {isEnglish ? goalSet.descriptionEn : goalSet.descriptionJa}
           </p>
-        </section>
-      )}
+        )}
+      </section>
 
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">
-          {isEnglish ? 'Goal Trainings' : '目標トレーニング'}
-        </h2>
-        <button type="button" className="text-sm text-indigo-300 underline" onClick={onOpenGoals}>
-          {isEnglish ? 'All goals' : '目標一覧へ'}
-        </button>
-      </div>
+      <TrainingGoalSetListCard isEnglish={isEnglish} onClick={onOpenGoals} />
+
+      <h2 className="mb-4 text-lg font-semibold text-white">
+        {isEnglish ? 'Goal Trainings' : '目標トレーニング'}
+      </h2>
 
       <ul className="space-y-2">
         {progress.items.map((item) => {
@@ -93,7 +111,7 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
               )}
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-white">
                     {isEnglish ? training.titleEn : training.titleJa}
                   </p>
@@ -108,24 +126,24 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
                     {item.cleared ? (isEnglish ? ' · Cleared' : ' · クリア') : ''}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex shrink-0 flex-nowrap gap-2">
                   <button
                     type="button"
-                    className="rounded-lg bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600"
+                    className="whitespace-nowrap rounded-lg bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-600"
                     onClick={() => (locked ? onLocked() : onSelectTraining(training.id, true))}
                   >
                     {isEnglish ? 'Practice' : '練習'}
                   </button>
                   <button
                     type="button"
-                    className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                    className="whitespace-nowrap rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
                     onClick={() => (locked ? onLocked() : onSelectTraining(training.id, false))}
                   >
                     {isEnglish ? 'Production' : '本番'}
                   </button>
                   <button
                     type="button"
-                    className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    className="whitespace-nowrap rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
                     onClick={() => onOpenRecords(training.id)}
                   >
                     {isEnglish ? 'Records' : '記録'}

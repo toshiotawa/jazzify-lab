@@ -34,6 +34,8 @@ import {
 interface DefenseDescentMapProps {
   isEnglishCopy: boolean;
   isPremiumMember: boolean;
+  tier?: PlayMapTier;
+  onTierChange?: (tier: PlayMapTier) => void;
   onSelectNode: (node: PlayMapNode) => void;
   onSelectQuestNode: (node: PlayMapNode) => void;
 }
@@ -67,10 +69,14 @@ const preloadDescentImages = (): Promise<void> => {
 const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   isEnglishCopy,
   isPremiumMember,
+  tier: controlledTier,
+  onTierChange,
   onSelectNode,
   onSelectQuestNode,
 }) => {
-  const [tier, setTier] = useState<PlayMapTier>('basic');
+  const [internalTier, setInternalTier] = useState<PlayMapTier>('basic');
+  const tier = controlledTier ?? internalTier;
+  const setTier = onTierChange ?? setInternalTier;
   const [blocks, setBlocks] = useState<Awaited<ReturnType<typeof fetchPlayMapBlocks>>>([]);
   const [nodes, setNodes] = useState<Awaited<ReturnType<typeof fetchPlayMapNodes>>>([]);
   const [clears, setClears] = useState<Awaited<ReturnType<typeof fetchPlayMapNodeClears>>>([]);

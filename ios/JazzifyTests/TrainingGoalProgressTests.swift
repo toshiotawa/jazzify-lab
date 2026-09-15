@@ -14,6 +14,8 @@ final class TrainingGoalProgressTests: XCTestCase {
             titleEn: "Test",
             descriptionJa: "",
             descriptionEn: "",
+            targetInstrument: .all,
+            targetLevel: .beginner,
             sortOrder: 0,
             items: items
         )

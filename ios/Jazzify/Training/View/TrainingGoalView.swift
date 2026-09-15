@@ -40,25 +40,61 @@ struct TrainingGoalView: View {
                 }
                 .padding(.horizontal)
 
-                if !description.isEmpty {
-                    Text(description)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(locale == .ja ? "対象楽器" : "Target instrument"): \(goalSet.targetInstrument.localizedLabel(locale))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(.secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal)
-                }
-
-                HStack {
-                    Text(locale == .ja ? "目標トレーニング" : "Goal Trainings")
-                        .font(.headline)
-                    Spacer()
-                    Button(locale == .ja ? "目標一覧へ" : "All goals", action: onOpenGoals)
+                    Text("\(locale == .ja ? "対象レベル" : "Target level"): \(goalSet.targetLevel.localizedLabel(locale))")
                         .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    if !description.isEmpty {
+                        Text(description)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                    }
                 }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
+
+                Button(action: onOpenGoals) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(locale == .ja ? "目標セット一覧" : "Goal Sets")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Text(locale == .ja ? "他の目標セットに切り替える" : "Switch to another goal set")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .background(
+                        LinearGradient(
+                            colors: [Color.indigo.opacity(0.18), Color(.secondarySystemBackground)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.indigo.opacity(0.4), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+
+                Text(locale == .ja ? "目標トレーニング" : "Goal Trainings")
+                    .font(.headline)
+                    .padding(.horizontal)
 
                 ForEach(progress.items) { item in
                     if let training = trainingById[item.trainingId] {
@@ -76,6 +112,7 @@ struct TrainingGoalView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(training.localizedTitle(locale))
                     .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if item.cleared {
                     Label(locale == .ja ? "クリア" : "Cleared", systemImage: "checkmark.circle.fill")
@@ -86,20 +123,26 @@ struct TrainingGoalView: View {
             Text(statusText(item))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack {
+            HStack(spacing: 8) {
                 Button(locale == .ja ? "練習" : "Practice") {
                     if locked { onLocked() } else { onPlay(training, true) }
                 }
                 .buttonStyle(.bordered)
+                .lineLimit(1)
+                .fixedSize()
                 Button(locale == .ja ? "本番" : "Production") {
                     if locked { onLocked() } else { onPlay(training, false) }
                 }
                 .buttonStyle(.borderedProminent)
+                .lineLimit(1)
+                .fixedSize()
                 Button(locale == .ja ? "記録" : "Records") {
                     onOpenRecords(training.id)
                 }
                 .buttonStyle(.bordered)
                 .tint(.secondary)
+                .lineLimit(1)
+                .fixedSize()
             }
         }
         .padding()
