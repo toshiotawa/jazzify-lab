@@ -198,7 +198,7 @@ export const SCALE_TEMPLATES: Record<ScaleType, string[]> = {
   'altered': ['1P', '2m', '3m', '3M', '5d', '6m', '7m'],
   
   // Half Whole Diminished
-  'half_whole_diminished': ['1P', '2m', '3m', '3M', '4A', '5P', '6m', '7M'],
+  'half_whole_diminished': ['1P', '2m', '3m', '3M', '4A', '5P', '6M', '7m'],
   
   // Whole Half Diminished
   'whole_half_diminished': ['1P', '2M', '3m', '4P', '5d', '6m', '6M', '7M'],

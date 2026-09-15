@@ -5,7 +5,7 @@ enum TrainingLetterRank: String, Codable, Sendable, CaseIterable {
 }
 
 enum TrainingRank {
-    private static let thresholds: [(minScore: Int, rank: TrainingLetterRank)] = [
+    private static let defaultThresholds: [(minScore: Int, rank: TrainingLetterRank)] = [
         (60, .S),
         (50, .A),
         (40, .B),
@@ -14,18 +14,31 @@ enum TrainingRank {
         (10, .E),
     ]
 
+    private static let scaleThresholds: [(minScore: Int, rank: TrainingLetterRank)] = [
+        (30, .S),
+        (25, .A),
+        (20, .B),
+        (15, .C),
+        (10, .D),
+        (5, .E),
+    ]
+
     private static let order: [TrainingLetterRank] = [.F, .E, .D, .C, .B, .A, .S]
 
-    static func scoreToRank(_ score: Int) -> TrainingLetterRank {
+    private static func thresholds(for kind: TrainingKind) -> [(minScore: Int, rank: TrainingLetterRank)] {
+        kind == .scale ? scaleThresholds : defaultThresholds
+    }
+
+    static func scoreToRank(_ score: Int, kind: TrainingKind = .chord) -> TrainingLetterRank {
         let normalized = max(0, score)
-        for entry in thresholds where normalized >= entry.minScore {
+        for entry in thresholds(for: kind) where normalized >= entry.minScore {
             return entry.rank
         }
         return .F
     }
 
-    static func meetsRequirement(score: Int, requiredRank: TrainingLetterRank) -> Bool {
-        let achieved = scoreToRank(score)
+    static func meetsRequirement(score: Int, requiredRank: TrainingLetterRank, kind: TrainingKind = .chord) -> Bool {
+        let achieved = scoreToRank(score, kind: kind)
         guard let achievedIndex = order.firstIndex(of: achieved),
               let requiredIndex = order.firstIndex(of: requiredRank)
         else { return false }

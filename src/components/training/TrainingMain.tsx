@@ -143,12 +143,12 @@ const TrainingMain: React.FC = () => {
     setScreen('result');
     if (lessonContext && session && !session.practiceMode) {
       const requiredRank = (lessonContext.clearConditions?.rank ?? 'C') as TrainingLetterRank;
-      if (meetsTrainingRankRequirement(score, requiredRank)) {
+      if (meetsTrainingRankRequirement(score, requiredRank, session.training.kind)) {
         lessonClearedRef.current = true;
         void updateLessonRequirementProgress(
           lessonContext.lessonId,
           lessonContext.lessonSongId,
-          scoreToTrainingRank(score),
+          scoreToTrainingRank(score, session.training.kind),
           lessonContext.clearConditions ?? { count: 1, rank: 'C' },
           { sourceType: 'training', lessonSongId: lessonContext.lessonSongId },
         );
@@ -220,6 +220,7 @@ const TrainingMain: React.FC = () => {
           <TrainingResult
             trainingTitle={isEnglish ? session.training.titleEn : session.training.titleJa}
             trainingId={session.training.id}
+            trainingKind={session.training.kind}
             score={finalScore}
             practiceMode={session.practiceMode}
             onRetry={() => {

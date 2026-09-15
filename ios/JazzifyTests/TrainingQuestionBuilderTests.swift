@@ -137,6 +137,22 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         XCTAssertEqual(dim.notes.count, 8)
     }
 
+    func testHalfWholeDiminishedSpellingForG() {
+        let q = build(training(kind: .scale, config: config(roots: ["G"], scale: "half_whole_diminished")))
+        XCTAssertEqual(
+            q.notes.map { $0.noteName.replacingOccurrences(of: #"\d+$"#, with: "", options: .regularExpression) },
+            ["G", "Ab", "Bb", "B", "C#", "D", "E", "F"]
+        )
+    }
+
+    func testScaleAnswersExcludeOctaveUpRoot() {
+        for scale in ["major", "half_whole_diminished", "whole_half_diminished"] {
+            let q = build(training(kind: .scale, config: config(roots: ["C"], scale: scale)))
+            let rootMidi = q.notes.first?.midi ?? 0
+            XCTAssertFalse(q.notes.contains(where: { $0.midi == rootMidi + 12 }))
+        }
+    }
+
     func testTensionVoicingPlacedAboveMinLowestNote() {
         let row = training(
             kind: .voicing,
@@ -195,6 +211,22 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             )
         ))
         XCTAssertEqual(bvi.notes.map(\.noteName), ["D3", "Ab3", "C4", "E4", "G4"])
+    }
+
+    func testMixedIntervalQuestionUsesIntervalLabelInPrompt() {
+        let row = training(kind: .interval, title: "度数まとめ上", config: config(direction: "up"))
+        for _ in 0..<20 {
+            let q = build(row)
+            XCTAssertEqual(q.notes.count, 2)
+            XCTAssertFalse(q.notes[0].isTarget)
+            XCTAssertTrue(q.notes[1].isTarget)
+            let basePitch = q.notes[0].noteName.replacingOccurrences(
+                of: #"\d+$"#,
+                with: "",
+                options: .regularExpression
+            )
+            XCTAssertNotNil(q.promptLabel.range(of: "^\(basePitch) (短|長|完全|増)[0-9]+度上$", options: .regularExpression))
+        }
     }
 
     func testIntervalQuestionHasReferenceAndSimpleSpelledTarget() {

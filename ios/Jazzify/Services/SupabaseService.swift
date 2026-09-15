@@ -2632,7 +2632,7 @@ final class SupabaseService: Sendable {
         let row = rows.first
         return TrainingUpsertResult(
             bestScore: row?.best_score ?? score,
-            bestRank: TrainingRank.parseLetterRank(row?.best_rank ?? TrainingRank.scoreToRank(score).rawValue),
+            bestRank: TrainingRank.parseLetterRank(row?.best_rank ?? TrainingRank.scoreToRank(score, kind: .chord).rawValue),
             isNewBest: row?.is_new_best ?? false
         )
     }

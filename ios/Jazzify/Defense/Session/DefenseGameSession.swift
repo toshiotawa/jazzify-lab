@@ -74,6 +74,7 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func start() async {
+        SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         subscribeMidi()
         guard let first = stage.phrases.first,
               let firstUrl = URL(string: first.audioUrl)
@@ -121,6 +122,7 @@ final class DefenseGameSession: ObservableObject {
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()
+        SurvivalGameAudio.shared.stop()
     }
 
     private func subscribeMidi() {

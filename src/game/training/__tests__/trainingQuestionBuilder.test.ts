@@ -115,6 +115,32 @@ describe('trainingQuestionBuilder', () => {
     expect(q.promptLabel).toBe('C テスト');
   });
 
+  it('spells G half-whole diminished with the expected pitch names', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({
+        kind: 'scale',
+        config: { scale: 'half_whole_diminished', roots: ['G'] },
+      }),
+      ...piano,
+    });
+    expect(q.notes.map((n) => n.noteName.replace(/\d+$/, ''))).toEqual([
+      'G', 'Ab', 'Bb', 'B', 'C#', 'D', 'E', 'F',
+    ]);
+  });
+
+  it('excludes the octave-up root from scale answers', () => {
+    const scales = ['major', 'half_whole_diminished', 'whole_half_diminished'] as const;
+    for (const scale of scales) {
+      const q = buildTrainingQuestion({
+        training: baseTraining({ kind: 'scale', config: { scale, roots: ['C'] } }),
+        ...piano,
+      });
+      const rootMidi = q.notes[0]?.midi;
+      expect(rootMidi).toBeDefined();
+      expect(q.notes.some((n) => n.midi === (rootMidi ?? 0) + 12)).toBe(false);
+    }
+  });
+
   it('keeps 8 notes for diminished scales and spells Bb scale with flats', () => {
     const dim = buildTrainingQuestion({
       training: baseTraining({ kind: 'scale', config: { scale: 'whole_half_diminished', roots: ['C'] } }),
@@ -219,6 +245,24 @@ describe('trainingQuestionBuilder', () => {
     expect(q.questionKey.startsWith('fallback:')).toBe(true);
     expect(q.notes).toHaveLength(1);
     expect(q.notes[0]?.midi).toBe(60);
+  });
+
+  it('builds mixed interval questions with a random interval label in the prompt', () => {
+    for (let i = 0; i < 20; i += 1) {
+      const q = buildTrainingQuestion({
+        training: baseTraining({
+          kind: 'interval',
+          titleJa: '度数まとめ上',
+          config: { direction: 'up' },
+        }),
+        ...piano,
+      });
+      expect(q.notes).toHaveLength(2);
+      expect(q.notes[0]?.isTarget).toBe(false);
+      expect(q.notes[1]?.isTarget).toBe(true);
+      const basePitch = (q.notes[0]?.noteName ?? '').replace(/\d+$/, '');
+      expect(q.promptLabel).toMatch(new RegExp(`^${basePitch} (短|長|完全|増)\\d度上$`));
+    }
   });
 
   it('builds interval questions with a visible reference note and a simple-spelled target', () => {

@@ -59,6 +59,15 @@ enum TrainingQuestionBuilder {
         "C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B",
     ]
 
+    private static let intervalLabelsJa: [String: String] = [
+        "2m": "短2度", "2M": "長2度", "3m": "短3度", "3M": "長3度", "4P": "完全4度", "4A": "増4度",
+        "5P": "完全5度", "6m": "短6度", "6M": "長6度", "7m": "短7度", "7M": "長7度",
+    ]
+
+    private static let mixedIntervalPool = [
+        "2m", "2M", "3m", "3M", "4P", "4A", "5P", "6m", "6M", "7m", "7M",
+    ]
+
     static func buildQuestion(options: TrainingQuestionBuilderOptions) -> TrainingQuestion {
         let training = options.training
         let previousQuestionKey = options.previousQuestionKey
@@ -113,8 +122,12 @@ enum TrainingQuestionBuilder {
                 )
 
             case .interval:
-                let interval = mergedConfig.interval ?? "2m"
                 let directionUp = (mergedConfig.direction ?? "up") == "up"
+                let interval = mergedConfig.interval ?? mixedIntervalPool.randomElement() ?? "2m"
+                let directionSuffix = directionUp ? "上" : "下"
+                let intervalLabel = mergedConfig.interval != nil
+                    ? training.titleJa
+                    : "\(intervalLabelsJa[interval] ?? interval)\(directionSuffix)"
                 guard let spec = TrainingMusicTheory.parseInterval(directionUp ? interval : "-\(interval)") else { continue }
                 var candidates: [(base: SpelledNote, target: SpelledNote)] = []
                 for spelling in intervalBaseSpellings {
@@ -132,11 +145,12 @@ enum TrainingQuestionBuilder {
                     }
                 }
                 guard let picked = candidates.randomElement() else { continue }
-                let questionKey = "interval:\(picked.base.name):\(picked.target.name)"
+                let directionKey = directionUp ? "up" : "down"
+                let questionKey = "interval:\(interval):\(directionKey):\(picked.base.name):\(picked.target.name)"
                 if questionKey == previousQuestionKey { continue }
                 return makeQuestion(
                     questionKey: questionKey,
-                    promptLabel: "\(picked.base.pitchName) \(training.titleJa)",
+                    promptLabel: "\(picked.base.pitchName) \(intervalLabel)",
                     noteNames: [picked.base.name, picked.target.name],
                     staves: [defaultStaff, defaultStaff],
                     targets: [false, true],
@@ -234,24 +248,26 @@ enum TrainingQuestionBuilder {
             }
 
         case .interval:
-            let interval = mergedConfig.interval ?? "2m"
             let directionUp = (mergedConfig.direction ?? "up") == "up"
-            guard let spec = TrainingMusicTheory.parseInterval(directionUp ? interval : "-\(interval)") else {
-                return midis
-            }
-            for spelling in intervalBaseSpellings {
-                guard let raw = TrainingMusicTheory.parseSpelled("\(spelling)4") else { continue }
-                guard let base = TrainingMusicTheory.placeLowestInOctaveAbove([raw], minMidi: staffBottom).first else {
+            let intervalPool = mergedConfig.interval.map { [$0] } ?? mixedIntervalPool
+            for interval in intervalPool {
+                guard let spec = TrainingMusicTheory.parseInterval(directionUp ? interval : "-\(interval)") else {
                     continue
                 }
-                let target = TrainingMusicTheory.transpose(base, by: spec)
-                guard TrainingMusicTheory.isSimpleSpelling(target) else { continue }
-                if target.midi < staffBottom {
-                    midis.append(TrainingMusicTheory.shiftOctave(base, by: 1).midi)
-                    midis.append(TrainingMusicTheory.shiftOctave(target, by: 1).midi)
-                } else {
-                    midis.append(base.midi)
-                    midis.append(target.midi)
+                for spelling in intervalBaseSpellings {
+                    guard let raw = TrainingMusicTheory.parseSpelled("\(spelling)4") else { continue }
+                    guard let base = TrainingMusicTheory.placeLowestInOctaveAbove([raw], minMidi: staffBottom).first else {
+                        continue
+                    }
+                    let target = TrainingMusicTheory.transpose(base, by: spec)
+                    guard TrainingMusicTheory.isSimpleSpelling(target) else { continue }
+                    if target.midi < staffBottom {
+                        midis.append(TrainingMusicTheory.shiftOctave(base, by: 1).midi)
+                        midis.append(TrainingMusicTheory.shiftOctave(target, by: 1).midi)
+                    } else {
+                        midis.append(base.midi)
+                        midis.append(target.midi)
+                    }
                 }
             }
 

@@ -47,6 +47,7 @@ final class TrainingGameSession: ObservableObject {
     }
 
     func start() async {
+        SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         subscribeMidi()
         spawnQuestion()
         startCountdown()
@@ -61,6 +62,7 @@ final class TrainingGameSession: ObservableObject {
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()
+        SurvivalGameAudio.shared.stop()
     }
 
     func advanceFrame(currentTime: TimeInterval) {
@@ -164,9 +166,10 @@ final class TrainingGameSession: ObservableObject {
         runtime.correctTargetIndices = result.newCorrectIndices
         correctIndices = result.newCorrectIndices
 
-        if training.playRootOnCorrect, let rootMidi = current.rootMidi {
-            SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: rootMidi, velocity: 90)
-            SurvivalGameAudio.shared.pianoNoteOff(midi: rootMidi)
+        if training.kind != .scale,
+           training.playRootOnCorrect,
+           let rootMidi = current.rootMidi {
+            SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
         }
 
         guard result.completed else { return }
@@ -204,8 +207,8 @@ final class TrainingGameSession: ObservableObject {
         guard !practiceMode, let lessonContext else { return }
         let requiredRank = TrainingRank.parseLetterRank(lessonContext.clearConditions?.rank ?? "C")
         let score = runtime.score
-        guard TrainingRank.meetsRequirement(score: score, requiredRank: requiredRank) else { return }
-        let rank = TrainingRank.scoreToRank(score).rawValue
+        guard TrainingRank.meetsRequirement(score: score, requiredRank: requiredRank, kind: training.kind) else { return }
+        let rank = TrainingRank.scoreToRank(score, kind: training.kind).rawValue
         Task {
             _ = try? await SupabaseService.shared.recordTrainingLessonProgress(
                 lessonId: lessonContext.lessonId,

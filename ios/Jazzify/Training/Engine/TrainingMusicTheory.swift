@@ -112,7 +112,7 @@ enum TrainingMusicTheory {
         "mixolydian": ["1P", "2M", "3M", "4P", "5P", "6M", "7m"],
         "locrian": ["1P", "2m", "3m", "4P", "5d", "6m", "7m"],
         "altered": ["1P", "2m", "3m", "3M", "5d", "6m", "7m"],
-        "half_whole_diminished": ["1P", "2m", "3m", "3M", "4A", "5P", "6m", "7M"],
+        "half_whole_diminished": ["1P", "2m", "3m", "3M", "4A", "5P", "6M", "7m"],
         "whole_half_diminished": ["1P", "2M", "3m", "4P", "5d", "6m", "6M", "7M"],
         "lydian_dominant": ["1P", "2M", "3M", "4A", "5P", "6M", "7m"],
         "mixolydian_b6": ["1P", "2M", "3M", "4P", "5P", "6m", "7m"],

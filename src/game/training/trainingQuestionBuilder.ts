@@ -83,6 +83,25 @@ const INTERVAL_BASE_SPELLINGS: readonly string[] = [
   'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
 ];
 
+/** tonal interval -> 日本語ラベル（度数まとめのプロンプト用） */
+const INTERVAL_LABELS_JA: Readonly<Record<string, string>> = {
+  '2m': '短2度',
+  '2M': '長2度',
+  '3m': '短3度',
+  '3M': '長3度',
+  '4P': '完全4度',
+  '4A': '増4度',
+  '5P': '完全5度',
+  '6m': '短6度',
+  '6M': '長6度',
+  '7m': '短7度',
+  '7M': '長7度',
+};
+
+const MIXED_INTERVAL_POOL: readonly string[] = [
+  '2m', '2M', '3m', '3M', '4P', '4A', '5P', '6m', '6M', '7m', '7M',
+];
+
 /** 出題コードネーム用のクオリティ表記 */
 const CHORD_SYMBOL_SUFFIX: Partial<Record<ChordQuality, string>> = {
   maj: '',
@@ -299,8 +318,12 @@ export const buildTrainingQuestion = (
     }
 
     if (training.kind === 'interval') {
-      const interval = config.interval ?? '2m';
       const direction = config.direction ?? 'up';
+      const interval = config.interval ?? pickRandom(MIXED_INTERVAL_POOL);
+      const directionSuffix = direction === 'up' ? '上' : '下';
+      const intervalLabel = config.interval != null
+        ? training.titleJa
+        : `${INTERVAL_LABELS_JA[interval] ?? interval}${directionSuffix}`;
       const tonalInterval = direction === 'up' ? interval : `-${interval}`;
       const candidates: { base: string; target: string }[] = [];
       for (const spelling of INTERVAL_BASE_SPELLINGS) {
@@ -320,11 +343,11 @@ export const buildTrainingQuestion = (
         throw new Error(`Training ${training.slug}: no interval candidates`);
       }
       const picked = pickRandom(candidates);
-      const questionKey = `interval:${picked.base}:${picked.target}`;
+      const questionKey = `interval:${interval}:${direction}:${picked.base}:${picked.target}`;
       if (questionKey === previousQuestionKey) continue;
       return makeQuestion(
         questionKey,
-        `${pitchNameWithoutOctave(picked.base)} ${training.titleJa}`,
+        `${pitchNameWithoutOctave(picked.base)} ${intervalLabel}`,
         [picked.base, picked.target],
         [defaultStaff, defaultStaff],
         [false, true],
@@ -462,20 +485,22 @@ export const collectTrainingStageMidis = (
   }
 
   if (training.kind === 'interval') {
-    const interval = config.interval ?? '2m';
     const direction = config.direction ?? 'up';
-    const tonalInterval = direction === 'up' ? interval : `-${interval}`;
-    for (const spelling of INTERVAL_BASE_SPELLINGS) {
-      const [base] = placeLowestInOctaveAbove([`${spelling}4`], concertStaffBottom);
-      if (!base) continue;
-      const target = transpose(base, tonalInterval);
-      if (!target) continue;
-      const normalizedTarget = normalizeSpelling(target);
-      if (!isSimpleSpelling(normalizedTarget)) continue;
-      if (midiOf(normalizedTarget) < concertStaffBottom) {
-        pushNames([shiftOctave(base, 1), shiftOctave(normalizedTarget, 1)]);
-      } else {
-        pushNames([base, normalizedTarget]);
+    const intervalPool = config.interval != null ? [config.interval] : MIXED_INTERVAL_POOL;
+    for (const interval of intervalPool) {
+      const tonalInterval = direction === 'up' ? interval : `-${interval}`;
+      for (const spelling of INTERVAL_BASE_SPELLINGS) {
+        const [base] = placeLowestInOctaveAbove([`${spelling}4`], concertStaffBottom);
+        if (!base) continue;
+        const target = transpose(base, tonalInterval);
+        if (!target) continue;
+        const normalizedTarget = normalizeSpelling(target);
+        if (!isSimpleSpelling(normalizedTarget)) continue;
+        if (midiOf(normalizedTarget) < concertStaffBottom) {
+          pushNames([shiftOctave(base, 1), shiftOctave(normalizedTarget, 1)]);
+        } else {
+          pushNames([base, normalizedTarget]);
+        }
       }
     }
     return midis;

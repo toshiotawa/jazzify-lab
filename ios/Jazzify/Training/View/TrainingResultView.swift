@@ -83,14 +83,14 @@ struct TrainingResultView: View {
     }
 
     private func saveScoreIfNeeded() async {
-        savedRank = TrainingRank.scoreToRank(score)
+        savedRank = TrainingRank.scoreToRank(score, kind: training.kind)
         guard !practiceMode, lessonContext == nil else {
             saved = true
             return
         }
         do {
             _ = try await SupabaseService.shared.upsertTrainingScore(trainingId: training.id, score: score)
-            savedRank = TrainingRank.scoreToRank(score)
+            savedRank = TrainingRank.scoreToRank(score, kind: training.kind)
             saved = true
             let summary = try await SupabaseService.shared.fetchMyTrainingSummary()
             rankPosition = summary.first(where: { $0.trainingId == training.id })?.rankPosition

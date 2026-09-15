@@ -45,6 +45,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { EarTrainingChordVoicingDrumLoop, CHORD_VOICING_SELF_PACED_DRUM_LOOP_URL } from '@/utils/earTrainingChordVoicingDrumLoop';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { cn } from '@/utils/cn';
 
@@ -137,6 +138,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   }, [spawnQuestion]);
 
   useEffect(() => {
+    FantasySoundManager.enableRootSound(training.kind !== 'scale');
+  }, [training.kind]);
+
+  useEffect(() => {
     if (isSettingsOpen) return undefined;
     if (phase !== 'countdown') return undefined;
     if (countdownSec <= 0) {
@@ -206,8 +211,8 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     runtimeRef.current.correctTargetIndices = result.newCorrectIndices;
     setCorrectIndices(result.newCorrectIndices);
 
-    if (training.playRootOnCorrect && current.rootMidi != null) {
-      playNote(current.rootMidi, 0.35);
+    if (training.kind !== 'scale' && training.playRootOnCorrect && current.rootMidi != null) {
+      FantasySoundManager.playBassMidiNote(current.rootMidi);
     }
 
     if (!result.completed) return;
@@ -215,7 +220,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
     runtimeRef.current.score += 1;
     spawnQuestion();
-  }, [phase, spawnQuestion, training.playRootOnCorrect, voiceSequential]);
+  }, [phase, spawnQuestion, training.kind, training.playRootOnCorrect, voiceSequential]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();

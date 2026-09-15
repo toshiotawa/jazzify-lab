@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 import { downloadTrainingResultImage } from '@/components/training/trainingResultImage';
 import { scoreToTrainingRank } from '@/game/training/trainingRank';
+import type { TrainingKind } from '@/game/training/trainingTypes';
 import type { TrainingLetterRank } from '@/game/training/trainingRank';
 import { upsertTrainingScore } from '@/platform/supabaseTraining';
 import { useAuthStore } from '@/stores/authStore';
@@ -10,6 +11,7 @@ import { cn } from '@/utils/cn';
 interface TrainingResultProps {
   readonly trainingTitle: string;
   readonly trainingId: string;
+  readonly trainingKind: TrainingKind;
   readonly score: number;
   readonly practiceMode: boolean;
   readonly onRetry: () => void;
@@ -20,6 +22,7 @@ interface TrainingResultProps {
 export const TrainingResult: React.FC<TrainingResultProps> = ({
   trainingTitle,
   trainingId,
+  trainingKind,
   score,
   practiceMode,
   onRetry,
@@ -28,7 +31,7 @@ export const TrainingResult: React.FC<TrainingResultProps> = ({
 }) => {
   const profile = useAuthStore((state) => state.profile);
   const userName = profile?.nickname ?? 'Player';
-  const rank = scoreToTrainingRank(score);
+  const rank = scoreToTrainingRank(score, trainingKind);
   const [savedRank, setSavedRank] = useState<TrainingLetterRank>(rank);
   const [rankPosition, setRankPosition] = useState<number | null>(null);
   const [saved, setSaved] = useState(practiceMode);
