@@ -13,6 +13,7 @@ struct TrainingResultView: View {
     @EnvironmentObject var appState: AppState
     @State private var savedRank: TrainingLetterRank = .F
     @State private var rankPosition: Int?
+    @State private var isHighScore = false
     @State private var saved = false
     @State private var shareImage: UIImage?
 
@@ -38,6 +39,11 @@ struct TrainingResultView: View {
                         .padding(.horizontal, 4)
                     Text(appState.profile?.nickname ?? "Player")
                         .foregroundStyle(.secondary)
+                    if isHighScore, !practiceMode {
+                        Text("High Score!!")
+                            .font(.title2.weight(.black))
+                            .foregroundStyle(.yellow)
+                    }
                     Text(savedRank.rawValue)
                         .font(.system(size: 88, weight: .black, design: .rounded))
                         .foregroundStyle(.yellow)
@@ -89,8 +95,9 @@ struct TrainingResultView: View {
             return
         }
         do {
-            _ = try await SupabaseService.shared.upsertTrainingScore(trainingId: training.id, score: score)
-            savedRank = TrainingRank.scoreToRank(score, kind: training.kind)
+            let result = try await SupabaseService.shared.upsertTrainingScore(trainingId: training.id, score: score)
+            savedRank = result.bestRank
+            isHighScore = result.isNewBest
             saved = true
             let summary = try await SupabaseService.shared.fetchMyTrainingSummary()
             rankPosition = summary.first(where: { $0.trainingId == training.id })?.rankPosition
@@ -109,6 +116,11 @@ struct TrainingResultView: View {
                 .minimumScaleFactor(0.6)
                 .padding(.horizontal, 20)
             Text(appState.profile?.nickname ?? "Player")
+            if isHighScore, !practiceMode {
+                Text("High Score!!")
+                    .font(.title.weight(.black))
+                    .foregroundStyle(.yellow)
+            }
             Text(savedRank.rawValue).font(.system(size: 120, weight: .black, design: .rounded))
             Text("\(score)").font(.system(size: 72, weight: .bold, design: .rounded))
             if let rankPosition, !practiceMode {

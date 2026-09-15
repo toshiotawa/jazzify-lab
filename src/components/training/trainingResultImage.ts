@@ -6,6 +6,7 @@ interface TrainingResultImagePayload {
   readonly rank: TrainingLetterRank;
   readonly score: number;
   readonly rankPosition: number | null;
+  readonly isHighScore?: boolean;
 }
 
 const FONT_FAMILY = 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
@@ -86,6 +87,12 @@ const renderTrainingResultImage = (payload: TrainingResultImagePayload): HTMLCan
   ctx.font = `48px ${FONT_FAMILY}`;
   ctx.fillStyle = '#cbd5e1';
   ctx.fillText(payload.userName, canvas.width / 2, 400);
+
+  if (payload.isHighScore) {
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = `bold 56px ${FONT_FAMILY}`;
+    ctx.fillText('High Score!!', canvas.width / 2, 480);
+  }
 
   ctx.fillStyle = '#fbbf24';
   ctx.font = `bold 180px ${FONT_FAMILY}`;

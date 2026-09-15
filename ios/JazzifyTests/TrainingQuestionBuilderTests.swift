@@ -90,19 +90,51 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         }
     }
 
-    func testNoteReadingIncludesAccidentalsWhenEnabled() {
+    func testNoteReadingIncludesAccidentalsAndNaturalsWhenEnabled() {
         let row = training(kind: .noteReading, config: config(clef: "treble", includeAccidentals: true))
         var sawAccidental = false
+        var sawNatural = false
         for _ in 0..<80 {
             let q = build(row)
             XCTAssertGreaterThanOrEqual(q.notes[0].midi, 60)
             XCTAssertLessThanOrEqual(q.notes[0].midi, 81)
-            if ![0, 2, 4, 5, 7, 9, 11].contains(q.notes[0].pitchClass) {
+            let pc = q.notes[0].pitchClass
+            if [0, 2, 4, 5, 7, 9, 11].contains(pc) {
+                sawNatural = true
+                XCTAssertFalse(q.notes[0].noteName.contains("#") || q.notes[0].noteName.contains("b"))
+            } else {
                 sawAccidental = true
                 XCTAssertTrue(q.notes[0].noteName.contains("#") || q.notes[0].noteName.contains("b"))
             }
         }
         XCTAssertTrue(sawAccidental)
+        XCTAssertTrue(sawNatural)
+    }
+
+    func testBassNoteReadingIncludesAccidentalsAndNaturalsWhenEnabled() {
+        let row = training(
+            kind: .noteReading,
+            clefMode: .bassConcert,
+            config: config(clef: "bass", includeAccidentals: true)
+        )
+        var sawAccidental = false
+        var sawNatural = false
+        for _ in 0..<80 {
+            let q = build(row)
+            XCTAssertGreaterThanOrEqual(q.notes[0].midi, 40)
+            XCTAssertLessThanOrEqual(q.notes[0].midi, 60)
+            XCTAssertEqual(q.notes[0].staff, 2)
+            let pc = q.notes[0].pitchClass
+            if [0, 2, 4, 5, 7, 9, 11].contains(pc) {
+                sawNatural = true
+                XCTAssertFalse(q.notes[0].noteName.contains("#") || q.notes[0].noteName.contains("b"))
+            } else {
+                sawAccidental = true
+                XCTAssertTrue(q.notes[0].noteName.contains("#") || q.notes[0].noteName.contains("b"))
+            }
+        }
+        XCTAssertTrue(sawAccidental)
+        XCTAssertTrue(sawNatural)
     }
 
     func testBassNoteReadingUsesInCFixedRange() {

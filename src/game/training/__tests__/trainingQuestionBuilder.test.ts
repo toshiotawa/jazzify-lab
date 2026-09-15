@@ -38,8 +38,9 @@ describe('trainingQuestionBuilder', () => {
     }
   });
 
-  it('includes sharps and flats in treble note reading when enabled', () => {
+  it('includes sharps, flats, and naturals in treble note reading when enabled', () => {
     let sawAccidental = false;
+    let sawNatural = false;
     for (let i = 0; i < 80; i += 1) {
       const q = buildTrainingQuestion({
         training: baseTraining({
@@ -50,12 +51,46 @@ describe('trainingQuestionBuilder', () => {
       });
       expect(q.notes[0]?.midi).toBeGreaterThanOrEqual(60);
       expect(q.notes[0]?.midi).toBeLessThanOrEqual(81);
-      if (![0, 2, 4, 5, 7, 9, 11].includes(q.notes[0]?.pitchClass ?? 0)) {
+      const pc = q.notes[0]?.pitchClass ?? 0;
+      if ([0, 2, 4, 5, 7, 9, 11].includes(pc)) {
+        sawNatural = true;
+        expect(q.notes[0]?.noteName).not.toMatch(/[#b]/);
+      } else {
         sawAccidental = true;
         expect(q.notes[0]?.noteName).toMatch(/[#b]/);
       }
     }
     expect(sawAccidental).toBe(true);
+    expect(sawNatural).toBe(true);
+  });
+
+  it('includes sharps, flats, and naturals in bass note reading when enabled', () => {
+    let sawAccidental = false;
+    let sawNatural = false;
+    for (let i = 0; i < 80; i += 1) {
+      const q = buildTrainingQuestion({
+        training: baseTraining({
+          kind: 'note_reading',
+          clefMode: 'bass_concert',
+          config: { clef: 'bass', includeAccidentals: true },
+        }),
+        ...piano,
+        ignoreNotationInstrument: true,
+      });
+      expect(q.notes[0]?.midi).toBeGreaterThanOrEqual(40);
+      expect(q.notes[0]?.midi).toBeLessThanOrEqual(60);
+      expect(q.notes[0]?.staff).toBe(2);
+      const pc = q.notes[0]?.pitchClass ?? 0;
+      if ([0, 2, 4, 5, 7, 9, 11].includes(pc)) {
+        sawNatural = true;
+        expect(q.notes[0]?.noteName).not.toMatch(/[#b]/);
+      } else {
+        sawAccidental = true;
+        expect(q.notes[0]?.noteName).toMatch(/[#b]/);
+      }
+    }
+    expect(sawAccidental).toBe(true);
+    expect(sawNatural).toBe(true);
   });
 
   it('uses bass clef In C fixed range for bass note reading', () => {

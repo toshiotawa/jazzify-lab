@@ -34,15 +34,17 @@ export const TrainingResult: React.FC<TrainingResultProps> = ({
   const rank = scoreToTrainingRank(score, trainingKind);
   const [savedRank, setSavedRank] = useState<TrainingLetterRank>(rank);
   const [rankPosition, setRankPosition] = useState<number | null>(null);
+  const [isHighScore, setIsHighScore] = useState(false);
   const [saved, setSaved] = useState(practiceMode);
 
   useEffect(() => {
     if (practiceMode) return undefined;
     let cancelled = false;
     void upsertTrainingScore(trainingId, score)
-      .then(async () => {
+      .then(async (result) => {
         if (cancelled) return;
-        setSavedRank(rank);
+        setSavedRank(result.bestRank);
+        setIsHighScore(result.isNewBest);
         setSaved(true);
         const { fetchMyTrainingSummary } = await import('@/platform/supabaseTraining');
         const summary = await fetchMyTrainingSummary();
@@ -64,8 +66,9 @@ export const TrainingResult: React.FC<TrainingResultProps> = ({
       rank: savedRank,
       score,
       rankPosition: practiceMode ? null : rankPosition,
+      isHighScore: !practiceMode && isHighScore,
     });
-  }, [trainingTitle, userName, savedRank, score, practiceMode, rankPosition]);
+  }, [trainingTitle, userName, savedRank, score, practiceMode, rankPosition, isHighScore]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-4 sm:items-center">
@@ -73,6 +76,9 @@ export const TrainingResult: React.FC<TrainingResultProps> = ({
         <p className="text-sm uppercase tracking-widest text-indigo-300">Training Result</p>
         <h2 className="mt-2 break-words px-1 text-xl font-bold leading-tight text-white sm:text-2xl">{trainingTitle}</h2>
         <p className="mt-1 text-slate-300">{userName}</p>
+        {!practiceMode && isHighScore && (
+          <p className="mt-4 text-2xl font-black tracking-wide text-amber-300">High Score!!</p>
+        )}
         <p className="mt-6 text-7xl font-black text-amber-300">{savedRank}</p>
         <p className="mt-2 text-5xl font-bold text-white">{score}</p>
         {!practiceMode && rankPosition != null && (
