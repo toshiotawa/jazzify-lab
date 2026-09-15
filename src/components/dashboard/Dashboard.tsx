@@ -187,10 +187,6 @@ const Dashboard: React.FC = () => {
                         {isEnglishCopy ? 'Quests cleared' : 'クエストクリア数'} {userStats.lessonCompletedCount}
                       </span>
                       <span>
-                        {isEnglishCopy ? 'Code Run cleared' : 'コードランクリア'}{' '}
-                        {userStats.codeRunClearCount}
-                      </span>
-                      <span>
                         {isEnglishCopy ? 'Defense cleared' : 'ディフェンスクリア'}{' '}
                         {userStats.defenseClearCount}
                       </span>

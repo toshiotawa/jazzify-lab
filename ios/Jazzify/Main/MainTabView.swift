@@ -27,14 +27,16 @@ struct MainTabView: View {
                     }
                     .tag(Tab.quest)
 
-                PlayHubView()
-                    .tabItem {
-                        Label(
-                            locale == .ja ? "プレイ" : "Play",
-                            systemImage: "gamecontroller.fill"
-                        )
-                    }
-                    .tag(Tab.play)
+                NavigationStack {
+                    DefenseDescentView()
+                }
+                .tabItem {
+                    Label(
+                        locale == .ja ? "プレイ" : "Play",
+                        systemImage: "gamecontroller.fill"
+                    )
+                }
+                .tag(Tab.play)
 
                 TrainingListView()
                     .tabItem {

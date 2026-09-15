@@ -140,6 +140,28 @@ struct SurvivalRunPrepSheet: View {
                     }
                 }
 
+                if showCodeRunControl {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(isEnglishCopy ? "Character control" : "キャラ操作")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color(hex: "67e8f9"))
+
+                        runModeRow(
+                            title: isEnglishCopy ? "Manual" : "マニュアル",
+                            selected: !autoRunDraft
+                        ) {
+                            autoRunDraft = false
+                        }
+
+                        runModeRow(
+                            title: isEnglishCopy ? "Auto" : "オート",
+                            selected: autoRunDraft
+                        ) {
+                            autoRunDraft = true
+                        }
+                    }
+                }
+
                 startButton
             }
             .padding(20)
@@ -181,6 +203,10 @@ struct SurvivalRunPrepSheet: View {
     private var isCompositeLocked: Bool {
         stage.playMode != .codeRun
             && (stage.survivalUsesCompositePhrasePattern || stage.blockKey.rawValue == "lesson_composite")
+    }
+
+    private var showCodeRunControl: Bool {
+        stage.playMode == .codeRun && variant == .lesson
     }
 
     private var clearSummaryText: String {
@@ -234,7 +260,7 @@ struct SurvivalRunPrepSheet: View {
 
     private var startButton: some View {
         Button {
-            onConfirm(isCompositeLocked ? false : hintDraft, stage.playMode == .codeRun ? true : false)
+            onConfirm(isCompositeLocked ? false : hintDraft, showCodeRunControl ? autoRunDraft : false)
         } label: {
             Text(isEnglishCopy ? "Start" : "開始")
                 .font(.headline)

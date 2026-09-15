@@ -557,7 +557,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setSelectedCharacter(character);
     setActiveStageDefinition(stageDefinition);
     setActiveHintMode(hintMode ?? false);
-    setActiveAutoRun(stageDefinition.playMode === 'code_run');
+    setActiveAutoRun(autoRun ?? false);
     setScreen('game');
   }, []);
 
@@ -713,7 +713,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
             }}
             onConfirm={(hint, autoRun) => {
               setActiveHintMode(hint);
-              setActiveAutoRun(activeStageDefinition.playMode === 'code_run');
+              setActiveAutoRun(autoRun ?? false);
               setSurvivalSessionNonce(n => n + 1);
               setScreen('game');
             }}

@@ -407,7 +407,6 @@ const CodeRunDescentMap: React.FC<CodeRunDescentMapProps> = ({
               setIsMobileDetailOpen(false);
             }}
             tierProgress={tierProgress}
-            isEnglishCopy={isEnglishCopy}
           />
           <div
             ref={viewportRef}

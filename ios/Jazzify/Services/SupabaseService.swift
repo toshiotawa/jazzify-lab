@@ -931,21 +931,6 @@ final class SupabaseService: Sendable {
             return response.count ?? 0
         }()
 
-        let codeRunClears: Int = try await {
-            let response = try await client
-                .from("play_map_node_clears")
-                .select("""
-                    node_id,
-                    play_map_nodes!inner(
-                        play_map_blocks!inner(mode)
-                    )
-                """, head: false, count: .exact)
-                .eq("user_id", value: userId.uuidString)
-                .eq("play_map_nodes.play_map_blocks.mode", value: PlayMapMode.codeRun.rawValue)
-                .execute()
-            return response.count ?? 0
-        }()
-
         let defenseClears: Int = try await {
             let response = try await client
                 .from("play_map_node_clears")
@@ -964,7 +949,6 @@ final class SupabaseService: Sendable {
         return UserStats(
             lessonCompletedCount: lessonCount,
             dailyChallengeParticipationDays: challengeDays,
-            codeRunClearCount: codeRunClears,
             defenseClearCount: defenseClears
         )
     }

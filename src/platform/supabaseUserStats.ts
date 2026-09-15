@@ -4,8 +4,6 @@ export interface UserStats {
   missionCompletedCount: number;
   lessonCompletedCount: number;
   dailyChallengeParticipationDays: number;
-  /** `play_map_node_clears`（mode = code_run）の件数 */
-  codeRunClearCount: number;
   /** `play_map_node_clears`（mode = defense）の件数 */
   defenseClearCount: number;
   survivalBestTimeSeconds: number;
@@ -52,7 +50,6 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       missionResult,
       lessonResult,
       dailyChallengeResult,
-      codeRunClearResult,
       defenseClearResult,
       survivalResult,
     ] = await Promise.all([
@@ -71,11 +68,6 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
         .from('daily_challenge_records')
         .select('played_on')
         .eq('user_id', targetUserId),
-      supabase
-        .from('play_map_node_clears')
-        .select('node_id, play_map_nodes!inner(play_map_blocks!inner(mode))', { count: 'exact', head: true })
-        .eq('user_id', targetUserId)
-        .eq('play_map_nodes.play_map_blocks.mode', 'code_run'),
       supabase
         .from('play_map_node_clears')
         .select('node_id, play_map_nodes!inner(play_map_blocks!inner(mode))', { count: 'exact', head: true })
@@ -102,9 +94,6 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       throw new Error(`デイリーチャレンジ統計の取得に失敗しました: ${dailyChallengeResult.error.message}`);
     }
     // survivalResult.errorは致命的ではないのでログのみ
-    if (codeRunClearResult.error) {
-      console.warn('コードランクリア数の取得に失敗:', codeRunClearResult.error.message);
-    }
     if (defenseClearResult.error) {
       console.warn('ディフェンスクリア数の取得に失敗:', defenseClearResult.error.message);
     }
@@ -121,7 +110,6 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       missionCompletedCount: missionResult.data?.length || 0,
       lessonCompletedCount: lessonResult.data?.length || 0,
       dailyChallengeParticipationDays: uniqueDays.size,
-      codeRunClearCount: codeRunClearResult.count ?? 0,
       defenseClearCount: defenseClearResult.count ?? 0,
       survivalBestTimeSeconds: Number(survivalResult.data?.survival_time_seconds) || 0,
       survivalBestDifficulty: survivalResult.data?.difficulty as string | null || null,
@@ -140,7 +128,6 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       missionCompletedCount: 0,
       lessonCompletedCount: 0,
       dailyChallengeParticipationDays: 0,
-      codeRunClearCount: 0,
       defenseClearCount: 0,
       survivalBestTimeSeconds: 0,
       survivalBestDifficulty: null,

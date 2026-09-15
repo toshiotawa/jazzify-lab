@@ -415,7 +415,6 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
               setIsMobileDetailOpen(false);
             }}
             tierProgress={tierProgress}
-            isEnglishCopy={isEnglishCopy}
           />
           <div
             ref={viewportRef}

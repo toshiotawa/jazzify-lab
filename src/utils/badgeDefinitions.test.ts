@@ -27,7 +27,6 @@ describe('badgeDefinitions', () => {
         .filter((badge) => badge.categoryId === categoryId)
         .map((badge) => badge.conditionValue);
 
-    expect(thresholdsFor('code_run')).toEqual([1, 2, 3]);
     expect(thresholdsFor('defense')).toEqual([1, 2, 3]);
     expect(thresholdsFor('player_level')).toEqual([2, 50, 100]);
     expect(thresholdsFor('quest_clear')).toEqual([1, 50, 100]);

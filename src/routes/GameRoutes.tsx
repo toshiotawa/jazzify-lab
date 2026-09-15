@@ -1,7 +1,8 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import { dashboardPath } from '@/utils/appNavigation';
+import { coursesListPath, dashboardPath } from '@/utils/appNavigation';
+import { APP_BASE_PATH } from '@/utils/appPaths';
 import { FantasyRouteGate } from '@/routes/FantasyRouteGate';
 
 const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'));
@@ -20,8 +21,6 @@ const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/Ba
 const LazyDefenseMain = React.lazy(() => import('@/components/defense/DefenseMain'));
 const LazyTrainingMain = React.lazy(() => import('@/components/training/TrainingMain'));
 const LazyVideoLessonMain = React.lazy(() => import('@/components/videoLesson/VideoLessonMain'));
-const LazyPlayHubPage = React.lazy(() => import('@/components/play/PlayHubPage'));
-const LazyCodeRunMapMain = React.lazy(() => import('@/components/play/CodeRunMapMain'));
 const LazyDefenseMapMain = React.lazy(() => import('@/components/play/DefenseMapMain'));
 
 interface GameRoutesProps {
@@ -115,26 +114,12 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       index
       element={
         <React.Suspense fallback={<LoadingScreen compact />}>
-          <LazyPlayHubPage />
-        </React.Suspense>
-      }
-    />
-    <Route
-      path="code-run"
-      element={
-        <React.Suspense fallback={<LoadingScreen compact />}>
-          <LazyCodeRunMapMain />
-        </React.Suspense>
-      }
-    />
-    <Route
-      path="phrase-defense"
-      element={
-        <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyDefenseMapMain />
         </React.Suspense>
       }
     />
+    <Route path="code-run" element={<Navigate to={coursesListPath()} replace />} />
+    <Route path="phrase-defense" element={<Navigate to={`${APP_BASE_PATH}/play`} replace />} />
     <Route
       path="training"
       element={

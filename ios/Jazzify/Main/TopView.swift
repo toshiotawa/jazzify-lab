@@ -515,12 +515,6 @@ struct TopView: View {
                             color: .green
                         )
                         StatItem(
-                            icon: "figure.run",
-                            value: "\(stats.codeRunClearCount)",
-                            label: locale == .ja ? "コードランクリア" : "Code Run cleared",
-                            color: .orange
-                        )
-                        StatItem(
                             icon: "shield.fill",
                             value: "\(stats.defenseClearCount)",
                             label: locale == .ja ? "ディフェンスクリア" : "Defense cleared",
@@ -908,16 +902,12 @@ struct AchievementBadgeDefinition: Identifiable, Equatable {
 
 enum AchievementBadgeCatalog {
     static let categories: [AchievementBadgeCategory] = [
-        AchievementBadgeCategory(id: "code_run", labelJa: "コードラン", labelEn: "Code Run"),
         AchievementBadgeCategory(id: "defense", labelJa: "フレーズディフェンス", labelEn: "Phrase Defense"),
         AchievementBadgeCategory(id: "player_level", labelJa: "到達レベル", labelEn: "Player level reached"),
         AchievementBadgeCategory(id: "quest_clear", labelJa: "クエストクリア数", labelEn: "Quest clears")
     ]
 
     static let definitions: [AchievementBadgeDefinition] = [
-        AchievementBadgeDefinition(id: "code_run_first_1", categoryId: "code_run", rank: 1, nameJa: "コードランナー", nameEn: "Code Runner", conditionJa: "コードランを初めてクリア", conditionEn: "Clear your first Code Run node", imagePath: "/achivement/achievement_monster_02.png", isActive: true),
-        AchievementBadgeDefinition(id: "code_run_basic_all_2", categoryId: "code_run", rank: 2, nameJa: "コードラン Basic 制覇", nameEn: "Code Run Basic Master", conditionJa: "コードラン Basic を全クリア", conditionEn: "Clear all Code Run Basic nodes", imagePath: "/achivement/achievement_monster_09.png", isActive: true),
-        AchievementBadgeDefinition(id: "code_run_advanced_all_3", categoryId: "code_run", rank: 3, nameJa: "コードラン Advanced 制覇", nameEn: "Code Run Advanced Master", conditionJa: "コードラン Advanced を全クリア", conditionEn: "Clear all Code Run Advanced nodes", imagePath: "/achivement/achievement_monster_11.png", isActive: true),
         AchievementBadgeDefinition(id: "defense_first_1", categoryId: "defense", rank: 1, nameJa: "ディフェンダー", nameEn: "Defender", conditionJa: "フレーズディフェンスを初めてクリア", conditionEn: "Clear your first Phrase Defense node", imagePath: "/achivement/achievement_monster_13.png", isActive: true),
         AchievementBadgeDefinition(id: "defense_basic_all_2", categoryId: "defense", rank: 2, nameJa: "ディフェンス Basic 制覇", nameEn: "Defense Basic Master", conditionJa: "フレーズディフェンス Basic を全クリア", conditionEn: "Clear all Phrase Defense Basic nodes", imagePath: "/achivement/achievement_monster_19.png", isActive: true),
         AchievementBadgeDefinition(id: "defense_advanced_all_3", categoryId: "defense", rank: 3, nameJa: "ディフェンス Advanced 制覇", nameEn: "Defense Advanced Master", conditionJa: "フレーズディフェンス Advanced を全クリア", conditionEn: "Clear all Phrase Defense Advanced nodes", imagePath: "/achivement/achievement_monster_22.png", isActive: true),

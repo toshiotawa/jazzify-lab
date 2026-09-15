@@ -352,10 +352,10 @@ describe('buildReturnFromAssignmentHash', () => {
     })).toBe('#phrase-defense');
   });
 
-  it('lessonId がなく code_run マップ文脈ならコードランへ戻る', () => {
+  it('lessonId がなく code_run マップ文脈ならコース一覧へ戻る', () => {
     expect(buildReturnFromAssignmentHash({
       searchParams: new URLSearchParams({ playMapMode: 'code_run' }),
-    })).toBe('#code-run');
+    })).toBe('#courses');
   });
 
   it('文脈がなければクエスト一覧へ戻る', () => {

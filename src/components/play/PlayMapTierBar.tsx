@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import type { PlayMapMode, PlayMapTier } from '@/platform/supabasePlayMap';
 import { cn } from '@/utils/cn';
 
@@ -15,7 +14,6 @@ interface PlayMapTierBarProps {
   tier: PlayMapTier;
   onTierChange: (tier: PlayMapTier) => void;
   tierProgress: Record<PlayMapTier, TierProgress>;
-  isEnglishCopy: boolean;
 }
 
 const PlayMapTierBar: React.FC<PlayMapTierBarProps> = ({
@@ -23,29 +21,14 @@ const PlayMapTierBar: React.FC<PlayMapTierBarProps> = ({
   tier,
   onTierChange,
   tierProgress,
-  isEnglishCopy,
 }) => {
-  const navigate = useNavigate();
   const isCodeRun = mode === 'code_run';
 
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2 md:px-4">
-      <button
-        type="button"
-        className={cn(
-          'shrink-0 text-xs font-semibold transition-colors md:text-sm',
-          isCodeRun
-            ? 'text-amber-200/90 hover:text-amber-100'
-            : 'text-emerald-200/90 hover:text-emerald-100',
-        )}
-        onClick={() => navigate('/main/play')}
-      >
-        {isEnglishCopy ? '← Play' : '← プレイ'}
-      </button>
-
+    <div className="flex shrink-0 items-center justify-center gap-2 px-3 py-2 md:px-4">
       <div
         className={cn(
-          'flex flex-1 gap-1 rounded-full border bg-black/55 p-1 md:flex-none',
+          'flex gap-1 rounded-full border bg-black/55 p-1',
           isCodeRun ? 'border-amber-500/25' : 'border-emerald-500/25',
         )}
       >

@@ -133,7 +133,7 @@ const LessonDetailPage: React.FC = () => {
   const playMapMode: PlayMapMode | null =
     playMapModeRaw === 'code_run' || playMapModeRaw === 'defense' ? playMapModeRaw : null;
   const isPlayMapQuestContext = Boolean(playMapNodeId);
-  const playMapReturnPath = playMapMode === 'defense' ? '/main/play/phrase-defense' : '/main/play/code-run';
+  const playMapReturnPath = playMapMode === 'defense' ? '/main/play' : '/main/courses';
   const autoStartFirstRequirement = routeLessonId ? routeAutoStart : hashAutoStart;
   const justClearedParam = resolveJustClearedLessonSongId({
     routeLessonId,

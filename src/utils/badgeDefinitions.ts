@@ -2,7 +2,6 @@ type BadgeCategoryId =
   | 'survival_basic'
   | 'survival_songs'
   | 'survival_phrases'
-  | 'code_run'
   | 'defense'
   | 'player_level'
   | 'quest_clear'
@@ -94,7 +93,6 @@ const TRAINING_BADGE_CATEGORIES: BadgeCategoryDefinition[] = TRAINING_CATEGORY_M
 }));
 
 export const BADGE_CATEGORIES: BadgeCategoryDefinition[] = [
-  { id: 'code_run', labelJa: 'コードラン', labelEn: 'Code Run' },
   { id: 'defense', labelJa: 'フレーズディフェンス', labelEn: 'Phrase Defense' },
   ...TRAINING_BADGE_CATEGORIES,
   { id: 'player_level', labelJa: '到達レベル', labelEn: 'Player level reached' },
@@ -222,45 +220,6 @@ const LEGACY_SURVIVAL_BADGES: BadgeDefinition[] = [
 ];
 
 const BADGE_DEFINITIONS: BadgeDefinition[] = [
-  {
-    id: 'code_run_first_1',
-    categoryId: 'code_run',
-    rank: 1,
-    nameJa: 'コードランナー',
-    nameEn: 'Code Runner',
-    conditionType: 'play_map_node_clear',
-    conditionValue: 1,
-    conditionJa: 'コードランを初めてクリア',
-    conditionEn: 'Clear your first Code Run node',
-    imagePath: '/achivement/achievement_monster_02.png',
-    isActive: true,
-  },
-  {
-    id: 'code_run_basic_all_2',
-    categoryId: 'code_run',
-    rank: 2,
-    nameJa: 'コードラン Basic 制覇',
-    nameEn: 'Code Run Basic Master',
-    conditionType: 'play_map_node_clear',
-    conditionValue: 2,
-    conditionJa: 'コードラン Basic を全クリア',
-    conditionEn: 'Clear all Code Run Basic nodes',
-    imagePath: '/achivement/achievement_monster_09.png',
-    isActive: true,
-  },
-  {
-    id: 'code_run_advanced_all_3',
-    categoryId: 'code_run',
-    rank: 3,
-    nameJa: 'コードラン Advanced 制覇',
-    nameEn: 'Code Run Advanced Master',
-    conditionType: 'play_map_node_clear',
-    conditionValue: 3,
-    conditionJa: 'コードラン Advanced を全クリア',
-    conditionEn: 'Clear all Code Run Advanced nodes',
-    imagePath: '/achivement/achievement_monster_11.png',
-    isActive: true,
-  },
   {
     id: 'defense_first_1',
     categoryId: 'defense',

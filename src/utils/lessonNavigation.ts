@@ -529,7 +529,7 @@ export function buildReturnFromAssignmentHash(input: {
     return '#phrase-defense';
   }
   if (playMap.playMapMode === 'code_run') {
-    return '#code-run';
+    return '#courses';
   }
   return '#courses';
 }
