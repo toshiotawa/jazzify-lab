@@ -455,7 +455,7 @@ struct TrainingListView: View {
                 nextSummaryById[row.trainingId] = row
             }
             summaryById = nextSummaryById
-            launchForcedTrainingIfNeeded()
+            await launchForcedTrainingIfNeeded()
         } catch {
             categories = []
             trainingById = [:]
@@ -484,11 +484,19 @@ struct TrainingListView: View {
         pageInfo = (try? await uiTextsTask)?.first { $0.key == "page_info" }
     }
 
-    private func launchForcedTrainingIfNeeded() {
+    private func launchForcedTrainingIfNeeded() async {
         guard !didLaunchForcedTraining, let forcedTrainingId else { return }
-        guard let training = categories.flatMap(\.trainings).first(where: { $0.id == forcedTrainingId }) else {
+
+        if let training = categories.flatMap(\.trainings).first(where: { $0.id == forcedTrainingId }) {
+            didLaunchForcedTraining = true
+            presentGame(training: training, practice: forcedPracticeMode)
             return
         }
+
+        guard let training = try? await SupabaseService.shared.fetchTraining(id: forcedTrainingId) else {
+            return
+        }
+
         didLaunchForcedTraining = true
         presentGame(training: training, practice: forcedPracticeMode)
     }

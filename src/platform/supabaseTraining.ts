@@ -44,6 +44,7 @@ interface TrainingDbRow {
   bgm_url: string;
   config: unknown;
   is_active: boolean;
+  lesson_only: boolean;
 }
 
 interface SummaryRow {
@@ -195,7 +196,7 @@ export const fetchTrainingCatalog = async (): Promise<readonly TrainingCategoryW
       id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_free, is_active,
       trainings (
         id, category_id, slug, title_ja, title_en, sort_order, kind,
-        clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active
+        clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active, lesson_only
       )
     `)
     .eq('is_active', true)
@@ -208,7 +209,7 @@ export const fetchTrainingCatalog = async (): Promise<readonly TrainingCategoryW
   const rows = (data ?? []).map((raw) => {
     const category = mapCategory(raw as CategoryRow);
     const trainings = ((raw as { trainings?: TrainingDbRow[] }).trainings ?? [])
-      .filter((t) => t.is_active)
+      .filter((t) => t.is_active && !t.lesson_only)
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(mapTraining);
     return { ...category, trainings };
@@ -216,6 +217,28 @@ export const fetchTrainingCatalog = async (): Promise<readonly TrainingCategoryW
 
   catalogCache = { fetchedAt: now, rows };
   return rows;
+};
+
+export const fetchTrainingById = async (trainingId: string): Promise<TrainingRow | null> => {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('trainings')
+    .select(`
+      id, category_id, slug, title_ja, title_en, sort_order, kind,
+      clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active, lesson_only
+    `)
+    .eq('id', trainingId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapTraining(data as TrainingDbRow);
 };
 
 export const fetchTrainingGoalSets = async (): Promise<readonly TrainingGoalSet[]> => {

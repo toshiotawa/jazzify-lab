@@ -96,6 +96,8 @@ node scripts/generate-mq-block3-ch4-ch5-migration.mjs
 | 会話→OSMD チュートリアル | `ear_training_tutorial_scripts`（`dialogue_only` + `chord_osmd` + `requiredLoops`） |
 | OSMD 本番 | `ear_training_stages` `mode=chord_osmd` + phrase |
 | 精密 | `mode=chord_precision`、Voice4 無し XML |
+| トレーニング課題 | `trainings`（`lesson_only=true`）+ `lesson_songs.is_training` / `training_id`。トレーニング一覧には出さない |
+| フレーズディフェンス課題 | `defense_stages` + phrases/chords/notes 一式 + `lesson_songs.is_defense` / `defense_stage_id`。`play_map_nodes` には載せない |
 | おまけ課題 | `lesson_songs.is_clear_required=false`（default true） |
 
 ### OSMD クリア条件（本番）

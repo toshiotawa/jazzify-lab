@@ -10,6 +10,7 @@ import { TrainingList } from '@/components/training/TrainingList';
 import { TrainingRanking } from '@/components/training/TrainingRanking';
 import { TrainingRecordsPage } from '@/components/training/TrainingRecordsPage';
 import { TrainingResult } from '@/components/training/TrainingResult';
+import { TrainingRunPrepPanel } from '@/components/training/TrainingRunPrepPanel';
 import { EnharmonicDisplaySection } from '@/components/settings/EnharmonicDisplaySection';
 import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
@@ -21,6 +22,7 @@ import {
   fetchMyTrainingGoalId,
   fetchMyTrainingSummary,
   fetchTrainingActivityDays,
+  fetchTrainingById,
   fetchTrainingCatalog,
   fetchTrainingGoalSets,
   fetchTrainingUiTexts,
@@ -35,6 +37,7 @@ import { getAppRouteSearchParams } from '@/utils/appPaths';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPremiumTier } from '@/utils/membership';
 import { getWindow } from '@/platform';
+import { recordAssignmentStartFireAndForget } from '@/utils/analytics/assignmentStarts';
 import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
 import { getLocalDateKey, resolveUserTimezone } from '@/utils/trainingActivity';
 
@@ -108,6 +111,8 @@ const TrainingMain: React.FC = () => {
   const [switchedGoalTitle, setSwitchedGoalTitle] = useState<string | null>(null);
   const [resumeTrainingId, setResumeTrainingId] = useState<string | null>(null);
   const lessonClearedRef = useRef(false);
+  const [lessonTraining, setLessonTraining] = useState<TrainingRow | null>(null);
+  const [lessonTrainingError, setLessonTrainingError] = useState<string | null>(null);
 
   const todayKey = useMemo(() => getLocalDateKey(new Date(), timezone), [timezone]);
 
@@ -208,14 +213,70 @@ const TrainingMain: React.FC = () => {
   }, [updateViewParams]);
 
   useEffect(() => {
-    if (!forcedTrainingId || loading) return;
-    const training = findTraining(forcedTrainingId);
-    if (training) {
-      setResumeTrainingId(training.id);
-      setSession({ training, practiceMode: false, nonce: Date.now() });
-      setScreen('game');
+    if (!lessonContext) {
+      return undefined;
     }
-  }, [forcedTrainingId, loading, findTraining]);
+    if (!forcedTrainingId) {
+      setLessonTrainingError(
+        isEnglish ? 'Training is not configured.' : 'トレーニングが設定されていません。',
+      );
+      return undefined;
+    }
+    if (loading) {
+      return undefined;
+    }
+
+    const catalogTraining = findTraining(forcedTrainingId);
+    if (catalogTraining) {
+      setLessonTraining(catalogTraining);
+      setLessonTrainingError(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    void fetchTrainingById(forcedTrainingId)
+      .then((training) => {
+        if (cancelled) {
+          return;
+        }
+        if (!training) {
+          setLessonTrainingError(
+            isEnglish ? 'Training could not be loaded.' : 'トレーニングを読み込めませんでした。',
+          );
+          return;
+        }
+        setLessonTraining(training);
+        setLessonTrainingError(null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLessonTrainingError(
+            isEnglish ? 'Failed to load training.' : 'トレーニングの取得に失敗しました。',
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [forcedTrainingId, lessonContext, loading, findTraining, isEnglish]);
+
+  const startLessonSession = useCallback((practiceMode: boolean) => {
+    if (!lessonTraining) {
+      return;
+    }
+    lessonClearedRef.current = false;
+    setResumeTrainingId(lessonTraining.id);
+    setSession({ training: lessonTraining, practiceMode, nonce: Date.now() });
+    setScreen('game');
+    if (lessonContext && profile?.id) {
+      recordAssignmentStartFireAndForget(profile.id, {
+        lessonId: lessonContext.lessonId,
+        lessonSongId: lessonContext.lessonSongId,
+        isPractice: practiceMode,
+      });
+    }
+  }, [lessonTraining, lessonContext, profile?.id]);
 
   const handleSelectTraining = useCallback((trainingId: string, practiceMode: boolean) => {
     const training = findTraining(trainingId);
@@ -280,7 +341,41 @@ const TrainingMain: React.FC = () => {
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col bg-slate-950">
       {screen !== 'game' && <GameHeader />}
-      {screen === 'list' && (
+      {screen === 'list' && lessonContext && (
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="mx-auto max-w-lg px-4 py-6">
+            <h1 className="text-2xl font-bold">{isEnglish ? 'Training' : 'トレーニング'}</h1>
+            {lessonTrainingError && (
+              <p className="mt-4 rounded bg-red-900/40 px-3 py-2 text-sm text-red-200">
+                {lessonTrainingError}
+              </p>
+            )}
+            {lessonTraining && (
+              <div className="mt-6">
+                <TrainingRunPrepPanel
+                  training={lessonTraining}
+                  isEnglish={isEnglish}
+                  onStartPractice={() => startLessonSession(true)}
+                  onStartPerformance={() => startLessonSession(false)}
+                />
+              </div>
+            )}
+            {!lessonTraining && !lessonTrainingError && (
+              <LoadingScreen compact />
+            )}
+            <button
+              type="button"
+              className="mt-6 text-sm text-slate-400 underline hover:text-slate-200"
+              onClick={() => {
+                leaveLessonIfNeeded();
+              }}
+            >
+              {isEnglish ? 'Back to quest' : 'クエストに戻る'}
+            </button>
+          </div>
+        </div>
+      )}
+      {screen === 'list' && !lessonContext && (
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <TrainingList
             categories={categories}
@@ -388,9 +483,6 @@ const TrainingMain: React.FC = () => {
           practiceMode={session.practiceMode}
           onFinished={handleFinished}
           onExit={() => {
-            if (leaveLessonIfNeeded()) {
-              return;
-            }
             setSession(null);
             setScreen('list');
           }}
@@ -413,9 +505,6 @@ const TrainingMain: React.FC = () => {
               setScreen('ranking');
             }}
             onExit={() => {
-              if (leaveLessonIfNeeded()) {
-                return;
-              }
               setSession(null);
               setScreen('list');
             }}

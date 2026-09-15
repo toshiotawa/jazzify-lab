@@ -2460,41 +2460,56 @@ final class SupabaseService: Sendable {
 
     // MARK: - Training mode
 
-    func fetchTrainingCatalog() async throws -> [TrainingCategoryWithTrainings] {
-        struct TrainingCatalogTrainingRow: Decodable {
-            let id: UUID
-            let category_id: UUID
-            let slug: String
-            let title_ja: String
-            let title_en: String
-            let sort_order: Int
-            let kind: TrainingKind
-            let clef_mode: TrainingClefMode
-            let use_key_signature: Bool
-            let play_root_on_correct: Bool
-            let bgm_url: String
-            let config: TrainingConfig
-            let is_active: Bool
+    private struct TrainingCatalogTrainingRow: Decodable {
+        let id: UUID
+        let category_id: UUID
+        let slug: String
+        let title_ja: String
+        let title_en: String
+        let sort_order: Int
+        let kind: TrainingKind
+        let clef_mode: TrainingClefMode
+        let use_key_signature: Bool
+        let play_root_on_correct: Bool
+        let bgm_url: String
+        let config: TrainingConfig
+        let is_active: Bool
+        let lesson_only: Bool
 
-            func toTrainingRow() -> TrainingRow {
-                TrainingRow(
-                    id: id,
-                    categoryId: category_id,
-                    slug: slug,
-                    titleJa: title_ja,
-                    titleEn: title_en,
-                    sortOrder: sort_order,
-                    kind: kind,
-                    clefMode: clef_mode,
-                    useKeySignature: use_key_signature,
-                    playRootOnCorrect: play_root_on_correct,
-                    bgmUrl: bgm_url,
-                    config: config,
-                    isActive: is_active
-                )
-            }
+        func toTrainingRow() -> TrainingRow {
+            TrainingRow(
+                id: id,
+                categoryId: category_id,
+                slug: slug,
+                titleJa: title_ja,
+                titleEn: title_en,
+                sortOrder: sort_order,
+                kind: kind,
+                clefMode: clef_mode,
+                useKeySignature: use_key_signature,
+                playRootOnCorrect: play_root_on_correct,
+                bgmUrl: bgm_url,
+                config: config,
+                isActive: is_active
+            )
         }
+    }
 
+    func fetchTraining(id: UUID) async throws -> TrainingRow? {
+        let rows: [TrainingCatalogTrainingRow] = try await client
+            .from("trainings")
+            .select("""
+                id, category_id, slug, title_ja, title_en, sort_order, kind,
+                clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active, lesson_only
+            """)
+            .eq("id", value: id.uuidString.lowercased())
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.toTrainingRow()
+    }
+
+    func fetchTrainingCatalog() async throws -> [TrainingCategoryWithTrainings] {
         struct CategoryRow: Decodable {
             let id: UUID
             let slug: String
@@ -2514,7 +2529,7 @@ final class SupabaseService: Sendable {
                 id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_free, is_active,
                 trainings (
                     id, category_id, slug, title_ja, title_en, sort_order, kind,
-                    clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active
+                    clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active, lesson_only
                 )
             """)
             .eq("is_active", value: true)
@@ -2535,7 +2550,7 @@ final class SupabaseService: Sendable {
                 isActive: row.is_active
             )
             let trainings = (row.trainings ?? [])
-                .filter(\.is_active)
+                .filter { $0.is_active && !$0.lesson_only }
                 .sorted { $0.sort_order < $1.sort_order }
                 .map { $0.toTrainingRow() }
             return TrainingCategoryWithTrainings(category: category, trainings: trainings)
