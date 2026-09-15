@@ -1,9 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
-import {
-  BACKGROUND_IMAGE_URLS,
-  PLAYER_POSE_IMAGE_URLS,
-} from '@/game/earTraining/canvas/earTrainingBattleBackground';
+import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import {
   copyCachedBattleImages,
   preloadEarTrainingBattleImages,
@@ -21,7 +18,7 @@ import {
 } from '@/game/training/drawTrainingScene';
 import type { TrainingSceneHud } from '@/game/training/trainingSceneHud';
 import type { TrainingRuntime } from '@/game/training/trainingTypes';
-import { EAR_TRAINING_PLAYER_AVATAR_URL } from '@/utils/constants';
+import { DEFENSE_PLAYER_SCENE_IMAGE_URLS } from '@/game/defense/defensePlayerSprites';
 
 export interface TrainingCanvasHandle {
   draw: (runtime: TrainingRuntime, hud: TrainingSceneHud) => void;
@@ -32,8 +29,7 @@ interface TrainingCanvasProps {
 }
 
 const TRAINING_SCENE_IMAGE_URLS = [
-  EAR_TRAINING_PLAYER_AVATAR_URL,
-  PLAYER_POSE_IMAGE_URLS.guardD,
+  ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
   ...Object.values(BACKGROUND_IMAGE_URLS),
 ] as const;
 
@@ -74,7 +70,6 @@ export const TrainingCanvas = forwardRef<TrainingCanvasHandle, TrainingCanvasPro
         assetsRef.current = {
           loadedImages: cachedImages,
           backgroundCache,
-          playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
         };
       }
 
@@ -90,7 +85,6 @@ export const TrainingCanvas = forwardRef<TrainingCanvasHandle, TrainingCanvasPro
         assetsRef.current = {
           loadedImages: imageMap,
           backgroundCache,
-          playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
         };
       })();
 

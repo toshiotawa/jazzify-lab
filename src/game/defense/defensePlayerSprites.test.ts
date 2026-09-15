@@ -8,6 +8,7 @@ import {
   DEFENSE_PLAYER_SKILL_POSE_URLS,
   DEFENSE_PLAYER_SLASH_URL,
   pickDefensePlayerPoseUrl,
+  pickTrainingPlayerPoseUrl,
 } from '@/game/defense/defensePlayerSprites';
 import {
   createDefenseRuntime,
@@ -74,6 +75,25 @@ describe('pickDefensePlayerPoseUrl', () => {
 
     runtime.elapsedSec = 1 + DEFENSE_SKILL_POSE_FRAME_SEC * 4;
     expect(pickDefensePlayerPoseUrl(runtime)).toBe(DEFENSE_PLAYER_SKILL_POSE_URLS[4]);
+  });
+});
+
+describe('pickTrainingPlayerPoseUrl', () => {
+  it('shows slash pose during slash window', () => {
+    expect(pickTrainingPlayerPoseUrl(1.5, 1.74, 2.5)).toBe(DEFENSE_PLAYER_SLASH_URL);
+  });
+
+  it('shows guard pose after slash window ends', () => {
+    expect(pickTrainingPlayerPoseUrl(DEFENSE_SLASH_SEC + 0.05, 0, 1)).toBe(
+      PLAYER_POSE_IMAGE_URLS.guardD,
+    );
+  });
+
+  it('cycles idle frames in ping-pong order', () => {
+    expect(pickTrainingPlayerPoseUrl(0, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[0]);
+    expect(pickTrainingPlayerPoseUrl(0.28, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[1]);
+    expect(pickTrainingPlayerPoseUrl(0.56, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[2]);
+    expect(pickTrainingPlayerPoseUrl(0.84, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[1]);
   });
 });
 

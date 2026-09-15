@@ -45,6 +45,30 @@ const pickIdleFrameIndex = (elapsedSec: number): number => {
   return DEFENSE_IDLE_PING_PONG[frame % DEFENSE_IDLE_PING_PONG.length];
 };
 
+export const pickDefenseIdlePoseUrl = (elapsedSec: number): string => (
+  DEFENSE_PLAYER_IDLE_URLS[pickIdleFrameIndex(elapsedSec)]
+);
+
+/** Training mode: slash > guard > idle ping-pong (no skill poses). */
+export const pickTrainingPlayerPoseUrl = (
+  elapsedSec: number,
+  slashUntilSec: number,
+  guardPoseUntilSec: number,
+): string => {
+  if (slashUntilSec > 0) {
+    const remaining = slashUntilSec - elapsedSec;
+    if (remaining > 0 && remaining <= DEFENSE_SLASH_SEC) {
+      return DEFENSE_PLAYER_SLASH_URL;
+    }
+  }
+
+  if (guardPoseUntilSec > 0 && elapsedSec < guardPoseUntilSec) {
+    return PLAYER_POSE_IMAGE_URLS.guardD;
+  }
+
+  return pickDefenseIdlePoseUrl(elapsedSec);
+};
+
 export const pickDefensePlayerPoseUrl = (runtime: DefenseRuntime): string => {
   if (runtime.skillPoseStartSec >= 0) {
     const skillAge = runtime.elapsedSec - runtime.skillPoseStartSec;
@@ -65,6 +89,6 @@ export const pickDefensePlayerPoseUrl = (runtime: DefenseRuntime): string => {
     return PLAYER_POSE_IMAGE_URLS.guardD;
   }
 
-  return DEFENSE_PLAYER_IDLE_URLS[pickIdleFrameIndex(runtime.elapsedSec)];
+  return pickDefenseIdlePoseUrl(runtime.elapsedSec);
 };
 

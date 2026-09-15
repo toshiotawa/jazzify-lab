@@ -2,7 +2,6 @@ import { drawBattleAvatar } from '@/game/earTraining/canvas/earTrainingBattleAct
 import {
   drawCachedBackground,
   invalidateBackgroundCache,
-  PLAYER_POSE_IMAGE_URLS,
 } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import {
   CHARACTER_DISPLAY_SIZE,
@@ -17,17 +16,15 @@ import {
 } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import { DEFENSE_ENEMY_TYPES } from '@/game/defense/defenseEnemyConfig';
+import { pickTrainingPlayerPoseUrl } from '@/game/defense/defensePlayerSprites';
 import type { TrainingSceneHud } from '@/game/training/trainingSceneHud';
 import type { TrainingRuntime } from '@/game/training/trainingTypes';
 import { TRAINING_HUD_HEIGHT_PX } from '@/game/training/trainingTypes';
 
 const HUD_FONT = 'Arial, sans-serif';
-const SLASH_GLOW_COLOR = 'rgba(34, 211, 238, 0.55)';
-const SLASH_CORE_COLOR = 'rgba(248, 250, 252, 0.95)';
-const SLASH_SPARK_COLOR = 'rgba(186, 230, 253, 0.9)';
 const FLYING_Y_OFFSET = 90;
-const SLASH_GROW_PHASE = 0.4;
-const SLASH_SPARK_ANGLES = [-0.35, -0.12, 0.12, 0.35] as const;
+const SLASH_SCALE_UP_SEC = 0.14;
+const SLASH_ROTATION_RAD = -4 * (Math.PI / 180);
 
 const TRAINING_ENEMY_X_RATIO = 0.77;
 const TRAINING_PLAYER_X_RATIO = 0.23;
@@ -35,100 +32,79 @@ const TRAINING_PLAYER_X_RATIO = 0.23;
 export interface TrainingSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
   readonly backgroundCache: BackgroundCacheState;
-  readonly playerAvatarUrl: string;
 }
 
 export { invalidateBackgroundCache };
 
-const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
+const easeInOut = (t: number): number => (
+  t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2
+);
 
-const appendTaperedSlashPath = (
-  ctx: CanvasRenderingContext2D,
-  fromX: number,
-  fromY: number,
-  toX: number,
-  toY: number,
-  halfWidth: number,
-): void => {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const len = Math.hypot(dx, dy);
-  if (len < 1) return;
+const easeOut = (t: number): number => 1 - (1 - t) ** 2;
 
-  const nx = -dy / len;
-  const ny = dx / len;
-  const midX = (fromX + toX) / 2;
-  const midY = (fromY + toY) / 2;
-  const bulge = halfWidth * 1.15;
-
-  ctx.moveTo(fromX + nx * halfWidth * 0.15, fromY + ny * halfWidth * 0.15);
-  ctx.quadraticCurveTo(
-    midX + nx * bulge,
-    midY + ny * bulge,
-    toX,
-    toY,
-  );
-  ctx.quadraticCurveTo(
-    midX - nx * bulge,
-    midY - ny * bulge,
-    fromX - nx * halfWidth * 0.15,
-    fromY - ny * halfWidth * 0.15,
-  );
-  ctx.closePath();
+const isTrainingSlashActive = (
+  elapsedSec: number,
+  slashUntilSec: number,
+): boolean => {
+  if (slashUntilSec <= 0) return false;
+  const remaining = slashUntilSec - elapsedSec;
+  return remaining > 0 && remaining <= DEFENSE_SLASH_SEC;
 };
 
-const drawSlash = (
+const drawSlashEffect = (
   ctx: CanvasRenderingContext2D,
   width: number,
   floorY: number,
   elapsedSec: number,
   slashUntilSec: number,
+  enemyOffsetX: number,
   spriteScale: number,
 ): void => {
-  if (slashUntilSec <= 0) return;
-  const remaining = slashUntilSec - elapsedSec;
-  if (remaining <= 0 || remaining > DEFENSE_SLASH_SEC) return;
+  if (!isTrainingSlashActive(elapsedSec, slashUntilSec)) return;
 
-  const progress = 1 - remaining / DEFENSE_SLASH_SEC;
-  const growT = Math.min(1, progress / SLASH_GROW_PHASE);
-  const lengthScale = easeOutCubic(growT);
+  const age = DEFENSE_SLASH_SEC - (slashUntilSec - elapsedSec);
   const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
   const fromX = width * TRAINING_PLAYER_X_RATIO + avatarSize * 0.45;
   const fromY = floorY - avatarSize * 0.55;
-  const toX = width * TRAINING_ENEMY_X_RATIO;
+  const toX = width * TRAINING_ENEMY_X_RATIO + enemyOffsetX;
   const toY = fromY;
-  const endX = fromX + (toX - fromX) * lengthScale;
-  const endY = fromY + (toY - fromY) * lengthScale;
-  const alpha = progress < SLASH_GROW_PHASE
-    ? 1
-    : 1 - ((progress - SLASH_GROW_PHASE) / (1 - SLASH_GROW_PHASE));
+
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const span = Math.hypot(dx, dy) + 48 * spriteScale;
+  const slashWidth = span;
+  const slashHeight = Math.max(4 * spriteScale, 11.25 * spriteScale * 0.032);
+  const scaleT = Math.min(1, age / SLASH_SCALE_UP_SEC);
+  const xScale = 0.5 + 0.5 * easeInOut(scaleT);
+  const alpha = 1 - easeOut(age / DEFENSE_SLASH_SEC);
+  const angle = Math.atan2(dy, dx) + SLASH_ROTATION_RAD;
+  const midX = (fromX + toX) / 2;
+  const midY = (fromY + toY) / 2;
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.beginPath();
-  appendTaperedSlashPath(ctx, fromX, fromY, endX, endY, 10 * spriteScale);
-  ctx.fillStyle = SLASH_GLOW_COLOR;
-  ctx.fill();
-  ctx.beginPath();
-  appendTaperedSlashPath(ctx, fromX, fromY, endX, endY, 4 * spriteScale);
-  ctx.fillStyle = SLASH_CORE_COLOR;
-  ctx.fill();
+  ctx.translate(midX, midY);
+  ctx.rotate(angle);
+  ctx.scale(xScale, 1);
 
-  if (lengthScale > 0.85) {
-    const sparkLen = 14 * spriteScale * alpha;
-    ctx.strokeStyle = SLASH_SPARK_COLOR;
-    ctx.lineWidth = 1.5 * spriteScale;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (let i = 0; i < SLASH_SPARK_ANGLES.length; i += 1) {
-      const angle = SLASH_SPARK_ANGLES[i];
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(endX + cos * sparkLen, endY + sin * sparkLen);
-    }
-    ctx.stroke();
-  }
+  const gradient = ctx.createLinearGradient(-slashWidth / 2, 0, slashWidth / 2, 0);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  gradient.addColorStop(0.04, 'rgba(255, 255, 255, 0.88)');
+  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
+  gradient.addColorStop(0.96, 'rgba(255, 255, 255, 0.88)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(-slashWidth / 2, -slashHeight / 2, slashWidth, slashHeight);
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillRect(
+    -slashWidth * 0.42,
+    -1 * spriteScale,
+    slashWidth * 0.84,
+    2 * spriteScale,
+  );
+
   ctx.restore();
 };
 
@@ -170,6 +146,8 @@ const drawTrainingEnemySprite = (
   elapsedSec: number,
   spriteScale: number,
   atlas: DefenseEnemySpriteAtlas | null,
+  moving: boolean,
+  attacking: boolean,
 ): void => {
   const enemyType = DEFENSE_ENEMY_TYPES[typeIndex % DEFENSE_ENEMY_TYPES.length] ?? 'slime';
   const config = DEFENSE_ENEMY_CONFIG[enemyType];
@@ -194,9 +172,9 @@ const drawTrainingEnemySprite = (
     const frame = pickDefenseEnemyFrame(
       elapsedSec,
       typeIndex,
-      false,
+      moving,
       config.isFlying,
-      false,
+      attacking,
     );
     const img = frame === 'idle' ? sprites.idle : sprites.move;
     ctx.drawImage(img, ex - drawWidth / 2, floorY + footOffset - drawHeight, drawWidth, drawHeight);
@@ -225,6 +203,9 @@ export const drawTrainingScene = (
   }
 
   const dying = runtime.dyingEnemy;
+  const dyingSlashActive = dying.active
+    && isTrainingSlashActive(runtime.elapsedSec, dying.slashUntilSec);
+
   if (dying.active) {
     drawTrainingEnemySprite(
       ctx,
@@ -236,6 +217,8 @@ export const drawTrainingScene = (
       runtime.elapsedSec,
       spriteScale,
       atlas,
+      !dyingSlashActive,
+      dyingSlashActive,
     );
   }
 
@@ -249,18 +232,28 @@ export const drawTrainingScene = (
     runtime.elapsedSec,
     spriteScale,
     atlas,
+    true,
+    false,
   );
 
-  const showGuardPose = runtime.guardPoseUntilSec > 0
-    && runtime.elapsedSec < runtime.guardPoseUntilSec;
-  const guardImg = assets?.loadedImages.get(PLAYER_POSE_IMAGE_URLS.guardD);
-  const playerImg = showGuardPose && guardImg
-    ? guardImg
-    : assets?.loadedImages.get(assets?.playerAvatarUrl ?? '');
+  const playerPoseUrl = pickTrainingPlayerPoseUrl(
+    runtime.elapsedSec,
+    dying.slashUntilSec,
+    runtime.guardPoseUntilSec,
+  );
+  const playerImg = assets?.loadedImages.get(playerPoseUrl);
   drawBattleAvatar(ctx, playerImg, width * TRAINING_PLAYER_X_RATIO, floorY, 'player');
 
   if (dying.active && dying.slashUntilSec > 0) {
-    drawSlash(ctx, width, floorY, runtime.elapsedSec, dying.slashUntilSec, spriteScale);
+    drawSlashEffect(
+      ctx,
+      width,
+      floorY,
+      runtime.elapsedSec,
+      dying.slashUntilSec,
+      dying.offsetX,
+      spriteScale,
+    );
   }
   drawTrainingHud(ctx, width, hud);
 };

@@ -22,6 +22,31 @@ enum DefensePlayerPose {
     private static let idleFrameSec: TimeInterval = 0.28
     private static let idlePingPong = [0, 1, 2, 1]
 
+    static func idleAssetName(elapsedSec: TimeInterval) -> String {
+        let frame = Int(floor(elapsedSec / idleFrameSec + 1e-9))
+        return idleAssetNames[idlePingPong[frame % idlePingPong.count]]
+    }
+
+    /// Training mode: slash > guard > idle ping-pong (no skill poses).
+    static func trainingAssetName(
+        elapsedSec: TimeInterval,
+        slashUntilSec: TimeInterval,
+        guardPoseUntilSec: TimeInterval
+    ) -> String {
+        if slashUntilSec > 0 {
+            let remaining = slashUntilSec - elapsedSec
+            if remaining > 0, remaining <= DefenseEnemyConfig.slashSec {
+                return slashAssetName
+            }
+        }
+
+        if guardPoseUntilSec > 0, elapsedSec < guardPoseUntilSec {
+            return guardAssetName
+        }
+
+        return idleAssetName(elapsedSec: elapsedSec)
+    }
+
     static func assetName(runtime: DefenseRuntimeState) -> String {
         if runtime.skillPoseStartSec >= 0 {
             let skillAge = runtime.elapsedSec - runtime.skillPoseStartSec
@@ -42,7 +67,6 @@ enum DefensePlayerPose {
             return guardAssetName
         }
 
-        let frame = Int(floor(runtime.elapsedSec / idleFrameSec + 1e-9))
-        return idleAssetNames[idlePingPong[frame % idlePingPong.count]]
+        return idleAssetName(elapsedSec: runtime.elapsedSec)
     }
 }

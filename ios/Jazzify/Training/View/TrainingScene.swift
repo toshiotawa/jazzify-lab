@@ -3,6 +3,8 @@ import SpriteKit
 final class TrainingScene: SKScene {
     private static let stageKeyboardHeight = EarTrainingBattleStageKit.chordPadKeyboardHeight
     private static let stageFloorClearance = EarTrainingBattleStageKit.chordPadFloorClearance
+    private static let slashScaleUpSec: TimeInterval = 0.14
+    private static let slashRotationRad: CGFloat = -4 * .pi / 180
 
     weak var session: TrainingGameSession?
 
@@ -13,15 +15,13 @@ final class TrainingScene: SKScene {
     private var playerNode: SKNode?
     private var playerSpriteNode: SKSpriteNode?
     private var playerRimNode: SKSpriteNode?
-    private var defaultPlayerTexture: SKTexture?
-    private var guardPlayerTexture: SKTexture?
-    private var isShowingGuardPose = false
+    private var lastPlayerPoseKey = ""
     private let backgroundLayer = SKNode()
     private let characterLayer = SKNode()
     private let effectLayer = SKNode()
-    private let slashGlow = SKShapeNode()
-    private let slashCore = SKShapeNode()
+    private let slashNode = SKSpriteNode()
     private var textures: [String: SKTexture] = [:]
+    private var playerTextures: [String: SKTexture] = [:]
     private var lastBuiltSize: CGSize = .zero
 
     private static let enemyXRatio: CGFloat = 0.77
@@ -72,7 +72,7 @@ final class TrainingScene: SKScene {
         playerNode = nil
         playerSpriteNode = nil
         playerRimNode = nil
-        isShowingGuardPose = false
+        lastPlayerPoseKey = ""
 
         let floorY = EarTrainingBattleStageKit.battleFloorY(
             sceneHeight: size.height,
@@ -80,17 +80,13 @@ final class TrainingScene: SKScene {
             clearanceFromKeyboard: Self.stageFloorClearance
         )
         let player = EarTrainingBattleStageKit.makeAvatarContainer(
-            assetName: EarTrainingBattleController.playerAvatarAssetName,
+            assetName: DefensePlayerPose.idleAssetNames[0],
             position: CGPoint(x: size.width * Self.playerXRatio, y: floorY),
             isPlayer: true
         )
         characterLayer.addChild(player)
         playerNode = player
-
-        defaultPlayerTexture = SKTexture(imageNamed: EarTrainingBattleController.playerAvatarAssetName)
-        if let guardImage = UIImage(named: "GuardD") {
-            guardPlayerTexture = SKTexture(image: guardImage)
-        }
+        lastPlayerPoseKey = DefensePlayerPose.idleAssetNames[0]
 
         for child in player.children {
             guard let sprite = child as? SKSpriteNode else { continue }
@@ -112,41 +108,68 @@ final class TrainingScene: SKScene {
                 textures[name] = texture
             }
         }
-        SKTexture.preload(Array(textures.values)) {}
+        for name in DefensePlayerPose.sceneAssetNames {
+            let texture = SKTexture(imageNamed: name)
+            texture.filteringMode = .nearest
+            playerTextures[name] = texture
+        }
+        SKTexture.preload(Array(textures.values) + Array(playerTextures.values)) {}
     }
 
     private func setupSlashEffect() {
-        guard slashGlow.parent == nil else { return }
-        let slashHalfGlow = DefenseEnemyConfig.displayLayoutPt(10)
-        let slashHalfCore = DefenseEnemyConfig.displayLayoutPt(4)
-        slashGlow.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfGlow)
-        slashGlow.fillColor = SKColor(red: 0.13, green: 0.83, blue: 0.93, alpha: 0.55)
-        slashGlow.strokeColor = .clear
-        slashGlow.zPosition = 150
-        slashGlow.isHidden = true
-        effectLayer.addChild(slashGlow)
-
-        slashCore.path = Self.makeTaperedSlashUnitPath(halfWidth: slashHalfCore)
-        slashCore.fillColor = SKColor(red: 0.97, green: 0.98, blue: 0.99, alpha: 0.95)
-        slashCore.strokeColor = .clear
-        slashCore.zPosition = 151
-        slashCore.isHidden = true
-        effectLayer.addChild(slashCore)
+        guard slashNode.parent == nil else { return }
+        slashNode.texture = Self.makeSlashTexture()
+        slashNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        slashNode.zPosition = 150
+        slashNode.isHidden = true
+        effectLayer.addChild(slashNode)
     }
 
-    private static func makeTaperedSlashUnitPath(halfWidth: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: halfWidth * 0.15))
-        path.addQuadCurve(
-            to: CGPoint(x: 1, y: 0),
-            control: CGPoint(x: 0.5, y: halfWidth * 1.15)
-        )
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: -halfWidth * 0.15),
-            control: CGPoint(x: 0.5, y: -halfWidth * 1.15)
-        )
-        path.closeSubpath()
-        return path
+    private static func makeSlashTexture() -> SKTexture {
+        let width: CGFloat = 256
+        let height: CGFloat = 8
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: width, height: height))
+        let image = renderer.image { rendererContext in
+            let cg = rendererContext.cgContext
+            let rgb = CGColorSpaceCreateDeviceRGB()
+            let colors = [
+                UIColor.white.withAlphaComponent(0).cgColor,
+                UIColor.white.withAlphaComponent(0.88).cgColor,
+                UIColor.white.withAlphaComponent(0.95).cgColor,
+                UIColor.white.withAlphaComponent(0.88).cgColor,
+                UIColor.white.withAlphaComponent(0).cgColor,
+            ] as CFArray
+            let locations: [CGFloat] = [0, 0.04, 0.5, 0.96, 1]
+            if let gradient = CGGradient(colorsSpace: rgb, colors: colors, locations: locations) {
+                cg.drawLinearGradient(
+                    gradient,
+                    start: CGPoint(x: 0, y: height / 2),
+                    end: CGPoint(x: width, y: height / 2),
+                    options: []
+                )
+            }
+            cg.setFillColor(UIColor.white.withAlphaComponent(0.9).cgColor)
+            cg.fill(CGRect(x: width * 0.08, y: height / 2 - 1, width: width * 0.84, height: 2))
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    private static func easeInOut(_ t: TimeInterval) -> CGFloat {
+        let value = CGFloat(t)
+        return value < 0.5 ? 2 * value * value : 1 - pow(-2 * value + 2, 2) / 2
+    }
+
+    private static func easeOut(_ t: TimeInterval) -> CGFloat {
+        let value = CGFloat(t)
+        return 1 - pow(1 - value, 2)
+    }
+
+    private static func isSlashActive(elapsedSec: TimeInterval, slashUntilSec: TimeInterval) -> Bool {
+        guard slashUntilSec > 0 else { return false }
+        let remaining = slashUntilSec - elapsedSec
+        return remaining > 0 && remaining <= DefenseEnemyConfig.slashSec
     }
 
     private func render(runtime: TrainingRuntime) {
@@ -158,15 +181,22 @@ final class TrainingScene: SKScene {
         let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
         playerNode?.position = CGPoint(x: size.width * Self.playerXRatio, y: floorY)
 
-        let showGuardPose = runtime.guardPoseUntilSec > 0 && runtime.elapsedSec < runtime.guardPoseUntilSec
-        if showGuardPose != isShowingGuardPose {
-            isShowingGuardPose = showGuardPose
-            let texture = showGuardPose ? guardPlayerTexture : defaultPlayerTexture
-            if let texture {
-                playerSpriteNode?.texture = texture
-                playerRimNode?.texture = texture
-            }
+        let poseKey = DefensePlayerPose.trainingAssetName(
+            elapsedSec: runtime.elapsedSec,
+            slashUntilSec: runtime.dyingEnemy.slashUntilSec,
+            guardPoseUntilSec: runtime.guardPoseUntilSec
+        )
+        if poseKey != lastPlayerPoseKey, let texture = playerTextures[poseKey] {
+            lastPlayerPoseKey = poseKey
+            playerSpriteNode?.texture = texture
+            playerRimNode?.texture = texture
         }
+
+        let dyingSlashActive = runtime.dyingEnemy.active
+            && Self.isSlashActive(
+                elapsedSec: runtime.elapsedSec,
+                slashUntilSec: runtime.dyingEnemy.slashUntilSec
+            )
 
         if runtime.dyingEnemy.active {
             renderEnemyNode(
@@ -176,7 +206,9 @@ final class TrainingScene: SKScene {
                 alpha: runtime.dyingEnemy.alpha,
                 offsetX: runtime.dyingEnemy.offsetX,
                 elapsedSec: runtime.elapsedSec,
-                floorY: floorY
+                floorY: floorY,
+                moving: !dyingSlashActive,
+                attacking: dyingSlashActive
             )
         } else {
             dyingEnemyNode.isHidden = true
@@ -189,7 +221,9 @@ final class TrainingScene: SKScene {
             alpha: runtime.enemy.fadeAlpha,
             offsetX: 0,
             elapsedSec: runtime.elapsedSec,
-            floorY: floorY
+            floorY: floorY,
+            moving: true,
+            attacking: false
         )
 
         renderSlash(runtime: runtime, floorY: floorY, avatarSize: avatarSize)
@@ -202,16 +236,18 @@ final class TrainingScene: SKScene {
         alpha: CGFloat,
         offsetX: CGFloat,
         elapsedSec: TimeInterval,
-        floorY: CGFloat
+        floorY: CGFloat,
+        moving: Bool,
+        attacking: Bool
     ) {
         let enemyTypes = DefenseEnemyType.allCases
         let type = enemyTypes[typeIndex % enemyTypes.count]
         let frame = DefenseEnemyConfig.pickFrame(
             elapsedSec: elapsedSec,
             slotIndex: typeIndex,
-            moving: false,
+            moving: moving,
             flying: type.isFlying,
-            attacking: false
+            attacking: attacking
         )
         let textureKey = type.assetName(frame: frame)
         if frameKey != textureKey, let texture = textures[textureKey] {
@@ -239,47 +275,37 @@ final class TrainingScene: SKScene {
     private func renderSlash(runtime: TrainingRuntime, floorY: CGFloat, avatarSize: CGFloat) {
         let slashUntilSec = runtime.dyingEnemy.slashUntilSec
         guard runtime.dyingEnemy.active, slashUntilSec > 0 else {
-            slashGlow.isHidden = true
-            slashCore.isHidden = true
+            slashNode.isHidden = true
             return
         }
         let remaining = slashUntilSec - runtime.elapsedSec
         guard remaining > 0, remaining <= DefenseEnemyConfig.slashSec else {
-            slashGlow.isHidden = true
-            slashCore.isHidden = true
+            slashNode.isHidden = true
             return
         }
 
-        let progress = 1 - remaining / DefenseEnemyConfig.slashSec
-        let growPhase: TimeInterval = 0.4
-        let growT = min(1, progress / growPhase)
-        let lengthScale = CGFloat(1 - pow(1 - growT, 3))
-        let alpha = progress < growPhase
-            ? 1
-            : CGFloat(1 - ((progress - growPhase) / (1 - growPhase)))
-
+        let age = DefenseEnemyConfig.slashSec - remaining
         let fromX = size.width * Self.playerXRatio + avatarSize * 0.45
         let fromY = floorY - avatarSize * 0.55
         let toX = size.width * Self.enemyXRatio + runtime.dyingEnemy.offsetX
         let toY = fromY
-        let endX = fromX + (toX - fromX) * lengthScale
-        let endY = fromY + (toY - fromY) * lengthScale
-        let dx = endX - fromX
-        let dy = endY - fromY
-        let length = max(1, hypot(dx, dy))
-        let angle = atan2(dy, dx)
 
-        slashGlow.isHidden = false
-        slashCore.isHidden = false
-        slashGlow.position = CGPoint(x: fromX, y: fromY)
-        slashGlow.zRotation = angle
-        slashGlow.xScale = length
-        slashGlow.yScale = 1
-        slashGlow.alpha = alpha
-        slashCore.position = CGPoint(x: fromX, y: fromY)
-        slashCore.zRotation = angle
-        slashCore.xScale = length
-        slashCore.yScale = 1
-        slashCore.alpha = alpha
+        let dx = toX - fromX
+        let dy = toY - fromY
+        let scale = DefenseEnemyConfig.battleDisplayScale
+        let span = hypot(dx, dy) + DefenseEnemyConfig.displayLayoutPt(48)
+        let slashHeight = max(DefenseEnemyConfig.displayLayoutPt(4), scale * 0.36)
+        let scaleT = min(1, age / Self.slashScaleUpSec)
+        let xScale = 0.5 + 0.5 * Self.easeInOut(scaleT)
+        let fadeT = age / DefenseEnemyConfig.slashSec
+        let alpha = 1 - Self.easeOut(fadeT)
+
+        slashNode.isHidden = false
+        slashNode.size = CGSize(width: span, height: slashHeight)
+        slashNode.position = CGPoint(x: (fromX + toX) / 2, y: (fromY + toY) / 2)
+        slashNode.zRotation = atan2(dy, dx) + Self.slashRotationRad
+        slashNode.xScale = xScale
+        slashNode.yScale = 1
+        slashNode.alpha = alpha
     }
 }
