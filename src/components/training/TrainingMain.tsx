@@ -14,7 +14,7 @@ import { EnharmonicDisplaySection } from '@/components/settings/EnharmonicDispla
 import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
-import { resolveActiveGoalSet } from '@/game/training/trainingGoalProgress';
+import { resolveActiveGoalSet, trainingGoalStageNumber } from '@/game/training/trainingGoalProgress';
 import type { TrainingRow, TrainingUiText } from '@/game/training/trainingTypes';
 import { meetsTrainingRankRequirement, scoreToTrainingRank, type TrainingLetterRank } from '@/game/training/trainingRank';
 import {
@@ -180,6 +180,11 @@ const TrainingMain: React.FC = () => {
     [goalSets, selectedGoalSetId],
   );
 
+  const activeGoalStageNumber = useMemo(
+    () => (activeGoalSet ? trainingGoalStageNumber(goalSets, activeGoalSet.id) : 1),
+    [activeGoalSet, goalSets],
+  );
+
   const findTraining = useCallback((trainingId: string): TrainingRow | null => (
     allTrainings.find((training) => training.id === trainingId) ?? null
   ), [allTrainings]);
@@ -281,6 +286,7 @@ const TrainingMain: React.FC = () => {
             categories={categories}
             summaryByTrainingId={summaryMap}
             activeGoalSet={activeGoalSet}
+            goalStageNumber={activeGoalStageNumber}
             lastPlayedTrainingId={resumeTrainingId}
             todayKey={todayKey}
             activeDays={activeDays}
@@ -314,6 +320,7 @@ const TrainingMain: React.FC = () => {
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <TrainingGoalPage
             goalSet={activeGoalSet}
+            stageNumber={activeGoalStageNumber}
             summaryByTrainingId={summaryMap}
             trainingById={trainingById}
             isEnglish={isEnglish}

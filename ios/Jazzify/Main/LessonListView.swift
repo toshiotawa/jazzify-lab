@@ -1129,7 +1129,7 @@ private final class TapTouchTrackingView: UIView {
     }
 }
 
-private struct QuestStageArtwork: View {
+struct QuestStageArtwork: View {
     let stageNumber: Int
     let rectangular: Bool
 

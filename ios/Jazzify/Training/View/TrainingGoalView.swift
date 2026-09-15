@@ -3,6 +3,7 @@ import SwiftUI
 /// 現在の目標セットの詳細（進捗ドーナツ・説明・目標トレーニング一覧）
 struct TrainingGoalView: View {
     let goalSet: TrainingGoalSet
+    let stageNumber: Int
     let summaryById: [UUID: TrainingScoreSummary]
     let trainingById: [UUID: TrainingRow]
     let locale: AppLocale
@@ -23,20 +24,23 @@ struct TrainingGoalView: View {
                     .font(.subheadline)
                     .padding(.horizontal)
 
-                HStack(spacing: 16) {
-                    TrainingDonutView(percent: progress.percent, size: 96, lineWidth: 10)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(locale == .ja ? "現在の目標" : "CURRENT GOAL")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.indigo)
-                        Text(goalSet.localizedTitle(locale))
-                            .font(.title2.bold())
-                        Text("\(progress.cleared)/\(progress.total)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                TrainingGoalArtCardView(stageNumber: stageNumber) {
+                    HStack(spacing: 16) {
+                        TrainingDonutView(percent: progress.percent, size: 96, lineWidth: 10)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(locale == .ja ? "現在の目標" : "CURRENT GOAL")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color(hex: "c7d2fe"))
+                            Text(goalSet.localizedTitle(locale))
+                                .font(.title2.bold())
+                                .foregroundStyle(.white)
+                            Text("\(progress.cleared)/\(progress.total)")
+                                .font(.subheadline)
+                                .foregroundStyle(Color(hex: "e0e7ff"))
+                                .monospacedDigit()
+                        }
+                        Spacer()
                     }
-                    Spacer()
                 }
                 .padding(.horizontal)
 
@@ -120,9 +124,7 @@ struct TrainingGoalView: View {
                         .foregroundStyle(.green)
                 }
             }
-            Text(statusText(item))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            statusView(item)
             HStack(spacing: 8) {
                 Button(locale == .ja ? "練習" : "Practice") {
                     if locked { onLocked() } else { onPlay(training, true) }
@@ -156,16 +158,23 @@ struct TrainingGoalView: View {
         .opacity(locked ? 0.65 : 1)
     }
 
-    private func statusText(_ item: TrainingGoalItemState) -> String {
-        let best: String
+    @ViewBuilder
+    private func statusView(_ item: TrainingGoalItemState) -> some View {
         if let bestRank = item.bestRank {
-            best = locale == .ja
-                ? "最高 \(item.bestScore ?? 0) / \(bestRank.rawValue)"
-                : "Best \(item.bestScore ?? 0) / \(bestRank.rawValue)"
+            TrainingBestBadgesView(
+                bestScore: item.bestScore ?? 0,
+                bestRank: bestRank,
+                targetRank: item.targetRank,
+                cleared: item.cleared,
+                locale: locale,
+                compact: true
+            )
         } else {
-            best = locale == .ja ? "未プレイ" : "No record yet"
+            Text(locale == .ja
+                 ? "未プレイ · 目標 \(item.targetRank.rawValue)"
+                 : "No record yet · Target \(item.targetRank.rawValue)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        let target = locale == .ja ? "目標 \(item.targetRank.rawValue)" : "Target \(item.targetRank.rawValue)"
-        return "\(best) · \(target)"
     }
 }

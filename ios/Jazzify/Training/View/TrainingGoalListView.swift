@@ -38,35 +38,32 @@ struct TrainingGoalListView: View {
 
     private func goalRow(_ goalSet: TrainingGoalSet, isActive: Bool) -> some View {
         let progress = TrainingGoalProgress.compute(goalSet: goalSet, summaryByTrainingId: summaryById)
-        return HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                if isActive {
-                    Text(locale == .ja ? "現在の目標" : "CURRENT GOAL")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.indigo)
+        let stageNumber = TrainingGoalProgress.stageNumber(goalSets: goalSets, goalSetId: goalSet.id)
+        return TrainingGoalArtCardView(stageNumber: stageNumber, minHeight: 120) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if isActive {
+                        Text(locale == .ja ? "現在の目標" : "CURRENT GOAL")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color(hex: "c7d2fe"))
+                    }
+                    Text(goalSet.localizedTitle(locale))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text("\(progress.percent)%  (\(progress.cleared)/\(progress.total))")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "e0e7ff"))
+                        .monospacedDigit()
                 }
-                Text(goalSet.localizedTitle(locale))
-                    .font(.subheadline.weight(.semibold))
-                Text("\(progress.percent)%  (\(progress.cleared)/\(progress.total))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            Spacer()
-            if !isActive {
-                Button(locale == .ja ? "切り替える" : "Switch") {
-                    onSelectGoal(goalSet.id)
+                Spacer()
+                if !isActive {
+                    Button(locale == .ja ? "切り替える" : "Switch") {
+                        onSelectGoal(goalSet.id)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
-        .padding()
-        .background(isActive ? Color.indigo.opacity(0.12) : Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isActive ? Color.indigo.opacity(0.5) : Color.clear, lineWidth: 1)
-        )
         .padding(.horizontal)
     }
 }

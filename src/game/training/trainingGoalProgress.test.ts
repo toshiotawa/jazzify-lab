@@ -1,4 +1,8 @@
-import { computeTrainingGoalProgress, resolveActiveGoalSet } from '@/game/training/trainingGoalProgress';
+import {
+  computeTrainingGoalProgress,
+  resolveActiveGoalSet,
+  trainingGoalStageNumber,
+} from '@/game/training/trainingGoalProgress';
 import type { TrainingGoalSet, TrainingScoreSummary } from '@/game/training/trainingTypes';
 
 const goalSet: TrainingGoalSet = {
@@ -59,5 +63,23 @@ describe('resolveActiveGoalSet', () => {
 
   it('falls back to first goal when selection is missing', () => {
     expect(resolveActiveGoalSet(sets, null)?.id).toBe('first');
+  });
+});
+
+describe('trainingGoalStageNumber', () => {
+  const sets: TrainingGoalSet[] = [
+    { ...goalSet, id: 'first', sortOrder: 1 },
+    { ...goalSet, id: 'second', sortOrder: 2 },
+    { ...goalSet, id: 'third', sortOrder: 3 },
+  ];
+
+  it('returns 1-based position in goalSets array', () => {
+    expect(trainingGoalStageNumber(sets, 'first')).toBe(1);
+    expect(trainingGoalStageNumber(sets, 'second')).toBe(2);
+    expect(trainingGoalStageNumber(sets, 'third')).toBe(3);
+  });
+
+  it('falls back to 1 when goal set id is missing', () => {
+    expect(trainingGoalStageNumber(sets, 'missing')).toBe(1);
   });
 });

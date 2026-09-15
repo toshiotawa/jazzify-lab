@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 
+import { TrainingBestBadges } from '@/components/training/TrainingBestBadges';
+import { TrainingGoalArtCard } from '@/components/training/TrainingGoalArtCard';
 import { TrainingGoalSetListCard } from '@/components/training/TrainingGoalSetListCard';
 import { DonutChart } from '@/components/ui/DonutChart';
 import { computeTrainingGoalProgress } from '@/game/training/trainingGoalProgress';
@@ -16,6 +18,7 @@ import { cn } from '@/utils/cn';
 
 interface TrainingGoalPageProps {
   readonly goalSet: TrainingGoalSet;
+  readonly stageNumber: number;
   readonly summaryByTrainingId: ReadonlyMap<string, TrainingScoreSummary>;
   readonly trainingById: ReadonlyMap<string, TrainingRow>;
   readonly isEnglish: boolean;
@@ -29,6 +32,7 @@ interface TrainingGoalPageProps {
 
 export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
   goalSet,
+  stageNumber,
   summaryByTrainingId,
   trainingById,
   isEnglish,
@@ -50,20 +54,22 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
         {isEnglish ? 'Back' : '戻る'}
       </button>
 
-      <div className="mb-6 flex items-center gap-4">
-        <DonutChart percent={progress.percent} size={96} label={`${progress.percent}%`} />
-        <div>
-          <p className="text-xs uppercase tracking-wider text-indigo-300">
-            {isEnglish ? 'Current Goal' : '現在の目標'}
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-white">
-            {isEnglish ? goalSet.titleEn : goalSet.titleJa}
-          </h1>
-          <p className="mt-2 text-sm text-slate-300">
-            {progress.cleared}/{progress.total}
-          </p>
+      <TrainingGoalArtCard stageNumber={stageNumber} className="mb-6">
+        <div className="flex items-center gap-4">
+          <DonutChart percent={progress.percent} size={96} label={`${progress.percent}%`} />
+          <div>
+            <p className="text-xs uppercase tracking-wider text-indigo-200">
+              {isEnglish ? 'Current Goal' : '現在の目標'}
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-white">
+              {isEnglish ? goalSet.titleEn : goalSet.titleJa}
+            </h1>
+            <p className="mt-2 text-sm tabular-nums text-indigo-100">
+              {progress.cleared}/{progress.total}
+            </p>
+          </div>
         </div>
-      </div>
+      </TrainingGoalArtCard>
 
       <section className="mb-6 rounded-xl border border-slate-700 bg-slate-900/70 p-4">
         <dl className="space-y-2 text-sm text-slate-300">
@@ -115,16 +121,26 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
                   <p className="font-medium text-white">
                     {isEnglish ? training.titleEn : training.titleJa}
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {item.bestRank != null
-                      ? `${isEnglish ? 'Best' : '最高'} ${item.bestScore ?? 0} / ${item.bestRank}`
-                      : isEnglish ? 'No record yet' : '未プレイ'}
-                    {' · '}
-                    {isEnglish ? 'Target' : '目標'}
-                    {' '}
-                    {item.targetRank}
-                    {item.cleared ? (isEnglish ? ' · Cleared' : ' · クリア') : ''}
-                  </p>
+                  <div className="mt-1">
+                    {item.bestRank != null ? (
+                      <TrainingBestBadges
+                        bestScore={item.bestScore ?? 0}
+                        bestRank={item.bestRank}
+                        targetRank={item.targetRank}
+                        cleared={item.cleared}
+                        isEnglish={isEnglish}
+                        compact
+                      />
+                    ) : (
+                      <p className="text-xs text-slate-400">
+                        {isEnglish ? 'No record yet' : '未プレイ'}
+                        {' · '}
+                        {isEnglish ? 'Target' : '目標'}
+                        {' '}
+                        {item.targetRank}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex shrink-0 flex-nowrap gap-2">
                   <button

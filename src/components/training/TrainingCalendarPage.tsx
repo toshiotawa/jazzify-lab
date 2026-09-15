@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { TrainingBestBadges } from '@/components/training/TrainingBestBadges';
 import type { TrainingDailyBest, TrainingRow } from '@/game/training/trainingTypes';
 import { fetchTrainingDailyBests } from '@/platform/supabaseTraining';
 import {
@@ -123,13 +124,14 @@ export const TrainingCalendarPage: React.FC<TrainingCalendarPageProps> = ({
               const training = trainingById.get(record.trainingId);
               if (!training) return null;
               return (
-                <li key={`${record.trainingId}-${record.day}`} className="flex items-center justify-between text-sm">
+                <li key={`${record.trainingId}-${record.day}`} className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-white">{isEnglish ? training.titleEn : training.titleJa}</span>
-                  <span className="font-semibold text-indigo-200">
-                    {record.bestScore}
-                    {' '}
-                    {record.bestRank}
-                  </span>
+                  <TrainingBestBadges
+                    bestScore={record.bestScore}
+                    bestRank={record.bestRank}
+                    isEnglish={isEnglish}
+                    compact
+                  />
                 </li>
               );
             })}

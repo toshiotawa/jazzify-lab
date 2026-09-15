@@ -86,6 +86,18 @@ final class TrainingGoalProgressTests: XCTestCase {
         XCTAssertNil(TrainingGoalProgress.resolveActiveGoalSet(goalSets: [], selectedGoalSetId: nil))
     }
 
+    func testStageNumberReturnsOneBasedPosition() {
+        let first = makeGoalSet(items: [])
+        let second = makeGoalSet(items: [])
+        let third = makeGoalSet(items: [])
+        let sets = [first, second, third]
+
+        XCTAssertEqual(TrainingGoalProgress.stageNumber(goalSets: sets, goalSetId: first.id), 1)
+        XCTAssertEqual(TrainingGoalProgress.stageNumber(goalSets: sets, goalSetId: second.id), 2)
+        XCTAssertEqual(TrainingGoalProgress.stageNumber(goalSets: sets, goalSetId: third.id), 3)
+        XCTAssertEqual(TrainingGoalProgress.stageNumber(goalSets: sets, goalSetId: UUID()), 1)
+    }
+
     func testCollapsedCategoriesDefaultToGoalOnly() {
         let introId = UUID()
         let intervalId = UUID()

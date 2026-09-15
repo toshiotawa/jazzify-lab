@@ -59,3 +59,11 @@ export const resolveActiveGoalSet = (
   }
   return goalSets[0] ?? null;
 };
+
+export const trainingGoalStageNumber = (
+  goalSets: readonly TrainingGoalSet[],
+  goalSetId: string,
+): number => {
+  const index = goalSets.findIndex((set) => set.id === goalSetId);
+  return index >= 0 ? index + 1 : 1;
+};

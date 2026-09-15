@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { FaChevronDown, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
 
 import { TrainingInfoModal } from '@/components/training/TrainingInfoModal';
+import { TrainingBestBadges } from '@/components/training/TrainingBestBadges';
 import { TrainingGoalBanner } from '@/components/training/TrainingGoalBanner';
 import { TrainingHabitSection } from '@/components/training/TrainingHabitSection';
 import { resolveCollapsedTrainingCategoryIds } from '@/game/training/trainingCategoryAccordion';
@@ -18,6 +19,7 @@ interface TrainingListProps {
   readonly categories: readonly TrainingCategoryWithTrainings[];
   readonly summaryByTrainingId: ReadonlyMap<string, TrainingScoreSummary>;
   readonly activeGoalSet: TrainingGoalSet | null;
+  readonly goalStageNumber: number;
   readonly lastPlayedTrainingId: string | null;
   readonly todayKey: string;
   readonly activeDays: readonly string[];
@@ -36,6 +38,7 @@ export const TrainingList: React.FC<TrainingListProps> = ({
   categories,
   summaryByTrainingId,
   activeGoalSet,
+  goalStageNumber,
   lastPlayedTrainingId,
   todayKey,
   activeDays,
@@ -118,6 +121,7 @@ export const TrainingList: React.FC<TrainingListProps> = ({
           title={isEnglish ? activeGoalSet.titleEn : activeGoalSet.titleJa}
           cleared={goalProgress.cleared}
           total={goalProgress.total}
+          stageNumber={goalStageNumber}
           isEnglish={isEnglish}
           onClick={onOpenGoal}
         />
@@ -189,11 +193,21 @@ export const TrainingList: React.FC<TrainingListProps> = ({
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-white">{isEnglish ? training.titleEn : training.titleJa}</p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {summary
-                              ? `${isEnglish ? 'Best' : '最高'} ${summary.bestScore} / ${summary.bestRank}${summary.rankPosition != null ? ` / ${summary.rankPosition}${isEnglish ? 'th' : '位'}` : ''}`
-                              : isEnglish ? 'No record yet' : '未プレイ'}
-                          </p>
+                          <div className="mt-1">
+                            {summary ? (
+                              <TrainingBestBadges
+                                bestScore={summary.bestScore}
+                                bestRank={summary.bestRank}
+                                rankPosition={summary.rankPosition}
+                                isEnglish={isEnglish}
+                                compact
+                              />
+                            ) : (
+                              <p className="text-xs text-slate-400">
+                                {isEnglish ? 'No record yet' : '未プレイ'}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex shrink-0 flex-nowrap gap-2">
                           <button

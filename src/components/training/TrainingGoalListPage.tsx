@@ -1,6 +1,10 @@
 import React, { useMemo } from 'react';
 
-import { computeTrainingGoalProgress } from '@/game/training/trainingGoalProgress';
+import { TrainingGoalArtCard } from '@/components/training/TrainingGoalArtCard';
+import {
+  computeTrainingGoalProgress,
+  trainingGoalStageNumber,
+} from '@/game/training/trainingGoalProgress';
 import type { TrainingGoalSet, TrainingScoreSummary } from '@/game/training/trainingTypes';
 import { cn } from '@/utils/cn';
 
@@ -42,36 +46,39 @@ export const TrainingGoalListPage: React.FC<TrainingGoalListPageProps> = ({
         {sortedSets.map((goalSet, index) => {
           const progress = computeTrainingGoalProgress(goalSet, summaryByTrainingId);
           const isActive = index === 0;
+          const stageNumber = trainingGoalStageNumber(goalSets, goalSet.id);
           return (
-            <li
-              key={goalSet.id}
-              className={cn(
-                'rounded-xl border p-4',
-                isActive ? 'border-indigo-500/50 bg-indigo-950/30' : 'border-slate-700 bg-slate-900/80',
-              )}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  {isActive && (
-                    <p className="mb-1 text-xs font-medium uppercase tracking-wider text-indigo-300">
-                      {isEnglish ? 'Current Goal' : '現在の目標'}
+            <li key={goalSet.id}>
+              <TrainingGoalArtCard
+                stageNumber={stageNumber}
+                minHeightClassName="min-h-[120px]"
+                className={cn(isActive && 'border-indigo-400/60')}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    {isActive && (
+                      <p className="mb-1 text-xs font-medium uppercase tracking-wider text-indigo-200">
+                        {isEnglish ? 'Current Goal' : '現在の目標'}
+                      </p>
+                    )}
+                    <p className="font-semibold text-white">
+                      {isEnglish ? goalSet.titleEn : goalSet.titleJa}
                     </p>
+                    <p className="mt-1 text-sm tabular-nums text-indigo-100">
+                      {progress.percent}% ({progress.cleared}/{progress.total})
+                    </p>
+                  </div>
+                  {!isActive && (
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                      onClick={() => onSelectGoal(goalSet.id)}
+                    >
+                      {isEnglish ? 'Switch' : '切り替える'}
+                    </button>
                   )}
-                  <p className="font-semibold text-white">
-                    {isEnglish ? goalSet.titleEn : goalSet.titleJa}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-400">{progress.percent}%</p>
                 </div>
-                {!isActive && (
-                  <button
-                    type="button"
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
-                    onClick={() => onSelectGoal(goalSet.id)}
-                  >
-                    {isEnglish ? 'Switch' : '切り替える'}
-                  </button>
-                )}
-              </div>
+              </TrainingGoalArtCard>
             </li>
           );
         })}

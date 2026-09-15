@@ -84,10 +84,12 @@ struct TrainingCalendarView: View {
                                     Text(training.localizedTitle(locale))
                                         .font(.subheadline)
                                     Spacer()
-                                    Text("\(record.bestScore) \(record.bestRank.rawValue)")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.indigo)
-                                        .monospacedDigit()
+                                    TrainingBestBadgesView(
+                                        bestScore: record.bestScore,
+                                        bestRank: record.bestRank,
+                                        locale: locale,
+                                        compact: true
+                                    )
                                 }
                             }
                         }

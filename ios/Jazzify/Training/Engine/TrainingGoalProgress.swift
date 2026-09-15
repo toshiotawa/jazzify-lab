@@ -58,6 +58,14 @@ struct TrainingGoalProgress: Sendable, Equatable {
         return goalSets.first
     }
 
+    /// 目標セット配列内の 1 始まり位置（横長画像の stageNumber に使用）
+    static func stageNumber(goalSets: [TrainingGoalSet], goalSetId: UUID) -> Int {
+        guard let index = goalSets.firstIndex(where: { $0.id == goalSetId }) else {
+            return 1
+        }
+        return index + 1
+    }
+
     /// 閉じるカテゴリ ID。直前プレイがあればそのカテゴリだけ開き、なければ目標カテゴリだけ開く。
     static func collapsedCategoryIds(
         categories: [TrainingCategoryWithTrainings],

@@ -65,6 +65,7 @@ struct TrainingListView: View {
                 if let goalSet = activeGoalSet {
                     TrainingGoalView(
                         goalSet: goalSet,
+                        stageNumber: TrainingGoalProgress.stageNumber(goalSets: goalSets, goalSetId: goalSet.id),
                         summaryById: summaryById,
                         trainingById: trainingById,
                         locale: locale,
@@ -233,6 +234,7 @@ struct TrainingListView: View {
                                 title: goalSet.localizedTitle(locale),
                                 cleared: progress.cleared,
                                 total: progress.total,
+                                stageNumber: TrainingGoalProgress.stageNumber(goalSets: goalSets, goalSetId: goalSet.id),
                                 locale: locale,
                                 onTap: { openSecondaryScreen(.goal) }
                             )
@@ -327,11 +329,13 @@ struct TrainingListView: View {
                 .font(.subheadline.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
             if let summary {
-                Text(locale == .ja
-                     ? "最高 \(summary.bestScore) / \(summary.bestRank.rawValue)\(summary.rankPosition.map { " / \($0)位" } ?? "")"
-                     : "Best \(summary.bestScore) / \(summary.bestRank.rawValue)\(summary.rankPosition.map { " / #\($0)" } ?? "")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                TrainingBestBadgesView(
+                    bestScore: summary.bestScore,
+                    bestRank: summary.bestRank,
+                    rankPosition: summary.rankPosition,
+                    locale: locale,
+                    compact: true
+                )
             }
             HStack(spacing: 8) {
                 Button(locale == .ja ? "練習" : "Practice") {
