@@ -1364,6 +1364,7 @@ struct LessonDetailView: View {
     @State private var taskClearNextStepTarget: LessonSong?
     @State private var taskClearPromptMode: TaskClearPromptMode = .afterClear
     @State private var pendingAutoStartFirstRequirement: Bool
+    @State private var isLaunchingGame = false
     private let playMapNodeId: UUID?
     private let playMapMode: PlayMapMode?
     @State private var presentationQueue = SerialPresentationQueue<LessonDetailPendingStep>()
@@ -1630,7 +1631,9 @@ struct LessonDetailView: View {
     private var lessonDetailWithReloadHooks: some View {
         lessonDetailWithGameLaunchers
             .onChange(of: hasActiveGameCover) { isActive in
-                if !isActive {
+                if isActive {
+                    isLaunchingGame = false
+                } else {
                     reloadLessonDetailAfterGame()
                 }
             }
@@ -1765,6 +1768,7 @@ struct LessonDetailView: View {
                     lessonRuntime: prep.lessonRuntime,
                     onCancel: { survivalLessonPrep = nil },
                     onConfirm: { hintMode, autoRun in
+                        isLaunchingGame = true
                         queuePresentationAfterDismiss(
                             .launchSurvival(
                                 SurvivalLessonLaunch(
@@ -1793,6 +1797,7 @@ struct LessonDetailView: View {
                     initialHintMode: false,
                     onCancel: { balloonRushPrep = nil },
                     onConfirm: { hintMode, _ in
+                        isLaunchingGame = true
                         queuePresentationAfterDismiss(
                             .launchBalloonRush(
                                 BalloonRushLessonLaunch(
@@ -1848,10 +1853,12 @@ struct LessonDetailView: View {
             ) { prep in
                 Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
                     defensePrep = nil
+                    isLaunchingGame = true
                     defenseLessonLaunch = DefenseLessonLaunch(prep: prep, practiceMode: true)
                 }
                 Button(locale == .ja ? "本番" : "Performance") {
                     defensePrep = nil
+                    isLaunchingGame = true
                     defenseLessonLaunch = DefenseLessonLaunch(prep: prep, practiceMode: false)
                 }
                 Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
@@ -1887,6 +1894,7 @@ struct LessonDetailView: View {
             ) { prep in
                 Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
                     trainingPrep = nil
+                    isLaunchingGame = true
                     trainingLessonLaunch = TrainingLessonLaunch(
                         trainingId: prep.trainingId,
                         practiceMode: true,
@@ -1897,6 +1905,7 @@ struct LessonDetailView: View {
                 }
                 Button(locale == .ja ? "本番" : "Performance") {
                     trainingPrep = nil
+                    isLaunchingGame = true
                     trainingLessonLaunch = TrainingLessonLaunch(
                         trainingId: prep.trainingId,
                         practiceMode: false,
@@ -1998,6 +2007,10 @@ struct LessonDetailView: View {
                     .tint(.purple)
                 }
                 .padding()
+            }
+
+            if isLaunchingGame && !hasActiveGameCover {
+                GameLaunchLoadingOverlay(locale: locale, tint: .yellow)
             }
         }
     }
@@ -2439,6 +2452,7 @@ struct LessonDetailView: View {
                 .cornerRadius(12)
             }
             .buttonStyle(.plain)
+            .disabled(isLaunchingGame)
         }
         .padding(14)
         .background(isCompleted ? Color.green.opacity(0.12) : Color(hex: "334155"))
@@ -3495,6 +3509,7 @@ struct LessonDetailView: View {
 
     private func launchRequirement(_ requirement: LessonSong) {
         guard !hasActiveGameCover else { return }
+        isLaunchingGame = true
 
         pendingClearCheck = PendingRequirementClearCheck(
             lessonSongId: requirement.id,
@@ -3507,6 +3522,7 @@ struct LessonDetailView: View {
             blockNumber: bn,
             isPremium: appState.isPremium
         ) {
+            isLaunchingGame = false
             alertMessage = premiumBlockGateMessage(for: courseKind)
             Task {
                 let premium = await appState.ensureFreshBilling()
@@ -3534,6 +3550,7 @@ struct LessonDetailView: View {
         if requirement.isSurvival == true {
             if SurvivalLessonConfig.lessonSongHasInlineComposite(requirement.survivalCompositeConfig) {
                 guard let compositeConfig = requirement.survivalCompositeConfig else {
+                    isLaunchingGame = false
                     alertMessage = locale == .ja
                         ? "複合フレーズ設定がありません。"
                         : "Missing composite phrase configuration."
@@ -3548,6 +3565,7 @@ struct LessonDetailView: View {
                         )
                     } catch {
                         await MainActor.run {
+                            isLaunchingGame = false
                             alertMessage = locale == .ja
                                 ? "複合フレーズ設定が不正です。"
                                 : "Invalid composite phrase configuration."
@@ -3597,12 +3615,14 @@ struct LessonDetailView: View {
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
                         )
+                        isLaunchingGame = false
                     }
                 }
                 return
             }
 
             guard let stageNumber = requirement.survivalStageNumber else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja ? "サバイバルステージ設定がありません。" : "Missing survival stage setting."
                 return
             }
@@ -3611,6 +3631,7 @@ struct LessonDetailView: View {
                 await ensureSurvivalCatalogLoadedIfNeeded(for: mapCategory, stageNumber: stageNumber)
                 guard let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory) else {
                     await MainActor.run {
+                        isLaunchingGame = false
                         alertMessage = locale == .ja
                             ? "サバイバルステージを読み込めませんでした。"
                             : "Could not load the survival stage."
@@ -3659,6 +3680,7 @@ struct LessonDetailView: View {
                         lessonSongId: requirement.id,
                         clearConditions: requirement.clearConditions
                     )
+                    isLaunchingGame = false
                 }
             }
             return
@@ -3666,6 +3688,7 @@ struct LessonDetailView: View {
 
         if requirement.isBalloonRush == true {
             guard let stageId = requirement.balloonRushStage?.id ?? requirement.balloonRushStageId else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja ? "風船ラッシュステージがありません。" : "Missing balloon rush stage."
                 return
             }
@@ -3673,6 +3696,7 @@ struct LessonDetailView: View {
                 do {
                     guard let stage = try await SupabaseService.shared.fetchBalloonRushStageById(stageId) else {
                         await MainActor.run {
+                            isLaunchingGame = false
                             alertMessage = locale == .ja
                                 ? "風船ラッシュステージを読み込めませんでした。"
                                 : "Could not load the balloon rush stage."
@@ -3702,9 +3726,11 @@ struct LessonDetailView: View {
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
                         )
+                        isLaunchingGame = false
                     }
                 } catch {
                     await MainActor.run {
+                        isLaunchingGame = false
                         alertMessage = locale == .ja
                             ? "風船ラッシュステージの読み込みに失敗しました。"
                             : "Failed to load balloon rush stage."
@@ -3716,6 +3742,7 @@ struct LessonDetailView: View {
 
         if requirement.isTraining == true {
             guard let trainingId = requirement.training?.id ?? requirement.trainingId else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja
                     ? "トレーニングが設定されていません。"
                     : "Training is not configured."
@@ -3730,11 +3757,13 @@ struct LessonDetailView: View {
                 lessonSongId: requirement.id,
                 clearConditions: requirement.clearConditions
             )
+            isLaunchingGame = false
             return
         }
 
         if requirement.isDefense == true {
             guard let stageId = requirement.defenseStage?.id ?? requirement.defenseStageId else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja
                     ? "ディフェンスステージが設定されていません。"
                     : "Defense stage is not configured."
@@ -3750,6 +3779,7 @@ struct LessonDetailView: View {
                           )
                     else {
                         await MainActor.run {
+                            isLaunchingGame = false
                             alertMessage = locale == .ja
                                 ? "ディフェンスステージを読み込めませんでした。"
                                 : "Could not load the defense stage."
@@ -3764,9 +3794,11 @@ struct LessonDetailView: View {
                             lessonSongId: requirement.id,
                             clearConditions: requirement.clearConditions
                         )
+                        isLaunchingGame = false
                     }
                 } catch {
                     await MainActor.run {
+                        isLaunchingGame = false
                         alertMessage = locale == .ja
                             ? "ディフェンスステージの読み込みに失敗しました。"
                             : "Failed to load defense stage."
@@ -3778,12 +3810,14 @@ struct LessonDetailView: View {
 
         if requirement.isVideoLesson == true {
             guard let stage = requirement.videoLessonStage else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja
                     ? "動画視聴ステージが設定されていません。"
                     : "Video lesson stage is not configured."
                 return
             }
             guard stage.resolvedVideoURL(locale: locale) != nil else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja ? "動画 URL がありません。" : "Video URL is missing."
                 return
             }
@@ -3798,6 +3832,7 @@ struct LessonDetailView: View {
 
         if requirement.isFantasy {
             guard let stageId = requirement.fantasyStage?.id ?? requirement.fantasyStageId else {
+                isLaunchingGame = false
                 alertMessage = locale == .ja ? "ファンタジーステージ設定がありません。" : "Missing fantasy stage setting."
                 return
             }
@@ -3836,6 +3871,7 @@ struct LessonDetailView: View {
 
             if requirement.isEarTraining == true {
                 guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
+                    isLaunchingGame = false
                     alertMessage = locale == .ja ? "バトルモードステージ設定がありません。" : "Missing battle mode stage setting."
                     return
                 }
@@ -3851,6 +3887,7 @@ struct LessonDetailView: View {
                 return
             }
 
+        isLaunchingGame = false
         alertMessage = locale == .ja ? "この課題は現在プレイできません。" : "This task is not available to play."
     }
 

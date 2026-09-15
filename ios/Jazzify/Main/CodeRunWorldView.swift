@@ -16,6 +16,7 @@ struct CodeRunWorldView: View {
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var lessonToOpen: LessonPlayMapLaunch?
     @State private var alertMessage: String?
+    @State private var isStarting = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -63,11 +64,20 @@ struct CodeRunWorldView: View {
                     onRequestUpgrade: { showSubscription = true }
                 )
             }
+
+            if isStarting {
+                GameLaunchLoadingOverlay(locale: locale, tint: .purple, backgroundOpacity: 0.85)
+            }
         }
         .navigationTitle(locale == .ja ? "コードラン" : "Code Run")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reloadMap() }
+        .onChange(of: stageLaunchSession?.id) { sessionId in
+            if sessionId != nil {
+                isStarting = false
+            }
+        }
         .fullScreenCover(item: $stageLaunchSession) { session in
             SurvivalGameView(
                 stage: session.stage,
@@ -157,12 +167,19 @@ struct CodeRunWorldView: View {
     }
 
     private func startStageNode(_ node: PlayMapNode) async {
-        guard let stageNumber = node.survivalStageNumber else { return }
+        guard !isStarting else { return }
+        isStarting = true
+
+        guard let stageNumber = node.survivalStageNumber else {
+            isStarting = false
+            return
+        }
         let category = SurvivalMapCategory(rawValue: node.survivalMapCategory ?? "basic") ?? .basic
         if SurvivalStageCatalog.stage(byNumber: stageNumber, in: category) == nil {
             await SurvivalStageCatalog.ensureLoaded()
         }
         guard let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: category) else {
+            isStarting = false
             alertMessage = locale == .ja
                 ? "ステージ情報の読み込みに失敗しました。通信環境を確認して再度お試しください。"
                 : "Failed to load stage data. Check your connection and try again."

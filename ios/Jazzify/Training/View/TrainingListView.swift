@@ -25,7 +25,9 @@ struct TrainingListView: View {
     @State private var collapsedCategoryIds: Set<UUID> = []
     @State private var switchedGoalTitle: String?
     @State private var playSession: TrainingPlaySession?
+    @State private var resumeTrainingId: UUID?
     @State private var didLaunchForcedTraining = false
+    @State private var isLaunchingGame = false
 
     init(
         forcedTrainingId: UUID? = nil,
@@ -49,7 +51,12 @@ struct TrainingListView: View {
         categories.flatMap(\.trainings)
     }
 
+    private var showsLaunchOverlay: Bool {
+        isLaunchingGame || (isLessonLaunch && isLoading && forcedTrainingId != nil)
+    }
+
     var body: some View {
+        ZStack {
         Group {
             switch screen {
             case .list:
@@ -62,7 +69,7 @@ struct TrainingListView: View {
                         trainingById: trainingById,
                         locale: locale,
                         isTrainingLocked: isTrainingLocked,
-                        onBack: { screen = .list },
+                        onBack: { returnToList(fromTraining: false) },
                         onOpenGoals: { screen = .goals },
                         onPlay: { training, practice in presentGame(training: training, practice: practice) },
                         onOpenRecords: { trainingId in screen = .records(trainingId: trainingId) },
@@ -88,7 +95,7 @@ struct TrainingListView: View {
                     initialTrainingId: trainingId,
                     timezone: timezone,
                     locale: locale,
-                    onBack: { screen = .list }
+                    onBack: { returnToList(fromTraining: false) }
                 )
             case .calendar(let dateKey):
                 TrainingCalendarView(
@@ -97,11 +104,11 @@ struct TrainingListView: View {
                     timezone: timezone,
                     initialDateKey: dateKey,
                     locale: locale,
-                    onBack: { screen = .list }
+                    onBack: { returnToList(fromTraining: false) }
                 )
             case .ranking:
                 TrainingRankingView(categories: categories) {
-                    screen = .list
+                    returnToList(fromTraining: false)
                 }
             case .result:
                 if let training = activeTraining {
@@ -116,6 +123,7 @@ struct TrainingListView: View {
                         },
                         onRanking: {
                             activeTraining = nil
+                            resumeTrainingId = nil
                             screen = .ranking
                         },
                         onExit: {
@@ -146,7 +154,7 @@ struct TrainingListView: View {
                     if isLessonLaunch {
                         onLessonExit?()
                     } else {
-                        screen = .list
+                        returnToList(fromTraining: true)
                     }
                 },
                 onFinished: { score in
@@ -173,6 +181,16 @@ struct TrainingListView: View {
             }
         }
         .task { await reload() }
+        .onChange(of: playSession?.id) { sessionId in
+            if sessionId != nil {
+                isLaunchingGame = false
+            }
+        }
+
+            if showsLaunchOverlay {
+                GameLaunchLoadingOverlay(locale: locale, tint: .indigo)
+            }
+        }
     }
 
     private var listBody: some View {
@@ -200,7 +218,7 @@ struct TrainingListView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(locale == .ja ? "ランキング" : "Ranking") { screen = .ranking }
+                    Button(locale == .ja ? "ランキング" : "Ranking") { openSecondaryScreen(.ranking) }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding(.horizontal)
@@ -216,7 +234,7 @@ struct TrainingListView: View {
                                 cleared: progress.cleared,
                                 total: progress.total,
                                 locale: locale,
-                                onTap: { screen = .goal }
+                                onTap: { openSecondaryScreen(.goal) }
                             )
                         }
                         if !todayKey.isEmpty {
@@ -224,7 +242,7 @@ struct TrainingListView: View {
                                 todayKey: todayKey,
                                 activeDays: activeDays,
                                 locale: locale,
-                                onOpenCalendar: { dateKey in screen = .calendar(dateKey: dateKey) }
+                                onOpenCalendar: { dateKey in openSecondaryScreen(.calendar(dateKey: dateKey)) }
                             )
                         }
                     }
@@ -330,7 +348,7 @@ struct TrainingListView: View {
                 .fixedSize()
                 if !isLessonLaunch {
                     Button(locale == .ja ? "記録" : "Records") {
-                        screen = .records(trainingId: training.id)
+                        openSecondaryScreen(.records(trainingId: training.id))
                     }
                     .buttonStyle(.bordered)
                     .tint(.secondary)
@@ -378,9 +396,36 @@ struct TrainingListView: View {
     }
 
     private func presentGame(training: TrainingRow, practice: Bool) {
-        activeTraining = training
-        practiceMode = practice
-        playSession = TrainingPlaySession(training: training, practiceMode: practice)
+        isLaunchingGame = true
+        resumeTrainingId = training.id
+        Task { @MainActor in
+            await Task.yield()
+            activeTraining = training
+            practiceMode = practice
+            playSession = TrainingPlaySession(training: training, practiceMode: practice)
+        }
+    }
+
+    private func openSecondaryScreen(_ next: TrainingScreen) {
+        resumeTrainingId = nil
+        screen = next
+    }
+
+    private func returnToList(fromTraining: Bool) {
+        if !fromTraining {
+            resumeTrainingId = nil
+        }
+        screen = .list
+        applyAccordionState()
+        resumeTrainingId = nil
+    }
+
+    private func applyAccordionState() {
+        collapsedCategoryIds = TrainingGoalProgress.collapsedCategoryIds(
+            categories: categories,
+            goalTrainingIds: activeGoalSet?.items.map(\.trainingId) ?? [],
+            lastPlayedTrainingId: resumeTrainingId
+        )
     }
 
     private func reload() async {
@@ -411,6 +456,10 @@ struct TrainingListView: View {
         }
         if !isLessonLaunch {
             await reloadGoalsAndActivity()
+        }
+        if screen == .list && playSession == nil && !isLaunchingGame {
+            applyAccordionState()
+            resumeTrainingId = nil
         }
     }
 

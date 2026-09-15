@@ -57,4 +57,30 @@ struct TrainingGoalProgress: Sendable, Equatable {
         }
         return goalSets.first
     }
+
+    /// 閉じるカテゴリ ID。直前プレイがあればそのカテゴリだけ開き、なければ目標カテゴリだけ開く。
+    static func collapsedCategoryIds(
+        categories: [TrainingCategoryWithTrainings],
+        goalTrainingIds: [UUID],
+        lastPlayedTrainingId: UUID?
+    ) -> Set<UUID> {
+        var openIds = Set<UUID>()
+
+        if let lastPlayedTrainingId {
+            if let played = categories.first(where: { category in
+                category.trainings.contains(where: { $0.id == lastPlayedTrainingId })
+            }) {
+                openIds.insert(played.category.id)
+            }
+        }
+
+        if openIds.isEmpty, !goalTrainingIds.isEmpty {
+            let goalIds = Set(goalTrainingIds)
+            for category in categories where category.trainings.contains(where: { goalIds.contains($0.id) }) {
+                openIds.insert(category.category.id)
+            }
+        }
+
+        return Set(categories.map(\.category.id).filter { !openIds.contains($0) })
+    }
 }

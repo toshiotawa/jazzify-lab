@@ -41,8 +41,11 @@ struct BalloonRushGameView: View {
                     }
                 )
             } else {
-                ProgressView()
-                    .tint(Color(hex: "38bdf8"))
+                GameLaunchLoadingOverlay(
+                    locale: locale,
+                    tint: Color(hex: "38bdf8"),
+                    message: locale == .ja ? "ステージを準備中…" : "Preparing stage…"
+                )
             }
         }
         .background(Color.black)

@@ -94,6 +94,7 @@ struct SurvivalGameView: View {
     @State private var bootstrapID = UUID()
     @State private var midiSubscriptionHolder = MIDISubscriptionHolder()
     @State private var isLoading: Bool = true
+    @State private var isCodeRunContentReady = false
     @State private var loadError: String?
     @State private var assignmentStartRecorded = false
     @StateObject private var orientation = OrientationManager.shared
@@ -101,26 +102,34 @@ struct SurvivalGameView: View {
     var body: some View {
         ZStack {
             if stage.playMode == .codeRun {
-                SurvivalCodeRunGameContent(
-                    stage: stage,
-                    hintMode: activeHintMode,
-                    autoRun: activeAutoRun,
-                    characterId: characterId,
-                    locale: locale,
-                    lessonRuntime: lessonRuntime,
-                    productionHintModes: productionHintModes,
-                    randomChordOverrides: randomChordOverrides,
-                    lessonContext: lessonContext,
-                    playMapNodeId: playMapNodeId,
-                    rankThresholds: rankThresholds,
-                    onPlayMapCleared: onPlayMapCleared,
-                    onPlayMapNextNode: onPlayMapNextNode,
-                    onApplyHintModeAndRestart: isDemo ? nil : { nextHint in
-                        activeHintMode = nextHint
-                    },
-                    onClose: onClose
-                )
-                .id("\(activeHintMode)-\(activeAutoRun)")
+                ZStack {
+                    SurvivalCodeRunGameContent(
+                        stage: stage,
+                        hintMode: activeHintMode,
+                        autoRun: activeAutoRun,
+                        characterId: characterId,
+                        locale: locale,
+                        lessonRuntime: lessonRuntime,
+                        productionHintModes: productionHintModes,
+                        randomChordOverrides: randomChordOverrides,
+                        lessonContext: lessonContext,
+                        playMapNodeId: playMapNodeId,
+                        rankThresholds: rankThresholds,
+                        onPlayMapCleared: onPlayMapCleared,
+                        onPlayMapNextNode: onPlayMapNextNode,
+                        onApplyHintModeAndRestart: isDemo ? nil : { nextHint in
+                            activeHintMode = nextHint
+                        },
+                        onClose: onClose,
+                        onContentAppeared: { isCodeRunContentReady = true }
+                    )
+                    .id("\(activeHintMode)-\(activeAutoRun)")
+                    .opacity(isCodeRunContentReady ? 1 : 0)
+
+                    if !isCodeRunContentReady {
+                        GameLaunchLoadingOverlay(locale: locale, tint: .purple)
+                    }
+                }
             } else if let session = session {
                 SurvivalGameContent(
                     session: session,
@@ -145,9 +154,20 @@ struct SurvivalGameView: View {
                 .allowsHitTesting(false)
         }
         .background(Color.black)
+        .onChange(of: activeHintMode) { _ in
+            if stage.playMode == .codeRun {
+                isCodeRunContentReady = false
+            }
+        }
+        .onChange(of: activeAutoRun) { _ in
+            if stage.playMode == .codeRun {
+                isCodeRunContentReady = false
+            }
+        }
         .task {
             guard stage.playMode != .codeRun else {
                 isLoading = false
+                isCodeRunContentReady = false
                 return
             }
             bootstrapTask?.cancel()
@@ -169,13 +189,11 @@ struct SurvivalGameView: View {
     // MARK: - Subviews
 
     private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .tint(.yellow)
-            Text(locale == .ja ? "ステージを準備中..." : "Preparing stage...")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-        }
+        GameLaunchLoadingOverlay(
+            locale: locale,
+            tint: .yellow,
+            message: locale == .ja ? "ステージを準備中…" : "Preparing stage…"
+        )
     }
 
     private var errorView: some View {
@@ -1167,6 +1185,7 @@ private struct SurvivalCodeRunGameContent: View {
     let onPlayMapNextNode: (() -> Void)?
     let onApplyHintModeAndRestart: ((Bool) -> Void)?
     let onClose: () -> Void
+    let onContentAppeared: (() -> Void)?
     private let isRandomStage: Bool
     private let progressionChords: [SurvivalResolvedChord]
     private let keyboardScrollAnchorMidi: Int?
@@ -1186,7 +1205,8 @@ private struct SurvivalCodeRunGameContent: View {
         onPlayMapCleared: ((Double) -> Void)? = nil,
         onPlayMapNextNode: (() -> Void)? = nil,
         onApplyHintModeAndRestart: ((Bool) -> Void)?,
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        onContentAppeared: (() -> Void)? = nil
     ) {
         self.stage = stage
         self.hintMode = hintMode
@@ -1203,6 +1223,7 @@ private struct SurvivalCodeRunGameContent: View {
         self.onPlayMapNextNode = onPlayMapNextNode
         self.onApplyHintModeAndRestart = onApplyHintModeAndRestart
         self.onClose = onClose
+        self.onContentAppeared = onContentAppeared
         let randomStage = stage.stageType == .random && !stage.allowedChords.isEmpty
         self.isRandomStage = randomStage
         let resolvedChords = randomStage
@@ -1365,6 +1386,7 @@ private struct SurvivalCodeRunGameContent: View {
             }
             OrientationManager.shared.lock(.portrait)
             startAudioAndMidi(lifecycleID: id)
+            onContentAppeared?()
         }
         .onDisappear {
             isViewActive = false

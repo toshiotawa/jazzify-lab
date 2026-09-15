@@ -7,6 +7,7 @@ struct DefenseGameView: View {
     @State private var scene: DefenseScene
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @State private var isSettingsOpen = false
+    @State private var isSessionReady = false
     let locale: AppLocale
     let onClose: () -> Void
     let playMapNodeId: UUID?
@@ -68,11 +69,14 @@ struct DefenseGameView: View {
             scene.session = session
         }
         .task {
+            isSessionReady = false
             await session.start()
+            isSessionReady = true
         }
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
             session.stop()
+            isSessionReady = false
         }
         .onChange(of: session.hud.result) { result in
             if result == .clear, playMapNodeId != nil, !session.practiceMode {
@@ -180,6 +184,14 @@ struct DefenseGameView: View {
 
             if session.hud.result != .playing, onFinished == nil {
                 resultOverlay
+            }
+
+            if !isSessionReady {
+                GameLaunchLoadingOverlay(
+                    locale: locale,
+                    tint: .green,
+                    message: locale == .ja ? "ステージを準備中…" : "Preparing stage…"
+                )
             }
         }
     }

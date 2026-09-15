@@ -400,6 +400,7 @@
 		E83A5ADD1648378A77C95066 /* CourseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519C033031ADA5E8D43A12DC /* CourseListView.swift */; };
 		E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E48683B3B737009938D6CE8 /* LoginView.swift */; };
 		E8E19D25D4087433885B21FD /* LessonNavigationHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */; };
+		C9D8E7F6A5B4039281726354 /* GameLaunchLoadingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E7F6A5B403928172635445 /* GameLaunchLoadingOverlay.swift */; };
 		E9DE4979E58EE71DEE804B11 /* SurvivalQuestionTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BE427876E501A0BE49FD5D /* SurvivalQuestionTypes.swift */; };
 		EA799676165F54C2B31D2C6C /* GameWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342682E586DCCE6032CF9125 /* GameWebView.swift */; };
 		EBD7121752D063D193721ACC /* EarTrainingPhrasePairBattleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48494D61BCD36D80C12C54AD /* EarTrainingPhrasePairBattleEngine.swift */; };
@@ -564,6 +565,7 @@
 		4E576F5B010E2C69F58A1CC3 /* DefenseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseModels.swift; sourceTree = "<group>"; };
 		4E801584AE49548B05A46466 /* EarTrainingPhrasePairAdlibGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairAdlibGameView.swift; sourceTree = "<group>"; };
 		4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNavigationHelpers.swift; sourceTree = "<group>"; };
+		D8E7F6A5B403928172635445 /* GameLaunchLoadingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLaunchLoadingOverlay.swift; sourceTree = "<group>"; };
 		4E9F8F5AE97172F16A9D7D06 /* SurvivalCompositePhraseEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseEngineTests.swift; sourceTree = "<group>"; };
 		4F8B3B95C18A0D73876DCCD4 /* pesto-mir1k-g7-48000-240-refill.onnx */ = {isa = PBXFileReference; path = "pesto-mir1k-g7-48000-240-refill.onnx"; sourceTree = "<group>"; };
 		500C82D0353711972FDF74C0 /* SurvivalAssetPreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalAssetPreloader.swift; sourceTree = "<group>"; };
@@ -1737,6 +1739,7 @@
 				16568C6DC2CE0A0353458F62 /* LessonJourneyViewComponents.swift */,
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
 				4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */,
+				D8E7F6A5B403928172635445 /* GameLaunchLoadingOverlay.swift */,
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
 				3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
@@ -2184,6 +2187,7 @@
 				D2083E728F663A949957D7DE /* LessonJourneyViewComponents.swift in Sources */,
 				16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */,
 				E8E19D25D4087433885B21FD /* LessonNavigationHelpers.swift in Sources */,
+				C9D8E7F6A5B4039281726354 /* GameLaunchLoadingOverlay.swift in Sources */,
 				DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */,
 				E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */,
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,

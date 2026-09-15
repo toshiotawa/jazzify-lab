@@ -106,6 +106,7 @@ const TrainingMain: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [pageInfo, setPageInfo] = useState<TrainingUiText | null>(null);
   const [switchedGoalTitle, setSwitchedGoalTitle] = useState<string | null>(null);
+  const [resumeTrainingId, setResumeTrainingId] = useState<string | null>(null);
   const lessonClearedRef = useRef(false);
 
   const todayKey = useMemo(() => getLocalDateKey(new Date(), timezone), [timezone]);
@@ -205,6 +206,7 @@ const TrainingMain: React.FC = () => {
     if (!forcedTrainingId || loading) return;
     const training = findTraining(forcedTrainingId);
     if (training) {
+      setResumeTrainingId(training.id);
       setSession({ training, practiceMode: false, nonce: Date.now() });
       setScreen('game');
     }
@@ -214,6 +216,7 @@ const TrainingMain: React.FC = () => {
     const training = findTraining(trainingId);
     if (!training) return;
     lessonClearedRef.current = false;
+    setResumeTrainingId(trainingId);
     setSession({ training, practiceMode, nonce: Date.now() });
     setScreen('game');
   }, [findTraining]);
@@ -249,6 +252,12 @@ const TrainingMain: React.FC = () => {
     void reload();
   }, [lessonContext, session, reload]);
 
+  useEffect(() => {
+    if (screen !== 'list' && screen !== 'game' && screen !== 'result') {
+      setResumeTrainingId(null);
+    }
+  }, [screen]);
+
   const handleSelectGoal = useCallback(async (goalSetId: string) => {
     const nextGoalSet = goalSets.find((set) => set.id === goalSetId);
     await setMyTrainingGoal(goalSetId);
@@ -272,6 +281,7 @@ const TrainingMain: React.FC = () => {
             categories={categories}
             summaryByTrainingId={summaryMap}
             activeGoalSet={activeGoalSet}
+            lastPlayedTrainingId={resumeTrainingId}
             todayKey={todayKey}
             activeDays={activeDays}
             pageInfo={pageInfo}

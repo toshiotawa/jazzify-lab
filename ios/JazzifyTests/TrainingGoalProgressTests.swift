@@ -85,4 +85,104 @@ final class TrainingGoalProgressTests: XCTestCase {
         XCTAssertEqual(TrainingGoalProgress.resolveActiveGoalSet(goalSets: [first, second], selectedGoalSetId: nil)?.id, first.id)
         XCTAssertNil(TrainingGoalProgress.resolveActiveGoalSet(goalSets: [], selectedGoalSetId: nil))
     }
+
+    func testCollapsedCategoriesDefaultToGoalOnly() {
+        let introId = UUID()
+        let intervalId = UUID()
+        let chordId = UUID()
+        let categories = [
+            makeCategory(id: introId, trainingIds: [trainingA, trainingB]),
+            makeCategory(id: intervalId, trainingIds: [trainingC]),
+            makeCategory(id: chordId, trainingIds: [UUID()]),
+        ]
+
+        let collapsed = TrainingGoalProgress.collapsedCategoryIds(
+            categories: categories,
+            goalTrainingIds: [trainingA],
+            lastPlayedTrainingId: nil
+        )
+
+        XCTAssertEqual(collapsed, [intervalId, chordId])
+    }
+
+    func testCollapsedCategoriesOpenOnlyLastPlayedWhenReturning() {
+        let introId = UUID()
+        let intervalId = UUID()
+        let categories = [
+            makeCategory(id: introId, trainingIds: [trainingA]),
+            makeCategory(id: intervalId, trainingIds: [trainingB]),
+        ]
+
+        let collapsed = TrainingGoalProgress.collapsedCategoryIds(
+            categories: categories,
+            goalTrainingIds: [trainingA],
+            lastPlayedTrainingId: trainingB
+        )
+
+        XCTAssertEqual(collapsed, [introId])
+    }
+
+    func testCollapsedCategoriesAllClosedWithoutGoalOrLastPlayed() {
+        let introId = UUID()
+        let intervalId = UUID()
+        let categories = [
+            makeCategory(id: introId, trainingIds: [trainingA]),
+            makeCategory(id: intervalId, trainingIds: [trainingB]),
+        ]
+
+        let collapsed = TrainingGoalProgress.collapsedCategoryIds(
+            categories: categories,
+            goalTrainingIds: [],
+            lastPlayedTrainingId: nil
+        )
+
+        XCTAssertEqual(collapsed, [introId, intervalId])
+    }
+
+    private func makeCategory(id: UUID, trainingIds: [UUID]) -> TrainingCategoryWithTrainings {
+        let category = TrainingCategoryRow(
+            id: id,
+            slug: id.uuidString,
+            titleJa: "テスト",
+            titleEn: "Test",
+            descriptionJa: "",
+            descriptionEn: "",
+            sortOrder: 0,
+            isFree: true,
+            isActive: true
+        )
+        let trainings = trainingIds.map { trainingId in
+            TrainingRow(
+                id: trainingId,
+                categoryId: id,
+                slug: trainingId.uuidString,
+                titleJa: "種目",
+                titleEn: "Drill",
+                sortOrder: 0,
+                kind: .noteReading,
+                clefMode: .instrument,
+                useKeySignature: false,
+                playRootOnCorrect: false,
+                bgmUrl: "",
+                config: TrainingConfig(
+                    roots: nil,
+                    quality: nil,
+                    scale: nil,
+                    interval: nil,
+                    direction: nil,
+                    clef: nil,
+                    includeAccidentals: nil,
+                    intervals: nil,
+                    staves: nil,
+                    voicingNotes: nil,
+                    referenceRoot: nil,
+                    minLowestNote: nil,
+                    inversion: nil,
+                    ordered: nil
+                ),
+                isActive: true
+            )
+        }
+        return TrainingCategoryWithTrainings(category: category, trainings: trainings)
+    }
 }

@@ -84,15 +84,18 @@ struct DefenseDescentView: View {
             }
 
             if isStarting {
-                Color.black.opacity(0.35).ignoresSafeArea()
-                ProgressView()
-                    .tint(.green)
+                GameLaunchLoadingOverlay(locale: locale, tint: .green, backgroundOpacity: 0.85)
             }
         }
         .navigationTitle(locale == .ja ? "フレーズディフェンス" : "Phrase Defense")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reloadMap() }
+        .onChange(of: stageLaunchSession?.id) { sessionId in
+            if sessionId != nil {
+                isStarting = false
+            }
+        }
         .confirmationDialog(
             locale == .ja ? "フレーズディフェンス" : "Phrase Defense",
             isPresented: Binding(
@@ -104,6 +107,7 @@ struct DefenseDescentView: View {
         ) { prep in
             Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
                 stagePrep = nil
+                isStarting = true
                 stageLaunchSession = StageLaunchSession(
                     node: prep.node,
                     stage: prep.stage,
@@ -113,6 +117,7 @@ struct DefenseDescentView: View {
             }
             Button(locale == .ja ? "本番" : "Performance") {
                 stagePrep = nil
+                isStarting = true
                 stageLaunchSession = StageLaunchSession(
                     node: prep.node,
                     stage: prep.stage,

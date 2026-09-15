@@ -4,6 +4,7 @@ import { FaChevronDown, FaChevronRight, FaInfoCircle } from 'react-icons/fa';
 import { TrainingInfoModal } from '@/components/training/TrainingInfoModal';
 import { TrainingGoalBanner } from '@/components/training/TrainingGoalBanner';
 import { TrainingHabitSection } from '@/components/training/TrainingHabitSection';
+import { resolveCollapsedTrainingCategoryIds } from '@/game/training/trainingCategoryAccordion';
 import { computeTrainingGoalProgress } from '@/game/training/trainingGoalProgress';
 import type {
   TrainingCategoryWithTrainings,
@@ -17,6 +18,7 @@ interface TrainingListProps {
   readonly categories: readonly TrainingCategoryWithTrainings[];
   readonly summaryByTrainingId: ReadonlyMap<string, TrainingScoreSummary>;
   readonly activeGoalSet: TrainingGoalSet | null;
+  readonly lastPlayedTrainingId: string | null;
   readonly todayKey: string;
   readonly activeDays: readonly string[];
   readonly pageInfo: TrainingUiText | null;
@@ -34,6 +36,7 @@ export const TrainingList: React.FC<TrainingListProps> = ({
   categories,
   summaryByTrainingId,
   activeGoalSet,
+  lastPlayedTrainingId,
   todayKey,
   activeDays,
   pageInfo,
@@ -48,7 +51,16 @@ export const TrainingList: React.FC<TrainingListProps> = ({
 }) => {
   const [infoCategory, setInfoCategory] = useState<TrainingCategoryWithTrainings | null>(null);
   const [showPageInfo, setShowPageInfo] = useState(false);
-  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<ReadonlySet<string>>(() =>
+    resolveCollapsedTrainingCategoryIds(
+      categories.map((category) => ({
+        id: category.id,
+        trainingIds: category.trainings.map((training) => training.id),
+      })),
+      activeGoalSet?.items.map((item) => item.trainingId) ?? [],
+      lastPlayedTrainingId,
+    ),
+  );
 
   const goalProgress = useMemo(
     () => (activeGoalSet ? computeTrainingGoalProgress(activeGoalSet, summaryByTrainingId) : null),
