@@ -15,6 +15,7 @@ struct DefenseDescentView: View {
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var mapResultContext: MapResultContext?
     @State private var isStarting = false
+    @State private var isFetchingStage = false
     @State private var lessonToOpen: LessonPlayMapLaunch?
     @State private var alertMessage: String?
 
@@ -92,7 +93,7 @@ struct DefenseDescentView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reloadMap() }
         .onChange(of: stageLaunchSession?.id) { sessionId in
-            if sessionId != nil {
+            if sessionId == nil {
                 isStarting = false
             }
         }
@@ -162,6 +163,9 @@ struct DefenseDescentView: View {
                     )
                 }
             )
+            .onAppear {
+                isStarting = false
+            }
         }
         .fullScreenCover(item: $mapResultContext) { context in
             DefenseResultView(
@@ -240,9 +244,9 @@ struct DefenseDescentView: View {
     }
 
     private func startStageNode(_ node: PlayMapNode) async {
-        guard !isStarting else { return }
-        isStarting = true
-        defer { isStarting = false }
+        guard !isFetchingStage, !isStarting else { return }
+        isFetchingStage = true
+        defer { isFetchingStage = false }
 
         guard let stageId = node.defenseStageId else {
             alertMessage = locale == .ja

@@ -167,6 +167,9 @@ struct TrainingListView: View {
                 }
             )
             .id(session.id)
+            .onAppear {
+                isLaunchingGame = false
+            }
         }
         .alert(
             locale == .ja ? "目標セットを切り替えました" : "Goal set switched",
@@ -183,7 +186,7 @@ struct TrainingListView: View {
         }
         .task { await reload() }
         .onChange(of: playSession?.id) { sessionId in
-            if sessionId != nil {
+            if sessionId == nil {
                 isLaunchingGame = false
             }
         }

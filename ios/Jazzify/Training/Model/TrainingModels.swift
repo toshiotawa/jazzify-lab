@@ -308,7 +308,7 @@ enum TrainingConstants {
     static let countdownSec = 3
     static let enemyCount = 10
     static let catalogTTL: TimeInterval = 60
-    static let guardPoseSec: TimeInterval = 1
+    static let guardPoseSec: TimeInterval = 0.375
     static let hudHeight: CGFloat = 64
     static let dyingFadeSpeed: CGFloat = 2.5
     static let dyingKnockbackPxPerSec: CGFloat = 120
