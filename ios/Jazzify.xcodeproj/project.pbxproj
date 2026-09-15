@@ -23,6 +23,7 @@
 		0872C747D454A83D28691FC0 /* OnboardingCharacterDialogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C6C40AC8031AE43C504E98 /* OnboardingCharacterDialogView.swift */; };
 		08AF7FA9DD977449B92D9F39 /* EarTrainingBattleOsuCircleShatterPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C77FDDFA54F9071D5B2DD2E /* EarTrainingBattleOsuCircleShatterPool.swift */; };
 		08E4A461AC6D81FCA0D9AD63 /* DefenseSceneLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC19B3A7D42EAB4C8CAC3C4 /* DefenseSceneLayout.swift */; };
+		091DD362090CAE1722EA1358 /* SurvivalRootBassRoutePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65D88068C27C7F4A5695F241 /* SurvivalRootBassRoutePolicyTests.swift */; };
 		0A6E52DBCD6BE3FF24494D95 /* NoteInputPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = E22237A0C211ADA4D6D3A332 /* NoteInputPreferences.swift */; };
 		0A8241CE088A2174AE059EBE /* EarTrainingAdlibCallResponseGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B467B57700A492FF129B347 /* EarTrainingAdlibCallResponseGameView.swift */; };
 		0B022E9FC737C56AED2D38A4 /* MainQuestResumeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */; };
@@ -66,9 +67,6 @@
 		1CCEE7E1DDCB530843E5E687 /* SurvivalTutorialV3DialogueScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A0D07551342926C3776B3D8 /* SurvivalTutorialV3DialogueScene.swift */; };
 		1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */; };
 		1D6B4B7C684F2084328F9DBC /* TrainingQuestionBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718B539D8ADF7BEFB659DE6A /* TrainingQuestionBuilderTests.swift */; };
-		F3A8B2C1D4E5678901234B01 /* TrainingProgression.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A8B2C1D4E5678901234A01 /* TrainingProgression.swift */; };
-		F3A8B2C1D4E5678901234B02 /* TrainingTwoHandVoicingTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A8B2C1D4E5678901234A02 /* TrainingTwoHandVoicingTables.swift */; };
-		F3A8B2C1D4E5678901234B03 /* TrainingProgressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A8B2C1D4E5678901234A03 /* TrainingProgressionTests.swift */; };
 		1E1EBC5E3CB19F126E4F5BEE /* AppAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0597F2577B5F44C0665E74 /* AppAudioSession.swift */; };
 		1E58DF78E43B269CDE8C71D7 /* EarTrainingPrecisionMidiTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A3F673B69A0ADCBB3F9BDC /* EarTrainingPrecisionMidiTests.swift */; };
 		1E714EDEA2479FCF52815332 /* BalloonRushGameSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0DDAC8FAAC690D0E37B2A14 /* BalloonRushGameSession.swift */; };
@@ -110,6 +108,7 @@
 		3048BEDE268B643B0FCED058 /* OnboardingCtaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E602162EA3A9F9A8E9EDA852 /* OnboardingCtaView.swift */; };
 		30D5F672CC289A3BA64DE6CB /* SurvivalLessonRandomChords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BD2D3BC73DAEB9E0A13AFE /* SurvivalLessonRandomChords.swift */; };
 		313B3DBAAAABE002683E6475 /* EarTrainingAdlibEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191FF03B025D871BFAAA0242 /* EarTrainingAdlibEngine.swift */; };
+		31AE3CF33516CCD0DC0DAB77 /* TrainingGoalArtCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96EA6552993117E3A225DD4B /* TrainingGoalArtCardView.swift */; };
 		3262891D3CD89457FD1C34A6 /* CodeRunDescentSidePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6C1376525FFABA4EB47DC8 /* CodeRunDescentSidePanel.swift */; };
 		33C551905630108F6C25A66B /* OnboardingChordCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4E9FF0208BC78CFAD27DE5 /* OnboardingChordCarouselView.swift */; };
 		33D3B72DF9FBB214ED48C2D2 /* BalloonRushStatusOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA0E081EAB3A69E2F8AA3F16 /* BalloonRushStatusOverlay.swift */; };
@@ -147,6 +146,8 @@
 		4B3D81798B36AE658E36B28E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B4665837C213B33E7EA39A7E /* Assets.xcassets */; };
 		4B717F97871B7B6B06082BC8 /* QuestStageCardAssets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B90E3761E8F04BD54BC31B3 /* QuestStageCardAssets.swift */; };
 		4B9CAC3DDC8B4B8F527D49A6 /* EarTrainingOsmdParrySyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C694911C7A252E821B53889 /* EarTrainingOsmdParrySyncTests.swift */; };
+		4BAC6A003552AFE081201B91 /* EarTrainingBattleVolumePreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C06A8D0D96EFDA6B9DBC93B6 /* EarTrainingBattleVolumePreferencesTests.swift */; };
+		4BED5DF9C4F316BD6875648A /* TrainingBestBadgesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97CCA4BE1C653388BAD5CC63 /* TrainingBestBadgesView.swift */; };
 		4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */; };
 		4E1BDB8D3CEE6F9C44F73B95 /* OnboardingChords.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66399908DD8041414D9EA9C /* OnboardingChords.swift */; };
 		4EE732EF69290F9B474AB3AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */; };
@@ -211,8 +212,9 @@
 		6D9DB97728709BD11EAB69DC /* TutorialScriptPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A7A7F3CB010C53F374B81E /* TutorialScriptPresets.swift */; };
 		6DF0F2EC897BEE7B9120DEA9 /* EarTrainingPianoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */; };
 		6E0D60B0CA41EC2C528B8C89 /* PitchOnsetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */; };
+		6E602616B42F970A84B18E0D /* TrainingProgression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B83A7CEC8E09D2A75F237C /* TrainingProgression.swift */; };
 		6F8F58B05DADFEBA5599E9AB /* SurvivalTutorialV3DrumLoopSourceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F679CD1D198D706377E721 /* SurvivalTutorialV3DrumLoopSourceResolverTests.swift */; };
-		7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */; };
+		7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */; };
 		709B226EB8D64FE8ABD3E015 /* EarTrainingHudModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA63AA83529F2E065F4FF88 /* EarTrainingHudModel.swift */; };
 		70BF445A4167DD4784A1C64A /* PianoVelocityCurveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EC1358AF809BB683C1BF59 /* PianoVelocityCurveTests.swift */; };
 		7110A125B7F64F5A546D2D80 /* DefenseGameLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F7A966C7DBE6629C4DC5C1C /* DefenseGameLoopTests.swift */; };
@@ -230,6 +232,7 @@
 		7A581F56FE2F569E74A0A1EC /* TrainingScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA1A4F9234D8971DEEB8F29 /* TrainingScene.swift */; };
 		7AD0743A4EE11942973B34A1 /* ChordVoicingStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF7D93A798D0859C3B064AA5 /* ChordVoicingStaffView.swift */; };
 		7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */; };
+		7BE20548E88EB12C5515E4D7 /* DefenseResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F480AC479D6442C783394507 /* DefenseResultView.swift */; };
 		7BE8039E67CAD2562C8CDAA1 /* EarTrainingPrecisionNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81C4E01D2F88EA67FEB01625 /* EarTrainingPrecisionNotes.swift */; };
 		7CDA71E7ED7D03027816DCAF /* EarTrainingOSMDScoreWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A5FF15D3E58036925D6A8F7 /* EarTrainingOSMDScoreWebView.swift */; };
 		7CFB37256570B028A4C1E5EA /* LessonJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */; };
@@ -246,6 +249,7 @@
 		86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88453408DE12301997E620A /* MarketingEmailOptIn.swift */; };
 		8740DD82CC0968435363BD8E /* TrainingGoalListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC01A727938CFD3713F557D2 /* TrainingGoalListView.swift */; };
 		87B55FC5B28DB048A39B9FB4 /* EarTrainingPhrasePairEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 594B3EB40C6473D30DFBFAD5 /* EarTrainingPhrasePairEngineTests.swift */; };
+		888D0C88EC70F43FD4FAEA72 /* TrainingTwoHandVoicingTables.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3EB9ADDFC3159726B6B0950 /* TrainingTwoHandVoicingTables.swift */; };
 		88BF5507F33E2B9151249B69 /* EarTrainingChordOSMDBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268A2408B86EDFD3C9580B10 /* EarTrainingChordOSMDBattleController.swift */; };
 		89FAEA77448F4B9C8274E9E1 /* SurvivalTutorialV3LineRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C534FAFEEA1C8A565DD844F6 /* SurvivalTutorialV3LineRouter.swift */; };
 		8A098B08735F68AC5D8A2E4E /* DrumLoop.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 8761ED966B44CC4D71AF1614 /* DrumLoop.mp3 */; };
@@ -286,7 +290,6 @@
 		A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */ = {isa = PBXBuildFile; fileRef = A2F6F94B04EBCE40147CE417 /* opensheetmusicdisplay.min.js */; };
 		A0414ADD10814B7E6522AD5F /* FreeTierBlockLocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375FF04837E4DF071B89247A /* FreeTierBlockLocks.swift */; };
 		A04D91AF8914B9A565FDAE9B /* SurvivalLessonConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C3C7772B87C9B96D5320F7 /* SurvivalLessonConfig.swift */; };
-		A1B2C3D4E5F60718293A4B5C /* DefenseResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* DefenseResultView.swift */; };
 		A22058B129D06B2DD878ED33 /* EarTrainingPrecisionLoopTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4802BA74F668C1E8148A329 /* EarTrainingPrecisionLoopTests.swift */; };
 		A24D7BB35EAF4288B8DE4B4A /* SurvivalCompositePhraseDamage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9140CD76A930EFAA3062EE0D /* SurvivalCompositePhraseDamage.swift */; };
 		A2B8F955DBF8C3A314F178BC /* ear-training-osmd-timing-adjustment-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = CA4891DB516CEFBCBBDF5389 /* ear-training-osmd-timing-adjustment-v1.script.json */; };
@@ -335,11 +338,10 @@
 		B8CECCAD88030BE5D41E89C0 /* ear-training-developer-full-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = CC1E3D4D83BE3875118FF483 /* ear-training-developer-full-v1.script.json */; };
 		B8E7E486557C767370E527B6 /* EarTrainingPracticeSpeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E61246F5E583E2666BE252D /* EarTrainingPracticeSpeed.swift */; };
 		B8F9010ECCEE3D37CBFAC188 /* TrainingGoalBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B87858DB84EF645AFDE2E1 /* TrainingGoalBannerView.swift */; };
-		E1D2C3B4A59687766554433 /* TrainingGoalArtCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978877665544 /* TrainingGoalArtCardView.swift */; };
-		E1D2C3B4A59687766554434 /* TrainingBestBadgesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E2D3C4B5A6978877665545 /* TrainingBestBadgesView.swift */; };
 		B90AC100700723AC06C94EEF /* EarTrainingAdlibCallResponseBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F81049A4FCE2B486366727A /* EarTrainingAdlibCallResponseBattleController.swift */; };
 		BA004B9D31A1DFBAF189D6D0 /* EarTrainingPhrasePairEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F025416B60CF0EC0AB90A07 /* EarTrainingPhrasePairEngine.swift */; };
 		BBC26AD3FFC447E9D12B083C /* EnharmonicDisplayPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAB816B082FC447BD4B691A1 /* EnharmonicDisplayPreferences.swift */; };
+		BC2EBE7FECE023D22DA18179 /* TrainingProgressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD4D6A91C7EFC87DB7F0518 /* TrainingProgressionTests.swift */; };
 		BC9FBB70910F7F22178BE29D /* MarketingOptInBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10DD1CE67E095CAEF6F59BC7 /* MarketingOptInBannerView.swift */; };
 		BCA0DE2803C661FFB8968BF2 /* TrainingRecordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58ED12A786B3991317CA0BA3 /* TrainingRecordsView.swift */; };
 		BE235741779F7647638FFAFF /* SurvivalTutorialV3DrumLoopPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EACD167A81EDA542E86E8E5 /* SurvivalTutorialV3DrumLoopPlayer.swift */; };
@@ -355,7 +357,6 @@
 		C7F1ECC8A20E40C5DB3083A3 /* EarTrainingChordQuizGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ECE76FBCD48F4FD05191971 /* EarTrainingChordQuizGameView.swift */; };
 		C87A4F0C57EC675C739B0B8C /* SurvivalMapAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 360D198BE9A0BD17E0F535A3 /* SurvivalMapAudio.swift */; };
 		C97B6E06B221250A890A0171 /* SurvivalCodeRunRandomChordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F0B6768B12EFBB46CA04DD3 /* SurvivalCodeRunRandomChordsTests.swift */; };
-		C9D8E7F6A5B4039281726354 /* GameLaunchLoadingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8E7F6A5B403928172635445 /* GameLaunchLoadingOverlay.swift */; };
 		C9E56979BA797BC8A54182DF /* DefenseEnemyDisplayConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70286E8CB46BF37F45570F06 /* DefenseEnemyDisplayConfigTests.swift */; };
 		CB19406828C418DB3A880E17 /* SurvivalBossEffectRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E80A364FA44BA2E07326B46 /* SurvivalBossEffectRenderer.swift */; };
 		CC8AFB1C66AD356D86E3E8A3 /* PlayMapTierBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABE6B777853241960E890E4F /* PlayMapTierBarView.swift */; };
@@ -382,6 +383,7 @@
 		D687F2785A420874FB8B81FA /* SurvivalRandomHintStaff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40D441F66330C1FAE7C95A05 /* SurvivalRandomHintStaff.swift */; };
 		D831F538CDB3901677BB1813 /* MidiKeyboardBuyingGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E78C2E227D4D2FC37302A8E /* MidiKeyboardBuyingGuideView.swift */; };
 		D852F87150F3CD5F7A7A3142 /* SurvivalGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */; };
+		D8685397FBD0F7B9C87ECCDE /* GameLaunchLoadingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78BDE813D4137FDAF7DD1DFA /* GameLaunchLoadingOverlay.swift */; };
 		D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */; };
 		D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1873118CEEB8C7B4341EDE19 /* MainTabView.swift */; };
 		DA0D2D5EDDF5DC8BCAE41F06 /* SurvivalAudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6761B4B9FD0BF03305F8C94A /* SurvivalAudioController.swift */; };
@@ -421,7 +423,6 @@
 		F210EAF80C2F140DB9C25EC3 /* EarTrainingKeyboardScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B134406DA0E0B124C908A6D /* EarTrainingKeyboardScrollTests.swift */; };
 		F2A0442E5E5D80C789F70E0C /* BalloonRushStageDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9560E82B702237BEECB2DB8D /* BalloonRushStageDefinition.swift */; };
 		F37CC0E92DB50C43CD5F4A1B /* SurvivalItemEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588D18E5F6FAC4B051836B8E /* SurvivalItemEngine.swift */; };
-		F3A9B8C7D6E504132627384A /* EarTrainingBattleVolumePreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A9B8C7D6E5041326273849 /* EarTrainingBattleVolumePreferencesTests.swift */; };
 		F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B3CF3FB27C5189D6A521AE12 /* fire_magic_1.mp3 */; };
 		F5FB0205E3ACA5A858BAB4F6 /* CodeRunWorldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFC4CDDAA0EF0D3D72964E9 /* CodeRunWorldView.swift */; };
 		F6343BD5063EFD41DECBADD9 /* DefenseKeyboardRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A3E14C8C3628C7552ECD84 /* DefenseKeyboardRange.swift */; };
@@ -432,6 +433,7 @@
 		F8F637556726711A82399A73 /* SurvivalInputBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7EA654B4F135FB53EDF52E /* SurvivalInputBuffer.swift */; };
 		F9C13CAA249C7F30E3D71E97 /* SoftLandingOfferSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09772AD2D331B9526048B4C9 /* SoftLandingOfferSheet.swift */; };
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
+		FA70F133A992CA75B887DE63 /* SurvivalRootBassRoutePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612BB748C0BD2109CE8B40A8 /* SurvivalRootBassRoutePolicy.swift */; };
 		FAE09DE5179923DC0B94277F /* SurvivalLessonRandomChordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E478DD1771E668946C75BA /* SurvivalLessonRandomChordsTests.swift */; };
 		FB6A8B415144A1D9DD2C001C /* EarTrainingAudioCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */; };
 		FC205FA3FCF51E462DBE449C /* EarTrainingBattleOsuCircleTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9FEDD89746BFAFA9E680E8 /* EarTrainingBattleOsuCircleTiming.swift */; };
@@ -469,14 +471,14 @@
 		0E24D67BA3C39274C0C065AB /* AnalyticsClientID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsClientID.swift; sourceTree = "<group>"; };
 		0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyLayout.swift; sourceTree = "<group>"; };
 		0FCFA864013086E71B71E5C5 /* EarTrainingAdlibCallResponseTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseTargets.swift; sourceTree = "<group>"; };
-		0FD9B8F66958E3F1531B228A /* pesto-mir1k-g7-48000-240.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; path = "pesto-mir1k-g7-48000-240.onnx"; sourceTree = "<group>"; };
+		0FD9B8F66958E3F1531B228A /* pesto-mir1k-g7-48000-240.onnx */ = {isa = PBXFileReference; path = "pesto-mir1k-g7-48000-240.onnx"; sourceTree = "<group>"; };
 		107BBAD0B88E8E84331F0F80 /* TrainingMusicTheory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingMusicTheory.swift; sourceTree = "<group>"; };
 		10DD1CE67E095CAEF6F59BC7 /* MarketingOptInBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingOptInBannerView.swift; sourceTree = "<group>"; };
 		122513166C7477AAC026DA06 /* EarTrainingCompositePhraseDamage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCompositePhraseDamage.swift; sourceTree = "<group>"; };
 		12AAB7776B432313249D043C /* FantasyStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FantasyStage.swift; sourceTree = "<group>"; };
 		1468DBA9C15E0A44DD589ADD /* ContactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactView.swift; sourceTree = "<group>"; };
 		14A40E7856D4F083ED04A38D /* EarTrainingChordQuiz.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordQuiz.swift; sourceTree = "<group>"; };
-		157A6D23FCBB6ECF770E3372 /* FuchsMoehrFeltPianoLite.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = FuchsMoehrFeltPianoLite.sf2; sourceTree = "<group>"; };
+		157A6D23FCBB6ECF770E3372 /* FuchsMoehrFeltPianoLite.sf2 */ = {isa = PBXFileReference; path = FuchsMoehrFeltPianoLite.sf2; sourceTree = "<group>"; };
 		158F92DBC08DC1AEE39005DA /* SurvivalCodeRunNativeEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeRunNativeEngineTests.swift; sourceTree = "<group>"; };
 		15A55E5198613BC8A3872FD4 /* SurvivalChordResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordResolverTests.swift; sourceTree = "<group>"; };
 		15C70EB3C9F69AADB16A1693 /* OnboardingPillarCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingPillarCardView.swift; sourceTree = "<group>"; };
@@ -570,7 +572,7 @@
 		4E801584AE49548B05A46466 /* EarTrainingPhrasePairAdlibGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairAdlibGameView.swift; sourceTree = "<group>"; };
 		4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNavigationHelpers.swift; sourceTree = "<group>"; };
 		4E9F8F5AE97172F16A9D7D06 /* SurvivalCompositePhraseEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCompositePhraseEngineTests.swift; sourceTree = "<group>"; };
-		4F8B3B95C18A0D73876DCCD4 /* pesto-mir1k-g7-48000-240-refill.onnx */ = {isa = PBXFileReference; lastKnownFileType = file; path = "pesto-mir1k-g7-48000-240-refill.onnx"; sourceTree = "<group>"; };
+		4F8B3B95C18A0D73876DCCD4 /* pesto-mir1k-g7-48000-240-refill.onnx */ = {isa = PBXFileReference; path = "pesto-mir1k-g7-48000-240-refill.onnx"; sourceTree = "<group>"; };
 		500C82D0353711972FDF74C0 /* SurvivalAssetPreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalAssetPreloader.swift; sourceTree = "<group>"; };
 		5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseGameLoop.swift; sourceTree = "<group>"; };
 		519C033031ADA5E8D43A12DC /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListView.swift; sourceTree = "<group>"; };
@@ -608,9 +610,11 @@
 		60CBEE80132FA7E3E032F24D /* EarTrainingInputTimingTelemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingInputTimingTelemetry.swift; sourceTree = "<group>"; };
 		6116747FF78CFB5A21A4FCB6 /* SurvivalGameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameEngine.swift; sourceTree = "<group>"; };
 		611CAFDFC9C51C7A54B21C68 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		612BB748C0BD2109CE8B40A8 /* SurvivalRootBassRoutePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRootBassRoutePolicy.swift; sourceTree = "<group>"; };
 		626D80F9E79B66F823055FD4 /* EarTrainingBattleOsuCircleNoteLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleNoteLabels.swift; sourceTree = "<group>"; };
 		6330A57F0845AE5002BC0184 /* drumstick-count.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "drumstick-count.mp3"; sourceTree = "<group>"; };
 		6500CADC2EFF5D476D9C8A22 /* EarTrainingChordQuizDamageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordQuizDamageTests.swift; sourceTree = "<group>"; };
+		65D88068C27C7F4A5695F241 /* SurvivalRootBassRoutePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalRootBassRoutePolicyTests.swift; sourceTree = "<group>"; };
 		66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScene.swift; sourceTree = "<group>"; };
 		66CED8A9F431B3C6BF2DB649 /* EarTrainingOsmdScoreScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdScoreScroll.swift; sourceTree = "<group>"; };
 		6761B4B9FD0BF03305F8C94A /* SurvivalAudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalAudioController.swift; sourceTree = "<group>"; };
@@ -640,7 +644,9 @@
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
 		7506A99CCCD98BCB75B3EC6C /* Bravura.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Bravura.otf; sourceTree = "<group>"; };
 		756A3B99902D375DE6618F81 /* PianoKeyboardScrollChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollChrome.swift; sourceTree = "<group>"; };
+		76B83A7CEC8E09D2A75F237C /* TrainingProgression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProgression.swift; sourceTree = "<group>"; };
 		76EE28F54FC033C3D9E45A10 /* TrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngine.swift; sourceTree = "<group>"; };
+		78BDE813D4137FDAF7DD1DFA /* GameLaunchLoadingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLaunchLoadingOverlay.swift; sourceTree = "<group>"; };
 		78C9D0601CB9DA7604223D2E /* EarTrainingPrecisionLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionLoop.swift; sourceTree = "<group>"; };
 		79258F48911DD4B40B70A71A /* BalloonRushPlayLoopFacade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushPlayLoopFacade.swift; sourceTree = "<group>"; };
 		795B57E03FD4DB34A9606AC6 /* AnnouncementRichContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementRichContent.swift; sourceTree = "<group>"; };
@@ -675,9 +681,6 @@
 		86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingGameView.swift; sourceTree = "<group>"; };
 		8761ED966B44CC4D71AF1614 /* DrumLoop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = DrumLoop.mp3; sourceTree = "<group>"; };
 		898722C93A5DEA98A0A89DEF /* TrainingQuestionBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingQuestionBuilder.swift; sourceTree = "<group>"; };
-		F3A8B2C1D4E5678901234A01 /* TrainingProgression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProgression.swift; sourceTree = "<group>"; };
-		F3A8B2C1D4E5678901234A02 /* TrainingTwoHandVoicingTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingTwoHandVoicingTables.swift; sourceTree = "<group>"; };
-		F3A8B2C1D4E5678901234A03 /* TrainingProgressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProgressionTests.swift; sourceTree = "<group>"; };
 		89E2B5077C050313A3429046 /* TrainingActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingActivityTests.swift; sourceTree = "<group>"; };
 		8A0D07551342926C3776B3D8 /* SurvivalTutorialV3DialogueScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DialogueScene.swift; sourceTree = "<group>"; };
 		8A4CB7B60E28CACBC2495D55 /* Balloon.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = Balloon.mp3; sourceTree = "<group>"; };
@@ -703,8 +706,10 @@
 		9560E82B702237BEECB2DB8D /* BalloonRushStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushStageDefinition.swift; sourceTree = "<group>"; };
 		9598C9898C52B457C3447906 /* SurvivalStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageDefinition.swift; sourceTree = "<group>"; };
 		95D64D5494D20256EEB835EE /* EarTrainingOsmdCameraEffectPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdCameraEffectPreferences.swift; sourceTree = "<group>"; };
+		96EA6552993117E3A225DD4B /* TrainingGoalArtCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGoalArtCardView.swift; sourceTree = "<group>"; };
 		97333D04BAA4BF86172C550D /* EarTrainingAdlibBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibBattleController.swift; sourceTree = "<group>"; };
 		978C4F59CA03A66D1854BEE0 /* SurvivalDescentSidePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentSidePanel.swift; sourceTree = "<group>"; };
+		97CCA4BE1C653388BAD5CC63 /* TrainingBestBadgesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingBestBadgesView.swift; sourceTree = "<group>"; };
 		99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordResolver.swift; sourceTree = "<group>"; };
 		99BF392160E8497C9C1569D4 /* OnboardingSkipButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSkipButton.swift; sourceTree = "<group>"; };
 		9A7015BD0D0131C898624259 /* BalloonRushSpawn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushSpawn.swift; sourceTree = "<group>"; };
@@ -746,7 +751,7 @@
 		AD358E0E638C38C13FE62E68 /* EarTrainingMusicXmlTransposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingMusicXmlTransposerTests.swift; sourceTree = "<group>"; };
 		ADB585305FC51693521FC279 /* EarTrainingBattleBeatSyncTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleBeatSyncTiming.swift; sourceTree = "<group>"; };
 		ADE8AAFE28EC8A60314619CE /* TrainingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingActivity.swift; sourceTree = "<group>"; };
-		AF26C825E4FC0AC4F28E4366 /* FingerBassYR 20190930.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = "FingerBassYR 20190930.sf2"; sourceTree = "<group>"; };
+		AF26C825E4FC0AC4F28E4366 /* FingerBassYR 20190930.sf2 */ = {isa = PBXFileReference; path = "FingerBassYR 20190930.sf2"; sourceTree = "<group>"; };
 		AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
 		B026512DA7112C356C1782FF /* SurvivalStaffOverlayLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStaffOverlayLayoutTests.swift; sourceTree = "<group>"; };
 		B0A3E14C8C3628C7552ECD84 /* DefenseKeyboardRange.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseKeyboardRange.swift; sourceTree = "<group>"; };
@@ -755,7 +760,6 @@
 		B1651D19CFE8A7AE2F990B03 /* SurvivalPhraseStaffSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffSnapshot.swift; sourceTree = "<group>"; };
 		B1A0A161C836A070F0DEF853 /* SurvivalCodeRunNativeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeRunNativeEngine.swift; sourceTree = "<group>"; };
 		B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAudioCaptureTests.swift; sourceTree = "<group>"; };
-		B2C3D4E5F60718293A4B5C6D /* DefenseResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseResultView.swift; sourceTree = "<group>"; };
 		B2C6C40AC8031AE43C504E98 /* OnboardingCharacterDialogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCharacterDialogView.swift; sourceTree = "<group>"; };
 		B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleScene.swift; sourceTree = "<group>"; };
 		B3CF3FB27C5189D6A521AE12 /* fire_magic_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = fire_magic_1.mp3; sourceTree = "<group>"; };
@@ -769,6 +773,7 @@
 		B89D81207B3C7BA9E51011AC /* SurvivalScenarioOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScenarioOverrides.swift; sourceTree = "<group>"; };
 		B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEngine.swift; sourceTree = "<group>"; };
 		BF8ECC214ED50933CFC7AC74 /* SurvivalGameResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameResultView.swift; sourceTree = "<group>"; };
+		C06A8D0D96EFDA6B9DBC93B6 /* EarTrainingBattleVolumePreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleVolumePreferencesTests.swift; sourceTree = "<group>"; };
 		C19CE4C88C2E79AE483C7398 /* EarTrainingAdlibCallResponseTargetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseTargetsTests.swift; sourceTree = "<group>"; };
 		C1E478DD1771E668946C75BA /* SurvivalLessonRandomChordsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalLessonRandomChordsTests.swift; sourceTree = "<group>"; };
 		C2BD5B09655436BEAEDEFBA4 /* EarTrainingCompositePhraseAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingCompositePhraseAdapter.swift; sourceTree = "<group>"; };
@@ -789,8 +794,6 @@
 		C86FD0A420162EC69DDE355F /* SurvivalTutorialV3StageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3StageBuilder.swift; sourceTree = "<group>"; };
 		C88453408DE12301997E620A /* MarketingEmailOptIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingEmailOptIn.swift; sourceTree = "<group>"; };
 		C8B87858DB84EF645AFDE2E1 /* TrainingGoalBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGoalBannerView.swift; sourceTree = "<group>"; };
-		F1E2D3C4B5A6978877665544 /* TrainingGoalArtCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGoalArtCardView.swift; sourceTree = "<group>"; };
-		F1E2D3C4B5A6978877665545 /* TrainingBestBadgesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingBestBadgesView.swift; sourceTree = "<group>"; };
 		C975F62A45264DE86D940B45 /* SurvivalBackgroundCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBackgroundCache.swift; sourceTree = "<group>"; };
 		C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameView.swift; sourceTree = "<group>"; };
 		CA4891DB516CEFBCBBDF5389 /* ear-training-osmd-timing-adjustment-v1.script.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ear-training-osmd-timing-adjustment-v1.script.json"; sourceTree = "<group>"; };
@@ -814,15 +817,15 @@
 		D66399908DD8041414D9EA9C /* OnboardingChords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingChords.swift; sourceTree = "<group>"; };
 		D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonAttachmentPreview.swift; sourceTree = "<group>"; };
 		D82BC28D5575DEEE8A1AE11E /* SurvivalDescentTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentTheme.swift; sourceTree = "<group>"; };
-		D8E7F6A5B403928172635445 /* GameLaunchLoadingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLaunchLoadingOverlay.swift; sourceTree = "<group>"; };
 		D921FEFF885162669F055BC2 /* EarTrainingChordQuizTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordQuizTests.swift; sourceTree = "<group>"; };
 		D9485CAD92DBC2153C8F905C /* OnboardingBgmController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBgmController.swift; sourceTree = "<group>"; };
 		DA0E081EAB3A69E2F8AA3F16 /* BalloonRushStatusOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushStatusOverlay.swift; sourceTree = "<group>"; };
 		DA1F0878B82656E43D73E126 /* PianoKeyboardDisplayRangeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardDisplayRangeTests.swift; sourceTree = "<group>"; };
 		DBAE45F2D02963E349EC267D /* SurvivalTutorialV3LessonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3LessonView.swift; sourceTree = "<group>"; };
 		DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentIssueBannerView.swift; sourceTree = "<group>"; };
+		DCD4D6A91C7EFC87DB7F0518 /* TrainingProgressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingProgressionTests.swift; sourceTree = "<group>"; };
 		DD16418FE79E122CE5868E08 /* EarTrainingOsmdTimingAdjustmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdTimingAdjustmentTests.swift; sourceTree = "<group>"; };
-		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDC60CDD78F5E991C6D042E4 /* EarTrainingMusicXmlEnharmonicSimplifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingMusicXmlEnharmonicSimplifierTests.swift; sourceTree = "<group>"; };
 		DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStatusEffectEngine.swift; sourceTree = "<group>"; };
 		DEFC4CDDAA0EF0D3D72964E9 /* CodeRunWorldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeRunWorldView.swift; sourceTree = "<group>"; };
@@ -832,7 +835,7 @@
 		E075719D977A4B41BEA20EA2 /* EarTrainingBattleStaffBandLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleStaffBandLayout.swift; sourceTree = "<group>"; };
 		E08E2993908D82F66E4ED990 /* SurvivalTutorialDemoStaffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialDemoStaffView.swift; sourceTree = "<group>"; };
 		E0C4F522FB4CBFB6FF54B423 /* DefenseGameSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseGameSession.swift; sourceTree = "<group>"; };
-		E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "課題完了前 クリアモーダル.mp3"; sourceTree = "<group>"; };
+		E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "課題完了前 クリアモーダル.mp3"; sourceTree = "<group>"; };
 		E125389CFA03DC78BDE1EDEC /* TrainingGoalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGoalView.swift; sourceTree = "<group>"; };
 		E16120BBBAF7F047B52F3CFB /* SurvivalPhraseModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseModel.swift; sourceTree = "<group>"; };
 		E190F8D43A08235F59D9E1F4 /* EarTrainingChordVoicingStaffLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingStaffLayout.swift; sourceTree = "<group>"; };
@@ -864,9 +867,10 @@
 		F1AEC1B26646D55154111C37 /* SurvivalSessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSessionState.swift; sourceTree = "<group>"; };
 		F1E33139D92205CFC2F61870 /* SurvivalPhraseMapPreviewPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseMapPreviewPlayer.swift; sourceTree = "<group>"; };
 		F39571660006C71FEFC9F21A /* EarTrainingTutorialStageBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialStageBuilder.swift; sourceTree = "<group>"; };
-		F3A9B8C7D6E5041326273849 /* EarTrainingBattleVolumePreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleVolumePreferencesTests.swift; sourceTree = "<group>"; };
 		F3D53409FCF89A8E08A4174C /* BalloonRushTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BalloonRushTypes.swift; sourceTree = "<group>"; };
+		F3EB9ADDFC3159726B6B0950 /* TrainingTwoHandVoicingTables.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingTwoHandVoicingTables.swift; sourceTree = "<group>"; };
 		F455CBC113D3CCEBB89D8BA0 /* SurvivalSimulation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalSimulation.swift; sourceTree = "<group>"; };
+		F480AC479D6442C783394507 /* DefenseResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseResultView.swift; sourceTree = "<group>"; };
 		F542076387CBE225E26978DB /* EarTrainingBattleStageKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleStageKit.swift; sourceTree = "<group>"; };
 		F5FB42EB0BEA73D79132F739 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F6045043BF413BE2CD5E6C5A /* EarTrainingBattleProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleProtocols.swift; sourceTree = "<group>"; };
@@ -927,10 +931,10 @@
 				EBA9D7206788ADBB43C7240C /* TrainingGoalProgress.swift */,
 				5F3FEA4B801BA2C1FA8F69D5 /* TrainingKeyboardRange.swift */,
 				107BBAD0B88E8E84331F0F80 /* TrainingMusicTheory.swift */,
+				76B83A7CEC8E09D2A75F237C /* TrainingProgression.swift */,
 				898722C93A5DEA98A0A89DEF /* TrainingQuestionBuilder.swift */,
-				F3A8B2C1D4E5678901234A01 /* TrainingProgression.swift */,
 				9E74BE1BD8F3E870D38B620A /* TrainingRank.swift */,
-				F3A8B2C1D4E5678901234A02 /* TrainingTwoHandVoicingTables.swift */,
+				F3EB9ADDFC3159726B6B0950 /* TrainingTwoHandVoicingTables.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -1160,8 +1164,8 @@
 			isa = PBXGroup;
 			children = (
 				3D0B0608B905C210B1DA2EE2 /* DefenseGameView.swift */,
-				B2C3D4E5F60718293A4B5C6D /* DefenseResultView.swift */,
 				E4E5F56CD5622CFF2B912FFF /* DefensePhraseStaffView.swift */,
+				F480AC479D6442C783394507 /* DefenseResultView.swift */,
 				F9FC0B1FA0561C858199879A /* DefenseScene.swift */,
 				FBC19B3A7D42EAB4C8CAC3C4 /* DefenseSceneLayout.swift */,
 			);
@@ -1222,12 +1226,12 @@
 		638042E8FDE1A4A412702D8E /* View */ = {
 			isa = PBXGroup;
 			children = (
+				97CCA4BE1C653388BAD5CC63 /* TrainingBestBadgesView.swift */,
 				CBA94797866E6F907E24C0BA /* TrainingCalendarView.swift */,
 				2AB7E07EDDCD8C038586B7A4 /* TrainingDonutView.swift */,
 				4BB920A475115C673D916DED /* TrainingGameView.swift */,
-				F1E2D3C4B5A6978877665545 /* TrainingBestBadgesView.swift */,
+				96EA6552993117E3A225DD4B /* TrainingGoalArtCardView.swift */,
 				C8B87858DB84EF645AFDE2E1 /* TrainingGoalBannerView.swift */,
-				F1E2D3C4B5A6978877665544 /* TrainingGoalArtCardView.swift */,
 				CC01A727938CFD3713F557D2 /* TrainingGoalListView.swift */,
 				E125389CFA03DC78BDE1EDEC /* TrainingGoalView.swift */,
 				44EC9B27497C65A373F17403 /* TrainingHabitSectionView.swift */,
@@ -1288,8 +1292,8 @@
 				55BDC6B209198A5C2A285F91 /* DiscordOAuthTests.swift */,
 				C19CE4C88C2E79AE483C7398 /* EarTrainingAdlibCallResponseTargetsTests.swift */,
 				B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */,
-				F3A9B8C7D6E5041326273849 /* EarTrainingBattleVolumePreferencesTests.swift */,
 				8BEF251BA146E71822115C66 /* EarTrainingBattleStageKitTests.swift */,
+				C06A8D0D96EFDA6B9DBC93B6 /* EarTrainingBattleVolumePreferencesTests.swift */,
 				B4B32E381A4EBA54C3DA3624 /* EarTrainingCanonicalPhraseNotesTests.swift */,
 				192633CABD146818E6B56477 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift */,
 				1EC3C0C70154289EBAAA82CB /* EarTrainingChordOsmdNaturalPitchTests.swift */,
@@ -1333,6 +1337,7 @@
 				4E9F8F5AE97172F16A9D7D06 /* SurvivalCompositePhraseEngineTests.swift */,
 				C1E478DD1771E668946C75BA /* SurvivalLessonRandomChordsTests.swift */,
 				7F73122EAF6CBA32A19F7807 /* SurvivalPhraseEngineTests.swift */,
+				65D88068C27C7F4A5695F241 /* SurvivalRootBassRoutePolicyTests.swift */,
 				B026512DA7112C356C1782FF /* SurvivalStaffOverlayLayoutTests.swift */,
 				B88A1574E91DF667FEAFE18F /* SurvivalTutorialV3DemoPlayDecodeTests.swift */,
 				52F679CD1D198D706377E721 /* SurvivalTutorialV3DrumLoopSourceResolverTests.swift */,
@@ -1343,8 +1348,8 @@
 				89E2B5077C050313A3429046 /* TrainingActivityTests.swift */,
 				5D3D77D4E0E31D5FC2A2A11A /* TrainingEngineTests.swift */,
 				5FD85EA9BD71C12C4E5EE8DD /* TrainingGoalProgressTests.swift */,
+				DCD4D6A91C7EFC87DB7F0518 /* TrainingProgressionTests.swift */,
 				718B539D8ADF7BEFB659DE6A /* TrainingQuestionBuilderTests.swift */,
-				F3A8B2C1D4E5678901234A03 /* TrainingProgressionTests.swift */,
 				7F7628C3F98B25623FB909C2 /* TrainingRankTests.swift */,
 			);
 			path = JazzifyTests;
@@ -1431,6 +1436,7 @@
 				434803A21244909C20639A7C /* PianoVelocityCurve.swift */,
 				6761B4B9FD0BF03305F8C94A /* SurvivalAudioController.swift */,
 				CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */,
+				612BB748C0BD2109CE8B40A8 /* SurvivalRootBassRoutePolicy.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -1570,7 +1576,7 @@
 				4F8B3B95C18A0D73876DCCD4 /* pesto-mir1k-g7-48000-240-refill.onnx */,
 				0FD9B8F66958E3F1531B228A /* pesto-mir1k-g7-48000-240.onnx */,
 				381E12BED6CB73533234D66B /* クエスト完了.mp3 */,
-				E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */,
+				E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -1748,13 +1754,13 @@
 				FCDA84E85D21D8CB2E172F0C /* DiscordOAuth.swift */,
 				8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */,
 				375FF04837E4DF071B89247A /* FreeTierBlockLocks.swift */,
+				78BDE813D4137FDAF7DD1DFA /* GameLaunchLoadingOverlay.swift */,
 				CD951C4626370A46F118349F /* GuidedSoftLandingPreferences.swift */,
 				0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */,
 				9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */,
 				16568C6DC2CE0A0353458F62 /* LessonJourneyViewComponents.swift */,
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
 				4E8DAD6DF5D82098B8E664B6 /* LessonNavigationHelpers.swift */,
-				D8E7F6A5B403928172635445 /* GameLaunchLoadingOverlay.swift */,
 				C7E27C9FECCF8E087E7E449D /* MainQuestFreeTier.swift */,
 				3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
@@ -1874,7 +1880,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0839466021752CA8250130F6 /* Build configuration list for PBXNativeTarget "Jazzify" */;
 			buildPhases = (
-				A9F0E1D2C3B4A59687766554 /* Ensure Package.resolved */,
+				0DB1C87E9F64DF03598DCD43 /* Ensure Package.resolved */,
 				87BAD536101199DB635FD009 /* Sources */,
 				0093056A21E8BD17AD718571 /* Resources */,
 				55A996B77880CE7B3497FD16 /* Frameworks */,
@@ -1902,6 +1908,9 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					1422B8BE57AB5C3E6D6FC203 = {
+						DevelopmentTeam = "";
+					};
+					E500BA83C6EE4C666A3895FC = {
 						DevelopmentTeam = "";
 					};
 				};
@@ -1957,14 +1966,14 @@
 				B1F33138C1C84D298A69F7F6 /* pesto-mir1k-g7-48000-240.onnx in Resources */,
 				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
-				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
+				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		A9F0E1D2C3B4A59687766554 /* Ensure Package.resolved */ = {
+		0DB1C87E9F64DF03598DCD43 /* Ensure Package.resolved */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -2000,8 +2009,8 @@
 				5ED2E1A97CE878B233383C75 /* DiscordOAuthTests.swift in Sources */,
 				766F62D9EC19BFBDED4C6A0E /* EarTrainingAdlibCallResponseTargetsTests.swift in Sources */,
 				FB6A8B415144A1D9DD2C001C /* EarTrainingAudioCaptureTests.swift in Sources */,
-				F3A9B8C7D6E504132627384A /* EarTrainingBattleVolumePreferencesTests.swift in Sources */,
 				F1426C9DD17031E688C7E08E /* EarTrainingBattleStageKitTests.swift in Sources */,
+				4BAC6A003552AFE081201B91 /* EarTrainingBattleVolumePreferencesTests.swift in Sources */,
 				9657204BD40C8A2B3D6D93D0 /* EarTrainingCanonicalPhraseNotesTests.swift in Sources */,
 				9822C044B046A4A5DD7687E9 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift in Sources */,
 				C44D9B3C503DD3928FB8282E /* EarTrainingChordOsmdNaturalPitchTests.swift in Sources */,
@@ -2045,6 +2054,7 @@
 				5C82C28556551019D6CE062C /* SurvivalCompositePhraseEngineTests.swift in Sources */,
 				FAE09DE5179923DC0B94277F /* SurvivalLessonRandomChordsTests.swift in Sources */,
 				0B2E19C0407BD30C903F1CE9 /* SurvivalPhraseEngineTests.swift in Sources */,
+				091DD362090CAE1722EA1358 /* SurvivalRootBassRoutePolicyTests.swift in Sources */,
 				4188E203B1FE90958F571F41 /* SurvivalStaffOverlayLayoutTests.swift in Sources */,
 				B0D7DAFEE3826B9E27817BEC /* SurvivalTutorialV3DemoPlayDecodeTests.swift in Sources */,
 				6F8F58B05DADFEBA5599E9AB /* SurvivalTutorialV3DrumLoopSourceResolverTests.swift in Sources */,
@@ -2055,8 +2065,8 @@
 				D0D441282E58F2D4DB8E801E /* TrainingActivityTests.swift in Sources */,
 				52D0DB97F7C06CB7472A68CB /* TrainingEngineTests.swift in Sources */,
 				13E5D20E85308EC7B510D1C2 /* TrainingGoalProgressTests.swift in Sources */,
+				BC2EBE7FECE023D22DA18179 /* TrainingProgressionTests.swift in Sources */,
 				1D6B4B7C684F2084328F9DBC /* TrainingQuestionBuilderTests.swift in Sources */,
-				F3A8B2C1D4E5678901234B03 /* TrainingProgressionTests.swift in Sources */,
 				2C3C3A7EA8B728871D655EF0 /* TrainingRankTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2112,13 +2122,13 @@
 				54FFCB32F2C995F454A1628D /* DefenseGameLoop.swift in Sources */,
 				B07BC94786FF77545A500019 /* DefenseGameSession.swift in Sources */,
 				19C9B64FB798B5B39894E127 /* DefenseGameView.swift in Sources */,
-				A1B2C3D4E5F60718293A4B5C /* DefenseResultView.swift in Sources */,
 				F6343BD5063EFD41DECBADD9 /* DefenseKeyboardRange.swift in Sources */,
 				7FC6EA227ADEC5CF85380A63 /* DefenseModels.swift in Sources */,
 				AF11AB45821720FD44629F49 /* DefensePhraseJudge.swift in Sources */,
 				EF256CF18B6971EF2B9B061F /* DefensePhraseStaffView.swift in Sources */,
 				AF1C7F126A03C0F0D4C5C7CF /* DefensePlayerPose.swift in Sources */,
 				F71AC29E751ABE8FB059401B /* DefensePracticeSpeed.swift in Sources */,
+				7BE20548E88EB12C5515E4D7 /* DefenseResultView.swift in Sources */,
 				624FFEA8E4C2B2D5B5FD2B32 /* DefenseScene.swift in Sources */,
 				08E4A461AC6D81FCA0D9AD63 /* DefenseSceneLayout.swift in Sources */,
 				2E234F2055DE2F724FAAFAE5 /* DefenseTransport.swift in Sources */,
@@ -2212,6 +2222,7 @@
 				24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */,
 				E3610256F40C29FB7E2F7D20 /* FantasyStageView.swift in Sources */,
 				A0414ADD10814B7E6522AD5F /* FreeTierBlockLocks.swift in Sources */,
+				D8685397FBD0F7B9C87ECCDE /* GameLaunchLoadingOverlay.swift in Sources */,
 				EA799676165F54C2B31D2C6C /* GameWebView.swift in Sources */,
 				7D20885CA1974C62DCC116E7 /* GuidedSoftLandingPreferences.swift in Sources */,
 				91ED841A9AA5FAB62FBBE994 /* InputMethodSection.swift in Sources */,
@@ -2223,7 +2234,6 @@
 				D2083E728F663A949957D7DE /* LessonJourneyViewComponents.swift in Sources */,
 				16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */,
 				E8E19D25D4087433885B21FD /* LessonNavigationHelpers.swift in Sources */,
-				C9D8E7F6A5B4039281726354 /* GameLaunchLoadingOverlay.swift in Sources */,
 				DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */,
 				E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */,
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,
@@ -2335,6 +2345,7 @@
 				AA0C984AF9CCE9FBB151B0AE /* SurvivalProgressionStaffView.swift in Sources */,
 				E9DE4979E58EE71DEE804B11 /* SurvivalQuestionTypes.swift in Sources */,
 				D687F2785A420874FB8B81FA /* SurvivalRandomHintStaff.swift in Sources */,
+				FA70F133A992CA75B887DE63 /* SurvivalRootBassRoutePolicy.swift in Sources */,
 				55F54C4BA1E268879298B4D9 /* SurvivalRunPrepSheet.swift in Sources */,
 				8A63C0E5C8C21AFD5E1B3CD9 /* SurvivalScenarioController.swift in Sources */,
 				73D5C548A7D5FF93706E169D /* SurvivalScenarioOverrides.swift in Sources */,
@@ -2371,14 +2382,14 @@
 				0D7D788C58C2C2CBD2A0E107 /* TaskClearNextStepSheet.swift in Sources */,
 				56798F7B79D567C225C5CB37 /* TopView.swift in Sources */,
 				B6183C3E899D26BADB1545AD /* TrainingActivity.swift in Sources */,
+				4BED5DF9C4F316BD6875648A /* TrainingBestBadgesView.swift in Sources */,
 				D497939C50F5837E41671F74 /* TrainingCalendarView.swift in Sources */,
 				6B1EDC5BC510A84B25FE15EA /* TrainingDonutView.swift in Sources */,
 				4323F367B43A74CDDBA7A962 /* TrainingEngine.swift in Sources */,
 				76EB07484BFE7DBB76DEE101 /* TrainingGameSession.swift in Sources */,
 				F7F0A77FEC55056E768C1951 /* TrainingGameView.swift in Sources */,
-				E1D2C3B4A59687766554434 /* TrainingBestBadgesView.swift in Sources */,
+				31AE3CF33516CCD0DC0DAB77 /* TrainingGoalArtCardView.swift in Sources */,
 				B8F9010ECCEE3D37CBFAC188 /* TrainingGoalBannerView.swift in Sources */,
-				E1D2C3B4A59687766554433 /* TrainingGoalArtCardView.swift in Sources */,
 				8740DD82CC0968435363BD8E /* TrainingGoalListView.swift in Sources */,
 				9FD046FE3B233F00410A3E99 /* TrainingGoalProgress.swift in Sources */,
 				46641E65FF1CF168C2775234 /* TrainingGoalView.swift in Sources */,
@@ -2387,15 +2398,15 @@
 				8F5E7D0A7FD4AF5F5E01A0D1 /* TrainingListView.swift in Sources */,
 				80CC576FEB48476DA1027B2B /* TrainingModels.swift in Sources */,
 				1A03E53FE0C8C7D722EC2BA5 /* TrainingMusicTheory.swift in Sources */,
+				6E602616B42F970A84B18E0D /* TrainingProgression.swift in Sources */,
 				524DB205B53D4CB109A95408 /* TrainingQuestionBuilder.swift in Sources */,
-				F3A8B2C1D4E5678901234B01 /* TrainingProgression.swift in Sources */,
 				9E5FE80FAAAD098F83CF448B /* TrainingRank.swift in Sources */,
-				F3A8B2C1D4E5678901234B02 /* TrainingTwoHandVoicingTables.swift in Sources */,
 				DF8EC2226F1EFC994818491C /* TrainingRankingView.swift in Sources */,
 				BCA0DE2803C661FFB8968BF2 /* TrainingRecordsView.swift in Sources */,
 				5CAF2D6C5FDD175A4DCACC7E /* TrainingResultView.swift in Sources */,
 				7A581F56FE2F569E74A0A1EC /* TrainingScene.swift in Sources */,
 				61021F05FA818052CB89758F /* TrainingStaffView.swift in Sources */,
+				888D0C88EC70F43FD4FAEA72 /* TrainingTwoHandVoicingTables.swift in Sources */,
 				346E3E84E5504E2446B94069 /* TutorialScriptInterpreter.swift in Sources */,
 				5CCE1AD6BCBC020079D3D935 /* TutorialScriptModels.swift in Sources */,
 				6D9DB97728709BD11EAB69DC /* TutorialScriptPresets.swift in Sources */,
@@ -2496,7 +2507,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Jazzify/Jazzify.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Jazzify/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2580,7 +2591,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Jazzify/Jazzify.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Jazzify/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

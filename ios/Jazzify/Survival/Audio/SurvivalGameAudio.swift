@@ -74,6 +74,10 @@ final class SurvivalGameAudio {
     /// ピアノ音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let pianoMixer = AVAudioMixerNode()
     private let rootBassMixer = AVAudioMixerNode()
+    /// 内蔵スピーカー向け: 基音は変えず SF2 倍音のみ high-shelf で持ち上げる。
+    private let rootBassEQ = AVAudioUnitEQ(numberOfBands: 1)
+    /// `routeChangeNotification` で更新。再生ホットパスでは参照のみ。
+    private var isBuiltInSpeakerRoute = true
     /// SFX 専用ピークリミッター。AUPeakLimiter のルックアヘッドで数 ms の遅延が生じるため、
     /// 鍵盤 / 正解ルートは mainMixer へ直結し、タイミング重視の SE のみ通す。
     private let limiter: AVAudioUnitEffect = {
@@ -120,6 +124,7 @@ final class SurvivalGameAudio {
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
     private var appAudioSessionObserver: NSObjectProtocol?
+    private var routeChangeObserver: NSObjectProtocol?
     /// マイク入力中は BGM のみ 50% 減衰（ピアノ / SFX / フレーズは対象外）。
     private var voiceInputDucking = false
     private static let voiceInputDuckFactor: Float = 0.5
@@ -132,6 +137,7 @@ final class SurvivalGameAudio {
         engine.attach(pianoMixer)
         engine.attach(rootBassSampler)
         engine.attach(keyboardGrandSampler)
+        engine.attach(rootBassEQ)
         engine.attach(rootBassMixer)
         engine.attach(limiter)
         engine.connect(sampler, to: sfxMixer, format: nil)
@@ -139,11 +145,13 @@ final class SurvivalGameAudio {
         engine.connect(limiter, to: engine.mainMixerNode, format: nil)
         engine.connect(keyboardGrandSampler, to: pianoMixer, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
-        // 正解ルート音は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
+        // 正解ルート音は EQ → 専用ミキサー経由。ピアノ音量に影響されない独立音量制御。
         // Web 版 `_playRootNote` の master gain (0.3 + effectiveVolume * 0.7) 相当を
         // `effectiveRootBassVolume` で再現する。鍵盤 / ルートは limiter をバイパスして低遅延。
-        engine.connect(rootBassSampler, to: rootBassMixer, format: nil)
+        engine.connect(rootBassSampler, to: rootBassEQ, format: nil)
+        engine.connect(rootBassEQ, to: rootBassMixer, format: nil)
         engine.connect(rootBassMixer, to: engine.mainMixerNode, format: nil)
+        configureRootBassEQ()
         configurePeakLimiter(limiter)
         bgmPlayer.actionAtItemEnd = .advance
         registerLifecycleObservers()
@@ -156,6 +164,7 @@ final class SurvivalGameAudio {
     ///   フレーズ MP3 を主役に流すモードで使用する。
     func start(playBackgroundMusic: Bool = true) {
         AppAudioSession.shared.configure()
+        refreshAudioOutputRoute()
         // `preparePianoIfNeeded()` 内でも engine を起動する。下の呼び出しは冪等ガードのため二重でも安全。
         preparePianoIfNeeded()
         prepareRootBassGMBankIfNeeded()
@@ -389,8 +398,11 @@ final class SurvivalGameAudio {
         prepareRootBassGMBankIfNeeded()
 
         if !playRootBassOneShot(midi: clamped) {
-            // SF2 未ロード時もコード記号ルートを短く鳴らす（無音よりマシ）
-            pianoOneShot(midi: clamped, duration: 0.42, velocity: 88)
+            // SF2 未ロード時もコード記号ルートを短く鳴らす（無音よりマシ）。音高は変えない。
+            let fallbackVelocity = Int(
+                SurvivalRootBassRoutePolicy.gain(isBuiltInSpeaker: isBuiltInSpeakerRoute).velocity
+            )
+            pianoOneShot(midi: clamped, duration: 0.42, velocity: fallbackVelocity)
         }
 
         // 三角波フォールバックは使わない。
@@ -441,8 +453,9 @@ final class SurvivalGameAudio {
         let n = UInt8(clamping: midi)
         rootBassOneShotGeneration &+= 1
         let generation = rootBassOneShotGeneration
+        let playback = SurvivalRootBassRoutePolicy.gain(isBuiltInSpeaker: isBuiltInSpeakerRoute)
         rootBassSampler.stopNote(n, onChannel: 0)
-        rootBassSampler.startNote(n, withVelocity: 100, onChannel: 0)
+        rootBassSampler.startNote(n, withVelocity: playback.velocity, onChannel: 0)
         let stopDelay: TimeInterval = 0.45
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + stopDelay) { [weak self] in
             guard let self,
@@ -492,6 +505,31 @@ final class SurvivalGameAudio {
         AudioUnitSetParameter(au, PeakLimiterParameter.preGain, kAudioUnitScope_Global, 0, 0, 0)
         AudioUnitSetParameter(au, PeakLimiterParameter.attackTime, kAudioUnitScope_Global, 0, 0.001, 0)
         AudioUnitSetParameter(au, PeakLimiterParameter.decayTime, kAudioUnitScope_Global, 0, 0.05, 0)
+    }
+
+    private func configureRootBassEQ() {
+        let band = rootBassEQ.bands[0]
+        band.filterType = .highShelf
+        band.frequency = SurvivalRootBassRoutePolicy.speakerHighShelfFrequency
+        band.bandwidth = 1.0
+        band.bypass = false
+        band.gain = SurvivalRootBassRoutePolicy.defaultHighShelfGainDb
+    }
+
+    /// 出力ルート変更時・`start()` 時に呼ぶ。`currentRoute` はここだけで読む。
+    private func refreshAudioOutputRoute() {
+        let portTypes = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
+        isBuiltInSpeakerRoute = SurvivalRootBassRoutePolicy.usesBuiltInSpeaker(portTypes: portTypes)
+        applyRootBassRoutePlayback()
+    }
+
+    private func applyRootBassRoutePlayback() {
+        rootBassEQ.bands[0].gain = SurvivalRootBassRoutePolicy.highShelfGainDb(
+            isBuiltInSpeaker: isBuiltInSpeakerRoute
+        )
+        if isEngineStarted {
+            applyVolumesToNodes()
+        }
     }
 
     private func resolvePianoSoundBankURL() -> URL? {
@@ -643,6 +681,7 @@ final class SurvivalGameAudio {
                 program: kRootBassSoundBankProgram
             )
         }
+        applyRootBassRoutePlayback()
     }
 
     private func registerLifecycleObservers() {
@@ -674,6 +713,13 @@ final class SurvivalGameAudio {
             queue: .main
         ) { [weak self] _ in
             self?.reconfigureAfterAudioSessionTransition()
+        }
+        routeChangeObserver = center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshAudioOutputRoute()
         }
     }
 
@@ -782,7 +828,9 @@ final class SurvivalGameAudio {
     private func effectiveRootBassVolume() -> Float {
         if isMuted { return 0 }
         let effective = max(rootBassVolume, 0)
-        return 0.30 + min(1.0, effective) * 0.70
+        let base = 0.30 + min(1.0, effective) * 0.70
+        let routeGain = SurvivalRootBassRoutePolicy.gain(isBuiltInSpeaker: isBuiltInSpeakerRoute).mixerGain
+        return base * routeGain
     }
 
     private func playBgm() {
