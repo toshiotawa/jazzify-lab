@@ -1,4 +1,7 @@
-import { drawBattleAvatar } from '@/game/earTraining/canvas/earTrainingBattleActorDraw';
+import {
+  drawBattleAvatar,
+  drawTintedImageCopy,
+} from '@/game/earTraining/canvas/earTrainingBattleActorDraw';
 import {
   drawCachedBackground,
   invalidateBackgroundCache,
@@ -10,6 +13,7 @@ import {
 import type { BackgroundCacheState } from '@/game/earTraining/canvas/earTrainingBattleDrawState';
 import {
   DEFENSE_ENEMY_CONFIG,
+  DEFENSE_HIT_FLASH_SEC,
   DEFENSE_SLASH_SEC,
   getDefenseFlyingBobOffset,
   pickDefenseEnemyFrame,
@@ -51,13 +55,22 @@ const isTrainingSlashActive = (
   return remaining > 0 && remaining <= DEFENSE_SLASH_SEC;
 };
 
+const isTrainingHitFlashActive = (
+  elapsedSec: number,
+  slashUntilSec: number,
+): boolean => {
+  if (slashUntilSec <= 0) return false;
+  const slashStart = slashUntilSec - DEFENSE_SLASH_SEC;
+  const age = elapsedSec - slashStart;
+  return age >= 0 && age < DEFENSE_HIT_FLASH_SEC;
+};
+
 const drawSlashEffect = (
   ctx: CanvasRenderingContext2D,
   width: number,
   floorY: number,
   elapsedSec: number,
   slashUntilSec: number,
-  enemyOffsetX: number,
   spriteScale: number,
 ): void => {
   if (!isTrainingSlashActive(elapsedSec, slashUntilSec)) return;
@@ -66,7 +79,7 @@ const drawSlashEffect = (
   const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
   const fromX = width * TRAINING_PLAYER_X_RATIO + avatarSize * 0.45;
   const fromY = floorY - avatarSize * 0.55;
-  const toX = width * TRAINING_ENEMY_X_RATIO + enemyOffsetX;
+  const toX = width * TRAINING_ENEMY_X_RATIO;
   const toY = fromY;
 
   const dx = toX - fromX;
@@ -148,6 +161,7 @@ const drawTrainingEnemySprite = (
   atlas: DefenseEnemySpriteAtlas | null,
   moving: boolean,
   attacking: boolean,
+  hitFlash: boolean,
 ): void => {
   const enemyType = DEFENSE_ENEMY_TYPES[typeIndex % DEFENSE_ENEMY_TYPES.length] ?? 'slime';
   const config = DEFENSE_ENEMY_CONFIG[enemyType];
@@ -177,7 +191,20 @@ const drawTrainingEnemySprite = (
       attacking,
     );
     const img = frame === 'idle' ? sprites.idle : sprites.move;
-    ctx.drawImage(img, ex - drawWidth / 2, floorY + footOffset - drawHeight, drawWidth, drawHeight);
+    const top = floorY + footOffset - drawHeight;
+    ctx.drawImage(img, ex - drawWidth / 2, top, drawWidth, drawHeight);
+    if (hitFlash) {
+      drawTintedImageCopy(
+        ctx,
+        img,
+        ex - drawWidth / 2,
+        top,
+        drawWidth,
+        drawHeight,
+        '#ef4444',
+        0.55,
+      );
+    }
   }
   ctx.restore();
 };
@@ -203,8 +230,8 @@ export const drawTrainingScene = (
   }
 
   const dying = runtime.dyingEnemy;
-  const dyingSlashActive = dying.active
-    && isTrainingSlashActive(runtime.elapsedSec, dying.slashUntilSec);
+  const dyingHitFlash = dying.active
+    && isTrainingHitFlashActive(runtime.elapsedSec, dying.slashUntilSec);
 
   if (dying.active) {
     drawTrainingEnemySprite(
@@ -217,8 +244,9 @@ export const drawTrainingScene = (
       runtime.elapsedSec,
       spriteScale,
       atlas,
-      !dyingSlashActive,
-      dyingSlashActive,
+      false,
+      false,
+      dyingHitFlash,
     );
   }
 
@@ -232,7 +260,8 @@ export const drawTrainingScene = (
     runtime.elapsedSec,
     spriteScale,
     atlas,
-    true,
+    false,
+    false,
     false,
   );
 
@@ -251,7 +280,6 @@ export const drawTrainingScene = (
       floorY,
       runtime.elapsedSec,
       dying.slashUntilSec,
-      dying.offsetX,
       spriteScale,
     );
   }

@@ -276,7 +276,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         hud.endless = practiceMode;
         hud.score = runtime.score;
       } else {
-        const finished = !practiceMode && tickTrainingTimer(runtime, dt);
+        const finished = tickTrainingTimer(runtime, dt);
         tickTrainingEnemy(runtime, runtime.elapsedSec, dt);
 
         hud.phase = 'playing';

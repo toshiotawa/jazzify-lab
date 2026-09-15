@@ -33,21 +33,30 @@ export const TrainingHabitSection: React.FC<TrainingHabitSectionProps> = ({
 
   return (
     <section className="mb-8 rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-      <div className="flex items-center gap-4">
-        <DonutChart percent={weeklyPercent} label={`${weeklyPercent}%`} />
-        <div>
-          <p className="text-sm font-semibold text-white">
-            {isEnglish ? 'This week' : '今週'}
-            {' '}
-            {activeThisWeek}/3
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            {isEnglish ? 'Goal: 3 days per week' : '目標: 週3日'}
-          </p>
-          <p className="mt-2 text-sm text-indigo-200">
-            {isEnglish ? `${streak}-day streak` : `${streak}日連続`}
-          </p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <DonutChart percent={weeklyPercent} label={`${weeklyPercent}%`} />
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {isEnglish ? 'This week' : '今週'}
+              {' '}
+              {activeThisWeek}/3
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {isEnglish ? 'Goal: 3 days per week' : '目標: 週3日'}
+            </p>
+            <p className="mt-2 text-sm text-indigo-200">
+              {isEnglish ? `${streak}-day streak` : `${streak}日連続`}
+            </p>
+          </div>
         </div>
+        <button
+          type="button"
+          className="shrink-0 text-sm text-indigo-300 hover:text-indigo-200"
+          onClick={() => onOpenCalendar(todayKey)}
+        >
+          {isEnglish ? 'Open calendar ›' : 'カレンダーを開く ›'}
+        </button>
       </div>
 
       <div className="mt-4 grid grid-cols-7 gap-2">

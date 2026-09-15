@@ -5,6 +5,7 @@ import {
   performTrainingDefeat,
   shouldPlayTrainingRootOnCorrect,
   tickTrainingEnemy,
+  tickTrainingTimer,
 } from '@/game/training/trainingEngine';
 import { createInitialTrainingRuntime } from '@/game/training/trainingQuestionBuilder';
 import type { TrainingQuestion } from '@/game/training/trainingTypes';
@@ -107,6 +108,16 @@ describe('trainingEngine', () => {
     expect(runtime.dyingEnemy.offsetX).toBeGreaterThan(0);
     tickTrainingEnemy(runtime, 2.0, 0.5);
     expect(runtime.dyingEnemy.active).toBe(false);
+  });
+
+  it('advances elapsedSec in practice mode without finishing when durationSec is infinite', () => {
+    const runtime = createInitialTrainingRuntime();
+    runtime.durationSec = Number.POSITIVE_INFINITY;
+    runtime.elapsedSec = 0;
+    const finished = tickTrainingTimer(runtime, 0.5);
+    expect(finished).toBe(false);
+    expect(runtime.result).toBe('playing');
+    expect(runtime.elapsedSec).toBeCloseTo(0.5);
   });
 
   it('highlights interval reference keys in both modes and target keys only in practice', () => {

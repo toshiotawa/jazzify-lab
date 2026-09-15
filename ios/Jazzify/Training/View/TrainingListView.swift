@@ -159,6 +159,19 @@ struct TrainingListView: View {
             )
             .id(session.id)
         }
+        .alert(
+            locale == .ja ? "目標セットを切り替えました" : "Goal set switched",
+            isPresented: Binding(
+                get: { switchedGoalTitle != nil },
+                set: { if !$0 { switchedGoalTitle = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            if let title = switchedGoalTitle {
+                Text(locale == .ja ? "目標セットを「\(title)」に切り替えました。" : "Switched to \"\(title)\".")
+            }
+        }
         .task { await reload() }
     }
 
@@ -236,19 +249,6 @@ struct TrainingListView: View {
                     description: info.localizedText(locale),
                     locale: locale
                 )
-            }
-        }
-        .alert(
-            locale == .ja ? "目標セットを切り替えました" : "Goal set switched",
-            isPresented: Binding(
-                get: { switchedGoalTitle != nil },
-                set: { if !$0 { switchedGoalTitle = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            if let title = switchedGoalTitle {
-                Text(locale == .ja ? "目標セットを「\(title)」に切り替えました。" : "Switched to \"\(title)\".")
             }
         }
     }
@@ -339,6 +339,7 @@ struct TrainingListView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))

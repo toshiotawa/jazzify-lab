@@ -12,6 +12,7 @@ final class TrainingScene: SKScene {
     private var dyingEnemyNode = SKSpriteNode()
     private var enemyFrameKey = ""
     private var dyingEnemyFrameKey = ""
+    private var dyingEnemyFlashing = false
     private var playerNode: SKNode?
     private var playerSpriteNode: SKSpriteNode?
     private var playerRimNode: SKSpriteNode?
@@ -67,6 +68,11 @@ final class TrainingScene: SKScene {
         )
 
         characterLayer.removeAllChildren()
+        enemyFrameKey = ""
+        dyingEnemyFrameKey = ""
+        dyingEnemyFlashing = false
+        enemyNode = makeEnemySprite(for: .slime)
+        dyingEnemyNode = makeEnemySprite(for: .slime)
         characterLayer.addChild(dyingEnemyNode)
         characterLayer.addChild(enemyNode)
         playerNode = nil
@@ -103,13 +109,15 @@ final class TrainingScene: SKScene {
         for type in DefenseEnemyType.allCases {
             for frame in [DefenseEnemyFrame.idle, .move] {
                 let name = type.assetName(frame: frame)
-                let texture = SKTexture(imageNamed: name)
+                guard let image = UIImage(named: name) else { continue }
+                let texture = SKTexture(image: image)
                 texture.filteringMode = .nearest
                 textures[name] = texture
             }
         }
         for name in DefensePlayerPose.sceneAssetNames {
-            let texture = SKTexture(imageNamed: name)
+            guard let image = UIImage(named: name) else { continue }
+            let texture = SKTexture(image: image)
             texture.filteringMode = .nearest
             playerTextures[name] = texture
         }
@@ -172,6 +180,13 @@ final class TrainingScene: SKScene {
         return remaining > 0 && remaining <= DefenseEnemyConfig.slashSec
     }
 
+    private static func isHitFlashActive(elapsedSec: TimeInterval, slashUntilSec: TimeInterval) -> Bool {
+        guard slashUntilSec > 0 else { return false }
+        let slashStart = slashUntilSec - DefenseEnemyConfig.slashSec
+        let age = elapsedSec - slashStart
+        return age >= 0 && age < DefenseEnemyConfig.hitFlashSec
+    }
+
     private func render(runtime: TrainingRuntime) {
         let floorY = EarTrainingBattleStageKit.battleFloorY(
             sceneHeight: size.height,
@@ -192,13 +207,11 @@ final class TrainingScene: SKScene {
             playerRimNode?.texture = texture
         }
 
-        let dyingSlashActive = runtime.dyingEnemy.active
-            && Self.isSlashActive(
+        if runtime.dyingEnemy.active {
+            let hitFlashActive = Self.isHitFlashActive(
                 elapsedSec: runtime.elapsedSec,
                 slashUntilSec: runtime.dyingEnemy.slashUntilSec
             )
-
-        if runtime.dyingEnemy.active {
             renderEnemyNode(
                 node: dyingEnemyNode,
                 frameKey: &dyingEnemyFrameKey,
@@ -207,11 +220,20 @@ final class TrainingScene: SKScene {
                 offsetX: runtime.dyingEnemy.offsetX,
                 elapsedSec: runtime.elapsedSec,
                 floorY: floorY,
-                moving: !dyingSlashActive,
-                attacking: dyingSlashActive
+                moving: false,
+                attacking: false
             )
+            if hitFlashActive != dyingEnemyFlashing {
+                dyingEnemyFlashing = hitFlashActive
+                dyingEnemyNode.color = .red
+                dyingEnemyNode.colorBlendFactor = hitFlashActive ? 0.55 : 0
+            }
         } else {
             dyingEnemyNode.isHidden = true
+            if dyingEnemyFlashing {
+                dyingEnemyFlashing = false
+                dyingEnemyNode.colorBlendFactor = 0
+            }
         }
 
         renderEnemyNode(
@@ -222,7 +244,7 @@ final class TrainingScene: SKScene {
             offsetX: 0,
             elapsedSec: runtime.elapsedSec,
             floorY: floorY,
-            moving: true,
+            moving: false,
             attacking: false
         )
 
@@ -287,7 +309,7 @@ final class TrainingScene: SKScene {
         let age = DefenseEnemyConfig.slashSec - remaining
         let fromX = size.width * Self.playerXRatio + avatarSize * 0.45
         let fromY = floorY - avatarSize * 0.55
-        let toX = size.width * Self.enemyXRatio + runtime.dyingEnemy.offsetX
+        let toX = size.width * Self.enemyXRatio
         let toY = fromY
 
         let dx = toX - fromX
@@ -307,5 +329,17 @@ final class TrainingScene: SKScene {
         slashNode.xScale = xScale
         slashNode.yScale = 1
         slashNode.alpha = alpha
+    }
+
+    private func makeEnemySprite(for type: DefenseEnemyType) -> SKSpriteNode {
+        let textureKey = type.assetName(frame: .idle)
+        let node = SKSpriteNode(texture: textures[textureKey])
+        node.size = CGSize(
+            width: DefenseEnemyConfig.displaySpriteWidth(for: type),
+            height: DefenseEnemyConfig.displaySpriteHeight(for: type)
+        )
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.zPosition = type.zDepth
+        return node
     }
 }

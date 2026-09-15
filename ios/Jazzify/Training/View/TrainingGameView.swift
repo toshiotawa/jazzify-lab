@@ -91,7 +91,7 @@ struct TrainingGameView: View {
         ZStack {
             Color(uiColor: EarTrainingBattleStageKit.jazzBackdropEdgeColor)
                 .ignoresSafeArea()
-            TrainingSceneContainer(scene: scene, sceneSize: size)
+            TrainingSceneContainer(scene: scene, session: session, sceneSize: size)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -271,6 +271,7 @@ struct TrainingGameView: View {
 
 private struct TrainingSceneContainer: UIViewRepresentable {
     let scene: TrainingScene
+    let session: TrainingGameSession
     let sceneSize: CGSize
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -287,6 +288,7 @@ private struct TrainingSceneContainer: UIViewRepresentable {
 
         scene.scaleMode = .resizeFill
         scene.isPaused = false
+        scene.session = session
         if view.scene !== scene {
             view.presentScene(scene)
         }

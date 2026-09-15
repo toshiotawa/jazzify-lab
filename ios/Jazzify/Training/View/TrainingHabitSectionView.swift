@@ -31,6 +31,18 @@ struct TrainingHabitSectionView: View {
                         .padding(.top, 4)
                 }
                 Spacer()
+                Button {
+                    onOpenCalendar(todayKey)
+                } label: {
+                    HStack(spacing: 2) {
+                        Text(locale == .ja ? "カレンダーを開く" : "Open calendar")
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.indigo)
+                }
+                .buttonStyle(.plain)
             }
 
             HStack(spacing: 6) {

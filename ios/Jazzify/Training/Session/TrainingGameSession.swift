@@ -80,7 +80,7 @@ final class TrainingGameSession: ObservableObject {
 
         guard hud.phase == .playing else { return }
 
-        let finished = !practiceMode && TrainingEngine.tickTimer(runtime: &runtime, dt: dt)
+        let finished = TrainingEngine.tickTimer(runtime: &runtime, dt: dt)
         if !practiceMode, runtime.durationSec.isFinite {
             let remainSec = max(0, Int(runtime.durationSec - runtime.elapsedSec.rounded(.down)))
             if remainSec != hud.remainSec {
