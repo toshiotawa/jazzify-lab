@@ -41,6 +41,10 @@ ios/Secrets.xcconfig
 # Xcode per-user workspace UI state（コミットしない）
 *.xcuserstate
 
+# Xcode が xcodeproj 内の Package.resolved を削除することがある。
+# 正本は ios/Package.resolved。ビルド前に ios/ensure-package-resolved.sh で復元する。
+ios/Jazzify.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
 # IDE files
 .vscode/
 .idea/

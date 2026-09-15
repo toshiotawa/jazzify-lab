@@ -52,6 +52,11 @@ targets:
         product: onnxruntime
     entitlements:
       path: Jazzify/Jazzify.entitlements
+    preBuildScripts:
+      - name: Ensure Package.resolved
+        basedOnDependencyAnalysis: false
+        script: |
+          "${SRCROOT}/ensure-package-resolved.sh"
 
   JazzifyTests:
     type: bundle.unit-test

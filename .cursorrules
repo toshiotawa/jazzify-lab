@@ -332,6 +332,7 @@ Coverage should be high for new logic, but do not create meaningless tests only 
 - Types go close to the code that owns them unless shared broadly.
 - Avoid circular dependencies.
 - Keep file names and exports consistent.
+- iOS の SPM ピンは `ios/Package.resolved` が正本。`xcodebuild` 後に xcodeproj 内の `Package.resolved` が消えても、その削除をコミットしない。`ios/ensure-package-resolved.sh` で復元する。
 
 ---
 

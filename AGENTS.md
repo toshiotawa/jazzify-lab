@@ -333,6 +333,7 @@ Coverage should be high for new logic, but do not create meaningless tests only 
 - Avoid circular dependencies.
 - Keep file names and exports consistent.
 - 耳コピバトル（コードヴォイシング）の譜面調号は Supabase の `ear_training_stages.key_fifths`（デフォルト）と、必要ならフレーズ単位の `ear_training_phrases.key_fifths`（NULL のときステージを継承）。MusicXML の `<fifths>` と同じ -7〜7。
+- iOS の SPM ピンは `ios/Package.resolved` が正本。`xcodebuild` 後に xcodeproj 内の `Package.resolved` が消えても、その削除をコミットしない。`ios/ensure-package-resolved.sh` で復元する。
 
 ---
 

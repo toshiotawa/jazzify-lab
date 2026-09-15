@@ -1865,6 +1865,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0839466021752CA8250130F6 /* Build configuration list for PBXNativeTarget "Jazzify" */;
 			buildPhases = (
+				A9F0E1D2C3B4A59687766554 /* Ensure Package.resolved */,
 				87BAD536101199DB635FD009 /* Sources */,
 				0093056A21E8BD17AD718571 /* Resources */,
 				55A996B77880CE7B3497FD16 /* Frameworks */,
@@ -1952,6 +1953,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A9F0E1D2C3B4A59687766554 /* Ensure Package.resolved */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Ensure Package.resolved";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/ensure-package-resolved.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0FBAF61F1D588FA15A634999 /* Sources */ = {
