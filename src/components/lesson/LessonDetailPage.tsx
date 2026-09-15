@@ -26,8 +26,12 @@ import {
 import {
   buildBalloonRushLessonRequirementDisplay,
   buildEarTrainingLessonRequirementDisplay,
+  buildTrainingGoalSetRequirementDisplay,
   buildVideoLessonRequirementDisplay,
+  formatTrainingGoalSetProgressLabel,
 } from '@/utils/lessonRequirementDisplay';
+import { computeTrainingGoalSetLessonRequirementProgress } from '@/utils/trainingGoalSetLessonRequirementProgress';
+import type { TrainingScoreSummary } from '@/game/training/trainingTypes';
 import { isLegendOnlyLessonRequirement } from '@/utils/lessonRequirementFilters';
 import { buildLessonRequirementLaunchHash } from '@/utils/lessonRequirementLaunch';
 import { downloadEarTrainingOsmdScorePdf } from '@/utils/exportOsmdScorePdf';
@@ -146,6 +150,9 @@ const LessonDetailPage: React.FC = () => {
   const [videos, setVideos] = useState<LessonVideo[]>([]);
   const [requirements, setRequirements] = useState<LessonRequirement[]>([]);
   const [requirementsProgress, setRequirementsProgress] = useState<LessonRequirementProgress[]>([]);
+  const [trainingSummaryByTrainingId, setTrainingSummaryByTrainingId] = useState<
+    Map<string, TrainingScoreSummary>
+  >(() => new Map());
   const [allRequirementsCompleted, setAllRequirementsCompleted] = useState(false);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -359,6 +366,28 @@ const LessonDetailPage: React.FC = () => {
       
       setRequirementsProgress(requirementsProgress);
       setAllRequirementsCompleted(allCompleted);
+
+      const hasTrainingGoalSetRequirement = lessonData?.lesson_songs?.some(
+        (ls) => ls.is_training_goal_set === true && !isLegendOnlyLessonRequirement(ls),
+      ) === true;
+      if (hasTrainingGoalSetRequirement && profile?.id) {
+        try {
+          const { fetchMyTrainingSummary } = await import('@/platform/supabaseTraining');
+          const summary = await fetchMyTrainingSummary();
+          if (isStale()) {
+            return;
+          }
+          setTrainingSummaryByTrainingId(
+            new Map(summary.map((row) => [row.trainingId, row])),
+          );
+        } catch {
+          if (!isStale()) {
+            setTrainingSummaryByTrainingId(new Map());
+          }
+        }
+      } else if (!isStale()) {
+        setTrainingSummaryByTrainingId(new Map());
+      }
       
       // レッスンの完了状態を取得
       if (lessonData?.course_id) {
@@ -466,6 +495,16 @@ const LessonDetailPage: React.FC = () => {
       void loadLessonData(lessonId);
     }
   }, [open, lessonId, loadLessonData]);
+
+  useEffect(() => {
+    const reloadOnReturn = (): void => {
+      if (window.location.hash.startsWith('#lesson-detail') && lessonId) {
+        void loadLessonData(lessonId);
+      }
+    };
+    window.addEventListener('hashchange', reloadOnReturn);
+    return () => window.removeEventListener('hashchange', reloadOnReturn);
+  }, [lessonId, loadLessonData]);
 
   const prefetchPracticeResources = useCallback((req: LessonRequirement) => {
     const extended = req as LessonRequirement & {
@@ -1403,10 +1442,24 @@ const LessonDetailPage: React.FC = () => {
                         : (req.training_goal_set?.title_ja ?? req.training_goal_set?.title_en ?? ''))
                       : '';
                     const resolvedTaskTitle = taskTitle || goalSetTitle;
+                    const trainingGoalSetProgress = isTrainingGoalSet
+                      ? computeTrainingGoalSetLessonRequirementProgress(
+                        req.training_goal_set?.training_goal_set_items,
+                        trainingSummaryByTrainingId,
+                        isCompleted,
+                      )
+                      : null;
+                    const trainingGoalSetDisplay = isTrainingGoalSet
+                      ? buildTrainingGoalSetRequirementDisplay(isEnglishCopy)
+                      : null;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
-                        isCompleted ? 'bg-emerald-900/20 border-2 border-emerald-500' : 'bg-slate-700'
+                        isCompleted
+                          ? 'bg-emerald-900/20 border-2 border-emerald-500'
+                          : isTrainingGoalSet
+                            ? 'border border-indigo-500/40 bg-indigo-950/30'
+                            : 'bg-slate-700'
                       }`}>
                         {/* 完了マーク */}
                         {isCompleted && (
@@ -1562,47 +1615,63 @@ const LessonDetailPage: React.FC = () => {
                           );
                         })()}
 
-                        {isTrainingGoalSet && (() => {
-                          const gs = req.training_goal_set as { title_ja?: string; title_en?: string | null } | undefined | null;
-                          return (
+                        {isTrainingGoalSet && trainingGoalSetDisplay && (
                             <div className="mb-3 text-sm">
-                              <div className="text-gray-400 text-xs mt-1">
-                                {isEnglishCopy ? 'Task type: Training goal set' : '課題タイプ: トレーニング目標セット'}
+                              <span className="inline-block rounded-md border border-indigo-400/40 bg-indigo-500/15 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-200">
+                                {trainingGoalSetDisplay.badgeLabel}
+                              </span>
+                              <div className="mt-2 text-xs text-gray-400">
+                                {trainingGoalSetDisplay.clearLine}
                               </div>
-                              <div className="text-gray-400 text-xs mt-1">
-                                {isEnglishCopy
-                                  ? 'Clear: reach the target rank on every training in this goal set'
-                                  : 'クリア条件: 目標セット内の全トレーニングで目標ランク達成'}
-                              </div>
-                              {gs && (
-                                <div className="text-gray-400 text-xs mt-1">
-                                  {isEnglishCopy ? (gs.title_en ?? gs.title_ja) : gs.title_ja}
-                                </div>
-                              )}
                             </div>
-                          );
-                        })()}
+                        )}
                         
                         {/* 進捗表示（必須課題のみ） */}
                         {isClearRequired && (
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-400">{practiceCopy.progressLabel}</span>
-                            <span className={`font-semibold tabular-nums ${isCompleted ? 'text-emerald-400' : 'text-white'}`}>
-                              {requiresDays && req.clear_conditions?.daily_count
-                                ? practiceCopy.daysProgressFmt(
-                                    clearDates.length,
-                                    requiredCount,
-                                    req.clear_conditions.daily_count,
+                            <span className={`font-semibold tabular-nums ${
+                              isCompleted
+                                ? 'text-emerald-400'
+                                : isTrainingGoalSet
+                                  ? 'text-indigo-100'
+                                  : 'text-white'
+                            }`}>
+                              {isTrainingGoalSet && trainingGoalSetProgress
+                                ? formatTrainingGoalSetProgressLabel(
+                                    trainingGoalSetProgress.percent,
+                                    trainingGoalSetProgress.cleared,
+                                    trainingGoalSetProgress.total,
                                   )
-                                : requiresDays
-                                  ? practiceCopy.daysProgressFmt(clearDates.length, requiredCount)
-                                  : practiceCopy.countProgressFmt(clearCount, requiredCount)}
+                                : requiresDays && req.clear_conditions?.daily_count
+                                  ? practiceCopy.daysProgressFmt(
+                                      clearDates.length,
+                                      requiredCount,
+                                      req.clear_conditions.daily_count,
+                                    )
+                                  : requiresDays
+                                    ? practiceCopy.daysProgressFmt(clearDates.length, requiredCount)
+                                    : practiceCopy.countProgressFmt(clearCount, requiredCount)}
                             </span>
                           </div>
                           
+                          {/* 目標セット進捗バー */}
+                          {isTrainingGoalSet && trainingGoalSetProgress && (
+                            <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all duration-300 ${
+                                  isCompleted ? 'bg-emerald-500' : 'bg-indigo-500'
+                                }`}
+                                style={{
+                                  width: `${Math.min(100, trainingGoalSetProgress.percent)}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+
                           {/* 通常の進捗バー（回数条件の場合） */}
-                          {!requiresDays && requiredCount > 0 && (
+                          {!isTrainingGoalSet && !requiresDays && requiredCount > 0 && (
                             <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full transition-all duration-300 ${

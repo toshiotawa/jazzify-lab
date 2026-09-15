@@ -517,7 +517,8 @@ final class SupabaseService: Sendable {
                     id,
                     slug,
                     title_ja,
-                    title_en
+                    title_en,
+                    training_goal_set_items (training_id, target_rank, sort_order)
                 ),
                 earTrainingStage:ear_training_stages (*)
             )

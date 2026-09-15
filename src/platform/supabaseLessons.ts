@@ -161,7 +161,8 @@ const LESSON_DETAIL_SELECT = `
       id, slug, title_ja, title_en
     ),
     training_goal_set:training_goal_sets (
-      id, slug, title_ja, title_en
+      id, slug, title_ja, title_en,
+      training_goal_set_items (training_id, target_rank, sort_order)
     ),
     ear_training_stage:ear_training_stages (
       id,

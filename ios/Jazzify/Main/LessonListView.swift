@@ -1348,6 +1348,7 @@ struct LessonDetailView: View {
     @State private var trainingPrep: TrainingPrepContext?
     @State private var trainingLessonLaunch: TrainingLessonLaunch?
     @State private var trainingGoalSetLaunch: TrainingGoalSetLaunch?
+    @State private var trainingSummaryById: [UUID: TrainingScoreSummary] = [:]
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -2192,10 +2193,21 @@ struct LessonDetailView: View {
         let progressRow = progress(for: requirement)
         let isCompleted = progressRow?.isCompleted ?? false
         let isClearRequired = requirement.isClearRequired != false
+        let isTrainingGoalSet = requirement.isTrainingGoalSet == true
         let title = requirementTitle(requirement, index: index)
         let requiredCount = isClearRequired
             ? max(requirement.clearConditions?.count ?? 1, 1)
             : 0
+        let goalSetProgress: TrainingGoalProgress = {
+            guard isTrainingGoalSet, let goalSet = requirement.trainingGoalSet else {
+                return .empty
+            }
+            return TrainingGoalProgress.lessonRequirementProgress(
+                items: goalSet.goalSetItems,
+                summaryByTrainingId: trainingSummaryById,
+                isCompletedFallback: isCompleted
+            )
+        }()
         let displayProgress: String
 
         if requirement.clearConditions?.requiresDays == true {
@@ -2249,15 +2261,32 @@ struct LessonDetailView: View {
             }
 
             if isClearRequired {
-                HStack {
-                    Text(locale == .ja ? "進捗" : "Progress")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                    Spacer()
-                    Text(displayProgress)
-                        .font(.caption.bold())
-                        .foregroundStyle(isCompleted ? .green : .white)
-                        .multilineTextAlignment(.trailing)
+                if isTrainingGoalSet {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(locale == .ja ? "進捗" : "Progress")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text("\(goalSetProgress.percent)%  (\(goalSetProgress.cleared)/\(goalSetProgress.total))")
+                                .font(.caption.bold())
+                                .foregroundStyle(isCompleted ? .green : Color(hex: "e0e7ff"))
+                                .monospacedDigit()
+                        }
+                        progressBar(done: goalSetProgress.cleared, total: max(goalSetProgress.total, 1))
+                            .frame(height: 6)
+                    }
+                } else {
+                    HStack {
+                        Text(locale == .ja ? "進捗" : "Progress")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text(displayProgress)
+                            .font(.caption.bold())
+                            .foregroundStyle(isCompleted ? .green : .white)
+                            .multilineTextAlignment(.trailing)
+                    }
                 }
             }
 
@@ -2364,17 +2393,22 @@ struct LessonDetailView: View {
                 .padding(.vertical, 2)
             }
 
-            if requirement.isTrainingGoalSet == true, let goalSet = requirement.trainingGoalSet {
-                let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
-                let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(taskPrefix): \(locale == .ja ? "トレーニング目標セット" : "Training goal set")")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                    Text("\(clearPrefix): \(locale == .ja ? "目標セット内の全トレーニングで目標ランク達成" : "Reach target rank on every training in the goal set")")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                    Text(goalSet.localizedTitle(locale))
+            if requirement.isTrainingGoalSet == true {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(locale == .ja ? "トレーニング目標セット" : "TRAINING GOAL SET")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color(hex: "c7d2fe"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(hex: "4338ca").opacity(0.25))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(hex: "818cf8").opacity(0.45), lineWidth: 1)
+                        )
+                        .cornerRadius(6)
+                    Text(locale == .ja
+                         ? "目標セット内の全トレーニングで目標ランク達成"
+                         : "Reach the target rank on every training in this goal set")
                         .font(.caption2)
                         .foregroundStyle(.gray)
                 }
@@ -2488,10 +2522,19 @@ struct LessonDetailView: View {
             .disabled(isLaunchingGame)
         }
         .padding(14)
-        .background(isCompleted ? Color.green.opacity(0.12) : Color(hex: "334155"))
+        .background(
+            isCompleted
+                ? Color.green.opacity(0.12)
+                : (isTrainingGoalSet ? Color(hex: "1e1b4b").opacity(0.55) : Color(hex: "334155"))
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(isCompleted ? Color.green.opacity(0.5) : Color.clear, lineWidth: 1)
+                .stroke(
+                    isCompleted
+                        ? Color.green.opacity(0.5)
+                        : (isTrainingGoalSet ? Color(hex: "6366f1").opacity(0.45) : Color.clear),
+                    lineWidth: 1
+                )
         )
         .cornerRadius(14)
     }
@@ -2908,6 +2951,17 @@ struct LessonDetailView: View {
             prefetchSurvivalCatalogIfNeeded(from: fetchedDetail)
             videos = rawVideos.filter { $0.isVisible(for: appState.locale) }
             attachments = rawAttachments.filter { $0.isVisible(for: appState.locale) }
+
+            let hasTrainingGoalSetRequirement = fetchedDetail.lessonSongs.contains { $0.isTrainingGoalSet == true }
+            if hasTrainingGoalSetRequirement, appState.profile?.id != nil {
+                if let summaryRows = try? await SupabaseService.shared.fetchMyTrainingSummary() {
+                    trainingSummaryById = Dictionary(uniqueKeysWithValues: summaryRows.map { ($0.trainingId, $0) })
+                } else {
+                    trainingSummaryById = [:]
+                }
+            } else {
+                trainingSummaryById = [:]
+            }
 
             if let userId = appState.profile?.id {
                 requirementProgress = (try? await SupabaseService.shared.fetchLessonRequirementProgress(

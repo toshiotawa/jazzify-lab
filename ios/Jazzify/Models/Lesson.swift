@@ -331,17 +331,50 @@ struct TrainingRowSummary: Codable, Identifiable, Sendable {
     }
 }
 
+/// `lesson_songs` からネストで取得する `training_goal_set_items` 行。
+struct TrainingGoalSetItemSummary: Codable, Sendable, Equatable {
+    let trainingId: UUID
+    let targetRank: TrainingLetterRank
+    let sortOrder: Int
+
+    enum CodingKeys: String, CodingKey {
+        case trainingId = "training_id"
+        case targetRank = "target_rank"
+        case sortOrder = "sort_order"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        trainingId = try container.decode(UUID.self, forKey: .trainingId)
+        let rankRaw = try container.decode(String.self, forKey: .targetRank)
+        targetRank = TrainingLetterRank(rawValue: rankRaw) ?? .C
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+    }
+}
+
 /// `lesson_songs` からネストで取得する `training_goal_sets` の要約（一覧・詳細表示用）。
 struct TrainingGoalSetSummary: Codable, Identifiable, Sendable {
     let id: UUID
     let slug: String?
     let titleJa: String
     let titleEn: String?
+    let items: [TrainingGoalSetItemSummary]
 
     enum CodingKeys: String, CodingKey {
         case id, slug
         case titleJa = "title_ja"
         case titleEn = "title_en"
+        case items = "training_goal_set_items"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        slug = try container.decodeIfPresent(String.self, forKey: .slug)
+        titleJa = try container.decode(String.self, forKey: .titleJa)
+        titleEn = try container.decodeIfPresent(String.self, forKey: .titleEn)
+        items = (try container.decodeIfPresent([TrainingGoalSetItemSummary].self, forKey: .items) ?? [])
+            .sorted { $0.sortOrder < $1.sortOrder }
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -350,6 +383,16 @@ struct TrainingGoalSetSummary: Codable, Identifiable, Sendable {
             return en.isEmpty ? titleJa : en
         }
         return titleJa
+    }
+
+    var goalSetItems: [TrainingGoalSetItem] {
+        items.map {
+            TrainingGoalSetItem(
+                trainingId: $0.trainingId,
+                targetRank: $0.targetRank,
+                sortOrder: $0.sortOrder
+            )
+        }
     }
 }
 

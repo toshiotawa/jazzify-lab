@@ -206,3 +206,23 @@ export const buildVideoLessonRequirementDisplay = (
     clearLine: `${clearPrefix}: ${clearBody}`,
   };
 };
+
+export type TrainingGoalSetRequirementLines = {
+  badgeLabel: string;
+  clearLine: string;
+};
+
+export const buildTrainingGoalSetRequirementDisplay = (
+  isEnglish: boolean,
+): TrainingGoalSetRequirementLines => ({
+  badgeLabel: isEnglish ? 'Training goal set' : 'トレーニング目標セット',
+  clearLine: isEnglish
+    ? 'Reach the target rank on every training in this goal set'
+    : '目標セット内の全トレーニングで目標ランク達成',
+});
+
+export const formatTrainingGoalSetProgressLabel = (
+  percent: number,
+  cleared: number,
+  total: number,
+): string => `${percent}% (${cleared}/${total})`;

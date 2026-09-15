@@ -203,4 +203,24 @@ final class TrainingGoalProgressTests: XCTestCase {
         }
         return TrainingCategoryWithTrainings(category: category, trainings: trainings)
     }
+
+    func testLessonRequirementProgressFallbackWhenItemsMissing() {
+        let completed = TrainingGoalProgress.lessonRequirementProgress(
+            items: [],
+            summaryByTrainingId: [:],
+            isCompletedFallback: true
+        )
+        XCTAssertEqual(completed.percent, 100)
+        XCTAssertEqual(completed.cleared, 1)
+        XCTAssertEqual(completed.total, 1)
+
+        let incomplete = TrainingGoalProgress.lessonRequirementProgress(
+            items: [],
+            summaryByTrainingId: [:],
+            isCompletedFallback: false
+        )
+        XCTAssertEqual(incomplete.percent, 0)
+        XCTAssertEqual(incomplete.cleared, 0)
+        XCTAssertEqual(incomplete.total, 0)
+    }
 }

@@ -20,18 +20,18 @@ struct TrainingGoalProgress: Sendable, Equatable {
     static let empty = TrainingGoalProgress(cleared: 0, total: 0, percent: 0, isComplete: false, items: [])
 
     static func compute(
-        goalSet: TrainingGoalSet,
+        items: [TrainingGoalSetItem],
         summaryByTrainingId: [UUID: TrainingScoreSummary]
     ) -> TrainingGoalProgress {
-        var items: [TrainingGoalItemState] = []
-        items.reserveCapacity(goalSet.items.count)
+        var itemStates: [TrainingGoalItemState] = []
+        itemStates.reserveCapacity(items.count)
         var clearedCount = 0
-        for item in goalSet.items {
+        for item in items {
             let summary = summaryByTrainingId[item.trainingId]
             let bestRank = summary?.bestRank
             let cleared = bestRank.map { TrainingRank.meetsRank(achieved: $0, required: item.targetRank) } ?? false
             if cleared { clearedCount += 1 }
-            items.append(TrainingGoalItemState(
+            itemStates.append(TrainingGoalItemState(
                 trainingId: item.trainingId,
                 targetRank: item.targetRank,
                 bestRank: bestRank,
@@ -39,15 +39,39 @@ struct TrainingGoalProgress: Sendable, Equatable {
                 cleared: cleared
             ))
         }
-        let total = items.count
+        let total = itemStates.count
         let percent = total > 0 ? Int((Double(clearedCount) / Double(total) * 100).rounded()) : 0
         return TrainingGoalProgress(
             cleared: clearedCount,
             total: total,
             percent: percent,
             isComplete: total > 0 && clearedCount == total,
-            items: items
+            items: itemStates
         )
+    }
+
+    static func compute(
+        goalSet: TrainingGoalSet,
+        summaryByTrainingId: [UUID: TrainingScoreSummary]
+    ) -> TrainingGoalProgress {
+        compute(items: goalSet.items, summaryByTrainingId: summaryByTrainingId)
+    }
+
+    static func lessonRequirementProgress(
+        items: [TrainingGoalSetItem],
+        summaryByTrainingId: [UUID: TrainingScoreSummary],
+        isCompletedFallback: Bool
+    ) -> TrainingGoalProgress {
+        guard !items.isEmpty else {
+            return TrainingGoalProgress(
+                cleared: isCompletedFallback ? 1 : 0,
+                total: isCompletedFallback ? 1 : 0,
+                percent: isCompletedFallback ? 100 : 0,
+                isComplete: isCompletedFallback,
+                items: []
+            )
+        }
+        return compute(items: items, summaryByTrainingId: summaryByTrainingId)
     }
 
     /// 選択中の目標が無効/未設定なら先頭の目標セットへフォールバック

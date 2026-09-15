@@ -18,11 +18,11 @@ export interface TrainingGoalProgress {
   readonly items: readonly TrainingGoalItemState[];
 }
 
-export const computeTrainingGoalProgress = (
-  goalSet: TrainingGoalSet,
+export const computeTrainingGoalProgressFromItems = (
+  items: readonly TrainingGoalSetItem[],
   summaryByTrainingId: ReadonlyMap<string, TrainingScoreSummary>,
 ): TrainingGoalProgress => {
-  const items: TrainingGoalItemState[] = goalSet.items.map((item: TrainingGoalSetItem) => {
+  const itemStates: TrainingGoalItemState[] = items.map((item: TrainingGoalSetItem) => {
     const summary = summaryByTrainingId.get(item.trainingId);
     const bestRank = summary?.bestRank ?? null;
     const cleared = bestRank != null && meetsTrainingRankByLetter(bestRank, item.targetRank);
@@ -35,8 +35,8 @@ export const computeTrainingGoalProgress = (
     };
   });
 
-  const total = items.length;
-  const cleared = items.filter((item) => item.cleared).length;
+  const total = itemStates.length;
+  const cleared = itemStates.filter((item) => item.cleared).length;
   const percent = total > 0 ? Math.round((cleared / total) * 100) : 0;
 
   return {
@@ -44,9 +44,14 @@ export const computeTrainingGoalProgress = (
     total,
     percent,
     isComplete: total > 0 && cleared === total,
-    items,
+    items: itemStates,
   };
 };
+
+export const computeTrainingGoalProgress = (
+  goalSet: TrainingGoalSet,
+  summaryByTrainingId: ReadonlyMap<string, TrainingScoreSummary>,
+): TrainingGoalProgress => computeTrainingGoalProgressFromItems(goalSet.items, summaryByTrainingId);
 
 export const resolveActiveGoalSet = (
   goalSets: readonly TrainingGoalSet[],

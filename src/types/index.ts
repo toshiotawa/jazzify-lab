@@ -992,12 +992,20 @@ export interface TrainingStageRow {
   title_en?: string | null;
 }
 
+/** `lesson_songs` からネスト取得する `training_goal_set_items` 行 */
+export interface TrainingGoalSetItemRow {
+  training_id: string;
+  target_rank: string;
+  sort_order: number;
+}
+
 /** `lesson_songs` からネスト取得する `training_goal_sets` 行（一覧・詳細表示用） */
 export interface TrainingGoalSetRow {
   id: string;
   slug: string;
   title_ja: string;
   title_en?: string | null;
+  training_goal_set_items?: TrainingGoalSetItemRow[] | null;
 }
 
 export interface LessonSong {
