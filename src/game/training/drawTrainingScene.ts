@@ -244,7 +244,7 @@ export const drawTrainingScene = (
       runtime.elapsedSec,
       spriteScale,
       atlas,
-      false,
+      true,
       false,
       dyingHitFlash,
     );
@@ -260,7 +260,7 @@ export const drawTrainingScene = (
     runtime.elapsedSec,
     spriteScale,
     atlas,
-    false,
+    true,
     false,
     false,
   );

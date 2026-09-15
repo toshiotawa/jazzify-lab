@@ -220,7 +220,7 @@ final class TrainingScene: SKScene {
                 offsetX: runtime.dyingEnemy.offsetX,
                 elapsedSec: runtime.elapsedSec,
                 floorY: floorY,
-                moving: false,
+                moving: true,
                 attacking: false
             )
             if hitFlashActive != dyingEnemyFlashing {
@@ -244,7 +244,7 @@ final class TrainingScene: SKScene {
             offsetX: 0,
             elapsedSec: runtime.elapsedSec,
             floorY: floorY,
-            moving: false,
+            moving: true,
             attacking: false
         )
 
