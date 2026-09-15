@@ -539,10 +539,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       )}
 
       {currentPhrase && currentPhrase.chords.length > 0 && (
-        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
+        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(420px,78vw)] -translate-x-1/2 -translate-y-1/2">
           <DefensePhraseStaff
-            chords={currentPhrase.chords}
-            chordIndex={judgeSnapshot.chordIndex}
+            chord={currentPhrase.chords[judgeSnapshot.chordIndex] ?? null}
             keyFifths={phraseKeyFifths}
             staffLayout={stage.staffLayout}
             correctNoteIndices={judgeSnapshot.correctNoteIndices}

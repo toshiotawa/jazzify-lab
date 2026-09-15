@@ -103,6 +103,93 @@ final class DefensePhraseJudgeTests: XCTestCase {
         XCTAssertFalse(final.nextState.pendingSwitch)
     }
 
+    func testRejectsG7OnlyPitchClassesBeforeDm7Complete() {
+        let grandPhrase = DefensePhraseDefinition(
+            id: "grand",
+            orderIndex: 0,
+            title: "Dm7 | G7",
+            audioUrl: "https://example.com/grand.mp3",
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "dm7",
+                    orderIndex: 0,
+                    chordName: "Dm7",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 50, pitchClass: 2, noteName: "D3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 57, pitchClass: 9, noteName: "A3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 60, pitchClass: 0, noteName: "C4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 4, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 0),
+                    ]
+                ),
+                SurvivalPhraseChord(
+                    id: "g7",
+                    orderIndex: 1,
+                    chordName: "G7",
+                    measureNumber: 2,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 43, pitchClass: 7, noteName: "G2", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 59, pitchClass: 11, noteName: "B3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 62, pitchClass: 2, noteName: "D4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 4, pitchMidi: 65, pitchClass: 5, noteName: "F4", staff: 1, stepIndex: 0),
+                    ]
+                ),
+            ]
+        )
+        let initial = DefensePhraseJudge.createInitialState(phrases: [grandPhrase])
+
+        let gOnly = DefensePhraseJudge.evaluateNoteOn(
+            state: initial,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 7
+        )
+        XCTAssertFalse(gOnly.attack)
+        XCTAssertEqual(gOnly.nextState.correctNoteIndices.count, 0)
+        XCTAssertEqual(gOnly.nextState.chordIndex, 0)
+
+        let bOnly = DefensePhraseJudge.evaluateNoteOn(
+            state: initial,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 11
+        )
+        XCTAssertFalse(bOnly.attack)
+        XCTAssertEqual(bOnly.nextState.correctNoteIndices.count, 0)
+
+        let commonF = DefensePhraseJudge.evaluateNoteOn(
+            state: initial,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 5
+        )
+        XCTAssertTrue(commonF.attack)
+        XCTAssertEqual(commonF.nextState.chordIndex, 0)
+        XCTAssertTrue(commonF.nextState.correctNoteIndices.contains(1))
+        XCTAssertTrue(commonF.nextState.correctNoteIndices.contains(4))
+        XCTAssertFalse(commonF.nextState.correctNoteIndices.contains(0))
+
+        var state = commonF.nextState
+        for pc in [2, 9] {
+            let step = DefensePhraseJudge.evaluateNoteOn(
+                state: state,
+                stageRequiredCompletionCount: 1,
+                pitchClass: pc
+            )
+            XCTAssertEqual(step.nextState.chordIndex, 0)
+            state = step.nextState
+        }
+        let afterDm7 = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 0
+        )
+        XCTAssertTrue(afterDm7.measureCompleted)
+        XCTAssertEqual(afterDm7.nextState.chordIndex, 1)
+        XCTAssertTrue(afterDm7.nextState.correctNoteIndices.isEmpty)
+    }
+
     func testVoiceSequentialRequiresLowestMidiFirst() {
         let chordPhrase = DefensePhraseDefinition(
             id: "c",
