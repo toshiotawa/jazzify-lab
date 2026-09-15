@@ -17,6 +17,8 @@ private let kRootBassSoundBankProgram: UInt8 = 0
 private let kRootBassPlaybackOctaveShift = 0
 /// マスターバスへのヘッドルーム（≒ -3 dB）。画面録画時の複数バス合算クリップを抑える。
 private let kMasterHeadroomGain: Float = 0.7
+/// 同梱 SF2 の AUSampler 出力底上げ（dB）。`pianoMixer` だけでは伴奏に埋もれるため。
+private let kPianoSamplerBoostDb: Float = 6
 /// MIDI サステインペダルのコントロールチェンジ番号。
 private let kSustainPedalController: UInt8 = 64
 /// Apple AUPeakLimiter の AudioUnit パラメータ ID（AudioUnit/AUParameters.h）。
@@ -254,6 +256,14 @@ final class SurvivalGameAudio {
         return max(0, min(1, userDefaults.float(forKey: rootBassVolumeKey)))
     }
 
+    /// 保存されているマスター音量 (0.0 - 1.0)。`earTraining.master` と共有。
+    var masterVolume: Float {
+        Float(EarTrainingBattleVolumePreferences.loadDouble(
+            key: EarTrainingBattleVolumePreferences.masterKey,
+            fallback: EarTrainingBattleVolumePreferences.defaultMaster
+        ))
+    }
+
     /// SFX 音量を設定。ミュート中でも保存値は更新し、再生音量はミュート解除時に反映される。
     func setSfxVolume(_ volume: Float) {
         let v = max(0, min(1, volume))
@@ -286,6 +296,13 @@ final class SurvivalGameAudio {
     func setRootBassVolume(_ volume: Float) {
         let v = max(0, min(1, volume))
         userDefaults.set(v, forKey: rootBassVolumeKey)
+        applyVolumesToNodes()
+    }
+
+    /// マスター音量を設定（全バス共通、`earTraining.master` と共有）。
+    func setMasterVolume(_ volume: Float) {
+        let v = max(0, min(1, volume))
+        userDefaults.set(Double(v), forKey: EarTrainingBattleVolumePreferences.masterKey)
         applyVolumesToNodes()
     }
 
@@ -745,10 +762,16 @@ final class SurvivalGameAudio {
     /// mainMixer はヘッドルーム用に下げ、各入力ミキサーの `outputVolume` で個別制御する。
     private func applyVolumesToNodes() {
         bgmPlayer.volume = effectiveBgmVolume()
-        engine.mainMixerNode.outputVolume = kMasterHeadroomGain
+        engine.mainMixerNode.outputVolume = kMasterHeadroomGain * effectiveMasterVolume()
         sfxMixer.outputVolume = effectiveSfxVolume()
         pianoMixer.outputVolume = effectivePianoVolume()
         rootBassMixer.outputVolume = effectiveRootBassVolume()
+        keyboardGrandSampler.masterGain = kPianoSamplerBoostDb
+    }
+
+    private func effectiveMasterVolume() -> Float {
+        if isMuted { return 0 }
+        return masterVolume
     }
 
     /// 正解時ルート音の実効音量。

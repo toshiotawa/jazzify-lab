@@ -427,6 +427,7 @@
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
 		FAE09DE5179923DC0B94277F /* SurvivalLessonRandomChordsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E478DD1771E668946C75BA /* SurvivalLessonRandomChordsTests.swift */; };
 		FB6A8B415144A1D9DD2C001C /* EarTrainingAudioCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */; };
+		F3A9B8C7D6E504132627384A /* EarTrainingBattleVolumePreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A9B8C7D6E5041326273849 /* EarTrainingBattleVolumePreferencesTests.swift */; };
 		FC205FA3FCF51E462DBE449C /* EarTrainingBattleOsuCircleTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9FEDD89746BFAFA9E680E8 /* EarTrainingBattleOsuCircleTiming.swift */; };
 		FC63B0AAE8812BA34265A56B /* PianoKeyboardDisplayRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1F0878B82656E43D73E126 /* PianoKeyboardDisplayRangeTests.swift */; };
 		FD527CCCF3BCCD9A461529D8 /* EarTrainingTutorialStageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F39571660006C71FEFC9F21A /* EarTrainingTutorialStageBuilder.swift */; };
@@ -746,6 +747,7 @@
 		B1651D19CFE8A7AE2F990B03 /* SurvivalPhraseStaffSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPhraseStaffSnapshot.swift; sourceTree = "<group>"; };
 		B1A0A161C836A070F0DEF853 /* SurvivalCodeRunNativeEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeRunNativeEngine.swift; sourceTree = "<group>"; };
 		B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAudioCaptureTests.swift; sourceTree = "<group>"; };
+		F3A9B8C7D6E5041326273849 /* EarTrainingBattleVolumePreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleVolumePreferencesTests.swift; sourceTree = "<group>"; };
 		B2C6C40AC8031AE43C504E98 /* OnboardingCharacterDialogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingCharacterDialogView.swift; sourceTree = "<group>"; };
 		B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleScene.swift; sourceTree = "<group>"; };
 		B3CF3FB27C5189D6A521AE12 /* fire_magic_1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = fire_magic_1.mp3; sourceTree = "<group>"; };
@@ -1270,6 +1272,7 @@
 				55BDC6B209198A5C2A285F91 /* DiscordOAuthTests.swift */,
 				C19CE4C88C2E79AE483C7398 /* EarTrainingAdlibCallResponseTargetsTests.swift */,
 				B2BB4813D1E72F6AE7F5DEBD /* EarTrainingAudioCaptureTests.swift */,
+				F3A9B8C7D6E5041326273849 /* EarTrainingBattleVolumePreferencesTests.swift */,
 				8BEF251BA146E71822115C66 /* EarTrainingBattleStageKitTests.swift */,
 				B4B32E381A4EBA54C3DA3624 /* EarTrainingCanonicalPhraseNotesTests.swift */,
 				192633CABD146818E6B56477 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift */,
@@ -1959,6 +1962,7 @@
 				5ED2E1A97CE878B233383C75 /* DiscordOAuthTests.swift in Sources */,
 				766F62D9EC19BFBDED4C6A0E /* EarTrainingAdlibCallResponseTargetsTests.swift in Sources */,
 				FB6A8B415144A1D9DD2C001C /* EarTrainingAudioCaptureTests.swift in Sources */,
+				F3A9B8C7D6E504132627384A /* EarTrainingBattleVolumePreferencesTests.swift in Sources */,
 				F1426C9DD17031E688C7E08E /* EarTrainingBattleStageKitTests.swift in Sources */,
 				9657204BD40C8A2B3D6D93D0 /* EarTrainingCanonicalPhraseNotesTests.swift in Sources */,
 				9822C044B046A4A5DD7687E9 /* EarTrainingChordOSMDBattleRhythmTargetsTests.swift in Sources */,

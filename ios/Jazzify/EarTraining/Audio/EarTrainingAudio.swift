@@ -173,8 +173,10 @@ final class EarTrainingAudio: NSObject {
     private var loopPreparedLocalFileURL: URL?
     private var loopPreparedFormat: AVAudioFormat?
 
-    /// `musicVolume * masterVolume` を 0...1 に閉じた値。
-    private var phraseVolume: Float = EarTrainingBattleVolumePreferences.defaultPhraseVolume
+    /// フレーズ / ドラムの音源スライダー値（0...1）。マスターは `masterMixer` で別制御。
+    private var phraseVolume: Float = Float(EarTrainingBattleVolumePreferences.defaultMusic)
+    /// マスター音量（0...1）。`masterMixer` へヘッドルーム付きで適用。
+    private var masterVolume: Float = Float(EarTrainingBattleVolumePreferences.defaultMaster)
 
     override init() {
         super.init()
@@ -235,24 +237,28 @@ final class EarTrainingAudio: NSObject {
     // MARK: - Volume
 
     func setVolumes(master: Double, music: Double, piano: Double, sfx: Double) {
-        let m = clampedFloat(master)
-        phraseVolume = clampedFloat(music) * m
-        phraseMixer.outputVolume = phraseVolume
-        drumMixer.outputVolume = phraseVolume
+        masterVolume = clampedFloat(master)
+        phraseVolume = clampedFloat(music)
+        applyPhraseMixerVolumes()
         sfxVolume = clampedFloat(sfx)
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
+        SurvivalGameAudio.shared.setMasterVolume(masterVolume)
         SurvivalGameAudio.shared.setPianoVolume(clampedFloat(piano))
         SurvivalGameAudio.shared.setSfxVolume(sfxVolume)
     }
 
-    func setPhraseVolume(_ value: Float) {
-        phraseVolume = max(0, min(1, value))
-        phraseMixer.outputVolume = phraseVolume
-        drumMixer.outputVolume = phraseVolume
-    }
-
     private func clampedFloat(_ value: Double) -> Float {
         Float(max(0, min(1, value)))
+    }
+
+    private func applyPhraseMixerVolumes() {
+        phraseMixer.outputVolume = phraseVolume
+        drumMixer.outputVolume = phraseVolume
+        applyMasterMixerVolume()
+    }
+
+    private func applyMasterMixerVolume() {
+        masterMixer.outputVolume = Self.masterHeadroomGain * masterVolume
     }
 
     private func applyPersistedVolumes() {
@@ -950,7 +956,7 @@ final class EarTrainingAudio: NSObject {
         phraseMixer.outputVolume = phraseVolume
         drumMixer.outputVolume = phraseVolume
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
-        masterMixer.outputVolume = Self.masterHeadroomGain
+        applyMasterMixerVolume()
 
         isGraphInstalled = true
         applyPhraseTimeStretch()
@@ -1131,9 +1137,7 @@ final class EarTrainingAudio: NSObject {
             engine.prepare()
             try engine.start()
             isPhraseEngineRunning = true
-            phraseMixer.outputVolume = phraseVolume
-            drumMixer.outputVolume = phraseVolume
-            masterMixer.outputVolume = Self.masterHeadroomGain
+            applyPhraseMixerVolumes()
             engine.mainMixerNode.outputVolume = 1.0
         } catch {
             isPhraseEngineRunning = false

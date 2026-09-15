@@ -40,6 +40,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private var voiceInputDucking = false
     private static let voiceInputDuckFactor: Float = 0.5
+    /// フレーズ音源 × マスターの実効値（0...1）。`EarTrainingAudio` と同じヘッドルームを掛ける。
+    private static let masterHeadroomGain: Float = 0.7
+    private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
 
     private var lock = os_unfair_lock()
 
@@ -67,13 +70,28 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
+    func setUserVolume(_ volume: Float) {
+        let apply = { [weak self] in
+            guard let self else { return }
+            os_unfair_lock_lock(&self.lock)
+            self.userVolume = max(0, min(1, volume))
+            os_unfair_lock_unlock(&self.lock)
+            self.applyMasterMixerVolume()
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
+    }
+
     func setVoiceInputDucking(_ enabled: Bool) {
         let apply = { [weak self] in
             guard let self else { return }
             os_unfair_lock_lock(&self.lock)
             self.voiceInputDucking = enabled
             os_unfair_lock_unlock(&self.lock)
-            self.masterMixer.outputVolume = enabled ? Self.voiceInputDuckFactor : 1
+            self.applyMasterMixerVolume()
         }
         if Thread.isMainThread {
             apply()
@@ -189,10 +207,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         bufferA = buffer
         bufferB = nil
         playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
-        os_unfair_lock_lock(&lock)
-        let ducking = voiceInputDucking
-        os_unfair_lock_unlock(&lock)
-        masterMixer.outputVolume = ducking ? Self.voiceInputDuckFactor : 1
+        applyMasterMixerVolume()
         if !engine.isRunning {
             try engine.start()
         }
@@ -250,5 +265,17 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private static func hostTimeSec() -> Double {
         AVAudioTime.seconds(forHostTime: mach_absolute_time())
+    }
+
+    private func applyMasterMixerVolume() {
+        os_unfair_lock_lock(&lock)
+        let volume = userVolume
+        let ducking = voiceInputDucking
+        os_unfair_lock_unlock(&lock)
+        var output = Self.masterHeadroomGain * volume
+        if ducking {
+            output *= Self.voiceInputDuckFactor
+        }
+        masterMixer.outputVolume = output
     }
 }

@@ -22,4 +22,25 @@ enum EarTrainingBattleVolumePreferences {
         let stored = UserDefaults.standard.object(forKey: key) as? Double
         return stored ?? fallback
     }
+
+    static func save(master: Double, music: Double) {
+        UserDefaults.standard.set(clamped(master), forKey: masterKey)
+        UserDefaults.standard.set(clamped(music), forKey: musicKey)
+    }
+
+    /// フレーズ / 伴奏の実効音量（`master × music` を 0...1 に閉じる）。
+    static func phraseVolume(master: Double, music: Double) -> Float {
+        Float(clamped(master) * clamped(music))
+    }
+
+    static func loadPhraseVolume() -> Float {
+        phraseVolume(
+            master: loadDouble(key: masterKey, fallback: defaultMaster),
+            music: loadDouble(key: musicKey, fallback: defaultMusic)
+        )
+    }
+
+    private static func clamped(_ value: Double) -> Double {
+        max(0, min(1, value))
+    }
 }

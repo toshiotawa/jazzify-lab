@@ -776,17 +776,22 @@ struct EarTrainingSettingsSheet: View {
     }
 
     private func applyAll() {
-        if let audio {
-            audio.setVolumes(master: masterVolume, music: musicVolume, piano: pianoVolume, sfx: sfxVolume)
-        } else {
-            SurvivalGameAudio.shared.setPianoVolume(Float(max(0, min(1, pianoVolume))))
-            SurvivalGameAudio.shared.setSfxVolume(Float(max(0, min(1, sfxVolume))))
-        }
+        let master = max(0, min(1, masterVolume))
+        let music = max(0, min(1, musicVolume))
+        let piano = Float(max(0, min(1, pianoVolume)))
+        let sfx = Float(max(0, min(1, sfxVolume)))
+
+        EarTrainingBattleVolumePreferences.save(master: master, music: music)
+        SurvivalGameAudio.shared.setMasterVolume(Float(master))
+        SurvivalGameAudio.shared.setPianoVolume(piano)
+        SurvivalGameAudio.shared.setSfxVolume(sfx)
+        audio?.setVolumes(master: master, music: music, piano: Double(piano), sfx: Double(sfx))
+        DefenseBackingAudio.shared.setUserVolume(
+            EarTrainingBattleVolumePreferences.phraseVolume(master: master, music: music)
+        )
     }
 
     private func persistAll() {
-        UserDefaults.standard.set(masterVolume, forKey: EarTrainingBattleVolumePreferences.masterKey)
-        UserDefaults.standard.set(musicVolume, forKey: EarTrainingBattleVolumePreferences.musicKey)
         PianoKeyboardDisplayPreferences.save(keyboardDisplayMode)
     }
 

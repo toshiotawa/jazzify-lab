@@ -18,6 +18,7 @@ struct SurvivalAudioVolumeSection: View {
     let locale: AppLocale
     var title: String?
 
+    @State private var masterVolume: Float = SurvivalGameAudio.shared.masterVolume
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
     @State private var rootBassVolume: Float = SurvivalGameAudio.shared.rootBassVolume
     @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
@@ -32,6 +33,12 @@ struct SurvivalAudioVolumeSection: View {
                     .font(.subheadline.bold())
                     .foregroundStyle(Color(hex: "fde68a"))
             }
+
+            volumeRow(
+                icon: "speaker.wave.3.fill",
+                label: isEnglishCopy ? "Master" : "マスター",
+                value: masterBinding
+            )
 
             volumeRow(
                 icon: "pianokeys",
@@ -66,6 +73,16 @@ struct SurvivalAudioVolumeSection: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onAppear(perform: syncVolumes)
+    }
+
+    private var masterBinding: Binding<Float> {
+        Binding(
+            get: { masterVolume },
+            set: { newValue in
+                masterVolume = newValue
+                SurvivalGameAudio.shared.setMasterVolume(newValue)
+            }
+        )
     }
 
     private var pianoBinding: Binding<Float> {
@@ -109,6 +126,7 @@ struct SurvivalAudioVolumeSection: View {
     }
 
     private func syncVolumes() {
+        masterVolume = SurvivalGameAudio.shared.masterVolume
         pianoVolume = SurvivalGameAudio.shared.pianoVolume
         rootBassVolume = SurvivalGameAudio.shared.rootBassVolume
         sfxVolume = SurvivalGameAudio.shared.sfxVolume
@@ -142,6 +160,7 @@ struct SurvivalPauseSettingsSheet: View {
     let onResume: () -> Void
     let onExit: () -> Void
 
+    @State private var masterVolume: Float = SurvivalGameAudio.shared.masterVolume
     @State private var bgmVolume: Float = SurvivalGameAudio.shared.bgmVolume
     @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
@@ -191,6 +210,12 @@ struct SurvivalPauseSettingsSheet: View {
                         }
                     }
                     .tint(.yellow)
+
+                    volumeRow(
+                        icon: "speaker.wave.3.fill",
+                        label: locale == .ja ? "マスター" : "Master",
+                        value: masterBinding
+                    )
 
                     volumeRow(
                         icon: "music.note",
@@ -511,6 +536,16 @@ struct SurvivalPauseSettingsSheet: View {
     }
 
     // MARK: - Bindings (SurvivalGameAudio へ即時反映)
+
+    private var masterBinding: Binding<Float> {
+        Binding(
+            get: { masterVolume },
+            set: { newValue in
+                masterVolume = newValue
+                SurvivalGameAudio.shared.setMasterVolume(newValue)
+            }
+        )
+    }
 
     private var bgmBinding: Binding<Float> {
         Binding(
