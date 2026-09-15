@@ -6,6 +6,11 @@ import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import GameHeader from '@/components/ui/GameHeader';
 import { persistPreferredLocale, resolveAudienceLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
+import {
+  TIMEZONE_OPTIONS,
+  detectBrowserTimezone,
+  resolveUserTimezone,
+} from '@/utils/trainingActivity';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { hasLemonBillingHistory, hasNonExpiredBillingProvider } from '@/utils/membershipDisplay';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
@@ -51,6 +56,10 @@ const AccountPage: React.FC = () => {
     () => profile?.preferred_locale ?? resolveAudienceLocale(),
   );
   const [localeSaving, setLocaleSaving] = useState(false);
+  const [timezoneValue, setTimezoneValue] = useState(
+    () => profile?.timezone ?? resolveUserTimezone(profile),
+  );
+  const [timezoneSaving, setTimezoneSaving] = useState(false);
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameValue, setNicknameValue] = useState('');
   const [nicknameSaving, setNicknameSaving] = useState(false);
@@ -323,7 +332,11 @@ const AccountPage: React.FC = () => {
   useEffect(() => {
     setPreferredLocale(profile?.preferred_locale ?? resolveAudienceLocale());
   }, [profile?.preferred_locale]);
-  
+
+  useEffect(() => {
+    setTimezoneValue(profile?.timezone ?? resolveUserTimezone(profile));
+  }, [profile?.timezone, profile?.country]);
+
   // メールアドレス変更ステータスを監視してToast表示
   useEffect(() => {
     if (emailChangeStatus && emailChangeStatus.type) {
@@ -444,6 +457,72 @@ const AccountPage: React.FC = () => {
                           }}
                         >
                           {localeSaving ? '...' : (isEnglishCopy ? 'Save' : '保存')}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-3 border-t border-slate-700/50">
+                      <label htmlFor="profileTimezone" className="text-xs text-gray-400">
+                        {isEnglishCopy ? 'Timezone' : 'タイムゾーン'}
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          id="profileTimezone"
+                          className="flex-1 p-2 rounded-lg bg-slate-700 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
+                          value={timezoneValue}
+                          onChange={(event) => setTimezoneValue(event.target.value)}
+                          disabled={timezoneSaving}
+                        >
+                          {TIMEZONE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {isEnglishCopy ? option.labelEn : option.labelJa}
+                            </option>
+                          ))}
+                          {!TIMEZONE_OPTIONS.some((option) => option.value === detectBrowserTimezone()) && (
+                            <option value={detectBrowserTimezone()}>
+                              {isEnglishCopy ? 'Browser default' : 'ブラウザ検出'}
+                              {' '}
+                              ({detectBrowserTimezone()})
+                            </option>
+                          )}
+                        </select>
+                        <button
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          disabled={
+                            timezoneSaving
+                            || timezoneValue === (profile.timezone ?? resolveUserTimezone(profile))
+                          }
+                          onClick={async () => {
+                            setTimezoneSaving(true);
+                            try {
+                              await getSupabaseClient()
+                                .from('profiles')
+                                .update({ timezone: timezoneValue })
+                                .eq('id', profile.id);
+                              useAuthStore.setState((state) => {
+                                if (state.profile) {
+                                  state.profile = {
+                                    ...state.profile,
+                                    timezone: timezoneValue,
+                                  };
+                                }
+                              });
+                              pushToast(
+                                isEnglishCopy ? 'Timezone updated' : 'タイムゾーンを更新しました',
+                                'success',
+                              );
+                            } catch (err) {
+                              pushToast(
+                                (isEnglishCopy ? 'Failed to update timezone: ' : 'タイムゾーンの更新に失敗しました: ')
+                                + (err instanceof Error ? err.message : String(err)),
+                                'error',
+                              );
+                            } finally {
+                              setTimezoneSaving(false);
+                            }
+                          }}
+                        >
+                          {timezoneSaving ? '...' : (isEnglishCopy ? 'Save' : '保存')}
                         </button>
                       </div>
                     </div>

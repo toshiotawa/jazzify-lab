@@ -10,6 +10,8 @@ export interface TrainingCategoryRow {
   readonly slug: string;
   readonly titleJa: string;
   readonly titleEn: string;
+  readonly descriptionJa: string;
+  readonly descriptionEn: string;
   readonly sortOrder: number;
   readonly isFree: boolean;
   readonly isActive: boolean;
@@ -128,6 +130,31 @@ export interface TrainingRankingEntry {
   readonly nickname: string;
   readonly avatarUrl: string | null;
   readonly playerLevel: number;
+  readonly bestScore: number;
+  readonly bestRank: TrainingLetterRank;
+}
+
+export interface TrainingGoalSetItem {
+  readonly trainingId: string;
+  readonly targetRank: TrainingLetterRank;
+  readonly sortOrder: number;
+}
+
+export interface TrainingGoalSet {
+  readonly id: string;
+  readonly slug: string;
+  readonly titleJa: string;
+  readonly titleEn: string;
+  readonly descriptionJa: string;
+  readonly descriptionEn: string;
+  readonly sortOrder: number;
+  readonly isActive: boolean;
+  readonly items: readonly TrainingGoalSetItem[];
+}
+
+export interface TrainingDailyBest {
+  readonly day: string;
+  readonly trainingId: string;
   readonly bestScore: number;
   readonly bestRank: TrainingLetterRank;
 }

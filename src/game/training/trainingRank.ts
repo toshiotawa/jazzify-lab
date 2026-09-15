@@ -34,12 +34,18 @@ export const scoreToTrainingRank = (score: number, kind: TrainingKind = 'chord')
   return 'F';
 };
 
+const RANK_ORDER: readonly TrainingLetterRank[] = ['F', 'E', 'D', 'C', 'B', 'A', 'S'];
+
+export const meetsTrainingRankByLetter = (
+  achievedRank: TrainingLetterRank,
+  requiredRank: TrainingLetterRank,
+): boolean => RANK_ORDER.indexOf(achievedRank) >= RANK_ORDER.indexOf(requiredRank);
+
 export const meetsTrainingRankRequirement = (
   score: number,
   requiredRank: TrainingLetterRank,
   kind: TrainingKind = 'chord',
 ): boolean => {
   const achieved = scoreToTrainingRank(score, kind);
-  const order: TrainingLetterRank[] = ['F', 'E', 'D', 'C', 'B', 'A', 'S'];
-  return order.indexOf(achieved) >= order.indexOf(requiredRank);
+  return meetsTrainingRankByLetter(achieved, requiredRank);
 };

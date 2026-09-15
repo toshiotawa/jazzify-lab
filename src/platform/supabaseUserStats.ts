@@ -6,6 +6,8 @@ export interface UserStats {
   dailyChallengeParticipationDays: number;
   /** `play_map_node_clears`（mode = defense）の件数 */
   defenseClearCount: number;
+  /** クリア済みトレーニング目標セット数 */
+  trainingGoalClearCount: number;
   survivalBestTimeSeconds: number;
   survivalBestDifficulty: string | null;
 }
@@ -51,6 +53,7 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       lessonResult,
       dailyChallengeResult,
       defenseClearResult,
+      trainingGoalClearResult,
       survivalResult,
     ] = await Promise.all([
       supabase
@@ -73,6 +76,7 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
         .select('node_id, play_map_nodes!inner(play_map_blocks!inner(mode))', { count: 'exact', head: true })
         .eq('user_id', targetUserId)
         .eq('play_map_nodes.play_map_blocks.mode', 'defense'),
+      supabase.rpc('rpc_get_my_training_goal_clear_count'),
       // サバイバルモードのベストスコア（日記等）
       supabase
         .from('survival_high_scores')
@@ -97,6 +101,9 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
     if (defenseClearResult.error) {
       console.warn('ディフェンスクリア数の取得に失敗:', defenseClearResult.error.message);
     }
+    if (trainingGoalClearResult.error) {
+      console.warn('トレーニング目標クリア数の取得に失敗:', trainingGoalClearResult.error.message);
+    }
     if (survivalResult.error) {
       console.warn('サバイバル統計の取得に失敗:', survivalResult.error.message);
     }
@@ -106,11 +113,17 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       (dailyChallengeResult.data || []).map((r: { played_on: string }) => r.played_on)
     );
 
+    const trainingGoalClearRaw = trainingGoalClearResult.data;
+    const trainingGoalClearCount = typeof trainingGoalClearRaw === 'number'
+      ? trainingGoalClearRaw
+      : 0;
+
     const result = {
       missionCompletedCount: missionResult.data?.length || 0,
       lessonCompletedCount: lessonResult.data?.length || 0,
       dailyChallengeParticipationDays: uniqueDays.size,
       defenseClearCount: defenseClearResult.count ?? 0,
+      trainingGoalClearCount,
       survivalBestTimeSeconds: Number(survivalResult.data?.survival_time_seconds) || 0,
       survivalBestDifficulty: survivalResult.data?.difficulty as string | null || null,
     };
@@ -129,6 +142,7 @@ async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseCli
       lessonCompletedCount: 0,
       dailyChallengeParticipationDays: 0,
       defenseClearCount: 0,
+      trainingGoalClearCount: 0,
       survivalBestTimeSeconds: 0,
       survivalBestDifficulty: null,
     };

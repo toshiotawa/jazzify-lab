@@ -3,16 +3,16 @@ type BadgeCategoryId =
   | 'survival_songs'
   | 'survival_phrases'
   | 'defense'
+  | 'training_goal'
   | 'player_level'
-  | 'quest_clear'
-  | `training_${string}`;
+  | 'quest_clear';
 
 type BadgeConditionType =
   | 'survival_stage_clear'
   | 'player_level_reached'
   | 'quest_clear_count'
   | 'play_map_node_clear'
-  | 'training_category_rank';
+  | 'training_goal_clear_count';
 
 interface BadgeCategoryDefinition {
   id: BadgeCategoryId;
@@ -35,77 +35,51 @@ export interface BadgeDefinition {
   isActive?: boolean;
 }
 
-const TRAINING_CATEGORY_META: ReadonlyArray<{
-  slug: string;
-  labelJa: string;
-  labelEn: string;
-}> = [
-  { slug: 'intro', labelJa: '入門', labelEn: 'Introduction' },
-  { slug: 'interval', labelJa: '音程', labelEn: 'Intervals' },
-  { slug: 'triad', labelJa: '3和音(転回形指定無し)', labelEn: 'Triads (Unspecified)' },
-  { slug: 'triad_inversion', labelJa: '3和音(転回形)', labelEn: 'Triads (Inversions)' },
-  { slug: 'seventh', labelJa: '4和音(転回形指定無し)', labelEn: 'Seventh Chords (Unspecified)' },
-  { slug: 'seventh_inversion', labelJa: '4和音(転回形)', labelEn: 'Seventh Chords (Inversions)' },
-  { slug: 'scale_basic', labelJa: '初級スケール', labelEn: 'Basic Scales' },
-  { slug: 'scale_intermediate', labelJa: '中級スケール', labelEn: 'Intermediate Scales' },
-  { slug: 'scale_advanced', labelJa: '上級スケール', labelEn: 'Advanced Scales' },
+const TRAINING_GOAL_BADGE_DEFINITIONS: BadgeDefinition[] = [
   {
-    slug: 'tension_voicing',
-    labelJa: 'テンションヴォイシング(転回形指定無し)',
-    labelEn: 'Tension Voicings (Unspecified)',
+    id: 'training_goal_clear_1',
+    categoryId: 'training_goal',
+    rank: 1,
+    nameJa: 'トレーニング目標クリア',
+    nameEn: 'Training Goal Clear',
+    conditionType: 'training_goal_clear_count',
+    conditionValue: 1,
+    conditionJa: 'トレーニング目標を1個クリア',
+    conditionEn: 'Clear 1 training goal set',
+    imagePath: '/achivement/achievement_monster_33.png',
+    isActive: true,
   },
   {
-    slug: 'tension_voicing_ab',
-    labelJa: 'テンションヴォイシング(A/Bフォーム)',
-    labelEn: 'Tension Voicings (A/B Forms)',
+    id: 'training_goal_clear_10',
+    categoryId: 'training_goal',
+    rank: 2,
+    nameJa: 'トレーニング目標10個クリア',
+    nameEn: '10 Training Goals Cleared',
+    conditionType: 'training_goal_clear_count',
+    conditionValue: 10,
+    conditionJa: 'トレーニング目標を10個クリア',
+    conditionEn: 'Clear 10 training goal sets',
+    imagePath: '/achivement/achievement_monster_33.png',
+    isActive: true,
   },
-  { slug: 'two_hand_voicing', labelJa: '両手ヴォイシング', labelEn: 'Two-Hand Voicings' },
+  {
+    id: 'training_goal_clear_20',
+    categoryId: 'training_goal',
+    rank: 3,
+    nameJa: 'トレーニング目標20個クリア',
+    nameEn: '20 Training Goals Cleared',
+    conditionType: 'training_goal_clear_count',
+    conditionValue: 20,
+    conditionJa: 'トレーニング目標を20個クリア',
+    conditionEn: 'Clear 20 training goal sets',
+    imagePath: '/achivement/achievement_monster_33.png',
+    isActive: true,
+  },
 ];
-
-const TRAINING_RANK_META: ReadonlyArray<{
-  rank: 1 | 2 | 3;
-  threshold: number;
-  labelJa: string;
-  labelEn: string;
-}> = [
-  { rank: 1, threshold: 2, labelJa: 'B以上', labelEn: 'B+' },
-  { rank: 2, threshold: 3, labelJa: 'A以上', labelEn: 'A+' },
-  { rank: 3, threshold: 4, labelJa: 'S以上', labelEn: 'S+' },
-];
-
-function buildTrainingBadgeDefinitions(): BadgeDefinition[] {
-  const defs: BadgeDefinition[] = [];
-  for (const category of TRAINING_CATEGORY_META) {
-    for (const rankMeta of TRAINING_RANK_META) {
-      defs.push({
-        id: `training_${category.slug}_b_${rankMeta.rank}`,
-        categoryId: `training_${category.slug}`,
-        rank: rankMeta.rank,
-        nameJa: `${category.labelJa} ${rankMeta.labelJa}`,
-        nameEn: `${category.labelEn} ${rankMeta.labelEn}`,
-        conditionType: 'training_category_rank',
-        conditionValue: rankMeta.threshold,
-        conditionJa: `${category.labelJa}の全課題を${rankMeta.labelJa}でクリア`,
-        conditionEn: `Clear all ${category.labelEn} trainings at ${rankMeta.labelEn} or better`,
-        imagePath: '/achivement/achievement_monster_33.png',
-        isActive: true,
-      });
-    }
-  }
-  return defs;
-}
-
-const TRAINING_BADGE_DEFINITIONS = buildTrainingBadgeDefinitions();
-
-const TRAINING_BADGE_CATEGORIES: BadgeCategoryDefinition[] = TRAINING_CATEGORY_META.map((category) => ({
-  id: `training_${category.slug}` as BadgeCategoryId,
-  labelJa: category.labelJa,
-  labelEn: category.labelEn,
-}));
 
 export const BADGE_CATEGORIES: BadgeCategoryDefinition[] = [
   { id: 'defense', labelJa: 'フレーズディフェンス', labelEn: 'Phrase Defense' },
-  ...TRAINING_BADGE_CATEGORIES,
+  { id: 'training_goal', labelJa: 'トレーニング目標', labelEn: 'Training goals' },
   { id: 'player_level', labelJa: '到達レベル', labelEn: 'Player level reached' },
   { id: 'quest_clear', labelJa: 'クエストクリア数', labelEn: 'Quest clears' },
 ];
@@ -270,7 +244,7 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
     imagePath: '/achivement/achievement_monster_22.png',
     isActive: true,
   },
-  ...TRAINING_BADGE_DEFINITIONS,
+  ...TRAINING_GOAL_BADGE_DEFINITIONS,
   {
     id: 'player_level_2',
     categoryId: 'player_level',

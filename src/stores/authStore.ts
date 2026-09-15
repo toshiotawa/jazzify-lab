@@ -50,6 +50,7 @@ interface AuthState {
     country?: string | null;
     signup_platform?: 'web' | 'ios' | null;
     preferred_locale?: 'ja' | 'en' | null;
+    timezone?: string | null;
     billing_currency?: 'JPY' | 'USD' | null;
     // Stripe subscription fields
     stripe_customer_id?: string;
@@ -612,7 +613,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in, instrument, notation_instrument, simple_enharmonic_display')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, signup_platform, preferred_locale, timezone, billing_currency, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used, marketing_email_opt_in, instrument, notation_instrument, simple_enharmonic_display')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -636,6 +637,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               country: data.country || null,
               signup_platform: data.signup_platform === 'ios' ? 'ios' : data.signup_platform === 'web' ? 'web' : null,
               preferred_locale: data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null,
+              timezone: typeof data.timezone === 'string' ? data.timezone : null,
               billing_currency: data.billing_currency === 'USD'
                 ? 'USD'
                 : data.billing_currency === 'JPY'

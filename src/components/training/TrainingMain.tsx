@@ -1,19 +1,29 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
+import { TrainingCalendarPage } from '@/components/training/TrainingCalendarPage';
 import { TrainingGameScreen } from '@/components/training/TrainingGameScreen';
+import { TrainingGoalListPage } from '@/components/training/TrainingGoalListPage';
+import { TrainingGoalPage } from '@/components/training/TrainingGoalPage';
 import { TrainingList } from '@/components/training/TrainingList';
 import { TrainingRanking } from '@/components/training/TrainingRanking';
+import { TrainingRecordsPage } from '@/components/training/TrainingRecordsPage';
 import { TrainingResult } from '@/components/training/TrainingResult';
 import { EnharmonicDisplaySection } from '@/components/settings/EnharmonicDisplaySection';
 import GameHeader from '@/components/ui/GameHeader';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
+import { resolveActiveGoalSet } from '@/game/training/trainingGoalProgress';
 import type { TrainingRow } from '@/game/training/trainingTypes';
 import { meetsTrainingRankRequirement, scoreToTrainingRank, type TrainingLetterRank } from '@/game/training/trainingRank';
 import {
+  fetchMyTrainingGoalId,
   fetchMyTrainingSummary,
+  fetchTrainingActivityDays,
   fetchTrainingCatalog,
+  fetchTrainingGoalSets,
   invalidateTrainingCaches,
+  setMyTrainingGoal,
 } from '@/platform/supabaseTraining';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
@@ -24,8 +34,9 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPremiumTier } from '@/utils/membership';
 import { getWindow } from '@/platform';
 import { buildReturnFromAssignmentHash } from '@/utils/lessonNavigation';
+import { getLocalDateKey, resolveUserTimezone } from '@/utils/trainingActivity';
 
-type Screen = 'list' | 'ranking' | 'game' | 'result';
+type Screen = 'list' | 'goal' | 'goals' | 'records' | 'calendar' | 'ranking' | 'game' | 'result';
 
 interface ActiveSession {
   readonly training: TrainingRow;
@@ -42,12 +53,14 @@ const parseClearConditions = (raw: string | null): ClearConditions => ({
 const TrainingMain: React.FC = () => {
   const profile = useAuthStore((state) => state.profile);
   const geoCountry = useGeoStore((state) => state.country);
+  const [searchParams, setSearchParams] = useSearchParams();
   const isEnglish = shouldUseEnglishCopy({
     rank: profile?.rank,
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
   const isPremium = isPremiumTier(profile?.rank);
+  const timezone = resolveUserTimezone(profile);
 
   const params = useMemo(() => getAppRouteSearchParams(getWindow().location), []);
   const lessonContext = useMemo<LessonContext | null>(() => {
@@ -67,10 +80,23 @@ const TrainingMain: React.FC = () => {
   }, [params]);
 
   const forcedTrainingId = params.get('trainingId')?.trim() ?? '';
+  const viewParam = searchParams.get('view');
+  const trainingIdParam = searchParams.get('trainingId');
+  const dateParam = searchParams.get('date');
+  const monthParam = searchParams.get('month');
 
-  const [screen, setScreen] = useState<Screen>('list');
+  const [screen, setScreen] = useState<Screen>(() => {
+    if (viewParam === 'goal') return 'goal';
+    if (viewParam === 'goals') return 'goals';
+    if (viewParam === 'records') return 'records';
+    if (viewParam === 'calendar') return 'calendar';
+    return 'list';
+  });
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Awaited<ReturnType<typeof fetchTrainingCatalog>>>([]);
+  const [goalSets, setGoalSets] = useState<Awaited<ReturnType<typeof fetchTrainingGoalSets>>>([]);
+  const [selectedGoalSetId, setSelectedGoalSetId] = useState<string | null>(null);
+  const [activeDays, setActiveDays] = useState<readonly string[]>([]);
   const [summaryMap, setSummaryMap] = useState<Map<string, Awaited<ReturnType<typeof fetchMyTrainingSummary>>[number]>>(new Map());
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [finalScore, setFinalScore] = useState(0);
@@ -78,15 +104,23 @@ const TrainingMain: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const lessonClearedRef = useRef(false);
 
+  const todayKey = useMemo(() => getLocalDateKey(new Date(), timezone), [timezone]);
+
   const reload = useCallback(async () => {
     invalidateTrainingCaches();
-    const [catalog, summary] = await Promise.all([
+    const [catalog, summary, goals, myGoalId, activityDays] = await Promise.all([
       fetchTrainingCatalog(),
       profile?.id ? fetchMyTrainingSummary() : Promise.resolve([]),
+      fetchTrainingGoalSets(),
+      profile?.id ? fetchMyTrainingGoalId() : Promise.resolve(null),
+      profile?.id ? fetchTrainingActivityDays(timezone) : Promise.resolve([]),
     ]);
     setCategories(catalog);
     setSummaryMap(new Map(summary.map((row) => [row.trainingId, row])));
-  }, [profile?.id]);
+    setGoalSets(goals);
+    setSelectedGoalSetId(myGoalId);
+    setActiveDays(activityDays);
+  }, [profile?.id, timezone]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,14 +134,66 @@ const TrainingMain: React.FC = () => {
     };
   }, [reload]);
 
+  useEffect(() => {
+    if (lessonContext || session) return;
+    if (viewParam === 'goal') setScreen('goal');
+    else if (viewParam === 'goals') setScreen('goals');
+    else if (viewParam === 'records') setScreen('records');
+    else if (viewParam === 'calendar') setScreen('calendar');
+    else if (!viewParam) setScreen('list');
+  }, [viewParam, lessonContext, session]);
+
   const allTrainings = useMemo(
     () => categories.flatMap((category) => category.trainings),
     [categories],
   );
 
+  const trainingById = useMemo(
+    () => new Map(allTrainings.map((training) => [training.id, training])),
+    [allTrainings],
+  );
+
+  const categoryFreeByTrainingId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const category of categories) {
+      for (const training of category.trainings) {
+        map.set(training.id, category.isFree);
+      }
+    }
+    return map;
+  }, [categories]);
+
+  const isTrainingLocked = useCallback((trainingId: string): boolean => {
+    const isFree = categoryFreeByTrainingId.get(trainingId) ?? false;
+    return !isFree && !isPremium;
+  }, [categoryFreeByTrainingId, isPremium]);
+
+  const activeGoalSet = useMemo(
+    () => resolveActiveGoalSet(goalSets, selectedGoalSetId),
+    [goalSets, selectedGoalSetId],
+  );
+
   const findTraining = useCallback((trainingId: string): TrainingRow | null => (
     allTrainings.find((training) => training.id === trainingId) ?? null
   ), [allTrainings]);
+
+  const updateViewParams = useCallback((next: Record<string, string | null>) => {
+    const paramsCopy = new URLSearchParams(searchParams);
+    Object.entries(next).forEach(([key, value]) => {
+      if (value == null || value === '') paramsCopy.delete(key);
+      else paramsCopy.set(key, value);
+    });
+    setSearchParams(paramsCopy);
+  }, [searchParams, setSearchParams]);
+
+  const openView = useCallback((view: Screen, extra: Record<string, string | null> = {}) => {
+    setScreen(view);
+    if (view === 'list' || view === 'game' || view === 'result' || view === 'ranking') {
+      updateViewParams({ view: null, trainingId: null, date: null, month: null, ...extra });
+      return;
+    }
+    updateViewParams({ view, ...extra });
+  }, [updateViewParams]);
 
   useEffect(() => {
     if (!forcedTrainingId || loading) return;
@@ -157,6 +243,12 @@ const TrainingMain: React.FC = () => {
     void reload();
   }, [lessonContext, session, reload]);
 
+  const handleSelectGoal = useCallback(async (goalSetId: string) => {
+    await setMyTrainingGoal(goalSetId);
+    setSelectedGoalSetId(goalSetId);
+    openView('goal');
+  }, [openView]);
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -169,10 +261,16 @@ const TrainingMain: React.FC = () => {
           <TrainingList
             categories={categories}
             summaryByTrainingId={summaryMap}
+            activeGoalSet={activeGoalSet}
+            todayKey={todayKey}
+            activeDays={activeDays}
             isPremium={isPremium}
             isEnglish={isEnglish}
             onSelectTraining={handleSelectTraining}
             onOpenRanking={() => setScreen('ranking')}
+            onOpenGoal={() => openView('goal')}
+            onOpenRecords={(trainingId) => openView('records', { trainingId })}
+            onOpenCalendar={(dateKey) => openView('calendar', { date: dateKey })}
             onLocked={() => setShowPaywall(true)}
           />
           <div className="mx-auto max-w-3xl px-4 pb-8">
@@ -189,6 +287,61 @@ const TrainingMain: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+      {screen === 'goal' && activeGoalSet && (
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <TrainingGoalPage
+            goalSet={activeGoalSet}
+            summaryByTrainingId={summaryMap}
+            trainingById={trainingById}
+            isEnglish={isEnglish}
+            onBack={() => openView('list')}
+            onOpenGoals={() => openView('goals')}
+            onSelectTraining={handleSelectTraining}
+            onOpenRecords={(trainingId) => openView('records', { trainingId })}
+            onLocked={() => setShowPaywall(true)}
+            isTrainingLocked={isTrainingLocked}
+          />
+        </div>
+      )}
+      {screen === 'goals' && (
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <TrainingGoalListPage
+            goalSets={goalSets}
+            activeGoalSetId={selectedGoalSetId}
+            summaryByTrainingId={summaryMap}
+            isEnglish={isEnglish}
+            onBack={() => openView('goal')}
+            onSelectGoal={(goalSetId) => { void handleSelectGoal(goalSetId); }}
+          />
+        </div>
+      )}
+      {screen === 'records' && (
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <TrainingRecordsPage
+            trainings={allTrainings}
+            initialTrainingId={trainingIdParam}
+            timezone={timezone}
+            isEnglish={isEnglish}
+            initialMonthKey={monthParam}
+            onBack={() => openView(activeGoalSet ? 'goal' : 'list')}
+            onTrainingChange={(trainingId) => updateViewParams({ trainingId })}
+            onMonthChange={(monthKey) => updateViewParams({ month: monthKey })}
+          />
+        </div>
+      )}
+      {screen === 'calendar' && (
+        <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <TrainingCalendarPage
+            trainings={allTrainings}
+            trainingById={trainingById}
+            activeDays={activeDays}
+            timezone={timezone}
+            initialDateKey={dateParam ?? todayKey}
+            isEnglish={isEnglish}
+            onBack={() => openView('list')}
+          />
         </div>
       )}
       {screen === 'ranking' && (

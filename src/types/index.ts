@@ -1139,6 +1139,8 @@ export interface Profile {
   twitter_handle?: string;
   next_season_xp_multiplier?: number;
   preferred_locale?: 'ja' | 'en' | null;
+  /** IANA timezone (e.g. Asia/Tokyo). NULL = derive from country/browser. */
+  timezone?: string | null;
   billing_currency?: 'JPY' | 'USD' | null;
   country?: string | null;
   signup_platform?: 'web' | 'ios' | null;

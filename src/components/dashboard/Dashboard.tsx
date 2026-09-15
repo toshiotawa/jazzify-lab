@@ -190,6 +190,10 @@ const Dashboard: React.FC = () => {
                         {isEnglishCopy ? 'Defense cleared' : 'ディフェンスクリア'}{' '}
                         {userStats.defenseClearCount}
                       </span>
+                      <span>
+                        {isEnglishCopy ? 'Training goals cleared' : 'トレーニング目標クリア数'}{' '}
+                        {userStats.trainingGoalClearCount}
+                      </span>
                     </div>
                   ) : null}
                   <PlayerLevelSection profile={profile} />

@@ -9,7 +9,7 @@ import {
 describe('badgeDefinitions', () => {
   it('defines active categories with three ranks each where applicable', () => {
     const activeCategories = BADGE_CATEGORIES.filter((category) => isActiveBadgeCategory(category.id));
-    expect(activeCategories.length).toBeGreaterThan(5);
+    expect(activeCategories.length).toBeGreaterThanOrEqual(4);
     expect(BADGE_TOTAL_COUNT).toBe(ACTIVE_BADGE_DEFINITIONS.length);
 
     for (const category of activeCategories) {
@@ -28,6 +28,7 @@ describe('badgeDefinitions', () => {
         .map((badge) => badge.conditionValue);
 
     expect(thresholdsFor('defense')).toEqual([1, 2, 3]);
+    expect(thresholdsFor('training_goal')).toEqual([1, 10, 20]);
     expect(thresholdsFor('player_level')).toEqual([2, 50, 100]);
     expect(thresholdsFor('quest_clear')).toEqual([1, 50, 100]);
   });
