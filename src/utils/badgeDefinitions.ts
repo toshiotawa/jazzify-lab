@@ -42,12 +42,23 @@ const TRAINING_CATEGORY_META: ReadonlyArray<{
 }> = [
   { slug: 'intro', labelJa: '入門', labelEn: 'Introduction' },
   { slug: 'interval', labelJa: '音程', labelEn: 'Intervals' },
-  { slug: 'triad', labelJa: '3和音', labelEn: 'Triads' },
-  { slug: 'seventh', labelJa: '4和音', labelEn: 'Seventh Chords' },
+  { slug: 'triad', labelJa: '3和音(転回形指定無し)', labelEn: 'Triads (Unspecified)' },
+  { slug: 'triad_inversion', labelJa: '3和音(転回形)', labelEn: 'Triads (Inversions)' },
+  { slug: 'seventh', labelJa: '4和音(転回形指定無し)', labelEn: 'Seventh Chords (Unspecified)' },
+  { slug: 'seventh_inversion', labelJa: '4和音(転回形)', labelEn: 'Seventh Chords (Inversions)' },
   { slug: 'scale_basic', labelJa: '初級スケール', labelEn: 'Basic Scales' },
   { slug: 'scale_intermediate', labelJa: '中級スケール', labelEn: 'Intermediate Scales' },
   { slug: 'scale_advanced', labelJa: '上級スケール', labelEn: 'Advanced Scales' },
-  { slug: 'tension_voicing', labelJa: 'テンションヴォイシング', labelEn: 'Tension Voicings' },
+  {
+    slug: 'tension_voicing',
+    labelJa: 'テンションヴォイシング(転回形指定無し)',
+    labelEn: 'Tension Voicings (Unspecified)',
+  },
+  {
+    slug: 'tension_voicing_ab',
+    labelJa: 'テンションヴォイシング(A/Bフォーム)',
+    labelEn: 'Tension Voicings (A/B Forms)',
+  },
   { slug: 'two_hand_voicing', labelJa: '両手ヴォイシング', labelEn: 'Two-Hand Voicings' },
 ];
 

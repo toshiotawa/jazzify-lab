@@ -248,6 +248,25 @@ enum TrainingMusicTheory {
         return notes.map { shiftOctave($0, by: delta) }
     }
 
+    /// クローズド・ヴォイシングの転回形（各音が直前より高くなるまでオクターブ上げ）。
+    static func applyClosedInversion(_ notes: [SpelledNote], inversion: Int) -> [SpelledNote] {
+        guard inversion > 0, !notes.isEmpty else { return notes }
+        let count = notes.count
+        let inv = max(0, min(count - 1, inversion))
+        let rotated = Array(notes[inv...]) + Array(notes[..<inv])
+        var prevMidi = Int.min
+        var result: [SpelledNote] = []
+        for note in rotated {
+            var current = note
+            while current.midi <= prevMidi {
+                current = shiftOctave(current, by: 1)
+            }
+            result.append(current)
+            prevMidi = current.midi
+        }
+        return result
+    }
+
     /// 最低音の直下にあるルート音（正解時に鳴らす音）。
     static func rootMidiBelow(root: String, lowestMidi: Int) -> Int? {
         guard let rootPcName = parsePitchClassName(root) else { return nil }

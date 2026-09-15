@@ -50,6 +50,50 @@ final class TrainingEngineTests: XCTestCase {
         XCTAssertFalse(runtime.dyingEnemy.active)
     }
 
+    func testOrderedInversionChordRequiresBottomUpInput() {
+        let question = TrainingQuestion(
+            questionKey: "inv",
+            promptLabel: "C",
+            notes: [
+                TrainingQuestionNote(noteName: "E4", midi: 64, pitchClass: 4, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "G4", midi: 67, pitchClass: 7, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "C5", midi: 72, pitchClass: 0, staff: 1, isTarget: true),
+            ],
+            layout: .stacked,
+            ordered: true,
+            keyFifths: 0,
+            rootMidi: 48
+        )
+        let wrong = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [],
+            midiNote: 67,
+            sequential: false
+        )
+        XCTAssertFalse(wrong.accepted)
+        let first = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [],
+            midiNote: 64,
+            sequential: false
+        )
+        XCTAssertTrue(first.accepted)
+        let second = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: first.newCorrectIndices,
+            midiNote: 67,
+            sequential: false
+        )
+        XCTAssertTrue(second.accepted)
+        let third = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: second.newCorrectIndices,
+            midiNote: 72,
+            sequential: false
+        )
+        XCTAssertTrue(third.completed)
+    }
+
     func testIntervalKeyboardHintsSplitReferenceAndTarget() {
         let question = TrainingQuestion(
             questionKey: "interval",

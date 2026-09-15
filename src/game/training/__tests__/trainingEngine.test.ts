@@ -44,6 +44,25 @@ describe('trainingEngine', () => {
     expect(second.accepted).toBe(true);
   });
 
+  it('requires ordered inversion chord input bottom to top', () => {
+    const q = makeQuestion({
+      ordered: true,
+      notes: [
+        { noteName: 'E4', midi: 64, pitchClass: 4, staff: 1, isTarget: true },
+        { noteName: 'G4', midi: 67, pitchClass: 7, staff: 1, isTarget: true },
+        { noteName: 'C5', midi: 72, pitchClass: 0, staff: 1, isTarget: true },
+      ],
+    });
+    const wrong = evaluateTrainingNoteOn(q, [], 67, false);
+    expect(wrong.accepted).toBe(false);
+    const first = evaluateTrainingNoteOn(q, [], 64, false);
+    expect(first.accepted).toBe(true);
+    const second = evaluateTrainingNoteOn(q, first.newCorrectIndices, 67, false);
+    expect(second.accepted).toBe(true);
+    const third = evaluateTrainingNoteOn(q, second.newCorrectIndices, 72, false);
+    expect(third.completed).toBe(true);
+  });
+
   it('requires ordered scale input left to right', () => {
     const q = makeQuestion({
       ordered: true,

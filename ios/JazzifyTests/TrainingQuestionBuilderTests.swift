@@ -14,7 +14,9 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         staves: [Int]? = nil,
         voicingNotes: [String]? = nil,
         referenceRoot: String? = nil,
-        minLowestNote: String? = nil
+        minLowestNote: String? = nil,
+        inversion: Int? = nil,
+        ordered: Bool? = nil
     ) -> TrainingConfig {
         TrainingConfig(
             roots: roots,
@@ -28,7 +30,9 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             staves: staves,
             voicingNotes: voicingNotes,
             referenceRoot: referenceRoot,
-            minLowestNote: minLowestNote
+            minLowestNote: minLowestNote,
+            inversion: inversion,
+            ordered: ordered
         )
     }
 
@@ -322,5 +326,65 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         XCTAssertTrue(midis.contains(72))
         XCTAssertTrue(midis.contains(79))
         XCTAssertTrue(midis.contains(74))
+    }
+
+    func testClosedInversionBuildsAscendingTriadVoicing() {
+        let root = TrainingMusicTheory.spelledFromIntervals(root: "C", octave: 4, intervals: ["1P", "3M", "5P"])
+        let first = TrainingMusicTheory.applyClosedInversion(root, inversion: 1)
+        XCTAssertEqual(first.map(\.name), ["E4", "G4", "C5"])
+    }
+
+    func testTriadFirstInversionQuestionIsOrderedBottomUp() {
+        let row = training(
+            kind: .chord,
+            config: config(roots: ["C"], quality: "maj", inversion: 1, ordered: true)
+        )
+        let q = build(row)
+        XCTAssertTrue(q.ordered)
+        XCTAssertEqual(q.notes.map(\.noteName), ["E4", "G4", "C5"])
+        XCTAssertEqual(q.rootMidi, 60)
+    }
+
+    func testMaj7ThirdInversionKeepsRootPitchClassBelowVoicing() {
+        let row = training(
+            kind: .chord,
+            config: config(roots: ["C"], quality: "maj7", inversion: 3, ordered: true)
+        )
+        let q = build(row)
+        XCTAssertTrue(q.notes.first?.noteName.hasPrefix("B") == true)
+        XCTAssertEqual((q.rootMidi ?? 0) % 12, 0)
+    }
+
+    func testTensionAFormUsesTrebleClefFromThird() {
+        let row = training(
+            kind: .voicing,
+            title: "M7(9)(Aフォーム)",
+            config: config(
+                roots: ["C"],
+                clef: "treble",
+                intervals: ["3M", "5P", "7M", "9M"],
+                ordered: true
+            )
+        )
+        let q = build(row)
+        XCTAssertEqual(q.notes.map(\.noteName), ["E4", "G4", "B4", "D5"])
+        XCTAssertTrue(q.notes.allSatisfy { $0.staff == 1 })
+        XCTAssertTrue(q.ordered)
+    }
+
+    func testTensionBFormStartsFromSeventhOnTreble() {
+        let row = training(
+            kind: .voicing,
+            title: "M7(9)(Bフォーム)",
+            config: config(
+                roots: ["C"],
+                clef: "treble",
+                intervals: ["7M", "9M", "10M", "12P"],
+                ordered: true
+            )
+        )
+        let q = build(row)
+        XCTAssertTrue(q.notes.first?.noteName.hasPrefix("B") == true)
+        XCTAssertTrue(q.notes.allSatisfy { $0.staff == 1 })
     }
 }

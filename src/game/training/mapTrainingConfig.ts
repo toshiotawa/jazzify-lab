@@ -11,11 +11,6 @@ const readString = (record: Record<string, unknown>, key: string): string | unde
   return typeof value === 'string' ? value : undefined;
 };
 
-const readBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
-  const value = record[key];
-  return typeof value === 'boolean' ? value : undefined;
-};
-
 const readStringArray = (record: Record<string, unknown>, key: string): readonly string[] | undefined => {
   const value = record[key];
   if (!Array.isArray(value)) return undefined;
@@ -28,6 +23,16 @@ const readNumberArray = (record: Record<string, unknown>, key: string): readonly
   if (!Array.isArray(value)) return undefined;
   const numbers = value.filter((item): item is number => typeof item === 'number');
   return numbers.length === value.length ? numbers : undefined;
+};
+
+const readNumber = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+};
+
+const readBoolean = (record: Record<string, unknown>, key: string): boolean | undefined => {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
 };
 
 const readDirection = (
@@ -65,6 +70,8 @@ export const mapTrainingConfig = (raw: unknown): TrainingConfigBase => {
     voicingNotes: readStringArray(raw, 'voicingNotes') ?? readStringArray(raw, 'voicing_notes'),
     referenceRoot: readString(raw, 'referenceRoot') ?? readString(raw, 'reference_root'),
     minLowestNote: readString(raw, 'minLowestNote') ?? readString(raw, 'min_lowest_note'),
+    inversion: readNumber(raw, 'inversion'),
+    ordered: readBoolean(raw, 'ordered'),
   };
 
   return Object.fromEntries(

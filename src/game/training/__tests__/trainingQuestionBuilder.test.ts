@@ -341,6 +341,82 @@ describe('trainingQuestionBuilder', () => {
     }
   });
 
+  it('builds triad 1st inversion with ordered bottom-up input', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({
+        kind: 'chord',
+        config: { quality: 'maj', roots: ['C'], inversion: 1, ordered: true },
+      }),
+      ...piano,
+    });
+    expect(q.ordered).toBe(true);
+    expect(q.notes.map((n) => n.noteName)).toEqual(['E4', 'G4', 'C5']);
+    expect(q.rootMidi).toBe(60);
+  });
+
+  it('builds maj7 3rd inversion with root pitch class C below the voicing', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({
+        kind: 'chord',
+        config: { quality: 'maj7', roots: ['C'], inversion: 3, ordered: true },
+      }),
+      ...piano,
+    });
+    expect(q.notes[0]?.noteName.replace(/\d+$/, '')).toBe('B');
+    expect(((q.rootMidi ?? 0) % 12 + 12) % 12).toBe(0);
+    expect(q.ordered).toBe(true);
+  });
+
+  it('builds tension A form on treble clef starting from the 3rd', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({
+        kind: 'voicing',
+        titleJa: 'M7(9)(Aフォーム)',
+        titleEn: 'M7(9) (Form A)',
+        config: {
+          intervals: ['3M', '5P', '7M', '9M'],
+          roots: ['C'],
+          clef: 'treble',
+          ordered: true,
+        },
+      }),
+      ...piano,
+    });
+    expect(q.notes.map((n) => n.noteName)).toEqual(['E4', 'G4', 'B4', 'D5']);
+    expect(q.notes.every((n) => n.staff === 1)).toBe(true);
+    expect(q.ordered).toBe(true);
+    expect(q.rootMidi).toBe(60);
+  });
+
+  it('builds tension B form on treble clef starting from the 7th', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({
+        kind: 'voicing',
+        titleJa: 'M7(9)(Bフォーム)',
+        titleEn: 'M7(9) (Form B)',
+        config: {
+          intervals: ['7M', '9M', '10M', '12P'],
+          roots: ['C'],
+          clef: 'treble',
+          ordered: true,
+        },
+      }),
+      ...piano,
+    });
+    expect(q.notes[0]?.noteName.replace(/\d+$/, '')).toBe('B');
+    expect(q.notes.every((n) => n.staff === 1)).toBe(true);
+    expect(q.ordered).toBe(true);
+  });
+
+  it('keeps unspecified triads unordered', () => {
+    const q = buildTrainingQuestion({
+      training: baseTraining({ kind: 'chord', config: { quality: 'maj', roots: ['C'] } }),
+      ...piano,
+    });
+    expect(q.ordered).toBe(false);
+    expect(q.notes.map((n) => n.noteName)).toEqual(['C5', 'E5', 'G5']);
+  });
+
   it('builds interval questions with a visible reference note and a simple-spelled target', () => {
     for (let i = 0; i < 40; i += 1) {
       const q = buildTrainingQuestion({

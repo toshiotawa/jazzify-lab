@@ -28,6 +28,10 @@ export interface TrainingConfigBase {
   readonly voicingNotes?: readonly string[];
   readonly referenceRoot?: string;
   readonly minLowestNote?: string;
+  /** 0 = 基本形, 1 = 第一転回形, … */
+  readonly inversion?: number;
+  /** true のとき譜面配列順（低→高）で入力必須 */
+  readonly ordered?: boolean;
 }
 
 export interface TrainingRow {

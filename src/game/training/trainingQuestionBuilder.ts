@@ -12,6 +12,7 @@ import {
   getWrittenSemitoneOffset,
   normalizeNotationInstrumentId,
 } from '@/utils/notationInstrument';
+import { applyClosedInversion } from '@/game/training/trainingChordInversion';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 type Clef = 'treble' | 'bass';
@@ -248,6 +249,16 @@ const toStaves = (staves: readonly number[] | undefined, count: number, fallback
 
 const allTrue = (count: number): boolean[] => Array.from({ length: count }, () => true);
 
+const applyInversionIfNeeded = (
+  names: readonly string[],
+  inversion: number | undefined,
+): string[] => {
+  if (inversion == null || inversion <= 0) {
+    return names.slice();
+  }
+  return applyClosedInversion(names, inversion);
+};
+
 export const buildTrainingQuestion = (
   options: TrainingQuestionBuilderOptions,
 ): TrainingQuestion => {
@@ -393,26 +404,32 @@ export const buildTrainingQuestion = (
     if (training.kind === 'chord' || training.kind === 'voicing') {
       let names: string[];
       let staves: StaffNumber[];
+      const inversion = config.inversion ?? 0;
+      const minMidi = config.minLowestNote ? midiOf(config.minLowestNote) : concertStaffBottom;
 
       if (config.voicingNotes && config.voicingNotes.length > 0) {
         const transposed = transposeVoicingToRoot(config.voicingNotes, config.referenceRoot ?? 'C', root);
-        names = config.minLowestNote
-          ? placeLowestInOctaveAbove(transposed, midiOf(config.minLowestNote))
-          : placeLowestInOctaveAbove(transposed, concertStaffBottom);
+        names = placeLowestInOctaveAbove(
+          applyInversionIfNeeded(transposed, inversion),
+          minMidi,
+        );
         staves = toStaves(config.staves, names.length, defaultStaff);
       } else if (config.intervals && config.intervals.length > 0) {
-        const raw = spelledFromIntervals(`${root}3`, config.intervals);
-        names = placeLowestInOctaveAbove(
-          raw,
-          config.minLowestNote ? midiOf(config.minLowestNote) : concertStaffBottom,
+        const raw = applyInversionIfNeeded(
+          spelledFromIntervals(`${root}3`, config.intervals),
+          inversion,
         );
+        names = placeLowestInOctaveAbove(raw, minMidi);
         staves = toStaves(config.staves, names.length, defaultStaff);
       } else if (config.quality) {
         const intervals = CHORD_TEMPLATES[config.quality];
         if (!intervals) {
           throw new Error(`Training ${training.slug}: unknown quality ${config.quality}`);
         }
-        names = placeLowestInOctaveAbove(spelledFromIntervals(`${root}4`, intervals), concertStaffBottom);
+        names = placeLowestInOctaveAbove(
+          applyInversionIfNeeded(spelledFromIntervals(`${root}4`, intervals), inversion),
+          minMidi,
+        );
         staves = toStaves(undefined, names.length, defaultStaff);
       } else {
         throw new Error(`Training ${training.slug}: missing chord/voicing config`);
@@ -423,6 +440,7 @@ export const buildTrainingQuestion = (
         ? CHORD_SYMBOL_SUFFIX[config.quality] ?? config.quality
         : training.titleEn;
       const lowestMidi = Math.min(...names.map(midiOf));
+      const questionOrdered = config.ordered === true;
       const question = makeQuestion(
         questionKey,
         `${root}${suffix}`,
@@ -430,7 +448,7 @@ export const buildTrainingQuestion = (
         staves,
         allTrue(names.length),
         'stacked',
-        false,
+        questionOrdered,
         rootMidiBelow(root, lowestMidi),
       );
       lastBuilt = question;
@@ -536,24 +554,30 @@ export const collectTrainingStageMidis = (
   }
 
   if (training.kind === 'chord' || training.kind === 'voicing') {
+    const inversion = config.inversion ?? 0;
+    const minMidi = config.minLowestNote ? midiOf(config.minLowestNote) : concertStaffBottom;
     for (let i = 0; i < roots.length; i += 1) {
       const root = roots[i] ?? 'C';
       let names: string[] | null = null;
       if (config.voicingNotes && config.voicingNotes.length > 0) {
         const transposed = transposeVoicingToRoot(config.voicingNotes, config.referenceRoot ?? 'C', root);
-        names = config.minLowestNote
-          ? placeLowestInOctaveAbove(transposed, midiOf(config.minLowestNote))
-          : placeLowestInOctaveAbove(transposed, concertStaffBottom);
-      } else if (config.intervals && config.intervals.length > 0) {
-        const raw = spelledFromIntervals(`${root}3`, config.intervals);
         names = placeLowestInOctaveAbove(
-          raw,
-          config.minLowestNote ? midiOf(config.minLowestNote) : concertStaffBottom,
+          applyInversionIfNeeded(transposed, inversion),
+          minMidi,
         );
+      } else if (config.intervals && config.intervals.length > 0) {
+        const raw = applyInversionIfNeeded(
+          spelledFromIntervals(`${root}3`, config.intervals),
+          inversion,
+        );
+        names = placeLowestInOctaveAbove(raw, minMidi);
       } else if (config.quality) {
         const intervals = CHORD_TEMPLATES[config.quality];
         if (!intervals) continue;
-        names = placeLowestInOctaveAbove(spelledFromIntervals(`${root}4`, intervals), concertStaffBottom);
+        names = placeLowestInOctaveAbove(
+          applyInversionIfNeeded(spelledFromIntervals(`${root}4`, intervals), inversion),
+          minMidi,
+        );
       }
       if (names) pushNames(names);
     }

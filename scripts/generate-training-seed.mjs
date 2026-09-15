@@ -10,15 +10,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 /**
- * 20260910130100 は初回シード（適用済み）。以降の定義修正は upsert で上書きするため
- * 新しいバージョン番号で出力する。
+ * 20260910130100 / 20260910130300 / 20260910130400 は適用済み。再出力しない。
+ * 定義修正は upsert 用の新マイグレーション（inversionOut）のみ出力する。
  */
-const outMigration = join(
-  repoRoot,
-  'supabase',
-  'migrations',
-  '20260910130300_training_mode_seed_v2.sql',
-);
 
 const NS = 'b0000000-0000-4000-8000-000000000001';
 const DEFAULT_BGM =
@@ -77,6 +71,17 @@ const TRIAD_TITLES = {
   sus4: { ja: 'サス4', en: 'Sus4' },
 };
 
+const TRIAD_INVERSION_NAMES = {
+  maj: { ja: 'メジャートライアド', en: 'Major Triad' },
+  min: { ja: 'マイナートライアド', en: 'Minor Triad' },
+  dim: { ja: 'ディミニッシュトライアド', en: 'Diminished Triad' },
+  aug: { ja: 'オーギュメントトライアド', en: 'Augmented Triad' },
+  sus4: { ja: 'サス4トライアド', en: 'Sus4 Triad' },
+};
+
+const INVERSION_LABELS_JA = ['基本形', '第一転回形', '第二転回形', '第三転回形'];
+const INVERSION_LABELS_EN = ['Root Position', '1st Inversion', '2nd Inversion', '3rd Inversion'];
+
 const SEVENTH_TITLES = {
   maj7: { ja: 'メジャー7th', en: 'Major 7th' },
   m7: { ja: 'マイナー7th', en: 'Minor 7th' },
@@ -115,32 +120,65 @@ const sqlJson = (value) => `'${JSON.stringify(value).replace(/'/g, "''")}'::json
 const categories = [
   { sort_order: 1, slug: 'intro', title_ja: '入門', title_en: 'Introduction', is_free: true },
   { sort_order: 2, slug: 'interval', title_ja: '音程', title_en: 'Intervals', is_free: false },
-  { sort_order: 3, slug: 'triad', title_ja: '3和音', title_en: 'Triads', is_free: false },
-  { sort_order: 4, slug: 'seventh', title_ja: '4和音', title_en: 'Seventh Chords', is_free: false },
-  { sort_order: 5, slug: 'scale_basic', title_ja: '初級スケール', title_en: 'Basic Scales', is_free: false },
+  {
+    sort_order: 3,
+    slug: 'triad',
+    title_ja: '3和音(転回形指定無し)',
+    title_en: 'Triads (Unspecified)',
+    is_free: false,
+  },
+  {
+    sort_order: 4,
+    slug: 'triad_inversion',
+    title_ja: '3和音(転回形)',
+    title_en: 'Triads (Inversions)',
+    is_free: false,
+  },
+  {
+    sort_order: 5,
+    slug: 'seventh',
+    title_ja: '4和音(転回形指定無し)',
+    title_en: 'Seventh Chords (Unspecified)',
+    is_free: false,
+  },
   {
     sort_order: 6,
+    slug: 'seventh_inversion',
+    title_ja: '4和音(転回形)',
+    title_en: 'Seventh Chords (Inversions)',
+    is_free: false,
+  },
+  { sort_order: 7, slug: 'scale_basic', title_ja: '初級スケール', title_en: 'Basic Scales', is_free: false },
+  {
+    sort_order: 8,
     slug: 'scale_intermediate',
     title_ja: '中級スケール',
     title_en: 'Intermediate Scales',
     is_free: false,
   },
   {
-    sort_order: 7,
+    sort_order: 9,
     slug: 'scale_advanced',
     title_ja: '上級スケール',
     title_en: 'Advanced Scales',
     is_free: false,
   },
   {
-    sort_order: 8,
+    sort_order: 10,
     slug: 'tension_voicing',
-    title_ja: 'テンションヴォイシング',
-    title_en: 'Tension Voicings',
+    title_ja: 'テンションヴォイシング(転回形指定無し)',
+    title_en: 'Tension Voicings (Unspecified)',
     is_free: false,
   },
   {
-    sort_order: 9,
+    sort_order: 11,
+    slug: 'tension_voicing_ab',
+    title_ja: 'テンションヴォイシング(A/Bフォーム)',
+    title_en: 'Tension Voicings (A/B Forms)',
+    is_free: false,
+  },
+  {
+    sort_order: 12,
     slug: 'two_hand_voicing',
     title_ja: '両手ヴォイシング',
     title_en: 'Two-Hand Voicings',
@@ -264,6 +302,24 @@ triads.forEach(({ quality, roots }, index) => {
   });
 });
 
+// Cat 3b: triad inversions (基本形 / 第一 / 第二)
+let triadInvSort = 1;
+for (const { quality, roots } of triads) {
+  const names = TRIAD_INVERSION_NAMES[quality];
+  for (let inversion = 0; inversion <= 2; inversion += 1) {
+    addTraining('triad_inversion', {
+      slug: `triad-${quality}-inv${inversion}`,
+      title_ja: `${names.ja}(${INVERSION_LABELS_JA[inversion]})`,
+      title_en: `${names.en} (${INVERSION_LABELS_EN[inversion]})`,
+      sort_order: triadInvSort,
+      kind: 'chord',
+      clef_mode: 'instrument',
+      config: { quality, roots: ROOT_SETS[roots], inversion, ordered: true },
+    });
+    triadInvSort += 1;
+  }
+}
+
 // Cat 4: seventh chords
 const sevenths = [
   { quality: 'maj7', roots: 'A' },
@@ -287,6 +343,24 @@ sevenths.forEach(({ quality, roots }, index) => {
     config: { quality, roots: ROOT_SETS[roots] },
   });
 });
+
+// Cat 4b: seventh inversions (基本形 / 第一 / 第二 / 第三)
+let seventhInvSort = 1;
+for (const { quality, roots } of sevenths) {
+  const names = SEVENTH_TITLES[quality];
+  for (let inversion = 0; inversion <= 3; inversion += 1) {
+    addTraining('seventh_inversion', {
+      slug: `seventh-${quality}-inv${inversion}`,
+      title_ja: `${names.ja}(${INVERSION_LABELS_JA[inversion]})`,
+      title_en: `${names.en} (${INVERSION_LABELS_EN[inversion]})`,
+      sort_order: seventhInvSort,
+      kind: 'chord',
+      clef_mode: 'instrument',
+      config: { quality, roots: ROOT_SETS[roots], inversion, ordered: true },
+    });
+    seventhInvSort += 1;
+  }
+}
 
 // Cat 5: basic scales
 ['major', 'natural_minor', 'harmonic_minor', 'melodic_minor'].forEach((scale, index) => {
@@ -416,6 +490,88 @@ tensionVoicings.forEach((item, index) => {
   });
 });
 
+// Cat 8b: tension voicings A/B forms (treble clef, ordered bottom-up)
+const tensionVoicingsAB = [
+  {
+    slug: 'tension-maj7-9',
+    title: 'M7(9)',
+    aIntervals: ['3M', '5P', '7M', '9M'],
+    bIntervals: ['7M', '9M', '10M', '12P'],
+    roots: 'A',
+  },
+  {
+    slug: 'tension-m7-9',
+    title: 'm7(9)',
+    aIntervals: ['3m', '5P', '7m', '9M'],
+    bIntervals: ['7m', '9M', '10m', '12P'],
+    roots: 'B',
+  },
+  {
+    slug: 'tension-7-9-6th',
+    title: '7(9.13)',
+    aIntervals: ['3M', '6M', '7m', '9M'],
+    bIntervals: ['7m', '9M', '10M', '13M'],
+    roots: 'D',
+  },
+  {
+    slug: 'tension-7-b9-b6th',
+    title: '7(b9.b13)',
+    aIntervals: ['3M', '6m', '7m', '9m'],
+    bIntervals: ['7m', '9m', '10M', '13m'],
+    roots: 'D',
+  },
+  {
+    slug: 'tension-m7b5-11',
+    title: 'm7(b5)(11)',
+    aIntervals: ['1P', '4P', '5d', '7m'],
+    bIntervals: ['7m', '8P', '11P', '12d'],
+    roots: 'C',
+  },
+  {
+    slug: 'tension-6-9',
+    title: '6(9)',
+    aIntervals: ['3M', '5P', '6M', '9M'],
+    bIntervals: ['6M', '9M', '10M', '12P'],
+    roots: 'A',
+  },
+  {
+    slug: 'tension-m6-9',
+    title: 'm6(9)',
+    aIntervals: ['3m', '5P', '6M', '9M'],
+    bIntervals: ['6M', '9M', '10m', '12P'],
+    roots: 'B',
+  },
+  {
+    slug: 'tension-mm7-9',
+    title: 'mM7(9)',
+    aIntervals: ['3m', '5P', '7M', '9M'],
+    bIntervals: ['7M', '9M', '10m', '12P'],
+    roots: 'B',
+  },
+];
+let tensionAbSort = 1;
+for (const item of tensionVoicingsAB) {
+  for (const form of ['a', 'b']) {
+    const formLabelJa = form === 'a' ? 'Aフォーム' : 'Bフォーム';
+    const formLabelEn = form === 'a' ? 'Form A' : 'Form B';
+    addTraining('tension_voicing_ab', {
+      slug: `${item.slug}-${form}`,
+      title_ja: `${item.title}(${formLabelJa})`,
+      title_en: `${item.title} (${formLabelEn})`,
+      sort_order: tensionAbSort,
+      kind: 'voicing',
+      clef_mode: 'instrument',
+      config: {
+        roots: ROOT_SETS[item.roots],
+        intervals: form === 'a' ? item.aIntervals : item.bIntervals,
+        clef: 'treble',
+        ordered: true,
+      },
+    });
+    tensionAbSort += 1;
+  }
+}
+
 // Cat 9: two-hand voicings (grand concert)
 // voicing_notes は reference_root = C のときの実音（下から順）。各ルートへは綴りを保って移調する。
 // min_lowest_note: 「最低コード」の最低音。
@@ -503,29 +659,52 @@ twoHandVoicings.forEach((item, index) => {
   });
 });
 
-const categoryRows = categories
+// Inversions + A/B forms (upsert only; output as 20260926120000)
+const inversionOut = join(
+  repoRoot,
+  'supabase',
+  'migrations',
+  '20260926120000_training_inversions.sql',
+);
+const inversionCategorySlugs = new Set([
+  'triad',
+  'triad_inversion',
+  'seventh',
+  'seventh_inversion',
+  'scale_basic',
+  'scale_intermediate',
+  'scale_advanced',
+  'tension_voicing',
+  'tension_voicing_ab',
+  'two_hand_voicing',
+]);
+const inversionCategories = categories.filter((c) => inversionCategorySlugs.has(c.slug));
+const inversionCategoryRows = inversionCategories
   .map(
     (category) =>
       `  (${uuid(`training-category-${category.slug}`)}, ${sqlStr(category.slug)}, ${sqlStr(category.title_ja)}, ${sqlStr(category.title_en)}, ${category.sort_order}, ${category.is_free})`,
   )
   .join(',\n');
-
-const trainingRows = trainings
+const inversionTrainingSlugs = new Set([
+  ...trainings.filter((t) => t.categorySlug === 'triad_inversion').map((t) => t.slug),
+  ...trainings.filter((t) => t.categorySlug === 'seventh_inversion').map((t) => t.slug),
+  ...trainings.filter((t) => t.categorySlug === 'tension_voicing_ab').map((t) => t.slug),
+]);
+const inversionTrainings = trainings.filter((t) => inversionTrainingSlugs.has(t.slug));
+const inversionTrainingRows = inversionTrainings
   .map((training) => {
     const categoryId = uuid(`training-category-${training.categorySlug}`);
     const trainingId = uuid(`training-${training.slug}`);
     return `  (${trainingId}, ${categoryId}, ${sqlStr(training.slug)}, ${sqlStr(training.title_ja)}, ${sqlStr(training.title_en)}, ${training.sort_order}, ${sqlStr(training.kind)}, ${sqlStr(training.clef_mode)}, false, ${training.play_root_on_correct}, ${sqlStr(DEFAULT_BGM)}, ${sqlJson(training.config)}, true)`;
   })
   .join(',\n');
-
-const sql = `-- Training mode: categories and trainings seed (generated by scripts/generate-training-seed.mjs)
--- v2: scale root sets, tension voicing intervals, two-hand voicing spelling/reference fixes
+const inversionSql = `-- Training mode: inversions + A/B tension voicings (generated by scripts/generate-training-seed.mjs)
 BEGIN;
 
 INSERT INTO public.training_categories (
   id, slug, title_ja, title_en, sort_order, is_free
 ) VALUES
-${categoryRows}
+${inversionCategoryRows}
 ON CONFLICT (slug) DO UPDATE SET
   title_ja = EXCLUDED.title_ja,
   title_en = EXCLUDED.title_en,
@@ -548,7 +727,7 @@ INSERT INTO public.trainings (
   config,
   is_active
 ) VALUES
-${trainingRows}
+${inversionTrainingRows}
 ON CONFLICT (slug) DO UPDATE SET
   category_id = EXCLUDED.category_id,
   title_ja = EXCLUDED.title_ja,
@@ -563,65 +742,48 @@ ON CONFLICT (slug) DO UPDATE SET
   is_active = EXCLUDED.is_active,
   updated_at = now();
 
-COMMIT;
-`;
-
-writeFileSync(outMigration, sql, 'utf8');
-process.stdout.write(`Wrote ${outMigration}\n`);
-process.stdout.write(`Categories: ${categories.length}\n`);
-process.stdout.write(`Trainings: ${trainings.length}\n`);
-
-// v3: note reading 4 variants (upsert only; applied as 20260910130400)
-const noteReadingOut = join(
-  repoRoot,
-  'supabase',
-  'migrations',
-  '20260910130400_training_note_reading_accidentals.sql',
-);
-const noteReadingTrainings = trainings.filter((t) => t.kind === 'note_reading');
-const noteReadingRows = noteReadingTrainings
-  .map((training) => {
-    const categoryId = uuid(`training-category-${training.categorySlug}`);
-    const trainingId = uuid(`training-${training.slug}`);
-    return `  (${trainingId}, ${categoryId}, ${sqlStr(training.slug)}, ${sqlStr(training.title_ja)}, ${sqlStr(training.title_en)}, ${training.sort_order}, ${sqlStr(training.kind)}, ${sqlStr(training.clef_mode)}, false, ${training.play_root_on_correct}, ${sqlStr(DEFAULT_BGM)}, ${sqlJson(training.config)}, true)`;
-  })
-  .join(',\n');
-const noteReadingSql = `-- Training mode: note reading 4 variants (generated by scripts/generate-training-seed.mjs)
--- treble/bass naturals + accidentals; bass In C fixed via bass_concert
-BEGIN;
-
-INSERT INTO public.trainings (
-  id,
-  category_id,
-  slug,
-  title_ja,
-  title_en,
-  sort_order,
-  kind,
-  clef_mode,
-  use_key_signature,
-  play_root_on_correct,
-  bgm_url,
-  config,
-  is_active
-) VALUES
-${noteReadingRows}
-ON CONFLICT (slug) DO UPDATE SET
-  category_id = EXCLUDED.category_id,
-  title_ja = EXCLUDED.title_ja,
-  title_en = EXCLUDED.title_en,
-  sort_order = EXCLUDED.sort_order,
-  kind = EXCLUDED.kind,
-  clef_mode = EXCLUDED.clef_mode,
-  use_key_signature = EXCLUDED.use_key_signature,
-  play_root_on_correct = EXCLUDED.play_root_on_correct,
-  bgm_url = EXCLUDED.bgm_url,
-  config = EXCLUDED.config,
-  is_active = EXCLUDED.is_active,
+-- Training category badges (rename existing + add new categories)
+INSERT INTO public.badges (id, category, rank, name, name_en, condition_type, condition_value, condition_text, condition_text_en, image_path, sort_order)
+SELECT
+  'training_' || tc.slug || '_b_' || v.rank::text,
+  'training_' || tc.slug,
+  v.rank,
+  tc.title_ja || ' ' || v.label_ja,
+  tc.title_en || ' ' || v.label_en,
+  'training_category_rank',
+  v.threshold,
+  tc.title_ja || 'の全課題を' || v.label_ja || '以上でクリア',
+  'Clear all ' || tc.title_en || ' trainings at ' || v.label_en || ' or better',
+  '/achivement/achievement_monster_33.png',
+  200 + tc.sort_order * 3 + v.rank
+FROM public.training_categories AS tc
+CROSS JOIN (
+  VALUES
+    (1, 2, 'B以上', 'B+'),
+    (2, 3, 'A以上', 'A+'),
+    (3, 4, 'S以上', 'S+')
+) AS v(rank, threshold, label_ja, label_en)
+WHERE tc.slug IN (
+  'triad',
+  'triad_inversion',
+  'seventh',
+  'seventh_inversion',
+  'tension_voicing',
+  'tension_voicing_ab'
+)
+ON CONFLICT (id) DO UPDATE SET
+  is_active = true,
+  name = EXCLUDED.name,
+  name_en = EXCLUDED.name_en,
+  condition_text = EXCLUDED.condition_text,
+  condition_text_en = EXCLUDED.condition_text_en,
   updated_at = now();
 
 COMMIT;
 `;
-writeFileSync(noteReadingOut, noteReadingSql, 'utf8');
-process.stdout.write(`Wrote ${noteReadingOut}\n`);
-process.stdout.write(`Note reading trainings: ${noteReadingTrainings.length}\n`);
+writeFileSync(inversionOut, inversionSql, 'utf8');
+process.stdout.write(`Wrote ${inversionOut}\n`);
+process.stdout.write(`Categories (total): ${categories.length}\n`);
+process.stdout.write(`Trainings (total): ${trainings.length}\n`);
+process.stdout.write(`Inversion categories upserted: ${inversionCategories.length}\n`);
+process.stdout.write(`Inversion trainings upserted: ${inversionTrainings.length}\n`);

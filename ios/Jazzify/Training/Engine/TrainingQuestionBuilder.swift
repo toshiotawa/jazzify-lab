@@ -316,6 +316,11 @@ enum TrainingQuestionBuilder {
         return midis
     }
 
+    private static func applyInversionIfNeeded(_ notes: [SpelledNote], inversion: Int?) -> [SpelledNote] {
+        guard let inversion, inversion > 0 else { return notes }
+        return TrainingMusicTheory.applyClosedInversion(notes, inversion: inversion)
+    }
+
     private static func buildChordVoicingQuestion(
         training: TrainingRow,
         config: TrainingConfig,
@@ -326,6 +331,8 @@ enum TrainingQuestionBuilder {
     ) -> TrainingQuestion? {
         let notes: [SpelledNote]
         let staves: [Int]
+        let inversion = config.inversion ?? 0
+        let minMidi = config.minLowestNote.flatMap { TrainingMusicTheory.parseVoicingMidi($0) } ?? staffBottom
 
         if let voicingNotes = config.voicingNotes, !voicingNotes.isEmpty {
             let parsed = voicingNotes.compactMap { TrainingMusicTheory.parseSpelled($0) }
@@ -337,18 +344,25 @@ enum TrainingQuestionBuilder {
             } else {
                 transposed = parsed
             }
-            let minMidi = config.minLowestNote.flatMap { TrainingMusicTheory.parseVoicingMidi($0) } ?? staffBottom
-            notes = TrainingMusicTheory.placeLowestInOctaveAbove(transposed, minMidi: minMidi)
+            notes = TrainingMusicTheory.placeLowestInOctaveAbove(
+                applyInversionIfNeeded(transposed, inversion: inversion),
+                minMidi: minMidi
+            )
             staves = toStaves(config.staves, count: notes.count, fallback: defaultStaff)
         } else if let intervals = config.intervals, !intervals.isEmpty {
-            let raw = TrainingMusicTheory.spelledFromIntervals(root: root, octave: 3, intervals: intervals)
-            let minMidi = config.minLowestNote.flatMap { TrainingMusicTheory.parseVoicingMidi($0) } ?? staffBottom
+            let raw = applyInversionIfNeeded(
+                TrainingMusicTheory.spelledFromIntervals(root: root, octave: 3, intervals: intervals),
+                inversion: inversion
+            )
             notes = TrainingMusicTheory.placeLowestInOctaveAbove(raw, minMidi: minMidi)
             staves = toStaves(config.staves, count: notes.count, fallback: defaultStaff)
         } else if let quality = config.quality, let intervals = TrainingMusicTheory.chordTemplates[quality] {
             notes = TrainingMusicTheory.placeLowestInOctaveAbove(
-                TrainingMusicTheory.spelledFromIntervals(root: root, octave: 4, intervals: intervals),
-                minMidi: staffBottom
+                applyInversionIfNeeded(
+                    TrainingMusicTheory.spelledFromIntervals(root: root, octave: 4, intervals: intervals),
+                    inversion: inversion
+                ),
+                minMidi: minMidi
             )
             staves = toStaves(nil, count: notes.count, fallback: defaultStaff)
         } else {
@@ -371,7 +385,7 @@ enum TrainingQuestionBuilder {
             staves: staves,
             targets: noteNames.map { _ in true },
             layout: .stacked,
-            ordered: false,
+            ordered: config.ordered == true,
             keyFifths: keyFifths,
             rootMidi: TrainingMusicTheory.rootMidiBelow(root: root, lowestMidi: lowestMidi)
         )
@@ -390,7 +404,9 @@ enum TrainingQuestionBuilder {
             staves: override.staves ?? base.staves,
             voicingNotes: override.voicingNotes ?? base.voicingNotes,
             referenceRoot: override.referenceRoot ?? base.referenceRoot,
-            minLowestNote: override.minLowestNote ?? base.minLowestNote
+            minLowestNote: override.minLowestNote ?? base.minLowestNote,
+            inversion: override.inversion ?? base.inversion,
+            ordered: override.ordered ?? base.ordered
         )
     }
 

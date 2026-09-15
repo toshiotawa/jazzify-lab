@@ -28,6 +28,8 @@ struct TrainingConfig: Codable, Sendable {
     let voicingNotes: [String]?
     let referenceRoot: String?
     let minLowestNote: String?
+    let inversion: Int?
+    let ordered: Bool?
 
     enum CodingKeys: String, CodingKey {
         case roots, quality, scale, interval, direction, clef, intervals, staves
@@ -35,6 +37,7 @@ struct TrainingConfig: Codable, Sendable {
         case voicingNotes = "voicing_notes"
         case referenceRoot = "reference_root"
         case minLowestNote = "min_lowest_note"
+        case inversion, ordered
     }
 }
 
