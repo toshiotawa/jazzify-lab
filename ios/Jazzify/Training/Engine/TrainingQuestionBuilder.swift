@@ -84,19 +84,21 @@ enum TrainingQuestionBuilder {
         }
 
         let roots = options.lessonRoots ?? mergedConfig.roots ?? ["C"]
-        let root: String
-        if options.lessonOrder == "sequential", let index = options.lessonItemIndex {
-            root = roots[index % roots.count]
-        } else {
-            root = roots.randomElement() ?? "C"
+        let pickRoot: () -> String = {
+            if options.lessonOrder == "sequential", let index = options.lessonItemIndex {
+                return roots[index % roots.count]
+            }
+            return roots.randomElement() ?? "C"
         }
 
         let effectiveClef = resolveEffectiveClef(clefMode: training.clefMode, configClef: mergedConfig.clef)
         let singleClef = effectiveClef == "bass" ? "bass" : "treble"
         let defaultStaff = singleClef == "bass" ? 2 : 1
         let staffBottom = staffBottomMidi[singleClef] ?? 64
+        var lastBuilt: TrainingQuestion?
 
         for _ in 0..<12 {
+            let root = pickRoot()
             switch training.kind {
             case .noteReading:
                 let includeAccidentals = mergedConfig.includeAccidentals == true
@@ -108,8 +110,7 @@ enum TrainingQuestionBuilder {
                       let writtenMidi = TrainingMusicTheory.parseVoicingMidi(writtenSpelling)
                 else { continue }
                 let questionKey = "note:\(writtenMidi):\(writtenSpelling)"
-                if questionKey == previousQuestionKey { continue }
-                return makeQuestion(
+                let question = makeQuestion(
                     questionKey: questionKey,
                     promptLabel: "",
                     noteNames: [writtenSpelling],
@@ -120,6 +121,9 @@ enum TrainingQuestionBuilder {
                     keyFifths: keyFifths,
                     rootMidi: writtenMidi
                 )
+                lastBuilt = question
+                if questionKey == previousQuestionKey { continue }
+                return question
 
             case .interval:
                 let directionUp = (mergedConfig.direction ?? "up") == "up"
@@ -147,8 +151,7 @@ enum TrainingQuestionBuilder {
                 guard let picked = candidates.randomElement() else { continue }
                 let directionKey = directionUp ? "up" : "down"
                 let questionKey = "interval:\(interval):\(directionKey):\(picked.base.name):\(picked.target.name)"
-                if questionKey == previousQuestionKey { continue }
-                return makeQuestion(
+                let question = makeQuestion(
                     questionKey: questionKey,
                     promptLabel: "\(picked.base.pitchName) \(intervalLabel)",
                     noteNames: [picked.base.name, picked.target.name],
@@ -159,6 +162,9 @@ enum TrainingQuestionBuilder {
                     keyFifths: keyFifths,
                     rootMidi: picked.base.midi
                 )
+                lastBuilt = question
+                if questionKey == previousQuestionKey { continue }
+                return question
 
             case .scale:
                 let scaleType = mergedConfig.scale ?? "major"
@@ -168,8 +174,7 @@ enum TrainingQuestionBuilder {
                     minMidi: staffBottom
                 )
                 let questionKey = "scale:\(root):\(scaleType)"
-                if questionKey == previousQuestionKey { continue }
-                return makeQuestion(
+                let question = makeQuestion(
                     questionKey: questionKey,
                     promptLabel: "\(root) \(training.titleJa)",
                     noteNames: notes.map(\.name),
@@ -180,6 +185,9 @@ enum TrainingQuestionBuilder {
                     keyFifths: keyFifths,
                     rootMidi: notes.first?.midi
                 )
+                lastBuilt = question
+                if questionKey == previousQuestionKey { continue }
+                return question
 
             case .chord, .voicing:
                 guard let built = buildChordVoicingQuestion(
@@ -188,14 +196,19 @@ enum TrainingQuestionBuilder {
                     root: root,
                     defaultStaff: defaultStaff,
                     staffBottom: staffBottom,
-                    previousQuestionKey: previousQuestionKey,
                     keyFifths: keyFifths
                 ) else { continue }
+                lastBuilt = built
+                if built.questionKey == previousQuestionKey { continue }
                 return built
 
             case .progression:
                 continue
             }
+        }
+
+        if let lastBuilt {
+            return lastBuilt
         }
 
         return buildFallbackQuestion(
@@ -291,7 +304,6 @@ enum TrainingQuestionBuilder {
                     root: root,
                     defaultStaff: defaultStaff,
                     staffBottom: staffBottom,
-                    previousQuestionKey: nil,
                     keyFifths: 0
                 ) else { continue }
                 midis.append(contentsOf: built.notes.map(\.midi))
@@ -310,7 +322,6 @@ enum TrainingQuestionBuilder {
         root: String,
         defaultStaff: Int,
         staffBottom: Int,
-        previousQuestionKey: String?,
         keyFifths: Int
     ) -> TrainingQuestion? {
         let notes: [SpelledNote]
@@ -347,7 +358,6 @@ enum TrainingQuestionBuilder {
 
         let noteNames = notes.map(\.name)
         let questionKey = "chord:\(root):\(noteNames.joined(separator: "|"))"
-        if questionKey == previousQuestionKey { return nil }
         let suffix: String
         if training.kind == .chord, let quality = config.quality {
             suffix = TrainingMusicTheory.chordSymbolSuffix[quality] ?? quality

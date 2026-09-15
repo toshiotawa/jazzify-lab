@@ -152,6 +152,27 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         }
     }
 
+    func testChordAvoidsRepeatingAndDoesNotFallback() {
+        let row = training(kind: .chord, config: config(roots: ["C", "D", "E"], quality: "maj"))
+        let first = build(row)
+        let second = build(row, previous: first.questionKey)
+        XCTAssertNotEqual(second.questionKey, first.questionKey)
+        XCTAssertFalse(second.questionKey.hasPrefix("fallback:"))
+        XCTAssertGreaterThan(second.notes.count, 1)
+        XCTAssertFalse(second.promptLabel.isEmpty)
+    }
+
+    func testSingleRootChordDoesNotFallbackToC4() {
+        let row = training(kind: .chord, config: config(roots: ["C"], quality: "maj"))
+        let first = build(row)
+        for _ in 0..<20 {
+            let next = build(row, previous: first.questionKey)
+            XCTAssertEqual(next.questionKey, first.questionKey)
+            XCTAssertEqual(next.promptLabel, "C")
+            XCTAssertEqual(next.notes.map(\.noteName), ["C5", "E5", "G5"])
+        }
+    }
+
     func testChordKeepsFlatSpellingAndStaffRange() {
         let q = build(training(kind: .chord, config: config(roots: ["Db"], quality: "maj")))
         XCTAssertEqual(q.notes.map(\.noteName), ["Db5", "F5", "Ab5"])

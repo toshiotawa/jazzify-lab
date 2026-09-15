@@ -116,6 +116,34 @@ describe('trainingQuestionBuilder', () => {
     const first = buildTrainingQuestion({ training, ...piano });
     const second = buildTrainingQuestion({ training, ...piano, previousQuestionKey: first.questionKey });
     expect(second.questionKey).not.toBe(first.questionKey);
+    expect(second.questionKey.startsWith('fallback:')).toBe(false);
+    expect(second.notes.length).toBeGreaterThan(1);
+    expect(second.promptLabel).not.toBe('');
+  });
+
+  it('keeps a single-root chord instead of falling back to C4', () => {
+    const training = baseTraining({ kind: 'chord', config: { quality: 'maj', roots: ['C'] } });
+    const first = buildTrainingQuestion({ training, ...piano });
+    for (let i = 0; i < 20; i += 1) {
+      const next = buildTrainingQuestion({ training, ...piano, previousQuestionKey: first.questionKey });
+      expect(next.questionKey).toBe(first.questionKey);
+      expect(next.promptLabel).toBe('C');
+      expect(next.notes.map((n) => n.noteName)).toEqual(['C5', 'E5', 'G5']);
+    }
+  });
+
+  it('never falls back to a single C when a different chord root is available', () => {
+    const training = baseTraining({ kind: 'chord', config: { quality: 'maj', roots: ['C', 'G'] } });
+    const first = buildTrainingQuestion({
+      training: { ...training, config: { ...training.config, roots: ['C'] } },
+      ...piano,
+    });
+    for (let i = 0; i < 40; i += 1) {
+      const next = buildTrainingQuestion({ training, ...piano, previousQuestionKey: first.questionKey });
+      expect(next.questionKey.startsWith('fallback:')).toBe(false);
+      expect(next.notes.length).toBe(3);
+      expect(next.promptLabel).not.toBe('');
+    }
   });
 
   it('keeps flat spellings for chords and places the lowest note inside the staff', () => {

@@ -263,9 +263,12 @@ export const buildTrainingQuestion = (
     : training.config;
 
   const roots = options.lessonRoots ?? config.roots ?? ['C'];
-  const root = options.lessonOrder === 'sequential' && options.lessonItemIndex != null
-    ? roots[options.lessonItemIndex % roots.length] ?? 'C'
-    : pickRandom(roots);
+  const pickRoot = (): string => {
+    if (options.lessonOrder === 'sequential' && options.lessonItemIndex != null) {
+      return roots[options.lessonItemIndex % roots.length] ?? 'C';
+    }
+    return pickRandom(roots);
+  };
 
   const effectiveClef = resolveEffectiveClef(training.clefMode, preset.clef, config.clef);
   const singleClef: Clef = effectiveClef === 'bass' ? 'bass' : 'treble';
@@ -292,7 +295,10 @@ export const buildTrainingQuestion = (
     rootMidi,
   });
 
+  let lastBuilt: TrainingQuestion | null = null;
+
   for (let attempt = 0; attempt < 12; attempt += 1) {
+    const root = pickRoot();
     if (training.kind === 'note_reading') {
       const includeAccidentals = config.includeAccidentals === true;
       const forcedClef = config.clef === 'bass' || effectiveClef === 'bass' ? 'bass' : 'treble';
@@ -303,9 +309,8 @@ export const buildTrainingQuestion = (
       const writtenMidi = parseVoicingNoteName(writtenSpelling).midi;
       const concertMidi = writtenMidi - writtenOffset;
       const questionKey = `note:${concertMidi}:${writtenSpelling}`;
-      if (questionKey === previousQuestionKey) continue;
       const noteName = writtenOffset === 0 ? writtenSpelling : flatSpelledName(concertMidi);
-      return makeQuestion(
+      const question = makeQuestion(
         questionKey,
         '',
         [noteName],
@@ -315,6 +320,9 @@ export const buildTrainingQuestion = (
         false,
         concertMidi,
       );
+      lastBuilt = question;
+      if (questionKey === previousQuestionKey) continue;
+      return question;
     }
 
     if (training.kind === 'interval') {
@@ -344,8 +352,7 @@ export const buildTrainingQuestion = (
       }
       const picked = pickRandom(candidates);
       const questionKey = `interval:${interval}:${direction}:${picked.base}:${picked.target}`;
-      if (questionKey === previousQuestionKey) continue;
-      return makeQuestion(
+      const question = makeQuestion(
         questionKey,
         `${pitchNameWithoutOctave(picked.base)} ${intervalLabel}`,
         [picked.base, picked.target],
@@ -355,6 +362,9 @@ export const buildTrainingQuestion = (
         false,
         midiOf(picked.base),
       );
+      lastBuilt = question;
+      if (questionKey === previousQuestionKey) continue;
+      return question;
     }
 
     if (training.kind === 'scale') {
@@ -365,8 +375,7 @@ export const buildTrainingQuestion = (
       }
       const names = placeLowestInOctaveAbove(spelledFromIntervals(`${root}4`, intervals), concertStaffBottom);
       const questionKey = `scale:${root}:${scaleType}`;
-      if (questionKey === previousQuestionKey) continue;
-      return makeQuestion(
+      const question = makeQuestion(
         questionKey,
         `${root} ${training.titleJa}`,
         names,
@@ -376,6 +385,9 @@ export const buildTrainingQuestion = (
         true,
         midiOf(names[0] ?? `${root}4`),
       );
+      lastBuilt = question;
+      if (questionKey === previousQuestionKey) continue;
+      return question;
     }
 
     if (training.kind === 'chord' || training.kind === 'voicing') {
@@ -407,12 +419,11 @@ export const buildTrainingQuestion = (
       }
 
       const questionKey = `chord:${root}:${names.join('|')}`;
-      if (questionKey === previousQuestionKey) continue;
       const suffix = training.kind === 'chord' && config.quality
         ? CHORD_SYMBOL_SUFFIX[config.quality] ?? config.quality
         : training.titleEn;
       const lowestMidi = Math.min(...names.map(midiOf));
-      return makeQuestion(
+      const question = makeQuestion(
         questionKey,
         `${root}${suffix}`,
         names,
@@ -422,6 +433,9 @@ export const buildTrainingQuestion = (
         false,
         rootMidiBelow(root, lowestMidi),
       );
+      lastBuilt = question;
+      if (questionKey === previousQuestionKey) continue;
+      return question;
     }
 
     if (training.kind === 'progression') {
@@ -429,6 +443,10 @@ export const buildTrainingQuestion = (
     }
 
     throw new Error(`Unsupported training kind: ${training.kind}`);
+  }
+
+  if (lastBuilt) {
+    return lastBuilt;
   }
 
   return makeQuestion(
