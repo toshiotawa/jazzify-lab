@@ -37,12 +37,15 @@ enum TrainingRank {
         return .F
     }
 
-    static func meetsRequirement(score: Int, requiredRank: TrainingLetterRank, kind: TrainingKind = .chord) -> Bool {
-        let achieved = scoreToRank(score, kind: kind)
+    static func meetsRank(achieved: TrainingLetterRank, required: TrainingLetterRank) -> Bool {
         guard let achievedIndex = order.firstIndex(of: achieved),
-              let requiredIndex = order.firstIndex(of: requiredRank)
+              let requiredIndex = order.firstIndex(of: required)
         else { return false }
         return achievedIndex >= requiredIndex
+    }
+
+    static func meetsRequirement(score: Int, requiredRank: TrainingLetterRank, kind: TrainingKind = .chord) -> Bool {
+        meetsRank(achieved: scoreToRank(score, kind: kind), required: requiredRank)
     }
 
     static func parseLetterRank(_ raw: String) -> TrainingLetterRank {

@@ -9,6 +9,8 @@ struct Profile: Codable, Identifiable, Sendable {
     var xp: Int
     var level: Int
     var preferredLocale: String?
+    /// IANA タイムゾーン（未設定は国 / 端末から解決）
+    var timezone: String?
     var country: String?
     var signupPlatform: String?
     var isAdmin: Bool
@@ -20,7 +22,7 @@ struct Profile: Codable, Identifiable, Sendable {
     var instrument: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, email, nickname, rank, xp, level, country
+        case id, email, nickname, rank, xp, level, country, timezone
         case avatarUrl = "avatar_url"
         case preferredLocale = "preferred_locale"
         case signupPlatform = "signup_platform"

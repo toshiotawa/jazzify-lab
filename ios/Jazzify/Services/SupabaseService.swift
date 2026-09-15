@@ -258,6 +258,18 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    func updateProfileTimezone(userId: UUID, timezone: String) async throws {
+        struct TimezoneUpdate: Encodable {
+            let timezone: String
+        }
+
+        try await client
+            .from("profiles")
+            .update(TimezoneUpdate(timezone: timezone))
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+
     func updateSimpleEnharmonicDisplay(userId: UUID, enabled: Bool) async throws {
         struct SimpleEnharmonicDisplayUpdate: Encodable {
             let simple_enharmonic_display: Bool
@@ -832,38 +844,6 @@ final class SupabaseService: Sendable {
         )
     }
 
-    struct ActiveBadgeRow: Decodable, Sendable {
-        let id: String
-        let category: String
-        let rank: Int
-        let titleJa: String
-        let titleEn: String
-        let descriptionJa: String
-        let descriptionEn: String
-        let imageUrl: String
-        let sortOrder: Int
-
-        enum CodingKeys: String, CodingKey {
-            case id, category, rank
-            case titleJa = "title_ja"
-            case titleEn = "title_en"
-            case descriptionJa = "description_ja"
-            case descriptionEn = "description_en"
-            case imageUrl = "image_url"
-            case sortOrder = "sort_order"
-        }
-    }
-
-    func fetchActiveBadges() async throws -> [ActiveBadgeRow] {
-        try await client
-            .from("badges")
-            .select("id, category, rank, title_ja, title_en, description_ja, description_en, image_url, sort_order")
-            .eq("is_active", value: true)
-            .order("sort_order")
-            .execute()
-            .value
-    }
-
     // MARK: - Announcements
 
     func fetchActiveAnnouncements(locale: AppLocale) async throws -> [AnnouncementRow] {
@@ -946,10 +926,13 @@ final class SupabaseService: Sendable {
             return response.count ?? 0
         }()
 
+        let trainingGoalClears = (try? await fetchMyTrainingGoalClearCount()) ?? 0
+
         return UserStats(
             lessonCompletedCount: lessonCount,
             dailyChallengeParticipationDays: challengeDays,
-            defenseClearCount: defenseClears
+            defenseClearCount: defenseClears,
+            trainingGoalClearCount: trainingGoalClears
         )
     }
 
@@ -2517,6 +2500,8 @@ final class SupabaseService: Sendable {
             let slug: String
             let title_ja: String
             let title_en: String
+            let description_ja: String?
+            let description_en: String?
             let sort_order: Int
             let is_free: Bool
             let is_active: Bool
@@ -2526,7 +2511,7 @@ final class SupabaseService: Sendable {
         let rows: [CategoryRow] = try await client
             .from("training_categories")
             .select("""
-                id, slug, title_ja, title_en, sort_order, is_free, is_active,
+                id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_free, is_active,
                 trainings (
                     id, category_id, slug, title_ja, title_en, sort_order, kind,
                     clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active
@@ -2543,6 +2528,8 @@ final class SupabaseService: Sendable {
                 slug: row.slug,
                 titleJa: row.title_ja,
                 titleEn: row.title_en,
+                descriptionJa: row.description_ja ?? "",
+                descriptionEn: row.description_en ?? "",
                 sortOrder: row.sort_order,
                 isFree: row.is_free,
                 isActive: row.is_active
@@ -2635,6 +2622,172 @@ final class SupabaseService: Sendable {
             bestRank: TrainingRank.parseLetterRank(row?.best_rank ?? TrainingRank.scoreToRank(score, kind: .chord).rawValue),
             isNewBest: row?.is_new_best ?? false
         )
+    }
+
+    // MARK: - Training Goals / Activity
+
+    func fetchTrainingGoalSets() async throws -> [TrainingGoalSet] {
+        struct ItemRow: Decodable {
+            let training_id: UUID
+            let target_rank: String
+            let sort_order: Int
+        }
+
+        struct GoalSetRow: Decodable {
+            let id: UUID
+            let slug: String
+            let title_ja: String
+            let title_en: String
+            let description_ja: String
+            let description_en: String
+            let sort_order: Int
+            let training_goal_set_items: [ItemRow]?
+        }
+
+        let rows: [GoalSetRow] = try await client
+            .from("training_goal_sets")
+            .select("""
+                id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_active,
+                training_goal_set_items (training_id, target_rank, sort_order)
+            """)
+            .eq("is_active", value: true)
+            .order("sort_order")
+            .execute()
+            .value
+
+        return rows.map { row in
+            let items = (row.training_goal_set_items ?? [])
+                .sorted { $0.sort_order < $1.sort_order }
+                .map { item in
+                    TrainingGoalSetItem(
+                        trainingId: item.training_id,
+                        targetRank: TrainingLetterRank(rawValue: item.target_rank) ?? .C,
+                        sortOrder: item.sort_order
+                    )
+                }
+            return TrainingGoalSet(
+                id: row.id,
+                slug: row.slug,
+                titleJa: row.title_ja,
+                titleEn: row.title_en,
+                descriptionJa: row.description_ja,
+                descriptionEn: row.description_en,
+                sortOrder: row.sort_order,
+                items: items
+            )
+        }
+    }
+
+    func fetchMyTrainingGoalId() async throws -> UUID? {
+        struct Row: Decodable {
+            let goal_set_id: UUID
+        }
+
+        let rows: [Row] = try await client
+            .from("user_training_goals")
+            .select("goal_set_id")
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.goal_set_id
+    }
+
+    func setMyTrainingGoal(goalSetId: UUID) async throws {
+        struct Upsert: Encodable {
+            let user_id: UUID
+            let goal_set_id: UUID
+            let updated_at: String
+        }
+
+        let userId = try await currentUserId()
+        try await client
+            .from("user_training_goals")
+            .upsert(Upsert(
+                user_id: userId,
+                goal_set_id: goalSetId,
+                updated_at: ISO8601DateFormatter().string(from: Date())
+            ))
+            .execute()
+    }
+
+    func fetchMyTrainingGoalClearCount() async throws -> Int {
+        let count: Int = try await client
+            .rpc("rpc_get_my_training_goal_clear_count")
+            .execute()
+            .value
+        return count
+    }
+
+    /// 本番プレイした日付キー（`yyyy-MM-dd`、`timezone` 基準）
+    func fetchTrainingActivityDays(timezone: String) async throws -> [String] {
+        struct Row: Decodable {
+            let day: String
+        }
+
+        struct RpcParams: Encodable {
+            let p_tz: String
+        }
+
+        let rows: [Row] = try await client
+            .rpc("rpc_get_training_activity_days", params: RpcParams(p_tz: timezone))
+            .execute()
+            .value
+        return rows.map(\.day)
+    }
+
+    func fetchTrainingDailyBests(
+        timezone: String,
+        from: String,
+        to: String,
+        trainingId: UUID?
+    ) async throws -> [TrainingDailyBest] {
+        struct Row: Decodable {
+            let day: String
+            let training_id: UUID
+            let best_score: Int
+            let best_rank: String
+        }
+
+        struct RpcParams: Encodable {
+            let p_tz: String
+            let p_from: String
+            let p_to: String
+            let p_training_id: UUID?
+        }
+
+        let rows: [Row] = try await client
+            .rpc(
+                "rpc_get_training_daily_bests",
+                params: RpcParams(p_tz: timezone, p_from: from, p_to: to, p_training_id: trainingId)
+            )
+            .execute()
+            .value
+        return rows.map { row in
+            TrainingDailyBest(
+                day: row.day,
+                trainingId: row.training_id,
+                bestScore: row.best_score,
+                bestRank: TrainingRank.parseLetterRank(row.best_rank)
+            )
+        }
+    }
+
+    /// 記録が存在する月キー（`yyyy-MM`、新しい順）
+    func fetchTrainingRecordMonths(timezone: String, trainingId: UUID) async throws -> [String] {
+        struct Row: Decodable {
+            let month_key: String
+        }
+
+        struct RpcParams: Encodable {
+            let p_tz: String
+            let p_training_id: UUID
+        }
+
+        let rows: [Row] = try await client
+            .rpc("rpc_get_training_record_months", params: RpcParams(p_tz: timezone, p_training_id: trainingId))
+            .execute()
+            .value
+        return rows.map(\.month_key)
     }
 
     @discardableResult

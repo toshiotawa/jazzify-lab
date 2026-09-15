@@ -46,6 +46,8 @@ struct TrainingCategoryRow: Codable, Identifiable, Sendable {
     let slug: String
     let titleJa: String
     let titleEn: String
+    let descriptionJa: String
+    let descriptionEn: String
     let sortOrder: Int
     let isFree: Bool
     let isActive: Bool
@@ -54,6 +56,8 @@ struct TrainingCategoryRow: Codable, Identifiable, Sendable {
         case id, slug
         case titleJa = "title_ja"
         case titleEn = "title_en"
+        case descriptionJa = "description_ja"
+        case descriptionEn = "description_en"
         case sortOrder = "sort_order"
         case isFree = "is_free"
         case isActive = "is_active"
@@ -61,6 +65,10 @@ struct TrainingCategoryRow: Codable, Identifiable, Sendable {
 
     func localizedTitle(_ locale: AppLocale) -> String {
         locale == .en ? titleEn : titleJa
+    }
+
+    func localizedDescription(_ locale: AppLocale) -> String {
+        locale == .en ? descriptionEn : descriptionJa
     }
 }
 
@@ -203,6 +211,39 @@ struct TrainingLessonContext: Sendable {
     let clearConditions: LessonClearConditions?
 }
 
+struct TrainingGoalSetItem: Sendable, Equatable {
+    let trainingId: UUID
+    let targetRank: TrainingLetterRank
+    let sortOrder: Int
+}
+
+struct TrainingGoalSet: Identifiable, Sendable, Equatable {
+    let id: UUID
+    let slug: String
+    let titleJa: String
+    let titleEn: String
+    let descriptionJa: String
+    let descriptionEn: String
+    let sortOrder: Int
+    let items: [TrainingGoalSetItem]
+
+    func localizedTitle(_ locale: AppLocale) -> String {
+        locale == .en ? titleEn : titleJa
+    }
+
+    func localizedDescription(_ locale: AppLocale) -> String {
+        locale == .en ? descriptionEn : descriptionJa
+    }
+}
+
+/// 1日・1トレーニングあたりの本番ハイスコア（`day` は `yyyy-MM-dd`）
+struct TrainingDailyBest: Sendable, Equatable {
+    let day: String
+    let trainingId: UUID
+    let bestScore: Int
+    let bestRank: TrainingLetterRank
+}
+
 enum TrainingGamePhase: Equatable {
     case countdown
     case playing
@@ -211,6 +252,10 @@ enum TrainingGamePhase: Equatable {
 
 enum TrainingScreen: Equatable {
     case list
+    case goal
+    case goals
+    case records(trainingId: UUID?)
+    case calendar(dateKey: String)
     case ranking
     case result
 }

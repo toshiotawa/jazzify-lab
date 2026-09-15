@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var deleteError: String?
     @State private var showMIDISettings = false
     @State private var rotateScreen180 = ScreenRotationPreferences.load()
+    @State private var timezoneError: String?
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -28,6 +29,7 @@ struct SettingsView: View {
                     }
                     accountSection
                     languageSection
+                    timezoneSection
                     displaySection
                     midiSection
                     subscriptionSection
@@ -124,6 +126,45 @@ struct SettingsView: View {
             .foregroundStyle(.white)
         } header: {
             Text(locale == .ja ? "言語設定" : "Language")
+        }
+        .listRowBackground(Color(hex: "1e293b"))
+    }
+
+    private var timezoneSection: some View {
+        let resolved = TrainingActivity.resolveUserTimezone(profile: profile)
+        let options = TrainingActivity.timezoneOptions.contains { $0.value == resolved }
+            ? TrainingActivity.timezoneOptions
+            : TrainingActivity.timezoneOptions + [TrainingTimezoneOption(value: resolved, labelJa: resolved, labelEn: resolved)]
+        return Section {
+            Picker(locale == .ja ? "タイムゾーン" : "Time zone", selection: Binding(
+                get: { resolved },
+                set: { newValue in
+                    guard newValue != resolved else { return }
+                    Task {
+                        if await appState.updateTimezone(newValue) == false {
+                            timezoneError = locale == .ja
+                                ? "タイムゾーンの保存に失敗しました"
+                                : "Failed to save time zone."
+                        }
+                    }
+                }
+            )) {
+                ForEach(options) { option in
+                    Text(option.label(locale)).tag(option.value)
+                }
+            }
+            .foregroundStyle(.white)
+            if let timezoneError {
+                Text(timezoneError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        } header: {
+            Text(locale == .ja ? "タイムゾーン" : "Time Zone")
+        } footer: {
+            Text(locale == .ja
+                 ? "トレーニングの「今日」「今週」や記録カレンダーの日付境界に使われます。"
+                 : "Used for the day boundaries of training habits and record calendars.")
         }
         .listRowBackground(Color(hex: "1e293b"))
     }

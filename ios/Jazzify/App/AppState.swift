@@ -323,6 +323,21 @@ final class AppState: ObservableObject {
         try? await supabase.updatePreferredLocale(userId: userId, locale: newLocale)
     }
 
+    /// トレーニング習慣・記録の日付境界に使うタイムゾーン（`profiles.timezone`）
+    func updateTimezone(_ timezone: String) async -> Bool {
+        guard let userId = profile?.id else { return false }
+        do {
+            try await supabase.updateProfileTimezone(userId: userId, timezone: timezone)
+        } catch {
+            return false
+        }
+        if var currentProfile = profile {
+            currentProfile.timezone = timezone
+            self.profile = currentProfile
+        }
+        return true
+    }
+
     func updateSimpleEnharmonicDisplay(_ enabled: Bool) async {
         EnharmonicDisplayPreferences.save(enabled)
         guard let userId = profile?.id else { return }

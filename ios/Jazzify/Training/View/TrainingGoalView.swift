@@ -1,0 +1,128 @@
+import SwiftUI
+
+/// 現在の目標セットの詳細（進捗ドーナツ・説明・目標トレーニング一覧）
+struct TrainingGoalView: View {
+    let goalSet: TrainingGoalSet
+    let summaryById: [UUID: TrainingScoreSummary]
+    let trainingById: [UUID: TrainingRow]
+    let locale: AppLocale
+    let isTrainingLocked: (TrainingRow) -> Bool
+    let onBack: () -> Void
+    let onOpenGoals: () -> Void
+    let onPlay: (TrainingRow, Bool) -> Void
+    let onOpenRecords: (UUID) -> Void
+    let onLocked: () -> Void
+
+    var body: some View {
+        let progress = TrainingGoalProgress.compute(goalSet: goalSet, summaryByTrainingId: summaryById)
+        let description = goalSet.localizedDescription(locale)
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Button(locale == .ja ? "← 戻る" : "← Back", action: onBack)
+                    .font(.subheadline)
+                    .padding(.horizontal)
+
+                HStack(spacing: 16) {
+                    TrainingDonutView(percent: progress.percent, size: 96, lineWidth: 10)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(locale == .ja ? "現在の目標" : "CURRENT GOAL")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.indigo)
+                        Text(goalSet.localizedTitle(locale))
+                            .font(.title2.bold())
+                        Text("\(progress.cleared)/\(progress.total)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+
+                if !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                }
+
+                HStack {
+                    Text(locale == .ja ? "目標トレーニング" : "Goal Trainings")
+                        .font(.headline)
+                    Spacer()
+                    Button(locale == .ja ? "目標一覧へ" : "All goals", action: onOpenGoals)
+                        .font(.subheadline)
+                }
+                .padding(.horizontal)
+
+                ForEach(progress.items) { item in
+                    if let training = trainingById[item.trainingId] {
+                        itemRow(item, training: training)
+                    }
+                }
+            }
+            .padding(.vertical)
+        }
+    }
+
+    private func itemRow(_ item: TrainingGoalItemState, training: TrainingRow) -> some View {
+        let locked = isTrainingLocked(training)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(training.localizedTitle(locale))
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                if item.cleared {
+                    Label(locale == .ja ? "クリア" : "Cleared", systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
+            }
+            Text(statusText(item))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button(locale == .ja ? "練習" : "Practice") {
+                    if locked { onLocked() } else { onPlay(training, true) }
+                }
+                .buttonStyle(.bordered)
+                Button(locale == .ja ? "本番" : "Production") {
+                    if locked { onLocked() } else { onPlay(training, false) }
+                }
+                .buttonStyle(.borderedProminent)
+                Button(locale == .ja ? "記録" : "Records") {
+                    onOpenRecords(training.id)
+                }
+                .buttonStyle(.bordered)
+                .tint(.secondary)
+            }
+        }
+        .padding()
+        .background(item.cleared ? Color.green.opacity(0.12) : Color(.secondarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(item.cleared ? Color.green.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
+        .padding(.horizontal)
+        .opacity(locked ? 0.65 : 1)
+    }
+
+    private func statusText(_ item: TrainingGoalItemState) -> String {
+        let best: String
+        if let bestRank = item.bestRank {
+            best = locale == .ja
+                ? "最高 \(item.bestScore ?? 0) / \(bestRank.rawValue)"
+                : "Best \(item.bestScore ?? 0) / \(bestRank.rawValue)"
+        } else {
+            best = locale == .ja ? "未プレイ" : "No record yet"
+        }
+        let target = locale == .ja ? "目標 \(item.targetRank.rawValue)" : "Target \(item.targetRank.rawValue)"
+        return "\(best) · \(target)"
+    }
+}

@@ -520,6 +520,12 @@ struct TopView: View {
                             label: locale == .ja ? "ディフェンスクリア" : "Defense cleared",
                             color: .mint
                         )
+                        StatItem(
+                            icon: "target",
+                            value: "\(stats.trainingGoalClearCount)",
+                            label: locale == .ja ? "トレーニング目標" : "Training goals",
+                            color: .indigo
+                        )
                     }
                 }
                 .padding(16)
@@ -904,7 +910,8 @@ enum AchievementBadgeCatalog {
     static let categories: [AchievementBadgeCategory] = [
         AchievementBadgeCategory(id: "defense", labelJa: "フレーズディフェンス", labelEn: "Phrase Defense"),
         AchievementBadgeCategory(id: "player_level", labelJa: "到達レベル", labelEn: "Player level reached"),
-        AchievementBadgeCategory(id: "quest_clear", labelJa: "クエストクリア数", labelEn: "Quest clears")
+        AchievementBadgeCategory(id: "quest_clear", labelJa: "クエストクリア数", labelEn: "Quest clears"),
+        AchievementBadgeCategory(id: "training_goal", labelJa: "トレーニング目標", labelEn: "Training goals")
     ]
 
     static let definitions: [AchievementBadgeDefinition] = [
@@ -916,66 +923,28 @@ enum AchievementBadgeCatalog {
         AchievementBadgeDefinition(id: "player_level_100", categoryId: "player_level", rank: 3, nameJa: "熟練プレイヤー", nameEn: "Veteran Player", conditionJa: "プレイヤーレベル100に到達", conditionEn: "Reach player level 100", imagePath: "/achivement/achievement_monster_51.png", isActive: true),
         AchievementBadgeDefinition(id: "quest_clear_1", categoryId: "quest_clear", rank: 1, nameJa: "クエスト見習い", nameEn: "Quest Rookie", conditionJa: "クエストを1個完了", conditionEn: "Complete 1 quest", imagePath: "/achivement/achievement_monster_53.png", isActive: true),
         AchievementBadgeDefinition(id: "quest_clear_50", categoryId: "quest_clear", rank: 2, nameJa: "クエスト冒険者", nameEn: "Quest Adventurer", conditionJa: "クエストを50個完了", conditionEn: "Complete 50 quests", imagePath: "/achivement/achievement_monster_55.png", isActive: true),
-        AchievementBadgeDefinition(id: "quest_clear_100", categoryId: "quest_clear", rank: 3, nameJa: "クエスト制覇者", nameEn: "Quest Champion", conditionJa: "クエストを100個完了", conditionEn: "Complete 100 quests", imagePath: "/achivement/achievement_monster_59.png", isActive: true)
+        AchievementBadgeDefinition(id: "quest_clear_100", categoryId: "quest_clear", rank: 3, nameJa: "クエスト制覇者", nameEn: "Quest Champion", conditionJa: "クエストを100個完了", conditionEn: "Complete 100 quests", imagePath: "/achivement/achievement_monster_59.png", isActive: true),
+        AchievementBadgeDefinition(id: "training_goal_clear_1", categoryId: "training_goal", rank: 1, nameJa: "トレーニング目標クリア", nameEn: "Training Goal Clear", conditionJa: "トレーニング目標を1個クリア", conditionEn: "Clear 1 training goal set", imagePath: "/achivement/achievement_monster_33.png", isActive: true),
+        AchievementBadgeDefinition(id: "training_goal_clear_10", categoryId: "training_goal", rank: 2, nameJa: "トレーニング目標10個クリア", nameEn: "10 Training Goals Cleared", conditionJa: "トレーニング目標を10個クリア", conditionEn: "Clear 10 training goal sets", imagePath: "/achivement/achievement_monster_33.png", isActive: true),
+        AchievementBadgeDefinition(id: "training_goal_clear_20", categoryId: "training_goal", rank: 3, nameJa: "トレーニング目標20個クリア", nameEn: "20 Training Goals Cleared", conditionJa: "トレーニング目標を20個クリア", conditionEn: "Clear 20 training goal sets", imagePath: "/achivement/achievement_monster_33.png", isActive: true)
     ]
-
-    @MainActor
-    private static var trainingDefinitions: [AchievementBadgeDefinition] = []
-    @MainActor
-    private static var trainingCategories: [AchievementBadgeCategory] = []
 
     static var activeDefinitions: [AchievementBadgeDefinition] {
         definitions.filter(\.isActive)
     }
 
-    @MainActor
-    static var displayDefinitions: [AchievementBadgeDefinition] {
-        activeDefinitions + trainingDefinitions
-    }
+    static var displayDefinitions: [AchievementBadgeDefinition] { activeDefinitions }
 
-    @MainActor
-    static var displayCategories: [AchievementBadgeCategory] {
-        categories + trainingCategories
-    }
+    static var displayCategories: [AchievementBadgeCategory] { categories }
 
     static var totalCount: Int { activeDefinitions.count }
 
-    @MainActor
     static func definition(id: String) -> AchievementBadgeDefinition? {
         displayDefinitions.first { $0.id == id }
     }
 
-    @MainActor
     static func definitionsForCategory(_ categoryId: String) -> [AchievementBadgeDefinition] {
         displayDefinitions.filter { $0.categoryId == categoryId }
-    }
-
-    @MainActor
-    static func refreshTrainingBadgesFromServer() async {
-        guard let rows = try? await SupabaseService.shared.fetchActiveBadges() else { return }
-        let trainingRows = rows.filter { $0.category.hasPrefix("training_") }
-        trainingDefinitions = trainingRows.map { row in
-            AchievementBadgeDefinition(
-                id: row.id,
-                categoryId: row.category,
-                rank: row.rank,
-                nameJa: row.titleJa,
-                nameEn: row.titleEn,
-                conditionJa: row.descriptionJa,
-                conditionEn: row.descriptionEn,
-                imagePath: row.imageUrl,
-                isActive: true
-            )
-        }
-        let categoryIds = Array(Set(trainingRows.map(\.category))).sorted()
-        trainingCategories = categoryIds.map { categoryId in
-            let sample = trainingRows.first { $0.category == categoryId }
-            return AchievementBadgeCategory(
-                id: categoryId,
-                labelJa: sample?.titleJa.components(separatedBy: " ").first ?? categoryId,
-                labelEn: sample?.titleEn.components(separatedBy: " ").first ?? categoryId
-            )
-        }
     }
 }
 
@@ -1137,8 +1106,6 @@ struct AchievementListView: View {
     private func loadBadges() async {
         isLoading = true
         defer { isLoading = false }
-
-        await AchievementBadgeCatalog.refreshTrainingBadgesFromServer()
 
         do {
             let granted = try await SupabaseService.shared.syncUserBadges()

@@ -101,6 +101,10 @@ struct TrainingResultView: View {
             saved = true
             let summary = try await SupabaseService.shared.fetchMyTrainingSummary()
             rankPosition = summary.first(where: { $0.trainingId == training.id })?.rankPosition
+            // 目標クリア数称号（Web と同じ `training_score` イベント）。失敗しても結果表示は継続
+            if let granted = try? await SupabaseService.shared.grantUserBadgesForEvent(event: "training_score") {
+                PlayerLevelHub.shared.ingestAchievementBadges(granted, usesEnglishUi: locale == .en)
+            }
         } catch {
             saved = false
         }
