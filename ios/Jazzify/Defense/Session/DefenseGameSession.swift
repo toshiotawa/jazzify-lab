@@ -79,7 +79,11 @@ final class DefenseGameSession: ObservableObject {
         guard let first = stage.phrases.first,
               let firstUrl = URL(string: first.audioUrl)
         else { return }
-        DefenseBackingAudio.shared.setTransportConfig(bpm: stage.bpm, beatsPerBar: stage.beatsPerBar)
+        let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
+        DefenseBackingAudio.shared.setTransportConfig(
+            bpm: stage.bpm * speedRatio,
+            beatsPerBar: stage.beatsPerBar
+        )
         let urls: [URL]
         if practiceMode {
             urls = stage.phrases.compactMap { URL(string: $0.audioUrl) }
@@ -89,8 +93,8 @@ final class DefenseGameSession: ObservableObject {
                 : [])
         }
         try? await DefenseBackingAudio.shared.preload(urls: urls)
-        DefenseBackingAudio.shared.setPlaybackRate(1)
         try? await DefenseBackingAudio.shared.start(firstUrl: firstUrl)
+        DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
     }
 
     func stepPhrase(_ delta: Int) {
@@ -106,7 +110,6 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func stepSpeed(_ delta: Int) {
-        guard practiceMode else { return }
         let nextSpeed = DefensePracticeSpeed.stepped(practiceSpeedPercent, delta: delta)
         guard nextSpeed != practiceSpeedPercent else { return }
         practiceSpeedPercent = nextSpeed
@@ -186,7 +189,7 @@ final class DefenseGameSession: ObservableObject {
             judgeState = evaluation.nextState
         }
         if evaluation.attack {
-            let speedRatio = practiceMode ? DefensePracticeSpeed.ratio(practiceSpeedPercent) : 1
+            let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
             let effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60
             let guardPoseSec = 60 / effectiveBpm
             _ = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: guardPoseSec)

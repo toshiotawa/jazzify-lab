@@ -9,10 +9,14 @@ import {
 interface DefensePracticeHudProps {
   readonly phraseIndex: number;
   readonly phraseCount: number;
-  readonly speedPercent: number;
   readonly isEnglishCopy: boolean;
   readonly onPrevPhrase: () => void;
   readonly onNextPhrase: () => void;
+}
+
+interface DefenseSpeedStepperProps {
+  readonly speedPercent: number;
+  readonly isEnglishCopy: boolean;
   readonly onSpeedDown: () => void;
   readonly onSpeedUp: () => void;
 }
@@ -23,6 +27,7 @@ interface StepperRowProps {
   readonly canIncrease: boolean;
   readonly decreaseLabel: string;
   readonly increaseLabel: string;
+  readonly compact?: boolean;
   readonly onDecrease: () => void;
   readonly onIncrease: () => void;
 }
@@ -33,6 +38,7 @@ const StepperRow: React.FC<StepperRowProps> = ({
   canIncrease,
   decreaseLabel,
   increaseLabel,
+  compact = false,
   onDecrease,
   onIncrease,
 }) => (
@@ -46,7 +52,11 @@ const StepperRow: React.FC<StepperRowProps> = ({
     >
       ◀
     </button>
-    <span className="min-w-[5.5rem] text-center text-sm font-black text-slate-100">
+    <span
+      className={`text-center text-sm font-black text-slate-100 ${
+        compact ? 'min-w-[3rem]' : 'min-w-[5.5rem]'
+      }`}
+    >
       {label}
     </span>
     <button
@@ -61,20 +71,36 @@ const StepperRow: React.FC<StepperRowProps> = ({
   </div>
 );
 
+export const DefenseSpeedStepper: React.FC<DefenseSpeedStepperProps> = ({
+  speedPercent,
+  isEnglishCopy,
+  onSpeedDown,
+  onSpeedUp,
+}) => (
+  <div className="rounded border border-white/10 bg-slate-950/80 px-2 py-1">
+    <StepperRow
+      label={formatDefensePracticeSpeedLabel(speedPercent)}
+      canDecrease={speedPercent > DEFENSE_PRACTICE_SPEED_MIN_PERCENT}
+      canIncrease={speedPercent < DEFENSE_PRACTICE_SPEED_MAX_PERCENT}
+      decreaseLabel={isEnglishCopy ? 'Decrease speed' : '速度を下げる'}
+      increaseLabel={isEnglishCopy ? 'Increase speed' : '速度を上げる'}
+      compact
+      onDecrease={onSpeedDown}
+      onIncrease={onSpeedUp}
+    />
+  </div>
+);
+
 export const DefensePracticeHud: React.FC<DefensePracticeHudProps> = ({
   phraseIndex,
   phraseCount,
-  speedPercent,
   isEnglishCopy,
   onPrevPhrase,
   onNextPhrase,
-  onSpeedDown,
-  onSpeedUp,
 }) => {
   const phraseLabel = isEnglishCopy
     ? `Phrase ${phraseIndex + 1}`
     : `フレーズ${phraseIndex + 1}`;
-  const speedLabel = formatDefensePracticeSpeedLabel(speedPercent);
   const canStepPhrase = phraseCount > 1;
 
   return (
@@ -87,15 +113,6 @@ export const DefensePracticeHud: React.FC<DefensePracticeHudProps> = ({
         increaseLabel={isEnglishCopy ? 'Next phrase' : '次のフレーズ'}
         onDecrease={onPrevPhrase}
         onIncrease={onNextPhrase}
-      />
-      <StepperRow
-        label={speedLabel}
-        canDecrease={speedPercent > DEFENSE_PRACTICE_SPEED_MIN_PERCENT}
-        canIncrease={speedPercent < DEFENSE_PRACTICE_SPEED_MAX_PERCENT}
-        decreaseLabel={isEnglishCopy ? 'Decrease speed' : '速度を下げる'}
-        increaseLabel={isEnglishCopy ? 'Increase speed' : '速度を上げる'}
-        onDecrease={onSpeedDown}
-        onIncrease={onSpeedUp}
       />
     </div>
   );

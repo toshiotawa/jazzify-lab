@@ -15,6 +15,8 @@ struct EarTrainingHUDView: View {
     var healthRowTrailingReserve: CGFloat = 98
     let onSettings: () -> Void
     let onBack: () -> Void
+    /// 設定ボタンの左に置く任意コントロール（ディフェンス速度ステッパーなど）
+    var rightControlsLeading: AnyView? = nil
 
     private let chordChipWidth: CGFloat = 76
     private let phraseSlotGap: CGFloat = 5
@@ -39,7 +41,7 @@ struct EarTrainingHUDView: View {
             .padding(.top, 4)
             .padding(.bottom, 2)
 
-            if !hud.hideSettingsButton || !hud.hideBackButton {
+            if !hud.hideSettingsButton || !hud.hideBackButton || rightControlsLeading != nil {
                 rightControls
                     .padding(.top, 16)
                     .padding(.trailing, 14)
@@ -94,6 +96,9 @@ struct EarTrainingHUDView: View {
 
     private var rightControls: some View {
         HStack(spacing: 4) {
+            if let leading = rightControlsLeading {
+                leading
+            }
             if !hud.hideSettingsButton {
                 iconButton(systemName: "gearshape.fill", label: hud.hudLabels.settings) {
                     onSettings()

@@ -194,29 +194,59 @@ struct DefenseGameView: View {
         let phraseLabel = locale == .ja
             ? "フレーズ\(session.judgeState.phraseIndex + 1)"
             : "Phrase \(session.judgeState.phraseIndex + 1)"
-        let speedLabel = "\(session.practiceSpeedPercent)%"
         let canStepPhrase = session.stage.phrases.count > 1
-        let canDecreaseSpeed = session.practiceSpeedPercent > DefensePracticeSpeed.minPercent
-        let canIncreaseSpeed = session.practiceSpeedPercent < DefensePracticeSpeed.maxPercent
 
-        return VStack(alignment: .leading, spacing: 6) {
-            defensePracticeStepperRow(
-                label: phraseLabel,
-                canDecrease: canStepPhrase,
-                canIncrease: canStepPhrase,
-                onDecrease: { session.stepPhrase(-1) },
-                onIncrease: { session.stepPhrase(1) }
-            )
-            defensePracticeStepperRow(
-                label: speedLabel,
-                canDecrease: canDecreaseSpeed,
-                canIncrease: canIncreaseSpeed,
-                onDecrease: { session.stepSpeed(-1) },
-                onIncrease: { session.stepSpeed(1) }
-            )
-        }
+        return defensePracticeStepperRow(
+            label: phraseLabel,
+            canDecrease: canStepPhrase,
+            canIncrease: canStepPhrase,
+            onDecrease: { session.stepPhrase(-1) },
+            onIncrease: { session.stepPhrase(1) }
+        )
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
+        .background(Color.black.opacity(0.55))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var defenseSpeedStepper: some View {
+        let canDecrease = session.practiceSpeedPercent > DefensePracticeSpeed.minPercent
+        let canIncrease = session.practiceSpeedPercent < DefensePracticeSpeed.maxPercent
+        return HStack(spacing: 4) {
+            Button {
+                session.stepSpeed(-1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 26, height: 26)
+            }
+            .disabled(!canDecrease)
+            .opacity(canDecrease ? 1 : 0.35)
+            .accessibilityLabel(Text(locale == .ja ? "速度を下げる" : "Decrease speed"))
+
+            Text("\(session.practiceSpeedPercent)%")
+                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                .frame(minWidth: 40)
+                .multilineTextAlignment(.center)
+
+            Button {
+                session.stepSpeed(1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 26, height: 26)
+            }
+            .disabled(!canIncrease)
+            .opacity(canIncrease ? 1 : 0.35)
+            .accessibilityLabel(Text(locale == .ja ? "速度を上げる" : "Increase speed"))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
         .background(Color.black.opacity(0.55))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -293,11 +323,13 @@ struct DefenseGameView: View {
                 slotRow: .melody(slots: [], revealed: [], currentIndex: 0)
             ),
             showsSlotsRow: false,
+            healthRowTrailingReserve: 216,
             onSettings: {
                 session.isPaused = true
                 isSettingsOpen = true
             },
-            onBack: onClose
+            onBack: onClose,
+            rightControlsLeading: AnyView(defenseSpeedStepper)
         )
     }
 

@@ -13,7 +13,7 @@ import React, {
 } from 'react';
 
 import { DefenseCanvas, type DefenseCanvasHandle } from '@/components/defense/DefenseCanvas';
-import { DefensePracticeHud } from '@/components/defense/DefensePracticeHud';
+import { DefensePracticeHud, DefenseSpeedStepper } from '@/components/defense/DefensePracticeHud';
 import { DefensePhraseStaff } from '@/components/defense/DefensePhraseStaff';
 import { DefenseResult } from '@/components/defense/DefenseResult';
 import EarTrainingSettingsModal from '@/components/earTraining/EarTrainingSettingsModal';
@@ -266,20 +266,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [practiceMode, stage.phrases, applyImmediatePhraseSwitch, restartBackingForPhrase]);
 
   const handleSpeedDown = useCallback((): void => {
-    if (!practiceMode) return;
     const nextSpeed = stepDefensePracticeSpeedPercent(practiceSpeedPercentRef.current, -1);
     if (nextSpeed === practiceSpeedPercentRef.current) return;
     setPracticeSpeedPercent(nextSpeed);
     void restartBackingForPhrase(judgeRef.current.phraseIndex, nextSpeed);
-  }, [practiceMode, restartBackingForPhrase]);
+  }, [restartBackingForPhrase]);
 
   const handleSpeedUp = useCallback((): void => {
-    if (!practiceMode) return;
     const nextSpeed = stepDefensePracticeSpeedPercent(practiceSpeedPercentRef.current, 1);
     if (nextSpeed === practiceSpeedPercentRef.current) return;
     setPracticeSpeedPercent(nextSpeed);
     void restartBackingForPhrase(judgeRef.current.phraseIndex, nextSpeed);
-  }, [practiceMode, restartBackingForPhrase]);
+  }, [restartBackingForPhrase]);
 
   const commitScheduledAudioSwitch = useCallback((phraseIndex: number): void => {
     defenseBackingDeck.commitSwitch();
@@ -288,7 +286,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     const preloadPhrase = stage.phrases[nextPhraseIndex(stage.phrases, phraseIndex)];
     if (preloadPhrase) {
-      void defenseBackingDeck.preload([preloadPhrase.audioUrl]);
+      const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+      void defenseBackingDeck.preload([preloadPhrase.audioUrl], ratio);
     }
   }, [stage.phrases]);
 
@@ -323,9 +322,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     setJudgeSnapshot(evaluation.nextState);
 
     if (evaluation.attack) {
-      const speedRatio = practiceMode
-        ? defensePracticeSpeedRatio(practiceSpeedPercentRef.current)
-        : 1;
+      const speedRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
       const effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60;
       const guardPoseSec = 60 / effectiveBpm;
       performDefenseSlash(runtime, guardPoseSec);
@@ -342,7 +339,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       scheduledNextPhraseIndexRef.current = nextIndex;
       applyImmediatePhraseSwitch(nextIndex);
       void (async () => {
-        const buffer = await defenseBackingDeck.decodeForDeck(nextPhrase.audioUrl);
+        const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+        const buffer = await defenseBackingDeck.decodeForDeck(nextPhrase.audioUrl, ratio);
         if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
         pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(buffer);
       })();
@@ -388,7 +386,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   useEffect(() => {
     let cancelled = false;
-    const initialRatio = practiceMode ? defensePracticeSpeedRatio(100) : 1;
+    const initialRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
     defenseBackingDeck.setTransportConfig(stage.bpm * initialRatio, stage.beatsPerBar);
 
     void (async () => {
@@ -570,17 +568,20 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           <DefensePracticeHud
             phraseIndex={judgeSnapshot.phraseIndex}
             phraseCount={stage.phrases.length}
-            speedPercent={practiceSpeedPercent}
             isEnglishCopy={isEnglishCopy}
             onPrevPhrase={handlePrevPhrase}
             onNextPhrase={handleNextPhrase}
-            onSpeedDown={handleSpeedDown}
-            onSpeedUp={handleSpeedUp}
           />
         </div>
       )}
 
-      <div className="absolute right-3 top-[56px] z-40 flex gap-2">
+      <div className="absolute right-3 top-[56px] z-40 flex items-center gap-2">
+        <DefenseSpeedStepper
+          speedPercent={practiceSpeedPercent}
+          isEnglishCopy={isEnglishCopy}
+          onSpeedDown={handleSpeedDown}
+          onSpeedUp={handleSpeedUp}
+        />
         <button
           type="button"
           className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"

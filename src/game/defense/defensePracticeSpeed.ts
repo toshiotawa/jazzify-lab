@@ -1,10 +1,10 @@
-/** ディフェンス練習速度の下限（%） */
+/** ディフェンスフレーズ速度の下限（%） */
 export const DEFENSE_PRACTICE_SPEED_MIN_PERCENT = 50;
 
-/** ディフェンス練習速度の上限（%）・デフォルト */
+/** ディフェンスフレーズ速度の上限（%）・デフォルト */
 export const DEFENSE_PRACTICE_SPEED_MAX_PERCENT = 150;
 
-/** ディフェンス練習速度の刻み（%） */
+/** ディフェンスフレーズ速度の刻み（%） */
 export const DEFENSE_PRACTICE_SPEED_STEP = 10;
 
 export const clampDefensePracticeSpeedPercent = (percent: number): number =>
