@@ -5,8 +5,8 @@ import Foundation
 enum TrainingQuestionBuilder {
     private typealias SpelledNote = TrainingMusicTheory.SpelledNote
 
-    /// 和音・スケール・音程: 5線内に収まる最低音。ト音 E4 / ヘ音 G2
-    private static let staffBottomMidi: [String: Int] = ["treble": 64, "bass": 43]
+    /// 和音・スケール・音程: 下加線1本までの最低音。ト音 C4 / ヘ音 E2
+    private static let staffBottomMidi: [String: Int] = ["treble": 60, "bass": 40]
 
     private static let naturalPitchClasses: Set<Int> = [0, 2, 4, 5, 7, 9, 11]
 
@@ -94,7 +94,7 @@ enum TrainingQuestionBuilder {
         let effectiveClef = resolveEffectiveClef(clefMode: training.clefMode, configClef: mergedConfig.clef)
         let singleClef = effectiveClef == "bass" ? "bass" : "treble"
         let defaultStaff = singleClef == "bass" ? 2 : 1
-        let staffBottom = staffBottomMidi[singleClef] ?? 64
+        let staffBottom = staffBottomMidi[singleClef] ?? 60
         var lastBuilt: TrainingQuestion?
 
         for _ in 0..<12 {
@@ -242,7 +242,7 @@ enum TrainingQuestionBuilder {
         let roots = mergedConfig.roots ?? ["C"]
         let effectiveClef = resolveEffectiveClef(clefMode: training.clefMode, configClef: mergedConfig.clef)
         let singleClef = effectiveClef == "bass" ? "bass" : "treble"
-        let staffBottom = staffBottomMidi[singleClef] ?? 64
+        let staffBottom = staffBottomMidi[singleClef] ?? 60
         var midis: [Int] = []
 
         switch training.kind {

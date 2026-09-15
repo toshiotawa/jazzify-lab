@@ -46,8 +46,8 @@ describe('trainingKeyboardRange', () => {
       piano,
     );
     const unique = new Set(midis);
-    expect(unique.has(72)).toBe(true);
-    expect(unique.has(79)).toBe(true);
+    expect(unique.has(60)).toBe(true);
+    expect(unique.has(67)).toBe(true);
     expect(unique.has(74)).toBe(true);
   });
 });

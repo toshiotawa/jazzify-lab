@@ -185,21 +185,21 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             let next = build(row, previous: first.questionKey)
             XCTAssertEqual(next.questionKey, first.questionKey)
             XCTAssertEqual(next.promptLabel, "C")
-            XCTAssertEqual(next.notes.map(\.noteName), ["C5", "E5", "G5"])
+            XCTAssertEqual(next.notes.map(\.noteName), ["C4", "E4", "G4"])
         }
     }
 
     func testChordKeepsFlatSpellingAndStaffRange() {
         let q = build(training(kind: .chord, config: config(roots: ["Db"], quality: "maj")))
-        XCTAssertEqual(q.notes.map(\.noteName), ["Db5", "F5", "Ab5"])
+        XCTAssertEqual(q.notes.map(\.noteName), ["Db4", "F4", "Ab4"])
         XCTAssertEqual(q.promptLabel, "Db")
-        XCTAssertEqual(q.rootMidi, 61)
+        XCTAssertEqual(q.rootMidi, 49)
         XCTAssertEqual(q.keyFifths, 0)
     }
 
-    func testMajorScaleStartsOneOctaveAboveMiddleC() {
+    func testMajorScaleStartsFromMiddleC() {
         let q = build(training(kind: .scale, config: config(roots: ["C"], scale: "major")))
-        XCTAssertEqual(q.notes.map(\.noteName), ["C5", "D5", "E5", "F5", "G5", "A5", "B5"])
+        XCTAssertEqual(q.notes.map(\.noteName), ["C4", "D4", "E4", "F4", "G4", "A4", "B4"])
         XCTAssertEqual(q.layout, .horizontal)
         XCTAssertTrue(q.ordered)
         let dim = build(training(kind: .scale, config: config(roots: ["C"], scale: "whole_half_diminished")))
@@ -306,7 +306,7 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             XCTAssertFalse(q.notes[0].isTarget)
             XCTAssertTrue(q.notes[1].isTarget)
             XCTAssertEqual(q.notes[0].midi - q.notes[1].midi, 6)
-            XCTAssertGreaterThanOrEqual(q.notes[1].midi, 64)
+            XCTAssertGreaterThanOrEqual(q.notes[1].midi, 60)
             XCTAssertNil(q.notes[1].noteName.range(of: "x|bb|E#|B#|Cb|Fb", options: .regularExpression))
             let basePitch = q.notes[0].noteName.replacingOccurrences(
                 of: #"\d+$"#,
@@ -332,8 +332,8 @@ final class TrainingQuestionBuilderTests: XCTestCase {
     func testCollectStageMidisIncludesEveryChordRoot() {
         let row = training(kind: .chord, config: config(roots: ["C", "G"], quality: "maj"))
         let midis = Set(TrainingQuestionBuilder.collectStageMidis(training: row))
-        XCTAssertTrue(midis.contains(72))
-        XCTAssertTrue(midis.contains(79))
+        XCTAssertTrue(midis.contains(60))
+        XCTAssertTrue(midis.contains(67))
         XCTAssertTrue(midis.contains(74))
     }
 

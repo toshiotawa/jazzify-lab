@@ -128,7 +128,7 @@ describe('trainingQuestionBuilder', () => {
       const next = buildTrainingQuestion({ training, ...piano, previousQuestionKey: first.questionKey });
       expect(next.questionKey).toBe(first.questionKey);
       expect(next.promptLabel).toBe('C');
-      expect(next.notes.map((n) => n.noteName)).toEqual(['C5', 'E5', 'G5']);
+      expect(next.notes.map((n) => n.noteName)).toEqual(['C4', 'E4', 'G4']);
     }
   });
 
@@ -146,16 +146,16 @@ describe('trainingQuestionBuilder', () => {
     }
   });
 
-  it('keeps flat spellings for chords and places the lowest note inside the staff', () => {
+  it('keeps flat spellings for chords and places the lowest note within one ledger line below the staff', () => {
     const q = buildTrainingQuestion({
       training: baseTraining({ kind: 'chord', config: { quality: 'maj', roots: ['Db'] } }),
       ...piano,
     });
-    expect(q.notes.map((n) => n.noteName)).toEqual(['Db5', 'F5', 'Ab5']);
+    expect(q.notes.map((n) => n.noteName)).toEqual(['Db4', 'F4', 'Ab4']);
     expect(q.promptLabel).toBe('Db');
     expect(q.keyFifths).toBe(0);
     // 正解時のルート音は最低音直下のルート
-    expect(q.rootMidi).toBe(61);
+    expect(q.rootMidi).toBe(49);
   });
 
   it('uses chord symbols for chord prompts', () => {
@@ -180,14 +180,14 @@ describe('trainingQuestionBuilder', () => {
     }
   });
 
-  it('starts C major scale one octave above middle C on a treble staff', () => {
+  it('starts C major scale from middle C on a treble staff', () => {
     const q = buildTrainingQuestion({
       training: baseTraining({ kind: 'scale', config: { scale: 'major', roots: ['C'] } }),
       ...piano,
     });
     expect(q.layout).toBe('horizontal');
     expect(q.ordered).toBe(true);
-    expect(q.notes.map((n) => n.noteName)).toEqual(['C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5']);
+    expect(q.notes.map((n) => n.noteName)).toEqual(['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4']);
     expect(q.promptLabel).toBe('C テスト');
   });
 
@@ -231,13 +231,13 @@ describe('trainingQuestionBuilder', () => {
   });
 
   it('shifts the staff bottom for transposing instruments (concert pitch output)', () => {
-    // Bb トランペット: 記譜 E4 以上 → コンサート D4 以上
+    // Bb トランペット: 記譜 C4 以上 → コンサート Bb3 以上
     const q = buildTrainingQuestion({
       training: baseTraining({ kind: 'scale', config: { scale: 'major', roots: ['C'] } }),
       notationInstrumentId: 'trumpet_bb',
       notationOctaveShift: 0,
     });
-    expect(q.notes[0]?.noteName).toBe('C5');
+    expect(q.notes[0]?.noteName).toBe('C4');
     const d = buildTrainingQuestion({
       training: baseTraining({ kind: 'scale', config: { scale: 'major', roots: ['D'] } }),
       notationInstrumentId: 'trumpet_bb',
@@ -411,7 +411,7 @@ describe('trainingQuestionBuilder', () => {
       ...piano,
     });
     expect(q.ordered).toBe(false);
-    expect(q.notes.map((n) => n.noteName)).toEqual(['C5', 'E5', 'G5']);
+    expect(q.notes.map((n) => n.noteName)).toEqual(['C4', 'E4', 'G4']);
   });
 
   it('builds interval questions with a visible reference note and a simple-spelled target', () => {
@@ -424,7 +424,7 @@ describe('trainingQuestionBuilder', () => {
       expect(q.notes[0]?.isTarget).toBe(false);
       expect(q.notes[1]?.isTarget).toBe(true);
       expect((q.notes[0]?.midi ?? 0) - (q.notes[1]?.midi ?? 0)).toBe(6);
-      expect(q.notes[1]?.midi).toBeGreaterThanOrEqual(64);
+      expect(q.notes[1]?.midi).toBeGreaterThanOrEqual(60);
       expect(q.notes[1]?.noteName).not.toMatch(/x|bb|E#|B#|Cb|Fb/);
       const basePitch = (q.notes[0]?.noteName ?? '').replace(/\d+$/, '');
       expect(q.promptLabel).toBe(`${basePitch} テスト`);

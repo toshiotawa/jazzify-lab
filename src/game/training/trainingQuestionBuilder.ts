@@ -74,10 +74,10 @@ const flatSpelledName = (midi: number): string => {
   return `${FLAT_PITCH_NAMES[pc] ?? 'C'}${Math.floor(midi / 12) - 1}`;
 };
 
-/** 和音・スケール・音程: 5線内に収まる最低音（記譜音）。ト音 E4 / ヘ音 G2 */
+/** 和音・スケール・音程: 下加線1本までの最低音（記譜音）。ト音 C4 / ヘ音 E2 */
 const STAFF_BOTTOM_MIDI: Record<Clef, number> = {
-  treble: 64,
-  bass: 43,
+  treble: 60,
+  bass: 40,
 };
 
 /** 音程トレーニングの基準音候補（綴りを固定） */
@@ -285,7 +285,7 @@ export const buildTrainingQuestion = (
   const effectiveClef = resolveEffectiveClef(training.clefMode, preset.clef, config.clef);
   const singleClef: Clef = effectiveClef === 'bass' ? 'bass' : 'treble';
   const defaultStaff: StaffNumber = singleClef === 'bass' ? 2 : 1;
-  // 記譜上の5線最低音をコンサート音高に戻す
+  // 記譜上の下加線1本までの最低音をコンサート音高に戻す
   const concertStaffBottom = STAFF_BOTTOM_MIDI[singleClef] - writtenOffset;
 
   const makeQuestion = (
