@@ -166,13 +166,16 @@ final class TrainingGameSession: ObservableObject {
         runtime.correctTargetIndices = result.newCorrectIndices
         correctIndices = result.newCorrectIndices
 
-        if training.kind != .scale,
-           training.playRootOnCorrect,
-           let rootMidi = current.rootMidi {
+        guard result.completed else { return }
+
+        if TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: training.kind,
+            playRootOnCorrect: training.playRootOnCorrect,
+            completed: result.completed,
+            rootMidi: current.rootMidi
+        ), let rootMidi = current.rootMidi {
             SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
         }
-
-        guard result.completed else { return }
 
         TrainingEngine.performDefeat(
             runtime: &runtime,

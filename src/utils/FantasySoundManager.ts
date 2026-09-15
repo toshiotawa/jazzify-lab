@@ -38,7 +38,11 @@ import {
 } from '@/utils/questJingleAssets';
 import { getWindow } from '@/platform';
 import { requestWebPlaybackAudioSession } from '@/utils/iosbridge';
-import { Sf2RootNotePlayer, resolveSurvivalCodeRunRootMidi } from '@/utils/sf2RootNotePlayer';
+import {
+  Sf2RootNotePlayer,
+  resolveSurvivalCodeRunRootMidi,
+  survivalCodeRunRootMidiNotes,
+} from '@/utils/sf2RootNotePlayer';
 import { progressionBassRootName } from '@/utils/chord-utils';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
@@ -646,7 +650,7 @@ export class FantasySoundManager {
     const url = buildPublicAssetUrl(baseUrl, 'FingerBassYR 20190930.sf2');
     const player = this.codeRunRootPlayer ?? new Sf2RootNotePlayer(ctx);
     this.codeRunRootPlayer = player;
-    this.codeRunRootLoadPromise = player.load(url).catch(() => {
+    this.codeRunRootLoadPromise = player.load(url, survivalCodeRunRootMidiNotes()).catch(() => {
       // SF2 が読めない環境では既存ルート音へフォールバック
     }).finally(() => {
       this.codeRunRootLoadPromise = null;

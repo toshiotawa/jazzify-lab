@@ -22,6 +22,7 @@ import {
   getTrainingKeyboardHintMidis,
   getTrainingKeyboardReferenceMidis,
   performTrainingDefeat,
+  shouldPlayTrainingRootOnCorrect,
   tickTrainingEnemy,
   tickTrainingTimer,
 } from '@/game/training/trainingEngine';
@@ -138,8 +139,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   }, [spawnQuestion]);
 
   useEffect(() => {
-    FantasySoundManager.enableRootSound(training.kind !== 'scale');
-  }, [training.kind]);
+    FantasySoundManager.enableRootSound(
+      training.playRootOnCorrect && (training.kind === 'chord' || training.kind === 'voicing'),
+    );
+  }, [training.kind, training.playRootOnCorrect]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
@@ -211,11 +214,17 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     runtimeRef.current.correctTargetIndices = result.newCorrectIndices;
     setCorrectIndices(result.newCorrectIndices);
 
-    if (training.kind !== 'scale' && training.playRootOnCorrect && current.rootMidi != null) {
-      FantasySoundManager.playBassMidiNote(current.rootMidi);
-    }
-
     if (!result.completed) return;
+
+    const rootMidi = current.rootMidi;
+    if (shouldPlayTrainingRootOnCorrect(
+      training.kind,
+      training.playRootOnCorrect,
+      result.completed,
+      rootMidi,
+    ) && rootMidi != null) {
+      FantasySoundManager.playBassMidiNote(rootMidi);
+    }
 
     performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
     runtimeRef.current.score += 1;

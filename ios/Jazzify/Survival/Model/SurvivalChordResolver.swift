@@ -566,8 +566,8 @@ enum SurvivalFingerBassRootMidi {
         return atOctave2
     }
 
-    /// 呼び出し側の C2 起点 MIDI (36 + pitchClass) を SF2 向けに補正する。
+    /// 任意オクターブのルート MIDI を SF2 向けに補正する（ピッチクラスのみ使用）。
     static func fromOctave2StyleMidi(_ midi: Int) -> Int {
-        fromPitchClass(midi - baseMidi)
+        fromPitchClass(midi)
     }
 }

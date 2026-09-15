@@ -162,7 +162,7 @@ const categories = [
 const trainings = [];
 
 const addTraining = (categorySlug, entry) => {
-  const playRootOnCorrect = entry.play_root_on_correct ?? entry.kind !== 'scale';
+  const playRootOnCorrect = entry.play_root_on_correct ?? (entry.kind === 'chord' || entry.kind === 'voicing');
   trainings.push({ categorySlug, ...entry, play_root_on_correct: playRootOnCorrect });
 };
 

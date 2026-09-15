@@ -3,6 +3,7 @@ import {
   getTrainingKeyboardHintMidis,
   getTrainingKeyboardReferenceMidis,
   performTrainingDefeat,
+  shouldPlayTrainingRootOnCorrect,
   tickTrainingEnemy,
 } from '@/game/training/trainingEngine';
 import { createInitialTrainingRuntime } from '@/game/training/trainingQuestionBuilder';
@@ -24,6 +25,17 @@ const makeQuestion = (overrides?: Partial<TrainingQuestion>): TrainingQuestion =
 });
 
 describe('trainingEngine', () => {
+  it('shouldPlayTrainingRootOnCorrect is true only for completed chord/voicing with rootMidi', () => {
+    expect(shouldPlayTrainingRootOnCorrect('chord', true, true, 48)).toBe(true);
+    expect(shouldPlayTrainingRootOnCorrect('voicing', true, true, 35)).toBe(true);
+    expect(shouldPlayTrainingRootOnCorrect('chord', true, false, 48)).toBe(false);
+    expect(shouldPlayTrainingRootOnCorrect('chord', false, true, 48)).toBe(false);
+    expect(shouldPlayTrainingRootOnCorrect('chord', true, true, null)).toBe(false);
+    expect(shouldPlayTrainingRootOnCorrect('note_reading', true, true, 60)).toBe(false);
+    expect(shouldPlayTrainingRootOnCorrect('interval', true, true, 60)).toBe(false);
+    expect(shouldPlayTrainingRootOnCorrect('scale', true, true, 60)).toBe(false);
+  });
+
   it('accepts chord notes in any order when not sequential', () => {
     const q = makeQuestion();
     const first = evaluateTrainingNoteOn(q, [], 67, false);

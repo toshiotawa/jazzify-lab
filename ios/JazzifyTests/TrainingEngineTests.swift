@@ -2,6 +2,27 @@ import XCTest
 @testable import Jazzify
 
 final class TrainingEngineTests: XCTestCase {
+    func testShouldPlayTrainingRootOnCorrectOnlyForCompletedChordVoicing() {
+        XCTAssertTrue(TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: .chord, playRootOnCorrect: true, completed: true, rootMidi: 48
+        ))
+        XCTAssertTrue(TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: .voicing, playRootOnCorrect: true, completed: true, rootMidi: 35
+        ))
+        XCTAssertFalse(TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: .chord, playRootOnCorrect: true, completed: false, rootMidi: 48
+        ))
+        XCTAssertFalse(TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: .noteReading, playRootOnCorrect: true, completed: true, rootMidi: 60
+        ))
+        XCTAssertFalse(TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: .interval, playRootOnCorrect: true, completed: true, rootMidi: 60
+        ))
+        XCTAssertFalse(TrainingEngine.shouldPlayTrainingRootOnCorrect(
+            kind: .scale, playRootOnCorrect: true, completed: true, rootMidi: 60
+        ))
+    }
+
     func testPerformDefeatActivatesDyingSlotAndSpawnsNextEnemy() {
         var runtime = TrainingEngine.createInitialRuntime()
         TrainingEngine.performDefeat(runtime: &runtime, nowSec: 1.5, guardPoseSec: 1)

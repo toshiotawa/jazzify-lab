@@ -167,6 +167,19 @@ describe('trainingQuestionBuilder', () => {
     expect(q.notes.map((n) => n.noteName)).toEqual(['F#4', 'A4', 'C5', 'E5']);
   });
 
+  it('sets rootMidi below the lowest note for B, Bb, and A# chord roots', () => {
+    const expectedPc: Record<string, number> = { B: 11, Bb: 10, 'A#': 10 };
+    for (const root of ['B', 'Bb', 'A#'] as const) {
+      const q = buildTrainingQuestion({
+        training: baseTraining({ kind: 'chord', config: { quality: 'maj', roots: [root] } }),
+        ...piano,
+      });
+      expect(q.rootMidi).not.toBeNull();
+      const pc = ((q.rootMidi ?? 0) % 12 + 12) % 12;
+      expect(pc).toBe(expectedPc[root]);
+    }
+  });
+
   it('starts C major scale one octave above middle C on a treble staff', () => {
     const q = buildTrainingQuestion({
       training: baseTraining({ kind: 'scale', config: { scale: 'major', roots: ['C'] } }),

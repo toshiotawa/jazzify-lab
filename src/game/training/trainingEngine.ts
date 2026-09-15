@@ -1,4 +1,4 @@
-import type { TrainingQuestion, TrainingRuntime } from '@/game/training/trainingTypes';
+import type { TrainingKind, TrainingQuestion, TrainingRuntime } from '@/game/training/trainingTypes';
 import {
   TRAINING_DYING_FADE_SPEED,
   TRAINING_DYING_KNOCKBACK_PX_PER_SEC,
@@ -12,6 +12,19 @@ interface TrainingNoteEvaluationResult {
   readonly completed: boolean;
   readonly newCorrectIndices: readonly number[];
 }
+
+/** 和音 / ヴォイシングの全構成音正解時のみルート音を鳴らす（入門・音程・スケールは対象外）。 */
+export const shouldPlayTrainingRootOnCorrect = (
+  kind: TrainingKind,
+  playRootOnCorrect: boolean,
+  completed: boolean,
+  rootMidi: number | null | undefined,
+): boolean => (
+  playRootOnCorrect
+  && completed
+  && rootMidi != null
+  && (kind === 'chord' || kind === 'voicing')
+);
 
 const targetIndices = (question: TrainingQuestion): readonly number[] => {
   const out: number[] = [];

@@ -7,6 +7,19 @@ struct TrainingNoteEvaluationResult: Sendable {
 }
 
 enum TrainingEngine {
+    /// 和音 / ヴォイシングの全構成音正解時のみルート音を鳴らす（入門・音程・スケールは対象外）。
+    static func shouldPlayTrainingRootOnCorrect(
+        kind: TrainingKind,
+        playRootOnCorrect: Bool,
+        completed: Bool,
+        rootMidi: Int?
+    ) -> Bool {
+        playRootOnCorrect
+            && completed
+            && rootMidi != nil
+            && (kind == .chord || kind == .voicing)
+    }
+
     static func targetIndices(question: TrainingQuestion) -> [Int] {
         var out: [Int] = []
         for (index, note) in question.notes.enumerated() where note.isTarget {

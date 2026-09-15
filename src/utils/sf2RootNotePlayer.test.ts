@@ -1,4 +1,10 @@
-import { pickSf2ZoneForMidi, resolveSf2PlaybackRate, resolveSurvivalCodeRunRootMidi, resolveSurvivalCodeRunRootMidiFromPitchClass } from './sf2RootNotePlayer';
+import {
+  pickSf2ZoneForMidi,
+  resolveSf2PlaybackRate,
+  resolveSurvivalCodeRunRootMidi,
+  resolveSurvivalCodeRunRootMidiFromPitchClass,
+  survivalCodeRunRootMidiNotes,
+} from './sf2RootNotePlayer';
 
 describe('sf2RootNotePlayer', () => {
   it('resolveSf2PlaybackRate は半音上を 12平均律の比率にする', () => {
@@ -29,5 +35,15 @@ describe('sf2RootNotePlayer', () => {
     expect(resolveSurvivalCodeRunRootMidi(47)).toBe(35);
     expect(resolveSurvivalCodeRunRootMidi(46)).toBe(34);
     expect(resolveSurvivalCodeRunRootMidi(45)).toBe(45);
+    expect(resolveSurvivalCodeRunRootMidi(59)).toBe(35);
+    expect(resolveSurvivalCodeRunRootMidi(70)).toBe(34);
+  });
+
+  it('survivalCodeRunRootMidiNotes は Bb/B 用の Bb1/B1 を含み未収録の Bb2/B2 は含まない', () => {
+    const notes = survivalCodeRunRootMidiNotes();
+    expect(notes).toContain(34);
+    expect(notes).toContain(35);
+    expect(notes).not.toContain(46);
+    expect(notes).not.toContain(47);
   });
 });

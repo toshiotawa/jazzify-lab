@@ -94,6 +94,9 @@ final class SurvivalChordResolverTests: XCTestCase {
         XCTAssertEqual(SurvivalFingerBassRootMidi.fromPitchClass(11), 35)
         XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(47), 35)
         XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(46), 34)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(59), 35)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(70), 34)
+        XCTAssertEqual(SurvivalFingerBassRootMidi.fromOctave2StyleMidi(71), 35)
     }
 
     func testGrandStaffModeUsesMidiStaffFallbackWhenVoicingStavesMissing() {
