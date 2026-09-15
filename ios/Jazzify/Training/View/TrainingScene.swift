@@ -308,7 +308,10 @@ final class TrainingScene: SKScene {
 
         let age = DefenseEnemyConfig.slashSec - remaining
         let fromX = size.width * Self.playerXRatio + avatarSize * 0.45
-        let fromY = floorY - avatarSize * 0.55
+        let fromY = DefenseSceneLayout.screenY(
+            floorY: floorY,
+            canvasDeltaFromFloor: -avatarSize * 0.55
+        )
         let toX = size.width * Self.enemyXRatio
         let toY = fromY
 

@@ -21,4 +21,15 @@ final class DefenseEnemyDisplayConfigTests: XCTestCase {
             accuracy: 0.001
         )
     }
+
+    func testSlashScreenYConvertsCanvasDownOffsetAboveFloor() {
+        let floorY: CGFloat = 200
+        let avatarSize: CGFloat = 88
+        let slashY = DefenseSceneLayout.screenY(
+            floorY: floorY,
+            canvasDeltaFromFloor: -avatarSize * 0.55
+        )
+        XCTAssertGreaterThan(slashY, floorY)
+        XCTAssertEqual(slashY, floorY + avatarSize * 0.55, accuracy: 0.001)
+    }
 }
