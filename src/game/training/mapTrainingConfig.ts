@@ -1,6 +1,10 @@
 import type { ChordQuality } from '@/utils/chord-templates';
 import type { ScaleType } from '@/utils/chord-templates';
-import type { TrainingConfigBase } from '@/game/training/trainingTypes';
+import type {
+  TrainingConfigBase,
+  TrainingProgressionEntry,
+  TrainingReferenceChord,
+} from '@/game/training/trainingTypes';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -51,6 +55,50 @@ const readClef = (
   return value === 'auto' || value === 'treble' || value === 'bass' ? value : undefined;
 };
 
+const readNumberArrayFromUnknown = (value: unknown): readonly number[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const numbers = value.filter((item): item is number => typeof item === 'number');
+  return numbers.length === value.length ? numbers : undefined;
+};
+
+const readProgressionEntries = (value: unknown): readonly TrainingProgressionEntry[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const entries: TrainingProgressionEntry[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return undefined;
+    const name = readString(item, 'name');
+    const voicing = readNumberArrayFromUnknown(item.voicing);
+    const voicingNames = readStringArray(item, 'voicingNames')
+      ?? readStringArray(item, 'voicing_names');
+    const keyFifths = readNumber(item, 'keyFifths') ?? readNumber(item, 'key_fifths');
+    if (!name || !voicing || !voicingNames || keyFifths == null) return undefined;
+    if (voicing.length !== voicingNames.length) return undefined;
+    const voicingStaves = readNumberArray(item, 'voicingStaves')
+      ?? readNumberArray(item, 'voicing_staves');
+    entries.push({
+      name,
+      voicing,
+      voicingNames,
+      keyFifths,
+      ...(voicingStaves != null ? { voicingStaves } : {}),
+    });
+  }
+  return entries;
+};
+
+const readReferenceChords = (value: unknown): readonly TrainingReferenceChord[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const chords: TrainingReferenceChord[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) return undefined;
+    const name = readString(item, 'name');
+    const notes = readStringArray(item, 'notes');
+    if (!name || !notes || notes.length === 0) return undefined;
+    chords.push({ name, notes });
+  }
+  return chords;
+};
+
 /** Supabase JSONB (snake_case) を TrainingConfigBase (camelCase) に正規化する。 */
 export const mapTrainingConfig = (raw: unknown): TrainingConfigBase => {
   if (!isRecord(raw)) {
@@ -72,6 +120,16 @@ export const mapTrainingConfig = (raw: unknown): TrainingConfigBase => {
     minLowestNote: readString(raw, 'minLowestNote') ?? readString(raw, 'min_lowest_note'),
     inversion: readNumber(raw, 'inversion'),
     ordered: readBoolean(raw, 'ordered'),
+    progression: readProgressionEntries(raw.progression),
+    unitSize: readNumber(raw, 'unitSize') ?? readNumber(raw, 'unit_size'),
+    shuffleUnits: readBoolean(raw, 'shuffleUnits') ?? readBoolean(raw, 'shuffle_units'),
+    referenceKey: readString(raw, 'referenceKey') ?? readString(raw, 'reference_key'),
+    referenceChords: readReferenceChords(raw.referenceChords ?? raw.reference_chords),
+    voicingForm: readString(raw, 'voicingForm') === 'bab' || readString(raw, 'voicing_form') === 'bab'
+      ? 'bab'
+      : readString(raw, 'voicingForm') === 'aba' || readString(raw, 'voicing_form') === 'aba'
+        ? 'aba'
+        : undefined,
   };
 
   return Object.fromEntries(

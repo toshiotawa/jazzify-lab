@@ -51,6 +51,32 @@ describe('mapTrainingConfig', () => {
     });
   });
 
+  it('maps progression config from DB JSONB', () => {
+    const config = mapTrainingConfig({
+      unit_size: 3,
+      shuffle_units: true,
+      reference_key: 'F',
+      reference_chords: [
+        { name: 'Gm7(9)', notes: ['F3', 'Bb3', 'D4', 'A4'] },
+      ],
+      progression: [
+        {
+          name: 'Dm7(9)',
+          voicing: [53, 57, 60, 64],
+          voicing_names: ['F3', 'A3', 'C4', 'E4'],
+          key_fifths: 0,
+        },
+      ],
+    });
+
+    expect(config.unitSize).toBe(3);
+    expect(config.shuffleUnits).toBe(true);
+    expect(config.referenceKey).toBe('F');
+    expect(config.referenceChords?.[0]?.name).toBe('Gm7(9)');
+    expect(config.progression?.[0]?.voicingNames).toEqual(['F3', 'A3', 'C4', 'E4']);
+    expect(config.progression?.[0]?.keyFifths).toBe(0);
+  });
+
   it('returns empty config for non-object input', () => {
     expect(mapTrainingConfig(null)).toEqual({});
     expect(mapTrainingConfig(undefined)).toEqual({});

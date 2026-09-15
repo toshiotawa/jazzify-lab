@@ -5,6 +5,21 @@ import type { TrainingLetterRank } from '@/game/training/trainingRank';
 export type TrainingKind = 'note_reading' | 'interval' | 'chord' | 'scale' | 'voicing' | 'progression';
 export type TrainingClefMode = 'instrument' | 'bass_concert' | 'grand_concert';
 
+/** 事前計算済みコード進行の1コード（サバイバル chord_progression 相当） */
+export interface TrainingProgressionEntry {
+  readonly name: string;
+  readonly voicing: readonly number[];
+  readonly voicingNames: readonly string[];
+  readonly keyFifths: number;
+  readonly voicingStaves?: readonly number[];
+}
+
+/** 基準キー移調モードの1コード */
+export interface TrainingReferenceChord {
+  readonly name: string;
+  readonly notes: readonly string[];
+}
+
 export interface TrainingCategoryRow {
   readonly id: string;
   readonly slug: string;
@@ -34,6 +49,31 @@ export interface TrainingConfigBase {
   readonly inversion?: number;
   /** true のとき譜面配列順（低→高）で入力必須 */
   readonly ordered?: boolean;
+  /** kind=progression: 事前計算済み進行 */
+  readonly progression?: readonly TrainingProgressionEntry[];
+  /** kind=progression: 1ユニットあたりのコード数（省略時 = 全体1ユニット） */
+  readonly unitSize?: number;
+  /** kind=progression: ユニット完了後にランダムで別ユニットへ */
+  readonly shuffleUnits?: boolean;
+  /** kind=progression: 基準キー移調モードの基準長調 */
+  readonly referenceKey?: string;
+  /** kind=progression: 基準キー移調モードの基準コード列 */
+  readonly referenceChords?: readonly TrainingReferenceChord[];
+  /** kind=progression: Drop2 II-V-I フォーム（reference_chords 移調時に表参照） */
+  readonly voicingForm?: 'aba' | 'bab';
+}
+
+/** コード進行トレーニングの1ユニット（例: II-V-I 1キー分） */
+export interface TrainingProgressionUnit {
+  readonly unitIndex: number;
+  readonly keyFifths: number;
+  readonly questions: readonly TrainingQuestion[];
+}
+
+/** コード進行トレーニングの出題カーソル */
+export interface TrainingProgressionCursor {
+  readonly unitIndex: number;
+  readonly chordIndex: number;
 }
 
 export interface TrainingRow {

@@ -17,7 +17,7 @@ enum TrainingEngine {
         playRootOnCorrect
             && completed
             && rootMidi != nil
-            && (kind == .chord || kind == .voicing)
+            && (kind == .chord || kind == .voicing || kind == .progression)
     }
 
     static func targetIndices(question: TrainingQuestion) -> [Int] {

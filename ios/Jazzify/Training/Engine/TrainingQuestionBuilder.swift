@@ -203,7 +203,7 @@ enum TrainingQuestionBuilder {
                 return built
 
             case .progression:
-                continue
+                fatalError("Training \(training.slug): use TrainingProgression.buildUnits for progression kind")
             }
         }
 
@@ -310,7 +310,8 @@ enum TrainingQuestionBuilder {
             }
 
         case .progression:
-            break
+            let units = TrainingProgression.buildUnits(training: training)
+            return TrainingProgression.collectMidis(units: units)
         }
 
         return midis
@@ -406,7 +407,13 @@ enum TrainingQuestionBuilder {
             referenceRoot: override.referenceRoot ?? base.referenceRoot,
             minLowestNote: override.minLowestNote ?? base.minLowestNote,
             inversion: override.inversion ?? base.inversion,
-            ordered: override.ordered ?? base.ordered
+            ordered: override.ordered ?? base.ordered,
+            progression: override.progression ?? base.progression,
+            unitSize: override.unitSize ?? base.unitSize,
+            shuffleUnits: override.shuffleUnits ?? base.shuffleUnits,
+            referenceKey: override.referenceKey ?? base.referenceKey,
+            referenceChords: override.referenceChords ?? base.referenceChords,
+            voicingForm: override.voicingForm ?? base.voicingForm
         )
     }
 

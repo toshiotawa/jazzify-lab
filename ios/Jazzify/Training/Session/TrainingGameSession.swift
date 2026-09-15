@@ -23,6 +23,9 @@ final class TrainingGameSession: ObservableObject {
 
     private var lastFrameTime: TimeInterval?
     private var previousQuestionKey: String?
+    private let progressionUnits: [TrainingProgressionUnit]?
+    private var progressionCursor: TrainingProgressionCursor?
+    private let progressionShuffleUnits: Bool
     var isPaused = false
     private var countdownTask: Task<Void, Never>?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
@@ -36,6 +39,12 @@ final class TrainingGameSession: ObservableObject {
         self.practiceMode = practiceMode
         self.lessonContext = lessonContext
         self.ignoreNotationInstrument = training.clefMode == .bassConcert || training.clefMode == .grandConcert
+        self.progressionShuffleUnits = training.config.shuffleUnits == true
+        if training.kind == .progression {
+            self.progressionUnits = TrainingProgression.buildUnits(training: training)
+        } else {
+            self.progressionUnits = nil
+        }
         var runtime = TrainingEngine.createInitialRuntime()
         if practiceMode {
             runtime.durationSec = .infinity
@@ -194,24 +203,53 @@ final class TrainingGameSession: ObservableObject {
         if runtime.score != hud.score {
             hud.score = runtime.score
         }
+        if training.kind == .progression {
+            advanceProgressionAfterCorrect()
+        }
         spawnQuestion()
     }
 
     private func spawnQuestion() {
-        let built = TrainingQuestionBuilder.buildQuestion(options: TrainingQuestionBuilderOptions(
-            training: training,
-            ignoreNotationInstrument: ignoreNotationInstrument,
-            lessonRoots: nil,
-            lessonOrder: nil,
-            lessonItems: nil,
-            lessonItemIndex: nil,
-            previousQuestionKey: previousQuestionKey
-        ))
+        let built: TrainingQuestion
+        if training.kind == .progression {
+            guard let units = progressionUnits, !units.isEmpty else {
+                fatalError("Training \(training.slug): progression units missing")
+            }
+            if progressionCursor == nil {
+                progressionCursor = TrainingProgression.pickInitialCursor(
+                    units: units,
+                    shuffleUnits: progressionShuffleUnits
+                )
+            }
+            guard let cursor = progressionCursor else {
+                fatalError("Training \(training.slug): progression cursor missing")
+            }
+            built = TrainingProgression.questionAt(units: units, cursor: cursor)
+        } else {
+            built = TrainingQuestionBuilder.buildQuestion(options: TrainingQuestionBuilderOptions(
+                training: training,
+                ignoreNotationInstrument: ignoreNotationInstrument,
+                lessonRoots: nil,
+                lessonOrder: nil,
+                lessonItems: nil,
+                lessonItemIndex: nil,
+                previousQuestionKey: previousQuestionKey
+            ))
+        }
         previousQuestionKey = built.questionKey
         runtime.question = built
         runtime.correctTargetIndices = []
         question = built
         correctIndices = []
+    }
+
+    private func advanceProgressionAfterCorrect() {
+        guard let units = progressionUnits, let cursor = progressionCursor else { return }
+        progressionCursor = TrainingProgression.advanceCursor(
+            units: units,
+            cursor: cursor,
+            shuffleUnits: progressionShuffleUnits
+        )
     }
 
     private func recordLessonProgressIfNeeded() {

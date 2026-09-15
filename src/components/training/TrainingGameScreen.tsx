@@ -32,7 +32,19 @@ import {
   buildTrainingQuestion,
   createInitialTrainingRuntime,
 } from '@/game/training/trainingQuestionBuilder';
-import type { TrainingQuestion, TrainingRow, TrainingRuntime } from '@/game/training/trainingTypes';
+import {
+  advanceTrainingProgressionCursor,
+  buildTrainingProgressionUnits,
+  pickInitialProgressionCursor,
+  questionAtProgressionCursor,
+} from '@/game/training/trainingProgression';
+import type {
+  TrainingProgressionCursor,
+  TrainingProgressionUnit,
+  TrainingQuestion,
+  TrainingRow,
+  TrainingRuntime,
+} from '@/game/training/trainingTypes';
 import {
   TRAINING_COUNTDOWN_SEC,
   TRAINING_GAME_DURATION_SEC,
@@ -74,6 +86,8 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const lastFrameRef = useRef<number | null>(null);
   const bgmRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const prevQuestionKeyRef = useRef<string | null>(null);
+  const progressionUnitsRef = useRef<readonly TrainingProgressionUnit[] | null>(null);
+  const progressionCursorRef = useRef<TrainingProgressionCursor | null>(null);
   const onFinishedRef = useRef(onFinished);
   const isSettingsOpenRef = useRef(false);
   const hudRef = useRef<MutableTrainingSceneHud>({
@@ -110,6 +124,13 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   isSettingsOpenRef.current = isSettingsOpen;
 
   const ignoreNotationInstrument = training.clefMode === 'bass_concert' || training.clefMode === 'grand_concert';
+  const isProgressionTraining = training.kind === 'progression';
+  const progressionShuffleUnits = training.config.shuffleUnits === true;
+  const progressionUnits = useMemo(
+    () => (isProgressionTraining ? buildTrainingProgressionUnits(training) : null),
+    [isProgressionTraining, training],
+  );
+  progressionUnitsRef.current = progressionUnits;
   const showHints = practiceMode;
   const staffNoteOpacity = trainingStaffNoteOpacity(practiceMode, training.kind);
   const staffBandHeight = useMemo(
@@ -118,13 +139,25 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   );
 
   const spawnQuestion = useCallback((): TrainingQuestion => {
-    const built = buildTrainingQuestion({
-      training,
-      notationInstrumentId,
-      notationOctaveShift,
-      ignoreNotationInstrument,
-      previousQuestionKey: prevQuestionKeyRef.current,
-    });
+    let built: TrainingQuestion;
+    if (isProgressionTraining) {
+      const units = progressionUnitsRef.current;
+      if (!units || units.length === 0) {
+        throw new Error(`Training ${training.slug}: progression units missing`);
+      }
+      if (progressionCursorRef.current == null) {
+        progressionCursorRef.current = pickInitialProgressionCursor(units, progressionShuffleUnits);
+      }
+      built = questionAtProgressionCursor(units, progressionCursorRef.current);
+    } else {
+      built = buildTrainingQuestion({
+        training,
+        notationInstrumentId,
+        notationOctaveShift,
+        ignoreNotationInstrument,
+        previousQuestionKey: prevQuestionKeyRef.current,
+      });
+    }
     prevQuestionKeyRef.current = built.questionKey;
     runtimeRef.current.question = built;
     runtimeRef.current.correctTargetIndices = [];
@@ -132,19 +165,42 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     setQuestion(built);
     setCorrectIndices([]);
     return built;
-  }, [training, notationInstrumentId, notationOctaveShift, ignoreNotationInstrument]);
+  }, [
+    training,
+    notationInstrumentId,
+    notationOctaveShift,
+    ignoreNotationInstrument,
+    isProgressionTraining,
+    progressionShuffleUnits,
+  ]);
+
+  const advanceProgressionAfterCorrect = useCallback((): void => {
+    const units = progressionUnitsRef.current;
+    const cursor = progressionCursorRef.current;
+    if (!units || !cursor) return;
+    progressionCursorRef.current = advanceTrainingProgressionCursor(
+      units,
+      cursor,
+      progressionShuffleUnits,
+    );
+  }, [progressionShuffleUnits]);
 
   useEffect(() => {
     runtimeRef.current.durationSec = practiceMode
       ? Number.POSITIVE_INFINITY
       : TRAINING_GAME_DURATION_SEC;
     hudRef.current.endless = practiceMode;
+    progressionCursorRef.current = null;
     spawnQuestion();
   }, [spawnQuestion, practiceMode]);
 
   useEffect(() => {
     FantasySoundManager.enableRootSound(
-      training.playRootOnCorrect && (training.kind === 'chord' || training.kind === 'voicing'),
+      training.playRootOnCorrect && (
+        training.kind === 'chord'
+        || training.kind === 'voicing'
+        || training.kind === 'progression'
+      ),
     );
   }, [training.kind, training.playRootOnCorrect]);
 
@@ -232,8 +288,19 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
     performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
     runtimeRef.current.score += 1;
+    if (isProgressionTraining) {
+      advanceProgressionAfterCorrect();
+    }
     spawnQuestion();
-  }, [phase, spawnQuestion, training.kind, training.playRootOnCorrect, voiceSequential]);
+  }, [
+    phase,
+    spawnQuestion,
+    training.kind,
+    training.playRootOnCorrect,
+    voiceSequential,
+    isProgressionTraining,
+    advanceProgressionAfterCorrect,
+  ]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
     markAudioUserInteraction();

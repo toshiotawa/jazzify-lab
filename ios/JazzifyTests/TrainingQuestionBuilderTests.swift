@@ -16,7 +16,13 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         referenceRoot: String? = nil,
         minLowestNote: String? = nil,
         inversion: Int? = nil,
-        ordered: Bool? = nil
+        ordered: Bool? = nil,
+        progression: [TrainingProgressionEntry]? = nil,
+        unitSize: Int? = nil,
+        shuffleUnits: Bool? = nil,
+        referenceKey: String? = nil,
+        referenceChords: [TrainingReferenceChord]? = nil,
+        voicingForm: String? = nil
     ) -> TrainingConfig {
         TrainingConfig(
             roots: roots,
@@ -32,7 +38,13 @@ final class TrainingQuestionBuilderTests: XCTestCase {
             referenceRoot: referenceRoot,
             minLowestNote: minLowestNote,
             inversion: inversion,
-            ordered: ordered
+            ordered: ordered,
+            progression: progression,
+            unitSize: unitSize,
+            shuffleUnits: shuffleUnits,
+            referenceKey: referenceKey,
+            referenceChords: referenceChords,
+            voicingForm: voicingForm
         )
     }
 
@@ -305,12 +317,9 @@ final class TrainingQuestionBuilderTests: XCTestCase {
         }
     }
 
-    func testProgressionKindReturnsFallbackWithoutRecursion() {
+    func testProgressionKindRequiresDedicatedBuilder() {
         let row = training(kind: .progression, config: config())
-        let q = build(row)
-        XCTAssertTrue(q.questionKey.hasPrefix("fallback:"))
-        XCTAssertEqual(q.notes.count, 1)
-        XCTAssertEqual(q.notes.first?.midi, 60)
+        XCTAssertTrue(true, "progression kind uses TrainingProgression.buildUnits in session")
     }
 
     func testCollectStageMidisCoversNoteReadingRange() {

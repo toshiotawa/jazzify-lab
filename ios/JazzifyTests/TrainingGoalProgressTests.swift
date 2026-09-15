@@ -190,7 +190,13 @@ final class TrainingGoalProgressTests: XCTestCase {
                     referenceRoot: nil,
                     minLowestNote: nil,
                     inversion: nil,
-                    ordered: nil
+                    ordered: nil,
+                    progression: nil,
+                    unitSize: nil,
+                    shuffleUnits: nil,
+                    referenceKey: nil,
+                    referenceChords: nil,
+                    voicingForm: nil
                 ),
                 isActive: true
             )

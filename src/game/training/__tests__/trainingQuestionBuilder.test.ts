@@ -313,14 +313,11 @@ describe('trainingQuestionBuilder', () => {
     expect(q.notes.map((n) => n.noteName)).toEqual(['D3', 'Ab3', 'C4', 'E4', 'G4']);
   });
 
-  it('returns a fallback question for progression kind without recursing', () => {
-    const q = buildTrainingQuestion({
+  it('throws for progression kind in buildTrainingQuestion', () => {
+    expect(() => buildTrainingQuestion({
       training: baseTraining({ kind: 'progression', config: {} }),
       ...piano,
-    });
-    expect(q.questionKey.startsWith('fallback:')).toBe(true);
-    expect(q.notes).toHaveLength(1);
-    expect(q.notes[0]?.midi).toBe(60);
+    })).toThrow(/buildTrainingProgressionUnits/);
   });
 
   it('builds mixed interval questions with a random interval label in the prompt', () => {

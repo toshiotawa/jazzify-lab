@@ -15,6 +15,26 @@ enum TrainingClefMode: String, Codable, Sendable {
     case grandConcert = "grand_concert"
 }
 
+struct TrainingProgressionEntry: Codable, Sendable, Equatable {
+    let name: String
+    let voicing: [Int]
+    let voicingNames: [String]
+    let keyFifths: Int
+    let voicingStaves: [Int]?
+
+    enum CodingKeys: String, CodingKey {
+        case name, voicing
+        case voicingNames = "voicing_names"
+        case keyFifths = "key_fifths"
+        case voicingStaves = "voicing_staves"
+    }
+}
+
+struct TrainingReferenceChord: Codable, Sendable, Equatable {
+    let name: String
+    let notes: [String]
+}
+
 struct TrainingConfig: Codable, Sendable {
     let roots: [String]?
     let quality: String?
@@ -30,6 +50,12 @@ struct TrainingConfig: Codable, Sendable {
     let minLowestNote: String?
     let inversion: Int?
     let ordered: Bool?
+    let progression: [TrainingProgressionEntry]?
+    let unitSize: Int?
+    let shuffleUnits: Bool?
+    let referenceKey: String?
+    let referenceChords: [TrainingReferenceChord]?
+    let voicingForm: String?
 
     enum CodingKeys: String, CodingKey {
         case roots, quality, scale, interval, direction, clef, intervals, staves
@@ -37,8 +63,24 @@ struct TrainingConfig: Codable, Sendable {
         case voicingNotes = "voicing_notes"
         case referenceRoot = "reference_root"
         case minLowestNote = "min_lowest_note"
-        case inversion, ordered
+        case inversion, ordered, progression
+        case unitSize = "unit_size"
+        case shuffleUnits = "shuffle_units"
+        case referenceKey = "reference_key"
+        case referenceChords = "reference_chords"
+        case voicingForm = "voicing_form"
     }
+}
+
+struct TrainingProgressionUnit: Sendable, Equatable {
+    let unitIndex: Int
+    let keyFifths: Int
+    let questions: [TrainingQuestion]
+}
+
+struct TrainingProgressionCursor: Sendable, Equatable {
+    let unitIndex: Int
+    let chordIndex: Int
 }
 
 struct TrainingCategoryRow: Codable, Identifiable, Sendable {

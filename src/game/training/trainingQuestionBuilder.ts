@@ -13,6 +13,7 @@ import {
   normalizeNotationInstrumentId,
 } from '@/utils/notationInstrument';
 import { applyClosedInversion } from '@/game/training/trainingChordInversion';
+import { collectTrainingProgressionMidis, buildTrainingProgressionUnits } from '@/game/training/trainingProgression';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 type Clef = 'treble' | 'bass';
@@ -195,7 +196,7 @@ const transposeVoicingToRoot = (
 };
 
 /** 最低音の直下にあるルート音（正解時に鳴らす音） */
-const rootMidiBelow = (root: string, lowestMidi: number): number => {
+export const rootMidiBelow = (root: string, lowestMidi: number): number => {
   const rootPc = normalizePitchClass(midiOf(`${root}4`));
   let midi = lowestMidi - ((normalizePitchClass(lowestMidi) - rootPc + 12) % 12);
   if (midi >= lowestMidi) midi -= 12;
@@ -457,7 +458,7 @@ export const buildTrainingQuestion = (
     }
 
     if (training.kind === 'progression') {
-      continue;
+      throw new Error(`Training ${training.slug}: use buildTrainingProgressionUnits for progression kind`);
     }
 
     throw new Error(`Unsupported training kind: ${training.kind}`);
@@ -580,6 +581,15 @@ export const collectTrainingStageMidis = (
         );
       }
       if (names) pushNames(names);
+    }
+  }
+
+  if (training.kind === 'progression') {
+    try {
+      const units = buildTrainingProgressionUnits(training);
+      return collectTrainingProgressionMidis(units);
+    } catch {
+      return midis;
     }
   }
 

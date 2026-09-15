@@ -27,7 +27,9 @@ describe('badgeDefinitions', () => {
         .filter((badge) => badge.categoryId === categoryId)
         .map((badge) => badge.conditionValue);
 
-    expect(thresholdsFor('defense')).toEqual([1, 2, 3]);
+    expect(thresholdsFor('defense')).toEqual([1]);
+    expect(thresholdsFor('defense_basic')).toEqual([50, 500, 1000, 10000]);
+    expect(thresholdsFor('defense_advanced')).toEqual([50, 500, 1000, 10000]);
     expect(thresholdsFor('training_goal')).toEqual([1, 10, 20]);
     expect(thresholdsFor('player_level')).toEqual([2, 50, 100]);
     expect(thresholdsFor('quest_clear')).toEqual([1, 50, 100]);

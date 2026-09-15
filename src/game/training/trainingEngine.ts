@@ -23,7 +23,7 @@ export const shouldPlayTrainingRootOnCorrect = (
   playRootOnCorrect
   && completed
   && rootMidi != null
-  && (kind === 'chord' || kind === 'voicing')
+  && (kind === 'chord' || kind === 'voicing' || kind === 'progression')
 );
 
 const targetIndices = (question: TrainingQuestion): readonly number[] => {
