@@ -68,7 +68,7 @@ const TRIAD_TITLES = {
   min: { ja: 'マイナー', en: 'Minor' },
   dim: { ja: 'ディミニッシュ', en: 'Diminished' },
   aug: { ja: 'オーギュメント', en: 'Augmented' },
-  sus4: { ja: 'サス4', en: 'Sus4' },
+  sus4: { ja: 'sus4', en: 'Sus4' },
 };
 
 const TRIAD_INVERSION_NAMES = {
@@ -76,7 +76,7 @@ const TRIAD_INVERSION_NAMES = {
   min: { ja: 'マイナートライアド', en: 'Minor Triad' },
   dim: { ja: 'ディミニッシュトライアド', en: 'Diminished Triad' },
   aug: { ja: 'オーギュメントトライアド', en: 'Augmented Triad' },
-  sus4: { ja: 'サス4トライアド', en: 'Sus4 Triad' },
+  sus4: { ja: 'sus4', en: 'Sus4 Triad' },
 };
 
 const INVERSION_LABELS_JA = ['基本形', '第一転回形', '第二転回形', '第三転回形'];
@@ -88,9 +88,9 @@ const SEVENTH_TITLES = {
   7: { ja: 'ドミナント7th', en: 'Dominant 7th' },
   m7b5: { ja: 'マイナー7♭5', en: 'Minor 7 b5' },
   dim7: { ja: 'ディミニッシュ7th', en: 'Diminished 7th' },
-  '7sus4': { ja: '7サス4', en: '7 Sus4' },
-  6: { ja: '6和音', en: '6th Chord' },
-  m6: { ja: 'マイナー6', en: 'Minor 6th' },
+  '7sus4': { ja: '7sus4', en: '7 Sus4' },
+  6: { ja: '6th', en: '6th Chord' },
+  m6: { ja: 'マイナー6th', en: 'Minor 6th' },
   mM7: { ja: 'マイナーメジャー7th', en: 'Minor-Major 7th' },
 };
 
