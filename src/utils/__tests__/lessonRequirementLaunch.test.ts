@@ -98,6 +98,25 @@ describe('buildLessonRequirementLaunchHash', () => {
     expect(hash).toContain('lessonId=lesson-1');
   });
 
+  it('returns training goal set hash', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_training_goal_set: true,
+      training_goal_set_id: 'goal-set-1',
+      training_goal_set: { id: 'goal-set-1' },
+    }));
+    expect(hash).toContain('#training?');
+    expect(hash).toContain('view=goal');
+    expect(hash).toContain('goalSetId=goal-set-1');
+    expect(hash).toContain('lessonId=lesson-1');
+  });
+
+  it('returns null for training goal set without id', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_training_goal_set: true,
+    }));
+    expect(hash).toBeNull();
+  });
+
   it('preserves play map context on survival lesson hash', () => {
     const hash = buildLessonRequirementLaunchHash(baseReq({
       is_survival: true,

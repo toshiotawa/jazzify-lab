@@ -23,7 +23,7 @@ interface TrainingGoalPageProps {
   readonly trainingById: ReadonlyMap<string, TrainingRow>;
   readonly isEnglish: boolean;
   readonly onBack: () => void;
-  readonly onOpenGoals: () => void;
+  readonly onOpenGoals?: () => void;
   readonly onSelectTraining: (trainingId: string, practiceMode: boolean) => void;
   readonly onOpenRecords: (trainingId: string) => void;
   readonly onLocked: () => void;
@@ -95,7 +95,9 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
         )}
       </section>
 
-      <TrainingGoalSetListCard isEnglish={isEnglish} onClick={onOpenGoals} />
+      {onOpenGoals && (
+        <TrainingGoalSetListCard isEnglish={isEnglish} onClick={onOpenGoals} />
+      )}
 
       <h2 className="mb-4 text-lg font-semibold text-white">
         {isEnglish ? 'Goal Trainings' : '目標トレーニング'}

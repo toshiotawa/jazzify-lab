@@ -3,6 +3,7 @@ import SwiftUI
 struct TrainingListView: View {
     private let forcedTrainingId: UUID?
     private let forcedPracticeMode: Bool
+    private let forcedGoalSetId: UUID?
     private let lessonContext: TrainingLessonContext?
     private let onLessonExit: (() -> Void)?
 
@@ -15,7 +16,7 @@ struct TrainingListView: View {
     @State private var activeDays: Set<String> = []
     @State private var todayKey = ""
     @State private var isLoading = true
-    @State private var screen: TrainingScreen = .list
+    @State private var screen: TrainingScreen
     @State private var activeTraining: TrainingRow?
     @State private var practiceMode = false
     @State private var finalScore = 0
@@ -32,27 +33,38 @@ struct TrainingListView: View {
     init(
         forcedTrainingId: UUID? = nil,
         forcedPracticeMode: Bool = false,
+        forcedGoalSetId: UUID? = nil,
         lessonContext: TrainingLessonContext? = nil,
         onLessonExit: (() -> Void)? = nil
     ) {
         self.forcedTrainingId = forcedTrainingId
         self.forcedPracticeMode = forcedPracticeMode
+        self.forcedGoalSetId = forcedGoalSetId
         self.lessonContext = lessonContext
         self.onLessonExit = onLessonExit
+        _screen = State(initialValue: forcedGoalSetId == nil ? .list : .goal)
     }
 
     private var locale: AppLocale { appState.locale }
-    private var isLessonLaunch: Bool { lessonContext != nil }
+    private var isLessonTrainingLaunch: Bool { lessonContext != nil }
+    private var isLessonGoalSetLaunch: Bool { forcedGoalSetId != nil }
+    private var isLessonLaunch: Bool { isLessonTrainingLaunch || isLessonGoalSetLaunch }
     private var timezone: String { TrainingActivity.resolveUserTimezone(profile: appState.profile) }
     private var activeGoalSet: TrainingGoalSet? {
         TrainingGoalProgress.resolveActiveGoalSet(goalSets: goalSets, selectedGoalSetId: activeGoalSetId)
+    }
+    private var displayedGoalSet: TrainingGoalSet? {
+        if let forcedGoalSetId {
+            return goalSets.first { $0.id == forcedGoalSetId }
+        }
+        return activeGoalSet
     }
     private var allTrainings: [TrainingRow] {
         categories.flatMap(\.trainings)
     }
 
     private var showsLaunchOverlay: Bool {
-        isLaunchingGame || (isLessonLaunch && isLoading && forcedTrainingId != nil)
+        isLaunchingGame || (isLessonTrainingLaunch && isLoading && forcedTrainingId != nil)
     }
 
     var body: some View {
@@ -62,7 +74,7 @@ struct TrainingListView: View {
             case .list:
                 listBody
             case .goal:
-                if let goalSet = activeGoalSet {
+                if let goalSet = displayedGoalSet {
                     TrainingGoalView(
                         goalSet: goalSet,
                         stageNumber: TrainingGoalProgress.stageNumber(goalSets: goalSets, goalSetId: goalSet.id),
@@ -70,8 +82,14 @@ struct TrainingListView: View {
                         trainingById: trainingById,
                         locale: locale,
                         isTrainingLocked: isTrainingLocked,
-                        onBack: { returnToList(fromTraining: false) },
-                        onOpenGoals: { screen = .goals },
+                        onBack: {
+                            if forcedGoalSetId != nil {
+                                onLessonExit?()
+                            } else {
+                                returnToList(fromTraining: false)
+                            }
+                        },
+                        onOpenGoals: forcedGoalSetId == nil ? { screen = .goals } : nil,
                         onPlay: { training, practice in presentGame(training: training, practice: practice) },
                         onOpenRecords: { trainingId in screen = .records(trainingId: trainingId) },
                         onLocked: { showSubscription = true }
@@ -128,8 +146,12 @@ struct TrainingListView: View {
                             screen = .ranking
                         },
                         onExit: {
-                            if isLessonLaunch {
+                            if isLessonTrainingLaunch {
                                 onLessonExit?()
+                            } else if isLessonGoalSetLaunch {
+                                activeTraining = nil
+                                screen = .goal
+                                Task { await reload() }
                             } else {
                                 activeTraining = nil
                                 screen = .list
@@ -152,8 +174,10 @@ struct TrainingListView: View {
                 locale: locale,
                 onClose: {
                     playSession = nil
-                    if isLessonLaunch {
+                    if isLessonTrainingLaunch {
                         onLessonExit?()
+                    } else if isLessonGoalSetLaunch {
+                        screen = .goal
                     } else {
                         returnToList(fromTraining: true)
                     }
@@ -463,6 +487,11 @@ struct TrainingListView: View {
         }
         if !isLessonLaunch {
             await reloadGoalsAndActivity()
+        } else if forcedGoalSetId != nil {
+            await reloadGoalsAndActivity()
+            if displayedGoalSet != nil {
+                screen = .goal
+            }
         }
         if screen == .list && playSession == nil && !isLaunchingGame {
             applyAccordionState()

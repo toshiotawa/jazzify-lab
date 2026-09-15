@@ -9,7 +9,7 @@ struct TrainingGoalView: View {
     let locale: AppLocale
     let isTrainingLocked: (TrainingRow) -> Bool
     let onBack: () -> Void
-    let onOpenGoals: () -> Void
+    let onOpenGoals: (() -> Void)?
     let onPlay: (TrainingRow, Bool) -> Void
     let onOpenRecords: (UUID) -> Void
     let onLocked: () -> Void
@@ -64,37 +64,39 @@ struct TrainingGoalView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal)
 
-                Button(action: onOpenGoals) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(locale == .ja ? "目標セット一覧" : "Goal Sets")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                            Text(locale == .ja ? "他の目標セットに切り替える" : "Switch to another goal set")
+                if let onOpenGoals {
+                    Button(action: onOpenGoals) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(locale == .ja ? "目標セット一覧" : "Goal Sets")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text(locale == .ja ? "他の目標セットに切り替える" : "Switch to another goal set")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding()
-                    .background(
-                        LinearGradient(
-                            colors: [Color.indigo.opacity(0.18), Color(.secondarySystemBackground)],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                        .padding()
+                        .background(
+                            LinearGradient(
+                                colors: [Color.indigo.opacity(0.18), Color(.secondarySystemBackground)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.indigo.opacity(0.4), lineWidth: 1)
-                    )
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.indigo.opacity(0.4), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal)
 
                 Text(locale == .ja ? "目標トレーニング" : "Goal Trainings")
                     .font(.headline)

@@ -13,6 +13,7 @@ export interface LessonSongProgressKeySource {
   is_video_lesson?: boolean;
   is_defense?: boolean;
   is_training?: boolean;
+  is_training_goal_set?: boolean;
   is_clear_required?: boolean;
 }
 
@@ -33,7 +34,8 @@ export const lessonSongUsesLessonSongIdForProgress = (
   || req.is_ear_training_tutorial === true
   || req.is_video_lesson === true
   || req.is_defense === true
-  || req.is_training === true;
+  || req.is_training === true
+  || req.is_training_goal_set === true;
 
 export const isClearRequiredLessonSong = (req: { is_clear_required?: boolean }): boolean =>
   req.is_clear_required !== false;
@@ -89,6 +91,7 @@ export interface RequirementWithLessonSongId {
   is_video_lesson?: boolean;
   is_defense?: boolean;
   is_training?: boolean;
+  is_training_goal_set?: boolean;
   is_clear_required?: boolean;
 }
 

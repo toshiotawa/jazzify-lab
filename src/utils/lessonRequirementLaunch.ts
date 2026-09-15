@@ -44,6 +44,9 @@ export type LessonRequirementLaunchInput = LessonRequirement & {
   is_training?: boolean;
   training_id?: string | null;
   training?: { id?: string } | null;
+  is_training_goal_set?: boolean;
+  training_goal_set_id?: string | null;
+  training_goal_set?: { id?: string } | null;
   ear_training_stage?: { id?: string } | null;
   ear_training_stage_id?: string | null;
   fantasy_stage?: { id?: string } | null;
@@ -67,6 +70,20 @@ export function buildLessonRequirementLaunchHash(
   const isVideoLesson = req.is_video_lesson === true;
   const isDefense = req.is_defense === true;
   const isTraining = req.is_training === true;
+  const isTrainingGoalSet = req.is_training_goal_set === true;
+
+  if (isTrainingGoalSet) {
+    const goalSetId = req.training_goal_set?.id ?? req.training_goal_set_id ?? '';
+    if (!goalSetId) {
+      return null;
+    }
+    const params = new URLSearchParams();
+    params.set('view', 'goal');
+    params.set('goalSetId', goalSetId);
+    params.set('lessonId', req.lesson_id);
+    appendPlayMapContext(params, playMap);
+    return `#training?${params.toString()}`;
+  }
 
   if (isTraining) {
     const trainingId = req.training?.id ?? req.training_id ?? '';

@@ -54,7 +54,7 @@ export async function updateLessonRequirementProgress(
   rank: string,
   clearConditions: ClearConditions | Record<string, unknown>,
   options?: {
-    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson' | 'defense' | 'training';
+    sourceType?: 'song' | 'fantasy' | 'ear_training' | 'survival' | 'balloon_rush' | 'video_lesson' | 'defense' | 'training' | 'training_goal_set';
     lessonSongId?: string;
   }
 ): Promise<boolean> {

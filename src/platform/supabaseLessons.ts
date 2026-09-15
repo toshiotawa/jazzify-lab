@@ -34,6 +34,9 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
           training:trainings (
             id, slug, title_ja, title_en
           ),
+          training_goal_set:training_goal_sets (
+            id, slug, title_ja, title_en
+          ),
           ear_training_stage:ear_training_stages (
             *,
             chord_quiz_items:ear_training_chord_quiz_items (*)
@@ -153,6 +156,12 @@ const LESSON_DETAIL_SELECT = `
     ),
     defense_stage:defense_stages (
       id, slug, title, title_en, survive_seconds, difficulty_level
+    ),
+    training:trainings (
+      id, slug, title_ja, title_en
+    ),
+    training_goal_set:training_goal_sets (
+      id, slug, title_ja, title_en
     ),
     ear_training_stage:ear_training_stages (
       id,

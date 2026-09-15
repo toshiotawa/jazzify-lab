@@ -992,6 +992,14 @@ export interface TrainingStageRow {
   title_en?: string | null;
 }
 
+/** `lesson_songs` からネスト取得する `training_goal_sets` 行（一覧・詳細表示用） */
+export interface TrainingGoalSetRow {
+  id: string;
+  slug: string;
+  title_ja: string;
+  title_en?: string | null;
+}
+
 export interface LessonSong {
   id: string;
   lesson_id: string;
@@ -1011,6 +1019,9 @@ export interface LessonSong {
   training_id?: string | null;
   training?: TrainingStageRow | null;
   training_lesson_config?: Record<string, unknown> | null;
+  is_training_goal_set?: boolean;
+  training_goal_set_id?: string | null;
+  training_goal_set?: TrainingGoalSetRow | null;
   is_fantasy: boolean;
   is_survival?: boolean;
   is_survival_tutorial?: boolean;

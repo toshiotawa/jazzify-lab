@@ -273,15 +273,13 @@ final class DefenseGameSession: ObservableObject {
         let stageId = stage.id
         let lessonContext = lessonContext
         Task {
-            if lessonContext == nil {
-                if let userId = try? await SupabaseService.shared.currentUserId() {
-                    _ = try? await SupabaseService.shared.upsertDefenseStageClear(
-                        userId: userId,
-                        stageId: stageId,
-                        surviveSec: surviveSec,
-                        enemiesDefeated: enemiesDefeated
-                    )
-                }
+            if let userId = try? await SupabaseService.shared.currentUserId() {
+                _ = try? await SupabaseService.shared.upsertDefenseStageClear(
+                    userId: userId,
+                    stageId: stageId,
+                    surviveSec: surviveSec,
+                    enemiesDefeated: enemiesDefeated
+                )
             }
             if let lessonContext {
                 _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(

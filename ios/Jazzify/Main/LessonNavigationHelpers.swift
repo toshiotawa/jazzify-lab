@@ -246,6 +246,7 @@ enum LessonNavigationHelpers {
             && requirement.isVideoLesson != true
             && requirement.isDefense != true
             && requirement.isTraining != true
+            && requirement.isTrainingGoalSet != true
     }
 
     static func areAllClearRequiredCompleted(

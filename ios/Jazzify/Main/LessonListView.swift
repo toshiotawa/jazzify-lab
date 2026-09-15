@@ -1272,6 +1272,12 @@ private struct TrainingLessonLaunch: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// トレーニング目標セット課題の起動コンテキスト。
+private struct TrainingGoalSetLaunch: Identifiable {
+    let id = UUID()
+    let goalSetId: UUID
+}
+
 /// 風船ラッシュ開始前の準備シート用。
 private struct BalloonRushPrepContext: Identifiable {
     let id = UUID()
@@ -1341,6 +1347,7 @@ struct LessonDetailView: View {
     @State private var defenseLessonLaunch: DefenseLessonLaunch?
     @State private var trainingPrep: TrainingPrepContext?
     @State private var trainingLessonLaunch: TrainingLessonLaunch?
+    @State private var trainingGoalSetLaunch: TrainingGoalSetLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -1443,6 +1450,7 @@ struct LessonDetailView: View {
             || videoLessonLaunch != nil
             || defenseLessonLaunch != nil
             || trainingLessonLaunch != nil
+            || trainingGoalSetLaunch != nil
     }
 
     private var hasActivePresentation: Bool {
@@ -1933,6 +1941,13 @@ struct LessonDetailView: View {
                 )
                 .environmentObject(appState)
             }
+            .fullScreenCover(item: $trainingGoalSetLaunch) { launch in
+                TrainingListView(
+                    forcedGoalSetId: launch.goalSetId,
+                    onLessonExit: { trainingGoalSetLaunch = nil }
+                )
+                .environmentObject(appState)
+            }
     }
 
     @ViewBuilder
@@ -2342,6 +2357,24 @@ struct LessonDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.gray)
                     Text(training.localizedTitle(locale))
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+            }
+
+            if requirement.isTrainingGoalSet == true, let goalSet = requirement.trainingGoalSet {
+                let taskPrefix = locale == .ja ? "課題タイプ" : "Task type"
+                let clearPrefix = locale == .ja ? "クリア条件" : "Clear"
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(taskPrefix): \(locale == .ja ? "トレーニング目標セット" : "Training goal set")")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text("\(clearPrefix): \(locale == .ja ? "目標セット内の全トレーニングで目標ランク達成" : "Reach target rank on every training in the goal set")")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Text(goalSet.localizedTitle(locale))
                         .font(.caption2)
                         .foregroundStyle(.gray)
                 }
@@ -3409,6 +3442,9 @@ struct LessonDetailView: View {
         if requirement.isTraining == true, let training = requirement.training {
             return "\(index + 1). \(training.localizedTitle(locale))"
         }
+        if requirement.isTrainingGoalSet == true, let goalSet = requirement.trainingGoalSet {
+            return "\(index + 1). \(goalSet.localizedTitle(locale))"
+        }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
     }
 
@@ -3472,6 +3508,9 @@ struct LessonDetailView: View {
             return slug
         }
         if requirement.isTraining == true, let slug = requirement.training?.slug, !slug.isEmpty {
+            return slug
+        }
+        if requirement.isTrainingGoalSet == true, let slug = requirement.trainingGoalSet?.slug, !slug.isEmpty {
             return slug
         }
         return requirement.id.uuidString
@@ -3757,6 +3796,19 @@ struct LessonDetailView: View {
                 lessonSongId: requirement.id,
                 clearConditions: requirement.clearConditions
             )
+            isLaunchingGame = false
+            return
+        }
+
+        if requirement.isTrainingGoalSet == true {
+            guard let goalSetId = requirement.trainingGoalSet?.id ?? requirement.trainingGoalSetId else {
+                isLaunchingGame = false
+                alertMessage = locale == .ja
+                    ? "トレーニング目標セットが設定されていません。"
+                    : "Training goal set is not configured."
+                return
+            }
+            trainingGoalSetLaunch = TrainingGoalSetLaunch(goalSetId: goalSetId)
             isLaunchingGame = false
             return
         }

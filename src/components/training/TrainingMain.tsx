@@ -85,13 +85,17 @@ const TrainingMain: React.FC = () => {
   }, [params]);
 
   const forcedTrainingId = params.get('trainingId')?.trim() ?? '';
+  const lessonReturnId = searchParams.get('lessonId')?.trim()
+    ?? params.get('lessonId')?.trim()
+    ?? '';
+  const forcedGoalSetId = searchParams.get('goalSetId')?.trim() ?? '';
   const viewParam = searchParams.get('view');
   const trainingIdParam = searchParams.get('trainingId');
   const dateParam = searchParams.get('date');
   const monthParam = searchParams.get('month');
 
   const [screen, setScreen] = useState<Screen>(() => {
-    if (viewParam === 'goal') return 'goal';
+    if (viewParam === 'goal' || forcedGoalSetId) return 'goal';
     if (viewParam === 'goals') return 'goals';
     if (viewParam === 'records') return 'records';
     if (viewParam === 'calendar') return 'calendar';
@@ -148,12 +152,16 @@ const TrainingMain: React.FC = () => {
 
   useEffect(() => {
     if (lessonContext || session) return;
+    if (forcedGoalSetId) {
+      setScreen('goal');
+      return;
+    }
     if (viewParam === 'goal') setScreen('goal');
     else if (viewParam === 'goals') setScreen('goals');
     else if (viewParam === 'records') setScreen('records');
     else if (viewParam === 'calendar') setScreen('calendar');
     else if (!viewParam) setScreen('list');
-  }, [viewParam, lessonContext, session]);
+  }, [viewParam, lessonContext, session, forcedGoalSetId]);
 
   const allTrainings = useMemo(
     () => categories.flatMap((category) => category.trainings),
@@ -183,6 +191,18 @@ const TrainingMain: React.FC = () => {
   const activeGoalSet = useMemo(
     () => resolveActiveGoalSet(goalSets, selectedGoalSetId),
     [goalSets, selectedGoalSetId],
+  );
+
+  const displayedGoalSet = useMemo(() => {
+    if (forcedGoalSetId) {
+      return goalSets.find((set) => set.id === forcedGoalSetId) ?? null;
+    }
+    return activeGoalSet;
+  }, [activeGoalSet, forcedGoalSetId, goalSets]);
+
+  const displayedGoalStageNumber = useMemo(
+    () => (displayedGoalSet ? trainingGoalStageNumber(goalSets, displayedGoalSet.id) : 1),
+    [displayedGoalSet, goalSets],
   );
 
   const activeGoalStageNumber = useMemo(
@@ -288,6 +308,10 @@ const TrainingMain: React.FC = () => {
   }, [findTraining]);
 
   const leaveLessonIfNeeded = useCallback(() => {
+    if (lessonReturnId) {
+      getWindow().location.hash = `#lesson-detail?id=${encodeURIComponent(lessonReturnId)}`;
+      return true;
+    }
     if (!lessonContext) {
       return false;
     }
@@ -297,7 +321,7 @@ const TrainingMain: React.FC = () => {
       searchParams: params,
     });
     return true;
-  }, [lessonContext, params]);
+  }, [lessonContext, lessonReturnId, params]);
 
   const handleFinished = useCallback((score: number) => {
     setFinalScore(score);
@@ -411,16 +435,22 @@ const TrainingMain: React.FC = () => {
           </div>
         </div>
       )}
-      {screen === 'goal' && activeGoalSet && (
+      {screen === 'goal' && displayedGoalSet && (
         <div className="min-h-0 flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <TrainingGoalPage
-            goalSet={activeGoalSet}
-            stageNumber={activeGoalStageNumber}
+            goalSet={displayedGoalSet}
+            stageNumber={displayedGoalStageNumber}
             summaryByTrainingId={summaryMap}
             trainingById={trainingById}
             isEnglish={isEnglish}
-            onBack={() => openView('list')}
-            onOpenGoals={() => openView('goals')}
+            onBack={() => {
+              if (lessonReturnId) {
+                getWindow().location.hash = `#lesson-detail?id=${encodeURIComponent(lessonReturnId)}`;
+                return;
+              }
+              openView('list');
+            }}
+            onOpenGoals={forcedGoalSetId ? undefined : () => openView('goals')}
             onSelectTraining={handleSelectTraining}
             onOpenRecords={(trainingId) => openView('records', { trainingId })}
             onLocked={() => setShowPaywall(true)}

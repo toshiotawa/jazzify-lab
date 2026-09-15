@@ -90,7 +90,7 @@ struct TrainingResultView: View {
 
     private func saveScoreIfNeeded() async {
         savedRank = TrainingRank.scoreToRank(score, kind: training.kind)
-        guard !practiceMode, lessonContext == nil else {
+        guard !practiceMode else {
             saved = true
             return
         }

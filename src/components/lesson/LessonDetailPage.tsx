@@ -343,6 +343,9 @@ const LessonDetailPage: React.FC = () => {
           is_training: ls.is_training,
           training_id: ls.training_id,
           training: ls.training,
+          is_training_goal_set: ls.is_training_goal_set,
+          training_goal_set_id: ls.training_goal_set_id,
+          training_goal_set: ls.training_goal_set,
           ear_training_stage: ls.ear_training_stage,
           ear_training_stage_id: ls.ear_training_stage_id,
           fantasy_stage: ls.fantasy_stage,
@@ -509,6 +512,7 @@ const LessonDetailPage: React.FC = () => {
       is_video_lesson?: boolean;
       is_defense?: boolean;
       is_training?: boolean;
+      is_training_goal_set?: boolean;
     };
     const isFantasy = extended.is_fantasy || false;
     const isSurvivalTutorial = extended.is_survival_tutorial || false;
@@ -519,9 +523,10 @@ const LessonDetailPage: React.FC = () => {
     const isVideoLesson = extended.is_video_lesson === true;
     const isDefense = extended.is_defense === true;
     const isTraining = extended.is_training === true;
+    const isTrainingGoalSet = extended.is_training_goal_set === true;
 
     if (
-      (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson || isDefense || isTraining)
+      (isFantasy || isSurvival || isEarTraining || isBalloonRush || isVideoLesson || isDefense || isTraining || isTrainingGoalSet)
       && !isPremiumMember
       && !(
         lessonCourseMeta
@@ -561,6 +566,10 @@ const LessonDetailPage: React.FC = () => {
       } else if (isTraining) {
         toast.warning(
           isEnglishCopy ? 'Training is not configured.' : 'トレーニングが設定されていません。',
+        );
+      } else if (isTrainingGoalSet) {
+        toast.warning(
+          isEnglishCopy ? 'Training goal set is not configured.' : 'トレーニング目標セットが設定されていません。',
         );
       }
       return;
@@ -1387,6 +1396,13 @@ const LessonDetailPage: React.FC = () => {
                     const isVideoLesson = req.is_video_lesson === true;
                     const isDefense = req.is_defense === true;
                     const isTraining = req.is_training === true;
+                    const isTrainingGoalSet = req.is_training_goal_set === true;
+                    const goalSetTitle = isTrainingGoalSet
+                      ? (isEnglishCopy
+                        ? (req.training_goal_set?.title_en ?? req.training_goal_set?.title_ja ?? '')
+                        : (req.training_goal_set?.title_ja ?? req.training_goal_set?.title_en ?? ''))
+                      : '';
+                    const resolvedTaskTitle = taskTitle || goalSetTitle;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -1401,8 +1417,8 @@ const LessonDetailPage: React.FC = () => {
                         
                         <div className="mb-3">
                           <h4 className="font-medium">
-                            {taskTitle
-                              ? `${index + 1}. ${taskTitle}`
+                            {resolvedTaskTitle
+                              ? `${index + 1}. ${resolvedTaskTitle}`
                               : practiceCopy.taskFallback(index + 1)}
                           </h4>
                           {!isClearRequired && (
@@ -1540,6 +1556,27 @@ const LessonDetailPage: React.FC = () => {
                               {tr && (
                                 <div className="text-gray-400 text-xs mt-1">
                                   {isEnglishCopy ? (tr.title_en ?? tr.title_ja) : tr.title_ja}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {isTrainingGoalSet && (() => {
+                          const gs = req.training_goal_set as { title_ja?: string; title_en?: string | null } | undefined | null;
+                          return (
+                            <div className="mb-3 text-sm">
+                              <div className="text-gray-400 text-xs mt-1">
+                                {isEnglishCopy ? 'Task type: Training goal set' : '課題タイプ: トレーニング目標セット'}
+                              </div>
+                              <div className="text-gray-400 text-xs mt-1">
+                                {isEnglishCopy
+                                  ? 'Clear: reach the target rank on every training in this goal set'
+                                  : 'クリア条件: 目標セット内の全トレーニングで目標ランク達成'}
+                              </div>
+                              {gs && (
+                                <div className="text-gray-400 text-xs mt-1">
+                                  {isEnglishCopy ? (gs.title_en ?? gs.title_ja) : gs.title_ja}
                                 </div>
                               )}
                             </div>

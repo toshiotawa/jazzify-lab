@@ -513,6 +513,12 @@ final class SupabaseService: Sendable {
                     title_ja,
                     title_en
                 ),
+                trainingGoalSet:training_goal_sets (
+                    id,
+                    slug,
+                    title_ja,
+                    title_en
+                ),
                 earTrainingStage:ear_training_stages (*)
             )
             """)
