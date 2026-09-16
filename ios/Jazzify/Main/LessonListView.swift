@@ -790,25 +790,6 @@ struct LessonListView: View {
         }
     }
 
-    private func progressBar(done: Int, total: Int) -> some View {
-        GeometryReader { geometry in
-            let percent = total > 0 ? CGFloat(done) / CGFloat(total) : 0
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.black.opacity(0.48))
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: "c4b5fd"), Color(hex: "a855f7")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: geometry.size.width * min(max(percent, 0), 1))
-            }
-        }
-        .frame(height: 5)
-    }
-
     private func continueMainQuest(_ state: MainQuestViewState) {
         selectedMainQuestBlockNumber = state.currentBlock.blockNumber
     }
@@ -977,6 +958,25 @@ struct LessonListView: View {
             progressMap[mainCourse.id] = Set(progress.filter(\.completed).map(\.lessonId))
         }
     }
+}
+
+private func progressBar(done: Int, total: Int) -> some View {
+    GeometryReader { geometry in
+        let percent = total > 0 ? CGFloat(done) / CGFloat(total) : 0
+        ZStack(alignment: .leading) {
+            Capsule().fill(Color.black.opacity(0.48))
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "c4b5fd"), Color(hex: "a855f7")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: geometry.size.width * min(max(percent, 0), 1))
+        }
+    }
+    .frame(height: 5)
 }
 
 /// `UIKitVerticalScrollView`（UIKit `UIScrollView`）内に配置するタップ行。
