@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
 import { collectChordOsmdMusicXmlAttacks } from '@/utils/earTrainingChordOsmd';
-import { transposeMusicXml } from '@/utils/musicXmlTransposer';
+import { perfectOctaveIntervalName, transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 const parseXml = (xml: string): Document => {
   return new DOMParser().parseFromString(xml, 'application/xml');
@@ -100,6 +100,24 @@ describe('transposeMusicXml', () => {
     expect(readNoteMidi(downOne)).toBe(Note.midi('B3'));
     expect(readNoteMidi(downTwo)).toBe(Note.midi('A#3'));
     expect(readNoteMidi(upThree)).toBe(Note.midi('D#4'));
+  });
+
+  it('perfectOctaveIntervalName は複合完全音程名を返す', () => {
+    expect(perfectOctaveIntervalName(0)).toBeNull();
+    expect(perfectOctaveIntervalName(1)).toBe('8P');
+    expect(perfectOctaveIntervalName(-1)).toBe('-8P');
+    expect(perfectOctaveIntervalName(2)).toBe('15P');
+    expect(perfectOctaveIntervalName(-2)).toBe('-15P');
+    expect(perfectOctaveIntervalName(3)).toBe('22P');
+    expect(perfectOctaveIntervalName(-3)).toBe('-22P');
+  });
+
+  it('C4 を ±2 / ±3 オクターブ移調する', () => {
+    const base = SINGLE_NOTE_XML('C', null, 4);
+    expect(readNoteMidi(transposeMusicXml(base, 24))).toBe(Note.midi('C6'));
+    expect(readNoteMidi(transposeMusicXml(base, -24))).toBe(Note.midi('C2'));
+    expect(readNoteMidi(transposeMusicXml(base, 36))).toBe(Note.midi('C7'));
+    expect(readNoteMidi(transposeMusicXml(base, -36))).toBe(Note.midi('C1'));
   });
 
   it('tieの後ろ側ノートも移調される', () => {

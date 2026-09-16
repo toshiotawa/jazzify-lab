@@ -105,6 +105,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private let autoPlayScheduler = EarTrainingPrecisionAutoPlayScheduler()
     private var autoPlayHoldCount: [Int: Int] = [:]
     private var hasSyncedPhraseStartPlayhead = false
+    private var notationInstrumentObserver: NSObjectProtocol?
 
     init(
         stage: EarTrainingStageDetail,
@@ -139,6 +140,21 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         self.statusText = isEnglishCopy
             ? "Press START to begin precision mode."
             : "STARTで精密モードを開始します"
+        notationInstrumentObserver = NotificationCenter.default.addObserver(
+            forName: .notationInstrumentDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.applyDisplayMusicXml()
+            }
+        }
+    }
+
+    deinit {
+        if let notationInstrumentObserver {
+            NotificationCenter.default.removeObserver(notationInstrumentObserver)
+        }
     }
 
     func bindOsmdCoordinator(_ coordinator: EarTrainingOSMDScoreWebView.Coordinator?) {
@@ -488,9 +504,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             baseSemitone: loopBaseSemitone
         ) {
             let transposed = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(baseXml, offset: semitone)
+            let withNotation = EarTrainingMusicXmlTransposer.applyNotationInstrumentToDisplayMusicXml(transposed)
             xmlBySemitone[semitone] = stripLyrics
-                ? EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(transposed)
-                : transposed
+                ? EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(withNotation)
+                : withNotation
         }
         loopScoreXmlBySemitone = xmlBySemitone
         if let activeXml = xmlBySemitone[loopBaseSemitone] ?? xmlBySemitone.values.first {
@@ -573,9 +590,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
 
         let offset = practiceMode ? loopBaseSemitone : 0
         let transposed = EarTrainingMusicXmlTransposer.applyPracticeTransposeToMusicXml(base, offset: offset)
+        let withNotation = EarTrainingMusicXmlTransposer.applyNotationInstrumentToDisplayMusicXml(transposed)
         musicXMLText = stage.resolvedShowScoreLyricsInBattle
-            ? transposed
-            : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(transposed)
+            ? withNotation
+            : EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(withNotation)
     }
 
     private func rebuildPrecisionNotes() {

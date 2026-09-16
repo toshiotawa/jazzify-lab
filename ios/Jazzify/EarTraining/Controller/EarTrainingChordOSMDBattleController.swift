@@ -144,6 +144,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private var feedbackTask: Task<Void, Never>?
     private var phrasePrepareTask: Task<Void, Never>?
     private var capturePhraseSuspendedObserver: NSObjectProtocol?
+    private var notationInstrumentObserver: NSObjectProtocol?
     private var lastRankStorage: EarTrainingRank?
     private var runtimeCompletedTargetCount: Int = 0
     private var runtimeFailedTargetCount: Int = 0
@@ -181,6 +182,21 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         self.stageFallbackKeyboardScrollAnchorMidi = EarTrainingKeyboardScroll.scrollAnchorMidi(for: stage)
         self.keyboardScrollAnchorMidi = stageFallbackKeyboardScrollAnchorMidi
         self.keyboardDisplayRange = EarTrainingKeyboardScroll.resolvedDisplayRange(for: stage)
+        notationInstrumentObserver = NotificationCenter.default.addObserver(
+            forName: .notationInstrumentDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reapplyCachedMusicXmlForCurrentPhraseIfNeeded()
+            }
+        }
+    }
+
+    deinit {
+        if let notationInstrumentObserver {
+            NotificationCenter.default.removeObserver(notationInstrumentObserver)
+        }
     }
 
     func applyPracticeModeAndRestart(_ value: Bool) {
@@ -1007,7 +1023,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             transposedRhythmXml: rhythmXml,
             transposeOffset: offset
         )
-        let displayXml = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(displaySource)
+        let notationDisplayXml = EarTrainingMusicXmlTransposer.applyNotationInstrumentToDisplayMusicXml(displaySource)
+        let displayXml = EarTrainingChordOsmdMusicXmlNormalizer.applyGuideNoteColors(notationDisplayXml)
         let attacks = EarTrainingChordOsmdMusicXmlNormalizer.collectChordOsmdMusicXmlAttacks(rhythmXml)
         let lyricEvents = offset == 0
             ? cached.lyricEvents

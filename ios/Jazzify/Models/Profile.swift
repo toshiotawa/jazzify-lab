@@ -20,6 +20,8 @@ struct Profile: Codable, Identifiable, Sendable {
     var simpleEnharmonicDisplay: Bool?
     /// メインクエスト分岐用（piano / その他）。列が無い古いレスポンスでも壊れないよう optional で受ける
     var instrument: String?
+    /// 記譜楽器プリセット ID（web `profiles.notation_instrument`）
+    var notationInstrument: String?
 
     enum CodingKeys: String, CodingKey {
         case id, email, nickname, rank, xp, level, country, timezone
@@ -30,6 +32,7 @@ struct Profile: Codable, Identifiable, Sendable {
         case marketingEmailOptIn = "marketing_email_opt_in"
         case simpleEnharmonicDisplay = "simple_enharmonic_display"
         case instrument
+        case notationInstrument = "notation_instrument"
     }
 }
 

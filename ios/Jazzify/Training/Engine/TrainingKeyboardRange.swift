@@ -5,8 +5,11 @@ enum TrainingKeyboardRange {
         question.notes.map(\.midi)
     }
 
-    static func stageRange(training: TrainingRow) -> PianoStagePitchRange? {
-        let midis = TrainingQuestionBuilder.collectStageMidis(training: training)
+    static func stageRange(training: TrainingRow, ignoreNotationInstrument: Bool = false) -> PianoStagePitchRange? {
+        let midis = TrainingQuestionBuilder.collectStageMidis(
+            training: training,
+            ignoreNotationInstrument: ignoreNotationInstrument
+        )
         guard let minMidi = midis.min(), let maxMidi = midis.max() else {
             return nil
         }

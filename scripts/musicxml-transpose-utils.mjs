@@ -241,7 +241,9 @@ export function transposeMusicXmlString(xmlString, semitones, targetKeyName, win
   const transposeInterval = getCorrectInterval(originalKeyName, targetKeyName);
   const targetFifths = KEY_FIFTHS[targetKeyName] ?? 0;
   const octaveShift = Math.floor(semitones / 12);
-  const octaveInterval = octaveShift !== 0 ? `${Math.abs(octaveShift) * 8}P` : null;
+  const octaveInterval = octaveShift === 0
+    ? null
+    : `${octaveShift > 0 ? '' : '-'}${1 + Math.abs(octaveShift) * 7}P`;
 
   xmlDoc.querySelectorAll('measure').forEach((measureEl) => {
     const voiceAlterByStep = new Map();
@@ -262,9 +264,7 @@ export function transposeMusicXmlString(xmlString, semitones, targetKeyName, win
 
       let transposedNote = Note.transpose(noteStr, transposeInterval);
       if (octaveInterval && transposedNote) {
-        transposedNote = octaveShift > 0
-          ? Note.transpose(transposedNote, octaveInterval)
-          : Note.transpose(transposedNote, `-${octaveInterval}`);
+        transposedNote = Note.transpose(transposedNote, octaveInterval);
       }
       if (!transposedNote) return;
 

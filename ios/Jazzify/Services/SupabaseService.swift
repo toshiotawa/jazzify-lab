@@ -282,6 +282,18 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    func updateNotationInstrument(userId: UUID, instrumentId: String) async throws {
+        struct NotationInstrumentUpdate: Encodable {
+            let notation_instrument: String
+        }
+
+        try await client
+            .from("profiles")
+            .update(NotationInstrumentUpdate(notation_instrument: instrumentId))
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+
     /// Web の `profiles.update({ nickname })` と同じ経路
     func updateProfileNickname(userId: UUID, nickname: String) async throws {
         let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)

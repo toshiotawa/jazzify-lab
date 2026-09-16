@@ -114,6 +114,133 @@ enum EarTrainingMusicXmlTransposer {
         return transposeMusicXml(baseXml, semitones: clamped)
     }
 
+    static func perfectOctaveIntervalName(octaveAdjust: Int) -> String? {
+        if octaveAdjust == 0 { return nil }
+        let name = "\(1 + abs(octaveAdjust) * 7)P"
+        return octaveAdjust > 0 ? name : "-\(name)"
+    }
+
+    static func transposeKeyFifths(_ fifths: Int, semitones: Int) -> Int {
+        let clampedFifths = max(-7, min(7, fifths))
+        if semitones == 0 { return clampedFifths }
+        let originalKey = preferredKeyName(fifths: clampedFifths)
+        let targetKey = preferredTargetKey(originalKey: originalKey, semitones: semitones)
+        return keyNameToFifths[normalizeToPreferredKey(targetKey)] ?? keyNameToFifths[targetKey] ?? clampedFifths
+    }
+
+    static func transposeWrittenNoteName(_ noteName: String, semitones: Int, originalFifths: Int) -> String {
+        if semitones == 0 { return noteName }
+        guard let parsed = EarTrainingMusicXmlPitchMath.parseNote(noteName, requireOctave: true),
+              let octave = parsed.oct else {
+            return noteName
+        }
+
+        let stepLetter = EarTrainingMusicXmlPitchMath.letterNames[parsed.step]
+        let accidental: String
+        if parsed.alt > 0 {
+            accidental = String(repeating: "#", count: parsed.alt)
+        } else if parsed.alt < 0 {
+            accidental = String(repeating: "b", count: -parsed.alt)
+        } else {
+            accidental = ""
+        }
+        let concertNote = "\(stepLetter)\(accidental)\(octave)"
+
+        let originalKey = preferredKeyName(fifths: originalFifths)
+        let targetKey = preferredTargetKey(originalKey: originalKey, semitones: semitones)
+        guard let intervalCoord = EarTrainingMusicXmlPitchMath.intervalCoord(fromKey: originalKey, toKey: targetKey) else {
+            return noteName
+        }
+        let intervalSemitones = EarTrainingMusicXmlPitchMath.semitoneDistance(fromKey: originalKey, toKey: targetKey)
+        let octaveAdjust = Int((Double(semitones - intervalSemitones) / 12.0).rounded())
+
+        guard var transposed = EarTrainingMusicXmlPitchMath.transposeByCoord(
+            noteName: concertNote,
+            intervalCoord: intervalCoord,
+        ) else {
+            return noteName
+        }
+        if octaveAdjust != 0 {
+            transposed = EarTrainingMusicXmlPitchMath.transposeByOctaves(
+                noteName: transposed,
+                octaves: octaveAdjust,
+            ) ?? transposed
+        }
+
+        guard let transposedParsed = EarTrainingMusicXmlPitchMath.parseNote(transposed, requireOctave: true),
+              let transposedOct = transposedParsed.oct else {
+            return noteName
+        }
+
+        let noteWithoutOct = EarTrainingMusicXmlPitchMath.spellNote(
+            step: transposedParsed.step,
+            alt: transposedParsed.alt,
+            oct: nil,
+        )
+        let adjusted = adjustNoteToKeyScale(noteWithoutOct, targetKey: targetKey)
+        guard let adjustedParsed = EarTrainingMusicXmlPitchMath.parseNote(adjusted, requireOctave: false) else {
+            return noteName
+        }
+
+        var finalOct = transposedOct
+        if adjusted != noteWithoutOct {
+            let originalMidi = EarTrainingMusicXmlPitchMath.midiNumber(noteName: transposed)
+            let adjustedWithOct = "\(adjusted)\(transposedOct)"
+            let adjustedMidi = EarTrainingMusicXmlPitchMath.midiNumber(noteName: adjustedWithOct)
+            if let originalMidi, let adjustedMidi, originalMidi != adjustedMidi {
+                finalOct = transposedOct + Int((Double(originalMidi - adjustedMidi) / 12.0).rounded())
+            }
+        }
+
+        return EarTrainingMusicXmlPitchMath.spellNote(
+            step: adjustedParsed.step,
+            alt: adjustedParsed.alt,
+            oct: finalOct,
+        )
+    }
+
+    static func applyNotationInstrumentToMusicXml(
+        _ xmlString: String,
+        preset: NotationInstrumentPreset,
+        userOctaveShift: Int,
+    ) -> String {
+        let offset = NotationInstrumentCatalog.writtenSemitoneOffset(
+            preset: preset,
+            userOctaveShift: userOctaveShift,
+        )
+        if offset == 0 && preset.clef == .grand {
+            return xmlString
+        }
+        var result = transposeMusicXml(xmlString, semitones: offset)
+        if preset.clef != .grand {
+            result = rewriteClefsInMusicXml(result, clef: preset.clef)
+        }
+        return result
+    }
+
+    static func applyNotationInstrumentToDisplayMusicXml(_ xmlString: String) -> String {
+        applyNotationInstrumentToMusicXml(
+            xmlString,
+            preset: NotationInstrumentPreferences.loadPreset(),
+            userOctaveShift: NotationInstrumentPreferences.loadOctaveShift(),
+        )
+    }
+
+    private static func rewriteClefsInMusicXml(_ xmlString: String, clef: NotationInstrumentClef) -> String {
+        guard clef != .grand,
+              let root = ChordOsmdXmlParser.parse(xmlString) else {
+            return xmlString
+        }
+        let sign = clef == .treble ? "G" : "F"
+        let line = clef == .treble ? "2" : "4"
+        for clefEl in allElements(named: "clef", in: root) {
+            clefEl.children.removeAll()
+            appendElement(named: "sign", text: sign, to: clefEl)
+            appendElement(named: "line", text: line, to: clefEl)
+        }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
+    }
+
     /// DB 由来のコードネーム表示ラベルを練習移調する（スラッシュ・複数ラベル対応）。
     static func transposeChordLabel(_ label: String, semitones: Int) -> String {
         let clamped = clampPracticeTransposeOffset(semitones)
@@ -167,18 +294,10 @@ enum EarTrainingMusicXmlTransposer {
                 continue
             }
             if octaveAdjust != 0 {
-                let octInterval = "\(abs(octaveAdjust) * 8)P"
-                if octaveAdjust > 0 {
-                    transposed = EarTrainingMusicXmlPitchMath.transpose(
-                        noteName: transposed,
-                        intervalName: octInterval,
-                    ) ?? transposed
-                } else {
-                    transposed = EarTrainingMusicXmlPitchMath.transpose(
-                        noteName: transposed,
-                        intervalName: "-\(octInterval)",
-                    ) ?? transposed
-                }
+                transposed = EarTrainingMusicXmlPitchMath.transposeByOctaves(
+                    noteName: transposed,
+                    octaves: octaveAdjust,
+                ) ?? transposed
             }
             applyNoteToPitch(transposed, pitchEl: pitchEl, noteEl: noteEl, targetKey: targetKey)
         }
@@ -239,18 +358,10 @@ enum EarTrainingMusicXmlTransposer {
             return
         }
         if octaveAdjust != 0 {
-            let octInterval = "\(abs(octaveAdjust) * 8)P"
-            if octaveAdjust > 0 {
-                transposed = EarTrainingMusicXmlPitchMath.transpose(
-                    noteName: transposed,
-                    intervalName: octInterval,
-                ) ?? transposed
-            } else {
-                transposed = EarTrainingMusicXmlPitchMath.transpose(
-                    noteName: transposed,
-                    intervalName: "-\(octInterval)",
-                ) ?? transposed
-            }
+            transposed = EarTrainingMusicXmlPitchMath.transposeByOctaves(
+                noteName: transposed,
+                octaves: octaveAdjust,
+            ) ?? transposed
         }
         guard let parsed = EarTrainingMusicXmlPitchMath.parseNote(transposed, requireOctave: false) else {
             return
@@ -536,6 +647,14 @@ private enum EarTrainingMusicXmlPitchMath {
     static func transposeByCoord(noteName: String, intervalCoord: [Int]) -> String? {
         guard let nc = noteNameToCoord(noteName), intervalCoord.count == 2 else { return nil }
         return coordToNoteName([nc[0] + intervalCoord[0], nc[1] + intervalCoord[1]])
+    }
+
+    /// 完全オクターブ。`8P` は `[0, 1]` なので n オクターブは `[0, n]`（`16P` は使わない）。
+    static func transposeByOctaves(noteName: String, octaves: Int) -> String? {
+        if octaves == 0 {
+            return noteName
+        }
+        return transposeByCoord(noteName: noteName, intervalCoord: [0, octaves])
     }
 
     static func semitoneDistance(fromKey: String, toKey: String) -> Int {

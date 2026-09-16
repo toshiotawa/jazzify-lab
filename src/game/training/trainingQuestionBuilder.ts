@@ -265,9 +265,10 @@ export const buildTrainingQuestion = (
 ): TrainingQuestion => {
   const { training, previousQuestionKey } = options;
   const preset = getNotationInstrumentPreset(normalizeNotationInstrumentId(options.notationInstrumentId));
+  // ユーザ記譜オクターブは譜面表示のみ。出題・実音・鍵盤は楽器固有オフセットだけ使う。
   const writtenOffset = options.ignoreNotationInstrument
     ? 0
-    : getWrittenSemitoneOffset(preset, options.notationOctaveShift);
+    : getWrittenSemitoneOffset(preset, 0);
   // 調号は常にコンサート C（0）。移調楽器の調号は ChordVoicingStaff 側で writtenOffset から算出する。
   const keyFifths = 0;
   const config = options.lessonItems && options.lessonItems.length > 0
@@ -487,14 +488,15 @@ export const buildTrainingQuestion = (
 export const collectTrainingStageMidis = (
   options: Pick<
     TrainingQuestionBuilderOptions,
-    'training' | 'notationInstrumentId' | 'notationOctaveShift' | 'ignoreNotationInstrument'
+    'training' | 'notationInstrumentId' | 'ignoreNotationInstrument'
   >,
 ): number[] => {
   const { training } = options;
   const preset = getNotationInstrumentPreset(normalizeNotationInstrumentId(options.notationInstrumentId));
+  // ユーザ記譜オクターブは譜面表示のみ。出題・実音・鍵盤は楽器固有オフセットだけ使う。
   const writtenOffset = options.ignoreNotationInstrument
     ? 0
-    : getWrittenSemitoneOffset(preset, options.notationOctaveShift);
+    : getWrittenSemitoneOffset(preset, 0);
   const config = training.config;
   const roots = config.roots ?? ['C'];
   const effectiveClef = resolveEffectiveClef(training.clefMode, preset.clef, config.clef);

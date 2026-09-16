@@ -118,7 +118,6 @@ export interface TrainingQuestion {
 export interface TrainingQuestionBuilderOptions {
   readonly training: TrainingRow;
   readonly notationInstrumentId: string;
-  readonly notationOctaveShift: number;
   readonly ignoreNotationInstrument?: boolean;
   readonly lessonRoots?: readonly string[];
   readonly lessonOrder?: 'random' | 'sequential';

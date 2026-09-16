@@ -99,6 +99,17 @@ export function getPreferredTargetKey(originalKey: string, semitones: number): s
 }
 
 /**
+ * 複合完全オクターブ音程。1oct=`8P`, 2oct=`15P`, 3oct=`22P`（`n*8P` は tonal 非対応）。
+ */
+export const perfectOctaveIntervalName = (octaveAdjust: number): string | null => {
+  if (octaveAdjust === 0) {
+    return null;
+  }
+  const name = `${1 + Math.abs(octaveAdjust) * 7}P`;
+  return octaveAdjust > 0 ? name : `-${name}`;
+};
+
+/**
  * 2つのキー間の正しい音程（Interval）を取得
  * 音楽理論的に正しい度数を返す（例: F→B = 増4度、F→Cb = 減5度）
  * @param fromKey 元のキー
@@ -322,7 +333,7 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
   const transposeInterval = getCorrectInterval(originalKeyName, targetKeyName);
   const intervalSemitones = Interval.semitones(transposeInterval) ?? 0;
   const octaveAdjust = Math.round((semitones - intervalSemitones) / 12);
-  const octaveInterval = octaveAdjust !== 0 ? `${Math.abs(octaveAdjust) * 8}P` : null;
+  const octaveInterval = perfectOctaveIntervalName(octaveAdjust);
 
   // Helper to convert step/alter/octave to tonal note string, e.g. C#4, Eb4
   const pitchToNote = (step: string, alter: number | null, octave: number): string => {
@@ -432,11 +443,7 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
     
     // 要求半音と音程半音の差をオクターブ補正
     if (octaveInterval && transposedNote) {
-      if (octaveAdjust > 0) {
-        transposedNote = Note.transpose(transposedNote, octaveInterval);
-      } else if (octaveAdjust < 0) {
-        transposedNote = Note.transpose(transposedNote, `-${octaveInterval}`);
-      }
+      transposedNote = Note.transpose(transposedNote, octaveInterval);
     }
     
     if (transposedNote) {
@@ -462,11 +469,7 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
 
       let transposedNote = Note.transpose(note, transposeInterval);
       if (octaveInterval && transposedNote) {
-        if (octaveAdjust > 0) {
-          transposedNote = Note.transpose(transposedNote, octaveInterval);
-        } else if (octaveAdjust < 0) {
-          transposedNote = Note.transpose(transposedNote, `-${octaveInterval}`);
-        }
+        transposedNote = Note.transpose(transposedNote, octaveInterval);
       }
       if (!transposedNote) {
         return;

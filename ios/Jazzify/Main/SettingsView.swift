@@ -171,6 +171,12 @@ struct SettingsView: View {
 
     private var displaySection: some View {
         Section {
+            NotationInstrumentSection(
+                locale: locale,
+                tint: .purple,
+                labelColor: .white,
+                footerColor: .gray
+            )
             EnharmonicDisplayToggle(
                 locale: locale,
                 tint: .purple,

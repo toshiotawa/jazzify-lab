@@ -1,7 +1,6 @@
 import Foundation
 
 /// Web `trainingQuestionBuilder.ts` と同じ出題ロジック。
-/// iOS は記譜楽器プリセットが無いため常にコンサート表記（writtenOffset = 0）。
 enum TrainingQuestionBuilder {
     private typealias SpelledNote = TrainingMusicTheory.SpelledNote
 
@@ -91,10 +90,18 @@ enum TrainingQuestionBuilder {
             return roots.randomElement() ?? "C"
         }
 
-        let effectiveClef = resolveEffectiveClef(clefMode: training.clefMode, configClef: mergedConfig.clef)
+        let preset = NotationInstrumentPreferences.loadPreset()
+        let writtenOffset = NotationInstrumentPreferences.loadConcertQuestionOffset(
+            ignoreNotationInstrument: options.ignoreNotationInstrument
+        )
+        let effectiveClef = resolveEffectiveClef(
+            clefMode: training.clefMode,
+            instrumentClef: preset.clef,
+            configClef: mergedConfig.clef
+        )
         let singleClef = effectiveClef == "bass" ? "bass" : "treble"
         let defaultStaff = singleClef == "bass" ? 2 : 1
-        let staffBottom = staffBottomMidi[singleClef] ?? 60
+        let staffBottom = (staffBottomMidi[singleClef] ?? 60) - writtenOffset
         var lastBuilt: TrainingQuestion?
 
         for _ in 0..<12 {
@@ -109,17 +116,21 @@ enum TrainingQuestionBuilder {
                 guard let writtenSpelling = spellings?.randomElement(),
                       let writtenMidi = TrainingMusicTheory.parseVoicingMidi(writtenSpelling)
                 else { continue }
-                let questionKey = "note:\(writtenMidi):\(writtenSpelling)"
+                let concertMidi = writtenMidi - writtenOffset
+                let noteName = writtenOffset == 0
+                    ? writtenSpelling
+                    : TrainingMusicTheory.flatSpelledName(concertMidi)
+                let questionKey = "note:\(concertMidi):\(writtenSpelling)"
                 let question = makeQuestion(
                     questionKey: questionKey,
                     promptLabel: "",
-                    noteNames: [writtenSpelling],
+                    noteNames: [noteName],
                     staves: [forcedClef == "bass" ? 2 : 1],
                     targets: [true],
                     layout: .stacked,
                     ordered: false,
                     keyFifths: keyFifths,
-                    rootMidi: writtenMidi
+                    rootMidi: concertMidi
                 )
                 lastBuilt = question
                 if questionKey == previousQuestionKey { continue }
@@ -237,12 +248,20 @@ enum TrainingQuestionBuilder {
     }
 
     /// ステージ内で出題しうる全 MIDI。音域フィットを問題ごとに動かさないために使う。
-    static func collectStageMidis(training: TrainingRow) -> [Int] {
+    static func collectStageMidis(training: TrainingRow, ignoreNotationInstrument: Bool = false) -> [Int] {
         let mergedConfig = training.config
         let roots = mergedConfig.roots ?? ["C"]
-        let effectiveClef = resolveEffectiveClef(clefMode: training.clefMode, configClef: mergedConfig.clef)
+        let writtenOffset = NotationInstrumentPreferences.loadConcertQuestionOffset(
+            ignoreNotationInstrument: ignoreNotationInstrument
+        )
+        let preset = NotationInstrumentPreferences.loadPreset()
+        let effectiveClef = resolveEffectiveClef(
+            clefMode: training.clefMode,
+            instrumentClef: preset.clef,
+            configClef: mergedConfig.clef
+        )
         let singleClef = effectiveClef == "bass" ? "bass" : "treble"
-        let staffBottom = staffBottomMidi[singleClef] ?? 60
+        let staffBottom = (staffBottomMidi[singleClef] ?? 60) - writtenOffset
         var midis: [Int] = []
 
         switch training.kind {
@@ -254,8 +273,8 @@ enum TrainingQuestionBuilder {
                 : noteReadingNaturals[forcedClef]
             if let spellings {
                 for spelling in spellings {
-                    if let midi = TrainingMusicTheory.parseVoicingMidi(spelling) {
-                        midis.append(midi)
+                    if let writtenMidi = TrainingMusicTheory.parseVoicingMidi(spelling) {
+                        midis.append(writtenMidi - writtenOffset)
                     }
                 }
             }
@@ -417,13 +436,18 @@ enum TrainingQuestionBuilder {
         )
     }
 
-    private static func resolveEffectiveClef(clefMode: TrainingClefMode, configClef: String?) -> String {
+    private static func resolveEffectiveClef(
+        clefMode: TrainingClefMode,
+        instrumentClef: NotationInstrumentClef,
+        configClef: String?
+    ) -> String {
         switch clefMode {
         case .bassConcert: return "bass"
         case .grandConcert: return "grand"
         case .instrument:
+            if configClef == "treble" { return "treble" }
             if configClef == "bass" { return "bass" }
-            return "treble"
+            return instrumentClef == .grand ? "treble" : instrumentClef.rawValue
         }
     }
 

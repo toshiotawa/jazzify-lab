@@ -230,6 +230,24 @@ describe('trainingQuestionBuilder', () => {
     expect(bb.notes.map((n) => n.noteName)).toEqual(['Bb4', 'C5', 'D5', 'Eb5', 'F5', 'G5', 'A5']);
   });
 
+  it('keeps concert pitch when notation octave shift changes (piano)', () => {
+    const training = baseTraining({ kind: 'scale', config: { scale: 'major', roots: ['C'] } });
+    const baseline = buildTrainingQuestion({
+      training,
+      notationInstrumentId: 'piano',
+      notationOctaveShift: 0,
+    });
+    for (const shift of [-3, -2, -1, 1, 2, 3]) {
+      const shifted = buildTrainingQuestion({
+        training,
+        notationInstrumentId: 'piano',
+        notationOctaveShift: shift,
+      });
+      expect(shifted.notes.map((note) => note.midi)).toEqual(baseline.notes.map((note) => note.midi));
+      expect(shifted.rootMidi).toBe(baseline.rootMidi);
+    }
+  });
+
   it('shifts the staff bottom for transposing instruments (concert pitch output)', () => {
     // Bb トランペット: 記譜 C4 以上 → コンサート Bb3 以上
     const q = buildTrainingQuestion({

@@ -1077,6 +1077,12 @@ private struct SurvivalCodeRunSettingsSheet: View {
                         displayMode: $keyboardDisplayMode,
                         isEnglishCopy: locale == .en
                     )
+                    NotationInstrumentSection(
+                        locale: locale,
+                        tint: .yellow,
+                        labelColor: .primary,
+                        footerColor: .secondary
+                    )
                     EnharmonicDisplayToggle(
                         locale: locale,
                         tint: .yellow,

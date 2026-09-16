@@ -5,11 +5,10 @@ export const computeTrainingStageMidis = (
   training: TrainingRow,
   options: Pick<
     TrainingQuestionBuilderOptions,
-    'notationInstrumentId' | 'notationOctaveShift' | 'ignoreNotationInstrument'
+    'notationInstrumentId' | 'ignoreNotationInstrument'
   >,
 ): number[] => collectTrainingStageMidis({
   training,
   notationInstrumentId: options.notationInstrumentId,
-  notationOctaveShift: options.notationOctaveShift,
   ignoreNotationInstrument: options.ignoreNotationInstrument,
 });

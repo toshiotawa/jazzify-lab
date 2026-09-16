@@ -74,6 +74,29 @@ final class EarTrainingMusicXmlTransposerTests: XCTestCase {
         XCTAssertFalse(transposed.contains("Cb"))
     }
 
+    func testTransposeMusicXmlTwoAndThreeOctavesFromC() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise>
+          <part>
+            <measure>
+              <attributes><key><fifths>0</fifths></key></attributes>
+              <note><pitch><step>C</step><octave>4</octave></pitch></note>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+        let upTwo = EarTrainingMusicXmlTransposer.transposeMusicXml(xml, semitones: 24)
+        let downTwo = EarTrainingMusicXmlTransposer.transposeMusicXml(xml, semitones: -24)
+        let upThree = EarTrainingMusicXmlTransposer.transposeMusicXml(xml, semitones: 36)
+        let downThree = EarTrainingMusicXmlTransposer.transposeMusicXml(xml, semitones: -36)
+        XCTAssertTrue(upTwo.contains("<octave>6</octave>"))
+        XCTAssertFalse(upTwo.contains("<octave>4</octave>"))
+        XCTAssertTrue(downTwo.contains("<octave>2</octave>"))
+        XCTAssertTrue(upThree.contains("<octave>7</octave>"))
+        XCTAssertTrue(downThree.contains("<octave>1</octave>"))
+    }
+
     func testTransposeMusicXmlTransposesHarmonyBass() {
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>

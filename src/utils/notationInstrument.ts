@@ -2,6 +2,7 @@ import { Interval, Note } from 'tonal';
 import {
   adjustNoteToKeyScale,
   getTargetKeyFromTranspositionForXml,
+  perfectOctaveIntervalName,
   transposeMusicXml,
 } from '@/utils/musicXmlTransposer';
 import { fifthsToPreferredKeyName } from '@/utils/earTrainingPracticeTranspose';
@@ -53,8 +54,8 @@ const DEFAULT_PRESET: NotationInstrumentPreset = NOTATION_INSTRUMENT_PRESETS[0];
 
 export const DEFAULT_NOTATION_INSTRUMENT_ID: NotationInstrumentId = DEFAULT_PRESET.id;
 
-export const NOTATION_OCTAVE_SHIFT_MIN = -2;
-export const NOTATION_OCTAVE_SHIFT_MAX = 2;
+export const NOTATION_OCTAVE_SHIFT_MIN = -3;
+export const NOTATION_OCTAVE_SHIFT_MAX = 3;
 
 export const isNotationInstrumentId = (value: unknown): value is NotationInstrumentId =>
   typeof value === 'string' && PRESET_BY_ID.has(value);
@@ -127,15 +128,11 @@ export const transposeWrittenNoteName = (
   const transposeInterval = Interval.distance(originalKeyName, targetKeyName) ?? '1P';
   const intervalSemitones = Interval.semitones(transposeInterval) ?? 0;
   const octaveAdjust = Math.round((semitones - intervalSemitones) / 12);
-  const octaveInterval = octaveAdjust !== 0 ? `${Math.abs(octaveAdjust) * 8}P` : null;
+  const octaveInterval = perfectOctaveIntervalName(octaveAdjust);
 
   let transposedNote = Note.transpose(concertNote, transposeInterval);
   if (octaveInterval && transposedNote) {
-    if (octaveAdjust > 0) {
-      transposedNote = Note.transpose(transposedNote, octaveInterval);
-    } else if (octaveAdjust < 0) {
-      transposedNote = Note.transpose(transposedNote, `-${octaveInterval}`);
-    }
+    transposedNote = Note.transpose(transposedNote, octaveInterval);
   }
   if (!transposedNote) {
     return noteName;

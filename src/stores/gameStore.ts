@@ -8,6 +8,8 @@ import { immer } from 'zustand/middleware/immer';
 import { normalizeWebKeyboardDisplayMode } from '@/utils/webKeyboardDisplayRange';
 import {
   DEFAULT_NOTATION_INSTRUMENT_ID,
+  NOTATION_OCTAVE_SHIFT_MAX,
+  NOTATION_OCTAVE_SHIFT_MIN,
   normalizeNotationInstrumentId,
   clampNotationOctaveShift,
 } from '@/utils/notationInstrument';
@@ -95,8 +97,13 @@ const validateSettings = (
     normalized.transpose = Math.max(-12, Math.min(12, normalized.transpose));
   }
 
-  if (normalized.notationOctaveShift < -2 || normalized.notationOctaveShift > 2) {
-    errors.push('記譜オクターブシフトは-2〜+2オクターブの範囲で設定してください');
+  if (
+    normalized.notationOctaveShift < NOTATION_OCTAVE_SHIFT_MIN
+    || normalized.notationOctaveShift > NOTATION_OCTAVE_SHIFT_MAX
+  ) {
+    errors.push(
+      `記譜オクターブシフトは${NOTATION_OCTAVE_SHIFT_MIN}〜+${NOTATION_OCTAVE_SHIFT_MAX}オクターブの範囲で設定してください`,
+    );
     normalized.notationOctaveShift = clampNotationOctaveShift(normalized.notationOctaveShift);
   }
 

@@ -31,7 +31,11 @@ struct TrainingGameView: View {
         self.locale = locale
         self.onClose = onClose
         self.onFinished = onFinished
-        _stageKeyboardRange = State(initialValue: TrainingKeyboardRange.stageRange(training: training))
+        let ignoreNotationInstrument = training.clefMode == .bassConcert || training.clefMode == .grandConcert
+        _stageKeyboardRange = State(initialValue: TrainingKeyboardRange.stageRange(
+            training: training,
+            ignoreNotationInstrument: ignoreNotationInstrument
+        ))
     }
 
     var body: some View {

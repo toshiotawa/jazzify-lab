@@ -309,6 +309,10 @@ final class AppState: ObservableObject {
             EnharmonicDisplayPreferences.save(simpleEnharmonicDisplay)
         }
 
+        if let notationInstrument = profile.notationInstrument {
+            NotationInstrumentPreferences.saveInstrumentId(notationInstrument)
+        }
+
         self.authState = .authenticated(userId)
         store.setCurrentUserId(userId)
         await refreshBillingStatus()
@@ -344,6 +348,17 @@ final class AppState: ObservableObject {
         try? await supabase.updateSimpleEnharmonicDisplay(userId: userId, enabled: enabled)
         if var currentProfile = profile {
             currentProfile.simpleEnharmonicDisplay = enabled
+            self.profile = currentProfile
+        }
+    }
+
+    func updateNotationInstrument(_ instrumentId: String) async {
+        let normalized = NotationInstrumentCatalog.normalizeInstrumentId(instrumentId)
+        NotationInstrumentPreferences.saveInstrumentId(normalized)
+        guard let userId = profile?.id else { return }
+        try? await supabase.updateNotationInstrument(userId: userId, instrumentId: normalized)
+        if var currentProfile = profile {
+            currentProfile.notationInstrument = normalized
             self.profile = currentProfile
         }
     }

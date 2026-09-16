@@ -1,5 +1,6 @@
 import {
   applyNotationInstrumentToMusicXml,
+  clampNotationOctaveShift,
   getNotationInstrumentPreset,
   getWrittenSemitoneOffset,
   isNotationInstrumentId,
@@ -48,6 +49,13 @@ describe('notationInstrument', () => {
     expect(normalizeNotationInstrumentId('invalid')).toBe('piano');
   });
 
+  it('clampNotationOctaveShift は ±3 に制限する', () => {
+    expect(clampNotationOctaveShift(3)).toBe(3);
+    expect(clampNotationOctaveShift(-3)).toBe(-3);
+    expect(clampNotationOctaveShift(4)).toBe(3);
+    expect(clampNotationOctaveShift(-4)).toBe(-3);
+  });
+
   it('getWrittenSemitoneOffset が管の移調とオクターブを合成する', () => {
     expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('piano'), 0)).toBe(0);
     expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('tenor_sax'), 0)).toBe(14);
@@ -55,6 +63,9 @@ describe('notationInstrument', () => {
     expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('guitar'), 0)).toBe(12);
     expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('electric_bass'), 0)).toBe(12);
     expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('trumpet_bb'), 1)).toBe(14);
+    expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('piano'), 2)).toBe(24);
+    expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('piano'), 3)).toBe(36);
+    expect(getWrittenSemitoneOffset(getNotationInstrumentPreset('piano'), -3)).toBe(-36);
   });
 
   it('transposeKeyFifths が調号を移す', () => {
@@ -67,6 +78,10 @@ describe('notationInstrument', () => {
     expect(transposeWrittenNoteName('C4', 14, 0)).toBe('D5');
     expect(transposeWrittenNoteName('Bb3', 2, -2)).toBe('C4');
     expect(transposeWrittenNoteName('E4', 9, 0)).toBe('C#5');
+    expect(transposeWrittenNoteName('C4', 24, 0)).toBe('C6');
+    expect(transposeWrittenNoteName('C4', -24, 0)).toBe('C2');
+    expect(transposeWrittenNoteName('C4', 36, 0)).toBe('C7');
+    expect(transposeWrittenNoteName('C4', -36, 0)).toBe('C1');
   });
 
   it('applyNotationInstrumentToMusicXml が Bb 楽器向けに移調する', () => {
@@ -88,5 +103,16 @@ describe('notationInstrument', () => {
     const preset = getNotationInstrumentPreset('piano');
     const result = applyNotationInstrumentToMusicXml(GRAND_XML, preset, 0);
     expect(result).toBe(GRAND_XML);
+  });
+
+  it('piano の記譜オクターブ ±2 / ±3 で MusicXML のオクターブが動く', () => {
+    const preset = getNotationInstrumentPreset('piano');
+    const upTwo = applyNotationInstrumentToMusicXml(MINIMAL_XML, preset, 2);
+    const downTwo = applyNotationInstrumentToMusicXml(MINIMAL_XML, preset, -2);
+    const upThree = applyNotationInstrumentToMusicXml(MINIMAL_XML, preset, 3);
+    expect(upTwo).toContain('<octave>6</octave>');
+    expect(downTwo).toContain('<octave>2</octave>');
+    expect(upThree).toContain('<octave>7</octave>');
+    expect(upTwo).not.toContain('<octave>4</octave>');
   });
 });

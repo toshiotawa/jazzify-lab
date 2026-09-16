@@ -111,7 +111,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const settings = useGameStore((state) => state.settings);
   const updateSettings = useGameStore((state) => state.updateSettings);
   const notationInstrumentId = settings.notationInstrumentId;
-  const notationOctaveShift = settings.notationOctaveShift;
   const voiceSequential = settings.inputMethod === 'voice';
 
   const [phase, setPhase] = useState<Phase>('countdown');
@@ -156,7 +155,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       built = buildTrainingQuestion({
         training,
         notationInstrumentId,
-        notationOctaveShift,
         ignoreNotationInstrument,
         previousQuestionKey: prevQuestionKeyRef.current,
       });
@@ -171,7 +169,6 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   }, [
     training,
     notationInstrumentId,
-    notationOctaveShift,
     ignoreNotationInstrument,
     isProgressionTraining,
     progressionShuffleUnits,
@@ -257,10 +254,9 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const stageKeyboardMidis = useMemo(
     () => computeTrainingStageMidis(training, {
       notationInstrumentId,
-      notationOctaveShift,
       ignoreNotationInstrument,
     }),
-    [training, notationInstrumentId, notationOctaveShift, ignoreNotationInstrument],
+    [training, notationInstrumentId, ignoreNotationInstrument],
   );
   const keyboardRange = useResolvedWebKeyboardRange(stageKeyboardMidis);
 

@@ -175,7 +175,7 @@ export interface GameSettings {
   instrumentMode: InstrumentMode;
   
   // 判定設定
-  /** 記譜表示の追加オクターブシフト（-2〜+2、表示のみ） */
+  /** 記譜表示の追加オクターブシフト（-3〜+3、表示のみ。gameSettings に永続化） */
   notationOctaveShift: number;
   
   // タイミング調整設定
