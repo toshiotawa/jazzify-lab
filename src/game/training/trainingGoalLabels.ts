@@ -18,11 +18,11 @@ export const formatTrainingGoalLevel = (
 ): string => {
   switch (level) {
     case 'intermediate':
-      return isEnglish ? 'Intermediate' : '中級者';
+      return isEnglish ? 'Trainer' : 'トレーナー';
     case 'advanced':
-      return isEnglish ? 'Advanced' : '上級者';
+      return isEnglish ? 'Master' : 'マスター';
     default:
-      return isEnglish ? 'Beginner' : '初心者';
+      return isEnglish ? 'Beginner' : 'ビギナー';
   }
 };
 

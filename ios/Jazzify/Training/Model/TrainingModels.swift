@@ -281,11 +281,11 @@ enum TrainingGoalTargetLevel: String, Sendable, Equatable {
     func localizedLabel(_ locale: AppLocale) -> String {
         switch self {
         case .beginner:
-            return locale == .ja ? "初心者" : "Beginner"
+            return locale == .ja ? "ビギナー" : "Beginner"
         case .intermediate:
-            return locale == .ja ? "中級者" : "Intermediate"
+            return locale == .ja ? "トレーナー" : "Trainer"
         case .advanced:
-            return locale == .ja ? "上級者" : "Advanced"
+            return locale == .ja ? "マスター" : "Master"
         }
     }
 }
