@@ -27,7 +27,7 @@ export const TrainingInfoModal: React.FC<TrainingInfoModalProps> = ({
       aria-labelledby="training-info-title"
     >
       <h3 id="training-info-title" className="text-lg font-semibold text-white">{title}</h3>
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{description}</p>
+      <p className="mt-3 max-h-[70vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-300">{description}</p>
       <button
         type="button"
         className="mt-6 w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
