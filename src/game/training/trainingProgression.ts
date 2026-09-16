@@ -73,7 +73,7 @@ const toStaves = (
   const out: (1 | 2)[] = [];
   for (let i = 0; i < count; i += 1) {
     const s = staves?.[i];
-    out.push(s === 2 ? 2 : 1);
+    out.push(s === 2 ? 2 : s === 1 ? 1 : fallback);
   }
   if (out.length === 0 && count > 0) {
     return Array.from({ length: count }, () => fallback);

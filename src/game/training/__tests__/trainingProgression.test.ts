@@ -161,6 +161,15 @@ describe('trainingProgression', () => {
       expect(units[1]?.questions[0]?.promptLabel).toBe('Gm7(9)');
     });
 
+    it('assigns bass staff when voicing_staves is missing on bass_concert progression', () => {
+      const units = buildTrainingProgressionUnits(iiViTraining);
+      for (const unit of units) {
+        for (const question of unit.questions) {
+          expect(question.notes.every((note) => note.staff === 2)).toBe(true);
+        }
+      }
+    });
+
     it('collects all midis from units', () => {
       const units = buildTrainingProgressionUnits(iiViTraining);
       const midis = collectTrainingProgressionMidis(units);
