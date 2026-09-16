@@ -300,6 +300,18 @@ struct TrainingUiText: Sendable, Equatable {
     }
 }
 
+struct TrainingGoalRankInfo: Sendable, Equatable {
+    let rank: TrainingLetterRank
+    let questionCount: Int
+
+    func localizedLabel(_ locale: AppLocale) -> String {
+        if locale == .ja {
+            return "\(rank.rawValue)(\(questionCount)問)"
+        }
+        return "\(rank.rawValue) (\(questionCount) questions)"
+    }
+}
+
 struct TrainingGoalSet: Identifiable, Sendable, Equatable {
     let id: UUID
     let slug: String
@@ -318,6 +330,16 @@ struct TrainingGoalSet: Identifiable, Sendable, Equatable {
 
     func localizedDescription(_ locale: AppLocale) -> String {
         locale == .en ? descriptionEn : descriptionJa
+    }
+
+    func resolveRankInfo(trainingById: [UUID: TrainingRow]) -> TrainingGoalRankInfo? {
+        guard let firstItem = items.first,
+              let training = trainingById[firstItem.trainingId]
+        else { return nil }
+        return TrainingGoalRankInfo(
+            rank: firstItem.targetRank,
+            questionCount: TrainingRank.minScore(for: firstItem.targetRank, kind: training.kind)
+        )
     }
 }
 

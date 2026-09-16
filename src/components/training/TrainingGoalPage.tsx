@@ -8,6 +8,8 @@ import { computeTrainingGoalProgress } from '@/game/training/trainingGoalProgres
 import {
   formatTrainingGoalInstrument,
   formatTrainingGoalLevel,
+  formatTrainingGoalRank,
+  resolveTrainingGoalRankInfo,
 } from '@/game/training/trainingGoalLabels';
 import type {
   TrainingGoalSet,
@@ -46,6 +48,10 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
   const progress = useMemo(
     () => computeTrainingGoalProgress(goalSet, summaryByTrainingId),
     [goalSet, summaryByTrainingId],
+  );
+  const goalRankInfo = useMemo(
+    () => resolveTrainingGoalRankInfo(goalSet, trainingById),
+    [goalSet, trainingById],
   );
 
   return (
@@ -87,9 +93,20 @@ export const TrainingGoalPage: React.FC<TrainingGoalPageProps> = ({
             </dt>
             <dd>{formatTrainingGoalLevel(goalSet.targetLevel, isEnglish)}</dd>
           </div>
+          {goalRankInfo && (
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-medium text-slate-400">
+                {isEnglish ? 'Target rank' : '目標ランク'}
+                :
+              </dt>
+              <dd>
+                {formatTrainingGoalRank(goalRankInfo.rank, goalRankInfo.questionCount, isEnglish)}
+              </dd>
+            </div>
+          )}
         </dl>
         {(isEnglish ? goalSet.descriptionEn : goalSet.descriptionJa) && (
-          <p className="mt-4 border-t border-slate-700 pt-4 text-sm leading-relaxed text-slate-300">
+          <p className="mt-4 border-t border-slate-700 pt-4 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
             {isEnglish ? goalSet.descriptionEn : goalSet.descriptionJa}
           </p>
         )}

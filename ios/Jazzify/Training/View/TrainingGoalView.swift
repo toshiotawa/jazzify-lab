@@ -17,6 +17,7 @@ struct TrainingGoalView: View {
     var body: some View {
         let progress = TrainingGoalProgress.compute(goalSet: goalSet, summaryByTrainingId: summaryById)
         let description = goalSet.localizedDescription(locale)
+        let rankInfo = goalSet.resolveRankInfo(trainingById: trainingById)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -51,6 +52,11 @@ struct TrainingGoalView: View {
                     Text("\(locale == .ja ? "対象レベル" : "Target level"): \(goalSet.targetLevel.localizedLabel(locale))")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                    if let rankInfo {
+                        Text("\(locale == .ja ? "目標ランク" : "Target rank"): \(rankInfo.localizedLabel(locale))")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                     if !description.isEmpty {
                         Text(description)
                             .font(.subheadline)

@@ -51,4 +51,11 @@ enum TrainingRank {
     static func parseLetterRank(_ raw: String) -> TrainingLetterRank {
         TrainingLetterRank(rawValue: raw) ?? .F
     }
+
+    static func minScore(for rank: TrainingLetterRank, kind: TrainingKind = .chord) -> Int {
+        if rank == .F {
+            return 0
+        }
+        return thresholds(for: kind).first(where: { $0.rank == rank })?.minScore ?? 0
+    }
 }

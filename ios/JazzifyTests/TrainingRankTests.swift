@@ -28,4 +28,12 @@ final class TrainingRankTests: XCTestCase {
         XCTAssertTrue(TrainingRank.meetsRequirement(score: 15, requiredRank: .C, kind: .scale))
         XCTAssertFalse(TrainingRank.meetsRequirement(score: 14, requiredRank: .C, kind: .scale))
     }
+
+    func testMinScoreForRank() {
+        XCTAssertEqual(TrainingRank.minScore(for: .C, kind: .chord), 30)
+        XCTAssertEqual(TrainingRank.minScore(for: .C, kind: .scale), 15)
+        XCTAssertEqual(TrainingRank.minScore(for: .S, kind: .chord), 60)
+        XCTAssertEqual(TrainingRank.minScore(for: .S, kind: .scale), 30)
+        XCTAssertEqual(TrainingRank.minScore(for: .F, kind: .chord), 0)
+    }
 }

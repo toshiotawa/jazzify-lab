@@ -1,4 +1,8 @@
-import { meetsTrainingRankRequirement, scoreToTrainingRank } from '@/game/training/trainingRank';
+import {
+  meetsTrainingRankRequirement,
+  minScoreForTrainingRank,
+  scoreToTrainingRank,
+} from '@/game/training/trainingRank';
 
 describe('trainingRank', () => {
   it('maps scores to letter ranks for chord-like trainings', () => {
@@ -26,5 +30,13 @@ describe('trainingRank', () => {
     expect(meetsTrainingRankRequirement(29, 'C', 'chord')).toBe(false);
     expect(meetsTrainingRankRequirement(15, 'C', 'scale')).toBe(true);
     expect(meetsTrainingRankRequirement(14, 'C', 'scale')).toBe(false);
+  });
+
+  it('returns minimum score for a rank', () => {
+    expect(minScoreForTrainingRank('C', 'chord')).toBe(30);
+    expect(minScoreForTrainingRank('C', 'scale')).toBe(15);
+    expect(minScoreForTrainingRank('S', 'chord')).toBe(60);
+    expect(minScoreForTrainingRank('S', 'scale')).toBe(30);
+    expect(minScoreForTrainingRank('F', 'chord')).toBe(0);
   });
 });

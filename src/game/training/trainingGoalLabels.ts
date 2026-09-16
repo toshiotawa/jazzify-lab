@@ -1,4 +1,6 @@
-import type { TrainingGoalSet } from '@/game/training/trainingTypes';
+import { minScoreForTrainingRank } from '@/game/training/trainingRank';
+import type { TrainingLetterRank } from '@/game/training/trainingRank';
+import type { TrainingGoalSet, TrainingRow } from '@/game/training/trainingTypes';
 
 export const formatTrainingGoalInstrument = (
   instrument: TrainingGoalSet['targetInstrument'],
@@ -22,4 +24,37 @@ export const formatTrainingGoalLevel = (
     default:
       return isEnglish ? 'Beginner' : '初心者';
   }
+};
+
+export const formatTrainingGoalRank = (
+  rank: TrainingLetterRank,
+  questionCount: number,
+  isEnglish: boolean,
+): string => (
+  isEnglish
+    ? `${rank} (${questionCount} questions)`
+    : `${rank}(${questionCount}問)`
+);
+
+export interface TrainingGoalRankInfo {
+  readonly rank: TrainingLetterRank;
+  readonly questionCount: number;
+}
+
+export const resolveTrainingGoalRankInfo = (
+  goalSet: TrainingGoalSet,
+  trainingById: ReadonlyMap<string, TrainingRow>,
+): TrainingGoalRankInfo | null => {
+  const firstItem = goalSet.items[0];
+  if (!firstItem) {
+    return null;
+  }
+  const training = trainingById.get(firstItem.trainingId);
+  if (!training) {
+    return null;
+  }
+  return {
+    rank: firstItem.targetRank,
+    questionCount: minScoreForTrainingRank(firstItem.targetRank, training.kind),
+  };
 };

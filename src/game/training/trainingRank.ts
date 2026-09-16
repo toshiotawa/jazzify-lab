@@ -49,3 +49,14 @@ export const meetsTrainingRankRequirement = (
   const achieved = scoreToTrainingRank(score, kind);
   return meetsTrainingRankByLetter(achieved, requiredRank);
 };
+
+export const minScoreForTrainingRank = (
+  rank: TrainingLetterRank,
+  kind: TrainingKind = 'chord',
+): number => {
+  if (rank === 'F') {
+    return 0;
+  }
+  const entry = thresholdsForKind(kind).find((threshold) => threshold.rank === rank);
+  return entry?.minScore ?? 0;
+};
