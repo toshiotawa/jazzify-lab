@@ -89,6 +89,8 @@ final class LessonLocalizationTests: XCTestCase {
             defenseStageId: nil,
             isTraining: nil,
             trainingId: nil,
+            isTrainingGoalSet: nil,
+            trainingGoalSetId: nil,
             isFantasy: false,
             isSurvival: true,
             isSurvivalTutorial: nil,
@@ -113,7 +115,8 @@ final class LessonLocalizationTests: XCTestCase {
             balloonRushStage: nil,
             videoLessonStage: nil,
             defenseStage: nil,
-            training: nil
+            training: nil,
+            trainingGoalSet: nil
         )
     }
 }

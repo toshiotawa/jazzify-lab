@@ -13,7 +13,10 @@ export const trainingStaffHeightRatio = (clefMode: TrainingClefMode): number => 
 export const trainingStaffNoteOpacity = (
   practiceMode: boolean,
   kind: TrainingKind,
-): number => (practiceMode || kind === 'note_reading' || kind === 'interval' ? 1 : 0);
+  scorePerVoicing = false,
+): number => (
+  practiceMode || kind === 'note_reading' || kind === 'interval' || scorePerVoicing ? 1 : 0
+);
 
 /** 本番の音程では正解音を譜面から外し、基準音だけ残す。 */
 export const trainingStaffDisplayNotes = (

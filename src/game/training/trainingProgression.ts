@@ -33,6 +33,18 @@ export const rootMidiBelow = (root: string, lowestMidi: number): number => {
   return midi;
 };
 
+const staffForNoteName = (
+  noteName: string,
+  fallback: 1 | 2,
+  useGrandStaff: boolean,
+): 1 | 2 => {
+  const midi = midiOf(noteName);
+  if (useGrandStaff) {
+    return midi < 60 ? 2 : 1;
+  }
+  return fallback;
+};
+
 const buildQuestionFromChord = (
   unitIndex: number,
   chordIndex: number,
@@ -41,7 +53,44 @@ const buildQuestionFromChord = (
   staves: readonly (1 | 2)[],
   keyFifths: number,
   useKeySignature: boolean,
+  useGrandStaff: boolean,
+  groupedOptions?: {
+    readonly scorePerVoicing: boolean;
+    readonly playRootOnFirstCorrect: boolean;
+    readonly voicingSlots: readonly (readonly string[])[];
+  },
 ): TrainingQuestion => {
+  if (groupedOptions && groupedOptions.voicingSlots.length > 0) {
+    const notes: TrainingQuestionNote[] = [];
+    groupedOptions.voicingSlots.forEach((slot, groupIndex) => {
+      slot.forEach((noteName) => {
+        const midi = midiOf(noteName);
+        notes.push({
+          noteName,
+          midi,
+          pitchClass: normalizePitchClass(midi),
+          staff: staffForNoteName(noteName, staves[0] ?? 1, useGrandStaff),
+          isTarget: true,
+          groupIndex,
+        });
+      });
+    });
+    const lowestMidi = Math.min(...notes.map((note) => note.midi));
+    const root = parseProgressionChordRoot(chordName);
+    return {
+      questionKey: `progression:${unitIndex}:${chordIndex}:${chordName}`,
+      promptLabel: chordName,
+      notes,
+      layout: 'grouped',
+      ordered: false,
+      keyFifths: useKeySignature ? keyFifths : 0,
+      rootMidi: root != null ? rootMidiBelow(root, lowestMidi) : null,
+      scorePerVoicing: groupedOptions.scorePerVoicing,
+      playRootOnFirstCorrect: groupedOptions.playRootOnFirstCorrect,
+      voicingGroupCount: groupedOptions.voicingSlots.length,
+    };
+  }
+
   const notes: TrainingQuestionNote[] = noteNames.map((noteName, index) => {
     const midi = midiOf(noteName);
     return {
@@ -90,7 +139,10 @@ const buildUnitsFromProgression = (
   progression: readonly TrainingProgressionEntry[],
   unitSize: number,
 ): TrainingProgressionUnit[] => {
+  const useGrandStaff = training.clefMode === 'grand_concert';
   const fallbackStaff = defaultStaffForClef(training.clefMode);
+  const scorePerVoicing = training.config.scorePerVoicing === true;
+  const playRootOnFirstCorrect = training.config.playRootOnFirstCorrect === true;
   const units: TrainingProgressionUnit[] = [];
   for (let unitStart = 0; unitStart < progression.length; unitStart += unitSize) {
     const slice = progression.slice(unitStart, unitStart + unitSize);
@@ -99,6 +151,13 @@ const buildUnitsFromProgression = (
     const keyFifths = slice[0]?.keyFifths ?? 0;
     const questions = slice.map((entry, chordIndex) => {
       const staves = toStaves(entry.voicingStaves, entry.voicingNames.length, fallbackStaff);
+      const groupedOptions = entry.voicingSlots && entry.voicingSlots.length > 0
+        ? {
+            scorePerVoicing,
+            playRootOnFirstCorrect,
+            voicingSlots: entry.voicingSlots,
+          }
+        : undefined;
       return buildQuestionFromChord(
         unitIndex,
         chordIndex,
@@ -107,6 +166,8 @@ const buildUnitsFromProgression = (
         staves,
         entry.keyFifths,
         training.useKeySignature,
+        useGrandStaff,
+        groupedOptions,
       );
     });
     units.push({ unitIndex, keyFifths, questions });
@@ -120,6 +181,7 @@ const buildUnitsFromVoicingForm = (
   stavesConfig: readonly number[] | undefined,
 ): TrainingProgressionUnit[] => {
   const table = form === 'aba' ? ABA_VOICINGS_BY_KEY : BAB_VOICINGS_BY_KEY;
+  const useGrandStaff = training.clefMode === 'grand_concert';
   const fallbackStaff = defaultStaffForClef(training.clefMode);
   const staves = toStaves(
     stavesConfig ?? [...TWO_HAND_VOICING_GRAND_STAFF],
@@ -138,6 +200,7 @@ const buildUnitsFromVoicingForm = (
         staves,
         set.keyFifths,
         training.useKeySignature,
+        useGrandStaff,
       ));
     return { unitIndex, keyFifths: set.keyFifths, questions };
   });

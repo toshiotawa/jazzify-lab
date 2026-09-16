@@ -3,7 +3,9 @@ import Foundation
 struct TrainingNoteEvaluationResult: Sendable {
     let accepted: Bool
     let completed: Bool
+    let voicingCompleted: Bool
     let newCorrectIndices: [Int]
+    let matchedGroupIndex: Int?
 }
 
 struct TrainingSequentialKeyboardHints: Sendable, Equatable {
@@ -18,12 +20,73 @@ enum TrainingEngine {
         kind: TrainingKind,
         playRootOnCorrect: Bool,
         completed: Bool,
-        rootMidi: Int?
+        rootMidi: Int?,
+        playRootOnFirstCorrect: Bool = false
     ) -> Bool {
         playRootOnCorrect
+            && !playRootOnFirstCorrect
             && completed
             && rootMidi != nil
             && (kind == .chord || kind == .voicing || kind == .progression)
+    }
+
+    static func isGroupedQuestion(_ question: TrainingQuestion) -> Bool {
+        question.layout == .grouped
+    }
+
+    private static func groupIndicesInOrder(_ question: TrainingQuestion) -> [Int] {
+        var seen = Set<Int>()
+        var out: [Int] = []
+        for note in question.notes {
+            let groupIndex = note.groupIndex ?? 0
+            if seen.insert(groupIndex).inserted {
+                out.append(groupIndex)
+            }
+        }
+        return out
+    }
+
+    private static func indicesForGroup(_ question: TrainingQuestion, groupIndex: Int) -> [Int] {
+        question.notes.enumerated().compactMap { index, note in
+            note.isTarget && (note.groupIndex ?? 0) == groupIndex ? index : nil
+        }
+    }
+
+    static func activeGroupIndex(_ question: TrainingQuestion, correctIndices: [Int]) -> Int? {
+        guard isGroupedQuestion(question) else { return nil }
+        for groupIndex in groupIndicesInOrder(question) {
+            let groupTargets = indicesForGroup(question, groupIndex: groupIndex)
+            if groupTargets.contains(where: { !correctIndices.contains($0) }) {
+                return groupIndex
+            }
+        }
+        return nil
+    }
+
+    static func isFirstAcceptedInGroup(
+        _ question: TrainingQuestion,
+        previousCorrectIndices: [Int],
+        groupIndex: Int
+    ) -> Bool {
+        !indicesForGroup(question, groupIndex: groupIndex).contains { previousCorrectIndices.contains($0) }
+    }
+
+    static func rootMidiForGroup(_ question: TrainingQuestion, groupIndex: Int) -> Int? {
+        let groupNotes = indicesForGroup(question, groupIndex: groupIndex).compactMap { question.notes[safe: $0] }
+        guard let lowestMidi = groupNotes.map(\.midi).min() else { return question.rootMidi }
+        guard let root = TrainingProgression.parseProgressionChordRoot(question.promptLabel) else {
+            return question.rootMidi
+        }
+        return TrainingMusicTheory.rootMidiBelow(root: root, lowestMidi: lowestMidi)
+    }
+
+    private static func isGroupComplete(
+        _ question: TrainingQuestion,
+        correctIndices: [Int],
+        groupIndex: Int
+    ) -> Bool {
+        let groupTargets = indicesForGroup(question, groupIndex: groupIndex)
+        return !groupTargets.isEmpty && groupTargets.allSatisfy { correctIndices.contains($0) }
     }
 
     static func targetIndices(question: TrainingQuestion) -> [Int] {
@@ -45,50 +108,101 @@ enum TrainingEngine {
         let remaining = targets.filter { !correctIndices.contains($0) }
 
         if remaining.isEmpty {
-            return TrainingNoteEvaluationResult(accepted: false, completed: true, newCorrectIndices: correctIndices)
+            return TrainingNoteEvaluationResult(
+                accepted: false,
+                completed: true,
+                voicingCompleted: false,
+                newCorrectIndices: correctIndices,
+                matchedGroupIndex: nil
+            )
+        }
+
+        let activeGroup = activeGroupIndex(question, correctIndices: correctIndices)
+        let scopedRemaining = activeGroup.map { group in
+            remaining.filter { (question.notes[safe: $0]?.groupIndex ?? 0) == group }
+        } ?? remaining
+
+        if scopedRemaining.isEmpty {
+            return TrainingNoteEvaluationResult(
+                accepted: false,
+                completed: remaining.isEmpty,
+                voicingCompleted: false,
+                newCorrectIndices: correctIndices,
+                matchedGroupIndex: nil
+            )
         }
 
         if question.ordered {
-            guard let nextIndex = remaining.first,
+            guard let nextIndex = scopedRemaining.first,
                   let expected = question.notes[safe: nextIndex],
                   expected.pitchClass == pitchClass
             else {
-                return TrainingNoteEvaluationResult(accepted: false, completed: false, newCorrectIndices: correctIndices)
+                return TrainingNoteEvaluationResult(
+                    accepted: false,
+                    completed: false,
+                    voicingCompleted: false,
+                    newCorrectIndices: correctIndices,
+                    matchedGroupIndex: nil
+                )
             }
             let newCorrect = correctIndices + [nextIndex]
+            let matchedGroupIndex = expected.groupIndex ?? 0
+            let voicingCompleted = activeGroup != nil
+                && isGroupComplete(question, correctIndices: newCorrect, groupIndex: matchedGroupIndex)
             return TrainingNoteEvaluationResult(
                 accepted: true,
                 completed: newCorrect.count >= targets.count,
-                newCorrectIndices: newCorrect
+                voicingCompleted: voicingCompleted,
+                newCorrectIndices: newCorrect,
+                matchedGroupIndex: matchedGroupIndex
             )
         }
 
         let matchIndex: Int?
         if sequential {
-            let pressedMidis = correctIndices.compactMap { question.notes[safe: $0]?.midi } + [midiNote]
-            let expectedPcs = targets.compactMap { question.notes[safe: $0]?.pitchClass }
-            let nextExpectedPc = expectedPcs[safe: correctIndices.count]
+            let groupCorrectIndices = activeGroup.map { group in
+                correctIndices.filter { (question.notes[safe: $0]?.groupIndex ?? 0) == group }
+            } ?? correctIndices
+            let expectedPcs = scopedRemaining.compactMap { question.notes[safe: $0]?.pitchClass }
+            let nextExpectedPc = expectedPcs[safe: groupCorrectIndices.count]
             if nextExpectedPc != pitchClass {
-                return TrainingNoteEvaluationResult(accepted: false, completed: false, newCorrectIndices: correctIndices)
+                return TrainingNoteEvaluationResult(
+                    accepted: false,
+                    completed: false,
+                    voicingCompleted: false,
+                    newCorrectIndices: correctIndices,
+                    matchedGroupIndex: nil
+                )
             }
-            matchIndex = targets.first { index in
+            matchIndex = scopedRemaining.first { index in
                 question.notes[safe: index]?.pitchClass == pitchClass && !correctIndices.contains(index)
             }
         } else {
-            matchIndex = targets.first { index in
+            matchIndex = scopedRemaining.first { index in
                 question.notes[safe: index]?.pitchClass == pitchClass && !correctIndices.contains(index)
             }
         }
 
         guard let matchIndex else {
-            return TrainingNoteEvaluationResult(accepted: false, completed: false, newCorrectIndices: correctIndices)
+            return TrainingNoteEvaluationResult(
+                accepted: false,
+                completed: false,
+                voicingCompleted: false,
+                newCorrectIndices: correctIndices,
+                matchedGroupIndex: nil
+            )
         }
 
         let newCorrect = correctIndices + [matchIndex]
+        let matchedGroupIndex = question.notes[safe: matchIndex]?.groupIndex ?? 0
+        let voicingCompleted = activeGroup != nil
+            && isGroupComplete(question, correctIndices: newCorrect, groupIndex: matchedGroupIndex)
         return TrainingNoteEvaluationResult(
             accepted: true,
             completed: newCorrect.count >= targets.count,
-            newCorrectIndices: newCorrect
+            voicingCompleted: voicingCompleted,
+            newCorrectIndices: newCorrect,
+            matchedGroupIndex: matchedGroupIndex
         )
     }
 
@@ -139,8 +253,10 @@ enum TrainingEngine {
         showHints: Bool
     ) -> [Int] {
         guard showHints else { return [] }
+        let activeGroup = activeGroupIndex(question, correctIndices: correctIndices)
         var out: [Int] = []
         for (index, note) in question.notes.enumerated() where note.isTarget && !correctIndices.contains(index) {
+            if let activeGroup, (note.groupIndex ?? 0) != activeGroup { continue }
             out.append(note.midi)
         }
         return out
@@ -161,7 +277,10 @@ enum TrainingEngine {
     ) -> TrainingSequentialKeyboardHints? {
         guard question.ordered || voiceSequential else { return nil }
 
-        let targets = targetIndices(question: question)
+        let activeGroup = activeGroupIndex(question, correctIndices: correctIndices)
+        let targets = targetIndices(question: question).filter { index in
+            activeGroup == nil || (question.notes[safe: index]?.groupIndex ?? 0) == activeGroup
+        }
         let remaining = targets.filter { !correctIndices.contains($0) }
         let completedMidis = correctIndices.compactMap { question.notes[safe: $0]?.midi }
 
@@ -184,7 +303,9 @@ enum TrainingEngine {
         }
 
         let targetMidis = targets.compactMap { question.notes[safe: $0]?.midi }
-        let completedPcs = correctIndices.compactMap { question.notes[safe: $0]?.pitchClass }
+        let completedPcs = correctIndices
+            .filter { activeGroup == nil || (question.notes[safe: $0]?.groupIndex ?? 0) == activeGroup }
+            .compactMap { question.notes[safe: $0]?.pitchClass }
         let orderedPcs = SurvivalChordResolver.orderedPitchClasses(fromMidis: targetMidis)
         let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
             fromMidis: targetMidis,

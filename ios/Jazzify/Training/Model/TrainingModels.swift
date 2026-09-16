@@ -21,12 +21,30 @@ struct TrainingProgressionEntry: Codable, Sendable, Equatable {
     let voicingNames: [String]
     let keyFifths: Int
     let voicingStaves: [Int]?
+    let voicingSlots: [[String]]?
 
     enum CodingKeys: String, CodingKey {
         case name, voicing
         case voicingNames = "voicing_names"
         case keyFifths = "key_fifths"
         case voicingStaves = "voicing_staves"
+        case voicingSlots = "voicing_slots"
+    }
+
+    init(
+        name: String,
+        voicing: [Int],
+        voicingNames: [String],
+        keyFifths: Int,
+        voicingStaves: [Int]? = nil,
+        voicingSlots: [[String]]? = nil
+    ) {
+        self.name = name
+        self.voicing = voicing
+        self.voicingNames = voicingNames
+        self.keyFifths = keyFifths
+        self.voicingStaves = voicingStaves
+        self.voicingSlots = voicingSlots
     }
 }
 
@@ -56,6 +74,8 @@ struct TrainingConfig: Codable, Sendable {
     let referenceKey: String?
     let referenceChords: [TrainingReferenceChord]?
     let voicingForm: String?
+    let scorePerVoicing: Bool?
+    let playRootOnFirstCorrect: Bool?
 
     enum CodingKeys: String, CodingKey {
         case roots, quality, scale, interval, direction, clef, intervals, staves
@@ -69,6 +89,56 @@ struct TrainingConfig: Codable, Sendable {
         case referenceKey = "reference_key"
         case referenceChords = "reference_chords"
         case voicingForm = "voicing_form"
+        case scorePerVoicing = "score_per_voicing"
+        case playRootOnFirstCorrect = "play_root_on_first_correct"
+    }
+
+    init(
+        roots: [String]? = nil,
+        quality: String? = nil,
+        scale: String? = nil,
+        interval: String? = nil,
+        direction: String? = nil,
+        clef: String? = nil,
+        includeAccidentals: Bool? = nil,
+        intervals: [String]? = nil,
+        staves: [Int]? = nil,
+        voicingNotes: [String]? = nil,
+        referenceRoot: String? = nil,
+        minLowestNote: String? = nil,
+        inversion: Int? = nil,
+        ordered: Bool? = nil,
+        progression: [TrainingProgressionEntry]? = nil,
+        unitSize: Int? = nil,
+        shuffleUnits: Bool? = nil,
+        referenceKey: String? = nil,
+        referenceChords: [TrainingReferenceChord]? = nil,
+        voicingForm: String? = nil,
+        scorePerVoicing: Bool? = nil,
+        playRootOnFirstCorrect: Bool? = nil
+    ) {
+        self.roots = roots
+        self.quality = quality
+        self.scale = scale
+        self.interval = interval
+        self.direction = direction
+        self.clef = clef
+        self.includeAccidentals = includeAccidentals
+        self.intervals = intervals
+        self.staves = staves
+        self.voicingNotes = voicingNotes
+        self.referenceRoot = referenceRoot
+        self.minLowestNote = minLowestNote
+        self.inversion = inversion
+        self.ordered = ordered
+        self.progression = progression
+        self.unitSize = unitSize
+        self.shuffleUnits = shuffleUnits
+        self.referenceKey = referenceKey
+        self.referenceChords = referenceChords
+        self.voicingForm = voicingForm
+        self.scorePerVoicing = scorePerVoicing
+        self.playRootOnFirstCorrect = playRootOnFirstCorrect
     }
 }
 
@@ -160,6 +230,23 @@ struct TrainingQuestionNote: Sendable, Equatable {
     let pitchClass: Int
     let staff: Int
     let isTarget: Bool
+    let groupIndex: Int?
+
+    init(
+        noteName: String,
+        midi: Int,
+        pitchClass: Int,
+        staff: Int,
+        isTarget: Bool,
+        groupIndex: Int? = nil
+    ) {
+        self.noteName = noteName
+        self.midi = midi
+        self.pitchClass = pitchClass
+        self.staff = staff
+        self.isTarget = isTarget
+        self.groupIndex = groupIndex
+    }
 }
 
 struct TrainingQuestion: Sendable, Equatable {
@@ -170,11 +257,39 @@ struct TrainingQuestion: Sendable, Equatable {
     let ordered: Bool
     let keyFifths: Int
     let rootMidi: Int?
+    let scorePerVoicing: Bool?
+    let playRootOnFirstCorrect: Bool?
+    let voicingGroupCount: Int?
+
+    init(
+        questionKey: String,
+        promptLabel: String,
+        notes: [TrainingQuestionNote],
+        layout: TrainingQuestionLayout,
+        ordered: Bool,
+        keyFifths: Int,
+        rootMidi: Int?,
+        scorePerVoicing: Bool? = nil,
+        playRootOnFirstCorrect: Bool? = nil,
+        voicingGroupCount: Int? = nil
+    ) {
+        self.questionKey = questionKey
+        self.promptLabel = promptLabel
+        self.notes = notes
+        self.layout = layout
+        self.ordered = ordered
+        self.keyFifths = keyFifths
+        self.rootMidi = rootMidi
+        self.scorePerVoicing = scorePerVoicing
+        self.playRootOnFirstCorrect = playRootOnFirstCorrect
+        self.voicingGroupCount = voicingGroupCount
+    }
 }
 
 enum TrainingQuestionLayout: String, Sendable {
     case stacked
     case horizontal
+    case grouped
 }
 
 struct TrainingQuestionBuilderOptions: Sendable {
@@ -377,7 +492,7 @@ enum TrainingConstants {
     static let dyingFadeSpeed: CGFloat = 2.5
     static let dyingKnockbackPxPerSec: CGFloat = 120
 
-    static func staffNoteOpacity(practiceMode: Bool, kind: TrainingKind) -> CGFloat {
-        practiceMode || kind == .noteReading || kind == .interval ? 1 : 0
+    static func staffNoteOpacity(practiceMode: Bool, kind: TrainingKind, scorePerVoicing: Bool = false) -> CGFloat {
+        practiceMode || kind == .noteReading || kind == .interval || scorePerVoicing ? 1 : 0
     }
 }

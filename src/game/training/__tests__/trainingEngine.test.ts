@@ -167,6 +167,40 @@ describe('trainingEngine', () => {
     expect(shouldUseTrainingSequentialKeyboardHints(interval, 'interval', true)).toBe(false);
   });
 
+  it('completes grouped voicings sequentially and scores per voicing', () => {
+    const q = makeQuestion({
+      layout: 'grouped',
+      scorePerVoicing: true,
+      playRootOnFirstCorrect: true,
+      voicingGroupCount: 2,
+      promptLabel: 'Cm7',
+      notes: [
+        { noteName: 'D3', midi: 50, pitchClass: 2, staff: 2, isTarget: true, groupIndex: 0 },
+        { noteName: 'G3', midi: 55, pitchClass: 7, staff: 2, isTarget: true, groupIndex: 0 },
+        { noteName: 'Bb3', midi: 58, pitchClass: 10, staff: 2, isTarget: true, groupIndex: 0 },
+        { noteName: 'F4', midi: 65, pitchClass: 5, staff: 1, isTarget: true, groupIndex: 0 },
+        { noteName: 'C3', midi: 48, pitchClass: 0, staff: 2, isTarget: true, groupIndex: 1 },
+        { noteName: 'Eb4', midi: 63, pitchClass: 3, staff: 1, isTarget: true, groupIndex: 1 },
+      ],
+    });
+    const first = evaluateTrainingNoteOn(q, [], 50, false);
+    expect(first.accepted).toBe(true);
+    expect(first.voicingCompleted).toBe(false);
+    expect(first.matchedGroupIndex).toBe(0);
+
+    const groupOneDone = evaluateTrainingNoteOn(q, [0, 1, 2], 65, false);
+    expect(groupOneDone.voicingCompleted).toBe(true);
+    expect(groupOneDone.completed).toBe(false);
+
+    const wrongGroup = evaluateTrainingNoteOn(q, [0, 1, 2, 3], 48, false);
+    expect(wrongGroup.accepted).toBe(true);
+    expect(wrongGroup.voicingCompleted).toBe(false);
+
+    const allDone = evaluateTrainingNoteOn(q, [0, 1, 2, 3, 4], 63, false);
+    expect(allDone.voicingCompleted).toBe(true);
+    expect(allDone.completed).toBe(true);
+  });
+
   it('highlights interval reference keys in both modes and target keys only in practice', () => {
     const q = makeQuestion({
       notes: [

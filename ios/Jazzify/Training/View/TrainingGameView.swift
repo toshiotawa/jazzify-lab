@@ -87,15 +87,15 @@ struct TrainingGameView: View {
         }) {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
-                onDismiss: { isSettingsOpen = false },
-                onExit: onClose,
                 stageRunMode: EarTrainingStageRunModeConfig(
                     practiceMode: session.practiceMode,
                     onApplyPracticeModeAndRestart: { mode in
                         isSettingsOpen = false
                         onApplyPracticeModeAndRestart(mode)
                     }
-                )
+                ),
+                onDismiss: { isSettingsOpen = false },
+                onExit: onClose
             )
         }
     }
@@ -162,7 +162,8 @@ struct TrainingGameView: View {
             kind: session.training.kind,
             unpressedNoteOpacity: TrainingConstants.staffNoteOpacity(
                 practiceMode: session.practiceMode,
-                kind: session.training.kind
+                kind: session.training.kind,
+                scorePerVoicing: session.training.config.scorePerVoicing == true
             ),
             clefMode: session.training.clefMode
         )

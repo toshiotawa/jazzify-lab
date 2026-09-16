@@ -221,4 +221,35 @@ describe('trainingProgression', () => {
       expect(sawDifferent).toBe(true);
     });
   });
+
+  describe('grouped voicing slots', () => {
+    const groupedTraining = baseTraining({
+      clefMode: 'grand_concert',
+      config: mapTrainingConfig({
+        unit_size: 1,
+        shuffle_units: true,
+        score_per_voicing: true,
+        play_root_on_first_correct: true,
+        progression: [
+          {
+            name: 'Cm7',
+            voicing: [50, 55, 58, 65],
+            voicing_names: ['D3', 'G3', 'Bb3', 'F4'],
+            key_fifths: 0,
+            voicing_slots: [['D3', 'G3', 'Bb3', 'F4'], ['C3', 'Eb4']],
+          },
+        ],
+      }),
+    });
+
+    it('builds grouped question with voicing slots', () => {
+      const units = buildTrainingProgressionUnits(groupedTraining);
+      const question = units[0]?.questions[0];
+      expect(question?.layout).toBe('grouped');
+      expect(question?.voicingGroupCount).toBe(2);
+      expect(question?.scorePerVoicing).toBe(true);
+      expect(question?.notes).toHaveLength(6);
+      expect(question?.notes.map((note) => note.groupIndex)).toEqual([0, 0, 0, 0, 1, 1]);
+    });
+  });
 });

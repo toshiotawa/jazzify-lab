@@ -23,6 +23,8 @@ import {
   getTrainingKeyboardReferenceMidis,
   getTrainingSequentialKeyboardHints,
   performTrainingDefeat,
+  isFirstAcceptedInTrainingGroup,
+  rootMidiForTrainingGroup,
   shouldPlayTrainingRootOnCorrect,
   shouldUseTrainingSequentialKeyboardHints,
   tickTrainingEnemy,
@@ -136,7 +138,11 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   );
   progressionUnitsRef.current = progressionUnits;
   const showHints = practiceMode;
-  const staffNoteOpacity = trainingStaffNoteOpacity(practiceMode, training.kind);
+  const staffNoteOpacity = trainingStaffNoteOpacity(
+    practiceMode,
+    training.kind,
+    training.config.scorePerVoicing === true,
+  );
   const staffBandHeight = useMemo(
     () => `calc((100dvh - ${TRAINING_HUD_HEIGHT_PX + PIANO_OVERLAY_HEIGHT + STAFF_BAND_MARGIN_PX}px) * ${trainingStaffHeightRatio(training.clefMode)})`,
     [training.clefMode],
@@ -278,9 +284,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     const current = runtimeRef.current.question;
     if (!current) return;
 
+    const previousCorrectIndices = runtimeRef.current.correctTargetIndices;
     const result = evaluateTrainingNoteOn(
       current,
-      runtimeRef.current.correctTargetIndices,
+      previousCorrectIndices,
       midiNote,
       voiceSequential,
     );
@@ -288,6 +295,34 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
     runtimeRef.current.correctTargetIndices = result.newCorrectIndices;
     setCorrectIndices(result.newCorrectIndices);
+
+    const playRootOnFirstCorrect = current.playRootOnFirstCorrect === true;
+    if (
+      playRootOnFirstCorrect
+      && training.playRootOnCorrect
+      && result.matchedGroupIndex != null
+    ) {
+      if (isFirstAcceptedInTrainingGroup(current, previousCorrectIndices, result.matchedGroupIndex)) {
+        const rootMidi = rootMidiForTrainingGroup(current, result.matchedGroupIndex);
+        if (rootMidi != null) {
+          FantasySoundManager.playBassMidiNote(rootMidi);
+        }
+      }
+    }
+
+    const scorePerVoicing = current.scorePerVoicing === true;
+    if (scorePerVoicing) {
+      if (result.voicingCompleted) {
+        performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
+        runtimeRef.current.score += 1;
+      }
+      if (!result.completed) return;
+      if (isProgressionTraining) {
+        advanceProgressionAfterCorrect();
+      }
+      spawnQuestion();
+      return;
+    }
 
     if (!result.completed) return;
 
@@ -297,6 +332,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
       training.playRootOnCorrect,
       result.completed,
       rootMidi,
+      playRootOnFirstCorrect,
     ) && rootMidi != null) {
       FantasySoundManager.playBassMidiNote(rootMidi);
     }

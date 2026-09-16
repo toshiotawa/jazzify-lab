@@ -75,15 +75,29 @@ const readProgressionEntries = (value: unknown): readonly TrainingProgressionEnt
     if (voicing.length !== voicingNames.length) return undefined;
     const voicingStaves = readNumberArray(item, 'voicingStaves')
       ?? readNumberArray(item, 'voicing_staves');
+    const voicingSlots = readVoicingSlots(item.voicingSlots ?? item.voicing_slots);
     entries.push({
       name,
       voicing,
       voicingNames,
       keyFifths,
       ...(voicingStaves != null ? { voicingStaves } : {}),
+      ...(voicingSlots != null ? { voicingSlots } : {}),
     });
   }
   return entries;
+};
+
+const readVoicingSlots = (value: unknown): readonly (readonly string[])[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const slots: string[][] = [];
+  for (const slot of value) {
+    if (!Array.isArray(slot)) return undefined;
+    const notes = slot.filter((item): item is string => typeof item === 'string');
+    if (notes.length !== slot.length || notes.length === 0) return undefined;
+    slots.push(notes);
+  }
+  return slots.length > 0 ? slots : undefined;
 };
 
 const readReferenceChords = (value: unknown): readonly TrainingReferenceChord[] | undefined => {
@@ -130,6 +144,9 @@ export const mapTrainingConfig = (raw: unknown): TrainingConfigBase => {
       : readString(raw, 'voicingForm') === 'aba' || readString(raw, 'voicing_form') === 'aba'
         ? 'aba'
         : undefined,
+    scorePerVoicing: readBoolean(raw, 'scorePerVoicing') ?? readBoolean(raw, 'score_per_voicing'),
+    playRootOnFirstCorrect: readBoolean(raw, 'playRootOnFirstCorrect')
+      ?? readBoolean(raw, 'play_root_on_first_correct'),
   };
 
   return Object.fromEntries(

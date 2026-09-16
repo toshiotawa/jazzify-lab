@@ -41,6 +41,28 @@ struct TrainingStaffView: View {
                 )
             }
         }
+        if question.layout == .grouped {
+            let groupCount = question.voicingGroupCount
+                ?? ((question.notes.map { $0.groupIndex ?? 0 }.max() ?? 0) + 1)
+            var groups: [EarTrainingChordVoicingStaffLayout.GroupInput] = []
+            for groupIndex in 0..<groupCount {
+                let indices = question.notes.enumerated().compactMap { index, note -> Int? in
+                    (note.groupIndex ?? 0) == groupIndex ? index : nil
+                }
+                guard !indices.isEmpty else { continue }
+                groups.append(
+                    EarTrainingChordVoicingStaffLayout.GroupInput(
+                        id: stableGroupId(index: groupIndex),
+                        chordName: "",
+                        voicing: indices.compactMap { question.notes[safe: $0]?.noteName },
+                        voicingStaves: indices.compactMap { question.notes[safe: $0]?.staff },
+                        measureOffset: 0,
+                        isRest: false
+                    )
+                )
+            }
+            return groups
+        }
         return [
             EarTrainingChordVoicingStaffLayout.GroupInput(
                 id: stableGroupId(index: 0),
@@ -61,6 +83,22 @@ struct TrainingStaffView: View {
                 return (groupId, Set(pcs))
             })
         }
+        if question.layout == .grouped {
+            let groupCount = question.voicingGroupCount
+                ?? ((question.notes.map { $0.groupIndex ?? 0 }.max() ?? 0) + 1)
+            var out: [UUID: Set<Int>] = [:]
+            for groupIndex in 0..<groupCount {
+                let indices = question.notes.enumerated().compactMap { index, note -> Int? in
+                    (note.groupIndex ?? 0) == groupIndex ? index : nil
+                }
+                let pcs = indices.compactMap { index -> Int? in
+                    guard correctIndices.contains(index) else { return nil }
+                    return question.notes[safe: index]?.pitchClass
+                }
+                out[stableGroupId(index: groupIndex)] = Set(pcs)
+            }
+            return out
+        }
         let groupId = stableGroupId(index: 0)
         let pcs = TrainingEngine.staffHintedPitchClasses(
             question: question,
@@ -74,7 +112,7 @@ struct TrainingStaffView: View {
     var body: some View {
         ChordVoicingStaffGroupsView(
             groups: staffGroups,
-            denseCurrentMeasureLayout: question.layout == .horizontal,
+            denseCurrentMeasureLayout: question.layout == .horizontal || question.layout == .grouped,
             keyFifths: question.keyFifths,
             activeGroupId: nil,
             correctPitchClassesByGroupId: correctPitchClassesByGroupId,
@@ -95,5 +133,12 @@ struct TrainingStaffView: View {
 
     private func stableGroupId(index: Int) -> UUID {
         UUID(uuidString: "00000000-0000-4000-8000-\(String(format: "%012x", index))") ?? UUID()
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else { return nil }
+        return self[index]
     }
 }

@@ -50,6 +50,55 @@ final class TrainingEngineTests: XCTestCase {
         XCTAssertFalse(runtime.dyingEnemy.active)
     }
 
+    func testGroupedVoicingCompletesPerGroupBeforeNext() {
+        let question = TrainingQuestion(
+            questionKey: "grouped",
+            promptLabel: "Cm7",
+            notes: [
+                TrainingQuestionNote(noteName: "D3", midi: 50, pitchClass: 2, staff: 2, isTarget: true, groupIndex: 0),
+                TrainingQuestionNote(noteName: "G3", midi: 55, pitchClass: 7, staff: 2, isTarget: true, groupIndex: 0),
+                TrainingQuestionNote(noteName: "Bb3", midi: 58, pitchClass: 10, staff: 2, isTarget: true, groupIndex: 0),
+                TrainingQuestionNote(noteName: "F4", midi: 65, pitchClass: 5, staff: 1, isTarget: true, groupIndex: 0),
+                TrainingQuestionNote(noteName: "C3", midi: 48, pitchClass: 0, staff: 2, isTarget: true, groupIndex: 1),
+                TrainingQuestionNote(noteName: "Eb4", midi: 63, pitchClass: 3, staff: 1, isTarget: true, groupIndex: 1),
+            ],
+            layout: .grouped,
+            ordered: false,
+            keyFifths: 0,
+            rootMidi: 36,
+            scorePerVoicing: true,
+            playRootOnFirstCorrect: true,
+            voicingGroupCount: 2
+        )
+
+        let first = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [],
+            midiNote: 50,
+            sequential: false
+        )
+        XCTAssertTrue(first.accepted)
+        XCTAssertFalse(first.voicingCompleted)
+
+        let groupOneDone = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [0, 1, 2],
+            midiNote: 65,
+            sequential: false
+        )
+        XCTAssertTrue(groupOneDone.voicingCompleted)
+        XCTAssertFalse(groupOneDone.completed)
+
+        let allDone = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [0, 1, 2, 3, 4],
+            midiNote: 63,
+            sequential: false
+        )
+        XCTAssertTrue(allDone.voicingCompleted)
+        XCTAssertTrue(allDone.completed)
+    }
+
     func testOrderedInversionChordRequiresBottomUpInput() {
         let question = TrainingQuestion(
             questionKey: "inv",

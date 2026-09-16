@@ -28,6 +28,7 @@ describe('trainingStaffLayout', () => {
     expect(trainingStaffNoteOpacity(false, 'interval')).toBe(1);
     expect(trainingStaffNoteOpacity(false, 'chord')).toBe(0);
     expect(trainingStaffNoteOpacity(false, 'voicing')).toBe(0);
+    expect(trainingStaffNoteOpacity(false, 'progression', true)).toBe(1);
   });
 
   it('keeps only the interval reference note in production staff display', () => {

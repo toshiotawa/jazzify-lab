@@ -88,6 +88,19 @@ enum TrainingProgression {
         }
     }
 
+    private static func staffForNoteName(_ noteName: String, fallback: Int, useGrandStaff: Bool) -> Int {
+        guard useGrandStaff, let midi = TrainingMusicTheory.parseVoicingMidi(noteName) else {
+            return fallback
+        }
+        return midi < 60 ? 2 : 1
+    }
+
+    private struct GroupedBuildOptions {
+        let scorePerVoicing: Bool
+        let playRootOnFirstCorrect: Bool
+        let voicingSlots: [[String]]
+    }
+
     private static func buildQuestionFromChord(
         unitIndex: Int,
         chordIndex: Int,
@@ -95,8 +108,42 @@ enum TrainingProgression {
         noteNames: [String],
         staves: [Int],
         keyFifths: Int,
-        useKeySignature: Bool
+        useKeySignature: Bool,
+        useGrandStaff: Bool,
+        groupedOptions: GroupedBuildOptions? = nil
     ) -> TrainingQuestion? {
+        if let groupedOptions, !groupedOptions.voicingSlots.isEmpty {
+            var notes: [TrainingQuestionNote] = []
+            for (groupIndex, slot) in groupedOptions.voicingSlots.enumerated() {
+                for name in slot {
+                    guard let midi = TrainingMusicTheory.parseVoicingMidi(name) else { return nil }
+                    notes.append(TrainingQuestionNote(
+                        noteName: name,
+                        midi: midi,
+                        pitchClass: TrainingMusicTheory.normalizePitchClass(midi),
+                        staff: staffForNoteName(name, fallback: staves.first ?? 1, useGrandStaff: useGrandStaff),
+                        isTarget: true,
+                        groupIndex: groupIndex
+                    ))
+                }
+            }
+            guard let lowestMidi = notes.map(\.midi).min() else { return nil }
+            let root = parseProgressionChordRoot(chordName)
+            let rootMidi = root.flatMap { TrainingMusicTheory.rootMidiBelow(root: $0, lowestMidi: lowestMidi) }
+            return TrainingQuestion(
+                questionKey: "progression:\(unitIndex):\(chordIndex):\(chordName)",
+                promptLabel: chordName,
+                notes: notes,
+                layout: .grouped,
+                ordered: false,
+                keyFifths: useKeySignature ? keyFifths : 0,
+                rootMidi: rootMidi,
+                scorePerVoicing: groupedOptions.scorePerVoicing,
+                playRootOnFirstCorrect: groupedOptions.playRootOnFirstCorrect,
+                voicingGroupCount: groupedOptions.voicingSlots.count
+            )
+        }
+
         var notes: [TrainingQuestionNote] = []
         for (index, name) in noteNames.enumerated() {
             guard let midi = TrainingMusicTheory.parseVoicingMidi(name) else { return nil }
@@ -127,7 +174,10 @@ enum TrainingProgression {
         progression: [TrainingProgressionEntry],
         unitSize: Int
     ) -> [TrainingProgressionUnit] {
+        let useGrandStaff = training.clefMode == .grandConcert
         let fallbackStaff = defaultStaff(for: training.clefMode)
+        let scorePerVoicing = training.config.scorePerVoicing == true
+        let playRootOnFirstCorrect = training.config.playRootOnFirstCorrect == true
         var units: [TrainingProgressionUnit] = []
         var unitStart = 0
         while unitStart < progression.count {
@@ -138,6 +188,14 @@ enum TrainingProgression {
             let keyFifths = slice[0].keyFifths
             let questions = slice.enumerated().compactMap { chordIndex, entry in
                 let staves = toStaves(entry.voicingStaves, count: entry.voicingNames.count, fallback: fallbackStaff)
+                let groupedOptions: GroupedBuildOptions? = {
+                    guard let slots = entry.voicingSlots, !slots.isEmpty else { return nil }
+                    return GroupedBuildOptions(
+                        scorePerVoicing: scorePerVoicing,
+                        playRootOnFirstCorrect: playRootOnFirstCorrect,
+                        voicingSlots: slots
+                    )
+                }()
                 return buildQuestionFromChord(
                     unitIndex: unitIndex,
                     chordIndex: chordIndex,
@@ -145,7 +203,9 @@ enum TrainingProgression {
                     noteNames: entry.voicingNames,
                     staves: staves,
                     keyFifths: entry.keyFifths,
-                    useKeySignature: training.useKeySignature
+                    useKeySignature: training.useKeySignature,
+                    useGrandStaff: useGrandStaff,
+                    groupedOptions: groupedOptions
                 )
             }
             units.append(TrainingProgressionUnit(unitIndex: unitIndex, keyFifths: keyFifths, questions: questions))
@@ -159,6 +219,7 @@ enum TrainingProgression {
         form: String,
         stavesConfig: [Int]?
     ) -> [TrainingProgressionUnit] {
+        let useGrandStaff = training.clefMode == .grandConcert
         let fallbackStaff = defaultStaff(for: training.clefMode)
         let staves = toStaves(stavesConfig ?? grandStaff, count: grandStaff.count, fallback: fallbackStaff)
         return TrainingTwoHandVoicingTables.allMajorKeys.enumerated().compactMap { unitIndex, key in
@@ -180,7 +241,8 @@ enum TrainingProgression {
                     noteNames: chord.notes,
                     staves: staves,
                     keyFifths: set.keyFifths,
-                    useKeySignature: training.useKeySignature
+                    useKeySignature: training.useKeySignature,
+                    useGrandStaff: useGrandStaff
                 )
             }
             return TrainingProgressionUnit(unitIndex: unitIndex, keyFifths: set.keyFifths, questions: questions)

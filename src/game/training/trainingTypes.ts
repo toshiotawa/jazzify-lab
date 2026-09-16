@@ -12,6 +12,8 @@ export interface TrainingProgressionEntry {
   readonly voicingNames: readonly string[];
   readonly keyFifths: number;
   readonly voicingStaves?: readonly number[];
+  /** 1小節内の複数ヴォイシング（テンションリゾルブ等） */
+  readonly voicingSlots?: readonly (readonly string[])[];
 }
 
 /** 基準キー移調モードの1コード */
@@ -61,6 +63,10 @@ export interface TrainingConfigBase {
   readonly referenceChords?: readonly TrainingReferenceChord[];
   /** kind=progression: Drop2 II-V-I フォーム（reference_chords 移調時に表参照） */
   readonly voicingForm?: 'aba' | 'bab';
+  /** kind=progression: 1ヴォイシング完成ごとに攻撃・スコア+1 */
+  readonly scorePerVoicing?: boolean;
+  /** kind=progression: 各ヴォイシングの最初の1音正解でルート音を鳴らす */
+  readonly playRootOnFirstCorrect?: boolean;
 }
 
 /** コード進行トレーニングの1ユニット（例: II-V-I 1キー分） */
@@ -103,16 +109,24 @@ export interface TrainingQuestionNote {
   readonly staff: 1 | 2;
   /** 正解入力対象か（音程の基準音など表示専用は false） */
   readonly isTarget: boolean;
+  /** grouped レイアウト: 同一コード内のヴォイシングインデックス（0始まり） */
+  readonly groupIndex?: number;
 }
 
 export interface TrainingQuestion {
   readonly questionKey: string;
   readonly promptLabel: string;
   readonly notes: readonly TrainingQuestionNote[];
-  readonly layout: 'stacked' | 'horizontal';
+  readonly layout: 'stacked' | 'horizontal' | 'grouped';
   readonly ordered: boolean;
   readonly keyFifths: number;
   readonly rootMidi: number | null;
+  /** grouped: 1ヴォイシング完成ごとに攻撃・スコア+1 */
+  readonly scorePerVoicing?: boolean;
+  /** grouped: 各ヴォイシングの最初の1音正解でルート音を鳴らす */
+  readonly playRootOnFirstCorrect?: boolean;
+  /** grouped: ヴォイシング数 */
+  readonly voicingGroupCount?: number;
 }
 
 export interface TrainingQuestionBuilderOptions {

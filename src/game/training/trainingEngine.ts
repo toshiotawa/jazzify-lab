@@ -1,4 +1,5 @@
 import type { TrainingKind, TrainingQuestion, TrainingRuntime } from '@/game/training/trainingTypes';
+import { parseProgressionChordRoot, rootMidiBelow } from '@/game/training/trainingProgression';
 import {
   TRAINING_DYING_FADE_SPEED,
   TRAINING_DYING_KNOCKBACK_PX_PER_SEC,
@@ -14,7 +15,9 @@ import {
 interface TrainingNoteEvaluationResult {
   readonly accepted: boolean;
   readonly completed: boolean;
+  readonly voicingCompleted: boolean;
   readonly newCorrectIndices: readonly number[];
+  readonly matchedGroupIndex: number | null;
 }
 
 /** 和音 / ヴォイシングの全構成音正解時のみルート音を鳴らす（入門・音程・スケールは対象外）。 */
@@ -23,12 +26,87 @@ export const shouldPlayTrainingRootOnCorrect = (
   playRootOnCorrect: boolean,
   completed: boolean,
   rootMidi: number | null | undefined,
+  playRootOnFirstCorrect = false,
 ): boolean => (
   playRootOnCorrect
+  && !playRootOnFirstCorrect
   && completed
   && rootMidi != null
   && (kind === 'chord' || kind === 'voicing' || kind === 'progression')
 );
+
+export const isGroupedTrainingQuestion = (question: TrainingQuestion): boolean => (
+  question.layout === 'grouped'
+);
+
+const groupIndicesInOrder = (question: TrainingQuestion): readonly number[] => {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const note of question.notes) {
+    const groupIndex = note.groupIndex ?? 0;
+    if (seen.has(groupIndex)) continue;
+    seen.add(groupIndex);
+    out.push(groupIndex);
+  }
+  return out;
+};
+
+const indicesForGroup = (
+  question: TrainingQuestion,
+  groupIndex: number,
+): readonly number[] => {
+  const out: number[] = [];
+  question.notes.forEach((note, index) => {
+    if (note.isTarget && (note.groupIndex ?? 0) === groupIndex) {
+      out.push(index);
+    }
+  });
+  return out;
+};
+
+export const activeTrainingGroupIndex = (
+  question: TrainingQuestion,
+  correctIndices: readonly number[],
+): number | null => {
+  if (!isGroupedTrainingQuestion(question)) return null;
+  for (const groupIndex of groupIndicesInOrder(question)) {
+    const groupTargets = indicesForGroup(question, groupIndex);
+    if (groupTargets.some((index) => !correctIndices.includes(index))) {
+      return groupIndex;
+    }
+  }
+  return null;
+};
+
+export const isFirstAcceptedInTrainingGroup = (
+  question: TrainingQuestion,
+  previousCorrectIndices: readonly number[],
+  groupIndex: number,
+): boolean => !indicesForGroup(question, groupIndex)
+  .some((index) => previousCorrectIndices.includes(index));
+
+export const rootMidiForTrainingGroup = (
+  question: TrainingQuestion,
+  groupIndex: number,
+): number | null => {
+  const groupNotes = indicesForGroup(question, groupIndex)
+    .map((index) => question.notes[index])
+    .filter((note): note is NonNullable<typeof note> => note != null);
+  if (groupNotes.length === 0) return null;
+  const lowestMidi = Math.min(...groupNotes.map((note) => note.midi));
+  const root = parseProgressionChordRoot(question.promptLabel);
+  return root != null ? rootMidiBelow(root, lowestMidi) : question.rootMidi;
+};
+
+const isGroupComplete = (
+  question: TrainingQuestion,
+  correctIndices: readonly number[],
+  groupIndex: number,
+): boolean => {
+  const groupTargets = indicesForGroup(question, groupIndex);
+  return groupTargets.length > 0
+    && groupTargets.every((index) => correctIndices.includes(index));
+};
 
 const targetIndices = (question: TrainingQuestion): readonly number[] => {
   const out: number[] = [];
@@ -49,47 +127,108 @@ export const evaluateTrainingNoteOn = (
   const remaining = targets.filter((i) => !correctIndices.includes(i));
 
   if (remaining.length === 0) {
-    return { accepted: false, completed: true, newCorrectIndices: correctIndices };
+    return {
+      accepted: false,
+      completed: true,
+      voicingCompleted: false,
+      newCorrectIndices: correctIndices,
+      matchedGroupIndex: null,
+    };
+  }
+
+  const activeGroupIndex = isGroupedTrainingQuestion(question)
+    ? activeTrainingGroupIndex(question, correctIndices)
+    : null;
+  const scopedRemaining = activeGroupIndex == null
+    ? remaining
+    : remaining.filter((index) => (question.notes[index]?.groupIndex ?? 0) === activeGroupIndex);
+
+  if (scopedRemaining.length === 0) {
+    return {
+      accepted: false,
+      completed: remaining.length === 0,
+      voicingCompleted: false,
+      newCorrectIndices: correctIndices,
+      matchedGroupIndex: null,
+    };
   }
 
   if (question.ordered) {
-    const nextIndex = remaining[0];
+    const nextIndex = scopedRemaining[0];
     const expected = question.notes[nextIndex];
     if (!expected || expected.pitchClass !== pitchClass) {
-      return { accepted: false, completed: false, newCorrectIndices: correctIndices };
+      return {
+        accepted: false,
+        completed: false,
+        voicingCompleted: false,
+        newCorrectIndices: correctIndices,
+        matchedGroupIndex: null,
+      };
     }
     const newCorrect = [...correctIndices, nextIndex];
+    const matchedGroupIndex = expected.groupIndex ?? 0;
+    const voicingCompleted = activeGroupIndex != null
+      && isGroupComplete(question, newCorrect, matchedGroupIndex);
     return {
       accepted: true,
       completed: newCorrect.length >= targets.length,
+      voicingCompleted,
       newCorrectIndices: newCorrect,
+      matchedGroupIndex,
     };
   }
 
   let matchIndex = -1;
   if (sequential) {
-    const pressedMidis = correctIndices.map((i) => question.notes[i]?.midi).filter((m): m is number => m != null);
+    const groupCorrectIndices = activeGroupIndex == null
+      ? correctIndices
+      : correctIndices.filter((index) => (question.notes[index]?.groupIndex ?? 0) === activeGroupIndex);
+    const pressedMidis = groupCorrectIndices
+      .map((i) => question.notes[i]?.midi)
+      .filter((m): m is number => m != null);
     pressedMidis.push(midiNote);
-    const ordered = orderedPitchClassesFromMidis(pressedMidis);
-    const expectedPcs = targets.map((i) => question.notes[i]?.pitchClass).filter((pc): pc is number => pc != null);
-    const nextExpectedPc = expectedPcs[correctIndices.length];
+    const expectedPcs = scopedRemaining
+      .map((i) => question.notes[i]?.pitchClass)
+      .filter((pc): pc is number => pc != null);
+    const nextExpectedPc = expectedPcs[groupCorrectIndices.length];
     if (nextExpectedPc == null || pitchClass !== nextExpectedPc) {
-      return { accepted: false, completed: false, newCorrectIndices: correctIndices };
+      return {
+        accepted: false,
+        completed: false,
+        voicingCompleted: false,
+        newCorrectIndices: correctIndices,
+        matchedGroupIndex: null,
+      };
     }
-    matchIndex = targets.find((i) => question.notes[i]?.pitchClass === pitchClass && !correctIndices.includes(i)) ?? -1;
+    matchIndex = scopedRemaining.find((i) => (
+      question.notes[i]?.pitchClass === pitchClass && !correctIndices.includes(i)
+    )) ?? -1;
   } else {
-    matchIndex = targets.find((i) => question.notes[i]?.pitchClass === pitchClass && !correctIndices.includes(i)) ?? -1;
+    matchIndex = scopedRemaining.find((i) => (
+      question.notes[i]?.pitchClass === pitchClass && !correctIndices.includes(i)
+    )) ?? -1;
   }
 
   if (matchIndex < 0) {
-    return { accepted: false, completed: false, newCorrectIndices: correctIndices };
+    return {
+      accepted: false,
+      completed: false,
+      voicingCompleted: false,
+      newCorrectIndices: correctIndices,
+      matchedGroupIndex: null,
+    };
   }
 
   const newCorrect = [...correctIndices, matchIndex];
+  const matchedGroupIndex = question.notes[matchIndex]?.groupIndex ?? 0;
+  const voicingCompleted = activeGroupIndex != null
+    && isGroupComplete(question, newCorrect, matchedGroupIndex);
   return {
     accepted: true,
     completed: newCorrect.length >= targets.length,
+    voicingCompleted,
     newCorrectIndices: newCorrect,
+    matchedGroupIndex,
   };
 };
 
@@ -146,8 +285,13 @@ export const getTrainingKeyboardHintMidis = (
   showHints: boolean,
 ): readonly number[] => {
   if (!showHints) return [];
+  const activeGroup = activeTrainingGroupIndex(question, correctIndices);
   return question.notes
-    .map((note, index) => (note.isTarget && !correctIndices.includes(index) ? note.midi : null))
+    .map((note, index) => {
+      if (!note.isTarget || correctIndices.includes(index)) return null;
+      if (activeGroup != null && (note.groupIndex ?? 0) !== activeGroup) return null;
+      return note.midi;
+    })
     .filter((m): m is number => m != null);
 };
 
@@ -169,7 +313,10 @@ export const getTrainingSequentialKeyboardHints = (
     return null;
   }
 
-  const targets = targetIndices(question);
+  const activeGroup = activeTrainingGroupIndex(question, correctIndices);
+  const targets = targetIndices(question).filter((index) => (
+    activeGroup == null || (question.notes[index]?.groupIndex ?? 0) === activeGroup
+  ));
   const remaining = targets.filter((index) => !correctIndices.includes(index));
   const completedMidis = correctIndices
     .map((index) => question.notes[index]?.midi)
@@ -194,6 +341,7 @@ export const getTrainingSequentialKeyboardHints = (
     .map((index) => question.notes[index]?.midi)
     .filter((midi): midi is number => midi != null);
   const completedPcs = correctIndices
+    .filter((index) => activeGroup == null || (question.notes[index]?.groupIndex ?? 0) === activeGroup)
     .map((index) => question.notes[index]?.pitchClass)
     .filter((pitchClass): pitchClass is number => pitchClass != null);
   return computeOrderedChordKeyboardHintsFromMidis(targetMidis, completedPcs);

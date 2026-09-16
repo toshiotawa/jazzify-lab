@@ -59,6 +59,37 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
         measureOffset: 0 as const,
       }));
     }
+    if (question.layout === 'grouped') {
+      const groupCount = question.voicingGroupCount
+        ?? (Math.max(0, ...question.notes.map((note) => note.groupIndex ?? 0)) + 1);
+      const groups: ChordVoicingStaffGroup[] = [];
+      for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+        const indices: number[] = [];
+        question.notes.forEach((note, index) => {
+          if ((note.groupIndex ?? 0) === groupIndex) {
+            indices.push(index);
+          }
+        });
+        if (indices.length === 0) continue;
+        const groupCorrectPcs: number[] = [];
+        for (let i = 0; i < indices.length; i += 1) {
+          const noteIndex = indices[i] ?? -1;
+          if (correctIndices.includes(noteIndex)) {
+            const pc = question.notes[noteIndex]?.pitchClass;
+            if (pc != null) groupCorrectPcs.push(pc);
+          }
+        }
+        groups.push({
+          id: `group-${groupIndex}`,
+          chordName: '',
+          voicing: indices.map((index) => question.notes[index]?.noteName ?? ''),
+          voicingStaves: indices.map((index) => question.notes[index]?.staff ?? 1),
+          correctPitchClasses: groupCorrectPcs,
+          measureOffset: 0 as const,
+        });
+      }
+      return groups;
+    }
     return [{
       id: 'single',
       chordName: '',
@@ -67,7 +98,14 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
       correctPitchClasses,
       measureOffset: 0 as const,
     }];
-  }, [question.layout, displayNotes, correctIndices, correctPitchClasses]);
+  }, [
+    question.layout,
+    question.voicingGroupCount,
+    question.notes,
+    displayNotes,
+    correctIndices,
+    correctPitchClasses,
+  ]);
 
   const staffWrapperClass = cn(
     'flex h-full w-full items-center justify-center',
@@ -89,7 +127,7 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
       <ChordVoicingStaff
         keyFifths={question.keyFifths}
         voicingGroups={voicingGroups}
-        denseCurrentMeasureLayout={question.layout === 'horizontal'}
+        denseCurrentMeasureLayout={question.layout === 'horizontal' || question.layout === 'grouped'}
         singleMeasureLayout
         {...sharedProps}
       />

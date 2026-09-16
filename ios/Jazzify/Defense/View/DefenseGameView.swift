@@ -98,15 +98,15 @@ struct DefenseGameView: View {
         }) {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
-                onDismiss: { isSettingsOpen = false },
-                onExit: onClose,
                 stageRunMode: EarTrainingStageRunModeConfig(
                     practiceMode: session.practiceMode,
                     onApplyPracticeModeAndRestart: { mode in
                         isSettingsOpen = false
                         onApplyPracticeModeAndRestart(mode)
                     }
-                )
+                ),
+                onDismiss: { isSettingsOpen = false },
+                onExit: onClose
             )
         }
     }

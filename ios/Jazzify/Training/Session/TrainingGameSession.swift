@@ -172,9 +172,10 @@ final class TrainingGameSession: ObservableObject {
         guard !isPaused, hud.phase == .playing, runtime.result == .playing else { return }
         guard let current = runtime.question else { return }
 
+        let previousCorrectIndices = runtime.correctTargetIndices
         let result = TrainingEngine.evaluateNoteOn(
             question: current,
-            correctIndices: runtime.correctTargetIndices,
+            correctIndices: previousCorrectIndices,
             midiNote: midiNote,
             sequential: NoteInputManager.shared.isVoiceInputActive
         )
@@ -183,13 +184,43 @@ final class TrainingGameSession: ObservableObject {
         runtime.correctTargetIndices = result.newCorrectIndices
         correctIndices = result.newCorrectIndices
 
+        let playRootOnFirstCorrect = current.playRootOnFirstCorrect == true
+        if playRootOnFirstCorrect,
+           training.playRootOnCorrect,
+           let matchedGroupIndex = result.matchedGroupIndex,
+           TrainingEngine.isFirstAcceptedInGroup(current, previousCorrectIndices: previousCorrectIndices, groupIndex: matchedGroupIndex),
+           let rootMidi = TrainingEngine.rootMidiForGroup(current, groupIndex: matchedGroupIndex) {
+            SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
+        }
+
+        if current.scorePerVoicing == true {
+            if result.voicingCompleted {
+                TrainingEngine.performDefeat(
+                    runtime: &runtime,
+                    nowSec: runtime.elapsedSec,
+                    guardPoseSec: TrainingConstants.guardPoseSec
+                )
+                runtime.score += 1
+                if runtime.score != hud.score {
+                    hud.score = runtime.score
+                }
+            }
+            guard result.completed else { return }
+            if training.kind == .progression {
+                advanceProgressionAfterCorrect()
+            }
+            spawnQuestion()
+            return
+        }
+
         guard result.completed else { return }
 
         if TrainingEngine.shouldPlayTrainingRootOnCorrect(
             kind: training.kind,
             playRootOnCorrect: training.playRootOnCorrect,
             completed: result.completed,
-            rootMidi: current.rootMidi
+            rootMidi: current.rootMidi,
+            playRootOnFirstCorrect: playRootOnFirstCorrect
         ), let rootMidi = current.rootMidi {
             SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
         }

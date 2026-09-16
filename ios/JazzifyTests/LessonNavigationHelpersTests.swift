@@ -310,6 +310,8 @@ final class LessonNavigationHelpersTests: XCTestCase {
             defenseStageId: nil,
             isTraining: nil,
             trainingId: nil,
+            isTrainingGoalSet: nil,
+            trainingGoalSetId: nil,
             isFantasy: false,
             isSurvival: true,
             isSurvivalTutorial: nil,
@@ -334,7 +336,8 @@ final class LessonNavigationHelpersTests: XCTestCase {
             balloonRushStage: nil,
             videoLessonStage: nil,
             defenseStage: nil,
-            training: nil
+            training: nil,
+            trainingGoalSet: nil
         )
     }
 }

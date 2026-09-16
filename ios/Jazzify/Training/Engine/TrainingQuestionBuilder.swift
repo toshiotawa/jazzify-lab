@@ -432,7 +432,9 @@ enum TrainingQuestionBuilder {
             shuffleUnits: override.shuffleUnits ?? base.shuffleUnits,
             referenceKey: override.referenceKey ?? base.referenceKey,
             referenceChords: override.referenceChords ?? base.referenceChords,
-            voicingForm: override.voicingForm ?? base.voicingForm
+            voicingForm: override.voicingForm ?? base.voicingForm,
+            scorePerVoicing: override.scorePerVoicing ?? base.scorePerVoicing,
+            playRootOnFirstCorrect: override.playRootOnFirstCorrect ?? base.playRootOnFirstCorrect
         )
     }
 
