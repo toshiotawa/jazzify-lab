@@ -12,7 +12,7 @@ UPDATE public.training_ui_texts SET
 本番モードは1分間です。正解数に応じてスコアとランクがつき、記録とランキングに反映されます。週3日目標や連続日数も、本番プレイのみが対象です。
 
 【目標セット】
-カテゴリごとに目標セットがあります。セット内のすべてのトレーニングでランクC以上を達成するとクリアです。対象楽器・対象レベルで整理されており、目標セット一覧からいつでも切り替えられます。
+カテゴリごとに目標セットがあります。目標ランク以上を達成するとクリアです。対象楽器・対象レベルで整理されており、目標セット一覧からいつでも切り替えられます。
 
 【ランク定義】
 本番1分間の正解数がランクになります。スケール系は1問あたりの音数が多いため、基準値が半分です。
@@ -44,7 +44,7 @@ Practice mode has no time limit and can be retried as many times as you like. Sc
 Production mode lasts one minute. Your score and rank are based on correct answers and are saved to records and rankings. The weekly 3-day goal and streak count only production plays.
 
 【Goal sets】
-Each category has a goal set. Clear it by reaching rank C or higher on every training in the set. Goal sets are organized by target instrument and level, and you can switch between them at any time from the goal set list.
+Each category has a goal set. Clear it by reaching each training's target rank or higher. Goal sets are organized by target instrument and level, and you can switch between them at any time from the goal set list.
 
 【Rank definitions】
 Your rank is based on correct answers in a one-minute production run. Scale trainings use half the score thresholds because each question has more notes.
@@ -90,7 +90,7 @@ UPDATE public.training_categories SET
     WHEN 'tension_voicing_ab' THEN 'A/Bフォームのテンションヴォイシングを譜面から入力する練習です。構成音の下から順番に回答します。' || E'\n' || '3rdからヴォイシングを積むAフォームと、7thからヴォイシングを積むBフォームを練習します。'
     WHEN 'two_hand_voicing' THEN '両手で演奏するジャズヴォイシングの読み取り練習です。So Whatヴォイシング、4thヴォイシング、UST（Upper Structure Triad）などの上級ヴォイシングを練習します。' || E'\n' || '※音声入力の場合は構成音の下から順番に回答してください。'
     WHEN 'lh_voicing_progression' THEN 'II-V-I、ブルース、スタンダードなどの左手ヴォイシングを練習するモードです。' || E'\n' || '※音声入力の場合は構成音の下から順番に回答してください。' || E'\n' || 'In C固定（常にコンサートキーでのみ表記となります。）'
-    WHEN 'two_hand_voicing_progression' THEN 'II-V-I、ブルース、スタンダードなどの両手ヴォイシングを練習するモードです。現在は Drop2 II-V-I の A-B-A / B-A-B フォームを全キーで練習できます。' || E'\n' || '※音声入力の場合は構成音の下から順番に回答してください。' || E'\n' || 'In C固定（常にコンサートキーでのみ表記となります。）'
+    WHEN 'two_hand_voicing_progression' THEN 'II-V-I、ブルース、スタンダードなどの両手ヴォイシングを練習するモードです。' || E'\n' || '※音声入力の場合は構成音の下から順番に回答してください。' || E'\n' || 'In C固定（常にコンサートキーでのみ表記となります。）'
     ELSE description_ja
   END,
   description_en = CASE slug
@@ -107,7 +107,7 @@ UPDATE public.training_categories SET
     WHEN 'tension_voicing_ab' THEN 'Enter A/B-form tension voicings from the staff. Answer from the lowest note upward.' || E'\n' || 'Practice A-form voicings built from the 3rd and B-form voicings built from the 7th.'
     WHEN 'two_hand_voicing' THEN 'Read two-hand jazz voicings such as So What, 4th voicings, and upper structure triads (UST).' || E'\n' || 'For voice input, answer from the lowest note upward.'
     WHEN 'lh_voicing_progression' THEN 'Practice left-hand voicings over II-V-I, blues, and standard progressions.' || E'\n' || 'For voice input, answer from the lowest note upward.' || E'\n' || 'In C only (always notated in concert pitch).'
-    WHEN 'two_hand_voicing_progression' THEN 'Practice two-hand voicings over II-V-I, blues, and standard progressions. Currently available: Drop2 II-V-I in A-B-A and B-A-B forms across all keys.' || E'\n' || 'For voice input, answer from the lowest note upward.' || E'\n' || 'In C only (always notated in concert pitch).'
+    WHEN 'two_hand_voicing_progression' THEN 'Practice two-hand voicings over II-V-I, blues, and standard progressions.' || E'\n' || 'For voice input, answer from the lowest note upward.' || E'\n' || 'In C only (always notated in concert pitch).'
     ELSE description_en
   END,
   updated_at = now()
