@@ -71,7 +71,7 @@ export const buildTensionResolveMigrationSql = (): string => {
 
   const goalSpecs = [
     { slug: 'goal-tension-resolve-beginner', titleJa: 'テンションリゾルブ ビギナー', titleEn: 'Tension Resolve Beginner', sortOrder: 37, level: 'beginner' },
-    { slug: 'goal-tension-resolve-trainer', titleJa: 'テンションリゾルブ トレーナー', titleEn: 'Tension Resolve Trainer', sortOrder: 38, level: 'intermediate' },
+    { slug: 'goal-tension-resolve-trainer', titleJa: 'テンションリゾルブ トレーニー', titleEn: 'Tension Resolve Trainee', sortOrder: 38, level: 'intermediate' },
     { slug: 'goal-tension-resolve-master', titleJa: 'テンションリゾルブ マスター', titleEn: 'Tension Resolve Master', sortOrder: 39, level: 'advanced' },
   ];
 

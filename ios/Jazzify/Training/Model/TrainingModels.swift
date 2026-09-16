@@ -398,7 +398,7 @@ enum TrainingGoalTargetLevel: String, Sendable, Equatable {
         case .beginner:
             return locale == .ja ? "ビギナー" : "Beginner"
         case .intermediate:
-            return locale == .ja ? "トレーナー" : "Trainer"
+            return locale == .ja ? "トレーニー" : "Trainee"
         case .advanced:
             return locale == .ja ? "マスター" : "Master"
         }

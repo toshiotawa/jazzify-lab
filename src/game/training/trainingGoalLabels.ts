@@ -18,7 +18,7 @@ export const formatTrainingGoalLevel = (
 ): string => {
   switch (level) {
     case 'intermediate':
-      return isEnglish ? 'Trainer' : 'トレーナー';
+      return isEnglish ? 'Trainee' : 'トレーニー';
     case 'advanced':
       return isEnglish ? 'Master' : 'マスター';
     default:

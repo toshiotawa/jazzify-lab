@@ -1,4 +1,5 @@
 import {
+  formatTrainingGoalLevel,
   formatTrainingGoalRank,
   resolveTrainingGoalRankInfo,
 } from '@/game/training/trainingGoalLabels';
@@ -35,6 +36,11 @@ const makeTraining = (kind: TrainingRow['kind']): TrainingRow => ({
 });
 
 describe('trainingGoalLabels', () => {
+  it('formats intermediate level as trainee', () => {
+    expect(formatTrainingGoalLevel('intermediate', false)).toBe('トレーニー');
+    expect(formatTrainingGoalLevel('intermediate', true)).toBe('Trainee');
+  });
+
   it('formats goal rank with question count', () => {
     expect(formatTrainingGoalRank('C', 30, false)).toBe('C(30問)');
     expect(formatTrainingGoalRank('C', 15, true)).toBe('C (15 questions)');
