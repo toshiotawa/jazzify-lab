@@ -69,6 +69,7 @@ interface TrainingGameScreenProps {
   readonly training: TrainingRow;
   readonly practiceMode: boolean;
   readonly onFinished: (score: number) => void;
+  readonly onApplyPracticeModeAndRestart: (nextPracticeMode: boolean) => void;
   readonly onExit: () => void;
 }
 
@@ -80,6 +81,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   training,
   practiceMode,
   onFinished,
+  onApplyPracticeModeAndRestart,
   onExit,
 }) => {
   const runtimeRef = useRef<TrainingRuntime>(createInitialTrainingRuntime());
@@ -472,6 +474,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
+        practiceRunMode={{
+          practiceMode,
+          onApplyPracticeModeAndRestart: onApplyPracticeModeAndRestart,
+        }}
       />
     </div>
   );

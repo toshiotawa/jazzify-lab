@@ -11,6 +11,7 @@ struct TrainingGameView: View {
     let locale: AppLocale
     let onClose: () -> Void
     let onFinished: (Int) -> Void
+    let onApplyPracticeModeAndRestart: (Bool) -> Void
 
     private static let pianoHeight: CGFloat = EarTrainingBattleStageKit.chordPadKeyboardHeight
 
@@ -20,7 +21,8 @@ struct TrainingGameView: View {
         lessonContext: TrainingLessonContext?,
         locale: AppLocale,
         onClose: @escaping () -> Void,
-        onFinished: @escaping (Int) -> Void
+        onFinished: @escaping (Int) -> Void,
+        onApplyPracticeModeAndRestart: @escaping (Bool) -> Void
     ) {
         _session = StateObject(wrappedValue: TrainingGameSession(
             training: training,
@@ -31,6 +33,7 @@ struct TrainingGameView: View {
         self.locale = locale
         self.onClose = onClose
         self.onFinished = onFinished
+        self.onApplyPracticeModeAndRestart = onApplyPracticeModeAndRestart
         let ignoreNotationInstrument = training.clefMode == .bassConcert || training.clefMode == .grandConcert
         _stageKeyboardRange = State(initialValue: TrainingKeyboardRange.stageRange(
             training: training,
@@ -85,7 +88,14 @@ struct TrainingGameView: View {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 onDismiss: { isSettingsOpen = false },
-                onExit: onClose
+                onExit: onClose,
+                stageRunMode: EarTrainingStageRunModeConfig(
+                    practiceMode: session.practiceMode,
+                    onApplyPracticeModeAndRestart: { mode in
+                        isSettingsOpen = false
+                        onApplyPracticeModeAndRestart(mode)
+                    }
+                )
             )
         }
     }

@@ -307,6 +307,14 @@ const TrainingMain: React.FC = () => {
     setScreen('game');
   }, [findTraining]);
 
+  const handlePracticeModeRestartFromSettings = useCallback((nextPracticeMode: boolean) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      return { ...prev, practiceMode: nextPracticeMode, nonce: Date.now() };
+    });
+    setScreen('game');
+  }, []);
+
   const leaveLessonIfNeeded = useCallback(() => {
     if (lessonReturnId) {
       getWindow().location.hash = `#lesson-detail?id=${encodeURIComponent(lessonReturnId)}`;
@@ -512,6 +520,7 @@ const TrainingMain: React.FC = () => {
           training={session.training}
           practiceMode={session.practiceMode}
           onFinished={handleFinished}
+          onApplyPracticeModeAndRestart={handlePracticeModeRestartFromSettings}
           onExit={() => {
             setSession(null);
             setScreen('list');

@@ -10,6 +10,7 @@ struct DefenseGameView: View {
     @State private var isSessionReady = false
     let locale: AppLocale
     let onClose: () -> Void
+    let onApplyPracticeModeAndRestart: (Bool) -> Void
     let playMapNodeId: UUID?
     let onPlayMapCleared: (() -> Void)?
     let onFinished: ((DefenseFinishSummary) -> Void)?
@@ -22,6 +23,7 @@ struct DefenseGameView: View {
         locale: AppLocale,
         playMapNodeId: UUID? = nil,
         onClose: @escaping () -> Void,
+        onApplyPracticeModeAndRestart: @escaping (Bool) -> Void,
         onPlayMapCleared: (() -> Void)? = nil,
         onFinished: ((DefenseFinishSummary) -> Void)? = nil
     ) {
@@ -35,6 +37,7 @@ struct DefenseGameView: View {
         self.locale = locale
         self.playMapNodeId = playMapNodeId
         self.onClose = onClose
+        self.onApplyPracticeModeAndRestart = onApplyPracticeModeAndRestart
         self.onPlayMapCleared = onPlayMapCleared
         self.onFinished = onFinished
     }
@@ -96,7 +99,14 @@ struct DefenseGameView: View {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
                 onDismiss: { isSettingsOpen = false },
-                onExit: onClose
+                onExit: onClose,
+                stageRunMode: EarTrainingStageRunModeConfig(
+                    practiceMode: session.practiceMode,
+                    onApplyPracticeModeAndRestart: { mode in
+                        isSettingsOpen = false
+                        onApplyPracticeModeAndRestart(mode)
+                    }
+                )
             )
         }
     }

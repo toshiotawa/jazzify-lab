@@ -178,6 +178,7 @@ const DefenseMain: React.FC = () => {
         practiceMode={session.practiceMode}
         onExit={handleExitGame}
         onRetry={handleRetry}
+        onApplyPracticeModeAndRestart={startSession}
         onClear={handleLessonClear}
       />
     );

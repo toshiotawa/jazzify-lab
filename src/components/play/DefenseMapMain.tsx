@@ -153,6 +153,7 @@ const DefenseMapMain: React.FC = () => {
         onExit={backToPrep}
         onResultBack={backToMap}
         onRetry={handleRetry}
+        onApplyPracticeModeAndRestart={startSession}
         onClear={() => { void handleClear(); }}
       />
     );

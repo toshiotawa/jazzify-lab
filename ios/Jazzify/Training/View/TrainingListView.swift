@@ -188,6 +188,9 @@ struct TrainingListView: View {
                     practiceMode = session.practiceMode
                     screen = .result
                     playSession = nil
+                },
+                onApplyPracticeModeAndRestart: { nextPracticeMode in
+                    presentGame(training: session.training, practice: nextPracticeMode)
                 }
             )
             .id(session.id)

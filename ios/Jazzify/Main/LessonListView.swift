@@ -1889,8 +1889,15 @@ struct LessonDetailView: View {
                         clearConditions: launch.prep.clearConditions
                     ),
                     locale: locale,
-                    onClose: { defenseLessonLaunch = nil }
+                    onClose: { defenseLessonLaunch = nil },
+                    onApplyPracticeModeAndRestart: { nextPracticeMode in
+                        defenseLessonLaunch = DefenseLessonLaunch(
+                            prep: launch.prep,
+                            practiceMode: nextPracticeMode
+                        )
+                    }
                 )
+                .id(launch.id)
             }
             .confirmationDialog(
                 locale == .ja ? "トレーニング" : "Training",

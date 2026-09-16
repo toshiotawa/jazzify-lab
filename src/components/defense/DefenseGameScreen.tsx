@@ -73,6 +73,7 @@ interface DefenseGameScreenProps {
   readonly practiceMode: boolean;
   readonly onExit: () => void;
   readonly onRetry: () => void;
+  readonly onApplyPracticeModeAndRestart: (nextPracticeMode: boolean) => void;
   /** リザルト画面の「マップに戻る」。未指定時は onExit にフォールバック */
   readonly onResultBack?: () => void;
   /** 本番モードでクリアしたときに1回だけ呼ばれる（レッスン進捗の記録用） */
@@ -95,6 +96,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   practiceMode,
   onExit,
   onRetry,
+  onApplyPracticeModeAndRestart,
   onResultBack,
   onClear,
 }) => {
@@ -617,6 +619,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
+        practiceRunMode={{
+          practiceMode,
+          onApplyPracticeModeAndRestart: onApplyPracticeModeAndRestart,
+        }}
       />
     </div>
   );

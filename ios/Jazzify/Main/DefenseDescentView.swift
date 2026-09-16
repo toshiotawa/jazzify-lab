@@ -146,6 +146,14 @@ struct DefenseDescentView: View {
                     stageLaunchSession = nil
                     Task { await reloadMap() }
                 },
+                onApplyPracticeModeAndRestart: { nextPracticeMode in
+                    stageLaunchSession = StageLaunchSession(
+                        node: session.node,
+                        stage: session.stage,
+                        difficulty: session.difficulty,
+                        practiceMode: nextPracticeMode
+                    )
+                },
                 onPlayMapCleared: {
                     Task { await handlePlayMapClear(session: session) }
                 },
@@ -163,6 +171,7 @@ struct DefenseDescentView: View {
                     )
                 }
             )
+            .id(session.id)
             .onAppear {
                 isStarting = false
             }
