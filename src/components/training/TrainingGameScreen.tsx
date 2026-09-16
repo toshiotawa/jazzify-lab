@@ -21,11 +21,14 @@ import {
   evaluateTrainingNoteOn,
   getTrainingKeyboardHintMidis,
   getTrainingKeyboardReferenceMidis,
+  getTrainingSequentialKeyboardHints,
   performTrainingDefeat,
   shouldPlayTrainingRootOnCorrect,
+  shouldUseTrainingSequentialKeyboardHints,
   tickTrainingEnemy,
   tickTrainingTimer,
 } from '@/game/training/trainingEngine';
+import { applySequentialSurvivalVoicingHints } from '@/utils/survivalStaffHintOpacity';
 import { computeTrainingStageMidis } from '@/game/training/trainingKeyboardRange';
 import type { MutableTrainingSceneHud } from '@/game/training/trainingSceneHud';
 import {
@@ -238,6 +241,14 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     () => (question ? getTrainingKeyboardHintMidis(question, correctIndices, showHints) : []),
     [question, correctIndices, showHints],
   );
+  const sequentialKeyboardHints = useMemo(
+    () => (
+      question && showHints && shouldUseTrainingSequentialKeyboardHints(question, training.kind, voiceSequential)
+        ? getTrainingSequentialKeyboardHints(question, correctIndices, voiceSequential)
+        : null
+    ),
+    [question, correctIndices, showHints, training.kind, voiceSequential],
+  );
   const referenceMidis = useMemo(
     () => (question ? getTrainingKeyboardReferenceMidis(question) : []),
     [question],
@@ -254,8 +265,14 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const keyboardRange = useResolvedWebKeyboardRange(stageKeyboardMidis);
 
   useEffect(() => {
-    pianoRef.current?.setVoicingHints(hintMidis, [], referenceMidis);
-  }, [hintMidis, referenceMidis]);
+    const piano = pianoRef.current;
+    if (!piano) return;
+    if (sequentialKeyboardHints) {
+      applySequentialSurvivalVoicingHints(piano, sequentialKeyboardHints, 1);
+      return;
+    }
+    piano.setVoicingHints(hintMidis, [], referenceMidis);
+  }, [sequentialKeyboardHints, hintMidis, referenceMidis]);
 
   const handleNoteOn = useCallback((midiNote: number) => {
     if (isSettingsOpenRef.current) return;

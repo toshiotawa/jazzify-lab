@@ -24,4 +24,8 @@ enum PianoKeyboardTheme {
     static let activeKeyOverlayOpacityBlack: CGFloat = 0.55
     /// Web `setVoicingHints` 標準 pending/completed オーバーレイ不透明度
     static let voicingHintOverlayOpacity: CGFloat = 0.7
+    /// Web `voicingHintPendingStrongKeys` — 順序入力の次ターゲット
+    static let voicingHintPendingStrongOpacity: CGFloat = 0.85
+    /// Web `voicingHintPendingMediumKeys` — 順序入力の残り pending
+    static let voicingHintPendingMediumOpacity: CGFloat = 0.55
 }

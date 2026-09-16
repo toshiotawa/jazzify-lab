@@ -5,7 +5,11 @@ import {
   TRAINING_ENEMY_COUNT,
 } from '@/game/training/trainingTypes';
 import { DEFENSE_SLASH_SEC } from '@/game/defense/defenseEnemyConfig';
-import { orderedPitchClassesFromMidis } from '@/utils/orderedChordInput';
+import {
+  computeOrderedChordKeyboardHintsFromMidis,
+  type OrderedChordKeyboardHints,
+  orderedPitchClassesFromMidis,
+} from '@/utils/orderedChordInput';
 
 interface TrainingNoteEvaluationResult {
   readonly accepted: boolean;
@@ -145,6 +149,54 @@ export const getTrainingKeyboardHintMidis = (
   return question.notes
     .map((note, index) => (note.isTarget && !correctIndices.includes(index) ? note.midi : null))
     .filter((m): m is number => m != null);
+};
+
+export const shouldUseTrainingSequentialKeyboardHints = (
+  question: TrainingQuestion,
+  kind: TrainingKind,
+  voiceSequential: boolean,
+): boolean => (
+  kind !== 'interval'
+  && (question.ordered || voiceSequential)
+);
+
+export const getTrainingSequentialKeyboardHints = (
+  question: TrainingQuestion,
+  correctIndices: readonly number[],
+  voiceSequential: boolean,
+): OrderedChordKeyboardHints | null => {
+  if (!question.ordered && !voiceSequential) {
+    return null;
+  }
+
+  const targets = targetIndices(question);
+  const remaining = targets.filter((index) => !correctIndices.includes(index));
+  const completedMidis = correctIndices
+    .map((index) => question.notes[index]?.midi)
+    .filter((midi): midi is number => midi != null);
+
+  if (question.ordered) {
+    const pendingMidis: number[] = [];
+    let nextMidi: number | null = null;
+    for (let i = 0; i < remaining.length; i += 1) {
+      const midi = question.notes[remaining[i] ?? -1]?.midi;
+      if (midi == null) continue;
+      if (i === 0) {
+        nextMidi = midi;
+      } else {
+        pendingMidis.push(midi);
+      }
+    }
+    return { nextMidi, pendingMidis, completedMidis };
+  }
+
+  const targetMidis = targets
+    .map((index) => question.notes[index]?.midi)
+    .filter((midi): midi is number => midi != null);
+  const completedPcs = correctIndices
+    .map((index) => question.notes[index]?.pitchClass)
+    .filter((pitchClass): pitchClass is number => pitchClass != null);
+  return computeOrderedChordKeyboardHintsFromMidis(targetMidis, completedPcs);
 };
 
 /** 音程の基準音など、入力対象外の鍵盤ハイライト（練習・本番とも表示） */

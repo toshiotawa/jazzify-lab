@@ -94,6 +94,70 @@ final class TrainingEngineTests: XCTestCase {
         XCTAssertTrue(third.completed)
     }
 
+    func testSequentialKeyboardHintsMatchOrderedAndVoiceRules() {
+        let ordered = TrainingQuestion(
+            questionKey: "ordered",
+            promptLabel: "C",
+            notes: [
+                TrainingQuestionNote(noteName: "E4", midi: 64, pitchClass: 4, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "G4", midi: 67, pitchClass: 7, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "C5", midi: 72, pitchClass: 0, staff: 1, isTarget: true),
+            ],
+            layout: .stacked,
+            ordered: true,
+            keyFifths: 0,
+            rootMidi: 48
+        )
+        XCTAssertTrue(TrainingEngine.shouldUseSequentialKeyboardHints(
+            question: ordered,
+            kind: .chord,
+            voiceSequential: false
+        ))
+        XCTAssertEqual(
+            TrainingEngine.sequentialKeyboardHints(
+                question: ordered,
+                correctIndices: [],
+                voiceSequential: false
+            ),
+            TrainingSequentialKeyboardHints(nextMidis: [64], pendingMidis: [67, 72], completedMidis: [])
+        )
+        XCTAssertEqual(
+            TrainingEngine.sequentialKeyboardHints(
+                question: ordered,
+                correctIndices: [0],
+                voiceSequential: false
+            ),
+            TrainingSequentialKeyboardHints(nextMidis: [67], pendingMidis: [72], completedMidis: [64])
+        )
+
+        let chord = TrainingQuestion(
+            questionKey: "chord",
+            promptLabel: "C",
+            notes: [
+                TrainingQuestionNote(noteName: "C4", midi: 60, pitchClass: 0, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "E4", midi: 64, pitchClass: 4, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "G4", midi: 67, pitchClass: 7, staff: 1, isTarget: true),
+            ],
+            layout: .stacked,
+            ordered: false,
+            keyFifths: 0,
+            rootMidi: 60
+        )
+        XCTAssertTrue(TrainingEngine.shouldUseSequentialKeyboardHints(
+            question: chord,
+            kind: .chord,
+            voiceSequential: true
+        ))
+        XCTAssertEqual(
+            TrainingEngine.sequentialKeyboardHints(
+                question: chord,
+                correctIndices: [],
+                voiceSequential: true
+            ),
+            TrainingSequentialKeyboardHints(nextMidis: [60], pendingMidis: [64, 67], completedMidis: [])
+        )
+    }
+
     func testIntervalKeyboardHintsSplitReferenceAndTarget() {
         let question = TrainingQuestion(
             questionKey: "interval",

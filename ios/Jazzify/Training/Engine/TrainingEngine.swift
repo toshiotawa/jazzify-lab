@@ -6,6 +6,12 @@ struct TrainingNoteEvaluationResult: Sendable {
     let newCorrectIndices: [Int]
 }
 
+struct TrainingSequentialKeyboardHints: Sendable, Equatable {
+    let nextMidis: [Int]
+    let pendingMidis: [Int]
+    let completedMidis: [Int]
+}
+
 enum TrainingEngine {
     /// 和音 / ヴォイシングの全構成音正解時のみルート音を鳴らす（入門・音程・スケールは対象外）。
     static func shouldPlayTrainingRootOnCorrect(
@@ -138,6 +144,71 @@ enum TrainingEngine {
             out.append(note.midi)
         }
         return out
+    }
+
+    static func shouldUseSequentialKeyboardHints(
+        question: TrainingQuestion,
+        kind: TrainingKind,
+        voiceSequential: Bool
+    ) -> Bool {
+        kind != .interval && (question.ordered || voiceSequential)
+    }
+
+    static func sequentialKeyboardHints(
+        question: TrainingQuestion,
+        correctIndices: [Int],
+        voiceSequential: Bool
+    ) -> TrainingSequentialKeyboardHints? {
+        guard question.ordered || voiceSequential else { return nil }
+
+        let targets = targetIndices(question: question)
+        let remaining = targets.filter { !correctIndices.contains($0) }
+        let completedMidis = correctIndices.compactMap { question.notes[safe: $0]?.midi }
+
+        if question.ordered {
+            var nextMidis: [Int] = []
+            var pendingMidis: [Int] = []
+            for (offset, index) in remaining.enumerated() {
+                guard let midi = question.notes[safe: index]?.midi else { continue }
+                if offset == 0 {
+                    nextMidis.append(midi)
+                } else {
+                    pendingMidis.append(midi)
+                }
+            }
+            return TrainingSequentialKeyboardHints(
+                nextMidis: nextMidis,
+                pendingMidis: pendingMidis,
+                completedMidis: completedMidis
+            )
+        }
+
+        let targetMidis = targets.compactMap { question.notes[safe: $0]?.midi }
+        let completedPcs = correctIndices.compactMap { question.notes[safe: $0]?.pitchClass }
+        let orderedPcs = SurvivalChordResolver.orderedPitchClasses(fromMidis: targetMidis)
+        let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+            fromMidis: targetMidis,
+            inputPitchClasses: completedPcs
+        )
+        var nextMidis: [Int] = []
+        var pendingMidis: [Int] = []
+        var completed = Set(completedMidis)
+        let completedPcSet = Set(completedPcs)
+        for midi in targetMidis.sorted() {
+            let pc = TrainingMusicTheory.normalizePitchClass(midi)
+            if completedPcSet.contains(pc) {
+                completed.insert(midi)
+            } else if pc == nextPc {
+                nextMidis.append(midi)
+            } else if orderedPcs.contains(pc) {
+                pendingMidis.append(midi)
+            }
+        }
+        return TrainingSequentialKeyboardHints(
+            nextMidis: nextMidis,
+            pendingMidis: pendingMidis,
+            completedMidis: Array(completed)
+        )
     }
 
     /// 音程の基準音など、入力対象外の鍵盤ハイライト（練習・本番とも表示）

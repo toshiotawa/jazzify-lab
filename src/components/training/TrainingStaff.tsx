@@ -49,18 +49,25 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
   );
 
   const voicingGroups = useMemo((): readonly ChordVoicingStaffGroup[] => {
-    if (question.layout !== 'horizontal') {
-      return [];
+    if (question.layout === 'horizontal') {
+      return displayNotes.map((note, index) => ({
+        id: `note-${index}`,
+        chordName: '',
+        voicing: [note.noteName],
+        voicingStaves: [note.staff],
+        correctPitchClasses: correctIndices.includes(index) ? [note.pitchClass] : [],
+        measureOffset: 0 as const,
+      }));
     }
-    return displayNotes.map((note, index) => ({
-      id: `note-${index}`,
+    return [{
+      id: 'single',
       chordName: '',
-      voicing: [note.noteName],
-      voicingStaves: [note.staff],
-      correctPitchClasses: correctIndices.includes(index) ? [note.pitchClass] : [],
+      voicing: displayNotes.map((n) => n.noteName),
+      voicingStaves: displayNotes.map((n) => n.staff),
+      correctPitchClasses,
       measureOffset: 0 as const,
-    }));
-  }, [question.layout, displayNotes, correctIndices]);
+    }];
+  }, [question.layout, displayNotes, correctIndices, correctPitchClasses]);
 
   const staffWrapperClass = cn(
     'flex h-full w-full items-center justify-center',
@@ -77,27 +84,12 @@ export const TrainingStaff = React.memo<TrainingStaffProps>(({
     fitParentHeight,
   };
 
-  if (question.layout === 'horizontal') {
-    return (
-      <div className={staffWrapperClass} aria-hidden>
-        <ChordVoicingStaff
-          keyFifths={question.keyFifths}
-          voicingGroups={voicingGroups}
-          denseCurrentMeasureLayout
-          singleMeasureLayout
-          {...sharedProps}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className={staffWrapperClass} aria-hidden>
       <ChordVoicingStaff
         keyFifths={question.keyFifths}
-        voicing={displayNotes.map((n) => n.noteName)}
-        voicingStaves={displayNotes.map((n) => n.staff)}
-        correctPitchClasses={correctPitchClasses}
+        voicingGroups={voicingGroups}
+        denseCurrentMeasureLayout={question.layout === 'horizontal'}
         singleMeasureLayout
         {...sharedProps}
       />

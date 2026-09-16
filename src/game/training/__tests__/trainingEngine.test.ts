@@ -2,8 +2,10 @@ import {
   evaluateTrainingNoteOn,
   getTrainingKeyboardHintMidis,
   getTrainingKeyboardReferenceMidis,
+  getTrainingSequentialKeyboardHints,
   performTrainingDefeat,
   shouldPlayTrainingRootOnCorrect,
+  shouldUseTrainingSequentialKeyboardHints,
   tickTrainingEnemy,
   tickTrainingTimer,
 } from '@/game/training/trainingEngine';
@@ -118,6 +120,51 @@ describe('trainingEngine', () => {
     expect(finished).toBe(false);
     expect(runtime.result).toBe('playing');
     expect(runtime.elapsedSec).toBeCloseTo(0.5);
+  });
+
+  it('uses sequential keyboard hints for ordered inversions and voice input', () => {
+    const ordered = makeQuestion({
+      ordered: true,
+      notes: [
+        { noteName: 'E4', midi: 64, pitchClass: 4, staff: 1, isTarget: true },
+        { noteName: 'G4', midi: 67, pitchClass: 7, staff: 1, isTarget: true },
+        { noteName: 'C5', midi: 72, pitchClass: 0, staff: 1, isTarget: true },
+      ],
+    });
+    expect(shouldUseTrainingSequentialKeyboardHints(ordered, 'chord', false)).toBe(true);
+    expect(getTrainingSequentialKeyboardHints(ordered, [], false)).toEqual({
+      nextMidi: 64,
+      pendingMidis: [67, 72],
+      completedMidis: [],
+    });
+    expect(getTrainingSequentialKeyboardHints(ordered, [0], false)).toEqual({
+      nextMidi: 67,
+      pendingMidis: [72],
+      completedMidis: [64],
+    });
+
+    const chord = makeQuestion();
+    expect(shouldUseTrainingSequentialKeyboardHints(chord, 'chord', true)).toBe(true);
+    expect(getTrainingSequentialKeyboardHints(chord, [], true)).toEqual({
+      nextMidi: 60,
+      pendingMidis: [64, 67],
+      completedMidis: [],
+    });
+    expect(getTrainingSequentialKeyboardHints(chord, [0], true)).toEqual({
+      nextMidi: 64,
+      pendingMidis: [67],
+      completedMidis: [60],
+    });
+  });
+
+  it('keeps interval keyboard hints non-sequential even with voice input', () => {
+    const interval = makeQuestion({
+      notes: [
+        { noteName: 'C4', midi: 60, pitchClass: 0, staff: 1, isTarget: false },
+        { noteName: 'E4', midi: 64, pitchClass: 4, staff: 1, isTarget: true },
+      ],
+    });
+    expect(shouldUseTrainingSequentialKeyboardHints(interval, 'interval', true)).toBe(false);
   });
 
   it('highlights interval reference keys in both modes and target keys only in practice', () => {

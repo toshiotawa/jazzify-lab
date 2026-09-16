@@ -204,6 +204,37 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('line[data-staff-number="2"][data-staff-line="0"]')).not.toBeNull();
   });
 
+  it('unpressedNoteOpacity=0 のとき正解済み符頭だけ描画する', async () => {
+    const { container } = render(
+      <ChordVoicingStaff
+        voicingGroups={[
+          {
+            id: 'single',
+            chordName: 'Dm7',
+            voicing: ['D3', 'F3', 'A3', 'C4'],
+            voicingStaves: [2, 2, 2, 2],
+            correctPitchClasses: [2],
+            measureOffset: 0,
+          },
+        ]}
+        unpressedNoteOpacity={0}
+        showTargetHints={false}
+        smuflUseForeignObject
+        singleMeasureLayout
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('ellipse[data-voicing-pitch-class="2"]')).not.toBeNull();
+    });
+
+    const correctNote = container.querySelector('ellipse[data-voicing-pitch-class="2"]');
+    expect(correctNote?.getAttribute('stroke')).toBe('#22c55e');
+    expect(container.querySelector('ellipse[data-voicing-pitch-class="5"]')).toBeNull();
+    expect(container.querySelector('ellipse[data-voicing-pitch-class="9"]')).toBeNull();
+    expect(container.querySelector('ellipse[data-voicing-pitch-class="0"]')).toBeNull();
+  });
+
   it('正解済み構成音と臨時記号を緑で表示する', async () => {
     const { container } = render(
       <ChordVoicingStaff

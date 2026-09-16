@@ -243,6 +243,33 @@ struct TrainingGameView: View {
         ))
     }
 
+    private var sequentialKeyboardHints: TrainingSequentialKeyboardHints? {
+        guard session.practiceMode, let question = session.question else { return nil }
+        let voiceSequential = NoteInputManager.shared.isVoiceInputActive
+        guard TrainingEngine.shouldUseSequentialKeyboardHints(
+            question: question,
+            kind: session.training.kind,
+            voiceSequential: voiceSequential
+        ) else {
+            return nil
+        }
+        return TrainingEngine.sequentialKeyboardHints(
+            question: question,
+            correctIndices: session.correctIndices,
+            voiceSequential: voiceSequential
+        )
+    }
+
+    private var nextHintMidis: Set<Int> {
+        guard let hints = sequentialKeyboardHints else { return [] }
+        return Set(hints.nextMidis)
+    }
+
+    private var completedHintMidis: Set<Int> {
+        guard let hints = sequentialKeyboardHints else { return [] }
+        return Set(hints.completedMidis)
+    }
+
     private var referenceHintMidis: Set<Int> {
         guard let question = session.question else { return [] }
         return Set(TrainingEngine.keyboardReferenceMidis(question: question))
@@ -251,8 +278,8 @@ struct TrainingGameView: View {
     private var chordPadSnapshot: SurvivalChordPadSnapshot {
         SurvivalChordPadSnapshot(
             hintMidis: hintMidis,
-            nextHintMidis: hintMidis,
-            completedHintMidis: [],
+            nextHintMidis: nextHintMidis,
+            completedHintMidis: completedHintMidis,
             hintPendingOpacity: session.practiceMode ? 1 : 0,
             midiHeldKeys: session.midiHeldKeys,
             isEnabled: session.hud.phase == .playing && !isSettingsOpen,

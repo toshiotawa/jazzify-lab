@@ -69,6 +69,7 @@ struct SurvivalChordPadView: View, Equatable {
                 range: displayRange
             )
 
+            let hasSequentialNext = !snapshot.nextHintMidis.isEmpty
             let keyboard = ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     ForEach(whites, id: \.self) { midi in
@@ -79,6 +80,7 @@ struct SurvivalChordPadView: View, Equatable {
                             isNextHinted: snapshot.nextHintMidis.contains(midi),
                             isHintCompleted: snapshot.completedHintMidis.contains(midi),
                             isReferenceHinted: snapshot.referenceHintMidis.contains(midi),
+                            hasSequentialNext: hasSequentialNext,
                             hintPendingOpacity: snapshot.hintPendingOpacity,
                             isMidiHeld: visibleHeldKeys.contains(midi),
                             width: whiteKeyWidth,
@@ -110,6 +112,7 @@ struct SurvivalChordPadView: View, Equatable {
                         isNextHinted: snapshot.nextHintMidis.contains(midi),
                         isHintCompleted: snapshot.completedHintMidis.contains(midi),
                         isReferenceHinted: snapshot.referenceHintMidis.contains(midi),
+                        hasSequentialNext: hasSequentialNext,
                         hintPendingOpacity: snapshot.hintPendingOpacity,
                         isMidiHeld: visibleHeldKeys.contains(midi),
                         width: blackKeyWidth,
@@ -192,6 +195,7 @@ private struct PianoKeyButton: View {
     let isNextHinted: Bool
     let isHintCompleted: Bool
     let isReferenceHinted: Bool
+    let hasSequentialNext: Bool
     let hintPendingOpacity: CGFloat
     let isMidiHeld: Bool
     let width: CGFloat
@@ -250,14 +254,17 @@ private struct PianoKeyButton: View {
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                 .fill(
                     PianoKeyboardTheme.voicingHintPending.opacity(
-                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity)
+                        Double(PianoKeyboardTheme.voicingHintPendingStrongOpacity * hintPendingOpacity)
                     )
                 )
         } else if isHinted {
+            let pendingOpacity = hasSequentialNext
+                ? PianoKeyboardTheme.voicingHintPendingMediumOpacity
+                : PianoKeyboardTheme.voicingHintOverlayOpacity
             RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                 .fill(
                     PianoKeyboardTheme.voicingHintPending.opacity(
-                        Double(PianoKeyboardTheme.voicingHintOverlayOpacity * hintPendingOpacity * 0.55)
+                        Double(pendingOpacity * hintPendingOpacity)
                     )
                 )
         } else if isReferenceHinted {
