@@ -76,6 +76,7 @@ struct TrainingConfig: Codable, Sendable {
     let voicingForm: String?
     let scorePerVoicing: Bool?
     let playRootOnFirstCorrect: Bool?
+    let playRootOnFirstVoicingComplete: Bool?
 
     enum CodingKeys: String, CodingKey {
         case roots, quality, scale, interval, direction, clef, intervals, staves
@@ -91,6 +92,7 @@ struct TrainingConfig: Codable, Sendable {
         case voicingForm = "voicing_form"
         case scorePerVoicing = "score_per_voicing"
         case playRootOnFirstCorrect = "play_root_on_first_correct"
+        case playRootOnFirstVoicingComplete = "play_root_on_first_voicing_complete"
     }
 
     init(
@@ -115,7 +117,8 @@ struct TrainingConfig: Codable, Sendable {
         referenceChords: [TrainingReferenceChord]? = nil,
         voicingForm: String? = nil,
         scorePerVoicing: Bool? = nil,
-        playRootOnFirstCorrect: Bool? = nil
+        playRootOnFirstCorrect: Bool? = nil,
+        playRootOnFirstVoicingComplete: Bool? = nil
     ) {
         self.roots = roots
         self.quality = quality
@@ -139,6 +142,7 @@ struct TrainingConfig: Codable, Sendable {
         self.voicingForm = voicingForm
         self.scorePerVoicing = scorePerVoicing
         self.playRootOnFirstCorrect = playRootOnFirstCorrect
+        self.playRootOnFirstVoicingComplete = playRootOnFirstVoicingComplete
     }
 }
 

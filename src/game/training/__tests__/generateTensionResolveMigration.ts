@@ -12,7 +12,7 @@ import {
 const sharedConfig = {
   shuffle_units: true,
   score_per_voicing: true,
-  play_root_on_first_correct: true,
+  play_root_on_first_voicing_complete: true,
 };
 
 const progressionEntryToJson = (
@@ -43,11 +43,11 @@ export const buildTensionResolveMigrationSql = (): string => {
   const categoryId = `uuid_generate_v5('${TENSION_RESOLVE_UUID_NS}'::uuid, 'training-category-tension_resolve')`;
   const categoryDescriptionJa =
     'テンションからルートへ解決する両手ヴォイシングを、1小節に2〜3ヴォイシング並べて練習します。'
-    + '\n1ヴォイシング完成で攻撃。最初の1音正解でルート音が鳴ります。'
+    + '\n1ヴォイシング完成で攻撃。最初のヴォイシング完成時のみルート音が鳴ります。'
     + '\nIn C固定（移調楽器の影響なし）。コード進行は調号付き。';
   const categoryDescriptionEn =
     'Practice two-hand voicings that resolve tension to the root, with 2–3 voicings per measure.'
-    + '\nComplete each voicing to attack. The root sounds on your first correct note in each voicing.'
+    + '\nComplete each voicing to attack. The root sounds only when you complete the first voicing.'
     + '\nConcert pitch (In C). Progressions use key signatures.';
 
   const trainingValues = specs.map((spec) => {
@@ -203,5 +203,43 @@ export const writeTensionResolveMigrationFile = (): void => {
   writeFileSync(
     join(process.cwd(), 'supabase/migrations/20261002120000_training_tension_resolve.sql'),
     `${buildTensionResolveMigrationSql()}\n`,
+  );
+};
+
+export const buildTensionResolvePatchMigrationSql = (): string => {
+  const categoryDescriptionJa =
+    'テンションからルートへ解決する両手ヴォイシングを、1小節に2〜3ヴォイシング並べて練習します。'
+    + '\n1ヴォイシング完成で攻撃。最初のヴォイシング完成時のみルート音が鳴ります。'
+    + '\nIn C固定（移調楽器の影響なし）。コード進行は調号付き。';
+  const categoryDescriptionEn =
+    'Practice two-hand voicings that resolve tension to the root, with 2–3 voicings per measure.'
+    + '\nComplete each voicing to attack. The root sounds only when you complete the first voicing.'
+    + '\nConcert pitch (In C). Progressions use key signatures.';
+
+  return `-- Tension resolve: root on first voicing complete only
+BEGIN;
+
+UPDATE public.training_categories
+SET
+  description_ja = ${sqlString(categoryDescriptionJa)},
+  description_en = ${sqlString(categoryDescriptionEn)},
+  updated_at = now()
+WHERE slug = 'tension_resolve';
+
+UPDATE public.trainings
+SET
+  config = (config - 'play_root_on_first_correct') || '{"play_root_on_first_voicing_complete": true}'::jsonb,
+  updated_at = now()
+WHERE category_id = uuid_generate_v5('${TENSION_RESOLVE_UUID_NS}'::uuid, 'training-category-tension_resolve')
+  AND is_active IS NOT FALSE;
+
+COMMIT;
+`;
+};
+
+export const writeTensionResolvePatchMigrationFile = (): void => {
+  writeFileSync(
+    join(process.cwd(), 'supabase/migrations/20261005130000_training_tension_resolve_root_on_first_voicing.sql'),
+    `${buildTensionResolvePatchMigrationSql()}\n`,
   );
 };

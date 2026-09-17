@@ -32,17 +32,19 @@ const sqlString = (value: string): string => `'${value.replace(/'/g, "''")}'`;
 
 const sqlJson = (value: unknown): string => `${sqlString(JSON.stringify(value))}::jsonb`;
 
-export const buildSixNoteScaleMigrationSql = (): string => {
-  const specs = buildSixNoteScaleTrainingSpecs();
-  const categoryId = `uuid_generate_v5('${SIX_NOTE_SCALE_UUID_NS}'::uuid, 'training-category-six_note_scale')`;
-  const categoryDescriptionJa =
-    '6音スケールの読み取り練習です。調号付き。最初の1音正解で元コードの低音（ルート）が鳴ります。'
-    + '\nコード進行は1周で次のキーへ移ります。最低音は下加線1本までの自動配置です。';
-  const categoryDescriptionEn =
-    'Practice reading six-note scales with key signatures.'
-    + '\nThe original chord bass sounds on your first correct note.'
-    + '\nProgressions advance to the next key after one pass. Notes auto-place within one ledger line below the staff.';
+const categoryId = `uuid_generate_v5('${SIX_NOTE_SCALE_UUID_NS}'::uuid, 'training-category-six_note_scale')`;
 
+const categoryDescriptionJa =
+  '6音スケールの読み取り練習です。調号付き。最初の1音正解で元コードの低音（ルート）が鳴ります。'
+  + '\nコード進行は1周で次のキーへ移ります。最低音は下加線1本までの自動配置です。';
+
+const categoryDescriptionEn =
+  'Practice reading six-note scales with key signatures.'
+  + '\nThe original chord bass sounds on your first correct note.'
+  + '\nProgressions advance to the next key after one pass. Notes auto-place within one ledger line below the staff.';
+
+const buildTrainingInsertSql = (): string => {
+  const specs = buildSixNoteScaleTrainingSpecs();
   const trainingValues = specs.map((spec) => {
     const config = trainingSpecConfigJson(spec);
     return `  (
@@ -62,6 +64,27 @@ export const buildSixNoteScaleMigrationSql = (): string => {
   )`;
   }).join(',\n');
 
+  return `INSERT INTO public.trainings (
+  id, category_id, slug, title_ja, title_en, sort_order, kind,
+  clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active
+) VALUES
+${trainingValues}
+ON CONFLICT (slug) DO UPDATE SET
+  category_id = EXCLUDED.category_id,
+  title_ja = EXCLUDED.title_ja,
+  title_en = EXCLUDED.title_en,
+  sort_order = EXCLUDED.sort_order,
+  kind = EXCLUDED.kind,
+  clef_mode = EXCLUDED.clef_mode,
+  use_key_signature = EXCLUDED.use_key_signature,
+  play_root_on_correct = EXCLUDED.play_root_on_correct,
+  bgm_url = EXCLUDED.bgm_url,
+  config = EXCLUDED.config,
+  is_active = EXCLUDED.is_active,
+  updated_at = now();`;
+};
+
+export const buildSixNoteScaleMigrationSql = (): string => {
   const goalSpecs = [
     {
       slug: 'goal-six-note-scale-beginner',
@@ -128,24 +151,7 @@ ON CONFLICT (slug) DO UPDATE SET
   is_free = EXCLUDED.is_free,
   updated_at = now();
 
-INSERT INTO public.trainings (
-  id, category_id, slug, title_ja, title_en, sort_order, kind,
-  clef_mode, use_key_signature, play_root_on_correct, bgm_url, config, is_active
-) VALUES
-${trainingValues}
-ON CONFLICT (slug) DO UPDATE SET
-  category_id = EXCLUDED.category_id,
-  title_ja = EXCLUDED.title_ja,
-  title_en = EXCLUDED.title_en,
-  sort_order = EXCLUDED.sort_order,
-  kind = EXCLUDED.kind,
-  clef_mode = EXCLUDED.clef_mode,
-  use_key_signature = EXCLUDED.use_key_signature,
-  play_root_on_correct = EXCLUDED.play_root_on_correct,
-  bgm_url = EXCLUDED.bgm_url,
-  config = EXCLUDED.config,
-  is_active = EXCLUDED.is_active,
-  updated_at = now();
+${buildTrainingInsertSql()}
 
 INSERT INTO public.training_goal_sets (
   id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_active,
@@ -217,5 +223,76 @@ export const writeSixNoteScaleMigrationFile = (): void => {
   writeFileSync(
     join(process.cwd(), 'supabase/migrations/20261004120000_training_six_note_scale.sql'),
     `${buildSixNoteScaleMigrationSql()}\n`,
+  );
+};
+
+const LEGACY_SIX_NOTE_SLUGS = [
+  'six-note-scale-m7',
+  'six-note-scale-7-m7',
+  'six-note-scale-7alt-m7b5',
+  'six-note-scale-7alt-mm7-omit6',
+  'six-note-scale-maj7',
+  'six-note-scale-mm7-omit6',
+  'six-note-scale-mm7-omit4',
+  'six-note-scale-m7b5',
+  'six-note-scale-m7b5-mm7-omit6',
+  'six-note-scale-7-sharp11-mm7-omit6',
+  'six-note-scale-prog-ii-v7alt-mm7-omit6',
+  'six-note-scale-prog-ii-v7alt-m7b5',
+  'six-note-scale-prog-minor-ii-v-i',
+];
+
+export const buildSixNoteScalePatchMigrationSql = (): string => {
+  const deactivateSlugs = LEGACY_SIX_NOTE_SLUGS.map((slug) => sqlString(slug)).join(', ');
+
+  return `-- Six-note scale: split into one training per pattern + note fixes
+BEGIN;
+
+${buildTrainingInsertSql()}
+
+UPDATE public.trainings
+SET is_active = false, updated_at = now()
+WHERE slug IN (${deactivateSlugs});
+
+DELETE FROM public.training_goal_set_items AS gi
+USING public.trainings AS t, public.training_goal_sets AS gs
+WHERE gi.training_id = t.id
+  AND gi.goal_set_id = gs.id
+  AND gs.slug IN (
+    'goal-six-note-scale-beginner',
+    'goal-six-note-scale-trainer',
+    'goal-six-note-scale-master'
+  )
+  AND t.slug IN (${deactivateSlugs});
+
+INSERT INTO public.training_goal_set_items (goal_set_id, training_id, target_rank, sort_order)
+SELECT
+  gs.id,
+  t.id,
+  v.target_rank,
+  t.sort_order
+FROM (
+  VALUES
+    ('goal-six-note-scale-beginner', 'D'),
+    ('goal-six-note-scale-trainer', 'C'),
+    ('goal-six-note-scale-master', 'B')
+) AS v(goal_slug, target_rank)
+JOIN public.training_goal_sets AS gs ON gs.slug = v.goal_slug
+JOIN public.trainings AS t ON t.category_id = ${categoryId}
+WHERE t.is_active IS NOT FALSE
+  AND COALESCE(t.lesson_only, false) IS NOT TRUE
+  AND t.slug NOT IN (${deactivateSlugs})
+ON CONFLICT (goal_set_id, training_id) DO UPDATE SET
+  target_rank = EXCLUDED.target_rank,
+  sort_order = EXCLUDED.sort_order;
+
+COMMIT;
+`;
+};
+
+export const writeSixNoteScalePatchMigrationFile = (): void => {
+  writeFileSync(
+    join(process.cwd(), 'supabase/migrations/20261005120000_training_six_note_scale_split.sql'),
+    `${buildSixNoteScalePatchMigrationSql()}\n`,
   );
 };

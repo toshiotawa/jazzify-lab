@@ -147,6 +147,8 @@ export const mapTrainingConfig = (raw: unknown): TrainingConfigBase => {
     scorePerVoicing: readBoolean(raw, 'scorePerVoicing') ?? readBoolean(raw, 'score_per_voicing'),
     playRootOnFirstCorrect: readBoolean(raw, 'playRootOnFirstCorrect')
       ?? readBoolean(raw, 'play_root_on_first_correct'),
+    playRootOnFirstVoicingComplete: readBoolean(raw, 'playRootOnFirstVoicingComplete')
+      ?? readBoolean(raw, 'play_root_on_first_voicing_complete'),
   };
 
   return Object.fromEntries(

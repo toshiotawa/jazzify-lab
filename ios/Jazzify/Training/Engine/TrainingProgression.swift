@@ -111,6 +111,23 @@ enum TrainingProgression {
         let playRootOnFirstCorrect: Bool
     }
 
+    private static func repositionEntry(
+        _ entry: TrainingProgressionEntry,
+        concertStaffBottom: Int
+    ) -> TrainingProgressionEntry {
+        let spelled = entry.voicingNames.compactMap { TrainingMusicTheory.parseSpelled($0) }
+        guard spelled.count == entry.voicingNames.count else { return entry }
+        let names = TrainingMusicTheory.placeLowestInOctaveAbove(spelled, minMidi: concertStaffBottom).map(\.name)
+        return TrainingProgressionEntry(
+            name: entry.name,
+            voicing: names.compactMap { TrainingMusicTheory.parseVoicingMidi($0) },
+            voicingNames: names,
+            keyFifths: entry.keyFifths,
+            voicingStaves: entry.voicingStaves,
+            voicingSlots: entry.voicingSlots
+        )
+    }
+
     private static func repositionUnitEntries(
         _ slice: [TrainingProgressionEntry],
         concertStaffBottom: Int
@@ -134,6 +151,13 @@ enum TrainingProgression {
                 voicingSlots: entry.voicingSlots
             )
         }
+    }
+
+    private static func repositionUnitEntriesPerChord(
+        _ slice: [TrainingProgressionEntry],
+        concertStaffBottom: Int
+    ) -> [TrainingProgressionEntry] {
+        slice.map { repositionEntry($0, concertStaffBottom: concertStaffBottom) }
     }
 
     private static func buildQuestionFromChord(
@@ -228,7 +252,9 @@ enum TrainingProgression {
             var slice = Array(progression[unitStart..<end])
             if slice.isEmpty { break }
             if let concertStaffBottom {
-                slice = repositionUnitEntries(slice, concertStaffBottom: concertStaffBottom)
+                slice = training.kind == .scale
+                    ? repositionUnitEntriesPerChord(slice, concertStaffBottom: concertStaffBottom)
+                    : repositionUnitEntries(slice, concertStaffBottom: concertStaffBottom)
             }
             let unitIndex = unitStart / unitSize
             let keyFifths = slice[0].keyFifths

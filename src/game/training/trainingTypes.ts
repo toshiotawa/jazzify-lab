@@ -67,6 +67,8 @@ export interface TrainingConfigBase {
   readonly scorePerVoicing?: boolean;
   /** kind=progression: 各ヴォイシングの最初の1音正解でルート音を鳴らす */
   readonly playRootOnFirstCorrect?: boolean;
+  /** kind=progression: 最初のヴォイシング完成時のみルート音を鳴らす（テンションリゾルブ等） */
+  readonly playRootOnFirstVoicingComplete?: boolean;
 }
 
 /** コード進行トレーニングの1ユニット（例: II-V-I 1キー分） */

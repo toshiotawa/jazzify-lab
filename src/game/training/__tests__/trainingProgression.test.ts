@@ -222,6 +222,70 @@ describe('trainingProgression', () => {
     });
   });
 
+  describe('scale progression per-chord repositioning', () => {
+    it('repositions each chord to staff bottom independently for kind=scale', () => {
+      const scaleTraining = baseTraining({
+        kind: 'scale',
+        config: mapTrainingConfig({
+          unit_size: 2,
+          shuffle_units: true,
+          ordered: true,
+          play_root_on_first_correct: true,
+          progression: [
+            {
+              name: 'Dm7',
+              voicing: [67, 65, 60, 57, 64, 62],
+              voicing_names: ['G5', 'F5', 'C5', 'A4', 'E5', 'D5'],
+              key_fifths: 7,
+            },
+            {
+              name: 'G7alt(Fm7♭5)',
+              voicing: [82, 80, 75, 71, 79, 77],
+              voicing_names: ['Bb5', 'Ab5', 'Eb5', 'Cb5', 'G5', 'F5'],
+              key_fifths: 7,
+            },
+          ],
+        }),
+      });
+      const units = buildTrainingProgressionUnits(scaleTraining, { concertStaffBottom: 60 });
+      const unit = units[0];
+      expect(unit?.questions).toHaveLength(2);
+      for (const question of unit?.questions ?? []) {
+        const lowest = Math.min(...question.notes.map((note) => note.midi));
+        expect(lowest).toBeGreaterThanOrEqual(60);
+        expect(lowest).toBeLessThan(72);
+      }
+    });
+
+    it('keeps unit-wide repositioning for kind=progression', () => {
+      const progTraining = baseTraining({
+        kind: 'progression',
+        clefMode: 'grand_concert',
+        config: mapTrainingConfig({
+          unit_size: 2,
+          shuffle_units: true,
+          progression: [
+            {
+              name: 'Dm7',
+              voicing: [50, 55],
+              voicing_names: ['D3', 'G3'],
+              key_fifths: 0,
+            },
+            {
+              name: 'G7',
+              voicing: [67, 71],
+              voicing_names: ['G4', 'B4'],
+              key_fifths: 0,
+            },
+          ],
+        }),
+      });
+      const units = buildTrainingProgressionUnits(progTraining, { concertStaffBottom: 60 });
+      const question = units[0]?.questions[1];
+      expect(question?.notes[0]?.midi).toBeGreaterThanOrEqual(60);
+    });
+  });
+
   describe('grouped voicing slots', () => {
     const groupedTraining = baseTraining({
       clefMode: 'grand_concert',

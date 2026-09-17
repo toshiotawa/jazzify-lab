@@ -310,8 +310,10 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     setCorrectIndices(result.newCorrectIndices);
 
     const playRootOnFirstCorrect = current.playRootOnFirstCorrect === true;
+    const playRootOnFirstVoicingComplete = training.config.playRootOnFirstVoicingComplete === true;
     if (
       playRootOnFirstCorrect
+      && !playRootOnFirstVoicingComplete
       && training.playRootOnCorrect
       && result.matchedGroupIndex != null
     ) {
@@ -326,6 +328,16 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     const scorePerVoicing = current.scorePerVoicing === true;
     if (scorePerVoicing) {
       if (result.voicingCompleted) {
+        if (
+          playRootOnFirstVoicingComplete
+          && training.playRootOnCorrect
+          && result.matchedGroupIndex === 0
+        ) {
+          const rootMidi = rootMidiForTrainingGroup(current, 0);
+          if (rootMidi != null) {
+            FantasySoundManager.playBassMidiNote(rootMidi);
+          }
+        }
         performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
         runtimeRef.current.score += 1;
       }

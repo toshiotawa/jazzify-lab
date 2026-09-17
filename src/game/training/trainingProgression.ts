@@ -57,6 +57,18 @@ const placeLowestInOctaveAbove = (names: readonly string[], minMidi: number): st
   return names.map((name) => shiftOctave(name, octaveDelta));
 };
 
+const repositionEntry = (
+  entry: TrainingProgressionEntry,
+  concertStaffBottom: number,
+): TrainingProgressionEntry => {
+  const noteNames = placeLowestInOctaveAbove([...entry.voicingNames], concertStaffBottom);
+  return {
+    ...entry,
+    voicing: noteNames.map((note) => midiOf(note)),
+    voicingNames: noteNames,
+  };
+};
+
 const repositionUnitEntries = (
   slice: readonly TrainingProgressionEntry[],
   concertStaffBottom: number,
@@ -76,6 +88,12 @@ const repositionUnitEntries = (
     };
   });
 };
+
+/** 6音スケール進行: 各コードを独立して最低音域へ（高いキーで上がり続けない） */
+const repositionUnitEntriesPerChord = (
+  slice: readonly TrainingProgressionEntry[],
+  concertStaffBottom: number,
+): TrainingProgressionEntry[] => slice.map((entry) => repositionEntry(entry, concertStaffBottom));
 
 /** コード記号のルート（例: Gm7(9) → G, Bb7(b9.b13) → Bb） */
 export const parseProgressionChordRoot = (chordName: string): string | null => {
@@ -219,7 +237,9 @@ const buildUnitsFromProgression = (
     let slice = progression.slice(unitStart, unitStart + unitSize);
     if (slice.length === 0) continue;
     if (options?.concertStaffBottom != null) {
-      slice = repositionUnitEntries(slice, options.concertStaffBottom);
+      slice = training.kind === 'scale'
+        ? repositionUnitEntriesPerChord(slice, options.concertStaffBottom)
+        : repositionUnitEntries(slice, options.concertStaffBottom);
     }
     const unitIndex = unitStart / unitSize;
     const keyFifths = slice[0]?.keyFifths ?? 0;

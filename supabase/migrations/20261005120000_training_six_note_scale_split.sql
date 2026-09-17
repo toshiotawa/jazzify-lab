@@ -1,29 +1,5 @@
--- Training: six-note scale category
+-- Six-note scale: split into one training per pattern + note fixes
 BEGIN;
-
-INSERT INTO public.training_categories (
-  id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_free
-) VALUES (
-  uuid_generate_v5('b0000000-0000-4000-8000-000000000001'::uuid, 'training-category-six_note_scale'),
-  'six_note_scale',
-  '6音スケール',
-  'Six-Note Scales',
-  '6音スケールの読み取り練習です。調号付き。最初の1音正解で元コードの低音（ルート）が鳴ります。
-コード進行は1周で次のキーへ移ります。最低音は下加線1本までの自動配置です。',
-  'Practice reading six-note scales with key signatures.
-The original chord bass sounds on your first correct note.
-Progressions advance to the next key after one pass. Notes auto-place within one ledger line below the staff.',
-  16,
-  false
-)
-ON CONFLICT (slug) DO UPDATE SET
-  title_ja = EXCLUDED.title_ja,
-  title_en = EXCLUDED.title_en,
-  description_ja = EXCLUDED.description_ja,
-  description_en = EXCLUDED.description_en,
-  sort_order = EXCLUDED.sort_order,
-  is_free = EXCLUDED.is_free,
-  updated_at = now();
 
 INSERT INTO public.trainings (
   id, category_id, slug, title_ja, title_en, sort_order, kind,
@@ -1033,65 +1009,20 @@ ON CONFLICT (slug) DO UPDATE SET
   is_active = EXCLUDED.is_active,
   updated_at = now();
 
-INSERT INTO public.training_goal_sets (
-  id, slug, title_ja, title_en, description_ja, description_en, sort_order, is_active,
-  target_instrument, target_level
-) VALUES
-  (
-    uuid_generate_v5('b0000000-0000-4000-8000-000000000001'::uuid, 'training-goal-goal-six-note-scale-beginner'),
+UPDATE public.trainings
+SET is_active = false, updated_at = now()
+WHERE slug IN ('six-note-scale-m7', 'six-note-scale-7-m7', 'six-note-scale-7alt-m7b5', 'six-note-scale-7alt-mm7-omit6', 'six-note-scale-maj7', 'six-note-scale-mm7-omit6', 'six-note-scale-mm7-omit4', 'six-note-scale-m7b5', 'six-note-scale-m7b5-mm7-omit6', 'six-note-scale-7-sharp11-mm7-omit6', 'six-note-scale-prog-ii-v7alt-mm7-omit6', 'six-note-scale-prog-ii-v7alt-m7b5', 'six-note-scale-prog-minor-ii-v-i');
+
+DELETE FROM public.training_goal_set_items AS gi
+USING public.trainings AS t, public.training_goal_sets AS gs
+WHERE gi.training_id = t.id
+  AND gi.goal_set_id = gs.id
+  AND gs.slug IN (
     'goal-six-note-scale-beginner',
-    '6音スケール ビギナー',
-    'Six-Note Scales Beginner',
-    '6音スケールの読み取り練習です。調号付き。最初の1音正解で元コードの低音（ルート）が鳴ります。
-コード進行は1周で次のキーへ移ります。最低音は下加線1本までの自動配置です。',
-    'Practice reading six-note scales with key signatures.
-The original chord bass sounds on your first correct note.
-Progressions advance to the next key after one pass. Notes auto-place within one ledger line below the staff.',
-    40,
-    true,
-    'all',
-    'beginner'
-  ),
-  (
-    uuid_generate_v5('b0000000-0000-4000-8000-000000000001'::uuid, 'training-goal-goal-six-note-scale-trainer'),
     'goal-six-note-scale-trainer',
-    '6音スケール トレーニー',
-    'Six-Note Scales Trainee',
-    '6音スケールの読み取り練習です。調号付き。最初の1音正解で元コードの低音（ルート）が鳴ります。
-コード進行は1周で次のキーへ移ります。最低音は下加線1本までの自動配置です。',
-    'Practice reading six-note scales with key signatures.
-The original chord bass sounds on your first correct note.
-Progressions advance to the next key after one pass. Notes auto-place within one ledger line below the staff.',
-    41,
-    true,
-    'all',
-    'intermediate'
-  ),
-  (
-    uuid_generate_v5('b0000000-0000-4000-8000-000000000001'::uuid, 'training-goal-goal-six-note-scale-master'),
-    'goal-six-note-scale-master',
-    '6音スケール マスター',
-    'Six-Note Scales Master',
-    '6音スケールの読み取り練習です。調号付き。最初の1音正解で元コードの低音（ルート）が鳴ります。
-コード進行は1周で次のキーへ移ります。最低音は下加線1本までの自動配置です。',
-    'Practice reading six-note scales with key signatures.
-The original chord bass sounds on your first correct note.
-Progressions advance to the next key after one pass. Notes auto-place within one ledger line below the staff.',
-    42,
-    true,
-    'all',
-    'advanced'
+    'goal-six-note-scale-master'
   )
-ON CONFLICT (slug) DO UPDATE SET
-  title_ja = EXCLUDED.title_ja,
-  title_en = EXCLUDED.title_en,
-  description_ja = EXCLUDED.description_ja,
-  description_en = EXCLUDED.description_en,
-  sort_order = EXCLUDED.sort_order,
-  is_active = EXCLUDED.is_active,
-  target_instrument = EXCLUDED.target_instrument,
-  target_level = EXCLUDED.target_level,
-  updated_at = now();
+  AND t.slug IN ('six-note-scale-m7', 'six-note-scale-7-m7', 'six-note-scale-7alt-m7b5', 'six-note-scale-7alt-mm7-omit6', 'six-note-scale-maj7', 'six-note-scale-mm7-omit6', 'six-note-scale-mm7-omit4', 'six-note-scale-m7b5', 'six-note-scale-m7b5-mm7-omit6', 'six-note-scale-7-sharp11-mm7-omit6', 'six-note-scale-prog-ii-v7alt-mm7-omit6', 'six-note-scale-prog-ii-v7alt-m7b5', 'six-note-scale-prog-minor-ii-v-i');
 
 INSERT INTO public.training_goal_set_items (goal_set_id, training_id, target_rank, sort_order)
 SELECT
@@ -1109,37 +1040,10 @@ JOIN public.training_goal_sets AS gs ON gs.slug = v.goal_slug
 JOIN public.trainings AS t ON t.category_id = uuid_generate_v5('b0000000-0000-4000-8000-000000000001'::uuid, 'training-category-six_note_scale')
 WHERE t.is_active IS NOT FALSE
   AND COALESCE(t.lesson_only, false) IS NOT TRUE
+  AND t.slug NOT IN ('six-note-scale-m7', 'six-note-scale-7-m7', 'six-note-scale-7alt-m7b5', 'six-note-scale-7alt-mm7-omit6', 'six-note-scale-maj7', 'six-note-scale-mm7-omit6', 'six-note-scale-mm7-omit4', 'six-note-scale-m7b5', 'six-note-scale-m7b5-mm7-omit6', 'six-note-scale-7-sharp11-mm7-omit6', 'six-note-scale-prog-ii-v7alt-mm7-omit6', 'six-note-scale-prog-ii-v7alt-m7b5', 'six-note-scale-prog-minor-ii-v-i')
 ON CONFLICT (goal_set_id, training_id) DO UPDATE SET
   target_rank = EXCLUDED.target_rank,
   sort_order = EXCLUDED.sort_order;
-
-INSERT INTO public.badges (id, category, rank, name, name_en, condition_type, condition_value, condition_text, condition_text_en, image_path, sort_order, is_active)
-SELECT
-  'training_six_note_scale_b_' || v.rank::text,
-  'training_six_note_scale',
-  v.rank,
-  '6音スケール ' || v.label_ja,
-  'Six-Note Scales ' || v.label_en,
-  'training_category_rank',
-  v.threshold,
-  '6音スケールの全課題を' || v.label_ja || '以上でクリア',
-  'Clear all Six-Note Scales trainings at ' || v.label_en || ' or better',
-  '/achivement/achievement_monster_33.png',
-  200 + 16 * 3 + v.rank,
-  true
-FROM (
-  VALUES
-    (1, 2, 'B以上', 'B+'),
-    (2, 3, 'A以上', 'A+'),
-    (3, 4, 'S以上', 'S+')
-) AS v(rank, threshold, label_ja, label_en)
-ON CONFLICT (id) DO UPDATE SET
-  is_active = true,
-  name = EXCLUDED.name,
-  name_en = EXCLUDED.name_en,
-  condition_text = EXCLUDED.condition_text,
-  condition_text_en = EXCLUDED.condition_text_en,
-  updated_at = now();
 
 COMMIT;
 

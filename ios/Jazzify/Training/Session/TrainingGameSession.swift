@@ -191,7 +191,9 @@ final class TrainingGameSession: ObservableObject {
         correctIndices = result.newCorrectIndices
 
         let playRootOnFirstCorrect = current.playRootOnFirstCorrect == true
+        let playRootOnFirstVoicingComplete = training.config.playRootOnFirstVoicingComplete == true
         if playRootOnFirstCorrect,
+           !playRootOnFirstVoicingComplete,
            training.playRootOnCorrect,
            let matchedGroupIndex = result.matchedGroupIndex,
            TrainingEngine.isFirstAcceptedInGroup(current, previousCorrectIndices: previousCorrectIndices, groupIndex: matchedGroupIndex),
@@ -201,6 +203,12 @@ final class TrainingGameSession: ObservableObject {
 
         if current.scorePerVoicing == true {
             if result.voicingCompleted {
+                if playRootOnFirstVoicingComplete,
+                   training.playRootOnCorrect,
+                   result.matchedGroupIndex == 0,
+                   let rootMidi = TrainingEngine.rootMidiForGroup(current, groupIndex: 0) {
+                    SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
+                }
                 TrainingEngine.performDefeat(
                     runtime: &runtime,
                     nowSec: runtime.elapsedSec,
