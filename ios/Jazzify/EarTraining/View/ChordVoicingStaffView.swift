@@ -1415,15 +1415,25 @@ struct ChordVoicingStaffGroupsView: View {
         ignoreNotationInstrument: Bool
     ) -> [ParsedGroupRenderItem] {
         var measureSlotCounts: [Int: Int] = [:]
+        var measureBeatLayout: [Int: Bool] = [:]
         for g in groups {
-            measureSlotCounts[g.measureOffset, default: 0] += 1
+            let mo = g.measureOffset
+            if g.beatIndex != nil {
+                measureBeatLayout[mo] = true
+                measureSlotCounts[mo] = 4
+            } else {
+                measureSlotCounts[mo, default: 0] += 1
+            }
         }
         var nextSlot: [Int: Int] = [:]
         var parsedGroups: [ParsedGroupRenderItem] = []
         for g in groups {
             let mo = g.measureOffset
-            let si = nextSlot[mo, default: 0]
-            nextSlot[mo] = si + 1
+            let usesBeatLayout = measureBeatLayout[mo] == true
+            let si = g.beatIndex ?? nextSlot[mo, default: 0]
+            if !usesBeatLayout || g.beatIndex == nil {
+                nextSlot[mo] = si + 1
+            }
             let sc = measureSlotCounts[mo] ?? 1
             let notes = parseGroupNotes(
                 g,
@@ -1909,7 +1919,16 @@ struct ChordVoicingStaffGroupsView: View {
             for item in parsedGroups {
                 let baseX = groupBaseX(group: item.group, slotIndex: item.slotIndex, slotCount: item.slotCount, layout: layout)
                 if item.group.isRest {
-                    groupsDrawWholeRest(context: &context, baseX: baseX, staffTopY: topY, staffSpacing: geo.staffSpacing)
+                    if item.group.noteValue == .quarter {
+                        groupsDrawQuarterRest(
+                            context: &context,
+                            baseX: baseX,
+                            staffTopY: topY,
+                            staffSpacing: geo.staffSpacing
+                        )
+                    } else {
+                        groupsDrawWholeRest(context: &context, baseX: baseX, staffTopY: topY, staffSpacing: geo.staffSpacing)
+                    }
                     continue
                 }
                 let staffNotes = sortStaffNotesForVoicing(item.notes.filter { $0.staff == staff })
@@ -1938,14 +1957,25 @@ struct ChordVoicingStaffGroupsView: View {
                     if noteOpacity < 1 {
                         noteContext.opacity = noteOpacity
                     }
-                    groupsDrawWholeNote(
-                        context: &noteContext,
-                        staffTopY: topY,
-                        staffSpacing: geo.staffSpacing,
-                        positioned: positioned,
-                        baseX: baseX,
-                        color: noteColor
-                    )
+                    if item.group.noteValue == .quarter {
+                        groupsDrawQuarterNote(
+                            context: &noteContext,
+                            staffTopY: topY,
+                            staffSpacing: geo.staffSpacing,
+                            positioned: positioned,
+                            baseX: baseX,
+                            color: noteColor
+                        )
+                    } else {
+                        groupsDrawWholeNote(
+                            context: &noteContext,
+                            staffTopY: topY,
+                            staffSpacing: geo.staffSpacing,
+                            positioned: positioned,
+                            baseX: baseX,
+                            color: noteColor
+                        )
+                    }
                 }
             }
         }
@@ -2304,6 +2334,94 @@ struct ChordVoicingStaffGroupsView: View {
             height: staffSpacing * 0.35
         )
         context.fill(Path(rect), with: .color(notationColor.opacity(0.85)))
+    }
+
+    private static func groupsDrawQuarterRest(
+        context: inout GraphicsContext,
+        baseX: CGFloat,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat
+    ) {
+        let sp = staffSpacing
+        var path = Path()
+        path.move(to: CGPoint(x: baseX - sp * 0.15, y: staffTopY + sp * 2.1))
+        path.addCurve(
+            to: CGPoint(x: baseX + sp * 0.05, y: staffTopY + sp * 2.25),
+            control1: CGPoint(x: baseX + sp * 0.2, y: staffTopY + sp * 1.55),
+            control2: CGPoint(x: baseX + sp * 0.4, y: staffTopY + sp * 2.1)
+        )
+        path.addCurve(
+            to: CGPoint(x: baseX, y: staffTopY + sp * 3.2),
+            control1: CGPoint(x: baseX - sp * 0.3, y: staffTopY + sp * 2.6),
+            control2: CGPoint(x: baseX + sp * 0.15, y: staffTopY + sp * 3.05)
+        )
+        path.addCurve(
+            to: CGPoint(x: baseX - sp * 0.43, y: staffTopY + sp * 2.95),
+            control1: CGPoint(x: baseX + sp * 0.2, y: staffTopY + sp * 3.35),
+            control2: CGPoint(x: baseX - sp * 0.55, y: staffTopY + sp * 3.17)
+        )
+        context.stroke(
+            path,
+            with: .color(notationColor),
+            style: StrokeStyle(lineWidth: max(1.3, sp * 0.14), lineCap: .round, lineJoin: .round)
+        )
+    }
+
+    private static func groupsDrawQuarterNote(
+        context: inout GraphicsContext,
+        staffTopY: CGFloat,
+        staffSpacing: CGFloat,
+        positioned: PositionedVoicingNote,
+        baseX: CGFloat,
+        color: Color
+    ) {
+        let sp = staffSpacing
+        let xCenter = baseX + positioned.xOffset
+        let yCenter = positioned.yCenter
+        let noteWidth = sp * 1.1
+        let noteHeight = sp * 0.78
+        let rect = CGRect(
+            x: xCenter - noteWidth / 2,
+            y: yCenter - noteHeight / 2,
+            width: noteWidth,
+            height: noteHeight
+        )
+
+        groupsDrawLedgerLines(
+            context: &context,
+            xCenter: xCenter,
+            yCenter: yCenter,
+            staffTopY: staffTopY,
+            staffSpacing: sp,
+            noteWidth: noteWidth,
+            color: color
+        )
+
+        if let displayAccidentalAlter = positioned.note.displayAccidentalAlter {
+            let accidentalX = min(
+                xCenter - noteWidth * 1.15,
+                baseX - noteWidth * 1.25 - CGFloat(positioned.accidentalColumn) * sp * 0.95
+            )
+            MusicNotationSymbol.drawAccidental(
+                context: &context,
+                alter: displayAccidentalAlter,
+                center: CGPoint(x: accidentalX, y: yCenter),
+                staffSpacing: sp,
+                color: color
+            )
+        }
+
+        var ovalPath = Path()
+        ovalPath.addEllipse(in: rect)
+        context.fill(ovalPath, with: .color(color))
+
+        let stemX = xCenter + noteWidth * 0.42
+        let stemTop = yCenter - noteHeight
+        let stemBottom = yCenter + sp * 2.8
+        var stem = Path()
+        stem.move(to: CGPoint(x: stemX, y: stemTop))
+        stem.addLine(to: CGPoint(x: stemX, y: stemBottom))
+        context.stroke(stem, with: .color(color), lineWidth: max(1.5, sp * 0.12))
     }
 
     // MARK: - Completion pulse overlay layout

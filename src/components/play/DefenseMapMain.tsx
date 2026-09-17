@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
+import { DefenseTutorial } from '@/components/defense/tutorial/DefenseTutorial';
 import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
 import type { PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
@@ -28,7 +29,7 @@ import { unlockDefenseBackingAudioContext } from '@/game/defense/defenseBackingD
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { useToast } from '@/stores/toastStore';
 
-type Screen = 'map' | 'prep' | 'game';
+type Screen = 'map' | 'prep' | 'game' | 'tutorial';
 
 interface LoadedStage {
   stage: DefenseStage;
@@ -59,6 +60,13 @@ const DefenseMapMain: React.FC = () => {
   const [session, setSession] = useState<ActiveSession | null>(null);
 
   const startFromNode = useCallback(async (node: PlayMapNode) => {
+    if (node.nodeKind === 'tutorial') {
+      setActiveNode(node);
+      setLoaded(null);
+      setSession(null);
+      setScreen('tutorial');
+      return;
+    }
     if (node.nodeKind === 'quest' && node.lessonId) {
       window.location.hash = buildLessonDetailHash(node.lessonId, {
         playMapNodeId: node.id,
@@ -142,6 +150,15 @@ const DefenseMapMain: React.FC = () => {
   const handleRetry = useCallback(() => {
     setSession((prev) => (prev ? { ...prev, nonce: prev.nonce + 1 } : prev));
   }, []);
+
+  if (screen === 'tutorial' && activeNode) {
+    return (
+      <DefenseTutorial
+        playMapNodeId={activeNode.id}
+        onExit={backToMap}
+      />
+    );
+  }
 
   if (screen === 'game' && loaded && session) {
     return (

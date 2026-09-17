@@ -1,0 +1,87 @@
+import {
+  formatNotationClefLabel,
+  getNotationInstrumentPreset,
+  getWrittenSemitoneOffset,
+  type NotationInstrumentClef,
+  type NotationInstrumentId,
+} from '@/utils/notationInstrument';
+export interface DefenseTutorialNotationSettings {
+  readonly notationInstrumentId: NotationInstrumentId;
+  readonly notationOctaveShift: number;
+  readonly clefOverride: NotationInstrumentClef | null;
+  /** Written transposition semitones; null = use preset.transposition */
+  readonly transpositionOverride: number | null;
+}
+
+export const resolveTutorialClef = (
+  settings: DefenseTutorialNotationSettings,
+): NotationInstrumentClef => {
+  if (settings.clefOverride) {
+    return settings.clefOverride;
+  }
+  return getNotationInstrumentPreset(settings.notationInstrumentId).clef;
+};
+
+export const resolveTutorialTransposition = (
+  settings: DefenseTutorialNotationSettings,
+): number => {
+  if (settings.transpositionOverride !== null) {
+    return settings.transpositionOverride;
+  }
+  return getNotationInstrumentPreset(settings.notationInstrumentId).transposition;
+};
+
+const resolveTutorialPresetWithTransposition = (
+  settings: DefenseTutorialNotationSettings,
+) => {
+  const preset = getNotationInstrumentPreset(settings.notationInstrumentId);
+  const transposition = resolveTutorialTransposition(settings);
+  return transposition === preset.transposition
+    ? preset
+    : { ...preset, transposition };
+};
+
+/** Written offset for staff layout (ignores display-only octave shift). */
+export const resolveTutorialLayoutWrittenOffset = (
+  settings: DefenseTutorialNotationSettings,
+): number => getWrittenSemitoneOffset(resolveTutorialPresetWithTransposition(settings), 0);
+
+export const resolveTutorialWrittenOffset = (
+  settings: DefenseTutorialNotationSettings,
+): number => getWrittenSemitoneOffset(
+  resolveTutorialPresetWithTransposition(settings),
+  settings.notationOctaveShift,
+);
+
+const WRITTEN_KEY_BY_TRANSPOSITION: Readonly<Record<number, string>> = {
+  0: 'C',
+  [-2]: 'B♭',
+  [-7]: 'F',
+  [-9]: 'E♭',
+};
+
+const formatWrittenKeyLabel = (transpositionSemitones: number): string => {
+  const key = WRITTEN_KEY_BY_TRANSPOSITION[transpositionSemitones];
+  if (key) {
+    return `in ${key}`;
+  }
+  const sign = transpositionSemitones > 0 ? '+' : '';
+  return `in C${sign}${transpositionSemitones}`;
+};
+
+/** e.g. "in E♭・ト音記号" */
+export const formatTutorialNotationLabel = (
+  settings: DefenseTutorialNotationSettings,
+  isEnglishCopy: boolean,
+): string => {
+  const clef = resolveTutorialClef(settings);
+  const clefLabel = formatNotationClefLabel(clef === 'grand' ? 'treble' : clef, isEnglishCopy);
+  const transposition = resolveTutorialTransposition(settings);
+  const keyLabel = formatWrittenKeyLabel(transposition);
+  const sep = isEnglishCopy ? ' · ' : '・';
+  return `${keyLabel}${sep}${clefLabel}`;
+};
+
+export const formatConcertSolfegeLabel = (isEnglishCopy: boolean): string => (
+  isEnglishCopy ? 'Concert: C · D · E' : '実音：ド・レ・ミ'
+);

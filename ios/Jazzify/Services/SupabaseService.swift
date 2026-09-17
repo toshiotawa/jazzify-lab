@@ -703,7 +703,8 @@ final class SupabaseService: Sendable {
             let id: UUID
             let block_id: UUID
             let sort_order: Int
-            let node_kind: PlayMapNodeKind
+            let node_kind: String
+            let tutorial_key: String?
             let survival_map_category: String?
             let survival_stage_number: Int?
             let defense_stage_id: String?
@@ -722,7 +723,7 @@ final class SupabaseService: Sendable {
         let rows: [NodeRow] = try await client
             .from("play_map_nodes")
             .select("""
-                id, block_id, sort_order, node_kind,
+                id, block_id, sort_order, node_kind, tutorial_key,
                 survival_map_category, survival_stage_number,
                 defense_stage_id, lesson_id,
                 title, title_en, required_rank, difficulty_level,
@@ -734,12 +735,15 @@ final class SupabaseService: Sendable {
             .execute()
             .value
 
-        return rows.map { row in
-            PlayMapNode(
+        return rows.compactMap { row in
+            guard let nodeKind = PlayMapNodeKind(rawValue: row.node_kind) else {
+                return nil
+            }
+            return PlayMapNode(
                 id: row.id,
                 blockId: row.block_id,
                 sortOrder: row.sort_order,
-                nodeKind: row.node_kind,
+                nodeKind: nodeKind,
                 survivalMapCategory: row.survival_map_category,
                 survivalStageNumber: row.survival_stage_number,
                 defenseStageId: row.defense_stage_id,
@@ -747,7 +751,8 @@ final class SupabaseService: Sendable {
                 title: row.title,
                 titleEn: row.title_en,
                 requiredRank: CodeRunLetterRank(rawValue: row.required_rank) ?? .C,
-                difficultyLevel: row.difficulty_level
+                difficultyLevel: row.difficulty_level,
+                tutorialKey: row.tutorial_key
             )
         }
     }

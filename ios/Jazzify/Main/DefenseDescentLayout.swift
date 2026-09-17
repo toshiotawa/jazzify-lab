@@ -1,6 +1,30 @@
 import CoreGraphics
 import Foundation
 
+/// Web `playMapProgression.ts` と同一の進行ゲート判定。
+enum PlayMapProgression {
+    /// Legacy welcome quest; must not block stage unlock.
+    static let legacyWelcomeQuestId = UUID(uuidString: "4a0419e6-e4bb-5bdf-b39e-6ca6b3efbbcb")!
+
+    static func isProgressionGate(_ node: PlayMapNode) -> Bool {
+        if node.nodeKind == .tutorial { return false }
+        if node.nodeKind == .quest, node.id == legacyWelcomeQuestId { return false }
+        return true
+    }
+
+    static func displayLabel(
+        node: PlayMapNode,
+        stageLabel: Int,
+        isEnglishCopy: Bool
+    ) -> String {
+        if node.nodeKind == .tutorial {
+            return isEnglishCopy ? "Intro" : "入門"
+        }
+        if node.nodeKind == .quest { return "?" }
+        return String(stageLabel)
+    }
+}
+
 /// フレーズディフェンス プレイマップ用レイアウト（Web `playDescentLayout.ts` と同一仕様）。
 enum DefenseDescentLayoutConstants {
     static let logicalWidth: CGFloat = SurvivalDescentLayoutConstants.logicalWidth
@@ -90,7 +114,11 @@ enum DefenseDescentLayoutBuilder {
             let isLast = (i == count - 1)
             let lane = assignLane(indexInBlock: i, isLastInBlock: isLast)
             let node = blockNodes[i]
-            let displayLabel = node.nodeKind == .quest ? "?" : String(stageLabel)
+            let displayLabel = PlayMapProgression.displayLabel(
+                node: node,
+                stageLabel: stageLabel,
+                isEnglishCopy: false
+            )
             if node.nodeKind == .stage {
                 stageLabel += 1
             }
@@ -181,7 +209,9 @@ enum DefenseDescentAccess {
         guard blockIndex > 0, blockIndex - 1 < blockLayouts.count else { return blockIndex == 0 }
         let prev = blockLayouts[blockIndex - 1]
         if prev.nodes.isEmpty { return true }
-        return prev.nodes.allSatisfy { clearedNodeIds.contains($0.nodeId) }
+        return prev.nodes.allSatisfy { node in
+            !PlayMapProgression.isProgressionGate(node.node) || clearedNodeIds.contains(node.nodeId)
+        }
     }
 
     static func isNodeUnlocked(
@@ -203,8 +233,11 @@ enum DefenseDescentAccess {
             ) else {
                 return false
             }
-            for prior in blockLayout.nodes.prefix(nodeIndex) where !clearedNodeIds.contains(prior.nodeId) {
-                return false
+            for prior in blockLayout.nodes.prefix(nodeIndex) {
+                guard PlayMapProgression.isProgressionGate(prior.node) else { continue }
+                if !clearedNodeIds.contains(prior.nodeId) {
+                    return false
+                }
             }
             return true
         }

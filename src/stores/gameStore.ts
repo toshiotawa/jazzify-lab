@@ -48,6 +48,9 @@ const defaultSettings: GameSettings = {
   practiceGuide: 'key',
   performanceMode: 'standard',
   voiceSensitivity: 5,
+  voiceFastResponse: false,
+  notationClefOverride: null,
+  notationTranspositionOverride: null,
   webKeyboardDisplayMode: 'questionRangeFit',
 };
 

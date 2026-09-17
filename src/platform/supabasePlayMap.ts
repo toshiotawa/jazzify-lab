@@ -3,7 +3,7 @@ import type { CodeRunLetterRank } from '@/utils/codeRunRank';
 
 export type PlayMapMode = 'code_run' | 'defense';
 export type PlayMapTier = 'basic' | 'advanced';
-type PlayMapNodeKind = 'stage' | 'quest';
+type PlayMapNodeKind = 'stage' | 'quest' | 'tutorial';
 
 export interface PlayMapBlock {
   id: string;
@@ -28,6 +28,7 @@ export interface PlayMapNode {
   titleEn: string;
   requiredRank: CodeRunLetterRank;
   difficultyLevel: number | null;
+  tutorialKey: string | null;
 }
 
 interface PlayMapNodeClear {
@@ -76,7 +77,7 @@ export async function fetchPlayMapNodes(mode: PlayMapMode): Promise<PlayMapNode[
     async () => await supabase
       .from('play_map_nodes')
       .select(`
-        id, block_id, sort_order, node_kind,
+        id, block_id, sort_order, node_kind, tutorial_key,
         survival_map_category, survival_stage_number,
         defense_stage_id, lesson_id,
         title, title_en, required_rank, difficulty_level,
@@ -93,6 +94,7 @@ export async function fetchPlayMapNodes(mode: PlayMapMode): Promise<PlayMapNode[
     blockId: row.block_id as string,
     sortOrder: Number(row.sort_order) || 0,
     nodeKind: row.node_kind as PlayMapNodeKind,
+    tutorialKey: (row.tutorial_key as string | null) ?? null,
     survivalMapCategory: (row.survival_map_category as string | null) ?? null,
     survivalStageNumber: row.survival_stage_number != null ? Number(row.survival_stage_number) : null,
     defenseStageId: (row.defense_stage_id as string | null) ?? null,

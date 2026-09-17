@@ -43,6 +43,9 @@ final class NoteInputManager: ObservableObject {
     /// 購読ハンドラ（推論/MIDI スレッド）から参照。マイク入力時はピアノ発音を抑止する。
     nonisolated var isVoiceInputActive: Bool { activeMethod == .voice }
 
+    /// 画面鍵盤入力時は MIDI / マイク購読を無効化する。
+    nonisolated var isTouchInputActive: Bool { activeMethod == .touch }
+
     // MARK: - 購読
 
     func subscribe(_ handler: @escaping (UInt8, UInt8, UInt8) -> Void) -> MIDISubscription {
@@ -86,8 +89,10 @@ final class NoteInputManager: ObservableObject {
     func refreshActiveInput() async {
         activeMethod = NoteInputPreferences.inputMethod
 
+        PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
+
         switch activeMethod {
-        case .midi:
+        case .midi, .touch:
             voicePreparing = false
             pitchEngine.stop()
         case .voice:
@@ -161,7 +166,7 @@ final class NoteInputManager: ObservableObject {
         note: UInt8,
         velocity: UInt8
     ) {
-        guard source == activeMethod else { return }
+        guard source == activeMethod, activeMethod != .touch else { return }
         subscriberLock.lock()
         let handlers = Array(simpleHandlers.values)
         subscriberLock.unlock()
@@ -177,7 +182,7 @@ final class NoteInputManager: ObservableObject {
         velocity: UInt8,
         hostTime: UInt64
     ) {
-        guard source == activeMethod else { return }
+        guard source == activeMethod, activeMethod != .touch else { return }
         subscriberLock.lock()
         let handlers = Array(hostTimeHandlers.values)
         subscriberLock.unlock()

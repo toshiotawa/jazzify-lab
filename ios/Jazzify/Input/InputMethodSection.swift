@@ -18,6 +18,8 @@ struct InputMethodSection: View {
     @State private var monitorInferenceMs: Double?
     @State private var engineActive = false
     @State private var monitorTimer: Timer?
+    @State private var voiceFastResponse = NoteInputPreferences.voiceFastResponse
+    @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -27,6 +29,7 @@ struct InputMethodSection: View {
             Picker(isEnglishCopy ? "Note input" : "入力方式", selection: $inputMethod) {
                 Text("MIDI").tag(NoteInputMethod.midi)
                 Text(isEnglishCopy ? "Microphone" : "マイク").tag(NoteInputMethod.voice)
+                Text(isEnglishCopy ? "Touch" : "画面").tag(NoteInputMethod.touch)
             }
             .pickerStyle(.segmented)
             .onChange(of: inputMethod) { newValue in
@@ -44,16 +47,31 @@ struct InputMethodSection: View {
                 }
             }
 
-            if inputMethod == .midi {
+            if inputMethod == .touch {
+                Text(isEnglishCopy
+                     ? "Use the on-screen keyboard in the game."
+                     : "ゲーム内の画面鍵盤を使って演奏します。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if inputMethod == .midi {
                 midiDeviceList
+                midiVolumeControl
             } else {
                 voiceSettings
+                Toggle(isEnglishCopy ? "Fast response" : "高速反応", isOn: $voiceFastResponse)
+                    .font(.caption)
+                    .onChange(of: voiceFastResponse) { newValue in
+                        NoteInputPreferences.voiceFastResponse = newValue
+                        PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
+                    }
             }
 
         }
         .onAppear {
             inputMethod = NoteInputPreferences.inputMethod
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
+            voiceFastResponse = NoteInputPreferences.voiceFastResponse
+            midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
             refreshHeadphoneState()
             if inputMethod == .voice {
@@ -71,6 +89,18 @@ struct InputMethodSection: View {
             NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
         ) { _ in
             refreshHeadphoneState()
+        }
+    }
+
+    @ViewBuilder
+    private var midiVolumeControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isEnglishCopy ? "Keyboard volume" : "鍵盤音量")
+                .font(.caption)
+            Slider(value: $midiVolume, in: 0...1)
+                .onChange(of: midiVolume) { newValue in
+                    NoteInputPreferences.midiVolume = Float(newValue)
+                }
         }
     }
 

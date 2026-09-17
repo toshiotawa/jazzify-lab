@@ -277,9 +277,10 @@ struct DefenseDescentMapView: View {
     private func handleStart() {
         guard let selectedNode, selectedNodeUnlocked else { return }
         showMobileSheet = false
-        if selectedNode.nodeKind == .quest {
+        switch selectedNode.nodeKind {
+        case .quest:
             onSelectQuestNode(selectedNode)
-        } else {
+        case .tutorial, .stage:
             onSelectNode(selectedNode)
         }
     }

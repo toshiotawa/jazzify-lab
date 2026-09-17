@@ -79,6 +79,7 @@ export class PitchInputController {
   private currentDeviceId: string | null = null;
   private isProcessing = false;
   private sensitivityLevel = 5;
+  private pitchStableFrames = 4;
   private currentNote = -1;
   private cachedInputLatencySec = 0;
   /**
@@ -353,6 +354,7 @@ export class PitchInputController {
       this.worker?.postMessage({
         type: 'init',
         sensitivity: this.sensitivityLevel,
+        config: { pitchStableFrames: this.pitchStableFrames },
       });
     });
   }
@@ -389,6 +391,18 @@ export class PitchInputController {
     this.worker?.postMessage({
       type: 'setSensitivity',
       sensitivity: this.sensitivityLevel,
+    });
+    this.worker?.postMessage({
+      type: 'setOnsetConfig',
+      config: { pitchStableFrames: this.pitchStableFrames },
+    });
+  }
+
+  setPitchStableFrames(frames: number): void {
+    this.pitchStableFrames = Math.max(1, Math.min(8, Math.round(frames)));
+    this.worker?.postMessage({
+      type: 'setOnsetConfig',
+      config: { pitchStableFrames: this.pitchStableFrames },
     });
   }
 

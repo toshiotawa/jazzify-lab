@@ -15,6 +15,8 @@ import React, {
 import { DefenseCanvas, type DefenseCanvasHandle } from '@/components/defense/DefenseCanvas';
 import { DefensePracticeHud, DefenseSpeedStepper } from '@/components/defense/DefensePracticeHud';
 import { DefensePhraseStaff } from '@/components/defense/DefensePhraseStaff';
+import { DefenseTutorialStaff } from '@/components/defense/tutorial/DefenseTutorialStaff';
+import type { ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoicingStaff';
 import { DefenseResult } from '@/components/defense/DefenseResult';
 import EarTrainingSettingsModal from '@/components/earTraining/EarTrainingSettingsModal';
 import DeferredEarTrainingPianoOverlay, {
@@ -23,8 +25,15 @@ import DeferredEarTrainingPianoOverlay, {
 import {
   chargeDefenseSp,
   performDefenseSlash,
+  spawnTutorialInitialEnemies,
   tickDefenseSimulation,
 } from '@/game/defense/defenseEngine';
+import {
+  DEFENSE_TUTORIAL_AUDIO_URL,
+} from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
+import { buildDefenseTutorialStaffDisplay } from '@/game/defense/tutorial/buildDefenseTutorialStaffDisplay';
+import { DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES } from '@/game/defense/tutorial/defenseTutorialConstants';
+import { synthesizeDefenseTutorialCdeBuffer } from '@/game/defense/tutorial/defenseTutorialAudio';
 import {
   defenseBackingDeck,
   unlockDefenseBackingAudioContext,
@@ -45,7 +54,9 @@ import type {
   DefenseGameResult,
   DefenseRuntime,
   DefenseStage,
+  DefenseTutorialOptions,
 } from '@/game/defense/defenseTypes';
+import type { InputMethod } from '@/types';
 import { computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
 import { getDefenseChordHudLabels } from '@/game/defense/defenseChordHudLabels';
 import type { MutableDefenseSceneHud } from '@/game/defense/defenseSceneHud';
@@ -78,6 +89,12 @@ interface DefenseGameScreenProps {
   readonly onResultBack?: () => void;
   /** 本番モードでクリアしたときに1回だけ呼ばれる（レッスン進捗の記録用） */
   readonly onClear?: () => void;
+  readonly tutorialOptions?: DefenseTutorialOptions | null;
+  readonly tutorialInputMethod?: InputMethod;
+  readonly tutorialStaffGroups?: readonly ChordVoicingStaffGroup[];
+  readonly tutorialConcertOctave?: number;
+  readonly onTutorialPhraseSucceeded?: () => void;
+  readonly suppressResultScreen?: boolean;
 }
 
 interface FinalStats {
@@ -99,14 +116,22 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   onApplyPracticeModeAndRestart,
   onResultBack,
   onClear,
+  tutorialOptions = null,
+  tutorialInputMethod,
+  tutorialStaffGroups,
+  tutorialConcertOctave = 4,
+  onTutorialPhraseSucceeded,
+  suppressResultScreen = false,
 }) => {
+  const isTutorialSession = tutorialOptions != null;
   const runtimeRef = useRef<DefenseRuntime>(
     createDefenseRuntime(
       stage.playerHp,
       stage.surviveSeconds,
-      difficulty.maxEnemies,
+      tutorialOptions?.maxEnemies ?? difficulty.maxEnemies,
       practiceMode,
       stage.attackTrigger,
+      tutorialOptions,
     ),
   );
   const judgeRef = useRef<DefensePhraseJudgeState>(createInitialPhraseJudgeState(0));
@@ -120,6 +145,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const pianoRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const canvasRef = useRef<DefenseCanvasHandle | null>(null);
   const onClearRef = useRef(onClear);
+  const onTutorialPhraseSucceededRef = useRef(onTutorialPhraseSucceeded);
+  const tutorialPhraseSucceededRef = useRef(false);
   const hudRef = useRef<MutableDefenseSceneHud>({
     playerHp: stage.playerHp,
     playerMaxHp: stage.playerHp,
@@ -148,12 +175,22 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   });
   const settings = useGameStore((state) => state.settings);
   const updateSettings = useGameStore((state) => state.updateSettings);
-  const voiceSequential = settings.inputMethod === 'voice';
+  const effectiveInputMethod = tutorialInputMethod ?? settings.inputMethod;
+  const voiceSequential = effectiveInputMethod === 'voice';
   isSettingsOpenRef.current = isSettingsOpen;
 
   useEffect(() => {
     onClearRef.current = onClear;
   }, [onClear]);
+
+  useEffect(() => {
+    onTutorialPhraseSucceededRef.current = onTutorialPhraseSucceeded;
+  }, [onTutorialPhraseSucceeded]);
+
+  useEffect(() => {
+    if (!isTutorialSession) return;
+    spawnTutorialInitialEnemies(runtimeRef.current, difficulty);
+  }, [difficulty, isTutorialSession]);
 
   useEffect(() => {
     practiceSpeedPercentRef.current = practiceSpeedPercent;
@@ -179,6 +216,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     () => getDefensePhraseKeyboardHints(stage.phrases, judgeSnapshot, voiceSequential),
     [stage.phrases, judgeSnapshot, voiceSequential],
   );
+
+  const tutorialStaffDisplay = useMemo(() => {
+    if (!tutorialStaffGroups) return null;
+    return buildDefenseTutorialStaffDisplay(
+      tutorialStaffGroups,
+      judgeSnapshot,
+      DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES,
+    );
+  }, [tutorialStaffGroups, judgeSnapshot]);
 
   const stageMidiMidis = useMemo(
     () => computeDefenseStageMidis(stage.phrases),
@@ -308,6 +354,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       lastVoicePcAtRef.current.set(pitchClass, now);
     }
 
+    const autoAdvance = isTutorialSession
+      ? Boolean(tutorialOptions?.autoAdvancePhrase)
+      : !practiceMode;
+
     const evaluation = evaluateDefensePhraseNoteOn(
       stage.phrases,
       stage.requiredCompletionCount,
@@ -315,13 +365,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       pitchClass,
       sequential,
       stage.attackTrigger,
-      !practiceMode,
+      autoAdvance,
     );
 
     if (evaluation.nextState === judgeRef.current) return;
 
     judgeRef.current = evaluation.nextState;
     setJudgeSnapshot(evaluation.nextState);
+
+    if (evaluation.phraseCompleted && isTutorialSession && !tutorialPhraseSucceededRef.current) {
+      tutorialPhraseSucceededRef.current = true;
+      onTutorialPhraseSucceededRef.current?.();
+    }
 
     if (evaluation.attack) {
       const speedRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
@@ -334,7 +389,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       chargeDefenseSp(runtime);
     }
 
-    if (!practiceMode && evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
+    if (!isTutorialSession && !practiceMode && evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
       const nextIndex = nextPhraseIndex(stage.phrases, judgeRef.current.phraseIndex);
       const nextPhrase = stage.phrases[nextIndex];
       if (!nextPhrase) return;
@@ -353,14 +408,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     stage.attackTrigger,
     stage.bpm,
     practiceMode,
+    isTutorialSession,
+    tutorialOptions?.autoAdvancePhrase,
     applyImmediatePhraseSwitch,
   ]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
+    if (isTutorialSession && effectiveInputMethod !== 'touch') return;
     markAudioUserInteraction();
-    void playNote(midiNote, 100);
+    const velocity = Math.round((settings.midiVolume ?? 0.8) * 100);
+    void playNote(midiNote, velocity);
     handleNoteOn(midiNote, false);
-  }, [handleNoteOn]);
+  }, [handleNoteOn, isTutorialSession, effectiveInputMethod, settings.midiVolume]);
 
   const handlePianoKeyUp = useCallback((midiNote: number) => {
     void stopNote(midiNote);
@@ -370,21 +429,29 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     updateSettings({ selectedMidiDevice: deviceId });
   }, [updateSettings]);
 
-  const { isConnected: isMidiConnected } = useStandaloneNoteInput({
+  useStandaloneNoteInput({
+    enabled: !isTutorialSession
+      || effectiveInputMethod === 'midi'
+      || effectiveInputMethod === 'voice',
+    inputMethod: effectiveInputMethod,
+    voiceFastResponse: settings.voiceFastResponse ?? false,
     onNoteOn: (note) => {
+      if (isTutorialSession && effectiveInputMethod === 'touch') return;
       handleNoteOn(note, voiceSequential);
     },
     onKeyHighlight: (note, active) => {
       pianoRef.current?.highlightKey(note, active);
     },
+    playMidiSound: effectiveInputMethod !== 'touch',
   });
 
   useEffect(() => {
     defenseBackingDeck.setVoiceInputDucking(voiceSequential);
+    defenseBackingDeck.setUserVolume(settings.bgmVolume ?? 0.8);
     return () => {
       defenseBackingDeck.setVoiceInputDucking(false);
     };
-  }, [voiceSequential]);
+  }, [voiceSequential, settings.bgmVolume]);
 
   useEffect(() => {
     let cancelled = false;
@@ -393,6 +460,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     void (async () => {
       unlockDefenseBackingAudioContext();
+      if (isTutorialSession) {
+        defenseBackingDeck.registerBufferFactory(
+          DEFENSE_TUTORIAL_AUDIO_URL,
+          (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, tutorialConcertOctave),
+        );
+      }
       const firstPhrase = stage.phrases[0];
       if (!firstPhrase) return;
       const preloadUrls = practiceMode
@@ -414,7 +487,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       cancelled = true;
       defenseBackingDeck.stop();
     };
-  }, [stage, practiceMode]);
+  }, [stage, practiceMode, isTutorialSession, tutorialConcertOctave]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
@@ -504,7 +577,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     );
   }, [keyboardHints, showTargetHints, keyboardHintOpacity, voiceSequential]);
 
-  if (finalStats) {
+  if (finalStats && !suppressResultScreen) {
     return (
       <DefenseResult
         result={finalStats.result}
@@ -540,7 +613,16 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         </div>
       )}
 
-      {currentPhrase && currentPhrase.chords.length > 0 && (
+      {tutorialStaffDisplay ? (
+        <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
+          <DefenseTutorialStaff
+            groups={tutorialStaffDisplay.groups}
+            keyFifths={phraseKeyFifths}
+            activeGroupId={tutorialStaffDisplay.activeGroupId}
+            correctPitchClassesByGroupId={tutorialStaffDisplay.correctPitchClassesByGroupId}
+          />
+        </div>
+      ) : currentPhrase && currentPhrase.chords.length > 0 ? (
         <div className="pointer-events-none absolute left-1/2 top-[44%] z-20 w-[min(720px,82vw)] -translate-x-1/2 -translate-y-1/2">
           <DefensePhraseStaff
             chord={currentPhrase.chords[judgeSnapshot.chordIndex] ?? null}
@@ -553,7 +635,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             unpressedNoteOpacity={staffHintOpacity}
           />
         </div>
-      )}
+      ) : null}
 
       {!audioReady && (
         <p className="pointer-events-none absolute bottom-[96px] left-1/2 z-30 -translate-x-1/2 text-xs text-slate-400">
@@ -576,28 +658,30 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         </div>
       )}
 
-      <div className="absolute right-3 top-[56px] z-40 flex items-center gap-2">
-        <DefenseSpeedStepper
-          speedPercent={practiceSpeedPercent}
-          isEnglishCopy={isEnglishCopy}
-          onSpeedDown={handleSpeedDown}
-          onSpeedUp={handleSpeedUp}
-        />
-        <button
-          type="button"
-          className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
-          onClick={() => setIsSettingsOpen(true)}
-        >
-          {isEnglishCopy ? 'Settings' : '設定'}
-        </button>
-        <button
-          type="button"
-          className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
-          onClick={onExit}
-        >
-          {isEnglishCopy ? 'Back' : '戻る'}
-        </button>
-      </div>
+      {!isTutorialSession ? (
+        <div className="absolute right-3 top-[56px] z-40 flex items-center gap-2">
+          <DefenseSpeedStepper
+            speedPercent={practiceSpeedPercent}
+            isEnglishCopy={isEnglishCopy}
+            onSpeedDown={handleSpeedDown}
+            onSpeedUp={handleSpeedUp}
+          />
+          <button
+            type="button"
+            className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+            onClick={() => setIsSettingsOpen(true)}
+          >
+            {isEnglishCopy ? 'Settings' : '設定'}
+          </button>
+          <button
+            type="button"
+            className="rounded border border-white/15 bg-slate-950/75 px-3 py-2 text-sm font-black text-slate-100"
+            onClick={onExit}
+          >
+            {isEnglishCopy ? 'Back' : '戻る'}
+          </button>
+        </div>
+      ) : null}
 
       <div
         className="absolute bottom-0 left-0 right-0 z-30"
@@ -612,18 +696,20 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         />
       </div>
 
-      <EarTrainingSettingsModal
-        isOpen={isSettingsOpen}
-        isEnglishCopy={isEnglishCopy}
-        onClose={() => setIsSettingsOpen(false)}
-        midiDeviceId={settings.selectedMidiDevice}
-        onMidiDeviceChange={handleMidiDeviceChange}
-        isMidiConnected={isMidiConnected}
-        practiceRunMode={{
-          practiceMode,
-          onApplyPracticeModeAndRestart: onApplyPracticeModeAndRestart,
-        }}
-      />
+      {!isTutorialSession ? (
+        <EarTrainingSettingsModal
+          isOpen={isSettingsOpen}
+          isEnglishCopy={isEnglishCopy}
+          onClose={() => setIsSettingsOpen(false)}
+          midiDeviceId={settings.selectedMidiDevice}
+          onMidiDeviceChange={handleMidiDeviceChange}
+          isMidiConnected={false}
+          practiceRunMode={{
+            practiceMode,
+            onApplyPracticeModeAndRestart: onApplyPracticeModeAndRestart,
+          }}
+        />
+      ) : null}
     </div>
   );
 };

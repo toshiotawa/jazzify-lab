@@ -1,5 +1,10 @@
 import Foundation
 
+enum ChordVoicingStaffNoteValue: String, Equatable, Sendable {
+    case whole
+    case quarter
+}
+
 /// Web `EarTrainingChordVoicingScreen` の `staffVoicingGroups` / 密集フラグ算出を Swift で再現する。
 enum EarTrainingChordVoicingStaffLayout {
     /// Web `CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD`
@@ -14,6 +19,8 @@ enum EarTrainingChordVoicingStaffLayout {
         let isRest: Bool
         /// HINT OFF フェード対象から除外（Phrases の reveal 等）
         var exemptFromFade: Bool = false
+        var noteValue: ChordVoicingStaffNoteValue = .whole
+        var beatIndex: Int? = nil
     }
 
     struct BuildInput: Sendable {

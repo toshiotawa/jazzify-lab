@@ -1,5 +1,9 @@
 import type { PlayMapBlock, PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
+  isPlayMapProgressionGate,
+  playMapNodeDisplayLabel,
+} from '@/components/play/defenseDescent/playMapProgression';
+import {
   LANE_X,
   MAP_LOGICAL_WIDTH,
   type LaneKey,
@@ -56,6 +60,7 @@ function buildLayoutForBlock(
   nodes: readonly PlayMapNode[],
   startY: number,
   stageLabelOffset: number,
+  isEnglishCopy = false,
 ): { layout: PlayBlockLayout; nextStageLabel: number } {
   const blockNodes = nodes
     .filter((n) => n.blockId === block.id)
@@ -72,7 +77,7 @@ function buildLayoutForBlock(
     const isLast = i === count - 1;
     const lane = assignLane(i, isLast);
     const node = blockNodes[i];
-    const displayLabel = node.nodeKind === 'quest' ? '?' : String(stageLabel);
+    const displayLabel = playMapNodeDisplayLabel(node, stageLabel, isEnglishCopy);
     if (node.nodeKind === 'stage') {
       stageLabel += 1;
     }
@@ -117,6 +122,7 @@ export const buildPlayDescentLayout = (
   blocks: readonly PlayMapBlock[],
   nodes: readonly PlayMapNode[],
   tier: PlayMapTier,
+  isEnglishCopy = false,
 ): PlayDescentLayout => {
   const tierBlocks = blocks
     .filter((b) => b.tier === tier)
@@ -134,6 +140,7 @@ export const buildPlayDescentLayout = (
       nodes,
       cursorY,
       stageLabel,
+      isEnglishCopy,
     );
     blockLayouts.push(layout);
     layout.nodes.forEach((node) => nodePositions.set(node.nodeId, node));
@@ -167,7 +174,9 @@ export const isPlayDescentBlockUnlocked = (
   const prev = blockLayouts[blockIndex - 1];
   if (!prev) return blockIndex === 0;
   if (prev.nodes.length === 0) return true;
-  return prev.nodes.every((n) => clearedNodeIds.has(n.nodeId));
+  return prev.nodes
+    .filter((n) => isPlayMapProgressionGate(n.node))
+    .every((n) => clearedNodeIds.has(n.nodeId));
 };
 
 export const isPlayDescentNodeUnlocked = (
@@ -190,7 +199,7 @@ export const isPlayDescentNodeUnlocked = (
     }
     for (let i = 0; i < nodeIndex; i += 1) {
       const prior = blockLayout.nodes[i];
-      if (prior && !clearedNodeIds.has(prior.nodeId)) {
+      if (prior && isPlayMapProgressionGate(prior.node) && !clearedNodeIds.has(prior.nodeId)) {
         return false;
       }
     }
@@ -226,7 +235,9 @@ export const getAccessiblePlayBlockIndex = (
   if (blockIndex < 0) return 0;
   const block = blockLayouts[blockIndex];
   const blockCleared = block.nodes.length > 0
-    && block.nodes.every((n) => clearedNodeIds.has(n.nodeId));
+    && block.nodes
+      .filter((n) => isPlayMapProgressionGate(n.node))
+      .every((n) => clearedNodeIds.has(n.nodeId));
   if (blockCleared) {
     return Math.min(blockIndex + 1, blockLayouts.length - 1);
   }
@@ -243,7 +254,7 @@ export const findFrontierNodeId = (
       continue;
     }
     for (const node of blockLayout.nodes) {
-      if (!clearedNodeIds.has(node.nodeId)) {
+      if (isPlayMapProgressionGate(node.node) && !clearedNodeIds.has(node.nodeId)) {
         return node.nodeId;
       }
     }

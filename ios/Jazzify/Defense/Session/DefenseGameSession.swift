@@ -33,6 +33,7 @@ final class DefenseGameSession: ObservableObject {
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
     let practiceMode: Bool
+    let tutorialOptions: DefenseTutorialOptions?
     private let lessonContext: DefenseLessonContext?
 
     private var lastSwitchGeneration: UInt64 = 0
@@ -48,18 +49,23 @@ final class DefenseGameSession: ObservableObject {
         stage: DefenseStageDefinition,
         difficulty: DefenseDifficultyDefinition,
         practiceMode: Bool,
-        lessonContext: DefenseLessonContext?
+        lessonContext: DefenseLessonContext?,
+        tutorialOptions: DefenseTutorialOptions? = nil
     ) {
         self.stage = stage
         self.difficulty = difficulty
         self.practiceMode = practiceMode
+        self.tutorialOptions = tutorialOptions
         self.lessonContext = lessonContext
+        let maxEnemies = tutorialOptions?.maxEnemies ?? difficulty.maxEnemies
         let runtime = DefenseRuntimeState(
             playerHp: stage.playerHp,
             surviveSeconds: TimeInterval(stage.surviveSeconds),
-            maxEnemies: difficulty.maxEnemies,
+            maxEnemies: maxEnemies,
             practiceMode: practiceMode,
-            attackTrigger: stage.attackTrigger
+            tutorial: tutorialOptions,
+            attackTrigger: stage.attackTrigger,
+            initialSpGauge: tutorialOptions?.initialSpGauge ?? 0
         )
         self.runtime = runtime
         self.judgeState = DefensePhraseJudge.createInitialState(phrases: stage.phrases)
@@ -95,6 +101,9 @@ final class DefenseGameSession: ObservableObject {
         try? await DefenseBackingAudio.shared.preload(urls: urls)
         try? await DefenseBackingAudio.shared.start(firstUrl: firstUrl)
         DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
+        if tutorialOptions != nil {
+            DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: difficulty)
+        }
     }
 
     func stepPhrase(_ delta: Int) {
@@ -183,7 +192,7 @@ final class DefenseGameSession: ObservableObject {
             pitchClass: normalizedPc,
             sequential: sequential,
             attackTrigger: stage.attackTrigger,
-            autoAdvance: !practiceMode
+            autoAdvance: tutorialOptions?.autoAdvancePhrase ?? !practiceMode
         )
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState

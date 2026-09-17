@@ -137,7 +137,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   }, [loading, assetsReady]);
 
   const layout = useMemo(
-    () => buildPlayDescentLayout(blocks, nodes, tier),
+    () => buildPlayDescentLayout(blocks, nodes, tier, isEnglishCopy),
     [blocks, nodes, tier],
   );
 
@@ -355,7 +355,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
       advanced: { cleared: 0, total: 0 },
     };
     (['basic', 'advanced'] as const).forEach((mapTier) => {
-      const tierLayout = buildPlayDescentLayout(blocks, nodes, mapTier);
+      const tierLayout = buildPlayDescentLayout(blocks, nodes, mapTier, isEnglishCopy);
       result[mapTier] = {
         cleared: countClearedStageNodes(tierLayout, clearedNodeIds),
         total: countStageNodes(tierLayout),

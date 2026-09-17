@@ -165,6 +165,17 @@ final class PitchInputEngine: @unchecked Sendable {
         }
     }
 
+    func setPitchStableFrames(_ frames: Int) {
+        let clamped = max(1, min(8, frames))
+        inferenceQueue.async { [tracker] in
+            var config = PitchOnsetSensitivity.scaleConfig(
+                sensitivity: NoteInputPreferences.micSensitivity
+            )
+            config.pitchStableFrames = clamped
+            tracker.setConfig(config)
+        }
+    }
+
     // MARK: - 購読
 
     func subscribe(_ handler: @escaping (UInt8, UInt8, UInt8) -> Void) -> MIDISubscription {

@@ -96,8 +96,8 @@ export class PitchOnsetTracker {
     this.config = config;
   }
 
-  setConfig(config: PitchOnsetTrackerConfig): void {
-    this.config = config;
+  setConfig(config: Partial<PitchOnsetTrackerConfig>): void {
+    this.config = { ...this.config, ...config };
   }
 
   reset(): void {

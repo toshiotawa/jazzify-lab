@@ -22,6 +22,9 @@ const LazyDefenseMain = React.lazy(() => import('@/components/defense/DefenseMai
 const LazyTrainingMain = React.lazy(() => import('@/components/training/TrainingMain'));
 const LazyVideoLessonMain = React.lazy(() => import('@/components/videoLesson/VideoLessonMain'));
 const LazyDefenseMapMain = React.lazy(() => import('@/components/play/DefenseMapMain'));
+const LazyDefenseTutorialMain = React.lazy(
+  () => import('@/components/defense/tutorial/DefenseTutorialMain'),
+);
 
 interface GameRoutesProps {
   isPremiumMember: boolean;
@@ -107,6 +110,14 @@ const GameRoutes: React.FC<GameRoutesProps> = ({ isPremiumMember, renderDashboar
       element={
         <React.Suspense fallback={<LoadingScreen compact />}>
           <LazyDefenseMain />
+        </React.Suspense>
+      }
+    />
+    <Route
+      path="defense-tutorial"
+      element={
+        <React.Suspense fallback={<LoadingScreen compact />}>
+          <LazyDefenseTutorialMain />
         </React.Suspense>
       }
     />

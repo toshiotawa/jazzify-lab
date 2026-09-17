@@ -33,12 +33,13 @@ const makeNode = (
   id: string,
   blockId: string,
   sortOrder: number,
-  nodeKind: 'stage' | 'quest' = 'stage',
+  nodeKind: 'stage' | 'quest' | 'tutorial' = 'stage',
 ): PlayMapNode => ({
   id,
   blockId,
   sortOrder,
   nodeKind,
+  tutorialKey: nodeKind === 'tutorial' ? 'defense-input-setup-v1' : null,
   survivalMapCategory: null,
   survivalStageNumber: null,
   defenseStageId: nodeKind === 'stage' ? `stage-${id}` : null,
@@ -74,6 +75,17 @@ describe('buildPlayDescentLayout', () => {
     ];
     const layout = buildPlayDescentLayout([blockA], nodes, 'basic');
     expect(layout.blocks[0].nodes.map((n) => n.displayLabel)).toEqual(['?', '1', '2']);
+  });
+
+  it('labels tutorial nodes as intro and does not block stage unlock', () => {
+    const nodes = [
+      makeNode('t1', blockA.id, -1, 'tutorial'),
+      makeNode('s1', blockA.id, 0, 'stage'),
+    ];
+    const layout = buildPlayDescentLayout([blockA], nodes, 'basic', false);
+    expect(layout.blocks[0].nodes[0].displayLabel).toBe('入門');
+    const cleared = new Set<string>();
+    expect(isPlayDescentNodeUnlocked('s1', layout.blocks, cleared, true)).toBe(true);
   });
 
   it('chains block Y positions without overlap', () => {

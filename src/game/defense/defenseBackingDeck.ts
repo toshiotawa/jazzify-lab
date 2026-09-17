@@ -64,7 +64,9 @@ class DefenseBackingDeck {
   private bpm = 120;
   private beatsPerBar = 4;
   private voiceInputDucking = false;
+  private userVolume = 1;
   private readonly bufferByUrl = new Map<string, Promise<AudioBuffer>>();
+  private readonly bufferFactoryByUrl = new Map<string, (ctx: AudioContext) => AudioBuffer>();
 
   private ensureGraph(): DeckGraph {
     if (this.graph) {
@@ -83,16 +85,26 @@ class DefenseBackingDeck {
     this.beatsPerBar = Math.max(1, beatsPerBar);
   }
 
+  setUserVolume(volume: number): void {
+    this.userVolume = Math.max(0, Math.min(1, volume));
+    this.applyMasterOutputGain();
+  }
+
   setVoiceInputDucking(enabled: boolean): void {
     if (this.voiceInputDucking === enabled) {
       return;
     }
     this.voiceInputDucking = enabled;
+    this.applyMasterOutputGain();
+  }
+
+  private applyMasterOutputGain(): void {
     const graph = this.graph;
     if (!graph) {
       return;
     }
-    graph.masterGain.gain.value = enabled ? VOICE_INPUT_BGM_DUCK : 1;
+    const duck = this.voiceInputDucking ? VOICE_INPUT_BGM_DUCK : 1;
+    graph.masterGain.gain.value = this.userVolume * duck;
   }
 
   getCurrentTime(): number {
@@ -103,6 +115,14 @@ class DefenseBackingDeck {
     const { ctx } = this.ensureGraph();
     const unique = [...new Set(urls.filter((url) => url.length > 0))];
     await Promise.all(unique.map((url) => this.decodeUrl(ctx, url, speedRatio)));
+  }
+
+  registerBufferFactory(
+    url: string,
+    factory: (ctx: AudioContext) => AudioBuffer,
+  ): void {
+    this.bufferFactoryByUrl.set(url, factory);
+    this.bufferByUrl.delete(`${url}\x010.0000`);
   }
 
   decodeForDeck(url: string, speedRatio = 1): Promise<AudioBuffer> {
@@ -119,6 +139,10 @@ class DefenseBackingDeck {
     let promise = this.bufferByUrl.get(cacheKey);
     if (!promise) {
       promise = (async () => {
+        const factory = this.bufferFactoryByUrl.get(url);
+        if (factory && Math.abs(safeRatio - 1) < 0.0001) {
+          return factory(ctx);
+        }
         const arrayBuffer = await fetchCachedFullAudioBuffer(url);
         const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
         if (Math.abs(safeRatio - 1) < 0.0001) {

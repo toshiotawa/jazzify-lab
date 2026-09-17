@@ -34,11 +34,20 @@ interface WorkerControlMessage {
   sensitivity: number;
 }
 
+interface WorkerSetOnsetConfigMessage {
+  type: 'setOnsetConfig';
+  config: Partial<PitchOnsetTrackerConfig>;
+}
+
 interface WorkerConnectPortMessage {
   type: 'connectPort';
 }
 
-type WorkerInbound = WorkerInitMessage | WorkerControlMessage | WorkerConnectPortMessage;
+type WorkerInbound =
+  | WorkerInitMessage
+  | WorkerControlMessage
+  | WorkerSetOnsetConfigMessage
+  | WorkerConnectPortMessage;
 
 interface NoteEventMessage {
   type: 'noteOn' | 'noteOff';
@@ -259,6 +268,11 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       if (tracker) {
         tracker.setConfig(scaleOnsetConfigForSensitivity(data.sensitivity));
       }
+      return;
+    }
+
+    if (data.type === 'setOnsetConfig') {
+      tracker?.setConfig(data.config);
       return;
     }
   } catch (error) {

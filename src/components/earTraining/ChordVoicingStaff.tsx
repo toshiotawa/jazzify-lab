@@ -19,6 +19,8 @@ import {
 } from './musicNotationVectorStaff';
 import './chordVoicingStaffEffects.css';
 
+export type ChordVoicingStaffNoteValue = 'whole' | 'quarter';
+
 export interface ChordVoicingStaffGroup {
   id: string;
   chordName: string;
@@ -29,6 +31,10 @@ export interface ChordVoicingStaffGroup {
   measureOffset?: 0 | 1;
   isActive?: boolean;
   isRest?: boolean;
+  /** Display note value; default whole for existing callers. */
+  noteValue?: ChordVoicingStaffNoteValue;
+  /** Beat index within the measure (0-based) for quarter-note layout. */
+  beatIndex?: number;
   /** true のとき HINT OFF フェード対象から除外（Phrases の reveal 等） */
   exemptFromFade?: boolean;
 }
@@ -139,6 +145,7 @@ interface ParsedVoicingStaffGroup {
   measureOffset: 0 | 1;
   slotIndex: number;
   slotCount: number;
+  noteValue: ChordVoicingStaffNoteValue;
   legacyIsActive: boolean;
   isRest: boolean;
   exemptFromFade: boolean;
@@ -731,6 +738,116 @@ const WholeRest: React.FC<{
     fill={color}
   />
 );
+
+const QuarterRest: React.FC<{
+  groupId: string;
+  baseX: number;
+  staffTopY: number;
+  color: string;
+}> = ({ groupId, baseX, staffTopY, color }) => (
+  <path
+    data-quarter-rest-group-id={groupId}
+    d={`M ${baseX - SP * 0.15} ${staffTopY + SP * 2.1}
+        c ${SP * 0.35} ${-SP * 0.55} ${SP * 0.55} ${-SP * 0.15} ${SP * 0.2} ${SP * 0.15}
+        c ${-SP * 0.45} ${SP * 0.35} ${-SP * 0.55} ${SP * 0.75} ${-SP * 0.15} ${SP * 0.95}
+        c ${SP * 0.35} ${SP * 0.15} ${SP * 0.55} ${SP * 0.45} ${SP * 0.15} ${SP * 0.75}`}
+    fill="none"
+    stroke={color}
+    strokeWidth={STAFF_LINE_THICKNESS * 1.2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+
+const QuarterNote: React.FC<{
+  groupId: string;
+  positioned: PositionedVoicingNote;
+  baseX: number;
+  staffTopY: number;
+  isCorrect: boolean;
+  isNextHint: boolean;
+  noteOpacity: number;
+  clefFontsLoaded: boolean;
+  smuflUseForeignObject: boolean;
+}> = ({
+  groupId,
+  positioned,
+  baseX,
+  staffTopY,
+  isCorrect,
+  isNextHint,
+  noteOpacity,
+  clefFontsLoaded,
+  smuflUseForeignObject,
+}) => {
+  const noteWidth = SP * 1.1;
+  const noteHeight = SP * 0.78;
+  const xCenter = baseX + positioned.xOffset;
+  const stemX = xCenter + noteWidth * 0.42;
+  const stemTop = positioned.yCenter - noteHeight;
+  const stemBottom = positioned.yCenter + SP * 2.8;
+  const notationColor = isCorrect
+    ? CORRECT_NOTATION_COLOR
+    : isNextHint
+      ? NEXT_TARGET_COLOR
+      : NOTATION_COLOR;
+  const displayAlter = positioned.note.displayAccidentalAlter;
+  const accidental = displayAlter === null ? '' : accidentalGlyph(displayAlter);
+  const accidentalX = Math.min(
+    xCenter - noteWidth * 1.15,
+    baseX - noteWidth * 1.25 - positioned.accidentalColumn * SP * 0.95,
+  );
+
+  const noteContent = (
+    <>
+      {smuflUseForeignObject && displayAlter !== null ? (
+        <g
+          transform={`translate(${accidentalX}, ${positioned.yCenter})`}
+          pointerEvents="none"
+        >
+          <MusicNotationVectorAccidental alter={displayAlter} s={SP} stroke={notationColor} />
+        </g>
+      ) : null}
+      {clefFontsLoaded && accidental && !smuflUseForeignObject ? (
+        <text
+          className="bravura-staff-glyphs"
+          x={accidentalX}
+          y={positioned.yCenter}
+          dominantBaseline="central"
+          fill={notationColor}
+          fontSize={ACCIDENTAL_FONT_SIZE}
+          textAnchor="middle"
+        >
+          {accidental}
+        </text>
+      ) : null}
+      <ellipse
+        cx={xCenter}
+        cy={positioned.yCenter}
+        rx={noteWidth / 2}
+        ry={noteHeight / 2}
+        fill={notationColor}
+        stroke={notationColor}
+        strokeWidth={1}
+        transform={`rotate(-18 ${xCenter} ${positioned.yCenter})`}
+      />
+      <line
+        x1={stemX}
+        y1={stemTop}
+        x2={stemX}
+        y2={stemBottom}
+        stroke={notationColor}
+        strokeWidth={STAFF_LINE_THICKNESS * 1.1}
+        strokeLinecap="round"
+      />
+    </>
+  );
+
+  if (noteOpacity >= 1) {
+    return <g data-voicing-group-id={groupId}>{noteContent}</g>;
+  }
+  return <g data-voicing-group-id={groupId} opacity={noteOpacity}>{noteContent}</g>;
+};
 
 const LedgerLines: React.FC<{
   xCenter: number;
@@ -1418,8 +1535,9 @@ const RenderedStaff: React.FC<{
             return [];
           }
           const noteOpacity = fadeCurrentMeasure ? unpressedNoteOpacity : 1;
+          const NoteComponent = group.noteValue === 'quarter' ? QuarterNote : WholeNote;
           const node = (
-            <WholeNote
+            <NoteComponent
               key={`${group.id}-${positioned.note.voicingIndex}`}
               groupId={group.id}
               positioned={positioned}
@@ -1437,8 +1555,9 @@ const RenderedStaff: React.FC<{
         if (!group.isRest) {
           return notes;
         }
+        const RestComponent = group.noteValue === 'quarter' ? QuarterRest : WholeRest;
         return [
-          <WholeRest
+          <RestComponent
             key={`${group.id}-rest`}
             groupId={group.id}
             baseX={noteBaseX}
@@ -1550,14 +1669,24 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     }
     try {
       const measureSlotCounts = new Map<0 | 1, number>();
+      const measureBeatLayout = new Map<0 | 1, boolean>();
       staffGroups.forEach(group => {
-        measureSlotCounts.set(group.measureOffset ?? 0, (measureSlotCounts.get(group.measureOffset ?? 0) ?? 0) + 1);
+        const measureOffset = group.measureOffset ?? 0;
+        if (group.beatIndex !== undefined) {
+          measureBeatLayout.set(measureOffset, true);
+          measureSlotCounts.set(measureOffset, 4);
+          return;
+        }
+        measureSlotCounts.set(measureOffset, (measureSlotCounts.get(measureOffset) ?? 0) + 1);
       });
       const nextSlotByMeasure = new Map<0 | 1, number>();
       const groups = staffGroups.map(group => {
         const measureOffset = group.measureOffset ?? 0;
-        const slotIndex = nextSlotByMeasure.get(measureOffset) ?? 0;
-        nextSlotByMeasure.set(measureOffset, slotIndex + 1);
+        const usesBeatLayout = measureBeatLayout.get(measureOffset) === true;
+        const slotIndex = group.beatIndex ?? nextSlotByMeasure.get(measureOffset) ?? 0;
+        if (!usesBeatLayout || group.beatIndex === undefined) {
+          nextSlotByMeasure.set(measureOffset, slotIndex + 1);
+        }
         return {
           id: group.id,
           chordName: group.chordName,
@@ -1571,6 +1700,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           measureOffset,
           slotIndex,
           slotCount: measureSlotCounts.get(measureOffset) ?? 1,
+          noteValue: group.noteValue ?? 'whole',
           legacyIsActive: group.isActive === true,
           isRest: group.isRest === true || group.voicing.length === 0,
           exemptFromFade: group.exemptFromFade === true,

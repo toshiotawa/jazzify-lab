@@ -122,12 +122,31 @@ export interface DefenseFireball {
 
 export type DefenseGameResult = 'playing' | 'clear' | 'gameover';
 
+export interface DefenseTutorialOptions {
+  readonly key: 'input-setup-v1';
+  readonly enemyAttackEnabled: boolean;
+  readonly timedClearEnabled: boolean;
+  readonly autoAdvancePhrase: boolean;
+  readonly initialSpGauge: number;
+  readonly maxEnemies?: number;
+}
+
+export const DEFENSE_TUTORIAL_INPUT_SETUP_V1: DefenseTutorialOptions = {
+  key: 'input-setup-v1',
+  enemyAttackEnabled: false,
+  timedClearEnabled: false,
+  autoAdvancePhrase: false,
+  initialSpGauge: 4,
+  maxEnemies: 2,
+};
+
 export interface DefenseRuntime {
   elapsedSec: number;
   playerHp: number;
   playerMaxHp: number;
   surviveSeconds: number;
   practiceMode: boolean;
+  tutorial: DefenseTutorialOptions | null;
   attackTrigger: DefenseAttackTrigger;
   result: DefenseGameResult;
   enemiesDefeated: number;
@@ -185,12 +204,14 @@ export const createDefenseRuntime = (
   maxEnemies: number,
   practiceMode = false,
   attackTrigger: DefenseAttackTrigger = 'note',
+  tutorial: DefenseTutorialOptions | null = null,
 ): DefenseRuntime => ({
   elapsedSec: 0,
   playerHp: playerMaxHp,
   playerMaxHp,
   surviveSeconds,
   practiceMode,
+  tutorial,
   attackTrigger,
   result: 'playing',
   enemiesDefeated: 0,
@@ -232,7 +253,7 @@ export const createDefenseRuntime = (
   guardPoseUntilSec: 0,
   skillPoseStartSec: DEFENSE_NO_SKILL_POSE,
   fireballSpawnAtSec: DEFENSE_NO_PENDING_FIREBALL,
-  spGauge: 0,
+  spGauge: tutorial?.initialSpGauge ?? 0,
   damagePopups: Array.from({ length: DEFENSE_DAMAGE_POPUP_POOL_SIZE }, () => ({
     active: false,
     x: 0,

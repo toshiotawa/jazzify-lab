@@ -10,8 +10,8 @@ import type { EarTrainingPhrasePairAdlibStep } from '@/utils/earTrainingPhrasePa
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
-export type InputMethod = 'midi' | 'voice';
-import type { NotationInstrumentId } from '@/utils/notationInstrument';
+export type InputMethod = 'midi' | 'voice' | 'touch';
+import type { NotationInstrumentClef, NotationInstrumentId } from '@/utils/notationInstrument';
 
 // ===== コードネーム表示システム =====
 
@@ -228,6 +228,15 @@ export interface GameSettings {
   
   /** 音声認識の感度 (1-10, デフォルト5) */
   voiceSensitivity: number;
+
+  /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
+  voiceFastResponse?: boolean;
+
+  /** 記譜クレフ override（null=楽器プリセット） */
+  notationClefOverride?: NotationInstrumentClef | null;
+
+  /** 記譜移調 override 半音（null=楽器プリセット） */
+  notationTranspositionOverride?: number | null;
 
   /** 鍵盤表示: 出題音域フィット / 88鍵盤（全モード共通） */
   webKeyboardDisplayMode?: 'questionRangeFit' | 'full88';

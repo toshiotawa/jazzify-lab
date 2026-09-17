@@ -51,7 +51,26 @@ final class DefenseDescentAccessTests: XCTestCase {
             title: "Title",
             titleEn: "Title EN",
             requiredRank: .C,
-            difficultyLevel: nil
+            difficultyLevel: nil,
+            tutorialKey: nil
+        )
+    }
+
+    private func makeTutorialNode(id: UUID, blockId: UUID, sortOrder: Int) -> PlayMapNode {
+        PlayMapNode(
+            id: id,
+            blockId: blockId,
+            sortOrder: sortOrder,
+            nodeKind: .tutorial,
+            survivalMapCategory: nil,
+            survivalStageNumber: nil,
+            defenseStageId: nil,
+            lessonId: nil,
+            title: "Tutorial",
+            titleEn: "Tutorial",
+            requiredRank: .C,
+            difficultyLevel: nil,
+            tutorialKey: DefenseTutorialConstants.key
         )
     }
 
@@ -126,5 +145,47 @@ final class DefenseDescentAccessTests: XCTestCase {
                 isPremium: true
             )
         )
+    }
+
+    func testTutorialDoesNotBlockStageUnlock() {
+        let tutorialId = UUID()
+        let nodes = [
+            makeTutorialNode(id: tutorialId, blockId: blockAId, sortOrder: 0),
+            makeNode(id: stage1Id, blockId: blockAId, sortOrder: 1, kind: .stage),
+            makeNode(id: blockBNodeId, blockId: blockBId, sortOrder: 0, kind: .stage),
+        ]
+        let layout = DefenseDescentLayoutBuilder.build(blocks: [blockA, blockB], nodes: nodes, tier: .basic)
+        let clearedWithoutTutorial: Set<UUID> = [stage1Id]
+        XCTAssertTrue(
+            DefenseDescentAccess.isNodeUnlocked(
+                nodeId: stage1Id,
+                blockLayouts: layout.blocks,
+                clearedNodeIds: clearedWithoutTutorial,
+                isPremium: true
+            )
+        )
+    }
+
+    func testLegacyWelcomeQuestDoesNotBlockStageUnlock() {
+        let welcomeId = PlayMapProgression.legacyWelcomeQuestId
+        let nodes = [
+            makeNode(id: welcomeId, blockId: blockAId, sortOrder: 0, kind: .quest),
+            makeNode(id: stage1Id, blockId: blockAId, sortOrder: 1, kind: .stage),
+        ]
+        let layout = DefenseDescentLayoutBuilder.build(blocks: [blockA], nodes: nodes, tier: .basic)
+        XCTAssertTrue(
+            DefenseDescentAccess.isNodeUnlocked(
+                nodeId: stage1Id,
+                blockLayouts: layout.blocks,
+                clearedNodeIds: [],
+                isPremium: true
+            )
+        )
+    }
+
+    func testTutorialDisplayLabel() {
+        let node = makeTutorialNode(id: UUID(), blockId: blockAId, sortOrder: 0)
+        XCTAssertEqual(PlayMapProgression.displayLabel(node: node, stageLabel: 1, isEnglishCopy: false), "入門")
+        XCTAssertEqual(PlayMapProgression.displayLabel(node: node, stageLabel: 1, isEnglishCopy: true), "Intro")
     }
 }

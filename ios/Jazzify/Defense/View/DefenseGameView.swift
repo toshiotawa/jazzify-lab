@@ -12,8 +12,15 @@ struct DefenseGameView: View {
     let onClose: () -> Void
     let onApplyPracticeModeAndRestart: (Bool) -> Void
     let playMapNodeId: UUID?
+    let tutorialOptions: DefenseTutorialOptions?
+    let tutorialInputMethod: NoteInputMethod?
+    let tutorialStaffGroups: [DefenseTutorialStaffGroup]?
+    let tutorialClefOverride: NotationInstrumentClef?
+    let tutorialConcertPitchClasses: [Int]?
+    let suppressResultScreen: Bool
     let onPlayMapCleared: (() -> Void)?
     let onFinished: ((DefenseFinishSummary) -> Void)?
+    let onTutorialPhraseSucceeded: (() -> Void)?
 
     init(
         stage: DefenseStageDefinition,
@@ -22,25 +29,42 @@ struct DefenseGameView: View {
         lessonContext: DefenseLessonContext?,
         locale: AppLocale,
         playMapNodeId: UUID? = nil,
+        tutorialOptions: DefenseTutorialOptions? = nil,
+        tutorialInputMethod: NoteInputMethod? = nil,
+        tutorialStaffGroups: [DefenseTutorialStaffGroup]? = nil,
+        tutorialClefOverride: NotationInstrumentClef? = nil,
+        tutorialConcertPitchClasses: [Int]? = nil,
+        suppressResultScreen: Bool = false,
         onClose: @escaping () -> Void,
         onApplyPracticeModeAndRestart: @escaping (Bool) -> Void,
         onPlayMapCleared: (() -> Void)? = nil,
-        onFinished: ((DefenseFinishSummary) -> Void)? = nil
+        onFinished: ((DefenseFinishSummary) -> Void)? = nil,
+        onTutorialPhraseSucceeded: (() -> Void)? = nil
     ) {
         _session = StateObject(wrappedValue: DefenseGameSession(
             stage: stage,
             difficulty: difficulty,
             practiceMode: practiceMode,
-            lessonContext: lessonContext
+            lessonContext: lessonContext,
+            tutorialOptions: tutorialOptions
         ))
         _scene = State(initialValue: DefenseScene(size: CGSize(width: 800, height: 600)))
         self.locale = locale
         self.playMapNodeId = playMapNodeId
+        self.tutorialOptions = tutorialOptions
+        self.tutorialInputMethod = tutorialInputMethod
+        self.tutorialStaffGroups = tutorialStaffGroups
+        self.tutorialClefOverride = tutorialClefOverride
+        self.tutorialConcertPitchClasses = tutorialConcertPitchClasses
+        self.suppressResultScreen = suppressResultScreen
         self.onClose = onClose
         self.onApplyPracticeModeAndRestart = onApplyPracticeModeAndRestart
         self.onPlayMapCleared = onPlayMapCleared
         self.onFinished = onFinished
+        self.onTutorialPhraseSucceeded = onTutorialPhraseSucceeded
     }
+
+    private var isTutorialSession: Bool { tutorialOptions != nil }
 
     var body: some View {
         Group {
@@ -82,6 +106,7 @@ struct DefenseGameView: View {
             isSessionReady = false
         }
         .onChange(of: session.hud.result) { result in
+            if isTutorialSession { return }
             if result == .clear, playMapNodeId != nil, !session.practiceMode {
                 onPlayMapCleared?()
             }
@@ -91,6 +116,14 @@ struct DefenseGameView: View {
                     surviveSec: Int(session.runtime.elapsedSec.rounded(.down)),
                     enemiesDefeated: session.runtime.enemiesDefeated
                 ))
+            }
+        }
+        .onChange(of: session.judgeState.correctNoteIndices) { _ in
+            guard isTutorialSession else { return }
+            let totalSteps = DefenseTutorialConstants.targetPitchClasses.count
+            if session.judgeState.correctNoteIndices.count >= totalSteps
+                || session.judgeState.targetStepIndex >= totalSteps {
+                onTutorialPhraseSucceeded?()
             }
         }
         .sheet(isPresented: $isSettingsOpen, onDismiss: {
@@ -136,7 +169,36 @@ struct DefenseGameView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .ignoresSafeArea(edges: .top)
 
-            if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
+            if isTutorialSession,
+               let tutorialStaffGroups,
+               let concertPitchClasses = tutorialConcertPitchClasses {
+                let staffDisplay = BuildDefenseTutorialStaffDisplay.build(
+                    baseGroups: tutorialStaffGroups,
+                    judge: session.judgeState,
+                    concertPitchClasses: concertPitchClasses
+                )
+                let staffPlacement = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+                    sceneHeight: size.height,
+                    hudHeight: EarTrainingBattleStaffBandLayout.compactBattleHudHeight,
+                    hasLabelBand: true,
+                    keyboardHeight: Self.pianoHeight
+                )
+                DefenseTutorialStaffView(
+                    staffDisplay: staffDisplay,
+                    keyFifths: session.stage.keyFifths,
+                    clefOverride: tutorialClefOverride
+                )
+                .padding(.horizontal, 12)
+                .frame(
+                    width: min(
+                        size.width * EarTrainingBattleStaffBandLayout.defaultStaffWidthRatio,
+                        EarTrainingBattleStaffBandLayout.defaultStaffMaxWidth
+                    ),
+                    height: staffPlacement.height
+                )
+                .position(x: size.width / 2, y: staffPlacement.centerY)
+                .allowsHitTesting(false)
+            } else if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
                 let staffPlacement = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
                     sceneHeight: size.height,
                     hudHeight: EarTrainingBattleStaffBandLayout.compactBattleHudHeight,
@@ -192,7 +254,7 @@ struct DefenseGameView: View {
                 .frame(height: Self.pianoHeight)
             }
 
-            if session.hud.result != .playing, onFinished == nil {
+            if session.hud.result != .playing, onFinished == nil, !suppressResultScreen {
                 resultOverlay
             }
 
@@ -351,7 +413,7 @@ struct DefenseGameView: View {
                 isSettingsOpen = true
             },
             onBack: onClose,
-            rightControlsLeading: AnyView(defenseSpeedStepper)
+            rightControlsLeading: isTutorialSession ? nil : AnyView(defenseSpeedStepper)
         )
     }
 
@@ -397,8 +459,15 @@ struct DefenseGameView: View {
     private var keyboardHints: DefensePhraseJudge.KeyboardHints {
         DefensePhraseJudge.keyboardHints(
             state: session.judgeState,
-            sequential: NoteInputManager.shared.isVoiceInputActive
+            sequential: effectiveSequentialInput
         )
+    }
+
+    private var effectiveSequentialInput: Bool {
+        if let tutorialInputMethod {
+            return tutorialInputMethod == .voice
+        }
+        return NoteInputManager.shared.isVoiceInputActive
     }
 
     private var chordPadSnapshot: SurvivalChordPadSnapshot {

@@ -3,6 +3,7 @@ import Foundation
 
 enum DefenseGameLoop {
     private static let spawnX: CGFloat = 760
+    private static let tutorialInitialEnemyX: [CGFloat] = [420, 560]
     private static let fireballDespawnX: CGFloat = 840
     private static let fireballSpawnOffsetX: CGFloat = 40
     private static let fireballSpawnOffsetY: CGFloat = 40
@@ -17,7 +18,9 @@ enum DefenseGameLoop {
         guard runtime.result == .playing else { return }
         runtime.elapsedSec += deltaTime
         spawnPendingFireball(runtime: &runtime)
-        if !runtime.practiceMode && runtime.elapsedSec >= runtime.surviveSeconds {
+        if timedClearEnabled(runtime: runtime),
+           !runtime.practiceMode,
+           runtime.elapsedSec >= runtime.surviveSeconds {
             runtime.result = .clear
             return
         }
@@ -76,6 +79,66 @@ enum DefenseGameLoop {
 
     private static func isPhraseMode(_ runtime: DefenseRuntimeState) -> Bool {
         runtime.attackTrigger == .note
+    }
+
+    private static func timedClearEnabled(runtime: DefenseRuntimeState) -> Bool {
+        if let tutorial = runtime.tutorial {
+            return tutorial.timedClearEnabled
+        }
+        return true
+    }
+
+    private static func enemyAttacksEnabled(runtime: DefenseRuntimeState) -> Bool {
+        if let tutorial = runtime.tutorial {
+            return tutorial.enemyAttackEnabled
+        }
+        return true
+    }
+
+    private static func effectiveMaxEnemies(
+        runtime: DefenseRuntimeState,
+        difficulty: DefenseDifficultyDefinition
+    ) -> Int {
+        if let tutorial = runtime.tutorial, tutorial.maxEnemies > 0 {
+            return tutorial.maxEnemies
+        }
+        return difficulty.maxEnemies
+    }
+
+    static func spawnTutorialInitialEnemies(
+        runtime: inout DefenseRuntimeState,
+        difficulty: DefenseDifficultyDefinition
+    ) {
+        guard runtime.tutorial != nil else { return }
+        guard runtime.enemies.filter(\.isActive).isEmpty else { return }
+
+        for (index, x) in tutorialInitialEnemyX.enumerated() {
+            if runtime.enemies.filter(\.isActive).count >= effectiveMaxEnemies(runtime: runtime, difficulty: difficulty) {
+                return
+            }
+            guard let slotIndex = runtime.enemies.firstIndex(where: { !$0.isActive }) else { return }
+
+            let enemyType = DefenseEnemyConfig.pickWaveEnemyType(
+                waveIndex: 0,
+                spawnCount: index,
+                cumulative: false
+            )
+            runtime.enemies[slotIndex].isActive = true
+            runtime.enemies[slotIndex].x = x
+            runtime.enemies[slotIndex].y = DefenseEnemyConfig.centerY(for: enemyType)
+            runtime.enemies[slotIndex].knockbackVx = 0
+            runtime.enemies[slotIndex].lastAttackAt = 0
+            runtime.enemies[slotIndex].isMoving = false
+            runtime.enemies[slotIndex].attackHitPending = false
+            runtime.enemies[slotIndex].hitFlashAt = DefenseEnemyConfig.noHitFlash
+            applyResolvedStats(
+                enemy: &runtime.enemies[slotIndex],
+                type: enemyType,
+                difficulty: difficulty,
+                runtime: runtime
+            )
+            runtime.nextEnemyIndex += 1
+        }
     }
 
     private static func spawnIntervalSec(
@@ -222,7 +285,7 @@ enum DefenseGameLoop {
         syncWaveState(runtime: &runtime, spawnIntervalSec: interval)
 
         let activeCount = runtime.enemies.filter(\.isActive).count
-        guard activeCount < difficulty.maxEnemies else { return }
+        guard activeCount < effectiveMaxEnemies(runtime: runtime, difficulty: difficulty) else { return }
 
         runtime.spawnTimerSec += deltaTime
         guard runtime.spawnTimerSec >= interval else { return }
@@ -274,7 +337,7 @@ enum DefenseGameLoop {
                 runtime.impactX = runtime.playerX
                 runtime.impactY = runtime.playerY
                 enemy.attackHitPending = false
-                if !runtime.practiceMode {
+                if enemyAttacksEnabled(runtime: runtime), !runtime.practiceMode {
                     runtime.playerHp = max(0, runtime.playerHp - enemy.damage)
                     if runtime.playerHp <= 0 {
                         runtime.result = .gameOver
@@ -293,7 +356,8 @@ enum DefenseGameLoop {
                     enemy.x += speed
                 }
                 enemy.isMoving = true
-            } else if inRange
+            } else if enemyAttacksEnabled(runtime: runtime)
+                && inRange
                 && !enemy.attackHitPending
                 && !isLunging
                 && runtime.elapsedSec - enemy.lastAttackAt >= enemy.attackIntervalSec {

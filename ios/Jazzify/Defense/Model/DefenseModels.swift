@@ -101,12 +101,31 @@ enum DefenseGameResult: Equatable {
     case gameOver
 }
 
+struct DefenseTutorialOptions: Equatable, Sendable {
+    let key: String
+    let enemyAttackEnabled: Bool
+    let timedClearEnabled: Bool
+    let autoAdvancePhrase: Bool
+    let initialSpGauge: Int
+    let maxEnemies: Int
+
+    static let inputSetupV1 = DefenseTutorialOptions(
+        key: DefenseTutorialConstants.key,
+        enemyAttackEnabled: false,
+        timedClearEnabled: false,
+        autoAdvancePhrase: false,
+        initialSpGauge: 4,
+        maxEnemies: 2
+    )
+}
+
 struct DefenseRuntimeState: Sendable {
     var elapsedSec: TimeInterval = 0
     var playerHp: Int
     var playerMaxHp: Int
     var surviveSeconds: TimeInterval
     var practiceMode: Bool
+    var tutorial: DefenseTutorialOptions?
     var attackTrigger: DefenseAttackTrigger
     var result: DefenseGameResult = .playing
     var enemiesDefeated: Int = 0
@@ -138,13 +157,17 @@ struct DefenseRuntimeState: Sendable {
         surviveSeconds: TimeInterval,
         maxEnemies: Int,
         practiceMode: Bool = false,
-        attackTrigger: DefenseAttackTrigger = .note
+        tutorial: DefenseTutorialOptions? = nil,
+        attackTrigger: DefenseAttackTrigger = .note,
+        initialSpGauge: Int = 0
     ) {
         self.playerHp = playerHp
         self.playerMaxHp = playerHp
         self.surviveSeconds = surviveSeconds
         self.practiceMode = practiceMode
+        self.tutorial = tutorial
         self.attackTrigger = attackTrigger
+        self.spGauge = initialSpGauge
         self.waveStartedAt = practiceMode ? DefenseEnemyConfig.noWaveStart : 0
         self.damagePopups = Array(repeating: DefenseDamagePopupState(), count: DefenseEnemyConfig.damagePopupPoolSize)
         self.fireballs = Array(repeating: DefenseFireballState(), count: DefenseEnemyConfig.fireballPoolSize)

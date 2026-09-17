@@ -13,6 +13,7 @@ enum PlayMapTier: String, Codable, Sendable, CaseIterable {
 enum PlayMapNodeKind: String, Codable, Sendable {
     case stage
     case quest
+    case tutorial
 }
 
 enum CodeRunLetterRank: String, Codable, Sendable, CaseIterable {
@@ -53,6 +54,7 @@ struct PlayMapNode: Codable, Identifiable, Sendable {
     let titleEn: String
     let requiredRank: CodeRunLetterRank
     let difficultyLevel: Int?
+    let tutorialKey: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -66,6 +68,7 @@ struct PlayMapNode: Codable, Identifiable, Sendable {
         case titleEn = "title_en"
         case requiredRank = "required_rank"
         case difficultyLevel = "difficulty_level"
+        case tutorialKey = "tutorial_key"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

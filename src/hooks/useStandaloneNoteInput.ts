@@ -5,16 +5,41 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameStore } from '@/stores/gameStore';
+import type { InputMethod } from '@/types';
 import { MIDIController } from '@/utils/MidiController';
-import { PitchInputController } from '@/utils/PitchInputController';
+import {
+  PitchInputController,
+  type PitchInputLatencyStats,
+} from '@/utils/PitchInputController';
 import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
+import { updateGlobalVolume } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
+import { midiToNoteName } from '@/utils/musicXmlOrnamentExpander';
+
+export type StandaloneInputConnectionStatus =
+  | 'idle'
+  | 'requesting'
+  | 'preparing'
+  | 'ready'
+  | 'disconnected'
+  | 'error';
 
 interface UseStandaloneNoteInputOptions {
   onNoteOn: (note: number, domTimeStampMs?: number) => void;
   onNoteOff?: (note: number) => void;
   onKeyHighlight?: (note: number, active: boolean) => void;
   playMidiSound?: boolean;
+  enabled?: boolean;
+  inputMethod?: InputMethod;
+  voiceFastResponse?: boolean;
+}
+
+interface UseStandaloneNoteInputResult {
+  readonly isConnected: boolean;
+  readonly connectionStatus: StandaloneInputConnectionStatus;
+  readonly inputLevelDb: number | null;
+  readonly detectedNoteLabel: string | null;
+  readonly latencyStats: PitchInputLatencyStats;
 }
 
 export const useStandaloneNoteInput = ({
@@ -22,14 +47,25 @@ export const useStandaloneNoteInput = ({
   onNoteOff,
   onKeyHighlight,
   playMidiSound = true,
-}: UseStandaloneNoteInputOptions): { isConnected: boolean } => {
+  enabled = true,
+  inputMethod: inputMethodOverride,
+  voiceFastResponse = false,
+}: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
+  const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<StandaloneInputConnectionStatus>('idle');
+  const [detectedNoteLabel, setDetectedNoteLabel] = useState<string | null>(null);
+  const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
+    captureIntervalMs: null,
+    inferenceMs: null,
+  });
   const midiRef = useRef<MIDIController | null>(null);
   const pitchRef = useRef<PitchInputController | null>(null);
   const onNoteOnRef = useRef(onNoteOn);
   const onNoteOffRef = useRef(onNoteOff);
   const onKeyHighlightRef = useRef(onKeyHighlight);
+  const connectGenerationRef = useRef(0);
 
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
@@ -43,7 +79,6 @@ export const useStandaloneNoteInput = ({
 
   useEffect(() => {
     const midi = new MIDIController({
-      // ハイライトは setKeyHighlightCallback 経由で on/off 両方が届くため、ここでは呼ばない
       onNoteOn: (note, _vel, domTimeStampMs) => {
         onNoteOnRef.current(note, domTimeStampMs);
       },
@@ -53,8 +88,10 @@ export const useStandaloneNoteInput = ({
       playMidiSound,
     });
     midi.setConnectionChangeCallback((connected) => {
-      if (useGameStore.getState().settings.inputMethod === 'midi') {
+      const method = inputMethodOverride ?? useGameStore.getState().settings.inputMethod;
+      if (method === 'midi') {
         setIsConnected(connected);
+        setConnectionStatus(connected ? 'ready' : 'disconnected');
       }
     });
     midi.setKeyHighlightCallback((note, active) => {
@@ -66,20 +103,23 @@ export const useStandaloneNoteInput = ({
       onNoteOn: (note, _velocity, domTimeStampMs) => {
         onNoteOnRef.current(note, domTimeStampMs);
         onKeyHighlightRef.current?.(note, true);
+        setDetectedNoteLabel(midiToNoteName(note));
       },
       onNoteOff: (note) => {
         onNoteOffRef.current?.(note);
         onKeyHighlightRef.current?.(note, false);
+        setDetectedNoteLabel(null);
       },
       onConnectionChange: (connected) => {
-        if (useGameStore.getState().settings.inputMethod === 'voice') {
+        const method = inputMethodOverride ?? useGameStore.getState().settings.inputMethod;
+        if (method === 'voice') {
           setIsConnected(connected);
+          setConnectionStatus(connected ? 'ready' : 'disconnected');
         }
       },
     });
     pitchRef.current = pitch;
 
-    // 音量は毎回 store から読む。依存配列に入れるとスライダー操作でデバイスが切断される。
     const { midiVolume, soundEffectVolume, rootSoundVolume } = useGameStore.getState().settings;
     void ensureBattlePianoAudio({ midiVolume, soundEffectVolume, rootSoundVolume })
       .then(() => {
@@ -96,47 +136,102 @@ export const useStandaloneNoteInput = ({
       midiRef.current = null;
       pitchRef.current = null;
     };
-  }, [playMidiSound]);
+  }, [playMidiSound, inputMethodOverride]);
+
+  useEffect(() => {
+    updateGlobalVolume(settings.midiVolume ?? 0.8);
+  }, [settings.midiVolume]);
+
+  useEffect(() => {
+    pitchRef.current?.setPitchStableFrames(voiceFastResponse ? 2 : 4);
+  }, [voiceFastResponse]);
+
+  useEffect(() => {
+    pitchRef.current?.setSensitivity(settings.voiceSensitivity);
+  }, [settings.voiceSensitivity]);
 
   const connect = useCallback(async () => {
+    const generation = connectGenerationRef.current + 1;
+    connectGenerationRef.current = generation;
     const midi = midiRef.current;
     const pitch = pitchRef.current;
     if (!midi || !pitch) return;
 
-    if (settings.inputMethod === 'voice') {
+    if (!enabled || effectiveMethod === 'touch') {
       midi.disconnect();
+      await pitch.disconnect();
+      setIsConnected(false);
+      setConnectionStatus('idle');
+      setDetectedNoteLabel(null);
+      return;
+    }
+
+    setConnectionStatus('preparing');
+
+    if (effectiveMethod === 'voice') {
+      midi.disconnect();
+      pitch.setPitchStableFrames(voiceFastResponse ? 2 : 4);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
       const deviceId =
         settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
           ? settings.selectedAudioDevice
           : undefined;
       if (PitchInputController.isSupported()) {
+        setConnectionStatus('requesting');
         const ok = await pitch.connect(deviceId);
+        if (connectGenerationRef.current !== generation) return;
         setIsConnected(ok);
+        setConnectionStatus(ok ? 'ready' : 'error');
       } else {
         setIsConnected(false);
+        setConnectionStatus('error');
       }
       return;
     }
 
     await pitch.disconnect();
+    setDetectedNoteLabel(null);
     if (settings.selectedMidiDevice) {
       const ok = await midi.connectDevice(settings.selectedMidiDevice);
+      if (connectGenerationRef.current !== generation) return;
       setIsConnected(Boolean(ok));
+      setConnectionStatus(ok ? 'ready' : 'disconnected');
     } else {
       midi.disconnect();
       setIsConnected(false);
+      setConnectionStatus('disconnected');
     }
-  }, [settings.inputMethod, settings.selectedMidiDevice, settings.selectedAudioDevice]);
+  }, [
+    enabled,
+    effectiveMethod,
+    settings.selectedMidiDevice,
+    settings.selectedAudioDevice,
+    voiceFastResponse,
+  ]);
 
   useEffect(() => {
     void connect();
   }, [connect]);
 
-  // 感度は Worker へのメッセージのみ。connect を再実行させない。
   useEffect(() => {
-    pitchRef.current?.setSensitivity(settings.voiceSensitivity);
-  }, [settings.voiceSensitivity]);
+    if (effectiveMethod !== 'voice' || !enabled) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      setLatencyStats(PitchInputController.getLatencyStats());
+    }, 1000 / 12);
+    return () => window.clearInterval(timer);
+  }, [effectiveMethod, enabled]);
 
-  return { isConnected };
+  const inputLevelDb = latencyStats.captureIntervalMs !== null
+    ? -60 + Math.min(60, latencyStats.inferenceMs ?? 0)
+    : null;
+
+  return {
+    isConnected,
+    connectionStatus,
+    inputLevelDb,
+    detectedNoteLabel,
+    latencyStats,
+  };
 };

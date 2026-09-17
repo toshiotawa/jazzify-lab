@@ -210,6 +210,46 @@ export const updateDefensePopups = (runtime: DefenseRuntime): void => {
   }
 };
 
+const getEffectiveMaxEnemies = (
+  runtime: DefenseRuntime,
+  difficulty: DefenseDifficulty,
+): number => {
+  const tutorialMax = runtime.tutorial?.maxEnemies;
+  if (tutorialMax !== undefined) {
+    return tutorialMax;
+  }
+  return difficulty.maxEnemies;
+};
+
+const TUTORIAL_INITIAL_ENEMY_X = [420, 560] as const;
+
+/** Place visible enemies at start for tutorial (no attacks). */
+export const spawnTutorialInitialEnemies = (
+  runtime: DefenseRuntime,
+  difficulty: DefenseDifficulty,
+): void => {
+  if (!runtime.tutorial || runtime.activeEnemyCount > 0) return;
+
+  TUTORIAL_INITIAL_ENEMY_X.forEach((x, index) => {
+    if (runtime.activeEnemyCount >= getEffectiveMaxEnemies(runtime, difficulty)) return;
+    const slot = findInactiveEnemySlot(runtime);
+    if (!slot) return;
+
+    const enemyType = pickDefenseWaveEnemyType(0, index, false);
+    slot.active = true;
+    slot.x = x;
+    slot.y = getDefenseEnemyCenterY(enemyType);
+    slot.knockbackVx = 0;
+    slot.lastAttackAt = 0;
+    slot.moving = false;
+    slot.attackHitPending = false;
+    slot.hitFlashAt = DEFENSE_NO_HIT_FLASH;
+    applyResolvedStatsToEnemy(slot, enemyType, difficulty, runtime);
+    runtime.nextEnemyIndex += 1;
+    runtime.activeEnemyCount += 1;
+  });
+};
+
 export const spawnEnemyIfDue = (
   runtime: DefenseRuntime,
   difficulty: DefenseDifficulty,
@@ -220,7 +260,7 @@ export const spawnEnemyIfDue = (
   const spawnIntervalSec = getSpawnIntervalSec(runtime, difficulty);
   syncWaveState(runtime, spawnIntervalSec);
 
-  if (runtime.activeEnemyCount >= difficulty.maxEnemies) return;
+  if (runtime.activeEnemyCount >= getEffectiveMaxEnemies(runtime, difficulty)) return;
 
   runtime.spawnTimerSec += dt;
   if (runtime.spawnTimerSec < spawnIntervalSec) return;
@@ -267,12 +307,16 @@ export const updateDefenseEnemies = (
     const inRange = absDx <= enemy.attackRangePx;
     const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
 
+    const enemyAttacksEnabled = runtime.tutorial
+      ? runtime.tutorial.enemyAttackEnabled
+      : true;
+
     if (enemy.attackHitPending && attackElapsed >= ATTACK_HIT_PHASE) {
       runtime.impactAt = runtime.elapsedSec;
       runtime.impactX = runtime.playerX;
       runtime.impactY = runtime.playerY;
       enemy.attackHitPending = false;
-      if (!runtime.practiceMode) {
+      if (enemyAttacksEnabled && !runtime.practiceMode) {
         runtime.playerHp = Math.max(0, runtime.playerHp - enemy.damage);
         if (runtime.playerHp <= 0) {
           runtime.result = 'gameover';
@@ -292,7 +336,8 @@ export const updateDefenseEnemies = (
       }
       enemy.moving = true;
     } else if (
-      inRange
+      enemyAttacksEnabled
+      && inRange
       && !enemy.attackHitPending
       && !isLunging
       && runtime.elapsedSec - enemy.lastAttackAt >= enemy.attackIntervalSec
@@ -359,10 +404,16 @@ export const performDefenseSlash = (
   return true;
 };
 
+const isTimedClearEnabled = (runtime: DefenseRuntime): boolean => {
+  if (runtime.practiceMode) return false;
+  if (runtime.tutorial) return runtime.tutorial.timedClearEnabled;
+  return true;
+};
+
 const tickDefenseTimer = (runtime: DefenseRuntime, dt: number): void => {
   if (runtime.result !== 'playing') return;
   runtime.elapsedSec += dt;
-  if (!runtime.practiceMode && runtime.elapsedSec >= runtime.surviveSeconds) {
+  if (isTimedClearEnabled(runtime) && runtime.elapsedSec >= runtime.surviveSeconds) {
     runtime.result = 'clear';
   }
 };

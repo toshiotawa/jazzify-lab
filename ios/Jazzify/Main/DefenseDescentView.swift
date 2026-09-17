@@ -17,6 +17,7 @@ struct DefenseDescentView: View {
     @State private var isStarting = false
     @State private var isFetchingStage = false
     @State private var lessonToOpen: LessonPlayMapLaunch?
+    @State private var tutorialLaunch: TutorialLaunchContext?
     @State private var alertMessage: String?
 
     private var locale: AppLocale { appState.locale }
@@ -43,6 +44,10 @@ struct DefenseDescentView: View {
         let difficulty: DefenseDifficultyDefinition
         let practiceMode: Bool
         let summary: DefenseFinishSummary
+    }
+
+    private struct TutorialLaunchContext: Identifiable {
+        let id: UUID
     }
 
     private struct LessonPlayMapLaunch: Identifiable, Hashable {
@@ -75,7 +80,11 @@ struct DefenseDescentView: View {
                     clears: clears,
                     tier: $mapTier,
                     onSelectNode: { node in
-                        Task { await startStageNode(node) }
+                        if node.nodeKind == .tutorial {
+                            tutorialLaunch = TutorialLaunchContext(id: node.id)
+                        } else {
+                            Task { await startStageNode(node) }
+                        }
                     },
                     onSelectQuestNode: { node in
                         Task { await startQuestNode(node) }
@@ -133,6 +142,16 @@ struct DefenseDescentView: View {
             Text(locale == .ja
                  ? "\(prep.stage.title) — Lv.\(prep.difficulty.level) / \(prep.stage.surviveSeconds)秒生存でクリア"
                  : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — Lv.\(prep.difficulty.level) / survive \(prep.stage.surviveSeconds)s")
+        }
+        .fullScreenCover(item: $tutorialLaunch) { launch in
+            DefenseTutorialView(
+                playMapNodeId: launch.id,
+                onExit: {
+                    tutorialLaunch = nil
+                    Task { await reloadMap() }
+                }
+            )
+            .environmentObject(appState)
         }
         .fullScreenCover(item: $stageLaunchSession) { session in
             DefenseGameView(
