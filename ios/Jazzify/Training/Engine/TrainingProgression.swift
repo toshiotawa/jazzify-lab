@@ -12,14 +12,19 @@ enum TrainingProgression {
         return String(trimmed[range])
     }
 
-    static func buildUnits(training: TrainingRow) -> [TrainingProgressionUnit] {
+    static func buildUnits(training: TrainingRow, concertStaffBottom: Int? = nil) -> [TrainingProgressionUnit] {
         let config = training.config
         if let referenceChords = config.referenceChords, !referenceChords.isEmpty, config.referenceKey != nil {
             return buildUnitsFromReference(training: training, stavesConfig: config.staves, voicingForm: config.voicingForm)
         }
         if let progression = config.progression, !progression.isEmpty {
             let unitSize = (config.unitSize ?? 0) > 0 ? (config.unitSize ?? progression.count) : progression.count
-            return buildUnitsFromProgression(training: training, progression: progression, unitSize: unitSize)
+            return buildUnitsFromProgression(
+                training: training,
+                progression: progression,
+                unitSize: unitSize,
+                concertStaffBottom: concertStaffBottom
+            )
         }
         fatalError("Training \(training.slug): progression config missing")
     }
@@ -101,6 +106,36 @@ enum TrainingProgression {
         let voicingSlots: [[String]]
     }
 
+    private struct HorizontalBuildOptions {
+        let ordered: Bool
+        let playRootOnFirstCorrect: Bool
+    }
+
+    private static func repositionUnitEntries(
+        _ slice: [TrainingProgressionEntry],
+        concertStaffBottom: Int
+    ) -> [TrainingProgressionEntry] {
+        let allNames = slice.flatMap(\.voicingNames)
+        guard !allNames.isEmpty else { return slice }
+        let spelled = allNames.compactMap { TrainingMusicTheory.parseSpelled($0) }
+        guard spelled.count == allNames.count else { return slice }
+        let repositioned = TrainingMusicTheory.placeLowestInOctaveAbove(spelled, minMidi: concertStaffBottom)
+        var cursor = 0
+        return slice.map { entry in
+            let count = entry.voicingNames.count
+            let names = repositioned[cursor..<(cursor + count)].map(\.name)
+            cursor += count
+            return TrainingProgressionEntry(
+                name: entry.name,
+                voicing: names.compactMap { TrainingMusicTheory.parseVoicingMidi($0) },
+                voicingNames: names,
+                keyFifths: entry.keyFifths,
+                voicingStaves: entry.voicingStaves,
+                voicingSlots: entry.voicingSlots
+            )
+        }
+    }
+
     private static func buildQuestionFromChord(
         unitIndex: Int,
         chordIndex: Int,
@@ -110,7 +145,8 @@ enum TrainingProgression {
         keyFifths: Int,
         useKeySignature: Bool,
         useGrandStaff: Bool,
-        groupedOptions: GroupedBuildOptions? = nil
+        groupedOptions: GroupedBuildOptions? = nil,
+        horizontalOptions: HorizontalBuildOptions? = nil
     ) -> TrainingQuestion? {
         if let groupedOptions, !groupedOptions.voicingSlots.isEmpty {
             var notes: [TrainingQuestionNote] = []
@@ -158,32 +194,42 @@ enum TrainingProgression {
         guard let lowestMidi = notes.map(\.midi).min() else { return nil }
         let root = parseProgressionChordRoot(chordName)
         let rootMidi = root.flatMap { TrainingMusicTheory.rootMidiBelow(root: $0, lowestMidi: lowestMidi) }
+        let useHorizontal = horizontalOptions?.ordered == true
         return TrainingQuestion(
             questionKey: "progression:\(unitIndex):\(chordIndex):\(chordName)",
             promptLabel: chordName,
             notes: notes,
-            layout: .stacked,
-            ordered: false,
+            layout: useHorizontal ? .horizontal : .stacked,
+            ordered: horizontalOptions?.ordered ?? false,
             keyFifths: useKeySignature ? keyFifths : 0,
-            rootMidi: rootMidi
+            rootMidi: rootMidi,
+            playRootOnFirstCorrect: useHorizontal && horizontalOptions?.playRootOnFirstCorrect == true ? true : nil
         )
     }
 
     private static func buildUnitsFromProgression(
         training: TrainingRow,
         progression: [TrainingProgressionEntry],
-        unitSize: Int
+        unitSize: Int,
+        concertStaffBottom: Int?
     ) -> [TrainingProgressionUnit] {
         let useGrandStaff = training.clefMode == .grandConcert
         let fallbackStaff = defaultStaff(for: training.clefMode)
         let scorePerVoicing = training.config.scorePerVoicing == true
         let playRootOnFirstCorrect = training.config.playRootOnFirstCorrect == true
+        let ordered = training.config.ordered == true
+        let horizontalOptions = ordered
+            ? HorizontalBuildOptions(ordered: true, playRootOnFirstCorrect: playRootOnFirstCorrect)
+            : nil
         var units: [TrainingProgressionUnit] = []
         var unitStart = 0
         while unitStart < progression.count {
             let end = min(unitStart + unitSize, progression.count)
-            let slice = Array(progression[unitStart..<end])
+            var slice = Array(progression[unitStart..<end])
             if slice.isEmpty { break }
+            if let concertStaffBottom {
+                slice = repositionUnitEntries(slice, concertStaffBottom: concertStaffBottom)
+            }
             let unitIndex = unitStart / unitSize
             let keyFifths = slice[0].keyFifths
             let questions = slice.enumerated().compactMap { chordIndex, entry in
@@ -205,7 +251,8 @@ enum TrainingProgression {
                     keyFifths: entry.keyFifths,
                     useKeySignature: training.useKeySignature,
                     useGrandStaff: useGrandStaff,
-                    groupedOptions: groupedOptions
+                    groupedOptions: groupedOptions,
+                    horizontalOptions: horizontalOptions
                 )
             }
             units.append(TrainingProgressionUnit(unitIndex: unitIndex, keyFifths: keyFifths, questions: questions))

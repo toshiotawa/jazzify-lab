@@ -36,12 +36,14 @@ import type { MutableTrainingSceneHud } from '@/game/training/trainingSceneHud';
 import {
   buildTrainingQuestion,
   createInitialTrainingRuntime,
+  getTrainingConcertStaffBottom,
 } from '@/game/training/trainingQuestionBuilder';
 import {
   advanceTrainingProgressionCursor,
   buildTrainingProgressionUnits,
   pickInitialProgressionCursor,
   questionAtProgressionCursor,
+  trainingUsesProgressionUnits,
 } from '@/game/training/trainingProgression';
 import type {
   TrainingProgressionCursor,
@@ -130,11 +132,21 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   isSettingsOpenRef.current = isSettingsOpen;
 
   const ignoreNotationInstrument = training.clefMode === 'bass_concert' || training.clefMode === 'grand_concert';
-  const isProgressionTraining = training.kind === 'progression';
+  const usesProgressionUnits = trainingUsesProgressionUnits(training);
   const progressionShuffleUnits = training.config.shuffleUnits === true;
   const progressionUnits = useMemo(
-    () => (isProgressionTraining ? buildTrainingProgressionUnits(training) : null),
-    [isProgressionTraining, training],
+    () => (
+      usesProgressionUnits
+        ? buildTrainingProgressionUnits(training, {
+          concertStaffBottom: getTrainingConcertStaffBottom(
+            training,
+            notationInstrumentId,
+            ignoreNotationInstrument,
+          ),
+        })
+        : null
+    ),
+    [usesProgressionUnits, training, notationInstrumentId, ignoreNotationInstrument],
   );
   progressionUnitsRef.current = progressionUnits;
   const showHints = practiceMode;
@@ -150,7 +162,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
   const spawnQuestion = useCallback((): TrainingQuestion => {
     let built: TrainingQuestion;
-    if (isProgressionTraining) {
+    if (usesProgressionUnits) {
       const units = progressionUnitsRef.current;
       if (!units || units.length === 0) {
         throw new Error(`Training ${training.slug}: progression units missing`);
@@ -178,7 +190,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     training,
     notationInstrumentId,
     ignoreNotationInstrument,
-    isProgressionTraining,
+    usesProgressionUnits,
     progressionShuffleUnits,
   ]);
 
@@ -208,6 +220,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         training.kind === 'chord'
         || training.kind === 'voicing'
         || training.kind === 'progression'
+        || training.kind === 'scale'
       ),
     );
   }, [training.kind, training.playRootOnCorrect]);
@@ -317,7 +330,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
         runtimeRef.current.score += 1;
       }
       if (!result.completed) return;
-      if (isProgressionTraining) {
+      if (usesProgressionUnits) {
         advanceProgressionAfterCorrect();
       }
       spawnQuestion();
@@ -339,7 +352,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
 
     performTrainingDefeat(runtimeRef.current, runtimeRef.current.elapsedSec, TRAINING_GUARD_POSE_SEC);
     runtimeRef.current.score += 1;
-    if (isProgressionTraining) {
+    if (usesProgressionUnits) {
       advanceProgressionAfterCorrect();
     }
     spawnQuestion();
@@ -349,7 +362,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
     training.kind,
     training.playRootOnCorrect,
     voiceSequential,
-    isProgressionTraining,
+    usesProgressionUnits,
     advanceProgressionAfterCorrect,
   ]);
 

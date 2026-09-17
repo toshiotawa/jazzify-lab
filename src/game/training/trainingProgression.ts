@@ -7,6 +7,17 @@ import type {
   TrainingReferenceChord,
   TrainingRow,
 } from '@/game/training/trainingTypes';
+
+export interface BuildTrainingProgressionUnitsOptions {
+  /** 和音・スケール: 下加線1本までの最低音（記譜音）。未指定時は再配置しない。 */
+  readonly concertStaffBottom?: number;
+}
+
+/** kind=progression または config.progression がある課題はユニット出題を使う。 */
+export const trainingUsesProgressionUnits = (training: TrainingRow): boolean => (
+  training.kind === 'progression'
+  || (training.config.progression != null && training.config.progression.length > 0)
+);
 import {
   ALL_MAJOR_KEYS,
   ABA_VOICINGS_BY_KEY,
@@ -18,6 +29,53 @@ import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 const normalizePitchClass = (midi: number): number => ((midi % 12) + 12) % 12;
 
 const midiOf = (name: string): number => parseVoicingNoteName(name).midi;
+
+const accidentalText = (alter: number): string => {
+  if (alter === 2) return 'x';
+  if (alter === 1) return '#';
+  if (alter === -1) return 'b';
+  if (alter === -2) return 'bb';
+  return '';
+};
+
+/** 綴りを保ってオクターブだけずらす */
+const shiftOctave = (name: string, delta: number): string => {
+  const parsed = parseVoicingNoteName(name);
+  return `${parsed.step}${accidentalText(parsed.alter)}${parsed.octave + delta}`;
+};
+
+/** 最低音が [minMidi, minMidi + 12) に入る最も低いオクターブへ全音を平行移動する */
+const placeLowestInOctaveAbove = (names: readonly string[], minMidi: number): string[] => {
+  if (names.length === 0) return [];
+  let lowest = Number.POSITIVE_INFINITY;
+  for (const name of names) {
+    const midi = midiOf(name);
+    if (midi < lowest) lowest = midi;
+  }
+  const octaveDelta = Math.ceil((minMidi - lowest) / 12);
+  if (octaveDelta === 0) return names.slice();
+  return names.map((name) => shiftOctave(name, octaveDelta));
+};
+
+const repositionUnitEntries = (
+  slice: readonly TrainingProgressionEntry[],
+  concertStaffBottom: number,
+): TrainingProgressionEntry[] => {
+  const allNames = slice.flatMap((entry) => [...entry.voicingNames]);
+  if (allNames.length === 0) return [...slice];
+  const repositioned = placeLowestInOctaveAbove(allNames, concertStaffBottom);
+  let cursor = 0;
+  return slice.map((entry) => {
+    const count = entry.voicingNames.length;
+    const noteNames = repositioned.slice(cursor, cursor + count);
+    cursor += count;
+    return {
+      ...entry,
+      voicing: noteNames.map((note) => midiOf(note)),
+      voicingNames: noteNames,
+    };
+  });
+};
 
 /** コード記号のルート（例: Gm7(9) → G, Bb7(b9.b13) → Bb） */
 export const parseProgressionChordRoot = (chordName: string): string | null => {
@@ -58,6 +116,10 @@ const buildQuestionFromChord = (
     readonly scorePerVoicing: boolean;
     readonly playRootOnFirstCorrect: boolean;
     readonly voicingSlots: readonly (readonly string[])[];
+  },
+  horizontalOptions?: {
+    readonly ordered: boolean;
+    readonly playRootOnFirstCorrect: boolean;
   },
 ): TrainingQuestion => {
   if (groupedOptions && groupedOptions.voicingSlots.length > 0) {
@@ -103,14 +165,18 @@ const buildQuestionFromChord = (
   });
   const lowestMidi = Math.min(...noteNames.map(midiOf));
   const root = parseProgressionChordRoot(chordName);
+  const useHorizontal = horizontalOptions?.ordered === true;
   return {
     questionKey: `progression:${unitIndex}:${chordIndex}:${chordName}`,
     promptLabel: chordName,
     notes,
-    layout: 'stacked',
-    ordered: false,
+    layout: useHorizontal ? 'horizontal' : 'stacked',
+    ordered: horizontalOptions?.ordered ?? false,
     keyFifths: useKeySignature ? keyFifths : 0,
     rootMidi: root != null ? rootMidiBelow(root, lowestMidi) : null,
+    ...(useHorizontal && horizontalOptions?.playRootOnFirstCorrect
+      ? { playRootOnFirstCorrect: true }
+      : {}),
   };
 };
 
@@ -138,15 +204,23 @@ const buildUnitsFromProgression = (
   training: TrainingRow,
   progression: readonly TrainingProgressionEntry[],
   unitSize: number,
+  options?: BuildTrainingProgressionUnitsOptions,
 ): TrainingProgressionUnit[] => {
   const useGrandStaff = training.clefMode === 'grand_concert';
   const fallbackStaff = defaultStaffForClef(training.clefMode);
   const scorePerVoicing = training.config.scorePerVoicing === true;
   const playRootOnFirstCorrect = training.config.playRootOnFirstCorrect === true;
+  const ordered = training.config.ordered === true;
+  const horizontalOptions = ordered
+    ? { ordered: true, playRootOnFirstCorrect }
+    : undefined;
   const units: TrainingProgressionUnit[] = [];
   for (let unitStart = 0; unitStart < progression.length; unitStart += unitSize) {
-    const slice = progression.slice(unitStart, unitStart + unitSize);
+    let slice = progression.slice(unitStart, unitStart + unitSize);
     if (slice.length === 0) continue;
+    if (options?.concertStaffBottom != null) {
+      slice = repositionUnitEntries(slice, options.concertStaffBottom);
+    }
     const unitIndex = unitStart / unitSize;
     const keyFifths = slice[0]?.keyFifths ?? 0;
     const questions = slice.map((entry, chordIndex) => {
@@ -168,6 +242,7 @@ const buildUnitsFromProgression = (
         training.useKeySignature,
         useGrandStaff,
         groupedOptions,
+        horizontalOptions,
       );
     });
     units.push({ unitIndex, keyFifths, questions });
@@ -218,7 +293,10 @@ const buildUnitsFromReference = (
   throw new Error(`Training ${training.slug}: reference progression requires voicing_form aba or bab`);
 };
 
-export const buildTrainingProgressionUnits = (training: TrainingRow): readonly TrainingProgressionUnit[] => {
+export const buildTrainingProgressionUnits = (
+  training: TrainingRow,
+  options?: BuildTrainingProgressionUnitsOptions,
+): readonly TrainingProgressionUnit[] => {
   const config = training.config;
   if (config.referenceChords && config.referenceChords.length > 0 && config.referenceKey) {
     return buildUnitsFromReference(
@@ -232,7 +310,7 @@ export const buildTrainingProgressionUnits = (training: TrainingRow): readonly T
     const unitSize = config.unitSize != null && config.unitSize > 0
       ? config.unitSize
       : config.progression.length;
-    return buildUnitsFromProgression(training, config.progression, unitSize);
+    return buildUnitsFromProgression(training, config.progression, unitSize, options);
   }
   throw new Error(`Training ${training.slug}: progression config missing`);
 };

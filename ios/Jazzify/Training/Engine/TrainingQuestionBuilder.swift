@@ -67,6 +67,25 @@ enum TrainingQuestionBuilder {
         "2m", "2M", "3m", "3M", "4P", "4A", "5P", "6m", "6M", "7m", "7M",
     ]
 
+    static func usesProgressionUnits(training: TrainingRow) -> Bool {
+        training.kind == .progression
+            || ((training.config.progression?.isEmpty == false))
+    }
+
+    static func concertStaffBottom(training: TrainingRow, ignoreNotationInstrument: Bool) -> Int {
+        let preset = NotationInstrumentPreferences.loadPreset()
+        let writtenOffset = NotationInstrumentPreferences.loadConcertQuestionOffset(
+            ignoreNotationInstrument: ignoreNotationInstrument
+        )
+        let effectiveClef = resolveEffectiveClef(
+            clefMode: training.clefMode,
+            instrumentClef: preset.clef,
+            configClef: training.config.clef
+        )
+        let singleClef = effectiveClef == "bass" ? "bass" : "treble"
+        return (staffBottomMidi[singleClef] ?? 60) - writtenOffset
+    }
+
     static func buildQuestion(options: TrainingQuestionBuilderOptions) -> TrainingQuestion {
         let training = options.training
         let previousQuestionKey = options.previousQuestionKey
@@ -262,6 +281,15 @@ enum TrainingQuestionBuilder {
         )
         let singleClef = effectiveClef == "bass" ? "bass" : "treble"
         let staffBottom = (staffBottomMidi[singleClef] ?? 60) - writtenOffset
+
+        if usesProgressionUnits(training: training) {
+            let units = TrainingProgression.buildUnits(
+                training: training,
+                concertStaffBottom: staffBottom
+            )
+            return TrainingProgression.collectMidis(units: units)
+        }
+
         var midis: [Int] = []
 
         switch training.kind {
@@ -329,8 +357,7 @@ enum TrainingQuestionBuilder {
             }
 
         case .progression:
-            let units = TrainingProgression.buildUnits(training: training)
-            return TrainingProgression.collectMidis(units: units)
+            break
         }
 
         return midis

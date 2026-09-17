@@ -40,8 +40,14 @@ final class TrainingGameSession: ObservableObject {
         self.lessonContext = lessonContext
         self.ignoreNotationInstrument = training.clefMode == .bassConcert || training.clefMode == .grandConcert
         self.progressionShuffleUnits = training.config.shuffleUnits == true
-        if training.kind == .progression {
-            self.progressionUnits = TrainingProgression.buildUnits(training: training)
+        if TrainingQuestionBuilder.usesProgressionUnits(training: training) {
+            self.progressionUnits = TrainingProgression.buildUnits(
+                training: training,
+                concertStaffBottom: TrainingQuestionBuilder.concertStaffBottom(
+                    training: training,
+                    ignoreNotationInstrument: ignoreNotationInstrument
+                )
+            )
         } else {
             self.progressionUnits = nil
         }
@@ -206,7 +212,7 @@ final class TrainingGameSession: ObservableObject {
                 }
             }
             guard result.completed else { return }
-            if training.kind == .progression {
+            if TrainingQuestionBuilder.usesProgressionUnits(training: training) {
                 advanceProgressionAfterCorrect()
             }
             spawnQuestion()
@@ -234,7 +240,7 @@ final class TrainingGameSession: ObservableObject {
         if runtime.score != hud.score {
             hud.score = runtime.score
         }
-        if training.kind == .progression {
+        if TrainingQuestionBuilder.usesProgressionUnits(training: training) {
             advanceProgressionAfterCorrect()
         }
         spawnQuestion()
@@ -242,7 +248,7 @@ final class TrainingGameSession: ObservableObject {
 
     private func spawnQuestion() {
         let built: TrainingQuestion
-        if training.kind == .progression {
+        if TrainingQuestionBuilder.usesProgressionUnits(training: training) {
             guard let units = progressionUnits, !units.isEmpty else {
                 fatalError("Training \(training.slug): progression units missing")
             }

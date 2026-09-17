@@ -13,7 +13,11 @@ import {
   normalizeNotationInstrumentId,
 } from '@/utils/notationInstrument';
 import { applyClosedInversion } from '@/game/training/trainingChordInversion';
-import { collectTrainingProgressionMidis, buildTrainingProgressionUnits } from '@/game/training/trainingProgression';
+import {
+  collectTrainingProgressionMidis,
+  buildTrainingProgressionUnits,
+  trainingUsesProgressionUnits,
+} from '@/game/training/trainingProgression';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 type Clef = 'treble' | 'bass';
@@ -210,6 +214,20 @@ const isSimpleSpelling = (name: string): boolean => {
   if (parsed.alter === 1 && (parsed.step === 'E' || parsed.step === 'B')) return false;
   if (parsed.alter === -1 && (parsed.step === 'C' || parsed.step === 'F')) return false;
   return true;
+};
+
+export const getTrainingConcertStaffBottom = (
+  training: TrainingQuestionBuilderOptions['training'],
+  notationInstrumentId: string,
+  ignoreNotationInstrument: boolean,
+): number => {
+  const preset = getNotationInstrumentPreset(normalizeNotationInstrumentId(notationInstrumentId));
+  const writtenOffset = ignoreNotationInstrument
+    ? 0
+    : getWrittenSemitoneOffset(preset, 0);
+  const effectiveClef = resolveEffectiveClef(training.clefMode, preset.clef, training.config.clef);
+  const singleClef: Clef = effectiveClef === 'bass' ? 'bass' : 'treble';
+  return STAFF_BOTTOM_MIDI[singleClef] - writtenOffset;
 };
 
 const resolveEffectiveClef = (
@@ -502,6 +520,16 @@ export const collectTrainingStageMidis = (
   const effectiveClef = resolveEffectiveClef(training.clefMode, preset.clef, config.clef);
   const singleClef: Clef = effectiveClef === 'bass' ? 'bass' : 'treble';
   const concertStaffBottom = STAFF_BOTTOM_MIDI[singleClef] - writtenOffset;
+
+  if (trainingUsesProgressionUnits(training)) {
+    try {
+      const units = buildTrainingProgressionUnits(training, { concertStaffBottom });
+      return collectTrainingProgressionMidis(units);
+    } catch {
+      return [];
+    }
+  }
+
   const midis: number[] = [];
 
   const pushNames = (names: readonly string[]): void => {
@@ -583,15 +611,6 @@ export const collectTrainingStageMidis = (
         );
       }
       if (names) pushNames(names);
-    }
-  }
-
-  if (training.kind === 'progression') {
-    try {
-      const units = buildTrainingProgressionUnits(training);
-      return collectTrainingProgressionMidis(units);
-    } catch {
-      return midis;
     }
   }
 
