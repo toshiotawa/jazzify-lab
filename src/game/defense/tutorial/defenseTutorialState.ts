@@ -98,4 +98,4 @@ export const shouldResetPhraseProgress = (reason: DefenseTutorialResetReason): b
 
 export const shouldSaveCompletionOnExit = (
   state: DefenseTutorialSessionState,
-): boolean => state.phraseSucceeded && !state.completionSaved;
+): boolean => !state.completionSaved;

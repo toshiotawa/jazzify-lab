@@ -1,21 +1,19 @@
 import {
   advanceDefenseTutorialScreen,
   createDefenseTutorialSessionState,
-  markDefenseTutorialPhraseSucceeded,
+  markDefenseTutorialCompletionSaved,
   retreatDefenseTutorialScreen,
   shouldSaveCompletionOnExit,
 } from '@/game/defense/tutorial/defenseTutorialState';
 import { defaultTutorialNotationSettings } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 
 describe('defenseTutorialState', () => {
-  it('requires phrase success before saving completion on exit', () => {
+  it('saves completion on exit unless already saved', () => {
     const initial = createDefenseTutorialSessionState(defaultTutorialNotationSettings('piano'));
-    expect(shouldSaveCompletionOnExit(initial)).toBe(false);
+    expect(shouldSaveCompletionOnExit(initial)).toBe(true);
 
-    const succeeded = markDefenseTutorialPhraseSucceeded(
-      advanceDefenseTutorialScreen(initial, 'play'),
-    );
-    expect(shouldSaveCompletionOnExit(succeeded)).toBe(true);
+    const saved = markDefenseTutorialCompletionSaved(initial);
+    expect(shouldSaveCompletionOnExit(saved)).toBe(false);
   });
 
   it('retreats through setup screens', () => {

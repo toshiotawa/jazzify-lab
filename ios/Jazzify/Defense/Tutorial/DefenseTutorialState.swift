@@ -112,6 +112,6 @@ enum DefenseTutorialState {
     }
 
     static func shouldSaveCompletionOnExit(_ state: DefenseTutorialSessionState) -> Bool {
-        state.phraseSucceeded && !state.completionSaved
+        !state.completionSaved
     }
 }
