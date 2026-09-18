@@ -7,16 +7,13 @@ struct TopView: View {
     @State private var userStats: UserStats?
     @State private var earnedBadges: [SupabaseService.UserBadgeRow] = []
 
-    @State private var mainQuestProgress: SupabaseService.MainQuestProgressResult?
     @State private var mainQuestLessonToOpen: Lesson?
     @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
     @State private var subscriptionEntry: SubscriptionEntry = .default
-    @State private var showMainQuestResumeSheet = false
-    @State private var resumeNextLesson: Lesson?
-    @State private var resumePremiumUpsell = false
+    @State private var showDefenseTrainingResumeSheet = false
+    @State private var defenseTrainingGuidance: DefenseTrainingGuidance = .none
     @State private var pendingResumeAfterUpdateNotice = false
-    @State private var pendingSubscriptionAfterResume = false
     @State private var softLandingNextCandidate: SoftLandingCandidate?
     @State private var showSoftLandingOffer = false
     @State private var softLandingOfferEntry: SoftLandingOfferEntry = .dashboard
@@ -29,7 +26,7 @@ struct TopView: View {
     }
 
     private var hasActiveTopPresentation: Bool {
-        showSubscription || showSoftLandingOffer || showMainQuestResumeSheet
+        showSubscription || showSoftLandingOffer || showDefenseTrainingResumeSheet
     }
 
     private var locale: AppLocale { appState.locale }
@@ -46,8 +43,7 @@ struct TopView: View {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
                         MarketingOptInBannerView()
-                        mainQuestCard
-                        softLandingCard
+                        defenseGuidanceCard
                         profileCard
                         if appState.isPremium, let userId = profile?.id {
                             DiscordCommunitySectionView(locale: locale, userId: userId)
@@ -113,42 +109,31 @@ struct TopView: View {
                     )
                 }
             }
-            .sheet(isPresented: $showMainQuestResumeSheet, onDismiss: {
-                MainQuestResumePreferences.markShown()
+            .sheet(isPresented: $showDefenseTrainingResumeSheet, onDismiss: {
+                DefenseTrainingResumePreferences.markShown()
                 runPendingPresentation()
-                if pendingSubscriptionAfterResume {
-                    pendingSubscriptionAfterResume = false
-                    subscriptionEntry = .resumeModal
-                    showSubscription = true
-                }
             }) {
-                MainQuestResumeSheet(
+                DefenseTrainingResumeSheet(
                     locale: locale,
-                    premiumUpsell: resumePremiumUpsell,
+                    guidance: defenseTrainingGuidance,
                     onContinue: {
-                        if let lesson = resumeNextLesson {
-                            queuePresentationAfterDismiss(.openLesson(lesson, autoStart: true))
-                        }
-                        showMainQuestResumeSheet = false
-                    },
-                    onPremium: {
-                        pendingSubscriptionAfterResume = true
-                        showMainQuestResumeSheet = false
+                        showDefenseTrainingResumeSheet = false
+                        applyDefenseTrainingGuidance(defenseTrainingGuidance)
                     },
                     onLater: {
-                        showMainQuestResumeSheet = false
+                        showDefenseTrainingResumeSheet = false
                     }
                 )
             }
             .onChange(of: appState.appUpdateNotice) { notice in
                 guard notice == nil, pendingResumeAfterUpdateNotice else { return }
                 pendingResumeAfterUpdateNotice = false
-                showMainQuestResumeSheet = true
+                showDefenseTrainingResumeSheet = true
             }
             .onChange(of: appState.isAppUpdateCheckComplete) { complete in
                 guard complete, pendingResumeAfterUpdateNotice, appState.appUpdateNotice == nil else { return }
                 pendingResumeAfterUpdateNotice = false
-                showMainQuestResumeSheet = true
+                showDefenseTrainingResumeSheet = true
             }
         }
     }
@@ -275,132 +260,43 @@ struct TopView: View {
         )
     }
 
-    // MARK: - Main Quest
+    // MARK: - Defense / Training guidance
 
     @ViewBuilder
-    private var mainQuestCard: some View {
-        if let progress = mainQuestProgress, progress.totalLessons > 0 {
+    private var defenseGuidanceCard: some View {
+        if defenseTrainingGuidance != .none {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(.cyan)
-                    Text(locale == .ja ? "メインクエスト" : "Main Quest")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                }
-
-                mainQuestProgressRow(
-                    completed: progress.completedLessons,
-                    total: progress.totalLessons
-                )
-
-                Group {
-                    if progress.completedLessons >= progress.totalLessons {
-                        Text(locale == .ja
-                             ? "メインクエストをすべて完了しました！"
-                             : "Main Quest complete!")
-                            .font(.subheadline)
-                            .foregroundStyle(.green)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            mainQuestNextLessonPrompt(nextLesson: nextLesson)
-                                .font(.subheadline)
-                                .lineLimit(2)
-
-                            Button {
-                                openMainQuestLesson(nextLesson, autoStart: true)
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "play.fill")
-                                        .font(.caption2)
-                                    Text(locale == .ja ? "クエストを始める" : "Start Quest")
-                                        .font(.subheadline.bold())
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(.cyan.opacity(0.8))
-                                .cornerRadius(20)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    } else if !appState.isPremium,
-                              progress.completedLessons < progress.totalLessons,
-                              let gatedNext = progress.nextLesson,
-                              (gatedNext.blockNumber ?? 1) > MainQuestFreeTier.maxFreeBlockNumber {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(locale == .ja
-                                 ? "メインクエスト第2チャプター以降はプレミアムでプレイできます。"
-                                 : "Main Quest chapters 2+ require Premium.")
-                                .font(.subheadline)
-                                .foregroundStyle(.orange)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            Button {
-                                subscriptionEntry = .dashboard
-                                paywallEntryAtOpen = .dashboard
-                                showSubscription = true
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "lock.fill")
-                                        .font(.caption2)
-                                    Text(locale == .ja ? "プレミアムを見る" : "View Premium")
-                                        .font(.subheadline.bold())
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.purple.opacity(0.85))
-                                .cornerRadius(20)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-            .padding(16)
-            .background(Color(hex: "1e293b"))
-            .cornerRadius(12)
-        }
-    }
-
-    @ViewBuilder
-    private var softLandingCard: some View {
-        if !appState.isPremium,
-           mainQuestBlockedForSoftLanding,
-           let candidate = softLandingNextCandidate {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Image(systemName: "gift.fill")
+                    Image(systemName: defenseTrainingGuidance == .openTraining
+                          ? "figure.strengthtraining.traditional"
+                          : "gamecontroller.fill")
                         .foregroundStyle(.green)
-                    Text(locale == .ja ? "学びを続ける" : "Continue learning")
+                    Text(locale == .ja ? "次におすすめ" : "Recommended next step")
                         .font(.headline)
                         .foregroundStyle(.white)
                 }
 
-                Text(locale == .ja
-                     ? "「\(candidate.course.localizedTitle(locale))」の第1ブロックを無料で体験できます。"
-                     : "Try \"\(candidate.course.localizedTitle(locale))\" — Block 1 is free.")
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let bodyCopy = DefenseTrainingGuidanceResolver.bodyCopy(
+                    for: defenseTrainingGuidance,
+                    locale: locale
+                ) {
+                    Text(bodyCopy)
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 Button {
-                    softLandingOfferEntry = .dashboard
-                    if let userId = profile?.id {
-                        AnalyticsTracker.trackSoftLandingOfferViewed(
-                            userId: userId,
-                            courseId: candidate.course.id,
-                            entry: SoftLandingOfferEntry.dashboard.rawValue,
-                            sequenceIndex: candidate.course.softLandingOrder ?? 0
-                        )
-                    }
-                    showSoftLandingOffer = true
+                    applyDefenseTrainingGuidance(defenseTrainingGuidance)
                 } label: {
                     HStack(spacing: 6) {
-                        Text(locale == .ja ? "コースを見る" : "View course")
-                            .font(.subheadline.bold())
+                        Text(
+                            DefenseTrainingGuidanceResolver.primaryLabel(
+                                for: defenseTrainingGuidance,
+                                locale: locale
+                            ) ?? ""
+                        )
+                        .font(.subheadline.bold())
                         Image(systemName: "chevron.right")
                             .font(.caption2)
                     }
@@ -421,79 +317,18 @@ struct TopView: View {
         }
     }
 
-    private var mainQuestBlockedForSoftLanding: Bool {
-        guard let progress = mainQuestProgress, progress.totalLessons > 0 else { return false }
-        if progress.completedLessons >= progress.totalLessons { return true }
-        guard let next = progress.nextLesson else { return false }
-        return !MainQuestFreeTier.isBlockPlayable(
-            isPremium: false,
-            blockNumber: next.blockNumber ?? 1
-        )
-    }
-
-    private func mainQuestPlayableNextLesson(progress: SupabaseService.MainQuestProgressResult) -> Lesson? {
-        guard let raw = progress.nextLesson else { return nil }
-        if appState.isPremium { return raw }
-        let bn = raw.blockNumber ?? 1
-        return bn <= MainQuestFreeTier.maxFreeBlockNumber ? raw : nil
-    }
-
-    private func mainQuestProgressPercent(completed: Int, total: Int) -> Int {
-        guard total > 0 else { return 0 }
-        return Int((Double(completed) / Double(total) * 100).rounded())
-    }
-
-    private func mainQuestProgressRow(completed: Int, total: Int) -> some View {
-        let percent = mainQuestProgressPercent(completed: completed, total: total)
-        return HStack(spacing: 8) {
-            mainQuestProgressBar(fraction: Double(percent) / 100.0)
-            Text("\(percent)%")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .monospacedDigit()
-                .foregroundStyle(Color(hex: "67e8f9"))
-        }
-    }
-
-    private func mainQuestProgressBar(fraction: Double) -> some View {
-        GeometryReader { geometry in
-            let clamped = min(max(fraction, 0), 1)
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.black.opacity(0.48))
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: "22d3ee"), Color(hex: "0891b2")],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: geometry.size.width * clamped)
+    private func applyDefenseTrainingGuidance(_ guidance: DefenseTrainingGuidance) {
+        switch guidance {
+        case .openDefense(_, let nodeId, _, let reason):
+            if reason == .tutorial, let userId = profile?.id {
+                AnalyticsTracker.trackTutorialBegin(userId: userId, tutorialName: "defense_input_setup")
             }
-        }
-        .frame(height: 5)
-    }
-
-    @ViewBuilder
-    private func mainQuestNextLessonPrompt(nextLesson: Lesson) -> some View {
-        let title = nextLesson.localizedTitle(locale)
-        let quotedTitle = locale == .ja ? "「\(title)」" : "\"\(title)\""
-        if locale == .ja {
-            (
-                Text(quotedTitle)
-                    .foregroundColor(Color(hex: "fcd34d"))
-                    .fontWeight(.semibold)
-                + Text("を完了しましょう")
-                    .foregroundColor(Color(white: 0.82))
-            )
-        } else {
-            (
-                Text("Complete ")
-                    .foregroundColor(Color(white: 0.82))
-                + Text(quotedTitle)
-                    .foregroundColor(Color(hex: "fcd34d"))
-                    .fontWeight(.semibold)
-            )
+            appState.requestedTab = .play
+            appState.pendingDefenseNodeId = nodeId
+        case .openTraining:
+            appState.requestedTab = .training
+        case .none:
+            break
         }
     }
 
@@ -661,23 +496,13 @@ struct TopView: View {
         guard let userId = profile?.id else {
             userStats = nil
             earnedBadges = []
-            mainQuestProgress = nil
+            defenseTrainingGuidance = .none
             return
         }
-        let profileInstrument = profile?.instrument
 
         async let statsTask: UserStats? = {
             do {
                 return try await SupabaseService.shared.fetchUserStats(userId: userId)
-            } catch {
-                return nil
-            }
-        }()
-
-        async let mainQuestTask: SupabaseService.MainQuestProgressResult? = {
-            do {
-                let instrument = MainQuestInstrument.resolve(profileInstrument: profileInstrument)
-                return try await SupabaseService.shared.fetchMainQuestProgress(userId: userId, instrument: instrument)
             } catch {
                 return nil
             }
@@ -691,65 +516,64 @@ struct TopView: View {
             }
         }()
 
-        let (loadedStats, loadedMainQuestProgress, loadedBadges) = await (statsTask, mainQuestTask, badgeTask)
+        async let defenseDataTask: (blocks: [PlayMapBlock], nodes: [PlayMapNode], clears: [PlayMapNodeClear])? = {
+            do {
+                async let blocksTask = SupabaseService.shared.fetchPlayMapBlocks(mode: .defense)
+                async let nodesTask = SupabaseService.shared.fetchPlayMapNodes(mode: .defense)
+                async let clearsTask = SupabaseService.shared.fetchPlayMapNodeClears(mode: .defense)
+                return try await (blocksTask, nodesTask, clearsTask)
+            } catch {
+                return nil
+            }
+        }()
+
+        async let defenseLastPlayedTask: Date? = {
+            try? await SupabaseService.shared.fetchDefenseLastPlayedAt()
+        }()
+
+        let (loadedStats, loadedBadges, loadedDefenseData, loadedDefenseLastPlayed) = await (
+            statsTask,
+            badgeTask,
+            defenseDataTask,
+            defenseLastPlayedTask
+        )
         userStats = loadedStats
-        mainQuestProgress = loadedMainQuestProgress
         earnedBadges = loadedBadges
-        if appState.isPremium {
-            softLandingNextCandidate = nil
-            appState.softLandingGuidanceActive = false
-        } else {
+
+        let resolvedGuidance: DefenseTrainingGuidance = {
+            guard let loadedDefenseData else { return .none }
+            let clearedNodeIds = Set(loadedDefenseData.clears.map(\.nodeId))
+            return DefenseTrainingGuidanceResolver.resolve(
+                isPremium: appState.isPremium,
+                blocks: loadedDefenseData.blocks,
+                nodes: loadedDefenseData.nodes,
+                clearedNodeIds: clearedNodeIds,
+                locale: locale
+            )
+        }()
+        defenseTrainingGuidance = resolvedGuidance
+
+        if !appState.isPremium {
             let candidates = await SoftLandingOfferLoader.fetchCandidates(userId: userId)
             softLandingNextCandidate = SoftLandingFreeTier.resolveNextSoftLandingCourse(candidates: candidates)
-            await appState.refreshSoftLandingGuidance(mainQuestProgress: loadedMainQuestProgress)
+        } else {
+            softLandingNextCandidate = nil
         }
         await playerXpHub.refreshFromServer()
 
-        if !appState.isPremium,
-           SoftLandingGuidance.shouldAutoShowOfferOnDashboard(
-               isPremium: appState.isPremium,
-               mainQuestBlocked: mainQuestBlockedForSoftLanding,
-               nextCandidate: softLandingNextCandidate
-           ),
-           let candidate = softLandingNextCandidate {
+        if appState.pendingDefenseGuidanceAutoStart {
+            appState.pendingDefenseGuidanceAutoStart = false
+            if resolvedGuidance != .none {
+                applyDefenseTrainingGuidance(resolvedGuidance)
+            }
+        } else if resolvedGuidance != .none,
+                  let lastPlayedAt = loadedDefenseLastPlayed,
+                  DefenseTrainingResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
             await MainActor.run {
-                softLandingOfferEntry = .dashboard
-                if let userId = appState.profile?.id {
-                    AnalyticsTracker.trackSoftLandingOfferViewed(
-                        userId: userId,
-                        courseId: candidate.course.id,
-                        entry: SoftLandingOfferEntry.dashboard.rawValue,
-                        sequenceIndex: candidate.course.softLandingOrder ?? 0
-                    )
-                }
-                GuidedSoftLandingPreferences.markOfferAutoShown()
-                showSoftLandingOffer = true
-            }
-        } else if appState.pendingMainQuestAutoStart {
-            appState.pendingMainQuestAutoStart = false
-            if let progress = loadedMainQuestProgress,
-               let nextLesson = mainQuestPlayableNextLesson(progress: progress) {
-                openMainQuestLesson(nextLesson, autoStart: true)
-            }
-        } else if let progress = loadedMainQuestProgress,
-                  !appState.softLandingGuidanceActive,
-                  let rawNext = progress.nextLesson,
-                  let lastPlayedAt = progress.lastPlayedAt,
-                  MainQuestResumePreferences.shouldShowResumeSheet(lastPlayedAt: lastPlayedAt) {
-            let playable = MainQuestFreeTier.isBlockPlayable(
-                isPremium: appState.isPremium,
-                blockNumber: rawNext.blockNumber ?? 1
-            )
-            let shouldShowResume = playable || !appState.isPremium
-            if shouldShowResume {
-                await MainActor.run {
-                    resumeNextLesson = rawNext
-                    resumePremiumUpsell = !playable && !appState.isPremium
-                    if !appState.isAppUpdateCheckComplete || appState.appUpdateNotice != nil {
-                        pendingResumeAfterUpdateNotice = true
-                    } else {
-                        showMainQuestResumeSheet = true
-                    }
+                if !appState.isAppUpdateCheckComplete || appState.appUpdateNotice != nil {
+                    pendingResumeAfterUpdateNotice = true
+                } else {
+                    showDefenseTrainingResumeSheet = true
                 }
             }
         }

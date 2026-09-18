@@ -791,6 +791,30 @@ final class SupabaseService: Sendable {
         }
     }
 
+    func fetchDefenseLastPlayedAt() async throws -> Date? {
+        let userId = try await currentUserId()
+        struct ClearTimestampRow: Decodable {
+            let cleared_at: Date
+        }
+
+        let rows: [ClearTimestampRow] = try await client
+            .from("play_map_node_clears")
+            .select("""
+                cleared_at,
+                play_map_nodes!inner(
+                    play_map_blocks!inner(mode)
+                )
+            """)
+            .eq("user_id", value: userId.uuidString)
+            .eq("play_map_nodes.play_map_blocks.mode", value: PlayMapMode.defense.rawValue)
+            .order("cleared_at", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+
+        return rows.first?.cleared_at
+    }
+
     func hasPlayMapNodeClear(nodeId: UUID) async throws -> Bool {
         let userId = try await currentUserId()
         struct ClearIdRow: Decodable {

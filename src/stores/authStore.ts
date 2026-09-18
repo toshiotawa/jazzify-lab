@@ -27,7 +27,7 @@ interface AuthState {
   isGuest: boolean;
   guestId: string | null;
   hasProfile: boolean;
-  pendingMainQuestAutoStart: boolean;
+  pendingDefenseGuidanceAutoStart: boolean;
   optimisticAvatarUrl: string | null;
   emailChangeStatus: {
     type: 'success' | 'warning' | null;
@@ -88,7 +88,7 @@ interface AuthActions {
       instrumentId?: NotationInstrumentId;
     },
   ) => Promise<void>;
-  consumeMainQuestAutoStart: () => boolean;
+  consumeDefenseGuidanceAutoStart: () => boolean;
   updateEmail: (newEmail: string, isEnglishCopy?: boolean) => Promise<{ success: boolean; message: string }>;
   /** メール変更用 OTP（ダッシュボードの Change email テンプレートに {{ .Token }} が必要） */
   verifyEmailChangeOtp: (
@@ -146,7 +146,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     isGuest: false,
     guestId: null,
     hasProfile: false,
-    pendingMainQuestAutoStart: false,
+    pendingDefenseGuidanceAutoStart: false,
     optimisticAvatarUrl: null,
     emailChangeStatus: null,
     profile: null,
@@ -588,7 +588,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.isGuest = false;
         state.guestId = null;
         state.hasProfile = false;
-        state.pendingMainQuestAutoStart = false;
+        state.pendingDefenseGuidanceAutoStart = false;
         state.profile = null;
       });
     },
@@ -834,7 +834,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set(state => {
           state.loading = false;
           state.error = null;
-          state.pendingMainQuestAutoStart = true;
+          state.pendingDefenseGuidanceAutoStart = true;
         });
         
       } catch (error) {
@@ -846,13 +846,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-    consumeMainQuestAutoStart: () => {
-      const pending = get().pendingMainQuestAutoStart;
+    consumeDefenseGuidanceAutoStart: () => {
+      const pending = get().pendingDefenseGuidanceAutoStart;
       if (!pending) {
         return false;
       }
       set(state => {
-        state.pendingMainQuestAutoStart = false;
+        state.pendingDefenseGuidanceAutoStart = false;
       });
       return true;
     },

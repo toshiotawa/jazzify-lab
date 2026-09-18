@@ -19,6 +19,9 @@ struct DefenseDescentView: View {
     @State private var lessonToOpen: LessonPlayMapLaunch?
     @State private var tutorialLaunch: TutorialLaunchContext?
     @State private var alertMessage: String?
+    @State private var nextStepGuidance: DefenseTrainingGuidance?
+    @State private var resultNextStepLabel: String?
+    @State private var showNextStepSheet = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -101,6 +104,14 @@ struct DefenseDescentView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await reloadMap() }
+        .onChange(of: appState.pendingDefenseNodeId) { nodeId in
+            guard nodeId != nil else { return }
+            Task { await consumePendingDefenseNodeIfNeeded() }
+        }
+        .onChange(of: isLoading) { loading in
+            guard !loading else { return }
+            Task { await consumePendingDefenseNodeIfNeeded() }
+        }
         .onChange(of: stageLaunchSession?.id) { sessionId in
             if sessionId == nil {
                 isStarting = false
@@ -148,10 +159,27 @@ struct DefenseDescentView: View {
                 playMapNodeId: launch.id,
                 onExit: {
                     tutorialLaunch = nil
-                    Task { await reloadMap() }
+                    Task { await handleTutorialExit() }
                 }
             )
             .environmentObject(appState)
+        }
+        .sheet(isPresented: $showNextStepSheet) {
+            DefenseTrainingResumeSheet(
+                locale: locale,
+                guidance: nextStepGuidance ?? .none,
+                onContinue: {
+                    showNextStepSheet = false
+                    if let guidance = nextStepGuidance {
+                        applyDefenseTrainingGuidance(guidance)
+                    }
+                    nextStepGuidance = nil
+                },
+                onLater: {
+                    showNextStepSheet = false
+                    nextStepGuidance = nil
+                }
+            )
         }
         .fullScreenCover(item: $stageLaunchSession) { session in
             DefenseGameView(
@@ -200,8 +228,15 @@ struct DefenseDescentView: View {
                 stageTitle: context.stage.title,
                 summary: context.summary,
                 locale: locale,
+                nextStepLabel: resultNextStepLabel,
+                onNextStep: resultNextStepLabel == nil ? nil : {
+                    mapResultContext = nil
+                    resultNextStepLabel = nil
+                    Task { await handlePerformanceNextStep() }
+                },
                 onRetry: {
                     mapResultContext = nil
+                    resultNextStepLabel = nil
                     stageLaunchSession = StageLaunchSession(
                         node: context.node,
                         stage: context.stage,
@@ -211,6 +246,7 @@ struct DefenseDescentView: View {
                 },
                 onBackToMap: {
                     mapResultContext = nil
+                    resultNextStepLabel = nil
                     Task { await reloadMap() }
                 }
             )
@@ -247,6 +283,61 @@ struct DefenseDescentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
+        }
+    }
+
+    private func resolveGuidance() -> DefenseTrainingGuidance {
+        let clearedNodeIds = Set(clears.map(\.nodeId))
+        return DefenseTrainingGuidanceResolver.resolve(
+            isPremium: appState.isPremium,
+            blocks: blocks,
+            nodes: nodes,
+            clearedNodeIds: clearedNodeIds,
+            locale: locale
+        )
+    }
+
+    private func applyDefenseTrainingGuidance(_ guidance: DefenseTrainingGuidance) {
+        switch guidance {
+        case .openDefense(_, let nodeId, _, _):
+            appState.pendingDefenseNodeId = nodeId
+            Task { await consumePendingDefenseNodeIfNeeded() }
+        case .openTraining:
+            appState.requestedTab = .training
+        case .none:
+            break
+        }
+    }
+
+    private func handleTutorialExit() async {
+        await reloadMap()
+        let guidance = resolveGuidance()
+        guard guidance != .none else { return }
+        nextStepGuidance = guidance
+        showNextStepSheet = true
+    }
+
+    private func handlePerformanceNextStep() async {
+        await reloadMap()
+        let guidance = resolveGuidance()
+        guard guidance != .none else { return }
+        applyDefenseTrainingGuidance(guidance)
+    }
+
+    private func consumePendingDefenseNodeIfNeeded() async {
+        guard let nodeId = appState.pendingDefenseNodeId else { return }
+        guard let node = nodes.first(where: { $0.id == nodeId }) else { return }
+        appState.pendingDefenseNodeId = nil
+        if let block = blocks.first(where: { $0.id == node.blockId }) {
+            mapTier = block.tier
+        }
+        switch node.nodeKind {
+        case .tutorial:
+            tutorialLaunch = TutorialLaunchContext(id: node.id)
+        case .stage:
+            await startStageNode(node)
+        case .quest:
+            await startQuestNode(node)
         }
     }
 
@@ -345,6 +436,15 @@ struct DefenseDescentView: View {
                 }
             }
             await reloadMap()
+            if !session.practiceMode {
+                let guidance = resolveGuidance()
+                resultNextStepLabel = DefenseTrainingGuidanceResolver.primaryLabel(
+                    for: guidance,
+                    locale: locale
+                )
+            } else {
+                resultNextStepLabel = nil
+            }
         } catch {
             /* non-fatal */
         }

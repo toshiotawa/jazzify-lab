@@ -18,6 +18,8 @@ interface DefenseResultProps {
   readonly isEnglishCopy: boolean;
   readonly onRetry: () => void;
   readonly onBack: () => void;
+  readonly nextStepLabel?: string;
+  readonly onNextStep?: () => void;
 }
 
 export const DefenseResult: React.FC<DefenseResultProps> = ({
@@ -30,6 +32,8 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
   isEnglishCopy,
   onRetry,
   onBack,
+  nextStepLabel,
+  onNextStep,
 }) => {
   const userId = useAuthStore((state) => state.user?.id ?? null);
   const [saved, setSaved] = useState(practiceMode);
@@ -74,21 +78,32 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
               : (isEnglishCopy ? 'Saving record…' : '記録を保存中…')}
           </p>
         )}
-        <div className="mt-6 flex gap-3 justify-center">
-          <button
-            type="button"
-            className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
-            onClick={onRetry}
-          >
-            {isEnglishCopy ? 'Retry' : 'もう一度'}
-          </button>
-          <button
-            type="button"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500"
-            onClick={onBack}
-          >
-            {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
-          </button>
+        <div className="mt-6 flex flex-col gap-3">
+          {isClear && nextStepLabel && onNextStep ? (
+            <button
+              type="button"
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500"
+              onClick={onNextStep}
+            >
+              {nextStepLabel}
+            </button>
+          ) : null}
+          <div className="flex gap-3 justify-center">
+            <button
+              type="button"
+              className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+              onClick={onRetry}
+            >
+              {isEnglishCopy ? 'Retry' : 'もう一度'}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500"
+              onClick={onBack}
+            >
+              {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

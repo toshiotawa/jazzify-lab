@@ -8,7 +8,10 @@ import {
   shouldShowMainQuestResumePrompt,
 } from '@/utils/mainQuestResume';
 import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
-import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
+import {
+  shouldShowMainQuestTaskAfterClearPrompt,
+  shouldShowMainQuestTaskEntryPrompt,
+} from '@/utils/mainQuestContinuation';
 
 describe('findNextIncompleteRequirements', () => {
   const requirements: RequirementWithLessonSongId[] = [
@@ -124,20 +127,22 @@ describe('resolveJustClearedLessonSongId', () => {
 });
 
 describe('shouldShowMainQuestTaskEntryPrompt', () => {
-  it('returns true for main quest with autoStart and no justCleared', () => {
+  it('returns false for main quest even with autoStart', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isSequentialCourse: true,
+        isMainQuestCourse: true,
         hasAutoStart: true,
         hasJustCleared: false,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('returns true for chapter 2 main quest with autoStart', () => {
+  it('returns true for soft landing with autoStart and no justCleared', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isSequentialCourse: true,
+        isMainQuestCourse: false,
         hasAutoStart: true,
         hasJustCleared: false,
       }),
@@ -148,6 +153,7 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isSequentialCourse: true,
+        isMainQuestCourse: false,
         hasAutoStart: true,
         hasJustCleared: true,
       }),
@@ -158,19 +164,31 @@ describe('shouldShowMainQuestTaskEntryPrompt', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isSequentialCourse: true,
+        isMainQuestCourse: false,
         hasAutoStart: false,
         hasJustCleared: false,
       }),
     ).toBe(false);
   });
 
-  it('returns false for non-main quest', () => {
+  it('returns false for non-sequential course', () => {
     expect(
       shouldShowMainQuestTaskEntryPrompt({
         isSequentialCourse: false,
+        isMainQuestCourse: false,
         hasAutoStart: true,
         hasJustCleared: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe('shouldShowMainQuestTaskAfterClearPrompt', () => {
+  it('returns false for main quest', () => {
+    expect(shouldShowMainQuestTaskAfterClearPrompt({ isMainQuestCourse: true })).toBe(false);
+  });
+
+  it('returns true for non-main quest', () => {
+    expect(shouldShowMainQuestTaskAfterClearPrompt({ isMainQuestCourse: false })).toBe(true);
   });
 });

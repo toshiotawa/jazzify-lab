@@ -1577,7 +1577,10 @@ struct LessonDetailView: View {
                     },
                     onContinue: sheetModel.nextLesson.map { next in
                         {
-                            queuePresentationAfterDismiss(.openLesson(next, autoStart: courseKind.isSequential))
+                            queuePresentationAfterDismiss(.openLesson(
+                                next,
+                                autoStart: courseKind.isSequential && courseKind != .mainQuest
+                            ))
                             questCompletionSheet = nil
                         }
                     },
@@ -1976,6 +1979,7 @@ struct LessonDetailView: View {
                 if pendingAutoStartFirstRequirement {
                     pendingAutoStartFirstRequirement = false
                     if courseKind.isSequential,
+                       courseKind != .mainQuest,
                        pendingClearCheck == nil,
                        let nextRequired = nextIncompleteRequirements.required {
                         enqueuePresentationStep(.presentTaskClearNextStep(nextRequired, .entry))
@@ -2877,7 +2881,8 @@ struct LessonDetailView: View {
 
         guard isPlayedRequirementCompleted() else { return }
 
-        if let nextRequired = nextIncompleteRequirements.required {
+        if courseKind != .mainQuest,
+           let nextRequired = nextIncompleteRequirements.required {
             enqueuePresentationStep(.presentTaskClearNextStep(nextRequired, .afterClear))
             return
         }

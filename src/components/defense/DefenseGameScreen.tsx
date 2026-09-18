@@ -88,6 +88,8 @@ interface DefenseGameScreenProps {
   readonly onResultBack?: () => void;
   /** 本番モードでクリアしたときに1回だけ呼ばれる（レッスン進捗の記録用） */
   readonly onClear?: () => void;
+  readonly resultNextStepLabel?: string;
+  readonly onResultNextStep?: () => void;
   readonly tutorialOptions?: DefenseTutorialOptions | null;
   readonly tutorialInputMethod?: InputMethod;
   readonly tutorialStaffGroups?: readonly ChordVoicingStaffGroup[];
@@ -115,6 +117,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   onApplyPracticeModeAndRestart,
   onResultBack,
   onClear,
+  resultNextStepLabel,
+  onResultNextStep,
   tutorialOptions = null,
   tutorialInputMethod,
   tutorialStaffGroups,
@@ -593,6 +597,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         isEnglishCopy={isEnglishCopy}
         onRetry={onRetry}
         onBack={onResultBack ?? onExit}
+        nextStepLabel={resultNextStepLabel}
+        onNextStep={onResultNextStep}
       />
     );
   }

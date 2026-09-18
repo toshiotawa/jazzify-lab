@@ -10,7 +10,9 @@ final class AppState: ObservableObject {
     @Published var profileSetupError: String?
     @Published var appUpdateNotice: AppUpdateNotice?
     @Published var locale: AppLocale
-    @Published var pendingMainQuestAutoStart = false
+    @Published var pendingDefenseGuidanceAutoStart = false
+    @Published var requestedTab: Tab?
+    @Published var pendingDefenseNodeId: UUID?
     /// ソフトランディング案内を優先する状態。画面遷移は制限せず、メインクエスト再開シートの抑止にのみ使う
     @Published var softLandingGuidanceActive = false
     /// アップデート案内の取得が終わるまで Top の再開シートなどを抑止する
@@ -187,7 +189,7 @@ final class AppState: ObservableObject {
                 throw ProfileSetupError.profileNotFoundAfterCreation
             }
 
-            pendingMainQuestAutoStart = true
+            pendingDefenseGuidanceAutoStart = true
             AnalyticsTracker.trackSignUp()
             if marketingEmailOptIn {
                 Task { await supabase.sendMarketingWelcomeEmail() }

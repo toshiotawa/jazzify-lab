@@ -57,6 +57,11 @@ struct MainTabView: View {
                     .tag(Tab.account)
             }
             .tint(.purple)
+            .onChange(of: appState.requestedTab) { tab in
+                guard let tab else { return }
+                selectedTab = tab
+                appState.requestedTab = nil
+            }
 
             // アプリ全体で 1 箇所のみ。子画面（LessonDetailView / SurvivalGameView 等）に重ねるとトーストが二重表示になる。
             PlayerXpToastOverlay()

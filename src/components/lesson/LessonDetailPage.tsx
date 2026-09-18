@@ -97,7 +97,10 @@ import QuestReadyToCompleteModal from '@/components/lesson/QuestReadyToCompleteM
 import TaskClearNextStepModal from '@/components/lesson/TaskClearNextStepModal';
 import { shouldShowQuestReadyToCompletePrompt, findNextIncompleteRequirements } from '@/utils/lessonRequirementProgress';
 import { resolveJustClearedLessonSongId } from '@/utils/mainQuestJustCleared';
-import { shouldShowMainQuestTaskEntryPrompt } from '@/utils/mainQuestContinuation';
+import {
+  shouldShowMainQuestTaskAfterClearPrompt,
+  shouldShowMainQuestTaskEntryPrompt,
+} from '@/utils/mainQuestContinuation';
 import type { TaskClearPromptMode } from '@/utils/lessonCompletionCopy';
 import { lessonDetailPath } from '@/utils/appNavigation';
 import { hasPlayMapNodeClear, recordPlayMapNodeClear, type PlayMapMode } from '@/platform/supabasePlayMap';
@@ -754,7 +757,10 @@ const LessonDetailPage: React.FC = () => {
     justClearedConsumedRef.current = true;
     clearJustClearedFromUrl();
 
-    if (nextRequired) {
+    if (
+      nextRequired
+      && shouldShowMainQuestTaskAfterClearPrompt({ isMainQuestCourse: lessonCourseIsMainQuest })
+    ) {
       setTaskClearPromptMode('afterClear');
       setNextTaskAfterClear(nextRequired);
       setShowTaskClearNextStepModal(true);
@@ -777,6 +783,7 @@ const LessonDetailPage: React.FC = () => {
     isQuestMarkedComplete,
     clearJustClearedFromUrl,
     skipReadyModalForFreeTierPremiumUpsell,
+    lessonCourseIsMainQuest,
   ]);
 
   useEffect(() => {
@@ -792,6 +799,7 @@ const LessonDetailPage: React.FC = () => {
     }
     if (!shouldShowMainQuestTaskEntryPrompt({
       isSequentialCourse: lessonCourseIsSequential,
+      isMainQuestCourse: lessonCourseIsMainQuest,
       hasAutoStart: true,
       hasJustCleared: Boolean(justClearedParam),
     })) {
@@ -816,6 +824,7 @@ const LessonDetailPage: React.FC = () => {
     requirements,
     requirementsProgress,
     lessonCourseIsSequential,
+    lessonCourseIsMainQuest,
     justClearedParam,
     clearAutoStartFromUrl,
   ]);
@@ -2066,7 +2075,8 @@ const LessonDetailPage: React.FC = () => {
                         }
                         setTimeout(() => {
                           const next = navigationInfo.nextLesson!;
-                          const shouldAutoStart = lessonCourseIsSequential;
+                          const shouldAutoStart = lessonCourseIsSequential
+                            && !lessonCourseIsMainQuest;
                           window.location.hash = buildLessonDetailHash(
                             next.id,
                             shouldAutoStart ? { autoStart: true } : undefined,

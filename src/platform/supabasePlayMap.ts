@@ -130,6 +130,31 @@ export async function fetchPlayMapNodeClears(mode: PlayMapMode): Promise<PlayMap
   }));
 }
 
+export async function fetchDefenseLastPlayedAt(): Promise<string | null> {
+  const uid = await getCurrentUserIdCached();
+  if (!uid) {
+    return null;
+  }
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('play_map_node_clears')
+    .select(`
+      cleared_at,
+      play_map_nodes!inner(
+        play_map_blocks!inner(mode)
+      )
+    `)
+    .eq('user_id', uid)
+    .eq('play_map_nodes.play_map_blocks.mode', 'defense')
+    .order('cleared_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.cleared_at) {
+    return null;
+  }
+  return data.cleared_at as string;
+}
+
 export async function hasPlayMapNodeClear(nodeId: string): Promise<boolean> {
   const uid = await getCurrentUserIdCached();
   if (!uid) return false;

@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
+import { DefenseNextStepModal } from '@/components/defense/DefenseNextStepModal';
 import { DefenseTutorial } from '@/components/defense/tutorial/DefenseTutorial';
 import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
 import type { PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
   fetchPlayMapBlocks,
+  fetchPlayMapNodeClears,
   fetchPlayMapNodes,
   recordPlayMapNodeClear,
 } from '@/platform/supabasePlayMap';
@@ -25,6 +27,12 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
+import {
+  defenseGuidancePrimaryLabel,
+  resolveDefenseTrainingGuidance,
+  TRAINING_ROUTE_HASH,
+  type DefenseTrainingGuidance,
+} from '@/utils/defenseTrainingGuidance';
 import { unlockDefenseBackingAudioContext } from '@/game/defense/defenseBackingDeck';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { useToast } from '@/stores/toastStore';
@@ -40,6 +48,8 @@ interface ActiveSession {
   readonly practiceMode: boolean;
   readonly nonce: number;
 }
+
+type ActionableDefenseGuidance = Exclude<DefenseTrainingGuidance, { kind: 'none' }>;
 
 const DefenseMapMain: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -58,6 +68,24 @@ const DefenseMapMain: React.FC = () => {
   const [activeNode, setActiveNode] = useState<PlayMapNode | null>(null);
   const [loaded, setLoaded] = useState<LoadedStage | null>(null);
   const [session, setSession] = useState<ActiveSession | null>(null);
+  const [nextStepGuidance, setNextStepGuidance] = useState<ActionableDefenseGuidance | null>(null);
+  const [resultNextStepLabel, setResultNextStepLabel] = useState<string | null>(null);
+
+  const loadGuidance = useCallback(async (): Promise<DefenseTrainingGuidance> => {
+    const [blocks, nodes, clears] = await Promise.all([
+      fetchPlayMapBlocks('defense'),
+      fetchPlayMapNodes('defense'),
+      fetchPlayMapNodeClears('defense'),
+    ]);
+    const clearedNodeIds = new Set(clears.map((entry) => entry.nodeId));
+    return resolveDefenseTrainingGuidance({
+      isPremiumMember,
+      blocks,
+      nodes,
+      clearedNodeIds,
+      isEnglishCopy,
+    });
+  }, [isEnglishCopy, isPremiumMember]);
 
   const startFromNode = useCallback(async (node: PlayMapNode) => {
     if (node.nodeKind === 'tutorial') {
@@ -99,6 +127,19 @@ const DefenseMapMain: React.FC = () => {
     setScreen('prep');
   }, []);
 
+  const navigateToGuidance = useCallback(async (guidance: ActionableDefenseGuidance) => {
+    setNextStepGuidance(null);
+    if (guidance.kind === 'openTraining') {
+      window.location.hash = TRAINING_ROUTE_HASH;
+      return;
+    }
+    const nodes = await fetchPlayMapNodes('defense');
+    const node = nodes.find((entry) => entry.id === guidance.nodeId);
+    if (node) {
+      await startFromNode(node);
+    }
+  }, [startFromNode]);
+
   useEffect(() => {
     const nodeId = searchParams.get('nodeId');
     if (!nodeId) return;
@@ -119,7 +160,7 @@ const DefenseMapMain: React.FC = () => {
   }, []);
 
   const handleClear = useCallback(async () => {
-    if (!activeNode || !loaded) return;
+    if (!activeNode || !loaded || session?.practiceMode) return;
     const result = await recordPlayMapNodeClear(activeNode.id, {
       surviveSec: loaded.stage.surviveSeconds,
     });
@@ -132,15 +173,56 @@ const DefenseMapMain: React.FC = () => {
         isEnglishCopy,
       );
     }
-  }, [activeNode, isEnglishCopy, loaded, toast]);
+    try {
+      const guidance = await loadGuidance();
+      if (guidance.kind === 'openDefense') {
+        setResultNextStepLabel(defenseGuidancePrimaryLabel(guidance, isEnglishCopy));
+      } else if (guidance.kind === 'openTraining') {
+        setResultNextStepLabel(isEnglishCopy ? 'Go to Training' : 'トレーニングへ');
+      } else {
+        setResultNextStepLabel(null);
+      }
+    } catch {
+      setResultNextStepLabel(null);
+    }
+  }, [activeNode, isEnglishCopy, loadGuidance, loaded, session?.practiceMode, toast]);
 
   const backToMap = useCallback(() => {
     setScreen('map');
     setActiveNode(null);
     setLoaded(null);
     setSession(null);
+    setResultNextStepLabel(null);
     setSearchParams({});
   }, [setSearchParams]);
+
+  const handleTutorialExit = useCallback(() => {
+    void (async () => {
+      backToMap();
+      try {
+        const guidance = await loadGuidance();
+        if (guidance.kind !== 'none') {
+          setNextStepGuidance(guidance);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [backToMap, loadGuidance]);
+
+  const handleResultNextStep = useCallback(() => {
+    void (async () => {
+      try {
+        const guidance = await loadGuidance();
+        backToMap();
+        if (guidance.kind !== 'none') {
+          await navigateToGuidance(guidance);
+        }
+      } catch {
+        backToMap();
+      }
+    })();
+  }, [backToMap, loadGuidance, navigateToGuidance]);
 
   const backToPrep = useCallback(() => {
     setSession(null);
@@ -148,6 +230,7 @@ const DefenseMapMain: React.FC = () => {
   }, []);
 
   const handleRetry = useCallback(() => {
+    setResultNextStepLabel(null);
     setSession((prev) => (prev ? { ...prev, nonce: prev.nonce + 1 } : prev));
   }, []);
 
@@ -155,7 +238,7 @@ const DefenseMapMain: React.FC = () => {
     return (
       <DefenseTutorial
         playMapNodeId={activeNode.id}
-        onExit={backToMap}
+        onExit={handleTutorialExit}
       />
     );
   }
@@ -172,6 +255,8 @@ const DefenseMapMain: React.FC = () => {
         onRetry={handleRetry}
         onApplyPracticeModeAndRestart={startSession}
         onClear={() => { void handleClear(); }}
+        resultNextStepLabel={resultNextStepLabel ?? undefined}
+        onResultNextStep={resultNextStepLabel ? handleResultNextStep : undefined}
       />
     );
   }
@@ -216,6 +301,14 @@ const DefenseMapMain: React.FC = () => {
         onSelectNode={(node) => { void startFromNode(node); }}
         onSelectQuestNode={(node) => { void startFromNode(node); }}
       />
+      {nextStepGuidance ? (
+        <DefenseNextStepModal
+          guidance={nextStepGuidance}
+          isEnglishCopy={isEnglishCopy}
+          onContinue={() => { void navigateToGuidance(nextStepGuidance); }}
+          onDismiss={() => setNextStepGuidance(null)}
+        />
+      ) : null}
     </div>
   );
 };

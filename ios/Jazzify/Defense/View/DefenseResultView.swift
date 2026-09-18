@@ -10,6 +10,8 @@ struct DefenseResultView: View {
     let stageTitle: String
     let summary: DefenseFinishSummary
     let locale: AppLocale
+    let nextStepLabel: String?
+    let onNextStep: (() -> Void)?
     let onRetry: () -> Void
     let onBackToMap: () -> Void
 
@@ -30,11 +32,20 @@ struct DefenseResultView: View {
                      : "Survived \(summary.surviveSec)s / Defeated \(summary.enemiesDefeated)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                HStack(spacing: 12) {
-                    Button(locale == .ja ? "もう一度" : "Retry", action: onRetry)
-                        .buttonStyle(.bordered)
-                    Button(locale == .ja ? "マップに戻る" : "Back to map", action: onBackToMap)
-                        .buttonStyle(.borderedProminent)
+                VStack(spacing: 12) {
+                    if summary.result == .clear,
+                       let nextStepLabel,
+                       let onNextStep {
+                        Button(nextStepLabel, action: onNextStep)
+                            .buttonStyle(.borderedProminent)
+                            .frame(maxWidth: .infinity)
+                    }
+                    HStack(spacing: 12) {
+                        Button(locale == .ja ? "もう一度" : "Retry", action: onRetry)
+                            .buttonStyle(.bordered)
+                        Button(locale == .ja ? "マップに戻る" : "Back to map", action: onBackToMap)
+                            .buttonStyle(.bordered)
+                    }
                 }
                 .padding(.top, 8)
             }
