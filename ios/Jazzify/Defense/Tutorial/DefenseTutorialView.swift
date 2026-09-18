@@ -30,6 +30,10 @@ struct DefenseTutorialView: View {
         DefenseTutorialNotation.formatTutorialNotationLabel(session.notation, isEnglishCopy: isEnglishCopy)
     }
 
+    private var canRetreat: Bool {
+        session.screen != .notation
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -37,18 +41,33 @@ struct DefenseTutorialView: View {
         }
         .background(Color(hex: "09070f").ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .onAppear {
+            NoteInputPreferences.voiceFastResponse = false
+        }
     }
 
     private var header: some View {
         HStack {
+            if canRetreat {
+                Button {
+                    handleRetreat()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .buttonStyle(.bordered)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(notationLabel)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 if session.screen == .play {
-                    Text(DefenseTutorialNotation.formatConcertSolfegeLabel(isEnglishCopy: isEnglishCopy))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(DefenseTutorialNotation.formatTutorialPlaySubtitle(
+                        concertMidis: phraseBuild.concertMidis,
+                        isEnglishCopy: isEnglishCopy
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 8)
@@ -66,24 +85,29 @@ struct DefenseTutorialView: View {
     private var content: some View {
         switch session.screen {
         case .notation, .notationConfirm:
-            DefenseTutorialSetupView(
-                settings: session.notation,
-                isEnglishCopy: isEnglishCopy,
-                mode: session.screen == .notationConfirm ? .confirm : .edit,
-                onChange: { session = DefenseTutorialState.updateNotation(session, notation: $0) },
-                onConfirm: handleNotationConfirm,
-                onBackToEdit: session.screen == .notationConfirm
-                    ? { session = DefenseTutorialState.advanceScreen(session, to: .notation) }
-                    : nil
-            )
+            ScrollView {
+                DefenseTutorialSetupView(
+                    settings: session.notation,
+                    isEnglishCopy: isEnglishCopy,
+                    mode: session.screen == .notationConfirm ? .confirm : .edit,
+                    onChange: { session = DefenseTutorialState.updateNotation(session, notation: $0) },
+                    onConfirm: handleNotationConfirm,
+                    onBackToEdit: session.screen == .notationConfirm
+                        ? { session = DefenseTutorialState.advanceScreen(session, to: .notation) }
+                        : nil
+                )
+            }
         case .inputChoice:
-            DefenseTutorialInputChoiceView(isEnglishCopy: isEnglishCopy, onSelect: handleSelectInput)
+            ScrollView {
+                DefenseTutorialInputChoiceView(isEnglishCopy: isEnglishCopy, onSelect: handleSelectInput)
+            }
         case .inputSetup:
             if let inputMethod = session.inputMethod {
                 DefenseTutorialInputPanelView(
                     inputMethod: inputMethod,
                     isEnglishCopy: isEnglishCopy,
-                    onReady: handleStartPlay
+                    onReady: handleStartPlay,
+                    onFallbackInput: handleFallbackInput
                 )
             }
         case .play:
@@ -107,7 +131,8 @@ struct DefenseTutorialView: View {
                         tutorialInputMethod: inputMethod,
                         tutorialStaffGroups: phraseBuild.staffGroups,
                         tutorialClefOverride: DefenseTutorialNotation.resolveClef(session.notation),
-                        tutorialConcertPitchClasses: DefenseTutorialConstants.targetPitchClasses,
+                        tutorialConcertPitchClasses: phraseBuild.concertMidis.map { (($0 % 12) + 12) % 12 },
+                        tutorialConcertMidis: phraseBuild.concertMidis,
                         suppressResultScreen: true,
                         onClose: { Task { await handleExit() } },
                         onApplyPracticeModeAndRestart: { _ in playNonce += 1 },
@@ -129,8 +154,8 @@ struct DefenseTutorialView: View {
         }
         if session.screen == .play {
             return isEnglishCopy
-                ? "Play what you hear. Timing is not judged. One octave up or down is OK."
-                : "楽譜を見ながら、聴こえた通りに演奏しましょう。タイミングは判定しません。1オクターブ上や下でも大丈夫です。"
+                ? "Play do, re, and mi as shown on the staff. Timing is not judged. One octave up or down is OK."
+                : "譜面のド・レ・ミを演奏しましょう。タイミングは判定しません。1オクターブ上や下でも大丈夫です。"
         }
         return ""
     }
@@ -152,9 +177,23 @@ struct DefenseTutorialView: View {
         )
     }
 
+    private func handleFallbackInput(_ method: NoteInputMethod) {
+        NoteInputManager.shared.inputMethod = method
+        session = DefenseTutorialState.selectInputMethod(session, inputMethod: method)
+    }
+
     private func handleStartPlay() {
         playNonce += 1
         session = DefenseTutorialState.advanceScreen(session, to: .play)
+    }
+
+    private func handleRetreat() {
+        if session.screen == .play {
+            playNonce += 1
+        }
+        if let next = DefenseTutorialState.retreatScreen(session) {
+            session = next
+        }
     }
 
     private func persistNotationSettings(_ notation: DefenseTutorialNotationSettings) {

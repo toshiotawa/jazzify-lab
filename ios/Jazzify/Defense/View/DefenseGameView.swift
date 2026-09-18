@@ -17,6 +17,7 @@ struct DefenseGameView: View {
     let tutorialStaffGroups: [DefenseTutorialStaffGroup]?
     let tutorialClefOverride: NotationInstrumentClef?
     let tutorialConcertPitchClasses: [Int]?
+    let tutorialConcertMidis: [Int]?
     let suppressResultScreen: Bool
     let onPlayMapCleared: (() -> Void)?
     let onFinished: ((DefenseFinishSummary) -> Void)?
@@ -34,6 +35,7 @@ struct DefenseGameView: View {
         tutorialStaffGroups: [DefenseTutorialStaffGroup]? = nil,
         tutorialClefOverride: NotationInstrumentClef? = nil,
         tutorialConcertPitchClasses: [Int]? = nil,
+        tutorialConcertMidis: [Int]? = nil,
         suppressResultScreen: Bool = false,
         onClose: @escaping () -> Void,
         onApplyPracticeModeAndRestart: @escaping (Bool) -> Void,
@@ -46,7 +48,8 @@ struct DefenseGameView: View {
             difficulty: difficulty,
             practiceMode: practiceMode,
             lessonContext: lessonContext,
-            tutorialOptions: tutorialOptions
+            tutorialOptions: tutorialOptions,
+            tutorialConcertMidis: tutorialConcertMidis
         ))
         _scene = State(initialValue: DefenseScene(size: CGSize(width: 800, height: 600)))
         self.locale = locale
@@ -56,6 +59,7 @@ struct DefenseGameView: View {
         self.tutorialStaffGroups = tutorialStaffGroups
         self.tutorialClefOverride = tutorialClefOverride
         self.tutorialConcertPitchClasses = tutorialConcertPitchClasses
+        self.tutorialConcertMidis = tutorialConcertMidis
         self.suppressResultScreen = suppressResultScreen
         self.onClose = onClose
         self.onApplyPracticeModeAndRestart = onApplyPracticeModeAndRestart
@@ -120,7 +124,7 @@ struct DefenseGameView: View {
         }
         .onChange(of: session.judgeState.correctNoteIndices) { _ in
             guard isTutorialSession else { return }
-            let totalSteps = DefenseTutorialConstants.targetPitchClasses.count
+            let totalSteps = DefenseTutorialConstants.writtenPitchClasses.count
             if session.judgeState.correctNoteIndices.count >= totalSteps
                 || session.judgeState.targetStepIndex >= totalSteps {
                 onTutorialPhraseSucceeded?()

@@ -12,13 +12,21 @@ enum PlayMapProgression {
         return true
     }
 
+    enum DisplayIcon: String, Sendable {
+        case info
+    }
+
+    static func displayIcon(node: PlayMapNode) -> DisplayIcon? {
+        node.nodeKind == .tutorial ? .info : nil
+    }
+
     static func displayLabel(
         node: PlayMapNode,
         stageLabel: Int,
         isEnglishCopy: Bool
     ) -> String {
         if node.nodeKind == .tutorial {
-            return isEnglishCopy ? "Intro" : "入門"
+            return ""
         }
         if node.nodeKind == .quest { return "?" }
         return String(stageLabel)
@@ -46,6 +54,7 @@ struct DefenseDescentNodePosition: Identifiable, Hashable, Sendable {
     let landingType: SurvivalDescentLandingType
     let blockKey: String
     let displayLabel: String
+    let displayIcon: PlayMapProgression.DisplayIcon?
 
     var id: UUID { nodeId }
 
@@ -119,6 +128,7 @@ enum DefenseDescentLayoutBuilder {
                 stageLabel: stageLabel,
                 isEnglishCopy: false
             )
+            let displayIcon = PlayMapProgression.displayIcon(node: node)
             if node.nodeKind == .stage {
                 stageLabel += 1
             }
@@ -131,7 +141,8 @@ enum DefenseDescentLayoutBuilder {
                     lane: lane,
                     landingType: isLast ? .big : .small,
                     blockKey: block.blockKey,
-                    displayLabel: displayLabel
+                    displayLabel: displayLabel,
+                    displayIcon: displayIcon
                 )
             )
             if !isLast {

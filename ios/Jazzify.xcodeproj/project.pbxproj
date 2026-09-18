@@ -333,6 +333,7 @@
 		DEF000011111111111111112 /* BuildDefenseTutorialPhrase.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF000011111111111111111 /* BuildDefenseTutorialPhrase.swift */; };
 		DEF000022222222222222223 /* BuildDefenseTutorialStaffDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF000022222222222222222 /* BuildDefenseTutorialStaffDisplay.swift */; };
 		DEF000033333333333333334 /* DefenseTutorialConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF000033333333333333333 /* DefenseTutorialConstants.swift */; };
+		DEF0000CCCCCCCCCCCCCCCD /* DefenseTutorialAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF0000CCCCCCCCCCCCCCCC /* DefenseTutorialAudio.swift */; };
 		DEF000044444444444444445 /* DefenseTutorialInputViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF000044444444444444444 /* DefenseTutorialInputViews.swift */; };
 		DEF000055555555555555556 /* DefenseTutorialNotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF000055555555555555555 /* DefenseTutorialNotation.swift */; };
 		DEF000066666666666666667 /* DefenseTutorialSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF000066666666666666666 /* DefenseTutorialSetupView.swift */; };
@@ -872,6 +873,7 @@
 		DEF000011111111111111111 /* BuildDefenseTutorialPhrase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDefenseTutorialPhrase.swift; sourceTree = "<group>"; };
 		DEF000022222222222222222 /* BuildDefenseTutorialStaffDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildDefenseTutorialStaffDisplay.swift; sourceTree = "<group>"; };
 		DEF000033333333333333333 /* DefenseTutorialConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTutorialConstants.swift; sourceTree = "<group>"; };
+		DEF0000CCCCCCCCCCCCCCCC /* DefenseTutorialAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTutorialAudio.swift; sourceTree = "<group>"; };
 		DEF000044444444444444444 /* DefenseTutorialInputViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTutorialInputViews.swift; sourceTree = "<group>"; };
 		DEF000055555555555555555 /* DefenseTutorialNotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTutorialNotation.swift; sourceTree = "<group>"; };
 		DEF000066666666666666666 /* DefenseTutorialSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseTutorialSetupView.swift; sourceTree = "<group>"; };
@@ -1633,6 +1635,7 @@
 				DEF000011111111111111111 /* BuildDefenseTutorialPhrase.swift */,
 				DEF000022222222222222222 /* BuildDefenseTutorialStaffDisplay.swift */,
 				DEF000033333333333333333 /* DefenseTutorialConstants.swift */,
+				DEF0000CCCCCCCCCCCCCCCC /* DefenseTutorialAudio.swift */,
 				DEF000044444444444444444 /* DefenseTutorialInputViews.swift */,
 				DEF000055555555555555555 /* DefenseTutorialNotation.swift */,
 				DEF000066666666666666666 /* DefenseTutorialSetupView.swift */,
@@ -2174,6 +2177,7 @@
 				DEF000011111111111111112 /* BuildDefenseTutorialPhrase.swift in Sources */,
 				DEF000022222222222222223 /* BuildDefenseTutorialStaffDisplay.swift in Sources */,
 				DEF000033333333333333334 /* DefenseTutorialConstants.swift in Sources */,
+				DEF0000CCCCCCCCCCCCCCCD /* DefenseTutorialAudio.swift in Sources */,
 				DEF000044444444444444445 /* DefenseTutorialInputViews.swift in Sources */,
 				DEF000055555555555555556 /* DefenseTutorialNotation.swift in Sources */,
 				DEF000066666666666666667 /* DefenseTutorialSetupView.swift in Sources */,

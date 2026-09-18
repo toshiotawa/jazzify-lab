@@ -522,7 +522,8 @@ private struct DefenseDescentBlockContent: View {
                     selectedNodeId = nodePos.nodeId
                     onNodeTap(nodePos.nodeId, blockLayout.blockIndex)
                 },
-                displayLabel: nodePos.displayLabel
+                displayLabel: nodePos.displayLabel,
+                displayIcon: nodePos.displayIcon
             )
         }
     }

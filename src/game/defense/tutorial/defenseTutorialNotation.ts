@@ -82,6 +82,23 @@ export const formatTutorialNotationLabel = (
   return `${keyLabel}${sep}${clefLabel}`;
 };
 
-export const formatConcertSolfegeLabel = (isEnglishCopy: boolean): string => (
-  isEnglishCopy ? 'Concert: C · D · E' : '実音：ド・レ・ミ'
+export const formatTutorialPlaySubtitle = (
+  concertMidis: readonly [number, number, number],
+  isEnglishCopy: boolean,
+): string => {
+  const label = formatTutorialSoundNoteNames(concertMidis);
+  return isEnglishCopy ? `Sound: ${label}` : `音：${label}`;
+};
+
+export const formatTutorialSoundNoteNames = (
+  concertMidis: readonly [number, number, number],
+): string => (
+  concertMidis.map((midi) => formatMidiNoteName(midi)).join(' · ')
 );
+
+const formatMidiNoteName = (midi: number): string => {
+  const pitchClass = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  const names = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+  return `${names[pitchClass]}${octave}`;
+};

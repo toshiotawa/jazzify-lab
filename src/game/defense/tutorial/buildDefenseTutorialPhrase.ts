@@ -7,7 +7,6 @@ import type {
 } from '@/game/defense/defenseTypes';
 import type { NotationInstrumentId } from '@/utils/notationInstrument';
 import {
-  getNotationInstrumentPreset,
   transposeWrittenNoteName,
 } from '@/utils/notationInstrument';
 import {
@@ -15,53 +14,49 @@ import {
   DEFENSE_TUTORIAL_BPM,
   DEFENSE_TUTORIAL_KEY_FIFTHS,
   DEFENSE_TUTORIAL_LOOP_SEC,
-  DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES,
-  type DefenseTutorialConcertOctave,
+  DEFENSE_TUTORIAL_SOLFEGE_LABELS,
+  DEFENSE_TUTORIAL_TARGET_CONCERT_MIDI,
+  DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES,
+  type DefenseTutorialWrittenOctave,
 } from '@/game/defense/tutorial/defenseTutorialConstants';
 import {
   resolveTutorialClef,
-  resolveTutorialLayoutWrittenOffset,
   resolveTutorialWrittenOffset,
   type DefenseTutorialNotationSettings,
 } from '@/game/defense/tutorial/defenseTutorialNotation';
 
-const CONCERT_NOTE_NAMES = ['C', 'D', 'E'] as const;
+const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
-const midiFromConcert = (octave: DefenseTutorialConcertOctave, pitchClass: number): number => (
+const concertMidiToName = (midi: number): string => {
+  const pitchClass = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${CONCERT_NOTE_NAMES[pitchClass]}${octave}`;
+};
+
+const midiFromWritten = (octave: number, pitchClass: number): number => (
   (octave + 1) * 12 + pitchClass
 );
 
-/** Pick readable concert octave for written display after transposition. */
-export const pickDefenseTutorialConcertOctave = (
+/** Pick written octave so the first note's concert pitch is closest to C4. */
+export const pickDefenseTutorialWrittenOctave = (
   settings: DefenseTutorialNotationSettings,
-): DefenseTutorialConcertOctave => {
-  const clef = resolveTutorialClef(settings);
-  const writtenOffset = resolveTutorialLayoutWrittenOffset(settings);
-  if (clef === 'bass') {
-    return 3;
-  }
+): DefenseTutorialWrittenOctave => {
+  const writtenOffset = resolveTutorialWrittenOffset(settings);
+  const candidateOctaves: DefenseTutorialWrittenOctave[] = [3, 4, 5, 6];
 
-  const trialOctaves: DefenseTutorialConcertOctave[] = [4, 3, 5];
-  for (const octave of trialOctaves) {
-    const writtenMidis = DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES.map((pc) => {
-      const concertMidi = midiFromConcert(octave, pc);
-      return concertMidi + writtenOffset;
-    });
-    const maxWritten = Math.max(...writtenMidis);
-    const minWritten = Math.min(...writtenMidis);
-    if (clef === 'treble' && maxWritten <= 84 && minWritten >= 55) {
-      return octave;
-    }
-    if (maxWritten <= 84 && minWritten >= 48) {
-      return octave;
-    }
-  }
+  let bestOctave: DefenseTutorialWrittenOctave = 4;
+  let bestDistance = Number.POSITIVE_INFINITY;
 
-  const presetOctaveOffset = getNotationInstrumentPreset(settings.notationInstrumentId).octaveOffset;
-  if (presetOctaveOffset < 0 || writtenOffset >= 12) {
-    return 3;
-  }
-  return 4;
+  candidateOctaves.forEach((octave) => {
+    const concertMidiC = midiFromWritten(octave, 0) - writtenOffset;
+    const distance = Math.abs(concertMidiC - DEFENSE_TUTORIAL_TARGET_CONCERT_MIDI);
+    if (distance < bestDistance || (distance === bestDistance && octave > bestOctave)) {
+      bestDistance = distance;
+      bestOctave = octave;
+    }
+  });
+
+  return bestOctave;
 };
 
 export interface DefenseTutorialPhraseBuildResult {
@@ -71,57 +66,51 @@ export interface DefenseTutorialPhraseBuildResult {
   readonly staffGroups: readonly ChordVoicingStaffGroup[];
   readonly concertMidis: readonly [number, number, number];
   readonly recommendedMidis: readonly [number, number, number];
-  readonly concertOctave: DefenseTutorialConcertOctave;
+  readonly writtenOctave: DefenseTutorialWrittenOctave;
 }
 
 const buildStaffGroups = (
   writtenNoteNames: readonly [string, string, string],
-): readonly ChordVoicingStaffGroup[] => {
-  const noteGroups: ChordVoicingStaffGroup[] = writtenNoteNames.map((name, index) => ({
+): readonly ChordVoicingStaffGroup[] => (
+  writtenNoteNames.map((name, index) => ({
     id: `tutorial-note-${index}`,
-    chordName: index === 0 ? 'CDE' : '',
+    chordName: DEFENSE_TUTORIAL_SOLFEGE_LABELS[index] ?? '',
     voicing: [name],
     voicingStaves: [1],
     measureOffset: 0,
-    noteValue: 'quarter' as const,
-    beatIndex: index,
-  }));
-  return [
-    ...noteGroups,
-    {
-      id: 'tutorial-rest',
-      chordName: '',
-      voicing: [],
-      measureOffset: 0,
-      isRest: true,
-      noteValue: 'quarter' as const,
-      beatIndex: 3,
-    },
-  ];
-};
+    noteValue: 'whole' as const,
+  }))
+);
 
 export const buildDefenseTutorialPhrase = (
   settings: DefenseTutorialNotationSettings,
   audioUrl: string,
 ): DefenseTutorialPhraseBuildResult => {
-  const concertOctave = pickDefenseTutorialConcertOctave(settings);
+  const writtenOctave = pickDefenseTutorialWrittenOctave(settings);
   const writtenOffset = resolveTutorialWrittenOffset(settings);
   const clef = resolveTutorialClef(settings);
   const staffLayout: DefenseStaffLayout = clef === 'bass' ? 'treble' : 'treble';
 
-  const concertMidis = DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES.map(
-    (pc) => midiFromConcert(concertOctave, pc),
+  const writtenMidis = DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES.map(
+    (pitchClass) => midiFromWritten(writtenOctave, pitchClass),
   ) as [number, number, number];
 
-  const writtenNoteNames = concertMidis.map((concertMidi, index) => {
-    const concertName = `${CONCERT_NOTE_NAMES[index]}${concertOctave}`;
-    return transposeWrittenNoteName(concertName, writtenOffset, DEFENSE_TUTORIAL_KEY_FIFTHS);
-  }) as [string, string, string];
+  const concertMidis = writtenMidis.map(
+    (writtenMidi) => writtenMidi - writtenOffset,
+  ) as [number, number, number];
 
-  const notes = DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES.map((pitchClass, stepIndex) => ({
+  const writtenNoteNames = concertMidis.map((concertMidi) => (
+    transposeWrittenNoteName(
+      concertMidiToName(concertMidi),
+      writtenOffset,
+      DEFENSE_TUTORIAL_KEY_FIFTHS,
+    )
+  )) as [string, string, string];
+
+  const notes = DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES.map((_, stepIndex) => ({
     orderIndex: stepIndex,
     pitchMidi: concertMidis[stepIndex],
-    pitchClass,
+    pitchClass: ((concertMidis[stepIndex] % 12) + 12) % 12,
     noteName: writtenNoteNames[stepIndex],
     staff: 1 as const,
     stepIndex,
@@ -130,7 +119,7 @@ export const buildDefenseTutorialPhrase = (
   const chord: DefensePhraseChord = {
     id: 'tutorial-cde-chord',
     orderIndex: 0,
-    chordName: 'CDE',
+    chordName: 'ドレミ',
     measureNumber: 1,
     notes,
   };
@@ -173,13 +162,13 @@ export const buildDefenseTutorialPhrase = (
     staffGroups: buildStaffGroups(writtenNoteNames),
     concertMidis,
     recommendedMidis: concertMidis,
-    concertOctave,
+    writtenOctave,
   };
 };
 
 /** Placeholder URL; tutorial play uses synthesized buffer when this fails. */
 export const DEFENSE_TUTORIAL_AUDIO_URL =
-  'https://jazzify-cdn.com/sozai/defense-tutorial-cde-bpm100.mp3';
+  'https://jazzify-cdn.com/sozai/defense-tutorial-cde-bpm60.mp3';
 
 export const defaultTutorialNotationSettings = (
   notationInstrumentId: NotationInstrumentId,

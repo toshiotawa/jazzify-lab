@@ -24,6 +24,7 @@ enum NotationInstrumentCatalog {
 
     static let presets: [NotationInstrumentPreset] = [
         .init(id: "piano", clef: .grand, transposition: 0, octaveOffset: 0, labelJa: "ピアノ / キーボード", labelEn: "Piano / Keyboard"),
+        .init(id: "concert_melody", clef: .treble, transposition: 0, octaveOffset: 0, labelJa: "単音楽器（コンサートキー）", labelEn: "Melody (Concert key)"),
         .init(id: "flute", clef: .treble, transposition: 0, octaveOffset: 0, labelJa: "フルート", labelEn: "Flute"),
         .init(id: "oboe", clef: .treble, transposition: 0, octaveOffset: 0, labelJa: "オーボエ", labelEn: "Oboe"),
         .init(id: "violin", clef: .treble, transposition: 0, octaveOffset: 0, labelJa: "ヴァイオリン", labelEn: "Violin"),

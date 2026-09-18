@@ -32,7 +32,6 @@ import {
   DEFENSE_TUTORIAL_AUDIO_URL,
 } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import { buildDefenseTutorialStaffDisplay } from '@/game/defense/tutorial/buildDefenseTutorialStaffDisplay';
-import { DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES } from '@/game/defense/tutorial/defenseTutorialConstants';
 import { synthesizeDefenseTutorialCdeBuffer } from '@/game/defense/tutorial/defenseTutorialAudio';
 import {
   defenseBackingDeck,
@@ -92,7 +91,7 @@ interface DefenseGameScreenProps {
   readonly tutorialOptions?: DefenseTutorialOptions | null;
   readonly tutorialInputMethod?: InputMethod;
   readonly tutorialStaffGroups?: readonly ChordVoicingStaffGroup[];
-  readonly tutorialConcertOctave?: number;
+  readonly tutorialConcertMidis?: readonly [number, number, number];
   readonly onTutorialPhraseSucceeded?: () => void;
   readonly suppressResultScreen?: boolean;
 }
@@ -119,7 +118,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   tutorialOptions = null,
   tutorialInputMethod,
   tutorialStaffGroups,
-  tutorialConcertOctave = 4,
+  tutorialConcertMidis = [60, 62, 64],
   onTutorialPhraseSucceeded,
   suppressResultScreen = false,
 }) => {
@@ -217,14 +216,19 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     [stage.phrases, judgeSnapshot, voiceSequential],
   );
 
+  const tutorialConcertPitchClasses = useMemo(
+    () => tutorialConcertMidis.map((midi) => ((midi % 12) + 12) % 12),
+    [tutorialConcertMidis],
+  );
+
   const tutorialStaffDisplay = useMemo(() => {
     if (!tutorialStaffGroups) return null;
     return buildDefenseTutorialStaffDisplay(
       tutorialStaffGroups,
       judgeSnapshot,
-      DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES,
+      tutorialConcertPitchClasses,
     );
-  }, [tutorialStaffGroups, judgeSnapshot]);
+  }, [tutorialStaffGroups, judgeSnapshot, tutorialConcertPitchClasses]);
 
   const stageMidiMidis = useMemo(
     () => computeDefenseStageMidis(stage.phrases),
@@ -463,7 +467,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       if (isTutorialSession) {
         defenseBackingDeck.registerBufferFactory(
           DEFENSE_TUTORIAL_AUDIO_URL,
-          (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, tutorialConcertOctave),
+          (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, tutorialConcertMidis),
         );
       }
       const firstPhrase = stage.phrases[0];
@@ -487,7 +491,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       cancelled = true;
       defenseBackingDeck.stop();
     };
-  }, [stage, practiceMode, isTutorialSession, tutorialConcertOctave]);
+  }, [stage, practiceMode, isTutorialSession, tutorialConcertMidis]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;

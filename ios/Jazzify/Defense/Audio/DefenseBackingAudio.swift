@@ -114,6 +114,16 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
+    func startSynthesizedTutorial(concertMidis: [Int]) async throws {
+        guard let buffer = DefenseTutorialAudio.synthesize(concertMidis: concertMidis) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        try await MainActor.run {
+            self.stop()
+            try self.startEngine(with: buffer)
+        }
+    }
+
     func scheduleSwitch(nextUrl: URL) async throws -> Int64 {
         let buffer = try await decodePCM(url: nextUrl)
         return await MainActor.run {

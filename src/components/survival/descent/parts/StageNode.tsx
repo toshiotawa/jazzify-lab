@@ -5,7 +5,8 @@
  */
 
 import React, { useCallback } from 'react';
-import { FaLock } from 'react-icons/fa';
+import { FaInfoCircle, FaLock } from 'react-icons/fa';
+import type { PlayMapNodeDisplayIcon } from '@/components/play/defenseDescent/playMapProgression';
 import { cn } from '@/utils/cn';
 
 export type StageNodeState = 'locked' | 'unlocked' | 'cleared';
@@ -24,6 +25,8 @@ interface StageNodeProps {
   isFrontier?: boolean;
   /** 省略時は stageNumber を表示 */
   displayLabel?: string;
+  /** 指定時は displayLabel の代わりにアイコンを表示 */
+  displayIcon?: PlayMapNodeDisplayIcon;
 }
 
 export const StageNode: React.FC<StageNodeProps> = ({
@@ -38,9 +41,11 @@ export const StageNode: React.FC<StageNodeProps> = ({
   dim,
   isFrontier,
   displayLabel,
+  displayIcon,
 }) => {
   const diameter = Math.round(52 * scale);
   const labelText = displayLabel ?? String(stageNumber);
+  const iconSize = Math.max(14, 20 * scale);
 
   const handleClick = useCallback(() => {
     if (onActivate) {
@@ -116,7 +121,9 @@ export const StageNode: React.FC<StageNodeProps> = ({
       >
         {state === 'cleared' ? (
           <>
-            <span style={{ lineHeight: 1 }}>{labelText}</span>
+            <span style={{ lineHeight: 1 }}>
+              {displayIcon === 'info' ? <FaInfoCircle style={{ fontSize: iconSize }} /> : labelText}
+            </span>
             <span
               aria-hidden
               className="absolute flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-bold"
@@ -135,6 +142,8 @@ export const StageNode: React.FC<StageNodeProps> = ({
           </>
         ) : state === 'locked' ? (
           <FaLock style={{ fontSize: Math.max(12, 16 * scale), opacity: 0.7 }} />
+        ) : displayIcon === 'info' ? (
+          <FaInfoCircle style={{ fontSize: iconSize }} />
         ) : (
           labelText
         )}

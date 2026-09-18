@@ -1,7 +1,9 @@
 import type { PlayMapBlock, PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
   isPlayMapProgressionGate,
+  playMapNodeDisplayIcon,
   playMapNodeDisplayLabel,
+  type PlayMapNodeDisplayIcon,
 } from '@/components/play/defenseDescent/playMapProgression';
 import {
   LANE_X,
@@ -26,6 +28,7 @@ export interface PlayNodePosition {
   landingType: 'small' | 'big';
   blockKey: string;
   displayLabel: string;
+  displayIcon?: PlayMapNodeDisplayIcon;
 }
 
 export interface PlayBlockLayout {
@@ -78,6 +81,7 @@ function buildLayoutForBlock(
     const lane = assignLane(i, isLast);
     const node = blockNodes[i];
     const displayLabel = playMapNodeDisplayLabel(node, stageLabel, isEnglishCopy);
+    const displayIcon = playMapNodeDisplayIcon(node);
     if (node.nodeKind === 'stage') {
       stageLabel += 1;
     }
@@ -90,6 +94,7 @@ function buildLayoutForBlock(
       landingType: isLast ? 'big' : 'small',
       blockKey: block.blockKey,
       displayLabel,
+      displayIcon,
     });
     if (!isLast) {
       y += i === count - 2 ? Y_BEFORE_BIG : Y_STAGE_GAP;

@@ -45,6 +45,33 @@ enum DefenseTutorialState {
         return copy
     }
 
+    static func retreatScreen(
+        _ state: DefenseTutorialSessionState
+    ) -> DefenseTutorialSessionState? {
+        switch state.screen {
+        case .notationConfirm:
+            var copy = state
+            copy.screen = .notation
+            return copy
+        case .inputChoice:
+            var copy = state
+            copy.screen = .notationConfirm
+            return copy
+        case .inputSetup:
+            var copy = state
+            copy.screen = .inputChoice
+            copy.inputMethod = nil
+            return copy
+        case .play:
+            var copy = state
+            copy.screen = .inputSetup
+            copy.phraseSucceeded = false
+            return copy
+        case .notation:
+            return nil
+        }
+    }
+
     static func updateNotation(
         _ state: DefenseTutorialSessionState,
         notation: DefenseTutorialNotationSettings

@@ -83,7 +83,8 @@ describe('buildPlayDescentLayout', () => {
       makeNode('s1', blockA.id, 0, 'stage'),
     ];
     const layout = buildPlayDescentLayout([blockA], nodes, 'basic', false);
-    expect(layout.blocks[0].nodes[0].displayLabel).toBe('入門');
+    expect(layout.blocks[0].nodes[0].displayIcon).toBe('info');
+    expect(layout.blocks[0].nodes[0].displayLabel).toBe('');
     const cleared = new Set<string>();
     expect(isPlayDescentNodeUnlocked('s1', layout.blocks, cleared, true)).toBe(true);
   });

@@ -4,23 +4,21 @@ import {
   DEFENSE_TUTORIAL_LOOP_SEC,
   DEFENSE_TUTORIAL_NOTE_DURATION_SEC,
   DEFENSE_TUTORIAL_NOTE_ONSETS_SEC,
-  DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES,
 } from '@/game/defense/tutorial/defenseTutorialConstants';
 
 const midiToFrequency = (midi: number): number => 440 * (2 ** ((midi - 69) / 12));
 
-/** Synthesize one bar of concert C4–D4–E4 + rest at BPM 100 for tutorial backing. */
+/** Synthesize one bar of instrument do-re-mi + rest at BPM 60 for tutorial backing. */
 export const synthesizeDefenseTutorialCdeBuffer = (
   ctx: AudioContext,
-  concertOctave = 4,
+  concertMidis: readonly [number, number, number],
 ): AudioBuffer => {
   const sampleRate = ctx.sampleRate;
   const length = Math.ceil(DEFENSE_TUTORIAL_LOOP_SEC * sampleRate);
   const buffer = ctx.createBuffer(1, length, sampleRate);
   const data = buffer.getChannelData(0);
 
-  DEFENSE_TUTORIAL_TARGET_PITCH_CLASSES.forEach((pitchClass, index) => {
-    const midi = (concertOctave + 1) * 12 + pitchClass;
+  concertMidis.forEach((midi, index) => {
     const freq = midiToFrequency(midi);
     const startSec = DEFENSE_TUTORIAL_NOTE_ONSETS_SEC[index] ?? 0;
     const startSample = Math.floor(startSec * sampleRate);

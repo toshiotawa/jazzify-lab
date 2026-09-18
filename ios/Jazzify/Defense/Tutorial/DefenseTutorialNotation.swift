@@ -75,8 +75,23 @@ enum DefenseTutorialNotation {
         return "\(keyLabel)\(sep)\(clefLabel)"
     }
 
-    static func formatConcertSolfegeLabel(isEnglishCopy: Bool) -> String {
-        isEnglishCopy ? "Concert: C · D · E" : "実音：ド・レ・ミ"
+    static func formatTutorialPlaySubtitle(
+        concertMidis: [Int],
+        isEnglishCopy: Bool
+    ) -> String {
+        let label = formatTutorialSoundNoteNames(concertMidis: concertMidis)
+        return isEnglishCopy ? "Sound: \(label)" : "音：\(label)"
+    }
+
+    static func formatTutorialSoundNoteNames(concertMidis: [Int]) -> String {
+        concertMidis.map { formatMidiNoteName($0) }.joined(separator: " · ")
+    }
+
+    private static func formatMidiNoteName(_ midi: Int) -> String {
+        let pitchClass = ((midi % 12) + 12) % 12
+        let octave = midi / 12 - 1
+        let names = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
+        return "\(names[pitchClass])\(octave)"
     }
 
     static func defaultSettings(

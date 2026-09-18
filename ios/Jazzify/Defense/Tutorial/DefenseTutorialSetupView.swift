@@ -13,32 +13,6 @@ struct DefenseTutorialSetupView: View {
         case confirm
     }
 
-    private struct KeyOption: Identifiable {
-        let id: Int
-        let label: String
-        let transposition: Int
-    }
-
-    private struct ClefOption: Identifiable {
-        let value: NotationInstrumentClef
-        let labelJa: String
-        let labelEn: String
-        var id: String { value.rawValue }
-    }
-
-    private let keyOptions: [KeyOption] = [
-        KeyOption(id: 0, label: "C", transposition: 0),
-        KeyOption(id: 1, label: "B♭", transposition: -2),
-        KeyOption(id: 2, label: "E♭", transposition: -9),
-        KeyOption(id: 3, label: "F", transposition: -7),
-    ]
-
-    private let clefOptions: [ClefOption] = [
-        ClefOption(value: .treble, labelJa: "ト音記号", labelEn: "Treble clef"),
-        ClefOption(value: .bass, labelJa: "ヘ音記号", labelEn: "Bass clef"),
-        ClefOption(value: .grand, labelJa: "大譜表", labelEn: "Grand staff"),
-    ]
-
     var body: some View {
         if mode == .confirm {
             confirmBody
@@ -48,7 +22,9 @@ struct DefenseTutorialSetupView: View {
     }
 
     private var confirmBody: some View {
-        VStack(spacing: 24) {
+        let preset = NotationInstrumentCatalog.preset(for: settings.notationInstrumentId)
+        let instrumentLabel = isEnglishCopy ? preset.labelEn : preset.labelJa
+        return VStack(spacing: 24) {
             Text(isEnglishCopy
                  ? "Your sheet music will be shown like this."
                  : "楽譜は次の設定で表示されます。")
@@ -56,8 +32,13 @@ struct DefenseTutorialSetupView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Text(DefenseTutorialNotation.formatTutorialNotationLabel(settings, isEnglishCopy: isEnglishCopy))
+            Text(instrumentLabel)
                 .font(.title2.bold())
+                .multilineTextAlignment(.center)
+
+            Text(DefenseTutorialNotation.formatTutorialNotationLabel(settings, isEnglishCopy: isEnglishCopy))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 12) {
@@ -78,8 +59,8 @@ struct DefenseTutorialSetupView: View {
     private var editBody: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text(isEnglishCopy
-                 ? "Choose the sheet music you usually read."
-                 : "普段使っている楽譜を選んでください。")
+                 ? "If you want to read in your instrument's key, choose that instrument. If you want concert pitch (no transposition), choose Melody (Concert key)."
+                 : "あなたの楽器のキーで譜面を読みたい方は、その楽器を選んでください。コンサートキー（移調なし）で読みたい方は「単音楽器（コンサートキー）」を選んでください。")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -95,29 +76,7 @@ struct DefenseTutorialSetupView: View {
                 .pickerStyle(.menu)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(isEnglishCopy ? "Written key" : "記譜キー")
-                    .font(.caption.weight(.semibold))
-                Picker(isEnglishCopy ? "Written key" : "記譜キー", selection: transpositionBinding) {
-                    ForEach(keyOptions) { option in
-                        Text(option.label).tag(option.transposition)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(isEnglishCopy ? "Clef" : "音部記号")
-                    .font(.caption.weight(.semibold))
-                Picker(isEnglishCopy ? "Clef" : "音部記号", selection: clefBinding) {
-                    ForEach(clefOptions) { option in
-                        Text(isEnglishCopy ? option.labelEn : option.labelJa).tag(option.value)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Button(isEnglishCopy ? "Continue" : "次へ", action: onConfirm)
+            Button(isEnglishCopy ? "Next" : "次へ", action: onConfirm)
                 .buttonStyle(.borderedProminent)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 8)
@@ -139,28 +98,6 @@ struct DefenseTutorialSetupView: View {
                     clefOverride: preset.clef,
                     transpositionOverride: preset.transposition
                 ))
-            }
-        )
-    }
-
-    private var transpositionBinding: Binding<Int> {
-        Binding(
-            get: { DefenseTutorialNotation.resolveTransposition(settings) },
-            set: { newValue in
-                var copy = settings
-                copy.transpositionOverride = newValue
-                onChange(copy)
-            }
-        )
-    }
-
-    private var clefBinding: Binding<NotationInstrumentClef> {
-        Binding(
-            get: { DefenseTutorialNotation.resolveClef(settings) },
-            set: { newValue in
-                var copy = settings
-                copy.clefOverride = newValue
-                onChange(copy)
             }
         )
     }

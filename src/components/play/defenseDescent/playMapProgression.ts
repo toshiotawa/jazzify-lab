@@ -10,13 +10,21 @@ export const isPlayMapProgressionGate = (node: PlayMapNode): boolean => {
   return true;
 };
 
+export type PlayMapNodeDisplayIcon = 'info';
+
+export const playMapNodeDisplayIcon = (
+  node: PlayMapNode,
+): PlayMapNodeDisplayIcon | undefined => (
+  node.nodeKind === 'tutorial' ? 'info' : undefined
+);
+
 export const playMapNodeDisplayLabel = (
   node: PlayMapNode,
   stageLabel: number,
-  isEnglishCopy: boolean,
+  _isEnglishCopy: boolean,
 ): string => {
   if (node.nodeKind === 'tutorial') {
-    return isEnglishCopy ? 'Intro' : '入門';
+    return '';
   }
   if (node.nodeKind === 'quest') return '?';
   return String(stageLabel);

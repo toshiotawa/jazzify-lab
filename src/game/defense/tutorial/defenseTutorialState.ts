@@ -40,6 +40,23 @@ export const advanceDefenseTutorialScreen = (
   screen: next,
 });
 
+export const retreatDefenseTutorialScreen = (
+  state: DefenseTutorialSessionState,
+): DefenseTutorialSessionState | null => {
+  switch (state.screen) {
+    case 'notationConfirm':
+      return { ...state, screen: 'notation' };
+    case 'inputChoice':
+      return { ...state, screen: 'notationConfirm' };
+    case 'inputSetup':
+      return { ...state, screen: 'inputChoice', inputMethod: null };
+    case 'play':
+      return { ...state, screen: 'inputSetup', phraseSucceeded: false };
+    default:
+      return null;
+  }
+};
+
 export const updateDefenseTutorialNotation = (
   state: DefenseTutorialSessionState,
   notation: DefenseTutorialNotationSettings,

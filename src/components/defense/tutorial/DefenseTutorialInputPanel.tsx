@@ -22,6 +22,7 @@ interface DefenseTutorialInputPanelProps {
   readonly detectedNoteLabel: string | null;
   readonly connectionStatus: string;
   readonly onReady: () => void;
+  readonly onFallbackInput?: (method: InputMethod) => void;
 }
 
 const cardClass = 'rounded-xl border border-slate-600 bg-slate-800/80 p-4 text-left';
@@ -67,6 +68,7 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
   detectedNoteLabel,
   connectionStatus,
   onReady,
+  onFallbackInput,
 }) => {
   const audioDeviceId = useGameStore((state) => state.settings.selectedAudioDevice);
   const updateSettings = useGameStore((state) => state.updateSettings);
@@ -76,8 +78,8 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
       <div className={`${cardClass} mx-auto max-w-lg px-4`}>
         <p className="text-sm text-slate-300">
           {isEnglishCopy
-            ? 'Tap C, D, and E on the keyboard below while listening to the demo.'
-            : '下の鍵盤でド・レ・ミをタップして演奏しましょう。'}
+            ? 'Play do, re, and mi on the keyboard below as shown on the staff.'
+            : '譜面のド・レ・ミを、下の鍵盤で演奏しましょう。'}
         </p>
         <button type="button" className="btn btn-primary mt-4 w-full" onClick={onReady}>
           {isEnglishCopy ? 'Start' : '始める'}
@@ -112,6 +114,21 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
         <button type="button" className="btn btn-primary w-full" onClick={onReady} disabled={!isMidiConnected}>
           {isEnglishCopy ? 'Start' : '始める'}
         </button>
+        {!isMidiConnected && onFallbackInput ? (
+          <div className="space-y-2 border-t border-slate-700 pt-4">
+            <p className="text-xs text-slate-400">
+              {isEnglishCopy
+                ? 'No MIDI device detected. You can continue with another input method.'
+                : 'MIDIデバイスが見つかりません。別の入力方法で続けられます。'}
+            </p>
+            <button type="button" className="btn btn-outline w-full" onClick={() => onFallbackInput('voice')}>
+              {isEnglishCopy ? 'Continue with microphone' : 'マイク入力で続ける'}
+            </button>
+            <button type="button" className="btn btn-outline w-full" onClick={() => onFallbackInput('touch')}>
+              {isEnglishCopy ? 'Continue with on-screen keyboard' : '今は画面鍵盤で続ける'}
+            </button>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -147,6 +164,11 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
           onChange={(event) => onVoiceSensitivityChange(Number(event.target.value))}
           className="range range-primary range-sm w-full"
         />
+        <p className="mt-1 text-xs text-slate-400">
+          {isEnglishCopy
+            ? 'Recommended: 5. Higher values detect quieter sounds more easily. Lower if notes are picked up too often.'
+            : 'おすすめ: 5。高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。'}
+        </p>
       </label>
       <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
         <span>{isEnglishCopy ? 'Fast response' : '高速反応'}</span>
@@ -157,6 +179,11 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
           onChange={(event) => onVoiceFastResponseChange(event.target.checked)}
         />
       </label>
+      <p className="text-xs text-slate-400">
+        {isEnglishCopy
+          ? 'Recommended: OFF. Keep it off to start. Turn on only if recognition feels slow. ON reacts faster but may mis-detect more often.'
+          : 'おすすめ: OFF。まずは OFF のまま始めてください。反応が遅いと感じたら ON にしてください。ON は速いですが、誤判定が増えやすくなります。'}
+      </p>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div className="rounded-lg bg-slate-900/60 p-3">
           <div className="text-slate-400">{isEnglishCopy ? 'Input level' : '入力レベル'}</div>

@@ -34,6 +34,7 @@ final class DefenseGameSession: ObservableObject {
     let difficulty: DefenseDifficultyDefinition
     let practiceMode: Bool
     let tutorialOptions: DefenseTutorialOptions?
+    let tutorialConcertMidis: [Int]?
     private let lessonContext: DefenseLessonContext?
 
     private var lastSwitchGeneration: UInt64 = 0
@@ -50,12 +51,14 @@ final class DefenseGameSession: ObservableObject {
         difficulty: DefenseDifficultyDefinition,
         practiceMode: Bool,
         lessonContext: DefenseLessonContext?,
-        tutorialOptions: DefenseTutorialOptions? = nil
+        tutorialOptions: DefenseTutorialOptions? = nil,
+        tutorialConcertMidis: [Int]? = nil
     ) {
         self.stage = stage
         self.difficulty = difficulty
         self.practiceMode = practiceMode
         self.tutorialOptions = tutorialOptions
+        self.tutorialConcertMidis = tutorialConcertMidis
         self.lessonContext = lessonContext
         let maxEnemies = tutorialOptions?.maxEnemies ?? difficulty.maxEnemies
         let runtime = DefenseRuntimeState(
@@ -98,8 +101,12 @@ final class DefenseGameSession: ObservableObject {
                 ? stage.phrases[1...].prefix(1).compactMap { URL(string: $0.audioUrl) }
                 : [])
         }
-        try? await DefenseBackingAudio.shared.preload(urls: urls)
-        try? await DefenseBackingAudio.shared.start(firstUrl: firstUrl)
+        if let tutorialConcertMidis, tutorialOptions != nil {
+            try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
+        } else {
+            try? await DefenseBackingAudio.shared.preload(urls: urls)
+            try? await DefenseBackingAudio.shared.start(firstUrl: firstUrl)
+        }
         DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
         if tutorialOptions != nil {
             DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: difficulty)

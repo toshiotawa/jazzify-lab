@@ -9,110 +9,92 @@ struct DefenseTutorialPhraseBuildResult: Equatable, Sendable {
     let staffGroups: [DefenseTutorialStaffGroup]
     let concertMidis: [Int]
     let recommendedMidis: [Int]
+    let writtenOctave: DefenseTutorialWrittenOctave
 }
 
 enum BuildDefenseTutorialPhrase {
-    private static let concertNoteNames = ["C", "D", "E"]
+    private static let concertNoteNames = [
+        "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B",
+    ]
 
-    private static func midiFromConcert(octave: DefenseTutorialConcertOctave, pitchClass: Int) -> Int {
-        (octave.rawValue + 1) * 12 + pitchClass
+    private static func midiFromWritten(octave: Int, pitchClass: Int) -> Int {
+        (octave + 1) * 12 + pitchClass
     }
 
-    static func pickConcertOctave(_ settings: DefenseTutorialNotationSettings) -> DefenseTutorialConcertOctave {
-        let clef = DefenseTutorialNotation.resolveClef(settings)
-        var layoutSettings = settings
-        layoutSettings.notationOctaveShift = 0
-        let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(layoutSettings)
-        let preset = NotationInstrumentCatalog.preset(for: settings.notationInstrumentId)
+    private static func concertMidiToName(_ midi: Int) -> String {
+        let pitchClass = ((midi % 12) + 12) % 12
+        let octave = midi / 12 - 1
+        return "\(concertNoteNames[pitchClass])\(octave)"
+    }
 
-        if clef == .bass {
-            return .three
-        }
+    static func pickWrittenOctave(_ settings: DefenseTutorialNotationSettings) -> DefenseTutorialWrittenOctave {
+        let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
+        let candidates: [DefenseTutorialWrittenOctave] = [.three, .four, .five, .six]
 
-        let trialOctaves: [DefenseTutorialConcertOctave] = [.four, .three, .five]
-        for octave in trialOctaves {
-            let writtenMidis = DefenseTutorialConstants.targetPitchClasses.map { pc in
-                midiFromConcert(octave: octave, pitchClass: pc) + writtenOffset
-            }
-            let maxWritten = writtenMidis.max() ?? 0
-            let minWritten = writtenMidis.min() ?? 0
-            if clef == .treble, maxWritten <= 84, minWritten >= 55 {
-                return octave
-            }
-            if maxWritten <= 84, minWritten >= 48 {
-                return octave
+        var bestOctave: DefenseTutorialWrittenOctave = .four
+        var bestDistance = Int.max
+
+        for octave in candidates {
+            let concertMidiC = midiFromWritten(octave: octave.rawValue, pitchClass: 0) - writtenOffset
+            let distance = abs(concertMidiC - DefenseTutorialConstants.targetConcertMidi)
+            if distance < bestDistance || (distance == bestDistance && octave.rawValue > bestOctave.rawValue) {
+                bestDistance = distance
+                bestOctave = octave
             }
         }
 
-        if preset.octaveOffset < 0 || writtenOffset >= 12 {
-            return .three
-        }
-        return .four
+        return bestOctave
     }
 
     private static let staffGroupIds: [UUID] = [
         UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
         UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
         UUID(uuidString: "00000000-0000-0000-0000-000000000003")!,
-        UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
     ]
 
     private static func buildStaffGroups(
         writtenNoteNames: [String]
     ) -> [DefenseTutorialStaffGroup] {
-        var groups: [DefenseTutorialStaffGroup] = writtenNoteNames.enumerated().map { index, name in
+        writtenNoteNames.enumerated().map { index, name in
             DefenseTutorialStaffGroup(
                 id: staffGroupIds[index],
-                chordName: index == 0 ? "CDE" : "",
+                chordName: DefenseTutorialConstants.solfegeLabels[index],
                 voicing: [name],
                 voicingStaves: [1],
                 measureOffset: 0,
                 isRest: false,
-                noteValue: .quarter,
-                beatIndex: index
+                noteValue: .whole,
+                beatIndex: nil
             )
         }
-        groups.append(
-            DefenseTutorialStaffGroup(
-                id: staffGroupIds[3],
-                chordName: "",
-                voicing: [],
-                voicingStaves: [],
-                measureOffset: 0,
-                isRest: true,
-                noteValue: .quarter,
-                beatIndex: 3
-            )
-        )
-        return groups
     }
 
     static func build(
         settings: DefenseTutorialNotationSettings,
         audioUrl: String = DefenseTutorialConstants.audioUrl
     ) -> DefenseTutorialPhraseBuildResult {
-        let concertOctave = pickConcertOctave(settings)
+        let writtenOctave = pickWrittenOctave(settings)
         let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
 
-        let concertMidis = DefenseTutorialConstants.targetPitchClasses.map { pc in
-            midiFromConcert(octave: concertOctave, pitchClass: pc)
+        let writtenMidis = DefenseTutorialConstants.writtenPitchClasses.map { pc in
+            midiFromWritten(octave: writtenOctave.rawValue, pitchClass: pc)
         }
 
-        let writtenNoteNames = zip(concertMidis, concertNoteNames.enumerated()).map { concertMidi, pair in
-            let (_, concertNameBase) = pair
-            let concertName = "\(concertNameBase)\(concertOctave.rawValue)"
-            return EarTrainingMusicXmlTransposer.transposeWrittenNoteName(
-                concertName,
+        let concertMidis = writtenMidis.map { $0 - writtenOffset }
+
+        let writtenNoteNames = concertMidis.map { concertMidi in
+            EarTrainingMusicXmlTransposer.transposeWrittenNoteName(
+                concertMidiToName(concertMidi),
                 semitones: writtenOffset,
                 originalFifths: DefenseTutorialConstants.keyFifths
             )
         }
 
-        let notes: [SurvivalPhraseChordNote] = DefenseTutorialConstants.targetPitchClasses.enumerated().map { stepIndex, pitchClass in
+        let notes: [SurvivalPhraseChordNote] = concertMidis.enumerated().map { stepIndex, concertMidi in
             SurvivalPhraseChordNote(
                 orderIndex: stepIndex,
-                pitchMidi: concertMidis[stepIndex],
-                pitchClass: pitchClass,
+                pitchMidi: concertMidi,
+                pitchClass: ((concertMidi % 12) + 12) % 12,
                 noteName: writtenNoteNames[stepIndex],
                 staff: 1,
                 stepIndex: stepIndex
@@ -122,7 +104,7 @@ enum BuildDefenseTutorialPhrase {
         let chord = SurvivalPhraseChord(
             id: "tutorial-cde-chord",
             orderIndex: 0,
-            chordName: "CDE",
+            chordName: "ドレミ",
             measureNumber: 1,
             notes: notes
         )
@@ -164,7 +146,8 @@ enum BuildDefenseTutorialPhrase {
             chord: chord,
             staffGroups: buildStaffGroups(writtenNoteNames: writtenNoteNames),
             concertMidis: concertMidis,
-            recommendedMidis: concertMidis
+            recommendedMidis: concertMidis,
+            writtenOctave: writtenOctave
         )
     }
 }

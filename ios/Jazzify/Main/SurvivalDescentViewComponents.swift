@@ -563,6 +563,8 @@ struct SurvivalDescentStageNode: View {
     let onTap: () -> Void
     /// 指定時は stageNumber の代わりに表示（プレイマップ quest=? 等）
     var displayLabel: String?
+    /// 指定時は displayLabel の代わりにアイコンを表示
+    var displayIcon: PlayMapProgression.DisplayIcon? = nil
 
     @State private var pulse: Bool = false
 
@@ -590,10 +592,16 @@ struct SurvivalDescentStageNode: View {
                         .frame(width: diameter, height: diameter)
 
                     VStack(spacing: 0) {
-                        Text(displayLabel ?? "\(stageNumber)")
-                            .font(.system(size: max(12, 18 * scale), weight: .heavy))
-                            .foregroundStyle(textColor)
-                        if isMixed, displayLabel == nil {
+                        if displayIcon == .info {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: max(14, 20 * scale), weight: .heavy))
+                                .foregroundStyle(textColor)
+                        } else {
+                            Text(displayLabel ?? "\(stageNumber)")
+                                .font(.system(size: max(12, 18 * scale), weight: .heavy))
+                                .foregroundStyle(textColor)
+                        }
+                        if isMixed, displayLabel == nil, displayIcon == nil {
                             Text("MIX")
                                 .font(.system(size: max(7, 9 * scale), weight: .bold))
                                 .foregroundStyle(Color.yellow)

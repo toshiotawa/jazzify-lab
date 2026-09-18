@@ -190,6 +190,7 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
             key={`node-${nodePos.nodeId}`}
             stageNumber={0}
             displayLabel={nodePos.displayLabel}
+            displayIcon={nodePos.displayIcon}
             xPx={nodePos.x * scale}
             yPx={nodePos.y * scale}
             scale={scale}

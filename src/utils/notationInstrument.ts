@@ -12,6 +12,7 @@ export type NotationInstrumentClef = 'treble' | 'bass' | 'grand';
 
 export const NOTATION_INSTRUMENT_PRESETS = [
   { id: 'piano', clef: 'grand', transposition: 0, octaveOffset: 0, label: { ja: 'ピアノ / キーボード', en: 'Piano / Keyboard' } },
+  { id: 'concert_melody', clef: 'treble', transposition: 0, octaveOffset: 0, label: { ja: '単音楽器（コンサートキー）', en: 'Melody (Concert key)' } },
   { id: 'flute', clef: 'treble', transposition: 0, octaveOffset: 0, label: { ja: 'フルート', en: 'Flute' } },
   { id: 'oboe', clef: 'treble', transposition: 0, octaveOffset: 0, label: { ja: 'オーボエ', en: 'Oboe' } },
   { id: 'violin', clef: 'treble', transposition: 0, octaveOffset: 0, label: { ja: 'ヴァイオリン', en: 'Violin' } },
