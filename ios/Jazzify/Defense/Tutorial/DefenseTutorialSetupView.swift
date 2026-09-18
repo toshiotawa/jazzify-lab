@@ -58,12 +58,17 @@ struct DefenseTutorialSetupView: View {
 
     private var editBody: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(isEnglishCopy
-                 ? "If you want to read in your instrument's key, choose that instrument. If you want concert pitch (no transposition), choose Melody (Concert key)."
-                 : "あなたの楽器のキーで譜面を読みたい方は、その楽器を選んでください。コンサートキー（移調なし）で読みたい方は「単音楽器（コンサートキー）」を選んでください。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+            VStack(spacing: 8) {
+                Text(isEnglishCopy ? "Choose your instrument." : "楽器を選択してください。")
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Text(isEnglishCopy
+                     ? "If you want concert pitch (no transposition), choose Melody (Concert key)."
+                     : "コンサートキー（移調なし）で読みたい方は「単音楽器（コンサートキー）」を選んでください。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(isEnglishCopy ? "Instrument" : "楽器")

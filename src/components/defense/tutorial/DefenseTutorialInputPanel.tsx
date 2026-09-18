@@ -18,7 +18,6 @@ interface DefenseTutorialInputPanelProps {
   readonly onBackingVolumeChange: (value: number) => void;
   readonly midiVolume: number;
   readonly onMidiVolumeChange: (value: number) => void;
-  readonly inputLevelDb: number | null;
   readonly detectedNoteLabel: string | null;
   readonly connectionStatus: string;
   readonly onReady: () => void;
@@ -64,7 +63,6 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
   onBackingVolumeChange,
   midiVolume,
   onMidiVolumeChange,
-  inputLevelDb,
   detectedNoteLabel,
   connectionStatus,
   onReady,
@@ -184,15 +182,9 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
           ? 'Recommended: OFF. Keep it off to start. Turn on only if recognition feels slow. ON reacts faster but may mis-detect more often.'
           : 'おすすめ: OFF。まずは OFF のまま始めてください。反応が遅いと感じたら ON にしてください。ON は速いですが、誤判定が増えやすくなります。'}
       </p>
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-lg bg-slate-900/60 p-3">
-          <div className="text-slate-400">{isEnglishCopy ? 'Input level' : '入力レベル'}</div>
-          <div className="text-white">{inputLevelDb !== null ? `${Math.round(inputLevelDb)} dB` : '—'}</div>
-        </div>
-        <div className="rounded-lg bg-slate-900/60 p-3">
-          <div className="text-slate-400">{isEnglishCopy ? 'Detected pitch' : '認識中の音'}</div>
-          <div className="text-white">{detectedNoteLabel ?? '—'}</div>
-        </div>
+      <div className="rounded-lg bg-slate-900/60 p-3 text-sm">
+        <div className="text-slate-400">{isEnglishCopy ? 'Detected pitch' : '認識中の音'}</div>
+        <div className="text-white">{detectedNoteLabel ?? '—'}</div>
       </div>
       <label className="block">
         <span className="mb-1 block text-sm text-slate-200">

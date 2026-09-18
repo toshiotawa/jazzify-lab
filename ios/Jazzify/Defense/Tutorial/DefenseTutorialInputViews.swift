@@ -63,7 +63,6 @@ struct DefenseTutorialInputPanelView: View {
     @State private var voiceFastResponse = NoteInputPreferences.voiceFastResponse
     @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
     @State private var permission = PitchInputEngine.MicrophonePermission.undetermined
-    @State private var monitorVolume: Double = 0
     @State private var monitorNoteName: String?
     @State private var monitorTimer: Timer?
 
@@ -201,22 +200,9 @@ struct DefenseTutorialInputPanelView: View {
                 .foregroundStyle(.red)
         }
 
-        VStack(alignment: .leading, spacing: 4) {
-            Text(isEnglishCopy ? "Input level" : "入力レベル")
+        if let monitorNoteName {
+            Text(isEnglishCopy ? "Detected: \(monitorNoteName)" : "検出: \(monitorNoteName)")
                 .font(.caption)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.secondary.opacity(0.2))
-                    Capsule()
-                        .fill(Color.green)
-                        .frame(width: geometry.size.width * CGFloat(min(1, max(0, monitorVolume))))
-                }
-            }
-            .frame(height: 8)
-            if let monitorNoteName {
-                Text(isEnglishCopy ? "Detected: \(monitorNoteName)" : "検出: \(monitorNoteName)")
-                    .font(.caption)
-            }
         }
 
         VStack(alignment: .leading, spacing: 4) {
@@ -286,7 +272,6 @@ struct DefenseTutorialInputPanelView: View {
         let snapshot = PitchInputEngine.shared.monitorSnapshot(
             isActive: PitchInputEngine.shared.isActive
         )
-        monitorVolume = snapshot.volume
         monitorNoteName = snapshot.detectedNoteName
     }
 }

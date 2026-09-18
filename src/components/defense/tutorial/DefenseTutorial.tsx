@@ -245,7 +245,6 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
             onBackingVolumeChange={(value) => updateSettings({ bgmVolume: value })}
             midiVolume={settings.midiVolume}
             onMidiVolumeChange={(value) => updateSettings({ midiVolume: value })}
-            inputLevelDb={inputMonitor.inputLevelDb}
             detectedNoteLabel={inputMonitor.detectedNoteLabel}
             connectionStatus={
               inputMonitor.connectionStatus === 'ready'

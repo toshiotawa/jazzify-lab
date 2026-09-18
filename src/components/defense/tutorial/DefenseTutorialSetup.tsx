@@ -62,11 +62,16 @@ export const DefenseTutorialSetup: React.FC<DefenseTutorialSetupProps> = ({
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8">
-      <p className="text-center text-sm text-slate-300">
-        {isEnglishCopy
-          ? 'If you want to read in your instrument\'s key, choose that instrument. If you want concert pitch (no transposition), choose Melody (Concert key).'
-          : 'あなたの楽器のキーで譜面を読みたい方は、その楽器を選んでください。コンサートキー（移調なし）で読みたい方は「単音楽器（コンサートキー）」を選んでください。'}
-      </p>
+      <div className="text-center">
+        <p className="text-lg font-semibold text-white">
+          {isEnglishCopy ? 'Choose your instrument.' : '楽器を選択してください。'}
+        </p>
+        <p className="mt-2 text-sm text-slate-300">
+          {isEnglishCopy
+            ? 'If you want concert pitch (no transposition), choose Melody (Concert key).'
+            : 'コンサートキー（移調なし）で読みたい方は「単音楽器（コンサートキー）」を選んでください。'}
+        </p>
+      </div>
       <label className="block">
         <span className="mb-1 block text-sm text-slate-200">
           {isEnglishCopy ? 'Instrument' : '楽器'}
