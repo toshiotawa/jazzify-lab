@@ -3,6 +3,7 @@ import {
   computeStreak,
   countActiveDaysInWeek,
   getSundayStartWeek,
+  isTodayTrainingStreakUpdated,
   resolveUserTimezone,
 } from '@/utils/trainingActivity';
 
@@ -34,6 +35,11 @@ describe('trainingActivity', () => {
   it('computes streak from yesterday when today is inactive', () => {
     const active = new Set(['2026-09-13', '2026-09-14']);
     expect(computeStreak(active, '2026-09-15')).toBe(2);
+  });
+
+  it('detects whether today already updated the streak', () => {
+    expect(isTodayTrainingStreakUpdated(new Set(['2026-09-15']), '2026-09-15')).toBe(true);
+    expect(isTodayTrainingStreakUpdated(new Set(['2026-09-14']), '2026-09-15')).toBe(false);
   });
 
   it('builds month calendar with sunday start rows', () => {

@@ -35,6 +35,17 @@ final class TrainingActivityTests: XCTestCase {
         XCTAssertEqual(TrainingActivity.weeklyGoalPercent(activeDaysThisWeek: 0), 0)
     }
 
+    func testTodayStreakUpdated() {
+        XCTAssertTrue(TrainingActivity.isTodayStreakUpdated(
+            activeDays: ["2026-09-15"],
+            todayKey: "2026-09-15"
+        ))
+        XCTAssertFalse(TrainingActivity.isTodayStreakUpdated(
+            activeDays: ["2026-09-14"],
+            todayKey: "2026-09-15"
+        ))
+    }
+
     func testStreakIncludesTodayWhenPlayed() {
         let active: Set<String> = ["2026-09-13", "2026-09-14", "2026-09-15"]
         XCTAssertEqual(TrainingActivity.computeStreak(activeDays: active, todayKey: "2026-09-15"), 3)

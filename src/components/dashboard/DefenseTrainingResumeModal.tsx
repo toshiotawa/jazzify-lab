@@ -12,11 +12,14 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import {
   buildDefenseNodeHash,
+  defenseGuidanceBodyCopy,
   defenseGuidancePrimaryLabel,
   resolveDefenseTrainingGuidance,
   TRAINING_ROUTE_HASH,
+  trainingGuidancePrimaryLabel,
   type DefenseTrainingGuidance,
 } from '@/utils/defenseTrainingGuidance';
+import { loadTodayTrainingStreakUpdated } from '@/utils/todayTrainingStreak';
 import {
   markMainQuestResumeSessionShown,
   readMainQuestResumeSessionShown,
@@ -25,6 +28,7 @@ import {
 
 const DefenseTrainingResumeModal: React.FC = () => {
   const [guidance, setGuidance] = useState<DefenseTrainingGuidance>({ kind: 'none' });
+  const [todayStreakUpdated, setTodayStreakUpdated] = useState(false);
   const [open, setOpen] = useState(false);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore((s) => s.country);
@@ -51,10 +55,11 @@ const DefenseTrainingResumeModal: React.FC = () => {
           return;
         }
 
-        const [blocks, nodes, clears] = await Promise.all([
+        const [blocks, nodes, clears, streakUpdated] = await Promise.all([
           fetchPlayMapBlocks('defense'),
           fetchPlayMapNodes('defense'),
           fetchPlayMapNodeClears('defense'),
+          loadTodayTrainingStreakUpdated(profile),
         ]);
         const clearedNodeIds = new Set(clears.map((entry) => entry.nodeId));
         const nextGuidance = resolveDefenseTrainingGuidance({
@@ -68,13 +73,14 @@ const DefenseTrainingResumeModal: React.FC = () => {
           return;
         }
         setGuidance(nextGuidance);
+        setTodayStreakUpdated(streakUpdated);
         setOpen(true);
       } catch {
         /* ignore */
       }
     })();
     return () => { cancelled = true; };
-  }, [isEnglishCopy, isPremiumMember, profile?.id]);
+  }, [isEnglishCopy, isPremiumMember, profile]);
 
   const handleContinue = () => {
     markMainQuestResumeSessionShown();
@@ -98,9 +104,10 @@ const DefenseTrainingResumeModal: React.FC = () => {
   }
 
   const heading = isEnglishCopy ? 'Continue where you left off?' : '続きから再開しますか？';
+  const bodyCopy = defenseGuidanceBodyCopy(guidance, isEnglishCopy, todayStreakUpdated);
   const primaryLabel = guidance.kind === 'openDefense'
     ? defenseGuidancePrimaryLabel(guidance, isEnglishCopy)
-    : (isEnglishCopy ? 'Go to Training' : 'トレーニングへ');
+    : trainingGuidancePrimaryLabel(isEnglishCopy, todayStreakUpdated);
   const Icon = guidance.kind === 'openTraining' ? FaDumbbell : FaGamepad;
 
   return (
@@ -124,6 +131,9 @@ const DefenseTrainingResumeModal: React.FC = () => {
           <h3 id="defense-training-resume-modal-title" className="text-xl font-bold text-white">
             {heading}
           </h3>
+          {bodyCopy ? (
+            <p className="mt-2 text-sm text-gray-300">{bodyCopy}</p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3">
           <button

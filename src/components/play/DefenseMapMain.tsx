@@ -31,8 +31,10 @@ import {
   defenseGuidancePrimaryLabel,
   resolveDefenseTrainingGuidance,
   TRAINING_ROUTE_HASH,
+  trainingGuidancePrimaryLabel,
   type DefenseTrainingGuidance,
 } from '@/utils/defenseTrainingGuidance';
+import { loadTodayTrainingStreakUpdated } from '@/utils/todayTrainingStreak';
 import { unlockDefenseBackingAudioContext } from '@/game/defense/defenseBackingDeck';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { useToast } from '@/stores/toastStore';
@@ -69,23 +71,32 @@ const DefenseMapMain: React.FC = () => {
   const [loaded, setLoaded] = useState<LoadedStage | null>(null);
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [nextStepGuidance, setNextStepGuidance] = useState<ActionableDefenseGuidance | null>(null);
+  const [todayStreakUpdated, setTodayStreakUpdated] = useState(false);
   const [resultNextStepLabel, setResultNextStepLabel] = useState<string | null>(null);
 
-  const loadGuidance = useCallback(async (): Promise<DefenseTrainingGuidance> => {
-    const [blocks, nodes, clears] = await Promise.all([
+  const loadGuidance = useCallback(async (): Promise<{
+    guidance: DefenseTrainingGuidance;
+    streakUpdated: boolean;
+  }> => {
+    const [blocks, nodes, clears, streakUpdated] = await Promise.all([
       fetchPlayMapBlocks('defense'),
       fetchPlayMapNodes('defense'),
       fetchPlayMapNodeClears('defense'),
+      loadTodayTrainingStreakUpdated(profile),
     ]);
+    setTodayStreakUpdated(streakUpdated);
     const clearedNodeIds = new Set(clears.map((entry) => entry.nodeId));
-    return resolveDefenseTrainingGuidance({
-      isPremiumMember,
-      blocks,
-      nodes,
-      clearedNodeIds,
-      isEnglishCopy,
-    });
-  }, [isEnglishCopy, isPremiumMember]);
+    return {
+      guidance: resolveDefenseTrainingGuidance({
+        isPremiumMember,
+        blocks,
+        nodes,
+        clearedNodeIds,
+        isEnglishCopy,
+      }),
+      streakUpdated,
+    };
+  }, [isEnglishCopy, isPremiumMember, profile]);
 
   const startFromNode = useCallback(async (node: PlayMapNode) => {
     if (node.nodeKind === 'tutorial') {
@@ -174,11 +185,11 @@ const DefenseMapMain: React.FC = () => {
       );
     }
     try {
-      const guidance = await loadGuidance();
+      const { guidance, streakUpdated } = await loadGuidance();
       if (guidance.kind === 'openDefense') {
         setResultNextStepLabel(defenseGuidancePrimaryLabel(guidance, isEnglishCopy));
       } else if (guidance.kind === 'openTraining') {
-        setResultNextStepLabel(isEnglishCopy ? 'Go to Training' : 'トレーニングへ');
+        setResultNextStepLabel(trainingGuidancePrimaryLabel(isEnglishCopy, streakUpdated));
       } else {
         setResultNextStepLabel(null);
       }
@@ -200,7 +211,7 @@ const DefenseMapMain: React.FC = () => {
     void (async () => {
       backToMap();
       try {
-        const guidance = await loadGuidance();
+        const { guidance } = await loadGuidance();
         if (guidance.kind !== 'none') {
           setNextStepGuidance(guidance);
         }
@@ -213,7 +224,7 @@ const DefenseMapMain: React.FC = () => {
   const handleResultNextStep = useCallback(() => {
     void (async () => {
       try {
-        const guidance = await loadGuidance();
+        const { guidance } = await loadGuidance();
         backToMap();
         if (guidance.kind !== 'none') {
           await navigateToGuidance(guidance);
@@ -305,6 +316,7 @@ const DefenseMapMain: React.FC = () => {
         <DefenseNextStepModal
           guidance={nextStepGuidance}
           isEnglishCopy={isEnglishCopy}
+          todayStreakUpdated={todayStreakUpdated}
           onContinue={() => { void navigateToGuidance(nextStepGuidance); }}
           onDismiss={() => setNextStepGuidance(null)}
         />

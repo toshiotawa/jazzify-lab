@@ -13,6 +13,7 @@ struct TopView: View {
     @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var showDefenseTrainingResumeSheet = false
     @State private var defenseTrainingGuidance: DefenseTrainingGuidance = .none
+    @State private var todayStreakUpdated = false
     @State private var pendingResumeAfterUpdateNotice = false
     @State private var softLandingNextCandidate: SoftLandingCandidate?
     @State private var showSoftLandingOffer = false
@@ -116,6 +117,7 @@ struct TopView: View {
                 DefenseTrainingResumeSheet(
                     locale: locale,
                     guidance: defenseTrainingGuidance,
+                    todayStreakUpdated: todayStreakUpdated,
                     onContinue: {
                         showDefenseTrainingResumeSheet = false
                         applyDefenseTrainingGuidance(defenseTrainingGuidance)
@@ -278,7 +280,8 @@ struct TopView: View {
 
                 if let bodyCopy = DefenseTrainingGuidanceResolver.bodyCopy(
                     for: defenseTrainingGuidance,
-                    locale: locale
+                    locale: locale,
+                    todayStreakUpdated: todayStreakUpdated
                 ) {
                     Text(bodyCopy)
                         .font(.subheadline)
@@ -293,7 +296,8 @@ struct TopView: View {
                         Text(
                             DefenseTrainingGuidanceResolver.primaryLabel(
                                 for: defenseTrainingGuidance,
-                                locale: locale
+                                locale: locale,
+                                todayStreakUpdated: todayStreakUpdated
                             ) ?? ""
                         )
                         .font(.subheadline.bold())
@@ -497,6 +501,7 @@ struct TopView: View {
             userStats = nil
             earnedBadges = []
             defenseTrainingGuidance = .none
+            todayStreakUpdated = false
             return
         }
 
@@ -531,11 +536,16 @@ struct TopView: View {
             try? await SupabaseService.shared.fetchDefenseLastPlayedAt()
         }()
 
-        let (loadedStats, loadedBadges, loadedDefenseData, loadedDefenseLastPlayed) = await (
+        async let streakUpdatedTask = DefenseTrainingGuidanceResolver.loadTodayStreakUpdated(
+            profile: appState.profile
+        )
+
+        let (loadedStats, loadedBadges, loadedDefenseData, loadedDefenseLastPlayed, loadedStreakUpdated) = await (
             statsTask,
             badgeTask,
             defenseDataTask,
-            defenseLastPlayedTask
+            defenseLastPlayedTask,
+            streakUpdatedTask
         )
         userStats = loadedStats
         earnedBadges = loadedBadges
@@ -552,6 +562,7 @@ struct TopView: View {
             )
         }()
         defenseTrainingGuidance = resolvedGuidance
+        todayStreakUpdated = loadedStreakUpdated
 
         if !appState.isPremium {
             let candidates = await SoftLandingOfferLoader.fetchCandidates(userId: userId)

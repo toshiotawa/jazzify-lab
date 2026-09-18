@@ -1,13 +1,16 @@
 import React from 'react';
 import { FaChevronRight, FaDumbbell, FaGamepad } from 'react-icons/fa';
 import {
+  defenseGuidanceBodyCopy,
   defenseGuidancePrimaryLabel,
+  trainingGuidancePrimaryLabel,
   type DefenseTrainingGuidance,
 } from '@/utils/defenseTrainingGuidance';
 
 interface DefenseNextStepModalProps {
   guidance: Exclude<DefenseTrainingGuidance, { kind: 'none' }>;
   isEnglishCopy: boolean;
+  todayStreakUpdated?: boolean;
   onContinue: () => void;
   onDismiss: () => void;
 }
@@ -15,15 +18,17 @@ interface DefenseNextStepModalProps {
 export const DefenseNextStepModal: React.FC<DefenseNextStepModalProps> = ({
   guidance,
   isEnglishCopy,
+  todayStreakUpdated = false,
   onContinue,
   onDismiss,
 }) => {
   const heading = guidance.kind === 'openTraining'
     ? (isEnglishCopy ? 'Nice work!' : 'お疲れさまでした！')
     : (isEnglishCopy ? 'Step complete!' : 'クリア！');
+  const bodyCopy = defenseGuidanceBodyCopy(guidance, isEnglishCopy, todayStreakUpdated);
   const primaryLabel = guidance.kind === 'openDefense'
     ? defenseGuidancePrimaryLabel(guidance, isEnglishCopy)
-    : (isEnglishCopy ? 'Go to Training' : 'トレーニングへ');
+    : trainingGuidancePrimaryLabel(isEnglishCopy, todayStreakUpdated);
   const Icon = guidance.kind === 'openTraining' ? FaDumbbell : FaGamepad;
 
   return (
@@ -47,6 +52,9 @@ export const DefenseNextStepModal: React.FC<DefenseNextStepModalProps> = ({
           <h3 id="defense-next-step-modal-title" className="text-xl font-bold text-white">
             {heading}
           </h3>
+          {bodyCopy && guidance.kind === 'openTraining' ? (
+            <p className="mt-2 text-sm text-gray-300">{bodyCopy}</p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3">
           <button

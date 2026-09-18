@@ -116,6 +116,10 @@ enum TrainingActivity {
         return count
     }
 
+    static func isTodayStreakUpdated(activeDays: Set<String>, todayKey: String) -> Bool {
+        activeDays.contains(todayKey)
+    }
+
     /// 今日を含む（今日未プレイなら昨日までの）連続プレイ日数
     static func computeStreak(activeDays: Set<String>, todayKey: String) -> Int {
         guard var cursor = parseDateKey(todayKey) else { return 0 }

@@ -205,9 +205,20 @@ export function defenseGuidancePrimaryLabel(
   return isEnglishCopy ? 'Continue Phrase Defense' : 'フレーズディフェンスを続ける';
 }
 
+export function trainingGuidancePrimaryLabel(
+  isEnglishCopy: boolean,
+  todayStreakUpdated: boolean,
+): string {
+  if (todayStreakUpdated) {
+    return isEnglishCopy ? 'Go to Training' : 'トレーニングへ';
+  }
+  return isEnglishCopy ? "Update today's streak" : '今日の連続記録を更新';
+}
+
 export function defenseGuidanceBodyCopy(
   guidance: DefenseTrainingGuidance,
   isEnglishCopy: boolean,
+  todayStreakUpdated = false,
 ): string | null {
   if (guidance.kind === 'openDefense') {
     const quotedTitle = isEnglishCopy
@@ -223,9 +234,14 @@ export function defenseGuidanceBodyCopy(
       : `次は${quotedTitle}です。`;
   }
   if (guidance.kind === 'openTraining') {
+    if (todayStreakUpdated) {
+      return isEnglishCopy
+        ? "Today's streak is already updated. Keep building skills in Training."
+        : '今日の連続記録は更新済みです。さらにトレーニングでスキルを伸ばしましょう。';
+    }
     return isEnglishCopy
-      ? 'Keep building skills in Training.'
-      : 'トレーニングでスキルを伸ばしましょう。';
+      ? "Today's training streak is not updated yet. Play Training to keep it going."
+      : '今日の連続記録はまだ更新されていません。トレーニングで更新しましょう。';
   }
   return null;
 }

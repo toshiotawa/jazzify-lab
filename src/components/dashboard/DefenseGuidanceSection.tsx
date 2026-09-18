@@ -15,13 +15,16 @@ import {
   defenseGuidancePrimaryLabel,
   resolveDefenseTrainingGuidance,
   TRAINING_ROUTE_HASH,
+  trainingGuidancePrimaryLabel,
   type DefenseTrainingGuidance,
 } from '@/utils/defenseTrainingGuidance';
+import { loadTodayTrainingStreakUpdated } from '@/utils/todayTrainingStreak';
 import { recordUserMilestoneFireAndForget } from '@/utils/analytics/milestones';
 import { trackEvent } from '@/utils/analytics/ga';
 
 const DefenseGuidanceSection: React.FC = () => {
   const [guidance, setGuidance] = useState<DefenseTrainingGuidance>({ kind: 'none' });
+  const [todayStreakUpdated, setTodayStreakUpdated] = useState(false);
   const [loading, setLoading] = useState(true);
   const { profile, pendingDefenseGuidanceAutoStart, consumeDefenseGuidanceAutoStart } = useAuthStore();
   const geoCountry = useGeoStore((s) => s.country);
@@ -34,31 +37,36 @@ const DefenseGuidanceSection: React.FC = () => {
 
   const loadGuidance = useCallback(async () => {
     try {
-      const [blocks, nodes, clears] = await Promise.all([
+      const [blocks, nodes, clears, streakUpdated] = await Promise.all([
         fetchPlayMapBlocks('defense'),
         fetchPlayMapNodes('defense'),
         fetchPlayMapNodeClears('defense'),
+        loadTodayTrainingStreakUpdated(profile),
       ]);
       const clearedNodeIds = new Set(clears.map((entry) => entry.nodeId));
-      return resolveDefenseTrainingGuidance({
-        isPremiumMember,
-        blocks,
-        nodes,
-        clearedNodeIds,
-        isEnglishCopy,
-      });
+      return {
+        guidance: resolveDefenseTrainingGuidance({
+          isPremiumMember,
+          blocks,
+          nodes,
+          clearedNodeIds,
+          isEnglishCopy,
+        }),
+        streakUpdated,
+      };
     } catch {
-      return { kind: 'none' } as const;
+      return { guidance: { kind: 'none' } as const, streakUpdated: false };
     }
-  }, [isEnglishCopy, isPremiumMember]);
+  }, [isEnglishCopy, isPremiumMember, profile]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const nextGuidance = await loadGuidance();
+      const next = await loadGuidance();
       if (!cancelled) {
-        setGuidance(nextGuidance);
+        setGuidance(next.guidance);
+        setTodayStreakUpdated(next.streakUpdated);
         setLoading(false);
       }
     })();
@@ -98,10 +106,10 @@ const DefenseGuidanceSection: React.FC = () => {
   }
 
   const sectionTitle = isEnglishCopy ? 'Recommended next step' : '次におすすめ';
-  const bodyCopy = defenseGuidanceBodyCopy(guidance, isEnglishCopy);
+  const bodyCopy = defenseGuidanceBodyCopy(guidance, isEnglishCopy, todayStreakUpdated);
   const primaryLabel = guidance.kind === 'openDefense'
     ? defenseGuidancePrimaryLabel(guidance, isEnglishCopy)
-    : (isEnglishCopy ? 'Go to Training' : 'トレーニングへ');
+    : trainingGuidancePrimaryLabel(isEnglishCopy, todayStreakUpdated);
   const Icon = guidance.kind === 'openTraining' ? FaDumbbell : FaGamepad;
 
   return (

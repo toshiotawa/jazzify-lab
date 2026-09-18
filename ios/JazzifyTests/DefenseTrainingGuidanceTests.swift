@@ -142,4 +142,23 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         XCTAssertEqual(tier, .advanced)
         XCTAssertEqual(nodeId, adv2Id)
     }
+
+    func testTrainingCopyChangesWithTodayStreak() {
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.primaryLabel(
+                for: .openTraining,
+                locale: .ja,
+                todayStreakUpdated: false
+            ),
+            "今日の連続記録を更新"
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.bodyCopy(
+                for: .openTraining,
+                locale: .ja,
+                todayStreakUpdated: true
+            ),
+            "今日の連続記録は更新済みです。さらにトレーニングでスキルを伸ばしましょう。"
+        )
+    }
 }

@@ -186,7 +186,18 @@ enum DefenseTrainingGuidanceResolver {
         return .openTraining
     }
 
-    static func primaryLabel(for guidance: DefenseTrainingGuidance, locale: AppLocale) -> String? {
+    static func loadTodayStreakUpdated(profile: Profile?) async -> Bool {
+        let timezone = TrainingActivity.resolveUserTimezone(profile: profile)
+        let todayKey = TrainingActivity.localDateKey(Date(), timezone: timezone)
+        let days = (try? await SupabaseService.shared.fetchTrainingActivityDays(timezone: timezone)) ?? []
+        return TrainingActivity.isTodayStreakUpdated(activeDays: Set(days), todayKey: todayKey)
+    }
+
+    static func primaryLabel(
+        for guidance: DefenseTrainingGuidance,
+        locale: AppLocale,
+        todayStreakUpdated: Bool = false
+    ) -> String? {
         switch guidance {
         case .openDefense(_, _, _, let reason):
             switch reason {
@@ -196,13 +207,20 @@ enum DefenseTrainingGuidanceResolver {
                 return locale == .ja ? "フレーズディフェンスを続ける" : "Continue Phrase Defense"
             }
         case .openTraining:
-            return locale == .ja ? "トレーニングへ" : "Go to Training"
+            if todayStreakUpdated {
+                return locale == .ja ? "トレーニングへ" : "Go to Training"
+            }
+            return locale == .ja ? "今日の連続記録を更新" : "Update today's streak"
         case .none:
             return nil
         }
     }
 
-    static func bodyCopy(for guidance: DefenseTrainingGuidance, locale: AppLocale) -> String? {
+    static func bodyCopy(
+        for guidance: DefenseTrainingGuidance,
+        locale: AppLocale,
+        todayStreakUpdated: Bool = false
+    ) -> String? {
         switch guidance {
         case .openDefense(_, _, let nodeTitle, let reason):
             let quoted = locale == .ja ? "「\(nodeTitle)」" : "\"\(nodeTitle)\""
@@ -215,9 +233,14 @@ enum DefenseTrainingGuidanceResolver {
                 return locale == .ja ? "次は\(quoted)です。" : "Next up: \(quoted)"
             }
         case .openTraining:
+            if todayStreakUpdated {
+                return locale == .ja
+                    ? "今日の連続記録は更新済みです。さらにトレーニングでスキルを伸ばしましょう。"
+                    : "Today's streak is already updated. Keep building skills in Training."
+            }
             return locale == .ja
-                ? "トレーニングでスキルを伸ばしましょう。"
-                : "Keep building skills in Training."
+                ? "今日の連続記録はまだ更新されていません。トレーニングで更新しましょう。"
+                : "Today's training streak is not updated yet. Play Training to keep it going."
         case .none:
             return nil
         }

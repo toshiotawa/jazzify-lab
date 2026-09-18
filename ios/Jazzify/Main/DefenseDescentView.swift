@@ -22,6 +22,7 @@ struct DefenseDescentView: View {
     @State private var nextStepGuidance: DefenseTrainingGuidance?
     @State private var resultNextStepLabel: String?
     @State private var showNextStepSheet = false
+    @State private var todayStreakUpdated = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -168,6 +169,7 @@ struct DefenseDescentView: View {
             DefenseTrainingResumeSheet(
                 locale: locale,
                 guidance: nextStepGuidance ?? .none,
+                todayStreakUpdated: todayStreakUpdated,
                 onContinue: {
                     showNextStepSheet = false
                     if let guidance = nextStepGuidance {
@@ -286,6 +288,12 @@ struct DefenseDescentView: View {
         }
     }
 
+    private func refreshTodayStreakUpdated() async {
+        todayStreakUpdated = await DefenseTrainingGuidanceResolver.loadTodayStreakUpdated(
+            profile: appState.profile
+        )
+    }
+
     private func resolveGuidance() -> DefenseTrainingGuidance {
         let clearedNodeIds = Set(clears.map(\.nodeId))
         return DefenseTrainingGuidanceResolver.resolve(
@@ -311,6 +319,7 @@ struct DefenseDescentView: View {
 
     private func handleTutorialExit() async {
         await reloadMap()
+        await refreshTodayStreakUpdated()
         let guidance = resolveGuidance()
         guard guidance != .none else { return }
         nextStepGuidance = guidance
@@ -437,10 +446,12 @@ struct DefenseDescentView: View {
             }
             await reloadMap()
             if !session.practiceMode {
+                await refreshTodayStreakUpdated()
                 let guidance = resolveGuidance()
                 resultNextStepLabel = DefenseTrainingGuidanceResolver.primaryLabel(
                     for: guidance,
-                    locale: locale
+                    locale: locale,
+                    todayStreakUpdated: todayStreakUpdated
                 )
             } else {
                 resultNextStepLabel = nil

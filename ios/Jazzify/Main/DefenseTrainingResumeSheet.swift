@@ -3,6 +3,7 @@ import SwiftUI
 struct DefenseTrainingResumeSheet: View {
     let locale: AppLocale
     let guidance: DefenseTrainingGuidance
+    var todayStreakUpdated: Bool = false
     let onContinue: () -> Void
     let onLater: () -> Void
 
@@ -15,7 +16,11 @@ struct DefenseTrainingResumeSheet: View {
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
 
-            if let bodyCopy = DefenseTrainingGuidanceResolver.bodyCopy(for: guidance, locale: locale) {
+            if let bodyCopy = DefenseTrainingGuidanceResolver.bodyCopy(
+                for: guidance,
+                locale: locale,
+                todayStreakUpdated: todayStreakUpdated
+            ) {
                 Text(bodyCopy)
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.75))
@@ -24,7 +29,11 @@ struct DefenseTrainingResumeSheet: View {
 
             VStack(spacing: 12) {
                 Button(
-                    DefenseTrainingGuidanceResolver.primaryLabel(for: guidance, locale: locale) ?? "",
+                    DefenseTrainingGuidanceResolver.primaryLabel(
+                        for: guidance,
+                        locale: locale,
+                        todayStreakUpdated: todayStreakUpdated
+                    ) ?? "",
                     action: onContinue
                 )
                 .buttonStyle(.borderedProminent)

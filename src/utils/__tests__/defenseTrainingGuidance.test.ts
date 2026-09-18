@@ -1,5 +1,9 @@
 import type { PlayMapBlock, PlayMapNode } from '@/platform/supabasePlayMap';
-import { resolveDefenseTrainingGuidance } from '@/utils/defenseTrainingGuidance';
+import {
+  defenseGuidanceBodyCopy,
+  resolveDefenseTrainingGuidance,
+  trainingGuidancePrimaryLabel,
+} from '@/utils/defenseTrainingGuidance';
 
 const basicBlock: PlayMapBlock = {
   id: 'basic-block',
@@ -145,5 +149,21 @@ describe('resolveDefenseTrainingGuidance', () => {
     });
 
     expect(guidance).toEqual({ kind: 'openTraining' });
+  });
+});
+
+describe('training guidance copy', () => {
+  it('asks to update the streak when today is not recorded', () => {
+    expect(trainingGuidancePrimaryLabel(false, false)).toBe('今日の連続記録を更新');
+    expect(defenseGuidanceBodyCopy({ kind: 'openTraining' }, false, false)).toBe(
+      '今日の連続記録はまだ更新されていません。トレーニングで更新しましょう。',
+    );
+  });
+
+  it('uses keep-going copy when today is already recorded', () => {
+    expect(trainingGuidancePrimaryLabel(false, true)).toBe('トレーニングへ');
+    expect(defenseGuidanceBodyCopy({ kind: 'openTraining' }, false, true)).toBe(
+      '今日の連続記録は更新済みです。さらにトレーニングでスキルを伸ばしましょう。',
+    );
   });
 });

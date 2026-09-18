@@ -111,6 +111,11 @@ export const countActiveDaysInWeek = (
   return count;
 };
 
+export const isTodayTrainingStreakUpdated = (
+  activeDays: ReadonlySet<string>,
+  todayKey: string,
+): boolean => activeDays.has(todayKey);
+
 export const computeStreak = (
   activeDays: ReadonlySet<string>,
   todayKey: string,
