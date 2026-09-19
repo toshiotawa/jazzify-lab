@@ -117,6 +117,7 @@ struct TopView: View {
                 DefenseTrainingResumeSheet(
                     locale: locale,
                     guidance: defenseTrainingGuidance,
+                    kind: .resume,
                     todayStreakUpdated: todayStreakUpdated,
                     onContinue: {
                         showDefenseTrainingResumeSheet = false

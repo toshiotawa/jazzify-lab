@@ -3,15 +3,28 @@ import SwiftUI
 struct DefenseTrainingResumeSheet: View {
     let locale: AppLocale
     let guidance: DefenseTrainingGuidance
+    var kind: DefenseTrainingPromptKind = .resume
     var todayStreakUpdated: Bool = false
     let onContinue: () -> Void
     let onLater: () -> Void
 
     private var isJapanese: Bool { locale == .ja }
+    private var laterLabel: String {
+        kind == .nextStep
+            ? (isJapanese ? "マップに戻る" : "Back to map")
+            : (isJapanese ? "あとで" : "Later")
+    }
 
     var body: some View {
         VStack(spacing: 20) {
-            Text(isJapanese ? "続きから再開しますか？" : "Continue where you left off?")
+            Text(
+                DefenseTrainingGuidanceResolver.sheetTitle(
+                    for: guidance,
+                    kind: kind,
+                    locale: locale,
+                    todayStreakUpdated: todayStreakUpdated
+                )
+            )
                 .font(.title3.bold())
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
@@ -40,7 +53,7 @@ struct DefenseTrainingResumeSheet: View {
                 .controlSize(.large)
                 .frame(maxWidth: .infinity)
 
-                Button(isJapanese ? "あとで" : "Later", action: onLater)
+                Button(laterLabel, action: onLater)
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity)
             }

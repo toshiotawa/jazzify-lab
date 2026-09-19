@@ -143,6 +143,37 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         XCTAssertEqual(nodeId, adv2Id)
     }
 
+    func testResumeSheetTitleUsesTrainingCopy() {
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.sheetTitle(
+                for: .openTraining,
+                kind: .resume,
+                locale: .ja,
+                todayStreakUpdated: false
+            ),
+            "今日の連続記録を更新しますか？"
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.sheetTitle(
+                for: .openDefense(tier: .basic, nodeId: stage1Id, nodeTitle: "フレーズ I", reason: .nextStage),
+                kind: .resume,
+                locale: .ja
+            ),
+            "続きから再開しますか？"
+        )
+    }
+
+    func testNextStepSheetTitleIsNotResume() {
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.sheetTitle(
+                for: .openDefense(tier: .basic, nodeId: stage1Id, nodeTitle: "フレーズ I", reason: .nextStage),
+                kind: .nextStep,
+                locale: .ja
+            ),
+            "次に進みますか？"
+        )
+    }
+
     func testTrainingCopyChangesWithTodayStreak() {
         XCTAssertEqual(
             DefenseTrainingGuidanceResolver.primaryLabel(

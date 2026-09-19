@@ -16,6 +16,11 @@ enum DefenseTrainingGuidance: Equatable, Sendable {
     case none
 }
 
+enum DefenseTrainingPromptKind: Equatable, Sendable {
+    case resume
+    case nextStep
+}
+
 enum DefenseTrainingGuidanceResolver {
     private static func sortedTierBlocks(
         _ blocks: [PlayMapBlock],
@@ -191,6 +196,33 @@ enum DefenseTrainingGuidanceResolver {
         let todayKey = TrainingActivity.localDateKey(Date(), timezone: timezone)
         let days = (try? await SupabaseService.shared.fetchTrainingActivityDays(timezone: timezone)) ?? []
         return TrainingActivity.isTodayStreakUpdated(activeDays: Set(days), todayKey: todayKey)
+    }
+
+    static func sheetTitle(
+        for guidance: DefenseTrainingGuidance,
+        kind: DefenseTrainingPromptKind,
+        locale: AppLocale,
+        todayStreakUpdated: Bool = false
+    ) -> String {
+        switch kind {
+        case .resume:
+            switch guidance {
+            case .openTraining:
+                if todayStreakUpdated {
+                    return locale == .ja ? "トレーニングを続けますか？" : "Keep going in Training?"
+                }
+                return locale == .ja ? "今日の連続記録を更新しますか？" : "Update today's streak?"
+            default:
+                return locale == .ja ? "続きから再開しますか？" : "Continue where you left off?"
+            }
+        case .nextStep:
+            switch guidance {
+            case .openTraining:
+                return locale == .ja ? "お疲れさまでした！" : "Nice work!"
+            default:
+                return locale == .ja ? "次に進みますか？" : "Ready for the next step?"
+            }
+        }
     }
 
     static func primaryLabel(

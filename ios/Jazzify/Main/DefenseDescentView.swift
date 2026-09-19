@@ -169,6 +169,7 @@ struct DefenseDescentView: View {
             DefenseTrainingResumeSheet(
                 locale: locale,
                 guidance: nextStepGuidance ?? .none,
+                kind: .nextStep,
                 todayStreakUpdated: todayStreakUpdated,
                 onContinue: {
                     showNextStepSheet = false
