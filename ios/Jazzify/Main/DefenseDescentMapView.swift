@@ -19,6 +19,7 @@ struct DefenseDescentMapView: View {
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated = false
     @State private var showMobileSheet = false
+    @State private var pendingStageLaunch: (node: PlayMapNode, practiceMode: Bool)?
 
     private var isEnglishCopy: Bool { locale == .en }
 
@@ -139,7 +140,9 @@ struct DefenseDescentMapView: View {
         .sheet(isPresented: Binding(
             get: { !showSidePanelInline && showMobileSheet && selectedNode != nil },
             set: { if !$0 { showMobileSheet = false } }
-        )) {
+        ), onDismiss: {
+            consumePendingStageLaunchIfNeeded()
+        }) {
             NavigationStack {
                 sidePanel
                     .navigationTitle(selectedNode?.localizedTitle(locale) ?? "")
@@ -314,14 +317,27 @@ struct DefenseDescentMapView: View {
 
     private func handleStartPractice() {
         guard let selectedNode, selectedNodeUnlocked, selectedNode.nodeKind == .stage else { return }
-        closeMobileSheetIfNeeded()
-        onSelectNode(selectedNode, true)
+        launchStageNode(selectedNode, practiceMode: true)
     }
 
     private func handleStartPerformance() {
         guard let selectedNode, selectedNodeUnlocked, selectedNode.nodeKind == .stage else { return }
+        launchStageNode(selectedNode, practiceMode: false)
+    }
+
+    private func launchStageNode(_ node: PlayMapNode, practiceMode: Bool) {
+        if showSidePanelInline || !showMobileSheet {
+            onSelectNode(node, practiceMode)
+            return
+        }
+        pendingStageLaunch = (node, practiceMode)
         closeMobileSheetIfNeeded()
-        onSelectNode(selectedNode, false)
+    }
+
+    private func consumePendingStageLaunchIfNeeded() {
+        guard let pending = pendingStageLaunch else { return }
+        pendingStageLaunch = nil
+        onSelectNode(pending.node, pending.practiceMode)
     }
 
     private func consumePendingSelectNode(_ nodeId: UUID) {

@@ -45,7 +45,15 @@ final class DefenseGameSession: ObservableObject {
     private var pendingSwitchPhraseIndex: Int?
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
-    var isPaused = false
+    var isPaused = false {
+        didSet {
+            if oldValue, !isPaused {
+                resumePauseWaiters()
+            }
+        }
+    }
+    private var startGeneration: UInt64 = 0
+    private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private var countdownTask: Task<Void, Never>?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
     private var lastVoicePcAtMs: [Int: Double] = [:]
@@ -88,10 +96,17 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func start() async {
+        startGeneration += 1
+        let generation = startGeneration
+        countdownTask?.cancel()
+        countdownTask = nil
         phase = .loading
         countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
-        SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         subscribeMidi()
+        await Task.yield()
+        guard generation == startGeneration, !Task.isCancelled else { return }
+
+        SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
         DefenseBackingAudio.shared.setTransportConfig(
             bpm: stage.bpm * speedRatio,
@@ -106,16 +121,20 @@ final class DefenseGameSession: ObservableObject {
                 preloadIndices = [0, 1].filter { stage.phrases.indices.contains($0) }
             }
             let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: preloadIndices)
-            try? await DefenseBackingAudio.shared.preload(urls: preloadUrls)
-            try? await DefenseBackingAudio.shared.preparePhraseBuffers(
-                stage: stage,
-                phraseIndices: preloadIndices
-            )
+            let stageSnapshot = stage
+            try? await Task.detached(priority: .userInitiated) {
+                try await DefenseBackingAudio.shared.preload(urls: preloadUrls)
+                try await DefenseBackingAudio.shared.preparePhraseBuffers(
+                    stage: stageSnapshot,
+                    phraseIndices: preloadIndices
+                )
+            }.value
         }
-        startCountdown()
+        guard generation == startGeneration, !Task.isCancelled else { return }
+        startCountdown(generation: generation)
     }
 
-    private func startCountdown() {
+    private func startCountdown(generation: UInt64) {
         countdownTask?.cancel()
         phase = .countdown
         countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
@@ -128,25 +147,42 @@ final class DefenseGameSession: ObservableObject {
                     ? DefenseStartCountdown.firstStepSec
                     : DefenseStartCountdown.secondStepSec
                 try? await Task.sleep(nanoseconds: UInt64(stepSec * 1_000_000_000))
-                if Task.isCancelled { return }
-                while self.isPaused, !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 100_000_000)
-                }
-                if Task.isCancelled { return }
+                if Task.isCancelled || generation != self.startGeneration { return }
+                await self.waitIfPaused()
+                if Task.isCancelled || generation != self.startGeneration { return }
                 remaining -= stepSec
                 self.countdownSec = DefenseStartCountdown.displaySec(remaining: remaining)
             }
-            await self.beginPlay()
+            await self.beginPlay(generation: generation)
         }
     }
 
-    private func beginPlay() async {
+    private func waitIfPaused() async {
+        guard isPaused, !Task.isCancelled else { return }
+        await withCheckedContinuation { continuation in
+            if !isPaused || Task.isCancelled {
+                continuation.resume()
+                return
+            }
+            pauseWaiters.append(continuation)
+        }
+    }
+
+    private func resumePauseWaiters() {
+        let waiters = pauseWaiters
+        pauseWaiters.removeAll(keepingCapacity: false)
+        waiters.forEach { $0.resume() }
+    }
+
+    private func beginPlay(generation: UInt64) async {
+        guard generation == startGeneration, !Task.isCancelled else { return }
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
         if let tutorialConcertMidis, tutorialOptions != nil {
             try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
         } else {
             try? await DefenseBackingAudio.shared.startPhrase(at: 0)
         }
+        guard generation == startGeneration, !Task.isCancelled else { return }
         DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
         runtime.elapsedSec = 0
         lastFrameTime = nil
@@ -186,8 +222,10 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func stop() {
+        startGeneration += 1
         countdownTask?.cancel()
         countdownTask = nil
+        resumePauseWaiters()
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()

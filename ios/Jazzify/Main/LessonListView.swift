@@ -1864,14 +1864,22 @@ struct LessonDetailView: View {
                 presenting: defensePrep
             ) { prep in
                 Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
+                    let selected = prep
                     defensePrep = nil
                     isLaunchingGame = true
-                    defenseLessonLaunch = DefenseLessonLaunch(prep: prep, practiceMode: true)
+                    Task { @MainActor in
+                        await Task.yield()
+                        defenseLessonLaunch = DefenseLessonLaunch(prep: selected, practiceMode: true)
+                    }
                 }
                 Button(locale == .ja ? "本番" : "Performance") {
+                    let selected = prep
                     defensePrep = nil
                     isLaunchingGame = true
-                    defenseLessonLaunch = DefenseLessonLaunch(prep: prep, practiceMode: false)
+                    Task { @MainActor in
+                        await Task.yield()
+                        defenseLessonLaunch = DefenseLessonLaunch(prep: selected, practiceMode: false)
+                    }
                 }
                 Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
                     defensePrep = nil
