@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
+import { DefenseNextStageLaunchModal } from '@/components/defense/DefenseNextStageLaunchModal';
 import { DefenseNextStepModal } from '@/components/defense/DefenseNextStepModal';
 import { DefenseBlockCompleteModal } from '@/components/defense/DefenseBlockCompleteModal';
 import { DefenseTutorial } from '@/components/defense/tutorial/DefenseTutorial';
@@ -88,6 +89,7 @@ const DefenseMapMain: React.FC = () => {
   const [showSoftLandingOffer, setShowSoftLandingOffer] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [pendingSelectNodeId, setPendingSelectNodeId] = useState<string | null>(null);
+  const [nextStageLaunchNode, setNextStageLaunchNode] = useState<PlayMapNode | null>(null);
   const skipSoftLandingOnPaywallCloseRef = useRef(false);
   const launchingRef = useRef(false);
 
@@ -370,10 +372,11 @@ const DefenseMapMain: React.FC = () => {
   const handleResultNextStep = useCallback(() => {
     void (async () => {
       try {
-        const { guidance } = await loadGuidance();
+        const { guidance, nodes } = await loadGuidance();
         if (guidance.kind === 'openDefense' && guidance.reason === 'nextStage') {
+          const nextNode = nodes.find((entry) => entry.id === guidance.nodeId) ?? null;
           backToMap();
-          await navigateToGuidance(guidance);
+          setNextStageLaunchNode(nextNode);
           return;
         }
         backToMap({ checkBlockComplete: true });
@@ -381,7 +384,15 @@ const DefenseMapMain: React.FC = () => {
         backToMap();
       }
     })();
-  }, [backToMap, loadGuidance, navigateToGuidance]);
+  }, [backToMap, loadGuidance]);
+
+  const launchNextStage = useCallback((practiceMode: boolean) => {
+    const node = nextStageLaunchNode;
+    setNextStageLaunchNode(null);
+    if (node) {
+      void startFromNode(node, practiceMode);
+    }
+  }, [nextStageLaunchNode, startFromNode]);
 
   const handleRetry = useCallback(() => {
     setResultNextStepLabel(null);
@@ -472,6 +483,17 @@ const DefenseMapMain: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09070f]/85">
           <LoadingScreen compact />
         </div>
+      ) : null}
+      {nextStageLaunchNode ? (
+        <DefenseNextStageLaunchModal
+          stageTitle={isEnglishCopy && nextStageLaunchNode.titleEn
+            ? nextStageLaunchNode.titleEn
+            : nextStageLaunchNode.title}
+          isEnglishCopy={isEnglishCopy}
+          onStartPerformance={() => launchNextStage(false)}
+          onStartPractice={() => launchNextStage(true)}
+          onClose={() => setNextStageLaunchNode(null)}
+        />
       ) : null}
       {nextStepGuidance ? (
         <DefenseNextStepModal
