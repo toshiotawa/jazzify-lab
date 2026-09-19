@@ -335,6 +335,19 @@ enum DefenseTrainingGuidanceResolver {
         }
     }
 
+    /// 通常ステージのクリアリザルト専用。次ステージがあるときだけ表示する。
+    static func resultNextStepLabel(
+        for guidance: DefenseTrainingGuidance,
+        locale: AppLocale
+    ) -> String? {
+        switch guidance {
+        case .openDefense(_, _, _, .nextStage):
+            return locale == .ja ? "次のステージ" : "Next stage"
+        default:
+            return nil
+        }
+    }
+
     static func bodyCopy(
         for guidance: DefenseTrainingGuidance,
         locale: AppLocale,

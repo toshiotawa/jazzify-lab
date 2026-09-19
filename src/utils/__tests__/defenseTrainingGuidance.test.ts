@@ -2,6 +2,7 @@ import type { PlayMapBlock, PlayMapNode } from '@/platform/supabasePlayMap';
 import { isSoftLandingPaywallSource } from '@/utils/analytics/softLandingOffer';
 import {
   defenseGuidanceBodyCopy,
+  defenseResultNextStepLabel,
   resolveDefenseTrainingGuidance,
   resolveDefenseTrainingGuidanceAfterTutorial,
   trainingGuidancePrimaryLabel,
@@ -180,6 +181,52 @@ describe('resolveDefenseTrainingGuidance', () => {
 describe('isSoftLandingPaywallSource', () => {
   it('includes phrase_defense', () => {
     expect(isSoftLandingPaywallSource('phrase_defense')).toBe(true);
+  });
+});
+
+describe('defenseResultNextStepLabel', () => {
+  it('uses next-stage copy only for regular uncleared stages', () => {
+    expect(
+      defenseResultNextStepLabel(
+        {
+          kind: 'openDefense',
+          tier: 'basic',
+          nodeId: 'stage-1',
+          nodeTitle: 'フレーズ I',
+          reason: 'nextStage',
+        },
+        false,
+      ),
+    ).toBe('次のステージ');
+    expect(
+      defenseResultNextStepLabel(
+        {
+          kind: 'openDefense',
+          tier: 'basic',
+          nodeId: 'stage-1',
+          nodeTitle: 'Phrase I',
+          reason: 'nextStage',
+        },
+        true,
+      ),
+    ).toBe('Next stage');
+  });
+
+  it('does not send regular stage results to training or block complete', () => {
+    expect(defenseResultNextStepLabel({ kind: 'openTraining' }, false)).toBeNull();
+    expect(defenseResultNextStepLabel({ kind: 'defenseBlockComplete' }, false)).toBeNull();
+    expect(
+      defenseResultNextStepLabel(
+        {
+          kind: 'openDefense',
+          tier: 'basic',
+          nodeId: 'tutorial',
+          nodeTitle: 'はじめての設定',
+          reason: 'tutorial',
+        },
+        false,
+      ),
+    ).toBeNull();
   });
 });
 

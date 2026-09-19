@@ -216,6 +216,29 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         XCTAssertEqual(reason, .nextStage)
     }
 
+    func testResultNextStepLabelUsesNextStageCopyOnly() {
+        let nextStage = DefenseTrainingGuidance.openDefense(
+            tier: .basic,
+            nodeId: stage1Id,
+            nodeTitle: "フレーズ I",
+            reason: .nextStage
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.resultNextStepLabel(for: nextStage, locale: .ja),
+            "次のステージ"
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.resultNextStepLabel(for: nextStage, locale: .en),
+            "Next stage"
+        )
+        XCTAssertNil(
+            DefenseTrainingGuidanceResolver.resultNextStepLabel(for: .openTraining, locale: .ja)
+        )
+        XCTAssertNil(
+            DefenseTrainingGuidanceResolver.resultNextStepLabel(for: .defenseBlockComplete, locale: .ja)
+        )
+    }
+
     func testNoneGuidanceHasNoPrimaryLabel() {
         XCTAssertNil(
             DefenseTrainingGuidanceResolver.primaryLabel(for: .none, locale: .ja)

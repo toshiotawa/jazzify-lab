@@ -31,12 +31,10 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import {
-  defenseBlockCompletePrimaryLabel,
-  defenseGuidancePrimaryLabel,
+  defenseResultNextStepLabel,
   resolveDefenseTrainingGuidance,
   resolveDefenseTrainingGuidanceAfterTutorial,
   TRAINING_ROUTE_HASH,
-  trainingGuidancePrimaryLabel,
   type DefenseTrainingGuidance,
 } from '@/utils/defenseTrainingGuidance';
 import { loadTodayTrainingStreakUpdated } from '@/utils/todayTrainingStreak';
@@ -313,16 +311,8 @@ const DefenseMapMain: React.FC = () => {
       );
     }
     try {
-      const { guidance, streakUpdated } = await loadGuidance();
-      if (guidance.kind === 'openDefense') {
-        setResultNextStepLabel(defenseGuidancePrimaryLabel(guidance, isEnglishCopy));
-      } else if (guidance.kind === 'defenseBlockComplete') {
-        setResultNextStepLabel(defenseBlockCompletePrimaryLabel(isEnglishCopy));
-      } else if (guidance.kind === 'openTraining') {
-        setResultNextStepLabel(trainingGuidancePrimaryLabel(isEnglishCopy, streakUpdated));
-      } else {
-        setResultNextStepLabel(null);
-      }
+      const { guidance } = await loadGuidance();
+      setResultNextStepLabel(defenseResultNextStepLabel(guidance, isEnglishCopy));
     } catch {
       setResultNextStepLabel(null);
     }
@@ -370,10 +360,12 @@ const DefenseMapMain: React.FC = () => {
     void (async () => {
       try {
         const { guidance } = await loadGuidance();
-        backToMap();
-        if (guidance.kind !== 'none') {
+        if (guidance.kind === 'openDefense' && guidance.reason === 'nextStage') {
+          backToMap();
           await navigateToGuidance(guidance);
+          return;
         }
+        backToMap({ checkBlockComplete: true });
       } catch {
         backToMap();
       }

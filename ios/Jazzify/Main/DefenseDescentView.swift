@@ -419,8 +419,11 @@ struct DefenseDescentView: View {
     private func handlePerformanceNextStep() async {
         await reloadMap()
         let guidance = resolveGuidance()
-        guard guidance != .none else { return }
-        applyDefenseTrainingGuidance(guidance)
+        if case .openDefense(_, _, _, .nextStage) = guidance {
+            applyDefenseTrainingGuidance(guidance)
+            return
+        }
+        await maybeShowBlockCompleteSheet()
     }
 
     private func handleSubscriptionSheetDismiss() {
@@ -636,11 +639,9 @@ struct DefenseDescentView: View {
             await reloadMap()
             if !session.practiceMode {
                 await refreshTodayStreakUpdated()
-                let guidance = resolveGuidance()
-                resultNextStepLabel = DefenseTrainingGuidanceResolver.primaryLabel(
-                    for: guidance,
-                    locale: locale,
-                    todayStreakUpdated: todayStreakUpdated
+                resultNextStepLabel = DefenseTrainingGuidanceResolver.resultNextStepLabel(
+                    for: resolveGuidance(),
+                    locale: locale
                 )
             } else {
                 resultNextStepLabel = nil

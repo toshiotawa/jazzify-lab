@@ -256,10 +256,6 @@ export function buildDefenseNodeHash(nodeId: string): string {
 
 export const TRAINING_ROUTE_HASH = '#training';
 
-export function defenseBlockCompletePrimaryLabel(isEnglishCopy: boolean): string {
-  return isEnglishCopy ? "See what's next" : '次のステップを見る';
-}
-
 export function defenseBlockCompleteTrialLabel(isEnglishCopy: boolean): string {
   return isEnglishCopy ? 'Try the next tier free for 7 days' : '7日無料で続きを試す';
 }
@@ -282,6 +278,17 @@ export function defenseGuidancePrimaryLabel(
     return isEnglishCopy ? 'Start first-time setup' : 'はじめての設定を始める';
   }
   return isEnglishCopy ? 'Continue Phrase Defense' : 'フレーズディフェンスを続ける';
+}
+
+/** 通常ステージのクリアリザルト専用。次ステージがあるときだけ表示する。 */
+export function defenseResultNextStepLabel(
+  guidance: DefenseTrainingGuidance,
+  isEnglishCopy: boolean,
+): string | null {
+  if (guidance.kind === 'openDefense' && guidance.reason === 'nextStage') {
+    return isEnglishCopy ? 'Next stage' : '次のステージ';
+  }
+  return null;
 }
 
 export function trainingGuidancePrimaryLabel(
