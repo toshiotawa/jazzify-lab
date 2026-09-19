@@ -12,8 +12,8 @@ describe('buildDefenseTutorialPhrase', () => {
     expect(concertMidis).toEqual([58, 60, 62]);
     expect(chord.notes.map((n) => n.pitchMidi)).toEqual([58, 60, 62]);
     expect(chord.notes.map((n) => n.noteName)).toEqual(['Bb3', 'C4', 'D4']);
-    expect(staffGroups.map((group) => group.voicing)).toEqual([['Bb3'], ['C4'], ['D4']]);
-    expect(phrase.keyFifths).toBe(-2);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C4'], ['D4'], ['E4']]);
+    expect(phrase.keyFifths).toBe(0);
   });
 
   it('uses instrument concert midis for Eb alto sax', () => {
@@ -21,16 +21,16 @@ describe('buildDefenseTutorialPhrase', () => {
     const { concertMidis, chord, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([63, 65, 67]);
     expect(chord.notes.map((n) => n.noteName)).toEqual(['Eb4', 'F4', 'G4']);
-    expect(staffGroups.map((group) => group.voicing)).toEqual([['Eb4'], ['F4'], ['G4']]);
-    expect(phrase.keyFifths).toBe(-3);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C5'], ['D5'], ['E5']]);
+    expect(phrase.keyFifths).toBe(0);
   });
 
   it('uses instrument concert midis for F horn', () => {
     const settings = defaultTutorialNotationSettings('french_horn_f');
     const { concertMidis, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([65, 67, 69]);
-    expect(staffGroups.map((group) => group.voicing)).toEqual([['F4'], ['G4'], ['A4']]);
-    expect(phrase.keyFifths).toBe(-1);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C5'], ['D5'], ['E5']]);
+    expect(phrase.keyFifths).toBe(0);
   });
 
   it('uses C4 D4 E4 for piano', () => {

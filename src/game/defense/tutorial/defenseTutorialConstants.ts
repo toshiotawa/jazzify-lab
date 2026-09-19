@@ -3,6 +3,7 @@ export const DEFENSE_TUTORIAL_KEY = 'input-setup-v1' as const;
 
 export const DEFENSE_TUTORIAL_BPM = 60;
 export const DEFENSE_TUTORIAL_BEATS_PER_BAR = 4;
+export const DEFENSE_TUTORIAL_KEY_FIFTHS = 0;
 
 /** Written pitch classes for do-re-mi (C, D, E). */
 export const DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES = [0, 2, 4] as const;

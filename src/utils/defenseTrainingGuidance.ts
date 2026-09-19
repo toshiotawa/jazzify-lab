@@ -17,6 +17,7 @@ export type DefenseTrainingGuidance =
     nodeTitle: string;
     reason: DefenseGuidanceReason;
   }
+  | { kind: 'defenseBlockComplete' }
   | { kind: 'openTraining' }
   | { kind: 'none' };
 
@@ -47,6 +48,20 @@ const findBasicTutorialNode = (
 
 const nodeDisplayTitle = (node: PlayMapNode, isEnglishCopy: boolean): string =>
   (isEnglishCopy ? node.titleEn : node.title);
+
+const isBlockFullyCleared = (
+  block: PlayMapBlock,
+  nodes: readonly PlayMapNode[],
+  clearedNodeIds: ReadonlySet<string>,
+): boolean => {
+  const stages = nodes.filter(
+    (node) => node.blockId === block.id && node.nodeKind === 'stage',
+  );
+  if (stages.length === 0) {
+    return false;
+  }
+  return stages.every((stage) => clearedNodeIds.has(stage.id));
+};
 
 const findNextUnclearedStageInBlock = (
   block: PlayMapBlock,
@@ -158,6 +173,10 @@ export function resolveDefenseTrainingGuidance(
       }
     }
 
+    if (basicBlock0 && isBlockFullyCleared(basicBlock0, nodes, clearedNodeIds)) {
+      return { kind: 'defenseBlockComplete' };
+    }
+
     return { kind: 'openTraining' };
   }
 
@@ -194,6 +213,24 @@ export function buildDefenseNodeHash(nodeId: string): string {
 }
 
 export const TRAINING_ROUTE_HASH = '#training';
+
+export function defenseBlockCompletePrimaryLabel(isEnglishCopy: boolean): string {
+  return isEnglishCopy ? "See what's next" : '次のステップを見る';
+}
+
+export function defenseBlockCompleteTrialLabel(isEnglishCopy: boolean): string {
+  return isEnglishCopy ? 'Try the next tier free for 7 days' : '7日無料で続きを試す';
+}
+
+export function defenseBlockCompleteSoftLandingLabel(isEnglishCopy: boolean): string {
+  return isEnglishCopy ? 'Start Chord Run free' : 'コードランを無料で始める';
+}
+
+export function defenseBlockCompleteBodyCopy(isEnglishCopy: boolean): string {
+  return isEnglishCopy
+    ? 'You cleared Floor 1. Unlock Advanced and all stages with Premium.'
+    : '第1階層をクリアしました。Advanced と全ステージはプレミアムで解放できます。';
+}
 
 export function defenseGuidancePrimaryLabel(
   guidance: Extract<DefenseTrainingGuidance, { kind: 'openDefense' }>,
@@ -232,6 +269,9 @@ export function defenseGuidanceBodyCopy(
     return isEnglishCopy
       ? `Next up: ${quotedTitle}`
       : `次は${quotedTitle}です。`;
+  }
+  if (guidance.kind === 'defenseBlockComplete') {
+    return defenseBlockCompleteBodyCopy(isEnglishCopy);
   }
   if (guidance.kind === 'openTraining') {
     if (todayStreakUpdated) {

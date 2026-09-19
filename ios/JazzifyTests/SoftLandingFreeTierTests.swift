@@ -156,6 +156,10 @@ final class SoftLandingFreeTierTests: XCTestCase {
         ))
     }
 
+    func testPhraseDefenseIsSoftLandingPaywallSource() {
+        XCTAssertTrue(SoftLandingFreeTier.isSoftLandingPaywallSource(.phraseDefense))
+    }
+
     func testIsBlock1CompleteRequiresAllBlock1Lessons() {
         let l1 = makeLesson(orderIndex: 0, blockNumber: 1)
         let l2 = makeLesson(orderIndex: 1, blockNumber: 1)

@@ -45,11 +45,6 @@ enum DefenseTutorialNotation {
         )
     }
 
-    /// Concert key signature for the instrument's sounding do-re-mi (Bb=-2, F=-1, Eb=-3).
-    static func resolveConcertKeyFifths(_ settings: DefenseTutorialNotationSettings) -> Int {
-        EarTrainingMusicXmlTransposer.transposeKeyFifths(0, semitones: resolveTransposition(settings))
-    }
-
     private static let writtenKeyByTransposition: [Int: String] = [
         0: "C",
         -2: "B♭",

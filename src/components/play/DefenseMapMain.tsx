@@ -1,11 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
 import { DefenseNextStepModal } from '@/components/defense/DefenseNextStepModal';
+import { DefenseBlockCompleteModal } from '@/components/defense/DefenseBlockCompleteModal';
 import { DefenseTutorial } from '@/components/defense/tutorial/DefenseTutorial';
 import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
+import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import type { PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
   fetchPlayMapBlocks,
@@ -28,6 +31,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { buildLessonDetailHash } from '@/utils/lessonNavigation';
 import {
+  defenseBlockCompletePrimaryLabel,
   defenseGuidancePrimaryLabel,
   resolveDefenseTrainingGuidance,
   TRAINING_ROUTE_HASH,
@@ -38,6 +42,13 @@ import { loadTodayTrainingStreakUpdated } from '@/utils/todayTrainingStreak';
 import { unlockDefenseBackingAudioContext } from '@/game/defense/defenseBackingDeck';
 import { markAudioUserInteraction } from '@/utils/MidiController';
 import { useToast } from '@/stores/toastStore';
+import { useSoftLandingOffer } from '@/hooks/useSoftLandingOffer';
+import { isSoftLandingPaywallSource } from '@/utils/analytics/softLandingOffer';
+import {
+  getFirstBlock1LessonId,
+  getNextIncompleteBlock1LessonId,
+} from '@/utils/softLanding';
+import { markSoftLandingSessionDismissed } from '@/utils/softLandingResume';
 
 type Screen = 'map' | 'prep' | 'game' | 'tutorial';
 
@@ -73,6 +84,22 @@ const DefenseMapMain: React.FC = () => {
   const [nextStepGuidance, setNextStepGuidance] = useState<ActionableDefenseGuidance | null>(null);
   const [todayStreakUpdated, setTodayStreakUpdated] = useState(false);
   const [resultNextStepLabel, setResultNextStepLabel] = useState<string | null>(null);
+  const [showBlockCompleteModal, setShowBlockCompleteModal] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [showSoftLandingOffer, setShowSoftLandingOffer] = useState(false);
+  const skipSoftLandingOnPaywallCloseRef = useRef(false);
+
+  const {
+    nextCourse: nextSoftLandingCourse,
+    reload: reloadSoftLandingOffer,
+    trackOfferViewed,
+    trackOfferAccepted,
+    trackOfferDismissed,
+  } = useSoftLandingOffer({
+    userId: profile?.id,
+    enabled: !isPremiumMember,
+    entry: 'chapter_complete',
+  });
 
   const loadGuidance = useCallback(async (): Promise<{
     guidance: DefenseTrainingGuidance;
@@ -97,6 +124,20 @@ const DefenseMapMain: React.FC = () => {
       streakUpdated,
     };
   }, [isEnglishCopy, isPremiumMember, profile]);
+
+  const maybeShowBlockCompleteModal = useCallback(async () => {
+    if (isPremiumMember) {
+      return;
+    }
+    try {
+      const { guidance } = await loadGuidance();
+      if (guidance.kind === 'defenseBlockComplete') {
+        setShowBlockCompleteModal(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isPremiumMember, loadGuidance]);
 
   const startFromNode = useCallback(async (node: PlayMapNode) => {
     if (node.nodeKind === 'tutorial') {
@@ -140,6 +181,10 @@ const DefenseMapMain: React.FC = () => {
 
   const navigateToGuidance = useCallback(async (guidance: ActionableDefenseGuidance) => {
     setNextStepGuidance(null);
+    if (guidance.kind === 'defenseBlockComplete') {
+      setShowBlockCompleteModal(true);
+      return;
+    }
     if (guidance.kind === 'openTraining') {
       window.location.hash = TRAINING_ROUTE_HASH;
       return;
@@ -150,6 +195,82 @@ const DefenseMapMain: React.FC = () => {
       await startFromNode(node);
     }
   }, [startFromNode]);
+
+  const openSoftLandingLesson = useCallback((autoTrackAccept: boolean) => {
+    const target = nextSoftLandingCourse;
+    if (!target) {
+      return;
+    }
+    if (autoTrackAccept) {
+      trackOfferAccepted(target.course);
+    } else {
+      trackOfferViewed(target.course);
+    }
+    setShowSoftLandingOffer(false);
+    const nextLessonId = getNextIncompleteBlock1LessonId(
+      target.course.lessons ?? [],
+      target.block1ProgressMap ?? {},
+    ) ?? getFirstBlock1LessonId(target.course.lessons ?? []);
+    if (nextLessonId) {
+      window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
+    }
+  }, [nextSoftLandingCourse, trackOfferAccepted, trackOfferViewed]);
+
+  const openSoftLandingOfferAfterPaywall = useCallback(async () => {
+    const next = await reloadSoftLandingOffer({ forceRefresh: true });
+    if (next) {
+      trackOfferViewed(next.course);
+      setShowSoftLandingOffer(true);
+    }
+  }, [reloadSoftLandingOffer, trackOfferViewed]);
+
+  const handlePaywallClose = useCallback(() => {
+    setShowPaywall(false);
+    if (skipSoftLandingOnPaywallCloseRef.current) {
+      skipSoftLandingOnPaywallCloseRef.current = false;
+      return;
+    }
+    if (!isPremiumMember && isSoftLandingPaywallSource('phrase_defense')) {
+      void openSoftLandingOfferAfterPaywall();
+    }
+  }, [isPremiumMember, openSoftLandingOfferAfterPaywall]);
+
+  const handlePaywallContinueFree = useCallback(() => {
+    skipSoftLandingOnPaywallCloseRef.current = true;
+    setShowPaywall(false);
+    void reloadSoftLandingOffer({ forceRefresh: true }).then((next) => {
+      if (!next) {
+        return;
+      }
+      trackOfferViewed(next.course);
+      trackOfferAccepted(next.course);
+      const nextLessonId = getNextIncompleteBlock1LessonId(
+        next.course.lessons ?? [],
+        next.block1ProgressMap ?? {},
+      ) ?? getFirstBlock1LessonId(next.course.lessons ?? []);
+      if (nextLessonId) {
+        window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
+      }
+    });
+  }, [reloadSoftLandingOffer, trackOfferAccepted, trackOfferViewed]);
+
+  const acceptSoftLandingFromBlockComplete = useCallback(() => {
+    setShowBlockCompleteModal(false);
+    void reloadSoftLandingOffer({ forceRefresh: true }).then((next) => {
+      if (!next) {
+        return;
+      }
+      trackOfferViewed(next.course);
+      trackOfferAccepted(next.course);
+      const nextLessonId = getNextIncompleteBlock1LessonId(
+        next.course.lessons ?? [],
+        next.block1ProgressMap ?? {},
+      ) ?? getFirstBlock1LessonId(next.course.lessons ?? []);
+      if (nextLessonId) {
+        window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
+      }
+    });
+  }, [reloadSoftLandingOffer, trackOfferAccepted, trackOfferViewed]);
 
   useEffect(() => {
     const nodeId = searchParams.get('nodeId');
@@ -188,6 +309,8 @@ const DefenseMapMain: React.FC = () => {
       const { guidance, streakUpdated } = await loadGuidance();
       if (guidance.kind === 'openDefense') {
         setResultNextStepLabel(defenseGuidancePrimaryLabel(guidance, isEnglishCopy));
+      } else if (guidance.kind === 'defenseBlockComplete') {
+        setResultNextStepLabel(defenseBlockCompletePrimaryLabel(isEnglishCopy));
       } else if (guidance.kind === 'openTraining') {
         setResultNextStepLabel(trainingGuidancePrimaryLabel(isEnglishCopy, streakUpdated));
       } else {
@@ -198,20 +321,31 @@ const DefenseMapMain: React.FC = () => {
     }
   }, [activeNode, isEnglishCopy, loadGuidance, loaded, session?.practiceMode, toast]);
 
-  const backToMap = useCallback(() => {
+  const backToMap = useCallback((options?: { checkBlockComplete?: boolean }) => {
     setScreen('map');
     setActiveNode(null);
     setLoaded(null);
     setSession(null);
     setResultNextStepLabel(null);
     setSearchParams({});
-  }, [setSearchParams]);
+    if (options?.checkBlockComplete) {
+      void maybeShowBlockCompleteModal();
+    }
+  }, [maybeShowBlockCompleteModal, setSearchParams]);
 
   const handleTutorialExit = useCallback(() => {
     void (async () => {
       backToMap();
       try {
         const { guidance } = await loadGuidance();
+        if (guidance.kind === 'openDefense' && guidance.reason === 'nextStage') {
+          await navigateToGuidance(guidance);
+          return;
+        }
+        if (guidance.kind === 'defenseBlockComplete') {
+          setShowBlockCompleteModal(true);
+          return;
+        }
         if (guidance.kind !== 'none') {
           setNextStepGuidance(guidance);
         }
@@ -219,7 +353,7 @@ const DefenseMapMain: React.FC = () => {
         /* ignore */
       }
     })();
-  }, [backToMap, loadGuidance]);
+  }, [backToMap, loadGuidance, navigateToGuidance]);
 
   const handleResultNextStep = useCallback(() => {
     void (async () => {
@@ -245,6 +379,18 @@ const DefenseMapMain: React.FC = () => {
     setSession((prev) => (prev ? { ...prev, nonce: prev.nonce + 1 } : prev));
   }, []);
 
+  const handleSoftLandingOfferAccept = useCallback(() => {
+    openSoftLandingLesson(true);
+  }, [openSoftLandingLesson]);
+
+  const handleSoftLandingOfferDismiss = useCallback(() => {
+    if (nextSoftLandingCourse) {
+      trackOfferDismissed(nextSoftLandingCourse.course);
+    }
+    markSoftLandingSessionDismissed();
+    setShowSoftLandingOffer(false);
+  }, [nextSoftLandingCourse, trackOfferDismissed]);
+
   if (screen === 'tutorial' && activeNode) {
     return (
       <DefenseTutorial
@@ -256,19 +402,47 @@ const DefenseMapMain: React.FC = () => {
 
   if (screen === 'game' && loaded && session) {
     return (
-      <DefenseGameScreen
-        key={session.nonce}
-        stage={loaded.stage}
-        difficulty={loaded.difficulty}
-        practiceMode={session.practiceMode}
-        onExit={backToPrep}
-        onResultBack={backToMap}
-        onRetry={handleRetry}
-        onApplyPracticeModeAndRestart={startSession}
-        onClear={() => { void handleClear(); }}
-        resultNextStepLabel={resultNextStepLabel ?? undefined}
-        onResultNextStep={resultNextStepLabel ? handleResultNextStep : undefined}
-      />
+      <>
+        <DefenseGameScreen
+          key={session.nonce}
+          stage={loaded.stage}
+          difficulty={loaded.difficulty}
+          practiceMode={session.practiceMode}
+          onExit={backToPrep}
+          onResultBack={() => backToMap({ checkBlockComplete: true })}
+          onRetry={handleRetry}
+          onApplyPracticeModeAndRestart={startSession}
+          onClear={() => { void handleClear(); }}
+          resultNextStepLabel={resultNextStepLabel ?? undefined}
+          onResultNextStep={resultNextStepLabel ? handleResultNextStep : undefined}
+        />
+        {showBlockCompleteModal ? (
+          <DefenseBlockCompleteModal
+            isEnglishCopy={isEnglishCopy}
+            onPremium={() => {
+              setShowBlockCompleteModal(false);
+              setShowPaywall(true);
+            }}
+            onSoftLanding={acceptSoftLandingFromBlockComplete}
+            onDismiss={() => setShowBlockCompleteModal(false)}
+          />
+        ) : null}
+        <WebPaywallModal
+          open={showPaywall}
+          onClose={handlePaywallClose}
+          isEnglishCopy={isEnglishCopy}
+          source="phrase_defense"
+          onContinueFree={!isPremiumMember ? handlePaywallContinueFree : undefined}
+        />
+        <SoftLandingOfferModal
+          open={showSoftLandingOffer}
+          course={nextSoftLandingCourse?.course ?? null}
+          isEnglishCopy={isEnglishCopy}
+          entry="chapter_complete"
+          onAccept={handleSoftLandingOfferAccept}
+          onDismiss={handleSoftLandingOfferDismiss}
+        />
+      </>
     );
   }
 
@@ -292,7 +466,7 @@ const DefenseMapMain: React.FC = () => {
           <button
             type="button"
             className="mt-6 text-sm text-slate-400 underline hover:text-slate-200"
-            onClick={backToMap}
+            onClick={() => backToMap()}
           >
             {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
           </button>
@@ -321,6 +495,32 @@ const DefenseMapMain: React.FC = () => {
           onDismiss={() => setNextStepGuidance(null)}
         />
       ) : null}
+      {showBlockCompleteModal ? (
+        <DefenseBlockCompleteModal
+          isEnglishCopy={isEnglishCopy}
+          onPremium={() => {
+            setShowBlockCompleteModal(false);
+            setShowPaywall(true);
+          }}
+          onSoftLanding={acceptSoftLandingFromBlockComplete}
+          onDismiss={() => setShowBlockCompleteModal(false)}
+        />
+      ) : null}
+      <WebPaywallModal
+        open={showPaywall}
+        onClose={handlePaywallClose}
+        isEnglishCopy={isEnglishCopy}
+        source="phrase_defense"
+        onContinueFree={!isPremiumMember ? handlePaywallContinueFree : undefined}
+      />
+      <SoftLandingOfferModal
+        open={showSoftLandingOffer}
+        course={nextSoftLandingCourse?.course ?? null}
+        isEnglishCopy={isEnglishCopy}
+        entry="chapter_complete"
+        onAccept={handleSoftLandingOfferAccept}
+        onDismiss={handleSoftLandingOfferDismiss}
+      />
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import type { PlayMapBlock, PlayMapNode } from '@/platform/supabasePlayMap';
+import { isSoftLandingPaywallSource } from '@/utils/analytics/softLandingOffer';
 import {
   defenseGuidanceBodyCopy,
   resolveDefenseTrainingGuidance,
@@ -92,7 +93,7 @@ describe('resolveDefenseTrainingGuidance', () => {
     });
   });
 
-  it('guides free users to training after basic block 1 stages are cleared', () => {
+  it('guides free users to block complete upsell after basic block 1 stages are cleared', () => {
     const guidance = resolveDefenseTrainingGuidance({
       isPremiumMember: false,
       blocks: [basicBlock],
@@ -100,7 +101,7 @@ describe('resolveDefenseTrainingGuidance', () => {
       clearedNodeIds: new Set(['tutorial', 'stage-1', 'stage-2']),
     });
 
-    expect(guidance).toEqual({ kind: 'openTraining' });
+    expect(guidance).toEqual({ kind: 'defenseBlockComplete' });
   });
 
   it('guides premium users to the tier with more cleared stages', () => {
@@ -149,6 +150,12 @@ describe('resolveDefenseTrainingGuidance', () => {
     });
 
     expect(guidance).toEqual({ kind: 'openTraining' });
+  });
+});
+
+describe('isSoftLandingPaywallSource', () => {
+  it('includes phrase_defense', () => {
+    expect(isSoftLandingPaywallSource('phrase_defense')).toBe(true);
   });
 });
 

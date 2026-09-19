@@ -12,6 +12,7 @@ enum DefenseTrainingGuidance: Equatable, Sendable {
         nodeTitle: String,
         reason: DefenseGuidanceReason
     )
+    case defenseBlockComplete
     case openTraining
     case none
 }
@@ -43,6 +44,16 @@ enum DefenseTrainingGuidanceResolver {
 
     private static func nodeDisplayTitle(_ node: PlayMapNode, locale: AppLocale) -> String {
         node.localizedTitle(locale)
+    }
+
+    private static func isBlockFullyCleared(
+        block: PlayMapBlock,
+        nodes: [PlayMapNode],
+        clearedNodeIds: Set<UUID>
+    ) -> Bool {
+        let stages = nodes.filter { $0.blockId == block.id && $0.nodeKind == .stage }
+        guard !stages.isEmpty else { return false }
+        return stages.allSatisfy { clearedNodeIds.contains($0.id) }
     }
 
     private static func findNextUnclearedStageInBlock(
@@ -141,7 +152,8 @@ enum DefenseTrainingGuidanceResolver {
             if let tutorial, !tutorialCleared {
                 return resolveTutorialGuidance(tutorial: tutorial, locale: locale)
             }
-            if let basicBlock0 = sortedTierBlocks(blocks, tier: .basic).first,
+            let basicBlock0 = sortedTierBlocks(blocks, tier: .basic).first
+            if let basicBlock0,
                let nextStage = findNextUnclearedStageInBlock(
                 block: basicBlock0,
                 nodes: nodes,
@@ -153,6 +165,10 @@ enum DefenseTrainingGuidanceResolver {
                     nodeTitle: nodeDisplayTitle(nextStage, locale: locale),
                     reason: .nextStage
                 )
+            }
+            if let basicBlock0,
+               isBlockFullyCleared(block: basicBlock0, nodes: nodes, clearedNodeIds: clearedNodeIds) {
+                return .defenseBlockComplete
             }
             return .openTraining
         }
@@ -219,10 +235,30 @@ enum DefenseTrainingGuidanceResolver {
             switch guidance {
             case .openTraining:
                 return locale == .ja ? "お疲れさまでした！" : "Nice work!"
+            case .defenseBlockComplete:
+                return locale == .ja ? "第1階層をクリアしました！" : "You cleared Floor 1!"
             default:
                 return locale == .ja ? "次に進みますか？" : "Ready for the next step?"
             }
         }
+    }
+
+    static func blockCompleteTrialLabel(locale: AppLocale) -> String {
+        locale == .ja ? "7日無料で続きを試す" : "Try the next tier free for 7 days"
+    }
+
+    static func blockCompleteSoftLandingLabel(locale: AppLocale) -> String {
+        locale == .ja ? "コードランを無料で始める" : "Start Chord Run free"
+    }
+
+    static func blockCompleteBodyCopy(locale: AppLocale) -> String {
+        locale == .ja
+            ? "第1階層をクリアしました。Advanced と全ステージはプレミアムで解放できます。"
+            : "You cleared Floor 1. Unlock Advanced and all stages with Premium."
+    }
+
+    static func blockCompleteNextStepLabel(locale: AppLocale) -> String {
+        locale == .ja ? "次のステップを見る" : "See what's next"
     }
 
     static func primaryLabel(
@@ -238,6 +274,8 @@ enum DefenseTrainingGuidanceResolver {
             case .nextStage:
                 return locale == .ja ? "フレーズディフェンスを続ける" : "Continue Phrase Defense"
             }
+        case .defenseBlockComplete:
+            return blockCompleteNextStepLabel(locale: locale)
         case .openTraining:
             if todayStreakUpdated {
                 return locale == .ja ? "トレーニングへ" : "Go to Training"
@@ -264,6 +302,8 @@ enum DefenseTrainingGuidanceResolver {
             case .nextStage:
                 return locale == .ja ? "次は\(quoted)です。" : "Next up: \(quoted)"
             }
+        case .defenseBlockComplete:
+            return blockCompleteBodyCopy(locale: locale)
         case .openTraining:
             if todayStreakUpdated {
                 return locale == .ja

@@ -2,7 +2,6 @@ import {
   formatNotationClefLabel,
   getNotationInstrumentPreset,
   getWrittenSemitoneOffset,
-  transposeKeyFifths,
   type NotationInstrumentClef,
   type NotationInstrumentId,
 } from '@/utils/notationInstrument';
@@ -48,11 +47,6 @@ export const resolveTutorialWrittenOffset = (
   resolveTutorialPresetWithTransposition(settings),
   settings.notationOctaveShift,
 );
-
-/** Concert key signature for the instrument's sounding do-re-mi (Bb=-2, F=-1, Eb=-3). */
-export const resolveTutorialConcertKeyFifths = (
-  settings: DefenseTutorialNotationSettings,
-): number => transposeKeyFifths(0, resolveTutorialTransposition(settings));
 
 const WRITTEN_KEY_BY_TRANSPOSITION: Readonly<Record<number, string>> = {
   0: 'C',

@@ -33,4 +33,7 @@ export const SOFT_LANDING_OFFER_EVENTS = {
 } as const;
 
 export const isSoftLandingPaywallSource = (source: PaywallSource): boolean =>
-  source === 'chapter_complete' || source === 'main_quest' || source === 'soft_landing';
+  source === 'chapter_complete'
+  || source === 'main_quest'
+  || source === 'soft_landing'
+  || source === 'phrase_defense';

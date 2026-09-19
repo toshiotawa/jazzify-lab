@@ -128,7 +128,7 @@ enum SoftLandingFreeTier {
 
     static func isSoftLandingPaywallSource(_ entry: SubscriptionEntry) -> Bool {
         switch entry {
-        case .chapterComplete, .mainQuest, .softLanding:
+        case .chapterComplete, .mainQuest, .softLanding, .phraseDefense:
             return true
         case .default, .lessonList, .dashboard, .resumeModal, .accountModal:
             return false

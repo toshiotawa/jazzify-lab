@@ -9,6 +9,13 @@ struct DefenseDescentView: View {
     @State private var clears: [PlayMapNodeClear] = []
     @State private var isLoading = true
     @State private var showSubscription = false
+    @State private var subscriptionEntry: SubscriptionEntry = .phraseDefense
+    @State private var paywallEntryAtOpen: SubscriptionEntry = .phraseDefense
+    @State private var skipSoftLandingOfferOnPaywallDismiss = false
+    @State private var showSoftLandingOffer = false
+    @State private var softLandingOfferCandidate: SoftLandingCandidate?
+    @State private var softLandingOfferEntry: SoftLandingOfferEntry = .chapterComplete
+    @State private var showBlockCompleteSheet = false
 
     @State private var mapTier: PlayMapTier = .basic
     @State private var stagePrep: StagePrepContext?
@@ -68,6 +75,21 @@ struct DefenseDescentView: View {
         }
     }
 
+    private struct SoftLandingLessonLaunch: Identifiable, Hashable {
+        let id = UUID()
+        let lesson: Lesson
+
+        static func == (lhs: SoftLandingLessonLaunch, rhs: SoftLandingLessonLaunch) -> Bool {
+            lhs.id == rhs.id
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(id)
+        }
+    }
+
+    @State private var softLandingLessonLaunch: SoftLandingLessonLaunch?
+
     var body: some View {
         ZStack {
             Color(hex: "09070f").ignoresSafeArea()
@@ -93,7 +115,11 @@ struct DefenseDescentView: View {
                     onSelectQuestNode: { node in
                         Task { await startQuestNode(node) }
                     },
-                    onRequestUpgrade: { showSubscription = true }
+                    onRequestUpgrade: {
+                        subscriptionEntry = .phraseDefense
+                        paywallEntryAtOpen = .phraseDefense
+                        showSubscription = true
+                    }
                 )
             }
 
@@ -250,9 +276,19 @@ struct DefenseDescentView: View {
                 onBackToMap: {
                     mapResultContext = nil
                     resultNextStepLabel = nil
-                    Task { await reloadMap() }
+                    Task {
+                        await reloadMap()
+                        await maybeShowBlockCompleteSheet()
+                    }
                 }
             )
+        }
+        .fullScreenCover(item: $softLandingLessonLaunch) { launch in
+            LessonDetailView(
+                lesson: launch.lesson,
+                autoStartFirstRequirement: true
+            )
+            .environmentObject(appState)
         }
         .navigationDestination(
             isPresented: Binding(
@@ -273,8 +309,42 @@ struct DefenseDescentView: View {
                 )
             }
         }
-        .sheet(isPresented: $showSubscription) {
-            SubscriptionView(entry: .lessonList)
+        .sheet(isPresented: $showSubscription, onDismiss: handleSubscriptionSheetDismiss) {
+            SubscriptionView(
+                entry: subscriptionEntry,
+                onContinueFree: SoftLandingFreeTier.isSoftLandingPaywallSource(subscriptionEntry)
+                    ? { handlePaywallContinueFree() }
+                    : nil
+            )
+            .environmentObject(appState)
+        }
+        .sheet(isPresented: $showBlockCompleteSheet) {
+            DefenseBlockCompleteSheet(
+                locale: locale,
+                onPremium: {
+                    showBlockCompleteSheet = false
+                    subscriptionEntry = .phraseDefense
+                    paywallEntryAtOpen = .phraseDefense
+                    showSubscription = true
+                },
+                onSoftLanding: {
+                    showBlockCompleteSheet = false
+                    startSoftLandingFromBlockComplete()
+                },
+                onDismiss: {
+                    showBlockCompleteSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showSoftLandingOffer) {
+            if let candidate = softLandingOfferCandidate {
+                SoftLandingOfferSheet(
+                    locale: locale,
+                    course: candidate.course,
+                    onAccept: { handleSoftLandingOfferAccept(candidate) },
+                    onDismiss: { handleSoftLandingOfferDismiss(candidate) }
+                )
+            }
         }
         .alert(
             locale == .ja ? "ステージを開始できません" : "Cannot start stage",
@@ -311,6 +381,8 @@ struct DefenseDescentView: View {
         case .openDefense(_, let nodeId, _, _):
             appState.pendingDefenseNodeId = nodeId
             Task { await consumePendingDefenseNodeIfNeeded() }
+        case .defenseBlockComplete:
+            showBlockCompleteSheet = true
         case .openTraining:
             appState.requestedTab = .training
         case .none:
@@ -318,10 +390,26 @@ struct DefenseDescentView: View {
         }
     }
 
+    private func maybeShowBlockCompleteSheet() async {
+        guard !appState.isPremium else { return }
+        let guidance = resolveGuidance()
+        if guidance == .defenseBlockComplete {
+            showBlockCompleteSheet = true
+        }
+    }
+
     private func handleTutorialExit() async {
         await reloadMap()
         await refreshTodayStreakUpdated()
         let guidance = resolveGuidance()
+        if case .openDefense(_, _, _, let reason) = guidance, reason == .nextStage {
+            applyDefenseTrainingGuidance(guidance)
+            return
+        }
+        if guidance == .defenseBlockComplete {
+            showBlockCompleteSheet = true
+            return
+        }
         guard guidance != .none else { return }
         nextStepGuidance = guidance
         showNextStepSheet = true
@@ -332,6 +420,105 @@ struct DefenseDescentView: View {
         let guidance = resolveGuidance()
         guard guidance != .none else { return }
         applyDefenseTrainingGuidance(guidance)
+    }
+
+    private func handleSubscriptionSheetDismiss() {
+        let entry = paywallEntryAtOpen
+        if skipSoftLandingOfferOnPaywallDismiss {
+            skipSoftLandingOfferOnPaywallDismiss = false
+            return
+        }
+        guard !appState.isPremium, SoftLandingFreeTier.isSoftLandingPaywallSource(entry) else { return }
+        Task {
+            guard let next = await SoftLandingOfferLoader.resolveNext(userId: appState.profile?.id) else {
+                return
+            }
+            await MainActor.run {
+                softLandingOfferCandidate = next
+                softLandingOfferEntry = SoftLandingFreeTier.offerEntry(for: entry)
+                if let userId = appState.profile?.id {
+                    AnalyticsTracker.trackSoftLandingOfferViewed(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: softLandingOfferEntry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                }
+                showSoftLandingOffer = true
+            }
+        }
+    }
+
+    private func handlePaywallContinueFree() {
+        skipSoftLandingOfferOnPaywallDismiss = true
+        showSubscription = false
+        startSoftLandingFromBlockComplete()
+    }
+
+    private func startSoftLandingFromBlockComplete() {
+        let entry = SoftLandingOfferEntry.chapterComplete
+        Task {
+            guard let next = await SoftLandingOfferLoader.resolveNext(userId: appState.profile?.id) else {
+                return
+            }
+            await MainActor.run {
+                if let userId = appState.profile?.id {
+                    AnalyticsTracker.trackSoftLandingOfferViewed(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: entry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                    AnalyticsTracker.trackSoftLandingOfferAccepted(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: entry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                }
+                guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
+                    lessons: next.lessons,
+                    completedIds: next.completedLessonIds
+                ),
+                      let lesson = next.lessons.first(where: { $0.id == lessonId }) else {
+                    return
+                }
+                softLandingLessonLaunch = SoftLandingLessonLaunch(lesson: lesson)
+            }
+        }
+    }
+
+    private func handleSoftLandingOfferAccept(_ candidate: SoftLandingCandidate) {
+        if let userId = appState.profile?.id {
+            AnalyticsTracker.trackSoftLandingOfferAccepted(
+                userId: userId,
+                courseId: candidate.course.id,
+                entry: softLandingOfferEntry.rawValue,
+                sequenceIndex: candidate.course.softLandingOrder ?? 0
+            )
+        }
+        showSoftLandingOffer = false
+        guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
+            lessons: candidate.lessons,
+            completedIds: candidate.completedLessonIds
+        ),
+              let lesson = candidate.lessons.first(where: { $0.id == lessonId }) else {
+            return
+        }
+        softLandingLessonLaunch = SoftLandingLessonLaunch(lesson: lesson)
+    }
+
+    private func handleSoftLandingOfferDismiss(_ candidate: SoftLandingCandidate) {
+        if let userId = appState.profile?.id {
+            AnalyticsTracker.trackSoftLandingOfferDismissed(
+                userId: userId,
+                courseId: candidate.course.id,
+                entry: softLandingOfferEntry.rawValue,
+                sequenceIndex: candidate.course.softLandingOrder ?? 0
+            )
+        }
+        GuidedSoftLandingPreferences.markSessionDismissed()
+        showSoftLandingOffer = false
     }
 
     private func consumePendingDefenseNodeIfNeeded() async {

@@ -115,7 +115,7 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         XCTAssertEqual(reason, .nextStage)
     }
 
-    func testFreeUserMovesToTrainingAfterBasicBlock() {
+    func testFreeUserShowsBlockCompleteAfterBasicBlock() {
         let guidance = DefenseTrainingGuidanceResolver.resolve(
             isPremium: false,
             blocks: [basicBlock],
@@ -124,7 +124,7 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
             locale: .ja
         )
 
-        XCTAssertEqual(guidance, .openTraining)
+        XCTAssertEqual(guidance, .defenseBlockComplete)
     }
 
     func testPremiumUserPrefersTierWithMoreClears() {
