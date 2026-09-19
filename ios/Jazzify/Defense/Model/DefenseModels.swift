@@ -227,3 +227,20 @@ enum DefenseRunMode {
     case practice
     case performance
 }
+
+enum DefenseGamePhase: Equatable {
+    case loading
+    case countdown
+    case playing
+}
+
+enum DefenseStartCountdown {
+    static let durationSec: TimeInterval = 2.1
+    static let firstStepSec: TimeInterval = 1.1
+    static let secondStepSec: TimeInterval = 1.0
+
+    static func displaySec(remaining: TimeInterval) -> Int {
+        guard remaining > 0 else { return 0 }
+        return min(2, Int(ceil(remaining)))
+    }
+}

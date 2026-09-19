@@ -12,6 +12,7 @@ interface DefensePracticeHudProps {
   readonly isEnglishCopy: boolean;
   readonly onPrevPhrase: () => void;
   readonly onNextPhrase: () => void;
+  readonly disabled?: boolean;
 }
 
 interface DefenseSpeedStepperProps {
@@ -19,6 +20,7 @@ interface DefenseSpeedStepperProps {
   readonly isEnglishCopy: boolean;
   readonly onSpeedDown: () => void;
   readonly onSpeedUp: () => void;
+  readonly disabled?: boolean;
 }
 
 interface StepperRowProps {
@@ -76,12 +78,13 @@ export const DefenseSpeedStepper: React.FC<DefenseSpeedStepperProps> = ({
   isEnglishCopy,
   onSpeedDown,
   onSpeedUp,
+  disabled = false,
 }) => (
   <div className="rounded border border-white/10 bg-slate-950/80 px-2 py-1">
     <StepperRow
       label={formatDefensePracticeSpeedLabel(speedPercent)}
-      canDecrease={speedPercent > DEFENSE_PRACTICE_SPEED_MIN_PERCENT}
-      canIncrease={speedPercent < DEFENSE_PRACTICE_SPEED_MAX_PERCENT}
+      canDecrease={!disabled && speedPercent > DEFENSE_PRACTICE_SPEED_MIN_PERCENT}
+      canIncrease={!disabled && speedPercent < DEFENSE_PRACTICE_SPEED_MAX_PERCENT}
       decreaseLabel={isEnglishCopy ? 'Decrease speed' : '速度を下げる'}
       increaseLabel={isEnglishCopy ? 'Increase speed' : '速度を上げる'}
       compact
@@ -97,11 +100,12 @@ export const DefensePracticeHud: React.FC<DefensePracticeHudProps> = ({
   isEnglishCopy,
   onPrevPhrase,
   onNextPhrase,
+  disabled = false,
 }) => {
   const phraseLabel = isEnglishCopy
     ? `Phrase ${phraseIndex + 1}`
     : `フレーズ${phraseIndex + 1}`;
-  const canStepPhrase = phraseCount > 1;
+  const canStepPhrase = !disabled && phraseCount > 1;
 
   return (
     <div className="flex flex-col gap-1 rounded border border-white/10 bg-slate-950/80 px-2 py-2">

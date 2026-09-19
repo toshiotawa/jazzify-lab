@@ -27,6 +27,10 @@ final class DefenseGameSession: ObservableObject {
     private(set) var runtime: DefenseRuntimeState
     @Published private(set) var judgeState: DefensePhraseJudgeState
     @Published private(set) var hud: DefenseHudState
+    @Published private(set) var phase: DefenseGamePhase = .loading
+    @Published private(set) var countdownSec = DefenseStartCountdown.displaySec(
+        remaining: DefenseStartCountdown.durationSec
+    )
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var practiceSpeedPercent = 100
 
@@ -42,6 +46,7 @@ final class DefenseGameSession: ObservableObject {
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
     var isPaused = false
+    private var countdownTask: Task<Void, Never>?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
     private var lastVoicePcAtMs: [Int: Double] = [:]
     private static let voiceSamePcDebounceMs: Double = 120
@@ -83,6 +88,8 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func start() async {
+        phase = .loading
+        countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         subscribeMidi()
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
@@ -90,9 +97,8 @@ final class DefenseGameSession: ObservableObject {
             bpm: stage.bpm * speedRatio,
             beatsPerBar: stage.beatsPerBar
         )
-        if let tutorialConcertMidis, tutorialOptions != nil {
-            try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
-        } else {
+        DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
+        if tutorialOptions == nil {
             let preloadIndices: [Int]
             if practiceMode {
                 preloadIndices = Array(stage.phrases.indices)
@@ -105,12 +111,49 @@ final class DefenseGameSession: ObservableObject {
                 stage: stage,
                 phraseIndices: preloadIndices
             )
+        }
+        startCountdown()
+    }
+
+    private func startCountdown() {
+        countdownTask?.cancel()
+        phase = .countdown
+        countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
+        countdownTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var remaining = DefenseStartCountdown.durationSec
+            self.countdownSec = DefenseStartCountdown.displaySec(remaining: remaining)
+            while remaining > 0 {
+                let stepSec = self.countdownSec == 2
+                    ? DefenseStartCountdown.firstStepSec
+                    : DefenseStartCountdown.secondStepSec
+                try? await Task.sleep(nanoseconds: UInt64(stepSec * 1_000_000_000))
+                if Task.isCancelled { return }
+                while self.isPaused, !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+                if Task.isCancelled { return }
+                remaining -= stepSec
+                self.countdownSec = DefenseStartCountdown.displaySec(remaining: remaining)
+            }
+            await self.beginPlay()
+        }
+    }
+
+    private func beginPlay() async {
+        let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
+        if let tutorialConcertMidis, tutorialOptions != nil {
+            try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
+        } else {
             try? await DefenseBackingAudio.shared.startPhrase(at: 0)
         }
         DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
+        runtime.elapsedSec = 0
+        lastFrameTime = nil
         if tutorialOptions != nil {
             DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: difficulty)
         }
+        phase = .playing
     }
 
     func stepPhrase(_ delta: Int) {
@@ -143,6 +186,8 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func stop() {
+        countdownTask?.cancel()
+        countdownTask = nil
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()
@@ -188,7 +233,7 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func handleNoteOn(pitchClass: Int, sequential: Bool = false) {
-        guard !isPaused, runtime.result == .playing else { return }
+        guard phase == .playing, !isPaused, runtime.result == .playing else { return }
         let normalizedPc = ((pitchClass % 12) + 12) % 12
         if sequential {
             let nowMs = CACurrentMediaTime() * 1000
@@ -245,7 +290,7 @@ final class DefenseGameSession: ObservableObject {
             lastFrameTime = currentTime
             return
         }
-        guard runtime.result == .playing else { return }
+        guard phase == .playing, runtime.result == .playing else { return }
         let dt: TimeInterval
         if let last = lastFrameTime {
             dt = min(0.05, currentTime - last)

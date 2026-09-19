@@ -37,7 +37,16 @@ import {
   defenseBackingDeck,
   unlockDefenseBackingAudioContext,
 } from '@/game/defense/defenseBackingDeck';
-import { resolveDefensePhrasePreloadUrls } from '@/game/defense/defensePhraseBacking';
+import {
+  resolveDefensePhrasePreloadUrls,
+  type DefensePhraseBackingPlayback,
+} from '@/game/defense/defensePhraseBacking';
+import {
+  DEFENSE_START_COUNTDOWN_FIRST_STEP_SEC,
+  DEFENSE_START_COUNTDOWN_SEC,
+  DEFENSE_START_COUNTDOWN_SECOND_STEP_SEC,
+  defenseStartCountdownDisplaySec,
+} from '@/game/defense/defenseStartCountdown';
 import {
   defensePracticeSpeedRatio,
   stepDefensePracticeSpeedPercent,
@@ -111,6 +120,8 @@ interface FinalStats {
 const HINT_FADE_TRACK_LIMIT_SEC = 16;
 const VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS = 120;
 
+type DefenseGamePhase = 'loading' | 'countdown' | 'playing';
+
 export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   stage,
   difficulty,
@@ -146,6 +157,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const scheduledNextPhraseIndexRef = useRef<number | null>(null);
   const backingRestartGenerationRef = useRef(0);
   const practiceSpeedPercentRef = useRef(100);
+  const phaseRef = useRef<DefenseGamePhase>('loading');
+  const pendingPlaybackRef = useRef<DefensePhraseBackingPlayback | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastFrameRef = useRef<number | null>(null);
   const elapsedIntRef = useRef(0);
@@ -168,7 +181,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   );
   const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
   const [elapsedInt, setElapsedInt] = useState(0);
-  const [audioReady, setAudioReady] = useState(false);
+  const [phase, setPhase] = useState<DefenseGamePhase>('loading');
+  const [countdownSec, setCountdownSec] = useState(
+    defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC),
+  );
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSettingsOpenRef = useRef(false);
@@ -195,13 +211,29 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [onTutorialPhraseSucceeded]);
 
   useEffect(() => {
-    if (!isTutorialSession) return;
-    spawnTutorialInitialEnemies(runtimeRef.current, difficulty);
-  }, [difficulty, isTutorialSession]);
-
-  useEffect(() => {
     practiceSpeedPercentRef.current = practiceSpeedPercent;
   }, [practiceSpeedPercent]);
+
+  const beginPlay = useCallback((): void => {
+    const playback = pendingPlaybackRef.current;
+    if (!playback) return;
+    pendingPlaybackRef.current = null;
+
+    const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+    defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
+    defenseBackingDeck.start(playback);
+
+    runtimeRef.current.elapsedSec = 0;
+    elapsedIntRef.current = 0;
+    lastFrameRef.current = null;
+
+    if (isTutorialSession) {
+      spawnTutorialInitialEnemies(runtimeRef.current, difficulty);
+    }
+
+    phaseRef.current = 'playing';
+    setPhase('playing');
+  }, [stage.bpm, stage.beatsPerBar, difficulty, isTutorialSession]);
 
   const trackElapsedForHints = !practiceMode && (
     stage.productionStaffHintMode === 'fade_15s'
@@ -294,7 +326,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     backingRestartGenerationRef.current = generation;
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
-    setAudioReady(false);
 
     const ratio = defensePracticeSpeedRatio(speedPercent);
     try {
@@ -304,11 +335,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       backingRestartGenerationRef.current += 1;
       defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
       defenseBackingDeck.start(playback);
-      setAudioReady(true);
     } catch {
-      if (backingRestartGenerationRef.current === generation) {
-        setAudioReady(false);
-      }
+      /* prepare/start failed; leave current backing as-is */
     }
   }, [stage.phrases, stage.bpm, stage.beatsPerBar]);
 
@@ -355,6 +383,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   const handleNoteOn = useCallback((midiNote: number, sequential = false) => {
     if (isSettingsOpenRef.current) return;
+    if (phaseRef.current !== 'playing') return;
     const runtime = runtimeRef.current;
     if (runtime.result !== 'playing') return;
 
@@ -471,6 +500,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   useEffect(() => {
     let cancelled = false;
+    phaseRef.current = 'loading';
+    setPhase('loading');
+    setCountdownSec(defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC));
+    pendingPlaybackRef.current = null;
+
     const initialRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
     defenseBackingDeck.setTransportConfig(stage.bpm * initialRatio, stage.beatsPerBar);
 
@@ -495,46 +529,73 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         initialRatio,
       );
       if (cancelled) return;
-      defenseBackingDeck.start(playback);
-      setAudioReady(true);
+      pendingPlaybackRef.current = playback;
+      phaseRef.current = 'countdown';
+      setPhase('countdown');
+      setCountdownSec(defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC));
     })();
 
     return () => {
       cancelled = true;
+      pendingPlaybackRef.current = null;
       defenseBackingDeck.stop();
     };
   }, [stage, practiceMode, isTutorialSession, tutorialConcertMidis]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
-    lastFrameRef.current = null;
-    // rAF ループ: シミュレーション tick と Canvas 描画のみ。React state は結果確定時と秒境界だけ更新する。
+    if (phase !== 'countdown') return undefined;
+    if (countdownSec <= 0) {
+      beginPlay();
+      return undefined;
+    }
+    const delayMs = countdownSec === 2
+      ? DEFENSE_START_COUNTDOWN_FIRST_STEP_SEC * 1000
+      : DEFENSE_START_COUNTDOWN_SECOND_STEP_SEC * 1000;
+    const timer = window.setTimeout(() => {
+      setCountdownSec((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, delayMs);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [phase, countdownSec, isSettingsOpen, beginPlay]);
+
+  useEffect(() => {
+    if (isSettingsOpen) return undefined;
+    if (phase === 'loading') return undefined;
+    if (phase === 'countdown') {
+      lastFrameRef.current = null;
+    }
+    // rAF ループ: playing 中のみ tick。描画は loading/countdown 中も継続する。
     const loop = (now: number): void => {
       if (runtimeRef.current.result !== 'playing') {
         rafRef.current = null;
         return;
       }
       const runtime = runtimeRef.current;
+      const shouldTick = phaseRef.current === 'playing';
 
-      const last = lastFrameRef.current ?? now;
-      const dt = Math.min(0.05, (now - last) / 1000);
-      lastFrameRef.current = now;
+      if (shouldTick) {
+        const last = lastFrameRef.current ?? now;
+        const dt = Math.min(0.05, (now - last) / 1000);
+        lastFrameRef.current = now;
 
-      tickDefenseSimulation(runtime, difficulty, dt);
+        tickDefenseSimulation(runtime, difficulty, dt);
 
-      const pendingAt = pendingSwitchAtRef.current;
-      if (pendingAt !== null && defenseBackingDeck.getCurrentTime() >= pendingAt) {
-        const nextIdx = scheduledNextPhraseIndexRef.current;
-        if (nextIdx !== null) {
-          commitScheduledAudioSwitch(nextIdx);
+        const pendingAt = pendingSwitchAtRef.current;
+        if (pendingAt !== null && defenseBackingDeck.getCurrentTime() >= pendingAt) {
+          const nextIdx = scheduledNextPhraseIndexRef.current;
+          if (nextIdx !== null) {
+            commitScheduledAudioSwitch(nextIdx);
+          }
         }
-      }
 
-      if (trackElapsedForHints) {
-        const elapsedFloor = Math.floor(runtime.elapsedSec);
-        if (elapsedFloor !== elapsedIntRef.current && elapsedFloor <= HINT_FADE_TRACK_LIMIT_SEC) {
-          elapsedIntRef.current = elapsedFloor;
-          setElapsedInt(elapsedFloor);
+        if (trackElapsedForHints) {
+          const elapsedFloor = Math.floor(runtime.elapsedSec);
+          if (elapsedFloor !== elapsedIntRef.current && elapsedFloor <= HINT_FADE_TRACK_LIMIT_SEC) {
+            elapsedIntRef.current = elapsedFloor;
+            setElapsedInt(elapsedFloor);
+          }
         }
       }
 
@@ -570,7 +631,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         rafRef.current = null;
       }
     };
-  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints, isSettingsOpen]);
+  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints, isSettingsOpen, phase]);
 
   useEffect(() => {
     const overlay = pianoRef.current;
@@ -656,10 +717,16 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         </div>
       ) : null}
 
-      {!audioReady && (
+      {phase === 'loading' && (
         <p className="pointer-events-none absolute bottom-[96px] left-1/2 z-30 -translate-x-1/2 text-xs text-slate-400">
-          伴奏を読み込み中…
+          {isEnglishCopy ? 'Loading backing track…' : '伴奏を読み込み中…'}
         </p>
+      )}
+
+      {phase === 'countdown' && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/40">
+          <span className="text-6xl font-bold text-white">{countdownSec}</span>
+        </div>
       )}
 
       {practiceMode && currentPhrase && (
@@ -673,6 +740,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             isEnglishCopy={isEnglishCopy}
             onPrevPhrase={handlePrevPhrase}
             onNextPhrase={handleNextPhrase}
+            disabled={phase !== 'playing'}
           />
         </div>
       )}
@@ -684,6 +752,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             isEnglishCopy={isEnglishCopy}
             onSpeedDown={handleSpeedDown}
             onSpeedUp={handleSpeedUp}
+            disabled={phase !== 'playing'}
           />
           <button
             type="button"

@@ -289,4 +289,20 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertTrue(runtime.fireballs.contains(where: \.isActive))
         XCTAssertEqual(runtime.fireballSpawnAtSec, DefenseEnemyConfig.noPendingFireball, accuracy: 0.001)
     }
+
+    func testStartCountdownDisplaySecCapsAtTwo() {
+        XCTAssertEqual(DefenseStartCountdown.displaySec(remaining: 2.1), 2)
+        XCTAssertEqual(DefenseStartCountdown.displaySec(remaining: 1.01), 2)
+        XCTAssertEqual(DefenseStartCountdown.displaySec(remaining: 1.0), 1)
+        XCTAssertEqual(DefenseStartCountdown.displaySec(remaining: 0.5), 1)
+        XCTAssertEqual(DefenseStartCountdown.displaySec(remaining: 0), 0)
+    }
+
+    func testStartCountdownStepDurationsSumToTotal() {
+        XCTAssertEqual(
+            DefenseStartCountdown.firstStepSec + DefenseStartCountdown.secondStepSec,
+            DefenseStartCountdown.durationSec,
+            accuracy: 0.0001
+        )
+    }
 }

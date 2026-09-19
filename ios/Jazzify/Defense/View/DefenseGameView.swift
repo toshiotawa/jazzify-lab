@@ -7,7 +7,6 @@ struct DefenseGameView: View {
     @State private var scene: DefenseScene
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @State private var isSettingsOpen = false
-    @State private var isSessionReady = false
     let locale: AppLocale
     let onClose: () -> Void
     let onApplyPracticeModeAndRestart: (Bool) -> Void
@@ -100,14 +99,11 @@ struct DefenseGameView: View {
             scene.session = session
         }
         .task {
-            isSessionReady = false
             await session.start()
-            isSessionReady = true
         }
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
             session.stop()
-            isSessionReady = false
         }
         .onChange(of: session.hud.result) { result in
             if isTutorialSession { return }
@@ -262,12 +258,18 @@ struct DefenseGameView: View {
                 resultOverlay
             }
 
-            if !isSessionReady {
+            if session.phase == .loading {
                 GameLaunchLoadingOverlay(
                     locale: locale,
                     tint: .green,
                     message: locale == .ja ? "ステージを準備中…" : "Preparing stage…"
                 )
+            }
+
+            if session.phase == .countdown {
+                Color.black.opacity(0.35).ignoresSafeArea()
+                Text("\(session.countdownSec)")
+                    .font(.system(size: 72, weight: .bold, design: .rounded))
             }
         }
     }
@@ -282,7 +284,7 @@ struct DefenseGameView: View {
         let phraseLabel = locale == .ja
             ? "フレーズ\(session.judgeState.phraseIndex + 1)"
             : "Phrase \(session.judgeState.phraseIndex + 1)"
-        let canStepPhrase = session.stage.phrases.count > 1
+        let canStepPhrase = session.phase == .playing && session.stage.phrases.count > 1
 
         return defensePracticeStepperRow(
             label: phraseLabel,
@@ -302,8 +304,9 @@ struct DefenseGameView: View {
     }
 
     private var defenseSpeedStepper: some View {
-        let canDecrease = session.practiceSpeedPercent > DefensePracticeSpeed.minPercent
-        let canIncrease = session.practiceSpeedPercent < DefensePracticeSpeed.maxPercent
+        let controlsEnabled = session.phase == .playing
+        let canDecrease = controlsEnabled && session.practiceSpeedPercent > DefensePracticeSpeed.minPercent
+        let canIncrease = controlsEnabled && session.practiceSpeedPercent < DefensePracticeSpeed.maxPercent
         return HStack(spacing: 4) {
             Button {
                 session.stepSpeed(-1)
@@ -481,7 +484,7 @@ struct DefenseGameView: View {
             completedHintMidis: keyboardHints.completedMidis,
             hintPendingOpacity: keyboardHintOpacity,
             midiHeldKeys: session.midiHeldKeys,
-            isEnabled: session.hud.result == .playing && !isSettingsOpen,
+            isEnabled: session.phase == .playing && session.hud.result == .playing && !isSettingsOpen,
             scrollAnchorMidi: nil
         )
     }
