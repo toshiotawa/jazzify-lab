@@ -12,6 +12,7 @@ struct TopView: View {
     @State private var showSubscription = false
     @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var showDefenseTrainingResumeSheet = false
+    @State private var showBlockCompleteSheet = false
     @State private var defenseTrainingGuidance: DefenseTrainingGuidance = .none
     @State private var todayStreakUpdated = false
     @State private var pendingResumeAfterUpdateNotice = false
@@ -24,10 +25,11 @@ struct TopView: View {
     private enum TopPendingPresentationStep {
         case openLesson(Lesson, autoStart: Bool)
         case presentSubscription(SubscriptionEntry)
+        case presentBlockComplete
     }
 
     private var hasActiveTopPresentation: Bool {
-        showSubscription || showSoftLandingOffer || showDefenseTrainingResumeSheet
+        showSubscription || showSoftLandingOffer || showDefenseTrainingResumeSheet || showBlockCompleteSheet
     }
 
     private var locale: AppLocale { appState.locale }
@@ -120,11 +122,27 @@ struct TopView: View {
                     kind: .resume,
                     todayStreakUpdated: todayStreakUpdated,
                     onContinue: {
-                        showDefenseTrainingResumeSheet = false
                         applyDefenseTrainingGuidance(defenseTrainingGuidance)
+                        showDefenseTrainingResumeSheet = false
                     },
                     onLater: {
                         showDefenseTrainingResumeSheet = false
+                    }
+                )
+            }
+            .sheet(isPresented: $showBlockCompleteSheet, onDismiss: runPendingPresentation) {
+                DefenseBlockCompleteSheet(
+                    locale: locale,
+                    onPremium: {
+                        showBlockCompleteSheet = false
+                        queuePresentationAfterDismiss(.presentSubscription(.phraseDefense))
+                    },
+                    onSoftLanding: {
+                        showBlockCompleteSheet = false
+                        startSoftLandingFromBlockComplete()
+                    },
+                    onDismiss: {
+                        showBlockCompleteSheet = false
                     }
                 )
             }
@@ -330,6 +348,12 @@ struct TopView: View {
             }
             appState.requestedTab = .play
             appState.pendingDefenseNodeId = nodeId
+        case .defenseBlockComplete:
+            if hasActiveTopPresentation {
+                queuePresentationAfterDismiss(.presentBlockComplete)
+            } else {
+                showBlockCompleteSheet = true
+            }
         case .openTraining:
             appState.requestedTab = .training
         case .none:
@@ -612,6 +636,40 @@ struct TopView: View {
         }
     }
 
+    private func startSoftLandingFromBlockComplete() {
+        let entry = SoftLandingOfferEntry.chapterComplete
+        Task {
+            guard let next = await SoftLandingOfferLoader.resolveNext(userId: profile?.id) else {
+                return
+            }
+            await MainActor.run {
+                softLandingOfferEntry = entry
+                if let userId = profile?.id {
+                    AnalyticsTracker.trackSoftLandingOfferViewed(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: entry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                    AnalyticsTracker.trackSoftLandingOfferAccepted(
+                        userId: userId,
+                        courseId: next.course.id,
+                        entry: entry.rawValue,
+                        sequenceIndex: next.course.softLandingOrder ?? 0
+                    )
+                }
+                guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
+                    lessons: next.lessons,
+                    completedIds: next.completedLessonIds
+                ),
+                      let lesson = next.lessons.first(where: { $0.id == lessonId }) else {
+                    return
+                }
+                openMainQuestLesson(lesson, autoStart: true)
+            }
+        }
+    }
+
     private func handleSoftLandingOfferAccept(_ candidate: SoftLandingCandidate) {
         if let userId = profile?.id {
             AnalyticsTracker.trackSoftLandingOfferAccepted(
@@ -665,6 +723,8 @@ struct TopView: View {
             subscriptionEntry = entry
             paywallEntryAtOpen = entry
             showSubscription = true
+        case .presentBlockComplete:
+            showBlockCompleteSheet = true
         }
     }
 
