@@ -198,7 +198,6 @@ const DefenseMain: React.FC = () => {
         {loaded && (
           <div className="mt-6">
             <DefenseRunPrepPanel
-              variant="lesson"
               stage={loaded.stage}
               isEnglishCopy={isEnglishCopy}
               onStartPractice={() => startSession(true)}

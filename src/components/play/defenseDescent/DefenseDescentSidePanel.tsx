@@ -15,6 +15,8 @@ interface DefenseDescentSidePanelProps {
   selectedNodeUnlocked: boolean;
   bestSurviveSec: number | null;
   onStart: () => void;
+  onStartPractice: () => void;
+  onStartPerformance: () => void;
   onRequestUpgrade: () => void;
   startLocked: boolean;
 }
@@ -30,6 +32,8 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
   selectedNodeUnlocked,
   bestSurviveSec,
   onStart,
+  onStartPractice,
+  onStartPerformance,
   onRequestUpgrade,
   startLocked,
 }) => {
@@ -40,6 +44,7 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
   const blockProgressPct = blockStageCount > 0
     ? Math.round((blockClearedCount / blockStageCount) * 100)
     : 0;
+  const showStageLaunchButtons = selectedNode?.nodeKind === 'stage';
 
   return (
     <aside
@@ -109,6 +114,35 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
             >
               {isEnglishCopy ? 'Upgrade to unlock' : 'アップグレードして解放'}
             </button>
+          ) : showStageLaunchButtons ? (
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                className={cn(
+                  'flex-1 rounded-lg py-2.5 text-sm font-bold text-white',
+                  selectedNodeUnlocked
+                    ? 'bg-emerald-700 hover:bg-emerald-600'
+                    : 'cursor-not-allowed bg-slate-700 text-slate-400',
+                )}
+                onClick={onStartPractice}
+                disabled={!selectedNodeUnlocked}
+              >
+                {isEnglishCopy ? 'Practice' : '練習'}
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  'flex-1 rounded-lg py-2.5 text-sm font-bold text-white',
+                  selectedNodeUnlocked
+                    ? 'bg-indigo-600 hover:bg-indigo-500'
+                    : 'cursor-not-allowed bg-slate-700 text-slate-400',
+                )}
+                onClick={onStartPerformance}
+                disabled={!selectedNodeUnlocked}
+              >
+                {isEnglishCopy ? 'Performance' : '本番'}
+              </button>
+            </div>
           ) : (
             <button
               type="button"

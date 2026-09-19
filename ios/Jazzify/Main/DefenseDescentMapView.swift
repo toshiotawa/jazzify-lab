@@ -9,7 +9,8 @@ struct DefenseDescentMapView: View {
     let nodes: [PlayMapNode]
     let clears: [PlayMapNodeClear]
     @Binding var tier: PlayMapTier
-    let onSelectNode: (PlayMapNode) -> Void
+    @Binding var pendingSelectNodeId: UUID?
+    let onSelectNode: (PlayMapNode, Bool) -> Void
     let onSelectQuestNode: (PlayMapNode) -> Void
     let onRequestUpgrade: () -> Void
 
@@ -151,9 +152,27 @@ struct DefenseDescentMapView: View {
                         }
                     }
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+        .onChange(of: pendingSelectNodeId) { nodeId in
+            guard let nodeId else { return }
+            consumePendingSelectNode(nodeId)
+        }
+        .onAppear {
+            if let nodeId = pendingSelectNodeId {
+                consumePendingSelectNode(nodeId)
+            }
         }
         .onChange(of: tier) { _ in
+            let selectedStillVisible = selectedNodeId.map { nodeId in
+                layout.blocks.contains { block in
+                    block.nodes.contains { $0.nodeId == nodeId }
+                }
+            } ?? false
+            if selectedStillVisible {
+                return
+            }
             selectedNodeId = nil
             showMobileSheet = false
             scrollAnimated = false
@@ -177,6 +196,8 @@ struct DefenseDescentMapView: View {
             bestSurviveSec: selectedNode.flatMap { clearByNodeId[$0.id]?.bestSurviveSec },
             startLocked: startLocked,
             onStart: handleStart,
+            onStartPractice: handleStartPractice,
+            onStartPerformance: handleStartPerformance,
             onRequestUpgrade: onRequestUpgrade
         )
     }
@@ -274,15 +295,41 @@ struct DefenseDescentMapView: View {
         }
     }
 
+    private func closeMobileSheetIfNeeded() {
+        showMobileSheet = false
+    }
+
     private func handleStart() {
         guard let selectedNode, selectedNodeUnlocked else { return }
-        showMobileSheet = false
+        closeMobileSheetIfNeeded()
         switch selectedNode.nodeKind {
         case .quest:
             onSelectQuestNode(selectedNode)
-        case .tutorial, .stage:
-            onSelectNode(selectedNode)
+        case .tutorial:
+            onSelectNode(selectedNode, false)
+        case .stage:
+            break
         }
+    }
+
+    private func handleStartPractice() {
+        guard let selectedNode, selectedNodeUnlocked, selectedNode.nodeKind == .stage else { return }
+        closeMobileSheetIfNeeded()
+        onSelectNode(selectedNode, true)
+    }
+
+    private func handleStartPerformance() {
+        guard let selectedNode, selectedNodeUnlocked, selectedNode.nodeKind == .stage else { return }
+        closeMobileSheetIfNeeded()
+        onSelectNode(selectedNode, false)
+    }
+
+    private func consumePendingSelectNode(_ nodeId: UUID) {
+        pendingSelectNodeId = nil
+        let blockIndex = layout.blocks.first(where: { block in
+            block.nodes.contains(where: { $0.nodeId == nodeId })
+        })?.blockIndex ?? accessibleBlockIndex
+        handleNodeTap(nodeId, blockIndex: blockIndex)
     }
 }
 

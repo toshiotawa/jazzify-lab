@@ -1876,10 +1876,6 @@ struct LessonDetailView: View {
                 Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
                     defensePrep = nil
                 }
-            } message: { prep in
-                Text(locale == .ja
-                     ? "\(prep.stage.title) — \(prep.stage.surviveSeconds)秒生存でクリア"
-                     : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — survive \(prep.stage.surviveSeconds)s")
             }
             .fullScreenCover(item: $defenseLessonLaunch) { launch in
                 DefenseGameView(

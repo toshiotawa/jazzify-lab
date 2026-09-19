@@ -36,8 +36,10 @@ interface DefenseDescentMapProps {
   isPremiumMember: boolean;
   tier?: PlayMapTier;
   onTierChange?: (tier: PlayMapTier) => void;
-  onSelectNode: (node: PlayMapNode) => void;
+  onSelectNode: (node: PlayMapNode, practiceMode: boolean) => void;
   onSelectQuestNode: (node: PlayMapNode) => void;
+  pendingSelectNodeId?: string | null;
+  onPendingSelectNodeConsumed?: () => void;
 }
 
 const VIEWPORT_FALLBACK_HEIGHT = 720;
@@ -73,6 +75,8 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   onTierChange,
   onSelectNode,
   onSelectQuestNode,
+  pendingSelectNodeId,
+  onPendingSelectNodeConsumed,
 }) => {
   const [internalTier, setInternalTier] = useState<PlayMapTier>('basic');
   const tier = controlledTier ?? internalTier;
@@ -325,15 +329,53 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
     && selectedBlockIndex >= 1,
   );
 
+  const closeMobileDetail = useCallback(() => {
+    setIsMobileDetailOpen(false);
+  }, []);
+
   const handleStart = useCallback(() => {
     if (!selectedNode || !selectedNodeUnlocked) return;
-    setIsMobileDetailOpen(false);
+    closeMobileDetail();
     if (selectedNode.nodeKind === 'quest') {
       onSelectQuestNode(selectedNode);
       return;
     }
-    onSelectNode(selectedNode);
-  }, [onSelectNode, onSelectQuestNode, selectedNode, selectedNodeUnlocked]);
+    onSelectNode(selectedNode, false);
+  }, [closeMobileDetail, onSelectNode, onSelectQuestNode, selectedNode, selectedNodeUnlocked]);
+
+  const handleStartPractice = useCallback(() => {
+    if (!selectedNode || !selectedNodeUnlocked || selectedNode.nodeKind !== 'stage') return;
+    closeMobileDetail();
+    onSelectNode(selectedNode, true);
+  }, [closeMobileDetail, onSelectNode, selectedNode, selectedNodeUnlocked]);
+
+  const handleStartPerformance = useCallback(() => {
+    if (!selectedNode || !selectedNodeUnlocked || selectedNode.nodeKind !== 'stage') return;
+    closeMobileDetail();
+    onSelectNode(selectedNode, false);
+  }, [closeMobileDetail, onSelectNode, selectedNode, selectedNodeUnlocked]);
+
+  useEffect(() => {
+    if (!pendingSelectNodeId || loading || !assetsReady || nodes.length === 0) return;
+    const node = nodes.find((entry) => entry.id === pendingSelectNodeId);
+    if (!node) {
+      onPendingSelectNodeConsumed?.();
+      return;
+    }
+    const block = layout.blocks.find((entry) => entry.nodes.some((n) => n.nodeId === pendingSelectNodeId));
+    const blockIndex = block?.blockIndex ?? accessibleBlockIndex;
+    handleSelectNode(pendingSelectNodeId, blockIndex);
+    onPendingSelectNodeConsumed?.();
+  }, [
+    accessibleBlockIndex,
+    assetsReady,
+    handleSelectNode,
+    layout.blocks,
+    loading,
+    nodes,
+    onPendingSelectNodeConsumed,
+    pendingSelectNodeId,
+  ]);
 
   const frontierPosition = frontierNodeId ? getPlayNodePosition(layout, frontierNodeId) : undefined;
   const frontierFacing: 'left' | 'right' | 'center' = (() => {
@@ -521,6 +563,8 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
             selectedNodeUnlocked={selectedNodeUnlocked}
             bestSurviveSec={selectedClear?.bestSurviveSec ?? null}
             onStart={handleStart}
+            onStartPractice={handleStartPractice}
+            onStartPerformance={handleStartPerformance}
             onRequestUpgrade={() => setShowPaywall(true)}
             startLocked={startLocked}
           />
@@ -559,6 +603,8 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
                 selectedNodeUnlocked={selectedNodeUnlocked}
                 bestSurviveSec={selectedClear?.bestSurviveSec ?? null}
                 onStart={handleStart}
+                onStartPractice={handleStartPractice}
+                onStartPerformance={handleStartPerformance}
                 onRequestUpgrade={() => setShowPaywall(true)}
                 startLocked={startLocked}
               />

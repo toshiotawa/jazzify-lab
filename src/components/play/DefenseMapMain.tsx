@@ -6,9 +6,9 @@ import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
 import { DefenseNextStepModal } from '@/components/defense/DefenseNextStepModal';
 import { DefenseBlockCompleteModal } from '@/components/defense/DefenseBlockCompleteModal';
 import { DefenseTutorial } from '@/components/defense/tutorial/DefenseTutorial';
-import { DefenseRunPrepPanel } from '@/components/defense/DefenseRunPrepPanel';
 import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
 import {
   fetchPlayMapBlocks,
@@ -49,7 +49,7 @@ import {
 } from '@/utils/softLanding';
 import { markSoftLandingSessionDismissed } from '@/utils/softLandingResume';
 
-type Screen = 'map' | 'prep' | 'game' | 'tutorial';
+type Screen = 'map' | 'game' | 'tutorial';
 
 interface LoadedStage {
   stage: DefenseStage;
@@ -86,7 +86,10 @@ const DefenseMapMain: React.FC = () => {
   const [showBlockCompleteModal, setShowBlockCompleteModal] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showSoftLandingOffer, setShowSoftLandingOffer] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [pendingSelectNodeId, setPendingSelectNodeId] = useState<string | null>(null);
   const skipSoftLandingOnPaywallCloseRef = useRef(false);
+  const launchingRef = useRef(false);
 
   const {
     nextCourse: nextSoftLandingCourse,
@@ -144,7 +147,14 @@ const DefenseMapMain: React.FC = () => {
     }
   }, [isPremiumMember, loadGuidance]);
 
-  const startFromNode = useCallback(async (node: PlayMapNode) => {
+  const startSession = useCallback((practiceMode: boolean) => {
+    markAudioUserInteraction();
+    unlockDefenseBackingAudioContext();
+    setSession((prev) => ({ practiceMode, nonce: (prev?.nonce ?? 0) + 1 }));
+    setScreen('game');
+  }, []);
+
+  const startFromNode = useCallback(async (node: PlayMapNode, practiceMode: boolean) => {
     if (node.nodeKind === 'tutorial') {
       setActiveNode(node);
       setLoaded(null);
@@ -160,28 +170,52 @@ const DefenseMapMain: React.FC = () => {
       return;
     }
     if (!node.defenseStageId) return;
-    const [blocks, detail] = await Promise.all([
-      fetchPlayMapBlocks('defense'),
-      fetchDefenseStageDetail(node.defenseStageId),
-    ]);
-    if (!detail || detail.phrases.length === 0) return;
+    if (launchingRef.current) return;
+
+    launchingRef.current = true;
+    setIsStarting(true);
+    try {
+      const [blocks, detail] = await Promise.all([
+        fetchPlayMapBlocks('defense'),
+        fetchDefenseStageDetail(node.defenseStageId),
+      ]);
+      if (!detail || detail.phrases.length === 0) return;
+      const block = blocks.find((entry) => entry.id === node.blockId);
+      if (block) {
+        setMapTier(block.tier);
+      }
+      const difficultyLevel = resolvePlayMapDefenseDifficultyLevel(
+        node.difficultyLevel,
+        detail.difficultyLevel,
+      );
+      const difficulty = await fetchDefenseDifficultyLevel(
+        difficultyLevel,
+        detail.attackTrigger,
+      );
+      if (!difficulty) return;
+      setActiveNode(node);
+      setLoaded({ stage: { ...detail, difficultyLevel }, difficulty });
+      startSession(practiceMode);
+    } finally {
+      launchingRef.current = false;
+      setIsStarting(false);
+    }
+  }, [startSession]);
+
+  const handlePendingSelectConsumed = useCallback(() => {
+    setPendingSelectNodeId(null);
+  }, []);
+
+  const selectNodeOnMap = useCallback(async (nodeId: string) => {
+    const blocks = await fetchPlayMapBlocks('defense');
+    const nodes = await fetchPlayMapNodes('defense');
+    const node = nodes.find((entry) => entry.id === nodeId);
+    if (!node) return;
     const block = blocks.find((entry) => entry.id === node.blockId);
     if (block) {
       setMapTier(block.tier);
     }
-    const difficultyLevel = resolvePlayMapDefenseDifficultyLevel(
-      node.difficultyLevel,
-      detail.difficultyLevel,
-    );
-    const difficulty = await fetchDefenseDifficultyLevel(
-      difficultyLevel,
-      detail.attackTrigger,
-    );
-    if (!difficulty) return;
-    setActiveNode(node);
-    setLoaded({ stage: { ...detail, difficultyLevel }, difficulty });
-    setSession(null);
-    setScreen('prep');
+    setPendingSelectNodeId(nodeId);
   }, []);
 
   const navigateToGuidance = useCallback(async (guidance: ActionableDefenseGuidance) => {
@@ -194,12 +228,10 @@ const DefenseMapMain: React.FC = () => {
       window.location.hash = TRAINING_ROUTE_HASH;
       return;
     }
-    const nodes = await fetchPlayMapNodes('defense');
-    const node = nodes.find((entry) => entry.id === guidance.nodeId);
-    if (node) {
-      await startFromNode(node);
+    if (guidance.kind === 'openDefense') {
+      await selectNodeOnMap(guidance.nodeId);
     }
-  }, [startFromNode]);
+  }, [selectNodeOnMap]);
 
   const openSoftLandingLesson = useCallback((autoTrackAccept: boolean) => {
     const target = nextSoftLandingCourse;
@@ -268,20 +300,12 @@ const DefenseMapMain: React.FC = () => {
     const nodeId = searchParams.get('nodeId');
     if (!nodeId) return;
     let cancelled = false;
-    void fetchPlayMapNodes('defense').then((nodes) => {
+    void selectNodeOnMap(nodeId).then(() => {
       if (cancelled) return;
-      const node = nodes.find((n) => n.id === nodeId);
-      if (node) void startFromNode(node);
+      setSearchParams({});
     });
     return () => { cancelled = true; };
-  }, [searchParams, startFromNode]);
-
-  const startSession = useCallback((practiceMode: boolean) => {
-    markAudioUserInteraction();
-    unlockDefenseBackingAudioContext();
-    setSession((prev) => ({ practiceMode, nonce: (prev?.nonce ?? 0) + 1 }));
-    setScreen('game');
-  }, []);
+  }, [searchParams, selectNodeOnMap, setSearchParams]);
 
   const handleClear = useCallback(async () => {
     if (!activeNode || !loaded || session?.practiceMode) return;
@@ -359,11 +383,6 @@ const DefenseMapMain: React.FC = () => {
     })();
   }, [backToMap, loadGuidance, navigateToGuidance]);
 
-  const backToPrep = useCallback(() => {
-    setSession(null);
-    setScreen('prep');
-  }, []);
-
   const handleRetry = useCallback(() => {
     setResultNextStepLabel(null);
     setSession((prev) => (prev ? { ...prev, nonce: prev.nonce + 1 } : prev));
@@ -398,7 +417,7 @@ const DefenseMapMain: React.FC = () => {
           stage={loaded.stage}
           difficulty={loaded.difficulty}
           practiceMode={session.practiceMode}
-          onExit={backToPrep}
+          onExit={() => backToMap()}
           onResultBack={() => backToMap({ checkBlockComplete: true })}
           onRetry={handleRetry}
           onApplyPracticeModeAndRestart={startSession}
@@ -436,46 +455,24 @@ const DefenseMapMain: React.FC = () => {
     );
   }
 
-  if (screen === 'prep' && loaded) {
-    return (
-      <div className="min-h-[100dvh] bg-[#09070f] text-white">
-        <GameHeader />
-        <main className="mx-auto max-w-lg px-4 py-6">
-          <h1 className="text-2xl font-bold">
-            {isEnglishCopy ? 'Phrase Defense' : 'フレーズディフェンス'}
-          </h1>
-          <div className="mt-6">
-            <DefenseRunPrepPanel
-              variant="map"
-              stage={loaded.stage}
-              isEnglishCopy={isEnglishCopy}
-              onStartPractice={() => startSession(true)}
-              onStartPerformance={() => startSession(false)}
-            />
-          </div>
-          <button
-            type="button"
-            className="mt-6 text-sm text-slate-400 underline hover:text-slate-200"
-            onClick={() => backToMap()}
-          >
-            {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
-          </button>
-        </main>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-[100dvh] bg-[#09070f]">
+    <div className="relative min-h-[100dvh] bg-[#09070f]">
       <GameHeader />
       <DefenseDescentMap
         isEnglishCopy={isEnglishCopy}
         isPremiumMember={isPremiumMember}
         tier={mapTier}
         onTierChange={setMapTier}
-        onSelectNode={(node) => { void startFromNode(node); }}
-        onSelectQuestNode={(node) => { void startFromNode(node); }}
+        onSelectNode={(node, practiceMode) => { void startFromNode(node, practiceMode); }}
+        onSelectQuestNode={(node) => { void startFromNode(node, false); }}
+        pendingSelectNodeId={pendingSelectNodeId}
+        onPendingSelectNodeConsumed={handlePendingSelectConsumed}
       />
+      {isStarting ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#09070f]/85">
+          <LoadingScreen compact />
+        </div>
+      ) : null}
       {nextStepGuidance ? (
         <DefenseNextStepModal
           guidance={nextStepGuidance}

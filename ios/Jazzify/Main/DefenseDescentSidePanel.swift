@@ -13,9 +13,15 @@ struct DefenseDescentSidePanel: View {
     let bestSurviveSec: Int?
     let startLocked: Bool
     let onStart: () -> Void
+    let onStartPractice: () -> Void
+    let onStartPerformance: () -> Void
     let onRequestUpgrade: () -> Void
 
     private var isEnglishCopy: Bool { locale == .en }
+
+    private var showStageLaunchButtons: Bool {
+        selectedNode?.nodeKind == .stage
+    }
 
     private var totalProgressPct: Int {
         Int((Double(totalClearedCount) / Double(max(1, totalStageNodes)) * 100).rounded())
@@ -102,7 +108,7 @@ struct DefenseDescentSidePanel: View {
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
-                startButton
+                launchButtons
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -148,13 +154,35 @@ struct DefenseDescentSidePanel: View {
     }
 
     @ViewBuilder
-    private var startButton: some View {
+    private var launchButtons: some View {
         if startLocked {
             Button(isEnglishCopy ? "Upgrade to unlock" : "アップグレードして解放") {
                 onRequestUpgrade()
             }
             .buttonStyle(.borderedProminent)
             .tint(.orange)
+        } else if showStageLaunchButtons {
+            HStack(spacing: 8) {
+                Button {
+                    onStartPractice()
+                } label: {
+                    Text(isEnglishCopy ? "Practice" : "練習")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .disabled(!selectedNodeUnlocked)
+
+                Button {
+                    onStartPerformance()
+                } label: {
+                    Text(isEnglishCopy ? "Performance" : "本番")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.indigo)
+                .disabled(!selectedNodeUnlocked)
+            }
         } else {
             Button(isEnglishCopy ? "Start" : "開始") {
                 onStart()

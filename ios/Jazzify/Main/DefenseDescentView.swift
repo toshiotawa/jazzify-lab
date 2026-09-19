@@ -18,7 +18,7 @@ struct DefenseDescentView: View {
     @State private var showBlockCompleteSheet = false
 
     @State private var mapTier: PlayMapTier = .basic
-    @State private var stagePrep: StagePrepContext?
+    @State private var pendingSelectNodeId: UUID?
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var mapResultContext: MapResultContext?
     @State private var isStarting = false
@@ -31,13 +31,6 @@ struct DefenseDescentView: View {
     @State private var todayStreakUpdated = false
 
     private var locale: AppLocale { appState.locale }
-
-    private struct StagePrepContext: Identifiable {
-        let id = UUID()
-        let node: PlayMapNode
-        let stage: DefenseStageDefinition
-        let difficulty: DefenseDifficultyDefinition
-    }
 
     private struct StageLaunchSession: Identifiable {
         let id = UUID()
@@ -109,11 +102,12 @@ struct DefenseDescentView: View {
                     nodes: nodes,
                     clears: clears,
                     tier: $mapTier,
-                    onSelectNode: { node in
+                    pendingSelectNodeId: $pendingSelectNodeId,
+                    onSelectNode: { node, practiceMode in
                         if node.nodeKind == .tutorial {
                             tutorialLaunch = TutorialLaunchContext(id: node.id)
                         } else {
-                            Task { await startStageNode(node) }
+                            Task { await startStageNode(node, practiceMode: practiceMode) }
                         }
                     },
                     onSelectQuestNode: { node in
@@ -147,43 +141,6 @@ struct DefenseDescentView: View {
             if sessionId == nil {
                 isStarting = false
             }
-        }
-        .confirmationDialog(
-            locale == .ja ? "フレーズディフェンス" : "Phrase Defense",
-            isPresented: Binding(
-                get: { stagePrep != nil },
-                set: { if !$0 { stagePrep = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: stagePrep
-        ) { prep in
-            Button(locale == .ja ? "練習（記録なし）" : "Practice (not recorded)") {
-                stagePrep = nil
-                isStarting = true
-                stageLaunchSession = StageLaunchSession(
-                    node: prep.node,
-                    stage: prep.stage,
-                    difficulty: prep.difficulty,
-                    practiceMode: true
-                )
-            }
-            Button(locale == .ja ? "本番" : "Performance") {
-                stagePrep = nil
-                isStarting = true
-                stageLaunchSession = StageLaunchSession(
-                    node: prep.node,
-                    stage: prep.stage,
-                    difficulty: prep.difficulty,
-                    practiceMode: false
-                )
-            }
-            Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
-                stagePrep = nil
-            }
-        } message: { prep in
-            Text(locale == .ja
-                 ? "\(prep.stage.title) — Lv.\(prep.difficulty.level) / \(prep.stage.surviveSeconds)秒生存でクリア"
-                 : "\(prep.stage.titleEn.isEmpty ? prep.stage.title : prep.stage.titleEn) — Lv.\(prep.difficulty.level) / survive \(prep.stage.surviveSeconds)s")
         }
         .fullScreenCover(item: $tutorialLaunch) { launch in
             DefenseTutorialView(
@@ -536,7 +493,7 @@ struct DefenseDescentView: View {
         case .tutorial:
             tutorialLaunch = TutorialLaunchContext(id: node.id)
         case .stage:
-            await startStageNode(node)
+            pendingSelectNodeId = node.id
         case .quest:
             await startQuestNode(node)
         }
@@ -563,10 +520,16 @@ struct DefenseDescentView: View {
         isLoading = false
     }
 
-    private func startStageNode(_ node: PlayMapNode) async {
+    private func startStageNode(_ node: PlayMapNode, practiceMode: Bool) async {
         guard !isFetchingStage, !isStarting else { return }
         isFetchingStage = true
-        defer { isFetchingStage = false }
+        isStarting = true
+        defer {
+            isFetchingStage = false
+            if stageLaunchSession == nil {
+                isStarting = false
+            }
+        }
 
         guard let stageId = node.defenseStageId else {
             alertMessage = locale == .ja
@@ -604,7 +567,12 @@ struct DefenseDescentView: View {
         if let block = blocks.first(where: { $0.id == node.blockId }) {
             mapTier = block.tier
         }
-        stagePrep = StagePrepContext(node: node, stage: stage, difficulty: difficulty)
+        stageLaunchSession = StageLaunchSession(
+            node: node,
+            stage: stage,
+            difficulty: difficulty,
+            practiceMode: practiceMode
+        )
     }
 
     private func startQuestNode(_ node: PlayMapNode) async {
