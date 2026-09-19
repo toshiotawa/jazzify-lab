@@ -104,6 +104,24 @@ describe('buildDefensePhraseBackingPlayback', () => {
     expect(playback.loopStart).toBeCloseTo(8);
     expect(playback.loopEnd).toBeCloseTo(16);
     expect(playback.startOffset).toBeCloseTo(8);
+    expect(playback.barCount).toBe(4);
+  });
+
+  it('falls back to stage phraseBars when loop measures are absent', () => {
+    const ctx = createMockAudioContext();
+    const decoded = createTestBuffer(ctx, 8);
+    const playback = buildDefensePhraseBackingPlayback(
+      decoded,
+      baseStage({
+        audioRegistrationMode: 'per_phrase',
+        audioUrl: null,
+        phraseBars: 8,
+      }),
+      phrase({ loopStartMeasure: null, loopEndMeasure: null }),
+      ctx,
+    );
+    expect(playback.barCount).toBe(8);
+    expect(playback.loopEnd).toBeCloseTo(8);
   });
 
   it('prepares sliced playback before speed change for single_source stages', async () => {
@@ -118,9 +136,25 @@ describe('buildDefensePhraseBackingPlayback', () => {
       async (buffer) => buffer,
     );
     expect(playback.buffer).not.toBe(decoded);
-    expect(playback.buffer.duration).toBeCloseTo(8);
+    expect(playback.buffer.duration).toBeCloseTo(10);
     expect(playback.loopStart).toBe(0);
-    expect(playback.loopEnd).toBeCloseTo(8);
+    expect(playback.loopEnd).toBeCloseTo(10);
+    expect(playback.barCount).toBe(4);
+  });
+
+  it('snaps stretched playback to the musical loop duration', async () => {
+    const ctx = createMockAudioContext();
+    const decoded = createTestBuffer(ctx, 32);
+    const playback = await prepareDefensePhraseBackingPlayback(
+      ctx,
+      baseStage(),
+      phrase(),
+      0.8,
+      async () => decoded,
+      async (buffer) => ctx.createBuffer(1, buffer.length + 180, buffer.sampleRate),
+    );
+    expect(playback.loopEnd).toBeCloseTo(10);
+    expect(playback.buffer.duration).toBeCloseTo(10);
   });
 });
 

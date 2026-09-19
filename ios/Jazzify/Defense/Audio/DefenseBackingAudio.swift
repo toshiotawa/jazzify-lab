@@ -26,6 +26,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var transportStartHostSec: Double = 0
     private var bpm: Double = 120
     private var beatsPerBar: Int = 4
+    private var currentBarCount: Int = 4
+    private var pendingBarCount: Int = 4
+    private var switchScheduleToken: UInt64 = 0
 
     private var pendingSwitchAtHostSec: Double = -1
     private var switchGeneration: UInt64 = 0
@@ -52,10 +55,45 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private init() {}
 
     func setTransportConfig(bpm: Double, beatsPerBar: Int) {
+        let newBpm = max(1, bpm)
+        let newBeats = max(1, beatsPerBar)
+        let newBarSec = DefenseTransport.barSeconds(bpm: newBpm, beatsPerBar: newBeats)
         os_unfair_lock_lock(&lock)
-        self.bpm = max(1, bpm)
-        self.beatsPerBar = max(1, beatsPerBar)
+        let oldBarSec = DefenseTransport.barSeconds(bpm: self.bpm, beatsPerBar: self.beatsPerBar)
+        if transportStartHostSec > 0 {
+            transportStartHostSec = DefenseTransport.rebaseTransportStart(
+                now: Self.hostTimeSec(),
+                transportStart: transportStartHostSec,
+                oldBarSec: oldBarSec,
+                newBarSec: newBarSec
+            )
+        }
+        self.bpm = newBpm
+        self.beatsPerBar = newBeats
         os_unfair_lock_unlock(&lock)
+    }
+
+    func invalidatePendingSwitch() {
+        let apply = { [weak self] in
+            guard let self else { return }
+            self.switchScheduleToken &+= 1
+            let incoming = self.activeIsA ? self.playerB : self.playerA
+            incoming.stop()
+            incoming.reset()
+            if self.activeIsA {
+                self.bufferB = nil
+            } else {
+                self.bufferA = nil
+            }
+            os_unfair_lock_lock(&self.lock)
+            self.pendingSwitchAtHostSec = -1
+            os_unfair_lock_unlock(&self.lock)
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
     }
 
     func setPlaybackRate(_ rate: Float) {
@@ -145,6 +183,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let buffer = try await bufferForPhrase(at: index)
         try await MainActor.run {
             self.stopPlayersAndResetPending()
+            self.currentBarCount = self.barCount(for: index)
+            self.pendingBarCount = self.currentBarCount
             try self.startEngine(with: buffer)
         }
     }
@@ -165,8 +205,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     func scheduleSwitchPhrase(at index: Int) async throws -> Int64 {
+        let token = await MainActor.run { self.switchScheduleToken }
         let buffer = try await bufferForPhrase(at: index)
-        return await scheduleSwitch(buffer: buffer)
+        return await MainActor.run {
+            guard self.switchScheduleToken == token else { return 0 }
+            self.pendingBarCount = self.barCount(for: index)
+            return self.scheduleSwitchOnMain(buffer: buffer)
+        }
     }
 
     func scheduleSwitch(buffer: AVAudioPCMBuffer) async -> Int64 {
@@ -185,6 +230,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             bufferB = nil
         }
         activeIsA.toggle()
+        currentBarCount = pendingBarCount
         os_unfair_lock_lock(&lock)
         pendingSwitchAtHostSec = -1
         os_unfair_lock_unlock(&lock)
@@ -296,6 +342,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {
         ensureGraph()
         stopPlayersAndResetPending()
+        switchScheduleToken &+= 1
         activeIsA = true
         bufferA = buffer
         bufferB = nil
@@ -314,11 +361,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private func scheduleSwitchOnMain(buffer: AVAudioPCMBuffer) -> Int64 {
         os_unfair_lock_lock(&lock)
-        let barSec = DefenseTransport.barSeconds(bpm: bpm, beatsPerBar: beatsPerBar)
+        let bpmSnapshot = bpm
+        let beatsSnapshot = beatsPerBar
         let transportStart = transportStartHostSec
         os_unfair_lock_unlock(&lock)
 
         let now = Self.hostTimeSec()
+        let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
         let switchAt = DefenseTransport.nextSwitchTime(
             now: now,
             transportStart: transportStart,
@@ -342,6 +391,27 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
 
         return Int64((switchAt * 1_000).rounded())
+    }
+
+    private func currentBarSeconds(fallbackBpm: Double, fallbackBeats: Int) -> Double {
+        let currentBuffer = activeIsA ? bufferA : bufferB
+        if let currentBuffer, currentBuffer.format.sampleRate > 0, currentBuffer.frameLength > 0 {
+            let rate = max(0.1, Double(timePitch.rate))
+            let loopDur = Double(currentBuffer.frameLength) / currentBuffer.format.sampleRate / rate
+            return DefenseTransport.barSecondsFromLoop(
+                loopStartSec: 0,
+                loopEndSec: loopDur,
+                barCount: currentBarCount
+            )
+        }
+        return DefenseTransport.barSeconds(bpm: fallbackBpm, beatsPerBar: fallbackBeats)
+    }
+
+    private func barCount(for index: Int) -> Int {
+        guard let stage = preparedStage, stage.phrases.indices.contains(index) else {
+            return max(1, preparedStage?.phraseBars ?? 4)
+        }
+        return DefensePhraseBacking.barCount(stage: stage, phrase: stage.phrases[index])
     }
 
     private func stopPlayersAndResetPending() {

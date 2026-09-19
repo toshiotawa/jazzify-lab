@@ -6,6 +6,7 @@ export interface DefensePhraseBackingPlayback {
   readonly loopStart: number;
   readonly loopEnd: number;
   readonly startOffset: number;
+  readonly barCount: number;
 }
 
 const SPEED_RATIO_EPSILON = 0.0001;
@@ -50,6 +51,33 @@ export const sliceAudioBuffer = (
   return sliced;
 };
 
+const resolveDefensePhraseBarCount = (
+  stage: Pick<DefenseStage, 'phraseBars'>,
+  phrase: Pick<DefensePhrase, 'loopStartMeasure' | 'loopEndMeasure'>,
+): number => {
+  if (phrase.loopStartMeasure !== null && phrase.loopEndMeasure !== null) {
+    return Math.max(1, phrase.loopEndMeasure - phrase.loopStartMeasure + 1);
+  }
+  return Math.max(1, stage.phraseBars);
+};
+
+const fitAudioBufferToDuration = (
+  ctx: AudioContext,
+  source: AudioBuffer,
+  durationSec: number,
+): AudioBuffer => {
+  const frameCount = Math.max(1, Math.round(Math.max(1e-6, durationSec) * source.sampleRate));
+  if (frameCount === source.length) {
+    return source;
+  }
+  const fitted = ctx.createBuffer(source.numberOfChannels, frameCount, source.sampleRate);
+  const copyCount = Math.min(source.length, frameCount);
+  for (let channel = 0; channel < source.numberOfChannels; channel += 1) {
+    fitted.getChannelData(channel).set(source.getChannelData(channel).subarray(0, copyCount));
+  }
+  return fitted;
+};
+
 export const resolveDefensePhraseLoopWindow = (
   stage: Pick<DefenseStage, 'bpm' | 'beatsPerBar'>,
   phrase: Pick<DefensePhrase, 'loopStartMeasure' | 'loopEndMeasure'>,
@@ -71,10 +99,11 @@ export const buildDefensePhraseBackingPlayback = (
   decoded: AudioBuffer,
   stage: DefenseStage,
   phrase: DefensePhrase,
-  ctx: AudioContext,
+  _ctx: AudioContext,
 ): DefensePhraseBackingPlayback => {
   const loopWindow = resolveDefensePhraseLoopWindow(stage, phrase, decoded.duration);
   const useSharedLoopRange = isDefenseSingleSourceStage(stage) && loopWindow !== null;
+  const barCount = resolveDefensePhraseBarCount(stage, phrase);
 
   if (useSharedLoopRange) {
     return {
@@ -82,6 +111,7 @@ export const buildDefensePhraseBackingPlayback = (
       loopStart: loopWindow.startSec,
       loopEnd: loopWindow.endSec,
       startOffset: loopWindow.startSec,
+      barCount,
     };
   }
 
@@ -90,6 +120,7 @@ export const buildDefensePhraseBackingPlayback = (
     loopStart: 0,
     loopEnd: decoded.duration,
     startOffset: 0,
+    barCount,
   };
 };
 
@@ -105,25 +136,31 @@ export const prepareDefensePhraseBackingPlayback = async (
   const loopWindow = resolveDefensePhraseLoopWindow(stage, phrase, decoded.duration);
   const useSharedLoopRange = isDefenseSingleSourceStage(stage) && loopWindow !== null;
   const needsSpeedChange = Math.abs(speedRatio - 1) >= SPEED_RATIO_EPSILON;
+  const barCount = resolveDefensePhraseBarCount(stage, phrase);
+  const safeRatio = Math.max(0.1, speedRatio);
 
   if (useSharedLoopRange && needsSpeedChange) {
     const sliced = sliceAudioBuffer(ctx, decoded, loopWindow.startSec, loopWindow.endSec);
-    const processed = await applySpeed(sliced, speedRatio);
+    const processed = await applySpeed(sliced, safeRatio);
+    const fitted = fitAudioBufferToDuration(ctx, processed, loopWindow.durationSec / safeRatio);
     return {
-      buffer: processed,
+      buffer: fitted,
       loopStart: 0,
-      loopEnd: processed.duration,
+      loopEnd: fitted.duration,
       startOffset: 0,
+      barCount,
     };
   }
 
   if (!useSharedLoopRange && needsSpeedChange) {
-    const processed = await applySpeed(decoded, speedRatio);
+    const processed = await applySpeed(decoded, safeRatio);
+    const fitted = fitAudioBufferToDuration(ctx, processed, decoded.duration / safeRatio);
     return {
-      buffer: processed,
+      buffer: fitted,
       loopStart: 0,
-      loopEnd: processed.duration,
+      loopEnd: fitted.duration,
       startOffset: 0,
+      barCount,
     };
   }
 

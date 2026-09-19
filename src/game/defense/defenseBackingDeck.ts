@@ -9,7 +9,9 @@ import soundtouchProcessorUrl from '@soundtouchjs/audio-worklet/processor?url';
 import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import {
   barSeconds,
+  barSecondsFromLoop,
   nextSwitchTime,
+  rebaseTransportStart,
   scheduleDeadlineSec,
 } from '@/game/defense/defenseTransport';
 import {
@@ -67,8 +69,8 @@ class DefenseBackingDeck {
   private slotB: DeckSlot | null = null;
   private activeIsA = true;
   private transportStart = 0;
-  private bpm = 120;
-  private beatsPerBar = 4;
+  private barSec = 2;
+  private pendingBarSec: number | null = null;
   private voiceInputDucking = false;
   private userVolume = 1;
   private readonly rawBufferByUrl = new Map<string, Promise<AudioBuffer>>();
@@ -88,8 +90,21 @@ class DefenseBackingDeck {
   }
 
   setTransportConfig(bpm: number, beatsPerBar: number): void {
-    this.bpm = Math.max(1, bpm);
-    this.beatsPerBar = Math.max(1, beatsPerBar);
+    const nextBarSec = barSeconds(Math.max(1, bpm), Math.max(1, beatsPerBar));
+    const graph = this.graph;
+    if (graph && this.transportStart > 0) {
+      this.transportStart = rebaseTransportStart(
+        graph.ctx.currentTime,
+        this.transportStart,
+        this.barSec,
+        nextBarSec,
+      );
+    }
+    this.barSec = nextBarSec;
+  }
+
+  private barSecFromPlayback(playback: DefensePhraseBackingPlayback): number {
+    return barSecondsFromLoop(playback.loopStart, playback.loopEnd, playback.barCount);
   }
 
   setUserVolume(volume: number): void {
@@ -214,6 +229,8 @@ class DefenseBackingDeck {
     const graph = this.ensureGraph();
     this.stopInternal(false);
     this.activeIsA = true;
+    this.barSec = this.barSecFromPlayback(playback);
+    this.pendingBarSec = null;
     this.transportStart = graph.ctx.currentTime + START_LEAD_SEC;
 
     const slot = this.createLoopingSlot(graph, playback);
@@ -228,9 +245,8 @@ class DefenseBackingDeck {
   scheduleSwitch(nextPlayback: DefensePhraseBackingPlayback): number {
     const graph = this.ensureGraph();
     const now = graph.ctx.currentTime;
-    const barSec = barSeconds(this.bpm, this.beatsPerBar);
     const deadline = scheduleDeadlineSec(graph.ctx.baseLatency ?? 0);
-    const switchAt = nextSwitchTime(now, this.transportStart, barSec, deadline);
+    const switchAt = nextSwitchTime(now, this.transportStart, this.barSec, deadline);
 
     const current = this.activeIsA ? this.slotA : this.slotB;
     if (!current) {
@@ -251,12 +267,17 @@ class DefenseBackingDeck {
     } else {
       this.slotA = next;
     }
+    this.pendingBarSec = this.barSecFromPlayback(nextPlayback);
 
     return switchAt;
   }
 
   /** 切替時刻を過ぎた後に呼ぶ。旧デッキを解放して新デッキをアクティブにする。 */
   commitSwitch(): void {
+    if (this.pendingBarSec !== null) {
+      this.barSec = this.pendingBarSec;
+      this.pendingBarSec = null;
+    }
     this.activeIsA = !this.activeIsA;
     const inactive = this.activeIsA ? this.slotB : this.slotA;
     if (inactive) {
@@ -288,6 +309,7 @@ class DefenseBackingDeck {
     if (this.slotB) this.disposeSlot(this.slotB);
     this.slotA = null;
     this.slotB = null;
+    this.pendingBarSec = null;
     if (clearBuffers) {
       this.rawBufferByUrl.clear();
     }

@@ -7,6 +7,27 @@ enum DefenseTransport {
         return (60.0 / safeBpm) * Double(safeBeats)
     }
 
+    static func barSecondsFromLoop(loopStartSec: Double, loopEndSec: Double, barCount: Int) -> Double {
+        let duration = max(1e-6, loopEndSec - loopStartSec)
+        return duration / Double(max(1, barCount))
+    }
+
+    /// Keep the current bar-phase when tempo changes, so the next bar head
+    /// stays musically aligned instead of being recomputed from t=0.
+    static func rebaseTransportStart(
+        now: Double,
+        transportStart: Double,
+        oldBarSec: Double,
+        newBarSec: Double
+    ) -> Double {
+        guard oldBarSec > 0, newBarSec > 0 else { return now }
+        let elapsed = max(0, now - transportStart)
+        let barIndex = floor(elapsed / oldBarSec)
+        let phase = elapsed - barIndex * oldBarSec
+        let fraction = phase / oldBarSec
+        return now - fraction * newBarSec
+    }
+
     static func nextSwitchTime(
         now: Double,
         transportStart: Double,

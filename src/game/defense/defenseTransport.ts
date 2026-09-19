@@ -8,6 +8,35 @@ export const barSeconds = (bpm: number, beatsPerBar: number): number => {
   return (60 / safeBpm) * safeBeats;
 };
 
+export const barSecondsFromLoop = (
+  loopStartSec: number,
+  loopEndSec: number,
+  barCount: number,
+): number => {
+  const duration = Math.max(1e-6, loopEndSec - loopStartSec);
+  return duration / Math.max(1, Math.trunc(barCount));
+};
+
+/**
+ * Keep the current bar-phase when tempo changes, so the next bar head
+ * stays musically aligned instead of being recomputed from t=0.
+ */
+export const rebaseTransportStart = (
+  now: number,
+  transportStart: number,
+  oldBarSec: number,
+  newBarSec: number,
+): number => {
+  if (oldBarSec <= 0 || newBarSec <= 0) {
+    return now;
+  }
+  const elapsed = Math.max(0, now - transportStart);
+  const barIndex = Math.floor(elapsed / oldBarSec);
+  const phase = elapsed - barIndex * oldBarSec;
+  const fraction = phase / oldBarSec;
+  return now - fraction * newBarSec;
+};
+
 export const nextSwitchTime = (
   now: number,
   transportStart: number,

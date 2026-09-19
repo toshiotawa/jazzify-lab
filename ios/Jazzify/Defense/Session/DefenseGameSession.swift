@@ -129,11 +129,17 @@ final class DefenseGameSession: ObservableObject {
         guard nextSpeed != practiceSpeedPercent else { return }
         practiceSpeedPercent = nextSpeed
         let ratio = Float(DefensePracticeSpeed.ratio(nextSpeed))
+        pendingSwitchPhraseIndex = nil
+        DefenseBackingAudio.shared.invalidatePendingSwitch()
         DefenseBackingAudio.shared.setPlaybackRate(ratio)
         DefenseBackingAudio.shared.setTransportConfig(
             bpm: stage.bpm * DefensePracticeSpeed.ratio(nextSpeed),
             beatsPerBar: stage.beatsPerBar
         )
+        let phraseIndex = judgeState.phraseIndex
+        Task {
+            try? await DefenseBackingAudio.shared.startPhrase(at: phraseIndex)
+        }
     }
 
     func stop() {
@@ -220,7 +226,15 @@ final class DefenseGameSession: ObservableObject {
             pendingSwitchPhraseIndex = nextIndex
             judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
             Task {
-                _ = try? await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
+                var scheduledMs: Int64 = 0
+                do {
+                    scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
+                } catch {
+                    scheduledMs = 0
+                }
+                if scheduledMs <= 0, pendingSwitchPhraseIndex == nextIndex {
+                    pendingSwitchPhraseIndex = nil
+                }
             }
         }
     }

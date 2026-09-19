@@ -27,6 +27,18 @@ final class DefenseTransportTests: XCTestCase {
         )
     }
 
+    func testBarSecondsFromLoopUsesActualLoopLength() {
+        XCTAssertEqual(DefenseTransport.barSecondsFromLoop(loopStartSec: 0, loopEndSec: 8, barCount: 4), 2, accuracy: 0.0001)
+    }
+
+    func testRebaseTransportStartKeepsBarFraction() {
+        XCTAssertEqual(
+            DefenseTransport.rebaseTransportStart(now: 11.5, transportStart: 10, oldBarSec: 2, newBarSec: 4),
+            8.5,
+            accuracy: 0.0001
+        )
+    }
+
     func testNextSwitchSample() {
         let bar: Int64 = 88200
         let switchAt = DefenseTransport.nextSwitchSample(

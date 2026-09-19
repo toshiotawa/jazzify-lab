@@ -298,8 +298,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     const ratio = defensePracticeSpeedRatio(speedPercent);
     try {
-      const playback = await defenseBackingDeck.preparePhraseBacking(stage, phrase, ratio);
+      const livePhrase = stage.phrases[judgeRef.current.phraseIndex] ?? phrase;
+      const playback = await defenseBackingDeck.preparePhraseBacking(stage, livePhrase, ratio);
       if (backingRestartGenerationRef.current !== generation) return;
+      backingRestartGenerationRef.current += 1;
       defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
       defenseBackingDeck.start(playback);
       setAudioReady(true);
@@ -407,9 +409,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       if (!nextPhrase) return;
       scheduledNextPhraseIndexRef.current = nextIndex;
       applyImmediatePhraseSwitch(nextIndex);
+      const generation = backingRestartGenerationRef.current;
       void (async () => {
         const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
         const playback = await defenseBackingDeck.preparePhraseBacking(stage, nextPhrase, ratio);
+        if (backingRestartGenerationRef.current !== generation) return;
         if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
         pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
       })();

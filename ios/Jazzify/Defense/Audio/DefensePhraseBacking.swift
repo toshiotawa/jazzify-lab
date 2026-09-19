@@ -17,6 +17,13 @@ enum DefensePhraseBacking {
         return urls.filter { seen.insert($0).inserted }
     }
 
+    static func barCount(stage: DefenseStageDefinition, phrase: DefensePhraseDefinition) -> Int {
+        if let startMeasure = phrase.loopStartMeasure, let endMeasure = phrase.loopEndMeasure {
+            return max(1, endMeasure - startMeasure + 1)
+        }
+        return max(1, stage.phraseBars)
+    }
+
     static func slicePCMBuffer(
         _ buffer: AVAudioPCMBuffer,
         startingFrame: AVAudioFramePosition,
