@@ -1,6 +1,8 @@
 import type { PlayMapBlock, PlayMapNode } from '@/platform/supabasePlayMap';
 import { isSoftLandingPaywallSource } from '@/utils/analytics/softLandingOffer';
 import {
+  defenseBlockCompleteTrainingLabel,
+  defenseBlockCompleteTrialLabel,
   defenseGuidanceBodyCopy,
   defenseResultNextStepLabel,
   resolveDefenseTrainingGuidance,
@@ -227,6 +229,14 @@ describe('defenseResultNextStepLabel', () => {
         false,
       ),
     ).toBeNull();
+  });
+});
+
+describe('block complete copy', () => {
+  it('offers the 7-day trial, training, and map return in that order', () => {
+    expect(defenseBlockCompleteTrialLabel(false)).toBe('7日無料で続きを試す');
+    expect(defenseBlockCompleteTrainingLabel(false)).toBe('トレーニングを試す');
+    expect(defenseBlockCompleteTrainingLabel(true)).toBe('Try Training');
   });
 });
 

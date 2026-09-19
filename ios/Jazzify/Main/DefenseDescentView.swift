@@ -327,9 +327,9 @@ struct DefenseDescentView: View {
                     paywallEntryAtOpen = .phraseDefense
                     showSubscription = true
                 },
-                onSoftLanding: {
+                onTraining: {
                     showBlockCompleteSheet = false
-                    startSoftLandingFromBlockComplete()
+                    appState.requestedTab = .training
                 },
                 onDismiss: {
                     showBlockCompleteSheet = false

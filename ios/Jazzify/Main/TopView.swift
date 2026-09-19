@@ -137,9 +137,9 @@ struct TopView: View {
                         showBlockCompleteSheet = false
                         queuePresentationAfterDismiss(.presentSubscription(.phraseDefense))
                     },
-                    onSoftLanding: {
+                    onTraining: {
                         showBlockCompleteSheet = false
-                        startSoftLandingFromBlockComplete()
+                        appState.requestedTab = .training
                     },
                     onDismiss: {
                         showBlockCompleteSheet = false
@@ -632,40 +632,6 @@ struct TopView: View {
                     sequenceIndex: next.course.softLandingOrder ?? 0
                 )
                 showSoftLandingOffer = true
-            }
-        }
-    }
-
-    private func startSoftLandingFromBlockComplete() {
-        let entry = SoftLandingOfferEntry.chapterComplete
-        Task {
-            guard let next = await SoftLandingOfferLoader.resolveNext(userId: profile?.id) else {
-                return
-            }
-            await MainActor.run {
-                softLandingOfferEntry = entry
-                if let userId = profile?.id {
-                    AnalyticsTracker.trackSoftLandingOfferViewed(
-                        userId: userId,
-                        courseId: next.course.id,
-                        entry: entry.rawValue,
-                        sequenceIndex: next.course.softLandingOrder ?? 0
-                    )
-                    AnalyticsTracker.trackSoftLandingOfferAccepted(
-                        userId: userId,
-                        courseId: next.course.id,
-                        entry: entry.rawValue,
-                        sequenceIndex: next.course.softLandingOrder ?? 0
-                    )
-                }
-                guard let lessonId = SoftLandingFreeTier.nextBlock1LessonId(
-                    lessons: next.lessons,
-                    completedIds: next.completedLessonIds
-                ),
-                      let lesson = next.lessons.first(where: { $0.id == lessonId }) else {
-                    return
-                }
-                openMainQuestLesson(lesson, autoStart: true)
             }
         }
     }

@@ -2,21 +2,21 @@ import React from 'react';
 import { FaChevronRight } from 'react-icons/fa';
 import {
   defenseBlockCompleteBodyCopy,
-  defenseBlockCompleteSoftLandingLabel,
+  defenseBlockCompleteTrainingLabel,
   defenseBlockCompleteTrialLabel,
 } from '@/utils/defenseTrainingGuidance';
 
 interface DefenseBlockCompleteModalProps {
   isEnglishCopy: boolean;
   onPremium: () => void;
-  onSoftLanding: () => void;
+  onTraining: () => void;
   onDismiss: () => void;
 }
 
 export const DefenseBlockCompleteModal: React.FC<DefenseBlockCompleteModalProps> = ({
   isEnglishCopy,
   onPremium,
-  onSoftLanding,
+  onTraining,
   onDismiss,
 }) => {
   const label = isEnglishCopy ? 'FLOOR 1 COMPLETE' : '第1階層 クリア';
@@ -70,18 +70,18 @@ export const DefenseBlockCompleteModal: React.FC<DefenseBlockCompleteModalProps>
         <div className="flex flex-col gap-3">
           <button
             type="button"
-            onClick={onSoftLanding}
+            onClick={onPremium}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-green-500"
           >
-            {defenseBlockCompleteSoftLandingLabel(isEnglishCopy)}
+            {defenseBlockCompleteTrialLabel(isEnglishCopy)}
             <FaChevronRight className="h-3 w-3" aria-hidden />
           </button>
           <button
             type="button"
-            onClick={onPremium}
+            onClick={onTraining}
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-500 bg-slate-700 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-slate-600"
           >
-            {defenseBlockCompleteTrialLabel(isEnglishCopy)}
+            {defenseBlockCompleteTrainingLabel(isEnglishCopy)}
             <FaChevronRight className="h-3 w-3" aria-hidden />
           </button>
           <button

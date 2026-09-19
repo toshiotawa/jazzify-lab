@@ -40,12 +40,14 @@ struct DefenseResultView: View {
                             .buttonStyle(.borderedProminent)
                             .frame(maxWidth: .infinity)
                     }
-                    HStack(spacing: 12) {
+                    if summary.result != .clear {
                         Button(locale == .ja ? "もう一度" : "Retry", action: onRetry)
                             .buttonStyle(.bordered)
-                        Button(locale == .ja ? "マップに戻る" : "Back to map", action: onBackToMap)
-                            .buttonStyle(.bordered)
+                            .frame(maxWidth: .infinity)
                     }
+                    Button(locale == .ja ? "マップに戻る" : "Back to map", action: onBackToMap)
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
                 }
                 .padding(.top, 8)
             }

@@ -296,8 +296,8 @@ enum DefenseTrainingGuidanceResolver {
         locale == .ja ? "7日無料で続きを試す" : "Try the next tier free for 7 days"
     }
 
-    static func blockCompleteSoftLandingLabel(locale: AppLocale) -> String {
-        locale == .ja ? "コードランを無料で始める" : "Start Chord Run free"
+    static func blockCompleteTrainingLabel(locale: AppLocale) -> String {
+        locale == .ja ? "トレーニングを試す" : "Try Training"
     }
 
     static func blockCompleteBodyCopy(locale: AppLocale) -> String {

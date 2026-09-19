@@ -239,6 +239,21 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         )
     }
 
+    func testBlockCompleteTrainingLabel() {
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.blockCompleteTrialLabel(locale: .ja),
+            "7日無料で続きを試す"
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.blockCompleteTrainingLabel(locale: .ja),
+            "トレーニングを試す"
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.blockCompleteTrainingLabel(locale: .en),
+            "Try Training"
+        )
+    }
+
     func testNoneGuidanceHasNoPrimaryLabel() {
         XCTAssertNil(
             DefenseTrainingGuidanceResolver.primaryLabel(for: .none, locale: .ja)

@@ -3,7 +3,7 @@ import SwiftUI
 struct DefenseBlockCompleteSheet: View {
     let locale: AppLocale
     let onPremium: () -> Void
-    let onSoftLanding: () -> Void
+    let onTraining: () -> Void
     let onDismiss: () -> Void
 
     private var isJapanese: Bool { locale == .ja }
@@ -46,8 +46,8 @@ struct DefenseBlockCompleteSheet: View {
 
             VStack(spacing: 12) {
                 Button(
-                    DefenseTrainingGuidanceResolver.blockCompleteSoftLandingLabel(locale: locale),
-                    action: onSoftLanding
+                    DefenseTrainingGuidanceResolver.blockCompleteTrialLabel(locale: locale),
+                    action: onPremium
                 )
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
@@ -55,8 +55,8 @@ struct DefenseBlockCompleteSheet: View {
                 .frame(maxWidth: .infinity)
 
                 Button(
-                    DefenseTrainingGuidanceResolver.blockCompleteTrialLabel(locale: locale),
-                    action: onPremium
+                    DefenseTrainingGuidanceResolver.blockCompleteTrainingLabel(locale: locale),
+                    action: onTraining
                 )
                 .buttonStyle(.bordered)
                 .frame(maxWidth: .infinity)

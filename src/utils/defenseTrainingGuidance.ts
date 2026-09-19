@@ -260,8 +260,8 @@ export function defenseBlockCompleteTrialLabel(isEnglishCopy: boolean): string {
   return isEnglishCopy ? 'Try the next tier free for 7 days' : '7日無料で続きを試す';
 }
 
-export function defenseBlockCompleteSoftLandingLabel(isEnglishCopy: boolean): string {
-  return isEnglishCopy ? 'Start Chord Run free' : 'コードランを無料で始める';
+export function defenseBlockCompleteTrainingLabel(isEnglishCopy: boolean): string {
+  return isEnglishCopy ? 'Try Training' : 'トレーニングを試す';
 }
 
 export function defenseBlockCompleteBodyCopy(isEnglishCopy: boolean): string {

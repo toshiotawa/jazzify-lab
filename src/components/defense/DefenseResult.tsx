@@ -88,7 +88,7 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
               {nextStepLabel}
             </button>
           ) : null}
-          <div className="flex gap-3 justify-center">
+          {!isClear ? (
             <button
               type="button"
               className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
@@ -96,14 +96,14 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
             >
               {isEnglishCopy ? 'Retry' : 'もう一度'}
             </button>
-            <button
-              type="button"
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500"
-              onClick={onBack}
-            >
-              {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
-            </button>
-          </div>
+          ) : null}
+          <button
+            type="button"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500"
+            onClick={onBack}
+          >
+            {isEnglishCopy ? 'Back to map' : 'マップに戻る'}
+          </button>
         </div>
       </div>
     </div>

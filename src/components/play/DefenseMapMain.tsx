@@ -259,23 +259,10 @@ const DefenseMapMain: React.FC = () => {
     });
   }, [reloadSoftLandingOffer, trackOfferAccepted, trackOfferViewed]);
 
-  const acceptSoftLandingFromBlockComplete = useCallback(() => {
+  const openTrainingFromBlockComplete = useCallback(() => {
     setShowBlockCompleteModal(false);
-    void reloadSoftLandingOffer({ forceRefresh: true }).then((next) => {
-      if (!next) {
-        return;
-      }
-      trackOfferViewed(next.course);
-      trackOfferAccepted(next.course);
-      const nextLessonId = getNextIncompleteBlock1LessonId(
-        next.course.lessons ?? [],
-        next.block1ProgressMap ?? {},
-      ) ?? getFirstBlock1LessonId(next.course.lessons ?? []);
-      if (nextLessonId) {
-        window.location.hash = buildLessonDetailHash(nextLessonId, { autoStart: true });
-      }
-    });
-  }, [reloadSoftLandingOffer, trackOfferAccepted, trackOfferViewed]);
+    window.location.hash = TRAINING_ROUTE_HASH;
+  }, []);
 
   useEffect(() => {
     const nodeId = searchParams.get('nodeId');
@@ -426,7 +413,7 @@ const DefenseMapMain: React.FC = () => {
               setShowBlockCompleteModal(false);
               setShowPaywall(true);
             }}
-            onSoftLanding={acceptSoftLandingFromBlockComplete}
+            onTraining={openTrainingFromBlockComplete}
             onDismiss={() => setShowBlockCompleteModal(false)}
           />
         ) : null}
@@ -505,7 +492,7 @@ const DefenseMapMain: React.FC = () => {
             setShowBlockCompleteModal(false);
             setShowPaywall(true);
           }}
-          onSoftLanding={acceptSoftLandingFromBlockComplete}
+          onTraining={openTrainingFromBlockComplete}
           onDismiss={() => setShowBlockCompleteModal(false)}
         />
       ) : null}
