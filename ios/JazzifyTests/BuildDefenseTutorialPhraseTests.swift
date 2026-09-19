@@ -54,4 +54,33 @@ final class BuildDefenseTutorialPhraseTests: XCTestCase {
         let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "trumpet_bb")
         XCTAssertEqual(BuildDefenseTutorialPhrase.pickWrittenOctave(settings), .four)
     }
+
+    func testTrombonePlacesNotesOnBassStaff() {
+        let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "trombone")
+        let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
+        XCTAssertEqual(BuildDefenseTutorialPhrase.pickWrittenOctave(settings), .three)
+        XCTAssertEqual(result.writtenOctave, .three)
+        XCTAssertEqual(result.concertMidis, [48, 50, 52])
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["C3"], ["D3"], ["E3"]])
+        XCTAssertEqual(result.staffGroups.map(\.voicingStaves), [[2], [2], [2]])
+        XCTAssertEqual(result.chord.notes.map(\.staff), [2, 2, 2])
+    }
+
+    func testBassClefOverridePlacesNotesOnBassStaff() {
+        var settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "flute")
+        settings.clefOverride = .bass
+        let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["C3"], ["D3"], ["E3"]])
+        XCTAssertEqual(result.staffGroups.map(\.voicingStaves), [[2], [2], [2]])
+        XCTAssertEqual(result.chord.notes.map(\.staff), [2, 2, 2])
+    }
+
+    func testClefMapsToVoicingAndDisplayStaves() {
+        XCTAssertEqual(DefenseTutorialNotation.resolveVoicingStaff(.treble), 1)
+        XCTAssertEqual(DefenseTutorialNotation.resolveVoicingStaff(.grand), 1)
+        XCTAssertEqual(DefenseTutorialNotation.resolveVoicingStaff(.bass), 2)
+        XCTAssertEqual(DefenseTutorialNotation.resolveDisplayStaves(.treble), [1])
+        XCTAssertEqual(DefenseTutorialNotation.resolveDisplayStaves(.grand), [1, 2])
+        XCTAssertEqual(DefenseTutorialNotation.resolveDisplayStaves(.bass), [2])
+    }
 }

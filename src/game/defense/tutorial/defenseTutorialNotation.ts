@@ -2,6 +2,7 @@ import {
   formatNotationClefLabel,
   getNotationInstrumentPreset,
   getWrittenSemitoneOffset,
+  notationClefStaffNumber,
   type NotationInstrumentClef,
   type NotationInstrumentId,
 } from '@/utils/notationInstrument';
@@ -20,6 +21,19 @@ export const resolveTutorialClef = (
     return settings.clefOverride;
   }
   return getNotationInstrumentPreset(settings.notationInstrumentId).clef;
+};
+
+/** ChordVoicingStaff staff number for a single tutorial note. */
+export const resolveTutorialVoicingStaff = (
+  clef: NotationInstrumentClef,
+): 1 | 2 => notationClefStaffNumber(clef) ?? 1;
+
+/** Which staves the tutorial overlay should draw. */
+export const resolveTutorialDisplayStaves = (
+  clef: NotationInstrumentClef,
+): readonly (1 | 2)[] => {
+  const staff = notationClefStaffNumber(clef);
+  return staff ? [staff] : [1, 2];
 };
 
 export const resolveTutorialTransposition = (

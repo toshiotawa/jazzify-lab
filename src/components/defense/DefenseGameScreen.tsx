@@ -68,6 +68,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import type { NotationInstrumentClef } from '@/utils/notationInstrument';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
@@ -93,6 +94,7 @@ interface DefenseGameScreenProps {
   readonly tutorialOptions?: DefenseTutorialOptions | null;
   readonly tutorialInputMethod?: InputMethod;
   readonly tutorialStaffGroups?: readonly ChordVoicingStaffGroup[];
+  readonly tutorialClef?: NotationInstrumentClef;
   readonly tutorialConcertMidis?: readonly [number, number, number];
   readonly onTutorialPhraseSucceeded?: () => void;
   readonly suppressResultScreen?: boolean;
@@ -122,6 +124,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   tutorialOptions = null,
   tutorialInputMethod,
   tutorialStaffGroups,
+  tutorialClef = 'treble',
   tutorialConcertMidis = [60, 62, 64],
   onTutorialPhraseSucceeded,
   suppressResultScreen = false,
@@ -628,6 +631,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           <DefenseTutorialStaff
             groups={tutorialStaffDisplay.groups}
             keyFifths={phraseKeyFifths}
+            clef={tutorialClef}
             activeGroupId={tutorialStaffDisplay.activeGroupId}
             correctPitchClassesByGroupId={tutorialStaffDisplay.correctPitchClassesByGroupId}
           />

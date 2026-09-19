@@ -38,6 +38,37 @@ final class NotationInstrumentCatalogTests: XCTestCase {
         XCTAssertEqual(NotationInstrumentCatalog.clampOctaveShift(4), 3)
     }
 
+    func testClefStaffNumberAndFixedActiveStaves() {
+        XCTAssertEqual(NotationInstrumentClef.treble.singleStaffNumber, 1)
+        XCTAssertEqual(NotationInstrumentClef.bass.singleStaffNumber, 2)
+        XCTAssertNil(NotationInstrumentClef.grand.singleStaffNumber)
+        XCTAssertEqual(
+            NotationInstrumentClef.resolveFixedActiveStaves(clefOverride: .bass, fallback: [1]),
+            [2]
+        )
+        XCTAssertEqual(
+            NotationInstrumentClef.resolveFixedActiveStaves(clefOverride: .treble, fallback: [1, 2]),
+            [1]
+        )
+        XCTAssertEqual(
+            NotationInstrumentClef.resolveFixedActiveStaves(clefOverride: .grand, fallback: [1]),
+            [1]
+        )
+        XCTAssertEqual(
+            NotationInstrumentClef.resolveFixedActiveStaves(clefOverride: nil, fallback: [1, 2]),
+            [1, 2]
+        )
+        XCTAssertNil(NotationInstrumentClef.resolveFixedActiveStaves(clefOverride: nil, fallback: nil))
+    }
+
+    func testDefenseDisplayStavesFollowInstrumentClef() {
+        XCTAssertEqual(DefenseStaffLayout.treble.displayStaves(for: .bass), [2])
+        XCTAssertEqual(DefenseStaffLayout.grand.displayStaves(for: .bass), [2])
+        XCTAssertEqual(DefenseStaffLayout.treble.displayStaves(for: .treble), [1])
+        XCTAssertEqual(DefenseStaffLayout.grand.displayStaves(for: .grand), [1, 2])
+        XCTAssertEqual(DefenseStaffLayout.treble.displayStaves(for: .grand), [1])
+    }
+
     func testTransposingInstrumentLabelsIncludeKey() {
         XCTAssertEqual(NotationInstrumentCatalog.preset(for: "soprano_sax").labelJa, "ソプラノサックス in B♭")
         XCTAssertEqual(NotationInstrumentCatalog.preset(for: "alto_sax").labelEn, "Alto Sax in E♭")

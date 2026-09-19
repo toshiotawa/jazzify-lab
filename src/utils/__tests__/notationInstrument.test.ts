@@ -5,6 +5,8 @@ import {
   getWrittenSemitoneOffset,
   isNotationInstrumentId,
   normalizeNotationInstrumentId,
+  notationClefStaffNumber,
+  resolveNotationFixedActiveStaves,
   transposeKeyFifths,
   transposeWrittenNoteName,
 } from '@/utils/notationInstrument';
@@ -123,5 +125,19 @@ describe('notationInstrument', () => {
     expect(downTwo).toContain('<octave>2</octave>');
     expect(upThree).toContain('<octave>7</octave>');
     expect(upTwo).not.toContain('<octave>4</octave>');
+  });
+
+  it('notationClefStaffNumber maps single-staff clefs', () => {
+    expect(notationClefStaffNumber('treble')).toBe(1);
+    expect(notationClefStaffNumber('bass')).toBe(2);
+    expect(notationClefStaffNumber('grand')).toBeNull();
+  });
+
+  it('resolveNotationFixedActiveStaves prefers bass/treble over fallback', () => {
+    expect(resolveNotationFixedActiveStaves('bass', [1])).toEqual([2]);
+    expect(resolveNotationFixedActiveStaves('treble', [1, 2])).toEqual([1]);
+    expect(resolveNotationFixedActiveStaves('grand', [1])).toEqual([1]);
+    expect(resolveNotationFixedActiveStaves(null, [1, 2])).toEqual([1, 2]);
+    expect(resolveNotationFixedActiveStaves(undefined)).toBeUndefined();
   });
 });

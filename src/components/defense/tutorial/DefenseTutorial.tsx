@@ -28,6 +28,7 @@ import {
 import {
   formatTutorialNotationLabel,
   formatTutorialPlaySubtitle,
+  resolveTutorialClef,
 } from '@/game/defense/tutorial/defenseTutorialNotation';
 import type { DefenseDifficulty } from '@/game/defense/defenseTypes';
 import { DEFENSE_TUTORIAL_INPUT_SETUP_V1 } from '@/game/defense/defenseTypes';
@@ -273,6 +274,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
               tutorialOptions={DEFENSE_TUTORIAL_INPUT_SETUP_V1}
               tutorialInputMethod={session.inputMethod}
               tutorialStaffGroups={phraseBuild.staffGroups}
+              tutorialClef={resolveTutorialClef(session.notation)}
               tutorialConcertMidis={phraseBuild.concertMidis}
               onTutorialPhraseSucceeded={handlePhraseSucceeded}
               onExit={() => { void handleExit(); }}

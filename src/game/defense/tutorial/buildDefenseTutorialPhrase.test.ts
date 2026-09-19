@@ -3,7 +3,12 @@ import {
   pickDefenseTutorialWrittenOctave,
 } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import { defaultTutorialNotationSettings } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
-import { resolveTutorialWrittenOffset } from '@/game/defense/tutorial/defenseTutorialNotation';
+import {
+  resolveTutorialDisplayStaves,
+  resolveTutorialVoicingStaff,
+  resolveTutorialWrittenOffset,
+  type DefenseTutorialNotationSettings,
+} from '@/game/defense/tutorial/defenseTutorialNotation';
 
 describe('buildDefenseTutorialPhrase', () => {
   it('uses instrument concert midis for Bb trumpet', () => {
@@ -38,6 +43,7 @@ describe('buildDefenseTutorialPhrase', () => {
     const { concertMidis, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([60, 62, 64]);
     expect(staffGroups.map((group) => group.voicing)).toEqual([['C4'], ['D4'], ['E4']]);
+    expect(staffGroups.map((group) => group.voicingStaves)).toEqual([[1], [1], [1]]);
     expect(phrase.keyFifths).toBe(0);
   });
 
@@ -67,5 +73,36 @@ describe('buildDefenseTutorialPhrase', () => {
   it('picks written octave 4 for Bb trumpet', () => {
     const settings = defaultTutorialNotationSettings('trumpet_bb');
     expect(pickDefenseTutorialWrittenOctave(settings)).toBe(4);
+  });
+
+  it('places trombone notes on bass staff at written C3', () => {
+    const settings = defaultTutorialNotationSettings('trombone');
+    const { chord, concertMidis, staffGroups, writtenOctave } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    expect(writtenOctave).toBe(3);
+    expect(pickDefenseTutorialWrittenOctave(settings)).toBe(3);
+    expect(concertMidis).toEqual([48, 50, 52]);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C3'], ['D3'], ['E3']]);
+    expect(staffGroups.map((group) => group.voicingStaves)).toEqual([[2], [2], [2]]);
+    expect(chord.notes.map((n) => n.staff)).toEqual([2, 2, 2]);
+  });
+
+  it('places bass-clef override notes on bass staff', () => {
+    const settings: DefenseTutorialNotationSettings = {
+      ...defaultTutorialNotationSettings('flute'),
+      clefOverride: 'bass',
+    };
+    const { staffGroups, chord } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C3'], ['D3'], ['E3']]);
+    expect(staffGroups.map((group) => group.voicingStaves)).toEqual([[2], [2], [2]]);
+    expect(chord.notes.map((n) => n.staff)).toEqual([2, 2, 2]);
+  });
+
+  it('maps tutorial clefs to voicing staff and display staves', () => {
+    expect(resolveTutorialVoicingStaff('treble')).toBe(1);
+    expect(resolveTutorialVoicingStaff('grand')).toBe(1);
+    expect(resolveTutorialVoicingStaff('bass')).toBe(2);
+    expect(resolveTutorialDisplayStaves('treble')).toEqual([1]);
+    expect(resolveTutorialDisplayStaves('grand')).toEqual([1, 2]);
+    expect(resolveTutorialDisplayStaves('bass')).toEqual([2]);
   });
 });

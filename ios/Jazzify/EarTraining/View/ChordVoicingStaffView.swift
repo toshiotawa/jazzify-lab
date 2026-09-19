@@ -1828,10 +1828,11 @@ struct ChordVoicingStaffGroupsView: View {
     ) {
         guard !groups.isEmpty || showEmptyStaff else { return }
         let w = size.width
-        let displayKeyFifths = NotationDisplayOptions.load(
+        let notation = NotationDisplayOptions.load(
             ignoreNotationInstrument: ignoreNotationInstrument,
             keyFifths: keyFifths
-        ).effectiveKeyFifths
+        )
+        let displayKeyFifths = notation.effectiveKeyFifths
         let layout = staffLayoutMetrics(
             width: w,
             keyFifths: displayKeyFifths,
@@ -1846,7 +1847,11 @@ struct ChordVoicingStaffGroupsView: View {
         )
 
         let hasRest = parsedGroups.contains { $0.group.isRest }
-        let activeStaves = fixedActiveStaves ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
+        let resolvedFixed = NotationInstrumentClef.resolveFixedActiveStaves(
+            clefOverride: notation.clefOverride,
+            fallback: fixedActiveStaves
+        )
+        let activeStaves = resolvedFixed ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         })
         let geo = computeStaffSystemGeometry(
@@ -2480,7 +2485,15 @@ struct ChordVoicingStaffGroupsView: View {
             ignoreNotationInstrument: ignoreNotationInstrument
         )
         let hasRest = parsedGroups.contains { $0.group.isRest }
-        let activeStaves = fixedActiveStaves ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
+        let notation = NotationDisplayOptions.load(
+            ignoreNotationInstrument: ignoreNotationInstrument,
+            keyFifths: keyFifths
+        )
+        let resolvedFixed = NotationInstrumentClef.resolveFixedActiveStaves(
+            clefOverride: notation.clefOverride,
+            fallback: fixedActiveStaves
+        )
+        let activeStaves = resolvedFixed ?? ((hasRest || showEmptyStaff) ? [1, 2] : [1, 2].filter { st in
             parsedGroups.contains { $0.notes.contains { $0.staff == st } }
         })
         let geo = computeStaffSystemGeometry(

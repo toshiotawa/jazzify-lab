@@ -28,6 +28,12 @@ enum BuildDefenseTutorialPhrase {
     }
 
     static func pickWrittenOctave(_ settings: DefenseTutorialNotationSettings) -> DefenseTutorialWrittenOctave {
+        if DefenseTutorialNotation.resolveClef(settings) == .bass {
+            let shifted = DefenseTutorialConstants.bassWrittenOctave
+                + NotationInstrumentCatalog.clampOctaveShift(settings.notationOctaveShift)
+            return DefenseTutorialWrittenOctave(rawValue: min(6, max(3, shifted))) ?? .three
+        }
+
         let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
         let candidates: [DefenseTutorialWrittenOctave] = [.three, .four, .five, .six]
 
@@ -53,14 +59,15 @@ enum BuildDefenseTutorialPhrase {
     ]
 
     private static func buildStaffGroups(
-        writtenNoteNames: [String]
+        writtenNoteNames: [String],
+        voicingStaff: Int
     ) -> [DefenseTutorialStaffGroup] {
         writtenNoteNames.enumerated().map { index, name in
             DefenseTutorialStaffGroup(
                 id: staffGroupIds[index],
                 chordName: DefenseTutorialConstants.solfegeLabels[index],
                 voicing: [name],
-                voicingStaves: [1],
+                voicingStaves: [voicingStaff],
                 measureOffset: 0,
                 isRest: false,
                 noteValue: .whole,
@@ -75,6 +82,9 @@ enum BuildDefenseTutorialPhrase {
     ) -> DefenseTutorialPhraseBuildResult {
         let writtenOctave = pickWrittenOctave(settings)
         let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
+        let voicingStaff = DefenseTutorialNotation.resolveVoicingStaff(
+            DefenseTutorialNotation.resolveClef(settings)
+        )
 
         let writtenMidis = DefenseTutorialConstants.writtenPitchClasses.map { pc in
             midiFromWritten(octave: writtenOctave.rawValue, pitchClass: pc)
@@ -91,7 +101,7 @@ enum BuildDefenseTutorialPhrase {
                 pitchMidi: concertMidi,
                 pitchClass: ((concertMidi % 12) + 12) % 12,
                 noteName: concertNoteNames[stepIndex],
-                staff: 1,
+                staff: voicingStaff,
                 stepIndex: stepIndex
             )
         }
@@ -139,7 +149,7 @@ enum BuildDefenseTutorialPhrase {
             stage: stage,
             phrase: phrase,
             chord: chord,
-            staffGroups: buildStaffGroups(writtenNoteNames: writtenNoteNames),
+            staffGroups: buildStaffGroups(writtenNoteNames: writtenNoteNames, voicingStaff: voicingStaff),
             concertMidis: concertMidis,
             recommendedMidis: concertMidis,
             writtenOctave: writtenOctave

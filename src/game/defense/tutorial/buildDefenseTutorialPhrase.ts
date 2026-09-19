@@ -7,6 +7,7 @@ import type {
 } from '@/game/defense/defenseTypes';
 import type { NotationInstrumentId } from '@/utils/notationInstrument';
 import {
+  DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE,
   DEFENSE_TUTORIAL_BEATS_PER_BAR,
   DEFENSE_TUTORIAL_BPM,
   DEFENSE_TUTORIAL_KEY_FIFTHS,
@@ -17,9 +18,11 @@ import {
 } from '@/game/defense/tutorial/defenseTutorialConstants';
 import {
   resolveTutorialClef,
+  resolveTutorialVoicingStaff,
   resolveTutorialWrittenOffset,
   type DefenseTutorialNotationSettings,
 } from '@/game/defense/tutorial/defenseTutorialNotation';
+import { clampNotationOctaveShift } from '@/utils/notationInstrument';
 
 const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
@@ -33,10 +36,29 @@ const midiFromWritten = (octave: number, pitchClass: number): number => (
   (octave + 1) * 12 + pitchClass
 );
 
-/** Pick written octave so the first note's concert pitch is closest to C4. */
+const clampTutorialWrittenOctave = (value: number): DefenseTutorialWrittenOctave => {
+  if (value <= 3) {
+    return 3;
+  }
+  if (value === 4) {
+    return 4;
+  }
+  if (value === 5) {
+    return 5;
+  }
+  return 6;
+};
+
+/** Pick written octave: bass uses C3, otherwise closest concert C4. */
 export const pickDefenseTutorialWrittenOctave = (
   settings: DefenseTutorialNotationSettings,
 ): DefenseTutorialWrittenOctave => {
+  if (resolveTutorialClef(settings) === 'bass') {
+    return clampTutorialWrittenOctave(
+      DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE + clampNotationOctaveShift(settings.notationOctaveShift),
+    );
+  }
+
   const writtenOffset = resolveTutorialWrittenOffset(settings);
   const candidateOctaves: DefenseTutorialWrittenOctave[] = [3, 4, 5, 6];
 
@@ -67,12 +89,13 @@ export interface DefenseTutorialPhraseBuildResult {
 
 const buildStaffGroups = (
   writtenNoteNames: readonly [string, string, string],
+  voicingStaff: 1 | 2,
 ): readonly ChordVoicingStaffGroup[] => (
   writtenNoteNames.map((name, index) => ({
     id: `tutorial-note-${index}`,
     chordName: DEFENSE_TUTORIAL_SOLFEGE_LABELS[index] ?? '',
     voicing: [name],
-    voicingStaves: [1],
+    voicingStaves: [voicingStaff],
     measureOffset: 0,
     noteValue: 'whole' as const,
   }))
@@ -85,7 +108,8 @@ export const buildDefenseTutorialPhrase = (
   const writtenOctave = pickDefenseTutorialWrittenOctave(settings);
   const writtenOffset = resolveTutorialWrittenOffset(settings);
   const clef = resolveTutorialClef(settings);
-  const staffLayout: DefenseStaffLayout = clef === 'bass' ? 'treble' : 'treble';
+  const voicingStaff = resolveTutorialVoicingStaff(clef);
+  const staffLayout: DefenseStaffLayout = 'treble';
 
   const writtenMidis = DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES.map(
     (pitchClass) => midiFromWritten(writtenOctave, pitchClass),
@@ -103,7 +127,7 @@ export const buildDefenseTutorialPhrase = (
     pitchMidi: concertMidis[stepIndex],
     pitchClass: ((concertMidis[stepIndex] % 12) + 12) % 12,
     noteName: concertNoteNames[stepIndex],
-    staff: 1 as const,
+    staff: voicingStaff,
     stepIndex,
   }));
 
@@ -150,7 +174,7 @@ export const buildDefenseTutorialPhrase = (
     stage,
     phrase,
     chord,
-    staffGroups: buildStaffGroups(writtenNoteNames),
+    staffGroups: buildStaffGroups(writtenNoteNames, voicingStaff),
     concertMidis,
     recommendedMidis: concertMidis,
     writtenOctave,

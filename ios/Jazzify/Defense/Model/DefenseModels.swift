@@ -3,6 +3,13 @@ import Foundation
 enum DefenseStaffLayout: String, Sendable {
     case treble
     case grand
+
+    func displayStaves(for clef: NotationInstrumentClef) -> [Int] {
+        if let staff = clef.singleStaffNumber {
+            return [staff]
+        }
+        return self == .grand ? [1, 2] : [1]
+    }
 }
 
 /// When player slash fires: each correct pitch (`.note`) or chord/measure complete (`.measure`).

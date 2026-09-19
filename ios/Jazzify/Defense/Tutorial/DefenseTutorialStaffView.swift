@@ -26,10 +26,6 @@ struct DefenseTutorialStaffView: View {
     }
 
     private var resolvedStaves: [Int] {
-        switch clefOverride {
-        case .bass: return [2]
-        case .grand: return [1, 2]
-        default: return [1]
-        }
+        DefenseTutorialNotation.resolveDisplayStaves(clefOverride ?? .treble)
     }
 }

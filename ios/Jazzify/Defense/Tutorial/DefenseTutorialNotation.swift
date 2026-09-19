@@ -16,6 +16,17 @@ enum DefenseTutorialNotation {
         return NotationInstrumentCatalog.preset(for: settings.notationInstrumentId).clef
     }
 
+    static func resolveVoicingStaff(_ clef: NotationInstrumentClef) -> Int {
+        clef.singleStaffNumber ?? 1
+    }
+
+    static func resolveDisplayStaves(_ clef: NotationInstrumentClef) -> [Int] {
+        if let staff = clef.singleStaffNumber {
+            return [staff]
+        }
+        return [1, 2]
+    }
+
     static func resolveTransposition(_ settings: DefenseTutorialNotationSettings) -> Int {
         if let transpositionOverride = settings.transpositionOverride {
             return transpositionOverride

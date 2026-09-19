@@ -70,6 +70,31 @@ export const getNotationInstrumentPreset = (id: NotationInstrumentId): NotationI
 export const clampNotationOctaveShift = (value: number): number =>
   Math.max(NOTATION_OCTAVE_SHIFT_MIN, Math.min(NOTATION_OCTAVE_SHIFT_MAX, Math.trunc(value)));
 
+/** Single-staff number for a notation clef. Grand uses both staves. */
+export const notationClefStaffNumber = (
+  clef: NotationInstrumentClef,
+): 1 | 2 | null => {
+  if (clef === 'treble') {
+    return 1;
+  }
+  if (clef === 'bass') {
+    return 2;
+  }
+  return null;
+};
+
+/** Prefer the instrument clef over an explicit fallback (treble/bass only). */
+export const resolveNotationFixedActiveStaves = (
+  clefOverride: NotationInstrumentClef | null | undefined,
+  fallback?: readonly (1 | 2)[],
+): readonly (1 | 2)[] | undefined => {
+  if (!clefOverride) {
+    return fallback;
+  }
+  const staff = notationClefStaffNumber(clefOverride);
+  return staff ? [staff] : fallback;
+};
+
 const clampKeyFifths = (fifths: number): number => Math.max(-7, Math.min(7, Math.trunc(fifths)));
 
 /** コンサート音高 → 記譜表示の半音オフセット（上方向） */

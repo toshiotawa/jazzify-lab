@@ -11,6 +11,9 @@ export const DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES = [0, 2, 4] as const;
 /** Concert MIDI target for the first note (C4). */
 export const DEFENSE_TUTORIAL_TARGET_CONCERT_MIDI = 60;
 
+/** Written do-re-mi octave on bass clef (C3/D3/E3 in C). */
+export const DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE = 3;
+
 /** Beat duration at BPM 60 (seconds). */
 export const DEFENSE_TUTORIAL_BEAT_SEC = 60 / DEFENSE_TUTORIAL_BPM;
 

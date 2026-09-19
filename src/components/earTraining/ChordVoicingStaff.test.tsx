@@ -655,4 +655,20 @@ describe('ChordVoicingStaff', () => {
     expect(container.querySelector('[data-accidental-voicing-index="0"]')).toBeNull();
     mockGameSettings.simpleDisplayMode = false;
   });
+
+  it('trombone では fixedActiveStaves=[1] でもヘ音段に音符を出す', () => {
+    mockGameSettings.notationInstrumentId = 'trombone';
+    const { container } = render(
+      <ChordVoicingStaff
+        voicing={['C4', 'D4', 'E4']}
+        voicingStaves={[1, 1, 1]}
+        chordName="C"
+        fixedActiveStaves={[1]}
+      />,
+    );
+    expect(container.querySelector('line[data-staff-number="2"][data-staff-line="0"]')).not.toBeNull();
+    expect(container.querySelector('line[data-staff-number="1"][data-staff-line="0"]')).toBeNull();
+    expect(container.querySelector('ellipse[data-voicing-index="0"]')).not.toBeNull();
+    mockGameSettings.notationInstrumentId = 'piano';
+  });
 });

@@ -5,6 +5,7 @@ import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
 import {
   getNotationInstrumentPreset,
   getWrittenSemitoneOffset,
+  resolveNotationFixedActiveStaves,
   transposeKeyFifths,
   transposeWrittenNoteName,
   type NotationInstrumentClef,
@@ -1771,11 +1772,10 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   }, [smuflUseForeignObject]);
 
   const hasRestGroups = renderState.groups.some(group => group.isRest);
-  const effectiveFixedActiveStaves = clefOverride === 'treble'
-    ? ([1] as const)
-    : clefOverride === 'bass'
-      ? ([2] as const)
-      : fixedActiveStaves;
+  const effectiveFixedActiveStaves = resolveNotationFixedActiveStaves(
+    clefOverride,
+    fixedActiveStaves,
+  );
   const activeStaves = effectiveFixedActiveStaves ?? (
     (hasRestGroups || showEmptyStaff) ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
       renderState.groups.some(group => group.notes.some(note => note.staff === staff))

@@ -8,6 +8,8 @@ enum DefenseTutorialConstants {
     static let keyFifths = 0
     static let writtenPitchClasses: [Int] = [0, 2, 4]
     static let targetConcertMidi = 60
+    /// Written do-re-mi octave on bass clef (C3/D3/E3 in C).
+    static let bassWrittenOctave = 3
     static let beatSec = 60.0 / bpm
     static let loopSec = beatSec * Double(beatsPerBar)
     static let noteOnsetsSec: [Double] = [0, 1, 2]

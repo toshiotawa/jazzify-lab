@@ -4,6 +4,25 @@ enum NotationInstrumentClef: String, Sendable {
     case treble
     case bass
     case grand
+
+    /// Single-staff number for this clef. Grand uses both staves.
+    var singleStaffNumber: Int? {
+        switch self {
+        case .treble: return 1
+        case .bass: return 2
+        case .grand: return nil
+        }
+    }
+
+    static func resolveFixedActiveStaves(
+        clefOverride: NotationInstrumentClef?,
+        fallback: [Int]?
+    ) -> [Int]? {
+        if let staff = clefOverride?.singleStaffNumber {
+            return [staff]
+        }
+        return fallback
+    }
 }
 
 struct NotationInstrumentPreset: Sendable, Equatable {

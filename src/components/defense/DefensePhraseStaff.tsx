@@ -5,8 +5,11 @@ import React, { useMemo } from 'react';
 
 import ChordVoicingStaff from '@/components/earTraining/ChordVoicingStaff';
 import { buildDefenseStaffGroups } from '@/game/defense/defenseStaffGroups';
+import { resolveDefenseDisplayStaves } from '@/game/defense/defenseStaffLayout';
 import type { DefensePhraseChord, DefenseStaffLayout } from '@/game/defense/defenseTypes';
+import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
+import { getNotationInstrumentPreset } from '@/utils/notationInstrument';
 
 interface DefensePhraseStaffProps {
   readonly chord: DefensePhraseChord | null;
@@ -20,10 +23,6 @@ interface DefensePhraseStaffProps {
   readonly className?: string;
 }
 
-const fixedStavesForLayout = (layout: DefenseStaffLayout): readonly (1 | 2)[] => (
-  layout === 'grand' ? [1, 2] : [1]
-);
-
 export const DefensePhraseStaff = React.memo<DefensePhraseStaffProps>(({
   chord,
   keyFifths,
@@ -35,6 +34,14 @@ export const DefensePhraseStaff = React.memo<DefensePhraseStaffProps>(({
   unpressedNoteOpacity,
   className,
 }) => {
+  const notationInstrumentId = useGameStore((state) => state.settings.notationInstrumentId);
+  const displayStaves = useMemo(
+    () => resolveDefenseDisplayStaves(
+      getNotationInstrumentPreset(notationInstrumentId).clef,
+      staffLayout,
+    ),
+    [notationInstrumentId, staffLayout],
+  );
   const built = useMemo(
     () => buildDefenseStaffGroups(
       chord,
@@ -60,7 +67,7 @@ export const DefensePhraseStaff = React.memo<DefensePhraseStaffProps>(({
         correctPitchClassesByGroupId={built.correctPitchClassesByGroupId}
         showTargetHints={showTargetHints}
         unpressedNoteOpacity={unpressedNoteOpacity}
-        fixedActiveStaves={fixedStavesForLayout(staffLayout)}
+        fixedActiveStaves={displayStaves}
         fadeAllMeasureNotes
         smuflUseForeignObject
       />
