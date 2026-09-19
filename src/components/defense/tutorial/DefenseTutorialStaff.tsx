@@ -30,6 +30,7 @@ export const DefenseTutorialStaff: React.FC<DefenseTutorialStaffProps> = ({
       fixedActiveStaves={[1]}
       fadeAllMeasureNotes
       smuflUseForeignObject
+      ignoreNotationInstrument
     />
   </div>
 );

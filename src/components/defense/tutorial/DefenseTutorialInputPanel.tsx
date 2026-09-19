@@ -30,22 +30,27 @@ export const DefenseTutorialInputChoice: React.FC<{
   readonly isEnglishCopy: boolean;
   readonly onSelect: (method: InputMethod) => void;
 }> = ({ isEnglishCopy, onSelect }) => (
-  <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-4 px-4 py-8 md:grid-cols-3">
-    {([
-      ['midi', isEnglishCopy ? 'MIDI' : 'MIDI', isEnglishCopy ? 'Electronic piano / MIDI keyboard' : '電子ピアノ・MIDIキーボード'],
-      ['voice', isEnglishCopy ? 'Microphone' : 'マイク', isEnglishCopy ? 'Play into the mic' : '楽器の音をマイクで読み取る'],
-      ['touch', isEnglishCopy ? 'On-screen keyboard' : '画面鍵盤', isEnglishCopy ? 'Tap keys on screen' : '画面の鍵盤をタップ'],
-    ] as const).map(([method, title, desc]) => (
-      <button
-        key={method}
-        type="button"
-        className={`${cardClass} hover:border-blue-400 transition-colors`}
-        onClick={() => onSelect(method)}
-      >
-        <div className="text-lg font-semibold text-white">{title}</div>
-        <p className="mt-2 text-sm text-slate-300">{desc}</p>
-      </button>
-    ))}
+  <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8">
+    <p className="text-center text-lg font-semibold text-white">
+      {isEnglishCopy ? 'Choose your input method.' : '入力方式を選んでください。'}
+    </p>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {([
+        ['midi', isEnglishCopy ? 'MIDI' : 'MIDI', isEnglishCopy ? 'Electronic piano / MIDI keyboard' : '電子ピアノ・MIDIキーボード'],
+        ['voice', isEnglishCopy ? 'Microphone' : 'マイク', isEnglishCopy ? 'Play into the mic' : '楽器の音をマイクで読み取る'],
+        ['touch', isEnglishCopy ? 'On-screen keyboard' : '画面鍵盤', isEnglishCopy ? 'Tap keys on screen' : '画面の鍵盤をタップ'],
+      ] as const).map(([method, title, desc]) => (
+        <button
+          key={method}
+          type="button"
+          className={`${cardClass} hover:border-blue-400 transition-colors`}
+          onClick={() => onSelect(method)}
+        >
+          <div className="text-lg font-semibold text-white">{title}</div>
+          <p className="mt-2 text-sm text-slate-300">{desc}</p>
+        </button>
+      ))}
+    </div>
   </div>
 );
 

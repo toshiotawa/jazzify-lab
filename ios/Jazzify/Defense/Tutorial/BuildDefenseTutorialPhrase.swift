@@ -75,6 +75,7 @@ enum BuildDefenseTutorialPhrase {
     ) -> DefenseTutorialPhraseBuildResult {
         let writtenOctave = pickWrittenOctave(settings)
         let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
+        let keyFifths = DefenseTutorialNotation.resolveConcertKeyFifths(settings)
 
         let writtenMidis = DefenseTutorialConstants.writtenPitchClasses.map { pc in
             midiFromWritten(octave: writtenOctave.rawValue, pitchClass: pc)
@@ -82,20 +83,14 @@ enum BuildDefenseTutorialPhrase {
 
         let concertMidis = writtenMidis.map { $0 - writtenOffset }
 
-        let writtenNoteNames = concertMidis.map { concertMidi in
-            EarTrainingMusicXmlTransposer.transposeWrittenNoteName(
-                concertMidiToName(concertMidi),
-                semitones: writtenOffset,
-                originalFifths: DefenseTutorialConstants.keyFifths
-            )
-        }
+        let concertNoteNames = concertMidis.map { concertMidiToName($0) }
 
         let notes: [SurvivalPhraseChordNote] = concertMidis.enumerated().map { stepIndex, concertMidi in
             SurvivalPhraseChordNote(
                 orderIndex: stepIndex,
                 pitchMidi: concertMidi,
                 pitchClass: ((concertMidi % 12) + 12) % 12,
-                noteName: writtenNoteNames[stepIndex],
+                noteName: concertNoteNames[stepIndex],
                 staff: 1,
                 stepIndex: stepIndex
             )
@@ -114,7 +109,7 @@ enum BuildDefenseTutorialPhrase {
             orderIndex: 0,
             title: "Input setup",
             audioUrl: audioUrl,
-            keyFifths: DefenseTutorialConstants.keyFifths,
+            keyFifths: keyFifths,
             requiredCompletionCount: 1,
             chords: [chord]
         )
@@ -130,7 +125,7 @@ enum BuildDefenseTutorialPhrase {
             phraseBars: 1,
             staffLayout: .treble,
             attackTrigger: .note,
-            keyFifths: DefenseTutorialConstants.keyFifths,
+            keyFifths: keyFifths,
             requiredCompletionCount: 1,
             difficultyLevel: 1,
             surviveSeconds: 9999,
@@ -144,7 +139,7 @@ enum BuildDefenseTutorialPhrase {
             stage: stage,
             phrase: phrase,
             chord: chord,
-            staffGroups: buildStaffGroups(writtenNoteNames: writtenNoteNames),
+            staffGroups: buildStaffGroups(writtenNoteNames: concertNoteNames),
             concertMidis: concertMidis,
             recommendedMidis: concertMidis,
             writtenOctave: writtenOctave

@@ -6,26 +6,34 @@ final class BuildDefenseTutorialPhraseTests: XCTestCase {
         let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "trumpet_bb")
         let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
         XCTAssertEqual(result.concertMidis, [58, 60, 62])
-        XCTAssertEqual(result.chord.notes.map(\.noteName), ["C4", "D4", "E4"])
+        XCTAssertEqual(result.chord.notes.map(\.noteName), ["Bb3", "C4", "D4"])
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["Bb3"], ["C4"], ["D4"]])
+        XCTAssertEqual(result.phrase.keyFifths, -2)
     }
 
     func testEbAltoSaxConcertMidis() {
         let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "alto_sax")
         let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
         XCTAssertEqual(result.concertMidis, [63, 65, 67])
-        XCTAssertEqual(result.chord.notes.map(\.noteName), ["C5", "D5", "E5"])
+        XCTAssertEqual(result.chord.notes.map(\.noteName), ["Eb4", "F4", "G4"])
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["Eb4"], ["F4"], ["G4"]])
+        XCTAssertEqual(result.phrase.keyFifths, -3)
     }
 
     func testFHornConcertMidis() {
         let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "french_horn_f")
         let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
         XCTAssertEqual(result.concertMidis, [65, 67, 69])
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["F4"], ["G4"], ["A4"]])
+        XCTAssertEqual(result.phrase.keyFifths, -1)
     }
 
     func testPianoConcertMidis() {
         let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "piano")
         let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
         XCTAssertEqual(result.concertMidis, [60, 62, 64])
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["C4"], ["D4"], ["E4"]])
+        XCTAssertEqual(result.phrase.keyFifths, 0)
     }
 
     func testSeparateStepIndexes() {

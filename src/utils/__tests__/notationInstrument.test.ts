@@ -49,6 +49,15 @@ describe('notationInstrument', () => {
     expect(normalizeNotationInstrumentId('invalid')).toBe('piano');
   });
 
+  it('移調楽器のラベルにキーを付ける', () => {
+    expect(getNotationInstrumentPreset('soprano_sax').label.ja).toBe('ソプラノサックス in B♭');
+    expect(getNotationInstrumentPreset('alto_sax').label.en).toBe('Alto Sax in E♭');
+    expect(getNotationInstrumentPreset('tenor_sax').label.ja).toBe('テナーサックス in B♭');
+    expect(getNotationInstrumentPreset('baritone_sax').label.en).toBe('Baritone Sax in E♭');
+    expect(getNotationInstrumentPreset('trumpet_bb').label.ja).toContain('in B♭');
+    expect(getNotationInstrumentPreset('french_horn_f').label.ja).toContain('in F');
+  });
+
   it('clampNotationOctaveShift は ±3 に制限する', () => {
     expect(clampNotationOctaveShift(3)).toBe(3);
     expect(clampNotationOctaveShift(-3)).toBe(-3);

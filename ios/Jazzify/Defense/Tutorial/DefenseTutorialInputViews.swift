@@ -6,6 +6,10 @@ struct DefenseTutorialInputChoiceView: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            Text(isEnglishCopy ? "Choose your input method." : "入力方式を選んでください。")
+                .font(.title3.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .center)
+
             choiceButton(
                 title: "MIDI",
                 subtitle: isEnglishCopy ? "Electronic piano / MIDI keyboard" : "電子ピアノ・MIDIキーボード",

@@ -7,13 +7,8 @@ import type {
 } from '@/game/defense/defenseTypes';
 import type { NotationInstrumentId } from '@/utils/notationInstrument';
 import {
-  transposeWrittenNoteName,
-} from '@/utils/notationInstrument';
-import {
   DEFENSE_TUTORIAL_BEATS_PER_BAR,
   DEFENSE_TUTORIAL_BPM,
-  DEFENSE_TUTORIAL_KEY_FIFTHS,
-  DEFENSE_TUTORIAL_LOOP_SEC,
   DEFENSE_TUTORIAL_SOLFEGE_LABELS,
   DEFENSE_TUTORIAL_TARGET_CONCERT_MIDI,
   DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES,
@@ -21,6 +16,7 @@ import {
 } from '@/game/defense/tutorial/defenseTutorialConstants';
 import {
   resolveTutorialClef,
+  resolveTutorialConcertKeyFifths,
   resolveTutorialWrittenOffset,
   type DefenseTutorialNotationSettings,
 } from '@/game/defense/tutorial/defenseTutorialNotation';
@@ -88,6 +84,7 @@ export const buildDefenseTutorialPhrase = (
 ): DefenseTutorialPhraseBuildResult => {
   const writtenOctave = pickDefenseTutorialWrittenOctave(settings);
   const writtenOffset = resolveTutorialWrittenOffset(settings);
+  const keyFifths = resolveTutorialConcertKeyFifths(settings);
   const clef = resolveTutorialClef(settings);
   const staffLayout: DefenseStaffLayout = clef === 'bass' ? 'treble' : 'treble';
 
@@ -99,19 +96,13 @@ export const buildDefenseTutorialPhrase = (
     (writtenMidi) => writtenMidi - writtenOffset,
   ) as [number, number, number];
 
-  const writtenNoteNames = concertMidis.map((concertMidi) => (
-    transposeWrittenNoteName(
-      concertMidiToName(concertMidi),
-      writtenOffset,
-      DEFENSE_TUTORIAL_KEY_FIFTHS,
-    )
-  )) as [string, string, string];
+  const concertNoteNames = concertMidis.map(concertMidiToName) as [string, string, string];
 
   const notes = DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES.map((_, stepIndex) => ({
     orderIndex: stepIndex,
     pitchMidi: concertMidis[stepIndex],
     pitchClass: ((concertMidis[stepIndex] % 12) + 12) % 12,
-    noteName: writtenNoteNames[stepIndex],
+    noteName: concertNoteNames[stepIndex],
     staff: 1 as const,
     stepIndex,
   }));
@@ -129,7 +120,7 @@ export const buildDefenseTutorialPhrase = (
     orderIndex: 0,
     title: 'Input setup',
     audioUrl,
-    keyFifths: DEFENSE_TUTORIAL_KEY_FIFTHS,
+    keyFifths,
     requiredCompletionCount: 1,
     chords: [chord],
   };
@@ -145,7 +136,7 @@ export const buildDefenseTutorialPhrase = (
     phraseBars: 1,
     staffLayout,
     attackTrigger: 'note',
-    keyFifths: DEFENSE_TUTORIAL_KEY_FIFTHS,
+    keyFifths,
     requiredCompletionCount: 1,
     difficultyLevel: 1,
     surviveSeconds: 9999,
@@ -159,7 +150,7 @@ export const buildDefenseTutorialPhrase = (
     stage,
     phrase,
     chord,
-    staffGroups: buildStaffGroups(writtenNoteNames),
+    staffGroups: buildStaffGroups(concertNoteNames),
     concertMidis,
     recommendedMidis: concertMidis,
     writtenOctave,

@@ -5,7 +5,6 @@ enum DefenseTutorialConstants {
     static let key = "input-setup-v1"
     static let bpm: Double = 60
     static let beatsPerBar = 4
-    static let keyFifths = 0
     static let writtenPitchClasses: [Int] = [0, 2, 4]
     static let targetConcertMidi = 60
     static let beatSec = 60.0 / bpm

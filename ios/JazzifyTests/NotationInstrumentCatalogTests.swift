@@ -37,4 +37,13 @@ final class NotationInstrumentCatalogTests: XCTestCase {
         XCTAssertEqual(NotationInstrumentCatalog.clampOctaveShift(-4), -3)
         XCTAssertEqual(NotationInstrumentCatalog.clampOctaveShift(4), 3)
     }
+
+    func testTransposingInstrumentLabelsIncludeKey() {
+        XCTAssertEqual(NotationInstrumentCatalog.preset(for: "soprano_sax").labelJa, "ソプラノサックス in B♭")
+        XCTAssertEqual(NotationInstrumentCatalog.preset(for: "alto_sax").labelEn, "Alto Sax in E♭")
+        XCTAssertEqual(NotationInstrumentCatalog.preset(for: "tenor_sax").labelJa, "テナーサックス in B♭")
+        XCTAssertEqual(NotationInstrumentCatalog.preset(for: "baritone_sax").labelEn, "Baritone Sax in E♭")
+        XCTAssertTrue(NotationInstrumentCatalog.preset(for: "trumpet_bb").labelJa.contains("in B♭"))
+        XCTAssertTrue(NotationInstrumentCatalog.preset(for: "french_horn_f").labelJa.contains("in F"))
+    }
 }

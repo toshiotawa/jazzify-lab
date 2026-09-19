@@ -20,7 +20,8 @@ struct DefenseTutorialStaffView: View {
             compactChordLabelGap: true,
             compactVerticalLayout: true,
             fadeAllMeasureNotes: false,
-            fixedActiveStaves: resolvedStaves
+            fixedActiveStaves: resolvedStaves,
+            ignoreNotationInstrument: true
         )
     }
 

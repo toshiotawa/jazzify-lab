@@ -8,29 +8,37 @@ import { resolveTutorialWrittenOffset } from '@/game/defense/tutorial/defenseTut
 describe('buildDefenseTutorialPhrase', () => {
   it('uses instrument concert midis for Bb trumpet', () => {
     const settings = defaultTutorialNotationSettings('trumpet_bb');
-    const { chord, concertMidis } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    const { chord, concertMidis, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([58, 60, 62]);
     expect(chord.notes.map((n) => n.pitchMidi)).toEqual([58, 60, 62]);
-    expect(chord.notes.map((n) => n.noteName)).toEqual(['C4', 'D4', 'E4']);
+    expect(chord.notes.map((n) => n.noteName)).toEqual(['Bb3', 'C4', 'D4']);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['Bb3'], ['C4'], ['D4']]);
+    expect(phrase.keyFifths).toBe(-2);
   });
 
   it('uses instrument concert midis for Eb alto sax', () => {
     const settings = defaultTutorialNotationSettings('alto_sax');
-    const { concertMidis, chord } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    const { concertMidis, chord, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([63, 65, 67]);
-    expect(chord.notes.map((n) => n.noteName)).toEqual(['C5', 'D5', 'E5']);
+    expect(chord.notes.map((n) => n.noteName)).toEqual(['Eb4', 'F4', 'G4']);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['Eb4'], ['F4'], ['G4']]);
+    expect(phrase.keyFifths).toBe(-3);
   });
 
   it('uses instrument concert midis for F horn', () => {
     const settings = defaultTutorialNotationSettings('french_horn_f');
-    const { concertMidis } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    const { concertMidis, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([65, 67, 69]);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['F4'], ['G4'], ['A4']]);
+    expect(phrase.keyFifths).toBe(-1);
   });
 
   it('uses C4 D4 E4 for piano', () => {
     const settings = defaultTutorialNotationSettings('piano');
-    const { concertMidis } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    const { concertMidis, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
     expect(concertMidis).toEqual([60, 62, 64]);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C4'], ['D4'], ['E4']]);
+    expect(phrase.keyFifths).toBe(0);
   });
 
   it('uses separate stepIndex 0,1,2', () => {
