@@ -25,10 +25,11 @@ enum DefenseKeyboardRange {
             guard let minMidi = midis.min(), let maxMidi = midis.max() else {
                 return .full88
             }
-            return PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            let padded = PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
                 minNoteMidi: minMidi,
                 maxNoteMidi: maxMidi
             )
+            return PianoKeyboardScrollGeometry.ensureMinimumDisplaySpan(padded)
         }
     }
 }

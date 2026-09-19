@@ -129,6 +129,9 @@ enum PianoKeyboardScrollGeometry {
 
     private static let whiteKeyInset = 1
 
+    /// 出題音域フィット時に確保する最低表示幅（2オクターブ）。
+    static let minDisplaySpanSemitones = 24
+
     static func whiteKeyIndexAtOrBelow(_ midi: Int, whites: [Int]) -> Int {
         var index = 0
         for (candidateIndex, whiteMidi) in whites.enumerated() where whiteMidi <= midi {
@@ -183,6 +186,105 @@ enum PianoKeyboardScrollGeometry {
             minMidi: max(rangeFirstMidi, minMidi),
             maxMidi: min(rangeLastMidi, maxMidi)
         )
+    }
+
+    private static func alignRangeEndsToWhiteKeys(
+        minMidi: Int,
+        maxMidi: Int,
+        whites: [Int],
+        rangeFirstMidi: Int,
+        rangeLastMidi: Int
+    ) -> PianoStagePitchRange {
+        var alignedMin = minMidi
+        var alignedMax = maxMidi
+
+        if isBlackKey(alignedMin) {
+            alignedMin = whiteStrictlyBelow(alignedMin, whites: whites)
+                ?? whites[whiteKeyIndexAtOrBelow(alignedMin, whites: whites)]
+        }
+        if isBlackKey(alignedMax) {
+            alignedMax = whiteStrictlyAbove(alignedMax, whites: whites)
+                ?? whites[whiteKeyIndexAtOrAbove(alignedMax, whites: whites)]
+        }
+
+        return PianoStagePitchRange(
+            minMidi: Swift.max(rangeFirstMidi, alignedMin),
+            maxMidi: Swift.min(rangeLastMidi, alignedMax)
+        )
+    }
+
+    /// 表示レンジが最低幅未満なら出題中心で対称拡大し、88鍵端でクランプする。
+    static func ensureMinimumDisplaySpan(
+        _ range: PianoStagePitchRange,
+        minSpanSemitones: Int = minDisplaySpanSemitones,
+        rangeFirstMidi: Int = firstMidi,
+        rangeLastMidi: Int = lastMidi
+    ) -> PianoStagePitchRange {
+        if range.maxMidi - range.minMidi >= minSpanSemitones {
+            return range
+        }
+
+        let whites = whiteMidiNotes(first: rangeFirstMidi, last: rangeLastMidi)
+        let center = Double(range.minMidi + range.maxMidi) / 2
+        var targetMin = Int(round(center - Double(minSpanSemitones) / 2))
+        var targetMax = targetMin + minSpanSemitones
+
+        if targetMin < rangeFirstMidi {
+            let shift = rangeFirstMidi - targetMin
+            targetMin = rangeFirstMidi
+            targetMax = min(rangeLastMidi, targetMax + shift)
+        }
+        if targetMax > rangeLastMidi {
+            let shift = targetMax - rangeLastMidi
+            targetMax = rangeLastMidi
+            targetMin = max(rangeFirstMidi, targetMin - shift)
+        }
+
+        var aligned = alignRangeEndsToWhiteKeys(
+            minMidi: targetMin,
+            maxMidi: targetMax,
+            whites: whites,
+            rangeFirstMidi: rangeFirstMidi,
+            rangeLastMidi: rangeLastMidi
+        )
+        if aligned.maxMidi - aligned.minMidi >= minSpanSemitones {
+            return aligned
+        }
+
+        let deficit = minSpanSemitones - (aligned.maxMidi - aligned.minMidi)
+        var extraMin = 0
+        var extraMax = 0
+        var remaining = deficit
+        let roomBelow = aligned.minMidi - rangeFirstMidi
+        let roomAbove = rangeLastMidi - aligned.maxMidi
+
+        func tryExpandBelow(_ amount: Int) {
+            let can = min(roomBelow - extraMin, amount)
+            extraMin += can
+            remaining -= can
+        }
+
+        func tryExpandAbove(_ amount: Int) {
+            let can = min(roomAbove - extraMax, amount)
+            extraMax += can
+            remaining -= can
+        }
+
+        tryExpandBelow(remaining / 2)
+        tryExpandAbove(remaining)
+        tryExpandBelow(remaining)
+
+        targetMin = aligned.minMidi - extraMin
+        targetMax = aligned.maxMidi + extraMax
+
+        aligned = alignRangeEndsToWhiteKeys(
+            minMidi: targetMin,
+            maxMidi: targetMax,
+            whites: whites,
+            rangeFirstMidi: rangeFirstMidi,
+            rangeLastMidi: rangeLastMidi
+        )
+        return aligned
     }
 
     /// 表示鍵盤にない MIDI を、同じピッチクラスの最も近い可視鍵へ折り返す。

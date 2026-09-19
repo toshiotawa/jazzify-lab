@@ -174,4 +174,126 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
             Set([60])
         )
     }
+
+    func testEnsureMinimumDisplaySpanExpandsNarrowPaddedRange() {
+        let padded = PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: 60,
+            maxNoteMidi: 67
+        )
+        let expanded = PianoKeyboardScrollGeometry.ensureMinimumDisplaySpan(padded)
+        XCTAssertGreaterThanOrEqual(
+            expanded.maxMidi - expanded.minMidi,
+            PianoKeyboardScrollGeometry.minDisplaySpanSemitones
+        )
+        XCTAssertLessThanOrEqual(expanded.minMidi, 60)
+        XCTAssertGreaterThanOrEqual(expanded.maxMidi, 67)
+    }
+
+    func testEnsureMinimumDisplaySpanLeavesWideRangeUnchanged() {
+        let range = PianoStagePitchRange(minMidi: 48, maxMidi: 84)
+        XCTAssertEqual(PianoKeyboardScrollGeometry.ensureMinimumDisplaySpan(range), range)
+    }
+
+    func testEnsureMinimumDisplaySpanClampsAtA0() {
+        let padded = PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: 21,
+            maxNoteMidi: 23
+        )
+        let expanded = PianoKeyboardScrollGeometry.ensureMinimumDisplaySpan(padded)
+        XCTAssertEqual(expanded.minMidi, 21)
+        XCTAssertGreaterThanOrEqual(
+            expanded.maxMidi - expanded.minMidi,
+            PianoKeyboardScrollGeometry.minDisplaySpanSemitones
+        )
+    }
+
+    func testEnsureMinimumDisplaySpanClampsAtC8() {
+        let padded = PianoKeyboardScrollGeometry.expandMidiRangeWithWhiteKeyPadding(
+            minNoteMidi: 105,
+            maxNoteMidi: 108
+        )
+        let expanded = PianoKeyboardScrollGeometry.ensureMinimumDisplaySpan(padded)
+        XCTAssertEqual(expanded.maxMidi, 108)
+        XCTAssertGreaterThanOrEqual(
+            expanded.maxMidi - expanded.minMidi,
+            PianoKeyboardScrollGeometry.minDisplaySpanSemitones
+        )
+    }
+
+    func testDefenseKeyboardRangeEnsuresTwoOctavesForTutorialMidis() {
+        let stage = Self.tutorialStage(concertMidis: [60, 62, 64])
+        let range = DefenseKeyboardRange.resolvedDisplayRange(
+            for: stage,
+            displayMode: .questionRangeFit
+        )
+        XCTAssertGreaterThanOrEqual(
+            range.maxMidi - range.minMidi,
+            PianoKeyboardScrollGeometry.minDisplaySpanSemitones
+        )
+        XCTAssertLessThanOrEqual(range.minMidi, 60)
+        XCTAssertGreaterThanOrEqual(range.maxMidi, 64)
+    }
+
+    func testDefenseKeyboardRangeUsesFull88InFull88Mode() {
+        let stage = Self.tutorialStage(concertMidis: [60, 62, 64])
+        let range = DefenseKeyboardRange.resolvedDisplayRange(
+            for: stage,
+            displayMode: .full88Keys
+        )
+        XCTAssertEqual(range, .full88)
+    }
+
+    private static func tutorialStage(concertMidis: [Int]) -> DefenseStageDefinition {
+        let notes = concertMidis.enumerated().map { index, midi in
+            SurvivalPhraseChordNote(
+                orderIndex: index,
+                pitchMidi: midi,
+                pitchClass: ((midi % 12) + 12) % 12,
+                noteName: "N\(index)",
+                staff: 1,
+                stepIndex: index
+            )
+        }
+        let phrase = DefensePhraseDefinition(
+            id: "tutorial",
+            orderIndex: 0,
+            title: "Tutorial",
+            audioUrl: "https://example.com/a.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "c0",
+                    orderIndex: 0,
+                    chordName: "Tutorial",
+                    measureNumber: 1,
+                    notes: notes
+                ),
+            ]
+        )
+        return DefenseStageDefinition(
+            id: "tutorial-stage",
+            slug: "tutorial",
+            stageNumber: 0,
+            title: "Tutorial",
+            titleEn: "Tutorial",
+            bpm: 120,
+            beatsPerBar: 4,
+            audioRegistrationMode: .perPhrase,
+            audioUrl: nil,
+            phraseBars: 1,
+            staffLayout: .treble,
+            attackTrigger: .note,
+            keyFifths: 0,
+            requiredCompletionCount: 1,
+            difficultyLevel: 1,
+            surviveSeconds: 60,
+            playerHp: 100,
+            productionStaffHintMode: "none",
+            productionKeyboardHintMode: "none",
+            phrases: [phrase]
+        )
+    }
 }
