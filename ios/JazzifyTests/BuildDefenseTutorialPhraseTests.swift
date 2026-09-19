@@ -75,6 +75,23 @@ final class BuildDefenseTutorialPhraseTests: XCTestCase {
         XCTAssertEqual(result.chord.notes.map(\.staff), [2, 2, 2])
     }
 
+    func testTromboneKeepsC3RegisterWhenWrittenOctaveIsMinusOne() {
+        var settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: "trombone")
+        settings.notationOctaveShift = -1
+        let result = BuildDefenseTutorialPhrase.build(settings: settings, audioUrl: "https://example.com/a.mp3")
+        XCTAssertEqual(result.writtenOctave, .three)
+        XCTAssertEqual(result.concertMidis, [48, 50, 52])
+        XCTAssertEqual(result.staffGroups.map(\.voicing), [["C3"], ["D3"], ["E3"]])
+    }
+
+    func testDefaultOctaveShiftIsMinusOneForBass() {
+        XCTAssertEqual(DefenseTutorialNotation.resolveDefaultOctaveShift(.bass), -1)
+        XCTAssertEqual(DefenseTutorialNotation.resolveDefaultOctaveShift(.treble), 0)
+        XCTAssertEqual(DefenseTutorialNotation.resolveDefaultOctaveShift(.grand), 0)
+        XCTAssertEqual(DefenseTutorialNotation.formatOctaveShiftLabel(-1, isEnglishCopy: false), "記譜オクターブ -1")
+        XCTAssertEqual(DefenseTutorialNotation.formatOctaveShiftLabel(-1, isEnglishCopy: true), "Written octave -1")
+    }
+
     func testClefMapsToVoicingAndDisplayStaves() {
         XCTAssertEqual(DefenseTutorialNotation.resolveVoicingStaff(.treble), 1)
         XCTAssertEqual(DefenseTutorialNotation.resolveVoicingStaff(.grand), 1)

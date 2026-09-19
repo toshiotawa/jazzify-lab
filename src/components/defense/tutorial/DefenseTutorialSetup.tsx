@@ -1,7 +1,11 @@
 import React from 'react';
 import { NotationInstrumentSelect } from '@/components/settings/NotationInstrumentSelect';
 import type { NotationInstrumentClef, NotationInstrumentId } from '@/utils/notationInstrument';
-import { formatTutorialNotationLabel } from '@/game/defense/tutorial/defenseTutorialNotation';
+import {
+  formatTutorialNotationLabel,
+  formatTutorialOctaveShiftLabel,
+  resolveTutorialDefaultOctaveShift,
+} from '@/game/defense/tutorial/defenseTutorialNotation';
 import type { DefenseTutorialNotationSettings } from '@/game/defense/tutorial/defenseTutorialNotation';
 import { getNotationInstrumentPreset } from '@/utils/notationInstrument';
 
@@ -28,7 +32,7 @@ export const DefenseTutorialSetup: React.FC<DefenseTutorialSetupProps> = ({
     const nextPreset = getNotationInstrumentPreset(instrumentId);
     onChange({
       notationInstrumentId: instrumentId,
-      notationOctaveShift: settings.notationOctaveShift,
+      notationOctaveShift: resolveTutorialDefaultOctaveShift(nextPreset.clef),
       clefOverride: nextPreset.clef,
       transpositionOverride: nextPreset.transposition,
     });
@@ -46,6 +50,12 @@ export const DefenseTutorialSetup: React.FC<DefenseTutorialSetupProps> = ({
         </p>
         <p className="text-xl font-semibold text-white">{instrumentLabel}</p>
         <p className="text-sm text-slate-400">{label}</p>
+        <p className="text-sm text-slate-200">
+          {formatTutorialOctaveShiftLabel(settings.notationOctaveShift, isEnglishCopy)}
+        </p>
+        <p className="text-sm text-slate-300">
+          {isEnglishCopy ? 'Does this look right?' : 'こちらでよろしいですか？'}
+        </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           {onBackToEdit ? (
             <button type="button" className="btn btn-outline" onClick={onBackToEdit}>
@@ -91,15 +101,15 @@ export const DefenseTutorialSetup: React.FC<DefenseTutorialSetupProps> = ({
 
 export const buildDefaultTutorialNotationFromStore = (
   notationInstrumentId: NotationInstrumentId,
-  notationOctaveShift: number,
   clefOverride: NotationInstrumentClef | null | undefined,
   transpositionOverride: number | null | undefined,
 ): DefenseTutorialNotationSettings => {
   const preset = getNotationInstrumentPreset(notationInstrumentId);
+  const clef = clefOverride ?? preset.clef;
   return {
     notationInstrumentId,
-    notationOctaveShift,
-    clefOverride: clefOverride ?? preset.clef,
+    notationOctaveShift: resolveTutorialDefaultOctaveShift(clef),
+    clefOverride: clef,
     transpositionOverride: transpositionOverride ?? preset.transposition,
   };
 };

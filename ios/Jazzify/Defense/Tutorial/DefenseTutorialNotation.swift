@@ -27,6 +27,17 @@ enum DefenseTutorialNotation {
         return [1, 2]
     }
 
+    static func resolveDefaultOctaveShift(_ clef: NotationInstrumentClef) -> Int {
+        clef == .bass ? -1 : 0
+    }
+
+    static func formatOctaveShiftLabel(_ shift: Int, isEnglishCopy: Bool) -> String {
+        let sign = shift > 0 ? "+" : ""
+        return isEnglishCopy
+            ? "Written octave \(sign)\(shift)"
+            : "記譜オクターブ \(sign)\(shift)"
+    }
+
     static func resolveTransposition(_ settings: DefenseTutorialNotationSettings) -> Int {
         if let transpositionOverride = settings.transpositionOverride {
             return transpositionOverride

@@ -15,9 +15,11 @@ struct DefenseTutorialView: View {
     init(playMapNodeId: UUID?, onExit: @escaping () -> Void) {
         self.playMapNodeId = playMapNodeId
         self.onExit = onExit
+        let instrumentId = NotationInstrumentPreferences.loadInstrumentId()
+        let preset = NotationInstrumentCatalog.preset(for: instrumentId)
         let notation = DefenseTutorialNotation.defaultSettings(
-            notationInstrumentId: NotationInstrumentPreferences.loadInstrumentId(),
-            notationOctaveShift: NotationInstrumentPreferences.loadOctaveShift()
+            notationInstrumentId: instrumentId,
+            notationOctaveShift: DefenseTutorialNotation.resolveDefaultOctaveShift(preset.clef)
         )
         _session = State(initialValue: DefenseTutorialState.createSession(notation: notation))
     }

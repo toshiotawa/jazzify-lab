@@ -74,7 +74,6 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
     createDefenseTutorialSessionState(
       buildDefaultTutorialNotationFromStore(
         settings.notationInstrumentId,
-        settings.notationOctaveShift,
         settings.notationClefOverride,
         settings.notationTranspositionOverride,
       ),

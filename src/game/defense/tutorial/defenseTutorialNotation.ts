@@ -36,6 +36,21 @@ export const resolveTutorialDisplayStaves = (
   return staff ? [staff] : [1, 2];
 };
 
+/** Recommended written-octave stepper value for the selected clef. */
+export const resolveTutorialDefaultOctaveShift = (
+  clef: NotationInstrumentClef,
+): number => (clef === 'bass' ? -1 : 0);
+
+export const formatTutorialOctaveShiftLabel = (
+  shift: number,
+  isEnglishCopy: boolean,
+): string => {
+  const sign = shift > 0 ? '+' : '';
+  return isEnglishCopy
+    ? `Written octave ${sign}${shift}`
+    : `記譜オクターブ ${sign}${shift}`;
+};
+
 export const resolveTutorialTransposition = (
   settings: DefenseTutorialNotationSettings,
 ): number => {

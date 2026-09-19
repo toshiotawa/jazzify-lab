@@ -41,6 +41,19 @@ struct DefenseTutorialSetupView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
+            Text(DefenseTutorialNotation.formatOctaveShiftLabel(
+                settings.notationOctaveShift,
+                isEnglishCopy: isEnglishCopy
+            ))
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+            .multilineTextAlignment(.center)
+
+            Text(isEnglishCopy ? "Does this look right?" : "こちらでよろしいですか？")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
             HStack(spacing: 12) {
                 if let onBackToEdit {
                     Button(isEnglishCopy ? "Change" : "変更する", action: onBackToEdit)
@@ -99,7 +112,7 @@ struct DefenseTutorialSetupView: View {
                 let preset = NotationInstrumentCatalog.preset(for: newId)
                 onChange(DefenseTutorialNotationSettings(
                     notationInstrumentId: newId,
-                    notationOctaveShift: settings.notationOctaveShift,
+                    notationOctaveShift: DefenseTutorialNotation.resolveDefaultOctaveShift(preset.clef),
                     clefOverride: preset.clef,
                     transpositionOverride: preset.transposition
                 ))

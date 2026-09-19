@@ -3,7 +3,10 @@ import {
   pickDefenseTutorialWrittenOctave,
 } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import { defaultTutorialNotationSettings } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
+import { buildDefaultTutorialNotationFromStore } from '@/components/defense/tutorial/DefenseTutorialSetup';
 import {
+  formatTutorialOctaveShiftLabel,
+  resolveTutorialDefaultOctaveShift,
   resolveTutorialDisplayStaves,
   resolveTutorialVoicingStaff,
   resolveTutorialWrittenOffset,
@@ -95,6 +98,28 @@ describe('buildDefenseTutorialPhrase', () => {
     expect(staffGroups.map((group) => group.voicing)).toEqual([['C3'], ['D3'], ['E3']]);
     expect(staffGroups.map((group) => group.voicingStaves)).toEqual([[2], [2], [2]]);
     expect(chord.notes.map((n) => n.staff)).toEqual([2, 2, 2]);
+  });
+
+  it('keeps trombone tutorial register at C3 when written octave is -1', () => {
+    const settings: DefenseTutorialNotationSettings = {
+      ...defaultTutorialNotationSettings('trombone'),
+      notationOctaveShift: -1,
+    };
+    const { concertMidis, staffGroups, writtenOctave } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');
+    expect(writtenOctave).toBe(3);
+    expect(concertMidis).toEqual([48, 50, 52]);
+    expect(staffGroups.map((group) => group.voicing)).toEqual([['C3'], ['D3'], ['E3']]);
+  });
+
+  it('defaults bass-clef instruments to written octave -1', () => {
+    expect(resolveTutorialDefaultOctaveShift('bass')).toBe(-1);
+    expect(resolveTutorialDefaultOctaveShift('treble')).toBe(0);
+    expect(resolveTutorialDefaultOctaveShift('grand')).toBe(0);
+    expect(formatTutorialOctaveShiftLabel(-1, false)).toBe('記譜オクターブ -1');
+    expect(formatTutorialOctaveShiftLabel(-1, true)).toBe('Written octave -1');
+    expect(formatTutorialOctaveShiftLabel(0, false)).toBe('記譜オクターブ 0');
+    expect(buildDefaultTutorialNotationFromStore('trombone', null, null).notationOctaveShift).toBe(-1);
+    expect(buildDefaultTutorialNotationFromStore('alto_sax', null, null).notationOctaveShift).toBe(0);
   });
 
   it('maps tutorial clefs to voicing staff and display staves', () => {
