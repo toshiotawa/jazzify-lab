@@ -174,6 +174,54 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         )
     }
 
+    func testAfterTutorialPrefersFirstBasicStageWhenAllCleared() {
+        let guidance = DefenseTrainingGuidanceResolver.resolveAfterTutorial(
+            isPremium: true,
+            blocks: [basicBlock, advancedBlock],
+            nodes: basicNodes + advancedNodes,
+            clearedNodeIds: [tutorialId, stage1Id, stage2Id, adv1Id, adv2Id],
+            locale: .ja
+        )
+
+        guard case .openDefense(let tier, let nodeId, let title, let reason) = guidance else {
+            return XCTFail("Expected openDefense after tutorial")
+        }
+        XCTAssertEqual(tier, .basic)
+        XCTAssertEqual(nodeId, stage1Id)
+        XCTAssertEqual(title, "フレーズ I")
+        XCTAssertEqual(reason, .nextStage)
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.primaryLabel(for: guidance, locale: .ja),
+            "フレーズディフェンスを続ける"
+        )
+        XCTAssertEqual(
+            DefenseTrainingGuidanceResolver.sheetTitle(for: guidance, kind: .nextStep, locale: .ja),
+            "次に進みますか？"
+        )
+    }
+
+    func testAfterTutorialKeepsNextUnclearedStage() {
+        let guidance = DefenseTrainingGuidanceResolver.resolveAfterTutorial(
+            isPremium: false,
+            blocks: [basicBlock],
+            nodes: basicNodes,
+            clearedNodeIds: [tutorialId],
+            locale: .ja
+        )
+
+        guard case .openDefense(_, let nodeId, _, let reason) = guidance else {
+            return XCTFail("Expected openDefense")
+        }
+        XCTAssertEqual(nodeId, stage1Id)
+        XCTAssertEqual(reason, .nextStage)
+    }
+
+    func testNoneGuidanceHasNoPrimaryLabel() {
+        XCTAssertNil(
+            DefenseTrainingGuidanceResolver.primaryLabel(for: .none, locale: .ja)
+        )
+    }
+
     func testTrainingCopyChangesWithTodayStreak() {
         XCTAssertEqual(
             DefenseTrainingGuidanceResolver.primaryLabel(

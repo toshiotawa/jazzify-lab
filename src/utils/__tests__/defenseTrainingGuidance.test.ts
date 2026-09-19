@@ -3,6 +3,7 @@ import { isSoftLandingPaywallSource } from '@/utils/analytics/softLandingOffer';
 import {
   defenseGuidanceBodyCopy,
   resolveDefenseTrainingGuidance,
+  resolveDefenseTrainingGuidanceAfterTutorial,
   trainingGuidancePrimaryLabel,
 } from '@/utils/defenseTrainingGuidance';
 
@@ -150,6 +151,29 @@ describe('resolveDefenseTrainingGuidance', () => {
     });
 
     expect(guidance).toEqual({ kind: 'openTraining' });
+  });
+
+  it('guides to the first basic stage after tutorial even when all stages are cleared', () => {
+    const guidance = resolveDefenseTrainingGuidanceAfterTutorial({
+      isPremiumMember: true,
+      blocks: [basicBlock, advancedBlock],
+      nodes: [...basicNodes, ...advancedNodes],
+      clearedNodeIds: new Set([
+        'tutorial',
+        'stage-1',
+        'stage-2',
+        'adv-1',
+        'adv-2',
+      ]),
+    });
+
+    expect(guidance).toMatchObject({
+      kind: 'openDefense',
+      tier: 'basic',
+      nodeId: 'stage-1',
+      nodeTitle: 'フレーズ I',
+      reason: 'nextStage',
+    });
   });
 });
 

@@ -208,6 +208,48 @@ export function resolveDefenseTrainingGuidance(
   return { kind: 'openTraining' };
 }
 
+const findFirstStageInBlock = (
+  block: PlayMapBlock,
+  nodes: readonly PlayMapNode[],
+): PlayMapNode | null => {
+  const stages = nodes
+    .filter((node) => node.blockId === block.id && node.nodeKind === 'stage')
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  return stages[0] ?? null;
+};
+
+/** 設定ノード終了直後は、全ステージクリア済みでもトレーニングへ送らず次のフレーズへ進める。 */
+export function resolveDefenseTrainingGuidanceAfterTutorial(
+  input: ResolveDefenseTrainingGuidanceInput,
+): DefenseTrainingGuidance {
+  const resolved = resolveDefenseTrainingGuidance(input);
+  if (resolved.kind === 'openDefense' || resolved.kind === 'defenseBlockComplete') {
+    return resolved;
+  }
+
+  const basicBlock0 = sortedTierBlocks(input.blocks, 'basic')[0];
+  if (!basicBlock0) {
+    return resolved;
+  }
+
+  const stage = findNextUnclearedStageInBlock(
+    basicBlock0,
+    input.nodes,
+    input.clearedNodeIds,
+  ) ?? findFirstStageInBlock(basicBlock0, input.nodes);
+  if (!stage) {
+    return resolved;
+  }
+
+  return {
+    kind: 'openDefense',
+    tier: 'basic',
+    nodeId: stage.id,
+    nodeTitle: nodeDisplayTitle(stage, input.isEnglishCopy ?? false),
+    reason: 'nextStage',
+  };
+}
+
 export function buildDefenseNodeHash(nodeId: string): string {
   return `#phrase-defense?nodeId=${encodeURIComponent(nodeId)}`;
 }

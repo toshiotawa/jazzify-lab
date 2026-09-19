@@ -207,6 +207,55 @@ enum DefenseTrainingGuidanceResolver {
         return .openTraining
     }
 
+    /// 設定ノード終了直後は、全ステージクリア済みでもトレーニングへ送らず次のフレーズへ進める。
+    static func resolveAfterTutorial(
+        isPremium: Bool,
+        blocks: [PlayMapBlock],
+        nodes: [PlayMapNode],
+        clearedNodeIds: Set<UUID>,
+        locale: AppLocale
+    ) -> DefenseTrainingGuidance {
+        let resolved = resolve(
+            isPremium: isPremium,
+            blocks: blocks,
+            nodes: nodes,
+            clearedNodeIds: clearedNodeIds,
+            locale: locale
+        )
+        switch resolved {
+        case .openDefense, .defenseBlockComplete:
+            return resolved
+        case .openTraining, .none:
+            let basicBlock0 = sortedTierBlocks(blocks, tier: .basic).first
+            let stage = basicBlock0.flatMap { block in
+                findNextUnclearedStageInBlock(
+                    block: block,
+                    nodes: nodes,
+                    clearedNodeIds: clearedNodeIds
+                ) ?? findFirstStageInBlock(block: block, nodes: nodes)
+            }
+            guard let stage else {
+                return resolved
+            }
+            return .openDefense(
+                tier: .basic,
+                nodeId: stage.id,
+                nodeTitle: nodeDisplayTitle(stage, locale: locale),
+                reason: .nextStage
+            )
+        }
+    }
+
+    private static func findFirstStageInBlock(
+        block: PlayMapBlock,
+        nodes: [PlayMapNode]
+    ) -> PlayMapNode? {
+        nodes
+            .filter { $0.blockId == block.id && $0.nodeKind == .stage }
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .first
+    }
+
     static func loadTodayStreakUpdated(profile: Profile?) async -> Bool {
         let timezone = TrainingActivity.resolveUserTimezone(profile: profile)
         let todayKey = TrainingActivity.localDateKey(Date(), timezone: timezone)

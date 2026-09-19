@@ -41,17 +41,22 @@ struct DefenseTrainingResumeSheet: View {
             }
 
             VStack(spacing: 12) {
-                Button(
-                    DefenseTrainingGuidanceResolver.primaryLabel(
-                        for: guidance,
-                        locale: locale,
-                        todayStreakUpdated: todayStreakUpdated
-                    ) ?? "",
-                    action: onContinue
-                )
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
+                if let primaryLabel = DefenseTrainingGuidanceResolver.primaryLabel(
+                    for: guidance,
+                    locale: locale,
+                    todayStreakUpdated: todayStreakUpdated
+                ) {
+                    Button(action: onContinue) {
+                        Text(primaryLabel)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.purple)
+                    .controlSize(.large)
+                }
 
                 Button(laterLabel, action: onLater)
                     .buttonStyle(.bordered)

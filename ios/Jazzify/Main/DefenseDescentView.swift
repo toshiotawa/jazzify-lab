@@ -26,9 +26,8 @@ struct DefenseDescentView: View {
     @State private var lessonToOpen: LessonPlayMapLaunch?
     @State private var tutorialLaunch: TutorialLaunchContext?
     @State private var alertMessage: String?
-    @State private var nextStepGuidance: DefenseTrainingGuidance?
+    @State private var nextStepPrompt: NextStepPrompt?
     @State private var resultNextStepLabel: String?
-    @State private var showNextStepSheet = false
     @State private var todayStreakUpdated = false
 
     private var locale: AppLocale { appState.locale }
@@ -73,6 +72,11 @@ struct DefenseDescentView: View {
         func hash(into hasher: inout Hasher) {
             hasher.combine(id)
         }
+    }
+
+    private struct NextStepPrompt: Identifiable {
+        let id = UUID()
+        let guidance: DefenseTrainingGuidance
     }
 
     private struct SoftLandingLessonLaunch: Identifiable, Hashable {
@@ -191,22 +195,18 @@ struct DefenseDescentView: View {
             )
             .environmentObject(appState)
         }
-        .sheet(isPresented: $showNextStepSheet) {
+        .sheet(item: $nextStepPrompt) { prompt in
             DefenseTrainingResumeSheet(
                 locale: locale,
-                guidance: nextStepGuidance ?? .none,
+                guidance: prompt.guidance,
                 kind: .nextStep,
                 todayStreakUpdated: todayStreakUpdated,
                 onContinue: {
-                    showNextStepSheet = false
-                    if let guidance = nextStepGuidance {
-                        applyDefenseTrainingGuidance(guidance)
-                    }
-                    nextStepGuidance = nil
+                    nextStepPrompt = nil
+                    applyDefenseTrainingGuidance(prompt.guidance)
                 },
                 onLater: {
-                    showNextStepSheet = false
-                    nextStepGuidance = nil
+                    nextStepPrompt = nil
                 }
             )
         }
@@ -401,18 +401,19 @@ struct DefenseDescentView: View {
     private func handleTutorialExit() async {
         await reloadMap()
         await refreshTodayStreakUpdated()
-        let guidance = resolveGuidance()
-        if case .openDefense(_, _, _, let reason) = guidance, reason == .nextStage {
-            applyDefenseTrainingGuidance(guidance)
-            return
-        }
+        let guidance = DefenseTrainingGuidanceResolver.resolveAfterTutorial(
+            isPremium: appState.isPremium,
+            blocks: blocks,
+            nodes: nodes,
+            clearedNodeIds: Set(clears.map(\.nodeId)),
+            locale: locale
+        )
         if guidance == .defenseBlockComplete {
             showBlockCompleteSheet = true
             return
         }
         guard guidance != .none else { return }
-        nextStepGuidance = guidance
-        showNextStepSheet = true
+        nextStepPrompt = NextStepPrompt(guidance: guidance)
     }
 
     private func handlePerformanceNextStep() async {

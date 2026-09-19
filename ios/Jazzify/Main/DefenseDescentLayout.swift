@@ -286,7 +286,10 @@ enum DefenseDescentAccess {
                 clearedNodeIds: clearedNodeIds,
                 isPremium: isPremium
             ) else { continue }
-            for node in blockLayout.nodes where !clearedNodeIds.contains(node.nodeId) {
+            for node in blockLayout.nodes where
+                PlayMapProgression.isProgressionGate(node.node)
+                && !clearedNodeIds.contains(node.nodeId)
+            {
                 return node.nodeId
             }
         }

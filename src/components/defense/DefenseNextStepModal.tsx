@@ -24,7 +24,7 @@ export const DefenseNextStepModal: React.FC<DefenseNextStepModalProps> = ({
 }) => {
   const heading = guidance.kind === 'openTraining'
     ? (isEnglishCopy ? 'Nice work!' : 'お疲れさまでした！')
-    : (isEnglishCopy ? 'Step complete!' : 'クリア！');
+    : (isEnglishCopy ? 'Ready for the next step?' : '次に進みますか？');
   const bodyCopy = defenseGuidanceBodyCopy(guidance, isEnglishCopy, todayStreakUpdated);
   const primaryLabel = guidance.kind === 'openDefense'
     ? defenseGuidancePrimaryLabel(guidance, isEnglishCopy)

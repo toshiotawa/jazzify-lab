@@ -183,6 +183,25 @@ final class DefenseDescentAccessTests: XCTestCase {
         )
     }
 
+    func testFrontierSkipsTutorialAndLegacyWelcomeQuest() {
+        let tutorialId = UUID()
+        let welcomeId = PlayMapProgression.legacyWelcomeQuestId
+        let nodes = [
+            makeTutorialNode(id: tutorialId, blockId: blockAId, sortOrder: -1),
+            makeNode(id: welcomeId, blockId: blockAId, sortOrder: -1, kind: .quest),
+            makeNode(id: stage1Id, blockId: blockAId, sortOrder: 0, kind: .stage),
+        ]
+        let layout = DefenseDescentLayoutBuilder.build(blocks: [blockA], nodes: nodes, tier: .basic)
+        XCTAssertEqual(
+            DefenseDescentAccess.findFrontierNodeId(
+                blockLayouts: layout.blocks,
+                clearedNodeIds: [tutorialId],
+                isPremium: true
+            ),
+            stage1Id
+        )
+    }
+
     func testTutorialDisplayIcon() {
         let node = makeTutorialNode(id: UUID(), blockId: blockAId, sortOrder: 0)
         XCTAssertEqual(PlayMapProgression.displayIcon(node: node), .info)

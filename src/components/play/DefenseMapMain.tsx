@@ -34,6 +34,7 @@ import {
   defenseBlockCompletePrimaryLabel,
   defenseGuidancePrimaryLabel,
   resolveDefenseTrainingGuidance,
+  resolveDefenseTrainingGuidanceAfterTutorial,
   TRAINING_ROUTE_HASH,
   trainingGuidancePrimaryLabel,
   type DefenseTrainingGuidance,
@@ -104,6 +105,9 @@ const DefenseMapMain: React.FC = () => {
   const loadGuidance = useCallback(async (): Promise<{
     guidance: DefenseTrainingGuidance;
     streakUpdated: boolean;
+    blocks: Awaited<ReturnType<typeof fetchPlayMapBlocks>>;
+    nodes: Awaited<ReturnType<typeof fetchPlayMapNodes>>;
+    clears: Awaited<ReturnType<typeof fetchPlayMapNodeClears>>;
   }> => {
     const [blocks, nodes, clears, streakUpdated] = await Promise.all([
       fetchPlayMapBlocks('defense'),
@@ -122,6 +126,9 @@ const DefenseMapMain: React.FC = () => {
         isEnglishCopy,
       }),
       streakUpdated,
+      blocks,
+      nodes,
+      clears,
     };
   }, [isEnglishCopy, isPremiumMember, profile]);
 
@@ -337,11 +344,15 @@ const DefenseMapMain: React.FC = () => {
     void (async () => {
       backToMap();
       try {
-        const { guidance } = await loadGuidance();
-        if (guidance.kind === 'openDefense' && guidance.reason === 'nextStage') {
-          await navigateToGuidance(guidance);
-          return;
-        }
+        const { blocks, nodes, clears } = await loadGuidance();
+        const clearedNodeIds = new Set(clears.map((clear) => clear.nodeId));
+        const guidance = resolveDefenseTrainingGuidanceAfterTutorial({
+          isPremiumMember,
+          blocks,
+          nodes,
+          clearedNodeIds,
+          isEnglishCopy,
+        });
         if (guidance.kind === 'defenseBlockComplete') {
           setShowBlockCompleteModal(true);
           return;
@@ -353,7 +364,7 @@ const DefenseMapMain: React.FC = () => {
         /* ignore */
       }
     })();
-  }, [backToMap, loadGuidance, navigateToGuidance]);
+  }, [backToMap, isEnglishCopy, isPremiumMember, loadGuidance]);
 
   const handleResultNextStep = useCallback(() => {
     void (async () => {
