@@ -7,6 +7,8 @@ const phrases: readonly DefensePhrase[] = [
     orderIndex: 0,
     title: 'Phrase 1',
     audioUrl: 'https://example.com/a.mp3',
+    loopStartMeasure: null,
+    loopEndMeasure: null,
     keyFifths: null,
     requiredCompletionCount: null,
     chords: [
@@ -27,6 +29,8 @@ const phrases: readonly DefensePhrase[] = [
     orderIndex: 1,
     title: 'Phrase 2',
     audioUrl: 'https://example.com/b.mp3',
+    loopStartMeasure: null,
+    loopEndMeasure: null,
     keyFifths: null,
     requiredCompletionCount: null,
     chords: [

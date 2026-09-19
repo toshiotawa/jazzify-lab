@@ -13,6 +13,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private let playerA = AVAudioPlayerNode()
     private let playerB = AVAudioPlayerNode()
     private let cache = RemoteAudioFileCache(subdirectory: "defense-backing")
+    private var pcmCache: [URL: AVAudioPCMBuffer] = [:]
+    private var phraseBuffersByIndex: [Int: AVAudioPCMBuffer] = [:]
+    private var preparedStage: DefenseStageDefinition?
 
     private var activeIsA = true
     private var bufferA: AVAudioPCMBuffer?
@@ -106,10 +109,42 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
+    func preparePhraseBuffers(stage: DefenseStageDefinition, phraseIndices: [Int]? = nil) async throws {
+        preparedStage = stage
+        phraseBuffersByIndex.removeAll(keepingCapacity: true)
+        let indices = phraseIndices ?? Array(stage.phrases.indices)
+        if stage.audioRegistrationMode == .singleSource {
+            guard let urlString = stage.audioUrl, let url = URL(string: urlString) else {
+                throw URLError(.badURL)
+            }
+            let decoded = try await decodePCM(url: url)
+            for index in indices where stage.phrases.indices.contains(index) {
+                phraseBuffersByIndex[index] = DefensePhraseBacking.preparePhraseBuffer(
+                    decoded: decoded,
+                    stage: stage,
+                    phrase: stage.phrases[index]
+                )
+            }
+            return
+        }
+
+        for index in indices where stage.phrases.indices.contains(index) {
+            _ = try await bufferForPhrase(at: index)
+        }
+    }
+
     func start(firstUrl: URL) async throws {
         let buffer = try await decodePCM(url: firstUrl)
         try await MainActor.run {
-            self.stop()
+            self.stopPlayersAndResetPending()
+            try self.startEngine(with: buffer)
+        }
+    }
+
+    func startPhrase(at index: Int) async throws {
+        let buffer = try await bufferForPhrase(at: index)
+        try await MainActor.run {
+            self.stopPlayersAndResetPending()
             try self.startEngine(with: buffer)
         }
     }
@@ -126,7 +161,16 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     func scheduleSwitch(nextUrl: URL) async throws -> Int64 {
         let buffer = try await decodePCM(url: nextUrl)
-        return await MainActor.run {
+        return await scheduleSwitch(buffer: buffer)
+    }
+
+    func scheduleSwitchPhrase(at index: Int) async throws -> Int64 {
+        let buffer = try await bufferForPhrase(at: index)
+        return await scheduleSwitch(buffer: buffer)
+    }
+
+    func scheduleSwitch(buffer: AVAudioPCMBuffer) async -> Int64 {
+        await MainActor.run {
             self.scheduleSwitchOnMain(buffer: buffer)
         }
     }
@@ -158,6 +202,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
             }
             self.bufferA = nil
             self.bufferB = nil
+            self.pcmCache.removeAll(keepingCapacity: false)
+            self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
+            self.preparedStage = nil
             os_unfair_lock_lock(&self.lock)
             self.pendingSwitchAtHostSec = -1
             self.transportStartHostSec = 0
@@ -191,7 +238,40 @@ final class DefenseBackingAudio: @unchecked Sendable {
         graphReady = true
     }
 
+    private func bufferForPhrase(at index: Int) async throws -> AVAudioPCMBuffer {
+        if let cached = phraseBuffersByIndex[index] {
+            return cached
+        }
+        guard let stage = preparedStage, stage.phrases.indices.contains(index) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        let phrase = stage.phrases[index]
+        if stage.audioRegistrationMode == .singleSource {
+            guard let urlString = stage.audioUrl, let url = URL(string: urlString) else {
+                throw URLError(.badURL)
+            }
+            let decoded = try await decodePCM(url: url)
+            let sliced = DefensePhraseBacking.preparePhraseBuffer(
+                decoded: decoded,
+                stage: stage,
+                phrase: phrase
+            )
+            phraseBuffersByIndex[index] = sliced
+            return sliced
+        }
+        guard let url = URL(string: phrase.audioUrl) else {
+            throw URLError(.badURL)
+        }
+        let decoded = try await decodePCM(url: url)
+        phraseBuffersByIndex[index] = decoded
+        return decoded
+    }
+
     private func decodePCM(url: URL) async throws -> AVAudioPCMBuffer {
+        if let cached = pcmCache[url] {
+            return cached
+        }
+
         let local = try await cache.localFileURL(for: url)
         let file = try AVAudioFile(forReading: local)
         let format = file.processingFormat
@@ -201,13 +281,16 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         try file.read(into: buffer)
         let outputFormat = deckFormat ?? EarTrainingAudio.preferredOutputFormat()
+        let resolved: AVAudioPCMBuffer
         if buffer.format.isEqual(outputFormat) {
-            return buffer
-        }
-        guard let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) else {
+            resolved = buffer
+        } else if let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) {
+            resolved = converted
+        } else {
             throw URLError(.cannotDecodeContentData)
         }
-        return converted
+        pcmCache[url] = resolved
+        return resolved
     }
 
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {

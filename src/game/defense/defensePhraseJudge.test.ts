@@ -11,6 +11,8 @@ const phraseA: DefensePhrase = {
   orderIndex: 0,
   title: 'A',
   audioUrl: 'https://example.com/a.mp3',
+  loopStartMeasure: null,
+  loopEndMeasure: null,
   keyFifths: null,
   requiredCompletionCount: null,
   chords: [
@@ -118,6 +120,8 @@ describe('defensePhraseJudge', () => {
       orderIndex: 0,
       title: 'Dm7 | G7',
       audioUrl: 'https://example.com/grand.mp3',
+      loopStartMeasure: null,
+      loopEndMeasure: null,
       keyFifths: null,
       requiredCompletionCount: null,
       chords: [

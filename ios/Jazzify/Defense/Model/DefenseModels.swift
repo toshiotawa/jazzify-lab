@@ -1,5 +1,10 @@
 import Foundation
 
+enum DefenseAudioRegistrationMode: String, Sendable {
+    case perPhrase = "per_phrase"
+    case singleSource = "single_source"
+}
+
 enum DefenseStaffLayout: String, Sendable {
     case treble
     case grand
@@ -23,6 +28,8 @@ struct DefensePhraseDefinition: Sendable, Equatable, Identifiable {
     let orderIndex: Int
     let title: String
     let audioUrl: String
+    let loopStartMeasure: Int?
+    let loopEndMeasure: Int?
     let keyFifths: Int?
     let requiredCompletionCount: Int?
     let chords: [SurvivalPhraseChord]
@@ -36,6 +43,8 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let titleEn: String
     let bpm: Double
     let beatsPerBar: Int
+    let audioRegistrationMode: DefenseAudioRegistrationMode
+    let audioUrl: String?
     let phraseBars: Int
     let staffLayout: DefenseStaffLayout
     let attackTrigger: DefenseAttackTrigger

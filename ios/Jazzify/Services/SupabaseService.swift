@@ -2290,6 +2290,8 @@ final class SupabaseService: Sendable {
             let bpm: Double
             let beats_per_bar: Int
             let phrase_bars: Int
+            let audio_registration_mode: String
+            let audio_url: String?
             let staff_layout: String
             let attack_trigger: String
             let key_fifths: Int
@@ -2304,7 +2306,9 @@ final class SupabaseService: Sendable {
             let id: String
             let order_index: Int
             let title: String
-            let audio_url: String
+            let audio_url: String?
+            let loop_start_measure: Int?
+            let loop_end_measure: Int?
             let key_fifths: Int?
             let required_completion_count: Int?
         }
@@ -2329,6 +2333,7 @@ final class SupabaseService: Sendable {
             .from("defense_stages")
             .select("""
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
+                audio_registration_mode, audio_url,
                 staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
                 survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
             """)
@@ -2340,7 +2345,11 @@ final class SupabaseService: Sendable {
 
         let phraseRows: [PhraseRow] = try await client
             .from("defense_phrases")
-            .select("id, order_index, title, audio_url, key_fifths, required_completion_count")
+            .select("""
+                id, order_index, title, audio_url,
+                loop_start_measure, loop_end_measure,
+                key_fifths, required_completion_count
+            """)
             .eq("stage_id", value: stageId)
             .order("order_index")
             .execute()
@@ -2390,12 +2399,21 @@ final class SupabaseService: Sendable {
             chordsByPhrase[row.phrase_id, default: []].append(chord)
         }
 
+        let audioRegistrationMode: DefenseAudioRegistrationMode =
+            stage.audio_registration_mode == "single_source" ? .singleSource : .perPhrase
+        let stageAudioUrl = stage.audio_url
+
         let phrases = phraseRows.map { row in
-            DefensePhraseDefinition(
+            let resolvedAudioUrl = audioRegistrationMode == .singleSource
+                ? (stageAudioUrl ?? "")
+                : (row.audio_url ?? "")
+            return DefensePhraseDefinition(
                 id: row.id,
                 orderIndex: row.order_index,
                 title: row.title,
-                audioUrl: row.audio_url,
+                audioUrl: resolvedAudioUrl,
+                loopStartMeasure: row.loop_start_measure,
+                loopEndMeasure: row.loop_end_measure,
                 keyFifths: row.key_fifths,
                 requiredCompletionCount: row.required_completion_count,
                 chords: chordsByPhrase[row.id] ?? []
@@ -2410,6 +2428,8 @@ final class SupabaseService: Sendable {
             titleEn: stage.title_en,
             bpm: stage.bpm,
             beatsPerBar: stage.beats_per_bar,
+            audioRegistrationMode: audioRegistrationMode,
+            audioUrl: stageAudioUrl,
             phraseBars: stage.phrase_bars,
             staffLayout: stage.staff_layout == "grand" ? .grand : .treble,
             attackTrigger: stage.attack_trigger == "measure" ? .measure : .note,

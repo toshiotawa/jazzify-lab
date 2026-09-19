@@ -37,6 +37,7 @@ import {
   defenseBackingDeck,
   unlockDefenseBackingAudioContext,
 } from '@/game/defense/defenseBackingDeck';
+import { resolveDefensePhrasePreloadUrls } from '@/game/defense/defensePhraseBacking';
 import {
   defensePracticeSpeedRatio,
   stepDefensePracticeSpeedPercent,
@@ -297,10 +298,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     const ratio = defensePracticeSpeedRatio(speedPercent);
     try {
-      const buffer = await defenseBackingDeck.decodeForDeck(phrase.audioUrl, ratio);
+      const playback = await defenseBackingDeck.preparePhraseBacking(stage, phrase, ratio);
       if (backingRestartGenerationRef.current !== generation) return;
       defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
-      defenseBackingDeck.start(buffer);
+      defenseBackingDeck.start(playback);
       setAudioReady(true);
     } catch {
       if (backingRestartGenerationRef.current === generation) {
@@ -343,12 +344,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
 
-    const preloadPhrase = stage.phrases[nextPhraseIndex(stage.phrases, phraseIndex)];
-    if (preloadPhrase) {
-      const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
-      void defenseBackingDeck.preload([preloadPhrase.audioUrl], ratio);
+    const nextIndex = nextPhraseIndex(stage.phrases, phraseIndex);
+    const preloadUrls = resolveDefensePhrasePreloadUrls(stage, [nextIndex]);
+    if (preloadUrls.length > 0) {
+      void defenseBackingDeck.preload(preloadUrls);
     }
-  }, [stage.phrases]);
+  }, [stage]);
 
   const handleNoteOn = useCallback((midiNote: number, sequential = false) => {
     if (isSettingsOpenRef.current) return;
@@ -408,13 +409,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       applyImmediatePhraseSwitch(nextIndex);
       void (async () => {
         const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
-        const buffer = await defenseBackingDeck.decodeForDeck(nextPhrase.audioUrl, ratio);
+        const playback = await defenseBackingDeck.preparePhraseBacking(stage, nextPhrase, ratio);
         if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
-        pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(buffer);
+        pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
       })();
     }
   }, [
-    stage.phrases,
+    stage,
     stage.requiredCompletionCount,
     stage.attackTrigger,
     stage.bpm,
@@ -479,18 +480,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       }
       const firstPhrase = stage.phrases[0];
       if (!firstPhrase) return;
-      const preloadUrls = practiceMode
-        ? stage.phrases.map((phrase) => phrase.audioUrl)
-        : (() => {
-          const secondPhrase = stage.phrases[1];
-          return secondPhrase
-            ? [firstPhrase.audioUrl, secondPhrase.audioUrl]
-            : [firstPhrase.audioUrl];
-        })();
-      await defenseBackingDeck.preload(preloadUrls, initialRatio);
-      const buffer = await defenseBackingDeck.decodeForDeck(firstPhrase.audioUrl, initialRatio);
+      const preloadIndices = practiceMode
+        ? stage.phrases.map((_, index) => index)
+        : [0, 1].filter((index) => index < stage.phrases.length);
+      const preloadUrls = resolveDefensePhrasePreloadUrls(stage, preloadIndices);
+      await defenseBackingDeck.preload(preloadUrls);
+      const playback = await defenseBackingDeck.preparePhraseBacking(
+        stage,
+        firstPhrase,
+        initialRatio,
+      );
       if (cancelled) return;
-      defenseBackingDeck.start(buffer);
+      defenseBackingDeck.start(playback);
       setAudioReady(true);
     })();
 

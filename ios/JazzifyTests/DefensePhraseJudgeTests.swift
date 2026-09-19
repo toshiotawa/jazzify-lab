@@ -7,6 +7,8 @@ final class DefensePhraseJudgeTests: XCTestCase {
         orderIndex: 0,
         title: "A",
         audioUrl: "https://example.com/a.mp3",
+        loopStartMeasure: nil,
+        loopEndMeasure: nil,
         keyFifths: nil,
         requiredCompletionCount: nil,
         chords: [
@@ -109,6 +111,8 @@ final class DefensePhraseJudgeTests: XCTestCase {
             orderIndex: 0,
             title: "Dm7 | G7",
             audioUrl: "https://example.com/grand.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
             keyFifths: nil,
             requiredCompletionCount: nil,
             chords: [
@@ -196,6 +200,8 @@ final class DefensePhraseJudgeTests: XCTestCase {
             orderIndex: 0,
             title: "C",
             audioUrl: "https://example.com/c.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
             keyFifths: nil,
             requiredCompletionCount: nil,
             chords: [

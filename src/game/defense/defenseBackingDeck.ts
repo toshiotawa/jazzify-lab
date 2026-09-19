@@ -12,6 +12,11 @@ import {
   nextSwitchTime,
   scheduleDeadlineSec,
 } from '@/game/defense/defenseTransport';
+import {
+  prepareDefensePhraseBackingPlayback,
+  type DefensePhraseBackingPlayback,
+} from '@/game/defense/defensePhraseBacking';
+import type { DefensePhrase, DefenseStage } from '@/game/defense/defenseTypes';
 import { VOICE_INPUT_BGM_DUCK } from '@/utils/voiceInputBgmDuck';
 
 const START_LEAD_SEC = 0.15;
@@ -48,6 +53,7 @@ export const unlockDefenseBackingAudioContext = (): void => {
 interface DeckSlot {
   source: AudioBufferSourceNode;
   gain: GainNode;
+  startOffset: number;
 }
 
 interface DeckGraph {
@@ -65,7 +71,8 @@ class DefenseBackingDeck {
   private beatsPerBar = 4;
   private voiceInputDucking = false;
   private userVolume = 1;
-  private readonly bufferByUrl = new Map<string, Promise<AudioBuffer>>();
+  private readonly rawBufferByUrl = new Map<string, Promise<AudioBuffer>>();
+  private readonly processedBufferBySource = new WeakMap<AudioBuffer, Map<string, Promise<AudioBuffer>>>();
   private readonly bufferFactoryByUrl = new Map<string, (ctx: AudioContext) => AudioBuffer>();
 
   private ensureGraph(): DeckGraph {
@@ -111,10 +118,10 @@ class DefenseBackingDeck {
     return this.graph?.ctx.currentTime ?? 0;
   }
 
-  async preload(urls: readonly string[], speedRatio = 1): Promise<void> {
+  async preload(urls: readonly string[]): Promise<void> {
     const { ctx } = this.ensureGraph();
     const unique = [...new Set(urls.filter((url) => url.length > 0))];
-    await Promise.all(unique.map((url) => this.decodeUrl(ctx, url, speedRatio)));
+    await Promise.all(unique.map((url) => this.decodeRawUrl(ctx, url)));
   }
 
   registerBufferFactory(
@@ -122,72 +129,103 @@ class DefenseBackingDeck {
     factory: (ctx: AudioContext) => AudioBuffer,
   ): void {
     this.bufferFactoryByUrl.set(url, factory);
-    this.bufferByUrl.delete(`${url}\x010.0000`);
+    this.rawBufferByUrl.delete(url);
   }
 
-  decodeForDeck(url: string, speedRatio = 1): Promise<AudioBuffer> {
-    return this.decodeUrl(this.ensureGraph().ctx, url, speedRatio);
+  preparePhraseBacking(
+    stage: DefenseStage,
+    phrase: DefensePhrase,
+    speedRatio: number,
+  ): Promise<DefensePhraseBackingPlayback> {
+    const { ctx } = this.ensureGraph();
+    return prepareDefensePhraseBackingPlayback(
+      ctx,
+      stage,
+      phrase,
+      speedRatio,
+      (url) => this.decodeRawUrl(ctx, url),
+      (buffer, ratio) => this.applyPlaybackRateInternal(buffer, ratio),
+    );
   }
 
-  private static bufferCacheKey(url: string, speedRatio: number): string {
-    return `${url}\0${speedRatio.toFixed(4)}`;
-  }
-
-  private decodeUrl(ctx: AudioContext, url: string, speedRatio = 1): Promise<AudioBuffer> {
-    const safeRatio = Math.max(0.1, Math.min(8, speedRatio));
-    const cacheKey = DefenseBackingDeck.bufferCacheKey(url, safeRatio);
-    let promise = this.bufferByUrl.get(cacheKey);
+  private decodeRawUrl(ctx: AudioContext, url: string): Promise<AudioBuffer> {
+    let promise = this.rawBufferByUrl.get(url);
     if (!promise) {
       promise = (async () => {
         const factory = this.bufferFactoryByUrl.get(url);
-        if (factory && Math.abs(safeRatio - 1) < 0.0001) {
+        if (factory) {
           return factory(ctx);
         }
         const arrayBuffer = await fetchCachedFullAudioBuffer(url);
-        const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
-        if (Math.abs(safeRatio - 1) < 0.0001) {
-          return decoded;
-        }
-        return processOffline({
-          input: decoded,
-          processorUrl: soundtouchProcessorUrl,
-          pitchSemitones: 0,
-          playbackRate: safeRatio,
-        });
+        return ctx.decodeAudioData(arrayBuffer.slice(0));
       })();
-      this.bufferByUrl.set(cacheKey, promise);
+      this.rawBufferByUrl.set(url, promise);
     }
     return promise;
   }
 
-  private createLoopingSlot(graph: DeckGraph, buffer: AudioBuffer): DeckSlot {
+  private applyPlaybackRateInternal(
+    buffer: AudioBuffer,
+    speedRatio: number,
+  ): Promise<AudioBuffer> {
+    const safeRatio = Math.max(0.1, Math.min(8, speedRatio));
+    if (Math.abs(safeRatio - 1) < 0.0001) {
+      return Promise.resolve(buffer);
+    }
+    const ratioKey = safeRatio.toFixed(4);
+    let byRatio = this.processedBufferBySource.get(buffer);
+    if (!byRatio) {
+      byRatio = new Map<string, Promise<AudioBuffer>>();
+      this.processedBufferBySource.set(buffer, byRatio);
+    }
+    let promise = byRatio.get(ratioKey);
+    if (!promise) {
+      promise = processOffline({
+        input: buffer,
+        processorUrl: soundtouchProcessorUrl,
+        pitchSemitones: 0,
+        playbackRate: safeRatio,
+      });
+      byRatio.set(ratioKey, promise);
+    }
+    return promise;
+  }
+
+  private createLoopingSlot(
+    graph: DeckGraph,
+    playback: DefensePhraseBackingPlayback,
+  ): DeckSlot {
     const gain = graph.ctx.createGain();
     gain.connect(graph.masterGain);
     const source = graph.ctx.createBufferSource();
-    source.buffer = buffer;
+    source.buffer = playback.buffer;
     source.loop = true;
-    source.loopStart = 0;
-    source.loopEnd = buffer.duration;
+    const safeLoopEnd = Math.max(
+      playback.loopStart + 1e-6,
+      Math.min(playback.loopEnd, playback.buffer.duration),
+    );
+    source.loopStart = Math.max(0, Math.min(playback.loopStart, safeLoopEnd - 1e-6));
+    source.loopEnd = safeLoopEnd;
     source.connect(gain);
-    return { source, gain };
+    return { source, gain, startOffset: playback.startOffset };
   }
 
-  start(buffer: AudioBuffer): void {
+  start(playback: DefensePhraseBackingPlayback): void {
     const graph = this.ensureGraph();
     this.stopInternal(false);
     this.activeIsA = true;
     this.transportStart = graph.ctx.currentTime + START_LEAD_SEC;
 
-    const slot = this.createLoopingSlot(graph, buffer);
+    const slot = this.createLoopingSlot(graph, playback);
     slot.gain.gain.value = 1;
-    slot.source.start(this.transportStart, 0);
+    slot.source.start(this.transportStart, slot.startOffset);
 
     this.slotA = slot;
     this.slotB = null;
   }
 
   /** 次の小節頭（余裕がなければその次）に切替を予約し、切替時刻（AudioContext 時刻）を返す。 */
-  scheduleSwitch(nextBuffer: AudioBuffer): number {
+  scheduleSwitch(nextPlayback: DefensePhraseBackingPlayback): number {
     const graph = this.ensureGraph();
     const now = graph.ctx.currentTime;
     const barSec = barSeconds(this.bpm, this.beatsPerBar);
@@ -199,10 +237,10 @@ class DefenseBackingDeck {
       return switchAt;
     }
 
-    const next = this.createLoopingSlot(graph, nextBuffer);
+    const next = this.createLoopingSlot(graph, nextPlayback);
     next.gain.gain.setValueAtTime(0, switchAt);
     next.gain.gain.linearRampToValueAtTime(1, switchAt + FADE_IN_SEC);
-    next.source.start(switchAt, 0);
+    next.source.start(switchAt, next.startOffset);
 
     current.gain.gain.setValueAtTime(1, switchAt - FADE_OUT_LEAD_SEC);
     current.gain.gain.linearRampToValueAtTime(0, switchAt);
@@ -251,7 +289,7 @@ class DefenseBackingDeck {
     this.slotA = null;
     this.slotB = null;
     if (clearBuffers) {
-      this.bufferByUrl.clear();
+      this.rawBufferByUrl.clear();
     }
   }
 }

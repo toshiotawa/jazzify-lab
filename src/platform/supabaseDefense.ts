@@ -4,6 +4,7 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import type {
   DefenseAttackTrigger,
+  DefenseAudioRegistrationMode,
   DefenseDifficulty,
   DefensePhrase,
   DefensePhraseChord,
@@ -23,6 +24,8 @@ interface StageRow {
   bpm: number;
   beats_per_bar: number;
   phrase_bars: number;
+  audio_registration_mode: string;
+  audio_url: string | null;
   staff_layout: string;
   attack_trigger: string;
   key_fifths: number;
@@ -39,7 +42,9 @@ interface PhraseRow {
   stage_id: string;
   order_index: number;
   title: string;
-  audio_url: string;
+  audio_url: string | null;
+  loop_start_measure: number | null;
+  loop_end_measure: number | null;
   key_fifths: number | null;
   required_completion_count: number | null;
 }
@@ -81,6 +86,26 @@ const parseAttackTrigger = (value: string): DefenseAttackTrigger => (
   value === 'measure' ? 'measure' : 'note'
 );
 
+const parseAudioRegistrationMode = (value: string): DefenseAudioRegistrationMode => (
+  value === 'single_source' ? 'single_source' : 'per_phrase'
+);
+
+export interface DefenseStageAudioRegistrationPhrasePayload {
+  readonly id: string;
+  readonly audioUrl: string | null;
+  readonly loopStartMeasure: number | null;
+  readonly loopEndMeasure: number | null;
+}
+
+export interface SaveDefenseStageAudioRegistrationParams {
+  readonly stageId: string;
+  readonly mode: DefenseAudioRegistrationMode;
+  readonly stageAudioUrl: string | null;
+  readonly bpm: number;
+  readonly beatsPerBar: number;
+  readonly phrases: readonly DefenseStageAudioRegistrationPhrasePayload[];
+}
+
 const mapNoteRow = (row: NoteRow): DefensePhraseChordNote => ({
   orderIndex: row.order_index,
   pitchMidi: row.pitch_midi,
@@ -97,6 +122,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     .from('defense_stages')
     .select(`
       id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
+      audio_registration_mode, audio_url,
       staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
       survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
     `)
@@ -111,7 +137,11 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
 
   const { data: phraseRows, error: phraseError } = await supabase
     .from('defense_phrases')
-    .select('id, stage_id, order_index, title, audio_url, key_fifths, required_completion_count')
+    .select(`
+      id, stage_id, order_index, title, audio_url,
+      loop_start_measure, loop_end_measure,
+      key_fifths, required_completion_count
+    `)
     .eq('stage_id', stageId)
     .order('order_index', { ascending: true });
 
@@ -166,13 +196,21 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     chordsByPhrase.set(row.phrase_id, list);
   }
 
+  const audioRegistrationMode = parseAudioRegistrationMode(stage.audio_registration_mode);
+  const stageAudioUrl = stage.audio_url;
+
   const phrases: DefensePhrase[] = phraseRows.map((raw) => {
     const row = raw as PhraseRow;
+    const resolvedAudioUrl = audioRegistrationMode === 'single_source'
+      ? (stageAudioUrl ?? '')
+      : (row.audio_url ?? '');
     return {
       id: row.id,
       orderIndex: row.order_index,
       title: row.title,
-      audioUrl: row.audio_url,
+      audioUrl: resolvedAudioUrl,
+      loopStartMeasure: row.loop_start_measure,
+      loopEndMeasure: row.loop_end_measure,
       keyFifths: row.key_fifths,
       requiredCompletionCount: row.required_completion_count,
       chords: chordsByPhrase.get(row.id) ?? [],
@@ -187,6 +225,8 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     titleEn: stage.title_en,
     bpm: Number(stage.bpm),
     beatsPerBar: stage.beats_per_bar,
+    audioRegistrationMode,
+    audioUrl: stageAudioUrl,
     phraseBars: stage.phrase_bars,
     staffLayout: parseStaffLayout(stage.staff_layout),
     attackTrigger: parseAttackTrigger(stage.attack_trigger),
@@ -275,4 +315,27 @@ export async function upsertDefenseStageClear(
     }, { onConflict: 'user_id,stage_id' });
 
   return { isFirstClear };
+}
+
+export async function saveDefenseStageAudioRegistration(
+  params: SaveDefenseStageAudioRegistrationParams,
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc('save_defense_stage_audio_registration', {
+    p_stage_id: params.stageId,
+    p_mode: params.mode,
+    p_stage_audio_url: params.stageAudioUrl,
+    p_bpm: params.bpm,
+    p_beats_per_bar: params.beatsPerBar,
+    p_phrases: params.phrases.map((phrase) => ({
+      id: phrase.id,
+      audio_url: phrase.audioUrl,
+      loop_start_measure: phrase.loopStartMeasure,
+      loop_end_measure: phrase.loopEndMeasure,
+    })),
+  });
+
+  if (error) {
+    throw error;
+  }
 }

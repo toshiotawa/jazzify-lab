@@ -22,7 +22,6 @@ import {
   resolveTutorialWrittenOffset,
   type DefenseTutorialNotationSettings,
 } from '@/game/defense/tutorial/defenseTutorialNotation';
-import { clampNotationOctaveShift } from '@/utils/notationInstrument';
 
 const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 
@@ -36,27 +35,12 @@ const midiFromWritten = (octave: number, pitchClass: number): number => (
   (octave + 1) * 12 + pitchClass
 );
 
-const clampTutorialWrittenOctave = (value: number): DefenseTutorialWrittenOctave => {
-  if (value <= 3) {
-    return 3;
-  }
-  if (value === 4) {
-    return 4;
-  }
-  if (value === 5) {
-    return 5;
-  }
-  return 6;
-};
-
 /** Pick written octave: bass uses C3, otherwise closest concert C4. */
 export const pickDefenseTutorialWrittenOctave = (
   settings: DefenseTutorialNotationSettings,
 ): DefenseTutorialWrittenOctave => {
   if (resolveTutorialClef(settings) === 'bass') {
-    return clampTutorialWrittenOctave(
-      DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE + clampNotationOctaveShift(settings.notationOctaveShift),
-    );
+    return DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE;
   }
 
   const writtenOffset = resolveTutorialWrittenOffset(settings);
@@ -106,8 +90,12 @@ export const buildDefenseTutorialPhrase = (
   audioUrl: string,
 ): DefenseTutorialPhraseBuildResult => {
   const writtenOctave = pickDefenseTutorialWrittenOctave(settings);
-  const writtenOffset = resolveTutorialWrittenOffset(settings);
   const clef = resolveTutorialClef(settings);
+  const writtenOffset = resolveTutorialWrittenOffset(
+    clef === 'bass'
+      ? { ...settings, notationOctaveShift: 0 }
+      : settings,
+  );
   const voicingStaff = resolveTutorialVoicingStaff(clef);
   const staffLayout: DefenseStaffLayout = 'treble';
 
@@ -144,6 +132,8 @@ export const buildDefenseTutorialPhrase = (
     orderIndex: 0,
     title: 'Input setup',
     audioUrl,
+    loopStartMeasure: null,
+    loopEndMeasure: null,
     keyFifths: DEFENSE_TUTORIAL_KEY_FIFTHS,
     requiredCompletionCount: 1,
     chords: [chord],
@@ -157,6 +147,8 @@ export const buildDefenseTutorialPhrase = (
     titleEn: 'First-time setup',
     bpm: DEFENSE_TUTORIAL_BPM,
     beatsPerBar: DEFENSE_TUTORIAL_BEATS_PER_BAR,
+    audioRegistrationMode: 'per_phrase',
+    audioUrl: null,
     phraseBars: 1,
     staffLayout,
     attackTrigger: 'note',

@@ -85,27 +85,27 @@ final class DefenseGameSession: ObservableObject {
     func start() async {
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         subscribeMidi()
-        guard let first = stage.phrases.first,
-              let firstUrl = URL(string: first.audioUrl)
-        else { return }
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
         DefenseBackingAudio.shared.setTransportConfig(
             bpm: stage.bpm * speedRatio,
             beatsPerBar: stage.beatsPerBar
         )
-        let urls: [URL]
-        if practiceMode {
-            urls = stage.phrases.compactMap { URL(string: $0.audioUrl) }
-        } else {
-            urls = [firstUrl] + (stage.phrases.count > 1
-                ? stage.phrases[1...].prefix(1).compactMap { URL(string: $0.audioUrl) }
-                : [])
-        }
         if let tutorialConcertMidis, tutorialOptions != nil {
             try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
         } else {
-            try? await DefenseBackingAudio.shared.preload(urls: urls)
-            try? await DefenseBackingAudio.shared.start(firstUrl: firstUrl)
+            let preloadIndices: [Int]
+            if practiceMode {
+                preloadIndices = Array(stage.phrases.indices)
+            } else {
+                preloadIndices = [0, 1].filter { stage.phrases.indices.contains($0) }
+            }
+            let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: preloadIndices)
+            try? await DefenseBackingAudio.shared.preload(urls: preloadUrls)
+            try? await DefenseBackingAudio.shared.preparePhraseBuffers(
+                stage: stage,
+                phraseIndices: preloadIndices
+            )
+            try? await DefenseBackingAudio.shared.startPhrase(at: 0)
         }
         DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
         if tutorialOptions != nil {
@@ -119,9 +119,8 @@ final class DefenseGameSession: ObservableObject {
         let nextIndex = (currentIndex + delta + stage.phrases.count) % stage.phrases.count
         pendingSwitchPhraseIndex = nil
         judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
-        guard let url = URL(string: stage.phrases[nextIndex].audioUrl) else { return }
         Task {
-            try? await DefenseBackingAudio.shared.start(firstUrl: url)
+            try? await DefenseBackingAudio.shared.startPhrase(at: nextIndex)
         }
     }
 
@@ -221,10 +220,7 @@ final class DefenseGameSession: ObservableObject {
             pendingSwitchPhraseIndex = nextIndex
             judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
             Task {
-                guard let phrase = stage.phrases[safe: nextIndex],
-                      let url = URL(string: phrase.audioUrl)
-                else { return }
-                _ = try? await DefenseBackingAudio.shared.scheduleSwitch(nextUrl: url)
+                _ = try? await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
             }
         }
     }
@@ -255,10 +251,10 @@ final class DefenseGameSession: ObservableObject {
                 phrases: stage.phrases,
                 current: switchedToIndex
             )
-            if let phrase = stage.phrases[safe: preloadIndex],
-               let url = URL(string: phrase.audioUrl) {
+            let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: [preloadIndex])
+            if !preloadUrls.isEmpty {
                 Task {
-                    try? await DefenseBackingAudio.shared.preload(urls: [url])
+                    try? await DefenseBackingAudio.shared.preload(urls: preloadUrls)
                 }
             }
         }

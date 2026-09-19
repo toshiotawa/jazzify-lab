@@ -29,9 +29,7 @@ enum BuildDefenseTutorialPhrase {
 
     static func pickWrittenOctave(_ settings: DefenseTutorialNotationSettings) -> DefenseTutorialWrittenOctave {
         if DefenseTutorialNotation.resolveClef(settings) == .bass {
-            let shifted = DefenseTutorialConstants.bassWrittenOctave
-                + NotationInstrumentCatalog.clampOctaveShift(settings.notationOctaveShift)
-            return DefenseTutorialWrittenOctave(rawValue: min(6, max(3, shifted))) ?? .three
+            return DefenseTutorialWrittenOctave(rawValue: DefenseTutorialConstants.bassWrittenOctave) ?? .three
         }
 
         let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
@@ -81,10 +79,13 @@ enum BuildDefenseTutorialPhrase {
         audioUrl: String = DefenseTutorialConstants.audioUrl
     ) -> DefenseTutorialPhraseBuildResult {
         let writtenOctave = pickWrittenOctave(settings)
-        let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(settings)
-        let voicingStaff = DefenseTutorialNotation.resolveVoicingStaff(
-            DefenseTutorialNotation.resolveClef(settings)
-        )
+        let clef = DefenseTutorialNotation.resolveClef(settings)
+        var offsetSettings = settings
+        if clef == .bass {
+            offsetSettings.notationOctaveShift = 0
+        }
+        let writtenOffset = DefenseTutorialNotation.resolveWrittenOffset(offsetSettings)
+        let voicingStaff = DefenseTutorialNotation.resolveVoicingStaff(clef)
 
         let writtenMidis = DefenseTutorialConstants.writtenPitchClasses.map { pc in
             midiFromWritten(octave: writtenOctave.rawValue, pitchClass: pc)
@@ -119,6 +120,8 @@ enum BuildDefenseTutorialPhrase {
             orderIndex: 0,
             title: "Input setup",
             audioUrl: audioUrl,
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
             keyFifths: DefenseTutorialConstants.keyFifths,
             requiredCompletionCount: 1,
             chords: [chord]
@@ -132,6 +135,8 @@ enum BuildDefenseTutorialPhrase {
             titleEn: "First-time setup",
             bpm: DefenseTutorialConstants.bpm,
             beatsPerBar: DefenseTutorialConstants.beatsPerBar,
+            audioRegistrationMode: .perPhrase,
+            audioUrl: nil,
             phraseBars: 1,
             staffLayout: .treble,
             attackTrigger: .note,
