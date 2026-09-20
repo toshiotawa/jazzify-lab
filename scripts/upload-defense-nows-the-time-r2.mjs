@@ -1,7 +1,7 @@
 /**
  * Now's The Time shared-progression test phrase audio (12 bars / 160 BPM = 18s) to R2.
  *
- * Source files are trimmed to 18.000s before upload when longer than expected.
+ * Source files are trimmed to 18.000s and encoded as mp3 for Web Audio decode compatibility.
  *
  * Usage:
  *   node scripts/upload-defense-nows-the-time-r2.mjs
@@ -33,11 +33,11 @@ const TOLERANCE_SEC = 1 / 44100;
 const UPLOADS = [
   {
     source: '/Users/apple/Downloads/Now\'s The Time.m4a',
-    r2Key: 'fantasy-bgm/defense-nows-the-time-phrase-1.m4a',
+    r2Key: 'fantasy-bgm/defense-nows-the-time-phrase-1.mp3',
   },
   {
     source: '/Users/apple/Downloads/Now\'s The Time 2.m4a',
-    r2Key: 'fantasy-bgm/defense-nows-the-time-phrase-2.m4a',
+    r2Key: 'fantasy-bgm/defense-nows-the-time-phrase-2.mp3',
   },
 ];
 
@@ -84,6 +84,19 @@ function probeDuration(path) {
   );
 }
 
+function encodeMp3(sourcePath, outPath) {
+  run('ffmpeg', [
+    '-y',
+    '-i', sourcePath,
+    '-t', String(EXPECTED_SEC),
+    '-ar', '44100',
+    '-ac', '2',
+    '-c:a', 'libmp3lame',
+    '-q:a', '2',
+    outPath,
+  ], `encode mp3 ${sourcePath}`);
+}
+
 function putWithWrangler(localPath, objectPath) {
   const childEnv = wranglerSpawnEnv(envR2);
   const wranglerArgs = [
@@ -94,7 +107,7 @@ function putWithWrangler(localPath, objectPath) {
     '-f',
     localPath,
     '--content-type',
-    'audio/mp4',
+    'audio/mpeg',
     '--cache-control',
     'public,max-age=31536000',
   ];
@@ -145,15 +158,11 @@ for (const item of UPLOADS) {
   tempPaths.push(outPath);
 
   if (Math.abs(sourceDuration - EXPECTED_SEC) <= TOLERANCE_SEC) {
-    run('cp', [item.source, outPath], `copy ${item.source}`);
+    console.log(`Encode ${item.source} -> mp3 (${sourceDuration.toFixed(6)}s)`);
+    encodeMp3(item.source, outPath);
   } else if (sourceDuration > EXPECTED_SEC) {
-    console.log(`Trim ${item.source}: ${sourceDuration.toFixed(6)}s -> ${EXPECTED_SEC}s`);
-    run('ffmpeg', [
-      '-y', '-i', item.source,
-      '-t', String(EXPECTED_SEC),
-      '-c:a', 'aac', '-b:a', '256k',
-      outPath,
-    ], `trim ${item.source}`);
+    console.log(`Trim+encode ${item.source}: ${sourceDuration.toFixed(6)}s -> ${EXPECTED_SEC}s mp3`);
+    encodeMp3(item.source, outPath);
   } else {
     console.error(
       `Source too short: ${item.source} (${sourceDuration.toFixed(6)}s < ${EXPECTED_SEC}s)`,
@@ -162,7 +171,7 @@ for (const item of UPLOADS) {
   }
 
   const finalDuration = probeDuration(outPath);
-  if (Math.abs(finalDuration - EXPECTED_SEC) > TOLERANCE_SEC) {
+  if (Math.abs(finalDuration - EXPECTED_SEC) > 0.05) {
     console.error(`Duration mismatch after prepare: ${outPath} = ${finalDuration}s`);
     process.exit(1);
   }
@@ -179,7 +188,7 @@ for (const item of UPLOADS) {
         Bucket: BUCKET,
         Key: item.r2Key,
         Body: body,
-        ContentType: 'audio/mp4',
+        ContentType: 'audio/mpeg',
         CacheControl: 'public, max-age=31536000',
       }),
     );

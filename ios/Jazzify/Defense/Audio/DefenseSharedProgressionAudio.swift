@@ -1,12 +1,13 @@
 import AVFoundation
 import Foundation
 
-final class DefenseSharedProgressionAudio {
+final class DefenseSharedProgressionAudio: @unchecked Sendable {
     static let shared = DefenseSharedProgressionAudio()
 
-    private let queue = DispatchQueue(label: "jp.jazzify.defense.shared-progression-audio")
     private static let masterHeadroomGain: Float = 0.7
     private static let voiceInputDuckFactor: Float = 0.5
+    private static let startLeadSec: Double = 0.15
+
     private let cache = RemoteAudioFileCache(subdirectory: "defense-shared-progression")
     private let engine = AVAudioEngine()
     private let playerA = AVAudioPlayerNode()
@@ -39,18 +40,27 @@ final class DefenseSharedProgressionAudio {
     private init() {}
 
     func setUserVolume(_ volume: Float) {
-        userVolume = max(0, min(1, volume))
-        applyMasterVolume()
+        runOnMain { [weak self] in
+            guard let self else { return }
+            self.userVolume = max(0, min(1, volume))
+            self.applyMasterVolume()
+        }
     }
 
     func setVoiceInputDucking(_ enabled: Bool) {
-        voiceInputDucking = enabled
-        applyMasterVolume()
+        runOnMain { [weak self] in
+            guard let self else { return }
+            self.voiceInputDucking = enabled
+            self.applyMasterVolume()
+        }
     }
 
     func setPlaybackRate(_ rate: Float) {
-        timePitch.rate = max(0.1, rate)
-        timePitch.bypass = abs(rate - 1) < 0.0001
+        runOnMain { [weak self] in
+            guard let self else { return }
+            self.timePitch.rate = max(0.1, rate)
+            self.timePitch.bypass = abs(rate - 1) < 0.0001
+        }
     }
 
     private func applyMasterVolume() {
@@ -108,26 +118,23 @@ final class DefenseSharedProgressionAudio {
             )
         }
 
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            self.queue.async {
-                self.stage = stage
-                self.playbackRatio = max(0.1, speedRatio)
-                self.progressionBars = progressionBars
-                self.switchEveryBars = stage.phraseBars
-                self.barSec = DefenseSharedProgressionTransport.barSeconds(
-                    bpm: stage.bpm,
-                    beatsPerBar: stage.beatsPerBar,
-                    playbackRatio: self.playbackRatio
-                )
-                self.buffersByPhraseIndex = nextBuffers
-                self.barFramesByPhraseIndex = nextBarFrames
-                continuation.resume()
-            }
+        await MainActor.run {
+            self.stage = stage
+            self.playbackRatio = max(0.1, speedRatio)
+            self.progressionBars = progressionBars
+            self.switchEveryBars = stage.phraseBars
+            self.barSec = DefenseSharedProgressionTransport.barSeconds(
+                bpm: stage.bpm,
+                beatsPerBar: stage.beatsPerBar,
+                playbackRatio: self.playbackRatio
+            )
+            self.buffersByPhraseIndex = nextBuffers
+            self.barFramesByPhraseIndex = nextBarFrames
         }
     }
 
     func start(initialPhraseIndex: Int) {
-        queue.async { [weak self] in
+        runOnMain { [weak self] in
             guard let self else { return }
             self.generation &+= 1
             self.stopPlayers(resetTransport: true)
@@ -136,14 +143,17 @@ final class DefenseSharedProgressionAudio {
             self.requestRevision = 0
             self.paused = false
             self.pausedOffsetSec = 0
-            self.ensureGraph()
-            self.transportStartHostSec = Self.hostTimeSec() + 0.15
-            self.playPhraseLoop(at: initialPhraseIndex, offsetBar0: 0, startHostSec: self.transportStartHostSec)
+            self.transportStartHostSec = Self.hostTimeSec() + Self.startLeadSec
+            self.playPhraseLoop(
+                at: initialPhraseIndex,
+                offsetBar0: 0,
+                startHostSec: self.transportStartHostSec
+            )
         }
     }
 
     func requestPhrase(at index: Int, requestRevision: Int) {
-        queue.async { [weak self] in
+        runOnMain { [weak self] in
             guard let self, !self.paused else { return }
             self.desiredPhraseIndex = index
             self.requestRevision = requestRevision
@@ -155,7 +165,7 @@ final class DefenseSharedProgressionAudio {
     }
 
     func pauseProgression() {
-        queue.async { [weak self] in
+        runOnMain { [weak self] in
             guard let self, !self.paused else { return }
             let now = Self.hostTimeSec()
             self.pausedOffsetSec = max(0, now - self.transportStartHostSec)
@@ -167,7 +177,7 @@ final class DefenseSharedProgressionAudio {
     }
 
     func resumeProgression() {
-        queue.async { [weak self] in
+        runOnMain { [weak self] in
             guard let self, self.paused else { return }
             self.paused = false
             self.generation &+= 1
@@ -184,7 +194,7 @@ final class DefenseSharedProgressionAudio {
     }
 
     func restartFromProgressionStart(phraseIndex: Int, speedRatio: Double) {
-        queue.async { [weak self] in
+        runOnMain { [weak self] in
             guard let self, let stage = self.stage else { return }
             self.playbackRatio = max(0.1, speedRatio)
             self.barSec = DefenseSharedProgressionTransport.barSeconds(
@@ -196,13 +206,13 @@ final class DefenseSharedProgressionAudio {
             self.stopPlayers(resetTransport: true)
             self.desiredPhraseIndex = phraseIndex
             self.audiblePhraseIndex = phraseIndex
-            self.transportStartHostSec = Self.hostTimeSec() + 0.15
+            self.transportStartHostSec = Self.hostTimeSec() + Self.startLeadSec
             self.playPhraseLoop(at: phraseIndex, offsetBar0: 0, startHostSec: self.transportStartHostSec)
         }
     }
 
     func stop() {
-        queue.async { [weak self] in
+        runOnMain { [weak self] in
             guard let self else { return }
             self.generation &+= 1
             self.cancelWake()
@@ -277,49 +287,58 @@ final class DefenseSharedProgressionAudio {
         scheduledPhraseIndex = nil
         scheduledSwitchAtHostSec = -1
 
-        let startFrame = AVAudioFramePosition(barFrames[offsetBar0])
-        let endFrame = AVAudioFramePosition(barFrames[progressionBars])
-        let tailCount = AVAudioFrameCount(max(0, endFrame - startFrame))
         let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: startHostSec))
         let outgoing = activeIsA ? playerA : playerB
         let incoming = activeIsA ? playerB : playerA
 
         incoming.stop()
         incoming.reset()
-        if tailCount > 0,
-           let tailBuffer = DefensePhraseBacking.slicePCMBuffer(
-               buffer,
-               startingFrame: startFrame,
-               frameCount: tailCount
-           ) {
-            incoming.scheduleBuffer(tailBuffer, at: when, completionHandler: { [weak self] in
-                self?.queue.async {
-                    guard let self else { return }
-                    self.scheduleLoopHead(for: phraseIndex, player: incoming)
-                }
-            })
+
+        if offsetBar0 <= 0 {
+            scheduleFullLoop(for: phraseIndex, player: incoming, at: when)
         } else {
-            scheduleLoopHead(for: phraseIndex, player: incoming, at: when)
+            let startFrame = AVAudioFramePosition(barFrames[offsetBar0])
+            let endFrame = AVAudioFramePosition(barFrames[progressionBars])
+            let tailCount = AVAudioFrameCount(max(0, endFrame - startFrame))
+            if tailCount > 0,
+               let tailBuffer = DefensePhraseBacking.slicePCMBuffer(
+                   buffer,
+                   startingFrame: startFrame,
+                   frameCount: tailCount
+               ) {
+                incoming.scheduleBuffer(tailBuffer, at: when) { [weak self] in
+                    self?.runOnMain {
+                        self?.scheduleLoopHead(for: phraseIndex, player: incoming, at: nil)
+                    }
+                }
+            } else {
+                scheduleLoopHead(for: phraseIndex, player: incoming, at: when)
+            }
         }
 
-        incoming.play(at: when)
+        do {
+            if !engine.isRunning {
+                try engine.start()
+            }
+        } catch {
+            return
+        }
+
+        incoming.play()
+        applyMasterVolume()
+
         let stopDelay = max(0, startHostSec - Self.hostTimeSec())
-        queue.asyncAfter(deadline: .now() + stopDelay) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + stopDelay) { [weak self] in
             outgoing.stop()
             outgoing.reset()
         }
         activeIsA.toggle()
-
-        if !engine.isRunning {
-            try? engine.start()
-        }
-        applyMasterVolume()
     }
 
-    private func scheduleLoopHead(
+    private func scheduleFullLoop(
         for phraseIndex: Int,
         player: AVAudioPlayerNode,
-        at when: AVAudioTime? = nil
+        at when: AVAudioTime?
     ) {
         guard let buffer = buffersByPhraseIndex[phraseIndex],
               let barFrames = barFramesByPhraseIndex[phraseIndex],
@@ -332,9 +351,14 @@ final class DefenseSharedProgressionAudio {
             frameCount: loopCount
         ) else { return }
         player.scheduleBuffer(loopBuffer, at: when, options: [.loops])
-        if !player.isPlaying {
-            player.play(at: when)
-        }
+    }
+
+    private func scheduleLoopHead(
+        for phraseIndex: Int,
+        player: AVAudioPlayerNode,
+        at when: AVAudioTime?
+    ) {
+        scheduleFullLoop(for: phraseIndex, player: player, at: when)
     }
 
     private func scheduleWake(atHostSec: Double) {
@@ -344,7 +368,7 @@ final class DefenseSharedProgressionAudio {
             self?.performScheduledSwitch()
         }
         wakeWorkItem = item
-        queue.asyncAfter(deadline: .now() + delay, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
     private func cancelWake() {
@@ -401,6 +425,14 @@ final class DefenseSharedProgressionAudio {
             }
             return converted
         }.value
+    }
+
+    private func runOnMain(_ block: @escaping () -> Void) {
+        if Thread.isMainThread {
+            block()
+        } else {
+            DispatchQueue.main.async(execute: block)
+        }
     }
 
     private static func hostTimeSec() -> Double {

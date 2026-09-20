@@ -125,7 +125,7 @@ interface FinalStats {
 const HINT_FADE_TRACK_LIMIT_SEC = 16;
 const VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS = 120;
 
-type DefenseGamePhase = 'loading' | 'countdown' | 'playing';
+type DefenseGamePhase = 'loading' | 'loadError' | 'countdown' | 'playing';
 
 export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   stage,
@@ -565,8 +565,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           await defenseSharedProgressionDeck.prepare(stage, initialRatio);
         } catch {
           if (cancelled) return;
-          phaseRef.current = 'loading';
-          setPhase('loading');
+          phaseRef.current = 'loadError';
+          setPhase('loadError');
           return;
         }
         if (cancelled) return;
@@ -800,6 +800,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         <p className="pointer-events-none absolute bottom-[96px] left-1/2 z-30 -translate-x-1/2 text-xs text-slate-400">
           {isEnglishCopy ? 'Loading backing track…' : '伴奏を読み込み中…'}
         </p>
+      )}
+
+      {phase === 'loadError' && (
+        <div className="pointer-events-auto absolute inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-black/60 px-6">
+          <p className="text-center text-sm text-slate-200">
+            {isEnglishCopy ? 'Could not load backing track.' : '伴奏を読み込めませんでした。'}
+          </p>
+          <button
+            type="button"
+            className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+            onClick={onRetry}
+          >
+            {isEnglishCopy ? 'Retry' : '再試行'}
+          </button>
+        </div>
       )}
 
       {phase === 'countdown' && (

@@ -4,6 +4,7 @@
 import { processOffline } from '@soundtouchjs/audio-worklet';
 import soundtouchProcessorUrl from '@soundtouchjs/audio-worklet/processor?url';
 import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
+import { toCdnProxyUrl } from '@/utils/cdnProxy';
 import { isDefenseSharedProgressionStage } from '@/game/defense/defenseAudioRegistrationMode';
 import {
   computeSharedProgressionExpectedFrameCount,
@@ -132,7 +133,7 @@ class DefenseSharedProgressionDeck {
     if (!promise) {
       promise = (async () => {
         try {
-          const arrayBuffer = await fetchCachedFullAudioBuffer(url);
+          const arrayBuffer = await fetchCachedFullAudioBuffer(toCdnProxyUrl(url));
           return ctx.decodeAudioData(arrayBuffer.slice(0));
         } catch (error) {
           this.rawBufferByUrl.delete(url);
