@@ -21,7 +21,7 @@ struct DefensePhraseStaffView: View {
                     correctPitchClassesByGroupId: built.correctMap,
                     showTargetHints: showTargetHints,
                     singleMeasureLayout: true,
-                    hideChordLabels: true,
+                    hideChordLabels: false,
                     phraseTightTopLedgerPadding: true,
                     unpressedNoteOpacity: CGFloat(unpressedNoteOpacity),
                     compactChordLabelGap: true,
@@ -47,14 +47,24 @@ struct DefensePhraseStaffView: View {
         var correctMap: [UUID: Set<Int>] = [:]
         var activeGroupId: UUID?
         let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
+        let writtenOffset = NotationInstrumentPreferences.loadWrittenOffset()
+        let hasStaffChordNames = chord.notes.contains {
+            !($0.staffChordName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        }
+        var previousStaffLabel = ""
 
         for (stepPosition, step) in steps.enumerated() {
             let groupId = UUID()
             var stepCorrect: Set<Int> = []
             var allRevealed = true
+            var stepStaffLabel = ""
             for noteIndex in step.noteIndices {
                 guard noteIndex < chord.notes.count else { continue }
                 let note = chord.notes[noteIndex]
+                if let label = note.staffChordName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !label.isEmpty {
+                    stepStaffLabel = label
+                }
                 if judgeState.correctNoteIndices.contains(noteIndex) {
                     stepCorrect.insert(note.pitchClass)
                 }
@@ -65,10 +75,27 @@ struct DefensePhraseStaffView: View {
             if showTargetHints, stepPosition == judgeState.targetStepIndex {
                 activeGroupId = groupId
             }
+
+            let rawLabel: String
+            if hasStaffChordNames {
+                rawLabel = (stepStaffLabel != previousStaffLabel) ? stepStaffLabel : ""
+                if !stepStaffLabel.isEmpty {
+                    previousStaffLabel = stepStaffLabel
+                }
+            } else {
+                rawLabel = stepPosition == 0 ? chord.chordName : ""
+            }
+            let displayLabel = rawLabel.isEmpty
+                ? ""
+                : EarTrainingMusicXmlTransposer.transposeChordLabelPitchClass(
+                    rawLabel,
+                    semitones: writtenOffset
+                )
+
             groups.append(
                 EarTrainingChordVoicingStaffLayout.GroupInput(
                     id: groupId,
-                    chordName: stepPosition == 0 ? chord.chordName : "",
+                    chordName: displayLabel,
                     voicing: step.noteIndices.map { chord.notes[$0].noteName },
                     voicingStaves: step.noteIndices.map { chord.notes[$0].staff },
                     measureOffset: 0,

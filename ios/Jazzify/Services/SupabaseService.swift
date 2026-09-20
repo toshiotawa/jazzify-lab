@@ -2328,6 +2328,14 @@ final class SupabaseService: Sendable {
             let note_name: String
             let staff: Int
             let step_index: Int?
+            let staff_chord_name: String?
+        }
+        struct ProgressionChordRow: Decodable {
+            let order_index: Int
+            let chord_name: String
+            let measure_number: Int
+            let beat_offset: Int
+            let duration_beats: Int
         }
 
         let stages: [StageRow] = try await client
@@ -2369,21 +2377,31 @@ final class SupabaseService: Sendable {
         let chordIds = chordRows.map(\.id)
         let noteRows: [NoteRow] = chordIds.isEmpty ? [] : try await client
             .from("defense_phrase_chord_notes")
-            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index")
+            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index, staff_chord_name")
             .in("chord_id", values: chordIds)
+            .order("order_index")
+            .execute()
+            .value
+
+        let progressionRows: [ProgressionChordRow] = try await client
+            .from("defense_stage_progression_chords")
+            .select("order_index, chord_name, measure_number, beat_offset, duration_beats")
+            .eq("stage_id", value: stageId)
             .order("order_index")
             .execute()
             .value
 
         var notesByChord: [String: [SurvivalPhraseChordNote]] = [:]
         for row in noteRows {
+            let trimmedStaffLabel = row.staff_chord_name?.trimmingCharacters(in: .whitespacesAndNewlines)
             let note = SurvivalPhraseChordNote(
                 orderIndex: row.order_index,
                 pitchMidi: row.pitch_midi,
                 pitchClass: row.pitch_class,
                 noteName: row.note_name,
                 staff: row.staff,
-                stepIndex: row.step_index
+                stepIndex: row.step_index,
+                staffChordName: trimmedStaffLabel.flatMap { $0.isEmpty ? nil : $0 }
             )
             notesByChord[row.chord_id, default: []].append(note)
         }
@@ -2398,6 +2416,16 @@ final class SupabaseService: Sendable {
                 notes: notesByChord[row.id] ?? []
             )
             chordsByPhrase[row.phrase_id, default: []].append(chord)
+        }
+
+        let progressionChords = progressionRows.map { row in
+            DefenseStageProgressionChord(
+                orderIndex: row.order_index,
+                chordName: row.chord_name,
+                measureNumber: row.measure_number,
+                beatOffset: row.beat_offset,
+                durationBeats: row.duration_beats
+            )
         }
 
         guard let audioRegistrationMode = DefenseAudioRegistrationModeParser.parse(stage.audio_registration_mode) else {
@@ -2443,7 +2471,8 @@ final class SupabaseService: Sendable {
             playerHp: stage.player_hp,
             productionStaffHintMode: stage.production_staff_hint_mode,
             productionKeyboardHintMode: stage.production_keyboard_hint_mode,
-            phrases: phrases
+            phrases: phrases,
+            progressionChords: progressionChords
         )
 
         if DefenseSharedProgressionValidation.validate(stage: mappedStage) != nil {

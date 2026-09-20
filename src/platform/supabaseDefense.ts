@@ -15,6 +15,7 @@ import type {
   DefensePhraseChordNote,
   DefenseStaffLayout,
   DefenseStage,
+  DefenseStageProgressionChord,
 } from '@/game/defense/defenseTypes';
 import type { ProductionHintMode } from '@/types';
 import { parseProductionHintMode } from '@/utils/resolveProductionHintModes';
@@ -70,6 +71,15 @@ interface NoteRow {
   note_name: string;
   staff: number;
   step_index: number | null;
+  staff_chord_name: string | null;
+}
+
+interface ProgressionChordRow {
+  order_index: number;
+  chord_name: string;
+  measure_number: number;
+  beat_offset: number;
+  duration_beats: number;
 }
 
 interface DifficultyRow {
@@ -116,6 +126,15 @@ const mapNoteRow = (row: NoteRow): DefensePhraseChordNote => ({
   noteName: row.note_name,
   staff: row.staff === 2 ? 2 : 1,
   stepIndex: row.step_index ?? undefined,
+  staffChordName: row.staff_chord_name?.trim() || undefined,
+});
+
+const mapProgressionChordRow = (row: ProgressionChordRow): DefenseStageProgressionChord => ({
+  orderIndex: row.order_index,
+  chordName: row.chord_name,
+  measureNumber: row.measure_number,
+  beatOffset: row.beat_offset,
+  durationBeats: row.duration_beats,
 });
 
 export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseStage | null> {
@@ -165,15 +184,23 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
   }
 
   const chordIds = chordRows.map((row) => (row as ChordRow).id);
-  const { data: noteRows, error: noteError } = chordIds.length > 0
-    ? await supabase
-      .from('defense_phrase_chord_notes')
-      .select('chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index')
-      .in('chord_id', chordIds)
-      .order('order_index', { ascending: true })
-    : { data: [], error: null };
+  const [{ data: noteRows, error: noteError }, { data: progressionRows, error: progressionError }] =
+    await Promise.all([
+      chordIds.length > 0
+        ? supabase
+          .from('defense_phrase_chord_notes')
+          .select('chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index, staff_chord_name')
+          .in('chord_id', chordIds)
+          .order('order_index', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+      supabase
+        .from('defense_stage_progression_chords')
+        .select('order_index, chord_name, measure_number, beat_offset, duration_beats')
+        .eq('stage_id', stageId)
+        .order('order_index', { ascending: true }),
+    ]);
 
-  if (noteError) {
+  if (noteError || progressionError) {
     return null;
   }
 
@@ -246,6 +273,9 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     productionStaffHintMode: parseProductionHintMode(stage.production_staff_hint_mode),
     productionKeyboardHintMode: parseProductionHintMode(stage.production_keyboard_hint_mode),
     phrases,
+    progressionChords: (progressionRows ?? []).map((row) => (
+      mapProgressionChordRow(row as ProgressionChordRow)
+    )),
   };
 
   if (validateDefenseSharedProgressionStage(mappedStage) !== null) {

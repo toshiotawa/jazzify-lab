@@ -29,6 +29,7 @@ const baseStage = (overrides: Partial<DefenseStage> = {}): DefenseStage => ({
   productionStaffHintMode: 'fade_15s',
   productionKeyboardHintMode: 'fade_15s',
   phrases: [],
+  progressionChords: [],
   ...overrides,
 });
 

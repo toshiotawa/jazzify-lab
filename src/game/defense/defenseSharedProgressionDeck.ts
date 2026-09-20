@@ -251,6 +251,19 @@ class DefenseSharedProgressionDeck {
     return this.audiblePhraseIndex;
   }
 
+  /** Fractional beat position within the shared progression form loop. */
+  getBeatInForm(): number {
+    const graph = this.graph;
+    if (!graph || this.transportStart <= 0 || this.barSec <= 0 || this.progressionBars <= 0) {
+      return 0;
+    }
+    const now = graph.ctx.currentTime;
+    const absoluteBarPosition = Math.max(0, (now - this.transportStart) / this.barSec);
+    const barInForm = absoluteBarPosition % this.progressionBars;
+    const stageBeats = this.stage?.beatsPerBar ?? 4;
+    return barInForm * stageBeats;
+  }
+
   private playbackForPhrase(phraseIndex: number): PhrasePlayback {
     const playback = this.playbackByPhraseIndex.get(phraseIndex);
     if (!playback) {

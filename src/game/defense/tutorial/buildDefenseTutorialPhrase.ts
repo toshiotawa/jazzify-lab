@@ -161,6 +161,7 @@ export const buildDefenseTutorialPhrase = (
     productionStaffHintMode: 'always',
     productionKeyboardHintMode: 'always',
     phrases: [phrase],
+    progressionChords: [],
   };
 
   return {

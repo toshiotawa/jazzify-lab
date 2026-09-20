@@ -385,7 +385,8 @@
 		CDA0FF3F7CC1F482C2E2921B /* EarTrainingAdlibCallResponseTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCFA864013086E71B71E5C5 /* EarTrainingAdlibCallResponseTargets.swift */; };
 		CE2F672A1F097DFC77DA03CC /* AnalyticsClientID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E24D67BA3C39274C0C065AB /* AnalyticsClientID.swift */; };
 		CED0045DDC45A092C5829176 /* EarTrainingBattleParrySparkPool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A7E71C9380AB66B8F5A4563 /* EarTrainingBattleParrySparkPool.swift */; };
-		CED365E55CEFF09B554A9D0E /* DefenseChordHudLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0860713404B562170CED9D61 /* DefenseChordHudLabels.swift */; };
+		F1A2B3C4D5E6470890ABCD002 /* DefenseProgressionTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6470890ABCD001 /* DefenseProgressionTimeline.swift */; };
+		F1A2B3C4D5E6470890ABCD004 /* DefenseProgressionTimelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6470890ABCD003 /* DefenseProgressionTimelineTests.swift */; };
 		CED8002B46A6AD0E39E70673 /* EarTrainingPianoLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEBCCA27468C34C18839FD9 /* EarTrainingPianoLayoutTests.swift */; };
 		CF63B5781915BDD22F269D5A /* DefensePhraseBacking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B6A4DCECC245A6C29EF2CC /* DefensePhraseBacking.swift */; };
 		D02C0FD07E52980806DC8E6A /* PianoKeyboardTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93536B485955BA0380712008 /* PianoKeyboardTheme.swift */; };
@@ -491,7 +492,8 @@
 		068710FAA162B5A987595327 /* SurvivalTutorialScriptModelsV3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialScriptModelsV3.swift; sourceTree = "<group>"; };
 		07231ED57E90049C3022BB21 /* EarTrainingBattleParryConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleParryConstants.swift; sourceTree = "<group>"; };
 		07FEBED961171ED6F431D31E /* OSMD_PERFORMANCE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = OSMD_PERFORMANCE.md; sourceTree = "<group>"; };
-		0860713404B562170CED9D61 /* DefenseChordHudLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseChordHudLabels.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6470890ABCD001 /* DefenseProgressionTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseProgressionTimeline.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6470890ABCD003 /* DefenseProgressionTimelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseProgressionTimelineTests.swift; sourceTree = "<group>"; };
 		09772AD2D331B9526048B4C9 /* SoftLandingOfferSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingOfferSheet.swift; sourceTree = "<group>"; };
 		0A704FA6337B4D1B7DC46741 /* EarTrainingKeyboardScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingKeyboardScroll.swift; sourceTree = "<group>"; };
 		0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPauseSettingsSheet.swift; sourceTree = "<group>"; };
@@ -1340,6 +1342,7 @@
 				70286E8CB46BF37F45570F06 /* DefenseEnemyDisplayConfigTests.swift */,
 				2F7A966C7DBE6629C4DC5C1C /* DefenseGameLoopTests.swift */,
 				CCAF5923DBBEF6C3DEFA3F16 /* DefensePhraseJudgeTests.swift */,
+				F1A2B3C4D5E6470890ABCD003 /* DefenseProgressionTimelineTests.swift */,
 				EDE52D1FB30DF6BC050AE198 /* DefensePlayerPoseTests.swift */,
 				8BD2CA846EB28EE3CA39CDD4 /* DefensePracticeSpeedTests.swift */,
 				D14C91DAE7FB2D560A5FDE5A /* DefenseSharedProgressionTransportTests.swift */,
@@ -1594,7 +1597,7 @@
 			children = (
 				24281F929A930309ED027C2F /* DefenseAudioLoopWindow.swift */,
 				03FB8865EC5967E066B0FFFE /* DefenseAudioRegistrationMode.swift */,
-				0860713404B562170CED9D61 /* DefenseChordHudLabels.swift */,
+				F1A2B3C4D5E6470890ABCD001 /* DefenseProgressionTimeline.swift */,
 				5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */,
 				B0A3E14C8C3628C7552ECD84 /* DefenseKeyboardRange.swift */,
 				7ED993F78D97573F2ACB0326 /* DefensePhraseJudge.swift */,
@@ -2088,6 +2091,7 @@
 				C9E56979BA797BC8A54182DF /* DefenseEnemyDisplayConfigTests.swift in Sources */,
 				7110A125B7F64F5A546D2D80 /* DefenseGameLoopTests.swift in Sources */,
 				0B18AFAF841CF7E5CFDA41AF /* DefensePhraseJudgeTests.swift in Sources */,
+				F1A2B3C4D5E6470890ABCD004 /* DefenseProgressionTimelineTests.swift in Sources */,
 				04CFFC6B2A9E6108F7653C7C /* DefensePlayerPoseTests.swift in Sources */,
 				66D89AF575A639E9DD64566A /* DefensePracticeSpeedTests.swift in Sources */,
 				D64EDFCECA809271095ABD3B /* DefenseSharedProgressionTransportTests.swift in Sources */,
@@ -2206,7 +2210,7 @@
 				3F0C56844A7A330EE69C255E /* DefenseAudioRegistrationMode.swift in Sources */,
 				8C03FF23A9E385B35D418F1C /* DefenseBackingAudio.swift in Sources */,
 				48C2CA60C3C0EAFCAC5ABA75 /* DefenseBlockCompleteSheet.swift in Sources */,
-				CED365E55CEFF09B554A9D0E /* DefenseChordHudLabels.swift in Sources */,
+				F1A2B3C4D5E6470890ABCD002 /* DefenseProgressionTimeline.swift in Sources */,
 				60BEA1B2F12018F94680F5CE /* DefenseDescentLayout.swift in Sources */,
 				244B267BA4AA9D91DBB3796D /* DefenseDescentMapView.swift in Sources */,
 				8B788E62194BAE931429EDF7 /* DefenseDescentSidePanel.swift in Sources */,

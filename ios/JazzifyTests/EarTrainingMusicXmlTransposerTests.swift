@@ -58,6 +58,26 @@ final class EarTrainingMusicXmlTransposerTests: XCTestCase {
         )
     }
 
+    func testPitchClassSemitoneOffset() {
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.pitchClassSemitoneOffset(-12), 0)
+        XCTAssertEqual(EarTrainingMusicXmlTransposer.pitchClassSemitoneOffset(14), 2)
+    }
+
+    func testTransposeChordLabelPitchClass() {
+        XCTAssertEqual(
+            EarTrainingMusicXmlTransposer.transposeChordLabelPitchClass("Dm7", semitones: -12),
+            "Dm7"
+        )
+        XCTAssertEqual(
+            EarTrainingMusicXmlTransposer.transposeChordLabelPitchClass("Dm7", semitones: 14),
+            "Em7"
+        )
+        XCTAssertEqual(
+            EarTrainingMusicXmlTransposer.transposeChordLabelPitchClass("F Minor Pentatonic Scale", semitones: 2),
+            "G Minor Pentatonic Scale"
+        )
+    }
+
     func testTransposeChordLabel() {
         XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("C7", semitones: 2), "D7")
         XCTAssertEqual(EarTrainingMusicXmlTransposer.transposeChordLabel("Cm7", semitones: 2), "Dm7")

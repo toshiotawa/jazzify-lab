@@ -148,7 +148,8 @@ enum BuildDefenseTutorialPhrase {
             playerHp: 100,
             productionStaffHintMode: "off",
             productionKeyboardHintMode: "off",
-            phrases: [phrase]
+            phrases: [phrase],
+            progressionChords: []
         )
 
         return DefenseTutorialPhraseBuildResult(

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useGameStore } from '@/stores/gameStore';
-import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
+import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
 import {
   getNotationInstrumentPreset,
   getWrittenSemitoneOffset,
@@ -1642,7 +1642,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
           ...group,
           chordName: literalChordLabels || writtenOffset === 0
             ? group.chordName
-            : transposeChordLabel(group.chordName, writtenOffset),
+            : transposeChordLabelPitchClass(group.chordName, writtenOffset),
           measureOffset: group.measureOffset === 1 ? 1 : 0,
           isRest: group.isRest === true || group.voicing.length === 0,
         }));
@@ -1654,7 +1654,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
       id: 'single',
       chordName: literalChordLabels || writtenOffset === 0
         ? chordName
-        : transposeChordLabel(chordName, writtenOffset),
+        : transposeChordLabelPitchClass(chordName, writtenOffset),
       voicing,
       voicingStaves: normalizedVoicingStaves,
       correctPitchClasses: normalizedCorrectPitchClasses,

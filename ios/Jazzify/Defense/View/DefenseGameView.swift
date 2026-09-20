@@ -7,6 +7,7 @@ struct DefenseGameView: View {
     @State private var scene: DefenseScene
     @State private var keyboardDisplayMode = PianoKeyboardDisplayPreferences.load()
     @State private var isSettingsOpen = false
+    @State private var notationOctaveShift = NotationInstrumentPreferences.loadOctaveShift()
     let locale: AppLocale
     let onClose: () -> Void
     let onApplyPracticeModeAndRestart: (Bool) -> Void
@@ -155,16 +156,6 @@ struct DefenseGameView: View {
 
             VStack(spacing: 0) {
                 defenseHud
-                if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex],
-                   !phrase.chords.isEmpty {
-                    defenseNeonChordDisplay(
-                        labels: DefenseChordHudLabels.make(
-                            chordNames: phrase.chords.map(\.chordName),
-                            chordIndex: session.judgeState.chordIndex
-                        )
-                    )
-                    .padding(.top, 4)
-                }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -304,6 +295,72 @@ struct DefenseGameView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
+    private var defenseProgressionChips: [EarTrainingChordChip] {
+        let writtenOffset = NotationInstrumentPreferences.loadWrittenOffset()
+        return session.stage.progressionChords.enumerated().map { index, chord in
+            let name = EarTrainingMusicXmlTransposer.transposeChordLabelPitchClass(
+                chord.chordName,
+                semitones: writtenOffset
+            )
+            return EarTrainingChordChip(
+                id: UUID(uuidString: String(format: "D0000000-0000-4000-8000-%012X", chord.orderIndex)) ?? UUID(),
+                name: name,
+                active: index == session.progressionActiveIndex
+            )
+        }
+    }
+
+    private var defenseOctaveStepper: some View {
+        let controlsEnabled = session.phase == .playing
+        let canDecrease = controlsEnabled && notationOctaveShift > NotationInstrumentCatalog.octaveShiftMin
+        let canIncrease = controlsEnabled && notationOctaveShift < NotationInstrumentCatalog.octaveShiftMax
+        let label = locale == .ja
+            ? "オクターブ \(notationOctaveShift > 0 ? "+" : "")\(notationOctaveShift)"
+            : "Octave \(notationOctaveShift > 0 ? "+" : "")\(notationOctaveShift)"
+
+        return HStack(spacing: 4) {
+            Button {
+                let next = NotationInstrumentCatalog.clampOctaveShift(notationOctaveShift - 1)
+                guard next != notationOctaveShift else { return }
+                notationOctaveShift = next
+                NotationInstrumentPreferences.saveOctaveShift(next)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 26, height: 26)
+            }
+            .disabled(!canDecrease)
+            .opacity(canDecrease ? 1 : 0.35)
+
+            Text(label)
+                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                .frame(minWidth: 72)
+                .multilineTextAlignment(.center)
+
+            Button {
+                let next = NotationInstrumentCatalog.clampOctaveShift(notationOctaveShift + 1)
+                guard next != notationOctaveShift else { return }
+                notationOctaveShift = next
+                NotationInstrumentPreferences.saveOctaveShift(next)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                    .frame(width: 26, height: 26)
+            }
+            .disabled(!canIncrease)
+            .opacity(canIncrease ? 1 : 0.35)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(Color.black.opacity(0.55))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
     private var defenseSpeedStepper: some View {
         let controlsEnabled = session.phase == .playing
         let canDecrease = controlsEnabled && session.practiceSpeedPercent > DefensePracticeSpeed.minPercent
@@ -406,42 +463,29 @@ struct DefenseGameView: View {
                 hideBackButton: false,
                 enemyAttackGaugePercent: 0,
                 hideEnemyAttackGauge: true,
-                hideChordChips: true,
+                hideChordChips: defenseProgressionChips.isEmpty,
                 hideSlotsRow: true,
                 hudLabels: labels,
                 gameState: .playingPhrase,
                 phraseRunId: 0,
-                chordChips: [],
+                chordChips: defenseProgressionChips,
                 slotRow: .melody(slots: [], revealed: [], currentIndex: 0)
             ),
             showsSlotsRow: false,
-            healthRowTrailingReserve: 216,
+            healthRowTrailingReserve: 300,
             onSettings: {
                 session.isPaused = true
                 session.setSharedProgressionPaused(true)
                 isSettingsOpen = true
             },
             onBack: onClose,
-            rightControlsLeading: isTutorialSession ? nil : AnyView(defenseSpeedStepper)
+            rightControlsLeading: isTutorialSession ? nil : AnyView(
+                HStack(spacing: 6) {
+                    defenseSpeedStepper
+                    defenseOctaveStepper
+                }
+            )
         )
-    }
-
-    private func defenseNeonChordDisplay(labels: DefenseChordHudLabels) -> some View {
-        defenseNeonCodeBadge(value: labels.current)
-            .allowsHitTesting(false)
-    }
-
-    private func defenseNeonCodeBadge(value: String) -> some View {
-        Text(value)
-            .font(.system(size: 34, weight: .heavy, design: .rounded))
-            .foregroundStyle(Color(red: 1.0, green: 0.88, blue: 0.30))
-            .lineLimit(1)
-            .minimumScaleFactor(0.65)
-            .shadow(color: Color(red: 0.90, green: 0.22, blue: 0.34).opacity(0.9), radius: 4, x: 0, y: 2)
-            .shadow(color: .black.opacity(0.85), radius: 1, x: 0, y: 1)
-            .frame(minWidth: 160, maxWidth: 240)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
     }
 
     private var staffOpacity: Double {

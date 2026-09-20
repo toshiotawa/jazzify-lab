@@ -241,6 +241,25 @@ enum EarTrainingMusicXmlTransposer {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)
     }
 
+    /// オクターブ成分を除いた半音オフセット（移調楽器向けコード表示）。
+    static func pitchClassSemitoneOffset(_ semitones: Int) -> Int {
+        if semitones == 0 { return 0 }
+        return semitones - 12 * Int((Double(semitones) / 12.0).rounded())
+    }
+
+    /// 移調楽器向け: ピッチクラスのみ移調（オクターブシフトは無視）。
+    static func transposeChordLabelPitchClass(_ label: String, semitones: Int) -> String {
+        let pitchClassOffset = pitchClassSemitoneOffset(semitones)
+        if pitchClassOffset == 0 { return label }
+        if label.contains(" / ") {
+            return label
+                .components(separatedBy: " / ")
+                .map { transposeSingleChordLabel($0, semitones: pitchClassOffset) }
+                .joined(separator: " / ")
+        }
+        return transposeSingleChordLabel(label, semitones: pitchClassOffset)
+    }
+
     /// DB 由来のコードネーム表示ラベルを練習移調する（スラッシュ・複数ラベル対応）。
     static func transposeChordLabel(_ label: String, semitones: Int) -> String {
         let clamped = clampPracticeTransposeOffset(semitones)

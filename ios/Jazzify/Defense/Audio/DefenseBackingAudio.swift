@@ -456,6 +456,30 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
     }
 
+    func beatInLoop() -> Double {
+        os_unfair_lock_lock(&lock)
+        let transportStart = transportStartHostSec
+        let bpmSnapshot = bpm
+        let beatsSnapshot = beatsPerBar
+        os_unfair_lock_unlock(&lock)
+
+        let now = Self.hostTimeSec()
+        guard transportStart > 0 else { return 0 }
+        let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
+        guard barSec > 0 else { return 0 }
+
+        let elapsed = max(0, now - transportStart)
+        let currentBuffer = activeIsA ? bufferA : bufferB
+        guard let currentBuffer, currentBuffer.frameLength > 0 else {
+            return elapsed / barSec
+        }
+        let rate = max(0.1, Double(timePitch.rate))
+        let loopDur = Double(currentBuffer.frameLength) / currentBuffer.format.sampleRate / rate
+        guard loopDur > 0 else { return 0 }
+        let positionInLoop = elapsed.truncatingRemainder(dividingBy: loopDur)
+        return positionInLoop / barSec
+    }
+
     private static func hostTimeSec() -> Double {
         AVAudioTime.seconds(forHostTime: mach_absolute_time())
     }

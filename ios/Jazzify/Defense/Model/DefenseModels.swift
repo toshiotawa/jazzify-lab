@@ -58,6 +58,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let productionStaffHintMode: String
     let productionKeyboardHintMode: String
     let phrases: [DefensePhraseDefinition]
+    let progressionChords: [DefenseStageProgressionChord]
 }
 
 struct DefenseDifficultyDefinition: Sendable, Equatable {

@@ -18,6 +18,16 @@ export interface DefensePhraseChordNote {
   readonly noteName: string;
   readonly staff: 1 | 2;
   readonly stepIndex?: number;
+  /** Optional staff label above this note step (overrides phrase chord_name). */
+  readonly staffChordName?: string;
+}
+
+export interface DefenseStageProgressionChord {
+  readonly orderIndex: number;
+  readonly chordName: string;
+  readonly measureNumber: number;
+  readonly beatOffset: number;
+  readonly durationBeats: number;
 }
 
 export interface DefensePhraseChord {
@@ -65,6 +75,7 @@ export interface DefenseStage {
   readonly productionStaffHintMode: ProductionHintMode;
   readonly productionKeyboardHintMode: ProductionHintMode;
   readonly phrases: readonly DefensePhrase[];
+  readonly progressionChords: readonly DefenseStageProgressionChord[];
 }
 
 export interface DefenseDifficulty {

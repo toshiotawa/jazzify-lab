@@ -8,6 +8,18 @@ struct SurvivalPhraseChordNote: Codable, Sendable, Equatable {
     let staff: Int
     /// Simultaneous-note group within the chunk. nil = one note per step (legacy).
     var stepIndex: Int? = nil
+    /// Optional staff label above this note step (defense mode).
+    var staffChordName: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case orderIndex = "order_index"
+        case pitchMidi = "pitch_midi"
+        case pitchClass = "pitch_class"
+        case noteName = "note_name"
+        case staff
+        case stepIndex = "step_index"
+        case staffChordName = "staff_chord_name"
+    }
 }
 
 struct SurvivalPhraseChord: Codable, Sendable, Equatable, Identifiable {

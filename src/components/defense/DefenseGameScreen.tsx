@@ -13,7 +13,13 @@ import React, {
 } from 'react';
 
 import { DefenseCanvas, type DefenseCanvasHandle } from '@/components/defense/DefenseCanvas';
-import { DefensePracticeHud, DefenseSpeedStepper } from '@/components/defense/DefensePracticeHud';
+import { DefenseChordProgressionHud } from '@/components/defense/DefenseChordProgressionHud';
+import {
+  clampDefenseOctaveShift,
+  DefenseOctaveStepper,
+  DefensePracticeHud,
+  DefenseSpeedStepper,
+} from '@/components/defense/DefensePracticeHud';
 import { DefensePhraseStaff } from '@/components/defense/DefensePhraseStaff';
 import { DefenseTutorialStaff } from '@/components/defense/tutorial/DefenseTutorialStaff';
 import type { ChordVoicingStaffGroup } from '@/components/earTraining/ChordVoicingStaff';
@@ -72,7 +78,11 @@ import type {
 } from '@/game/defense/defenseTypes';
 import type { InputMethod } from '@/types';
 import { computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
-import { getDefenseChordHudLabels } from '@/game/defense/defenseChordHudLabels';
+import {
+  buildDefenseProgressionChips,
+  resolveDefenseFormBarCount,
+  resolveDefenseProgressionActiveIndex,
+} from '@/game/defense/defenseProgressionTimeline';
 import type { MutableDefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import { DEFENSE_HUD_HEIGHT_PX } from '@/game/defense/defenseSceneLayout';
 import { createDefenseRuntime } from '@/game/defense/defenseTypes';
@@ -83,7 +93,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import type { NotationInstrumentClef } from '@/utils/notationInstrument';
+import {
+  getNotationInstrumentPreset,
+  getWrittenSemitoneOffset,
+  type NotationInstrumentClef,
+} from '@/utils/notationInstrument';
+import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
@@ -197,6 +212,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC),
   );
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
+  const [progressionActiveIndex, setProgressionActiveIndex] = useState(0);
+  const progressionActiveIndexRef = useRef(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSettingsOpenRef = useRef(false);
   const lastVoicePcAtRef = useRef<Map<number, number>>(new Map());
@@ -259,12 +276,50 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const currentPhrase = stage.phrases[judgeSnapshot.phraseIndex] ?? stage.phrases[0] ?? null;
   const phraseKeyFifths = currentPhrase?.keyFifths ?? stage.keyFifths;
 
-  const chordHudLabels = useMemo(
-    () => getDefenseChordHudLabels(
-      currentPhrase?.chords.map((chord) => chord.chordName) ?? [],
-      judgeSnapshot.chordIndex,
+  const phraseLoopBarCount = useMemo(() => {
+    if (!currentPhrase) {
+      return Math.max(1, stage.phraseBars);
+    }
+    if (
+      currentPhrase.loopStartMeasure !== null
+      && currentPhrase.loopEndMeasure !== null
+    ) {
+      return Math.max(
+        1,
+        currentPhrase.loopEndMeasure - currentPhrase.loopStartMeasure + 1,
+      );
+    }
+    return Math.max(1, currentPhrase.chords.length, stage.phraseBars);
+  }, [currentPhrase, stage.phraseBars]);
+
+  const formBarCount = useMemo(
+    () => resolveDefenseFormBarCount(
+      isSharedProgressionStage ? stage.progressionBars : null,
+      phraseLoopBarCount,
     ),
-    [currentPhrase, judgeSnapshot.chordIndex],
+    [isSharedProgressionStage, stage.progressionBars, phraseLoopBarCount],
+  );
+
+  const writtenOffset = useMemo(
+    () => getWrittenSemitoneOffset(
+      getNotationInstrumentPreset(settings.notationInstrumentId),
+      settings.notationOctaveShift,
+    ),
+    [settings.notationInstrumentId, settings.notationOctaveShift],
+  );
+
+  const transposeProgressionLabel = useCallback(
+    (label: string) => transposeChordLabelPitchClass(label, writtenOffset),
+    [writtenOffset],
+  );
+
+  const progressionChips = useMemo(
+    () => buildDefenseProgressionChips(
+      stage.progressionChords,
+      progressionActiveIndex,
+      transposeProgressionLabel,
+    ),
+    [stage.progressionChords, progressionActiveIndex, transposeProgressionLabel],
   );
 
   const keyboardHints = useMemo(
@@ -397,6 +452,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     setPracticeSpeedPercent(nextSpeed);
     void restartBackingForPhrase(judgeRef.current.phraseIndex, nextSpeed);
   }, [restartBackingForPhrase]);
+
+  const handleOctaveDown = useCallback((): void => {
+    const nextShift = clampDefenseOctaveShift(settings.notationOctaveShift - 1);
+    if (nextShift === settings.notationOctaveShift) return;
+    updateSettings({ notationOctaveShift: nextShift });
+  }, [settings.notationOctaveShift, updateSettings]);
+
+  const handleOctaveUp = useCallback((): void => {
+    const nextShift = clampDefenseOctaveShift(settings.notationOctaveShift + 1);
+    if (nextShift === settings.notationOctaveShift) return;
+    updateSettings({ notationOctaveShift: nextShift });
+  }, [settings.notationOctaveShift, updateSettings]);
 
   const commitScheduledAudioSwitch = useCallback((phraseIndex: number): void => {
     defenseBackingDeck.commitSwitch();
@@ -673,6 +740,22 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             setElapsedInt(elapsedFloor);
           }
         }
+
+        if (stage.progressionChords.length > 0) {
+          const beatInForm = isSharedProgressionStage
+            ? defenseSharedProgressionDeck.getBeatInForm()
+            : defenseBackingDeck.getBeatInLoop() % (formBarCount * stage.beatsPerBar);
+          const nextActiveIndex = resolveDefenseProgressionActiveIndex(
+            stage.progressionChords,
+            beatInForm,
+            formBarCount,
+            stage.beatsPerBar,
+          );
+          if (nextActiveIndex !== progressionActiveIndexRef.current) {
+            progressionActiveIndexRef.current = nextActiveIndex;
+            setProgressionActiveIndex(nextActiveIndex);
+          }
+        }
       }
 
       const hud = hudRef.current;
@@ -707,7 +790,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         rafRef.current = null;
       }
     };
-  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints, isSettingsOpen, phase, isSharedProgressionStage]);
+  }, [
+    difficulty,
+    commitScheduledAudioSwitch,
+    practiceMode,
+    trackElapsedForHints,
+    isSettingsOpen,
+    phase,
+    isSharedProgressionStage,
+    stage.progressionChords,
+    stage.beatsPerBar,
+    formBarCount,
+  ]);
 
   useEffect(() => {
     if (!isSharedProgressionStage) {
@@ -766,19 +860,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     <div className="defense-game-screen relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
       <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
-      {currentPhrase && currentPhrase.chords.length > 0 && (
+      {progressionChips.length > 0 && (
         <div
-          className="code-run-chord-display pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-0.5 text-center"
+          className="pointer-events-none absolute left-0 right-0 z-20"
           style={{ top: DEFENSE_HUD_HEIGHT_PX + 4 }}
         >
-          <div
-            className="min-w-40 max-w-60 px-3 py-1 text-[34px] leading-none text-[#ffe04d] sm:text-[40px]"
-            style={{
-              textShadow: '0 3px 8px rgba(230,56,87,0.9), 0 1px 2px rgba(0,0,0,0.85)',
-            }}
-          >
-            {chordHudLabels.current}
-          </div>
+          <DefenseChordProgressionHud chips={progressionChips} />
         </div>
       )}
 
@@ -798,7 +885,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             chord={currentPhrase.chords[judgeSnapshot.chordIndex] ?? null}
             keyFifths={phraseKeyFifths}
             staffLayout={stage.staffLayout}
-            literalChordLabels={isSharedProgressionStage}
             correctNoteIndices={judgeSnapshot.correctNoteIndices}
             revealedNoteIndices={judgeSnapshot.revealedNoteIndices}
             targetStepIndex={judgeSnapshot.targetStepIndex}
@@ -858,6 +944,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             isEnglishCopy={isEnglishCopy}
             onSpeedDown={handleSpeedDown}
             onSpeedUp={handleSpeedUp}
+            disabled={phase !== 'playing'}
+          />
+          <DefenseOctaveStepper
+            octaveShift={settings.notationOctaveShift}
+            isEnglishCopy={isEnglishCopy}
+            onOctaveDown={handleOctaveDown}
+            onOctaveUp={handleOctaveUp}
             disabled={phase !== 'playing'}
           />
           <button

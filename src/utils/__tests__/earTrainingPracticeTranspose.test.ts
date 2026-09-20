@@ -8,7 +8,9 @@ import {
   PRACTICE_TRANSPOSE_MAX,
   PRACTICE_TRANSPOSE_MIN,
   readKeyFifthsFromMusicXml,
+  pitchClassSemitoneOffset,
   transposeChordLabel,
+  transposeChordLabelPitchClass,
 } from '@/utils/earTrainingPracticeTranspose';
 
 const sampleMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -75,6 +77,28 @@ describe('earTrainingPracticeTranspose', () => {
 
   it('returns base XML unchanged when offset is zero', () => {
     expect(applyPracticeTransposeToMusicXml(sampleMusicXml, 0)).toBe(sampleMusicXml);
+  });
+});
+
+describe('pitchClassSemitoneOffset', () => {
+  it('ignores octave multiples', () => {
+    expect(pitchClassSemitoneOffset(-12)).toBe(0);
+    expect(pitchClassSemitoneOffset(12)).toBe(0);
+    expect(pitchClassSemitoneOffset(14)).toBe(2);
+  });
+});
+
+describe('transposeChordLabelPitchClass', () => {
+  it('Dm7 stays Dm7 when only octave shifts', () => {
+    expect(transposeChordLabelPitchClass('Dm7', -12)).toBe('Dm7');
+  });
+
+  it('Dm7 becomes Em7 for Bb instrument offset', () => {
+    expect(transposeChordLabelPitchClass('Dm7', 14)).toBe('Em7');
+  });
+
+  it('transposes scale name root', () => {
+    expect(transposeChordLabelPitchClass('F Minor Pentatonic Scale', 2)).toBe('G Minor Pentatonic Scale');
   });
 });
 

@@ -124,6 +124,15 @@ const transposeRootNoteName = (root: string, semitones: number): string => {
   return `${parsed.letter ?? root[0]}${parsed.acc ?? ''}`;
 };
 
+/** オクターブ成分を除いた半音オフセット（移調楽器向けコード表示）。 */
+export const pitchClassSemitoneOffset = (semitones: number): number => {
+  const truncated = Math.trunc(semitones);
+  if (truncated === 0) {
+    return 0;
+  }
+  return truncated - 12 * Math.round(truncated / 12);
+};
+
 const transposeSingleChordLabel = (label: string, semitones: number): string => {
   const trimmed = label.trim();
   if (!trimmed || trimmed === '—') {
@@ -147,6 +156,21 @@ const transposeSingleChordLabel = (label: string, semitones: number): string => 
   }
   const [, root, suffix] = match;
   return `${transposeRootNoteName(root, semitones)}${suffix}`;
+};
+
+/** 移調楽器向け: ピッチクラスのみ移調（オクターブシフトは無視）。 */
+export const transposeChordLabelPitchClass = (label: string, semitones: number): string => {
+  const pitchClassOffset = pitchClassSemitoneOffset(semitones);
+  if (pitchClassOffset === 0) {
+    return label;
+  }
+  if (label.includes(MULTI_CHORD_LABEL_SEPARATOR)) {
+    return label
+      .split(MULTI_CHORD_LABEL_SEPARATOR)
+      .map(part => transposeSingleChordLabel(part, pitchClassOffset))
+      .join(MULTI_CHORD_LABEL_SEPARATOR);
+  }
+  return transposeSingleChordLabel(label, pitchClassOffset);
 };
 
 /** DB 由来のコードネーム表示ラベルを練習移調する（スラッシュ・複数ラベル対応）。 */

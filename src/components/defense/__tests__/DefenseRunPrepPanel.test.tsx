@@ -26,6 +26,7 @@ const stage: DefenseStage = {
   productionStaffHintMode: 'fade_15s',
   productionKeyboardHintMode: 'fade_15s',
   phrases: [],
+  progressionChords: [],
 };
 
 describe('DefenseRunPrepPanel', () => {

@@ -33,6 +33,7 @@ final class DefenseGameSession: ObservableObject {
     )
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var practiceSpeedPercent = 100
+    @Published private(set) var progressionActiveIndex = 0
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
@@ -442,6 +443,38 @@ final class DefenseGameSession: ObservableObject {
         )
         if nextHud != hud {
             hud = nextHud
+        }
+
+        if !stage.progressionChords.isEmpty, phase == .playing {
+            let phrase = stage.phrases[safe: judgeState.phraseIndex]
+            let phraseLoopBars: Int = {
+                guard let phrase else { return max(1, stage.phraseBars) }
+                if let start = phrase.loopStartMeasure, let end = phrase.loopEndMeasure {
+                    return max(1, end - start + 1)
+                }
+                return max(1, phrase.chords.count, stage.phraseBars)
+            }()
+            let formBarCount = DefenseProgressionTimeline.resolveFormBarCount(
+                progressionBars: isSharedProgressionStage ? stage.progressionBars : nil,
+                phraseLoopBarCount: phraseLoopBars
+            )
+            let beatInForm: Double
+            if isSharedProgressionStage {
+                beatInForm = DefenseSharedProgressionAudio.shared.beatInForm()
+            } else {
+                let beatInLoop = DefenseBackingAudio.shared.beatInLoop()
+                let totalBeats = Double(formBarCount * stage.beatsPerBar)
+                beatInForm = beatInLoop.truncatingRemainder(dividingBy: totalBeats)
+            }
+            let nextActive = DefenseProgressionTimeline.resolveActiveIndex(
+                chords: stage.progressionChords,
+                beatInForm: beatInForm,
+                formBarCount: formBarCount,
+                beatsPerBar: stage.beatsPerBar
+            )
+            if nextActive != progressionActiveIndex {
+                progressionActiveIndex = nextActive
+            }
         }
 
         if runtime.result != .playing, !resultHandled {

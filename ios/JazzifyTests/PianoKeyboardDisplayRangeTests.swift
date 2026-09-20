@@ -294,7 +294,8 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
             playerHp: 100,
             productionStaffHintMode: "none",
             productionKeyboardHintMode: "none",
-            phrases: [phrase]
+            phrases: [phrase],
+            progressionChords: []
         )
     }
 }

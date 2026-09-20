@@ -481,6 +481,15 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         }
     }
 
+    func beatInForm() -> Double {
+        guard transportStartHostSec > 0, barSec > 0, progressionBars > 0 else { return 0 }
+        let now = Self.hostTimeSec()
+        let absoluteBar = max(0, (now - transportStartHostSec) / barSec)
+        let barInForm = absoluteBar.truncatingRemainder(dividingBy: Double(progressionBars))
+        let beatsPerBar = Double(stage?.beatsPerBar ?? 4)
+        return barInForm * beatsPerBar
+    }
+
     private static func hostTimeSec() -> Double {
         AVAudioTime.seconds(forHostTime: mach_absolute_time())
     }

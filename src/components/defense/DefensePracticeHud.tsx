@@ -5,6 +5,11 @@ import {
   DEFENSE_PRACTICE_SPEED_MIN_PERCENT,
   formatDefensePracticeSpeedLabel,
 } from '@/game/defense/defensePracticeSpeed';
+import {
+  clampNotationOctaveShift,
+  NOTATION_OCTAVE_SHIFT_MAX,
+  NOTATION_OCTAVE_SHIFT_MIN,
+} from '@/utils/notationInstrument';
 
 interface DefensePracticeHudProps {
   readonly phraseIndex: number;
@@ -72,6 +77,43 @@ const StepperRow: React.FC<StepperRowProps> = ({
     </button>
   </div>
 );
+
+interface DefenseOctaveStepperProps {
+  readonly octaveShift: number;
+  readonly isEnglishCopy: boolean;
+  readonly onOctaveDown: () => void;
+  readonly onOctaveUp: () => void;
+  readonly disabled?: boolean;
+}
+
+export const DefenseOctaveStepper: React.FC<DefenseOctaveStepperProps> = ({
+  octaveShift,
+  isEnglishCopy,
+  onOctaveDown,
+  onOctaveUp,
+  disabled = false,
+}) => {
+  const canDecrease = !disabled && octaveShift > NOTATION_OCTAVE_SHIFT_MIN;
+  const canIncrease = !disabled && octaveShift < NOTATION_OCTAVE_SHIFT_MAX;
+  const label = isEnglishCopy
+    ? `Octave ${octaveShift > 0 ? '+' : ''}${octaveShift}`
+    : `オクターブ ${octaveShift > 0 ? '+' : ''}${octaveShift}`;
+
+  return (
+    <StepperRow
+      label={label}
+      compact
+      canDecrease={canDecrease}
+      canIncrease={canIncrease}
+      decreaseLabel={isEnglishCopy ? 'Lower written octave' : '記譜オクターブを下げる'}
+      increaseLabel={isEnglishCopy ? 'Raise written octave' : '記譜オクターブを上げる'}
+      onDecrease={onOctaveDown}
+      onIncrease={onOctaveUp}
+    />
+  );
+};
+
+export const clampDefenseOctaveShift = clampNotationOctaveShift;
 
 export const DefenseSpeedStepper: React.FC<DefenseSpeedStepperProps> = ({
   speedPercent,

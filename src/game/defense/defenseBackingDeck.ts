@@ -71,6 +71,7 @@ class DefenseBackingDeck {
   private transportStart = 0;
   private barSec = 2;
   private pendingBarSec: number | null = null;
+  private activePlayback: DefensePhraseBackingPlayback | null = null;
   private voiceInputDucking = false;
   private userVolume = 1;
   private readonly rawBufferByUrl = new Map<string, Promise<AudioBuffer>>();
@@ -131,6 +132,23 @@ class DefenseBackingDeck {
 
   getCurrentTime(): number {
     return this.graph?.ctx.currentTime ?? 0;
+  }
+
+  /** Fractional beat position within the active phrase loop (0 … barCount * beatsPerBar). */
+  getBeatInLoop(): number {
+    const graph = this.graph;
+    const playback = this.activePlayback;
+    if (!graph || !playback || this.transportStart <= 0 || this.barSec <= 0) {
+      return 0;
+    }
+    const now = graph.ctx.currentTime;
+    const loopDuration = Math.max(1e-6, playback.loopEnd - playback.loopStart);
+    const elapsed = Math.max(0, now - this.transportStart);
+    const positionInBuffer = playback.startOffset + elapsed;
+    const positionInLoop = (
+      ((positionInBuffer - playback.loopStart) % loopDuration) + loopDuration
+    ) % loopDuration;
+    return positionInLoop / this.barSec;
   }
 
   async preload(urls: readonly string[]): Promise<void> {
@@ -232,6 +250,7 @@ class DefenseBackingDeck {
     this.barSec = this.barSecFromPlayback(playback);
     this.pendingBarSec = null;
     this.transportStart = graph.ctx.currentTime + START_LEAD_SEC;
+    this.activePlayback = playback;
 
     const slot = this.createLoopingSlot(graph, playback);
     slot.gain.gain.value = 1;
@@ -252,6 +271,8 @@ class DefenseBackingDeck {
     if (!current) {
       return switchAt;
     }
+
+    this.activePlayback = nextPlayback;
 
     const next = this.createLoopingSlot(graph, nextPlayback);
     next.gain.gain.setValueAtTime(0, switchAt);
@@ -310,6 +331,7 @@ class DefenseBackingDeck {
     this.slotA = null;
     this.slotB = null;
     this.pendingBarSec = null;
+    this.activePlayback = null;
     if (clearBuffers) {
       this.rawBufferByUrl.clear();
     }
