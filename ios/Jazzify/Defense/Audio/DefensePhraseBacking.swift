@@ -58,6 +58,32 @@ enum DefensePhraseBacking {
         return slice
     }
 
+    static func fitPCMBuffer(_ source: AVAudioPCMBuffer, frameCount: AVAudioFrameCount) -> AVAudioPCMBuffer? {
+        guard frameCount > 0 else { return nil }
+        if source.frameLength == frameCount {
+            return source
+        }
+        let format = source.format
+        guard let fitted = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            return nil
+        }
+        fitted.frameLength = frameCount
+        let copyCount = min(Int(source.frameLength), Int(frameCount))
+        let channelCount = Int(format.channelCount)
+        for channel in 0..<channelCount {
+            guard let destination = fitted.floatChannelData?[channel] else {
+                return nil
+            }
+            if copyCount > 0, let sourceSamples = source.floatChannelData?[channel] {
+                destination.update(from: sourceSamples, count: copyCount)
+            }
+            if copyCount < Int(frameCount) {
+                destination.advanced(by: copyCount).update(repeating: 0, count: Int(frameCount) - copyCount)
+            }
+        }
+        return fitted
+    }
+
     static func preparePhraseBuffer(
         decoded: AVAudioPCMBuffer,
         stage: DefenseStageDefinition,

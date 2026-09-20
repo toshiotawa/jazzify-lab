@@ -63,6 +63,28 @@ enum DefenseSharedProgressionTransport {
         Double(max(0, destinationBar0)) * barSec
     }
 
+    static func expectedFrameCount(
+        progressionBars: Int,
+        bpm: Double,
+        beatsPerBar: Int,
+        sampleRate: Double
+    ) -> Int {
+        let totalSec = Double(max(1, progressionBars)) * barSeconds(
+            bpm: bpm,
+            beatsPerBar: beatsPerBar,
+            playbackRatio: 1
+        )
+        return Int((totalSec * sampleRate).rounded())
+    }
+
+    static func frameCountTolerance(sampleRate: Double) -> Int {
+        max(1, Int((max(1, sampleRate) * 0.25).rounded()))
+    }
+
+    static func isFrameCountValid(actualFrames: Int, expectedFrames: Int, sampleRate: Double) -> Bool {
+        abs(actualFrames - expectedFrames) <= frameCountTolerance(sampleRate: sampleRate)
+    }
+
     static func buildBarFrameTable(progressionBars: Int, barFrameCount: Int) -> [Int] {
         let safeN = max(1, progressionBars)
         var frames: [Int] = []

@@ -65,4 +65,30 @@ final class DefenseSharedProgressionTransportTests: XCTestCase {
         XCTAssertEqual(plan.switchAt, 16)
         XCTAssertEqual(plan.destinationBar0, 8)
     }
+
+    func testFrameCountValidationAllowsAacPadding() {
+        let sampleRate = 44100.0
+        let expected = DefenseSharedProgressionTransport.expectedFrameCount(
+            progressionBars: 12,
+            bpm: 160,
+            beatsPerBar: 4,
+            sampleRate: sampleRate
+        )
+        XCTAssertEqual(expected, 793_800)
+        XCTAssertTrue(
+            DefenseSharedProgressionTransport.isFrameCountValid(
+                actualFrames: expected + 324,
+                expectedFrames: expected,
+                sampleRate: sampleRate
+            )
+        )
+        let extraBar = Int((1.5 * sampleRate).rounded())
+        XCTAssertFalse(
+            DefenseSharedProgressionTransport.isFrameCountValid(
+                actualFrames: expected + extraBar,
+                expectedFrames: expected,
+                sampleRate: sampleRate
+            )
+        )
+    }
 }

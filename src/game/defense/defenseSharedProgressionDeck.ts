@@ -131,8 +131,13 @@ class DefenseSharedProgressionDeck {
     let promise = this.rawBufferByUrl.get(url);
     if (!promise) {
       promise = (async () => {
-        const arrayBuffer = await fetchCachedFullAudioBuffer(url);
-        return ctx.decodeAudioData(arrayBuffer.slice(0));
+        try {
+          const arrayBuffer = await fetchCachedFullAudioBuffer(url);
+          return ctx.decodeAudioData(arrayBuffer.slice(0));
+        } catch (error) {
+          this.rawBufferByUrl.delete(url);
+          throw error;
+        }
       })();
       this.rawBufferByUrl.set(url, promise);
     }
@@ -196,7 +201,11 @@ class DefenseSharedProgressionDeck {
         stage.beatsPerBar,
         decoded.sampleRate,
       );
-      if (!isSharedProgressionFrameCountValid(decoded.length, expectedSourceFrames)) {
+      if (!isSharedProgressionFrameCountValid(
+        decoded.length,
+        expectedSourceFrames,
+        decoded.sampleRate,
+      )) {
         throw new Error(`Invalid shared progression audio length for phrase ${index}`);
       }
       const processed = Math.abs(safeRatio - 1) >= SPEED_RATIO_EPSILON

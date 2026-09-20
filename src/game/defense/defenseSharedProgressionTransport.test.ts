@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isSharedProgressionFrameCountValid,
   planSharedProgressionSwitch,
   sharedProgressionBarOffsetSec,
   sharedProgressionBarSeconds,
@@ -140,5 +141,21 @@ describe('planSharedProgressionSwitch', () => {
     });
     expect(plan.switchAt).toBe(12);
     expect(sharedProgressionBarOffsetSec(plan.destinationBar0, halfBarSec)).toBeCloseTo(12);
+  });
+});
+
+describe('isSharedProgressionFrameCountValid', () => {
+  it('accepts AAC padding of tens of milliseconds', () => {
+    const sampleRate = 44100;
+    const expected = Math.round(18 * sampleRate);
+    expect(isSharedProgressionFrameCountValid(expected + 324, expected, sampleRate)).toBe(true);
+    expect(isSharedProgressionFrameCountValid(expected - 1, expected, sampleRate)).toBe(true);
+  });
+
+  it('rejects files that are a whole extra bar long', () => {
+    const sampleRate = 44100;
+    const expected = Math.round(18 * sampleRate);
+    const extraBar = Math.round(1.5 * sampleRate);
+    expect(isSharedProgressionFrameCountValid(expected + extraBar, expected, sampleRate)).toBe(false);
   });
 });

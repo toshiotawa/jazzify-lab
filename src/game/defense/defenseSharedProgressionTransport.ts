@@ -99,8 +99,16 @@ export const computeSharedProgressionExpectedFrameCount = (
   return Math.round(totalSec * sampleRate);
 };
 
+/** AAC encoder delay / padding is typically tens of milliseconds, far above ±1 frame. */
+const sharedProgressionFrameCountTolerance = (sampleRate: number): number => (
+  Math.max(1, Math.round(Math.max(1, sampleRate) * 0.25))
+);
+
 export const isSharedProgressionFrameCountValid = (
   actualFrames: number,
   expectedFrames: number,
-  toleranceFrames = 1,
-): boolean => Math.abs(actualFrames - expectedFrames) <= toleranceFrames;
+  sampleRate: number,
+): boolean => {
+  const tolerance = sharedProgressionFrameCountTolerance(sampleRate);
+  return Math.abs(actualFrames - expectedFrames) <= tolerance;
+};

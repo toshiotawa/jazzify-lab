@@ -81,24 +81,30 @@ final class DefenseSharedProgressionAudio {
                 throw URLError(.badURL)
             }
             let decoded = try await decodePCM(url: url, outputFormat: outputFormat)
-            let expectedFrames = Int(
-                round(
-                    Double(progressionBars)
-                        * DefenseSharedProgressionTransport.barSeconds(
-                            bpm: stage.bpm,
-                            beatsPerBar: stage.beatsPerBar,
-                            playbackRatio: 1
-                        )
-                        * decoded.format.sampleRate
-                )
+            let sampleRate = decoded.format.sampleRate
+            let expectedFrames = DefenseSharedProgressionTransport.expectedFrameCount(
+                progressionBars: progressionBars,
+                bpm: stage.bpm,
+                beatsPerBar: stage.beatsPerBar,
+                sampleRate: sampleRate
             )
-            guard abs(Int(decoded.frameLength) - expectedFrames) <= 1 else {
+            guard DefenseSharedProgressionTransport.isFrameCountValid(
+                actualFrames: Int(decoded.frameLength),
+                expectedFrames: expectedFrames,
+                sampleRate: sampleRate
+            ) else {
                 throw URLError(.cannotDecodeContentData)
             }
-            nextBuffers[index] = decoded
+            guard let fitted = DefensePhraseBacking.fitPCMBuffer(
+                decoded,
+                frameCount: AVAudioFrameCount(max(1, expectedFrames))
+            ) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+            nextBuffers[index] = fitted
             nextBarFrames[index] = DefenseSharedProgressionTransport.buildBarFrameTable(
                 progressionBars: progressionBars,
-                barFrameCount: Int(decoded.frameLength)
+                barFrameCount: Int(fitted.frameLength)
             )
         }
 
