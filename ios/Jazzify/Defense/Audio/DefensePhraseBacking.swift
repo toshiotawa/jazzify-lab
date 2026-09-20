@@ -3,6 +3,13 @@ import Foundation
 
 enum DefensePhraseBacking {
     static func preloadUrls(for stage: DefenseStageDefinition, phraseIndices: [Int]) -> [URL] {
+        if stage.audioRegistrationMode == .sharedProgressionSeparateTracks {
+            var urls: [URL] = []
+            if let bgm = stage.audioUrl, let url = URL(string: bgm) { urls.append(url) }
+            if let melody = stage.melodyAudioUrl, let url = URL(string: melody) { urls.append(url) }
+            var seen = Set<URL>()
+            return urls.filter { seen.insert($0).inserted }
+        }
         if stage.audioRegistrationMode == .sharedProgression {
             let urls = stage.phrases.compactMap { URL(string: $0.audioUrl) }
             var seen = Set<URL>()
@@ -23,7 +30,8 @@ enum DefensePhraseBacking {
     }
 
     static func barCount(stage: DefenseStageDefinition, phrase: DefensePhraseDefinition) -> Int {
-        if stage.audioRegistrationMode == .sharedProgression {
+        if stage.audioRegistrationMode == .sharedProgression
+            || stage.audioRegistrationMode == .sharedProgressionSeparateTracks {
             return max(1, stage.progressionBars ?? stage.phraseBars)
         }
         if let startMeasure = phrase.loopStartMeasure, let endMeasure = phrase.loopEndMeasure {

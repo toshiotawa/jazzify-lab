@@ -34,6 +34,7 @@ const baseStage = (overrides: Partial<DefenseStage> = {}): DefenseStage => ({
   beatsPerBar: 4,
   audioRegistrationMode: 'single_source',
   audioUrl: 'https://example.com/shared.mp3',
+  melodyAudioUrl: null,
   progressionBars: null,
   phraseBars: 4,
   staffLayout: 'treble',
@@ -105,6 +106,24 @@ describe('resolveDefensePhrasePreloadUrls', () => {
     expect(resolveDefensePhrasePreloadUrls(stage, [0, 1])).toEqual([
       'https://example.com/a.mp3',
       'https://example.com/b.mp3',
+    ]);
+  });
+
+  it('preloads only stage BGM and melody URLs for separate tracks stages', () => {
+    const stage = baseStage({
+      audioRegistrationMode: 'shared_progression_separate_tracks',
+      audioUrl: 'https://example.com/bgm.wav',
+      melodyAudioUrl: 'https://example.com/melody.wav',
+      progressionBars: 12,
+      phraseBars: 2,
+      phrases: [
+        phrase({ audioUrl: '', loopStartMeasure: 1, loopEndMeasure: 2 }),
+        phrase({ id: 'p2', orderIndex: 1, audioUrl: '', loopStartMeasure: 3, loopEndMeasure: 4 }),
+      ],
+    });
+    expect(resolveDefensePhrasePreloadUrls(stage, [0, 1])).toEqual([
+      'https://example.com/bgm.wav',
+      'https://example.com/melody.wav',
     ]);
   });
 });

@@ -49,6 +49,12 @@
     "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.json"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.*", "**/*.spec.*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "src/game/defense/audio/defenseSeparateTracksProcessor.entry.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 } 

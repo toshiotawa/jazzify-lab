@@ -2293,6 +2293,7 @@ final class SupabaseService: Sendable {
             let progression_bars: Int?
             let audio_registration_mode: String
             let audio_url: String?
+            let melody_audio_url: String?
             let staff_layout: String
             let attack_trigger: String
             let key_fifths: Int
@@ -2342,7 +2343,7 @@ final class SupabaseService: Sendable {
             .from("defense_stages")
             .select("""
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-                progression_bars, audio_registration_mode, audio_url,
+                progression_bars, audio_registration_mode, audio_url, melody_audio_url,
                 staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
                 survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
             """)
@@ -2460,6 +2461,7 @@ final class SupabaseService: Sendable {
             beatsPerBar: stage.beats_per_bar,
             audioRegistrationMode: audioRegistrationMode,
             audioUrl: stageAudioUrl,
+            melodyAudioUrl: stage.melody_audio_url,
             progressionBars: stage.progression_bars,
             phraseBars: stage.phrase_bars,
             staffLayout: stage.staff_layout == "grand" ? .grand : .treble,
@@ -2476,6 +2478,9 @@ final class SupabaseService: Sendable {
         )
 
         if DefenseSharedProgressionValidation.validate(stage: mappedStage) != nil {
+            return nil
+        }
+        if DefenseSeparateTracksValidation.validate(stage: mappedStage) != nil {
             return nil
         }
 

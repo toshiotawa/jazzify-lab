@@ -369,6 +369,11 @@
 		C38CA0CC58A4DA784B1D540E /* EarTrainingPrecisionJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AF9321EE48DB6D19734AB9 /* EarTrainingPrecisionJudge.swift */; };
 		C3A8FBFDAC1257EAC9983BFB /* SurvivalCharacterProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0043E2CB3BFFBDF67BBB17F2 /* SurvivalCharacterProfile.swift */; };
 		C3C59857B25435ED7F190B56 /* DefenseSharedProgressionAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3B5D640D4F734150F2278A /* DefenseSharedProgressionAudio.swift */; };
+		8A59A6ADE769423AB9875383 /* DefenseSeparateTracksTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A22A3125E5420ABAECDF21 /* DefenseSeparateTracksTransport.swift */; };
+		D047B3B95F054521AE349FEE /* DefenseSeparateTracksMix.swift in Sources */ = {isa = PBXBuildFile; fileRef = F406EBA2331848B4A6E7A81E /* DefenseSeparateTracksMix.swift */; };
+		9A44113FD8A44A8089725710 /* DefenseSeparateTracksAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39310E0A3BA84E6CA4858379 /* DefenseSeparateTracksAudio.swift */; };
+		E8B377EA04154F43BC47AAED /* DefenseSeparateTracksBuffers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D9F583A649B464B9B4E7C83 /* DefenseSeparateTracksBuffers.swift */; };
+		B1D44D119F2844848CCB76C1 /* DefenseSeparateTracksTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F334F94C34D14839976C8652 /* DefenseSeparateTracksTransportTests.swift */; };
 		C44D9B3C503DD3928FB8282E /* EarTrainingChordOsmdNaturalPitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EC3C0C70154289EBAAA82CB /* EarTrainingChordOsmdNaturalPitchTests.swift */; };
 		C486A818677755413CF73152 /* SurvivalDescentLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D52543D5D2C698BD559C23 /* SurvivalDescentLayout.swift */; };
 		C7A605C2EDB37E5811AD96AF /* PlayerLevelHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D3D03C266AE3CBAC45776DD /* PlayerLevelHub.swift */; };
@@ -601,6 +606,11 @@
 		4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchOnsetTrackerTests.swift; sourceTree = "<group>"; };
 		4BB920A475115C673D916DED /* TrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGameView.swift; sourceTree = "<group>"; };
 		4D3B5D640D4F734150F2278A /* DefenseSharedProgressionAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSharedProgressionAudio.swift; sourceTree = "<group>"; };
+		A8A22A3125E5420ABAECDF21 /* DefenseSeparateTracksTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSeparateTracksTransport.swift; sourceTree = "<group>"; };
+		F406EBA2331848B4A6E7A81E /* DefenseSeparateTracksMix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSeparateTracksMix.swift; sourceTree = "<group>"; };
+		39310E0A3BA84E6CA4858379 /* DefenseSeparateTracksAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSeparateTracksAudio.swift; sourceTree = "<group>"; };
+		1D9F583A649B464B9B4E7C83 /* DefenseSeparateTracksBuffers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSeparateTracksBuffers.swift; sourceTree = "<group>"; };
+		F334F94C34D14839976C8652 /* DefenseSeparateTracksTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSeparateTracksTransportTests.swift; sourceTree = "<group>"; };
 		4D509F90F4EB6A2095F32B50 /* SurvivalTutorialV4Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV4Bridge.swift; sourceTree = "<group>"; };
 		4D635FD067D6C35FA30F9F12 /* SurvivalDescentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentView.swift; sourceTree = "<group>"; };
 		4D70439934A24FE058C33F20 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DrumLoopSourceResolver.swift; sourceTree = "<group>"; };
@@ -1346,6 +1356,7 @@
 				EDE52D1FB30DF6BC050AE198 /* DefensePlayerPoseTests.swift */,
 				8BD2CA846EB28EE3CA39CDD4 /* DefensePracticeSpeedTests.swift */,
 				D14C91DAE7FB2D560A5FDE5A /* DefenseSharedProgressionTransportTests.swift */,
+				F334F94C34D14839976C8652 /* DefenseSeparateTracksTransportTests.swift */,
 				68315C87A806D6A75EF96C01 /* DefenseTrainingGuidanceTests.swift */,
 				84BE9512747AC50BF5059458 /* DefenseTransportTests.swift */,
 				55BDC6B209198A5C2A285F91 /* DiscordOAuthTests.swift */,
@@ -1604,6 +1615,7 @@
 				A02510198ADCA5F301E53346 /* DefensePlayerPose.swift */,
 				1A3E86AC77D2782A8AD02358 /* DefensePracticeSpeed.swift */,
 				851944FC2BEA72DA1A9D8F99 /* DefenseSharedProgressionTransport.swift */,
+				A8A22A3125E5420ABAECDF21 /* DefenseSeparateTracksTransport.swift */,
 				6F66608CB479A750BF6AF893 /* DefenseTransport.swift */,
 			);
 			path = Engine;
@@ -1885,6 +1897,9 @@
 				9BB1F17B9838DED0CEE81070 /* DefenseBackingAudio.swift */,
 				15B6A4DCECC245A6C29EF2CC /* DefensePhraseBacking.swift */,
 				4D3B5D640D4F734150F2278A /* DefenseSharedProgressionAudio.swift */,
+				F406EBA2331848B4A6E7A81E /* DefenseSeparateTracksMix.swift */,
+				39310E0A3BA84E6CA4858379 /* DefenseSeparateTracksAudio.swift */,
+				1D9F583A649B464B9B4E7C83 /* DefenseSeparateTracksBuffers.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -2095,6 +2110,7 @@
 				04CFFC6B2A9E6108F7653C7C /* DefensePlayerPoseTests.swift in Sources */,
 				66D89AF575A639E9DD64566A /* DefensePracticeSpeedTests.swift in Sources */,
 				D64EDFCECA809271095ABD3B /* DefenseSharedProgressionTransportTests.swift in Sources */,
+				B1D44D119F2844848CCB76C1 /* DefenseSeparateTracksTransportTests.swift in Sources */,
 				C97CFD0AAA1D876BDEEF3D99 /* DefenseTrainingGuidanceTests.swift in Sources */,
 				1FDD1086A70B5098523B27DC /* DefenseTransportTests.swift in Sources */,
 				5ED2E1A97CE878B233383C75 /* DiscordOAuthTests.swift in Sources */,
@@ -2230,7 +2246,11 @@
 				624FFEA8E4C2B2D5B5FD2B32 /* DefenseScene.swift in Sources */,
 				08E4A461AC6D81FCA0D9AD63 /* DefenseSceneLayout.swift in Sources */,
 				C3C59857B25435ED7F190B56 /* DefenseSharedProgressionAudio.swift in Sources */,
+				9A44113FD8A44A8089725710 /* DefenseSeparateTracksAudio.swift in Sources */,
+				E8B377EA04154F43BC47AAED /* DefenseSeparateTracksBuffers.swift in Sources */,
+				D047B3B95F054521AE349FEE /* DefenseSeparateTracksMix.swift in Sources */,
 				2EF22E2E91A07DDE2CD87810 /* DefenseSharedProgressionTransport.swift in Sources */,
+				8A59A6ADE769423AB9875383 /* DefenseSeparateTracksTransport.swift in Sources */,
 				D28597B96A558162E78E4190 /* DefenseTrainingGuidance.swift in Sources */,
 				44EEE77936573AF4D2BBDDB0 /* DefenseTrainingResumeSheet.swift in Sources */,
 				2E234F2055DE2F724FAAFAE5 /* DefenseTransport.swift in Sources */,

@@ -4,6 +4,7 @@
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import {
   parseDefenseAudioRegistrationMode,
+  validateDefenseSeparateTracksStage,
   validateDefenseSharedProgressionStage,
 } from '@/game/defense/defenseAudioRegistrationMode';
 import type {
@@ -32,6 +33,7 @@ interface StageRow {
   progression_bars: number | null;
   audio_registration_mode: string;
   audio_url: string | null;
+  melody_audio_url: string | null;
   staff_layout: string;
   attack_trigger: string;
   key_fifths: number;
@@ -112,6 +114,7 @@ export interface SaveDefenseStageAudioRegistrationParams {
   readonly stageId: string;
   readonly mode: DefenseAudioRegistrationMode;
   readonly stageAudioUrl: string | null;
+  readonly melodyAudioUrl?: string | null;
   readonly bpm: number;
   readonly beatsPerBar: number;
   readonly phraseBars?: number;
@@ -144,7 +147,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     .from('defense_stages')
     .select(`
       id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-      progression_bars, audio_registration_mode, audio_url,
+      progression_bars, audio_registration_mode, audio_url, melody_audio_url,
       staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
       survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
     `)
@@ -261,6 +264,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     beatsPerBar: stage.beats_per_bar,
     audioRegistrationMode,
     audioUrl: stageAudioUrl,
+    melodyAudioUrl: stage.melody_audio_url,
     progressionBars,
     phraseBars: stage.phrase_bars,
     staffLayout: parseStaffLayout(stage.staff_layout),
@@ -279,6 +283,9 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
   };
 
   if (validateDefenseSharedProgressionStage(mappedStage) !== null) {
+    return null;
+  }
+  if (validateDefenseSeparateTracksStage(mappedStage) !== null) {
     return null;
   }
 
@@ -371,6 +378,24 @@ export async function saveDefenseStageAudioRegistration(
     loop_start_measure: phrase.loopStartMeasure,
     loop_end_measure: phrase.loopEndMeasure,
   }));
+
+  if (params.mode === 'shared_progression_separate_tracks') {
+    const { error } = await supabase.rpc('save_defense_stage_audio_registration_v3', {
+      p_stage_id: params.stageId,
+      p_mode: params.mode,
+      p_stage_audio_url: params.stageAudioUrl,
+      p_melody_audio_url: params.melodyAudioUrl ?? null,
+      p_bpm: params.bpm,
+      p_beats_per_bar: params.beatsPerBar,
+      p_phrase_bars: params.phraseBars ?? null,
+      p_progression_bars: params.progressionBars ?? null,
+      p_phrases: phrasePayload,
+    });
+    if (error) {
+      throw error;
+    }
+    return;
+  }
 
   if (params.mode === 'shared_progression') {
     const { error } = await supabase.rpc('save_defense_stage_audio_registration_v2', {

@@ -4,6 +4,7 @@ enum DefenseAudioRegistrationMode: String, Sendable {
     case perPhrase = "per_phrase"
     case singleSource = "single_source"
     case sharedProgression = "shared_progression"
+    case sharedProgressionSeparateTracks = "shared_progression_separate_tracks"
 }
 
 enum DefenseStaffLayout: String, Sendable {
@@ -46,6 +47,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let beatsPerBar: Int
     let audioRegistrationMode: DefenseAudioRegistrationMode
     let audioUrl: String?
+    let melodyAudioUrl: String?
     let progressionBars: Int?
     let phraseBars: Int
     let staffLayout: DefenseStaffLayout

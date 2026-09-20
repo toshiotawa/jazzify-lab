@@ -13,6 +13,7 @@ import DailyFantasyChallengeManager from './DailyFantasyChallengeManager';
 import SurvivalStageManager from './SurvivalStageManager';
 import CodeRunMapEditor from './CodeRunMapEditor';
 import EarTrainingStageManager from './EarTrainingStageManager';
+import DefenseAudioRegistrationEditor from './DefenseAudioRegistrationEditor';
 
 /**
  * 管理画面ゲート – is_admin フラグを持つユーザーのみアクセス許可
@@ -66,6 +67,7 @@ const AdminDashboard: React.FC = () => {
            <SidebarLink hash="#admin-survival" label="サバイバル設定" />
            <SidebarLink hash="#admin-code-run-map" label="コードランマップ" />
            <SidebarLink hash="#admin-ear-training" label="バトルモード" />
+           <SidebarLink hash="#admin-defense-audio" label="Defense音源" />
            <SidebarLink hash="#admin-dayly-fantasy" label="デイリーチャレンジ" />
            <SidebarLink hash="#admin-lesson-stages" label="レッスン用ステージ" />
            <SidebarLink hash="#admin-courses" label="コース管理" />
@@ -93,6 +95,7 @@ const AdminDashboard: React.FC = () => {
            <MobileTabLink hash="#admin-survival" label="サバイバル" />
            <MobileTabLink hash="#admin-code-run-map" label="コードラン" />
            <MobileTabLink hash="#admin-ear-training" label="バトル" />
+           <MobileTabLink hash="#admin-defense-audio" label="Defense" />
            <MobileTabLink hash="#admin-dayly-fantasy" label="デイリー" />
            <MobileTabLink hash="#admin-lesson-stages" label="レッスン用" />
            <MobileTabLink hash="#admin-courses" label="コース" />
@@ -153,6 +156,7 @@ const DashboardContent: React.FC = () => {
    if (currentHash.startsWith('#admin-survival')) return <SurvivalStageManager />;
    if (currentHash.startsWith('#admin-code-run-map')) return <CodeRunMapEditor />;
    if (currentHash.startsWith('#admin-ear-training')) return <EarTrainingStageManager />;
+   if (currentHash.startsWith('#admin-defense-audio')) return <DefenseAudioRegistrationEditor />;
    if (currentHash.startsWith('#admin-dayly-fantasy')) return <DailyFantasyChallengeManager />;
    if (currentHash.startsWith('#admin-lesson-stages')) return <LessonFantasyStageManager />;
    if (currentHash.startsWith('#admin-courses')) return <CourseManager />;

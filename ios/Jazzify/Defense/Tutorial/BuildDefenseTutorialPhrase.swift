@@ -137,6 +137,7 @@ enum BuildDefenseTutorialPhrase {
             beatsPerBar: DefenseTutorialConstants.beatsPerBar,
             audioRegistrationMode: .perPhrase,
             audioUrl: nil,
+            melodyAudioUrl: nil,
             progressionBars: nil,
             phraseBars: 1,
             staffLayout: .treble,

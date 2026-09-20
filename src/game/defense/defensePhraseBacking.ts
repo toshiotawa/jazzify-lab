@@ -1,5 +1,6 @@
 import type { DefensePhrase, DefenseStage } from '@/game/defense/defenseTypes';
 import {
+  isDefenseSharedProgressionSeparateTracksStage,
   isDefenseSharedProgressionStage,
   isDefenseSingleSourceStage,
 } from '@/game/defense/defenseAudioRegistrationMode';
@@ -19,6 +20,11 @@ export const resolveDefensePhrasePreloadUrls = (
   stage: DefenseStage,
   phraseIndices: readonly number[],
 ): readonly string[] => {
+  if (isDefenseSharedProgressionSeparateTracksStage(stage)) {
+    const urls = [stage.audioUrl, stage.melodyAudioUrl]
+      .filter((url): url is string => typeof url === 'string' && url.length > 0);
+    return [...new Set(urls)];
+  }
   if (isDefenseSharedProgressionStage(stage)) {
     const urls = stage.phrases
       .map((phrase) => phrase.audioUrl)
@@ -61,6 +67,9 @@ const resolveDefensePhraseBarCount = (
   stage: Pick<DefenseStage, 'phraseBars' | 'progressionBars' | 'audioRegistrationMode'>,
   phrase: Pick<DefensePhrase, 'loopStartMeasure' | 'loopEndMeasure'>,
 ): number => {
+  if (isDefenseSharedProgressionSeparateTracksStage(stage)) {
+    return Math.max(1, stage.phraseBars);
+  }
   if (isDefenseSharedProgressionStage(stage)) {
     return Math.max(1, stage.progressionBars ?? stage.phraseBars);
   }

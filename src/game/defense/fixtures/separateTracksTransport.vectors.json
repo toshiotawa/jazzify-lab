@@ -1,0 +1,123 @@
+{
+  "gridCases": [
+    {
+      "id": "default-120-2-12-44100",
+      "sampleRate": 44100,
+      "bpm": 120,
+      "beatsPerBar": 4,
+      "phraseBars": 2,
+      "progressionBars": 12,
+      "playbackRatio": 1,
+      "cycleFrames": 176400,
+      "cyclesPerForm": 6,
+      "bgmFrames": 1058400
+    },
+    {
+      "id": "half-speed-120-2-12-44100",
+      "sampleRate": 44100,
+      "bpm": 120,
+      "beatsPerBar": 4,
+      "phraseBars": 2,
+      "progressionBars": 12,
+      "playbackRatio": 0.5,
+      "cycleFrames": 352800,
+      "cyclesPerForm": 6,
+      "bgmFrames": 2116800
+    },
+    {
+      "id": "bpm-97-k1-48000",
+      "sampleRate": 48000,
+      "bpm": 97,
+      "beatsPerBar": 4,
+      "phraseBars": 1,
+      "progressionBars": 12,
+      "playbackRatio": 1,
+      "cycleFrames": 118763,
+      "cyclesPerForm": 12,
+      "bgmFrames": 1425156
+    }
+  ],
+  "phraseWindowCases": [
+    {
+      "id": "rank-0-k2",
+      "rank": 0,
+      "phraseBars": 2,
+      "bpm": 120,
+      "beatsPerBar": 4,
+      "sampleRate": 44100,
+      "startMeasure": 1,
+      "endMeasure": 2,
+      "sourceStartFrame": 0,
+      "sourceEndFrame": 176400
+    },
+    {
+      "id": "rank-1-k2",
+      "rank": 1,
+      "phraseBars": 2,
+      "bpm": 120,
+      "beatsPerBar": 4,
+      "sampleRate": 44100,
+      "startMeasure": 3,
+      "endMeasure": 4,
+      "sourceStartFrame": 176400,
+      "sourceEndFrame": 352800
+    }
+  ],
+  "reservationCases": [
+    {
+      "id": "next-cycle-plenty-of-lead",
+      "absoluteCycle": 3,
+      "phaseFrame": 1000,
+      "cycleFrames": 176400,
+      "leadFrames": 4410,
+      "phraseIndex": 1,
+      "revision": 1,
+      "generation": 1,
+      "targetCycle": 4
+    },
+    {
+      "id": "skip-cycle-near-boundary",
+      "absoluteCycle": 3,
+      "phaseFrame": 174000,
+      "cycleFrames": 176400,
+      "leadFrames": 4410,
+      "phraseIndex": 2,
+      "revision": 2,
+      "generation": 1,
+      "targetCycle": 5
+    },
+    {
+      "id": "exactly-at-boundary-requests-next",
+      "absoluteCycle": 4,
+      "phaseFrame": 0,
+      "cycleFrames": 176400,
+      "leadFrames": 4410,
+      "phraseIndex": 0,
+      "revision": 3,
+      "generation": 1,
+      "targetCycle": 5
+    }
+  ],
+  "beatInFormCases": [
+    {
+      "id": "cycle-0-start",
+      "absoluteCycle": 0,
+      "phaseFrame": 0,
+      "cycleFrames": 176400,
+      "phraseBars": 2,
+      "beatsPerBar": 4,
+      "cyclesPerForm": 6,
+      "beatInForm": 0
+    },
+    {
+      "id": "cycle-2-half",
+      "absoluteCycle": 2,
+      "phaseFrame": 88200,
+      "cycleFrames": 176400,
+      "phraseBars": 2,
+      "beatsPerBar": 4,
+      "cyclesPerForm": 6,
+      "beatInForm": 20
+    }
+  ]
+}
