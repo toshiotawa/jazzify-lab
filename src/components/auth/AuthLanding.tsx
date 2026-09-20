@@ -13,7 +13,7 @@ interface AuthLandingProps {
   mode: 'signup' | 'login';
 }
 
-const REVIEW_EMAIL = 'toshiotawa@me.com';
+const PASSWORD_LOGIN_EMAILS = new Set(['toshiotawa@me.com', 'test@jazzify.jp']);
 
 const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const { sendOtp, signInWithPassword, loading, error, user, profile } = useAuthStore();
@@ -59,18 +59,19 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
   // 地理情報の事前取得や国のローカル保存は行わない
 
-  const isReviewAccount = email.toLowerCase().trim() === REVIEW_EMAIL;
+  const normalizedEmail = email.toLowerCase().trim();
+  const isPasswordLoginAccount = PASSWORD_LOGIN_EMAILS.has(normalizedEmail);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
-    if (isReviewAccount && !showPasswordField) {
+    if (isPasswordLoginAccount && !showPasswordField) {
       setShowPasswordField(true);
       return;
     }
 
-    if (isReviewAccount && showPasswordField) {
+    if (isPasswordLoginAccount && showPasswordField) {
       try {
         await signInWithPassword(email.toLowerCase().trim(), password);
         const currentParams = new URLSearchParams(location.search);
@@ -178,7 +179,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
-                    if (showPasswordField && e.target.value.toLowerCase().trim() !== REVIEW_EMAIL) {
+                    if (showPasswordField && !PASSWORD_LOGIN_EMAILS.has(e.target.value.toLowerCase().trim())) {
                       setShowPasswordField(false);
                       setPassword('');
                     }

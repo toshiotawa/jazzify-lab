@@ -49,7 +49,10 @@ enum Config {
 
     static let cdnBaseURL = URL(string: "https://jazzify-cdn.com")!
 
-    static let reviewEmail = "toshiotawa@me.com"
+    static let passwordLoginEmails: Set<String> = [
+        "toshiotawa@me.com",
+        "test@jazzify.jp",
+    ]
 
     static let iapProductID = "jp.jazzify.premium.monthly"
     static let iapYearlyProductID = "jp.jazzify.premium.yearly"

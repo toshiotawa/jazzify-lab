@@ -22,8 +22,8 @@ struct LoginView: View {
         email.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var isReviewAccount: Bool {
-        normalizedEmail == Config.reviewEmail
+    private var isPasswordLoginAccount: Bool {
+        Config.passwordLoginEmails.contains(normalizedEmail)
     }
 
     var body: some View {
@@ -129,7 +129,7 @@ struct LoginView: View {
                     )
                     .foregroundStyle(.white)
                     .onChange(of: email) { newValue in
-                        if showPasswordField && newValue.lowercased().trimmingCharacters(in: .whitespaces) != Config.reviewEmail {
+                        if showPasswordField && !Config.passwordLoginEmails.contains(newValue.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)) {
                             showPasswordField = false
                             password = ""
                         }
@@ -370,12 +370,12 @@ struct LoginView: View {
     private func handleSubmit() {
         guard !email.isEmpty else { return }
 
-        if isReviewAccount && !showPasswordField {
+        if isPasswordLoginAccount && !showPasswordField {
             showPasswordField = true
             return
         }
 
-        if isReviewAccount && showPasswordField {
+        if isPasswordLoginAccount && showPasswordField {
             handlePasswordLogin()
             return
         }
