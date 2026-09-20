@@ -484,7 +484,8 @@ struct DefenseGameView: View {
                     defenseSpeedStepper
                     defenseOctaveStepper
                 }
-            )
+            ),
+            chordChipVisibleCount: DefenseProgressionTimeline.hudSlotCount
         )
     }
 

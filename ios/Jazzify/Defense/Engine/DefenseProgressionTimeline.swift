@@ -24,6 +24,60 @@ struct DefenseProgressionChip: Equatable, Identifiable {
 }
 
 enum DefenseProgressionTimeline {
+    static let hudSlotCount = 4
+
+    static func loopPositionToBeatInLoop(
+        positionInLoopSec: Double,
+        barSec: Double,
+        beatsPerBar: Int
+    ) -> Double {
+        guard barSec > 0, beatsPerBar > 0 else { return 0 }
+        return max(0, positionInLoopSec) / barSec * Double(beatsPerBar)
+    }
+
+    static func elapsedSecToBeatInLoop(
+        elapsedSec: Double,
+        loopStartSec: Double,
+        loopEndSec: Double,
+        startOffsetSec: Double,
+        barSec: Double,
+        beatsPerBar: Int
+    ) -> Double {
+        let loopDuration = max(1e-6, loopEndSec - loopStartSec)
+        let positionInBuffer = startOffsetSec + max(0, elapsedSec)
+        var positionInLoop = positionInBuffer - loopStartSec
+        positionInLoop.formTruncatingRemainder(dividingBy: loopDuration)
+        if positionInLoop < 0 {
+            positionInLoop += loopDuration
+        }
+        return loopPositionToBeatInLoop(
+            positionInLoopSec: positionInLoop,
+            barSec: barSec,
+            beatsPerBar: beatsPerBar
+        )
+    }
+
+    struct HudWindow: Equatable {
+        let firstVisibleIndex: Int
+        let visibleCount: Int
+    }
+
+    static func resolveHudWindow(
+        chipCount: Int,
+        activeIndex: Int,
+        slotCount: Int = hudSlotCount
+    ) -> HudWindow {
+        let visibleCount = min(slotCount, max(0, chipCount))
+        guard visibleCount > 0 else {
+            return HudWindow(firstVisibleIndex: 0, visibleCount: 0)
+        }
+        let safeActive = min(max(activeIndex, 0), max(0, chipCount - 1))
+        let pageStart = (safeActive / slotCount) * slotCount
+        let maxStart = max(0, chipCount - visibleCount)
+        let firstVisibleIndex = min(pageStart, maxStart)
+        return HudWindow(firstVisibleIndex: firstVisibleIndex, visibleCount: visibleCount)
+    }
+
     private static func startBeat(_ chord: DefenseStageProgressionChord, beatsPerBar: Int) -> Double {
         Double((chord.measureNumber - 1) * beatsPerBar + (chord.beatOffset - 1))
     }

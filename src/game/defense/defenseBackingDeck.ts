@@ -18,6 +18,7 @@ import {
   prepareDefensePhraseBackingPlayback,
   type DefensePhraseBackingPlayback,
 } from '@/game/defense/defensePhraseBacking';
+import { elapsedSecToBeatInLoop } from '@/game/defense/defenseProgressionTimeline';
 import type { DefensePhrase, DefenseStage } from '@/game/defense/defenseTypes';
 import { VOICE_INPUT_BGM_DUCK } from '@/utils/voiceInputBgmDuck';
 
@@ -70,7 +71,10 @@ class DefenseBackingDeck {
   private activeIsA = true;
   private transportStart = 0;
   private barSec = 2;
+  private beatsPerBar = 4;
   private pendingBarSec: number | null = null;
+  private pendingPlayback: DefensePhraseBackingPlayback | null = null;
+  private pendingSwitchAt: number | null = null;
   private activePlayback: DefensePhraseBackingPlayback | null = null;
   private voiceInputDucking = false;
   private userVolume = 1;
@@ -102,6 +106,7 @@ class DefenseBackingDeck {
       );
     }
     this.barSec = nextBarSec;
+    this.beatsPerBar = Math.max(1, beatsPerBar);
   }
 
   private barSecFromPlayback(playback: DefensePhraseBackingPlayback): number {
@@ -141,14 +146,15 @@ class DefenseBackingDeck {
     if (!graph || !playback || this.transportStart <= 0 || this.barSec <= 0) {
       return 0;
     }
-    const now = graph.ctx.currentTime;
-    const loopDuration = Math.max(1e-6, playback.loopEnd - playback.loopStart);
-    const elapsed = Math.max(0, now - this.transportStart);
-    const positionInBuffer = playback.startOffset + elapsed;
-    const positionInLoop = (
-      ((positionInBuffer - playback.loopStart) % loopDuration) + loopDuration
-    ) % loopDuration;
-    return positionInLoop / this.barSec;
+    const elapsed = Math.max(0, graph.ctx.currentTime - this.transportStart);
+    return elapsedSecToBeatInLoop(
+      elapsed,
+      playback.loopStart,
+      playback.loopEnd,
+      playback.startOffset,
+      this.barSec,
+      this.beatsPerBar,
+    );
   }
 
   async preload(urls: readonly string[]): Promise<void> {
@@ -249,6 +255,8 @@ class DefenseBackingDeck {
     this.activeIsA = true;
     this.barSec = this.barSecFromPlayback(playback);
     this.pendingBarSec = null;
+    this.pendingPlayback = null;
+    this.pendingSwitchAt = null;
     this.transportStart = graph.ctx.currentTime + START_LEAD_SEC;
     this.activePlayback = playback;
 
@@ -272,7 +280,8 @@ class DefenseBackingDeck {
       return switchAt;
     }
 
-    this.activePlayback = nextPlayback;
+    this.pendingPlayback = nextPlayback;
+    this.pendingSwitchAt = switchAt;
 
     const next = this.createLoopingSlot(graph, nextPlayback);
     next.gain.gain.setValueAtTime(0, switchAt);
@@ -298,6 +307,14 @@ class DefenseBackingDeck {
     if (this.pendingBarSec !== null) {
       this.barSec = this.pendingBarSec;
       this.pendingBarSec = null;
+    }
+    if (this.pendingSwitchAt !== null) {
+      this.transportStart = this.pendingSwitchAt;
+      this.pendingSwitchAt = null;
+    }
+    if (this.pendingPlayback !== null) {
+      this.activePlayback = this.pendingPlayback;
+      this.pendingPlayback = null;
     }
     this.activeIsA = !this.activeIsA;
     const inactive = this.activeIsA ? this.slotB : this.slotA;
@@ -331,6 +348,8 @@ class DefenseBackingDeck {
     this.slotA = null;
     this.slotB = null;
     this.pendingBarSec = null;
+    this.pendingPlayback = null;
+    this.pendingSwitchAt = null;
     this.activePlayback = null;
     if (clearBuffers) {
       this.rawBufferByUrl.clear();

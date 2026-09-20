@@ -17,6 +17,8 @@ struct EarTrainingHUDView: View {
     let onBack: () -> Void
     /// 設定ボタンの左に置く任意コントロール（ディフェンス速度ステッパーなど）
     var rightControlsLeading: AnyView? = nil
+    /// 固定表示数（nil のときは幅から算出。Defense は 4）
+    var chordChipVisibleCount: Int? = nil
 
     private let chordChipWidth: CGFloat = 76
     private let phraseSlotGap: CGFloat = 5
@@ -172,6 +174,35 @@ struct EarTrainingHUDView: View {
         .contentShape(Rectangle())
     }
 
+    private struct ChordChipWindow {
+        let firstVisibleIndex: Int
+        let visibleCount: Int
+    }
+
+    private func resolveChordChipWindow(
+        chips: [EarTrainingChordChip],
+        availableWidth: CGFloat,
+        activeIndex: Int
+    ) -> ChordChipWindow {
+        if let fixedCount = chordChipVisibleCount {
+            let window = DefenseProgressionTimeline.resolveHudWindow(
+                chipCount: chips.count,
+                activeIndex: activeIndex,
+                slotCount: fixedCount
+            )
+            return ChordChipWindow(
+                firstVisibleIndex: window.firstVisibleIndex,
+                visibleCount: window.visibleCount
+            )
+        }
+        let visibleCount = max(1, min(chips.count, Int(floor(availableWidth / chordChipWidth))))
+        let firstVisibleIndex = min(
+            max(activeIndex - visibleCount + 1, 0),
+            max(0, chips.count - visibleCount)
+        )
+        return ChordChipWindow(firstVisibleIndex: firstVisibleIndex, visibleCount: visibleCount)
+    }
+
     private var chordChips: some View {
         let chips = hud.chordChips
         return Group {
@@ -179,14 +210,15 @@ struct EarTrainingHUDView: View {
                 Color.clear.frame(height: 0)
             } else {
                 GeometryReader { proxy in
-                    let availableWidth = max(chordChipWidth, proxy.size.width)
-                    let visibleCount = max(1, min(chips.count, Int(floor(availableWidth / chordChipWidth))))
                     let activeIndex = chips.firstIndex(where: { $0.active }) ?? 0
-                    let firstVisibleIndex = min(
-                        max(activeIndex - visibleCount + 1, 0),
-                        max(0, chips.count - visibleCount)
+                    let window = resolveChordChipWindow(
+                        chips: chips,
+                        availableWidth: max(chordChipWidth, proxy.size.width),
+                        activeIndex: activeIndex
                     )
-                    let visibleChips = Array(chips[firstVisibleIndex..<min(chips.count, firstVisibleIndex + visibleCount)])
+                    let visibleChips = Array(
+                        chips[window.firstVisibleIndex..<min(chips.count, window.firstVisibleIndex + window.visibleCount)]
+                    )
 
                     HStack(spacing: 0) {
                         ForEach(visibleChips) { chip in

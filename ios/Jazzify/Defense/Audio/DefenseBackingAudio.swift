@@ -31,6 +31,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var switchScheduleToken: UInt64 = 0
 
     private var pendingSwitchAtHostSec: Double = -1
+    private var lastCommittedSwitchAtHostSec: Double = -1
     private var switchGeneration: UInt64 = 0
 
     /// レンダー相当の切替時刻を過ぎると増える。メインスレッドはこれを監視して譜面を切り替える。
@@ -38,6 +39,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         defer { os_unfair_lock_unlock(&lock) }
         if pendingSwitchAtHostSec >= 0, Self.hostTimeSec() >= pendingSwitchAtHostSec {
+            lastCommittedSwitchAtHostSec = pendingSwitchAtHostSec
             pendingSwitchAtHostSec = -1
             switchGeneration &+= 1
         }
@@ -87,6 +89,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             }
             os_unfair_lock_lock(&self.lock)
             self.pendingSwitchAtHostSec = -1
+            self.lastCommittedSwitchAtHostSec = -1
             os_unfair_lock_unlock(&self.lock)
         }
         if Thread.isMainThread {
@@ -236,6 +239,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
         activeIsA.toggle()
         currentBarCount = pendingBarCount
         os_unfair_lock_lock(&lock)
+        if lastCommittedSwitchAtHostSec >= 0 {
+            transportStartHostSec = lastCommittedSwitchAtHostSec
+            lastCommittedSwitchAtHostSec = -1
+        }
         pendingSwitchAtHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
@@ -257,6 +264,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
             self.pendingSwitchAtHostSec = -1
+            self.lastCommittedSwitchAtHostSec = -1
             self.transportStartHostSec = 0
             os_unfair_lock_unlock(&self.lock)
         }
@@ -383,6 +391,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         transportStartHostSec = Self.hostTimeSec()
         switchGeneration = 0
         pendingSwitchAtHostSec = -1
+        lastCommittedSwitchAtHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
 
@@ -453,6 +462,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         bufferB = nil
         os_unfair_lock_lock(&lock)
         pendingSwitchAtHostSec = -1
+        lastCommittedSwitchAtHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
 
@@ -471,13 +481,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let elapsed = max(0, now - transportStart)
         let currentBuffer = activeIsA ? bufferA : bufferB
         guard let currentBuffer, currentBuffer.frameLength > 0 else {
-            return elapsed / barSec
+            return (elapsed / barSec) * Double(beatsSnapshot)
         }
         let rate = max(0.1, Double(timePitch.rate))
         let loopDur = Double(currentBuffer.frameLength) / currentBuffer.format.sampleRate / rate
         guard loopDur > 0 else { return 0 }
         let positionInLoop = elapsed.truncatingRemainder(dividingBy: loopDur)
-        return positionInLoop / barSec
+        return (positionInLoop / barSec) * Double(beatsSnapshot)
     }
 
     private static func hostTimeSec() -> Double {

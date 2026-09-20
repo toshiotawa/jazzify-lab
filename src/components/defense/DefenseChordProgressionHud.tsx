@@ -1,6 +1,9 @@
 import React, { useMemo } from 'react';
 
-import type { DefenseProgressionChip } from '@/game/defense/defenseProgressionTimeline';
+import {
+  resolveDefenseProgressionHudWindow,
+  type DefenseProgressionChip,
+} from '@/game/defense/defenseProgressionTimeline';
 
 interface DefenseChordProgressionHudProps {
   readonly chips: readonly DefenseProgressionChip[];
@@ -11,37 +14,22 @@ const CHIP_WIDTH_PX = 82;
 export const DefenseChordProgressionHud: React.FC<DefenseChordProgressionHudProps> = ({
   chips,
 }) => {
-  const layout = useMemo(() => {
+  const visibleChips = useMemo(() => {
     if (chips.length === 0) {
-      return null;
+      return [];
     }
     const activeIndex = chips.findIndex((chip) => chip.active);
     const safeActive = activeIndex >= 0 ? activeIndex : 0;
-    return { activeIndex: safeActive };
+    const { firstVisibleIndex, visibleCount } = resolveDefenseProgressionHudWindow(
+      chips.length,
+      safeActive,
+    );
+    return chips.slice(firstVisibleIndex, firstVisibleIndex + visibleCount);
   }, [chips]);
 
-  if (!layout || chips.length === 0) {
+  if (visibleChips.length === 0) {
     return null;
   }
-
-  const { activeIndex } = layout;
-  const leftMargin = 16;
-  const rightMargin = 16;
-  const availableWidth = typeof window !== 'undefined'
-    ? Math.max(CHIP_WIDTH_PX, window.innerWidth - leftMargin - rightMargin)
-    : 360;
-  const visibleCount = Math.max(
-    1,
-    Math.min(chips.length, Math.floor(availableWidth / CHIP_WIDTH_PX)),
-  );
-  const firstVisibleIndex = Math.max(
-    0,
-    Math.min(
-      activeIndex >= 0 ? activeIndex - visibleCount + 1 : 0,
-      Math.max(0, chips.length - visibleCount),
-    ),
-  );
-  const visibleChips = chips.slice(firstVisibleIndex, firstVisibleIndex + visibleCount);
 
   return (
     <div
