@@ -124,6 +124,7 @@ interface FinalStats {
 /** fade_15s は 15 秒で完了するため、それ以降は秒カウンタの再レンダーを止める */
 const HINT_FADE_TRACK_LIMIT_SEC = 16;
 const VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS = 120;
+const DEFAULT_TUTORIAL_CONCERT_MIDIS: readonly [number, number, number] = [60, 62, 64];
 
 type DefenseGamePhase = 'loading' | 'loadError' | 'countdown' | 'playing';
 
@@ -142,10 +143,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   tutorialInputMethod,
   tutorialStaffGroups,
   tutorialClef = 'treble',
-  tutorialConcertMidis = [60, 62, 64],
+  tutorialConcertMidis: tutorialConcertMidisProp,
   onTutorialPhraseSucceeded,
   suppressResultScreen = false,
 }) => {
+  const tutorialConcertMidis = tutorialConcertMidisProp ?? DEFAULT_TUTORIAL_CONCERT_MIDIS;
   const isTutorialSession = tutorialOptions != null;
   const isSharedProgressionStage = isDefenseSharedProgressionStage(stage);
   const runtimeRef = useRef<DefenseRuntime>(
@@ -173,6 +175,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const canvasRef = useRef<DefenseCanvasHandle | null>(null);
   const onClearRef = useRef(onClear);
   const onTutorialPhraseSucceededRef = useRef(onTutorialPhraseSucceeded);
+  const tutorialConcertMidisRef = useRef(tutorialConcertMidis);
+  tutorialConcertMidisRef.current = tutorialConcertMidis;
   const tutorialPhraseSucceededRef = useRef(false);
   const hudRef = useRef<MutableDefenseSceneHud>({
     playerHp: stage.playerHp,
@@ -530,13 +534,17 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     const volume = settings.bgmVolume ?? 0.8;
     defenseBackingDeck.setVoiceInputDucking(voiceSequential);
     defenseBackingDeck.setUserVolume(volume);
-    defenseSharedProgressionDeck.setVoiceInputDucking(voiceSequential);
-    defenseSharedProgressionDeck.setUserVolume(volume);
+    if (isSharedProgressionStage) {
+      defenseSharedProgressionDeck.setVoiceInputDucking(voiceSequential);
+      defenseSharedProgressionDeck.setUserVolume(volume);
+    }
     return () => {
       defenseBackingDeck.setVoiceInputDucking(false);
-      defenseSharedProgressionDeck.setVoiceInputDucking(false);
+      if (isSharedProgressionStage) {
+        defenseSharedProgressionDeck.setVoiceInputDucking(false);
+      }
     };
-  }, [voiceSequential, settings.bgmVolume]);
+  }, [voiceSequential, settings.bgmVolume, isSharedProgressionStage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -550,11 +558,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     void (async () => {
       unlockDefenseBackingAudioContext();
-      unlockDefenseSharedProgressionAudioContext();
+      if (isSharedProgressionStage) {
+        unlockDefenseSharedProgressionAudioContext();
+      }
       if (isTutorialSession) {
         defenseBackingDeck.registerBufferFactory(
           DEFENSE_TUTORIAL_AUDIO_URL,
-          (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, tutorialConcertMidis),
+          (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, tutorialConcertMidisRef.current),
         );
       }
       const firstPhrase = stage.phrases[0];
@@ -598,9 +608,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       cancelled = true;
       pendingPlaybackRef.current = null;
       defenseBackingDeck.stop();
-      defenseSharedProgressionDeck.stop();
+      if (isSharedProgressionStage) {
+        defenseSharedProgressionDeck.stop();
+      }
     };
-  }, [stage, practiceMode, isTutorialSession, tutorialConcertMidis, isSharedProgressionStage]);
+  }, [stage, practiceMode, isTutorialSession, isSharedProgressionStage]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
@@ -622,7 +634,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
-    if (phase === 'loading') return undefined;
+    if (phase === 'loading' || phase === 'loadError') return undefined;
     if (phase === 'countdown') {
       lastFrameRef.current = null;
     }

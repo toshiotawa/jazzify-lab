@@ -6,7 +6,6 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
     private static let masterHeadroomGain: Float = 0.7
     private static let voiceInputDuckFactor: Float = 0.5
-    private static let startLeadSec: Double = 0.15
 
     private let cache = RemoteAudioFileCache(subdirectory: "defense-shared-progression")
     private let engine = AVAudioEngine()
@@ -143,12 +142,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.requestRevision = 0
             self.paused = false
             self.pausedOffsetSec = 0
-            self.transportStartHostSec = Self.hostTimeSec() + Self.startLeadSec
-            self.playPhraseLoop(
-                at: initialPhraseIndex,
-                offsetBar0: 0,
-                startHostSec: self.transportStartHostSec
-            )
+            self.activeIsA = true
+            self.transportStartHostSec = Self.hostTimeSec()
+            self.playActivePhraseImmediate(at: initialPhraseIndex, offsetBar0: 0)
         }
     }
 
@@ -184,9 +180,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             let loopDuration = Double(self.progressionBars) * self.barSec
             let offsetSec = loopDuration > 0 ? self.pausedOffsetSec.truncatingRemainder(dividingBy: loopDuration) : 0
             let offsetBar0 = self.barSec > 0 ? Int(floor(offsetSec / self.barSec)) : 0
-            let now = Self.hostTimeSec()
-            self.transportStartHostSec = now - offsetSec
-            self.playPhraseLoop(at: self.audiblePhraseIndex, offsetBar0: offsetBar0, startHostSec: now)
+            let offsetSecSnapshot = offsetSec
+            self.transportStartHostSec = Self.hostTimeSec() - offsetSecSnapshot
+            self.playActivePhraseImmediate(at: self.audiblePhraseIndex, offsetBar0: offsetBar0)
             if self.desiredPhraseIndex != self.audiblePhraseIndex {
                 self.scheduleDesiredSwitch()
             }
@@ -206,8 +202,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.stopPlayers(resetTransport: true)
             self.desiredPhraseIndex = phraseIndex
             self.audiblePhraseIndex = phraseIndex
-            self.transportStartHostSec = Self.hostTimeSec() + Self.startLeadSec
-            self.playPhraseLoop(at: phraseIndex, offsetBar0: 0, startHostSec: self.transportStartHostSec)
+            self.activeIsA = true
+            self.transportStartHostSec = Self.hostTimeSec()
+            self.playActivePhraseImmediate(at: phraseIndex, offsetBar0: 0)
         }
     }
 
@@ -239,8 +236,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
         if scheduledSwitchAtHostSec >= 0,
            abs(scheduledSwitchAtHostSec - plan.switchAt) < 1e-6,
-           now < plan.switchAt - 0.1 {
-            scheduledPhraseIndex = desiredPhraseIndex
+           now < plan.switchAt - 0.1,
+           scheduledPhraseIndex == desiredPhraseIndex {
             return
         }
 
@@ -248,35 +245,34 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             return
         }
 
-        scheduledPhraseIndex = desiredPhraseIndex
-        scheduledSwitchAtHostSec = plan.switchAt
-        scheduleWake(atHostSec: plan.switchAt - 0.12)
+        prescheduleIncomingSwitch(phraseIndex: desiredPhraseIndex, plan: plan)
     }
 
     private func performScheduledSwitch() {
         guard !paused else { return }
         let now = Self.hostTimeSec()
-        let plan = DefenseSharedProgressionTransport.planSwitch(
-            nowAudioTime: now,
-            transportStart: transportStartHostSec,
-            barSec: barSec,
-            progressionBars: progressionBars,
-            switchEveryBars: DefenseSharedProgressionSwitchEveryBars(rawValue: switchEveryBars) ?? .one,
-            schedulingLeadSec: 0.1
-        )
-        guard now + 0.005 >= plan.switchAt else {
-            scheduleWake(atHostSec: plan.switchAt - 0.12)
+        guard scheduledSwitchAtHostSec >= 0 else { return }
+        if now + 0.005 < scheduledSwitchAtHostSec {
+            scheduleWake(atHostSec: scheduledSwitchAtHostSec - 0.12)
             return
         }
 
-        let phraseIndex = desiredPhraseIndex
-        audiblePhraseIndex = phraseIndex
+        let outgoing = activeIsA ? playerA : playerB
+        outgoing.stop()
+        outgoing.reset()
+
+        if let scheduled = scheduledPhraseIndex {
+            audiblePhraseIndex = scheduled
+        } else {
+            audiblePhraseIndex = desiredPhraseIndex
+        }
+
+        activeIsA.toggle()
         scheduledPhraseIndex = nil
         scheduledSwitchAtHostSec = -1
-        playPhraseLoop(at: phraseIndex, offsetBar0: plan.destinationBar0, startHostSec: plan.switchAt)
     }
 
-    private func playPhraseLoop(at phraseIndex: Int, offsetBar0: Int, startHostSec: Double) {
+    private func playActivePhraseImmediate(at phraseIndex: Int, offsetBar0: Int) {
         guard let buffer = buffersByPhraseIndex[phraseIndex],
               let barFrames = barFramesByPhraseIndex[phraseIndex],
               barFrames.count > progressionBars
@@ -287,17 +283,70 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         scheduledPhraseIndex = nil
         scheduledSwitchAtHostSec = -1
 
-        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: startHostSec))
-        let outgoing = activeIsA ? playerA : playerB
+        let active = activeIsA ? playerA : playerB
+        let inactive = activeIsA ? playerB : playerA
+
+        inactive.stop()
+        inactive.reset()
+        active.stop()
+        active.reset()
+
+        if offsetBar0 <= 0 {
+            scheduleFullLoop(for: phraseIndex, player: active, at: nil)
+        } else {
+            let startFrame = AVAudioFramePosition(barFrames[offsetBar0])
+            let endFrame = AVAudioFramePosition(barFrames[progressionBars])
+            let tailCount = AVAudioFrameCount(max(0, endFrame - startFrame))
+            if tailCount > 0,
+               let tailBuffer = DefensePhraseBacking.slicePCMBuffer(
+                   buffer,
+                   startingFrame: startFrame,
+                   frameCount: tailCount
+               ) {
+                active.scheduleBuffer(tailBuffer, at: nil) { [weak self] in
+                    self?.runOnMain {
+                        self?.scheduleLoopHead(for: phraseIndex, player: active, at: nil)
+                    }
+                }
+            } else {
+                scheduleLoopHead(for: phraseIndex, player: active, at: nil)
+            }
+        }
+
+        do {
+            if !engine.isRunning {
+                try engine.start()
+            }
+        } catch {
+            return
+        }
+
+        active.play()
+        applyMasterVolume()
+    }
+
+    private func prescheduleIncomingSwitch(
+        phraseIndex: Int,
+        plan: DefenseSharedProgressionSwitchPlan
+    ) {
+        guard let buffer = buffersByPhraseIndex[phraseIndex],
+              let barFrames = barFramesByPhraseIndex[phraseIndex],
+              barFrames.count > progressionBars
+        else { return }
+
+        ensureGraph()
+        cancelWake()
+
+        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: plan.switchAt))
         let incoming = activeIsA ? playerB : playerA
 
         incoming.stop()
         incoming.reset()
 
-        if offsetBar0 <= 0 {
+        if plan.destinationBar0 <= 0 {
             scheduleFullLoop(for: phraseIndex, player: incoming, at: when)
         } else {
-            let startFrame = AVAudioFramePosition(barFrames[offsetBar0])
+            let startFrame = AVAudioFramePosition(barFrames[plan.destinationBar0])
             let endFrame = AVAudioFramePosition(barFrames[progressionBars])
             let tailCount = AVAudioFrameCount(max(0, endFrame - startFrame))
             if tailCount > 0,
@@ -327,12 +376,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         incoming.play()
         applyMasterVolume()
 
-        let stopDelay = max(0, startHostSec - Self.hostTimeSec())
-        DispatchQueue.main.asyncAfter(deadline: .now() + stopDelay) { [weak self] in
-            outgoing.stop()
-            outgoing.reset()
-        }
-        activeIsA.toggle()
+        scheduledPhraseIndex = phraseIndex
+        scheduledSwitchAtHostSec = plan.switchAt
+        scheduleWake(atHostSec: plan.switchAt - 0.12)
     }
 
     private func scheduleFullLoop(
