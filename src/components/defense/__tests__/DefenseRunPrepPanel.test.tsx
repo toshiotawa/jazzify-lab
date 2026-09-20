@@ -14,6 +14,7 @@ const stage: DefenseStage = {
   beatsPerBar: 4,
   audioRegistrationMode: 'single_source',
   audioUrl: null,
+  progressionBars: null,
   phraseBars: 4,
   staffLayout: 'treble',
   attackTrigger: 'note',

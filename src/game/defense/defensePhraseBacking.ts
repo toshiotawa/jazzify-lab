@@ -1,4 +1,8 @@
 import type { DefensePhrase, DefenseStage } from '@/game/defense/defenseTypes';
+import {
+  isDefenseSharedProgressionStage,
+  isDefenseSingleSourceStage,
+} from '@/game/defense/defenseAudioRegistrationMode';
 import { resolveDefenseAudioLoopWindow } from '@/game/defense/defenseAudioLoopWindow';
 
 export interface DefensePhraseBackingPlayback {
@@ -11,14 +15,16 @@ export interface DefensePhraseBackingPlayback {
 
 const SPEED_RATIO_EPSILON = 0.0001;
 
-export const isDefenseSingleSourceStage = (
-  stage: Pick<DefenseStage, 'audioRegistrationMode'>,
-): boolean => stage.audioRegistrationMode === 'single_source';
-
 export const resolveDefensePhrasePreloadUrls = (
   stage: DefenseStage,
   phraseIndices: readonly number[],
 ): readonly string[] => {
+  if (isDefenseSharedProgressionStage(stage)) {
+    const urls = stage.phrases
+      .map((phrase) => phrase.audioUrl)
+      .filter((url) => url.length > 0);
+    return [...new Set(urls)];
+  }
   if (isDefenseSingleSourceStage(stage)) {
     return stage.audioUrl ? [stage.audioUrl] : [];
   }
@@ -52,9 +58,12 @@ export const sliceAudioBuffer = (
 };
 
 const resolveDefensePhraseBarCount = (
-  stage: Pick<DefenseStage, 'phraseBars'>,
+  stage: Pick<DefenseStage, 'phraseBars' | 'progressionBars' | 'audioRegistrationMode'>,
   phrase: Pick<DefensePhrase, 'loopStartMeasure' | 'loopEndMeasure'>,
 ): number => {
+  if (isDefenseSharedProgressionStage(stage)) {
+    return Math.max(1, stage.progressionBars ?? stage.phraseBars);
+  }
   if (phrase.loopStartMeasure !== null && phrase.loopEndMeasure !== null) {
     return Math.max(1, phrase.loopEndMeasure - phrase.loopStartMeasure + 1);
   }

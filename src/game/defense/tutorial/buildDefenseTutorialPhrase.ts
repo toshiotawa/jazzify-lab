@@ -149,6 +149,7 @@ export const buildDefenseTutorialPhrase = (
     beatsPerBar: DEFENSE_TUTORIAL_BEATS_PER_BAR,
     audioRegistrationMode: 'per_phrase',
     audioUrl: null,
+    progressionBars: null,
     phraseBars: 1,
     staffLayout,
     attackTrigger: 'note',

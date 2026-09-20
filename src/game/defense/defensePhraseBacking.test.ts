@@ -34,6 +34,7 @@ const baseStage = (overrides: Partial<DefenseStage> = {}): DefenseStage => ({
   beatsPerBar: 4,
   audioRegistrationMode: 'single_source',
   audioUrl: 'https://example.com/shared.mp3',
+  progressionBars: null,
   phraseBars: 4,
   staffLayout: 'treble',
   attackTrigger: 'note',
@@ -74,6 +75,23 @@ describe('resolveDefensePhrasePreloadUrls', () => {
     ]);
   });
 
+  it('preloads all phrase URLs for shared_progression stages', () => {
+    const stage = baseStage({
+      audioRegistrationMode: 'shared_progression',
+      progressionBars: 12,
+      phraseBars: 4,
+      audioUrl: null,
+      phrases: [
+        phrase({ audioUrl: 'https://example.com/a.mp3', loopStartMeasure: null, loopEndMeasure: null }),
+        phrase({ id: 'p2', orderIndex: 1, audioUrl: 'https://example.com/b.mp3', loopStartMeasure: null, loopEndMeasure: null }),
+      ],
+    });
+    expect(resolveDefensePhrasePreloadUrls(stage, [0])).toEqual([
+      'https://example.com/a.mp3',
+      'https://example.com/b.mp3',
+    ]);
+  });
+
   it('preloads per-phrase URLs for per_phrase stages', () => {
     const stage = baseStage({
       audioRegistrationMode: 'per_phrase',
@@ -105,6 +123,24 @@ describe('buildDefensePhraseBackingPlayback', () => {
     expect(playback.loopEnd).toBeCloseTo(16);
     expect(playback.startOffset).toBeCloseTo(8);
     expect(playback.barCount).toBe(4);
+  });
+
+  it('uses progressionBars for shared_progression barCount', () => {
+    const ctx = createMockAudioContext();
+    const decoded = createTestBuffer(ctx, 24);
+    const playback = buildDefensePhraseBackingPlayback(
+      decoded,
+      baseStage({
+        audioRegistrationMode: 'shared_progression',
+        progressionBars: 12,
+        phraseBars: 4,
+        audioUrl: null,
+      }),
+      phrase({ loopStartMeasure: null, loopEndMeasure: null }),
+      ctx,
+    );
+    expect(playback.barCount).toBe(12);
+    expect(playback.startOffset).toBe(0);
   });
 
   it('falls back to stage phraseBars when loop measures are absent', () => {

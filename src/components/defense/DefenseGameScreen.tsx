@@ -33,10 +33,15 @@ import {
 } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import { buildDefenseTutorialStaffDisplay } from '@/game/defense/tutorial/buildDefenseTutorialStaffDisplay';
 import { synthesizeDefenseTutorialCdeBuffer } from '@/game/defense/tutorial/defenseTutorialAudio';
+import { isDefenseSharedProgressionStage } from '@/game/defense/defenseAudioRegistrationMode';
 import {
   defenseBackingDeck,
   unlockDefenseBackingAudioContext,
 } from '@/game/defense/defenseBackingDeck';
+import {
+  defenseSharedProgressionDeck,
+  unlockDefenseSharedProgressionAudioContext,
+} from '@/game/defense/defenseSharedProgressionDeck';
 import {
   resolveDefensePhrasePreloadUrls,
   type DefensePhraseBackingPlayback,
@@ -142,6 +147,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   suppressResultScreen = false,
 }) => {
   const isTutorialSession = tutorialOptions != null;
+  const isSharedProgressionStage = isDefenseSharedProgressionStage(stage);
   const runtimeRef = useRef<DefenseRuntime>(
     createDefenseRuntime(
       stage.playerHp,
@@ -156,6 +162,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const pendingSwitchAtRef = useRef<number | null>(null);
   const scheduledNextPhraseIndexRef = useRef<number | null>(null);
   const backingRestartGenerationRef = useRef(0);
+  const sharedProgressionRequestRevisionRef = useRef(0);
   const practiceSpeedPercentRef = useRef(100);
   const phaseRef = useRef<DefenseGamePhase>('loading');
   const pendingPlaybackRef = useRef<DefensePhraseBackingPlayback | null>(null);
@@ -215,13 +222,18 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [practiceSpeedPercent]);
 
   const beginPlay = useCallback((): void => {
-    const playback = pendingPlaybackRef.current;
-    if (!playback) return;
-    pendingPlaybackRef.current = null;
-
     const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
-    defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
-    defenseBackingDeck.start(playback);
+
+    if (isSharedProgressionStage) {
+      pendingPlaybackRef.current = null;
+      defenseSharedProgressionDeck.start(judgeRef.current.phraseIndex);
+    } else {
+      const playback = pendingPlaybackRef.current;
+      if (!playback) return;
+      pendingPlaybackRef.current = null;
+      defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
+      defenseBackingDeck.start(playback);
+    }
 
     runtimeRef.current.elapsedSec = 0;
     elapsedIntRef.current = 0;
@@ -233,7 +245,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     phaseRef.current = 'playing';
     setPhase('playing');
-  }, [stage.bpm, stage.beatsPerBar, difficulty, isTutorialSession]);
+  }, [stage.bpm, stage.beatsPerBar, difficulty, isTutorialSession, isSharedProgressionStage]);
 
   const trackElapsedForHints = !practiceMode && (
     stage.productionStaffHintMode === 'fade_15s'
@@ -328,6 +340,19 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     scheduledNextPhraseIndexRef.current = null;
 
     const ratio = defensePracticeSpeedRatio(speedPercent);
+    if (isSharedProgressionStage) {
+      try {
+        await defenseSharedProgressionDeck.prepare(stage, ratio);
+        if (backingRestartGenerationRef.current !== generation) return;
+        backingRestartGenerationRef.current += 1;
+        sharedProgressionRequestRevisionRef.current += 1;
+        defenseSharedProgressionDeck.restartFromProgressionStart(phraseIndex, ratio);
+      } catch {
+        /* prepare/start failed */
+      }
+      return;
+    }
+
     try {
       const livePhrase = stage.phrases[judgeRef.current.phraseIndex] ?? phrase;
       const playback = await defenseBackingDeck.preparePhraseBacking(stage, livePhrase, ratio);
@@ -338,7 +363,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     } catch {
       /* prepare/start failed; leave current backing as-is */
     }
-  }, [stage.phrases, stage.bpm, stage.beatsPerBar]);
+  }, [stage, isSharedProgressionStage]);
 
   const handlePrevPhrase = useCallback((): void => {
     if (!practiceMode || stage.phrases.length <= 1) return;
@@ -432,20 +457,30 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       chargeDefenseSp(runtime);
     }
 
-    if (!isTutorialSession && !practiceMode && evaluation.pendingSwitch && scheduledNextPhraseIndexRef.current === null) {
+    if (!isTutorialSession && !practiceMode && evaluation.pendingSwitch) {
       const nextIndex = nextPhraseIndex(stage.phrases, judgeRef.current.phraseIndex);
       const nextPhrase = stage.phrases[nextIndex];
       if (!nextPhrase) return;
-      scheduledNextPhraseIndexRef.current = nextIndex;
-      applyImmediatePhraseSwitch(nextIndex);
-      const generation = backingRestartGenerationRef.current;
-      void (async () => {
-        const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
-        const playback = await defenseBackingDeck.preparePhraseBacking(stage, nextPhrase, ratio);
-        if (backingRestartGenerationRef.current !== generation) return;
-        if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
-        pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
-      })();
+
+      if (isSharedProgressionStage) {
+        applyImmediatePhraseSwitch(nextIndex);
+        sharedProgressionRequestRevisionRef.current += 1;
+        defenseSharedProgressionDeck.requestPhrase(
+          nextIndex,
+          sharedProgressionRequestRevisionRef.current,
+        );
+      } else if (scheduledNextPhraseIndexRef.current === null) {
+        scheduledNextPhraseIndexRef.current = nextIndex;
+        applyImmediatePhraseSwitch(nextIndex);
+        const generation = backingRestartGenerationRef.current;
+        void (async () => {
+          const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+          const playback = await defenseBackingDeck.preparePhraseBacking(stage, nextPhrase, ratio);
+          if (backingRestartGenerationRef.current !== generation) return;
+          if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
+          pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
+        })();
+      }
     }
   }, [
     stage,
@@ -456,6 +491,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     isTutorialSession,
     tutorialOptions?.autoAdvancePhrase,
     applyImmediatePhraseSwitch,
+    isSharedProgressionStage,
   ]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
@@ -491,10 +527,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   });
 
   useEffect(() => {
+    const volume = settings.bgmVolume ?? 0.8;
     defenseBackingDeck.setVoiceInputDucking(voiceSequential);
-    defenseBackingDeck.setUserVolume(settings.bgmVolume ?? 0.8);
+    defenseBackingDeck.setUserVolume(volume);
+    defenseSharedProgressionDeck.setVoiceInputDucking(voiceSequential);
+    defenseSharedProgressionDeck.setUserVolume(volume);
     return () => {
       defenseBackingDeck.setVoiceInputDucking(false);
+      defenseSharedProgressionDeck.setVoiceInputDucking(false);
     };
   }, [voiceSequential, settings.bgmVolume]);
 
@@ -510,6 +550,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     void (async () => {
       unlockDefenseBackingAudioContext();
+      unlockDefenseSharedProgressionAudioContext();
       if (isTutorialSession) {
         defenseBackingDeck.registerBufferFactory(
           DEFENSE_TUTORIAL_AUDIO_URL,
@@ -518,6 +559,24 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       }
       const firstPhrase = stage.phrases[0];
       if (!firstPhrase) return;
+
+      if (isSharedProgressionStage) {
+        try {
+          await defenseSharedProgressionDeck.prepare(stage, initialRatio);
+        } catch {
+          if (cancelled) return;
+          phaseRef.current = 'loading';
+          setPhase('loading');
+          return;
+        }
+        if (cancelled) return;
+        pendingPlaybackRef.current = null;
+        phaseRef.current = 'countdown';
+        setPhase('countdown');
+        setCountdownSec(defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC));
+        return;
+      }
+
       const preloadIndices = practiceMode
         ? stage.phrases.map((_, index) => index)
         : [0, 1].filter((index) => index < stage.phrases.length);
@@ -539,8 +598,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       cancelled = true;
       pendingPlaybackRef.current = null;
       defenseBackingDeck.stop();
+      defenseSharedProgressionDeck.stop();
     };
-  }, [stage, practiceMode, isTutorialSession, tutorialConcertMidis]);
+  }, [stage, practiceMode, isTutorialSession, tutorialConcertMidis, isSharedProgressionStage]);
 
   useEffect(() => {
     if (isSettingsOpen) return undefined;
@@ -582,11 +642,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
         tickDefenseSimulation(runtime, difficulty, dt);
 
-        const pendingAt = pendingSwitchAtRef.current;
-        if (pendingAt !== null && defenseBackingDeck.getCurrentTime() >= pendingAt) {
-          const nextIdx = scheduledNextPhraseIndexRef.current;
-          if (nextIdx !== null) {
-            commitScheduledAudioSwitch(nextIdx);
+        if (isSharedProgressionStage) {
+          defenseSharedProgressionDeck.commitDueSwitch();
+        } else {
+          const pendingAt = pendingSwitchAtRef.current;
+          if (pendingAt !== null && defenseBackingDeck.getCurrentTime() >= pendingAt) {
+            const nextIdx = scheduledNextPhraseIndexRef.current;
+            if (nextIdx !== null) {
+              commitScheduledAudioSwitch(nextIdx);
+            }
           }
         }
 
@@ -631,7 +695,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         rafRef.current = null;
       }
     };
-  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints, isSettingsOpen, phase]);
+  }, [difficulty, commitScheduledAudioSwitch, practiceMode, trackElapsedForHints, isSettingsOpen, phase, isSharedProgressionStage]);
+
+  useEffect(() => {
+    if (!isSharedProgressionStage) {
+      return undefined;
+    }
+    if (isSettingsOpen) {
+      defenseSharedProgressionDeck.pause();
+      return undefined;
+    }
+    if (phaseRef.current === 'playing') {
+      defenseSharedProgressionDeck.resume();
+    }
+    return undefined;
+  }, [isSettingsOpen, isSharedProgressionStage]);
 
   useEffect(() => {
     const overlay = pianoRef.current;
@@ -708,6 +786,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             chord={currentPhrase.chords[judgeSnapshot.chordIndex] ?? null}
             keyFifths={phraseKeyFifths}
             staffLayout={stage.staffLayout}
+            literalChordLabels={isSharedProgressionStage}
             correctNoteIndices={judgeSnapshot.correctNoteIndices}
             revealedNoteIndices={judgeSnapshot.revealedNoteIndices}
             targetStepIndex={judgeSnapshot.targetStepIndex}

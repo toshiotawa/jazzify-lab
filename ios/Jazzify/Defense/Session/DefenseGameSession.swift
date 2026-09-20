@@ -43,6 +43,10 @@ final class DefenseGameSession: ObservableObject {
 
     private var lastSwitchGeneration: UInt64 = 0
     private var pendingSwitchPhraseIndex: Int?
+    private var sharedProgressionRequestRevision = 0
+    private var isSharedProgressionStage: Bool {
+        stage.audioRegistrationMode == .sharedProgression
+    }
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
     var isPaused = false {
@@ -108,27 +112,46 @@ final class DefenseGameSession: ObservableObject {
 
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
-        DefenseBackingAudio.shared.setTransportConfig(
-            bpm: stage.bpm * speedRatio,
-            beatsPerBar: stage.beatsPerBar
-        )
-        DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
-        if tutorialOptions == nil {
-            let preloadIndices: [Int]
-            if practiceMode {
-                preloadIndices = Array(stage.phrases.indices)
-            } else {
-                preloadIndices = [0, 1].filter { stage.phrases.indices.contains($0) }
+        if isSharedProgressionStage {
+            DefenseSharedProgressionAudio.shared.setPlaybackRate(Float(speedRatio))
+            if tutorialOptions == nil {
+                let stageSnapshot = stage
+                let ratioSnapshot = speedRatio
+                do {
+                    try await Task.detached(priority: .userInitiated) {
+                        try await DefenseSharedProgressionAudio.shared.prepare(
+                            stage: stageSnapshot,
+                            speedRatio: ratioSnapshot
+                        )
+                    }.value
+                } catch {
+                    phase = .loading
+                    return
+                }
             }
-            let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: preloadIndices)
-            let stageSnapshot = stage
-            try? await Task.detached(priority: .userInitiated) {
-                try await DefenseBackingAudio.shared.preload(urls: preloadUrls)
-                try await DefenseBackingAudio.shared.preparePhraseBuffers(
-                    stage: stageSnapshot,
-                    phraseIndices: preloadIndices
-                )
-            }.value
+        } else {
+            DefenseBackingAudio.shared.setTransportConfig(
+                bpm: stage.bpm * speedRatio,
+                beatsPerBar: stage.beatsPerBar
+            )
+            DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
+            if tutorialOptions == nil {
+                let preloadIndices: [Int]
+                if practiceMode {
+                    preloadIndices = Array(stage.phrases.indices)
+                } else {
+                    preloadIndices = [0, 1].filter { stage.phrases.indices.contains($0) }
+                }
+                let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: preloadIndices)
+                let stageSnapshot = stage
+                try? await Task.detached(priority: .userInitiated) {
+                    try await DefenseBackingAudio.shared.preload(urls: preloadUrls)
+                    try await DefenseBackingAudio.shared.preparePhraseBuffers(
+                        stage: stageSnapshot,
+                        phraseIndices: preloadIndices
+                    )
+                }.value
+            }
         }
         guard generation == startGeneration, !Task.isCancelled else { return }
         startCountdown(generation: generation)
@@ -179,11 +202,17 @@ final class DefenseGameSession: ObservableObject {
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
         if let tutorialConcertMidis, tutorialOptions != nil {
             try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
+        } else if isSharedProgressionStage {
+            DefenseSharedProgressionAudio.shared.start(initialPhraseIndex: judgeState.phraseIndex)
         } else {
             try? await DefenseBackingAudio.shared.startPhrase(at: 0)
         }
         guard generation == startGeneration, !Task.isCancelled else { return }
-        DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
+        if isSharedProgressionStage {
+            DefenseSharedProgressionAudio.shared.setPlaybackRate(Float(speedRatio))
+        } else {
+            DefenseBackingAudio.shared.setPlaybackRate(Float(speedRatio))
+        }
         runtime.elapsedSec = 0
         lastFrameTime = nil
         if tutorialOptions != nil {
@@ -198,8 +227,19 @@ final class DefenseGameSession: ObservableObject {
         let nextIndex = (currentIndex + delta + stage.phrases.count) % stage.phrases.count
         pendingSwitchPhraseIndex = nil
         judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
-        Task {
-            try? await DefenseBackingAudio.shared.startPhrase(at: nextIndex)
+        if isSharedProgressionStage {
+            let ratio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
+            Task {
+                try? await DefenseSharedProgressionAudio.shared.prepare(stage: stage, speedRatio: ratio)
+                DefenseSharedProgressionAudio.shared.restartFromProgressionStart(
+                    phraseIndex: nextIndex,
+                    speedRatio: ratio
+                )
+            }
+        } else {
+            Task {
+                try? await DefenseBackingAudio.shared.startPhrase(at: nextIndex)
+            }
         }
     }
 
@@ -209,15 +249,29 @@ final class DefenseGameSession: ObservableObject {
         practiceSpeedPercent = nextSpeed
         let ratio = Float(DefensePracticeSpeed.ratio(nextSpeed))
         pendingSwitchPhraseIndex = nil
-        DefenseBackingAudio.shared.invalidatePendingSwitch()
-        DefenseBackingAudio.shared.setPlaybackRate(ratio)
-        DefenseBackingAudio.shared.setTransportConfig(
-            bpm: stage.bpm * DefensePracticeSpeed.ratio(nextSpeed),
-            beatsPerBar: stage.beatsPerBar
-        )
         let phraseIndex = judgeState.phraseIndex
-        Task {
-            try? await DefenseBackingAudio.shared.startPhrase(at: phraseIndex)
+        if isSharedProgressionStage {
+            DefenseSharedProgressionAudio.shared.setPlaybackRate(ratio)
+            Task {
+                try? await DefenseSharedProgressionAudio.shared.prepare(
+                    stage: stage,
+                    speedRatio: DefensePracticeSpeed.ratio(nextSpeed)
+                )
+                DefenseSharedProgressionAudio.shared.restartFromProgressionStart(
+                    phraseIndex: phraseIndex,
+                    speedRatio: DefensePracticeSpeed.ratio(nextSpeed)
+                )
+            }
+        } else {
+            DefenseBackingAudio.shared.invalidatePendingSwitch()
+            DefenseBackingAudio.shared.setPlaybackRate(ratio)
+            DefenseBackingAudio.shared.setTransportConfig(
+                bpm: stage.bpm * DefensePracticeSpeed.ratio(nextSpeed),
+                beatsPerBar: stage.beatsPerBar
+            )
+            Task {
+                try? await DefenseBackingAudio.shared.startPhrase(at: phraseIndex)
+            }
         }
     }
 
@@ -229,7 +283,17 @@ final class DefenseGameSession: ObservableObject {
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()
         DefenseBackingAudio.shared.stop()
+        DefenseSharedProgressionAudio.shared.stop()
         SurvivalGameAudio.shared.stop()
+    }
+
+    func setSharedProgressionPaused(_ paused: Bool) {
+        guard isSharedProgressionStage else { return }
+        if paused {
+            DefenseSharedProgressionAudio.shared.pauseProgression()
+        } else {
+            DefenseSharedProgressionAudio.shared.resumeProgression()
+        }
     }
 
     private func subscribeMidi() {
@@ -301,22 +365,31 @@ final class DefenseGameSession: ObservableObject {
         if evaluation.measureCompleted, stage.attackTrigger == .note {
             _ = DefenseGameLoop.chargeSp(runtime: &runtime)
         }
-        if !practiceMode, evaluation.pendingSwitch, pendingSwitchPhraseIndex == nil {
+        if !practiceMode, evaluation.pendingSwitch {
             let nextIndex = DefensePhraseJudge.nextPhraseIndex(
                 phrases: stage.phrases,
                 current: judgeState.phraseIndex
             )
-            pendingSwitchPhraseIndex = nextIndex
-            judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
-            Task {
-                var scheduledMs: Int64 = 0
-                do {
-                    scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
-                } catch {
-                    scheduledMs = 0
-                }
-                if scheduledMs <= 0, pendingSwitchPhraseIndex == nextIndex {
-                    pendingSwitchPhraseIndex = nil
+            if isSharedProgressionStage {
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+                sharedProgressionRequestRevision += 1
+                DefenseSharedProgressionAudio.shared.requestPhrase(
+                    at: nextIndex,
+                    requestRevision: sharedProgressionRequestRevision
+                )
+            } else if pendingSwitchPhraseIndex == nil {
+                pendingSwitchPhraseIndex = nextIndex
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+                Task {
+                    var scheduledMs: Int64 = 0
+                    do {
+                        scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
+                    } catch {
+                        scheduledMs = 0
+                    }
+                    if scheduledMs <= 0, pendingSwitchPhraseIndex == nextIndex {
+                        pendingSwitchPhraseIndex = nil
+                    }
                 }
             }
         }
@@ -339,19 +412,21 @@ final class DefenseGameSession: ObservableObject {
 
         DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: dt)
 
-        let switchGen = DefenseBackingAudio.shared.didSwitchGeneration
-        if switchGen != lastSwitchGeneration, let switchedToIndex = pendingSwitchPhraseIndex {
-            lastSwitchGeneration = switchGen
-            pendingSwitchPhraseIndex = nil
-            DefenseBackingAudio.shared.commitSwitchFromMainThread()
-            let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
-                phrases: stage.phrases,
-                current: switchedToIndex
-            )
-            let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: [preloadIndex])
-            if !preloadUrls.isEmpty {
-                Task {
-                    try? await DefenseBackingAudio.shared.preload(urls: preloadUrls)
+        if !isSharedProgressionStage {
+            let switchGen = DefenseBackingAudio.shared.didSwitchGeneration
+            if switchGen != lastSwitchGeneration, let switchedToIndex = pendingSwitchPhraseIndex {
+                lastSwitchGeneration = switchGen
+                pendingSwitchPhraseIndex = nil
+                DefenseBackingAudio.shared.commitSwitchFromMainThread()
+                let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
+                    phrases: stage.phrases,
+                    current: switchedToIndex
+                )
+                let preloadUrls = DefensePhraseBacking.preloadUrls(for: stage, phraseIndices: [preloadIndex])
+                if !preloadUrls.isEmpty {
+                    Task {
+                        try? await DefenseBackingAudio.shared.preload(urls: preloadUrls)
+                    }
                 }
             }
         }

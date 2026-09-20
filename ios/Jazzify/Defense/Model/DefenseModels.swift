@@ -3,6 +3,7 @@ import Foundation
 enum DefenseAudioRegistrationMode: String, Sendable {
     case perPhrase = "per_phrase"
     case singleSource = "single_source"
+    case sharedProgression = "shared_progression"
 }
 
 enum DefenseStaffLayout: String, Sendable {
@@ -45,6 +46,7 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let beatsPerBar: Int
     let audioRegistrationMode: DefenseAudioRegistrationMode
     let audioUrl: String?
+    let progressionBars: Int?
     let phraseBars: Int
     let staffLayout: DefenseStaffLayout
     let attackTrigger: DefenseAttackTrigger

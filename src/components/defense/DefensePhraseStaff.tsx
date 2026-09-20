@@ -15,6 +15,8 @@ interface DefensePhraseStaffProps {
   readonly chord: DefensePhraseChord | null;
   readonly keyFifths: number;
   readonly staffLayout: DefenseStaffLayout;
+  /** When true, chord labels are shown as registered literals (no transposition). */
+  readonly literalChordLabels?: boolean;
   readonly correctNoteIndices: ReadonlySet<number>;
   readonly revealedNoteIndices: ReadonlySet<number>;
   readonly targetStepIndex: number;
@@ -27,6 +29,7 @@ export const DefensePhraseStaff = React.memo<DefensePhraseStaffProps>(({
   chord,
   keyFifths,
   staffLayout,
+  literalChordLabels = false,
   correctNoteIndices,
   revealedNoteIndices,
   targetStepIndex,
@@ -62,6 +65,7 @@ export const DefensePhraseStaff = React.memo<DefensePhraseStaffProps>(({
       <ChordVoicingStaff
         singleMeasureLayout
         keyFifths={keyFifths}
+        literalChordLabels={literalChordLabels}
         voicingGroups={built.groups}
         activeGroupId={built.activeGroupId}
         correctPitchClassesByGroupId={built.correctPitchClassesByGroupId}

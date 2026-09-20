@@ -2,6 +2,10 @@
  * Defense mode Supabase fetch / clear persistence.
  */
 import { getSupabaseClient } from '@/platform/supabaseClient';
+import {
+  parseDefenseAudioRegistrationMode,
+  validateDefenseSharedProgressionStage,
+} from '@/game/defense/defenseAudioRegistrationMode';
 import type {
   DefenseAttackTrigger,
   DefenseAudioRegistrationMode,
@@ -24,6 +28,7 @@ interface StageRow {
   bpm: number;
   beats_per_bar: number;
   phrase_bars: number;
+  progression_bars: number | null;
   audio_registration_mode: string;
   audio_url: string | null;
   staff_layout: string;
@@ -86,10 +91,6 @@ const parseAttackTrigger = (value: string): DefenseAttackTrigger => (
   value === 'measure' ? 'measure' : 'note'
 );
 
-const parseAudioRegistrationMode = (value: string): DefenseAudioRegistrationMode => (
-  value === 'single_source' ? 'single_source' : 'per_phrase'
-);
-
 export interface DefenseStageAudioRegistrationPhrasePayload {
   readonly id: string;
   readonly audioUrl: string | null;
@@ -103,6 +104,8 @@ export interface SaveDefenseStageAudioRegistrationParams {
   readonly stageAudioUrl: string | null;
   readonly bpm: number;
   readonly beatsPerBar: number;
+  readonly phraseBars?: number;
+  readonly progressionBars?: number | null;
   readonly phrases: readonly DefenseStageAudioRegistrationPhrasePayload[];
 }
 
@@ -122,7 +125,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     .from('defense_stages')
     .select(`
       id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-      audio_registration_mode, audio_url,
+      progression_bars, audio_registration_mode, audio_url,
       staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
       survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
     `)
@@ -196,8 +199,12 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     chordsByPhrase.set(row.phrase_id, list);
   }
 
-  const audioRegistrationMode = parseAudioRegistrationMode(stage.audio_registration_mode);
+  const audioRegistrationMode = parseDefenseAudioRegistrationMode(stage.audio_registration_mode);
+  if (!audioRegistrationMode) {
+    return null;
+  }
   const stageAudioUrl = stage.audio_url;
+  const progressionBars = stage.progression_bars;
 
   const phrases: DefensePhrase[] = phraseRows.map((raw) => {
     const row = raw as PhraseRow;
@@ -217,7 +224,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     };
   });
 
-  return {
+  const mappedStage: DefenseStage = {
     id: stage.id,
     slug: stage.slug,
     stageNumber: stage.stage_number,
@@ -227,6 +234,7 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     beatsPerBar: stage.beats_per_bar,
     audioRegistrationMode,
     audioUrl: stageAudioUrl,
+    progressionBars,
     phraseBars: stage.phrase_bars,
     staffLayout: parseStaffLayout(stage.staff_layout),
     attackTrigger: parseAttackTrigger(stage.attack_trigger),
@@ -239,6 +247,12 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     productionKeyboardHintMode: parseProductionHintMode(stage.production_keyboard_hint_mode),
     phrases,
   };
+
+  if (validateDefenseSharedProgressionStage(mappedStage) !== null) {
+    return null;
+  }
+
+  return mappedStage;
 }
 
 export async function fetchDefenseDifficultyLevel(
@@ -321,18 +335,37 @@ export async function saveDefenseStageAudioRegistration(
   params: SaveDefenseStageAudioRegistrationParams,
 ): Promise<void> {
   const supabase = getSupabaseClient();
+  const phrasePayload = params.phrases.map((phrase) => ({
+    id: phrase.id,
+    audio_url: phrase.audioUrl,
+    loop_start_measure: phrase.loopStartMeasure,
+    loop_end_measure: phrase.loopEndMeasure,
+  }));
+
+  if (params.mode === 'shared_progression') {
+    const { error } = await supabase.rpc('save_defense_stage_audio_registration_v2', {
+      p_stage_id: params.stageId,
+      p_mode: params.mode,
+      p_stage_audio_url: params.stageAudioUrl,
+      p_bpm: params.bpm,
+      p_beats_per_bar: params.beatsPerBar,
+      p_phrase_bars: params.phraseBars ?? null,
+      p_progression_bars: params.progressionBars ?? null,
+      p_phrases: phrasePayload,
+    });
+    if (error) {
+      throw error;
+    }
+    return;
+  }
+
   const { error } = await supabase.rpc('save_defense_stage_audio_registration', {
     p_stage_id: params.stageId,
     p_mode: params.mode,
     p_stage_audio_url: params.stageAudioUrl,
     p_bpm: params.bpm,
     p_beats_per_bar: params.beatsPerBar,
-    p_phrases: params.phrases.map((phrase) => ({
-      id: phrase.id,
-      audio_url: phrase.audioUrl,
-      loop_start_measure: phrase.loopStartMeasure,
-      loop_end_measure: phrase.loopEndMeasure,
-    })),
+    p_phrases: phrasePayload,
   });
 
   if (error) {

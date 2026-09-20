@@ -2290,6 +2290,7 @@ final class SupabaseService: Sendable {
             let bpm: Double
             let beats_per_bar: Int
             let phrase_bars: Int
+            let progression_bars: Int?
             let audio_registration_mode: String
             let audio_url: String?
             let staff_layout: String
@@ -2333,7 +2334,7 @@ final class SupabaseService: Sendable {
             .from("defense_stages")
             .select("""
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
-                audio_registration_mode, audio_url,
+                progression_bars, audio_registration_mode, audio_url,
                 staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
                 survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
             """)
@@ -2399,8 +2400,9 @@ final class SupabaseService: Sendable {
             chordsByPhrase[row.phrase_id, default: []].append(chord)
         }
 
-        let audioRegistrationMode: DefenseAudioRegistrationMode =
-            stage.audio_registration_mode == "single_source" ? .singleSource : .perPhrase
+        guard let audioRegistrationMode = DefenseAudioRegistrationModeParser.parse(stage.audio_registration_mode) else {
+            return nil
+        }
         let stageAudioUrl = stage.audio_url
 
         let phrases = phraseRows.map { row in
@@ -2420,7 +2422,7 @@ final class SupabaseService: Sendable {
             )
         }
 
-        return DefenseStageDefinition(
+        let mappedStage = DefenseStageDefinition(
             id: stage.id,
             slug: stage.slug,
             stageNumber: stage.stage_number,
@@ -2430,6 +2432,7 @@ final class SupabaseService: Sendable {
             beatsPerBar: stage.beats_per_bar,
             audioRegistrationMode: audioRegistrationMode,
             audioUrl: stageAudioUrl,
+            progressionBars: stage.progression_bars,
             phraseBars: stage.phrase_bars,
             staffLayout: stage.staff_layout == "grand" ? .grand : .treble,
             attackTrigger: stage.attack_trigger == "measure" ? .measure : .note,
@@ -2442,6 +2445,12 @@ final class SupabaseService: Sendable {
             productionKeyboardHintMode: stage.production_keyboard_hint_mode,
             phrases: phrases
         )
+
+        if DefenseSharedProgressionValidation.validate(stage: mappedStage) != nil {
+            return nil
+        }
+
+        return mappedStage
     }
 
     func fetchDefenseDifficultyLevel(

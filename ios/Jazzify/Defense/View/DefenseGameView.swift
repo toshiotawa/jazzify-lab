@@ -127,6 +127,7 @@ struct DefenseGameView: View {
             }
         }
         .sheet(isPresented: $isSettingsOpen, onDismiss: {
+            session.setSharedProgressionPaused(false)
             session.isPaused = false
         }) {
             EarTrainingSettingsSheet(
@@ -417,6 +418,7 @@ struct DefenseGameView: View {
             healthRowTrailingReserve: 216,
             onSettings: {
                 session.isPaused = true
+                session.setSharedProgressionPaused(true)
                 isSettingsOpen = true
             },
             onBack: onClose,

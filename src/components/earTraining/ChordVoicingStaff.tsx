@@ -89,6 +89,8 @@ interface ChordVoicingStaffProps {
   singleMeasureLayout?: boolean;
   /** コード名ラベル帯と上部余白を畳む（既定: false）。 */
   hideChordLabels?: boolean;
+  /** true のときコード名ラベルを移調せず登録文字列のまま表示する。 */
+  literalChordLabels?: boolean;
   /**
    * 1 和弦・単一小節向けに五線横幅を縮める。単位譜のみのため `singleMeasureLayout` を内部で許容済みとして扱う。
    */
@@ -1593,6 +1595,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
   compactSingleMeasure = false,
   smuflUseForeignObject = false,
   hideChordLabels = false,
+  literalChordLabels = false,
   noteCollisionLayout = 'anchor-low',
   fadeAllMeasureNotes = false,
   alwaysShowTopPointer = false,
@@ -1637,9 +1640,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
         .filter(group => group.isRest === true || group.voicing.length > 0)
         .map(group => ({
           ...group,
-          chordName: writtenOffset !== 0
-            ? transposeChordLabel(group.chordName, writtenOffset)
-            : group.chordName,
+          chordName: literalChordLabels || writtenOffset === 0
+            ? group.chordName
+            : transposeChordLabel(group.chordName, writtenOffset),
           measureOffset: group.measureOffset === 1 ? 1 : 0,
           isRest: group.isRest === true || group.voicing.length === 0,
         }));
@@ -1649,7 +1652,9 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     }
     return [{
       id: 'single',
-      chordName: writtenOffset !== 0 ? transposeChordLabel(chordName, writtenOffset) : chordName,
+      chordName: literalChordLabels || writtenOffset === 0
+        ? chordName
+        : transposeChordLabel(chordName, writtenOffset),
       voicing,
       voicingStaves: normalizedVoicingStaves,
       correctPitchClasses: normalizedCorrectPitchClasses,
@@ -1662,6 +1667,7 @@ const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
     normalizedVoicingStaves,
     voicing,
     writtenOffset,
+    literalChordLabels,
   ]);
 
   const renderState = useMemo(() => {

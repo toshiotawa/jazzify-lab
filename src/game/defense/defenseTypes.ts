@@ -5,8 +5,8 @@ import type { ProductionHintMode } from '@/types';
 
 export type DefenseStaffLayout = 'treble' | 'grand';
 
-/** Backing track registration: one file per phrase, or one shared file with per-phrase measure ranges. */
-export type DefenseAudioRegistrationMode = 'per_phrase' | 'single_source';
+/** Backing track registration: per-phrase files, one shared file with ranges, or shared progression files. */
+export type DefenseAudioRegistrationMode = 'per_phrase' | 'single_source' | 'shared_progression';
 
 /** When player slash fires: each correct pitch (`note`) or chord/measure complete (`measure`). */
 export type DefenseAttackTrigger = 'note' | 'measure';
@@ -52,6 +52,8 @@ export interface DefenseStage {
   readonly audioRegistrationMode: DefenseAudioRegistrationMode;
   /** Shared backing URL when `audioRegistrationMode` is `single_source`. */
   readonly audioUrl: string | null;
+  /** Full progression length in bars when `audioRegistrationMode` is `shared_progression`. */
+  readonly progressionBars: number | null;
   readonly phraseBars: number;
   readonly staffLayout: DefenseStaffLayout;
   readonly attackTrigger: DefenseAttackTrigger;

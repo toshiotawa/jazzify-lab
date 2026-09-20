@@ -283,6 +283,7 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
             beatsPerBar: 4,
             audioRegistrationMode: .perPhrase,
             audioUrl: nil,
+            progressionBars: nil,
             phraseBars: 1,
             staffLayout: .treble,
             attackTrigger: .note,
