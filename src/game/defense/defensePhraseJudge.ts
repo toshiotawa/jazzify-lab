@@ -245,9 +245,8 @@ export const evaluateDefensePhraseNoteOn = (
   const playRootMidi = stepAdvanced
     ? resolvePlayRootMidi(chord, completedStepIndex, playRootOnChordChange)
     : null;
-  const stepCompleted = evaluation.result === 'progress' || evaluation.result === 'measure-complete';
   const attackOnStep = isVoicingMode
-    ? stepCompleted
+    ? stepAdvanced
     : (evaluation.result === 'measure-complete' || attackTrigger === 'note');
 
   if (evaluation.result === 'measure-complete') {

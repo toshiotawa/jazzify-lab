@@ -182,6 +182,138 @@ describe('defensePhraseJudge', () => {
     expect(afterDm7.nextState.correctNoteIndices.size).toBe(0);
   });
 
+  it('fires attack only when voicing completes in chord voicing mode', () => {
+    const voicingPhrase: DefensePhrase = {
+      ...phraseA,
+      chords: [
+        {
+          id: 'cv0',
+          orderIndex: 0,
+          chordName: 'Gm7(9)',
+          measureNumber: 1,
+          notes: [
+            { orderIndex: 0, pitchMidi: 53, pitchClass: 5, noteName: 'F3', staff: 2, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 58, pitchClass: 10, noteName: 'Bb3', staff: 2, stepIndex: 0 },
+            { orderIndex: 2, pitchMidi: 62, pitchClass: 2, noteName: 'D4', staff: 1, stepIndex: 0 },
+            { orderIndex: 3, pitchMidi: 69, pitchClass: 9, noteName: 'A4', staff: 1, stepIndex: 0 },
+          ],
+        },
+      ],
+    };
+    const phrases = [voicingPhrase];
+    const initial = createInitialPhraseJudgeState(0);
+    const cvOpts = ['measure', true, 'chord_voicing', true] as const;
+
+    const first = evaluateDefensePhraseNoteOn(phrases, 1, initial, 5, false, ...cvOpts);
+    expect(first.attack).toBe(false);
+    let state = first.nextState;
+
+    const second = evaluateDefensePhraseNoteOn(phrases, 1, state, 10, false, ...cvOpts);
+    expect(second.attack).toBe(false);
+    state = second.nextState;
+
+    const third = evaluateDefensePhraseNoteOn(phrases, 1, state, 2, false, ...cvOpts);
+    expect(third.attack).toBe(false);
+    state = third.nextState;
+
+    const complete = evaluateDefensePhraseNoteOn(phrases, 1, state, 9, false, ...cvOpts);
+    expect(complete.attack).toBe(true);
+    expect(complete.measureCompleted).toBe(true);
+  });
+
+  it('fires attack on voicing complete even when attack_trigger is note', () => {
+    const voicingPhrase: DefensePhrase = {
+      ...phraseA,
+      chords: [
+        {
+          id: 'cv0',
+          orderIndex: 0,
+          chordName: 'Gm7(9)',
+          measureNumber: 1,
+          notes: [
+            { orderIndex: 0, pitchMidi: 53, pitchClass: 5, noteName: 'F3', staff: 2, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 58, pitchClass: 10, noteName: 'Bb3', staff: 2, stepIndex: 0 },
+            { orderIndex: 2, pitchMidi: 62, pitchClass: 2, noteName: 'D4', staff: 1, stepIndex: 0 },
+            { orderIndex: 3, pitchMidi: 69, pitchClass: 9, noteName: 'A4', staff: 1, stepIndex: 0 },
+          ],
+        },
+      ],
+    };
+    const phrases = [voicingPhrase];
+    const initial = createInitialPhraseJudgeState(0);
+
+    const first = evaluateDefensePhraseNoteOn(
+      phrases, 1, initial, 5, false, 'note', true, 'chord_voicing', true,
+    );
+    expect(first.attack).toBe(false);
+    let state = first.nextState;
+
+    const second = evaluateDefensePhraseNoteOn(
+      phrases, 1, state, 10, false, 'note', true, 'chord_voicing', true,
+    );
+    expect(second.attack).toBe(false);
+    state = second.nextState;
+
+    const third = evaluateDefensePhraseNoteOn(
+      phrases, 1, state, 2, false, 'note', true, 'chord_voicing', true,
+    );
+    expect(third.attack).toBe(false);
+    state = third.nextState;
+
+    const complete = evaluateDefensePhraseNoteOn(
+      phrases, 1, state, 9, false, 'note', true, 'chord_voicing', true,
+    );
+    expect(complete.attack).toBe(true);
+  });
+
+  it('fires attack per step when one measure has multiple voicings', () => {
+    const twoStepPhrase: DefensePhrase = {
+      ...phraseA,
+      chords: [
+        {
+          id: 'dm7-g7',
+          orderIndex: 0,
+          chordName: 'Dm7 | G7',
+          measureNumber: 1,
+          notes: [
+            { orderIndex: 0, pitchMidi: 50, pitchClass: 2, noteName: 'D3', staff: 2, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 53, pitchClass: 5, noteName: 'F3', staff: 2, stepIndex: 0 },
+            { orderIndex: 2, pitchMidi: 57, pitchClass: 9, noteName: 'A3', staff: 2, stepIndex: 0 },
+            { orderIndex: 3, pitchMidi: 60, pitchClass: 0, noteName: 'C4', staff: 1, stepIndex: 0 },
+            { orderIndex: 4, pitchMidi: 43, pitchClass: 7, noteName: 'G2', staff: 2, stepIndex: 1 },
+            { orderIndex: 5, pitchMidi: 53, pitchClass: 5, noteName: 'F3', staff: 2, stepIndex: 1 },
+            { orderIndex: 6, pitchMidi: 59, pitchClass: 11, noteName: 'B3', staff: 2, stepIndex: 1 },
+            { orderIndex: 7, pitchMidi: 62, pitchClass: 2, noteName: 'D4', staff: 1, stepIndex: 1 },
+          ],
+        },
+      ],
+    };
+    const phrases = [twoStepPhrase];
+    let state = createInitialPhraseJudgeState(0);
+    const cvOpts = ['measure', true, 'chord_voicing', true] as const;
+
+    for (const pc of [2, 5, 9] as const) {
+      const step = evaluateDefensePhraseNoteOn(phrases, 1, state, pc, false, ...cvOpts);
+      expect(step.attack).toBe(false);
+      state = step.nextState;
+    }
+
+    const dm7Complete = evaluateDefensePhraseNoteOn(phrases, 1, state, 0, false, ...cvOpts);
+    expect(dm7Complete.attack).toBe(true);
+    expect(dm7Complete.measureCompleted).toBe(false);
+    state = dm7Complete.nextState;
+
+    for (const pc of [7, 5, 11] as const) {
+      const step = evaluateDefensePhraseNoteOn(phrases, 1, state, pc, false, ...cvOpts);
+      expect(step.attack).toBe(false);
+      state = step.nextState;
+    }
+
+    const g7Complete = evaluateDefensePhraseNoteOn(phrases, 1, state, 2, false, ...cvOpts);
+    expect(g7Complete.attack).toBe(true);
+    expect(g7Complete.measureCompleted).toBe(true);
+  });
+
   it('plays root only when labeled voicing completes in chord voicing mode', () => {
     const voicingPhrase: DefensePhrase = {
       ...phraseA,

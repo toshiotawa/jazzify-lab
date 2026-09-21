@@ -194,6 +194,230 @@ final class DefensePhraseJudgeTests: XCTestCase {
         XCTAssertTrue(afterDm7.nextState.correctNoteIndices.isEmpty)
     }
 
+    func testChordVoicingFiresAttackOnlyWhenVoicingCompletes() {
+        let voicingPhrase = DefensePhraseDefinition(
+            id: "cv",
+            orderIndex: 0,
+            title: "CV",
+            audioUrl: "https://example.com/cv.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "cv0",
+                    orderIndex: 0,
+                    chordName: "Gm7(9)",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 58, pitchClass: 10, noteName: "Bb3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 62, pitchClass: 2, noteName: "D4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 69, pitchClass: 9, noteName: "A4", staff: 1, stepIndex: 0),
+                    ]
+                ),
+            ]
+        )
+        let initial = DefensePhraseJudge.createInitialState(phrases: [voicingPhrase])
+
+        let first = DefensePhraseJudge.evaluateNoteOn(
+            state: initial,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 5,
+            attackTrigger: .measure,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertFalse(first.attack)
+
+        var state = first.nextState
+        let second = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 10,
+            attackTrigger: .measure,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertFalse(second.attack)
+        state = second.nextState
+
+        let third = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 2,
+            attackTrigger: .measure,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertFalse(third.attack)
+        state = third.nextState
+
+        let complete = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 9,
+            attackTrigger: .measure,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertTrue(complete.attack)
+        XCTAssertTrue(complete.measureCompleted)
+    }
+
+    func testChordVoicingFiresAttackOnCompleteEvenWhenAttackTriggerIsNote() {
+        let voicingPhrase = DefensePhraseDefinition(
+            id: "cv",
+            orderIndex: 0,
+            title: "CV",
+            audioUrl: "https://example.com/cv.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "cv0",
+                    orderIndex: 0,
+                    chordName: "Gm7(9)",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 58, pitchClass: 10, noteName: "Bb3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 62, pitchClass: 2, noteName: "D4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 69, pitchClass: 9, noteName: "A4", staff: 1, stepIndex: 0),
+                    ]
+                ),
+            ]
+        )
+        let initial = DefensePhraseJudge.createInitialState(phrases: [voicingPhrase])
+
+        let first = DefensePhraseJudge.evaluateNoteOn(
+            state: initial,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 5,
+            attackTrigger: .note,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertFalse(first.attack)
+
+        var state = first.nextState
+        let second = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 10,
+            attackTrigger: .note,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertFalse(second.attack)
+        state = second.nextState
+
+        let third = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 2,
+            attackTrigger: .note,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertFalse(third.attack)
+        state = third.nextState
+
+        let complete = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 9,
+            attackTrigger: .note,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertTrue(complete.attack)
+    }
+
+    func testChordVoicingFiresAttackPerStepInOneMeasure() {
+        let twoStepPhrase = DefensePhraseDefinition(
+            id: "two-step",
+            orderIndex: 0,
+            title: "Dm7 G7",
+            audioUrl: "https://example.com/two.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "dm7-g7",
+                    orderIndex: 0,
+                    chordName: "Dm7 | G7",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 50, pitchClass: 2, noteName: "D3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 57, pitchClass: 9, noteName: "A3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 60, pitchClass: 0, noteName: "C4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 4, pitchMidi: 43, pitchClass: 7, noteName: "G2", staff: 2, stepIndex: 1),
+                        SurvivalPhraseChordNote(orderIndex: 5, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 1),
+                        SurvivalPhraseChordNote(orderIndex: 6, pitchMidi: 59, pitchClass: 11, noteName: "B3", staff: 2, stepIndex: 1),
+                        SurvivalPhraseChordNote(orderIndex: 7, pitchMidi: 62, pitchClass: 2, noteName: "D4", staff: 1, stepIndex: 1),
+                    ]
+                ),
+            ]
+        )
+        var state = DefensePhraseJudge.createInitialState(phrases: [twoStepPhrase])
+
+        for pc in [2, 5, 9] {
+            let step = DefensePhraseJudge.evaluateNoteOn(
+                state: state,
+                stageRequiredCompletionCount: 1,
+                pitchClass: pc,
+                attackTrigger: .measure,
+                playStyle: .chordVoicing,
+                playRootOnChordChange: true
+            )
+            XCTAssertFalse(step.attack)
+            state = step.nextState
+        }
+
+        let dm7Complete = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 0,
+            attackTrigger: .measure,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertTrue(dm7Complete.attack)
+        XCTAssertFalse(dm7Complete.measureCompleted)
+        state = dm7Complete.nextState
+
+        for pc in [7, 5, 11] {
+            let step = DefensePhraseJudge.evaluateNoteOn(
+                state: state,
+                stageRequiredCompletionCount: 1,
+                pitchClass: pc,
+                attackTrigger: .measure,
+                playStyle: .chordVoicing,
+                playRootOnChordChange: true
+            )
+            XCTAssertFalse(step.attack)
+            state = step.nextState
+        }
+
+        let g7Complete = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 2,
+            attackTrigger: .measure,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertTrue(g7Complete.attack)
+        XCTAssertTrue(g7Complete.measureCompleted)
+    }
+
     func testPlaysRootOnlyWhenLabeledVoicingCompletesInChordVoicingMode() {
         let voicingPhrase = DefensePhraseDefinition(
             id: "cv",

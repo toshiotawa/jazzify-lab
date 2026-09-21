@@ -131,9 +131,8 @@ enum DefensePhraseJudge {
                 playRootOnChordChange: playRootOnChordChange
             )
             : nil
-        let stepCompleted = evaluation.result == .progress || evaluation.result == .measureComplete
         let attackOnStep = isVoicingMode
-            ? stepCompleted
+            ? stepAdvanced
             : (evaluation.result == .measureComplete || attackTrigger == .note)
 
         if evaluation.result == .measureComplete {
