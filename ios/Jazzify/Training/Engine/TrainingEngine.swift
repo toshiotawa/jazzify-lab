@@ -163,8 +163,15 @@ enum TrainingEngine {
             let groupCorrectIndices = activeGroup.map { group in
                 correctIndices.filter { (question.notes[safe: $0]?.groupIndex ?? 0) == group }
             } ?? correctIndices
-            let expectedPcs = scopedRemaining.compactMap { question.notes[safe: $0]?.pitchClass }
-            let nextExpectedPc = expectedPcs[safe: groupCorrectIndices.count]
+            let scopedTargets = targets.filter { index in
+                activeGroup == nil || (question.notes[safe: index]?.groupIndex ?? 0) == activeGroup
+            }
+            let targetMidis = scopedTargets.compactMap { question.notes[safe: $0]?.midi }
+            let completedPcs = groupCorrectIndices.compactMap { question.notes[safe: $0]?.pitchClass }
+            let nextExpectedPc = SurvivalChordResolver.nextExpectedPitchClass(
+                fromMidis: targetMidis,
+                inputPitchClasses: completedPcs
+            )
             if nextExpectedPc != pitchClass {
                 return TrainingNoteEvaluationResult(
                     accepted: false,

@@ -9,7 +9,7 @@ import { DEFENSE_SLASH_SEC } from '@/game/defense/defenseEnemyConfig';
 import {
   computeOrderedChordKeyboardHintsFromMidis,
   type OrderedChordKeyboardHints,
-  orderedPitchClassesFromMidis,
+  shouldAcceptChordPitchClassInput,
 } from '@/utils/orderedChordInput';
 
 interface TrainingNoteEvaluationResult {
@@ -183,15 +183,22 @@ export const evaluateTrainingNoteOn = (
     const groupCorrectIndices = activeGroupIndex == null
       ? correctIndices
       : correctIndices.filter((index) => (question.notes[index]?.groupIndex ?? 0) === activeGroupIndex);
-    const pressedMidis = groupCorrectIndices
-      .map((i) => question.notes[i]?.midi)
-      .filter((m): m is number => m != null);
-    pressedMidis.push(midiNote);
-    const expectedPcs = scopedRemaining
-      .map((i) => question.notes[i]?.pitchClass)
+    const scopedTargets = activeGroupIndex == null
+      ? targets
+      : targets.filter((index) => (question.notes[index]?.groupIndex ?? 0) === activeGroupIndex);
+    const targetMidis = scopedTargets
+      .map((index) => question.notes[index]?.midi)
+      .filter((midi): midi is number => midi != null);
+    const completedPcs = groupCorrectIndices
+      .map((index) => question.notes[index]?.pitchClass)
       .filter((pc): pc is number => pc != null);
-    const nextExpectedPc = expectedPcs[groupCorrectIndices.length];
-    if (nextExpectedPc == null || pitchClass !== nextExpectedPc) {
+    const acceptance = shouldAcceptChordPitchClassInput(
+      targetMidis,
+      completedPcs,
+      midiNote,
+      true,
+    );
+    if (!acceptance.accept) {
       return {
         accepted: false,
         completed: false,

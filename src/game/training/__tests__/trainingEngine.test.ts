@@ -47,6 +47,45 @@ describe('trainingEngine', () => {
     expect(second.accepted).toBe(true);
   });
 
+  it('voice sequential accepts four-note voicing bottom-up (Gm7: F3 Bb3 D4 A4)', () => {
+    const q = makeQuestion({
+      promptLabel: 'Gm7',
+      notes: [
+        { noteName: 'F3', midi: 53, pitchClass: 5, staff: 2, isTarget: true },
+        { noteName: 'Bb3', midi: 58, pitchClass: 10, staff: 2, isTarget: true },
+        { noteName: 'D4', midi: 62, pitchClass: 2, staff: 1, isTarget: true },
+        { noteName: 'A4', midi: 69, pitchClass: 9, staff: 1, isTarget: true },
+      ],
+    });
+    const first = evaluateTrainingNoteOn(q, [], 53, true);
+    expect(first.accepted).toBe(true);
+    const second = evaluateTrainingNoteOn(q, first.newCorrectIndices, 58, true);
+    expect(second.accepted).toBe(true);
+    const skipThird = evaluateTrainingNoteOn(q, first.newCorrectIndices, 62, true);
+    expect(skipThird.accepted).toBe(false);
+    const third = evaluateTrainingNoteOn(q, second.newCorrectIndices, 62, true);
+    expect(third.accepted).toBe(true);
+    const fourth = evaluateTrainingNoteOn(q, third.newCorrectIndices, 69, true);
+    expect(fourth.accepted).toBe(true);
+    expect(fourth.completed).toBe(true);
+  });
+
+  it('voice sequential uses MIDI order even when note array is not sorted', () => {
+    const q = makeQuestion({
+      promptLabel: 'Gm7',
+      notes: [
+        { noteName: 'A4', midi: 69, pitchClass: 9, staff: 1, isTarget: true },
+        { noteName: 'D4', midi: 62, pitchClass: 2, staff: 1, isTarget: true },
+        { noteName: 'Bb3', midi: 58, pitchClass: 10, staff: 2, isTarget: true },
+        { noteName: 'F3', midi: 53, pitchClass: 5, staff: 2, isTarget: true },
+      ],
+    });
+    const wrong = evaluateTrainingNoteOn(q, [], 69, true);
+    expect(wrong.accepted).toBe(false);
+    const first = evaluateTrainingNoteOn(q, [], 53, true);
+    expect(first.accepted).toBe(true);
+  });
+
   it('requires ordered inversion chord input bottom to top', () => {
     const q = makeQuestion({
       ordered: true,

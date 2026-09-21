@@ -143,6 +143,90 @@ final class TrainingEngineTests: XCTestCase {
         XCTAssertTrue(third.completed)
     }
 
+    func testVoiceSequentialAcceptsFourNoteVoicingBottomUp() {
+        let question = TrainingQuestion(
+            questionKey: "gm7",
+            promptLabel: "Gm7",
+            notes: [
+                TrainingQuestionNote(noteName: "F3", midi: 53, pitchClass: 5, staff: 2, isTarget: true),
+                TrainingQuestionNote(noteName: "Bb3", midi: 58, pitchClass: 10, staff: 2, isTarget: true),
+                TrainingQuestionNote(noteName: "D4", midi: 62, pitchClass: 2, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "A4", midi: 69, pitchClass: 9, staff: 1, isTarget: true),
+            ],
+            layout: .stacked,
+            ordered: false,
+            keyFifths: 0,
+            rootMidi: 41
+        )
+        let first = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [],
+            midiNote: 53,
+            sequential: true
+        )
+        XCTAssertTrue(first.accepted)
+        let second = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: first.newCorrectIndices,
+            midiNote: 58,
+            sequential: true
+        )
+        XCTAssertTrue(second.accepted)
+        let skipThird = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: first.newCorrectIndices,
+            midiNote: 62,
+            sequential: true
+        )
+        XCTAssertFalse(skipThird.accepted)
+        let third = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: second.newCorrectIndices,
+            midiNote: 62,
+            sequential: true
+        )
+        XCTAssertTrue(third.accepted)
+        let fourth = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: third.newCorrectIndices,
+            midiNote: 69,
+            sequential: true
+        )
+        XCTAssertTrue(fourth.accepted)
+        XCTAssertTrue(fourth.completed)
+    }
+
+    func testVoiceSequentialUsesMidiOrderWhenNoteArrayIsNotSorted() {
+        let question = TrainingQuestion(
+            questionKey: "gm7-unsorted",
+            promptLabel: "Gm7",
+            notes: [
+                TrainingQuestionNote(noteName: "A4", midi: 69, pitchClass: 9, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "D4", midi: 62, pitchClass: 2, staff: 1, isTarget: true),
+                TrainingQuestionNote(noteName: "Bb3", midi: 58, pitchClass: 10, staff: 2, isTarget: true),
+                TrainingQuestionNote(noteName: "F3", midi: 53, pitchClass: 5, staff: 2, isTarget: true),
+            ],
+            layout: .stacked,
+            ordered: false,
+            keyFifths: 0,
+            rootMidi: 41
+        )
+        let wrong = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [],
+            midiNote: 69,
+            sequential: true
+        )
+        XCTAssertFalse(wrong.accepted)
+        let first = TrainingEngine.evaluateNoteOn(
+            question: question,
+            correctIndices: [],
+            midiNote: 53,
+            sequential: true
+        )
+        XCTAssertTrue(first.accepted)
+    }
+
     func testSequentialKeyboardHintsMatchOrderedAndVoiceRules() {
         let ordered = TrainingQuestion(
             questionKey: "ordered",
