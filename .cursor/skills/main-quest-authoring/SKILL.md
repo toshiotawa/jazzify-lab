@@ -122,6 +122,7 @@ node scripts/generate-mq-block3-ch4-ch5-migration.mjs
 
 - `ear_training_phrases.note_count` は **0〜32** → 大きい N は `note_count=0`、実ターゲットは `enemy_hp` 側
 - `lesson_songs` に **`updated_at` 列なし** → ON CONFLICT で触らない
+- OSMD チュートリアル（`type: chord_osmd`）は **`timedLines` 必須**（演奏中セリフなしなら `timedLines: []`）。未設定だと Web が再生直前に TypeError で止まる
 - 大きな SQL は `.cursor/*_chunks/*.sql` に分割し、Supabase MCP `execute_sql` で順適用
 
 ## 6. DB 適用と検証

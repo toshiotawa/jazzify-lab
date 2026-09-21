@@ -447,7 +447,7 @@ const ch6Q1EarTutorial = {
         { speaker: 'player', ja: 'Voice4のキュー音符、頼りにするね。', en: 'I will lean on the Voice4 cue notes.' },
       ],
     },
-    { type: 'chord_osmd', contentRef: 'mq-b5-6-1-2-osmd', requiredLoops: 1 },
+    { type: 'chord_osmd', contentRef: 'mq-b5-6-1-2-osmd', requiredLoops: 1, timedLines: [] },
     {
       type: 'dialogue_only',
       lineIntervalSeconds: 4,
@@ -549,7 +549,7 @@ const ch6Q5EarTutorial = {
       { speaker: 'partner', ja: 'F・Ab・Bb と C・Eb・F。2つの3音セットを行き来するんじゃ。', en: 'F Ab Bb and C Eb F — move between these two three-note sets.' },
       { speaker: 'player', ja: 'セットを切り替える感覚、練習してみる！', en: 'I will practice switching between the sets!' },
     ],
-  }, { type: 'chord_osmd', contentRef: 'mq-b5-6-5-4-osmd', requiredLoops: 1 }, { type: 'finish' }],
+  }, { type: 'chord_osmd', contentRef: 'mq-b5-6-5-4-osmd', requiredLoops: 1, timedLines: [] }, { type: 'finish' }],
   finish: { showCta: true },
 };
 
@@ -621,7 +621,7 @@ const ch6Q6EarTutorial = {
       { speaker: 'partner', ja: 'Fペンタトニックじゃ。60BPM、ストレートでゆっくり確かめる。', en: 'F pentatonic — 60 BPM, straight feel, take it slow.' },
       { speaker: 'player', ja: '5つの音だけ…シンプルだけど奥深いね。', en: 'Only five notes — simple yet deep.' },
     ],
-  }, { type: 'chord_osmd', contentRef: 'mq-b5-6-6-1-osmd', requiredLoops: 1 }, { type: 'finish' }],
+  }, { type: 'chord_osmd', contentRef: 'mq-b5-6-6-1-osmd', requiredLoops: 1, timedLines: [] }, { type: 'finish' }],
   finish: { showCta: true },
 };
 

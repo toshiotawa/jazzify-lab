@@ -35,16 +35,17 @@ export const scheduleDialogueInterval = (
   };
 };
 
+export type OsmdTimedLine =
+  | { phase: 'count_in'; loop?: number; beat: number; text: TutorialLocalizedText }
+  | { at: { loop: number; measure: number; beat: number }; text: TutorialLocalizedText };
+
 export interface ScheduleOsmdTimedLinesParams {
   bpm: number;
   beatsPerMeasure: number;
   countInBeats: number;
   loopMeasures: number;
   phraseLoopDurationSec: number;
-  timedLines: ReadonlyArray<
-    | { phase: 'count_in'; loop?: number; beat: number; text: TutorialLocalizedText }
-    | { at: { loop: number; measure: number; beat: number }; text: TutorialLocalizedText }
-  >;
+  timedLines?: ReadonlyArray<OsmdTimedLine>;
   isEnglishCopy: boolean;
   onLine: (text: string) => void;
   /** 2 ループ目以降はカウントイン省略 */
@@ -53,7 +54,7 @@ export interface ScheduleOsmdTimedLinesParams {
 
 export const computeOsmdTimedLineDelayMs = (
   params: ScheduleOsmdTimedLinesParams,
-  line: ScheduleOsmdTimedLinesParams['timedLines'][number],
+  line: OsmdTimedLine,
   loopIndex: number,
 ): number | null => {
   const beatDurationSec = 60 / Math.max(1, params.bpm);
@@ -96,7 +97,8 @@ export const scheduleOsmdTimedLinesForLoop = (
   params: ScheduleOsmdTimedLinesParams & { loopIndex: number },
 ): DialogueScheduleHandle => {
   const timers: ReturnType<typeof setTimeout>[] = [];
-  for (const line of params.timedLines) {
+  const lines = params.timedLines ?? [];
+  for (const line of lines) {
     const delayMs = computeOsmdTimedLineDelayMs(params, line, params.loopIndex);
     if (delayMs === null) {
       continue;

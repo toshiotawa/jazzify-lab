@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   computeOsmdTimedLineDelayMs,
   scheduleDialogueInterval,
+  scheduleOsmdTimedLinesForLoop,
 } from './scheduleTimedDialogueLines';
 
 describe('scheduleDialogueInterval', () => {
@@ -63,5 +64,54 @@ describe('computeOsmdTimedLineDelayMs', () => {
     const line = { at: { loop: 0, measure: 2, beat: 1 }, text: { ja: 'm2', en: 'm2' } };
     expect(computeOsmdTimedLineDelayMs(params, line, 0)).toBe(2400);
     expect(computeOsmdTimedLineDelayMs(params, line, 1)).toBeNull();
+  });
+});
+
+describe('scheduleOsmdTimedLinesForLoop', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const baseParams = {
+    bpm: 100,
+    beatsPerMeasure: 4,
+    countInBeats: 0,
+    loopMeasures: 4,
+    phraseLoopDurationSec: 9.6,
+    isEnglishCopy: false,
+    onLine: vi.fn(),
+    loopIndex: 0,
+  };
+
+  it('does not throw when timedLines is undefined', () => {
+    expect(() => scheduleOsmdTimedLinesForLoop({
+      ...baseParams,
+      timedLines: undefined,
+    })).not.toThrow();
+  });
+
+  it('does not schedule timers when timedLines is empty', () => {
+    const onLine = vi.fn();
+    scheduleOsmdTimedLinesForLoop({
+      ...baseParams,
+      timedLines: [],
+      onLine,
+    });
+    vi.advanceTimersByTime(60_000);
+    expect(onLine).not.toHaveBeenCalled();
+  });
+
+  it('does not schedule timers when timedLines is omitted', () => {
+    const onLine = vi.fn();
+    scheduleOsmdTimedLinesForLoop({
+      ...baseParams,
+      onLine,
+    });
+    vi.advanceTimersByTime(60_000);
+    expect(onLine).not.toHaveBeenCalled();
   });
 });

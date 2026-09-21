@@ -216,7 +216,7 @@ export interface EarTrainingTutorialOsmdScene {
   type: 'chord_osmd';
   contentRef: string;
   requiredLoops: number;
-  timedLines: EarTrainingTutorialOsmdTimedLine[];
+  timedLines?: readonly EarTrainingTutorialOsmdTimedLine[];
 }
 
 export interface EarTrainingTutorialOsmdSceneResult {

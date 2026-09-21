@@ -307,6 +307,7 @@ const ch5Q1Tutorial = {
       type: 'chord_osmd',
       contentRef: 'mq-b4-5-1-1-osmd',
       requiredLoops: 1,
+      timedLines: [],
     },
     {
       type: 'dialogue_only',
