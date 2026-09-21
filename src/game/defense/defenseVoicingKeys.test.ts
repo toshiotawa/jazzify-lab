@@ -13,7 +13,6 @@ import {
   transposeDefensePhraseToKey,
 } from '@/game/defense/defenseVoicingKeys';
 import { computeDefenseKeyboardMidis, computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
-import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { ABA_VOICINGS_BY_KEY } from '@/utils/twoHandVoicingIntermediateCourse';
 
 describe('defenseVoicingKeys', () => {
@@ -106,7 +105,7 @@ describe('defenseVoicingKeys', () => {
     expect(lowest).toBeGreaterThanOrEqual(41);
   });
 
-  it('keeps II-V-I relative register when lifting above F3', () => {
+  it('keeps F major II-V-I in the same register as training ABA', () => {
     const fSet = ABA_VOICINGS_BY_KEY.F;
     const toChord = (
       id: string,
@@ -143,16 +142,10 @@ describe('defenseVoicingKeys', () => {
         toChord('c2', 2, fSet.i.displayName, fSet.i.notes, 3),
       ],
     };
-    const templateLow = (notes: readonly string[]) => Math.min(
-      ...notes.map((name) => parseVoicingNoteName(name).midi),
-    );
-    const placed = transposeDefensePhraseToKey(phrase, 'F', 'F', 'F3');
-    const placedLow = (index: number) => Math.min(
-      ...placed.chords[index]?.notes.map((note) => note.pitchMidi) ?? [0],
-    );
-    expect(placedLow(1) - placedLow(0)).toBe(templateLow(fSet.v.notes) - templateLow(fSet.ii.notes));
-    expect(placedLow(2) - placedLow(0)).toBe(templateLow(fSet.i.notes) - templateLow(fSet.ii.notes));
-    expect(Math.min(placedLow(0), placedLow(1), placedLow(2))).toBeGreaterThanOrEqual(53);
+    const placed = transposeDefensePhraseToKey(phrase, 'F', 'F', 'E3');
+    expect(placed.chords[0]?.notes.map((note) => note.noteName)).toEqual([...fSet.ii.notes]);
+    expect(placed.chords[1]?.notes.map((note) => note.noteName)).toEqual([...fSet.v.notes]);
+    expect(placed.chords[2]?.notes.map((note) => note.noteName)).toEqual([...fSet.i.notes]);
   });
 
   it('advanceVoicingKey cycles order mode', () => {

@@ -9,7 +9,7 @@ export const resolvePlayMapDefenseDifficultyLevel = (
     nodeDifficultyLevel != null
     && Number.isInteger(nodeDifficultyLevel)
     && nodeDifficultyLevel >= 1
-    && nodeDifficultyLevel <= 10
+    && nodeDifficultyLevel <= 15
   ) {
     return nodeDifficultyLevel;
   }

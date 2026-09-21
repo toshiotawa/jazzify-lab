@@ -76,7 +76,7 @@ struct PlayMapNode: Codable, Identifiable, Sendable {
     }
 
     func resolvedDefenseDifficultyLevel(stageLevel: Int) -> Int {
-        guard let difficultyLevel, (1...10).contains(difficultyLevel) else {
+        guard let difficultyLevel, (1...15).contains(difficultyLevel) else {
             return stageLevel
         }
         return difficultyLevel

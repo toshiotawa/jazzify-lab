@@ -177,8 +177,8 @@ INSERT INTO public.defense_stages (
   '${stage.titleEn.replace(/'/g, "''")}',
   100, 4, 1, NULL,
   'single_source', '${DRUM}', 'grand', 'measure', -1,
-  1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', '${stage.voicingKeyMode}', 'F', 'F', 'F3', true,
+  1, 15, 120, 20, 'always', 'always',
+  'chord_voicing', '${stage.voicingKeyMode}', 'F', 'F', 'E3', true,
   true, ${stage.stageNumber}
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -191,6 +191,7 @@ ON CONFLICT (id) DO UPDATE SET
   audio_registration_mode = EXCLUDED.audio_registration_mode,
   audio_url = EXCLUDED.audio_url,
   staff_layout = EXCLUDED.staff_layout,
+  difficulty_level = EXCLUDED.difficulty_level,
   play_style = EXCLUDED.play_style,
   voicing_key_mode = EXCLUDED.voicing_key_mode,
   voicing_lowest_key = EXCLUDED.voicing_lowest_key,

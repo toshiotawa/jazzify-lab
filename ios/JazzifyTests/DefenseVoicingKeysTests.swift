@@ -83,7 +83,7 @@ final class DefenseVoicingKeysTests: XCTestCase {
         XCTAssertEqual(active[0].chords.first?.notes.last?.staffChordName, "G7(9.13)")
     }
 
-    func testKeepsRelativeRegisterForFMajorTwoFiveOne() {
+    func testKeepsFMajorTwoFiveOneInTrainingRegister() {
         guard let fSet = TrainingTwoHandVoicingTables.abaSet(key: "F") else {
             XCTFail("missing F ABA set")
             return
@@ -147,23 +147,16 @@ final class DefenseVoicingKeysTests: XCTestCase {
             voicingKeyMode: .order,
             voicingLowestKey: "F",
             voicingStartKey: "F",
-            voicingMinLowestNote: "F3",
+            voicingMinLowestNote: "E3",
             playRootOnChordChange: true,
             phrases: [template],
             progressionChords: []
         )
         let keyState = DefenseVoicingKeys.createInitialKeyState(mode: .order, startKey: "F")
         let placed = DefenseVoicingKeys.buildActivePhrases(stage: stage, keyState: keyState)
-        func lowest(_ notes: [String]) -> Int {
-            notes.compactMap(TrainingMusicTheory.parseVoicingMidi).min() ?? 0
-        }
-        func placedLowest(_ index: Int) -> Int {
-            guard let chords = placed.first?.chords, index < chords.count else { return 0 }
-            return chords[index].notes.map(\.pitchMidi).min() ?? 0
-        }
-        XCTAssertEqual(placedLowest(1) - placedLowest(0), lowest(fSet.v.notes) - lowest(fSet.ii.notes))
-        XCTAssertEqual(placedLowest(2) - placedLowest(0), lowest(fSet.i.notes) - lowest(fSet.ii.notes))
-        XCTAssertGreaterThanOrEqual(min(placedLowest(0), placedLowest(1), placedLowest(2)), 53)
+        XCTAssertEqual(placed.first?.chords[0].notes.map(\.noteName), Array(fSet.ii.notes))
+        XCTAssertEqual(placed.first?.chords[1].notes.map(\.noteName), Array(fSet.v.notes))
+        XCTAssertEqual(placed.first?.chords[2].notes.map(\.noteName), Array(fSet.i.notes))
     }
 
     func testCollectKeyboardMidisIsStableAcrossKeys() {

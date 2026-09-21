@@ -20,7 +20,7 @@ INSERT INTO public.defense_stages (
   100, 4, 1, NULL,
   'single_source', 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3', 'grand', 'measure', -1,
   1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', 'order', 'F', 'F', 'F3', true,
+  'chord_voicing', 'order', 'F', 'F', 'E3', true,
   true, 913
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -126,7 +126,7 @@ INSERT INTO public.defense_stages (
   100, 4, 1, NULL,
   'single_source', 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3', 'grand', 'measure', -1,
   1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', 'random', 'F', 'F', 'F3', true,
+  'chord_voicing', 'random', 'F', 'F', 'E3', true,
   true, 914
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -232,7 +232,7 @@ INSERT INTO public.defense_stages (
   100, 4, 1, NULL,
   'single_source', 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3', 'grand', 'measure', -1,
   1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', 'order', 'F', 'F', 'F3', true,
+  'chord_voicing', 'order', 'F', 'F', 'E3', true,
   true, 915
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -348,7 +348,7 @@ INSERT INTO public.defense_stages (
   100, 4, 1, NULL,
   'single_source', 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3', 'grand', 'measure', -1,
   1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', 'random', 'F', 'F', 'F3', true,
+  'chord_voicing', 'random', 'F', 'F', 'E3', true,
   true, 916
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -464,7 +464,7 @@ INSERT INTO public.defense_stages (
   100, 4, 1, NULL,
   'single_source', 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3', 'grand', 'measure', -1,
   1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', 'order', 'F', 'F', 'F3', true,
+  'chord_voicing', 'order', 'F', 'F', 'E3', true,
   true, 917
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -564,7 +564,7 @@ INSERT INTO public.defense_stages (
   100, 4, 1, NULL,
   'single_source', 'https://jazzify-cdn.com/fantasy-bgm/ear-training-self-paced-drum-loop.mp3', 'grand', 'measure', -1,
   1, 3, 120, 20, 'always', 'always',
-  'chord_voicing', 'random', 'F', 'F', 'F3', true,
+  'chord_voicing', 'random', 'F', 'F', 'E3', true,
   true, 918
 )
 ON CONFLICT (id) DO UPDATE SET
