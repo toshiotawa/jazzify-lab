@@ -7,6 +7,7 @@ enum DefensePhraseJudge {
         let measureCompleted: Bool
         let pendingSwitch: Bool
         let completionCount: Int
+        let playRootMidi: Int?
         let nextState: DefensePhraseJudgeState
     }
 
@@ -39,7 +40,9 @@ enum DefensePhraseJudge {
         pitchClass: Int,
         sequential: Bool = false,
         attackTrigger: DefenseAttackTrigger = .note,
-        autoAdvance: Bool = true
+        autoAdvance: Bool = true,
+        playStyle: DefensePlayStyle = .phrase,
+        playRootOnChordChange: Bool = false
     ) -> Evaluation {
         guard let phrase = state.phrases[safe: state.phraseIndex],
               let chord = phrase.chords[safe: state.chordIndex],
@@ -51,6 +54,7 @@ enum DefensePhraseJudge {
                 measureCompleted: false,
                 pendingSwitch: state.pendingSwitch,
                 completionCount: state.completionCount,
+                playRootMidi: nil,
                 nextState: state
             )
         }
@@ -76,6 +80,7 @@ enum DefensePhraseJudge {
                     measureCompleted: false,
                     pendingSwitch: state.pendingSwitch,
                     completionCount: state.completionCount,
+                    playRootMidi: nil,
                     nextState: state
                 )
             }
@@ -101,6 +106,7 @@ enum DefensePhraseJudge {
                 measureCompleted: false,
                 pendingSwitch: state.pendingSwitch,
                 completionCount: state.completionCount,
+                playRootMidi: nil,
                 nextState: state
             )
         case .progress, .measureComplete:
@@ -112,6 +118,24 @@ enum DefensePhraseJudge {
         next.correctNoteIndices = evaluation.nextState.correctNoteIndices
         next.revealedNoteIndices = evaluation.nextState.revealedNoteIndices
 
+        let isVoicingMode = playStyle == .chordVoicing
+        let completedStepIndex = evaluation.result == .measureComplete
+            ? max(0, steps.count - 1)
+            : state.targetStepIndex
+        let stepAdvanced = evaluation.result == .measureComplete
+            || evaluation.nextState.targetStepIndex > state.targetStepIndex
+        let playRootMidi = stepAdvanced
+            ? resolvePlayRootMidi(
+                chord: chord,
+                stepIndex: completedStepIndex,
+                playRootOnChordChange: playRootOnChordChange
+            )
+            : nil
+        let stepCompleted = evaluation.result == .progress || evaluation.result == .measureComplete
+        let attackOnStep = isVoicingMode
+            ? stepCompleted
+            : (evaluation.result == .measureComplete || attackTrigger == .note)
+
         if evaluation.result == .measureComplete {
             next = advanceChord(next, phrase: phrase)
             if next.chordIndex == 0 {
@@ -121,30 +145,33 @@ enum DefensePhraseJudge {
                 next.completionCount = nextCount
                 next.pendingSwitch = pending
                 return Evaluation(
-                    attack: true,
+                    attack: attackOnStep,
                     phraseCompleted: true,
                     measureCompleted: true,
                     pendingSwitch: pending,
                     completionCount: nextCount,
+                    playRootMidi: playRootMidi,
                     nextState: next
                 )
             }
             return Evaluation(
-                attack: true,
+                attack: attackOnStep,
                 phraseCompleted: false,
                 measureCompleted: true,
                 pendingSwitch: state.pendingSwitch,
                 completionCount: state.completionCount,
+                playRootMidi: playRootMidi,
                 nextState: next
             )
         }
 
         return Evaluation(
-            attack: attackTrigger == .note,
+            attack: attackOnStep,
             phraseCompleted: false,
             measureCompleted: false,
             pendingSwitch: state.pendingSwitch,
             completionCount: state.completionCount,
+            playRootMidi: playRootMidi,
             nextState: next
         )
     }
@@ -209,6 +236,26 @@ enum DefensePhraseJudge {
     static func nextPhraseIndex(phrases: [DefensePhraseDefinition], current: Int) -> Int {
         guard !phrases.isEmpty else { return 0 }
         return (current + 1) % phrases.count
+    }
+
+    private static func resolvePlayRootMidi(
+        chord: SurvivalPhraseChord,
+        stepIndex: Int,
+        playRootOnChordChange: Bool
+    ) -> Int? {
+        guard playRootOnChordChange else { return nil }
+        let label = DefenseStaffChordLabel.label(for: chord, stepIndex: stepIndex)
+        guard !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let steps = SurvivalPhraseChordSteps.getSteps(notes: chord.notes)
+        guard let step = steps[safe: stepIndex] else { return nil }
+        var lowestMidi = Int.max
+        for noteIndex in step.noteIndices {
+            guard let note = chord.notes[safe: noteIndex] else { continue }
+            lowestMidi = min(lowestMidi, note.pitchMidi)
+        }
+        guard lowestMidi != Int.max else { return nil }
+        guard let root = TrainingProgression.parseProgressionChordRoot(label) else { return nil }
+        return TrainingMusicTheory.rootMidiBelow(root: root, lowestMidi: lowestMidi)
     }
 
     private static func advanceChord(

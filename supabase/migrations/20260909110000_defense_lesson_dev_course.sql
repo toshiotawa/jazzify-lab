@@ -262,9 +262,9 @@ INSERT INTO public.defense_stages (
   2,
   3,
   120,
-  5,
-  'fade_15s',
-  'fade_15s',
+  20,
+  'always',
+  'always',
   true,
   900
 )

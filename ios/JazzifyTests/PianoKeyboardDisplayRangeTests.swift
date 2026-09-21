@@ -295,6 +295,12 @@ final class PianoKeyboardDisplayRangeTests: XCTestCase {
             playerHp: 100,
             productionStaffHintMode: "none",
             productionKeyboardHintMode: "none",
+            playStyle: .phrase,
+            voicingKeyMode: nil,
+            voicingLowestKey: nil,
+            voicingStartKey: nil,
+            voicingMinLowestNote: nil,
+            playRootOnChordChange: false,
             phrases: [phrase],
             progressionChords: []
         )

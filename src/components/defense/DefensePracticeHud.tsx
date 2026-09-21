@@ -18,6 +18,8 @@ interface DefensePracticeHudProps {
   readonly onPrevPhrase: () => void;
   readonly onNextPhrase: () => void;
   readonly disabled?: boolean;
+  /** 指定時は「フレーズN」の代わりにこのラベルを表示（コードヴォイシングのキー送り等） */
+  readonly stepLabel?: string;
 }
 
 interface DefenseSpeedStepperProps {
@@ -143,10 +145,11 @@ export const DefensePracticeHud: React.FC<DefensePracticeHudProps> = ({
   onPrevPhrase,
   onNextPhrase,
   disabled = false,
+  stepLabel,
 }) => {
-  const phraseLabel = isEnglishCopy
+  const phraseLabel = stepLabel ?? (isEnglishCopy
     ? `Phrase ${phraseIndex + 1}`
-    : `フレーズ${phraseIndex + 1}`;
+    : `フレーズ${phraseIndex + 1}`);
   const canStepPhrase = !disabled && phraseCount > 1;
 
   return (

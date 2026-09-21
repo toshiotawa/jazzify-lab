@@ -2303,6 +2303,12 @@ final class SupabaseService: Sendable {
             let player_hp: Int
             let production_staff_hint_mode: String
             let production_keyboard_hint_mode: String
+            let play_style: String?
+            let voicing_key_mode: String?
+            let voicing_lowest_key: String?
+            let voicing_start_key: String?
+            let voicing_min_lowest_note: String?
+            let play_root_on_chord_change: Bool?
         }
         struct PhraseRow: Decodable {
             let id: String
@@ -2345,7 +2351,9 @@ final class SupabaseService: Sendable {
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
                 progression_bars, audio_registration_mode, audio_url, melody_audio_url,
                 staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
-                survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
+                survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode,
+                play_style, voicing_key_mode, voicing_lowest_key, voicing_start_key,
+                voicing_min_lowest_note, play_root_on_chord_change
             """)
             .eq("id", value: stageId)
             .limit(1)
@@ -2451,6 +2459,9 @@ final class SupabaseService: Sendable {
             )
         }
 
+        let playStyle: DefensePlayStyle = stage.play_style == "chord_voicing" ? .chordVoicing : .phrase
+        let voicingKeyMode = stage.voicing_key_mode.flatMap { DefenseVoicingKeyMode(rawValue: $0) }
+
         let mappedStage = DefenseStageDefinition(
             id: stage.id,
             slug: stage.slug,
@@ -2473,6 +2484,12 @@ final class SupabaseService: Sendable {
             playerHp: stage.player_hp,
             productionStaffHintMode: stage.production_staff_hint_mode,
             productionKeyboardHintMode: stage.production_keyboard_hint_mode,
+            playStyle: playStyle,
+            voicingKeyMode: voicingKeyMode,
+            voicingLowestKey: stage.voicing_lowest_key,
+            voicingStartKey: stage.voicing_start_key,
+            voicingMinLowestNote: stage.voicing_min_lowest_note,
+            playRootOnChordChange: stage.play_root_on_chord_change ?? false,
             phrases: phrases,
             progressionChords: progressionChords
         )

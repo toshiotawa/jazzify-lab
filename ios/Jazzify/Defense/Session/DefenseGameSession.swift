@@ -34,6 +34,8 @@ final class DefenseGameSession: ObservableObject {
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var practiceSpeedPercent = 100
     @Published private(set) var progressionActiveIndex = 0
+    @Published private(set) var voicingKeyState: DefenseVoicingKeyState?
+    @Published private(set) var activePhrases: [DefensePhraseDefinition]
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
@@ -52,8 +54,12 @@ final class DefenseGameSession: ObservableObject {
     private var isSeparateTracksStage: Bool {
         stage.audioRegistrationMode == .sharedProgressionSeparateTracks
     }
+    private var isChordVoicingStage: Bool {
+        DefenseVoicingKeys.isChordVoicingStage(stage)
+    }
+
     private var usesProgressionHud: Bool {
-        isSharedProgressionStage || isSeparateTracksStage
+        !isChordVoicingStage && (isSharedProgressionStage || isSeparateTracksStage)
     }
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
@@ -96,7 +102,21 @@ final class DefenseGameSession: ObservableObject {
             initialSpGauge: tutorialOptions?.initialSpGauge ?? 0
         )
         self.runtime = runtime
-        self.judgeState = DefensePhraseJudge.createInitialState(phrases: stage.phrases)
+        let initialVoicingKeyState: DefenseVoicingKeyState?
+        let initialActivePhrases: [DefensePhraseDefinition]
+        if DefenseVoicingKeys.isChordVoicingStage(stage),
+           let mode = stage.voicingKeyMode,
+           let startKey = stage.voicingStartKey {
+            let keyState = DefenseVoicingKeys.createInitialKeyState(mode: mode, startKey: startKey)
+            initialVoicingKeyState = keyState
+            initialActivePhrases = DefenseVoicingKeys.buildActivePhrases(stage: stage, keyState: keyState)
+        } else {
+            initialVoicingKeyState = nil
+            initialActivePhrases = stage.phrases
+        }
+        self.voicingKeyState = initialVoicingKeyState
+        self.activePhrases = initialActivePhrases
+        self.judgeState = DefensePhraseJudge.createInitialState(phrases: initialActivePhrases)
         self.hud = DefenseHudState(
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
@@ -248,11 +268,16 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func stepPhrase(_ delta: Int) {
-        guard practiceMode, stage.phrases.count > 1 else { return }
+        guard practiceMode else { return }
+        if isChordVoicingStage, let keyState = voicingKeyState {
+            applyVoicingKeyState(DefenseVoicingKeys.stepKeyState(keyState, delta: delta))
+            return
+        }
+        guard stage.phrases.count > 1 else { return }
         let currentIndex = judgeState.phraseIndex
         let nextIndex = (currentIndex + delta + stage.phrases.count) % stage.phrases.count
         pendingSwitchPhraseIndex = nil
-        judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+        judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
         if isSeparateTracksStage {
             separateTracksRequestRevision += 1
             DefenseSeparateTracksAudio.shared.requestPhrase(
@@ -406,7 +431,9 @@ final class DefenseGameSession: ObservableObject {
             pitchClass: normalizedPc,
             sequential: sequential,
             attackTrigger: stage.attackTrigger,
-            autoAdvance: tutorialOptions?.autoAdvancePhrase ?? !practiceMode
+            autoAdvance: tutorialOptions?.autoAdvancePhrase ?? !practiceMode,
+            playStyle: stage.playStyle,
+            playRootOnChordChange: stage.playRootOnChordChange
         )
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState
@@ -417,23 +444,30 @@ final class DefenseGameSession: ObservableObject {
             let guardPoseSec = 60 / effectiveBpm
             _ = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: guardPoseSec)
         }
-        if evaluation.measureCompleted, stage.attackTrigger == .note {
+        if let rootMidi = evaluation.playRootMidi {
+            SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
+        }
+        if evaluation.measureCompleted, stage.attackTrigger == .note, !isChordVoicingStage {
             _ = DefenseGameLoop.chargeSp(runtime: &runtime)
         }
         if !practiceMode, evaluation.pendingSwitch {
+            if isChordVoicingStage, let keyState = voicingKeyState {
+                applyVoicingKeyState(DefenseVoicingKeys.advanceKeyState(keyState))
+                return
+            }
             let nextIndex = DefensePhraseJudge.nextPhraseIndex(
                 phrases: stage.phrases,
                 current: judgeState.phraseIndex
             )
             if isSeparateTracksStage {
-                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
                 separateTracksRequestRevision += 1
                 DefenseSeparateTracksAudio.shared.requestPhrase(
                     at: nextIndex,
                     requestRevision: separateTracksRequestRevision
                 )
             } else if isSharedProgressionStage {
-                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
                 sharedProgressionRequestRevision += 1
                 DefenseSharedProgressionAudio.shared.requestPhrase(
                     at: nextIndex,
@@ -441,7 +475,7 @@ final class DefenseGameSession: ObservableObject {
                 )
             } else if pendingSwitchPhraseIndex == nil {
                 pendingSwitchPhraseIndex = nextIndex
-                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: stage.phrases)
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
                 Task {
                     var scheduledMs: Int64 = 0
                     do {
@@ -506,7 +540,7 @@ final class DefenseGameSession: ObservableObject {
             hud = nextHud
         }
 
-        if !stage.progressionChords.isEmpty, phase == .playing {
+        if usesProgressionHud, !stage.progressionChords.isEmpty, phase == .playing {
             let phrase = stage.phrases[safe: judgeState.phraseIndex]
             let phraseLoopBars: Int = {
                 guard let phrase else { return max(1, stage.phraseBars) }
@@ -544,6 +578,13 @@ final class DefenseGameSession: ObservableObject {
             resultHandled = true
             handleResult()
         }
+    }
+
+    private func applyVoicingKeyState(_ keyState: DefenseVoicingKeyState) {
+        voicingKeyState = keyState
+        activePhrases = DefenseVoicingKeys.buildActivePhrases(stage: stage, keyState: keyState)
+        pendingSwitchPhraseIndex = nil
+        judgeState = DefensePhraseJudge.createInitialState(phrases: activePhrases)
     }
 
     private func handleResult() {

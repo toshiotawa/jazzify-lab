@@ -76,6 +76,15 @@ import {
   nextPhraseIndex,
   type DefensePhraseJudgeState,
 } from '@/game/defense/defensePhraseJudge';
+import {
+  advanceVoicingKey,
+  buildTransposedVoicingPhrases,
+  createInitialVoicingKeyState,
+  currentVoicingKey,
+  isDefenseChordVoicingStage,
+  stepVoicingKey,
+  type DefenseVoicingKeyState,
+} from '@/game/defense/defenseVoicingKeys';
 import type {
   DefenseDifficulty,
   DefenseGameResult,
@@ -106,6 +115,7 @@ import {
   type NotationInstrumentClef,
 } from '@/utils/notationInstrument';
 import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
@@ -171,9 +181,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 }) => {
   const tutorialConcertMidis = tutorialConcertMidisProp ?? DEFAULT_TUTORIAL_CONCERT_MIDIS;
   const isTutorialSession = tutorialOptions != null;
+  const isChordVoicingStage = isDefenseChordVoicingStage(stage);
   const isSharedProgressionStage = isDefenseSharedProgressionStage(stage);
   const isSeparateTracksStage = isDefenseSharedProgressionSeparateTracksStage(stage);
-  const usesProgressionHud = isSharedProgressionStage || isSeparateTracksStage;
+  const usesProgressionHud = !isChordVoicingStage && (isSharedProgressionStage || isSeparateTracksStage);
   const runtimeRef = useRef<DefenseRuntime>(
     createDefenseRuntime(
       stage.playerHp,
@@ -215,6 +226,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [judgeSnapshot, setJudgeSnapshot] = useState<DefensePhraseJudgeState>(
     createInitialPhraseJudgeState(0),
   );
+  const [voicingKeyState, setVoicingKeyState] = useState<DefenseVoicingKeyState | null>(() => {
+    if (!isDefenseChordVoicingStage(stage)) return null;
+    const mode = stage.voicingKeyMode ?? 'order';
+    const startKey = stage.voicingStartKey ?? 'C';
+    return createInitialVoicingKeyState(mode, startKey);
+  });
+  const voicingKeyStateRef = useRef(voicingKeyState);
+  voicingKeyStateRef.current = voicingKeyState;
+
+  const activePhrases = useMemo(() => {
+    if (!isChordVoicingStage || voicingKeyState == null) {
+      return stage.phrases;
+    }
+    return buildTransposedVoicingPhrases(stage, voicingKeyState);
+  }, [stage, isChordVoicingStage, voicingKeyState]);
   const [practiceSpeedPercent, setPracticeSpeedPercent] = useState(100);
   const [elapsedInt, setElapsedInt] = useState(0);
   const [phase, setPhase] = useState<DefenseGamePhase>('loading');
@@ -298,7 +324,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     || stage.productionKeyboardHintMode === 'fade_15s'
   );
 
-  const currentPhrase = stage.phrases[judgeSnapshot.phraseIndex] ?? stage.phrases[0] ?? null;
+  const currentPhrase = activePhrases[judgeSnapshot.phraseIndex] ?? activePhrases[0] ?? null;
+  const activeVoicingKey = voicingKeyState != null ? currentVoicingKey(voicingKeyState) : null;
   const phraseKeyFifths = currentPhrase?.keyFifths ?? stage.keyFifths;
 
   const phraseLoopBarCount = useMemo(() => {
@@ -348,8 +375,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   );
 
   const keyboardHints = useMemo(
-    () => getDefensePhraseKeyboardHints(stage.phrases, judgeSnapshot, voiceSequential),
-    [stage.phrases, judgeSnapshot, voiceSequential],
+    () => getDefensePhraseKeyboardHints(activePhrases, judgeSnapshot, voiceSequential),
+    [activePhrases, judgeSnapshot, voiceSequential],
   );
 
   const tutorialConcertPitchClasses = useMemo(
@@ -367,8 +394,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [tutorialStaffGroups, judgeSnapshot, tutorialConcertPitchClasses]);
 
   const stageMidiMidis = useMemo(
-    () => computeDefenseStageMidis(stage.phrases),
-    [stage.phrases],
+    () => computeDefenseStageMidis(activePhrases),
+    [activePhrases],
   );
 
   const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);
@@ -485,20 +512,53 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
   }, [stage, isSharedProgressionStage, isSeparateTracksStage]);
 
+  const applyVoicingKeyStep = useCallback((delta: -1 | 1): void => {
+    const keyState = voicingKeyStateRef.current;
+    if (!isChordVoicingStage || keyState == null) return;
+    const nextKeyState = stepVoicingKey(keyState, delta);
+    voicingKeyStateRef.current = nextKeyState;
+    setVoicingKeyState(nextKeyState);
+    applyImmediatePhraseSwitch(0);
+  }, [isChordVoicingStage, applyImmediatePhraseSwitch]);
+
   const handlePrevPhrase = useCallback((): void => {
-    if (!practiceMode || stage.phrases.length <= 1) return;
+    if (!practiceMode) return;
+    if (isChordVoicingStage) {
+      applyVoicingKeyStep(-1);
+      return;
+    }
+    if (stage.phrases.length <= 1) return;
     const currentIndex = judgeRef.current.phraseIndex;
     const prevIndex = (currentIndex - 1 + stage.phrases.length) % stage.phrases.length;
     applyImmediatePhraseSwitch(prevIndex);
     void restartBackingForPhrase(prevIndex, practiceSpeedPercentRef.current);
-  }, [practiceMode, stage.phrases.length, applyImmediatePhraseSwitch, restartBackingForPhrase]);
+  }, [
+    practiceMode,
+    isChordVoicingStage,
+    applyVoicingKeyStep,
+    stage.phrases.length,
+    applyImmediatePhraseSwitch,
+    restartBackingForPhrase,
+  ]);
 
   const handleNextPhrase = useCallback((): void => {
-    if (!practiceMode || stage.phrases.length <= 1) return;
+    if (!practiceMode) return;
+    if (isChordVoicingStage) {
+      applyVoicingKeyStep(1);
+      return;
+    }
+    if (stage.phrases.length <= 1) return;
     const nextIndex = nextPhraseIndex(stage.phrases, judgeRef.current.phraseIndex);
     applyImmediatePhraseSwitch(nextIndex);
     void restartBackingForPhrase(nextIndex, practiceSpeedPercentRef.current);
-  }, [practiceMode, stage.phrases, applyImmediatePhraseSwitch, restartBackingForPhrase]);
+  }, [
+    practiceMode,
+    isChordVoicingStage,
+    applyVoicingKeyStep,
+    stage.phrases,
+    applyImmediatePhraseSwitch,
+    restartBackingForPhrase,
+  ]);
 
   const handleSpeedDown = useCallback((): void => {
     const nextSpeed = stepDefensePracticeSpeedPercent(practiceSpeedPercentRef.current, -1);
@@ -559,13 +619,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       : !practiceMode;
 
     const evaluation = evaluateDefensePhraseNoteOn(
-      stage.phrases,
+      activePhrases,
       stage.requiredCompletionCount,
       judgeRef.current,
       pitchClass,
       sequential,
       stage.attackTrigger,
       autoAdvance,
+      stage.playStyle,
+      stage.playRootOnChordChange,
     );
 
     if (evaluation.nextState === judgeRef.current) return;
@@ -585,11 +647,23 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       performDefenseSlash(runtime, guardPoseSec);
     }
 
-    if (evaluation.measureCompleted && stage.attackTrigger === 'note') {
+    if (evaluation.playRootMidi != null) {
+      FantasySoundManager.playBassMidiNote(evaluation.playRootMidi);
+    }
+
+    if (evaluation.measureCompleted && stage.attackTrigger === 'note' && !isChordVoicingStage) {
       chargeDefenseSp(runtime);
     }
 
     if (!isTutorialSession && !practiceMode && evaluation.pendingSwitch) {
+      if (isChordVoicingStage && voicingKeyStateRef.current != null) {
+        const nextKeyState = advanceVoicingKey(voicingKeyStateRef.current);
+        voicingKeyStateRef.current = nextKeyState;
+        setVoicingKeyState(nextKeyState);
+        judgeRef.current = createInitialPhraseJudgeState(0);
+        setJudgeSnapshot(judgeRef.current);
+        return;
+      }
       const nextIndex = nextPhraseIndex(stage.phrases, judgeRef.current.phraseIndex);
       const nextPhrase = stage.phrases[nextIndex];
       if (!nextPhrase) return;
@@ -622,12 +696,16 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       }
     }
   }, [
+    activePhrases,
     stage,
     stage.requiredCompletionCount,
     stage.attackTrigger,
+    stage.playStyle,
+    stage.playRootOnChordChange,
     stage.bpm,
     practiceMode,
     isTutorialSession,
+    isChordVoicingStage,
     tutorialOptions?.autoAdvancePhrase,
     applyImmediatePhraseSwitch,
     isSharedProgressionStage,
@@ -1037,8 +1115,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           style={{ bottom: PIANO_OVERLAY_HEIGHT + 8 }}
         >
           <DefensePracticeHud
-            phraseIndex={judgeSnapshot.phraseIndex}
-            phraseCount={stage.phrases.length}
+            phraseIndex={voicingKeyState?.index ?? judgeSnapshot.phraseIndex}
+            phraseCount={isChordVoicingStage ? (voicingKeyState?.keys.length ?? 1) : stage.phrases.length}
+            stepLabel={activeVoicingKey ?? undefined}
             isEnglishCopy={isEnglishCopy}
             onPrevPhrase={handlePrevPhrase}
             onNextPhrase={handleNextPhrase}
@@ -1049,13 +1128,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
       {!isTutorialSession ? (
         <div className="absolute right-3 top-[56px] z-40 flex items-center gap-2">
-          <DefenseSpeedStepper
-            speedPercent={practiceSpeedPercent}
-            isEnglishCopy={isEnglishCopy}
-            onSpeedDown={handleSpeedDown}
-            onSpeedUp={handleSpeedUp}
-            disabled={phase !== 'playing'}
-          />
+          {!isChordVoicingStage ? (
+            <DefenseSpeedStepper
+              speedPercent={practiceSpeedPercent}
+              isEnglishCopy={isEnglishCopy}
+              onSpeedDown={handleSpeedDown}
+              onSpeedUp={handleSpeedUp}
+              disabled={phase !== 'playing'}
+            />
+          ) : null}
           <DefenseOctaveStepper
             octaveShift={settings.notationOctaveShift}
             isEnglishCopy={isEnglishCopy}

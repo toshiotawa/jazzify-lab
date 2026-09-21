@@ -59,6 +59,12 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let playerHp: Int
     let productionStaffHintMode: String
     let productionKeyboardHintMode: String
+    let playStyle: DefensePlayStyle
+    let voicingKeyMode: DefenseVoicingKeyMode?
+    let voicingLowestKey: String?
+    let voicingStartKey: String?
+    let voicingMinLowestNote: String?
+    let playRootOnChordChange: Bool
     let phrases: [DefensePhraseDefinition]
     let progressionChords: [DefenseStageProgressionChord]
 }

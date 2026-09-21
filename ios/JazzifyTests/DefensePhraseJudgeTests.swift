@@ -194,6 +194,74 @@ final class DefensePhraseJudgeTests: XCTestCase {
         XCTAssertTrue(afterDm7.nextState.correctNoteIndices.isEmpty)
     }
 
+    func testPlaysRootOnlyWhenLabeledVoicingCompletesInChordVoicingMode() {
+        let voicingPhrase = DefensePhraseDefinition(
+            id: "cv",
+            orderIndex: 0,
+            title: "CV",
+            audioUrl: "https://example.com/cv.mp3",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: nil,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "cv0",
+                    orderIndex: 0,
+                    chordName: "Gm7(9)",
+                    measureNumber: 1,
+                    notes: [
+                        SurvivalPhraseChordNote(orderIndex: 0, pitchMidi: 53, pitchClass: 5, noteName: "F3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 1, pitchMidi: 58, pitchClass: 10, noteName: "Bb3", staff: 2, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 2, pitchMidi: 62, pitchClass: 2, noteName: "D4", staff: 1, stepIndex: 0),
+                        SurvivalPhraseChordNote(orderIndex: 3, pitchMidi: 69, pitchClass: 9, noteName: "A4", staff: 1, stepIndex: 0),
+                    ]
+                ),
+            ]
+        )
+        let initial = DefensePhraseJudge.createInitialState(phrases: [voicingPhrase])
+
+        let first = DefensePhraseJudge.evaluateNoteOn(
+            state: initial,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 5,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertNil(first.playRootMidi)
+
+        var state = first.nextState
+        let second = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 10,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertNil(second.playRootMidi)
+        state = second.nextState
+
+        let third = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 2,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertNil(third.playRootMidi)
+        state = third.nextState
+
+        let complete = DefensePhraseJudge.evaluateNoteOn(
+            state: state,
+            stageRequiredCompletionCount: 1,
+            pitchClass: 9,
+            playStyle: .chordVoicing,
+            playRootOnChordChange: true
+        )
+        XCTAssertNotNil(complete.playRootMidi)
+        XCTAssertTrue(complete.measureCompleted)
+    }
+
     func testVoiceSequentialRequiresLowestMidiFirst() {
         let chordPhrase = DefensePhraseDefinition(
             id: "c",

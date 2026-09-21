@@ -2,6 +2,7 @@
  * Defense mode domain types.
  */
 import type { ProductionHintMode } from '@/types';
+import type { MajorKey } from '@/utils/twoHandVoicingIntermediateCourse';
 
 export type DefenseStaffLayout = 'treble' | 'grand';
 
@@ -14,6 +15,10 @@ export type DefenseAudioRegistrationMode =
 
 /** When player slash fires: each correct pitch (`note`) or chord/measure complete (`measure`). */
 export type DefenseAttackTrigger = 'note' | 'measure';
+
+export type DefensePlayStyle = 'phrase' | 'chord_voicing';
+
+export type DefenseVoicingKeyMode = 'order' | 'random';
 
 export interface DefensePhraseChordNote {
   readonly orderIndex: number;
@@ -80,6 +85,12 @@ export interface DefenseStage {
   readonly playerHp: number;
   readonly productionStaffHintMode: ProductionHintMode;
   readonly productionKeyboardHintMode: ProductionHintMode;
+  readonly playStyle: DefensePlayStyle;
+  readonly voicingKeyMode: DefenseVoicingKeyMode | null;
+  readonly voicingLowestKey: MajorKey | null;
+  readonly voicingStartKey: MajorKey | null;
+  readonly voicingMinLowestNote: string | null;
+  readonly playRootOnChordChange: boolean;
   readonly phrases: readonly DefensePhrase[];
   readonly progressionChords: readonly DefenseStageProgressionChord[];
 }

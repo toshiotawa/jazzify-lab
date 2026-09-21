@@ -22,7 +22,7 @@ INSERT INTO public.defense_stages (
   2,
   3,
   120,
-  5,
+  20,
   'always',
   'always',
   true,

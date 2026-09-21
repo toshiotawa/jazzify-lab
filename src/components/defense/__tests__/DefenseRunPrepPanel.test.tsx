@@ -26,6 +26,12 @@ const stage: DefenseStage = {
   playerHp: 5,
   productionStaffHintMode: 'fade_15s',
   productionKeyboardHintMode: 'fade_15s',
+  playStyle: 'phrase',
+  voicingKeyMode: null,
+  voicingLowestKey: null,
+  voicingStartKey: null,
+  voicingMinLowestNote: null,
+  playRootOnChordChange: false,
   phrases: [],
   progressionChords: [],
 };

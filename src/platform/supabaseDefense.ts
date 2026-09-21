@@ -7,6 +7,10 @@ import {
   validateDefenseSeparateTracksStage,
   validateDefenseSharedProgressionStage,
 } from '@/game/defense/defenseAudioRegistrationMode';
+import {
+  isDefenseMajorKey,
+  type DefenseVoicingKeyMode,
+} from '@/game/defense/defenseVoicingKeys';
 import type {
   DefenseAttackTrigger,
   DefenseAudioRegistrationMode,
@@ -14,10 +18,12 @@ import type {
   DefensePhrase,
   DefensePhraseChord,
   DefensePhraseChordNote,
+  DefensePlayStyle,
   DefenseStaffLayout,
   DefenseStage,
   DefenseStageProgressionChord,
 } from '@/game/defense/defenseTypes';
+import type { MajorKey } from '@/utils/twoHandVoicingIntermediateCourse';
 import type { ProductionHintMode } from '@/types';
 import { parseProductionHintMode } from '@/utils/resolveProductionHintModes';
 
@@ -43,6 +49,12 @@ interface StageRow {
   player_hp: number;
   production_staff_hint_mode: string;
   production_keyboard_hint_mode: string;
+  play_style: string;
+  voicing_key_mode: string | null;
+  voicing_lowest_key: string | null;
+  voicing_start_key: string | null;
+  voicing_min_lowest_note: string | null;
+  play_root_on_chord_change: boolean;
 }
 
 interface PhraseRow {
@@ -103,6 +115,19 @@ const parseAttackTrigger = (value: string): DefenseAttackTrigger => (
   value === 'measure' ? 'measure' : 'note'
 );
 
+const parsePlayStyle = (value: string): DefensePlayStyle => (
+  value === 'chord_voicing' ? 'chord_voicing' : 'phrase'
+);
+
+const parseVoicingKeyMode = (value: string | null): DefenseVoicingKeyMode | null => {
+  if (value === 'order' || value === 'random') return value;
+  return null;
+};
+
+const parseMajorKey = (value: string | null): MajorKey | null => (
+  value != null && isDefenseMajorKey(value) ? value : null
+);
+
 export interface DefenseStageAudioRegistrationPhrasePayload {
   readonly id: string;
   readonly audioUrl: string | null;
@@ -149,7 +174,9 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
       id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
       progression_bars, audio_registration_mode, audio_url, melody_audio_url,
       staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
-      survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode
+      survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode,
+      play_style, voicing_key_mode, voicing_lowest_key, voicing_start_key,
+      voicing_min_lowest_note, play_root_on_chord_change
     `)
     .eq('id', stageId)
     .maybeSingle();
@@ -276,6 +303,12 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     playerHp: stage.player_hp,
     productionStaffHintMode: parseProductionHintMode(stage.production_staff_hint_mode),
     productionKeyboardHintMode: parseProductionHintMode(stage.production_keyboard_hint_mode),
+    playStyle: parsePlayStyle(stage.play_style),
+    voicingKeyMode: parseVoicingKeyMode(stage.voicing_key_mode),
+    voicingLowestKey: parseMajorKey(stage.voicing_lowest_key),
+    voicingStartKey: parseMajorKey(stage.voicing_start_key),
+    voicingMinLowestNote: stage.voicing_min_lowest_note,
+    playRootOnChordChange: stage.play_root_on_chord_change,
     phrases,
     progressionChords: (progressionRows ?? []).map((row) => (
       mapProgressionChordRow(row as ProgressionChordRow)

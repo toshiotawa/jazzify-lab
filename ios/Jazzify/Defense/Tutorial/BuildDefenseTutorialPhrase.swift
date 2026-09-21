@@ -149,6 +149,12 @@ enum BuildDefenseTutorialPhrase {
             playerHp: 100,
             productionStaffHintMode: "off",
             productionKeyboardHintMode: "off",
+            playStyle: .phrase,
+            voicingKeyMode: nil,
+            voicingLowestKey: nil,
+            voicingStartKey: nil,
+            voicingMinLowestNote: nil,
+            playRootOnChordChange: false,
             phrases: [phrase],
             progressionChords: []
         )

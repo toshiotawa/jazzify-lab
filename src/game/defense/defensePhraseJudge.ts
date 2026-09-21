@@ -5,7 +5,10 @@ import type {
   DefenseAttackTrigger,
   DefensePhrase,
   DefensePhraseChord,
+  DefensePlayStyle,
 } from '@/game/defense/defenseTypes';
+import { resolveDefenseStaffChordLabelForStep } from '@/game/defense/defenseStaffChordLabel';
+import { parseProgressionChordRoot, rootMidiBelow } from '@/game/training/trainingProgression';
 import {
   computeOrderedChordKeyboardHintsFromMidis,
   orderedPitchClassesFromMidis,
@@ -36,6 +39,7 @@ interface DefensePhraseNoteEvaluation {
   readonly measureCompleted: boolean;
   readonly pendingSwitch: boolean;
   readonly completionCount: number;
+  readonly playRootMidi: number | null;
   readonly nextState: DefensePhraseJudgeState;
 }
 
@@ -116,6 +120,30 @@ const stepMidiNotes = (
   return midis;
 };
 
+const resolvePlayRootMidi = (
+  chord: DefensePhraseChord,
+  completedStepIndex: number,
+  playRootOnChordChange: boolean,
+): number | null => {
+  if (!playRootOnChordChange) return null;
+  const label = resolveDefenseStaffChordLabelForStep(chord, completedStepIndex);
+  if (label.trim().length === 0) return null;
+  const { steps } = getPhraseChordSteps(chord.notes);
+  const step = steps[completedStepIndex];
+  if (!step) return null;
+  let lowestMidi = Number.POSITIVE_INFINITY;
+  for (const noteIndex of step.noteIndices) {
+    const note = chord.notes[noteIndex];
+    if (note && note.pitchMidi < lowestMidi) {
+      lowestMidi = note.pitchMidi;
+    }
+  }
+  if (!Number.isFinite(lowestMidi)) return null;
+  const root = parseProgressionChordRoot(label);
+  if (root == null) return null;
+  return rootMidiBelow(root, lowestMidi);
+};
+
 const sequentialCompletedPitchClasses = (
   chord: DefensePhraseChord,
   step: PhraseChordStep,
@@ -149,6 +177,8 @@ export const evaluateDefensePhraseNoteOn = (
   sequential = false,
   attackTrigger: DefenseAttackTrigger = 'note',
   autoAdvance = true,
+  playStyle: DefensePlayStyle = 'phrase',
+  playRootOnChordChange = false,
 ): DefensePhraseNoteEvaluation => {
   const phrase = phrases[state.phraseIndex] ?? null;
   const chord = getCurrentChord(phrase, state.chordIndex);
@@ -159,6 +189,7 @@ export const evaluateDefensePhraseNoteOn = (
       measureCompleted: false,
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
+      playRootMidi: null,
       nextState: state,
     };
   }
@@ -179,6 +210,7 @@ export const evaluateDefensePhraseNoteOn = (
         measureCompleted: false,
         pendingSwitch: state.pendingSwitch,
         completionCount: state.completionCount,
+        playRootMidi: null,
         nextState: state,
       };
     }
@@ -198,11 +230,25 @@ export const evaluateDefensePhraseNoteOn = (
       measureCompleted: false,
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
+      playRootMidi: null,
       nextState: state,
     };
   }
 
   const progressedState = applyStepState(state, evaluation.nextState);
+  const isVoicingMode = playStyle === 'chord_voicing';
+  const completedStepIndex = evaluation.result === 'measure-complete'
+    ? Math.max(0, steps.length - 1)
+    : state.targetStepIndex;
+  const stepAdvanced = evaluation.result === 'measure-complete'
+    || evaluation.nextState.targetStepIndex > state.targetStepIndex;
+  const playRootMidi = stepAdvanced
+    ? resolvePlayRootMidi(chord, completedStepIndex, playRootOnChordChange)
+    : null;
+  const stepCompleted = evaluation.result === 'progress' || evaluation.result === 'measure-complete';
+  const attackOnStep = isVoicingMode
+    ? stepCompleted
+    : (evaluation.result === 'measure-complete' || attackTrigger === 'note');
 
   if (evaluation.result === 'measure-complete') {
     const afterChord = advanceChord(progressedState, phrase);
@@ -214,11 +260,12 @@ export const evaluateDefensePhraseNoteOn = (
         : state.completionCount + 1;
       const pendingSwitch = autoAdvance && (nextCount >= required || state.pendingSwitch);
       return {
-        attack: true,
+        attack: attackOnStep,
         phraseCompleted: true,
         measureCompleted: true,
         pendingSwitch,
         completionCount: nextCount,
+        playRootMidi,
         nextState: {
           ...afterChord,
           completionCount: nextCount,
@@ -227,11 +274,12 @@ export const evaluateDefensePhraseNoteOn = (
       };
     }
     return {
-      attack: true,
+      attack: attackOnStep,
       phraseCompleted: false,
       measureCompleted: true,
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
+      playRootMidi,
       nextState: {
         ...afterChord,
         completionCount: state.completionCount,
@@ -241,11 +289,12 @@ export const evaluateDefensePhraseNoteOn = (
   }
 
   return {
-    attack: attackTrigger === 'note',
+    attack: attackOnStep,
     phraseCompleted: false,
     measureCompleted: false,
     pendingSwitch: state.pendingSwitch,
     completionCount: state.completionCount,
+    playRootMidi,
     nextState: {
       ...progressedState,
       completionCount: state.completionCount,

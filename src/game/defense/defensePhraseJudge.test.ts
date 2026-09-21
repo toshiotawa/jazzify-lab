@@ -182,6 +182,84 @@ describe('defensePhraseJudge', () => {
     expect(afterDm7.nextState.correctNoteIndices.size).toBe(0);
   });
 
+  it('plays root only when labeled voicing completes in chord voicing mode', () => {
+    const voicingPhrase: DefensePhrase = {
+      ...phraseA,
+      chords: [
+        {
+          id: 'cv0',
+          orderIndex: 0,
+          chordName: 'Gm7(9)',
+          measureNumber: 1,
+          notes: [
+            { orderIndex: 0, pitchMidi: 53, pitchClass: 5, noteName: 'F3', staff: 2, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 58, pitchClass: 10, noteName: 'Bb3', staff: 2, stepIndex: 0 },
+            { orderIndex: 2, pitchMidi: 62, pitchClass: 2, noteName: 'D4', staff: 1, stepIndex: 0 },
+            { orderIndex: 3, pitchMidi: 69, pitchClass: 9, noteName: 'A4', staff: 1, stepIndex: 0 },
+          ],
+        },
+      ],
+    };
+    const phrases = [voicingPhrase];
+    const initial = createInitialPhraseJudgeState(0);
+
+    const first = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      initial,
+      5,
+      false,
+      'measure',
+      true,
+      'chord_voicing',
+      true,
+    );
+    expect(first.playRootMidi).toBeNull();
+
+    let state = first.nextState;
+    const second = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      state,
+      10,
+      false,
+      'measure',
+      true,
+      'chord_voicing',
+      true,
+    );
+    expect(second.playRootMidi).toBeNull();
+    state = second.nextState;
+
+    const third = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      state,
+      2,
+      false,
+      'measure',
+      true,
+      'chord_voicing',
+      true,
+    );
+    expect(third.playRootMidi).toBeNull();
+    state = third.nextState;
+
+    const complete = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      state,
+      9,
+      false,
+      'measure',
+      true,
+      'chord_voicing',
+      true,
+    );
+    expect(complete.playRootMidi).not.toBeNull();
+    expect(complete.measureCompleted).toBe(true);
+  });
+
   it('voice sequential requires lowest MIDI first in a simultaneous chord', () => {
     const chordPhrase: DefensePhrase = {
       ...phraseA,

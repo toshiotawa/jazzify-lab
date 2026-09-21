@@ -161,6 +161,12 @@ export const buildDefenseTutorialPhrase = (
     playerHp: 100,
     productionStaffHintMode: 'always',
     productionKeyboardHintMode: 'always',
+    playStyle: 'phrase',
+    voicingKeyMode: null,
+    voicingLowestKey: null,
+    voicingStartKey: null,
+    voicingMinLowestNote: null,
+    playRootOnChordChange: false,
     phrases: [phrase],
     progressionChords: [],
   };

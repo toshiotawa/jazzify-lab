@@ -190,12 +190,11 @@ struct DefenseGameView: View {
                 )
                 .position(x: size.width / 2, y: staffPlacement.centerY)
                 .allowsHitTesting(false)
-            } else if let phrase = session.stage.phrases[safe: session.judgeState.phraseIndex] {
-                let staffPlacement = EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+            } else if let phrase = session.activePhrases[safe: session.judgeState.phraseIndex] {
+                let staffPlacement = Self.phraseStaffOverlayPlacement(
                     sceneHeight: size.height,
-                    hudHeight: EarTrainingBattleStaffBandLayout.compactBattleHudHeight,
-                    hasLabelBand: !phrase.chords.isEmpty,
-                    keyboardHeight: Self.pianoHeight
+                    staffLayout: session.stage.staffLayout,
+                    hasChords: !phrase.chords.isEmpty
                 )
                 DefensePhraseStaffView(
                     phrase: phrase,
@@ -284,19 +283,43 @@ struct DefenseGameView: View {
     }
 
     private static let pianoHeight: CGFloat = EarTrainingBattleStageKit.chordPadKeyboardHeight
+    private static let phoneGrandStaffHeightRatio: CGFloat = 0.36
+
+    private static func phraseStaffOverlayPlacement(
+        sceneHeight: CGFloat,
+        staffLayout: DefenseStaffLayout,
+        hasChords: Bool
+    ) -> EarTrainingBattleStaffBandLayout.StaffOverlayPlacement {
+        let isPhoneGrand = isPhone && staffLayout == .grand
+        return EarTrainingBattleStaffBandLayout.staffOverlayPlacement(
+            sceneHeight: sceneHeight,
+            hudHeight: EarTrainingBattleStaffBandLayout.compactBattleHudHeight,
+            hasLabelBand: isPhoneGrand ? false : hasChords,
+            keyboardHeight: pianoHeight,
+            heightRatio: isPhoneGrand ? phoneGrandStaffHeightRatio : EarTrainingBattleStaffBandLayout.defaultStaffHeightRatio
+        )
+    }
 
     private static var isPhone: Bool {
         UIDevice.current.userInterfaceIdiom == .phone
     }
 
     private var defensePracticeHud: some View {
-        let phraseLabel = locale == .ja
-            ? "フレーズ\(session.judgeState.phraseIndex + 1)"
-            : "Phrase \(session.judgeState.phraseIndex + 1)"
-        let canStepPhrase = session.phase == .playing && session.stage.phrases.count > 1
+        let stepLabel: String
+        if DefenseVoicingKeys.isChordVoicingStage(session.stage),
+           let keyState = session.voicingKeyState {
+            stepLabel = keyState.currentKey
+        } else {
+            stepLabel = locale == .ja
+                ? "フレーズ\(session.judgeState.phraseIndex + 1)"
+                : "Phrase \(session.judgeState.phraseIndex + 1)"
+        }
+        let canStepPhrase = session.phase == .playing && (
+            DefenseVoicingKeys.isChordVoicingStage(session.stage) || session.stage.phrases.count > 1
+        )
 
         return defensePracticeStepperRow(
-            label: phraseLabel,
+            label: stepLabel,
             canDecrease: canStepPhrase,
             canIncrease: canStepPhrase,
             onDecrease: { session.stepPhrase(-1) },
@@ -498,7 +521,9 @@ struct DefenseGameView: View {
             onBack: onClose,
             rightControlsLeading: isTutorialSession ? nil : AnyView(
                 HStack(spacing: 6) {
-                    defenseSpeedStepper
+                    if !DefenseVoicingKeys.isChordVoicingStage(session.stage) {
+                        defenseSpeedStepper
+                    }
                     defenseOctaveStepper
                 }
             ),
@@ -556,6 +581,7 @@ struct DefenseGameView: View {
     private var chordPadRange: PianoStagePitchRange {
         DefenseKeyboardRange.resolvedDisplayRange(
             for: session.stage,
+            phrases: session.activePhrases,
             displayMode: keyboardDisplayMode
         )
     }
