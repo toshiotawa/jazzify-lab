@@ -3,7 +3,7 @@ import UIKit
 
 /// レッスンモード「学びの旅マップ」(コース詳細画面・iOS)
 /// サバイバルの降下マップと対になる上昇型マップ。
-/// - iPhone: マップ全面 + ノード選択で下からシート
+/// - iPhone: マップ全面 + ノード選択でレッスン詳細へ直行
 /// - iPad regular: 左リストパネル + 右マップ 二分割
 struct LessonJourneyView: View {
     @EnvironmentObject var appState: AppState
@@ -24,8 +24,6 @@ struct LessonJourneyView: View {
     @State private var isLoadingLessons = false
     @State private var selectedLesson: Lesson?
     @State private var launchLesson: Lesson?
-    @State private var showSheet = false
-    @State private var pendingLaunchLesson: Lesson?
     @State private var scrollTargetLessonId: UUID?
     @State private var scrollTargetY: CGFloat?
     @State private var scrollAnimated: Bool = false
@@ -300,31 +298,6 @@ struct LessonJourneyView: View {
             guard courseKind.freeMaxBlockNumber != nil else { return }
             recomputeJourney()
         }
-        .sheet(isPresented: $showSheet, onDismiss: {
-            if let lesson = pendingLaunchLesson {
-                pendingLaunchLesson = nil
-                launchLesson = lesson
-            }
-        }) {
-            if let lesson = selectedLesson {
-                LessonJourneyDetailSheet(
-                    locale: locale,
-                    lesson: lesson,
-                    accessState: accessGraph.lessonStates[lesson.id],
-                    isFrontier: lesson.id == frontierLessonId,
-                    blockLabel: blockLabel(for: lesson),
-                    onStart: {
-                        pendingLaunchLesson = lesson
-                        showSheet = false
-                    },
-                    onClose: { showSheet = false }
-                )
-                .presentationDetents([.fraction(0.4), .medium])
-                .presentationDragIndicator(.visible)
-                .jazzifyPresentationBackground(Color(hex: "0f172a"))
-                .preferredColorScheme(.dark)
-            }
-        }
         .navigationDestination(
             isPresented: Binding(
                 get: { launchLesson != nil },
@@ -416,9 +389,8 @@ struct LessonJourneyView: View {
     private func handleSelect(_ lesson: Lesson) {
         selectedLesson = lesson
         scrollTargetLessonId = lesson.id
-        if !useSplitLayout {
-            showSheet = true
-        }
+        if useSplitLayout { return }
+        launchLesson = lesson
     }
 
     /// フロンティア (今取り組むべきレッスン) を画面中央に合わせるスクロールを要求する。
