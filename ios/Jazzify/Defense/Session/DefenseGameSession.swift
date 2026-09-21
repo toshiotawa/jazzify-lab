@@ -263,14 +263,24 @@ final class DefenseGameSession: ObservableObject {
             let ratio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
             Task {
                 try? await DefenseSharedProgressionAudio.shared.prepare(stage: stage, speedRatio: ratio)
-                DefenseSharedProgressionAudio.shared.restartFromProgressionStart(
-                    phraseIndex: nextIndex,
-                    speedRatio: ratio
+                sharedProgressionRequestRevision += 1
+                DefenseSharedProgressionAudio.shared.requestPhrase(
+                    at: nextIndex,
+                    requestRevision: sharedProgressionRequestRevision
                 )
             }
         } else {
+            pendingSwitchPhraseIndex = nextIndex
             Task {
-                try? await DefenseBackingAudio.shared.startPhrase(at: nextIndex)
+                var scheduledMs: Int64 = 0
+                do {
+                    scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
+                } catch {
+                    scheduledMs = 0
+                }
+                if scheduledMs <= 0, pendingSwitchPhraseIndex == nextIndex {
+                    pendingSwitchPhraseIndex = nil
+                }
             }
         }
     }

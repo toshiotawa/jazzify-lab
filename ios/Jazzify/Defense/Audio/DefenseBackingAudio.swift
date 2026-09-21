@@ -31,7 +31,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var switchScheduleToken: UInt64 = 0
 
     private var pendingSwitchAtHostSec: Double = -1
+    private var pendingTransportStartHostSec: Double = -1
     private var lastCommittedSwitchAtHostSec: Double = -1
+    private var lastCommittedTransportStartHostSec: Double = -1
     private var switchGeneration: UInt64 = 0
 
     /// レンダー相当の切替時刻を過ぎると増える。メインスレッドはこれを監視して譜面を切り替える。
@@ -40,7 +42,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
         defer { os_unfair_lock_unlock(&lock) }
         if pendingSwitchAtHostSec >= 0, Self.hostTimeSec() >= pendingSwitchAtHostSec {
             lastCommittedSwitchAtHostSec = pendingSwitchAtHostSec
+            lastCommittedTransportStartHostSec = pendingTransportStartHostSec
             pendingSwitchAtHostSec = -1
+            pendingTransportStartHostSec = -1
             switchGeneration &+= 1
         }
         return switchGeneration
@@ -89,7 +93,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
             }
             os_unfair_lock_lock(&self.lock)
             self.pendingSwitchAtHostSec = -1
+            self.pendingTransportStartHostSec = -1
             self.lastCommittedSwitchAtHostSec = -1
+            self.lastCommittedTransportStartHostSec = -1
             os_unfair_lock_unlock(&self.lock)
         }
         if Thread.isMainThread {
@@ -239,11 +245,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
         activeIsA.toggle()
         currentBarCount = pendingBarCount
         os_unfair_lock_lock(&lock)
-        if lastCommittedSwitchAtHostSec >= 0 {
-            transportStartHostSec = lastCommittedSwitchAtHostSec
-            lastCommittedSwitchAtHostSec = -1
+        if lastCommittedTransportStartHostSec >= 0 {
+            transportStartHostSec = lastCommittedTransportStartHostSec
+            lastCommittedTransportStartHostSec = -1
         }
+        lastCommittedSwitchAtHostSec = -1
         pendingSwitchAtHostSec = -1
+        pendingTransportStartHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
 
@@ -264,7 +272,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
             self.pendingSwitchAtHostSec = -1
+            self.pendingTransportStartHostSec = -1
             self.lastCommittedSwitchAtHostSec = -1
+            self.lastCommittedTransportStartHostSec = -1
             self.transportStartHostSec = 0
             os_unfair_lock_unlock(&self.lock)
         }
@@ -391,7 +401,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
         transportStartHostSec = Self.hostTimeSec()
         switchGeneration = 0
         pendingSwitchAtHostSec = -1
+        pendingTransportStartHostSec = -1
         lastCommittedSwitchAtHostSec = -1
+        lastCommittedTransportStartHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
 
@@ -423,14 +435,73 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         incoming.stop()
         incoming.reset()
-        incoming.scheduleBuffer(buffer, at: when, options: [.loops])
+        if plan.immediate {
+            let rate = max(0.1, Double(timePitch.rate))
+            let overshootSec = max(0, now - plan.cutAt)
+            scheduleLoopFromOffset(
+                buffer: buffer,
+                player: incoming,
+                at: nil,
+                offsetSec: overshootSec,
+                playbackRate: rate
+            )
+        } else {
+            incoming.scheduleBuffer(buffer, at: when, options: [.loops])
+        }
         incoming.play()
 
         os_unfair_lock_lock(&lock)
         pendingSwitchAtHostSec = switchAt
+        pendingTransportStartHostSec = plan.cutAt
         os_unfair_lock_unlock(&lock)
 
         return Int64((switchAt * 1_000).rounded())
+    }
+
+    private func scheduleLoopFromOffset(
+        buffer: AVAudioPCMBuffer,
+        player: AVAudioPlayerNode,
+        at when: AVAudioTime?,
+        offsetSec: Double,
+        playbackRate: Double
+    ) {
+        let sampleRate = buffer.format.sampleRate
+        guard sampleRate > 0, buffer.frameLength > 0 else {
+            player.scheduleBuffer(buffer, at: when, options: [.loops])
+            return
+        }
+        let loopDur = Double(buffer.frameLength) / sampleRate / playbackRate
+        guard loopDur > 0 else {
+            player.scheduleBuffer(buffer, at: when, options: [.loops])
+            return
+        }
+        let wrappedOffset = offsetSec.truncatingRemainder(dividingBy: loopDur)
+        let startFrame = AVAudioFramePosition((wrappedOffset * sampleRate * playbackRate).rounded())
+        let safeStart = max(0, min(startFrame, AVAudioFramePosition(buffer.frameLength) - 1))
+        let tailCount = AVAudioFrameCount(max(0, Int(buffer.frameLength) - Int(safeStart)))
+        if tailCount > 0,
+           let tailBuffer = DefensePhraseBacking.slicePCMBuffer(
+               buffer,
+               startingFrame: safeStart,
+               frameCount: tailCount
+           ) {
+            player.scheduleBuffer(tailBuffer, at: when) { [weak self, weak player] in
+                guard let self, let player else { return }
+                self.runOnMain {
+                    player.scheduleBuffer(buffer, at: nil, options: [.loops])
+                }
+            }
+        } else {
+            player.scheduleBuffer(buffer, at: when, options: [.loops])
+        }
+    }
+
+    private func runOnMain(_ block: @escaping () -> Void) {
+        if Thread.isMainThread {
+            block()
+        } else {
+            DispatchQueue.main.async(execute: block)
+        }
     }
 
     private func currentBarSeconds(fallbackBpm: Double, fallbackBeats: Int) -> Double {
@@ -466,7 +537,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
         bufferB = nil
         os_unfair_lock_lock(&lock)
         pendingSwitchAtHostSec = -1
+        pendingTransportStartHostSec = -1
         lastCommittedSwitchAtHostSec = -1
+        lastCommittedTransportStartHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
 

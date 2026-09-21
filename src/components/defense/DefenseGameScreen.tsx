@@ -444,11 +444,20 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
     if (isSharedProgressionStage) {
       try {
-        await defenseSharedProgressionDeck.prepare(stage, ratio);
-        if (backingRestartGenerationRef.current !== generation) return;
-        backingRestartGenerationRef.current += 1;
-        sharedProgressionRequestRevisionRef.current += 1;
-        defenseSharedProgressionDeck.restartFromProgressionStart(phraseIndex, ratio);
+        if (intent === 'speed') {
+          await defenseSharedProgressionDeck.prepare(stage, ratio);
+          if (backingRestartGenerationRef.current !== generation) return;
+          backingRestartGenerationRef.current += 1;
+          defenseSharedProgressionDeck.restartFromProgressionStart(phraseIndex, ratio);
+        } else {
+          await defenseSharedProgressionDeck.prepare(stage, ratio);
+          if (backingRestartGenerationRef.current !== generation) return;
+          sharedProgressionRequestRevisionRef.current += 1;
+          defenseSharedProgressionDeck.requestPhrase(
+            phraseIndex,
+            sharedProgressionRequestRevisionRef.current,
+          );
+        }
       } catch {
         /* prepare/start failed */
       }
@@ -456,12 +465,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
 
     try {
-      const livePhrase = stage.phrases[judgeRef.current.phraseIndex] ?? phrase;
-      const playback = await defenseBackingDeck.preparePhraseBacking(stage, livePhrase, ratio);
-      if (backingRestartGenerationRef.current !== generation) return;
-      backingRestartGenerationRef.current += 1;
-      defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
-      defenseBackingDeck.start(playback);
+      if (intent === 'speed') {
+        const livePhrase = stage.phrases[judgeRef.current.phraseIndex] ?? phrase;
+        const playback = await defenseBackingDeck.preparePhraseBacking(stage, livePhrase, ratio);
+        if (backingRestartGenerationRef.current !== generation) return;
+        backingRestartGenerationRef.current += 1;
+        defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
+        defenseBackingDeck.start(playback);
+      } else {
+        scheduledNextPhraseIndexRef.current = phraseIndex;
+        const playback = await defenseBackingDeck.preparePhraseBacking(stage, phrase, ratio);
+        if (backingRestartGenerationRef.current !== generation) return;
+        if (scheduledNextPhraseIndexRef.current !== phraseIndex) return;
+        defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
+        pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
+      }
     } catch {
       /* prepare/start failed; leave current backing as-is */
     }

@@ -144,7 +144,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.pausedOffsetSec = 0
             self.activeIsA = true
             self.transportStartHostSec = Self.hostTimeSec()
-            self.playActivePhraseImmediate(at: initialPhraseIndex, offsetBar0: 0)
+            self.playActivePhraseImmediate(at: initialPhraseIndex, offsetSec: 0)
         }
     }
 
@@ -179,10 +179,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.generation &+= 1
             let loopDuration = Double(self.progressionBars) * self.barSec
             let offsetSec = loopDuration > 0 ? self.pausedOffsetSec.truncatingRemainder(dividingBy: loopDuration) : 0
-            let offsetBar0 = self.barSec > 0 ? Int(floor(offsetSec / self.barSec)) : 0
             let offsetSecSnapshot = offsetSec
             self.transportStartHostSec = Self.hostTimeSec() - offsetSecSnapshot
-            self.playActivePhraseImmediate(at: self.audiblePhraseIndex, offsetBar0: offsetBar0)
+            self.playActivePhraseImmediate(at: self.audiblePhraseIndex, offsetSec: offsetSecSnapshot)
             if self.desiredPhraseIndex != self.audiblePhraseIndex {
                 self.scheduleDesiredSwitch()
             }
@@ -204,7 +203,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.audiblePhraseIndex = phraseIndex
             self.activeIsA = true
             self.transportStartHostSec = Self.hostTimeSec()
-            self.playActivePhraseImmediate(at: phraseIndex, offsetBar0: 0)
+            self.playActivePhraseImmediate(at: phraseIndex, offsetSec: 0)
         }
     }
 
@@ -237,7 +236,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         )
 
         if plan.immediate {
-            playActivePhraseImmediate(at: desiredPhraseIndex, offsetBar0: plan.destinationBar0)
+            let offsetSec = max(0, now - transportStartHostSec)
+            playActivePhraseImmediate(at: desiredPhraseIndex, offsetSec: offsetSec)
             return
         }
 
@@ -279,7 +279,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         scheduledSwitchAtHostSec = -1
     }
 
-    private func playActivePhraseImmediate(at phraseIndex: Int, offsetBar0: Int) {
+    private func playActivePhraseImmediate(at phraseIndex: Int, offsetSec: Double) {
         guard let buffer = buffersByPhraseIndex[phraseIndex],
               let barFrames = barFramesByPhraseIndex[phraseIndex],
               barFrames.count > progressionBars
@@ -298,12 +298,19 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         active.stop()
         active.reset()
 
-        if offsetBar0 <= 0 {
+        let totalSec = Double(progressionBars) * barSec
+        let wrappedOffset = totalSec > 0 ? offsetSec.truncatingRemainder(dividingBy: totalSec) : 0
+        let formStart = AVAudioFramePosition(barFrames[0])
+        let formEnd = AVAudioFramePosition(barFrames[progressionBars])
+        let formFrames = max(1, formEnd - formStart)
+        let startFrame = wrappedOffset <= 0
+            ? formStart
+            : formStart + AVAudioFramePosition((wrappedOffset / totalSec) * Double(formFrames))
+
+        if startFrame <= formStart {
             scheduleFullLoop(for: phraseIndex, player: active, at: nil)
         } else {
-            let startFrame = AVAudioFramePosition(barFrames[offsetBar0])
-            let endFrame = AVAudioFramePosition(barFrames[progressionBars])
-            let tailCount = AVAudioFrameCount(max(0, endFrame - startFrame))
+            let tailCount = AVAudioFrameCount(max(0, formEnd - startFrame))
             if tailCount > 0,
                let tailBuffer = DefensePhraseBacking.slicePCMBuffer(
                    buffer,

@@ -40,6 +40,8 @@ final class DefenseTransportTests: XCTestCase {
         )
         XCTAssertTrue(plan.immediate)
         XCTAssertEqual(plan.switchAt, 12.2, accuracy: 0.0001)
+        XCTAssertEqual(plan.cutAt, 12, accuracy: 0.0001)
+        XCTAssertEqual(plan.switchAt - plan.cutAt, 0.2, accuracy: 0.0001)
     }
 
     func testPlanSwitchTargetsSixteenthLeadAt160Bpm() {

@@ -41,6 +41,8 @@ describe('defenseTransport', () => {
     });
     expect(plan.immediate).toBe(true);
     expect(plan.switchAt).toBeCloseTo(12.2);
+    expect(plan.cutAt).toBeCloseTo(12);
+    expect(plan.switchAt - plan.cutAt).toBeCloseTo(0.2);
   });
 
   it('planDefenseSwitch targets next cut after one beat overshoot at 160 BPM', () => {
@@ -70,6 +72,7 @@ describe('defenseTransport', () => {
     });
     expect(plan.immediate).toBe(false);
     expect(plan.switchAt).toBeCloseTo(1.5);
+    expect(plan.cutAt).toBeCloseTo(1.5);
   });
 
   it('barSecondsFromLoop uses the actual loop length', () => {

@@ -35,6 +35,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var survivalCaptureObserver: NSObjectProtocol?
     private var appAudioSessionObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
+    /// `stop` / `rebuildGraph` 中の同期 ConfigurationChange で旧グラフを再startしない。
+    private var isMutatingGraph = false
 
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
     private var voiceInputDucking = false
@@ -56,33 +58,45 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             speedRatio: speedRatio,
             sampleRate: playbackFormat.sampleRate
         )
-        self.stage = stage
-        let state = DefenseSeparateTracksMixerState(
-            preparedSet: prepared,
-            sessionGeneration: sessionGeneration,
-            initialPhraseIndex: 0
-        )
-        state.bgmGain = 0.5
-        state.melodyGain = 0.5
-        self.mixerState = state
-        updateSnapshot(from: state)
+        await MainActor.run {
+            self.isStopping = true
+            self.detachPlaybackGraph(detachMasterMixer: true)
+            self.stage = stage
+            let state = DefenseSeparateTracksMixerState(
+                preparedSet: prepared,
+                sessionGeneration: self.sessionGeneration,
+                initialPhraseIndex: 0
+            )
+            state.bgmGain = 0.5
+            state.melodyGain = 0.5
+            self.mixerState = state
+            self.updateSnapshot(from: state)
+        }
     }
 
     func start(initialPhraseIndex: Int) {
-        sessionGeneration &+= 1
-        requestRevision = 0
-        isStopping = false
-        guard let state = mixerState else { return }
-        state.sessionGeneration = sessionGeneration
-        state.audiblePhraseIndex = initialPhraseIndex
-        state.desiredPhraseIndex = initialPhraseIndex
-        state.absoluteCycle = 0
-        state.phaseFrame = 0
-        state.paused = false
+        let apply = { [weak self] in
+            guard let self else { return }
+            self.sessionGeneration &+= 1
+            self.requestRevision = 0
+            self.isStopping = false
+            guard let state = self.mixerState else { return }
+            state.sessionGeneration = self.sessionGeneration
+            state.audiblePhraseIndex = initialPhraseIndex
+            state.desiredPhraseIndex = initialPhraseIndex
+            state.absoluteCycle = 0
+            state.phaseFrame = 0
+            state.paused = false
 
-        let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
-        rebuildGraph(sourceFormat: format)
-        updateSnapshot(from: state)
+            let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
+            self.rebuildGraph(sourceFormat: format)
+            self.updateSnapshot(from: state)
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
     }
 
     func requestPhrase(at phraseIndex: Int, requestRevision: Int) {
@@ -126,17 +140,26 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     func stop() {
-        isStopping = true
-        sessionGeneration &+= 1
-        engine.stop()
-        sourceNode = nil
-        sourcePlaybackFormat = nil
-        mixerState = nil
-        stage = nil
-        os_unfair_lock_lock(&mailboxLock)
-        pendingPhraseRequest = nil
-        pendingTempoRequest = nil
-        os_unfair_lock_unlock(&mailboxLock)
+        let apply = { [weak self] in
+            guard let self else { return }
+            self.isStopping = true
+            self.sessionGeneration &+= 1
+            self.detachPlaybackGraph(detachMasterMixer: true)
+            self.mixerState = nil
+            self.stage = nil
+            self.snapshotGrid = nil
+            self.snapshotAbsoluteCycle = 0
+            self.snapshotPhaseFrame = 0
+            os_unfair_lock_lock(&self.mailboxLock)
+            self.pendingPhraseRequest = nil
+            self.pendingTempoRequest = nil
+            os_unfair_lock_unlock(&self.mailboxLock)
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
     }
 
     func setUserVolume(_ volume: Float) {
@@ -194,12 +217,12 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     private func handleEngineConfigurationChange() {
-        guard !isStopping, mixerState != nil else { return }
+        guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
         restartEngineIfNeeded()
     }
 
     private func handleSharedAudioSessionReconfigure() {
-        guard !isStopping, mixerState != nil else { return }
+        guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
         Task { @MainActor in
             await self.reconvertAndReconnectIfNeeded()
         }
@@ -207,7 +230,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
     @MainActor
     private func reconvertAndReconnectIfNeeded() async {
-        guard !isStopping, let state = mixerState, let stage else { return }
+        guard !isStopping, !isMutatingGraph, let state = mixerState, let stage else { return }
 
         let hardwareRate = EarTrainingAudio.preferredHardwareSampleRate()
         let preparedRate = state.activeSet.grid.sampleRate

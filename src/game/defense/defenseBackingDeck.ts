@@ -74,6 +74,7 @@ class DefenseBackingDeck {
   private pendingBarSec: number | null = null;
   private pendingPlayback: DefensePhraseBackingPlayback | null = null;
   private pendingSwitchAt: number | null = null;
+  private pendingTransportStart: number | null = null;
   private activePlayback: DefensePhraseBackingPlayback | null = null;
   private voiceInputDucking = false;
   private userVolume = 1;
@@ -256,6 +257,7 @@ class DefenseBackingDeck {
     this.pendingBarSec = null;
     this.pendingPlayback = null;
     this.pendingSwitchAt = null;
+    this.pendingTransportStart = null;
     this.transportStart = graph.ctx.currentTime + START_LEAD_SEC;
     this.activePlayback = playback;
 
@@ -287,12 +289,11 @@ class DefenseBackingDeck {
 
     this.pendingPlayback = nextPlayback;
     this.pendingSwitchAt = switchAt;
+    this.pendingTransportStart = plan.cutAt;
 
-    const elapsed = Math.max(0, now - this.transportStart);
-    const phaseInBar = elapsed % this.barSec;
-    const startOffset = plan.immediate
-      ? nextPlayback.startOffset + phaseInBar
-      : nextPlayback.startOffset;
+    const loopDur = Math.max(1e-6, nextPlayback.loopEnd - nextPlayback.loopStart);
+    const overshootSec = plan.immediate ? Math.max(0, now - plan.cutAt) : 0;
+    const startOffset = nextPlayback.startOffset + (overshootSec % loopDur);
 
     const next = this.createLoopingSlot(graph, nextPlayback);
     next.gain.gain.setValueAtTime(0, switchAt);
@@ -319,10 +320,11 @@ class DefenseBackingDeck {
       this.barSec = this.pendingBarSec;
       this.pendingBarSec = null;
     }
-    if (this.pendingSwitchAt !== null) {
-      this.transportStart = this.pendingSwitchAt;
-      this.pendingSwitchAt = null;
+    if (this.pendingTransportStart !== null) {
+      this.transportStart = this.pendingTransportStart;
+      this.pendingTransportStart = null;
     }
+    this.pendingSwitchAt = null;
     if (this.pendingPlayback !== null) {
       this.activePlayback = this.pendingPlayback;
       this.pendingPlayback = null;
@@ -361,6 +363,7 @@ class DefenseBackingDeck {
     this.pendingBarSec = null;
     this.pendingPlayback = null;
     this.pendingSwitchAt = null;
+    this.pendingTransportStart = null;
     this.activePlayback = null;
     if (clearBuffers) {
       this.rawBufferByUrl.clear();
