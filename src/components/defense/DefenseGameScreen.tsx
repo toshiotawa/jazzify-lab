@@ -918,7 +918,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           }
         }
 
-        if (stage.progressionChords.length > 0) {
+        if (!isChordVoicingStage && stage.progressionChords.length > 0) {
           const beatInForm = isSeparateTracksStage
             ? defenseSeparateTracksDeck.getBeatInForm()
             : isSharedProgressionStage

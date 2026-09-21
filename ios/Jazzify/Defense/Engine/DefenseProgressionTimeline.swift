@@ -26,6 +26,13 @@ struct DefenseProgressionChip: Equatable, Identifiable {
 enum DefenseProgressionTimeline {
     static let hudSlotCount = 4
 
+    static func shouldSyncProgressionHud(
+        isChordVoicingStage: Bool,
+        progressionChordCount: Int
+    ) -> Bool {
+        !isChordVoicingStage && progressionChordCount > 0
+    }
+
     static func loopPositionToBeatInLoop(
         positionInLoopSec: Double,
         barSec: Double,

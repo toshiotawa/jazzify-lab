@@ -540,7 +540,10 @@ final class DefenseGameSession: ObservableObject {
             hud = nextHud
         }
 
-        if usesProgressionHud, !stage.progressionChords.isEmpty, phase == .playing {
+        if DefenseProgressionTimeline.shouldSyncProgressionHud(
+            isChordVoicingStage: isChordVoicingStage,
+            progressionChordCount: stage.progressionChords.count
+        ), phase == .playing {
             let phrase = stage.phrases[safe: judgeState.phraseIndex]
             let phraseLoopBars: Int = {
                 guard let phrase else { return max(1, stage.phraseBars) }

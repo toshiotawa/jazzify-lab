@@ -130,6 +130,33 @@ final class DefenseProgressionTimelineTests: XCTestCase {
         )
     }
 
+    func testShouldSyncProgressionHudSyncsPhraseStageWithChords() {
+        XCTAssertTrue(
+            DefenseProgressionTimeline.shouldSyncProgressionHud(
+                isChordVoicingStage: false,
+                progressionChordCount: 4
+            )
+        )
+    }
+
+    func testShouldSyncProgressionHudSkipsChordVoicingStage() {
+        XCTAssertFalse(
+            DefenseProgressionTimeline.shouldSyncProgressionHud(
+                isChordVoicingStage: true,
+                progressionChordCount: 4
+            )
+        )
+    }
+
+    func testShouldSyncProgressionHudSkipsEmptyProgression() {
+        XCTAssertFalse(
+            DefenseProgressionTimeline.shouldSyncProgressionHud(
+                isChordVoicingStage: false,
+                progressionChordCount: 0
+            )
+        )
+    }
+
     func testResolveHudWindowPagesByFour() {
         XCTAssertEqual(
             DefenseProgressionTimeline.resolveHudWindow(chipCount: 4, activeIndex: 3),
