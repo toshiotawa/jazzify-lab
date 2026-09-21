@@ -60,6 +60,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         )
         await MainActor.run {
             self.isStopping = true
+            self.isMutatingGraph = true
+            defer { self.isMutatingGraph = false }
             self.detachPlaybackGraph(detachMasterMixer: true)
             self.stage = stage
             let state = DefenseSeparateTracksMixerState(
@@ -143,6 +145,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         let apply = { [weak self] in
             guard let self else { return }
             self.isStopping = true
+            self.isMutatingGraph = true
+            defer { self.isMutatingGraph = false }
             self.sessionGeneration &+= 1
             self.detachPlaybackGraph(detachMasterMixer: true)
             self.mixerState = nil
@@ -212,7 +216,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.restartEngineIfNeeded()
+            guard let self, !self.isStopping, !self.isMutatingGraph else { return }
+            self.restartEngineIfNeeded()
         }
     }
 
@@ -231,6 +236,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     @MainActor
     private func reconvertAndReconnectIfNeeded() async {
         guard !isStopping, !isMutatingGraph, let state = mixerState, let stage else { return }
+        let generation = sessionGeneration
 
         let hardwareRate = EarTrainingAudio.preferredHardwareSampleRate()
         let preparedRate = state.activeSet.grid.sampleRate
@@ -243,7 +249,13 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
                 stage: stage,
                 speedRatio: ratio,
                 newSampleRate: hardwareRate
-            ), reconverted.setId != state.activeSet.setId else {
+            ) else {
+                guard !isStopping, generation == sessionGeneration, mixerState === state else { return }
+                restartEngineIfNeeded()
+                return
+            }
+            guard !isStopping, generation == sessionGeneration, mixerState === state else { return }
+            guard reconverted.setId != state.activeSet.setId else {
                 restartEngineIfNeeded()
                 return
             }
@@ -273,18 +285,21 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     private func rebuildGraph(sourceFormat: AVAudioFormat) {
-        engine.stop()
-        sourceNode = AVAudioSourceNode(format: sourceFormat) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
+        isMutatingGraph = true
+        defer { isMutatingGraph = false }
+
+        detachPlaybackGraph(detachMasterMixer: false)
+
+        let node = AVAudioSourceNode(format: sourceFormat) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
             guard let self else { return noErr }
             return self.render(frameCount: frameCount, audioBufferList: audioBufferList)
         }
-
-        guard let sourceNode else { return }
-
-        engine.reset()
-        engine.attach(sourceNode)
-        engine.attach(masterMixer)
-        engine.connect(sourceNode, to: masterMixer, format: sourceFormat)
+        sourceNode = node
+        engine.attach(node)
+        if !engine.attachedNodes.contains(masterMixer) {
+            engine.attach(masterMixer)
+        }
+        engine.connect(node, to: masterMixer, format: sourceFormat)
         engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
         sourcePlaybackFormat = sourceFormat
         applyMasterVolume()
@@ -292,8 +307,41 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         try? engine.start()
     }
 
+    /// 旧 `AVAudioSourceNode` を engine から外す。`sourceNode = nil` だけでは attach が残り、
+    /// 本番を繰り返すたびにレンダーが重なってザビつく。
+    private func detachPlaybackGraph(detachMasterMixer: Bool) {
+        if engine.isRunning {
+            engine.stop()
+        }
+
+        if engine.attachedNodes.contains(masterMixer) {
+            engine.disconnectNodeInput(masterMixer)
+            engine.disconnectNodeOutput(masterMixer)
+        }
+
+        if let node = sourceNode {
+            if engine.attachedNodes.contains(node) {
+                engine.disconnectNodeOutput(node)
+                engine.detach(node)
+            }
+            sourceNode = nil
+        }
+
+        let leakedSources = engine.attachedNodes.filter { $0 is AVAudioSourceNode }
+        for node in leakedSources {
+            engine.disconnectNodeOutput(node)
+            engine.detach(node)
+        }
+
+        if detachMasterMixer, engine.attachedNodes.contains(masterMixer) {
+            engine.detach(masterMixer)
+        }
+
+        sourcePlaybackFormat = nil
+    }
+
     private func restartEngineIfNeeded() {
-        guard !isStopping, mixerState != nil, sourceNode != nil else { return }
+        guard !isStopping, !isMutatingGraph, mixerState != nil, sourceNode != nil else { return }
         if engine.isRunning {
             engine.stop()
         }
@@ -305,7 +353,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         let blockFrames = Int(frameCount)
         zeroFillAudioBufferList(audioBufferList, frameCount: blockFrames)
 
-        guard let state = mixerState else { return noErr }
+        guard !isStopping, let state = mixerState else { return noErr }
 
         ensureScratchCapacity(blockFrames)
 
