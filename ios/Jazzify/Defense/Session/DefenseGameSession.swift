@@ -132,7 +132,7 @@ final class DefenseGameSession: ObservableObject {
                         )
                     }.value
                 } catch {
-                    phase = .loading
+                    phase = .loadError
                     return
                 }
             }
@@ -149,7 +149,7 @@ final class DefenseGameSession: ObservableObject {
                         )
                     }.value
                 } catch {
-                    phase = .loading
+                    phase = .loadError
                     return
                 }
             }

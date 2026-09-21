@@ -11,6 +11,7 @@ import {
   planPhraseReservation,
   validatePhraseLoopMeasures,
   validateSeparateTracksStageNumbers,
+  isSeparateTracksSourceFrameCountValid,
 } from '@/game/defense/defenseSeparateTracksTransport';
 
 describe('defenseSeparateTracksTransport vectors', () => {
@@ -86,6 +87,12 @@ describe('defenseSeparateTracksTransport validation', () => {
   it('accepts valid stage numbers', () => {
     expect(validateSeparateTracksStageNumbers({ progressionBars: 12, phraseBars: 2 }))
       .toBeNull();
+  });
+
+  it('accepts source WAV lengths within one frame', () => {
+    expect(isSeparateTracksSourceFrameCountValid(793800, 793800)).toBe(true);
+    expect(isSeparateTracksSourceFrameCountValid(793801, 793800)).toBe(true);
+    expect(isSeparateTracksSourceFrameCountValid(793802, 793800)).toBe(false);
   });
 
   it('validates contiguous phrase loop measures by rank', () => {

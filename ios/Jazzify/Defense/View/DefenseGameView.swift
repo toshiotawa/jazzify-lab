@@ -258,6 +258,23 @@ struct DefenseGameView: View {
                 )
             }
 
+            if session.phase == .loadError {
+                ZStack {
+                    Color.black.opacity(0.6).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        Text(locale == .ja ? "伴奏を読み込めませんでした。" : "Could not load backing track.")
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                        Button(locale == .ja ? "再試行" : "Retry") {
+                            Task { await session.start() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+            }
+
             if session.phase == .countdown {
                 Color.black.opacity(0.35).ignoresSafeArea()
                 Text("\(session.countdownSec)")

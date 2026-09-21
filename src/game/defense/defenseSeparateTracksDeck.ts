@@ -1,7 +1,7 @@
 /**
  * Separate-tracks defense deck: AudioWorklet bridge for BGM + melody mix.
  */
-import processorUrl from '@/game/defense/audio/defenseSeparateTracksProcessor.entry.ts?url';
+import processorUrl from 'virtual:defense-separate-tracks-processor-url';
 
 import { isDefenseSharedProgressionSeparateTracksStage } from '@/game/defense/defenseAudioRegistrationMode';
 import {

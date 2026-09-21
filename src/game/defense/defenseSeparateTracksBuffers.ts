@@ -126,13 +126,13 @@ export const buildSeparateTracksPreparedSet = async (params: {
     progressionBars,
     stage.bpm,
     stage.beatsPerBar,
-    sampleRate,
+    bgmBuffer.sampleRate,
   );
   const expectedMelodyFrames = computeExpectedSourceFrames(
     phraseCount * phraseBars,
     stage.bpm,
     stage.beatsPerBar,
-    sampleRate,
+    melodyBuffer.sampleRate,
   );
 
   validateSourceLength(bgmBuffer, expectedBgmFrames, 'BGM');
@@ -144,7 +144,7 @@ export const buildSeparateTracksPreparedSet = async (params: {
     phraseBars,
     stage.bpm,
     stage.beatsPerBar,
-    sampleRate,
+    melodyBuffer.sampleRate,
   );
 
   const phrasePcms: SeparateTracksPhrasePcm[] = [];
@@ -152,11 +152,12 @@ export const buildSeparateTracksPreparedSet = async (params: {
     const sliceFrames = window.sourceEndFrame - window.sourceStartFrame;
     const sliceBuffer = sliceFrames > 0
       ? (() => {
-        const tempCtx = new OfflineAudioContext(2, sliceFrames, sampleRate);
+        const sliceSampleRate = melodyBuffer.sampleRate;
+        const tempCtx = new OfflineAudioContext(2, sliceFrames, sliceSampleRate);
         const sliced = tempCtx.createBuffer(
           melodyBuffer.numberOfChannels,
           sliceFrames,
-          sampleRate,
+          sliceSampleRate,
         );
         for (let ch = 0; ch < sliced.numberOfChannels; ch += 1) {
           sliced.copyToChannel(

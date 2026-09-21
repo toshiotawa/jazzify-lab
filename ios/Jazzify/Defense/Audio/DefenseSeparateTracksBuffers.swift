@@ -36,30 +36,35 @@ enum DefenseSeparateTracksBuffers {
         )
 
         let cache = RemoteAudioFileCache(subdirectory: "defense-separate-tracks")
-        let outputFormat = AVAudioFormat(
-            standardFormatWithSampleRate: sampleRate,
-            channels: 2
-        ) ?? AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 2, interleaved: false)!
-        let bgmBuffer = try await decodePCM(url: bgmUrl, cache: cache, outputFormat: outputFormat)
-        let melodyBuffer = try await decodePCM(url: melodyUrl, cache: cache, outputFormat: outputFormat)
+        let outputFormat = EarTrainingAudio.preferredOutputFormat(sampleRate: sampleRate)
+        let nativeBgm = try await readNativePCM(url: bgmUrl, cache: cache)
+        let nativeMelody = try await readNativePCM(url: melodyUrl, cache: cache)
 
         let expectedBgmFrames = DefenseSeparateTracksTransport.measureSourceFrame(
             measureNumber: progressionBars,
             bpm: stage.bpm,
             beatsPerBar: stage.beatsPerBar,
-            sampleRate: sampleRate
+            sampleRate: nativeBgm.sampleRate
         )
         let expectedMelodyFrames = DefenseSeparateTracksTransport.measureSourceFrame(
             measureNumber: stage.phrases.count * stage.phraseBars,
             bpm: stage.bpm,
             beatsPerBar: stage.beatsPerBar,
-            sampleRate: sampleRate
+            sampleRate: nativeMelody.sampleRate
         )
 
-        guard abs(Int(bgmBuffer.frameLength) - expectedBgmFrames) <= 1,
-              abs(Int(melodyBuffer.frameLength) - expectedMelodyFrames) <= 1 else {
-            throw DefenseSeparateTracksAudioError.invalidMode
+        guard DefenseSeparateTracksTransport.isSourceFrameCountValid(
+            actualFrames: Int(nativeBgm.buffer.frameLength),
+            expectedFrames: expectedBgmFrames
+        ), DefenseSeparateTracksTransport.isSourceFrameCountValid(
+            actualFrames: Int(nativeMelody.buffer.frameLength),
+            expectedFrames: expectedMelodyFrames
+        ) else {
+            throw DefenseSeparateTracksAudioError.sourceLengthMismatch
         }
+
+        let bgmBuffer = try convertIfNeeded(nativeBgm.buffer, to: outputFormat)
+        let melodyBuffer = try convertIfNeeded(nativeMelody.buffer, to: outputFormat)
 
         let stretchedBgm = try await timeStretch(buffer: bgmBuffer, ratio: speedRatio)
         var phrasePcms: [DefenseSeparateTracksPhrasePcm] = []
@@ -69,7 +74,7 @@ enum DefenseSeparateTracksBuffers {
                 phraseBars: phraseBars,
                 bpm: stage.bpm,
                 beatsPerBar: stage.beatsPerBar,
-                sampleRate: sampleRate
+                sampleRate: melodyBuffer.format.sampleRate
             )
             let slice = sliceBuffer(
                 melodyBuffer,
@@ -101,27 +106,38 @@ enum DefenseSeparateTracksBuffers {
         )
     }
 
-    private static func decodePCM(
+    private struct NativePCM {
+        let buffer: AVAudioPCMBuffer
+        let sampleRate: Double
+    }
+
+    private static func readNativePCM(
         url: URL,
-        cache: RemoteAudioFileCache,
-        outputFormat: AVAudioFormat
-    ) async throws -> AVAudioPCMBuffer {
+        cache: RemoteAudioFileCache
+    ) async throws -> NativePCM {
         let local = try await cache.localFileURL(for: url)
         return try await Task.detached(priority: .userInitiated) {
             let file = try AVAudioFile(forReading: local)
             let frameCount = AVAudioFrameCount(file.length)
             guard let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frameCount) else {
-                throw URLError(.cannotDecodeContentData)
+                throw DefenseSeparateTracksAudioError.decodeFailed
             }
             try file.read(into: buffer)
-            if buffer.format.isEqual(outputFormat) {
-                return buffer
-            }
-            guard let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) else {
-                throw URLError(.cannotDecodeContentData)
-            }
-            return converted
+            return NativePCM(buffer: buffer, sampleRate: file.processingFormat.sampleRate)
         }.value
+    }
+
+    private static func convertIfNeeded(
+        _ buffer: AVAudioPCMBuffer,
+        to outputFormat: AVAudioFormat
+    ) throws -> AVAudioPCMBuffer {
+        if buffer.format.isEqual(outputFormat) {
+            return buffer
+        }
+        guard let converted = EarTrainingAudio.convertBuffer(buffer, to: outputFormat) else {
+            throw DefenseSeparateTracksAudioError.decodeFailed
+        }
+        return converted
     }
 
     private static func sliceBuffer(
@@ -129,21 +145,25 @@ enum DefenseSeparateTracksBuffers {
         startFrame: AVAudioFramePosition,
         frameCount: AVAudioFrameCount
     ) -> AVAudioPCMBuffer {
+        let start = max(0, min(Int(startFrame), Int(buffer.frameLength)))
+        let available = max(0, Int(buffer.frameLength) - start)
+        let count = min(max(0, Int(frameCount)), available)
+        let capacity = AVAudioFrameCount(max(1, count))
         guard let format = AVAudioFormat(
             commonFormat: buffer.format.commonFormat,
             sampleRate: buffer.format.sampleRate,
             channels: buffer.format.channelCount,
             interleaved: false
         ),
-        let sliced = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+        let sliced = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else {
             return buffer
         }
-        sliced.frameLength = frameCount
-        let start = Int(startFrame)
+        sliced.frameLength = AVAudioFrameCount(count)
+        guard count > 0 else { return sliced }
         for channel in 0..<Int(format.channelCount) {
             guard let src = buffer.floatChannelData?[channel],
                   let dst = sliced.floatChannelData?[channel] else { continue }
-            dst.update(from: src.advanced(by: start), count: Int(frameCount))
+            dst.update(from: src.advanced(by: start), count: count)
         }
         return sliced
     }

@@ -88,6 +88,10 @@ enum DefenseSeparateTracksTransport {
         return Int(((Double(safeMeasure) * Double(safeBeats) * 60.0 / safeBpm) * safeFs).rounded())
     }
 
+    static func isSourceFrameCountValid(actualFrames: Int, expectedFrames: Int) -> Bool {
+        abs(actualFrames - expectedFrames) <= 1
+    }
+
     static func phraseLoopWindow(
         rank: Int,
         phraseBars: DefenseSeparateTracksPhraseBars,

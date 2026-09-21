@@ -35,10 +35,11 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         guard stage.audioRegistrationMode == .sharedProgressionSeparateTracks else {
             throw DefenseSeparateTracksAudioError.invalidMode
         }
+        let playbackFormat = EarTrainingAudio.preferredOutputFormat()
         let prepared = try await DefenseSeparateTracksBuffers.prepare(
             stage: stage,
             speedRatio: speedRatio,
-            sampleRate: engine.outputNode.outputFormat(forBus: 0).sampleRate
+            sampleRate: playbackFormat.sampleRate
         )
         self.stage = stage
         let state = DefenseSeparateTracksMixerState(
@@ -63,7 +64,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         state.phaseFrame = 0
         state.paused = false
 
-        let format = engine.outputNode.outputFormat(forBus: 0)
+        let format = EarTrainingAudio.preferredOutputFormat()
         engine.stop()
         sourceNode = AVAudioSourceNode(format: format) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
             guard let self else { return noErr }
@@ -102,7 +103,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         guard let prepared = try? await DefenseSeparateTracksBuffers.prepare(
             stage: stage,
             speedRatio: ratio,
-            sampleRate: engine.outputNode.outputFormat(forBus: 0).sampleRate
+            sampleRate: EarTrainingAudio.preferredOutputFormat().sampleRate
         ) else {
             return
         }
@@ -203,4 +204,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
 enum DefenseSeparateTracksAudioError: Error {
     case invalidMode
+    case decodeFailed
+    case sourceLengthMismatch
 }

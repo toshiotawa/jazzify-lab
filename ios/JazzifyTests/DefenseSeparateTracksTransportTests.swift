@@ -56,6 +56,15 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
         XCTAssertEqual(beat, 20, accuracy: 0.001)
     }
 
+    func testSourceFrameCountValidAllowsOneFrame() {
+        XCTAssertTrue(
+            DefenseSeparateTracksTransport.isSourceFrameCountValid(actualFrames: 793_801, expectedFrames: 793_800)
+        )
+        XCTAssertFalse(
+            DefenseSeparateTracksTransport.isSourceFrameCountValid(actualFrames: 793_802, expectedFrames: 793_800)
+        )
+    }
+
     func testBgmReadFrameWrapsWithinForm() {
         let frame = DefenseSeparateTracksTransport.bgmReadFrame(
             absoluteCycle: 7,

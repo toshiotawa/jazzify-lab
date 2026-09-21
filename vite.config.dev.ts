@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
+import { defenseSeparateTracksWorkletPlugin } from './vite.defense-worklet-plugin'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), defenseSeparateTracksWorkletPlugin()],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

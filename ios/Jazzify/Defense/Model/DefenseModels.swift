@@ -235,6 +235,7 @@ enum DefenseRunMode {
 
 enum DefenseGamePhase: Equatable {
     case loading
+    case loadError
     case countdown
     case playing
 }

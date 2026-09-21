@@ -6,7 +6,7 @@ import {
   planPhraseReservation,
   type PhraseSchedule,
   type SeparateTracksGrid,
-} from '@/game/defense/defenseSeparateTracksTransport';
+} from './defenseSeparateTracksTransport';
 
 export interface SeparateTracksPhrasePcm {
   readonly left: Float32Array;

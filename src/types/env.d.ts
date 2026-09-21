@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+declare module 'virtual:defense-separate-tracks-processor-url' {
+  const url: string;
+  export default url;
+}
+
 interface ImportMetaEnv {
   readonly VITE_APP_ENV?: 'development' | 'staging' | 'production'
   readonly VITE_INCLUDE_DEV_LESSON_COURSES?: string
