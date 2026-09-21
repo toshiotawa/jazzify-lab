@@ -12,10 +12,17 @@ struct CourseListView: View {
     @State private var subscriptionEntry: SubscriptionEntry = .default
     @State private var journeyCourse: JourneyCourseLaunch?
     @State private var lastJourneyCourseId: UUID?
+    @State private var mainQuestLaunch: MainQuestCourseLaunch?
+    @State private var lastMainQuestCourseId: UUID?
 
     private var locale: AppLocale { appState.locale }
 
     private struct JourneyCourseLaunch: Identifiable {
+        let id: UUID
+        let course: Course
+    }
+
+    private struct MainQuestCourseLaunch: Identifiable {
         let id: UUID
         let course: Course
     }
@@ -73,6 +80,7 @@ struct CourseListView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadCourses() }
             .onAppear {
+                consumePendingMainQuestCourse(appState.pendingMainQuestCourseId)
                 Task { await appState.ensureFreshBilling() }
             }
             .navigationDestination(
@@ -96,10 +104,36 @@ struct CourseListView: View {
                     .id(launch.course.id)
                 }
             }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { mainQuestLaunch != nil },
+                    set: { if !$0 { mainQuestLaunch = nil } }
+                )
+            ) {
+                if let launch = mainQuestLaunch {
+                    MainQuestCourseView(
+                        course: launch.course,
+                        lessons: lessonsMap[launch.course.id] ?? [],
+                        completedLessonIds: progressMap[launch.course.id] ?? [],
+                        onCompletedIdsChanged: { ids in
+                            progressMap[launch.course.id] = ids
+                        }
+                    )
+                    .id(launch.course.id)
+                }
+            }
             .onChange(of: journeyCourse == nil) { isNil in
                 guard isNil, let courseId = lastJourneyCourseId else { return }
                 lastJourneyCourseId = nil
                 Task { await reloadProgressForCourse(courseId: courseId) }
+            }
+            .onChange(of: mainQuestLaunch == nil) { isNil in
+                guard isNil, let courseId = lastMainQuestCourseId else { return }
+                lastMainQuestCourseId = nil
+                Task { await reloadProgressForCourse(courseId: courseId) }
+            }
+            .onChange(of: appState.pendingMainQuestCourseId) { courseId in
+                consumePendingMainQuestCourse(courseId)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -150,7 +184,7 @@ struct CourseListView: View {
         let isPiano = course.mainQuestInstrument != "all"
 
         return Button {
-            openJourney(for: course)
+            openMainQuest(for: course)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: isPiano ? "pianokeys" : "music.note.list")
@@ -275,6 +309,18 @@ struct CourseListView: View {
         journeyCourse = JourneyCourseLaunch(id: course.id, course: course)
     }
 
+    private func openMainQuest(for course: Course) {
+        lastMainQuestCourseId = course.id
+        mainQuestLaunch = MainQuestCourseLaunch(id: course.id, course: course)
+    }
+
+    private func consumePendingMainQuestCourse(_ courseId: UUID?) {
+        guard let courseId else { return }
+        appState.pendingMainQuestCourseId = nil
+        guard let course = mainQuestCourses.first(where: { $0.id == courseId }) else { return }
+        openMainQuest(for: course)
+    }
+
     private func loadCourses() async {
         isLoading = true
         do {
@@ -303,6 +349,7 @@ struct CourseListView: View {
         }
         isLoading = false
         await prefetchAllCourseProgress()
+        consumePendingMainQuestCourse(appState.pendingMainQuestCourseId)
     }
 
     private func prefetchAllCourseProgress() async {

@@ -3,9 +3,14 @@ import SwiftUI
 import UIKit
 import WebKit
 
-struct LessonListView: View {
+struct MainQuestCourseView: View {
     @EnvironmentObject var appState: AppState
-    @State private var mainQuestCourse: Course?
+
+    let course: Course
+    let initialLessons: [Lesson]
+    let initialCompletedLessonIds: Set<UUID>
+    let onCompletedIdsChanged: ((Set<UUID>) -> Void)?
+
     @State private var lessonsMap: [UUID: [Lesson]] = [:]
     @State private var progressMap: [UUID: Set<UUID>] = [:]
     @State private var isLoading = true
@@ -24,96 +29,113 @@ struct LessonListView: View {
 
     private var locale: AppLocale { appState.locale }
 
+    init(
+        course: Course,
+        lessons: [Lesson],
+        completedLessonIds: Set<UUID>,
+        onCompletedIdsChanged: ((Set<UUID>) -> Void)? = nil
+    ) {
+        self.course = course
+        self.initialLessons = lessons
+        self.initialCompletedLessonIds = completedLessonIds
+        self.onCompletedIdsChanged = onCompletedIdsChanged
+        self._lessonsMap = State(initialValue: [course.id: lessons])
+        self._progressMap = State(initialValue: [course.id: completedLessonIds])
+        self._isLoading = State(initialValue: lessons.isEmpty)
+    }
+
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                Color(hex: "0f172a").ignoresSafeArea()
+        ZStack(alignment: .bottomTrailing) {
+            Color(hex: "0f172a").ignoresSafeArea()
 
-                if isLoading {
-                    ProgressView()
-                        .tint(.purple)
-                } else if mainQuestCourse == nil {
-                    VStack(spacing: 12) {
-                        Image(systemName: "book.closed")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.gray)
-                        Text(locale == .ja ? "クエストがありません" : "No quests available")
-                            .foregroundStyle(.gray)
-                    }
-                } else {
-                    ScrollViewReader { pageProxy in
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                if let bannerKind = appState.paymentIssueBannerKind {
-                                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
-                                }
+            if isLoading {
+                ProgressView()
+                    .tint(.purple)
+            } else if mainQuestState == nil {
+                VStack(spacing: 12) {
+                    Image(systemName: "book.closed")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.gray)
+                    Text(locale == .ja ? "クエストがありません" : "No quests available")
+                        .foregroundStyle(.gray)
+                }
+            } else {
+                ScrollViewReader { pageProxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            if let bannerKind = appState.paymentIssueBannerKind {
+                                PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                            }
 
-                                if let mainQuest = mainQuestState {
-                                    mainQuestDashboard(
-                                        mainQuest,
-                                        onContinue: {
-                                            continueMainQuest(mainQuest)
-                                            if UIDevice.current.userInterfaceIdiom != .pad {
-                                                withAnimation(.easeInOut(duration: 0.24)) {
-                                                    pageProxy.scrollTo("mainQuestDetail", anchor: .top)
-                                                }
+                            if let mainQuest = mainQuestState {
+                                mainQuestDashboard(
+                                    mainQuest,
+                                    onContinue: {
+                                        continueMainQuest(mainQuest)
+                                        if UIDevice.current.userInterfaceIdiom != .pad {
+                                            withAnimation(.easeInOut(duration: 0.24)) {
+                                                pageProxy.scrollTo("mainQuestDetail", anchor: .top)
                                             }
                                         }
-                                    )
-                                }
+                                    }
+                                )
                             }
-                            .padding()
                         }
+                        .padding()
                     }
                 }
             }
-            .navigationTitle(locale == .ja ? "クエスト" : "Quests")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .task { await loadCourses() }
-            .onAppear {
-                lessonTabVisibleTick += 1
-                Task { await appState.ensureFreshBilling() }
-            }
-            .navigationDestination(
-                isPresented: Binding(
-                    get: { lessonToOpen != nil },
-                    set: { if !$0 { lessonToOpen = nil } }
+        }
+        .navigationTitle(course.localizedTitle(locale))
+        .navigationBarTitleDisplayMode(.large)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .task { await loadCourseData() }
+        .onAppear {
+            lessonTabVisibleTick += 1
+            Task { await appState.ensureFreshBilling() }
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { lessonToOpen != nil },
+                set: { if !$0 { lessonToOpen = nil } }
+            )
+        ) {
+            if let lesson = lessonToOpen {
+                LessonDetailView(
+                    lesson: lesson,
+                    autoStartFirstRequirement: true
                 )
-            ) {
-                if let lesson = lessonToOpen {
-                    LessonDetailView(
-                        lesson: lesson,
-                        autoStartFirstRequirement: shouldAutoStartMainQuestTaskEntry(for: lesson)
-                    )
+            }
+        }
+        .onChange(of: lessonToOpen == nil) { isNil in
+            guard isNil else { return }
+            Task { await reloadProgress() }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { showLessonInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.gray)
                 }
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { showLessonInfo = true } label: {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.gray)
-                    }
-                }
-            }
-            .sheet(isPresented: $showSubscription) {
-                SubscriptionView(entry: subscriptionEntry)
-            }
-            .sheet(isPresented: $showLessonInfo) {
-                FeatureInfoModal(
-                    icon: "book.fill",
-                    iconColor: .purple,
-                    title: locale == .ja ? "クエスト" : "Quests",
-                    description: locale == .ja
-                        ? "コース形式のクエストで体系的にジャズを学べます。各クエストには動画解説と実習課題があり、課題をクリアすると次のクエストがアンロックされます。ブロックごとに進捗を管理し、段階的にスキルアップできます。"
-                        : "Learn jazz systematically through structured course quests. Each quest includes video explanations and practice tasks. Complete tasks to unlock the next quest. Progress is tracked by blocks, allowing you to level up step by step.",
-                    locale: locale
-                )
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-            }
+        }
+        .sheet(isPresented: $showSubscription) {
+            SubscriptionView(entry: subscriptionEntry)
+        }
+        .sheet(isPresented: $showLessonInfo) {
+            FeatureInfoModal(
+                icon: "book.fill",
+                iconColor: .purple,
+                title: locale == .ja ? "クエスト" : "Quests",
+                description: locale == .ja
+                    ? "コース形式のクエストで体系的にジャズを学べます。各クエストには動画解説と実習課題があり、課題をクリアすると次のクエストがアンロックされます。ブロックごとに進捗を管理し、段階的にスキルアップできます。"
+                    : "Learn jazz systematically through structured course quests. Each quest includes video explanations and practice tasks. Complete tasks to unlock the next quest. Progress is tracked by blocks, allowing you to level up step by step.",
+                locale: locale
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -158,7 +180,6 @@ struct LessonListView: View {
     }
 
     private var mainQuestState: MainQuestViewState? {
-        guard let course = mainQuestCourse else { return nil }
         let lessons = sortedLessons(lessonsMap[course.id] ?? [])
         guard !lessons.isEmpty else { return nil }
 
@@ -662,8 +683,7 @@ struct LessonListView: View {
 
         return DragCancellableTapRow(isEnabled: isUnlocked) {
             let bn = lesson.blockNumber ?? 1
-            if let mqId = mainQuestCourse?.id,
-               lesson.courseId == mqId,
+            if lesson.courseId == course.id,
                !appState.isPremium,
                bn > MainQuestFreeTier.maxFreeBlockNumber {
                 Task {
@@ -907,55 +927,25 @@ struct LessonListView: View {
 
     // MARK: - Data
 
-    private func shouldAutoStartMainQuestTaskEntry(for lesson: Lesson) -> Bool {
-        mainQuestCourse != nil
+    private func loadCourseData() async {
+        if initialLessons.isEmpty {
+            isLoading = true
+            let fetched = (try? await SupabaseService.shared.fetchLessons(courseId: course.id)) ?? []
+            lessonsMap[course.id] = sortedLessons(fetched)
+            isLoading = false
+        }
+        await reloadProgress()
     }
 
-    private func loadCourses() async {
-        isLoading = true
-        do {
-            let allCourses = try await SupabaseService.shared.fetchCourses()
-            mainQuestCourse = allCourses.first(where: { $0.isMainCourse == true })
-        } catch {
-            mainQuestCourse = nil
-        }
-        isLoading = false
-        await prefetchAllCourseProgress()
-    }
-
-    private func prefetchAllCourseProgress() async {
-        let userId = appState.profile?.id
-        guard let mainCourse = mainQuestCourse else { return }
-        let targetCourses = [mainCourse]
-
-        await withTaskGroup(of: (UUID, [Lesson]).self) { group in
-            for course in targetCourses {
-                group.addTask {
-                    let lessons = (try? await SupabaseService.shared.fetchLessons(courseId: course.id)) ?? []
-                    return (course.id, lessons)
-                }
-            }
-
-            for await (courseId, lessons) in group {
-                let sorted = lessons.sorted { lhs, rhs in
-                    let leftBlock = lhs.blockNumber ?? 1
-                    let rightBlock = rhs.blockNumber ?? 1
-                    if leftBlock != rightBlock {
-                        return leftBlock < rightBlock
-                    }
-                    return lhs.orderIndex < rhs.orderIndex
-                }
-                lessonsMap[courseId] = sorted
-            }
-        }
-
-        guard let userId else { return }
-
+    private func reloadProgress() async {
+        guard let userId = appState.profile?.id else { return }
         if let progress = try? await SupabaseService.shared.fetchLessonProgress(
-            courseId: mainCourse.id,
+            courseId: course.id,
             userId: userId
         ) {
-            progressMap[mainCourse.id] = Set(progress.filter(\.completed).map(\.lessonId))
+            let completed = Set(progress.filter(\.completed).map(\.lessonId))
+            progressMap[course.id] = completed
+            onCompletedIdsChanged?(completed)
         }
     }
 }

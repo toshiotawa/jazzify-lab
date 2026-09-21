@@ -16,11 +16,14 @@ import { shouldIncludeDeveloperLessonCoursesForUser } from '@/utils/environment'
 import { FaArrowLeft } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
-import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
+import { buildLessonDetailHash, clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 import { applySoftLandingFreeTierLocks, isSequentialCourse, isSoftLandingCourse } from '@/utils/softLanding';
-import { applyMainQuestFreeTierLocks } from '@/utils/mainQuestFreeTier';
+import { applyMainQuestFreeTierLocks, isMainQuestBlockPlayable } from '@/utils/mainQuestFreeTier';
+import { buildMainQuestSummary } from '@/utils/mainQuestSummary';
 import LessonJourneyMap from './journey/LessonJourneyMap';
+import MainQuestDashboard from './MainQuestDashboard';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 import { useAppRouteOpen } from '@/hooks/useAppRouteOpen';
 
@@ -40,6 +43,7 @@ const CoursePage: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [loading, setLoading] = useState(true);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -230,6 +234,31 @@ const CoursePage: React.FC = () => {
     window.location.hash = `#lesson-detail?id=${lessonId}`;
   }, [lessonAccessGraph, toast, isEnglishCopy]);
 
+  const progressRows = useMemo(
+    () => Object.values(progress).map((p) => ({
+      lesson_id: p.lesson_id,
+      course_id: p.course_id,
+      completed: p.completed,
+    })),
+    [progress],
+  );
+
+  const mainQuestSummary = useMemo(
+    () => (course?.is_main_course === true
+      ? buildMainQuestSummary(course, lessons, progressRows, isEnglishCopy, isPremiumMember)
+      : null),
+    [course, lessons, progressRows, isEnglishCopy, isPremiumMember],
+  );
+
+  const handleOpenMainQuestLesson = useCallback((lessonId: string) => {
+    const mqLesson = lessons.find((l) => l.id === lessonId);
+    if (mqLesson !== undefined && !isMainQuestBlockPlayable(mqLesson.block_number ?? 1, isPremiumMember)) {
+      setShowPaywall(true);
+      return;
+    }
+    window.location.hash = buildLessonDetailHash(lessonId, { autoStart: true });
+  }, [lessons, isPremiumMember]);
+
   if (!open) return null;
 
   if (!profile) {
@@ -290,67 +319,83 @@ const CoursePage: React.FC = () => {
               </div>
             </div>
           ) : course ? (
-            <>
-              <div className="rounded-2xl border border-violet-400/20 bg-[rgba(15,8,42,0.6)] backdrop-blur-sm p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      {course.is_tutorial && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
-                          Tutorial
-                        </span>
-                      )}
-                      {isSoftLandingCourse(course) ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 font-bold border border-emerald-400/30">
-                          {isEnglishCopy ? 'Block 1 free' : '第1ブロック無料'}
-                        </span>
-                      ) : course.premium_only ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold">
-                          Premium
-                        </span>
-                      ) : null}
-                    </div>
-                    <h1 className="text-xl font-bold text-violet-50 truncate">
-                      {courseDisplayTitle(course, isEnglishCopy)}
-                    </h1>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-2xl font-bold text-amber-200">{courseProgress}%</span>
-                    <p className="text-xs text-violet-200/70">
-                      {completedLessons}/{totalLessons} {isEnglishCopy ? 'completed' : '完了'}
-                    </p>
-                  </div>
-                </div>
-                {courseDesc && (
-                  <p className="text-sm text-violet-100/75">{courseDesc}</p>
-                )}
-                <div className="mt-3 h-1.5 bg-slate-900/60 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${courseProgress}%`,
-                      background: courseProgress === 100
-                        ? 'linear-gradient(to right, #7de3a7, #3ecf9b)'
-                        : 'linear-gradient(to right, #c4b5fd, #8b5cf6)',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <LessonJourneyMap
-                course={course}
-                lessons={lessons}
-                accessGraph={lessonAccessGraph}
-                requirementsProgress={lessonRequirementsProgress}
+            course.is_main_course === true && mainQuestSummary ? (
+              <MainQuestDashboard
+                summary={mainQuestSummary}
                 isEnglishCopy={isEnglishCopy}
-                focusLessonId={focusLessonId}
-                onStartLesson={handleStartLesson}
+                isPremiumMember={isPremiumMember}
+                onOpenLesson={handleOpenMainQuestLesson}
+                onShowPaywall={() => { setShowPaywall(true); }}
               />
-            </>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-violet-400/20 bg-[rgba(15,8,42,0.6)] backdrop-blur-sm p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        {course.is_tutorial && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                            Tutorial
+                          </span>
+                        )}
+                        {isSoftLandingCourse(course) ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 font-bold border border-emerald-400/30">
+                            {isEnglishCopy ? 'Block 1 free' : '第1ブロック無料'}
+                          </span>
+                        ) : course.premium_only ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold">
+                            Premium
+                          </span>
+                        ) : null}
+                      </div>
+                      <h1 className="text-xl font-bold text-violet-50 truncate">
+                        {courseDisplayTitle(course, isEnglishCopy)}
+                      </h1>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-2xl font-bold text-amber-200">{courseProgress}%</span>
+                      <p className="text-xs text-violet-200/70">
+                        {completedLessons}/{totalLessons} {isEnglishCopy ? 'completed' : '完了'}
+                      </p>
+                    </div>
+                  </div>
+                  {courseDesc && (
+                    <p className="text-sm text-violet-100/75">{courseDesc}</p>
+                  )}
+                  <div className="mt-3 h-1.5 bg-slate-900/60 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${courseProgress}%`,
+                        background: courseProgress === 100
+                          ? 'linear-gradient(to right, #7de3a7, #3ecf9b)'
+                          : 'linear-gradient(to right, #c4b5fd, #8b5cf6)',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <LessonJourneyMap
+                  course={course}
+                  lessons={lessons}
+                  accessGraph={lessonAccessGraph}
+                  requirementsProgress={lessonRequirementsProgress}
+                  isEnglishCopy={isEnglishCopy}
+                  focusLessonId={focusLessonId}
+                  onStartLesson={handleStartLesson}
+                />
+              </>
+            )
           ) : null}
         </div>
       </div>
       <OrientationLandscapePrompt isEnglishCopy={isEnglishCopy} />
+      <WebPaywallModal
+        open={showPaywall}
+        onClose={() => { setShowPaywall(false); }}
+        isEnglishCopy={isEnglishCopy}
+        source="lesson_list"
+      />
     </div>
   );
 };

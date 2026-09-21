@@ -7,6 +7,7 @@ struct TopView: View {
     @State private var userStats: UserStats?
     @State private var earnedBadges: [SupabaseService.UserBadgeRow] = []
 
+    @State private var mainQuestProgress: SupabaseService.MainQuestProgressResult?
     @State private var mainQuestLessonToOpen: Lesson?
     @State private var autoStartFirstQuestRequirement = false
     @State private var showSubscription = false
@@ -45,6 +46,7 @@ struct TopView: View {
                         if let bannerKind = appState.paymentIssueBannerKind {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
+                        mainQuestCard
                         MarketingOptInBannerView()
                         defenseGuidanceCard
                         profileCard
@@ -279,6 +281,110 @@ struct TopView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.purple.opacity(0.5), lineWidth: 1)
         )
+    }
+
+    // MARK: - Main Quest progress
+
+    @ViewBuilder
+    private var mainQuestCard: some View {
+        if let progress = mainQuestProgress, progress.totalLessons > 0 {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(.cyan)
+                    Text(locale == .ja ? "メインクエスト" : "Main Quest")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                }
+
+                mainQuestProgressRow(
+                    completed: progress.completedLessons,
+                    total: progress.totalLessons
+                )
+
+                if progress.completedLessons >= progress.totalLessons {
+                    Text(locale == .ja
+                         ? "メインクエストをすべて完了しました！"
+                         : "Main Quest complete!")
+                        .font(.subheadline)
+                        .foregroundStyle(.green)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if let nextLesson = progress.nextLesson {
+                    mainQuestNextLessonPrompt(nextLesson: nextLesson)
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button {
+                    appState.requestedTab = .quest
+                    appState.pendingMainQuestCourseId = progress.courseId
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(locale == .ja ? "メインクエストへ→" : "To Main Quest →")
+                            .font(.subheadline.bold())
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.cyan.opacity(0.8))
+                    .cornerRadius(20)
+                }
+            }
+            .padding(16)
+            .background(Color(hex: "1e293b"))
+            .cornerRadius(12)
+        }
+    }
+
+    private func mainQuestProgressPercent(completed: Int, total: Int) -> Int {
+        guard total > 0 else { return 0 }
+        return Int((Double(completed) / Double(total) * 100).rounded())
+    }
+
+    private func mainQuestProgressRow(completed: Int, total: Int) -> some View {
+        let percent = mainQuestProgressPercent(completed: completed, total: total)
+        return HStack(spacing: 8) {
+            mainQuestProgressBar(fraction: Double(percent) / 100.0)
+            Text("\(percent)%")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .foregroundStyle(Color(hex: "67e8f9"))
+        }
+    }
+
+    private func mainQuestProgressBar(fraction: Double) -> some View {
+        GeometryReader { geometry in
+            let clamped = min(max(fraction, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.black.opacity(0.48))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(hex: "22d3ee"), Color(hex: "0891b2")],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: geometry.size.width * clamped)
+            }
+        }
+        .frame(height: 5)
+    }
+
+    @ViewBuilder
+    private func mainQuestNextLessonPrompt(nextLesson: Lesson) -> some View {
+        let title = nextLesson.localizedTitle(locale)
+        let quotedTitle = locale == .ja ? "「\(title)」" : "\"\(title)\""
+        if locale == .ja {
+            Text("\(quotedTitle)を完了しましょう")
+        } else {
+            Text("Complete \(quotedTitle)")
+        }
     }
 
     // MARK: - Defense / Training guidance
@@ -525,10 +631,16 @@ struct TopView: View {
         guard let userId = profile?.id else {
             userStats = nil
             earnedBadges = []
+            mainQuestProgress = nil
             defenseTrainingGuidance = .none
             todayStreakUpdated = false
             return
         }
+
+        let instrument = MainQuestInstrument.resolve(profileInstrument: profile?.instrument)
+        async let mainQuestProgressTask: SupabaseService.MainQuestProgressResult? = {
+            try? await SupabaseService.shared.fetchMainQuestProgress(userId: userId, instrument: instrument)
+        }()
 
         async let statsTask: UserStats? = {
             do {
@@ -565,15 +677,17 @@ struct TopView: View {
             profile: appState.profile
         )
 
-        let (loadedStats, loadedBadges, loadedDefenseData, loadedDefenseLastPlayed, loadedStreakUpdated) = await (
+        let (loadedStats, loadedBadges, loadedMainQuestProgress, loadedDefenseData, loadedDefenseLastPlayed, loadedStreakUpdated) = await (
             statsTask,
             badgeTask,
+            mainQuestProgressTask,
             defenseDataTask,
             defenseLastPlayedTask,
             streakUpdatedTask
         )
         userStats = loadedStats
         earnedBadges = loadedBadges
+        mainQuestProgress = loadedMainQuestProgress
 
         let resolvedGuidance: DefenseTrainingGuidance = {
             guard let loadedDefenseData else { return .none }
