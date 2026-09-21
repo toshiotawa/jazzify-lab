@@ -154,6 +154,7 @@ import {
   scheduleOsmdTimedLinesForLoop,
   type DialogueScheduleHandle,
 } from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
+import { shouldAutoStartTutorialOsmdBattle } from './tutorial/earTrainingTutorialOsmdAutoStart';
 import EarTrainingTimingAdjustmentSlider from './EarTrainingTimingAdjustmentSlider';
 
 interface EarTrainingLessonContext {
@@ -216,6 +217,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const timingCalibrationMode = tutorial?.bindings.timingCalibrationMode === true;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
   const tutorialOsmdLoopRef = useRef(0);
+  const tutorialAutoStartedRef = useRef(false);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
   const tutorialDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
   const selfPacedDrumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
@@ -342,6 +344,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
+  const [lobbyAudioPrepared, setLobbyAudioPrepared] = useState(false);
 
   const phrasePlayerRef = useRef<EarTrainingChordVoicingPhrasePlayer | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
@@ -494,12 +497,25 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const audioUrl = phrases[0]?.audio_url?.trim();
     if (!audioUrl) {
+      setLobbyAudioPrepared(true);
       return undefined;
     }
+    setLobbyAudioPrepared(false);
     const proxyUrl = toCdnProxyUrl(audioUrl);
     const player = ensurePhrasePlayer();
-    void player.prepare(proxyUrl).catch(() => undefined);
-    return undefined;
+    let cancelled = false;
+    void player.prepare(proxyUrl).then(() => {
+      if (!cancelled) {
+        setLobbyAudioPrepared(true);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setLobbyAudioPrepared(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ensurePhrasePlayer, gameState, phrases]);
 
   useEffect(() => {
@@ -2289,18 +2305,32 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   startBattleRef.current = startBattle;
 
   useEffect(() => {
-    if (!tutorial?.bindings.ui.hideLobby && !autoStartBattle) {
+    const hideLobby = tutorial?.bindings.ui.hideLobby === true;
+    if (!shouldAutoStartTutorialOsmdBattle({
+      hideLobby,
+      autoStartBattle,
+      alreadyStarted: tutorialAutoStartedRef.current,
+      gameState,
+      hasMusicXml: Boolean(musicXmlText),
+      scoreErrorText,
+      audioPrepared: lobbyAudioPrepared,
+      targetCount: targets.length,
+    })) {
       return undefined;
     }
+    tutorialAutoStartedRef.current = true;
     tutorialOsmdLoopRef.current = 0;
-    const timer = window.setTimeout(() => {
-      if (gameStateRef.current !== 'idle') {
-        return;
-      }
-      startBattleRef.current();
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [autoStartBattle, tutorial?.bindings.ui.hideLobby]);
+    startBattleRef.current();
+    return undefined;
+  }, [
+    autoStartBattle,
+    gameState,
+    lobbyAudioPrepared,
+    musicXmlText,
+    scoreErrorText,
+    targets.length,
+    tutorial?.bindings.ui.hideLobby,
+  ]);
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,

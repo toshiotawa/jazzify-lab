@@ -18,6 +18,7 @@ import { markAudioUserInteraction } from '@/utils/MidiController';
 import { unlockTutorialAudio } from '@/components/survival/tutorial/tutorialAudioUnlock';
 
 import type { EarTrainingTutorialBindings } from './earTrainingTutorialBindings';
+import { shouldScheduleDialogueAutoAdvance } from './earTrainingTutorialDialogueAdvance';
 import type { EarTrainingTutorialDialogueOnlyScene } from './earTrainingTutorialScriptTypes';
 import { localizedText, resolveDialogueLineSpeaker } from './earTrainingTutorialScriptTypes';
 
@@ -38,6 +39,8 @@ interface EarTrainingTutorialDialogueSceneProps {
   scene: EarTrainingTutorialDialogueOnlyScene;
   bindings: EarTrainingTutorialBindings;
   drumLoopUrl: string;
+  /** 次シーンが OSMD のとき、最終行は自動送りせずタップ必須（AudioContext 解放のため） */
+  requireTapOnLastLine?: boolean;
   onComplete: () => void;
 }
 
@@ -103,6 +106,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
   scene,
   bindings,
   drumLoopUrl,
+  requireTapOnLastLine = false,
   onComplete,
 }) => {
   const drumLoopRef = useRef<EarTrainingChordVoicingDrumLoop | null>(null);
@@ -216,6 +220,10 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       return undefined;
     }
 
+    if (!shouldScheduleDialogueAutoAdvance(lineIndex, lines.length, requireTapOnLastLine)) {
+      return undefined;
+    }
+
     const timerId = window.setTimeout(() => {
       advanceLine();
     }, DIALOGUE_LINE_ADVANCE_MS);
@@ -223,7 +231,7 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [advanceLine, lineIndex, scene.lines]);
+  }, [advanceLine, lineIndex, requireTapOnLastLine, scene.lines]);
 
   const currentLine = scene.lines[lineIndex];
   const quoteText = currentLine ? localizedText(currentLine, bindings.isEnglishCopy) : '';
@@ -244,6 +252,12 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
       bottomPx: layout.sceneHeightPx - layout.partnerTopPx + QUOTE_BUBBLE_GAP_ABOVE_CHARACTER_PX,
     }
     : null;
+
+  const waitingTapToStartOsmd =
+    requireTapOnLastLine
+    && scene.lines.length > 0
+    && lineIndex >= scene.lines.length - 1
+    && !completedRef.current;
 
   return (
     <div ref={sceneRef} className="relative h-full w-full overflow-hidden bg-[#0e0705] text-white">
@@ -314,10 +328,20 @@ export const EarTrainingTutorialDialogueScene: React.FC<EarTrainingTutorialDialo
         </div>
       </div>
 
+      {waitingTapToStartOsmd ? (
+        <p className="pointer-events-none absolute inset-x-0 bottom-[8%] z-10 text-center text-sm font-semibold text-white/80">
+          {bindings.isEnglishCopy ? 'Tap to start' : 'タップして開始'}
+        </p>
+      ) : null}
+
       <button
         type="button"
         className="absolute inset-0 z-20 cursor-pointer bg-transparent focus:outline-none"
-        aria-label={bindings.isEnglishCopy ? 'Next line' : '次のセリフ'}
+        aria-label={
+          waitingTapToStartOsmd
+            ? (bindings.isEnglishCopy ? 'Tap to start' : 'タップして開始')
+            : (bindings.isEnglishCopy ? 'Next line' : '次のセリフ')
+        }
         onClick={advanceLine}
       />
     </div>

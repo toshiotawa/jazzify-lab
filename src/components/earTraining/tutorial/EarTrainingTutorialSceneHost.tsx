@@ -4,6 +4,7 @@ import type { SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import type { EarTrainingStage } from '@/types';
 
 import { resolveTutorialContentStage } from './buildTutorialStageFromContent';
+import { dialogueRequiresTapBeforeOsmd } from './earTrainingTutorialDialogueAdvance';
 import { EarTrainingTutorialDialogueScene } from './EarTrainingTutorialDialogueScene';
 import {
   resolveTutorialOsmdDrumLoopUrl,
@@ -47,6 +48,7 @@ interface EarTrainingTutorialSceneHostProps {
 export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHostProps> = ({
   script,
   scene,
+  sceneIndex,
   enemy,
   bindings,
   isEnglishCopy,
@@ -83,11 +85,14 @@ export const EarTrainingTutorialSceneHost: React.FC<EarTrainingTutorialSceneHost
   }, [bindings.ui.keyboardHintsDefault, scene, script.content]);
 
   if (scene.type === 'dialogue_only') {
+    const nextScene = script.scenes[sceneIndex + 1] ?? null;
+    const requireTapOnLastLine = dialogueRequiresTapBeforeOsmd(nextScene);
     return (
       <EarTrainingTutorialDialogueScene
         scene={scene}
         bindings={bindings}
         drumLoopUrl={drumLoopUrl}
+        requireTapOnLastLine={requireTapOnLastLine}
         onComplete={completeOnce}
       />
     );
