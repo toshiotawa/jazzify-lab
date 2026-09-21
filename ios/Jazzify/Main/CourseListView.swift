@@ -80,7 +80,6 @@ struct CourseListView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadCourses() }
             .onAppear {
-                consumePendingMainQuestCourse(appState.pendingMainQuestCourseId)
                 Task { await appState.ensureFreshBilling() }
             }
             .navigationDestination(
@@ -134,6 +133,10 @@ struct CourseListView: View {
             }
             .onChange(of: appState.pendingMainQuestCourseId) { courseId in
                 consumePendingMainQuestCourse(courseId)
+            }
+            .onChange(of: isLoading) { loading in
+                guard !loading else { return }
+                consumePendingMainQuestCourse(appState.pendingMainQuestCourseId)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -316,9 +319,18 @@ struct CourseListView: View {
 
     private func consumePendingMainQuestCourse(_ courseId: UUID?) {
         guard let courseId else { return }
+        // 初回はタブ切替時点でコース未取得のため、見つかるまで pending を消さない
+        if isLoading { return }
+        guard let course = mainQuestCourses.first(where: { $0.id == courseId }) else {
+            appState.pendingMainQuestCourseId = nil
+            return
+        }
         appState.pendingMainQuestCourseId = nil
-        guard let course = mainQuestCourses.first(where: { $0.id == courseId }) else { return }
-        openMainQuest(for: course)
+        // タブ切替と同じ更新で destination を立てると第一階層で止まることがある
+        Task { @MainActor in
+            await Task.yield()
+            openMainQuest(for: course)
+        }
     }
 
     private func loadCourses() async {
