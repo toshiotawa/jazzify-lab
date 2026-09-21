@@ -93,7 +93,7 @@ import type {
   DefenseTutorialOptions,
 } from '@/game/defense/defenseTypes';
 import type { InputMethod } from '@/types';
-import { computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
+import { computeDefenseKeyboardMidis } from '@/game/defense/defenseStageMidis';
 import {
   buildDefenseProgressionChips,
   resolveDefenseFormBarCount,
@@ -394,8 +394,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [tutorialStaffGroups, judgeSnapshot, tutorialConcertPitchClasses]);
 
   const stageMidiMidis = useMemo(
-    () => computeDefenseStageMidis(activePhrases),
-    [activePhrases],
+    () => computeDefenseKeyboardMidis(stage, activePhrases),
+    [stage, activePhrases],
   );
 
   const keyboardRange = useResolvedWebKeyboardRange(stageMidiMidis);

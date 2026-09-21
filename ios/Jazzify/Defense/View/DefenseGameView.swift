@@ -283,7 +283,7 @@ struct DefenseGameView: View {
     }
 
     private static let pianoHeight: CGFloat = EarTrainingBattleStageKit.chordPadKeyboardHeight
-    private static let phoneGrandStaffHeightRatio: CGFloat = 0.36
+    private static let phoneGrandStaffHeightRatio: CGFloat = 0.52
 
     private static func phraseStaffOverlayPlacement(
         sceneHeight: CGFloat,

@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import type { DefensePhrase, DefensePhraseChord } from '@/game/defense/defenseTypes';
+import type { DefensePhrase, DefensePhraseChord, DefenseStage } from '@/game/defense/defenseTypes';
 import {
   advanceVoicingKey,
   buildOrderedKeyCycle,
   buildRandomKeyBag,
   buildTransposedVoicingPhrases,
+  collectDefenseVoicingKeyboardMidis,
   createInitialVoicingKeyState,
   currentVoicingKey,
   placeLowestInOctaveAbove,
   transposeDefensePhraseToKey,
 } from '@/game/defense/defenseVoicingKeys';
-import type { DefenseStage } from '@/game/defense/defenseTypes';
+import { computeDefenseKeyboardMidis, computeDefenseStageMidis } from '@/game/defense/defenseStageMidis';
+import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 import { ABA_VOICINGS_BY_KEY } from '@/utils/twoHandVoicingIntermediateCourse';
 
 describe('defenseVoicingKeys', () => {
@@ -97,11 +99,60 @@ describe('defenseVoicingKeys', () => {
       requiredCompletionCount: null,
       chords: [chord],
     };
-    const transposed = transposeDefensePhraseToKey(phrase, 'F', 'C', 'F3');
-    expect(transposed.chords[0]?.chordName).toContain('Dm7');
-    expect(transposed.keyFifths).toBe(0);
-    const lowest = Math.min(...transposed.chords[0]?.notes.map((n) => n.pitchMidi) ?? [0]);
+    const sameKey = transposeDefensePhraseToKey(phrase, 'F', 'C', 'F3');
+    expect(sameKey.chords[0]?.chordName).toContain('Dm7');
+    expect(sameKey.keyFifths).toBe(0);
+    const lowest = Math.min(...sameKey.chords[0]?.notes.map((n) => n.pitchMidi) ?? [0]);
     expect(lowest).toBeGreaterThanOrEqual(41);
+  });
+
+  it('keeps II-V-I relative register when lifting above F3', () => {
+    const fSet = ABA_VOICINGS_BY_KEY.F;
+    const toChord = (
+      id: string,
+      orderIndex: number,
+      displayName: string,
+      notes: readonly string[],
+      measure: number,
+    ): DefensePhraseChord => ({
+      id,
+      orderIndex,
+      chordName: displayName,
+      measureNumber: measure,
+      notes: notes.map((noteName, noteIndex) => ({
+        orderIndex: noteIndex,
+        pitchMidi: 0,
+        pitchClass: 0,
+        noteName,
+        staff: 1 as const,
+        stepIndex: 0,
+      })),
+    });
+    const phrase: DefensePhrase = {
+      id: 'p0',
+      orderIndex: 0,
+      title: 'F',
+      audioUrl: '',
+      loopStartMeasure: 1,
+      loopEndMeasure: 3,
+      keyFifths: -1,
+      requiredCompletionCount: null,
+      chords: [
+        toChord('c0', 0, fSet.ii.displayName, fSet.ii.notes, 1),
+        toChord('c1', 1, fSet.v.displayName, fSet.v.notes, 2),
+        toChord('c2', 2, fSet.i.displayName, fSet.i.notes, 3),
+      ],
+    };
+    const templateLow = (notes: readonly string[]) => Math.min(
+      ...notes.map((name) => parseVoicingNoteName(name).midi),
+    );
+    const placed = transposeDefensePhraseToKey(phrase, 'F', 'F', 'F3');
+    const placedLow = (index: number) => Math.min(
+      ...placed.chords[index]?.notes.map((note) => note.pitchMidi) ?? [0],
+    );
+    expect(placedLow(1) - placedLow(0)).toBe(templateLow(fSet.v.notes) - templateLow(fSet.ii.notes));
+    expect(placedLow(2) - placedLow(0)).toBe(templateLow(fSet.i.notes) - templateLow(fSet.ii.notes));
+    expect(Math.min(placedLow(0), placedLow(1), placedLow(2))).toBeGreaterThanOrEqual(53);
   });
 
   it('advanceVoicingKey cycles order mode', () => {
@@ -167,5 +218,79 @@ describe('defenseVoicingKeys', () => {
     };
     const keyState = createInitialVoicingKeyState('order', 'F');
     expect(buildTransposedVoicingPhrases(stage, keyState)).toHaveLength(1);
+  });
+
+  it('collectDefenseVoicingKeyboardMidis is stable across current keys', () => {
+    const fSet = ABA_VOICINGS_BY_KEY.F;
+    const templatePhrase: DefensePhrase = {
+      id: 'p0',
+      orderIndex: 0,
+      title: 'template',
+      audioUrl: 'https://example.com/a.mp3',
+      loopStartMeasure: 1,
+      loopEndMeasure: 3,
+      keyFifths: -1,
+      requiredCompletionCount: null,
+      chords: [
+        {
+          id: 'c0',
+          orderIndex: 0,
+          chordName: fSet.ii.displayName,
+          measureNumber: 1,
+          notes: fSet.ii.notes.map((noteName, orderIndex) => ({
+            orderIndex,
+            pitchMidi: 0,
+            pitchClass: 0,
+            noteName,
+            staff: 2 as const,
+            stepIndex: 0,
+          })),
+        },
+      ],
+    };
+    const stage: DefenseStage = {
+      id: 's',
+      slug: 's',
+      stageNumber: 1,
+      title: 't',
+      titleEn: 't',
+      bpm: 100,
+      beatsPerBar: 4,
+      audioRegistrationMode: 'single_source',
+      audioUrl: 'https://example.com/a.mp3',
+      melodyAudioUrl: null,
+      progressionBars: null,
+      phraseBars: 1,
+      staffLayout: 'grand',
+      attackTrigger: 'note',
+      keyFifths: -1,
+      requiredCompletionCount: 1,
+      difficultyLevel: 1,
+      surviveSeconds: 120,
+      playerHp: 20,
+      productionStaffHintMode: 'always',
+      productionKeyboardHintMode: 'always',
+      playStyle: 'chord_voicing',
+      voicingKeyMode: 'order',
+      voicingLowestKey: 'F',
+      voicingStartKey: 'F',
+      voicingMinLowestNote: 'F3',
+      playRootOnChordChange: true,
+      phrases: [templatePhrase],
+      progressionChords: [],
+    };
+    const fPhrases = buildTransposedVoicingPhrases(stage, createInitialVoicingKeyState('order', 'F'));
+    const cState = {
+      ...createInitialVoicingKeyState('order', 'C'),
+      keys: buildOrderedKeyCycle('F'),
+      index: buildOrderedKeyCycle('F').indexOf('C'),
+    };
+    const cPhrases = buildTransposedVoicingPhrases(stage, cState);
+    expect(computeDefenseKeyboardMidis(stage, fPhrases)).toEqual(
+      computeDefenseKeyboardMidis(stage, cPhrases),
+    );
+    expect(collectDefenseVoicingKeyboardMidis(stage).length).toBeGreaterThan(
+      computeDefenseStageMidis(fPhrases).length,
+    );
   });
 });

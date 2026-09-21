@@ -88,6 +88,31 @@ enum DefenseVoicingKeys {
         ]
     }
 
+    static func collectKeyboardMidis(stage: DefenseStageDefinition) -> [Int] {
+        guard isChordVoicingStage(stage),
+              let template = stage.phrases.first,
+              let referenceKey = stage.voicingLowestKey,
+              let minNote = stage.voicingMinLowestNote
+        else {
+            return DefenseKeyboardRange.allPitchMidis(in: stage.phrases)
+        }
+        var midis: [Int] = []
+        for key in TrainingTwoHandVoicingTables.allMajorKeys {
+            let phrase = transposePhrase(
+                template,
+                referenceKey: referenceKey,
+                targetKey: key,
+                minLowestNote: minNote
+            )
+            for chord in phrase.chords {
+                for note in chord.notes {
+                    midis.append(note.pitchMidi)
+                }
+            }
+        }
+        return midis
+    }
+
     private static func transposePhrase(
         _ template: DefensePhraseDefinition,
         referenceKey: String,
@@ -95,8 +120,25 @@ enum DefenseVoicingKeys {
         minLowestNote: String
     ) -> DefensePhraseDefinition {
         let keyFifths = TrainingTwoHandVoicingTables.abaSet(key: targetKey)?.keyFifths ?? template.keyFifths
-        let chords = template.chords.map {
-            transposeChord($0, referenceKey: referenceKey, targetKey: targetKey, minLowestNote: minLowestNote)
+        let interval = transposeIntervalSpec(referenceKey: referenceKey, targetKey: targetKey)
+        let nameGroups = template.chords.map { chord -> [String] in
+            let rawNames = chord.notes.map(\.noteName)
+            guard let interval else { return rawNames }
+            return rawNames.map { transposeNoteName($0, by: interval) ?? $0 }
+        }
+        let minMidi = TrainingMusicTheory.parseVoicingMidi(minLowestNote) ?? 48
+        let repositioned = placeLowestInOctaveAbove(nameGroups.flatMap { $0 }, minMidi: minMidi)
+        var offset = 0
+        let chords = zip(template.chords.indices, template.chords).map { _, chord in
+            let count = chord.notes.count
+            let slice = Array(repositioned[offset..<min(offset + count, repositioned.count)])
+            offset += count
+            return applyNoteNames(
+                chord,
+                names: slice,
+                referenceKey: referenceKey,
+                targetKey: targetKey
+            )
         }
         return DefensePhraseDefinition(
             id: template.id,
@@ -119,21 +161,15 @@ enum DefenseVoicingKeys {
         return TrainingMusicTheory.ascendingInterval(fromRoot: referenceKey, toRoot: targetKey)
     }
 
-    private static func transposeChord(
+    private static func applyNoteNames(
         _ chord: SurvivalPhraseChord,
+        names: [String],
         referenceKey: String,
-        targetKey: String,
-        minLowestNote: String
+        targetKey: String
     ) -> SurvivalPhraseChord {
         let interval = transposeIntervalSpec(referenceKey: referenceKey, targetKey: targetKey)
-        let rawNames = chord.notes.map(\.noteName)
-        let transposed = interval == nil
-            ? rawNames
-            : rawNames.compactMap { transposeNoteName($0, by: interval) }
-        let minMidi = TrainingMusicTheory.parseVoicingMidi(minLowestNote) ?? 48
-        let repositioned = placeLowestInOctaveAbove(transposed, minMidi: minMidi)
         let notes = zip(chord.notes.indices, chord.notes).map { index, note in
-            let name = repositioned[safe: index] ?? note.noteName
+            let name = names[safe: index] ?? note.noteName
             let midi = TrainingMusicTheory.parseVoicingMidi(name) ?? note.pitchMidi
             let staffLabel = note.staffChordName.flatMap { label -> String? in
                 guard interval != nil else { return label }

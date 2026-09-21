@@ -162,19 +162,22 @@ const transposeChordSymbol = (chordName: string, interval: string): string => {
 
 const staffForMidi = (midi: number): 1 | 2 => (midi < 60 ? 2 : 1);
 
-const transposePhraseChord = (
+const transposeChordNoteNames = (
   chord: DefensePhraseChord,
   interval: string,
-  minLowestNote: string,
-): DefensePhraseChord => {
+): string[] => {
   const rawNames = chord.notes.map((note) => note.noteName);
-  const transposedNames = interval === '1P'
-    ? rawNames
-    : rawNames.map((name) => transposeNoteName(name, interval));
-  const repositioned = placeLowestInOctaveAbove(transposedNames, midiOf(minLowestNote));
+  if (interval === '1P') return [...rawNames];
+  return rawNames.map((name) => transposeNoteName(name, interval));
+};
 
+const applyNoteNamesToChord = (
+  chord: DefensePhraseChord,
+  names: readonly string[],
+  interval: string,
+): DefensePhraseChord => {
   const notes = chord.notes.map((note, noteIndex) => {
-    const noteName = repositioned[noteIndex] ?? note.noteName;
+    const noteName = names[noteIndex] ?? note.noteName;
     const midi = midiOf(noteName);
     return {
       ...note,
@@ -187,7 +190,6 @@ const transposePhraseChord = (
         : undefined,
     };
   });
-
   return {
     ...chord,
     chordName: transposeChordSymbol(chord.chordName, interval),
@@ -206,15 +208,41 @@ export const transposeDefensePhraseToKey = (
     throw new Error(`distance failed: ${referenceKey} -> ${targetKey}`);
   }
   const keyFifths = KEY_FIFTHS_BY_MAJOR[targetKey];
-  const chords = template.chords.map((chord) => (
-    transposePhraseChord(chord, interval, minLowestNote)
-  ));
+  const nameGroups = template.chords.map((chord) => transposeChordNoteNames(chord, interval));
+  const repositioned = placeLowestInOctaveAbove(nameGroups.flat(), midiOf(minLowestNote));
+  let offset = 0;
+  const chords = template.chords.map((chord, chordIndex) => {
+    const count = nameGroups[chordIndex]?.length ?? 0;
+    const slice = repositioned.slice(offset, offset + count);
+    offset += count;
+    return applyNoteNamesToChord(chord, slice, interval);
+  });
   return {
     ...template,
     title: targetKey,
     keyFifths,
     chords,
   };
+};
+
+export const collectDefenseVoicingKeyboardMidis = (stage: DefenseStage): number[] => {
+  if (!isDefenseChordVoicingStage(stage)) {
+    return [];
+  }
+  const template = stage.phrases[0];
+  if (!template) return [];
+  const referenceKey = stage.voicingLowestKey ?? 'C';
+  const minNote = stage.voicingMinLowestNote ?? 'C3';
+  const midis: number[] = [];
+  for (const key of DEFENSE_MAJOR_KEYS) {
+    const phrase = transposeDefensePhraseToKey(template, referenceKey, key, minNote);
+    for (const chord of phrase.chords) {
+      for (const note of chord.notes) {
+        midis.push(note.pitchMidi);
+      }
+    }
+  }
+  return midis;
 };
 
 export const buildTransposedVoicingPhrases = (

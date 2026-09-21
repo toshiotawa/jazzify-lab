@@ -26,7 +26,9 @@ enum DefenseKeyboardRange {
         case .full88Keys:
             return .full88
         case .questionRangeFit:
-            let midis = allPitchMidis(in: phrases ?? stage.phrases)
+            let midis = DefenseVoicingKeys.isChordVoicingStage(stage)
+                ? DefenseVoicingKeys.collectKeyboardMidis(stage: stage)
+                : allPitchMidis(in: phrases ?? stage.phrases)
             guard let minMidi = midis.min(), let maxMidi = midis.max() else {
                 return .full88
             }
