@@ -43,6 +43,32 @@ final class EarTrainingOsmdKeyboardScrollTests: XCTestCase {
         XCTAssertFalse(stage.resolvedOsmdTargetsFromScore)
     }
 
+    func testNormalizeChordOsmdMusicXmlAddsDeclarationForDoctypeOnlyInput() {
+        let xml = """
+        <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+        <score-partwise version="3.1"><part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions></attributes>
+        <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+        </measure></part></score-partwise>
+        """
+        let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(xml)
+        XCTAssertTrue(
+            prepared.xml.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<?xml")
+        )
+        XCTAssertFalse(prepared.xml.contains("<!DOCTYPE"))
+    }
+
+    func testEnsureMusicXmlDeclarationStripsDoctypeWhenDeclarationPresent() {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+        <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+        <score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/></note></measure></part></score-partwise>
+        """
+        let prepared = EarTrainingChordOsmdMusicXmlNormalizer.ensureMusicXmlDeclaration(xml)
+        XCTAssertTrue(prepared.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<?xml"))
+        XCTAssertFalse(prepared.contains("<!DOCTYPE"))
+    }
+
     func testCollectAttacksHighNoteDrivesScrollAnchor() {
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>

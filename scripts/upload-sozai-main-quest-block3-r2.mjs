@@ -54,6 +54,10 @@ const FILES = BASES.flatMap((base) => [
   { name: `${base}-guide-voice4-cue.musicxml`, contentType: 'application/vnd.recordare.musicxml+xml' },
   { name: `${base}-precision.musicxml`, contentType: 'application/vnd.recordare.musicxml+xml' },
 ]);
+FILES.push({
+  name: 'mq-b4-5-1-1-theme.musicxml',
+  contentType: 'application/vnd.recordare.musicxml+xml',
+});
 
 /** @type {S3Client | null} */
 let s3 = null;

@@ -140,6 +140,7 @@ const cloneTimelineNoteAsGuide = (doc, sourceNote, asCue) => {
 
   appendDirectChildrenByName(doc, sourceNote, note, 'dot');
   appendDirectChildrenByName(doc, sourceNote, note, 'beam');
+  appendDirectChildrenByName(doc, sourceNote, note, 'staff');
   setDirectChildText(doc, note, 'voice', GUIDE_VOICE);
 
   if (!isRest) {
@@ -207,5 +208,9 @@ for (let i = 1; i < measures.length; i += 1) {
   }
 }
 
-writeFileSync(OUTPUT, dom.serialize(), 'utf8');
+const serialized = dom.serialize();
+const output = serialized.trimStart().startsWith('<?xml')
+  ? serialized
+  : `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n${serialized}`;
+writeFileSync(OUTPUT, output, 'utf8');
 console.log(`Wrote ${OUTPUT}${useCue ? ' (cue)' : ' (dim)'}`);

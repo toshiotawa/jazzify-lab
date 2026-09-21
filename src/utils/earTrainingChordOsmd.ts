@@ -1,5 +1,6 @@
 import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTrainingStage } from '@/types';
 import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
+import { ensureMusicXmlDeclaration } from '@/utils/musicXmlMapper';
 import {
   musicXmlAccidentalTextToAlter,
   parseVoicingNoteName,
@@ -402,9 +403,9 @@ export const applyChordOsmdGuideNoteColors = (xmlText: string): string => {
   }
 
   if (!changed) {
-    return xmlText;
+    return ensureMusicXmlDeclaration(xmlText);
   }
-  return new XMLSerializer().serializeToString(doc);
+  return ensureMusicXmlDeclaration(new XMLSerializer().serializeToString(doc));
 };
 
 const setDirectChildText = (doc: Document, parent: Element, localName: string, text: string): void => {
@@ -683,9 +684,9 @@ export const normalizeChordOsmdMusicXml = (xmlText: string): string => {
   }
 
   if (!changed) {
-    return xmlText;
+    return ensureMusicXmlDeclaration(xmlText);
   }
-  return new XMLSerializer().serializeToString(doc);
+  return ensureMusicXmlDeclaration(new XMLSerializer().serializeToString(doc));
 };
 
 const parseMusicXmlMeasureNumber = (measure: Element, ordinalOneBased: number): number => {

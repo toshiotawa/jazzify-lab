@@ -1,3 +1,4 @@
+import { ensureMusicXmlDeclaration } from '@/utils/musicXmlMapper';
 import { musicXmlKeySignatureAlter } from '@/utils/voicingMusicXml';
 
 interface SimplifiedSpelledPitch {
@@ -197,12 +198,12 @@ export const simplifyMusicXmlEnharmonics = (xmlString: string): string => {
     });
 
     if (!changed) {
-      return xmlString;
+      return ensureMusicXmlDeclaration(xmlString);
     }
 
     const serializer = new XMLSerializer();
-    return serializer.serializeToString(doc);
+    return ensureMusicXmlDeclaration(serializer.serializeToString(doc));
   } catch {
-    return xmlString;
+    return ensureMusicXmlDeclaration(xmlString);
   }
 };

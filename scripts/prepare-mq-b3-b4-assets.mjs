@@ -16,20 +16,23 @@ const BUILD_CR = join(ROOT, 'scripts', 'build-mq-b5-call-response-musicxml.mjs')
 const STRIP = join(ROOT, 'scripts', 'strip-musicxml-voice4.mjs');
 const SOZAI = join(ROOT, 'public', 'sozai');
 
-/** 1小節先行の voice1→voice4 cue。Q1 は cue なし（原譜を OSMD に使う）。 */
+/** 1小節先行の voice1→voice4 cue（Ch4 Q1 など単一 voice 向け）。 */
 const AHEAD_CUE_SOURCES = [
-  'mq-b4-5-1-1',
   'mq-b4-5-2-2',
   'mq-b4-5-2-4',
   'mq-b4-5-3-2',
   'mq-b4-5-3-3',
 ];
 
-/** 旧 cue ファイルが残っていても Voice4 が出ないよう、原譜で上書きする。 */
-const Q1_NO_CUE_SOURCES = [
+/**
+ * OSMD 本番は原譜を使う（Voice4 不要 or 2段譜で cue が OSMD を壊す）。
+ * 旧 cue / precision が残っていても Voice4 が出ないよう、原譜で上書きする。
+ */
+const NO_CUE_SOURCES = [
   'mq-b3-4-1-2',
   'mq-b3-4-1-3',
   'mq-b3-4-1-4',
+  'mq-b4-5-1-1',
 ];
 
 /**
@@ -72,7 +75,7 @@ for (const base of CALL_RESPONSE_CUE_SOURCES) {
   copyFileSync(cue, precision);
 }
 
-for (const base of Q1_NO_CUE_SOURCES) {
+for (const base of NO_CUE_SOURCES) {
   copyFileSync(join(SOZAI, `${base}.musicxml`), join(SOZAI, `${base}-guide-voice4-cue.musicxml`));
 }
 
@@ -81,5 +84,5 @@ if (errors > 0) {
 }
 
 console.log(
-  `Prepared ${AHEAD_CUE_SOURCES.length} ahead-cue + ${CALL_RESPONSE_CUE_SOURCES.length} call-response cue MusicXML pairs. Overwrote ${Q1_NO_CUE_SOURCES.length} Q1 cue files with originals.`,
+  `Prepared ${AHEAD_CUE_SOURCES.length} ahead-cue + ${CALL_RESPONSE_CUE_SOURCES.length} call-response cue MusicXML pairs. Overwrote ${NO_CUE_SOURCES.length} no-cue files with originals.`,
 );

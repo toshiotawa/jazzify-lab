@@ -6,6 +6,7 @@ import {
   transposeMusicXml,
 } from '@/utils/musicXmlTransposer';
 import { fifthsToPreferredKeyName } from '@/utils/earTrainingPracticeTranspose';
+import { ensureMusicXmlDeclaration } from '@/utils/musicXmlMapper';
 import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
 
 export type NotationInstrumentClef = 'treble' | 'bass' | 'grand';
@@ -201,7 +202,7 @@ const rewriteClefsInMusicXml = (xmlString: string, clef: Exclude<NotationInstrum
     clefEl.appendChild(lineEl);
   });
 
-  return new XMLSerializer().serializeToString(doc);
+  return ensureMusicXmlDeclaration(new XMLSerializer().serializeToString(doc));
 };
 
 export const applyNotationInstrumentToMusicXml = (

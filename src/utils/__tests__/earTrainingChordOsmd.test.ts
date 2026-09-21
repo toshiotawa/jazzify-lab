@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Note } from 'tonal';
 import { describe, expect, it } from 'vitest';
 import type { EarTrainingPhrase, EarTrainingPhraseChord } from '@/types';
-import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
+import { ensureMusicXmlDeclaration, stripLyricsFromMusicXml, stripMusicXmlDoctype } from '@/utils/musicXmlMapper';
 import { buildChordOsmdRhythmTargetsWithMeta } from '@/utils/earTrainingCanonicalPhraseNotes';
 import {
   applyChordOsmdGuideNoteColors,
@@ -922,6 +922,20 @@ describe('voice 4 guide notes', () => {
     const colored = applyChordOsmdGuideNoteColors(xml);
     expect(colored).toContain(`color="${CHORD_OSMD_GUIDE_NOTE_COLOR}"`);
     expect(colored.match(/color="/g)?.length).toBe(1);
+    expect(colored.trimStart().startsWith('<?xml')).toBe(true);
+  });
+
+  it('applyChordOsmdGuideNoteColors は DOCTYPE 始まりでも OSMD 用に XML 宣言を付与する', () => {
+    const xml = `<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1"><part id="P1"><measure number="1">
+<attributes><divisions>1</divisions></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice></note>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>4</voice></note>
+</measure></part></score-partwise>`;
+    const colored = applyChordOsmdGuideNoteColors(xml);
+    expect(colored.trimStart().startsWith('<?xml')).toBe(true);
+    expect(colored).not.toContain('<!DOCTYPE');
+    expect(colored).toContain(`color="${CHORD_OSMD_GUIDE_NOTE_COLOR}"`);
   });
 
   it('voice 4 pitch がある小節の voice 1 rest は非表示にし、演奏小節の voice 1 は残す', () => {
@@ -1120,6 +1134,56 @@ describe('collectChordOsmdMusicXmlAttacks accidentals', () => {
         expect(attacks[0]?.midis, `fifths=${fifths} step=${step}`).toEqual([expectedMidi]);
       }
     }
+  });
+});
+
+describe('ensureMusicXmlDeclaration', () => {
+  it('DOCTYPE 付き Finale 出力から DOCTYPE を除去し XML 宣言を残す', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/></note></measure></part></score-partwise>`;
+    const prepared = ensureMusicXmlDeclaration(xml);
+    expect(prepared.trimStart().startsWith('<?xml')).toBe(true);
+    expect(prepared).not.toContain('<!DOCTYPE');
+    expect(prepared).toContain('<score-partwise');
+  });
+
+  it('DOCTYPE のみ始まりでも XML 宣言を付与して DOCTYPE を除去する', () => {
+    const xml = `<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1"><part id="P1"><measure number="1"><note><rest/></note></measure></part></score-partwise>`;
+    const prepared = ensureMusicXmlDeclaration(xml);
+    expect(prepared.trimStart().startsWith('<?xml')).toBe(true);
+    expect(prepared).not.toContain('<!DOCTYPE');
+  });
+
+  it('stripMusicXmlDoctype は DOCTYPE 行だけを落とす', () => {
+    const xml = `<?xml version="1.0"?>\n<!DOCTYPE score-partwise PUBLIC "x" "y">\n<score-partwise/>`;
+    expect(stripMusicXmlDoctype(xml)).toBe('<?xml version="1.0"?>\n<score-partwise/>');
+  });
+});
+
+describe('mq-b4-5-1-1 Ch5 Q1 theme MusicXML', () => {
+  const themePath = 'public/sozai/mq-b4-5-1-1.musicxml';
+
+  it('原譜から OSMD 判定ターゲット 80 個を生成する（84 pitch のうちタイ続き等 4 音除外）', () => {
+    const raw = readFileSync(themePath, 'utf8');
+    expect(raw).not.toContain('<!DOCTYPE');
+    const prepared = ensureMusicXmlDeclaration(normalizeChordOsmdMusicXml(raw));
+    expect(prepared).not.toContain('<!DOCTYPE');
+    const attacks = collectChordOsmdMusicXmlAttacks(prepared);
+    const phrase: EarTrainingPhrase = {
+      id: 'mq-b4-5-1-1-ph',
+      stage_id: 'mq-b4-5-1-1-osmd',
+      order_index: 0,
+      audio_url: 'https://jazzify-cdn.com/sozai/mq-b4-5-1-1.mp3',
+      loop_duration_sec: 60,
+      audio_duration_sec: 60,
+      note_count: 0,
+    };
+    const targets = buildChordOsmdRhythmTargets(phrase, 100, 4, attacks, true, 0, null, true, prepared);
+    expect(attacks).toHaveLength(80);
+    expect(targets).toHaveLength(80);
+    expect(targets[0]?.measureNumber).toBe(2);
   });
 });
 

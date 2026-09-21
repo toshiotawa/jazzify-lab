@@ -243,10 +243,28 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
         return max(1, maxFromStaves, maxFromNoteStaff, partsWithPitchNotes)
     }
 
+    /// Finale 出力の `<!DOCTYPE ...>` を除去（OSMD / WebKit が不安定になるため）。
+    static func stripMusicXmlDoctype(_ xmlText: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: "<!DOCTYPE[^>]*>\\s*", options: [.caseInsensitive]) else {
+            return xmlText
+        }
+        let range = NSRange(xmlText.startIndex..., in: xmlText)
+        return regex.stringByReplacingMatches(in: xmlText, options: [], range: range, withTemplate: "")
+    }
+
+    /// OSMD / WebKit は先頭 `<?xml ...?>` を要求する。DOCTYPE は除去し、宣言欠落時のみ付与する。
+    static func ensureMusicXmlDeclaration(_ xmlText: String) -> String {
+        let withoutDoctype = stripMusicXmlDoctype(xmlText)
+        if withoutDoctype.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<?xml") {
+            return withoutDoctype
+        }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + withoutDoctype
+    }
+
     /// 正規化後の XML と、段落譜数の検出結果（読み込み 1 回で両方算出）。
     static func normalizeChordOsmdMusicXmlWithMeta(_ xmlText: String) -> (xml: String, maxStaffLayers: Int) {
         guard let root = ChordOsmdXmlParser.parse(xmlText) else {
-            return (xmlText, 1)
+            return (ensureMusicXmlDeclaration(xmlText), 1)
         }
         let maxStaffLayers = Self.maxDetectedStaffLayerCount(from: root)
 
@@ -260,7 +278,7 @@ enum EarTrainingChordOsmdMusicXmlNormalizer {
             }
         }
 
-        guard changed else { return (xmlText, maxStaffLayers) }
+        guard changed else { return (ensureMusicXmlDeclaration(xmlText), maxStaffLayers) }
         // `XMLParser` は XML 宣言と DOCTYPE を保持せず、serializer も root 以下しか出力しない。
         // WebKit の DOMParser は宣言の無い文字列を `invalid document` として弾くため、`<?xml ... ?>` を再付与する。
         let normalized = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + ChordOsmdXmlSerializer.stringify(root)

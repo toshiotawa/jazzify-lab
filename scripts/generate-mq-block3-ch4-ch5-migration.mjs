@@ -282,7 +282,7 @@ const ch5Q1Tutorial = {
           order_index: 0,
           title: 'Jazzify Blues テーマ',
           title_en: 'Jazzify Blues theme',
-          music_xml_url: asset('mq-b4-5-1-1-guide-voice4-cue.musicxml'),
+          music_xml_url: `${CDN}/mq-b4-5-1-1-theme.musicxml?v=202609211338`,
           audio_url: asset('mq-b4-5-1-1.mp3'),
           loop_duration_sec: 25 * MEASURE_SEC,
           audio_duration_sec: 25 * MEASURE_SEC,

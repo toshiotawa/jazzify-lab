@@ -2254,12 +2254,13 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       selfPacedDrumLoopRef.current?.dispose();
       selfPacedDrumLoopRef.current = null;
       pendingImpactHandlersRef.current.clear();
-      clearScheduledTimers();
-      stopPhraseAudio();
+      timersRef.current.forEach((timer) => window.clearTimeout(timer));
+      timersRef.current.clear();
+      phrasePlayerRef.current?.stop();
       phrasePlayerRef.current?.dispose();
       phrasePlayerRef.current = null;
     };
-  }, [clearScheduledTimers, stopPhraseAudio]);
+  }, []);
 
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyBattleKey = buildEarTrainingEnemyBattleSourceKey(stage.id, enemy ?? { id: 'enemy', name: null });
@@ -2284,17 +2285,22 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     ? '∞'
     : `${Math.min(phraseIndex + 1, Math.max(1, phrases.length))}/${Math.max(1, phrases.length)}`;
 
+  const startBattleRef = useRef(startBattle);
+  startBattleRef.current = startBattle;
+
   useEffect(() => {
     if (!tutorial?.bindings.ui.hideLobby && !autoStartBattle) {
       return undefined;
     }
-    if (gameStateRef.current !== 'idle') {
-      return undefined;
-    }
     tutorialOsmdLoopRef.current = 0;
-    const timer = setTimeout(() => startBattle(), 120);
-    return () => clearTimeout(timer);
-  }, [autoStartBattle, startBattle, tutorial?.bindings.ui.hideLobby]);
+    const timer = window.setTimeout(() => {
+      if (gameStateRef.current !== 'idle') {
+        return;
+      }
+      startBattleRef.current();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [autoStartBattle, tutorial?.bindings.ui.hideLobby]);
 
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => applyTutorialBattleSnapshot({
     gameState,
