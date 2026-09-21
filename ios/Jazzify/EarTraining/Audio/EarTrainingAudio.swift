@@ -1799,6 +1799,7 @@ final class EarTrainingAudio: NSObject {
         guard let converter = AVAudioConverter(from: source.format, to: format) else {
             return nil
         }
+        converter.sampleRateConverterQuality = AVAudioQuality.max.rawValue
         let ratio = format.sampleRate / source.format.sampleRate
         let outCapacity = AVAudioFrameCount(ceil(Double(source.frameLength) * ratio))
         guard let output = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: outCapacity) else {

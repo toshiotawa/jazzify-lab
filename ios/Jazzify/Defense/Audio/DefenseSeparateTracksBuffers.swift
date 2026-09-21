@@ -3,6 +3,20 @@ import Foundation
 
 enum DefenseSeparateTracksBuffers {
     private static var nextSetId = 1
+    private static let envelopeMs: Double = 3
+    private static let sampleRateMismatchThreshold = 0.01
+
+    private struct NativeSourceCacheKey: Hashable {
+        let bgmUrl: String
+        let melodyUrl: String
+    }
+
+    private struct NativePCM {
+        let buffer: AVAudioPCMBuffer
+        let sampleRate: Double
+    }
+
+    private static var nativeSourceCache: [NativeSourceCacheKey: (bgm: NativePCM, melody: NativePCM)] = [:]
 
     static func prepare(
         stage: DefenseStageDefinition,
@@ -17,6 +31,99 @@ enum DefenseSeparateTracksBuffers {
             throw DefenseSeparateTracksAudioError.invalidMode
         }
 
+        let cacheKey = NativeSourceCacheKey(bgmUrl: bgmUrlString, melodyUrl: melodyUrlString)
+        let cache = RemoteAudioFileCache(subdirectory: "defense-separate-tracks")
+
+        let nativeBgm: NativePCM
+        let nativeMelody: NativePCM
+        if let cached = nativeSourceCache[cacheKey] {
+            nativeBgm = cached.bgm
+            nativeMelody = cached.melody
+        } else {
+            nativeBgm = try await readNativePCM(url: bgmUrl, cache: cache)
+            nativeMelody = try await readNativePCM(url: melodyUrl, cache: cache)
+            nativeSourceCache[cacheKey] = (nativeBgm, nativeMelody)
+        }
+
+        return try await buildPreparedSet(
+            stage: stage,
+            speedRatio: speedRatio,
+            sampleRate: sampleRate,
+            nativeBgm: nativeBgm,
+            nativeMelody: nativeMelody
+        )
+    }
+
+    /// セッション sampleRate 遷移後、キャッシュ済み native PCM から新レートへ再構築する。
+    static func reconvert(
+        preparedSet: DefenseSeparateTracksPreparedSet,
+        stage: DefenseStageDefinition,
+        speedRatio: Double,
+        newSampleRate: Double
+    ) async throws -> DefenseSeparateTracksPreparedSet {
+        guard abs(newSampleRate - preparedSet.grid.sampleRate) / preparedSet.grid.sampleRate
+            > sampleRateMismatchThreshold else {
+            return preparedSet
+        }
+
+        guard stage.audioRegistrationMode == .sharedProgressionSeparateTracks,
+              let bgmUrlString = stage.audioUrl,
+              let melodyUrlString = stage.melodyAudioUrl,
+              let bgmUrl = URL(string: bgmUrlString),
+              let melodyUrl = URL(string: melodyUrlString) else {
+            throw DefenseSeparateTracksAudioError.invalidMode
+        }
+
+        let cacheKey = NativeSourceCacheKey(bgmUrl: bgmUrlString, melodyUrl: melodyUrlString)
+        let cache = RemoteAudioFileCache(subdirectory: "defense-separate-tracks")
+
+        let nativeBgm: NativePCM
+        let nativeMelody: NativePCM
+        if let cached = nativeSourceCache[cacheKey] {
+            nativeBgm = cached.bgm
+            nativeMelody = cached.melody
+        } else {
+            nativeBgm = try await readNativePCM(url: bgmUrl, cache: cache)
+            nativeMelody = try await readNativePCM(url: melodyUrl, cache: cache)
+            nativeSourceCache[cacheKey] = (nativeBgm, nativeMelody)
+        }
+
+        return try await buildPreparedSet(
+            stage: stage,
+            speedRatio: speedRatio,
+            sampleRate: newSampleRate,
+            nativeBgm: nativeBgm,
+            nativeMelody: nativeMelody
+        )
+    }
+
+    /// メロディ PCM 先頭/末尾に短いフェードを入れ、フレーズ周期のクリックを抑える（Web 3ms envelope と同等）。
+    static func applyMelodyEnvelope(_ samples: inout [Float], sampleRate: Double) {
+        guard !samples.isEmpty else { return }
+        let envelopeFrames = max(1, Int((sampleRate * envelopeMs / 1000).rounded()))
+        let fadeInEnd = min(envelopeFrames, samples.count)
+        if fadeInEnd > 0 {
+            for index in 0..<fadeInEnd {
+                let gain = Float(index) / Float(fadeInEnd)
+                samples[index] *= gain
+            }
+        }
+        let fadeOutStart = max(0, samples.count - envelopeFrames)
+        if fadeOutStart < samples.count {
+            for index in fadeOutStart..<samples.count {
+                let gain = Float(samples.count - index) / Float(envelopeFrames)
+                samples[index] *= gain
+            }
+        }
+    }
+
+    private static func buildPreparedSet(
+        stage: DefenseStageDefinition,
+        speedRatio: Double,
+        sampleRate: Double,
+        nativeBgm: NativePCM,
+        nativeMelody: NativePCM
+    ) async throws -> DefenseSeparateTracksPreparedSet {
         let phraseBars: DefenseSeparateTracksPhraseBars
         switch stage.phraseBars {
         case 1: phraseBars = .one
@@ -35,10 +142,7 @@ enum DefenseSeparateTracksBuffers {
             playbackRatio: speedRatio
         )
 
-        let cache = RemoteAudioFileCache(subdirectory: "defense-separate-tracks")
-        let outputFormat = EarTrainingAudio.preferredOutputFormat(sampleRate: sampleRate)
-        let nativeBgm = try await readNativePCM(url: bgmUrl, cache: cache)
-        let nativeMelody = try await readNativePCM(url: melodyUrl, cache: cache)
+        let outputFormat = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: sampleRate)
 
         let expectedBgmFrames = DefenseSeparateTracksTransport.measureSourceFrame(
             measureNumber: progressionBars,
@@ -82,8 +186,14 @@ enum DefenseSeparateTracksBuffers {
                 frameCount: AVAudioFrameCount(window.sourceEndFrame - window.sourceStartFrame)
             )
             let stretched = try await timeStretch(buffer: slice, ratio: speedRatio)
-            let left = normalizeChannel(stretched, channel: 0, targetFrames: grid.cycleFrames)
-            let right = normalizeChannel(stretched, channel: min(1, Int(stretched.format.channelCount) - 1), targetFrames: grid.cycleFrames)
+            var left = normalizeChannel(stretched, channel: 0, targetFrames: grid.cycleFrames)
+            var right = normalizeChannel(
+                stretched,
+                channel: min(1, Int(stretched.format.channelCount) - 1),
+                targetFrames: grid.cycleFrames
+            )
+            applyMelodyEnvelope(&left, sampleRate: grid.sampleRate)
+            applyMelodyEnvelope(&right, sampleRate: grid.sampleRate)
             phrasePcms.append(DefenseSeparateTracksPhrasePcm(left: left, right: right))
         }
 
@@ -104,11 +214,6 @@ enum DefenseSeparateTracksBuffers {
             speedPercent: Int((speedRatio * 100).rounded()),
             setId: setId
         )
-    }
-
-    private struct NativePCM {
-        let buffer: AVAudioPCMBuffer
-        let sampleRate: Double
     }
 
     private static func readNativePCM(
@@ -176,8 +281,11 @@ enum DefenseSeparateTracksBuffers {
         var result = [Float](repeating: 0, count: targetFrames)
         guard let data = buffer.floatChannelData?[channel] else { return result }
         let copyCount = min(targetFrames, Int(buffer.frameLength))
-        for i in 0..<copyCount {
-            result[i] = data[i]
+        for index in 0..<copyCount {
+            result[index] = data[index]
+        }
+        if copyCount > 1, copyCount < targetFrames {
+            result[copyCount] = data[copyCount - 1]
         }
         return result
     }
@@ -228,5 +336,11 @@ enum DefenseSeparateTracksBuffers {
         rendered.frameLength = renderedFrames
         engine.stop()
         return rendered
+    }
+}
+
+enum DefenseSeparateTracksPlayback {
+    static func sourceFormat(sampleRate: Double) -> AVAudioFormat {
+        EarTrainingAudio.preferredOutputFormat(sampleRate: sampleRate)
     }
 }

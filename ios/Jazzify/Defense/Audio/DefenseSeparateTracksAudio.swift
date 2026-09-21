@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import os
+import UIKit
 
 final class DefenseSeparateTracksAudio: @unchecked Sendable {
     static let shared = DefenseSeparateTracksAudio()
@@ -8,11 +9,13 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let masterMixer = AVAudioMixerNode()
     private var sourceNode: AVAudioSourceNode?
+    private var sourcePlaybackFormat: AVAudioFormat?
     private var mixerState: DefenseSeparateTracksMixerState?
     private var stage: DefenseStageDefinition?
     private var sessionGeneration: UInt64 = 0
     private var requestRevision = 0
     private var tempoRevision = 0
+    private var isStopping = false
 
     private var mailboxLock = os_unfair_lock()
     private var pendingPhraseRequest: DefenseSeparateTracksPhraseRequest?
@@ -24,12 +27,24 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var snapshotSpeedPercent = 100
     private var snapshotAudiblePhraseIndex = 0
 
+    private var renderScratchLeft: [Float] = []
+    private var renderScratchRight: [Float] = []
+    private var renderScratchCapacity = 0
+
+    private var engineConfigObserver: NSObjectProtocol?
+    private var survivalCaptureObserver: NSObjectProtocol?
+    private var appAudioSessionObserver: NSObjectProtocol?
+    private var foregroundObserver: NSObjectProtocol?
+
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
     private var voiceInputDucking = false
     private static let voiceInputDuckFactor: Float = 0.5
     private static let masterHeadroomGain: Float = 0.7
+    private static let sampleRateMismatchThreshold = 0.01
 
-    private init() {}
+    private init() {
+        registerLifecycleObservers()
+    }
 
     func prepare(stage: DefenseStageDefinition, speedRatio: Double) async throws {
         guard stage.audioRegistrationMode == .sharedProgressionSeparateTracks else {
@@ -56,6 +71,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     func start(initialPhraseIndex: Int) {
         sessionGeneration &+= 1
         requestRevision = 0
+        isStopping = false
         guard let state = mixerState else { return }
         state.sessionGeneration = sessionGeneration
         state.audiblePhraseIndex = initialPhraseIndex
@@ -64,23 +80,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         state.phaseFrame = 0
         state.paused = false
 
-        let format = EarTrainingAudio.preferredOutputFormat()
-        engine.stop()
-        sourceNode = AVAudioSourceNode(format: format) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
-            guard let self else { return noErr }
-            return self.render(frameCount: frameCount, audioBufferList: audioBufferList)
-        }
-
-        guard let sourceNode else { return }
-
-        engine.stop()
-        engine.reset()
-        engine.attach(sourceNode)
-        engine.attach(masterMixer)
-        engine.connect(sourceNode, to: masterMixer, format: format)
-        engine.connect(masterMixer, to: engine.mainMixerNode, format: format)
-        applyMasterVolume()
-        try? engine.start()
+        let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
+        rebuildGraph(sourceFormat: format)
         updateSnapshot(from: state)
     }
 
@@ -95,7 +96,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     func requestTempo(speedPercent: Int) async {
-        guard let stage else { return }
+        guard let stage, let state = mixerState else { return }
         tempoRevision += 1
         let revision = tempoRevision
         let generation = sessionGeneration
@@ -103,7 +104,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         guard let prepared = try? await DefenseSeparateTracksBuffers.prepare(
             stage: stage,
             speedRatio: ratio,
-            sampleRate: EarTrainingAudio.preferredOutputFormat().sampleRate
+            sampleRate: state.activeSet.grid.sampleRate
         ) else {
             return
         }
@@ -125,9 +126,11 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     func stop() {
+        isStopping = true
         sessionGeneration &+= 1
         engine.stop()
         sourceNode = nil
+        sourcePlaybackFormat = nil
         mixerState = nil
         stage = nil
         os_unfair_lock_lock(&mailboxLock)
@@ -158,14 +161,130 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         )
     }
 
-    private func render(frameCount: AVAudioFrameCount, audioBufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
-        guard let state = mixerState else { return noErr }
-        let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
-        guard ablPointer.count >= 2,
-              let leftBuffer = ablPointer[0].mData?.assumingMemoryBound(to: Float.self),
-              let rightBuffer = ablPointer[1].mData?.assumingMemoryBound(to: Float.self) else {
-            return noErr
+    private func registerLifecycleObservers() {
+        let center = NotificationCenter.default
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
         }
+        survivalCaptureObserver = center.addObserver(
+            forName: SurvivalGameAudio.didReconfigureAudioGraphNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleSharedAudioSessionReconfigure()
+        }
+        appAudioSessionObserver = center.addObserver(
+            forName: AppAudioSession.didReconfigureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleSharedAudioSessionReconfigure()
+        }
+        foregroundObserver = center.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.restartEngineIfNeeded()
+        }
+    }
+
+    private func handleEngineConfigurationChange() {
+        guard !isStopping, mixerState != nil else { return }
+        restartEngineIfNeeded()
+    }
+
+    private func handleSharedAudioSessionReconfigure() {
+        guard !isStopping, mixerState != nil else { return }
+        Task { @MainActor in
+            await self.reconvertAndReconnectIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func reconvertAndReconnectIfNeeded() async {
+        guard !isStopping, let state = mixerState, let stage else { return }
+
+        let hardwareRate = EarTrainingAudio.preferredHardwareSampleRate()
+        let preparedRate = state.activeSet.grid.sampleRate
+        let rateMismatch = abs(hardwareRate - preparedRate) / preparedRate > Self.sampleRateMismatchThreshold
+
+        if rateMismatch {
+            let ratio = DefensePracticeSpeed.ratio(state.activeSet.speedPercent)
+            guard let reconverted = try? await DefenseSeparateTracksBuffers.reconvert(
+                preparedSet: state.activeSet,
+                stage: stage,
+                speedRatio: ratio,
+                newSampleRate: hardwareRate
+            ), reconverted.setId != state.activeSet.setId else {
+                restartEngineIfNeeded()
+                return
+            }
+
+            let audiblePhraseIndex = state.audiblePhraseIndex
+            let absoluteCycle = state.absoluteCycle
+            let phaseFrame = state.phaseFrame
+            let paused = state.paused
+
+            state.activeSet = reconverted
+            state.pendingTempoSet = nil
+            state.tempoCrossfadePreviousSet = nil
+            state.tempoCrossfadeFramesRemaining = 0
+            state.audiblePhraseIndex = audiblePhraseIndex
+            state.desiredPhraseIndex = audiblePhraseIndex
+            state.absoluteCycle = absoluteCycle
+            state.phaseFrame = min(phaseFrame, max(1, reconverted.grid.cycleFrames) - 1)
+            state.paused = paused
+
+            let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: reconverted.grid.sampleRate)
+            rebuildGraph(sourceFormat: format)
+            updateSnapshot(from: state)
+            return
+        }
+
+        restartEngineIfNeeded()
+    }
+
+    private func rebuildGraph(sourceFormat: AVAudioFormat) {
+        engine.stop()
+        sourceNode = AVAudioSourceNode(format: sourceFormat) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
+            guard let self else { return noErr }
+            return self.render(frameCount: frameCount, audioBufferList: audioBufferList)
+        }
+
+        guard let sourceNode else { return }
+
+        engine.reset()
+        engine.attach(sourceNode)
+        engine.attach(masterMixer)
+        engine.connect(sourceNode, to: masterMixer, format: sourceFormat)
+        engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
+        sourcePlaybackFormat = sourceFormat
+        applyMasterVolume()
+        engine.prepare()
+        try? engine.start()
+    }
+
+    private func restartEngineIfNeeded() {
+        guard !isStopping, mixerState != nil, sourceNode != nil else { return }
+        if engine.isRunning {
+            engine.stop()
+        }
+        engine.prepare()
+        try? engine.start()
+    }
+
+    private func render(frameCount: AVAudioFrameCount, audioBufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+        let blockFrames = Int(frameCount)
+        zeroFillAudioBufferList(audioBufferList, frameCount: blockFrames)
+
+        guard let state = mixerState else { return noErr }
+
+        ensureScratchCapacity(blockFrames)
 
         os_unfair_lock_lock(&mailboxLock)
         let phraseRequest = pendingPhraseRequest
@@ -175,17 +294,76 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&mailboxLock)
 
         let leadFrames = Int((state.activeSet.grid.sampleRate * 0.1).rounded())
-        _ = DefenseSeparateTracksMix.renderBlock(
-            state: state,
-            outputLeft: leftBuffer,
-            outputRight: rightBuffer,
-            blockFrames: Int(frameCount),
-            leadFrames: leadFrames,
-            phraseRequest: phraseRequest,
-            tempoRequest: tempoRequest
+        renderScratchLeft.withUnsafeMutableBufferPointer { leftPointer in
+            renderScratchRight.withUnsafeMutableBufferPointer { rightPointer in
+                guard let leftBase = leftPointer.baseAddress,
+                      let rightBase = rightPointer.baseAddress else {
+                    return
+                }
+                _ = DefenseSeparateTracksMix.renderBlock(
+                    state: state,
+                    outputLeft: leftBase,
+                    outputRight: rightBase,
+                    blockFrames: blockFrames,
+                    leadFrames: leadFrames,
+                    phraseRequest: phraseRequest,
+                    tempoRequest: tempoRequest
+                )
+            }
+        }
+        writeRenderedBlock(
+            audioBufferList: audioBufferList,
+            left: renderScratchLeft,
+            right: renderScratchRight,
+            frameCount: blockFrames
         )
         updateSnapshot(from: state)
         return noErr
+    }
+
+    private func ensureScratchCapacity(_ frames: Int) {
+        guard frames > renderScratchCapacity else { return }
+        renderScratchLeft = [Float](repeating: 0, count: frames)
+        renderScratchRight = [Float](repeating: 0, count: frames)
+        renderScratchCapacity = frames
+    }
+
+    private func zeroFillAudioBufferList(_ audioBufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: Int) {
+        let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
+        for buffer in ablPointer {
+            guard let data = buffer.mData else { continue }
+            let byteCount = frameCount * Int(buffer.mNumberChannels) * MemoryLayout<Float>.size
+            memset(data, 0, byteCount)
+        }
+    }
+
+    private func writeRenderedBlock(
+        audioBufferList: UnsafeMutablePointer<AudioBufferList>,
+        left: [Float],
+        right: [Float],
+        frameCount: Int
+    ) {
+        let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
+        guard frameCount > 0 else { return }
+
+        if ablPointer.count >= 2,
+           let leftData = ablPointer[0].mData?.assumingMemoryBound(to: Float.self),
+           let rightData = ablPointer[1].mData?.assumingMemoryBound(to: Float.self),
+           ablPointer[0].mNumberChannels == 1,
+           ablPointer[1].mNumberChannels == 1 {
+            leftData.update(from: left, count: frameCount)
+            rightData.update(from: right, count: frameCount)
+            return
+        }
+
+        if ablPointer.count == 1,
+           ablPointer[0].mNumberChannels >= 2,
+           let interleaved = ablPointer[0].mData?.assumingMemoryBound(to: Float.self) {
+            for frame in 0..<frameCount {
+                interleaved[frame * 2] = left[frame]
+                interleaved[frame * 2 + 1] = right[frame]
+            }
+        }
     }
 
     private func updateSnapshot(from state: DefenseSeparateTracksMixerState) {
