@@ -50,6 +50,10 @@ import {
 } from '@/utils/earTrainingOsmdScorePreferences';
 import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import LoadProgressBar from '@/components/ui/LoadProgressBar';
+import {
+  shouldCommitOsmdRender,
+  shouldShowOsmdRenderError,
+} from '@/utils/osmdRenderCommit';
 
 interface EarTrainingChordOSMDScoreProps {
   musicXmlText: string | null;
@@ -275,6 +279,7 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   const measurePlayheadRef = useRef<HTMLDivElement | null>(null);
   const playheadTransitionRafRef = useRef<number | null>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
+  const renderGenerationRef = useRef(0);
   const [layout, setLayout] = useState<OsmdLayout>(EMPTY_LAYOUT);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
@@ -604,24 +609,39 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
     setLayout(nextLayout);
   }, [applyScoreTransform, musicXmlText]);
 
-  const renderScore = useCallback(async () => {
+  const renderScore = useCallback(async (generation: number): Promise<void> => {
     const score = scoreRef.current;
     const scoreContent = scoreContentRef.current;
+    const isCurrent = (): boolean => shouldCommitOsmdRender(generation, renderGenerationRef.current);
     if (!score || !scoreContent || !musicXmlText || !osmdDisplayMusicXml) {
-      setLayout(EMPTY_LAYOUT);
+      if (isCurrent()) {
+        setLayout(EMPTY_LAYOUT);
+      }
       return;
     }
 
-    setIsRendering(true);
-    setRenderProgress(0.2);
-    setRenderError(null);
-    setScrollOffsetPx(0);
+    if (isCurrent()) {
+      setIsRendering(true);
+      setRenderProgress(0.2);
+      setRenderError(null);
+      setScrollOffsetPx(0);
+    }
     scrollOffsetPxRef.current = 0;
     manualScrollOffsetPxRef.current = 0;
     measureHighlightBaseLeftPxRef.current = 0;
     score.replaceChildren();
     osmdRef.current?.clear();
     osmdRef.current = null;
+
+    const readSurface = (): { el: HTMLElement | null; height: number } => {
+      const el = score.querySelector('svg, canvas');
+      if (!el) {
+        return { el: null, height: 0 };
+      }
+      const rect = el.getBoundingClientRect();
+      const height = rect.height || (el instanceof HTMLCanvasElement ? el.height : 0);
+      return { el: el as HTMLElement, height };
+    };
 
     const options: IOSMDOptions = {
       backend: 'svg',
@@ -642,16 +662,29 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       defaultColorLyrics: '#ffffff',
     };
 
+    let scorePainted = false;
+
     try {
       const osmd = new OpenSheetMusicDisplay(score, options);
+      if (!isCurrent()) {
+        osmd.clear();
+        return;
+      }
       osmdRef.current = osmd;
       enableEarTrainingOsmdWordsLayoutRules(osmd);
       if (drawMeasureNumbers) {
         applyOsmdMeasureNumberRules(osmd);
       }
-      setRenderProgress(0.45);
+      if (isCurrent()) {
+        setRenderProgress(0.45);
+      }
       await osmd.load(osmdDisplayMusicXml);
-      setRenderProgress(0.7);
+      if (!isCurrent()) {
+        return;
+      }
+      if (isCurrent()) {
+        setRenderProgress(0.7);
+      }
       const maxStaff = detectMaxStaffLayersFromMusicXml(musicXmlText);
       const viewportEl = viewportRef.current;
       const viewportHeight = viewportEl?.clientHeight ?? 0;
@@ -663,48 +696,63 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
       installEarTrainingOsmdWordsLayout(osmd);
       scoreContent.style.transform = 'translate3d(0, 0, 0) scale(1)';
       osmd.render();
+      scorePainted = score.querySelector('svg, canvas') !== null;
       await waitNextPaint();
-
-      const readSurface = (): { el: HTMLElement | null; height: number } => {
-        const el = score.querySelector('svg, canvas');
-        if (!el) {
-          return { el: null, height: 0 };
-        }
-        const rect = el.getBoundingClientRect();
-        const height = rect.height || (el instanceof HTMLCanvasElement ? el.height : 0);
-        return { el: el as HTMLElement, height };
-      };
-
-      const aggressiveShrink = maxStaff >= 2;
-      const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.78 : 0.98));
-      const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
-      const nextCssScale =
-        measuredBeforeScale > targetHeight && measuredBeforeScale > 0
-          ? Math.max(0.28, targetHeight / measuredBeforeScale)
-          : 1;
-      scoreContent.style.transform = `translate3d(0, 0, 0) scale(${nextCssScale})`;
-      setCssScale(nextCssScale);
-      await waitNextPaint();
-
-      const viewportWidth = viewportRef.current?.clientWidth ?? 0;
-      lastRefitViewportRef.current = {
-        width: viewportWidth,
-        height: viewportHeight,
-        cssScale: nextCssScale,
-      };
-      const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
-      setLayout(nextLayout);
-      if (onContentHeightFit && measuredBeforeScale > 0) {
-        onContentHeightFit(Math.ceil(measuredBeforeScale * nextCssScale + 6));
+      if (!isCurrent()) {
+        return;
       }
-      setRenderProgress(1);
+
+      try {
+        const aggressiveShrink = maxStaff >= 2;
+        const targetHeight = Math.max(48, viewportHeight * (aggressiveShrink ? 0.78 : 0.98));
+        const { el: surfaceEl, height: measuredBeforeScale } = readSurface();
+        const nextCssScale =
+          measuredBeforeScale > targetHeight && measuredBeforeScale > 0
+            ? Math.max(0.28, targetHeight / measuredBeforeScale)
+            : 1;
+        scoreContent.style.transform = `translate3d(0, 0, 0) scale(${nextCssScale})`;
+        if (isCurrent()) {
+          setCssScale(nextCssScale);
+        }
+        await waitNextPaint();
+        if (!isCurrent()) {
+          return;
+        }
+
+        const viewportWidth = viewportRef.current?.clientWidth ?? 0;
+        lastRefitViewportRef.current = {
+          width: viewportWidth,
+          height: viewportHeight,
+          cssScale: nextCssScale,
+        };
+        const nextLayout = measureLayoutFromOsmd(osmd, surfaceEl, viewportWidth);
+        if (isCurrent()) {
+          setLayout(nextLayout);
+        }
+        if (onContentHeightFit && measuredBeforeScale > 0) {
+          onContentHeightFit(Math.ceil(measuredBeforeScale * nextCssScale + 6));
+        }
+      } catch {
+        if (isCurrent()) {
+          setLayout(EMPTY_LAYOUT);
+        }
+      }
+
+      if (isCurrent()) {
+        setRenderProgress(1);
+      }
     } catch {
-      setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
-      setLayout(EMPTY_LAYOUT);
-      setRenderProgress(undefined);
+      const scoreAlreadyPainted = scorePainted || score.querySelector('svg, canvas') !== null;
+      if (shouldShowOsmdRenderError({ isCurrent: isCurrent(), scoreAlreadyPainted })) {
+        setRenderError(isEnglishCopy ? 'Could not render MusicXML.' : 'MusicXMLを表示できませんでした');
+        setLayout(EMPTY_LAYOUT);
+        setRenderProgress(undefined);
+      }
     } finally {
-      setIsRendering(false);
-      setRenderProgress(undefined);
+      if (isCurrent()) {
+        setIsRendering(false);
+        setRenderProgress(undefined);
+      }
     }
   }, [
     drawMeasureNumbers,
@@ -773,8 +821,11 @@ const EarTrainingChordOSMDScore = memo(forwardRef<EarTrainingChordOSMDScoreHandl
   }, []);
 
   useEffect(() => {
-    void renderScore();
+    renderGenerationRef.current += 1;
+    const generation = renderGenerationRef.current;
+    void renderScore(generation);
     return () => {
+      renderGenerationRef.current += 1;
       osmdRef.current?.clear();
       osmdRef.current = null;
     };

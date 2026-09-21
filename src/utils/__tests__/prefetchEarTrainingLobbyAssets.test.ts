@@ -69,6 +69,32 @@ describe('prefetchEarTrainingLobbyAssets', () => {
     expect(getCachedEarTrainingMusicXml('https://example.com/score.xml')).toBe('normalized-xml');
   });
 
+  it('retries music xml fetch once after a transient failure', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ ok: false } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => '<score-partwise></score-partwise>',
+      } as Response);
+
+    const text = await fetchEarTrainingMusicXml('https://example.com/retry.xml');
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(text).toBe('<score-partwise></score-partwise>');
+  });
+
+  it('does not cache failed music xml fetches', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false } as Response);
+
+    const first = await fetchEarTrainingMusicXml('https://example.com/fail.xml');
+    const second = await fetchEarTrainingMusicXml('https://example.com/fail.xml');
+
+    expect(first).toBeNull();
+    expect(second).toBeNull();
+    expect(getCachedEarTrainingMusicXml('https://example.com/fail.xml')).toBeUndefined();
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
   it('shares in-flight music xml fetches for the same url', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,

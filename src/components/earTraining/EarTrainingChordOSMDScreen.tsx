@@ -38,10 +38,12 @@ import {
   fetchEarTrainingMidi,
   fetchEarTrainingMusicXml,
   getCachedEarTrainingMidi,
+  getCachedEarTrainingMusicXml,
   prefetchEarTrainingLobbyAssetsFromStage,
   prefetchEarTrainingMusicXml,
   storeEarTrainingMidi,
 } from '@/utils/prefetchEarTrainingLobbyAssets';
+import { resolveEarTrainingMusicXmlLoad } from '@/utils/resolveEarTrainingMusicXmlLoad';
 import {
   preloadBattleCountInClick,
   preloadBattleGmPiano,
@@ -351,6 +353,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const gameStateRef = useRef<EarTrainingGameState>('idle');
   const phraseIndexRef = useRef(0);
   const phraseRunIdRef = useRef(0);
+  const loadedMusicXmlUrlRef = useRef<string | null>(null);
+  const musicXmlTextRef = useRef<string | null>(null);
   const baseMidiDataRef = useRef<Uint8Array | null>(null);
   const timingSourceRef = useRef<EarTrainingTimingSource>('musicxml');
   const [midiLoadToken, setMidiLoadToken] = useState(0);
@@ -833,11 +837,16 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
   }, [copy.gameOver, finishGameOver, practiceMode, tutorialNoCombat, tutorialUi?.playerInvincible]);
 
+  useEffect(() => {
+    musicXmlTextRef.current = musicXmlText;
+  }, [musicXmlText]);
+
   const loadMusicXml = useCallback(async (phrase: EarTrainingPhrase, runId: number): Promise<string | null> => {
     const rawUrl = phrase.music_xml_url?.trim();
     if (!rawUrl) {
       setMusicXmlText(null);
       setBaseMusicXmlText(null);
+      loadedMusicXmlUrlRef.current = null;
       setScoreErrorText(isEnglishCopy ? 'MusicXML is not registered.' : 'MusicXMLが登録されていません');
       return null;
     }
@@ -847,21 +856,36 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         : 0;
       return applyPracticeTransposeToMusicXml(normalizedBase, offset);
     };
-    const text = await fetchEarTrainingMusicXml(rawUrl);
+    const fetched = await fetchEarTrainingMusicXml(rawUrl);
     if (phraseRunIdRef.current !== runId) {
       return null;
     }
-    if (!text) {
+    const resolved = resolveEarTrainingMusicXmlLoad({
+      rawUrl,
+      fetched,
+      cachedText: getCachedEarTrainingMusicXml(rawUrl),
+      existingLoadedUrl: loadedMusicXmlUrlRef.current,
+      existingMusicXmlText: musicXmlTextRef.current,
+    });
+    if (resolved.keepExistingDisplay) {
+      return musicXmlTextRef.current;
+    }
+    if (resolved.shouldShowFetchError) {
       setMusicXmlText(null);
       setBaseMusicXmlText(null);
+      loadedMusicXmlUrlRef.current = null;
       setScoreErrorText(isEnglishCopy ? 'Could not load MusicXML.' : 'MusicXMLを読み込めませんでした');
       return null;
     }
-    const normalizedText = ensureMusicXmlDeclaration(text);
+    if (!resolved.normalizedBase) {
+      return null;
+    }
+    const normalizedText = ensureMusicXmlDeclaration(resolved.normalizedBase);
     setBaseMusicXmlText(normalizedText);
     const displayXml = resolveDisplayXml(normalizedText);
     setMusicXmlText(displayXml);
     setScoreErrorText(null);
+    loadedMusicXmlUrlRef.current = rawUrl;
     return displayXml;
   }, [isEnglishCopy, practiceTransposeEnabled]);
 

@@ -27,6 +27,24 @@ export const storeEarTrainingMusicXml = (rawUrl: string, normalizedText: string)
   musicXmlCache.set(key, normalizedText);
 };
 
+const fetchEarTrainingMusicXmlFromNetwork = async (key: string): Promise<string | null> => {
+  try {
+    const response = await fetch(toCdnProxyUrl(key));
+    if (!response.ok) {
+      return null;
+    }
+    const text = await response.text();
+    if (!text.trim()) {
+      return null;
+    }
+    const normalized = normalizeChordOsmdMusicXml(text);
+    musicXmlCache.set(key, normalized);
+    return normalized;
+  } catch {
+    return null;
+  }
+};
+
 export const fetchEarTrainingMusicXml = async (rawUrl: string): Promise<string | null> => {
   const key = rawUrl.trim();
   if (key.length === 0) {
@@ -41,22 +59,14 @@ export const fetchEarTrainingMusicXml = async (rawUrl: string): Promise<string |
     return inFlight;
   }
   const promise = (async (): Promise<string | null> => {
-    const response = await fetch(toCdnProxyUrl(key));
-    if (!response.ok) {
-      return null;
+    const first = await fetchEarTrainingMusicXmlFromNetwork(key);
+    if (first) {
+      return first;
     }
-    const text = await response.text();
-    if (!text.trim()) {
-      return null;
-    }
-    const normalized = normalizeChordOsmdMusicXml(text);
-    musicXmlCache.set(key, normalized);
-    return normalized;
-  })()
-    .catch(() => null)
-    .finally(() => {
-      musicXmlInFlight.delete(key);
-    });
+    return fetchEarTrainingMusicXmlFromNetwork(key);
+  })().finally(() => {
+    musicXmlInFlight.delete(key);
+  });
   musicXmlInFlight.set(key, promise);
   return promise;
 };
