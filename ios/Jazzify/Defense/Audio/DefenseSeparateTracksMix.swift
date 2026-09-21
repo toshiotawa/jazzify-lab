@@ -59,11 +59,10 @@ enum DefenseSeparateTracksMix {
         outputLeft: UnsafeMutablePointer<Float>,
         outputRight: UnsafeMutablePointer<Float>,
         blockFrames: Int,
-        leadFrames: Int,
         phraseRequest: DefenseSeparateTracksPhraseRequest?,
         tempoRequest: DefenseSeparateTracksTempoRequest?
     ) -> (appliedPhrase: Bool, appliedTempo: Bool) {
-        ingestPhraseRequest(state: state, request: phraseRequest, leadFrames: leadFrames)
+        ingestPhraseRequest(state: state, request: phraseRequest)
         ingestTempoRequest(state: state, request: tempoRequest)
 
         if state.paused {
@@ -88,7 +87,7 @@ enum DefenseSeparateTracksMix {
                 if hadPhrase { appliedPhrase = true }
             }
 
-            updateScheduleConfirmation(state: state, leadFrames: leadFrames)
+            updateScheduleConfirmation(state: state)
 
             let bgmFrame = DefenseSeparateTracksTransport.bgmReadFrame(
                 absoluteCycle: state.absoluteCycle,
@@ -171,8 +170,7 @@ enum DefenseSeparateTracksMix {
 
     private static func ingestPhraseRequest(
         state: DefenseSeparateTracksMixerState,
-        request: DefenseSeparateTracksPhraseRequest?,
-        leadFrames: Int
+        request: DefenseSeparateTracksPhraseRequest?
     ) {
         guard let request, request.generation == state.sessionGeneration else { return }
         let count = max(1, state.activeSet.phrasePcms.count)
@@ -183,18 +181,26 @@ enum DefenseSeparateTracksMix {
             absoluteCycle: state.absoluteCycle,
             phaseFrame: state.phaseFrame,
             cycleFrames: state.activeSet.grid.cycleFrames,
-            leadFrames: leadFrames,
+            beatFrames: state.activeSet.grid.beatFrames,
             phraseIndex: nextDesired,
             revision: request.revision,
             generation: request.generation
         )
+
+        if planned.immediate {
+            state.audiblePhraseIndex = nextDesired
+            state.scheduled = nil
+            state.scheduledConfirmed = false
+            return
+        }
 
         if let existing = state.scheduled, state.scheduledConfirmed {
             state.scheduled = DefensePhraseSchedule(
                 targetCycle: existing.targetCycle,
                 phraseIndex: nextDesired,
                 revision: request.revision,
-                generation: request.generation
+                generation: request.generation,
+                immediate: existing.immediate
             )
             return
         }
@@ -206,7 +212,8 @@ enum DefenseSeparateTracksMix {
                 targetCycle: existing.targetCycle,
                 phraseIndex: nextDesired,
                 revision: request.revision,
-                generation: request.generation
+                generation: request.generation,
+                immediate: planned.immediate
             )
             return
         }
@@ -244,29 +251,34 @@ enum DefenseSeparateTracksMix {
         }
 
         if state.scheduled == nil, state.desiredPhraseIndex != state.audiblePhraseIndex {
-            state.scheduled = DefenseSeparateTracksTransport.planPhraseReservation(
+            let planned = DefenseSeparateTracksTransport.planPhraseReservation(
                 absoluteCycle: state.absoluteCycle,
                 phaseFrame: state.phaseFrame,
                 cycleFrames: state.activeSet.grid.cycleFrames,
-                leadFrames: 0,
+                beatFrames: state.activeSet.grid.beatFrames,
                 phraseIndex: state.desiredPhraseIndex,
                 revision: 0,
                 generation: state.sessionGeneration
             )
-            state.scheduledConfirmed = false
+            if planned.immediate {
+                let count = max(1, state.activeSet.phrasePcms.count)
+                state.audiblePhraseIndex = ((state.desiredPhraseIndex % count) + count) % count
+                state.scheduled = nil
+                state.scheduledConfirmed = false
+            } else {
+                state.scheduled = planned
+                state.scheduledConfirmed = false
+            }
         }
     }
 
-    private static func updateScheduleConfirmation(
-        state: DefenseSeparateTracksMixerState,
-        leadFrames: Int
-    ) {
-        guard let scheduled = state.scheduled, !state.scheduledConfirmed else { return }
+    private static func updateScheduleConfirmation(state: DefenseSeparateTracksMixerState) {
+        guard let scheduled = state.scheduled, !state.scheduledConfirmed, !scheduled.immediate else { return }
         let safeF = max(1, state.activeSet.grid.cycleFrames)
         let remaining = safeF - state.phaseFrame
         let cyclesUntil = scheduled.targetCycle - (state.absoluteCycle + 1)
         let framesUntil = remaining + max(0, cyclesUntil) * safeF
-        if framesUntil < leadFrames {
+        if framesUntil <= 0 {
             state.scheduledConfirmed = true
         }
     }

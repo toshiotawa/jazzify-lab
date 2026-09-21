@@ -28,8 +28,6 @@ class DefenseSeparateTracksProcessor extends AudioWorkletProcessor {
 
   private pendingTempoRequest: TempoRequestMailbox | null = null;
 
-  private leadFrames = 4410;
-
   constructor() {
     super();
     this.port.onmessage = (event: MessageEvent<WorkletMessage>) => {
@@ -117,7 +115,6 @@ class DefenseSeparateTracksProcessor extends AudioWorkletProcessor {
       outputLeft: left,
       outputRight: right,
       blockFrames,
-      leadFrames: this.leadFrames,
       phraseRequest,
       tempoRequest,
     });

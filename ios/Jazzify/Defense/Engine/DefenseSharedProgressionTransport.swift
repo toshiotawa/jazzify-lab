@@ -10,6 +10,7 @@ struct DefenseSharedProgressionSwitchPlan: Equatable {
     let switchAt: Double
     let destinationBar0: Int
     let absoluteSwitchBar0: Int
+    let immediate: Bool
 }
 
 enum DefenseSharedProgressionTransport {
@@ -31,31 +32,39 @@ enum DefenseSharedProgressionTransport {
         barSec: Double,
         progressionBars: Int,
         switchEveryBars: DefenseSharedProgressionSwitchEveryBars,
-        schedulingLeadSec: Double
+        beatSec: Double
     ) -> DefenseSharedProgressionSwitchPlan {
         let safeN = max(1, progressionBars)
-        let switchEvery = max(1, switchEveryBars.rawValue)
-        let epsilon = 1e-9
+        let cutIntervalSec = max(1e-9, barSec * Double(max(1, switchEveryBars.rawValue)))
+        let plan = DefenseTransport.planSwitch(
+            now: nowAudioTime,
+            transportStart: transportStart,
+            cutIntervalSec: cutIntervalSec,
+            beatSec: beatSec
+        )
+
         let absoluteBarPosition = absoluteBarPosition(
             audioTime: nowAudioTime,
             transportStart: transportStart,
             barSec: barSec
         )
 
-        var absoluteSwitchBar0 = (Int(floor((absoluteBarPosition + epsilon) / Double(switchEvery))) + 1) * switchEvery
-        var switchAt = transportStart + Double(absoluteSwitchBar0) * barSec
-        let safeLead = max(0, schedulingLeadSec)
-
-        while switchAt - nowAudioTime < safeLead {
-            absoluteSwitchBar0 += switchEvery
-            switchAt = transportStart + Double(absoluteSwitchBar0) * barSec
+        if plan.immediate {
+            let currentBar0 = Int(floor(absoluteBarPosition + 1e-9))
+            return DefenseSharedProgressionSwitchPlan(
+                switchAt: plan.switchAt,
+                destinationBar0: currentBar0 % safeN,
+                absoluteSwitchBar0: currentBar0,
+                immediate: true
+            )
         }
 
-        let destinationBar0 = absoluteSwitchBar0 % safeN
+        let absoluteSwitchBar0 = Int(round((plan.cutAt - transportStart) / barSec))
         return DefenseSharedProgressionSwitchPlan(
-            switchAt: switchAt,
-            destinationBar0: destinationBar0,
-            absoluteSwitchBar0: absoluteSwitchBar0
+            switchAt: plan.switchAt,
+            destinationBar0: absoluteSwitchBar0 % safeN,
+            absoluteSwitchBar0: absoluteSwitchBar0,
+            immediate: false
         )
     }
 

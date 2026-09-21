@@ -58,7 +58,6 @@ export interface RenderSeparateTracksBlockParams {
   readonly outputLeft: Float32Array;
   readonly outputRight: Float32Array;
   readonly blockFrames: number;
-  readonly leadFrames: number;
   readonly phraseRequest: PhraseRequestMailbox | null;
   readonly tempoRequest: TempoRequestMailbox | null;
 }
@@ -119,7 +118,6 @@ const mixBgmSample = (
 const ingestPhraseRequest = (
   state: SeparateTracksMixerState,
   request: PhraseRequestMailbox | null,
-  leadFrames: number,
 ): SeparateTracksMixerState => {
   if (!request || request.generation !== state.sessionGeneration) {
     return state;
@@ -130,11 +128,21 @@ const ingestPhraseRequest = (
     absoluteCycle: state.absoluteCycle,
     phaseFrame: state.phaseFrame,
     cycleFrames: state.activeSet.grid.cycleFrames,
-    leadFrames,
+    beatFrames: state.activeSet.grid.beatFrames,
     phraseIndex: nextDesired,
     revision: request.revision,
     generation: request.generation,
   });
+
+  if (planned.immediate) {
+    return {
+      ...state,
+      desiredPhraseIndex: nextDesired,
+      audiblePhraseIndex: nextDesired,
+      scheduled: null,
+      scheduledConfirmed: false,
+    };
+  }
 
   if (state.scheduled !== null && state.scheduledConfirmed) {
     return {
@@ -222,19 +230,32 @@ const applyBoundaryActions = (
   }
 
   if (next.scheduled === null && next.desiredPhraseIndex !== next.audiblePhraseIndex) {
-    next = {
-      ...next,
-      scheduled: planPhraseReservation({
-        absoluteCycle: next.absoluteCycle,
-        phaseFrame: next.phaseFrame,
-        cycleFrames: next.activeSet.grid.cycleFrames,
-        leadFrames: 0,
-        phraseIndex: next.desiredPhraseIndex,
-        revision: 0,
-        generation: next.sessionGeneration,
-      }),
-      scheduledConfirmed: false,
-    };
+    const planned = planPhraseReservation({
+      absoluteCycle: next.absoluteCycle,
+      phaseFrame: next.phaseFrame,
+      cycleFrames: next.activeSet.grid.cycleFrames,
+      beatFrames: next.activeSet.grid.beatFrames,
+      phraseIndex: next.desiredPhraseIndex,
+      revision: 0,
+      generation: next.sessionGeneration,
+    });
+    if (planned.immediate) {
+      next = {
+        ...next,
+        audiblePhraseIndex: clampPhraseIndex(
+          next.desiredPhraseIndex,
+          next.activeSet.phrasePcms.length,
+        ),
+        scheduled: null,
+        scheduledConfirmed: false,
+      };
+    } else {
+      next = {
+        ...next,
+        scheduled: planned,
+        scheduledConfirmed: false,
+      };
+    }
   }
 
   return next;
@@ -242,16 +263,15 @@ const applyBoundaryActions = (
 
 const updateScheduleConfirmation = (
   state: SeparateTracksMixerState,
-  leadFrames: number,
 ): SeparateTracksMixerState => {
-  if (state.scheduled === null || state.scheduledConfirmed) {
+  if (state.scheduled === null || state.scheduledConfirmed || state.scheduled.immediate) {
     return state;
   }
   const safeF = state.activeSet.grid.cycleFrames;
   const remaining = safeF - state.phaseFrame;
   const cyclesUntil = state.scheduled.targetCycle - (state.absoluteCycle + 1);
   const framesUntil = remaining + Math.max(0, cyclesUntil) * safeF;
-  if (framesUntil < leadFrames) {
+  if (framesUntil <= 0) {
     return { ...state, scheduledConfirmed: true };
   }
   return state;
@@ -288,12 +308,11 @@ export const renderSeparateTracksBlock = (
     outputLeft,
     outputRight,
     blockFrames,
-    leadFrames,
     phraseRequest,
     tempoRequest,
   } = params;
 
-  let state = ingestPhraseRequest(params.state, phraseRequest, leadFrames);
+  let state = ingestPhraseRequest(params.state, phraseRequest);
   state = ingestTempoRequest(state, tempoRequest);
 
   if (state.paused) {
@@ -324,7 +343,7 @@ export const renderSeparateTracksBlock = (
       }
     }
 
-    state = updateScheduleConfirmation(state, leadFrames);
+    state = updateScheduleConfirmation(state);
 
     const bgmFrame = computeBgmReadFrame(
       state.absoluteCycle,
@@ -393,7 +412,6 @@ export const simulateSeparateTracksPlayback = (params: {
   readonly initialState: SeparateTracksMixerState;
   readonly blockFrames: number;
   readonly totalFrames: number;
-  readonly leadFrames: number;
   readonly phraseRequests: readonly { atFrame: number; request: PhraseRequestMailbox }[];
   readonly tempoRequests?: readonly { atFrame: number; request: TempoRequestMailbox }[];
 }): {
@@ -404,7 +422,6 @@ export const simulateSeparateTracksPlayback = (params: {
     initialState,
     blockFrames,
     totalFrames,
-    leadFrames,
     phraseRequests,
     tempoRequests = [],
   } = params;
@@ -440,7 +457,6 @@ export const simulateSeparateTracksPlayback = (params: {
       outputLeft: outputLeft.subarray(0, framesThisBlock),
       outputRight: outputRight.subarray(0, framesThisBlock),
       blockFrames: framesThisBlock,
-      leadFrames,
       phraseRequest,
       tempoRequest,
     });

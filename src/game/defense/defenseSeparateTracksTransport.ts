@@ -8,6 +8,7 @@ export interface SeparateTracksGrid {
   readonly cycleFrames: number;
   readonly cyclesPerForm: number;
   readonly bgmFrames: number;
+  readonly beatFrames: number;
   readonly sampleRate: number;
   readonly phraseBars: SeparateTracksPhraseBars;
   readonly progressionBars: number;
@@ -27,13 +28,14 @@ export interface PhraseSchedule {
   readonly phraseIndex: number;
   readonly revision: number;
   readonly generation: number;
+  readonly immediate: boolean;
 }
 
 export interface PlanPhraseReservationParams {
   readonly absoluteCycle: number;
   readonly phaseFrame: number;
   readonly cycleFrames: number;
-  readonly leadFrames: number;
+  readonly beatFrames: number;
   readonly phraseIndex: number;
   readonly revision: number;
   readonly generation: number;
@@ -86,12 +88,15 @@ export const computeSeparateTracksGrid = (params: {
   ));
   const safeF = Math.max(1, cycleFrames);
   const safeN = Math.max(1, progressionBars);
+  const safeBeats = Math.max(1, beatsPerBar);
   const cyclesPerForm = Math.max(1, Math.trunc(safeN / phraseBars));
+  const beatFrames = Math.max(1, Math.round(safeF / (safeBeats * phraseBars)));
 
   return {
     cycleFrames: safeF,
     cyclesPerForm,
     bgmFrames: cyclesPerForm * safeF,
+    beatFrames,
     sampleRate,
     phraseBars,
     progressionBars: safeN,
@@ -205,89 +210,44 @@ export const planPhraseReservation = (
     absoluteCycle,
     phaseFrame,
     cycleFrames,
-    leadFrames,
+    beatFrames,
     phraseIndex,
     revision,
     generation,
   } = params;
 
   const safeF = Math.max(1, cycleFrames);
-  const safeLead = Math.max(0, leadFrames);
-  let targetCycle = absoluteCycle + 1;
-  let remainingFrames = safeF - Math.max(0, Math.min(phaseFrame, safeF));
+  const safeBeat = Math.max(1, beatFrames);
+  const safePhase = Math.max(0, Math.min(phaseFrame, safeF));
 
-  while (remainingFrames < safeLead) {
-    targetCycle += 1;
-    remainingFrames += safeF;
+  if (safePhase <= safeBeat) {
+    return {
+      targetCycle: absoluteCycle,
+      phraseIndex,
+      revision,
+      generation,
+      immediate: true,
+    };
+  }
+
+  const remainingFrames = safeF - safePhase;
+  if (remainingFrames <= 0) {
+    return {
+      targetCycle: absoluteCycle,
+      phraseIndex,
+      revision,
+      generation,
+      immediate: true,
+    };
   }
 
   return {
-    targetCycle,
+    targetCycle: absoluteCycle + 1,
     phraseIndex,
     revision,
     generation,
+    immediate: false,
   };
-};
-
-export const remainingFramesUntilCycle = (
-  absoluteCycle: number,
-  targetCycle: number,
-  phaseFrame: number,
-  cycleFrames: number,
-): number => {
-  const safeF = Math.max(1, cycleFrames);
-  const safePhase = Math.max(0, Math.min(phaseFrame, safeF));
-  const cyclesRemaining = Math.max(0, targetCycle - absoluteCycle);
-  if (cyclesRemaining === 0) {
-    return 0;
-  }
-  if (cyclesRemaining === 1) {
-    return safeF - safePhase;
-  }
-  return (safeF - safePhase) + (cyclesRemaining - 1) * safeF;
-};
-
-export const isPhraseScheduleConfirmed = (
-  schedule: PhraseSchedule,
-  absoluteCycle: number,
-  phaseFrame: number,
-  cycleFrames: number,
-  leadFrames: number,
-): boolean => (
-  remainingFramesUntilCycle(
-    absoluteCycle,
-    schedule.targetCycle,
-    phaseFrame,
-    cycleFrames,
-  ) < Math.max(0, leadFrames)
-);
-
-export const shouldAcceptPhraseSchedule = (
-  existing: PhraseSchedule | null,
-  incoming: PhraseSchedule,
-  absoluteCycle: number,
-  phaseFrame: number,
-  cycleFrames: number,
-  leadFrames: number,
-): boolean => {
-  if (incoming.generation !== existing?.generation && existing !== null) {
-    if (incoming.generation < existing.generation) {
-      return false;
-    }
-  }
-  if (existing === null) {
-    return true;
-  }
-  if (existing.generation !== incoming.generation) {
-    return incoming.generation > existing.generation;
-  }
-  if (isPhraseScheduleConfirmed(existing, absoluteCycle, phaseFrame, cycleFrames, leadFrames)) {
-    return false;
-  }
-  if (existing.targetCycle !== incoming.targetCycle) {
-    return incoming.targetCycle > existing.targetCycle;
-  }
-  return incoming.revision >= existing.revision;
 };
 
 export const computeBeatInForm = (

@@ -53,13 +53,14 @@ describe('defenseSeparateTracksTransport vectors', () => {
         absoluteCycle: fixture.absoluteCycle,
         phaseFrame: fixture.phaseFrame,
         cycleFrames: fixture.cycleFrames,
-        leadFrames: fixture.leadFrames,
+        beatFrames: fixture.beatFrames,
         phraseIndex: fixture.phraseIndex,
         revision: fixture.revision,
         generation: fixture.generation,
       });
       expect(plan.targetCycle, fixture.id).toBe(fixture.targetCycle);
       expect(plan.phraseIndex, fixture.id).toBe(fixture.phraseIndex);
+      expect(plan.immediate, fixture.id).toBe(fixture.immediate);
     }
   });
 

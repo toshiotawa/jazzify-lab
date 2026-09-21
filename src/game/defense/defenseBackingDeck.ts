@@ -10,9 +10,8 @@ import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import {
   barSeconds,
   barSecondsFromLoop,
-  nextSwitchTime,
+  planDefenseSwitch,
   rebaseTransportStart,
-  scheduleDeadlineSec,
 } from '@/game/defense/defenseTransport';
 import {
   prepareDefensePhraseBackingPlayback,
@@ -268,12 +267,18 @@ class DefenseBackingDeck {
     this.slotB = null;
   }
 
-  /** 次の小節頭（余裕がなければその次）に切替を予約し、切替時刻（AudioContext 時刻）を返す。 */
+  /** 次の小節頭、または 1 拍以内のオーバーなら即時に切替を予約する。 */
   scheduleSwitch(nextPlayback: DefensePhraseBackingPlayback): number {
     const graph = this.ensureGraph();
     const now = graph.ctx.currentTime;
-    const deadline = scheduleDeadlineSec(graph.ctx.baseLatency ?? 0);
-    const switchAt = nextSwitchTime(now, this.transportStart, this.barSec, deadline);
+    const beatSec = this.barSec / Math.max(1, this.beatsPerBar);
+    const plan = planDefenseSwitch({
+      now,
+      transportStart: this.transportStart,
+      cutIntervalSec: this.barSec,
+      beatSec,
+    });
+    const switchAt = plan.switchAt;
 
     const current = this.activeIsA ? this.slotA : this.slotB;
     if (!current) {
@@ -283,10 +288,16 @@ class DefenseBackingDeck {
     this.pendingPlayback = nextPlayback;
     this.pendingSwitchAt = switchAt;
 
+    const elapsed = Math.max(0, now - this.transportStart);
+    const phaseInBar = elapsed % this.barSec;
+    const startOffset = plan.immediate
+      ? nextPlayback.startOffset + phaseInBar
+      : nextPlayback.startOffset;
+
     const next = this.createLoopingSlot(graph, nextPlayback);
     next.gain.gain.setValueAtTime(0, switchAt);
     next.gain.gain.linearRampToValueAtTime(1, switchAt + FADE_IN_SEC);
-    next.source.start(switchAt, next.startOffset);
+    next.source.start(switchAt, startOffset);
 
     current.gain.gain.setValueAtTime(1, switchAt - FADE_OUT_LEAD_SEC);
     current.gain.gain.linearRampToValueAtTime(0, switchAt);

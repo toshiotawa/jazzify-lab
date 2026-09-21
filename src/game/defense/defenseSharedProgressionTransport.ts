@@ -2,12 +2,15 @@
  * Shared progression mode: bar boundary math for phrase audio switching.
  */
 
+import { planDefenseSwitch } from '@/game/defense/defenseTransport';
+
 export type SharedProgressionSwitchEveryBars = 1 | 2 | 4;
 
 export interface SharedProgressionSwitchPlan {
   readonly switchAt: number;
   readonly destinationBar0: number;
   readonly absoluteSwitchBar0: number;
+  readonly immediate: boolean;
 }
 
 export const sharedProgressionBarSeconds = (
@@ -32,23 +35,13 @@ export const computeSharedProgressionAbsoluteBarPosition = (
   return Math.max(0, (audioTime - transportStart) / barSec);
 };
 
-const nextBoundaryBar0 = (
-  absoluteBarPosition: number,
-  switchEveryBars: number,
-): number => {
-  const safeK = Math.max(1, switchEveryBars);
-  const epsilon = 1e-9;
-  const boundaryIndex = Math.floor((absoluteBarPosition + epsilon) / safeK) + 1;
-  return boundaryIndex * safeK;
-};
-
 export const planSharedProgressionSwitch = (params: {
   readonly nowAudioTime: number;
   readonly transportStart: number;
   readonly barSec: number;
   readonly progressionBars: number;
   readonly switchEveryBars: SharedProgressionSwitchEveryBars;
-  readonly schedulingLeadSec: number;
+  readonly beatSec: number;
 }): SharedProgressionSwitchPlan => {
   const {
     nowAudioTime,
@@ -56,30 +49,40 @@ export const planSharedProgressionSwitch = (params: {
     barSec,
     progressionBars,
     switchEveryBars,
-    schedulingLeadSec,
+    beatSec,
   } = params;
 
   const safeN = Math.max(1, progressionBars);
+  const cutIntervalSec = Math.max(1e-9, barSec * switchEveryBars);
+  const plan = planDefenseSwitch({
+    now: nowAudioTime,
+    transportStart,
+    cutIntervalSec,
+    beatSec,
+  });
+
   const absoluteBarPosition = computeSharedProgressionAbsoluteBarPosition(
     nowAudioTime,
     transportStart,
     barSec,
   );
 
-  let absoluteSwitchBar0 = nextBoundaryBar0(absoluteBarPosition, switchEveryBars);
-  let switchAt = transportStart + absoluteSwitchBar0 * barSec;
-
-  const safeLead = Math.max(0, schedulingLeadSec);
-  while (switchAt - nowAudioTime < safeLead) {
-    absoluteSwitchBar0 += switchEveryBars;
-    switchAt = transportStart + absoluteSwitchBar0 * barSec;
+  if (plan.immediate) {
+    const currentBar0 = Math.floor(absoluteBarPosition + 1e-9);
+    return {
+      switchAt: plan.switchAt,
+      destinationBar0: currentBar0 % safeN,
+      absoluteSwitchBar0: currentBar0,
+      immediate: true,
+    };
   }
 
-  const destinationBar0 = absoluteSwitchBar0 % safeN;
+  const absoluteSwitchBar0 = Math.round((plan.cutAt - transportStart) / barSec);
   return {
-    switchAt,
-    destinationBar0,
+    switchAt: plan.switchAt,
+    destinationBar0: absoluteSwitchBar0 % safeN,
     absoluteSwitchBar0,
+    immediate: false,
   };
 };
 

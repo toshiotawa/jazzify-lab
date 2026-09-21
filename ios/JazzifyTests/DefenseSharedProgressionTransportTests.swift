@@ -4,6 +4,7 @@ import XCTest
 final class DefenseSharedProgressionTransportTests: XCTestCase {
     private let progressionBars = 12
     private let barSec = DefenseSharedProgressionTransport.barSeconds(bpm: 120, beatsPerBar: 4, playbackRatio: 1)
+    private let beatSec = DefenseTransport.beatSeconds(bpm: 120, playbackRatio: 1)
 
     func testOneBarBoundaries() {
         let planAtFive = DefenseSharedProgressionTransport.planSwitch(
@@ -12,10 +13,11 @@ final class DefenseSharedProgressionTransportTests: XCTestCase {
             barSec: barSec,
             progressionBars: progressionBars,
             switchEveryBars: .one,
-            schedulingLeadSec: 0
+            beatSec: beatSec
         )
         XCTAssertEqual(planAtFive.switchAt, 6)
         XCTAssertEqual(planAtFive.destinationBar0, 3)
+        XCTAssertFalse(planAtFive.immediate)
 
         let planAtEleven = DefenseSharedProgressionTransport.planSwitch(
             nowAudioTime: 11,
@@ -23,10 +25,11 @@ final class DefenseSharedProgressionTransportTests: XCTestCase {
             barSec: barSec,
             progressionBars: progressionBars,
             switchEveryBars: .one,
-            schedulingLeadSec: 0
+            beatSec: beatSec
         )
         XCTAssertEqual(planAtEleven.switchAt, 12)
         XCTAssertEqual(planAtEleven.destinationBar0, 6)
+        XCTAssertFalse(planAtEleven.immediate)
 
         let planAtTwentyThree = DefenseSharedProgressionTransport.planSwitch(
             nowAudioTime: 23,
@@ -34,10 +37,11 @@ final class DefenseSharedProgressionTransportTests: XCTestCase {
             barSec: barSec,
             progressionBars: progressionBars,
             switchEveryBars: .one,
-            schedulingLeadSec: 0
+            beatSec: beatSec
         )
         XCTAssertEqual(planAtTwentyThree.switchAt, 24)
         XCTAssertEqual(planAtTwentyThree.destinationBar0, 0)
+        XCTAssertFalse(planAtTwentyThree.immediate)
     }
 
     func testTwoBarBoundaries() {
@@ -47,23 +51,39 @@ final class DefenseSharedProgressionTransportTests: XCTestCase {
             barSec: barSec,
             progressionBars: progressionBars,
             switchEveryBars: .two,
-            schedulingLeadSec: 0
+            beatSec: beatSec
         )
         XCTAssertEqual(plan.switchAt, 8)
         XCTAssertEqual(plan.destinationBar0, 4)
+        XCTAssertFalse(plan.immediate)
     }
 
-    func testFourBarSchedulingLead() {
+    func testFourBarTargetsUpcomingBoundaryInsideOldLeadWindow() {
         let plan = DefenseSharedProgressionTransport.planSwitch(
             nowAudioTime: 7.95,
             transportStart: 0,
             barSec: barSec,
             progressionBars: progressionBars,
             switchEveryBars: .four,
-            schedulingLeadSec: 0.1
+            beatSec: beatSec
         )
-        XCTAssertEqual(plan.switchAt, 16)
-        XCTAssertEqual(plan.destinationBar0, 8)
+        XCTAssertEqual(plan.switchAt, 8)
+        XCTAssertEqual(plan.destinationBar0, 4)
+        XCTAssertFalse(plan.immediate)
+    }
+
+    func testImmediateWithinOneBeatAfterBoundary() {
+        let plan = DefenseSharedProgressionTransport.planSwitch(
+            nowAudioTime: 8.2,
+            transportStart: 0,
+            barSec: barSec,
+            progressionBars: progressionBars,
+            switchEveryBars: .two,
+            beatSec: beatSec
+        )
+        XCTAssertTrue(plan.immediate)
+        XCTAssertEqual(plan.switchAt, 8.2, accuracy: 0.0001)
+        XCTAssertEqual(plan.destinationBar0, 4)
     }
 
     func testFrameCountValidationAllowsAacPadding() {

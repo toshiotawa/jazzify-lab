@@ -30,18 +30,33 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
         XCTAssertEqual(window.sourceEndFrame, 352800)
     }
 
-    func testReservationNearBoundarySkipsCycle() {
+    func testReservationNearBoundaryTargetsNextCycle() {
         let plan = DefenseSeparateTracksTransport.planPhraseReservation(
             absoluteCycle: 3,
             phaseFrame: 174000,
             cycleFrames: 176400,
-            leadFrames: 4410,
+            beatFrames: 22050,
             phraseIndex: 2,
             revision: 2,
             generation: 1
         )
-        XCTAssertEqual(plan.targetCycle, 5)
+        XCTAssertEqual(plan.targetCycle, 4)
         XCTAssertEqual(plan.phraseIndex, 2)
+        XCTAssertFalse(plan.immediate)
+    }
+
+    func testReservationAtBoundaryIsImmediate() {
+        let plan = DefenseSeparateTracksTransport.planPhraseReservation(
+            absoluteCycle: 4,
+            phaseFrame: 0,
+            cycleFrames: 176400,
+            beatFrames: 22050,
+            phraseIndex: 0,
+            revision: 3,
+            generation: 1
+        )
+        XCTAssertEqual(plan.targetCycle, 4)
+        XCTAssertTrue(plan.immediate)
     }
 
     func testBeatInFormCycleTwoHalf() {
@@ -146,7 +161,6 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
                     outputLeft: leftBase,
                     outputRight: rightBase,
                     blockFrames: 64,
-                    leadFrames: 4410,
                     phraseRequest: nil,
                     tempoRequest: nil
                 )

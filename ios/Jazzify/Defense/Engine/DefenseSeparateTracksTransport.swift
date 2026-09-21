@@ -10,6 +10,7 @@ struct DefenseSeparateTracksGrid: Equatable {
     let cycleFrames: Int
     let cyclesPerForm: Int
     let bgmFrames: Int
+    let beatFrames: Int
     let sampleRate: Double
     let phraseBars: DefenseSeparateTracksPhraseBars
     let progressionBars: Int
@@ -29,6 +30,7 @@ struct DefensePhraseSchedule: Equatable {
     let phraseIndex: Int
     let revision: Int
     let generation: UInt64
+    let immediate: Bool
 }
 
 enum DefenseSeparateTracksTransport {
@@ -63,11 +65,14 @@ enum DefenseSeparateTracksTransport {
             playbackRatio: playbackRatio
         ).rounded()))
         let safeN = max(1, progressionBars)
+        let safeBeats = max(1, beatsPerBar)
         let cyclesPerForm = max(1, safeN / phraseBars.rawValue)
+        let beatFrames = max(1, Int(round(Double(cycleFrames) / (Double(safeBeats) * Double(phraseBars.rawValue)))))
         return DefenseSeparateTracksGrid(
             cycleFrames: cycleFrames,
             cyclesPerForm: cyclesPerForm,
             bgmFrames: cyclesPerForm * cycleFrames,
+            beatFrames: beatFrames,
             sampleRate: sampleRate,
             phraseBars: phraseBars,
             progressionBars: safeN,
@@ -124,24 +129,42 @@ enum DefenseSeparateTracksTransport {
         absoluteCycle: Int,
         phaseFrame: Int,
         cycleFrames: Int,
-        leadFrames: Int,
+        beatFrames: Int,
         phraseIndex: Int,
         revision: Int,
         generation: UInt64
     ) -> DefensePhraseSchedule {
         let safeF = max(1, cycleFrames)
-        let safeLead = max(0, leadFrames)
-        var targetCycle = absoluteCycle + 1
-        var remaining = safeF - max(0, min(phaseFrame, safeF))
-        while remaining < safeLead {
-            targetCycle += 1
-            remaining += safeF
+        let safeBeat = max(1, beatFrames)
+        let safePhase = max(0, min(phaseFrame, safeF))
+
+        if safePhase <= safeBeat {
+            return DefensePhraseSchedule(
+                targetCycle: absoluteCycle,
+                phraseIndex: phraseIndex,
+                revision: revision,
+                generation: generation,
+                immediate: true
+            )
         }
+
+        let remaining = safeF - safePhase
+        if remaining <= 0 {
+            return DefensePhraseSchedule(
+                targetCycle: absoluteCycle,
+                phraseIndex: phraseIndex,
+                revision: revision,
+                generation: generation,
+                immediate: true
+            )
+        }
+
         return DefensePhraseSchedule(
-            targetCycle: targetCycle,
+            targetCycle: absoluteCycle + 1,
             phraseIndex: phraseIndex,
             revision: revision,
-            generation: generation
+            generation: generation,
+            immediate: false
         )
     }
 

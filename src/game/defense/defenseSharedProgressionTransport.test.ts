@@ -6,6 +6,7 @@ import {
   sharedProgressionBarOffsetSec,
   sharedProgressionBarSeconds,
 } from '@/game/defense/defenseSharedProgressionTransport';
+import { beatSeconds } from '@/game/defense/defenseTransport';
 
 const N = 12;
 const K1 = 1 as const;
@@ -13,6 +14,7 @@ const K2 = 2 as const;
 const K4 = 4 as const;
 const t0 = 0;
 const barSec = sharedProgressionBarSeconds(120, 4, 1);
+const beatSec = beatSeconds(120, 1);
 
 describe('planSharedProgressionSwitch', () => {
   it('uses K=1 boundaries for 1-bar phrases', () => {
@@ -22,11 +24,12 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K1,
-      schedulingLeadSec: 0,
+      beatSec,
     })).toEqual({
       switchAt: 6,
       destinationBar0: 3,
       absoluteSwitchBar0: 3,
+      immediate: false,
     });
 
     expect(planSharedProgressionSwitch({
@@ -35,11 +38,12 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K1,
-      schedulingLeadSec: 0,
+      beatSec,
     })).toEqual({
       switchAt: 12,
       destinationBar0: 6,
       absoluteSwitchBar0: 6,
+      immediate: false,
     });
 
     expect(planSharedProgressionSwitch({
@@ -48,11 +52,12 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K1,
-      schedulingLeadSec: 0,
+      beatSec,
     })).toEqual({
       switchAt: 24,
       destinationBar0: 0,
       absoluteSwitchBar0: 12,
+      immediate: false,
     });
   });
 
@@ -63,11 +68,12 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K2,
-      schedulingLeadSec: 0,
+      beatSec,
     })).toEqual({
       switchAt: 8,
       destinationBar0: 4,
       absoluteSwitchBar0: 4,
+      immediate: false,
     });
 
     expect(planSharedProgressionSwitch({
@@ -76,11 +82,12 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K2,
-      schedulingLeadSec: 0,
+      beatSec,
     })).toEqual({
       switchAt: 8,
       destinationBar0: 4,
       absoluteSwitchBar0: 4,
+      immediate: false,
     });
   });
 
@@ -91,26 +98,43 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K4,
-      schedulingLeadSec: 0,
+      beatSec,
     })).toEqual({
       switchAt: 16,
       destinationBar0: 8,
       absoluteSwitchBar0: 8,
+      immediate: false,
     });
   });
 
-  it('skips to the next K boundary when scheduling lead is missed', () => {
+  it('targets upcoming K boundary even inside old lead window', () => {
     expect(planSharedProgressionSwitch({
       nowAudioTime: 7.95,
       transportStart: t0,
       barSec,
       progressionBars: N,
       switchEveryBars: K4,
-      schedulingLeadSec: 0.1,
+      beatSec,
     })).toEqual({
-      switchAt: 16,
-      destinationBar0: 8,
-      absoluteSwitchBar0: 8,
+      switchAt: 8,
+      destinationBar0: 4,
+      absoluteSwitchBar0: 4,
+      immediate: false,
+    });
+  });
+
+  it('immediate within one beat after boundary', () => {
+    expect(planSharedProgressionSwitch({
+      nowAudioTime: 8.2,
+      transportStart: t0,
+      barSec,
+      progressionBars: N,
+      switchEveryBars: K2,
+      beatSec,
+    })).toMatchObject({
+      immediate: true,
+      switchAt: 8.2,
+      destinationBar0: 4,
     });
   });
 
@@ -121,11 +145,11 @@ describe('planSharedProgressionSwitch', () => {
       barSec,
       progressionBars: N,
       switchEveryBars: K2,
-      schedulingLeadSec: 0,
-    })).toEqual({
-      switchAt: 12,
-      destinationBar0: 6,
-      absoluteSwitchBar0: 6,
+      beatSec,
+    })).toMatchObject({
+      immediate: true,
+      switchAt: 8,
+      destinationBar0: 4,
     });
   });
 
@@ -137,7 +161,7 @@ describe('planSharedProgressionSwitch', () => {
       barSec: halfBarSec,
       progressionBars: N,
       switchEveryBars: K1,
-      schedulingLeadSec: 0,
+      beatSec: beatSeconds(120, 0.5),
     });
     expect(plan.switchAt).toBe(12);
     expect(sharedProgressionBarOffsetSec(plan.destinationBar0, halfBarSec)).toBeCloseTo(12);

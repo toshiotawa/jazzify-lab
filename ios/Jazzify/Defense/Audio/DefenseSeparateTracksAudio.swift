@@ -293,7 +293,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         pendingTempoRequest = nil
         os_unfair_lock_unlock(&mailboxLock)
 
-        let leadFrames = Int((state.activeSet.grid.sampleRate * 0.1).rounded())
         renderScratchLeft.withUnsafeMutableBufferPointer { leftPointer in
             renderScratchRight.withUnsafeMutableBufferPointer { rightPointer in
                 guard let leftBase = leftPointer.baseAddress,
@@ -305,7 +304,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
                     outputLeft: leftBase,
                     outputRight: rightBase,
                     blockFrames: blockFrames,
-                    leadFrames: leadFrames,
                     phraseRequest: phraseRequest,
                     tempoRequest: tempoRequest
                 )

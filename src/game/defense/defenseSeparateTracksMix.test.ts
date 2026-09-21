@@ -62,8 +62,6 @@ describe('defenseSeparateTracksMix', () => {
     const set = buildTestPreparedSet(3);
     const tenMinutesFrames = 10 * 60 * FS;
     const blockFrames = 128;
-    const leadFrames = Math.round(FS * 0.1);
-
     const state = createSeparateTracksMixerState({
       preparedSet: set,
       sessionGeneration: 1,
@@ -76,7 +74,6 @@ describe('defenseSeparateTracksMix', () => {
       initialState: state,
       blockFrames,
       totalFrames: expectedCycles * set.grid.cycleFrames,
-      leadFrames,
       phraseRequests: [],
     });
 
@@ -86,7 +83,6 @@ describe('defenseSeparateTracksMix', () => {
 
   it('applies phrase switch at K-cycle boundary inside render block', () => {
     const set = buildTestPreparedSet(3);
-    const leadFrames = 32;
     let state = createSeparateTracksMixerState({
       preparedSet: set,
       sessionGeneration: 1,
@@ -107,7 +103,6 @@ describe('defenseSeparateTracksMix', () => {
       outputLeft,
       outputRight,
       blockFrames: 128,
-      leadFrames,
       phraseRequest: {
         phraseIndex: 1,
         revision: 1,
@@ -122,7 +117,6 @@ describe('defenseSeparateTracksMix', () => {
 
   it('keeps BGM continuous across phrase switches', () => {
     const set = buildTestPreparedSet(3);
-    const leadFrames = Math.round(FS * 0.1);
     const totalFrames = set.grid.cycleFrames * 4;
 
     const state = createSeparateTracksMixerState({
@@ -135,7 +129,6 @@ describe('defenseSeparateTracksMix', () => {
       initialState: state,
       blockFrames: 128,
       totalFrames,
-      leadFrames,
       phraseRequests: [
         {
           atFrame: 1000,
@@ -175,7 +168,6 @@ describe('defenseSeparateTracksMix', () => {
       outputLeft,
       outputRight,
       blockFrames: 2,
-      leadFrames: Math.round(FS * 0.1),
       phraseRequest: null,
       tempoRequest: {
         preparedSet: slowSet,
@@ -206,7 +198,6 @@ describe('defenseSeparateTracksMix', () => {
       outputLeft,
       outputRight,
       blockFrames: 128,
-      leadFrames: Math.round(FS * 0.1),
       phraseRequest: {
         phraseIndex: 2,
         revision: 1,
@@ -221,7 +212,6 @@ describe('defenseSeparateTracksMix', () => {
 
   it('keeps a confirmed targetCycle and switches to the latest desired phrase', () => {
     const set = buildTestPreparedSet(3);
-    const leadFrames = 32;
     let state = createSeparateTracksMixerState({
       preparedSet: set,
       sessionGeneration: 1,
@@ -229,28 +219,36 @@ describe('defenseSeparateTracksMix', () => {
     });
     state = {
       ...state,
-      phaseFrame: set.grid.cycleFrames - 64,
+      phaseFrame: set.grid.cycleFrames - 1,
       absoluteCycle: 0,
+      scheduled: {
+        targetCycle: 1,
+        phraseIndex: 1,
+        revision: 1,
+        generation: 1,
+        immediate: false,
+      },
+      scheduledConfirmed: true,
+      desiredPhraseIndex: 1,
     };
 
-    const outputLeft = new Float32Array(40);
-    const outputRight = new Float32Array(40);
+    const outputLeft = new Float32Array(1);
+    const outputRight = new Float32Array(1);
 
     const reserved = renderSeparateTracksBlock({
       state,
       outputLeft,
       outputRight,
-      blockFrames: 40,
-      leadFrames,
-      phraseRequest: { phraseIndex: 1, revision: 1, generation: 1 },
+      blockFrames: 1,
+      phraseRequest: { phraseIndex: 2, revision: 2, generation: 1 },
       tempoRequest: null,
     });
 
-    expect(reserved.state.scheduledConfirmed).toBe(true);
     expect(reserved.state.scheduled?.targetCycle).toBe(1);
+    expect(reserved.state.scheduled?.phraseIndex).toBe(2);
     expect(reserved.state.audiblePhraseIndex).toBe(0);
 
-    const remaining = set.grid.cycleFrames - reserved.state.phaseFrame + 8;
+    const remaining = set.grid.cycleFrames - reserved.state.phaseFrame;
     const secondLeft = new Float32Array(remaining);
     const secondRight = new Float32Array(remaining);
     const switched = renderSeparateTracksBlock({
@@ -258,12 +256,44 @@ describe('defenseSeparateTracksMix', () => {
       outputLeft: secondLeft,
       outputRight: secondRight,
       blockFrames: remaining,
-      leadFrames,
-      phraseRequest: { phraseIndex: 2, revision: 2, generation: 1 },
+      phraseRequest: null,
       tempoRequest: null,
     });
 
     expect(switched.state.audiblePhraseIndex).toBe(2);
     expect(switched.appliedPhraseAtBoundary).toBe(true);
+  });
+
+  it('applies phrase switch immediately within one beat of cycle start', () => {
+    const set = buildTestPreparedSet(3);
+    const state = createSeparateTracksMixerState({
+      preparedSet: set,
+      sessionGeneration: 1,
+      initialPhraseIndex: 0,
+    });
+
+    const outputLeft = new Float32Array(128);
+    const outputRight = new Float32Array(128);
+
+    const result = renderSeparateTracksBlock({
+      state: {
+        ...state,
+        absoluteCycle: 2,
+        phaseFrame: 1000,
+      },
+      outputLeft,
+      outputRight,
+      blockFrames: 128,
+      phraseRequest: {
+        phraseIndex: 1,
+        revision: 1,
+        generation: 1,
+      },
+      tempoRequest: null,
+    });
+
+    expect(result.state.audiblePhraseIndex).toBe(1);
+    expect(result.state.scheduled).toBeNull();
+    expect(result.appliedPhraseAtBoundary).toBe(false);
   });
 });

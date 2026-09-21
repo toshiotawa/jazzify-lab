@@ -404,13 +404,17 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
         let now = Self.hostTimeSec()
         let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
-        let switchAt = DefenseTransport.nextSwitchTime(
+        let beatSec = barSec / Double(max(1, beatsSnapshot))
+        let plan = DefenseTransport.planSwitch(
             now: now,
             transportStart: transportStart,
-            barSec: barSec,
-            deadlineSec: 0.1
+            cutIntervalSec: barSec,
+            beatSec: beatSec
         )
-        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
+        let switchAt = plan.switchAt
+        let when: AVAudioTime? = plan.immediate
+            ? nil
+            : AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
         let incoming = activeIsA ? playerB : playerA
         if activeIsA {
             bufferB = buffer

@@ -1,10 +1,22 @@
 import Foundation
 
+struct DefenseSwitchPlan: Equatable {
+    let switchAt: Double
+    let immediate: Bool
+    let cutAt: Double
+}
+
 enum DefenseTransport {
     static func barSeconds(bpm: Double, beatsPerBar: Int) -> Double {
         let safeBpm = max(1.0, bpm)
         let safeBeats = max(1, beatsPerBar)
         return (60.0 / safeBpm) * Double(safeBeats)
+    }
+
+    static func beatSeconds(bpm: Double, playbackRatio: Double = 1) -> Double {
+        let safeBpm = max(1.0, bpm)
+        let safeRatio = max(0.0001, playbackRatio)
+        return 60.0 / safeBpm / safeRatio
     }
 
     static func barSecondsFromLoop(loopStartSec: Double, loopEndSec: Double, barCount: Int) -> Double {
@@ -28,19 +40,58 @@ enum DefenseTransport {
         return now - fraction * newBarSec
     }
 
+    private static let scheduleMinQuantumSec = 0.001
+
+    static func planSwitch(
+        now: Double,
+        transportStart: Double,
+        cutIntervalSec: Double,
+        beatSec: Double
+    ) -> DefenseSwitchPlan {
+        guard cutIntervalSec > 0 else {
+            return DefenseSwitchPlan(switchAt: now, immediate: true, cutAt: now)
+        }
+
+        let safeBeat = max(1e-9, beatSec)
+        let epsilon = 1e-9
+        let elapsed = max(0, now - transportStart)
+        let cutIndex = Int(floor(elapsed / cutIntervalSec + epsilon))
+        let recentCutAt = transportStart + Double(cutIndex) * cutIntervalSec
+        let upcomingCutAt = recentCutAt + cutIntervalSec
+
+        if now >= recentCutAt - epsilon {
+            let overshoot = now - recentCutAt
+            if overshoot <= safeBeat + epsilon {
+                return DefenseSwitchPlan(switchAt: now, immediate: true, cutAt: recentCutAt)
+            }
+        }
+
+        if now < upcomingCutAt - epsilon {
+            let remaining = upcomingCutAt - now
+            if remaining < scheduleMinQuantumSec {
+                return DefenseSwitchPlan(switchAt: now, immediate: true, cutAt: upcomingCutAt)
+            }
+            return DefenseSwitchPlan(switchAt: upcomingCutAt, immediate: false, cutAt: upcomingCutAt)
+        }
+
+        return DefenseSwitchPlan(switchAt: now, immediate: true, cutAt: upcomingCutAt)
+    }
+
     static func nextSwitchTime(
         now: Double,
         transportStart: Double,
         barSec: Double,
-        deadlineSec: Double
+        deadlineSec: Double,
+        beatSec: Double? = nil
     ) -> Double {
-        guard barSec > 0 else { return now }
-        let barIndex = floor((now - transportStart) / barSec)
-        var switchAt = transportStart + (barIndex + 1) * barSec
-        if switchAt - now < max(0, deadlineSec) {
-            switchAt += barSec
-        }
-        return switchAt
+        _ = deadlineSec
+        let resolvedBeatSec = beatSec ?? (barSec / 4.0)
+        return planSwitch(
+            now: now,
+            transportStart: transportStart,
+            cutIntervalSec: barSec,
+            beatSec: resolvedBeatSec
+        ).switchAt
     }
 
     static func barSamples(sampleRate: Double, bpm: Double, beatsPerBar: Int) -> Int64 {

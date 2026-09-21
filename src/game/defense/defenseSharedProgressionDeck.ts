@@ -14,7 +14,7 @@ import {
   sharedProgressionBarSeconds,
   type SharedProgressionSwitchEveryBars,
 } from '@/game/defense/defenseSharedProgressionTransport';
-import { scheduleDeadlineSec } from '@/game/defense/defenseTransport';
+import { beatSeconds } from '@/game/defense/defenseTransport';
 import type { DefenseStage } from '@/game/defense/defenseTypes';
 import { VOICE_INPUT_BGM_DUCK } from '@/utils/voiceInputBgmDuck';
 
@@ -365,21 +365,24 @@ class DefenseSharedProgressionDeck {
     }
 
     const now = graph.ctx.currentTime;
-    const deadline = scheduleDeadlineSec(graph.ctx.baseLatency ?? 0);
+    const beatSec = beatSeconds(this.stage.bpm, this.playbackRatio);
     const plan = planSharedProgressionSwitch({
       nowAudioTime: now,
       transportStart: this.transportStart,
       barSec: this.barSec,
       progressionBars: this.progressionBars,
       switchEveryBars: this.switchEveryBars,
-      schedulingLeadSec: deadline,
+      beatSec,
     });
-    const startOffsetSec = sharedProgressionBarOffsetSec(plan.destinationBar0, this.barSec);
+    const startOffsetSec = plan.immediate
+      ? this.currentAbsoluteOffsetSec(now)
+      : sharedProgressionBarOffsetSec(plan.destinationBar0, this.barSec);
 
     if (
       this.scheduled !== null
       && Math.abs(this.scheduled.switchAt - plan.switchAt) < 1e-6
-      && now < plan.switchAt - deadline
+      && !plan.immediate
+      && now < plan.switchAt
     ) {
       this.clearIncoming();
       this.scheduled = {
@@ -396,7 +399,7 @@ class DefenseSharedProgressionDeck {
       return;
     }
 
-    if (this.scheduled !== null && now >= this.scheduled.switchAt - deadline) {
+    if (this.scheduled !== null && now >= this.scheduled.switchAt) {
       return;
     }
 
@@ -424,6 +427,10 @@ class DefenseSharedProgressionDeck {
     current.source.stop(plan.switchAt + STOP_AFTER_FADE_SEC);
 
     this.incomingSlot = incoming;
+
+    if (plan.immediate) {
+      this.commitDueSwitch();
+    }
   }
 
   commitDueSwitch(): void {

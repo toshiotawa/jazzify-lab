@@ -224,24 +224,31 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     }
 
     private func scheduleDesiredSwitch() {
+        guard let stage else { return }
         let now = Self.hostTimeSec()
+        let beatSec = DefenseTransport.beatSeconds(bpm: stage.bpm, playbackRatio: playbackRatio)
         let plan = DefenseSharedProgressionTransport.planSwitch(
             nowAudioTime: now,
             transportStart: transportStartHostSec,
             barSec: barSec,
             progressionBars: progressionBars,
             switchEveryBars: DefenseSharedProgressionSwitchEveryBars(rawValue: switchEveryBars) ?? .one,
-            schedulingLeadSec: 0.1
+            beatSec: beatSec
         )
+
+        if plan.immediate {
+            playActivePhraseImmediate(at: desiredPhraseIndex, offsetBar0: plan.destinationBar0)
+            return
+        }
 
         if scheduledSwitchAtHostSec >= 0,
            abs(scheduledSwitchAtHostSec - plan.switchAt) < 1e-6,
-           now < plan.switchAt - 0.1,
+           now < plan.switchAt,
            scheduledPhraseIndex == desiredPhraseIndex {
             return
         }
 
-        if scheduledSwitchAtHostSec >= 0, now >= scheduledSwitchAtHostSec - 0.1 {
+        if scheduledSwitchAtHostSec >= 0, now >= scheduledSwitchAtHostSec {
             return
         }
 
