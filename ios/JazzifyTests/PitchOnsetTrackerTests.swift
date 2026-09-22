@@ -135,7 +135,7 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertEqual(low.minConfidence, 0.65, accuracy: 0.0001)
         XCTAssertEqual(mid.minConfidence, 0.5, accuracy: 0.0001)
         XCTAssertEqual(nine.minConfidence, 0.30, accuracy: 0.0001)
-        XCTAssertEqual(high.minConfidence, 0.35, accuracy: 0.0001)
+        XCTAssertEqual(high.minConfidence, 0.28, accuracy: 0.0001)
         XCTAssertGreaterThan(low.onsetLevelDb, high.onsetLevelDb)
     }
 

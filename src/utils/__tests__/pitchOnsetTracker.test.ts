@@ -89,7 +89,7 @@ describe('PitchOnsetTracker', () => {
     expect(low.minConfidence).toBe(0.65);
     expect(mid.minConfidence).toBe(0.5);
     expect(nine.minConfidence).toBe(0.3);
-    expect(high.minConfidence).toBe(0.35);
+    expect(high.minConfidence).toBe(0.28);
   });
 
   it('reset clears state', () => {

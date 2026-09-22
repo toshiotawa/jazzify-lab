@@ -334,9 +334,9 @@ final class PitchOnsetTracker {
 }
 
 enum PitchOnsetSensitivity {
-    /// 感度 1-10 の minConfidence。9 は 0.30、10 は 0.35。
+    /// 感度 1-10 の minConfidence。9 は 0.30、10 は 0.28。
     static func minConfidence(for level: Int) -> Double {
-        if level >= 10 { return 0.35 }
+        if level >= 10 { return 0.28 }
         if level == 9 { return 0.30 }
         if level >= 5 { return 0.5 - Double(level - 5) * 0.03 }
         return 0.5 + Double(5 - level) * 0.0375

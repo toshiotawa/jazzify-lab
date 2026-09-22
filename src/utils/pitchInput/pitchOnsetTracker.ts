@@ -57,9 +57,9 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   allowImmediateFirstFrame: true,
 };
 
-/** 感度 1-10 の minConfidence。9 は 0.30、10 は 0.35。 */
+/** 感度 1-10 の minConfidence。9 は 0.30、10 は 0.28。 */
 const minConfidenceForSensitivity = (level: number): number => {
-  if (level >= 10) return 0.35;
+  if (level >= 10) return 0.28;
   if (level === 9) return 0.30;
   if (level >= 5) return 0.5 - (level - 5) * 0.03;
   return 0.5 + (5 - level) * 0.0375;
