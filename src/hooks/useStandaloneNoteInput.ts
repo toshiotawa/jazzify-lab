@@ -33,6 +33,8 @@ interface UseStandaloneNoteInputOptions {
   inputMethod?: InputMethod;
   voiceFastResponse?: boolean;
   voiceLowRegister?: boolean;
+  /** Phrase Defense の期待 pitch class ビットマスク。0 は補助なし。 */
+  expectedPitchMask?: number;
 }
 
 interface UseStandaloneNoteInputResult {
@@ -52,6 +54,7 @@ export const useStandaloneNoteInput = ({
   inputMethod: inputMethodOverride,
   voiceFastResponse = false,
   voiceLowRegister = false,
+  expectedPitchMask = 0,
 }: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
   const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
@@ -73,6 +76,8 @@ export const useStandaloneNoteInput = ({
   voiceFastResponseRef.current = voiceFastResponse;
   const voiceLowRegisterRef = useRef(voiceLowRegister);
   voiceLowRegisterRef.current = voiceLowRegister;
+  const expectedPitchMaskRef = useRef(expectedPitchMask);
+  expectedPitchMaskRef.current = expectedPitchMask;
 
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
@@ -161,6 +166,13 @@ export const useStandaloneNoteInput = ({
     pitchRef.current?.setSensitivity(settings.voiceSensitivity);
   }, [settings.voiceSensitivity]);
 
+  useEffect(() => {
+    pitchRef.current?.setExpectedPitchMask(expectedPitchMask);
+    return () => {
+      pitchRef.current?.setExpectedPitchMask(0);
+    };
+  }, [expectedPitchMask]);
+
   const connect = useCallback(async () => {
     const generation = connectGenerationRef.current + 1;
     connectGenerationRef.current = generation;
@@ -184,6 +196,7 @@ export const useStandaloneNoteInput = ({
       pitch.setPitchStableFrames(voiceFastResponseRef.current ? 2 : 4);
       pitch.setLowRegister(voiceLowRegisterRef.current);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
+      pitch.setExpectedPitchMask(expectedPitchMaskRef.current);
       const deviceId =
         settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
           ? settings.selectedAudioDevice

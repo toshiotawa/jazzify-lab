@@ -13,6 +13,12 @@ struct PitchOnsetTrackerConfig: Equatable {
     var centsTolerance: Double = 40
     /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 5ms）。
     var onsetImmediateConfidence: Double = 0.85
+    /// 高速反応 ON のとき、この confidence 以上ならレガートを 1 フレームで切る。
+    var fastLegatoConfidence: Double = 0.8
+    /// Phrase Defense の期待音を 1 フレームで採用する confidence。
+    var expectedAssistConfidence: Double = 0.38
+    /// 高速反応。ON のときだけ fastLegatoConfidence の 1 フレーム遷移を許す。
+    var fastResponse: Bool = false
     /// 1 観測あたりの原音時間 (ms)。q=1 は 5、q=2 は 10。
     var frameDurationMs: Double = 5
     /// false のとき 1 観測だけでは即 noteOn しない（+12 実験用）。
@@ -43,6 +49,9 @@ final class PitchOnsetTracker {
     private var recentLevelDbRing: [Double] = []
     private var pendingOff = false
     private var pendingOffFrame = -1
+    private var legatoHitNotes: [Int] = [-1, -1, -1]
+    private var legatoHitIndex = 0
+    private var expectedPitchMask = 0
 
     init(config: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) {
         self.config = config
@@ -50,6 +59,11 @@ final class PitchOnsetTracker {
 
     func setConfig(_ config: PitchOnsetTrackerConfig) {
         self.config = config
+    }
+
+    /// Phrase Defense 以外は 0。通常の自由演奏には使わない。
+    func setExpectedPitchMask(_ mask: Int) {
+        expectedPitchMask = mask & 0xFFF
     }
 
     func reset() {
@@ -64,6 +78,8 @@ final class PitchOnsetTracker {
         recentLevelDbRing = []
         pendingOff = false
         pendingOffFrame = -1
+        legatoHitNotes = [-1, -1, -1]
+        legatoHitIndex = 0
     }
 
     func flushActiveNote(frameIndex: Int) -> [PitchInputEvent] {
@@ -96,15 +112,20 @@ final class PitchOnsetTracker {
         }
 
         let levelDb = volumeToDb(frame.volume)
-        let voiced = levelDb > config.onsetLevelDb
-            && frame.confidence >= config.minConfidence
-            && Self.quantizePrediction(frame.prediction) != nil
+        let quantized = Self.quantizePrediction(frame.prediction)
+        let expectedAssist = isExpectedAssist(
+            quantized: quantized,
+            confidence: frame.confidence,
+            levelDb: levelDb
+        )
+        let voiced = expectedAssist || (
+            levelDb > config.onsetLevelDb
+                && frame.confidence >= config.minConfidence
+                && quantized != nil
+        )
+        pushLegatoHit(voiced ? quantized ?? -1 : -1)
 
-        if voiced {
-            guard let quantized = Self.quantizePrediction(frame.prediction) else {
-                flushPendingOff(&events, frameIndex: frameIndex)
-                return events
-            }
+        if voiced, let quantized {
             if lastStableNote == quantized {
                 pitchStableCount += 1
             } else {
@@ -116,7 +137,7 @@ final class PitchOnsetTracker {
             pendingOff = false
 
             if currentNote < 0 {
-                if shouldEmitNoteOn(
+                if expectedAssist || shouldEmitNoteOn(
                     pitchStableCount: pitchStableCount,
                     confidence: frame.confidence,
                     allowImmediate: true
@@ -131,10 +152,9 @@ final class PitchOnsetTracker {
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
                 if isLikelyOctaveJump(quantized: quantized, levelDb: levelDb) {
                     // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-                } else if shouldEmitNoteOn(
-                    pitchStableCount: pitchStableCount,
-                    confidence: frame.confidence,
-                    allowImmediate: false
+                } else if expectedAssist || shouldEmitLegatoSwitch(
+                    quantized: quantized,
+                    confidence: frame.confidence
                 ) {
                     emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
                     emitNoteOn(
@@ -182,6 +202,33 @@ final class PitchOnsetTracker {
            pitchStableCount == 1,
            confidence >= config.onsetImmediateConfidence { return true }
         return false
+    }
+
+    /// 高速反応かつ超高確信は 1 フレーム。それ以外は直近 3 フレーム中 2 ヒット。
+    private func shouldEmitLegatoSwitch(quantized: Int, confidence: Double) -> Bool {
+        if config.fastResponse, confidence >= config.fastLegatoConfidence { return true }
+        return legatoHitCount(quantized) >= 2
+    }
+
+    private func isExpectedAssist(quantized: Int?, confidence: Double, levelDb: Double) -> Bool {
+        guard expectedPitchMask != 0, let quantized, quantized >= 0 else { return false }
+        guard levelDb > config.onsetLevelDb else { return false }
+        guard confidence >= config.expectedAssistConfidence else { return false }
+        let pitchClass = ((quantized % 12) + 12) % 12
+        return (expectedPitchMask & (1 << pitchClass)) != 0
+    }
+
+    private func pushLegatoHit(_ note: Int) {
+        legatoHitNotes[legatoHitIndex] = note
+        legatoHitIndex = (legatoHitIndex + 1) % 3
+    }
+
+    private func legatoHitCount(_ note: Int) -> Int {
+        var count = 0
+        if legatoHitNotes[0] == note { count += 1 }
+        if legatoHitNotes[1] == note { count += 1 }
+        if legatoHitNotes[2] == note { count += 1 }
+        return count
     }
 
     var pitchStableDurationMs: Double {
@@ -287,12 +334,22 @@ final class PitchOnsetTracker {
 }
 
 enum PitchOnsetSensitivity {
+    /// 感度 1-10 の minConfidence。9 は 0.30、10 は 0.35。
+    static func minConfidence(for level: Int) -> Double {
+        if level >= 10 { return 0.35 }
+        if level == 9 { return 0.30 }
+        if level >= 5 { return 0.5 - Double(level - 5) * 0.03 }
+        return 0.5 + Double(5 - level) * 0.0375
+    }
+
     static func scaleConfig(sensitivity: Int, base: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) -> PitchOnsetTrackerConfig {
         let level = max(1, min(10, sensitivity))
         let scale = pow(10, Double(5 - level) * 0.17)
+        let minConfidence = Self.minConfidence(for: level)
         var config = base
         config.onsetLevelDb = base.onsetLevelDb + 10 * log10(scale)
         config.releaseLevelDb = base.releaseLevelDb + 10 * log10(scale)
+        config.minConfidence = minConfidence
         return config
     }
 }

@@ -126,4 +126,101 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.processFrame(voiced72, frameIndex: 2).isEmpty)
         XCTAssertEqual(tracker.getCurrentNote(), 60)
     }
+
+    func testScalesMinConfidenceWithSensitivity() {
+        let low = PitchOnsetSensitivity.scaleConfig(sensitivity: 1)
+        let mid = PitchOnsetSensitivity.scaleConfig(sensitivity: 5)
+        let nine = PitchOnsetSensitivity.scaleConfig(sensitivity: 9)
+        let high = PitchOnsetSensitivity.scaleConfig(sensitivity: 10)
+        XCTAssertEqual(low.minConfidence, 0.65, accuracy: 0.0001)
+        XCTAssertEqual(mid.minConfidence, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(nine.minConfidence, 0.30, accuracy: 0.0001)
+        XCTAssertEqual(high.minConfidence, 0.35, accuracy: 0.0001)
+        XCTAssertGreaterThan(low.onsetLevelDb, high.onsetLevelDb)
+    }
+
+    func testSwitchesLegatoInOneFrameOnlyWhenFastResponseAndConfidenceIsAtLeast08() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 2
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.8
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced60 = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let voiced64 = PitchFrame(prediction: 64, confidence: 0.8, volume: 0.012)
+
+        _ = tracker.processFrame(voiced60, frameIndex: 0)
+        let events = tracker.processFrame(voiced64, frameIndex: 1)
+        XCTAssertEqual(events.count, 2)
+        if case let .noteOff(note, frameIndex) = events[0] {
+            XCTAssertEqual(note, 60)
+            XCTAssertEqual(frameIndex, 1)
+        } else {
+            XCTFail("Expected noteOff first")
+        }
+        if case let .noteOn(note, frameIndex, onsetFrameIndex) = events[1] {
+            XCTAssertEqual(note, 64)
+            XCTAssertEqual(frameIndex, 1)
+            XCTAssertEqual(onsetFrameIndex, 1)
+        } else {
+            XCTFail("Expected noteOn second")
+        }
+    }
+
+    func testUsesTwoHitsInThreeFramesWhenFastResponseIsOff() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 4
+        config.fastResponse = false
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced60 = PitchFrame(prediction: 60, confidence: 0.95, volume: 0.01)
+        let voiced64 = PitchFrame(prediction: 64, confidence: 0.95, volume: 0.012)
+
+        _ = tracker.processFrame(voiced60, frameIndex: 0)
+        XCTAssertTrue(tracker.processFrame(voiced64, frameIndex: 1).isEmpty)
+        let events = tracker.processFrame(voiced64, frameIndex: 2)
+        XCTAssertEqual(events.count, 2)
+        if case let .noteOff(note, frameIndex) = events[0] {
+            XCTAssertEqual(note, 60)
+            XCTAssertEqual(frameIndex, 2)
+        } else {
+            XCTFail("Expected noteOff first")
+        }
+        if case let .noteOn(note, frameIndex, onsetFrameIndex) = events[1] {
+            XCTAssertEqual(note, 64)
+            XCTAssertEqual(frameIndex, 2)
+            XCTAssertEqual(onsetFrameIndex, 1)
+        } else {
+            XCTFail("Expected noteOn second")
+        }
+    }
+
+    func testAdoptsExpectedPitchClassInOneFrameBelowNormalConfidence() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 4
+        config.minConfidence = 0.5
+        config.expectedAssistConfidence = 0.38
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchMask(1 << 10)
+        let bb = PitchFrame(prediction: 58, confidence: 0.38, volume: 0.01)
+        let events = tracker.processFrame(bb, frameIndex: 0)
+        XCTAssertEqual(events.count, 1)
+        if case let .noteOn(note, frameIndex, onsetFrameIndex) = events[0] {
+            XCTAssertEqual(note, 58)
+            XCTAssertEqual(frameIndex, 0)
+            XCTAssertEqual(onsetFrameIndex, 0)
+        } else {
+            XCTFail("Expected noteOn")
+        }
+    }
+
+    func testDoesNotAdoptNonExpectedPitchAtAssistConfidence() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 4
+        config.minConfidence = 0.5
+        config.expectedAssistConfidence = 0.38
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchMask(1 << 10)
+        let other = PitchFrame(prediction: 60, confidence: 0.38, volume: 0.01)
+        XCTAssertTrue(tracker.processFrame(other, frameIndex: 0).isEmpty)
+        XCTAssertEqual(tracker.getCurrentNote(), -1)
+    }
 }

@@ -144,8 +144,8 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
             />
             <p className="text-xs text-gray-400 mt-1">
               {en
-                ? 'Higher values detect quieter sounds more easily. Lower if notes are picked up too often.'
-                : '高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。'}
+                ? 'Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often.'
+                : '高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。'}
             </p>
           </label>
           <label className="flex items-center justify-between gap-3 text-xs text-purple-200">

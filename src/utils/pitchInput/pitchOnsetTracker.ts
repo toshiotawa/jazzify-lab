@@ -26,6 +26,12 @@ export interface PitchOnsetTrackerConfig {
   centsTolerance: number;
   /** 1 フレーム目でも confidence がこの値以上なら即 noteOn */
   onsetImmediateConfidence: number;
+  /** 高速反応 ON のとき、この confidence 以上ならレガートを 1 フレームで切る */
+  fastLegatoConfidence: number;
+  /** Phrase Defense の期待音を 1 フレームで採用する confidence */
+  expectedAssistConfidence: number;
+  /** 高速反応。ON のときだけ fastLegatoConfidence の 1 フレーム遷移を許す。 */
+  fastResponse: boolean;
   /** 1 観測あたりの原音時間 (ms)。q=1 は 5、q=2 は 10。 */
   frameDurationMs: number;
   /** false のとき 1 観測だけでは即 noteOn しない（+12 実験用）。 */
@@ -44,21 +50,34 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   retriggerLookbackFrames: 4,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
+  fastLegatoConfidence: 0.8,
+  expectedAssistConfidence: 0.38,
+  fastResponse: false,
   frameDurationMs: 5,
   allowImmediateFirstFrame: true,
 };
 
-/** 感度 1-10 から dB しきい値をスケール */
+/** 感度 1-10 の minConfidence。9 は 0.30、10 は 0.35。 */
+const minConfidenceForSensitivity = (level: number): number => {
+  if (level >= 10) return 0.35;
+  if (level === 9) return 0.30;
+  if (level >= 5) return 0.5 - (level - 5) * 0.03;
+  return 0.5 + (5 - level) * 0.0375;
+};
+
+/** 感度 1-10 から dB / confidence しきい値をスケール */
 export const scaleOnsetConfigForSensitivity = (
   sensitivity: number,
   base: PitchOnsetTrackerConfig = DEFAULT_ONSET_CONFIG,
 ): PitchOnsetTrackerConfig => {
   const level = Math.max(1, Math.min(10, Math.round(sensitivity)));
   const scale = Math.pow(10, (5 - level) * 0.17);
+  const minConfidence = minConfidenceForSensitivity(level);
   return {
     ...base,
     onsetLevelDb: base.onsetLevelDb + 10 * Math.log10(scale),
     releaseLevelDb: base.releaseLevelDb + 10 * Math.log10(scale),
+    minConfidence,
   };
 };
 
@@ -97,6 +116,11 @@ export class PitchOnsetTracker {
   private recentLevelDbRing: number[] = [];
   private pendingOff = false;
   private pendingOffFrame = -1;
+  /** 直近 3 フレームの量子化 MIDI。未使用は -1。 */
+  private legatoHitNotes: number[] = [-1, -1, -1];
+  private legatoHitIndex = 0;
+  /** pitch class のビットマスク。0 は補助なし。 */
+  private expectedPitchMask = 0;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -104,6 +128,11 @@ export class PitchOnsetTracker {
 
   setConfig(config: Partial<PitchOnsetTrackerConfig>): void {
     this.config = { ...this.config, ...config };
+  }
+
+  /** Phrase Defense 以外は 0。通常の自由演奏には使わない。 */
+  setExpectedPitchMask(mask: number): void {
+    this.expectedPitchMask = mask & 0xfff;
   }
 
   reset(): void {
@@ -118,6 +147,10 @@ export class PitchOnsetTracker {
     this.recentLevelDbRing = [];
     this.pendingOff = false;
     this.pendingOffFrame = -1;
+    this.legatoHitNotes[0] = -1;
+    this.legatoHitNotes[1] = -1;
+    this.legatoHitNotes[2] = -1;
+    this.legatoHitIndex = 0;
   }
 
   /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
@@ -137,13 +170,16 @@ export class PitchOnsetTracker {
   processFrame(frame: PitchFrame, frameIndex: number): PitchInputEvent[] {
     const events: PitchInputEvent[] = [];
     const levelDb = volumeToDb(frame.volume);
-    const voiced =
-      levelDb > this.config.onsetLevelDb &&
-      frame.confidence >= this.config.minConfidence &&
-      frame.prediction > 0;
+    const quantized = frame.prediction > 0 ? quantizeMidi(frame.prediction) : -1;
+    const expectedAssist = this.isExpectedAssist(quantized, frame.confidence, levelDb);
+    const voiced = expectedAssist || (
+      levelDb > this.config.onsetLevelDb
+      && frame.confidence >= this.config.minConfidence
+      && quantized >= 0
+    );
+    this.pushLegatoHit(voiced ? quantized : -1);
 
     if (voiced) {
-      const quantized = quantizeMidi(frame.prediction);
       if (this.lastStableNote === quantized) {
         this.pitchStableCount += 1;
       } else {
@@ -155,7 +191,7 @@ export class PitchOnsetTracker {
       this.pendingOff = false;
 
       if (this.currentNote < 0) {
-        if (this.shouldEmitNoteOn(frame.confidence, true)) {
+        if (expectedAssist || this.shouldEmitNoteOn(frame.confidence, true)) {
           this.emitNoteOn(
             events,
             quantized,
@@ -168,7 +204,7 @@ export class PitchOnsetTracker {
       ) {
         if (this.isLikelyOctaveJump(quantized, levelDb)) {
           // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-        } else if (this.shouldEmitNoteOn(frame.confidence, false)) {
+        } else if (expectedAssist || this.shouldEmitLegatoSwitch(quantized, frame.confidence)) {
           this.emitNoteOff(events, this.currentNote, frameIndex);
           this.emitNoteOn(
             events,
@@ -214,6 +250,41 @@ export class PitchOnsetTracker {
       return true;
     }
     return false;
+  }
+
+  /**
+   * 高速反応かつ超高確信は 1 フレーム。それ以外は直近 3 フレーム中 2 ヒット。
+   * 無音からの noteOn には使わない。
+   */
+  private shouldEmitLegatoSwitch(quantized: number, confidence: number): boolean {
+    if (
+      this.config.fastResponse
+      && confidence >= this.config.fastLegatoConfidence
+    ) {
+      return true;
+    }
+    return this.legatoHitCount(quantized) >= 2;
+  }
+
+  private isExpectedAssist(quantized: number, confidence: number, levelDb: number): boolean {
+    if (this.expectedPitchMask === 0 || quantized < 0) return false;
+    if (levelDb <= this.config.onsetLevelDb) return false;
+    if (confidence < this.config.expectedAssistConfidence) return false;
+    const pitchClass = ((quantized % 12) + 12) % 12;
+    return (this.expectedPitchMask & (1 << pitchClass)) !== 0;
+  }
+
+  private pushLegatoHit(note: number): void {
+    this.legatoHitNotes[this.legatoHitIndex] = note;
+    this.legatoHitIndex = (this.legatoHitIndex + 1) % 3;
+  }
+
+  private legatoHitCount(note: number): number {
+    let count = 0;
+    if (this.legatoHitNotes[0] === note) count += 1;
+    if (this.legatoHitNotes[1] === note) count += 1;
+    if (this.legatoHitNotes[2] === note) count += 1;
+    return count;
   }
 
   /** 設定上の安定待ち時間 (ms)。 */

@@ -222,8 +222,8 @@ struct DefenseTutorialInputPanelView: View {
                     PitchInputEngine.shared.setSensitivity(level)
                 }
             Text(isEnglishCopy
-                 ? "Recommended: 5. Higher values detect quieter sounds more easily. Lower if notes are picked up too often."
-                 : "おすすめ: 5。高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。")
+                 ? "Recommended: 5. Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often."
+                 : "おすすめ: 5。高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

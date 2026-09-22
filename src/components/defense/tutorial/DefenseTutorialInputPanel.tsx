@@ -173,8 +173,8 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
         />
         <p className="mt-1 text-xs text-slate-400">
           {isEnglishCopy
-            ? 'Recommended: 5. Higher values detect quieter sounds more easily. Lower if notes are picked up too often.'
-            : 'おすすめ: 5。高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。'}
+            ? 'Recommended: 5. Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often.'
+            : 'おすすめ: 5。高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。'}
         </p>
       </label>
       <label className="flex items-center justify-between gap-3 text-sm text-slate-200">

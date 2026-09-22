@@ -82,8 +82,14 @@ describe('PitchOnsetTracker', () => {
 
   it('scales sensitivity thresholds', () => {
     const low = scaleOnsetConfigForSensitivity(1);
+    const mid = scaleOnsetConfigForSensitivity(5);
+    const nine = scaleOnsetConfigForSensitivity(9);
     const high = scaleOnsetConfigForSensitivity(10);
     expect(low.onsetLevelDb).toBeGreaterThan(high.onsetLevelDb);
+    expect(low.minConfidence).toBe(0.65);
+    expect(mid.minConfidence).toBe(0.5);
+    expect(nine.minConfidence).toBe(0.3);
+    expect(high.minConfidence).toBe(0.35);
   });
 
   it('reset clears state', () => {
@@ -159,9 +165,12 @@ describe('PitchOnsetTracker', () => {
       pitchStableFrames: 1,
       attackRiseDb: 6,
       onsetImmediateConfidence: 2,
+      fastResponse: true,
+      fastLegatoConfidence: 0.8,
     });
+    tracker.setExpectedPitchMask(1 << 0);
     const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
-    const voiced72: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.0105 };
+    const voiced72: PitchFrame = { prediction: 72, confidence: 0.95, volume: 0.0105 };
 
     tracker.processFrame(voiced60, 0);
     tracker.processFrame(voiced60, 1);
@@ -169,25 +178,101 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.getCurrentNote()).toBe(60);
   });
 
-  it('does not use immediate noteOn when pitch changes mid-note', () => {
+  it('switches legato in one frame only when fast response and confidence is at least 0.8', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 2,
+      fastResponse: true,
+      fastLegatoConfidence: 0.8,
+    });
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced64: PitchFrame = { prediction: 64, confidence: 0.8, volume: 0.012 };
+
+    tracker.processFrame(voiced60, 0);
+    expect(tracker.processFrame(voiced64, 1)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 1 },
+      { type: 'noteOn', note: 64, frameIndex: 1, onsetFrameIndex: 1 },
+    ]);
+  });
+
+  it('uses two hits in three frames when fast response is off', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 4,
-      onsetImmediateConfidence: 0.85,
+      fastResponse: false,
     });
-    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.95, volume: 0.01 };
     const voiced64: PitchFrame = { prediction: 64, confidence: 0.95, volume: 0.012 };
 
     tracker.processFrame(voiced60, 0);
-    tracker.processFrame(voiced60, 1);
-    tracker.processFrame(voiced60, 2);
-    tracker.processFrame(voiced60, 3);
-    expect(tracker.processFrame(voiced64, 4)).toEqual([]);
-    expect(tracker.processFrame(voiced64, 5)).toEqual([]);
-    expect(tracker.processFrame(voiced64, 6)).toEqual([]);
-    expect(tracker.processFrame(voiced64, 7)).toEqual([
-      { type: 'noteOff', note: 60, frameIndex: 7 },
-      { type: 'noteOn', note: 64, frameIndex: 7, onsetFrameIndex: 4 },
+    expect(tracker.processFrame(voiced64, 1)).toEqual([]);
+    expect(tracker.processFrame(voiced64, 2)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 2 },
+      { type: 'noteOn', note: 64, frameIndex: 2, onsetFrameIndex: 1 },
+    ]);
+  });
+
+  it('accepts a legato pitch after two hits split by one other frame', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      fastResponse: false,
+    });
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced64: PitchFrame = { prediction: 64, confidence: 0.9, volume: 0.012 };
+    const voiced67: PitchFrame = { prediction: 67, confidence: 0.9, volume: 0.012 };
+
+    tracker.processFrame(voiced60, 0);
+    expect(tracker.processFrame(voiced64, 1)).toEqual([]);
+    expect(tracker.processFrame(voiced67, 2)).toEqual([]);
+    expect(tracker.processFrame(voiced64, 3)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 3 },
+      { type: 'noteOn', note: 64, frameIndex: 3, onsetFrameIndex: 3 },
+    ]);
+  });
+
+  it('adopts an expected pitch class in one frame below the normal confidence gate', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      minConfidence: 0.5,
+      expectedAssistConfidence: 0.38,
+    });
+    tracker.setExpectedPitchMask(1 << 10);
+    const bb: PitchFrame = { prediction: 58, confidence: 0.38, volume: 0.01 };
+    expect(tracker.processFrame(bb, 0)).toEqual([
+      { type: 'noteOn', note: 58, frameIndex: 0, onsetFrameIndex: 0 },
+    ]);
+  });
+
+  it('does not adopt a non-expected pitch at assist confidence', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      minConfidence: 0.5,
+      expectedAssistConfidence: 0.38,
+    });
+    tracker.setExpectedPitchMask(1 << 10);
+    const other: PitchFrame = { prediction: 60, confidence: 0.38, volume: 0.01 };
+    expect(tracker.processFrame(other, 0)).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(-1);
+  });
+
+  it('switches to an expected pitch class in one frame while another note is held', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      fastResponse: false,
+      expectedAssistConfidence: 0.38,
+    });
+    tracker.setExpectedPitchMask(1 << 10);
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const bb: PitchFrame = { prediction: 58, confidence: 0.38, volume: 0.01 };
+
+    tracker.processFrame(voiced60, 0);
+    expect(tracker.processFrame(bb, 1)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 1 },
+      { type: 'noteOn', note: 58, frameIndex: 1, onsetFrameIndex: 1 },
     ]);
   });
 

@@ -218,6 +218,14 @@ final class PitchInputEngine: @unchecked Sendable {
         }
     }
 
+    /// Phrase Defense の期待 pitch class。0 で補助オフ。
+    func setExpectedPitchMask(_ mask: Int) {
+        let next = mask & 0xFFF
+        inferenceQueue.async { [self] in
+            self.tracker.setExpectedPitchMask(next)
+        }
+    }
+
     /// 低音読み取り。推論キュー上でキャッシュと保留チャンクを捨てて切り替える。
     func setLowRegister(_ enabled: Bool) {
         let shift = enabled ? 12 : 0
@@ -238,6 +246,7 @@ final class PitchInputEngine: @unchecked Sendable {
     private func applyTrackerConfig() {
         var config = PitchOnsetSensitivity.scaleConfig(sensitivity: configuredSensitivity)
         config.pitchStableFrames = configuredPitchStableFrames
+        config.fastResponse = configuredPitchStableFrames <= 2
         config.frameDurationMs = Self.frameDurationMs(for: shiftSemitones)
         config.allowImmediateFirstFrame = Self.decimationFactor(for: shiftSemitones) <= 1
         tracker.setConfig(config)

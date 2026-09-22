@@ -84,6 +84,7 @@ export class PitchInputController {
   private isProcessing = false;
   private sensitivityLevel = 5;
   private pitchStableFrames = 4;
+  private expectedPitchMask = 0;
   private currentNote = -1;
   private cachedInputLatencySec = 0;
   private generationId = 0;
@@ -368,7 +369,11 @@ export class PitchInputController {
         sensitivity: this.sensitivityLevel,
         generationId: this.generationId,
         shiftSemitones: this.shiftSemitones,
-        config: { pitchStableFrames: this.pitchStableFrames },
+        config: {
+          pitchStableFrames: this.pitchStableFrames,
+          fastResponse: this.pitchStableFrames <= 2,
+        },
+        expectedPitchMask: this.expectedPitchMask,
         diagnostics: isPitchDiagnosticsEnabled()
           ? {
               deviceLabel: track?.label ?? null,
@@ -420,17 +425,30 @@ export class PitchInputController {
       type: 'setSensitivity',
       sensitivity: this.sensitivityLevel,
     });
-    this.worker?.postMessage({
-      type: 'setOnsetConfig',
-      config: { pitchStableFrames: this.pitchStableFrames },
-    });
+    this.postOnsetConfig();
   }
 
   setPitchStableFrames(frames: number): void {
     this.pitchStableFrames = Math.max(1, Math.min(8, Math.round(frames)));
+    this.postOnsetConfig();
+  }
+
+  /** Phrase Defense の期待 pitch class。0 で補助オフ。自由演奏では 0 のまま。 */
+  setExpectedPitchMask(mask: number): void {
+    this.expectedPitchMask = mask & 0xfff;
+    this.worker?.postMessage({
+      type: 'setExpectedPitchMask',
+      mask: this.expectedPitchMask,
+    });
+  }
+
+  private postOnsetConfig(): void {
     this.worker?.postMessage({
       type: 'setOnsetConfig',
-      config: { pitchStableFrames: this.pitchStableFrames },
+      config: {
+        pitchStableFrames: this.pitchStableFrames,
+        fastResponse: this.pitchStableFrames <= 2,
+      },
     });
   }
 

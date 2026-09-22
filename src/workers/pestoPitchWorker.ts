@@ -41,6 +41,7 @@ interface WorkerInitMessage {
   generationId: number;
   shiftSemitones: PestoShiftSemitones;
   config?: Partial<PitchOnsetTrackerConfig>;
+  expectedPitchMask?: number;
   diagnostics?: {
     deviceLabel: string | null;
     sampleRate: number | null;
@@ -72,6 +73,11 @@ interface WorkerSetOnsetConfigMessage {
   config: Partial<PitchOnsetTrackerConfig>;
 }
 
+interface WorkerSetExpectedPitchMaskMessage {
+  type: 'setExpectedPitchMask';
+  mask: number;
+}
+
 interface WorkerSetShiftMessage {
   type: 'setShiftSemitones';
   shiftSemitones: PestoShiftSemitones;
@@ -86,6 +92,7 @@ type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
   | WorkerSetOnsetConfigMessage
+  | WorkerSetExpectedPitchMaskMessage
   | WorkerSetShiftMessage
   | WorkerConnectPortMessage;
 
@@ -132,6 +139,8 @@ let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
 let sensitivityLevel = 5;
 let pitchStableFramesOverride = 4;
+let fastResponseEnabled = false;
+let expectedPitchMask = 0;
 let generationId = 0;
 let shiftSemitones: PestoShiftSemitones = 0;
 let frameDurationSec = PESTO_BASE_FRAME_SEC;
@@ -205,6 +214,7 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
   return {
     ...base,
     pitchStableFrames: pitchStableFramesOverride,
+    fastResponse: fastResponseEnabled,
     frameDurationMs: frameDurationMsForShift(shiftSemitones),
     allowImmediateFirstFrame: factor <= 1,
   };
@@ -473,8 +483,11 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       generationId = data.generationId;
       sensitivityLevel = data.sensitivity;
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
+      fastResponseEnabled = data.config?.fastResponse ?? pitchStableFramesOverride <= 2;
+      expectedPitchMask = data.expectedPitchMask ?? 0;
       applyShiftMode(data.shiftSemitones ?? 0);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
+      tracker.setExpectedPitchMask(expectedPitchMask);
       chunkQueue.reset(generationId, 0);
       isInferring = false;
       resetLatencyStats();
@@ -515,7 +528,18 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       if (typeof data.config.pitchStableFrames === 'number') {
         pitchStableFramesOverride = data.config.pitchStableFrames;
       }
+      if (typeof data.config.fastResponse === 'boolean') {
+        fastResponseEnabled = data.config.fastResponse;
+      } else if (typeof data.config.pitchStableFrames === 'number') {
+        fastResponseEnabled = pitchStableFramesOverride <= 2;
+      }
       applyTrackerConfig();
+      return;
+    }
+
+    if (data.type === 'setExpectedPitchMask') {
+      expectedPitchMask = data.mask & 0xfff;
+      tracker?.setExpectedPitchMask(expectedPitchMask);
       return;
     }
   } catch (error) {

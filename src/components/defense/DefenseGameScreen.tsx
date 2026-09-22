@@ -379,6 +379,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     [activePhrases, judgeSnapshot, voiceSequential],
   );
 
+  const expectedPitchMask = useMemo(() => {
+    if (effectiveInputMethod !== 'voice' || keyboardHints.nextMidi == null) return 0;
+    const pitchClass = ((keyboardHints.nextMidi % 12) + 12) % 12;
+    return 1 << pitchClass;
+  }, [effectiveInputMethod, keyboardHints.nextMidi]);
+
   const tutorialConcertPitchClasses = useMemo(
     () => tutorialConcertMidis.map((midi) => ((midi % 12) + 12) % 12),
     [tutorialConcertMidis],
@@ -734,6 +740,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       || effectiveInputMethod === 'voice',
     inputMethod: effectiveInputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
+    expectedPitchMask,
     onNoteOn: (note) => {
       if (isTutorialSession && effectiveInputMethod === 'touch') return;
       handleNoteOn(note, voiceSequential);

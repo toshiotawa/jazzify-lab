@@ -245,8 +245,8 @@ struct InputMethodSection: View {
                 }
             Text(
                 isEnglishCopy
-                    ? "Higher values detect quieter sounds more easily. Lower if notes are picked up too often."
-                    : "高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。"
+                    ? "Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often."
+                    : "高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。"
             )
             .font(.caption2)
             .foregroundStyle(.secondary)
