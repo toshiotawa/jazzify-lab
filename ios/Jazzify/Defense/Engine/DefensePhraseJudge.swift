@@ -298,8 +298,14 @@ enum DefensePhraseJudge {
            let firstChord = phrase.chords.first {
             let steps = SurvivalPhraseChordSteps.getSteps(notes: firstChord.notes)
             if let firstStep = steps.first {
-                for midi in stepMidis(chord: firstChord, step: firstStep) where !midis.contains(midi) {
-                    midis.append(midi)
+                let firstMidis = stepMidis(chord: firstChord, step: firstStep)
+                let nextPc = SurvivalChordResolver.nextExpectedPitchClass(
+                    fromMidis: firstMidis,
+                    inputPitchClasses: []
+                )
+                if let loopStart = firstMidis.first(where: { (($0 % 12) + 12) % 12 == nextPc }),
+                   !midis.contains(loopStart) {
+                    midis.append(loopStart)
                 }
             }
         }

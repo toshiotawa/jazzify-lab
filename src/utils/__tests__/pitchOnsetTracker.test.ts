@@ -318,7 +318,7 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.processFrame(lowConfidence, 3)).toEqual([]);
   });
 
-  it('does not emit noteOn when same pitch returns after noteOff without attack rise', () => {
+  it('emits noteOn when the same pitch returns after release with an attack rise', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 1,
@@ -335,8 +335,49 @@ describe('PitchOnsetTracker', () => {
       { type: 'noteOn', note: 60, frameIndex: 0, onsetFrameIndex: 0 },
     ]);
     expect(tracker.processFrame(quiet, 1)).toEqual([{ type: 'noteOff', note: 60, frameIndex: 1 }]);
+    expect(tracker.processFrame(voiced, 2)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 2, onsetFrameIndex: 2 },
+    ]);
+  });
+
+  it('does not emit noteOn when the same pitch returns after release without attack rise', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      releaseFrames: 1,
+      minNoteFrames: 1,
+      attackRiseDb: 80,
+      retriggerLookbackFrames: 4,
+      onsetImmediateConfidence: 2,
+    });
+    const voiced: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.9, volume: 1e-8 };
+
+    tracker.processFrame(voiced, 0);
+    tracker.processFrame(quiet, 1);
     expect(tracker.processFrame(voiced, 2)).toEqual([]);
     expect(tracker.getCurrentNote()).toBe(60);
+  });
+
+  it('accepts an expected octave jump in one frame when the level rises', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      fastResponse: false,
+      attackRiseDb: 6,
+      retriggerLookbackFrames: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [72]);
+    const c4: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.004 };
+    const c5: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.02 };
+
+    tracker.processFrame(c4, 0);
+    tracker.processFrame(c4, 1);
+    expect(tracker.processFrame(c5, 2)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 2 },
+      { type: 'noteOn', note: 72, frameIndex: 2, onsetFrameIndex: 2 },
+    ]);
   });
 
   it('does not immediate noteOn for multi-candidate expected assist at assist confidence', () => {

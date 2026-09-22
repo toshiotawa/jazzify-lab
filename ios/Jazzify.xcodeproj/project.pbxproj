@@ -127,6 +127,7 @@
 		34E449E5DB42C354548D9F80 /* EarTrainingTutorialBattleWarmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05381EB071AE3D9D4879D679 /* EarTrainingTutorialBattleWarmup.swift */; };
 		35633B531C2087A149EB90F2 /* EarTrainingChordOsmdMusicXmlNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 235F56B9C1F187793F59B3A1 /* EarTrainingChordOsmdMusicXmlNormalizer.swift */; };
 		361DB20434662D7CEB99F82B /* PitchOnsetTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */; };
+		7F2E8A1C9B4D6035E8A1C2F4 /* ExpectedPitchCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3A91E7B4D2F6801A5E9B4C7 /* ExpectedPitchCandidates.swift */; };
 		371DDEA0D249F4F3675F86D8 /* BalloonRushGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF477622755B4DD8358B1BF6 /* BalloonRushGameView.swift */; };
 		376AA5898CC39A26A3498CF9 /* EarTrainingChordOsmdRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7628682E3A1A524E570D3F /* EarTrainingChordOsmdRhythm.swift */; };
 		38C8D1B2BFA5447F96D51D06 /* LessonAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */; };
@@ -618,6 +619,7 @@
 		4D635FD067D6C35FA30F9F12 /* SurvivalDescentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentView.swift; sourceTree = "<group>"; };
 		4D70439934A24FE058C33F20 /* SurvivalTutorialV3DrumLoopSourceResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalTutorialV3DrumLoopSourceResolver.swift; sourceTree = "<group>"; };
 		4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchOnsetTracker.swift; sourceTree = "<group>"; };
+		C3A91E7B4D2F6801A5E9B4C7 /* ExpectedPitchCandidates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpectedPitchCandidates.swift; sourceTree = "<group>"; };
 		4DEC6DAE57E109225B5AAE3A /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		4E4D1D6FE2E83A04AF92E2F3 /* EarTrainingTutorialDialogPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTutorialDialogPlacement.swift; sourceTree = "<group>"; };
 		4E576F5B010E2C69F58A1CC3 /* DefenseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseModels.swift; sourceTree = "<group>"; };
@@ -1586,6 +1588,7 @@
 			children = (
 				6C0597F2577B5F44C0665E74 /* AppAudioSession.swift */,
 				86AF694D9264BF8DF2E9FC15 /* AudioRouteHelper.swift */,
+				C3A91E7B4D2F6801A5E9B4C7 /* ExpectedPitchCandidates.swift */,
 				39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */,
 				4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */,
 				2E4DC894813C1800B8E45772 /* QuestJinglePlayer.swift */,
@@ -2416,6 +2419,7 @@
 				062AAAD06D6C42204E6C7BFD /* PianoKeyboardScrollChrome.swift in Sources */,
 				D02C0FD07E52980806DC8E6A /* PianoKeyboardTheme.swift in Sources */,
 				62096837D078DF7C4B69B082 /* PianoVelocityCurve.swift in Sources */,
+				7F2E8A1C9B4D6035E8A1C2F4 /* ExpectedPitchCandidates.swift in Sources */,
 				1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */,
 				361DB20434662D7CEB99F82B /* PitchOnsetTracker.swift in Sources */,
 				285FDDB26AC17B29FCFB0736 /* PlayHubView.swift in Sources */,

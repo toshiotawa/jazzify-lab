@@ -236,12 +236,15 @@ export class PitchOnsetTracker {
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
         const octaveRelated = this.isOctaveRelatedJump(quantized);
-        if (this.isLikelyOctaveJump(quantized, levelDb, frame.confidence)) {
+        if (octaveRelated && this.isLikelyOctaveJump(quantized, levelDb, frame.confidence)) {
           // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-        } else if (
-          (expectedAssist && !octaveRelated)
-          || this.shouldEmitLegatoSwitch(quantized, frame.confidence)
-        ) {
+        } else if (this.shouldCommitPitchChange(
+          quantized,
+          levelDb,
+          frame.confidence,
+          expectedAssist,
+          octaveRelated,
+        )) {
           this.suspendedNote = -1;
           this.emitNoteOff(events, this.currentNote, frameIndex);
           this.emitNoteOn(
@@ -257,6 +260,9 @@ export class PitchOnsetTracker {
     } else {
       this.pitchStableCount = 0;
       this.lastStableNote = -1;
+      if (this.currentNote >= 0 || this.suspendedNote >= 0) {
+        this.trackRecentMinDb(levelDb, frameIndex);
+      }
 
       if (this.currentNote >= 0) {
         const belowRelease = levelDb < this.config.releaseLevelDb;
@@ -307,6 +313,21 @@ export class PitchOnsetTracker {
     if (this.currentNote < 0) return false;
     const diff = Math.abs(quantized - this.currentNote);
     return diff === 12 || diff === 24;
+  }
+
+  private shouldCommitPitchChange(
+    quantized: number,
+    levelDb: number,
+    confidence: number,
+    expectedAssist: boolean,
+    octaveRelated: boolean,
+  ): boolean {
+    if (octaveRelated && this.expectedPitchMidis.includes(quantized)) {
+      if (this.recentLevelRise(levelDb) >= this.config.attackRiseDb) return true;
+      return this.legatoHitCount(quantized) >= 2;
+    }
+    if (!octaveRelated && expectedAssist) return true;
+    return this.shouldEmitLegatoSwitch(quantized, confidence);
   }
 
   private shouldEmitLegatoSwitch(quantized: number, confidence: number): boolean {

@@ -162,11 +162,14 @@ final class PitchOnsetTracker {
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
                 let octaveRelated = isOctaveRelatedJump(quantized: quantized)
-                if isLikelyOctaveJump(quantized: quantized, levelDb: levelDb, confidence: frame.confidence) {
+                if octaveRelated, isLikelyOctaveJump(quantized: quantized, levelDb: levelDb, confidence: frame.confidence) {
                     // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-                } else if (expectedAssist && !octaveRelated) || shouldEmitLegatoSwitch(
+                } else if shouldCommitPitchChange(
                     quantized: quantized,
-                    confidence: frame.confidence
+                    levelDb: levelDb,
+                    confidence: frame.confidence,
+                    expectedAssist: expectedAssist,
+                    octaveRelated: octaveRelated
                 ) {
                     suspendedNote = -1
                     emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
@@ -183,6 +186,9 @@ final class PitchOnsetTracker {
         } else {
             pitchStableCount = 0
             lastStableNote = -1
+            if currentNote >= 0 || suspendedNote >= 0 {
+                trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
+            }
 
             if currentNote >= 0 {
                 let belowRelease = levelDb < config.releaseLevelDb
@@ -243,6 +249,21 @@ final class PitchOnsetTracker {
         guard currentNote >= 0 else { return false }
         let diff = abs(quantized - currentNote)
         return diff == 12 || diff == 24
+    }
+
+    private func shouldCommitPitchChange(
+        quantized: Int,
+        levelDb: Double,
+        confidence: Double,
+        expectedAssist: Bool,
+        octaveRelated: Bool
+    ) -> Bool {
+        if octaveRelated, expectedPitchMidis.contains(quantized) {
+            if recentLevelRise(levelDb: levelDb) >= config.attackRiseDb { return true }
+            return legatoHitCount(quantized) >= 2
+        }
+        if !octaveRelated, expectedAssist { return true }
+        return shouldEmitLegatoSwitch(quantized: quantized, confidence: confidence)
     }
 
     /// 高速反応かつ超高確信は 1 フレーム。それ以外は直近 3 フレーム中 2 ヒット。

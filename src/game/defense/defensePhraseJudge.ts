@@ -344,10 +344,12 @@ export const getDefenseExpectedPitchCandidates = (
     const firstSteps = firstChord ? getPhraseChordSteps(firstChord.notes).steps : [];
     const firstStep = firstSteps[0];
     if (firstChord && firstStep) {
-      for (const midi of stepMidiNotes(firstChord, firstStep)) {
-        if (!midis.includes(midi)) {
-          midis.push(midi);
-        }
+      const loopStart = computeOrderedChordKeyboardHintsFromMidis(
+        stepMidiNotes(firstChord, firstStep),
+        [],
+      );
+      if (loopStart.nextMidi != null && !midis.includes(loopStart.nextMidi)) {
+        midis.push(loopStart.nextMidi);
       }
     }
   }
