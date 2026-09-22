@@ -3,7 +3,6 @@ import Foundation
 
 enum DefenseSeparateTracksBuffers {
     private static var nextSetId = 1
-    private static let loopOverlapMs: Double = 15
     private static let sampleRateMismatchThreshold = 0.01
 
     private struct NativeSourceCacheKey: Hashable {
@@ -97,24 +96,13 @@ enum DefenseSeparateTracksBuffers {
         )
     }
 
-    /// メロディ PCM のループ切れ目を等パワー重なりでつなぐ（Web 15ms overlap と同等）。
+    /// メロディ PCM のループ切れ目処理。合成メロディは休符で終わるため変更しない。
     static func applyMelodyLoopCrossfade(_ samples: inout [Float], sampleRate: Double) {
-        guard !samples.isEmpty else { return }
-        let overlapFrames = max(1, Int((sampleRate * loopOverlapMs / 1000).rounded()))
-        guard samples.count > overlapFrames * 2 else { return }
-
-        for index in 0..<overlapFrames {
-            let head = samples[index]
-            let tailIndex = samples.count - overlapFrames + index
-            let tail = samples[tailIndex]
-            let progress = Double(index) / Double(overlapFrames)
-            let fadeOut = Float(cos((Double.pi / 2) * progress))
-            let fadeIn = Float(sin((Double.pi / 2) * progress))
-            samples[tailIndex] = tail * fadeOut + head * fadeIn
-        }
+        _ = samples
+        _ = sampleRate
     }
 
-    /// 後方互換の別名。フェードアウトは行わずループ重なりのみ適用する。
+    /// 後方互換の別名。
     static func applyMelodyEnvelope(_ samples: inout [Float], sampleRate: Double) {
         applyMelodyLoopCrossfade(&samples, sampleRate: sampleRate)
     }

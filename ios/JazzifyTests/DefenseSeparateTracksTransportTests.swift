@@ -104,23 +104,27 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
         XCTAssertEqual(format.channelCount, 2)
     }
 
-    func testMelodyLoopCrossfadeDoesNotSilenceFirstSample() {
+    func testMelodyLoopCrossfadePreservesHeadAttack() {
         var samples = [Float](repeating: 0, count: 4410)
         samples[0] = 0.8
-        samples[samples.count - 1] = 0.2
+        samples[1] = 0.6
         DefenseSeparateTracksBuffers.applyMelodyLoopCrossfade(&samples, sampleRate: 44100)
-        XCTAssertGreaterThan(samples.first ?? 0, 0.1)
+        XCTAssertEqual(samples[0], 0.8, accuracy: 0.0001)
+        XCTAssertEqual(samples[1], 0.6, accuracy: 0.0001)
     }
 
-    func testMelodyLoopCrossfadePreservesBoundaryTransient() {
+    func testMelodyLoopCrossfadePreservesSilentTail() {
         var samples = [Float](repeating: 0, count: 4410)
-        let overlapFrames = max(1, Int((44100 * 0.015).rounded()))
         samples[0] = 0.9
-        samples[1] = 0.7
-        samples[samples.count - overlapFrames] = 0.3
+        let overlapFrames = max(1, Int((44100 * 0.015).rounded()))
+        for index in (samples.count - overlapFrames)..<samples.count {
+            samples[index] = 0
+        }
         DefenseSeparateTracksBuffers.applyMelodyLoopCrossfade(&samples, sampleRate: 44100)
-        XCTAssertGreaterThan(samples[0], 0.2)
-        XCTAssertGreaterThan(samples[1], 0.05)
+        XCTAssertEqual(samples[0], 0.9, accuracy: 0.0001)
+        for index in (samples.count - overlapFrames)..<samples.count {
+            XCTAssertEqual(samples[index], 0, accuracy: 0.0001)
+        }
     }
 
     func testMelodyLoopCrossfadePreservesInteriorSamples() {
