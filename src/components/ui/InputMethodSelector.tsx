@@ -158,8 +158,8 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
           </label>
           <p className="text-xs text-gray-400">
             {en
-              ? 'Recommended: OFF. Turn on only if recognition feels slow. ON reacts faster but may mis-detect more often.'
-              : 'おすすめ: OFF。反応が遅いと感じたら ON にしてください。ON は速いですが、誤判定が増えやすくなります。'}
+              ? 'Turn this ON when pitch is hard to recognize. False detections may increase.'
+              : 'ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。'}
           </p>
           <p className="text-xs text-gray-400 font-mono">
             {en

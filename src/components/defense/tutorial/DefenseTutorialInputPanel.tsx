@@ -184,8 +184,8 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
       </label>
       <p className="text-xs text-slate-400">
         {isEnglishCopy
-          ? 'Recommended: OFF. Keep it off to start. Turn on only if recognition feels slow. ON reacts faster but may mis-detect more often.'
-          : 'おすすめ: OFF。まずは OFF のまま始めてください。反応が遅いと感じたら ON にしてください。ON は速いですが、誤判定が増えやすくなります。'}
+          ? 'Turn this ON when pitch is hard to recognize. False detections may increase.'
+          : 'ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。'}
       </p>
       <div className="rounded-lg bg-slate-900/60 p-3 text-sm">
         <div className="text-slate-400">{isEnglishCopy ? 'Detected pitch' : '認識中の音'}</div>

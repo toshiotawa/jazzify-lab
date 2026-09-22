@@ -233,8 +233,8 @@ struct DefenseTutorialInputPanelView: View {
                 PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
             }
         Text(isEnglishCopy
-             ? "Recommended: OFF. Keep it off to start. Turn on only if recognition feels slow. ON reacts faster but may mis-detect more often."
-             : "おすすめ: OFF。まずは OFF のまま始めてください。反応が遅いと感じたら ON にしてください。ON は速いですが、誤判定が増えやすくなります。")
+             ? "Turn this ON when pitch is hard to recognize. False detections may increase."
+             : "ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。")
             .font(.caption2)
             .foregroundStyle(.secondary)
     }

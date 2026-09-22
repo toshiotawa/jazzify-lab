@@ -64,6 +64,11 @@ struct InputMethodSection: View {
                         NoteInputPreferences.voiceFastResponse = newValue
                         PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
                     }
+                Text(isEnglishCopy
+                     ? "Turn this ON when pitch is hard to recognize. False detections may increase."
+                     : "ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
         }
