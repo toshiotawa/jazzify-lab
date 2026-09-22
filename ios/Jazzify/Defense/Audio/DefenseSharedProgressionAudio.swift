@@ -83,8 +83,34 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         }
 
         let outputFormat = EarTrainingAudio.preferredOutputFormat()
-        var nextBuffers: [Int: AVAudioPCMBuffer] = [:]
-        var nextBarFrames: [Int: [Int]] = [:]
+        let prepared = try await decodePreparedPhrases(
+            stage: stage,
+            progressionBars: progressionBars,
+            outputFormat: outputFormat
+        )
+
+        await MainActor.run {
+            self.stage = stage
+            self.playbackRatio = max(0.1, speedRatio)
+            self.progressionBars = progressionBars
+            self.switchEveryBars = stage.phraseBars
+            self.barSec = DefenseSharedProgressionTransport.barSeconds(
+                bpm: stage.bpm,
+                beatsPerBar: stage.beatsPerBar,
+                playbackRatio: self.playbackRatio
+            )
+            self.buffersByPhraseIndex = prepared.buffers
+            self.barFramesByPhraseIndex = prepared.barFrames
+        }
+    }
+
+    private func decodePreparedPhrases(
+        stage: DefenseStageDefinition,
+        progressionBars: Int,
+        outputFormat: AVAudioFormat
+    ) async throws -> (buffers: [Int: AVAudioPCMBuffer], barFrames: [Int: [Int]]) {
+        var buffers: [Int: AVAudioPCMBuffer] = [:]
+        var barFrames: [Int: [Int]] = [:]
 
         for index in stage.phrases.indices {
             let phrase = stage.phrases[index]
@@ -112,26 +138,14 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             ) else {
                 throw URLError(.cannotDecodeContentData)
             }
-            nextBuffers[index] = fitted
-            nextBarFrames[index] = DefenseSharedProgressionTransport.buildBarFrameTable(
+            buffers[index] = fitted
+            barFrames[index] = DefenseSharedProgressionTransport.buildBarFrameTable(
                 progressionBars: progressionBars,
                 barFrameCount: Int(fitted.frameLength)
             )
         }
 
-        await MainActor.run {
-            self.stage = stage
-            self.playbackRatio = max(0.1, speedRatio)
-            self.progressionBars = progressionBars
-            self.switchEveryBars = stage.phraseBars
-            self.barSec = DefenseSharedProgressionTransport.barSeconds(
-                bpm: stage.bpm,
-                beatsPerBar: stage.beatsPerBar,
-                playbackRatio: self.playbackRatio
-            )
-            self.buffersByPhraseIndex = nextBuffers
-            self.barFramesByPhraseIndex = nextBarFrames
-        }
+        return (buffers, barFrames)
     }
 
     func start(initialPhraseIndex: Int) {
@@ -244,7 +258,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
         if plan.immediate {
             let switchAt = max(now + Self.scheduleMinQuantumSec, plan.switchAt)
-            let offsetSec = max(0, now - plan.cutAt)
+            let offsetSec = max(0, now - transportStartHostSec)
             playActivePhraseImmediate(
                 at: desiredPhraseIndex,
                 offsetSec: offsetSec,

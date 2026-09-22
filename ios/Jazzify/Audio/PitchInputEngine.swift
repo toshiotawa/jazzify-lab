@@ -274,6 +274,13 @@ final class PitchInputEngine: @unchecked Sendable {
         monitorLock.unlock()
     }
 
+    private func resetMonitorLatencyMeters() {
+        monitorLock.lock()
+        emaCaptureIntervalMs = 0
+        emaInferenceMs = 0
+        monitorLock.unlock()
+    }
+
     // MARK: - ライフサイクル
 
     @MainActor
@@ -376,10 +383,7 @@ final class PitchInputEngine: @unchecked Sendable {
         ringWriteIndex = 0
         poolSlot = 0
         lastCaptureTime = 0
-        monitorLock.lock()
-        emaCaptureIntervalMs = 0
-        emaInferenceMs = 0
-        monitorLock.unlock()
+        resetMonitorLatencyMeters()
         updateMonitorVolume(0)
         updateMonitorDetectedNote(nil)
         cachedInputLatencySec = session.inputLatency
