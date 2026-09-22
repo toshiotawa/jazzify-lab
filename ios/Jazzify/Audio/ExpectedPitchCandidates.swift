@@ -9,8 +9,7 @@ struct ExpectedPitchCandidates: Equatable {
     static func build(from midis: [Int]) -> ExpectedPitchCandidates {
         var unique: [Int] = []
         var seen = Set<Int>()
-        for raw in midis {
-            let midi = Int(raw.rounded())
+        for midi in midis {
             guard seen.insert(midi).inserted else { continue }
             unique.append(midi)
         }

@@ -225,7 +225,7 @@ final class PitchInputEngine: @unchecked Sendable {
 
     func setExpectedPitchCandidates(_ candidates: ExpectedPitchCandidates) {
         let mask = candidates.pitchClassMask & 0xFFF
-        let midis = candidates.midis.map { Int($0.rounded()) }
+        let midis = candidates.midis
         inferenceQueue.async { [self] in
             self.tracker.setExpectedPitchCandidates(mask: mask, midis: midis)
         }

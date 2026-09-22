@@ -70,7 +70,7 @@ final class PitchOnsetTracker {
 
     func setExpectedPitchCandidates(mask: Int, midis: [Int]) {
         expectedPitchMask = mask & 0xFFF
-        expectedPitchMidis = midis.map { Int($0.rounded()) }
+        expectedPitchMidis = midis
     }
 
     func reset() {
