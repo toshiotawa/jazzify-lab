@@ -69,6 +69,16 @@ final class NotationInstrumentCatalogTests: XCTestCase {
         XCTAssertEqual(DefenseStaffLayout.treble.displayStaves(for: .grand), [1])
     }
 
+    func testLowRegisterInstruments() {
+        XCTAssertTrue(NotationInstrumentCatalog.isLowRegisterInstrument(id: "double_bass"))
+        XCTAssertTrue(NotationInstrumentCatalog.isLowRegisterInstrument(id: "trombone"))
+        XCTAssertTrue(NotationInstrumentCatalog.isLowRegisterInstrument(id: "bass_clarinet_bb"))
+        XCTAssertTrue(NotationInstrumentCatalog.isLowRegisterInstrument(id: "baritone_sax"))
+        XCTAssertFalse(NotationInstrumentCatalog.isLowRegisterInstrument(id: "piano"))
+        XCTAssertFalse(NotationInstrumentCatalog.isLowRegisterInstrument(id: "trumpet_bb"))
+        XCTAssertFalse(NotationInstrumentCatalog.isLowRegisterInstrument(id: "guitar"))
+    }
+
     func testTransposingInstrumentLabelsIncludeKey() {
         XCTAssertEqual(NotationInstrumentCatalog.preset(for: "soprano_sax").labelJa, "ソプラノサックス in B♭")
         XCTAssertEqual(NotationInstrumentCatalog.preset(for: "alto_sax").labelEn, "Alto Sax in E♭")

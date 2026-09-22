@@ -19,6 +19,7 @@ struct InputMethodSection: View {
     @State private var engineActive = false
     @State private var monitorTimer: Timer?
     @State private var voiceFastResponse = NoteInputPreferences.voiceFastResponse
+    @State private var voiceLowRegister = NoteInputPreferences.voiceLowRegister
     @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
 
     var body: some View {
@@ -69,6 +70,17 @@ struct InputMethodSection: View {
                      : "ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                Toggle(isEnglishCopy ? "Low register" : "低音読み取り", isOn: $voiceLowRegister)
+                    .font(.caption)
+                    .onChange(of: voiceLowRegister) { newValue in
+                        NoteInputPreferences.voiceLowRegister = newValue
+                        PitchInputEngine.shared.setLowRegister(newValue)
+                    }
+                Text(isEnglishCopy
+                     ? "Turn this ON for low notes such as double bass. Response is a little slower."
+                     : "コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
         }
@@ -76,6 +88,7 @@ struct InputMethodSection: View {
             inputMethod = NoteInputPreferences.inputMethod
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
             voiceFastResponse = NoteInputPreferences.voiceFastResponse
+            voiceLowRegister = NoteInputPreferences.voiceLowRegister
             midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
             refreshHeadphoneState()
@@ -257,6 +270,7 @@ struct InputMethodSection: View {
             try await PitchInputEngine.shared.start()
             PitchInputEngine.shared.setSensitivity(NoteInputPreferences.micSensitivity)
             PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
+            PitchInputEngine.shared.setLowRegister(NoteInputPreferences.voiceLowRegister)
         } catch {
             monitorError = error.localizedDescription
         }

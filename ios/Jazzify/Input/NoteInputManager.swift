@@ -90,6 +90,7 @@ final class NoteInputManager: ObservableObject {
         activeMethod = NoteInputPreferences.inputMethod
 
         PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
+        PitchInputEngine.shared.setLowRegister(NoteInputPreferences.voiceLowRegister)
 
         switch activeMethod {
         case .midi, .touch:
@@ -103,6 +104,7 @@ final class NoteInputManager: ObservableObject {
             }
             pitchEngine.setSensitivity(NoteInputPreferences.micSensitivity)
             pitchEngine.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
+            pitchEngine.setLowRegister(NoteInputPreferences.voiceLowRegister)
             voicePreparing = true
             defer { voicePreparing = false }
             do {

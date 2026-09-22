@@ -232,6 +232,9 @@ export interface GameSettings {
   /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
   voiceFastResponse?: boolean;
 
+  /** 低音読み取り: ON で認識入力を +12 半音してから実音へ戻す */
+  voiceLowRegister?: boolean;
+
   /** 記譜クレフ override（null=楽器プリセット） */
   notationClefOverride?: NotationInstrumentClef | null;
 

@@ -198,6 +198,9 @@ struct DefenseTutorialView: View {
     private func persistNotationSettings(_ notation: DefenseTutorialNotationSettings) {
         NotationInstrumentPreferences.saveInstrumentId(notation.notationInstrumentId)
         NotationInstrumentPreferences.saveOctaveShift(notation.notationOctaveShift)
+        let lowRegister = NotationInstrumentCatalog.isLowRegisterInstrument(id: notation.notationInstrumentId)
+        NoteInputPreferences.voiceLowRegister = lowRegister
+        PitchInputEngine.shared.setLowRegister(lowRegister)
         Task { await appState.updateNotationInstrument(notation.notationInstrumentId) }
     }
 

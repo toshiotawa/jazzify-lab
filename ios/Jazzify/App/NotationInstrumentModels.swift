@@ -81,6 +81,14 @@ enum NotationInstrumentCatalog {
         presetById[id] ?? presetById[defaultInstrumentId]!
     }
 
+    private static let lowRegisterTrebleIds: Set<String> = ["bass_clarinet_bb", "baritone_sax"]
+
+    /// ヘ音記号の楽器と、実音が低い移調楽器。
+    static func isLowRegisterInstrument(id: String) -> Bool {
+        let preset = preset(for: id)
+        return preset.clef == .bass || lowRegisterTrebleIds.contains(preset.id)
+    }
+
     static func clampOctaveShift(_ value: Int) -> Int {
         max(octaveShiftMin, min(octaveShiftMax, Int(value)))
     }

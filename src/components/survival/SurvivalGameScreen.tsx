@@ -1642,6 +1642,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             onError: () => {}
           });
           voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
+          voiceControllerRef.current.setLowRegister(settings.voiceLowRegister ?? false);
         }
         if (settings.selectedAudioDevice) {
           const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
@@ -1660,6 +1661,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
     }
   }, [settings.voiceSensitivity]);
+
+  useEffect(() => {
+    voiceControllerRef.current?.setLowRegister(settings.voiceLowRegister ?? false);
+  }, [settings.voiceLowRegister]);
 
   // 音声入力コントローラーのクリーンアップ
   useEffect(() => {

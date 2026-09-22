@@ -36,6 +36,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { isLowRegisterNotationInstrument } from '@/utils/notationInstrument';
 import type { InputMethod } from '@/types';
 import { recordPlayMapNodeClear } from '@/platform/supabasePlayMap';
 
@@ -86,6 +87,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
     enabled: inputSetupMethod === 'midi' || inputSetupMethod === 'voice',
     inputMethod: inputSetupMethod ?? settings.inputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
+    voiceLowRegister: settings.voiceLowRegister ?? false,
     onNoteOn: () => undefined,
     playMidiSound: false,
   });
@@ -106,6 +108,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
       notationOctaveShift: notation.notationOctaveShift,
       notationClefOverride: notation.clefOverride,
       notationTranspositionOverride: notation.transpositionOverride,
+      voiceLowRegister: isLowRegisterNotationInstrument(notation.notationInstrumentId),
     });
     void updateNotationInstrument(notation.notationInstrumentId);
   }, [updateNotationInstrument, updateSettings]);
@@ -235,8 +238,10 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
             isMidiConnected={inputMonitor.isConnected}
             voiceSensitivity={settings.voiceSensitivity}
             voiceFastResponse={settings.voiceFastResponse ?? false}
+            voiceLowRegister={settings.voiceLowRegister ?? false}
             onVoiceSensitivityChange={(value) => updateSettings({ voiceSensitivity: value })}
             onVoiceFastResponseChange={(value) => updateSettings({ voiceFastResponse: value })}
+            onVoiceLowRegisterChange={(value) => updateSettings({ voiceLowRegister: value })}
             backingVolume={settings.bgmVolume}
             onBackingVolumeChange={(value) => updateSettings({ bgmVolume: value })}
             midiVolume={settings.midiVolume}

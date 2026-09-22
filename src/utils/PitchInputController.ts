@@ -4,7 +4,7 @@
 
 import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { readPitchShiftDevFlag, isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
+import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
 import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/pitchInput/pitchInputTypes';
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
@@ -361,7 +361,6 @@ export class PitchInputController {
       };
       this.worker?.addEventListener('message', onReady);
       this.generationId += 1;
-      this.shiftSemitones = readPitchShiftDevFlag();
       const track = this.mediaStream?.getAudioTracks()[0];
       const settings = track?.getSettings();
       this.worker?.postMessage({
@@ -432,6 +431,24 @@ export class PitchInputController {
     this.worker?.postMessage({
       type: 'setOnsetConfig',
       config: { pitchStableFrames: this.pitchStableFrames },
+    });
+  }
+
+  /** 低音読み取り。接続中の切替はキャッシュを捨てて新しい世代で再開する。 */
+  setLowRegister(enabled: boolean): void {
+    const next: PestoShiftSemitones = enabled ? 12 : 0;
+    const changed = this.shiftSemitones !== next;
+    this.shiftSemitones = next;
+    if (!changed || !this.worker) return;
+    this.generationId += 1;
+    this.worker.postMessage({
+      type: 'setShiftSemitones',
+      shiftSemitones: next,
+      generationId: this.generationId,
+    });
+    this.workletNode?.port.postMessage({
+      type: 'resetCapture',
+      generationId: this.generationId,
     });
   }
 

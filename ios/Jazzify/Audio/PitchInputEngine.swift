@@ -34,18 +34,6 @@ final class PitchInputEngine: @unchecked Sendable {
     private static let monitorMinDb: Double = -60
     private static let monitorMaxDb: Double = 0
 
-    #if DEBUG
-    private static var devShiftSemitones: Int {
-        switch UserDefaults.standard.integer(forKey: "jazzify_pitch_shift") {
-        case 12: return 12
-        case 24: return 24
-        default: return 0
-        }
-    }
-    #else
-    private static var devShiftSemitones: Int { 0 }
-    #endif
-
     private static func decimationFactor(for shift: Int) -> Int {
         switch shift {
         case 12: return 2
@@ -227,6 +215,23 @@ final class PitchInputEngine: @unchecked Sendable {
         configuredPitchStableFrames = max(1, min(8, frames))
         inferenceQueue.async { [self] in
             self.applyTrackerConfig()
+        }
+    }
+
+    /// 低音読み取り。推論キュー上でキャッシュと保留チャンクを捨てて切り替える。
+    func setLowRegister(_ enabled: Bool) {
+        let shift = enabled ? 12 : 0
+        inferenceQueue.async { [self] in
+            guard self.shiftSemitones != shift else { return }
+            self.applyShiftMode(shift)
+            self.applyDiscontinuityReset(hostTime: mach_absolute_time())
+            self.inferenceDispatchLock.withLock { state in
+                for queued in state.pending {
+                    state.slotsInUse[queued.slot] = false
+                }
+                state.pending.removeAll()
+                state.resetBeforeNext = false
+            }
         }
     }
 
@@ -465,7 +470,7 @@ final class PitchInputEngine: @unchecked Sendable {
         }
 
         generationId += 1
-        applyShiftMode(Self.devShiftSemitones)
+        applyShiftMode(NoteInputPreferences.pitchShiftSemitones)
         resetInferenceState()
         ringWriteIndex = 0
         writeSlot = 0

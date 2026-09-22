@@ -162,6 +162,20 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
               ? 'Turn this ON when pitch is hard to recognize. False detections may increase.'
               : 'ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。'}
           </p>
+          <label className="flex items-center justify-between gap-3 text-xs text-purple-200">
+            <span>{en ? 'Low register' : '低音読み取り'}</span>
+            <input
+              type="checkbox"
+              className="toggle toggle-primary toggle-sm"
+              checked={settings.voiceLowRegister ?? false}
+              onChange={(event) => updateSettings({ voiceLowRegister: event.target.checked })}
+            />
+          </label>
+          <p className="text-xs text-gray-400">
+            {en
+              ? 'Turn this ON for low notes such as double bass. Response is a little slower.'
+              : 'コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。'}
+          </p>
           <p className="text-xs text-gray-400 font-mono">
             {en
               ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
@@ -199,11 +213,6 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 {en ? 'warmup' : 'ウォームアップ'}
                 {' '}
                 {latencyStats.diagnostics.warmupFramesRemaining}
-              </p>
-              <p className="text-gray-600">
-                {en
-                  ? 'Set localStorage jazzify_pitch_shift=12|24 to test low-register mode.'
-                  : 'localStorage jazzify_pitch_shift=12|24 で低音実験。'}
               </p>
             </div>
           )}

@@ -1,5 +1,6 @@
 import {
   applyNotationInstrumentToMusicXml,
+  isLowRegisterNotationInstrument,
   clampNotationOctaveShift,
   getNotationInstrumentPreset,
   getWrittenSemitoneOffset,
@@ -131,6 +132,16 @@ describe('notationInstrument', () => {
     expect(notationClefStaffNumber('treble')).toBe(1);
     expect(notationClefStaffNumber('bass')).toBe(2);
     expect(notationClefStaffNumber('grand')).toBeNull();
+  });
+
+  it('treats bass-clef and low transposing instruments as low register', () => {
+    expect(isLowRegisterNotationInstrument('double_bass')).toBe(true);
+    expect(isLowRegisterNotationInstrument('trombone')).toBe(true);
+    expect(isLowRegisterNotationInstrument('bass_clarinet_bb')).toBe(true);
+    expect(isLowRegisterNotationInstrument('baritone_sax')).toBe(true);
+    expect(isLowRegisterNotationInstrument('piano')).toBe(false);
+    expect(isLowRegisterNotationInstrument('trumpet_bb')).toBe(false);
+    expect(isLowRegisterNotationInstrument('guitar')).toBe(false);
   });
 
   it('resolveNotationFixedActiveStaves prefers bass/treble over fallback', () => {

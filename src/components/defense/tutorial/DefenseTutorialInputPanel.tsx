@@ -12,8 +12,10 @@ interface DefenseTutorialInputPanelProps {
   readonly isMidiConnected: boolean;
   readonly voiceSensitivity: number;
   readonly voiceFastResponse: boolean;
+  readonly voiceLowRegister: boolean;
   readonly onVoiceSensitivityChange: (value: number) => void;
   readonly onVoiceFastResponseChange: (enabled: boolean) => void;
+  readonly onVoiceLowRegisterChange: (enabled: boolean) => void;
   readonly backingVolume: number;
   readonly onBackingVolumeChange: (value: number) => void;
   readonly midiVolume: number;
@@ -62,8 +64,10 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
   isMidiConnected,
   voiceSensitivity,
   voiceFastResponse,
+  voiceLowRegister,
   onVoiceSensitivityChange,
   onVoiceFastResponseChange,
+  onVoiceLowRegisterChange,
   backingVolume,
   onBackingVolumeChange,
   midiVolume,
@@ -186,6 +190,20 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
         {isEnglishCopy
           ? 'Turn this ON when pitch is hard to recognize. False detections may increase.'
           : 'ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。'}
+      </p>
+      <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
+        <span>{isEnglishCopy ? 'Low register' : '低音読み取り'}</span>
+        <input
+          type="checkbox"
+          className="toggle toggle-primary"
+          checked={voiceLowRegister}
+          onChange={(event) => onVoiceLowRegisterChange(event.target.checked)}
+        />
+      </label>
+      <p className="text-xs text-slate-400">
+        {isEnglishCopy
+          ? 'Turn this ON for low notes such as double bass. Response is a little slower.'
+          : 'コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。'}
       </p>
       <div className="rounded-lg bg-slate-900/60 p-3 text-sm">
         <div className="text-slate-400">{isEnglishCopy ? 'Detected pitch' : '認識中の音'}</div>

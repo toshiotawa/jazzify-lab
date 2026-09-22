@@ -68,6 +68,17 @@ export const normalizeNotationInstrumentId = (value: unknown): NotationInstrumen
 export const getNotationInstrumentPreset = (id: NotationInstrumentId): NotationInstrumentPreset =>
   PRESET_BY_ID.get(id) ?? DEFAULT_PRESET;
 
+const LOW_REGISTER_TREBLE_IDS = new Set<NotationInstrumentId>([
+  'bass_clarinet_bb',
+  'baritone_sax',
+]);
+
+/** ヘ音記号の楽器と、実音が低い移調楽器。 */
+export const isLowRegisterNotationInstrument = (id: NotationInstrumentId): boolean => {
+  const preset = getNotationInstrumentPreset(id);
+  return preset.clef === 'bass' || LOW_REGISTER_TREBLE_IDS.has(preset.id);
+};
+
 export const clampNotationOctaveShift = (value: number): number =>
   Math.max(NOTATION_OCTAVE_SHIFT_MIN, Math.min(NOTATION_OCTAVE_SHIFT_MAX, Math.trunc(value)));
 

@@ -32,6 +32,7 @@ interface UseStandaloneNoteInputOptions {
   enabled?: boolean;
   inputMethod?: InputMethod;
   voiceFastResponse?: boolean;
+  voiceLowRegister?: boolean;
 }
 
 interface UseStandaloneNoteInputResult {
@@ -50,6 +51,7 @@ export const useStandaloneNoteInput = ({
   enabled = true,
   inputMethod: inputMethodOverride,
   voiceFastResponse = false,
+  voiceLowRegister = false,
 }: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
   const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
@@ -69,6 +71,8 @@ export const useStandaloneNoteInput = ({
   const connectGenerationRef = useRef(0);
   const voiceFastResponseRef = useRef(voiceFastResponse);
   voiceFastResponseRef.current = voiceFastResponse;
+  const voiceLowRegisterRef = useRef(voiceLowRegister);
+  voiceLowRegisterRef.current = voiceLowRegister;
 
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
@@ -150,6 +154,10 @@ export const useStandaloneNoteInput = ({
   }, [voiceFastResponse]);
 
   useEffect(() => {
+    pitchRef.current?.setLowRegister(voiceLowRegister);
+  }, [voiceLowRegister]);
+
+  useEffect(() => {
     pitchRef.current?.setSensitivity(settings.voiceSensitivity);
   }, [settings.voiceSensitivity]);
 
@@ -174,6 +182,7 @@ export const useStandaloneNoteInput = ({
     if (effectiveMethod === 'voice') {
       midi.disconnect();
       pitch.setPitchStableFrames(voiceFastResponseRef.current ? 2 : 4);
+      pitch.setLowRegister(voiceLowRegisterRef.current);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
       const deviceId =
         settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'

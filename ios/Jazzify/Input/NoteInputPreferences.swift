@@ -10,6 +10,7 @@ enum NoteInputPreferences {
     private static let methodKey = "jazzify.input.method"
     private static let micSensitivityKey = "jazzify.input.micSensitivity"
     private static let voiceFastResponseKey = "jazzify.input.voiceFastResponse"
+    private static let voiceLowRegisterKey = "jazzify.input.voiceLowRegister"
 
     static var inputMethod: NoteInputMethod {
         get {
@@ -38,6 +39,16 @@ enum NoteInputPreferences {
     static var voiceFastResponse: Bool {
         get { UserDefaults.standard.bool(forKey: voiceFastResponseKey) }
         set { UserDefaults.standard.set(newValue, forKey: voiceFastResponseKey) }
+    }
+
+    /// 低音読み取り: ON で認識入力を +12 半音してから実音へ戻す
+    static var voiceLowRegister: Bool {
+        get { UserDefaults.standard.bool(forKey: voiceLowRegisterKey) }
+        set { UserDefaults.standard.set(newValue, forKey: voiceLowRegisterKey) }
+    }
+
+    static var pitchShiftSemitones: Int {
+        voiceLowRegister ? 12 : 0
     }
 
     static var pitchStableFrames: Int {

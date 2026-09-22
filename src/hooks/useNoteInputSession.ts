@@ -156,6 +156,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
         pitch.setPitchStableFrames(
           useGameStore.getState().settings.voiceFastResponse ? 2 : 4,
         );
+        pitch.setLowRegister(useGameStore.getState().settings.voiceLowRegister ?? false);
         const deviceId =
           settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
             ? settings.selectedAudioDevice
@@ -198,6 +199,10 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       settings.voiceFastResponse ? 2 : 4,
     );
   }, [settings.voiceFastResponse]);
+
+  useEffect(() => {
+    pitchControllerRef.current?.setLowRegister(settings.voiceLowRegister ?? false);
+  }, [settings.voiceLowRegister]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume ?? 0.8);
