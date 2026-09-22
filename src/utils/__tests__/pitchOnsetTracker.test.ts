@@ -231,7 +231,7 @@ describe('PitchOnsetTracker', () => {
     ]);
   });
 
-  it('adopts an expected pitch class in one frame below the normal confidence gate', () => {
+  it('adopts an expected pitch class after two frames below the normal confidence gate', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 4,
@@ -240,8 +240,9 @@ describe('PitchOnsetTracker', () => {
     });
     tracker.setExpectedPitchMask(1 << 10);
     const bb: PitchFrame = { prediction: 58, confidence: 0.38, volume: 0.01 };
-    expect(tracker.processFrame(bb, 0)).toEqual([
-      { type: 'noteOn', note: 58, frameIndex: 0, onsetFrameIndex: 0 },
+    expect(tracker.processFrame(bb, 0)).toEqual([]);
+    expect(tracker.processFrame(bb, 1)).toEqual([
+      { type: 'noteOn', note: 58, frameIndex: 1, onsetFrameIndex: 0 },
     ]);
   });
 
@@ -258,7 +259,7 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.getCurrentNote()).toBe(-1);
   });
 
-  it('switches to an expected pitch class in one frame while another note is held', () => {
+  it('switches to an expected pitch class after two frames while another note is held', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 4,
@@ -270,9 +271,10 @@ describe('PitchOnsetTracker', () => {
     const bb: PitchFrame = { prediction: 58, confidence: 0.38, volume: 0.01 };
 
     tracker.processFrame(voiced60, 0);
-    expect(tracker.processFrame(bb, 1)).toEqual([
-      { type: 'noteOff', note: 60, frameIndex: 1 },
-      { type: 'noteOn', note: 58, frameIndex: 1, onsetFrameIndex: 1 },
+    expect(tracker.processFrame(bb, 1)).toEqual([]);
+    expect(tracker.processFrame(bb, 2)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 2 },
+      { type: 'noteOn', note: 58, frameIndex: 2, onsetFrameIndex: 1 },
     ]);
   });
 
@@ -340,7 +342,7 @@ describe('PitchOnsetTracker', () => {
     ]);
   });
 
-  it('does not emit noteOn when the same pitch returns after release without attack rise', () => {
+  it('resumes without noteOn when the same pitch returns within retrigger guard without attack rise', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
       pitchStableFrames: 1,
@@ -348,6 +350,7 @@ describe('PitchOnsetTracker', () => {
       minNoteFrames: 1,
       attackRiseDb: 80,
       retriggerLookbackFrames: 4,
+      retriggerGuardFrames: 6,
       onsetImmediateConfidence: 2,
     });
     const voiced: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
@@ -359,20 +362,46 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.getCurrentNote()).toBe(60);
   });
 
+  it('emits noteOn when the same pitch returns after retrigger guard without attack rise', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      releaseFrames: 1,
+      minNoteFrames: 1,
+      attackRiseDb: 80,
+      retriggerLookbackFrames: 4,
+      retriggerGuardFrames: 6,
+      onsetImmediateConfidence: 2,
+    });
+    const voiced: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.9, volume: 1e-8 };
+
+    tracker.processFrame(voiced, 0);
+    tracker.processFrame(quiet, 1);
+    for (let frameIndex = 2; frameIndex < 7; frameIndex += 1) {
+      tracker.processFrame(quiet, frameIndex);
+    }
+    expect(tracker.processFrame(voiced, 7)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 7, onsetFrameIndex: 7 },
+    ]);
+  });
+
   it('accepts an expected octave jump in one frame when the level rises', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
-      pitchStableFrames: 4,
+      pitchStableFrames: 1,
       fastResponse: false,
       attackRiseDb: 6,
       retriggerLookbackFrames: 4,
       onsetImmediateConfidence: 2,
     });
-    tracker.setExpectedPitchCandidates(1 << 0, [72]);
     const c4: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.004 };
     const c5: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.02 };
 
-    tracker.processFrame(c4, 0);
+    expect(tracker.processFrame(c4, 0)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 0, onsetFrameIndex: 0 },
+    ]);
+    tracker.setExpectedPitchCandidates(1 << 0, [72]);
     tracker.processFrame(c4, 1);
     expect(tracker.processFrame(c5, 2)).toEqual([
       { type: 'noteOff', note: 60, frameIndex: 2 },
@@ -395,17 +424,19 @@ describe('PitchOnsetTracker', () => {
   it('allows expected octave jump with legato stability evidence', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
-      pitchStableFrames: 4,
+      pitchStableFrames: 1,
       fastResponse: false,
       attackRiseDb: 6,
       onsetImmediateConfidence: 2,
     });
-    tracker.setExpectedPitchCandidates(1 << 0, [72]);
     const c4: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
     const c5a: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.0105 };
     const c5b: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.0105 };
 
-    tracker.processFrame(c4, 0);
+    expect(tracker.processFrame(c4, 0)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 0, onsetFrameIndex: 0 },
+    ]);
+    tracker.setExpectedPitchCandidates(1 << 0, [72]);
     tracker.processFrame(c5a, 1);
     const events = tracker.processFrame(c5b, 2);
     expect(events).toEqual([

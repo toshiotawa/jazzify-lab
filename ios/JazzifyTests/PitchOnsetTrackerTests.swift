@@ -193,7 +193,7 @@ final class PitchOnsetTrackerTests: XCTestCase {
         }
     }
 
-    func testAdoptsExpectedPitchClassInOneFrameBelowNormalConfidence() {
+    func testAdoptsExpectedPitchClassAfterTwoFramesBelowNormalConfidence() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 4
         config.minConfidence = 0.5
@@ -201,11 +201,12 @@ final class PitchOnsetTrackerTests: XCTestCase {
         let tracker = PitchOnsetTracker(config: config)
         tracker.setExpectedPitchMask(1 << 10)
         let bb = PitchFrame(prediction: 58, confidence: 0.38, volume: 0.01)
-        let events = tracker.processFrame(bb, frameIndex: 0)
+        XCTAssertTrue(tracker.processFrame(bb, frameIndex: 0).isEmpty)
+        let events = tracker.processFrame(bb, frameIndex: 1)
         XCTAssertEqual(events.count, 1)
         if case let .noteOn(note, frameIndex, onsetFrameIndex) = events[0] {
             XCTAssertEqual(note, 58)
-            XCTAssertEqual(frameIndex, 0)
+            XCTAssertEqual(frameIndex, 1)
             XCTAssertEqual(onsetFrameIndex, 0)
         } else {
             XCTFail("Expected noteOn")
@@ -254,19 +255,48 @@ final class PitchOnsetTrackerTests: XCTestCase {
 
     func testAllowsExpectedOctaveJumpWithLegatoStability() {
         var config = PitchOnsetTrackerConfig()
-        config.pitchStableFrames = 4
+        config.pitchStableFrames = 1
         config.fastResponse = false
         config.attackRiseDb = 6
         config.onsetImmediateConfidence = 2
         let tracker = PitchOnsetTracker(config: config)
-        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [72])
         let c4 = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
         let c5a = PitchFrame(prediction: 72, confidence: 0.9, volume: 0.0105)
         let c5b = PitchFrame(prediction: 72, confidence: 0.9, volume: 0.0105)
 
-        _ = tracker.processFrame(c4, frameIndex: 0)
+        let startEvents = tracker.processFrame(c4, frameIndex: 0)
+        XCTAssertEqual(startEvents.count, 1)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [72])
         _ = tracker.processFrame(c5a, frameIndex: 1)
         let events = tracker.processFrame(c5b, frameIndex: 2)
         XCTAssertEqual(events.count, 2)
+    }
+
+    func testEmitsNoteOnAfterRetriggerGuardWithoutAttackRise() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.releaseFrames = 1
+        config.minNoteFrames = 1
+        config.attackRiseDb = 80
+        config.retriggerLookbackFrames = 4
+        config.retriggerGuardFrames = 6
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let quiet = PitchFrame(prediction: 60, confidence: 0.9, volume: 1e-8)
+
+        _ = tracker.processFrame(voiced, frameIndex: 0)
+        _ = tracker.processFrame(quiet, frameIndex: 1)
+        for frameIndex in 2..<7 {
+            _ = tracker.processFrame(quiet, frameIndex: frameIndex)
+        }
+        let events = tracker.processFrame(voiced, frameIndex: 7)
+        XCTAssertEqual(events.count, 1)
+        if case let .noteOn(note, frameIndex, _) = events[0] {
+            XCTAssertEqual(note, 60)
+            XCTAssertEqual(frameIndex, 7)
+        } else {
+            XCTFail("Expected noteOn")
+        }
     }
 }

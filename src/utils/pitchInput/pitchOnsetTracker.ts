@@ -103,16 +103,6 @@ const pitchMatch = (a: number, b: number, centsTolerance: number): boolean => {
   return diffCents <= centsTolerance;
 };
 
-const popcountPitchClasses = (mask: number): number => {
-  let count = 0;
-  let bits = mask & 0xfff;
-  while (bits > 0) {
-    count += bits & 1;
-    bits >>= 1;
-  }
-  return count;
-};
-
 export class PitchOnsetTracker {
   private config: PitchOnsetTrackerConfig;
   private currentNote = -1;
@@ -135,6 +125,8 @@ export class PitchOnsetTracker {
   private expectedPitchMidis: number[] = [];
   /** noteOff 後、立ち上がりなしで戻った同音を noteOn にしないための保留音。 */
   private suspendedNote = -1;
+  /** suspendedNote を設定した noteOff の frameIndex。 */
+  private suspendedNoteOffFrame = -1;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -171,6 +163,7 @@ export class PitchOnsetTracker {
     this.legatoHitNotes[2] = -1;
     this.legatoHitIndex = 0;
     this.suspendedNote = -1;
+    this.suspendedNoteOffFrame = -1;
   }
 
   /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
@@ -218,12 +211,17 @@ export class PitchOnsetTracker {
       this.pendingOff = false;
 
       if (this.currentNote < 0) {
+        const withinRetriggerGuard = (
+          this.suspendedNoteOffFrame >= 0
+          && frameIndex - this.suspendedNoteOffFrame < this.config.retriggerGuardFrames
+        );
         if (
           quantized === this.suspendedNote
+          && withinRetriggerGuard
           && this.recentLevelRise(levelDb) < this.config.attackRiseDb
         ) {
           this.resumeSuspendedNote(quantized, frameIndex);
-        } else if (this.shouldStartNoteOn(expectedAssist, frame.confidence)) {
+        } else if (this.shouldStartNoteOn(expectedAssist, frame.confidence, quantized)) {
           this.suspendedNote = -1;
           this.emitNoteOn(
             events,
@@ -242,7 +240,6 @@ export class PitchOnsetTracker {
           quantized,
           levelDb,
           frame.confidence,
-          expectedAssist,
           octaveRelated,
         )) {
           this.suspendedNote = -1;
@@ -281,15 +278,15 @@ export class PitchOnsetTracker {
     return events;
   }
 
-  private shouldStartNoteOn(expectedAssist: boolean, confidence: number): boolean {
-    if (expectedAssist && this.hasSingleExpectedPitchClass()) {
-      return true;
+  private shouldStartNoteOn(
+    expectedAssist: boolean,
+    confidence: number,
+    quantized: number,
+  ): boolean {
+    if (expectedAssist) {
+      return this.legatoHitCount(quantized) >= 2;
     }
-    return this.shouldEmitNoteOn(confidence, !expectedAssist);
-  }
-
-  private hasSingleExpectedPitchClass(): boolean {
-    return popcountPitchClasses(this.expectedPitchMask) === 1;
+    return this.shouldEmitNoteOn(confidence, true);
   }
 
   private shouldEmitNoteOn(confidence: number, allowImmediate: boolean): boolean {
@@ -319,14 +316,12 @@ export class PitchOnsetTracker {
     quantized: number,
     levelDb: number,
     confidence: number,
-    expectedAssist: boolean,
     octaveRelated: boolean,
   ): boolean {
     if (octaveRelated && this.expectedPitchMidis.includes(quantized)) {
       if (this.recentLevelRise(levelDb) >= this.config.attackRiseDb) return true;
       return this.legatoHitCount(quantized) >= 2;
     }
-    if (!octaveRelated && expectedAssist) return true;
     return this.shouldEmitLegatoSwitch(quantized, confidence);
   }
 
@@ -403,6 +398,7 @@ export class PitchOnsetTracker {
     this.recentMinDbFrame = -1;
     this.recentLevelDbRing = [];
     this.suspendedNote = -1;
+    this.suspendedNoteOffFrame = -1;
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
   }
 
@@ -413,6 +409,7 @@ export class PitchOnsetTracker {
   ): void {
     if (this.currentNote !== note) return;
     this.suspendedNote = note;
+    this.suspendedNoteOffFrame = frameIndex;
     this.currentNote = -1;
     this.noteOnFrame = -1;
     this.releaseCount = 0;

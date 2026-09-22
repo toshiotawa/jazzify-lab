@@ -54,6 +54,7 @@ final class PitchOnsetTracker {
     private var expectedPitchMask = 0
     private var expectedPitchMidis: [Int] = []
     private var suspendedNote = -1
+    private var suspendedNoteOffFrame = -1
 
     init(config: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) {
         self.config = config
@@ -88,6 +89,7 @@ final class PitchOnsetTracker {
         legatoHitNotes = [-1, -1, -1]
         legatoHitIndex = 0
         suspendedNote = -1
+        suspendedNoteOffFrame = -1
     }
 
     func flushActiveNote(frameIndex: Int) -> [PitchInputEvent] {
@@ -148,10 +150,17 @@ final class PitchOnsetTracker {
             pendingOff = false
 
             if currentNote < 0 {
+                let withinRetriggerGuard = suspendedNoteOffFrame >= 0
+                    && frameIndex - suspendedNoteOffFrame < config.retriggerGuardFrames
                 if quantized == suspendedNote,
+                   withinRetriggerGuard,
                    recentLevelRise(levelDb: levelDb) < config.attackRiseDb {
                     resumeSuspendedNote(note: quantized, frameIndex: frameIndex)
-                } else if shouldStartNoteOn(expectedAssist: expectedAssist, confidence: frame.confidence) {
+                } else if shouldStartNoteOn(
+                    expectedAssist: expectedAssist,
+                    confidence: frame.confidence,
+                    quantized: quantized
+                ) {
                     suspendedNote = -1
                     emitNoteOn(
                         &events,
@@ -168,7 +177,6 @@ final class PitchOnsetTracker {
                     quantized: quantized,
                     levelDb: levelDb,
                     confidence: frame.confidence,
-                    expectedAssist: expectedAssist,
                     octaveRelated: octaveRelated
                 ) {
                     suspendedNote = -1
@@ -209,27 +217,19 @@ final class PitchOnsetTracker {
 
     func getCurrentNote() -> Int { currentNote }
 
-    private func shouldStartNoteOn(expectedAssist: Bool, confidence: Double) -> Bool {
-        if expectedAssist, hasSingleExpectedPitchClass() { return true }
+    private func shouldStartNoteOn(
+        expectedAssist: Bool,
+        confidence: Double,
+        quantized: Int
+    ) -> Bool {
+        if expectedAssist {
+            return legatoHitCount(quantized) >= 2
+        }
         return shouldEmitNoteOn(
             pitchStableCount: pitchStableCount,
             confidence: confidence,
-            allowImmediate: !expectedAssist
+            allowImmediate: true
         )
-    }
-
-    private func hasSingleExpectedPitchClass() -> Bool {
-        popcountPitchClasses(expectedPitchMask) == 1
-    }
-
-    private func popcountPitchClasses(_ mask: Int) -> Int {
-        var count = 0
-        var bits = mask & 0xFFF
-        while bits > 0 {
-            count += bits & 1
-            bits >>= 1
-        }
-        return count
     }
 
     private func shouldEmitNoteOn(
@@ -255,14 +255,12 @@ final class PitchOnsetTracker {
         quantized: Int,
         levelDb: Double,
         confidence: Double,
-        expectedAssist: Bool,
         octaveRelated: Bool
     ) -> Bool {
         if octaveRelated, expectedPitchMidis.contains(quantized) {
             if recentLevelRise(levelDb: levelDb) >= config.attackRiseDb { return true }
             return legatoHitCount(quantized) >= 2
         }
-        if !octaveRelated, expectedAssist { return true }
         return shouldEmitLegatoSwitch(quantized: quantized, confidence: confidence)
     }
 
@@ -343,12 +341,14 @@ final class PitchOnsetTracker {
         recentMinDbFrame = -1
         recentLevelDbRing = []
         suspendedNote = -1
+        suspendedNoteOffFrame = -1
         events.append(.noteOn(note: note, frameIndex: frameIndex, onsetFrameIndex: onsetFrameIndex))
     }
 
     private func emitNoteOff(_ events: inout [PitchInputEvent], note: Int, frameIndex: Int) {
         guard currentNote == note else { return }
         suspendedNote = note
+        suspendedNoteOffFrame = frameIndex
         currentNote = -1
         noteOnFrame = -1
         releaseCount = 0

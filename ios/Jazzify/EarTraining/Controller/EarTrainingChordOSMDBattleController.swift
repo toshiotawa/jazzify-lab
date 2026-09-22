@@ -493,6 +493,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         let allowPitchClass = NoteInputPreferences.inputMethod == .voice
         let completeOnAnyMatch = allowPitchClass
+        let matchLateGrace = allowPitchClass ? EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec : 0
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
             phraseTime = fromMidi
@@ -515,7 +516,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 return targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass)
             },
             earlySec: judgmentWindowEarly,
-            lateSec: judgmentWindowLate
+            lateSec: judgmentWindowLate,
+            matchLateGraceSec: matchLateGrace
         )
         guard let matchedIndex else {
             let nearest = EarTrainingChordOsmdTiming.pickNearestPendingTargetIndex(

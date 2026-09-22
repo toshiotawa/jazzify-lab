@@ -2044,6 +2044,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const allowPitchClass = settings.inputMethod === 'voice';
     const completeOnAnyMatch = allowPitchClass;
+    const matchLateGrace = allowPitchClass ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0;
 
     if (osmdSelfPacedRef.current) {
       if (gameStateRef.current !== 'playingPhrase') {
@@ -2101,6 +2102,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       },
       earlyW,
       lateW,
+      matchLateGrace,
     );
     if (matchedIndex === null) {
       const nearest = findNearestPendingChordOsmdTarget(
