@@ -10,12 +10,14 @@ export const applyMelodyLoopCrossfade = (data: Float32Array, sampleRate: number)
     return;
   }
 
+  // De-click the loop tail only; preserve downbeat attack at sample 0.
   for (let index = 0; index < overlapFrames; index += 1) {
     const head = data[index] ?? 0;
-    const tail = data[data.length - overlapFrames + index] ?? 0;
+    const tailIndex = data.length - overlapFrames + index;
+    const tail = data[tailIndex] ?? 0;
     const progress = index / overlapFrames;
     const fadeOut = Math.cos((Math.PI / 2) * progress);
     const fadeIn = Math.sin((Math.PI / 2) * progress);
-    data[index] = head * fadeOut + tail * fadeIn;
+    data[tailIndex] = tail * fadeOut + head * fadeIn;
   }
 };

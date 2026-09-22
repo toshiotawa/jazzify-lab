@@ -66,6 +66,8 @@ export const useStandaloneNoteInput = ({
   const onNoteOffRef = useRef(onNoteOff);
   const onKeyHighlightRef = useRef(onKeyHighlight);
   const connectGenerationRef = useRef(0);
+  const voiceFastResponseRef = useRef(voiceFastResponse);
+  voiceFastResponseRef.current = voiceFastResponse;
 
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
@@ -150,10 +152,6 @@ export const useStandaloneNoteInput = ({
     pitchRef.current?.setSensitivity(settings.voiceSensitivity);
   }, [settings.voiceSensitivity]);
 
-  useEffect(() => {
-    pitchRef.current?.setLowPitchShift(settings.voiceLowPitchShift);
-  }, [settings.voiceLowPitchShift]);
-
   const connect = useCallback(async () => {
     const generation = connectGenerationRef.current + 1;
     connectGenerationRef.current = generation;
@@ -174,9 +172,8 @@ export const useStandaloneNoteInput = ({
 
     if (effectiveMethod === 'voice') {
       midi.disconnect();
-      pitch.setPitchStableFrames(voiceFastResponse ? 2 : 4);
+      pitch.setPitchStableFrames(voiceFastResponseRef.current ? 2 : 4);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
-      pitch.setLowPitchShift(useGameStore.getState().settings.voiceLowPitchShift);
       const deviceId =
         settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
           ? settings.selectedAudioDevice
@@ -211,7 +208,6 @@ export const useStandaloneNoteInput = ({
     effectiveMethod,
     settings.selectedMidiDevice,
     settings.selectedAudioDevice,
-    voiceFastResponse,
   ]);
 
   useEffect(() => {

@@ -2,7 +2,8 @@
  * Now's The Time separate-tracks test audio (BGM 12 bars + melody 2×2 bars @ 160 BPM) to R2.
  *
  * BGM: first chorus of local F-blues comping.
- * Melody: first 2 bars of each Now's The Time CDN phrase, concatenated.
+ * Melody: 2-bar windows aligned to loop measures (1-2, 3-4), rotated 1 beat earlier
+ * so the loop downbeat keeps phrase attack energy.
  *
  * Usage:
  *   node scripts/upload-defense-separate-tracks-nows-the-time-r2.mjs
@@ -27,6 +28,7 @@ const BEATS_PER_BAR = 4;
 const PHRASE_BARS = 2;
 const PROGRESSION_BARS = 12;
 const FRAMES_PER_BAR = Math.round((SAMPLE_RATE * 60 * BEATS_PER_BAR) / BPM);
+const FRAMES_PER_BEAT = Math.round(FRAMES_PER_BAR / BEATS_PER_BAR);
 const BGM_FRAMES = FRAMES_PER_BAR * PROGRESSION_BARS;
 const MELODY_PHRASE_FRAMES = FRAMES_PER_BAR * PHRASE_BARS;
 
@@ -75,6 +77,46 @@ function probeSamples(path) {
     ),
     10,
   );
+}
+
+function probeHead40msRms(path) {
+  const value = run(
+    'python3',
+    [
+      '-c',
+      `import wave, math, struct
+path = ${JSON.stringify(path)}
+with wave.open(path, 'rb') as w:
+    nch = w.getnchannels()
+    sw = w.getsampwidth()
+    sr = w.getframerate()
+    count = min(int(sr * 0.04), w.getnframes())
+    raw = w.readframes(count)
+fmt = '<' + 'h' * (len(raw) // sw)
+samples = struct.unpack(fmt, raw)
+frames = len(samples) // nch
+acc = 0.0
+for i in range(frames):
+    left = samples[i * nch] / 32768.0
+    right = samples[i * nch + (1 if nch > 1 else 0)] / 32768.0
+    acc += left * left + right * right
+print(math.sqrt(acc / max(1, frames)))`,
+    ],
+    `head40ms rms ${path}`,
+  );
+  return Number.parseFloat(value);
+}
+
+function rotateWavLeftOneBeat(path) {
+  const rotated = `${path}.rotated.wav`;
+  run('ffmpeg', [
+    '-y',
+    '-i', path,
+    '-af', `asplit=2[a][b];[a]atrim=start_sample=${FRAMES_PER_BEAT},asetpts=PTS-STARTPTS[a1];[b]atrim=end_sample=${FRAMES_PER_BEAT},asetpts=PTS-STARTPTS[b1];[a1][b1]concat=n=2:v=0:a=1`,
+    '-c:a', 'pcm_s16le',
+    rotated,
+  ], `rotate ${path}`);
+  run('mv', ['-f', rotated, path], `replace ${path}`);
 }
 
 function putWithWrangler(localPath, objectPath) {
@@ -149,13 +191,25 @@ for (let i = 0; i < PHRASE_URLS.length; i += 1) {
 const concatListPath = join(WORK_DIR, 'melody-concat.txt');
 const slicedPaths = phrasePaths.map((source, index) => {
   const sliced = join(WORK_DIR, `melody-slice-${index}.wav`);
+  const startMeasure = index * PHRASE_BARS + 1;
+  const startSample = Math.max(0, (startMeasure - 1) * FRAMES_PER_BAR - FRAMES_PER_BEAT);
   run('ffmpeg', [
     '-y',
     '-i', source,
-    '-af', `aformat=sample_rates=${SAMPLE_RATE}:channel_layouts=stereo,atrim=end_sample=${MELODY_PHRASE_FRAMES},asetpts=PTS-STARTPTS`,
+    '-af', [
+      `aformat=sample_rates=${SAMPLE_RATE}:channel_layouts=stereo`,
+      `atrim=start_sample=${startSample}:end_sample=${startSample + MELODY_PHRASE_FRAMES}`,
+      'asetpts=PTS-STARTPTS',
+    ].join(','),
     '-c:a', 'pcm_s16le',
     sliced,
-  ], `slice melody ${index + 1}`);
+  ], `slice melody ${index + 1} measures ${startMeasure}-${startMeasure + PHRASE_BARS - 1}`);
+  rotateWavLeftOneBeat(sliced);
+  const headRms = probeHead40msRms(sliced);
+  if (headRms < 0.01) {
+    throw new Error(`melody slice ${index + 1} head40ms RMS too low: ${headRms}`);
+  }
+  console.log(`OK melody slice ${index + 1} head40ms RMS ${headRms.toFixed(4)}`);
   return sliced;
 });
 writeFileSync(

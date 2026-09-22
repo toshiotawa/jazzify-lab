@@ -6,7 +6,6 @@ import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { normalizeWebKeyboardDisplayMode } from '@/utils/webKeyboardDisplayRange';
-import { normalizeVoiceLowPitchShift } from '@/utils/pitchInput/pitchOctaveUpsample';
 import {
   DEFAULT_NOTATION_INSTRUMENT_ID,
   NOTATION_OCTAVE_SHIFT_MAX,
@@ -49,7 +48,6 @@ const defaultSettings: GameSettings = {
   practiceGuide: 'key',
   performanceMode: 'standard',
   voiceSensitivity: 5,
-  voiceLowPitchShift: 0,
   voiceFastResponse: false,
   notationClefOverride: null,
   notationTranspositionOverride: null,
@@ -125,8 +123,6 @@ const validateSettings = (
   }
 
   normalized.webKeyboardDisplayMode = normalizeWebKeyboardDisplayMode(normalized.webKeyboardDisplayMode);
-  normalized.voiceLowPitchShift = normalizeVoiceLowPitchShift(normalized.voiceLowPitchShift);
-
   return {
     valid: errors.length === 0,
     errors,

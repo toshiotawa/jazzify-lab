@@ -43,9 +43,6 @@ struct DefenseTutorialView: View {
         }
         .background(Color(hex: "09070f").ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .onAppear {
-            NoteInputPreferences.voiceFastResponse = false
-        }
     }
 
     private var header: some View {

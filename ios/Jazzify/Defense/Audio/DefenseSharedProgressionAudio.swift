@@ -6,6 +6,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
     private static let masterHeadroomGain: Float = 0.7
     private static let voiceInputDuckFactor: Float = 0.5
+    private static let startLeadSec = 0.15
+    private static let scheduleMinQuantumSec = 0.001
 
     private let cache = RemoteAudioFileCache(subdirectory: "defense-shared-progression")
     private let engine = AVAudioEngine()
@@ -143,8 +145,13 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.paused = false
             self.pausedOffsetSec = 0
             self.activeIsA = true
-            self.transportStartHostSec = Self.hostTimeSec()
-            self.playActivePhraseImmediate(at: initialPhraseIndex, offsetSec: 0)
+            let transportStart = Self.hostTimeSec() + Self.startLeadSec
+            self.transportStartHostSec = transportStart
+            self.playActivePhraseImmediate(
+                at: initialPhraseIndex,
+                offsetSec: 0,
+                startAtHostSec: transportStart
+            )
         }
     }
 
@@ -236,8 +243,13 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         )
 
         if plan.immediate {
-            let offsetSec = max(0, now - transportStartHostSec)
-            playActivePhraseImmediate(at: desiredPhraseIndex, offsetSec: offsetSec)
+            let switchAt = max(now + Self.scheduleMinQuantumSec, plan.switchAt)
+            let offsetSec = max(0, now - plan.cutAt)
+            playActivePhraseImmediate(
+                at: desiredPhraseIndex,
+                offsetSec: offsetSec,
+                startAtHostSec: switchAt
+            )
             return
         }
 
@@ -279,7 +291,11 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         scheduledSwitchAtHostSec = -1
     }
 
-    private func playActivePhraseImmediate(at phraseIndex: Int, offsetSec: Double) {
+    private func playActivePhraseImmediate(
+        at phraseIndex: Int,
+        offsetSec: Double,
+        startAtHostSec: Double? = nil
+    ) {
         guard let buffer = buffersByPhraseIndex[phraseIndex],
               let barFrames = barFramesByPhraseIndex[phraseIndex],
               barFrames.count > progressionBars
@@ -307,8 +323,13 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             ? formStart
             : formStart + AVAudioFramePosition((wrappedOffset / totalSec) * Double(formFrames))
 
+        let playbackWhen: AVAudioTime? = {
+            guard let startAtHostSec else { return nil }
+            return AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: startAtHostSec))
+        }()
+
         if startFrame <= formStart {
-            scheduleFullLoop(for: phraseIndex, player: active, at: nil)
+            scheduleFullLoop(for: phraseIndex, player: active, at: playbackWhen)
         } else {
             let tailCount = AVAudioFrameCount(max(0, formEnd - startFrame))
             if tailCount > 0,
@@ -317,13 +338,13 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                    startingFrame: startFrame,
                    frameCount: tailCount
                ) {
-                active.scheduleBuffer(tailBuffer, at: nil) { [weak self] in
+                active.scheduleBuffer(tailBuffer, at: playbackWhen) { [weak self] in
                     self?.runOnMain {
                         self?.scheduleLoopHead(for: phraseIndex, player: active, at: nil)
                     }
                 }
             } else {
-                scheduleLoopHead(for: phraseIndex, player: active, at: nil)
+                scheduleLoopHead(for: phraseIndex, player: active, at: playbackWhen)
             }
         }
 
@@ -335,7 +356,11 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             return
         }
 
-        active.play()
+        if let playbackWhen {
+            active.play(at: playbackWhen)
+        } else {
+            active.play()
+        }
         applyMasterVolume()
     }
 
@@ -392,7 +417,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
         scheduledPhraseIndex = phraseIndex
         scheduledSwitchAtHostSec = plan.switchAt
-        scheduleWake(atHostSec: plan.switchAt - 0.12)
+        scheduleWake(atHostSec: plan.switchAt)
     }
 
     private func scheduleFullLoop(
@@ -423,7 +448,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
     private func scheduleWake(atHostSec: Double) {
         cancelWake()
-        let delay = max(0.01, atHostSec - Self.hostTimeSec())
+        let delay = max(0, atHostSec - Self.hostTimeSec())
         let item = DispatchWorkItem { [weak self] in
             self?.performScheduledSwitch()
         }

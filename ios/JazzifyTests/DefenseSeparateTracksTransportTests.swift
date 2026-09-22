@@ -129,7 +129,7 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
         XCTAssertEqual(samples[2205], 0.75, accuracy: 0.0001)
     }
 
-    func testPhraseSwitchInsideLargeRenderBlockUsesEvalPhaseFrame() {
+    func testPhraseSwitchUsesAudiblePhaseFrameNotHostClock() {
         let grid = DefenseSeparateTracksTransport.computeGrid(
             sampleRate: 44100,
             bpm: 120,
@@ -160,10 +160,10 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
             initialPhraseIndex: 0
         )
         state.absoluteCycle = 0
-        state.phaseFrame = grid.cycleFrames - 480
+        state.phaseFrame = grid.beatFrames
 
-        var left = [Float](repeating: 0, count: 960)
-        var right = [Float](repeating: 0, count: 960)
+        var left = [Float](repeating: 0, count: grid.cycleFrames)
+        var right = [Float](repeating: 0, count: grid.cycleFrames)
         left.withUnsafeMutableBufferPointer { leftPointer in
             right.withUnsafeMutableBufferPointer { rightPointer in
                 guard let leftBase = leftPointer.baseAddress,
@@ -171,26 +171,25 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
                     XCTFail("scratch buffers unavailable")
                     return
                 }
-                let result = DefenseSeparateTracksMix.renderBlock(
+                _ = DefenseSeparateTracksMix.renderBlock(
                     state: state,
                     outputLeft: leftBase,
                     outputRight: rightBase,
-                    blockFrames: 960,
+                    blockFrames: grid.cycleFrames,
                     phraseRequest: DefenseSeparateTracksPhraseRequest(
                         phraseIndex: 1,
                         revision: 1,
                         generation: 1
                     ),
                     tempoRequest: nil,
-                    phraseEvalAbsoluteCycle: 1,
-                    phraseEvalPhaseFrame: 0
+                    phraseEvalAbsoluteCycle: state.absoluteCycle,
+                    phraseEvalPhaseFrame: state.phaseFrame
                 )
-                XCTAssertTrue(result.appliedPhrase)
             }
         }
 
         XCTAssertEqual(state.audiblePhraseIndex, 1)
-        XCTAssertGreaterThan(left[480], 0.5)
+        XCTAssertGreaterThan(left[grid.beatFrames], 0.5)
     }
 
     func testMixPausedBlockIsSilent() {

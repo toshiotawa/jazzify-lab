@@ -229,9 +229,6 @@ export interface GameSettings {
   /** 音声認識の感度 (1-10, デフォルト5) */
   voiceSensitivity: number;
 
-  /** 低音楽器向け: 認識前に 0 / 12 / 24 半音上げる */
-  voiceLowPitchShift: 0 | 12 | 24;
-
   /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
   voiceFastResponse?: boolean;
 

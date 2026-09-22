@@ -11,6 +11,12 @@ describe('defenseMelodyLoopCrossfade', () => {
     expect(data[0]).toBeGreaterThan(0.1);
   });
 
+  it('preserves interior samples', () => {
+    const data = new Float32Array(4410).fill(0.75);
+    applyMelodyLoopCrossfade(data, 44100);
+    expect(data[2205]).toBe(0.75);
+  });
+
   it('preserves a boundary transient after overlap processing', () => {
     const data = new Float32Array(4410).fill(0);
     const overlapFrames = Math.round(44100 * 0.015);

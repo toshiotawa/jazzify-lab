@@ -379,20 +379,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             state.playbackAnchorAbsoluteSample = state.absoluteCycle * cycleFrames + state.phaseFrame
         }
 
-        let evalPosition: (absoluteCycle: Int, phaseFrame: Int)
-        if hostTimeValid, state.playbackAnchorHostTime > 0 {
-            let absoluteSample = DefenseSeparateTracksMix.absoluteSamplePosition(
-                hostTime: hostTime,
-                state: state
-            )
-            evalPosition = DefenseSeparateTracksMix.gridPosition(
-                absoluteSample: absoluteSample,
-                cycleFrames: state.activeSet.grid.cycleFrames
-            )
-        } else {
-            evalPosition = (state.absoluteCycle, state.phaseFrame)
-        }
-
         let requests = mailbox.withLock { state -> (
             DefenseSeparateTracksPhraseRequest?,
             DefenseSeparateTracksTempoRequest?
@@ -419,8 +405,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
                     blockFrames: blockFrames,
                     phraseRequest: phraseRequest,
                     tempoRequest: tempoRequest,
-                    phraseEvalAbsoluteCycle: evalPosition.absoluteCycle,
-                    phraseEvalPhaseFrame: evalPosition.phaseFrame
+                    phraseEvalAbsoluteCycle: state.absoluteCycle,
+                    phraseEvalPhaseFrame: state.phaseFrame
                 )
             }
         }

@@ -64,9 +64,6 @@ struct DefenseTutorialInputPanelView: View {
 
     @ObservedObject private var midiManager = MIDIManager.shared
     @State private var micSensitivity = Double(NoteInputPreferences.micSensitivity)
-    @State private var voiceLowPitchShift = VoiceLowPitchShift.normalize(
-        NoteInputPreferences.voiceLowPitchShift
-    )
     @State private var voiceFastResponse = NoteInputPreferences.voiceFastResponse
     @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
     @State private var permission = PitchInputEngine.MicrophonePermission.undetermined
@@ -117,10 +114,8 @@ struct DefenseTutorialInputPanelView: View {
         .frame(maxWidth: .infinity)
         .onAppear {
             NoteInputManager.shared.inputMethod = inputMethod
-            NoteInputPreferences.voiceFastResponse = false
-            voiceFastResponse = false
+            voiceFastResponse = NoteInputPreferences.voiceFastResponse
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
-            voiceLowPitchShift = VoiceLowPitchShift.normalize(NoteInputPreferences.voiceLowPitchShift)
             midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
             if inputMethod == .voice {
@@ -231,26 +226,6 @@ struct DefenseTutorialInputPanelView: View {
                 .foregroundStyle(.secondary)
         }
 
-        VStack(alignment: .leading, spacing: 4) {
-            Text(isEnglishCopy ? "Low instrument" : "低音楽器")
-                .font(.caption)
-            Picker(isEnglishCopy ? "Low instrument" : "低音楽器", selection: $voiceLowPitchShift) {
-                Text(isEnglishCopy ? "Off" : "オフ").tag(VoiceLowPitchShift.off)
-                Text("+1 octave").tag(VoiceLowPitchShift.plus12)
-                Text(isEnglishCopy ? "+2 octaves" : "+2 octave").tag(VoiceLowPitchShift.plus24)
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: voiceLowPitchShift) { newValue in
-                NoteInputPreferences.voiceLowPitchShift = newValue.rawValue
-                PitchInputEngine.shared.setLowPitchShift(newValue)
-            }
-            Text(isEnglishCopy
-                 ? "Raises low notes before recognition, then maps the result back. Use +2 octaves for bass."
-                 : "低い音を上げてから認識し、音高は元に戻します。ベースは +2 octave。")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-
         Toggle(isEnglishCopy ? "Fast response" : "高速反応", isOn: $voiceFastResponse)
             .font(.caption)
             .onChange(of: voiceFastResponse) { newValue in
@@ -272,9 +247,7 @@ struct DefenseTutorialInputPanelView: View {
         permission = PitchInputEngine.microphonePermission
         try? await PitchInputEngine.shared.start()
         PitchInputEngine.shared.setSensitivity(NoteInputPreferences.micSensitivity)
-        PitchInputEngine.shared.setLowPitchShift(
-            VoiceLowPitchShift.normalize(NoteInputPreferences.voiceLowPitchShift)
-        )
+        PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
         refreshMonitor()
     }
 

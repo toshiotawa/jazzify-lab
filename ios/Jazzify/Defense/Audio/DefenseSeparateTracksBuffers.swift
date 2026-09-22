@@ -105,11 +105,12 @@ enum DefenseSeparateTracksBuffers {
 
         for index in 0..<overlapFrames {
             let head = samples[index]
-            let tail = samples[samples.count - overlapFrames + index]
+            let tailIndex = samples.count - overlapFrames + index
+            let tail = samples[tailIndex]
             let progress = Double(index) / Double(overlapFrames)
             let fadeOut = Float(cos((Double.pi / 2) * progress))
             let fadeIn = Float(sin((Double.pi / 2) * progress))
-            samples[index] = head * fadeOut + tail * fadeIn
+            samples[tailIndex] = tail * fadeOut + head * fadeIn
         }
     }
 

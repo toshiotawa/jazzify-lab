@@ -4,19 +4,6 @@
 
 import * as ort from 'onnxruntime-web';
 import {
-  frameSecFromShift,
-  normalizeVoiceLowPitchShift,
-  pitchShiftSemitonesFromShift,
-  type VoiceLowPitchShift,
-} from '@/utils/pitchInput/pitchOctaveUpsample';
-import {
-  YIN_FRAME_SEC,
-  YinPitchProcessor,
-  hzToMidi,
-  scaleOnsetConfigForYin,
-  usesYinPitchDetection,
-} from '@/utils/pitchInput/yinPitch';
-import {
   PitchOnsetTracker,
   scaleOnsetConfigForSensitivity,
   type PitchOnsetTrackerConfig,
@@ -24,6 +11,7 @@ import {
 
 const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-240-refill.onnx';
 const CHUNK_SIZE = 240;
+const FRAME_SEC = CHUNK_SIZE / 48_000;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
@@ -32,7 +20,6 @@ ort.env.wasm.wasmPaths = '/ort/';
 interface WorkerInitMessage {
   type: 'init';
   sensitivity: number;
-  lowPitchShift?: VoiceLowPitchShift;
   config?: Partial<PitchOnsetTrackerConfig>;
 }
 
@@ -47,11 +34,6 @@ interface WorkerControlMessage {
   sensitivity: number;
 }
 
-interface WorkerSetLowPitchShiftMessage {
-  type: 'setLowPitchShift';
-  shift: VoiceLowPitchShift;
-}
-
 interface WorkerSetOnsetConfigMessage {
   type: 'setOnsetConfig';
   config: Partial<PitchOnsetTrackerConfig>;
@@ -64,7 +46,6 @@ interface WorkerConnectPortMessage {
 type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
-  | WorkerSetLowPitchShiftMessage
   | WorkerSetOnsetConfigMessage
   | WorkerConnectPortMessage;
 
@@ -106,7 +87,6 @@ let audioTensor: ort.Tensor | null = null;
 let cacheData: Float32Array | null = null;
 let audioData: Float32Array | null = null;
 let tracker: PitchOnsetTracker | null = null;
-let yinProcessor = new YinPitchProcessor();
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
@@ -116,10 +96,7 @@ let emaCaptureIntervalMs = 0;
 let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
 let sensitivityLevel = 5;
-let lowPitchShift: VoiceLowPitchShift = 0;
 let pitchStableFramesOverride = 4;
-let frameSec = frameSecFromShift(0);
-let pendingShift: VoiceLowPitchShift | null = null;
 
 const LATENCY_EMA_ALPHA = 0.1;
 const MONITOR_POST_INTERVAL = 60;
@@ -170,11 +147,7 @@ const resetLatencyStats = (): void => {
 
 const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
   const base = scaleOnsetConfigForSensitivity(sensitivityLevel);
-  const withStableFrames = { ...base, pitchStableFrames: pitchStableFramesOverride };
-  if (usesYinPitchDetection(lowPitchShift)) {
-    return scaleOnsetConfigForYin(withStableFrames);
-  }
-  return withStableFrames;
+  return { ...base, pitchStableFrames: pitchStableFramesOverride };
 };
 
 const applyTrackerConfig = (): void => {
@@ -183,25 +156,6 @@ const applyTrackerConfig = (): void => {
 
 const resetInferenceState = (): void => {
   cacheData?.fill(0);
-  yinProcessor.reset();
-  frameSec = usesYinPitchDetection(lowPitchShift) ? YIN_FRAME_SEC : frameSecFromShift(0);
-};
-
-const emitTrackerFlush = (audioContextTime: number): void => {
-  if (!tracker) return;
-  const flushEvents = tracker.flushActiveNote(frameIndex);
-  for (const event of flushEvents) {
-    post({ type: 'noteOff', note: event.note, audioContextTime });
-  }
-};
-
-const applyLowPitchShift = (shift: VoiceLowPitchShift): void => {
-  if (shift === lowPitchShift) return;
-  lowPitchShift = shift;
-  yinProcessor.setShift(shift);
-  emitTrackerFlush(performance.now() / 1000);
-  resetInferenceState();
-  applyTrackerConfig();
 };
 
 const initSession = async (): Promise<void> => {
@@ -228,48 +182,12 @@ const emitTrackerEvents = (
   for (const event of events) {
     if (event.type === 'noteOn') {
       const backdatedFrames = event.frameIndex - event.onsetFrameIndex;
-      const onsetAudioContextTime = audioContextTime - backdatedFrames * frameSec;
+      const onsetAudioContextTime = audioContextTime - backdatedFrames * FRAME_SEC;
       post({ type: 'noteOn', note: event.note, audioContextTime: onsetAudioContextTime });
     } else {
       post({ type: 'noteOff', note: event.note, audioContextTime });
     }
   }
-};
-
-const runYinAnalysis = (
-  samples: Float32Array,
-  audioContextTime: number,
-): void => {
-  if (!tracker) {
-    recycle(samples);
-    return;
-  }
-
-  const inferenceStart = performance.now();
-  const results = yinProcessor.push(samples);
-  emaInferenceMs = updateEma(emaInferenceMs, performance.now() - inferenceStart);
-
-  const frameDuration = frameSec;
-  const hopSec = YIN_FRAME_SEC;
-  const resultCount = results.length;
-  for (let resultIndex = 0; resultIndex < resultCount; resultIndex += 1) {
-    const result = results[resultIndex];
-    if (!result) continue;
-    const frameTime = audioContextTime
-      - (resultCount - 1 - resultIndex) * hopSec
-      - (frameDuration - hopSec);
-    const prediction = result.frequencyHz !== null ? hzToMidi(result.frequencyHz) : -1;
-    emitTrackerEvents(
-      {
-        prediction,
-        confidence: result.confidence,
-        volume: result.volume,
-      },
-      frameTime,
-    );
-  }
-
-  recycle(samples);
 };
 
 const runInference = async (
@@ -298,9 +216,8 @@ const runInference = async (
   cacheData.set(cacheOut);
 
   const rawPrediction = predictionArr[0] ?? 0;
-  const pitchShiftSemitones = pitchShiftSemitonesFromShift(lowPitchShift);
   const frame = {
-    prediction: rawPrediction > 0 ? rawPrediction - pitchShiftSemitones : rawPrediction,
+    prediction: rawPrediction,
     confidence: confidenceArr[0] ?? 0,
     volume: volumeArr[0] ?? 0,
   };
@@ -334,19 +251,10 @@ const processChunk = async (
     }
   } finally {
     isInferring = false;
-    if (pendingShift !== null) {
-      const shift = pendingShift;
-      pendingShift = null;
-      applyLowPitchShift(shift);
-    }
   }
 };
 
 const handleAudioChunk = (samples: Float32Array, audioContextTime: number): void => {
-  if (usesYinPitchDetection(lowPitchShift)) {
-    runYinAnalysis(samples, audioContextTime);
-    return;
-  }
   void processChunk(samples, audioContextTime);
 };
 
@@ -371,10 +279,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         await initSession();
       }
       sensitivityLevel = data.sensitivity;
-      lowPitchShift = normalizeVoiceLowPitchShift(data.lowPitchShift);
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
-      yinProcessor = new YinPitchProcessor();
-      yinProcessor.setShift(lowPitchShift);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
       frameIndex = 0;
       isInferring = false;
@@ -391,16 +296,6 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     if (data.type === 'setSensitivity') {
       sensitivityLevel = data.sensitivity;
       applyTrackerConfig();
-      return;
-    }
-
-    if (data.type === 'setLowPitchShift') {
-      const shift = normalizeVoiceLowPitchShift(data.shift);
-      if (isInferring) {
-        pendingShift = shift;
-        return;
-      }
-      applyLowPitchShift(shift);
       return;
     }
 

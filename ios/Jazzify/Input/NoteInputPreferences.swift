@@ -10,7 +10,6 @@ enum NoteInputPreferences {
     private static let methodKey = "jazzify.input.method"
     private static let micSensitivityKey = "jazzify.input.micSensitivity"
     private static let voiceFastResponseKey = "jazzify.input.voiceFastResponse"
-    private static let voiceLowPitchShiftKey = "jazzify.input.voiceLowPitchShift"
 
     static var inputMethod: NoteInputMethod {
         get {
@@ -32,19 +31,6 @@ enum NoteInputPreferences {
         }
         set {
             UserDefaults.standard.set(min(10, max(1, newValue)), forKey: micSensitivityKey)
-        }
-    }
-
-    /// 低音楽器向け: 認識前に 0 / 12 / 24 半音上げる
-    static var voiceLowPitchShift: Int {
-        get {
-            VoiceLowPitchShift.normalize(UserDefaults.standard.integer(forKey: voiceLowPitchShiftKey)).rawValue
-        }
-        set {
-            UserDefaults.standard.set(
-                VoiceLowPitchShift.normalize(newValue).rawValue,
-                forKey: voiceLowPitchShiftKey
-            )
         }
     }
 

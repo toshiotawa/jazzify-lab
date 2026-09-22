@@ -153,7 +153,9 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       if (settings.inputMethod === 'voice') {
         midi.disconnect();
         pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
-        pitch.setLowPitchShift(useGameStore.getState().settings.voiceLowPitchShift);
+        pitch.setPitchStableFrames(
+          useGameStore.getState().settings.voiceFastResponse ? 2 : 4,
+        );
         const deviceId =
           settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
             ? settings.selectedAudioDevice
@@ -192,8 +194,10 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
   }, [settings.voiceSensitivity]);
 
   useEffect(() => {
-    pitchControllerRef.current?.setLowPitchShift(settings.voiceLowPitchShift);
-  }, [settings.voiceLowPitchShift]);
+    pitchControllerRef.current?.setPitchStableFrames(
+      settings.voiceFastResponse ? 2 : 4,
+    );
+  }, [settings.voiceFastResponse]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume ?? 0.8);

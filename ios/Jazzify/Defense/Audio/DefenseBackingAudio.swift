@@ -35,6 +35,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var lastCommittedSwitchAtHostSec: Double = -1
     private var lastCommittedTransportStartHostSec: Double = -1
     private var switchGeneration: UInt64 = 0
+    private var outgoingStopWorkItem: DispatchWorkItem?
+
+    private static let startLeadSec = 0.15
+    private static let scheduleMinQuantumSec = 0.001
 
     /// レンダー相当の切替時刻を過ぎると増える。メインスレッドはこれを監視して譜面を切り替える。
     var didSwitchGeneration: UInt64 {
@@ -387,18 +391,22 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private func startEngine(with buffer: AVAudioPCMBuffer) throws {
         ensureGraph()
         stopPlayersAndResetPending()
+        cancelOutgoingStopWork()
         switchScheduleToken &+= 1
         activeIsA = true
         bufferA = buffer
         bufferB = nil
-        playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
+        let now = Self.hostTimeSec()
+        let transportStart = now + Self.startLeadSec
+        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: transportStart))
+        playerA.scheduleBuffer(buffer, at: when, options: [.loops])
         applyMasterMixerVolume()
         if !engine.isRunning {
             try engine.start()
         }
-        playerA.play()
+        playerA.play(at: when)
         os_unfair_lock_lock(&lock)
-        transportStartHostSec = Self.hostTimeSec()
+        transportStartHostSec = transportStart
         switchGeneration = 0
         pendingSwitchAtHostSec = -1
         pendingTransportStartHostSec = -1
@@ -408,6 +416,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     private func scheduleSwitchOnMain(buffer: AVAudioPCMBuffer) -> Int64 {
+        cancelOutgoingStopWork()
         os_unfair_lock_lock(&lock)
         let bpmSnapshot = bpm
         let beatsSnapshot = beatsPerBar
@@ -423,11 +432,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
             cutIntervalSec: barSec,
             beatSec: beatSec
         )
-        let switchAt = plan.switchAt
-        let when: AVAudioTime? = plan.immediate
-            ? nil
-            : AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
+        var switchAt = plan.switchAt
         let incoming = activeIsA ? playerB : playerA
+        let outgoing = activeIsA ? playerA : playerB
         if activeIsA {
             bufferB = buffer
         } else {
@@ -435,20 +442,30 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         incoming.stop()
         incoming.reset()
+
+        let playbackWhen: AVAudioTime
         if plan.immediate {
+            switchAt = max(now + Self.scheduleMinQuantumSec, switchAt)
+            playbackWhen = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
             let rate = max(0.1, Double(timePitch.rate))
             let overshootSec = max(0, now - plan.cutAt)
             scheduleLoopFromOffset(
                 buffer: buffer,
                 player: incoming,
-                at: nil,
+                at: playbackWhen,
                 offsetSec: overshootSec,
                 playbackRate: rate
             )
         } else {
-            incoming.scheduleBuffer(buffer, at: when, options: [.loops])
+            playbackWhen = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
+            incoming.scheduleBuffer(buffer, at: playbackWhen, options: [.loops])
         }
-        incoming.play()
+        incoming.play(at: playbackWhen)
+        scheduleOutgoingStop(
+            outgoing: outgoing,
+            atHostSec: switchAt,
+            transportStartAfter: plan.cutAt
+        )
 
         os_unfair_lock_lock(&lock)
         pendingSwitchAtHostSec = switchAt
@@ -456,6 +473,33 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
 
         return Int64((switchAt * 1_000).rounded())
+    }
+
+    private func cancelOutgoingStopWork() {
+        outgoingStopWorkItem?.cancel()
+        outgoingStopWorkItem = nil
+    }
+
+    private func scheduleOutgoingStop(
+        outgoing: AVAudioPlayerNode,
+        atHostSec: Double,
+        transportStartAfter: Double
+    ) {
+        let delay = max(0, atHostSec - Self.hostTimeSec())
+        let item = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            outgoing.stop()
+            outgoing.reset()
+            os_unfair_lock_lock(&self.lock)
+            self.lastCommittedSwitchAtHostSec = atHostSec
+            self.lastCommittedTransportStartHostSec = transportStartAfter
+            self.pendingSwitchAtHostSec = -1
+            self.pendingTransportStartHostSec = -1
+            self.switchGeneration &+= 1
+            os_unfair_lock_unlock(&self.lock)
+        }
+        outgoingStopWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
     private func scheduleLoopFromOffset(
@@ -529,6 +573,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     private func stopPlayersAndResetPending() {
+        cancelOutgoingStopWork()
         playerA.stop()
         playerB.stop()
         playerA.reset()

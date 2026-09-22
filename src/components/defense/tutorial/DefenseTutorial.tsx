@@ -81,10 +81,6 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
   ));
   const [playNonce, setPlayNonce] = useState(0);
 
-  useEffect(() => {
-    updateSettings({ voiceFastResponse: false });
-  }, [updateSettings]);
-
   const inputSetupMethod = session.screen === 'inputSetup' ? session.inputMethod : null;
   const inputMonitor = useStandaloneNoteInput({
     enabled: inputSetupMethod === 'midi' || inputSetupMethod === 'voice',
@@ -238,10 +234,8 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
             onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
             isMidiConnected={inputMonitor.isConnected}
             voiceSensitivity={settings.voiceSensitivity}
-            voiceLowPitchShift={settings.voiceLowPitchShift}
             voiceFastResponse={settings.voiceFastResponse ?? false}
             onVoiceSensitivityChange={(value) => updateSettings({ voiceSensitivity: value })}
-            onVoiceLowPitchShiftChange={(value) => updateSettings({ voiceLowPitchShift: value })}
             onVoiceFastResponseChange={(value) => updateSettings({ voiceFastResponse: value })}
             backingVolume={settings.bgmVolume}
             onBackingVolumeChange={(value) => updateSettings({ bgmVolume: value })}
