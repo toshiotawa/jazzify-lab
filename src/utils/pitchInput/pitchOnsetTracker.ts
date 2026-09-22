@@ -261,24 +261,29 @@ export class PitchOnsetTracker {
       } else if (
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
-        const octaveRelated = this.isOctaveRelatedJump(quantized);
-        if (octaveRelated && this.isLikelyOctaveJump(quantized, levelDb, frame.confidence)) {
-          // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-        } else if (this.shouldCommitPitchChange(
-          quantized,
-          levelDb,
-          frame.confidence,
-          octaveRelated,
-        )) {
-          this.suspendedNote = -1;
-          this.emitNoteOff(events, this.currentNote, frameIndex);
-          this.emitNoteOn(
-            events,
+        if (this.shouldTreatRepeatModePitchWobble(quantized)) {
+          this.updateRepeatPeakAndDip(levelDb);
+          this.tryRetrigger(events, levelDb, frameIndex);
+        } else {
+          const octaveRelated = this.isOctaveRelatedJump(quantized);
+          if (octaveRelated && this.isLikelyOctaveJump(quantized, levelDb, frame.confidence)) {
+            // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
+          } else if (this.shouldCommitPitchChange(
             quantized,
-            frameIndex,
-            frameIndex - this.pitchStableCount + 1,
             levelDb,
-          );
+            frame.confidence,
+            octaveRelated,
+          )) {
+            this.suspendedNote = -1;
+            this.emitNoteOff(events, this.currentNote, frameIndex);
+            this.emitNoteOn(
+              events,
+              quantized,
+              frameIndex,
+              frameIndex - this.pitchStableCount + 1,
+              levelDb,
+            );
+          }
         }
       } else {
         if (this.isRepeatPitchClassActive(this.currentNote)) {
@@ -462,6 +467,17 @@ export class PitchOnsetTracker {
     if (note < 0 || this.repeatPitchClassMask === 0) return false;
     const pitchClass = ((note % 12) + 12) % 12;
     return (this.repeatPitchClassMask & (1 << pitchClass)) !== 0;
+  }
+
+  /** 同音連打待ち中の半音以内揺れは再発音にしない（音量リトリガのみ）。 */
+  private shouldTreatRepeatModePitchWobble(quantized: number): boolean {
+    if (this.currentNote < 0 || !this.isRepeatPitchClassActive(this.currentNote)) {
+      return false;
+    }
+    if (quantized === this.currentNote) {
+      return true;
+    }
+    return Math.abs(quantized - this.currentNote) === 1;
   }
 
   private updateRepeatPeakAndDip(levelDb: number): void {

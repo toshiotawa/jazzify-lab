@@ -595,4 +595,121 @@ describe('PitchOnsetTracker', () => {
       { type: 'noteOn', note: 60, frameIndex: 4, onsetFrameIndex: 2 },
     ]);
   });
+
+  it('suppresses repeat-mode same-midi pitch wobble without volume dip', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const flat: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const wobbleA: PitchFrame = { prediction: 60.45, confidence: 0.9, volume: 0.01 };
+    const wobbleB: PitchFrame = { prediction: 59.55, confidence: 0.9, volume: 0.01 };
+
+    const noteOns = collectNoteOns(tracker, [
+      { frame: flat, index: 0 },
+      { frame: flat, index: 1 },
+      { frame: wobbleA, index: 2 },
+      { frame: wobbleB, index: 3 },
+      { frame: wobbleA, index: 4 },
+      { frame: flat, index: 5 },
+    ]);
+    expect(noteOns).toEqual([60]);
+  });
+
+  it('suppresses repeat-mode neighbor semitone wobble without volume dip', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+      fastResponse: false,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const flat: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const neighbor: PitchFrame = { prediction: 61, confidence: 0.9, volume: 0.01 };
+
+    const noteOns = collectNoteOns(tracker, [
+      { frame: flat, index: 0 },
+      { frame: flat, index: 1 },
+      { frame: neighbor, index: 2 },
+      { frame: neighbor, index: 3 },
+      { frame: flat, index: 4 },
+      { frame: flat, index: 5 },
+    ]);
+    expect(noteOns).toEqual([60]);
+  });
+
+  it('retriggers repeat-mode note after dip and rise during semitone wobble', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const wobble: PitchFrame = { prediction: 61, confidence: 0.9, volume: 0.01 };
+    const dip: PitchFrame = { prediction: 60.45, confidence: 0.9, volume: 0.0063 };
+    const rise: PitchFrame = { prediction: 59.55, confidence: 0.9, volume: 0.016 };
+
+    const noteOns = collectNoteOns(tracker, [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: wobble, index: 3 },
+      { frame: dip, index: 4 },
+      { frame: dip, index: 5 },
+      { frame: rise, index: 6 },
+      { frame: rise, index: 7 },
+    ]);
+    expect(noteOns).toEqual([60, 60]);
+  });
+
+  it('still switches legato by semitone without repeat mask', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      fastResponse: false,
+      onsetImmediateConfidence: 2,
+    });
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced61: PitchFrame = { prediction: 61, confidence: 0.9, volume: 0.01 };
+
+    tracker.processFrame(voiced60, 0);
+    tracker.processFrame(voiced60, 1);
+    expect(tracker.processFrame(voiced61, 2)).toEqual([]);
+    expect(tracker.processFrame(voiced61, 3)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 3 },
+      { type: 'noteOn', note: 61, frameIndex: 3, onsetFrameIndex: 2 },
+    ]);
+  });
+
+  it('still switches legato by two semitones with repeat mask active', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      fastResponse: false,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60, 62], 1 << 0);
+    const voiced60: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const voiced62: PitchFrame = { prediction: 62, confidence: 0.9, volume: 0.01 };
+
+    tracker.processFrame(voiced60, 0);
+    tracker.processFrame(voiced60, 1);
+    expect(tracker.processFrame(voiced62, 2)).toEqual([]);
+    expect(tracker.processFrame(voiced62, 3)).toEqual([
+      { type: 'noteOff', note: 60, frameIndex: 3 },
+      { type: 'noteOn', note: 62, frameIndex: 3, onsetFrameIndex: 2 },
+    ]);
+  });
 });

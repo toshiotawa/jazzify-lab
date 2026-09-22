@@ -347,4 +347,110 @@ final class PitchOnsetTrackerTests: XCTestCase {
             XCTFail("Expected noteOn")
         }
     }
+
+    func testSuppressesRepeatModeSameMidiPitchWobbleWithoutVolumeDip() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        config.repeatDipDb = 2
+        config.repeatRiseDb = 4
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [60], repeatPitchClassMask: 1 << 0)
+        let flat = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let wobbleA = PitchFrame(prediction: 60.45, confidence: 0.9, volume: 0.01)
+        let wobbleB = PitchFrame(prediction: 59.55, confidence: 0.9, volume: 0.01)
+        var noteOnCount = 0
+        for (frame, index) in [
+            (flat, 0), (flat, 1), (wobbleA, 2), (wobbleB, 3), (wobbleA, 4), (flat, 5),
+        ] {
+            let events = tracker.processFrame(frame, frameIndex: index)
+            noteOnCount += events.filter {
+                if case .noteOn = $0 { return true }
+                return false
+            }.count
+        }
+        XCTAssertEqual(noteOnCount, 1)
+    }
+
+    func testSuppressesRepeatModeNeighborSemitoneWobbleWithoutVolumeDip() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        config.repeatDipDb = 2
+        config.repeatRiseDb = 4
+        config.onsetImmediateConfidence = 2
+        config.fastResponse = false
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [60], repeatPitchClassMask: 1 << 0)
+        let flat = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let neighbor = PitchFrame(prediction: 61, confidence: 0.9, volume: 0.01)
+        var noteOnCount = 0
+        for (frame, index) in [
+            (flat, 0), (flat, 1), (neighbor, 2), (neighbor, 3), (flat, 4), (flat, 5),
+        ] {
+            let events = tracker.processFrame(frame, frameIndex: index)
+            noteOnCount += events.filter {
+                if case .noteOn = $0 { return true }
+                return false
+            }.count
+        }
+        XCTAssertEqual(noteOnCount, 1)
+    }
+
+    func testRetriggersRepeatModeNoteAfterDipAndRiseDuringSemitoneWobble() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        config.repeatDipDb = 2
+        config.repeatRiseDb = 4
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [60], repeatPitchClassMask: 1 << 0)
+        let peak = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let wobble = PitchFrame(prediction: 61, confidence: 0.9, volume: 0.01)
+        let dip = PitchFrame(prediction: 60.45, confidence: 0.9, volume: 0.0063)
+        let rise = PitchFrame(prediction: 59.55, confidence: 0.9, volume: 0.016)
+        var noteOnCount = 0
+        for (frame, index) in [
+            (peak, 0), (peak, 1), (peak, 2), (wobble, 3),
+            (dip, 4), (dip, 5), (rise, 6), (rise, 7),
+        ] {
+            let events = tracker.processFrame(frame, frameIndex: index)
+            noteOnCount += events.filter {
+                if case .noteOn = $0 { return true }
+                return false
+            }.count
+        }
+        XCTAssertEqual(noteOnCount, 2)
+    }
+
+    func testStillSwitchesLegatoBySemitoneWithoutRepeatMask() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = false
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced60 = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let voiced61 = PitchFrame(prediction: 61, confidence: 0.9, volume: 0.01)
+
+        _ = tracker.processFrame(voiced60, frameIndex: 0)
+        _ = tracker.processFrame(voiced60, frameIndex: 1)
+        XCTAssertTrue(tracker.processFrame(voiced61, frameIndex: 2).isEmpty)
+        let events = tracker.processFrame(voiced61, frameIndex: 3)
+        XCTAssertEqual(events.count, 2)
+        if case let .noteOff(note, frameIndex) = events[0] {
+            XCTAssertEqual(note, 60)
+            XCTAssertEqual(frameIndex, 3)
+        } else {
+            XCTFail("Expected noteOff first")
+        }
+        if case let .noteOn(note, frameIndex, onsetFrameIndex) = events[1] {
+            XCTAssertEqual(note, 61)
+            XCTAssertEqual(frameIndex, 3)
+            XCTAssertEqual(onsetFrameIndex, 2)
+        } else {
+            XCTFail("Expected noteOn second")
+        }
+    }
 }

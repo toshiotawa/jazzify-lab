@@ -186,24 +186,29 @@ final class PitchOnsetTracker {
                     )
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
-                let octaveRelated = isOctaveRelatedJump(quantized: quantized)
-                if octaveRelated, isLikelyOctaveJump(quantized: quantized, levelDb: levelDb, confidence: frame.confidence) {
-                    // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-                } else if shouldCommitPitchChange(
-                    quantized: quantized,
-                    levelDb: levelDb,
-                    confidence: frame.confidence,
-                    octaveRelated: octaveRelated
-                ) {
-                    suspendedNote = -1
-                    emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
-                    emitNoteOn(
-                        &events,
-                        note: quantized,
-                        frameIndex: frameIndex,
-                        onsetFrameIndex: frameIndex - pitchStableCount + 1,
-                        levelDb: levelDb
-                    )
+                if shouldTreatRepeatModePitchWobble(quantized: quantized) {
+                    updateRepeatPeakAndDip(levelDb: levelDb)
+                    tryRetrigger(&events, levelDb: levelDb, frameIndex: frameIndex)
+                } else {
+                    let octaveRelated = isOctaveRelatedJump(quantized: quantized)
+                    if octaveRelated, isLikelyOctaveJump(quantized: quantized, levelDb: levelDb, confidence: frame.confidence) {
+                        // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
+                    } else if shouldCommitPitchChange(
+                        quantized: quantized,
+                        levelDb: levelDb,
+                        confidence: frame.confidence,
+                        octaveRelated: octaveRelated
+                    ) {
+                        suspendedNote = -1
+                        emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
+                        emitNoteOn(
+                            &events,
+                            note: quantized,
+                            frameIndex: frameIndex,
+                            onsetFrameIndex: frameIndex - pitchStableCount + 1,
+                            levelDb: levelDb
+                        )
+                    }
                 }
             } else {
                 if isRepeatPitchClassActive(note: currentNote) {
@@ -391,6 +396,13 @@ final class PitchOnsetTracker {
         guard note >= 0, repeatPitchClassMask != 0 else { return false }
         let pitchClass = ((note % 12) + 12) % 12
         return (repeatPitchClassMask & (1 << pitchClass)) != 0
+    }
+
+    /// 同音連打待ち中の半音以内揺れは再発音にしない（音量リトリガのみ）。
+    private func shouldTreatRepeatModePitchWobble(quantized: Int) -> Bool {
+        guard currentNote >= 0, isRepeatPitchClassActive(note: currentNote) else { return false }
+        if quantized == currentNote { return true }
+        return abs(quantized - currentNote) == 1
     }
 
     private func updateRepeatPeakAndDip(levelDb: Double) {
