@@ -150,6 +150,10 @@ export const useStandaloneNoteInput = ({
     pitchRef.current?.setSensitivity(settings.voiceSensitivity);
   }, [settings.voiceSensitivity]);
 
+  useEffect(() => {
+    pitchRef.current?.setLowPitchShift(settings.voiceLowPitchShift);
+  }, [settings.voiceLowPitchShift]);
+
   const connect = useCallback(async () => {
     const generation = connectGenerationRef.current + 1;
     connectGenerationRef.current = generation;
@@ -172,6 +176,7 @@ export const useStandaloneNoteInput = ({
       midi.disconnect();
       pitch.setPitchStableFrames(voiceFastResponse ? 2 : 4);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
+      pitch.setLowPitchShift(useGameStore.getState().settings.voiceLowPitchShift);
       const deviceId =
         settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
           ? settings.selectedAudioDevice

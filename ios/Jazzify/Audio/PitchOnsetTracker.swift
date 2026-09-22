@@ -62,6 +62,16 @@ final class PitchOnsetTracker {
         pendingOffFrame = -1
     }
 
+    func flushActiveNote(frameIndex: Int) -> [PitchInputEvent] {
+        guard currentNote >= 0 else {
+            reset()
+            return []
+        }
+        let events: [PitchInputEvent] = [.noteOff(note: currentNote, frameIndex: frameIndex)]
+        reset()
+        return events
+    }
+
     /// MIDI ノート番号として扱える prediction か（非有限・範囲外は除外して Int 変換トラップを防ぐ）。
     private static func quantizePrediction(_ prediction: Double) -> Int? {
         guard prediction.isFinite,

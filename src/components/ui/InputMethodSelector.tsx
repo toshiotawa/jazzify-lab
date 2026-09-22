@@ -147,6 +147,36 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 : '高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。'}
             </p>
           </label>
+          <div>
+            <div className="mb-2 text-xs text-purple-200">
+              {en ? 'Low instrument' : '低音楽器'}
+            </div>
+            <div className="flex gap-2">
+              {([
+                [0, en ? 'Off' : 'オフ'],
+                [12, en ? '+1 octave' : '+1 octave'],
+                [24, en ? '+2 octaves' : '+2 octave'],
+              ] as const).map(([shift, label]) => (
+                <button
+                  key={shift}
+                  type="button"
+                  onClick={() => updateSettings({ voiceLowPitchShift: shift })}
+                  className={`flex-1 rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
+                    settings.voiceLowPitchShift === shift
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              {en
+                ? 'Raises low notes before recognition, then maps the result back. Use +2 octaves for bass. Response may feel slightly slower.'
+                : '低い音を上げてから認識し、音高は元に戻します。ベースは +2 octave。反応は少し遅くなります。'}
+            </p>
+          </div>
           <p className="text-xs text-gray-400 font-mono">
             {en
               ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`

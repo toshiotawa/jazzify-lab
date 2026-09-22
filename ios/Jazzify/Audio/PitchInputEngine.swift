@@ -17,7 +17,7 @@ final class PitchInputEngine: @unchecked Sendable {
     static let shared = PitchInputEngine()
 
     private static let chunkSize = 240
-    private static let frameSec = Double(chunkSize) / targetSampleRate
+    private static let baseFrameSec = Double(chunkSize) / targetSampleRate
     /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕（80ms @ 5ms hop）。
     private static let poolSlotCount = 16
     /// connect/start 前に HW フォーマットが揃うまで待つ最大回数。
@@ -47,6 +47,15 @@ final class PitchInputEngine: @unchecked Sendable {
     private let cacheBuffer: UnsafeMutablePointer<Float>
     private let tracker = PitchOnsetTracker()
     private var frameIndex = 0
+    private var inferenceFrameSec = PitchInputEngine.baseFrameSec
+    private var configuredSensitivity = 5
+    private var configuredPitchStableFrames = 4
+
+    // MARK: - tap スレッド専有（upsampler / シフト反映）
+
+    private let shiftLock = OSAllocatedUnfairLock(initialState: VoiceLowPitchShift.off)
+    private let upsampler = PitchOctaveUpsamplerState()
+    private var lastAppliedDecimationFactor = 1
 
     // MARK: - スレッド間共有（ロック保護）
 
@@ -159,21 +168,44 @@ final class PitchInputEngine: @unchecked Sendable {
     // MARK: - 設定
 
     func setSensitivity(_ level: Int) {
-        let config = PitchOnsetSensitivity.scaleConfig(sensitivity: level)
-        inferenceQueue.async { [tracker] in
-            tracker.setConfig(config)
+        configuredSensitivity = max(1, min(10, level))
+        inferenceQueue.async { [self] in
+            self.applyTrackerConfig()
+        }
+    }
+
+    func setLowPitchShift(_ shift: VoiceLowPitchShift) {
+        shiftLock.withLock { $0 = shift }
+        inferenceQueue.async { [self] in
+            self.applyLowPitchShift(shift)
         }
     }
 
     func setPitchStableFrames(_ frames: Int) {
-        let clamped = max(1, min(8, frames))
-        inferenceQueue.async { [tracker] in
-            var config = PitchOnsetSensitivity.scaleConfig(
-                sensitivity: NoteInputPreferences.micSensitivity
-            )
-            config.pitchStableFrames = clamped
-            tracker.setConfig(config)
+        configuredPitchStableFrames = max(1, min(8, frames))
+        inferenceQueue.async { [self] in
+            self.applyTrackerConfig()
         }
+    }
+
+    private func applyTrackerConfig() {
+        let shift = shiftLock.withLock { $0 }
+        var config = PitchOnsetSensitivity.scaleConfig(sensitivity: configuredSensitivity)
+        config.pitchStableFrames = configuredPitchStableFrames
+        config = PitchOctaveUpsampler.scaleOnsetConfig(config, factor: shift.decimationFactor)
+        tracker.setConfig(config)
+    }
+
+    private func applyLowPitchShift(_ shift: VoiceLowPitchShift) {
+        let flushEvents = tracker.flushActiveNote(frameIndex: frameIndex)
+        for event in flushEvents {
+            if case let .noteOff(note, _) = event {
+                notify(status: 0x80, note: note, velocity: 0, hostTime: 0)
+            }
+        }
+        cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
+        inferenceFrameSec = shift.frameSec
+        applyTrackerConfig()
     }
 
     // MARK: - 購読
@@ -728,11 +760,20 @@ final class PitchInputEngine: @unchecked Sendable {
     }
 
     private func resetInferenceState() {
+        let shift = VoiceLowPitchShift.normalize(NoteInputPreferences.voiceLowPitchShift)
+        shiftLock.withLock { $0 = shift }
         inferenceQueue.async { [self] in
-            tracker.reset()
-            frameIndex = 0
-            cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
+            self.configuredSensitivity = NoteInputPreferences.micSensitivity
+            self.configuredPitchStableFrames = NoteInputPreferences.pitchStableFrames
+            self.tracker.reset()
+            self.frameIndex = 0
+            self.inferenceFrameSec = shift.frameSec
+            self.cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
+            self.applyTrackerConfig()
         }
+        upsampler.setShift(shift)
+        ringWriteIndex = 0
+        lastAppliedDecimationFactor = shift.decimationFactor
         inferenceDispatchLock.withLock { state in
             state.isInferring = false
             state.pendingSlot = nil
@@ -776,11 +817,33 @@ final class PitchInputEngine: @unchecked Sendable {
     ) {
         guard count > 0 else { return }
 
+        let shift = shiftLock.withLock { $0 }
+        if shift.decimationFactor != lastAppliedDecimationFactor {
+            ringWriteIndex = 0
+            lastAppliedDecimationFactor = shift.decimationFactor
+        }
+        upsampler.setShift(shift)
+
+        if shift.decimationFactor == 1 {
+            appendRawSamples(samples, count: count, hostTime: hostTime)
+            return
+        }
+
+        upsampler.push(samples: samples, count: count) { [self] chunkBase in
+            self.enqueueFullChunk(chunkBase, hostTime: hostTime)
+        }
+    }
+
+    private func appendRawSamples(
+        _ samples: UnsafePointer<Float>,
+        count: Int,
+        hostTime: UInt64
+    ) {
         let chunkSize = Self.chunkSize
         var slotBase = chunkPool + poolSlot * chunkSize
 
-        for i in 0..<count {
-            slotBase[ringWriteIndex] = samples[i]
+        for index in 0..<count {
+            slotBase[ringWriteIndex] = samples[index]
             ringWriteIndex += 1
             if ringWriteIndex >= chunkSize {
                 ringWriteIndex = 0
@@ -794,6 +857,24 @@ final class PitchInputEngine: @unchecked Sendable {
                 enqueueInference(slot: slot, hostTime: adjustedHostTime)
             }
         }
+    }
+
+    private func enqueueFullChunk(
+        _ chunkBase: UnsafeMutablePointer<Float>,
+        hostTime: UInt64
+    ) {
+        let chunkSize = Self.chunkSize
+        let slot = poolSlot
+        let slotBase = chunkPool + slot * chunkSize
+        for index in 0..<chunkSize {
+            slotBase[index] = chunkBase[index]
+        }
+        poolSlot = (poolSlot + 1) % Self.poolSlotCount
+        let adjustedHostTime = Self.hostTimeBackdated(
+            bySec: cachedInputLatencySec,
+            from: hostTime
+        )
+        enqueueInference(slot: slot, hostTime: adjustedHostTime)
     }
 
     private func enqueueInference(slot: Int, hostTime: UInt64) {
@@ -881,16 +962,20 @@ final class PitchInputEngine: @unchecked Sendable {
                 }
             }
 
-            let prediction = Double(readScalar(outputs["prediction"]))
+            let rawPrediction = Double(readScalar(outputs["prediction"]))
             let confidence = Double(readScalar(outputs["confidence"]))
             let volume = Double(readScalar(outputs["volume"]))
-            guard prediction.isFinite, confidence.isFinite, volume.isFinite, volume >= 0 else {
+            guard rawPrediction.isFinite, confidence.isFinite, volume.isFinite, volume >= 0 else {
                 cacheBuffer.update(repeating: 0, count: cacheCount)
                 return
             }
 
+            let pitchShiftSemitones = shiftLock.withLock { $0.pitchShiftSemitones }
+            let adjustedPrediction = rawPrediction > 0
+                ? rawPrediction - Double(pitchShiftSemitones)
+                : rawPrediction
             let frame = PitchFrame(
-                prediction: prediction,
+                prediction: adjustedPrediction,
                 confidence: confidence,
                 volume: volume
             )
@@ -905,7 +990,7 @@ final class PitchInputEngine: @unchecked Sendable {
                 case let .noteOn(note, frameIndex, onsetFrameIndex):
                     let backdatedFrames = frameIndex - onsetFrameIndex
                     let onsetHostTime = Self.hostTimeBackdated(
-                        bySec: Double(backdatedFrames) * Self.frameSec,
+                        bySec: Double(backdatedFrames) * inferenceFrameSec,
                         from: hostTime
                     )
                     notify(status: 0x90, note: note, velocity: 64, hostTime: onsetHostTime)

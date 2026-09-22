@@ -9,6 +9,9 @@ struct InputMethodSection: View {
     @ObservedObject private var midiManager = MIDIManager.shared
     @State private var inputMethod: NoteInputMethod = NoteInputPreferences.inputMethod
     @State private var micSensitivity: Double = Double(NoteInputPreferences.micSensitivity)
+    @State private var voiceLowPitchShift: VoiceLowPitchShift = VoiceLowPitchShift.normalize(
+        NoteInputPreferences.voiceLowPitchShift
+    )
     @State private var permission: PitchInputEngine.MicrophonePermission = .undetermined
     @State private var hasHeadphones = true
     @State private var monitorVolume: Double = 0
@@ -70,6 +73,7 @@ struct InputMethodSection: View {
         .onAppear {
             inputMethod = NoteInputPreferences.inputMethod
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
+            voiceLowPitchShift = VoiceLowPitchShift.normalize(NoteInputPreferences.voiceLowPitchShift)
             voiceFastResponse = NoteInputPreferences.voiceFastResponse
             midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
@@ -233,6 +237,28 @@ struct InputMethodSection: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isEnglishCopy ? "Low instrument" : "低音楽器")
+                .font(.caption)
+            Picker(isEnglishCopy ? "Low instrument" : "低音楽器", selection: $voiceLowPitchShift) {
+                Text(isEnglishCopy ? "Off" : "オフ").tag(VoiceLowPitchShift.off)
+                Text("+1 octave").tag(VoiceLowPitchShift.plus12)
+                Text(isEnglishCopy ? "+2 octaves" : "+2 octave").tag(VoiceLowPitchShift.plus24)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: voiceLowPitchShift) { newValue in
+                NoteInputPreferences.voiceLowPitchShift = newValue.rawValue
+                PitchInputEngine.shared.setLowPitchShift(newValue)
+            }
+            Text(
+                isEnglishCopy
+                    ? "Raises low notes before recognition, then maps the result back. Use +2 octaves for bass. Response may feel slightly slower."
+                    : "低い音を上げてから認識し、音高は元に戻します。ベースは +2 octave。反応は少し遅くなります。"
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
     }
 
     private func refreshHeadphoneState() {
@@ -250,6 +276,9 @@ struct InputMethodSection: View {
         do {
             try await PitchInputEngine.shared.start()
             PitchInputEngine.shared.setSensitivity(NoteInputPreferences.micSensitivity)
+            PitchInputEngine.shared.setLowPitchShift(
+                VoiceLowPitchShift.normalize(NoteInputPreferences.voiceLowPitchShift)
+            )
         } catch {
             monitorError = error.localizedDescription
         }

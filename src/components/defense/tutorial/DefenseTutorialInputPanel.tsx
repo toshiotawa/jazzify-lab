@@ -11,8 +11,10 @@ interface DefenseTutorialInputPanelProps {
   readonly onMidiDeviceChange: (deviceId: string | null) => void;
   readonly isMidiConnected: boolean;
   readonly voiceSensitivity: number;
+  readonly voiceLowPitchShift: 0 | 12 | 24;
   readonly voiceFastResponse: boolean;
   readonly onVoiceSensitivityChange: (value: number) => void;
+  readonly onVoiceLowPitchShiftChange: (value: 0 | 12 | 24) => void;
   readonly onVoiceFastResponseChange: (enabled: boolean) => void;
   readonly backingVolume: number;
   readonly onBackingVolumeChange: (value: number) => void;
@@ -61,8 +63,10 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
   onMidiDeviceChange,
   isMidiConnected,
   voiceSensitivity,
+  voiceLowPitchShift,
   voiceFastResponse,
   onVoiceSensitivityChange,
+  onVoiceLowPitchShiftChange,
   onVoiceFastResponseChange,
   backingVolume,
   onBackingVolumeChange,
@@ -173,6 +177,36 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
             : 'おすすめ: 5。高いほど小さな音でも検出されやすくなります。拾いすぎる場合は下げてください。'}
         </p>
       </label>
+      <div>
+        <div className="mb-2 text-sm text-slate-200">
+          {isEnglishCopy ? 'Low instrument' : '低音楽器'}
+        </div>
+        <div className="flex gap-2">
+          {([
+            [0, isEnglishCopy ? 'Off' : 'オフ'],
+            [12, isEnglishCopy ? '+1 octave' : '+1 octave'],
+            [24, isEnglishCopy ? '+2 octaves' : '+2 octave'],
+          ] as const).map(([shift, label]) => (
+            <button
+              key={shift}
+              type="button"
+              onClick={() => onVoiceLowPitchShiftChange(shift)}
+              className={`flex-1 rounded-lg px-2 py-2 text-xs font-medium transition-colors ${
+                voiceLowPitchShift === shift
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-slate-400">
+          {isEnglishCopy
+            ? 'Raises low notes before recognition, then maps the result back. Use +2 octaves for bass.'
+            : '低い音を上げてから認識し、音高は元に戻します。ベースは +2 octave。'}
+        </p>
+      </div>
       <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
         <span>{isEnglishCopy ? 'Fast response' : '高速反応'}</span>
         <input

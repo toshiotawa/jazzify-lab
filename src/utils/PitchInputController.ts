@@ -4,6 +4,10 @@
 
 import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import {
+  normalizeVoiceLowPitchShift,
+  type VoiceLowPitchShift,
+} from '@/utils/pitchInput/pitchOctaveUpsample';
 
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
@@ -80,6 +84,7 @@ export class PitchInputController {
   private isProcessing = false;
   private sensitivityLevel = 5;
   private pitchStableFrames = 4;
+  private lowPitchShift: VoiceLowPitchShift = 0;
   private currentNote = -1;
   private cachedInputLatencySec = 0;
   /**
@@ -354,6 +359,7 @@ export class PitchInputController {
       this.worker?.postMessage({
         type: 'init',
         sensitivity: this.sensitivityLevel,
+        lowPitchShift: this.lowPitchShift,
         config: { pitchStableFrames: this.pitchStableFrames },
       });
     });
@@ -404,6 +410,18 @@ export class PitchInputController {
       type: 'setOnsetConfig',
       config: { pitchStableFrames: this.pitchStableFrames },
     });
+  }
+
+  setLowPitchShift(shift: VoiceLowPitchShift): void {
+    this.lowPitchShift = normalizeVoiceLowPitchShift(shift);
+    this.worker?.postMessage({
+      type: 'setLowPitchShift',
+      shift: this.lowPitchShift,
+    });
+  }
+
+  getLowPitchShift(): VoiceLowPitchShift {
+    return this.lowPitchShift;
   }
 
   getSensitivity(): number {

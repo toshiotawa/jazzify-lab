@@ -114,6 +114,19 @@ export class PitchOnsetTracker {
     this.pendingOffFrame = -1;
   }
 
+  /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
+  flushActiveNote(frameIndex: number): PitchInputEvent[] {
+    if (this.currentNote < 0) {
+      this.reset();
+      return [];
+    }
+    const events: PitchInputEvent[] = [
+      { type: 'noteOff', note: this.currentNote, frameIndex },
+    ];
+    this.reset();
+    return events;
+  }
+
   /** 1 フレーム処理。発生したイベントのみ返す（割当最小化）。 */
   processFrame(frame: PitchFrame, frameIndex: number): PitchInputEvent[] {
     const events: PitchInputEvent[] = [];

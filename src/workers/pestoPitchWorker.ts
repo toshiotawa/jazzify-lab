@@ -4,6 +4,15 @@
 
 import * as ort from 'onnxruntime-web';
 import {
+  PitchOctaveUpsampler,
+  decimationFactorFromShift,
+  frameSecFromShift,
+  normalizeVoiceLowPitchShift,
+  pitchShiftSemitonesFromShift,
+  scaleOnsetConfigForDecimation,
+  type VoiceLowPitchShift,
+} from '@/utils/pitchInput/pitchOctaveUpsample';
+import {
   PitchOnsetTracker,
   scaleOnsetConfigForSensitivity,
   type PitchOnsetTrackerConfig,
@@ -11,7 +20,6 @@ import {
 
 const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-240-refill.onnx';
 const CHUNK_SIZE = 240;
-const FRAME_SEC = CHUNK_SIZE / 48000;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
@@ -20,6 +28,7 @@ ort.env.wasm.wasmPaths = '/ort/';
 interface WorkerInitMessage {
   type: 'init';
   sensitivity: number;
+  lowPitchShift?: VoiceLowPitchShift;
   config?: Partial<PitchOnsetTrackerConfig>;
 }
 
@@ -34,6 +43,11 @@ interface WorkerControlMessage {
   sensitivity: number;
 }
 
+interface WorkerSetLowPitchShiftMessage {
+  type: 'setLowPitchShift';
+  shift: VoiceLowPitchShift;
+}
+
 interface WorkerSetOnsetConfigMessage {
   type: 'setOnsetConfig';
   config: Partial<PitchOnsetTrackerConfig>;
@@ -46,6 +60,7 @@ interface WorkerConnectPortMessage {
 type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
+  | WorkerSetLowPitchShiftMessage
   | WorkerSetOnsetConfigMessage
   | WorkerConnectPortMessage;
 
@@ -87,6 +102,7 @@ let audioTensor: ort.Tensor | null = null;
 let cacheData: Float32Array | null = null;
 let audioData: Float32Array | null = null;
 let tracker: PitchOnsetTracker | null = null;
+let upsampler = new PitchOctaveUpsampler();
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
@@ -95,6 +111,11 @@ let lastChunkTime = 0;
 let emaCaptureIntervalMs = 0;
 let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
+let sensitivityLevel = 5;
+let lowPitchShift: VoiceLowPitchShift = 0;
+let pitchStableFramesOverride = 4;
+let frameSec = frameSecFromShift(0);
+let pendingShift: VoiceLowPitchShift | null = null;
 
 const LATENCY_EMA_ALPHA = 0.1;
 const MONITOR_POST_INTERVAL = 60;
@@ -143,6 +164,42 @@ const resetLatencyStats = (): void => {
   monitorFrameCounter = 0;
 };
 
+const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
+  const base = scaleOnsetConfigForSensitivity(sensitivityLevel);
+  const factor = decimationFactorFromShift(lowPitchShift);
+  return scaleOnsetConfigForDecimation(
+    { ...base, pitchStableFrames: pitchStableFramesOverride },
+    factor,
+  );
+};
+
+const applyTrackerConfig = (): void => {
+  tracker?.setConfig(buildTrackerConfig());
+};
+
+const resetInferenceState = (): void => {
+  cacheData?.fill(0);
+  upsampler.reset();
+  frameSec = frameSecFromShift(lowPitchShift);
+};
+
+const emitTrackerFlush = (audioContextTime: number): void => {
+  if (!tracker) return;
+  const flushEvents = tracker.flushActiveNote(frameIndex);
+  for (const event of flushEvents) {
+    post({ type: 'noteOff', note: event.note, audioContextTime });
+  }
+};
+
+const applyLowPitchShift = (shift: VoiceLowPitchShift): void => {
+  if (shift === lowPitchShift) return;
+  lowPitchShift = shift;
+  upsampler.setShift(shift);
+  emitTrackerFlush(performance.now() / 1000);
+  resetInferenceState();
+  applyTrackerConfig();
+};
+
 const initSession = async (): Promise<void> => {
   session = await ort.InferenceSession.create(MODEL_URL, {
     executionProviders: ['wasm'],
@@ -179,8 +236,10 @@ const runInference = async (
   const cacheOut = outputs.cache_out.data as Float32Array;
   cacheData.set(cacheOut);
 
+  const rawPrediction = predictionArr[0] ?? 0;
+  const pitchShiftSemitones = pitchShiftSemitonesFromShift(lowPitchShift);
   const frame = {
-    prediction: predictionArr[0] ?? 0,
+    prediction: rawPrediction > 0 ? rawPrediction - pitchShiftSemitones : rawPrediction,
     confidence: confidenceArr[0] ?? 0,
     volume: volumeArr[0] ?? 0,
   };
@@ -192,7 +251,7 @@ const runInference = async (
   for (const event of events) {
     if (event.type === 'noteOn') {
       const backdatedFrames = event.frameIndex - event.onsetFrameIndex;
-      const onsetAudioContextTime = audioContextTime - backdatedFrames * FRAME_SEC;
+      const onsetAudioContextTime = audioContextTime - backdatedFrames * frameSec;
       post({ type: 'noteOn', note: event.note, audioContextTime: onsetAudioContextTime });
     } else {
       post({ type: 'noteOff', note: event.note, audioContextTime });
@@ -226,6 +285,24 @@ const processChunk = async (
     }
   } finally {
     isInferring = false;
+    if (pendingShift !== null) {
+      const shift = pendingShift;
+      pendingShift = null;
+      applyLowPitchShift(shift);
+    }
+  }
+};
+
+const handleAudioChunk = (samples: Float32Array, audioContextTime: number): void => {
+  if (decimationFactorFromShift(lowPitchShift) === 1) {
+    void processChunk(samples, audioContextTime);
+    return;
+  }
+
+  const emitted = upsampler.push(samples, audioContextTime);
+  recycle(samples);
+  for (const chunk of emitted) {
+    void processChunk(chunk.samples, chunk.audioContextTime);
   }
 };
 
@@ -239,7 +316,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       audioPort.onmessage = (portEvent: MessageEvent<WorkerAudioMessage>) => {
         if (portEvent.data?.type === 'audioChunk') {
           recordCaptureInterval();
-          void processChunk(portEvent.data.samples, portEvent.data.audioContextTime);
+          handleAudioChunk(portEvent.data.samples, portEvent.data.audioContextTime);
         }
       };
       return;
@@ -249,8 +326,12 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       if (!session) {
         await initSession();
       }
-      const config = scaleOnsetConfigForSensitivity(data.sensitivity);
-      tracker = new PitchOnsetTracker({ ...config, ...data.config });
+      sensitivityLevel = data.sensitivity;
+      lowPitchShift = normalizeVoiceLowPitchShift(data.lowPitchShift);
+      pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
+      upsampler = new PitchOctaveUpsampler();
+      upsampler.setShift(lowPitchShift);
+      tracker = new PitchOnsetTracker(buildTrackerConfig());
       frameIndex = 0;
       isInferring = false;
       if (pendingChunk) {
@@ -258,21 +339,32 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         pendingChunk = null;
       }
       resetLatencyStats();
-      // 再接続時に前セッションの再帰状態を持ち越さない
-      cacheData?.fill(0);
+      resetInferenceState();
       post({ type: 'ready' });
       return;
     }
 
     if (data.type === 'setSensitivity') {
-      if (tracker) {
-        tracker.setConfig(scaleOnsetConfigForSensitivity(data.sensitivity));
+      sensitivityLevel = data.sensitivity;
+      applyTrackerConfig();
+      return;
+    }
+
+    if (data.type === 'setLowPitchShift') {
+      const shift = normalizeVoiceLowPitchShift(data.shift);
+      if (isInferring) {
+        pendingShift = shift;
+        return;
       }
+      applyLowPitchShift(shift);
       return;
     }
 
     if (data.type === 'setOnsetConfig') {
-      tracker?.setConfig(data.config);
+      if (typeof data.config.pitchStableFrames === 'number') {
+        pitchStableFramesOverride = data.config.pitchStableFrames;
+      }
+      applyTrackerConfig();
       return;
     }
   } catch (error) {

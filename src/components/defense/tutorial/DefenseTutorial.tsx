@@ -238,8 +238,10 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
             onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
             isMidiConnected={inputMonitor.isConnected}
             voiceSensitivity={settings.voiceSensitivity}
+            voiceLowPitchShift={settings.voiceLowPitchShift}
             voiceFastResponse={settings.voiceFastResponse ?? false}
             onVoiceSensitivityChange={(value) => updateSettings({ voiceSensitivity: value })}
+            onVoiceLowPitchShiftChange={(value) => updateSettings({ voiceLowPitchShift: value })}
             onVoiceFastResponseChange={(value) => updateSettings({ voiceFastResponse: value })}
             backingVolume={settings.bgmVolume}
             onBackingVolumeChange={(value) => updateSettings({ bgmVolume: value })}

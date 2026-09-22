@@ -102,6 +102,9 @@ final class NoteInputManager: ObservableObject {
                 return
             }
             pitchEngine.setSensitivity(NoteInputPreferences.micSensitivity)
+            pitchEngine.setLowPitchShift(
+                VoiceLowPitchShift.normalize(NoteInputPreferences.voiceLowPitchShift)
+            )
             voicePreparing = true
             defer { voicePreparing = false }
             do {
