@@ -3,15 +3,33 @@
  */
 
 import * as ort from 'onnxruntime-web';
+import { PitchDecimationBuffer } from '@/utils/pitchInput/pitchDecimationBuffer';
+import { PitchChunkQueue } from '@/utils/pitchInput/pitchChunkQueue';
+import { PitchInputDiagnostics } from '@/utils/pitchInput/pitchInputDiagnostics';
+import {
+  createPestoDecimatorState,
+  feedPestoDecimator,
+  resetPestoDecimator,
+} from '@/utils/pitchInput/pestoDecimator';
 import {
   PitchOnsetTracker,
   scaleOnsetConfigForSensitivity,
   type PitchOnsetTrackerConfig,
 } from '@/utils/pitchInput/pitchOnsetTracker';
+import { restoreConcertMidi } from '@/utils/pitchInput/pitchShiftRestore';
+import {
+  PESTO_BASE_FRAME_SEC,
+  PESTO_CHUNK_SIZE,
+  PESTO_MODEL_ID,
+  PESTO_WARMUP_FRAMES,
+  decimationFactorForShift,
+  frameDurationMsForShift,
+  type CapturedChunk,
+  type PestoShiftSemitones,
+  type TrackerRejectReason,
+} from '@/utils/pitchInput/pitchInputTypes';
 
-const MODEL_URL = '/models/pesto/pesto-mir1k-g7-48000-240-refill.onnx';
-const CHUNK_SIZE = 240;
-const FRAME_SEC = CHUNK_SIZE / 48_000;
+const MODEL_URL = `/models/pesto/${PESTO_MODEL_ID}.onnx`;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
@@ -20,13 +38,28 @@ ort.env.wasm.wasmPaths = '/ort/';
 interface WorkerInitMessage {
   type: 'init';
   sensitivity: number;
+  generationId: number;
+  shiftSemitones: PestoShiftSemitones;
   config?: Partial<PitchOnsetTrackerConfig>;
+  diagnostics?: {
+    deviceLabel: string | null;
+    sampleRate: number | null;
+    requestedEchoCancellation: boolean;
+    actualEchoCancellation: boolean | null;
+  };
 }
 
 interface WorkerAudioMessage {
   type: 'audioChunk';
+  generationId: number;
+  sequence: number;
+  sourceStartSample: number;
+  sourceEndSample: number;
+  sourceEndTimeSec: number;
   samples: Float32Array;
-  audioContextTime: number;
+  rawRmsDbfs: number;
+  rawPeak: number;
+  clipCount: number;
 }
 
 interface WorkerControlMessage {
@@ -39,6 +72,12 @@ interface WorkerSetOnsetConfigMessage {
   config: Partial<PitchOnsetTrackerConfig>;
 }
 
+interface WorkerSetShiftMessage {
+  type: 'setShiftSemitones';
+  shiftSemitones: PestoShiftSemitones;
+  generationId: number;
+}
+
 interface WorkerConnectPortMessage {
   type: 'connectPort';
 }
@@ -47,6 +86,7 @@ type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
   | WorkerSetOnsetConfigMessage
+  | WorkerSetShiftMessage
   | WorkerConnectPortMessage;
 
 interface NoteEventMessage {
@@ -68,6 +108,7 @@ interface WorkerMonitorMessage {
   type: 'monitor';
   captureIntervalMs: number;
   inferenceMs: number;
+  diagnostics?: ReturnType<PitchInputDiagnostics['snapshot']>;
 }
 
 type WorkerOutbound =
@@ -75,11 +116,6 @@ type WorkerOutbound =
   | WorkerReadyMessage
   | WorkerErrorMessage
   | WorkerMonitorMessage;
-
-interface PendingChunk {
-  samples: Float32Array;
-  audioContextTime: number;
-}
 
 let session: ort.InferenceSession | null = null;
 let cacheTensor: ort.Tensor | null = null;
@@ -90,24 +126,32 @@ let tracker: PitchOnsetTracker | null = null;
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
-let pendingChunk: PendingChunk | null = null;
 let lastChunkTime = 0;
 let emaCaptureIntervalMs = 0;
 let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
 let sensitivityLevel = 5;
 let pitchStableFramesOverride = 4;
+let generationId = 0;
+let shiftSemitones: PestoShiftSemitones = 0;
+let frameDurationSec = PESTO_BASE_FRAME_SEC;
+let warmupFramesRemaining = 0;
+let suppressTracker = false;
+let cacheEpoch = 0;
+
+const chunkQueue = new PitchChunkQueue();
+const decimationBuffer = new PitchDecimationBuffer(1);
+let decimatorState = createPestoDecimatorState(1);
+let diagnostics: PitchInputDiagnostics | null = null;
 
 const LATENCY_EMA_ALPHA = 0.1;
 const MONITOR_POST_INTERVAL = 60;
+const CACHE_SIZE = 3976;
 
 const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
 };
 
-const CACHE_SIZE = 3976;
-
-/** Worklet から transfer されたバッファを返却して割当を発生させない。 */
 const recycle = (samples: Float32Array): void => {
   const port = audioPort;
   const buffer = samples.buffer;
@@ -130,11 +174,12 @@ const maybePostMonitor = (): void => {
   monitorFrameCounter += 1;
   if (monitorFrameCounter < MONITOR_POST_INTERVAL) return;
   monitorFrameCounter = 0;
-  if (emaCaptureIntervalMs <= 0 && emaInferenceMs <= 0) return;
+  if (emaCaptureIntervalMs <= 0 && emaInferenceMs <= 0 && !diagnostics) return;
   post({
     type: 'monitor',
     captureIntervalMs: emaCaptureIntervalMs,
     inferenceMs: emaInferenceMs,
+    diagnostics: diagnostics?.snapshot(chunkQueue.depthMs()),
   });
 };
 
@@ -145,9 +190,24 @@ const resetLatencyStats = (): void => {
   monitorFrameCounter = 0;
 };
 
+const applyShiftMode = (shift: PestoShiftSemitones): void => {
+  shiftSemitones = shift;
+  const factor = decimationFactorForShift(shift);
+  decimationBuffer.reset();
+  decimatorState = createPestoDecimatorState(factor);
+  frameDurationSec = frameDurationMsForShift(shift) / 1000;
+  applyTrackerConfig();
+};
+
 const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
   const base = scaleOnsetConfigForSensitivity(sensitivityLevel);
-  return { ...base, pitchStableFrames: pitchStableFramesOverride };
+  const factor = decimationFactorForShift(shiftSemitones);
+  return {
+    ...base,
+    pitchStableFrames: pitchStableFramesOverride,
+    frameDurationMs: frameDurationMsForShift(shiftSemitones),
+    allowImmediateFirstFrame: factor <= 1,
+  };
 };
 
 const applyTrackerConfig = (): void => {
@@ -155,7 +215,39 @@ const applyTrackerConfig = (): void => {
 };
 
 const resetInferenceState = (): void => {
+  cacheEpoch += 1;
   cacheData?.fill(0);
+  frameIndex = 0;
+  warmupFramesRemaining = PESTO_WARMUP_FRAMES;
+  suppressTracker = warmupFramesRemaining > 0;
+  diagnostics?.setWarmupFrames(warmupFramesRemaining);
+  decimationBuffer.reset();
+  resetPestoDecimator(decimatorState);
+};
+
+const flushActiveNote = (audioContextTime: number): void => {
+  if (!tracker) return;
+  const events = tracker.flushActiveNote(frameIndex);
+  for (const event of events) {
+    if (event.type === 'noteOff') {
+      post({ type: 'noteOff', note: event.note, audioContextTime });
+    }
+  }
+};
+
+const handleDiscontinuity = (chunk: CapturedChunk, reason: string): void => {
+  diagnostics?.recordDiscontinuity();
+  diagnostics?.recordDrop(chunk.sourceEndSample - chunk.sourceStartSample);
+  flushActiveNote(chunk.sourceEndTimeSec);
+  tracker?.reset();
+  resetInferenceState();
+  chunkQueue.reset(generationId, chunk.sequence);
+  const enqueued = chunkQueue.enqueue(chunk);
+  if (!enqueued.ok) {
+    recycle(chunk.samples);
+    return;
+  }
+  void drainQueue(reason);
 };
 
 const initSession = async (): Promise<void> => {
@@ -165,49 +257,131 @@ const initSession = async (): Promise<void> => {
 
   cacheData = new Float32Array(CACHE_SIZE);
   cacheTensor = new ort.Tensor('float32', cacheData, [1, CACHE_SIZE]);
-  audioData = new Float32Array(CHUNK_SIZE);
-  audioTensor = new ort.Tensor('float32', audioData, [1, CHUNK_SIZE]);
+  audioData = new Float32Array(PESTO_CHUNK_SIZE);
+  audioTensor = new ort.Tensor('float32', audioData, [1, PESTO_CHUNK_SIZE]);
+};
+
+const resolveRejectReason = (
+  modelMidi: number | null,
+  concertMidi: number | null,
+  confidence: number,
+  volume: number,
+  config: PitchOnsetTrackerConfig,
+): TrackerRejectReason => {
+  if (suppressTracker) return 'warmup';
+  const levelDb = 10 * Math.log10(Math.max(volume, 1e-12));
+  if (levelDb <= config.onsetLevelDb) return 'volume';
+  if (confidence < config.minConfidence) return 'confidence';
+  if (modelMidi === null || concertMidi === null) return 'invalidPitch';
+  return 'voiced';
 };
 
 const emitTrackerEvents = (
   frame: { prediction: number; confidence: number; volume: number },
-  audioContextTime: number,
+  chunk: CapturedChunk,
+  inferenceMs: number,
+  queueAgeMs: number,
+  modelMidi: number,
+  concertMidi: number | null,
 ): void => {
   if (!tracker) return;
 
-  const events = tracker.processFrame(frame, frameIndex);
+  const config = buildTrackerConfig();
+  const rejectReason = resolveRejectReason(
+    modelMidi,
+    concertMidi,
+    frame.confidence,
+    frame.volume,
+    config,
+  );
+
+  diagnostics?.recordObservation({
+    generationId: chunk.generationId,
+    sourceStartSample: chunk.sourceStartSample,
+    sourceEndSample: chunk.sourceEndSample,
+    sourceEndTimeSec: chunk.sourceEndTimeSec,
+    shiftSemitones,
+    modelMidi,
+    concertMidi,
+    confidence: frame.confidence,
+    modelVolume: frame.volume,
+    rawRmsDbfs: chunk.rawRmsDbfs,
+    inferenceMs,
+    queueAgeMs,
+    discontinuity: false,
+    rejectReason,
+  });
+
+  if (suppressTracker) {
+    if (warmupFramesRemaining > 0) {
+      warmupFramesRemaining -= 1;
+      diagnostics?.tickWarmup();
+      if (warmupFramesRemaining <= 0) {
+        suppressTracker = false;
+      }
+    }
+    frameIndex += 1;
+    maybePostMonitor();
+    return;
+  }
+
+  const trackerFrame = concertMidi !== null
+    ? { prediction: concertMidi, confidence: frame.confidence, volume: frame.volume }
+    : frame;
+
+  const events = tracker.processFrame(trackerFrame, frameIndex);
   frameIndex += 1;
   maybePostMonitor();
 
   for (const event of events) {
     if (event.type === 'noteOn') {
       const backdatedFrames = event.frameIndex - event.onsetFrameIndex;
-      const onsetAudioContextTime = audioContextTime - backdatedFrames * FRAME_SEC;
+      const onsetAudioContextTime = chunk.sourceEndTimeSec - backdatedFrames * frameDurationSec;
       post({ type: 'noteOn', note: event.note, audioContextTime: onsetAudioContextTime });
     } else {
-      post({ type: 'noteOff', note: event.note, audioContextTime });
+      post({ type: 'noteOff', note: event.note, audioContextTime: chunk.sourceEndTimeSec });
     }
   }
 };
 
-const runInference = async (
-  samples: Float32Array,
-  audioContextTime: number,
-): Promise<void> => {
+const runInference = async (chunk: CapturedChunk): Promise<void> => {
   if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
-    recycle(samples);
+    recycle(chunk.samples);
     return;
   }
 
+  const queueAgeMs = performance.now() - lastChunkTime;
+  const accumulated = decimationBuffer.push(chunk.samples);
+  if (!accumulated) {
+    recycle(chunk.samples);
+    return;
+  }
+
+  const preprocessStart = performance.now();
+  const modelInput = feedPestoDecimator(accumulated, decimatorState);
+  if (!modelInput) {
+    recycle(chunk.samples);
+    return;
+  }
+  const preprocessMs = performance.now() - preprocessStart;
+
   const inferenceStart = performance.now();
-  audioData.set(samples);
+  const epochAtStart = cacheEpoch;
+  const generationAtStart = generationId;
+  audioData.set(modelInput);
 
   const outputs = await session.run({
     audio: audioTensor,
     cache: cacheTensor,
   });
 
-  emaInferenceMs = updateEma(emaInferenceMs, performance.now() - inferenceStart);
+  if (epochAtStart !== cacheEpoch || generationAtStart !== generationId || chunk.generationId !== generationId) {
+    recycle(chunk.samples);
+    return;
+  }
+
+  const inferenceMs = performance.now() - inferenceStart;
+  emaInferenceMs = updateEma(emaInferenceMs, inferenceMs);
 
   const predictionArr = outputs.prediction.data as Float32Array;
   const confidenceArr = outputs.confidence.data as Float32Array;
@@ -216,46 +390,64 @@ const runInference = async (
   cacheData.set(cacheOut);
 
   const rawPrediction = predictionArr[0] ?? 0;
-  const frame = {
-    prediction: rawPrediction,
-    confidence: confidenceArr[0] ?? 0,
-    volume: volumeArr[0] ?? 0,
-  };
+  const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
+  const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
 
-  emitTrackerEvents(frame, audioContextTime);
+  emitTrackerEvents(
+    {
+      prediction: rawPrediction,
+      confidence: confidenceArr[0] ?? 0,
+      volume: volumeArr[0] ?? 0,
+    },
+    chunk,
+    inferenceMs + preprocessMs,
+    queueAgeMs,
+    modelMidi,
+    concertMidi,
+  );
 
-  recycle(samples);
+  recycle(chunk.samples);
 };
 
-const processChunk = async (
-  samples: Float32Array,
-  audioContextTime: number,
-): Promise<void> => {
-  // cacheTensor は逐次更新される再帰状態なので同時実行させない。
-  // 推論が 5ms に間に合わないときは最新 1 チャンクだけ保留し、古い保留は破棄する。
-  if (isInferring) {
-    if (pendingChunk) {
-      recycle(pendingChunk.samples);
-    }
-    pendingChunk = { samples, audioContextTime };
-    return;
-  }
-
+const drainQueue = async (_reason: string): Promise<void> => {
+  if (isInferring) return;
   isInferring = true;
   try {
-    await runInference(samples, audioContextTime);
-    while (pendingChunk) {
-      const next = pendingChunk;
-      pendingChunk = null;
-      await runInference(next.samples, next.audioContextTime);
+    let next = chunkQueue.dequeue();
+    while (next) {
+      await runInference(next);
+      next = chunkQueue.dequeue();
     }
   } finally {
     isInferring = false;
   }
 };
 
-const handleAudioChunk = (samples: Float32Array, audioContextTime: number): void => {
-  void processChunk(samples, audioContextTime);
+const handleAudioChunk = (message: WorkerAudioMessage): void => {
+  if (message.generationId !== generationId) {
+    recycle(message.samples);
+    return;
+  }
+
+  const chunk: CapturedChunk = {
+    generationId: message.generationId,
+    sequence: message.sequence,
+    sourceStartSample: message.sourceStartSample,
+    sourceEndSample: message.sourceEndSample,
+    sourceEndTimeSec: message.sourceEndTimeSec,
+    samples: message.samples,
+    rawRmsDbfs: message.rawRmsDbfs,
+    rawPeak: message.rawPeak,
+    clipCount: message.clipCount,
+  };
+
+  const enqueued = chunkQueue.enqueue(chunk);
+  if (!enqueued.ok) {
+    handleDiscontinuity(chunk, enqueued.reason);
+    return;
+  }
+
+  void drainQueue('enqueue');
 };
 
 self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
@@ -268,7 +460,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       audioPort.onmessage = (portEvent: MessageEvent<WorkerAudioMessage>) => {
         if (portEvent.data?.type === 'audioChunk') {
           recordCaptureInterval();
-          handleAudioChunk(portEvent.data.samples, portEvent.data.audioContextTime);
+          handleAudioChunk(portEvent.data);
         }
       };
       return;
@@ -278,18 +470,38 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       if (!session) {
         await initSession();
       }
+      generationId = data.generationId;
       sensitivityLevel = data.sensitivity;
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
+      applyShiftMode(data.shiftSemitones ?? 0);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
-      frameIndex = 0;
+      chunkQueue.reset(generationId, 0);
       isInferring = false;
-      if (pendingChunk) {
-        recycle(pendingChunk.samples);
-        pendingChunk = null;
-      }
       resetLatencyStats();
       resetInferenceState();
+      if (data.diagnostics) {
+        diagnostics = new PitchInputDiagnostics({
+          ...data.diagnostics,
+          shiftSemitones,
+          generationId,
+        });
+      } else {
+        diagnostics = null;
+      }
+      audioPort?.postMessage({ type: 'resetCapture', generationId });
       post({ type: 'ready' });
+      return;
+    }
+
+    if (data.type === 'setShiftSemitones') {
+      generationId = data.generationId;
+      flushActiveNote(performance.now() / 1000);
+      tracker?.reset();
+      chunkQueue.reset(generationId, 0);
+      applyShiftMode(data.shiftSemitones);
+      resetInferenceState();
+      diagnostics?.updateConfig({ shiftSemitones, generationId });
+      audioPort?.postMessage({ type: 'resetCapture', generationId });
       return;
     }
 

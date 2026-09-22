@@ -13,6 +13,10 @@ struct PitchOnsetTrackerConfig: Equatable {
     var centsTolerance: Double = 40
     /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 5ms）。
     var onsetImmediateConfidence: Double = 0.85
+    /// 1 観測あたりの原音時間 (ms)。q=1 は 5、q=2 は 10。
+    var frameDurationMs: Double = 5
+    /// false のとき 1 観測だけでは即 noteOn しない（+12 実験用）。
+    var allowImmediateFirstFrame: Bool = true
 }
 
 struct PitchFrame {
@@ -174,9 +178,14 @@ final class PitchOnsetTracker {
     ) -> Bool {
         if pitchStableCount >= config.pitchStableFrames { return true }
         if allowImmediate,
+           config.allowImmediateFirstFrame,
            pitchStableCount == 1,
            confidence >= config.onsetImmediateConfidence { return true }
         return false
+    }
+
+    var pitchStableDurationMs: Double {
+        Double(config.pitchStableFrames) * config.frameDurationMs
     }
 
     private func isLikelyOctaveJump(quantized: Int, levelDb: Double) -> Bool {

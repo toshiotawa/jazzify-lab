@@ -1,8 +1,6 @@
 /**
  * pesto-capture-worklet.js
- * 128 サンプル入力を 240 サンプル（48kHz / 5ms）に整形し Worker へ直接転送する。
- * process() はオーディオレンダースレッドで動くため新規割当を行わない。
- * チャンク用バッファは Worker と貸し借り（transfer + recycle）して再利用する。
+ * 状態保持リサンプル + 連番/サンプル位置付き 240 サンプルチャンクを Worker へ転送。
  */
 
 const TARGET_CHUNK = 240;
@@ -10,12 +8,33 @@ const TARGET_RATE = 48000;
 const POOL_SIZE = 8;
 const RESAMPLE_SCRATCH = 4096;
 
+const computeChunkMetrics = (samples) => {
+  let sumSq = 0;
+  let peak = 0;
+  let clipCount = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const v = samples[i];
+    sumSq += v * v;
+    const abs = Math.abs(v);
+    if (abs > peak) peak = abs;
+    if (abs >= 0.999) clipCount += 1;
+  }
+  const rms = Math.sqrt(sumSq / Math.max(1, samples.length));
+  const rmsDbfs = 20 * Math.log10(Math.max(rms, 1e-12));
+  return { rmsDbfs, peak, clipCount };
+};
+
 class PestoCaptureProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.workerPort = null;
-    this.accumulatedLength = 0;
+    this.generationId = 0;
+    this.sequence = 0;
+    this.totalSourceSamples = 0;
+    this.streamStartTimeSec = null;
     this.resampleRatio = sampleRate / TARGET_RATE;
+    this.resamplePhase = 0;
+    this.accumulatedLength = 0;
     this.resampleScratch = new Float32Array(RESAMPLE_SCRATCH);
     this.pool = [];
     for (let i = 0; i < POOL_SIZE; i += 1) {
@@ -28,48 +47,82 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
       if (data?.type === 'connectWorker' && data.port) {
         this.workerPort = data.port;
         this.workerPort.onmessage = (workerEvent) => {
-          const buffer = workerEvent.data?.buffer;
-          if (buffer instanceof ArrayBuffer && buffer.byteLength === TARGET_CHUNK * 4) {
-            this.pool.push(new Float32Array(buffer));
+          const payload = workerEvent.data;
+          if (payload?.type === 'recycle' && payload.buffer instanceof ArrayBuffer
+              && payload.buffer.byteLength === TARGET_CHUNK * 4) {
+            this.pool.push(new Float32Array(payload.buffer));
+          }
+          if (payload?.type === 'resetCapture' && typeof payload.generationId === 'number') {
+            this.generationId = payload.generationId;
+            this.sequence = 0;
+            this.totalSourceSamples = 0;
+            this.streamStartTimeSec = null;
+            this.resamplePhase = 0;
+            this.accumulatedLength = 0;
           }
         };
+      }
+      if (data?.type === 'resetCapture' && typeof data.generationId === 'number') {
+        this.generationId = data.generationId;
+        this.sequence = 0;
+        this.totalSourceSamples = 0;
+        this.streamStartTimeSec = null;
+        this.resamplePhase = 0;
+        this.accumulatedLength = 0;
       }
     };
   }
 
-  /** 48kHz へ線形補間。リサンプル不要なら -1、必要なら resampleScratch に書いた長さを返す。 */
   resampleTo48k(input) {
     if (Math.abs(this.resampleRatio - 1) < 0.001) {
-      return -1;
+      return { source: input, length: input.length };
     }
-    const outputLength = Math.min(
-      Math.floor(input.length / this.resampleRatio),
-      this.resampleScratch.length,
-    );
-    for (let i = 0; i < outputLength; i += 1) {
-      const srcIndex = i * this.resampleRatio;
-      const idx = Math.floor(srcIndex);
-      const frac = srcIndex - idx;
+
+    let outLen = 0;
+    let phase = this.resamplePhase;
+    while (phase < input.length && outLen < this.resampleScratch.length) {
+      const idx = Math.floor(phase);
+      const frac = phase - idx;
       const s0 = input[idx] ?? 0;
       const s1 = input[idx + 1] ?? s0;
-      this.resampleScratch[i] = s0 + (s1 - s0) * frac;
+      this.resampleScratch[outLen] = s0 + (s1 - s0) * frac;
+      outLen += 1;
+      phase += this.resampleRatio;
     }
-    return outputLength;
+    this.resamplePhase = phase - input.length;
+    return { source: this.resampleScratch, length: outLen };
   }
 
-  sendChunk(audioContextTime) {
+  sendChunk() {
     const chunk = this.active;
     this.active = null;
     this.accumulatedLength = 0;
-    if (!chunk) return;
-    if (!this.workerPort) {
-      this.pool.push(chunk);
+    if (!chunk || !this.workerPort) {
+      if (chunk) this.pool.push(chunk);
       return;
     }
+
+    const sourceEndSample = this.totalSourceSamples;
+    const sourceStartSample = sourceEndSample - TARGET_CHUNK;
+    const sourceEndTimeSec = this.streamStartTimeSec + sourceEndSample / TARGET_RATE;
+    const metrics = computeChunkMetrics(chunk);
+
     this.workerPort.postMessage(
-      { type: 'audioChunk', samples: chunk, audioContextTime },
+      {
+        type: 'audioChunk',
+        generationId: this.generationId,
+        sequence: this.sequence,
+        sourceStartSample,
+        sourceEndSample,
+        sourceEndTimeSec,
+        samples: chunk,
+        rawRmsDbfs: metrics.rmsDbfs,
+        rawPeak: metrics.peak,
+        clipCount: metrics.clipCount,
+      },
       [chunk.buffer],
     );
+    this.sequence += 1;
   }
 
   process(inputs) {
@@ -78,16 +131,19 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    const resampledLength = this.resampleTo48k(input);
-    const source = resampledLength < 0 ? input : this.resampleScratch;
-    const length = resampledLength < 0 ? input.length : resampledLength;
+    if (this.streamStartTimeSec === null) {
+      this.streamStartTimeSec = currentTime;
+    }
+
+    const resampled = this.resampleTo48k(input);
+    const source = resampled.source;
+    const length = resampled.length;
 
     let offset = 0;
     while (offset < length) {
       if (!this.active) {
         this.active = this.pool.pop() ?? null;
         if (!this.active) {
-          // プール枯渇（推論が追いつかない）。残りは破棄してレンダースレッドを塞がない。
           this.accumulatedLength = 0;
           return true;
         }
@@ -100,9 +156,10 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
       }
       this.accumulatedLength += toCopy;
       offset += toCopy;
+      this.totalSourceSamples += toCopy;
 
       if (this.accumulatedLength >= TARGET_CHUNK) {
-        this.sendChunk(currentTime);
+        this.sendChunk();
       }
     }
 

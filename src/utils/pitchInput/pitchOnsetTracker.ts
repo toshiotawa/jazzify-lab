@@ -10,7 +10,7 @@ export interface PitchOnsetTrackerConfig {
   releaseLevelDb: number;
   /** 最小 confidence [0,1] */
   minConfidence: number;
-  /** ピッチ安定フレーム数 (5ms/frame) */
+  /** ピッチ安定フレーム数 */
   pitchStableFrames: number;
   /** release 連続フレーム数 */
   releaseFrames: number;
@@ -26,6 +26,10 @@ export interface PitchOnsetTrackerConfig {
   centsTolerance: number;
   /** 1 フレーム目でも confidence がこの値以上なら即 noteOn */
   onsetImmediateConfidence: number;
+  /** 1 観測あたりの原音時間 (ms)。q=1 は 5、q=2 は 10。 */
+  frameDurationMs: number;
+  /** false のとき 1 観測だけでは即 noteOn しない（+12 実験用）。 */
+  allowImmediateFirstFrame: boolean;
 }
 
 export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
@@ -40,6 +44,8 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   retriggerLookbackFrames: 4,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
+  frameDurationMs: 5,
+  allowImmediateFirstFrame: true,
 };
 
 /** 感度 1-10 から dB しきい値をスケール */
@@ -92,8 +98,8 @@ export class PitchOnsetTracker {
   private pendingOff = false;
   private pendingOffFrame = -1;
 
-  constructor(config: PitchOnsetTrackerConfig = DEFAULT_ONSET_CONFIG) {
-    this.config = config;
+  constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
+    this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
   }
 
   setConfig(config: Partial<PitchOnsetTrackerConfig>): void {
@@ -201,12 +207,18 @@ export class PitchOnsetTracker {
     if (this.pitchStableCount >= this.config.pitchStableFrames) return true;
     if (
       allowImmediate
+      && this.config.allowImmediateFirstFrame
       && this.pitchStableCount === 1
       && confidence >= this.config.onsetImmediateConfidence
     ) {
       return true;
     }
     return false;
+  }
+
+  /** 設定上の安定待ち時間 (ms)。 */
+  getPitchStableDurationMs(): number {
+    return this.config.pitchStableFrames * this.config.frameDurationMs;
   }
 
   private isLikelyOctaveJump(quantized: number, levelDb: number): boolean {

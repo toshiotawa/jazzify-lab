@@ -59,6 +59,7 @@ export const useStandaloneNoteInput = ({
   const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
     captureIntervalMs: null,
     inferenceMs: null,
+    diagnostics: null,
   });
   const midiRef = useRef<MIDIController | null>(null);
   const pitchRef = useRef<PitchInputController | null>(null);

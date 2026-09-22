@@ -191,6 +191,30 @@ describe('PitchOnsetTracker', () => {
     ]);
   });
 
+  it('does not immediate noteOn at q=2 with single observation', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 2,
+      frameDurationMs: 10,
+      allowImmediateFirstFrame: false,
+      onsetImmediateConfidence: 0.85,
+    });
+    const voiced: PitchFrame = { prediction: 36, confidence: 0.95, volume: 0.02 };
+    expect(tracker.processFrame(voiced, 0)).toEqual([]);
+    expect(tracker.processFrame(voiced, 1)).toEqual([
+      { type: 'noteOn', note: 36, frameIndex: 1, onsetFrameIndex: 0 },
+    ]);
+  });
+
+  it('uses frameDurationMs for stable duration metadata', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 4,
+      frameDurationMs: 10,
+    });
+    expect(tracker.getPitchStableDurationMs()).toBe(40);
+  });
+
   it('retriggers same note after retriggerGuardFrames with attack rise', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,

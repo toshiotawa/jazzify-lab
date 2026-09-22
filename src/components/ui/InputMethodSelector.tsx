@@ -28,6 +28,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
   const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
     captureIntervalMs: null,
     inferenceMs: null,
+    diagnostics: null,
   });
 
   useEffect(() => {
@@ -166,6 +167,46 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
               ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
               : `入力 ${formatLatencyMs(latencyStats.captureIntervalMs)} / 推論 ${formatLatencyMs(latencyStats.inferenceMs)}`}
           </p>
+          {import.meta.env.DEV && latencyStats.diagnostics && (
+            <div className="text-[10px] text-gray-500 font-mono space-y-0.5 border-t border-purple-800/40 pt-2">
+              <p>
+                {en ? 'Dev diagnostics' : '開発診断'}
+                {' · '}
+                shift +{latencyStats.diagnostics.shiftSemitones}
+                {' · '}
+                gen {latencyStats.diagnostics.generationId}
+              </p>
+              <p>
+                {en ? 'Queue' : 'キュー'}
+                {' '}
+                {Math.round(latencyStats.diagnostics.queueDepthMs)}ms
+                {' · '}
+                {en ? 'drops' : '欠落'}
+                {' '}
+                {latencyStats.diagnostics.droppedSamples}
+                {' · '}
+                {en ? 'disc' : '不連続'}
+                {' '}
+                {latencyStats.diagnostics.discontinuities}
+              </p>
+              <p>
+                MIDI {latencyStats.diagnostics.lastConcertMidi ?? '—'}
+                {' · '}
+                conf {latencyStats.diagnostics.lastConfidence.toFixed(2)}
+                {' · '}
+                {latencyStats.diagnostics.lastRejectReason}
+                {' · '}
+                {en ? 'warmup' : 'ウォームアップ'}
+                {' '}
+                {latencyStats.diagnostics.warmupFramesRemaining}
+              </p>
+              <p className="text-gray-600">
+                {en
+                  ? 'Set localStorage jazzify_pitch_shift=12|24 to test low-register mode.'
+                  : 'localStorage jazzify_pitch_shift=12|24 で低音実験。'}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

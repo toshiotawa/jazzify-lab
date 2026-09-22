@@ -28,9 +28,35 @@ final class PitchInputEngine: @unchecked Sendable {
     private static let restartRetryDelaySec: TimeInterval = 0.5
     private static let cacheElementCount = 3_976
     private static let targetSampleRate: Double = 48_000
+    private static let queueLimitMs: Double = 40
+    private static let warmupFrameCount = 4
     /// モニタ UI 用: -60dB〜0dB を 0..1 にマップ。
     private static let monitorMinDb: Double = -60
     private static let monitorMaxDb: Double = 0
+
+    #if DEBUG
+    private static var devShiftSemitones: Int {
+        switch UserDefaults.standard.integer(forKey: "jazzify_pitch_shift") {
+        case 12: return 12
+        case 24: return 24
+        default: return 0
+        }
+    }
+    #else
+    private static var devShiftSemitones: Int { 0 }
+    #endif
+
+    private static func decimationFactor(for shift: Int) -> Int {
+        switch shift {
+        case 12: return 2
+        case 24: return 4
+        default: return 1
+        }
+    }
+
+    private static func frameDurationMs(for shift: Int) -> Double {
+        baseFrameSec * Double(decimationFactor(for: shift)) * 1000
+    }
 
     private let inferenceQueue = DispatchQueue(label: "jp.jazzify.pitch.inference", qos: .userInitiated)
 
@@ -38,7 +64,10 @@ final class PitchInputEngine: @unchecked Sendable {
 
     private let chunkPool: UnsafeMutablePointer<Float>
     private var ringWriteIndex = 0
-    private var poolSlot = 0
+    private var writeSlot = 0
+    private var totalSourceSamples = 0
+    private var captureSequence = 0
+    private var streamStartHostTime: UInt64 = 0
 
     // MARK: - inferenceQueue 専有
 
@@ -50,14 +79,40 @@ final class PitchInputEngine: @unchecked Sendable {
     private var inferenceFrameSec = PitchInputEngine.baseFrameSec
     private var configuredSensitivity = 5
     private var configuredPitchStableFrames = 4
+    private var shiftSemitones = 0
+    private var generationId = 0
+    private var warmupFramesRemaining = 0
+    private var suppressTracker = false
+    private var decimationFactor = 1
+    private var decimator = PestoDecimatorState(q: 1)
+    private var discontinuityCount = 0
+    private var droppedSampleCount = 0
 
     // MARK: - スレッド間共有（ロック保護）
 
-    /// 推論中フラグ。5ms に間に合わないフレームは最新 1 件だけ保留し、それ以前は捨てる。
+    private struct PendingCaptureChunk {
+        let slot: Int
+        let hostTime: UInt64
+        let sequence: Int
+        let sourceStartSample: Int
+        let sourceEndSample: Int
+        let generationId: Int
+    }
+
+    /// 推論キュー。原音時間 40ms 上限。超過・欠番は不連続としてリセット。
     private struct InferenceDispatchState {
         var isInferring = false
-        var pendingSlot: Int?
-        var pendingHostTime: UInt64 = 0
+        var pending: [PendingCaptureChunk] = []
+        var expectedSequence = 0
+        var resetBeforeNext = false
+        var resetHostTime: UInt64 = 0
+        var slotsInUse = [Bool](repeating: false, count: PitchInputEngine.poolSlotCount)
+    }
+
+    private struct DrainStep {
+        let chunk: PendingCaptureChunk?
+        let shouldReset: Bool
+        let hostTime: UInt64
     }
 
     private let inferenceDispatchLock = OSAllocatedUnfairLock(initialState: InferenceDispatchState())
@@ -178,7 +233,24 @@ final class PitchInputEngine: @unchecked Sendable {
     private func applyTrackerConfig() {
         var config = PitchOnsetSensitivity.scaleConfig(sensitivity: configuredSensitivity)
         config.pitchStableFrames = configuredPitchStableFrames
+        config.frameDurationMs = Self.frameDurationMs(for: shiftSemitones)
+        config.allowImmediateFirstFrame = Self.decimationFactor(for: shiftSemitones) <= 1
         tracker.setConfig(config)
+    }
+
+    private func applyShiftMode(_ shift: Int) {
+        shiftSemitones = shift
+        decimationFactor = Self.decimationFactor(for: shift)
+        decimator = PestoDecimatorState(q: decimationFactor)
+        inferenceFrameSec = Self.frameDurationMs(for: shift) / 1000
+        applyTrackerConfig()
+    }
+
+    private static func restoreConcertMidi(modelMidi: Double, shift: Int) -> Double? {
+        guard modelMidi.isFinite, modelMidi > 0, modelMidi < 128 else { return nil }
+        let concert = modelMidi - Double(shift)
+        guard concert > 0, concert < 128 else { return nil }
+        return concert
     }
 
     // MARK: - 購読
@@ -221,6 +293,12 @@ final class PitchInputEngine: @unchecked Sendable {
         let captureIntervalMs: Double?
         /// ORT 推論所要時間の移動平均 (ms)。
         let inferenceMs: Double?
+        let shiftSemitones: Int
+        let generationId: Int
+        let discontinuities: Int
+        let droppedSamples: Int
+        let warmupFramesRemaining: Int
+        let queueDepth: Int
     }
 
     func monitorSnapshot(isActive: Bool) -> MonitorSnapshot {
@@ -231,6 +309,7 @@ final class PitchInputEngine: @unchecked Sendable {
         let captureMs = emaCaptureIntervalMs > 0 ? emaCaptureIntervalMs : nil
         let inferMs = emaInferenceMs > 0 ? emaInferenceMs : nil
         monitorLock.unlock()
+        let queueDepth = inferenceDispatchLock.withLock { $0.pending.count }
         return MonitorSnapshot(
             volume: volume,
             detectedNote: note,
@@ -238,7 +317,13 @@ final class PitchInputEngine: @unchecked Sendable {
             isActive: isActive,
             lastError: error,
             captureIntervalMs: captureMs,
-            inferenceMs: inferMs
+            inferenceMs: inferMs,
+            shiftSemitones: shiftSemitones,
+            generationId: generationId,
+            discontinuities: discontinuityCount,
+            droppedSamples: droppedSampleCount,
+            warmupFramesRemaining: warmupFramesRemaining,
+            queueDepth: queueDepth
         )
     }
 
@@ -379,9 +464,14 @@ final class PitchInputEngine: @unchecked Sendable {
             throw PitchInputEngineError.inputUnavailable
         }
 
+        generationId += 1
+        applyShiftMode(Self.devShiftSemitones)
         resetInferenceState()
         ringWriteIndex = 0
-        poolSlot = 0
+        writeSlot = 0
+        totalSourceSamples = 0
+        captureSequence = 0
+        streamStartHostTime = 0
         lastCaptureTime = 0
         resetMonitorLatencyMeters()
         updateMonitorVolume(0)
@@ -742,15 +832,20 @@ final class PitchInputEngine: @unchecked Sendable {
             self.configuredPitchStableFrames = NoteInputPreferences.pitchStableFrames
             self.tracker.reset()
             self.frameIndex = 0
-            self.inferenceFrameSec = Self.baseFrameSec
+            self.warmupFramesRemaining = Self.warmupFrameCount
+            self.suppressTracker = self.warmupFramesRemaining > 0
             self.cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
+            self.decimator = PestoDecimatorState(q: self.decimationFactor)
             self.applyTrackerConfig()
         }
         ringWriteIndex = 0
         inferenceDispatchLock.withLock { state in
             state.isInferring = false
-            state.pendingSlot = nil
-            state.pendingHostTime = 0
+            state.pending = []
+            state.expectedSequence = 0
+            state.resetBeforeNext = false
+            state.resetHostTime = 0
+            state.slotsInUse = [Bool](repeating: false, count: Self.poolSlotCount)
         }
     }
 
@@ -793,85 +888,205 @@ final class PitchInputEngine: @unchecked Sendable {
         appendRawSamples(samples, count: count, hostTime: hostTime)
     }
 
+    private func acquireWritableSlot(startingAt origin: Int) -> Int? {
+        inferenceDispatchLock.withLock { state -> Int? in
+            for offset in 0..<Self.poolSlotCount {
+                let candidate = (origin + offset) % Self.poolSlotCount
+                if !state.slotsInUse[candidate] {
+                    return candidate
+                }
+            }
+            return nil
+        }
+    }
+
     private func appendRawSamples(
         _ samples: UnsafePointer<Float>,
         count: Int,
         hostTime: UInt64
     ) {
         let chunkSize = Self.chunkSize
-        var slotBase = chunkPool + poolSlot * chunkSize
+        if streamStartHostTime == 0 {
+            streamStartHostTime = hostTime
+        }
+
+        var slot = writeSlot
+        var slotBase = chunkPool + slot * chunkSize
+        if ringWriteIndex == 0 {
+            guard let acquired = acquireWritableSlot(startingAt: writeSlot) else {
+                droppedSampleCount += count
+                requestDiscontinuity(fromSequence: captureSequence, hostTime: hostTime)
+                return
+            }
+            slot = acquired
+            writeSlot = acquired
+            slotBase = chunkPool + slot * chunkSize
+        }
 
         for index in 0..<count {
             slotBase[ringWriteIndex] = samples[index]
             ringWriteIndex += 1
-            if ringWriteIndex >= chunkSize {
-                ringWriteIndex = 0
-                let slot = poolSlot
-                poolSlot = (poolSlot + 1) % Self.poolSlotCount
-                slotBase = chunkPool + poolSlot * chunkSize
-                let adjustedHostTime = Self.hostTimeBackdated(
-                    bySec: cachedInputLatencySec,
-                    from: hostTime
-                )
-                enqueueInference(slot: slot, hostTime: adjustedHostTime)
+            totalSourceSamples += 1
+            if ringWriteIndex < chunkSize {
+                continue
             }
+            ringWriteIndex = 0
+            let sourceEndSample = totalSourceSamples
+            let adjustedHostTime = Self.hostTimeBackdated(
+                bySec: cachedInputLatencySec,
+                from: hostTime
+            )
+            enqueueCaptureChunk(
+                PendingCaptureChunk(
+                    slot: slot,
+                    hostTime: adjustedHostTime,
+                    sequence: captureSequence,
+                    sourceStartSample: sourceEndSample - chunkSize,
+                    sourceEndSample: sourceEndSample,
+                    generationId: generationId
+                )
+            )
+            captureSequence += 1
+            guard let next = acquireWritableSlot(startingAt: (slot + 1) % Self.poolSlotCount) else {
+                droppedSampleCount += count - index - 1
+                requestDiscontinuity(fromSequence: captureSequence, hostTime: hostTime)
+                return
+            }
+            slot = next
+            writeSlot = next
+            slotBase = chunkPool + slot * chunkSize
         }
     }
 
-    private func enqueueInference(slot: Int, hostTime: UInt64) {
+    private func requestDiscontinuity(fromSequence sequence: Int, hostTime: UInt64) {
         let shouldDispatch = inferenceDispatchLock.withLock { state -> Bool in
-            if state.isInferring {
-                state.pendingSlot = slot
-                state.pendingHostTime = hostTime
-                return false
+            for queued in state.pending {
+                state.slotsInUse[queued.slot] = false
             }
+            state.pending.removeAll()
+            state.expectedSequence = sequence
+            state.resetBeforeNext = true
+            state.resetHostTime = hostTime
+            if state.isInferring { return false }
             state.isInferring = true
             return true
         }
         guard shouldDispatch else { return }
-
         inferenceQueue.async { [self] in
-            drainInference(startSlot: slot, startHostTime: hostTime)
+            self.drainInferenceQueue()
         }
     }
 
-    private func drainInference(startSlot: Int, startHostTime: UInt64) {
-        var slot = startSlot
-        var hostTime = startHostTime
-        while true {
-            runInference(slot: slot, hostTime: hostTime)
-            let next = inferenceDispatchLock.withLock { state -> (slot: Int, hostTime: UInt64)? in
-                guard let nextSlot = state.pendingSlot else {
-                    state.isInferring = false
-                    return nil
-                }
-                let nextHostTime = state.pendingHostTime
-                state.pendingSlot = nil
-                return (nextSlot, nextHostTime)
+    private func enqueueCaptureChunk(_ chunk: PendingCaptureChunk) {
+        let activeGeneration = generationId
+        let shouldDispatch = inferenceDispatchLock.withLock { state -> Bool in
+            guard chunk.generationId == activeGeneration else {
+                return false
             }
-            guard let next else { return }
-            slot = next.slot
-            hostTime = next.hostTime
+            if chunk.sequence != state.expectedSequence {
+                for queued in state.pending {
+                    state.slotsInUse[queued.slot] = false
+                }
+                state.pending.removeAll()
+                state.resetBeforeNext = true
+                state.resetHostTime = chunk.hostTime
+            } else if let oldest = state.pending.first {
+                let depthMs = Double(chunk.sourceEndSample - oldest.sourceStartSample)
+                    / Self.targetSampleRate * 1000
+                if depthMs > Self.queueLimitMs {
+                    for queued in state.pending {
+                        state.slotsInUse[queued.slot] = false
+                    }
+                    state.pending.removeAll()
+                    state.resetBeforeNext = true
+                    state.resetHostTime = chunk.hostTime
+                }
+            }
+            state.expectedSequence = chunk.sequence + 1
+            state.slotsInUse[chunk.slot] = true
+            state.pending.append(chunk)
+            if state.isInferring { return false }
+            state.isInferring = true
+            return true
+        }
+        guard shouldDispatch else { return }
+        inferenceQueue.async { [self] in
+            self.drainInferenceQueue()
+        }
+    }
+
+    private func applyDiscontinuityReset(hostTime: UInt64) {
+        discontinuityCount += 1
+        let offEvents = tracker.flushActiveNote(frameIndex: frameIndex)
+        for event in offEvents {
+            if case let .noteOff(note, _) = event {
+                notify(status: 0x80, note: note, velocity: 0, hostTime: hostTime)
+            }
+        }
+        tracker.reset()
+        cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
+        frameIndex = 0
+        warmupFramesRemaining = Self.warmupFrameCount
+        suppressTracker = true
+        decimator = PestoDecimatorState(q: decimationFactor)
+    }
+
+    private func drainInferenceQueue() {
+        while true {
+            let step = inferenceDispatchLock.withLock { state -> DrainStep in
+                if state.pending.isEmpty {
+                    let shouldReset = state.resetBeforeNext
+                    let hostTime = state.resetHostTime
+                    state.resetBeforeNext = false
+                    state.isInferring = false
+                    return DrainStep(chunk: nil, shouldReset: shouldReset, hostTime: hostTime)
+                }
+                let chunk = state.pending.removeFirst()
+                let shouldReset = state.resetBeforeNext
+                state.resetBeforeNext = false
+                return DrainStep(chunk: chunk, shouldReset: shouldReset, hostTime: chunk.hostTime)
+            }
+            if step.shouldReset {
+                applyDiscontinuityReset(hostTime: step.hostTime)
+            }
+            guard let chunk = step.chunk else { return }
+            runInference(chunk: chunk)
         }
     }
 
     // MARK: - inferenceQueue
 
-    private func runInference(slot: Int, hostTime: UInt64) {
-        guard let session = ortSession else { return }
+    private func runInference(chunk: PendingCaptureChunk) {
+        defer {
+            inferenceDispatchLock.withLock { state in
+                state.slotsInUse[chunk.slot] = false
+            }
+        }
+        guard chunk.generationId == generationId, let session = ortSession else { return }
 
         let inferenceStart = CACurrentMediaTime()
         defer { recordInferenceDuration(startTime: inferenceStart) }
 
         let chunkSize = Self.chunkSize
         let cacheCount = Self.cacheElementCount
-        let slotBase = chunkPool + slot * chunkSize
+        let slotBase = chunkPool + chunk.slot * chunkSize
+
+        if decimationFactor > 1 {
+            decimator.accumulate(source: slotBase, count: chunkSize)
+            guard decimator.outputReady else { return }
+        }
+
+        let modelBase: UnsafeMutablePointer<Float>
+        if decimationFactor > 1 {
+            modelBase = decimator.modelInputBase
+        } else {
+            modelBase = slotBase
+        }
 
         do {
-            // freeWhenDone: false。chunkPool / cacheBuffer はエンジンより長寿命なのでコピー不要。
             let audioTensor = try ORTValue(
                 tensorData: NSMutableData(
-                    bytesNoCopy: slotBase,
+                    bytesNoCopy: modelBase,
                     length: chunkSize * MemoryLayout<Float>.size,
                     freeWhenDone: false
                 ),
@@ -911,13 +1126,25 @@ final class PitchInputEngine: @unchecked Sendable {
                 return
             }
 
+            updateMonitorVolume(volume)
+
+            if suppressTracker {
+                if warmupFramesRemaining > 0 {
+                    warmupFramesRemaining -= 1
+                    if warmupFramesRemaining <= 0 {
+                        suppressTracker = false
+                    }
+                }
+                frameIndex += 1
+                return
+            }
+
+            let concertMidi = Self.restoreConcertMidi(modelMidi: rawPrediction, shift: shiftSemitones)
             let frame = PitchFrame(
-                prediction: rawPrediction,
+                prediction: concertMidi ?? rawPrediction,
                 confidence: confidence,
                 volume: volume
             )
-
-            updateMonitorVolume(frame.volume)
 
             let events = tracker.processFrame(frame, frameIndex: frameIndex)
             frameIndex += 1
@@ -928,11 +1155,11 @@ final class PitchInputEngine: @unchecked Sendable {
                     let backdatedFrames = frameIndex - onsetFrameIndex
                     let onsetHostTime = Self.hostTimeBackdated(
                         bySec: Double(backdatedFrames) * inferenceFrameSec,
-                        from: hostTime
+                        from: chunk.hostTime
                     )
                     notify(status: 0x90, note: note, velocity: 64, hostTime: onsetHostTime)
                 case let .noteOff(note, _):
-                    notify(status: 0x80, note: note, velocity: 0, hostTime: hostTime)
+                    notify(status: 0x80, note: note, velocity: 0, hostTime: chunk.hostTime)
                 }
             }
         } catch {
@@ -1010,6 +1237,83 @@ final class PitchInputEngine: @unchecked Sendable {
         let info = machTimebaseInfo
         let ticks = UInt64((sec * 1_000_000_000 * Double(info.denom) / Double(info.numer)).rounded())
         return hostTime &- ticks
+    }
+}
+
+/// 認識専用デシメータ（48kHz 軸維持、q 倍間引き）。
+private final class PestoDecimatorState {
+    let q: Int
+    private var x1 = Double.zero
+    private var x2 = Double.zero
+    private var y1 = Double.zero
+    private var y2 = Double.zero
+    private var decimPhase = 0
+    private var chunksAccumulated = 0
+    private let scratch: UnsafeMutablePointer<Float>
+    private let modelInput: UnsafeMutablePointer<Float>
+    private(set) var outputReady = false
+
+    init(q: Int) {
+        self.q = max(1, q)
+        scratch = UnsafeMutablePointer<Float>.allocate(capacity: 240 * self.q)
+        scratch.initialize(repeating: 0, count: 240 * self.q)
+        modelInput = UnsafeMutablePointer<Float>.allocate(capacity: 240)
+        modelInput.initialize(repeating: 0, count: 240)
+    }
+
+    var modelInputBase: UnsafeMutablePointer<Float> { modelInput }
+
+    func accumulate(source: UnsafePointer<Float>, count: Int) {
+        outputReady = false
+        guard q > 1 else {
+            modelInput.update(from: source, count: min(count, 240))
+            outputReady = true
+            return
+        }
+        let offset = chunksAccumulated * 240
+        scratch.advanced(by: offset).update(from: source, count: min(count, 240))
+        chunksAccumulated += 1
+        guard chunksAccumulated >= q else { return }
+        chunksAccumulated = 0
+        let total = 240 * q
+        var outLen = 0
+        let coeffs = Self.lowpassCoeffs(q: q)
+        for index in 0..<total {
+            let filtered = biquadStep(Double(scratch[index]), coeffs: coeffs)
+            if decimPhase == 0, outLen < 240 {
+                modelInput[outLen] = Float(filtered)
+                outLen += 1
+            }
+            decimPhase = (decimPhase + 1) % q
+        }
+        outputReady = outLen == 240
+    }
+
+    private func biquadStep(_ x0: Double, coeffs: (b0: Double, b1: Double, b2: Double, a1: Double, a2: Double)) -> Double {
+        let y0 = coeffs.b0 * x0 + coeffs.b1 * x1 + coeffs.b2 * x2 - coeffs.a1 * y1 - coeffs.a2 * y2
+        x2 = x1
+        x1 = x0
+        y2 = y1
+        y1 = y0
+        return y0
+    }
+
+    private static func lowpassCoeffs(q: Int) -> (b0: Double, b1: Double, b2: Double, a1: Double, a2: Double) {
+        let fc = 0.45 / Double(q)
+        let w0 = 2 * Double.pi * fc
+        let cosW0 = cos(w0)
+        let sinW0 = sin(w0)
+        let alpha = sinW0 / (2 * 0.707)
+        let b0 = (1 - cosW0) / 2
+        let b1 = 1 - cosW0
+        let b2 = (1 - cosW0) / 2
+        let a0 = 1 + alpha
+        return (b0 / a0, b1 / a0, b2 / a0, (-2 * cosW0) / a0, (1 - alpha) / a0)
+    }
+
+    deinit {
+        scratch.deallocate()
+        modelInput.deallocate()
     }
 }
 

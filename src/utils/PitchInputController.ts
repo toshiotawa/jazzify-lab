@@ -4,6 +4,8 @@
 
 import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { readPitchShiftDevFlag, isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
+import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/pitchInput/pitchInputTypes';
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
 
@@ -26,6 +28,7 @@ interface GetAudioDevicesOptions {
 export interface PitchInputLatencyStats {
   captureIntervalMs: number | null;
   inferenceMs: number | null;
+  diagnostics: PitchInputDiagnosticSnapshot | null;
 }
 
 const isVoiceInputSupported = (): boolean =>
@@ -39,6 +42,7 @@ export class PitchInputController {
   private static _latestLatencyStats: PitchInputLatencyStats = {
     captureIntervalMs: null,
     inferenceMs: null,
+    diagnostics: null,
   };
 
   static isPermissionGranted(): boolean {
@@ -53,6 +57,7 @@ export class PitchInputController {
     PitchInputController._latestLatencyStats = {
       captureIntervalMs: null,
       inferenceMs: null,
+      diagnostics: null,
     };
   }
 
@@ -81,6 +86,8 @@ export class PitchInputController {
   private pitchStableFrames = 4;
   private currentNote = -1;
   private cachedInputLatencySec = 0;
+  private generationId = 0;
+  private shiftSemitones: PestoShiftSemitones = 0;
   /**
    * connect / disconnect は AudioContext と Worker（ONNX セッション 17MB）を作り直すため、
    * 並行実行すると孤児リソースが残る。直列化して必ず順番に処理する。
@@ -330,6 +337,9 @@ export class PitchInputController {
           inferenceMs: typeof data.inferenceMs === 'number'
             ? data.inferenceMs
             : null,
+          diagnostics: isPitchDiagnosticsEnabled() && data.diagnostics
+            ? data.diagnostics as PitchInputDiagnosticSnapshot
+            : null,
         };
       } else if (data?.type === 'error') {
         this.onError?.(data.message);
@@ -350,10 +360,26 @@ export class PitchInputController {
         }
       };
       this.worker?.addEventListener('message', onReady);
+      this.generationId += 1;
+      this.shiftSemitones = readPitchShiftDevFlag();
+      const track = this.mediaStream?.getAudioTracks()[0];
+      const settings = track?.getSettings();
       this.worker?.postMessage({
         type: 'init',
         sensitivity: this.sensitivityLevel,
+        generationId: this.generationId,
+        shiftSemitones: this.shiftSemitones,
         config: { pitchStableFrames: this.pitchStableFrames },
+        diagnostics: isPitchDiagnosticsEnabled()
+          ? {
+              deviceLabel: track?.label ?? null,
+              sampleRate: typeof settings?.sampleRate === 'number' ? settings.sampleRate : null,
+              requestedEchoCancellation: true,
+              actualEchoCancellation: typeof settings?.echoCancellation === 'boolean'
+                ? settings.echoCancellation
+                : null,
+            }
+          : undefined,
       });
     });
   }
@@ -373,6 +399,10 @@ export class PitchInputController {
       type: 'connectWorker',
       port: this.workerChannel.port2,
     }, [this.workerChannel.port2]);
+    this.workletNode.port.postMessage({
+      type: 'resetCapture',
+      generationId: this.generationId,
+    });
 
     if (!this.silentGainNode) {
       this.silentGainNode = this.audioContext.createGain();
