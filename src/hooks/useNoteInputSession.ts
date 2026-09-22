@@ -3,6 +3,7 @@ import type { PIXINotesRendererInstance } from '@/components/piano/PIXINotesRend
 import { useGameStore } from '@/stores/gameStore';
 import { MIDIController, updateGlobalVolume } from '@/utils/MidiController';
 import { PitchInputController } from '@/utils/PitchInputController';
+import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
 import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
 import { isIOSWebView } from '@/utils/iosbridge';
@@ -22,6 +23,7 @@ export type NoteInputBindings = {
   isMidiInitialized: boolean;
   getMidiController: () => MIDIController | null;
   prepareBattleAudio: () => Promise<void>;
+  setExpectedPitchCandidates: (candidates: ExpectedPitchCandidates) => void;
 };
 
 export type GameMidiBindings = NoteInputBindings;
@@ -256,6 +258,10 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
 
   const getMidiController = useCallback(() => midiControllerRef.current, []);
 
+  const setExpectedPitchCandidates = useCallback((candidates: ExpectedPitchCandidates) => {
+    pitchControllerRef.current?.setExpectedPitchCandidates(candidates);
+  }, []);
+
   return useMemo(
     () => ({
       registerNoteHandler,
@@ -268,6 +274,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       isMidiInitialized: isInputInitialized,
       getMidiController,
       prepareBattleAudio,
+      setExpectedPitchCandidates,
     }),
     [
       registerNoteHandler,
@@ -278,6 +285,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       isInputInitialized,
       getMidiController,
       prepareBattleAudio,
+      setExpectedPitchCandidates,
     ],
   );
 };

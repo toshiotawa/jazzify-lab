@@ -105,9 +105,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private var nextAutoCompleteTargetIndex: Int = 0
     private var parryChainAnchor: EarTrainingChordOsmdParrySpanAnchor?
     private var lastInputAtByNote: [Int: Double] = [:]
-    private var voiceActiveMidis: Set<Int> = []
-    private var voiceHoldSessionByMidi: [Int: Int] = [:]
-    private var voiceSustainAppliedByTarget: [String: [Int: Int]] = [:]
+    private var voiceExpectedPitchCandidates = ExpectedPitchCandidates.empty
     private var phraseEnding: Bool = false
     private var progressSaveStarted: Bool = false
     private var totalCompletedTargets: Int = 0
@@ -495,11 +493,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         let allowPitchClass = NoteInputPreferences.inputMethod == .voice
         let completeOnAnyMatch = allowPitchClass
-        let matchLateGrace = allowPitchClass ? EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec : 0
-        if allowPitchClass {
-            voiceActiveMidis.insert(midi)
-            voiceHoldSessionByMidi[midi, default: 0] += 1
-        }
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
             phraseTime = fromMidi
@@ -522,8 +515,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                 return targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass)
             },
             earlySec: judgmentWindowEarly,
-            lateSec: judgmentWindowLate,
-            matchLateGraceSec: matchLateGrace
+            lateSec: judgmentWindowLate
         )
         guard let matchedIndex else {
             let nearest = EarTrainingChordOsmdTiming.pickNearestPendingTargetIndex(
@@ -566,9 +558,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             refreshPracticeVoicingHints()
             return
         }
-        if allowPitchClass {
-            markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
-        }
         if targets[matchedIndex].isComplete {
             completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
         }
@@ -578,55 +567,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     func handleNoteOff(midi: Int, playAudio: Bool = true) {
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: midi)
-        }
-        voiceActiveMidis.remove(midi)
-    }
-
-    private func markVoiceSustainApplied(targetId: String, midi: Int) {
-        let session = voiceHoldSessionByMidi[midi] ?? 0
-        var applied = voiceSustainAppliedByTarget[targetId] ?? [:]
-        applied[midi] = session
-        voiceSustainAppliedByTarget[targetId] = applied
-    }
-
-    private func applyVoiceSustainedNotes(at phraseTime: Double) {
-        guard NoteInputPreferences.inputMethod == .voice else { return }
-        guard gameState == .playingPhrase || gameState == .countIn else { return }
-        guard !voiceActiveMidis.isEmpty else { return }
-
-        let allowPitchClass = true
-        let completeOnAnyMatch = true
-        let matchLateGrace = EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec
-        let judgmentWindowEarly: Double = 0
-        let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
-
-        for midi in voiceActiveMidis {
-            let session = voiceHoldSessionByMidi[midi] ?? 0
-            let matchedIndex = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
-                targetCount: targets.count,
-                phraseTimeSec: phraseTime,
-                judgedTargetTimeSec: { [self] index in
-                    resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
-                },
-                canMatchTarget: { [self] index in
-                    guard targets[index].completed == false, targets[index].failed == false else { return false }
-                    guard targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass) else { return false }
-                    return voiceSustainAppliedByTarget[targets[index].id.uuidString]?[midi] != session
-                },
-                earlySec: judgmentWindowEarly,
-                lateSec: judgmentWindowLate,
-                matchLateGraceSec: matchLateGrace
-            )
-            guard let matchedIndex else { continue }
-            guard targets[matchedIndex].consume(
-                midi: midi,
-                allowPitchClass: allowPitchClass,
-                completeOnAnyMatch: completeOnAnyMatch
-            ) else { continue }
-            markVoiceSustainApplied(targetId: targets[matchedIndex].id.uuidString, midi: midi)
-            if targets[matchedIndex].isComplete {
-                completeTarget(at: matchedIndex, hitPhraseTimeSec: phraseTime)
-            }
         }
     }
 
@@ -1129,7 +1069,31 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         spawnDueApproachCircles(at: phraseTime)
         autoCompleteDueTargetsInTimingCalibration(at: phraseTime)
         failExpiredTargets(at: phraseTime)
-        applyVoiceSustainedNotes(at: phraseTime)
+        if NoteInputPreferences.inputMethod == .voice {
+            let earlySec = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
+            let lateSec = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
+            let nextCandidates = ExpectedPitchCandidateCollectors.collectChordOsmd(
+                targetCount: targets.count,
+                phraseTimeSec: phraseTime,
+                judgedTargetTimeSec: { [self] index in
+                    resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
+                },
+                runtimeAt: { [self] index in
+                    let target = targets[index]
+                    guard !target.completed, !target.failed else { return nil }
+                    let remainingMidis = target.remainingMidiCounts.compactMap { midi, count in
+                        count > 0 ? midi : nil
+                    }
+                    return (completed: target.completed, failed: target.failed, remainingMidis: remainingMidis)
+                },
+                earlySec: earlySec,
+                lateSec: lateSec
+            )
+            if nextCandidates != voiceExpectedPitchCandidates {
+                voiceExpectedPitchCandidates = nextCandidates
+                PitchInputEngine.shared.setExpectedPitchCandidates(nextCandidates)
+            }
+        }
         refreshPracticeVoicingHints()
         applyMusicXmlLyricQuotesIfNeeded(phraseTime: phraseTime)
 

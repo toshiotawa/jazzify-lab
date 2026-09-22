@@ -87,6 +87,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private var phraseEnding = false
     private var progressSaveStarted = false
     private var lastInputAtByNote: [Int: Double] = [:]
+    private var voiceExpectedPitchCandidates = ExpectedPitchCandidates.empty
     private var activeGoodNotesByMidi: [Int: String] = [:]
     private var lastPrecisionRank: EarTrainingPrecisionJudge.LessonRank?
     private var lastGoodRatePercent: Int?
@@ -711,6 +712,18 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             windowSec: windowSec,
             arrivalGraceSec: arrivalGraceSec
         )
+        if NoteInputPreferences.inputMethod == .voice {
+            let nextCandidates = ExpectedPitchCandidateCollectors.collectPrecision(
+                notes: precisionNotes,
+                states: runtimeStates,
+                phraseTimeSec: phraseTime,
+                windowSec: windowSec
+            )
+            if nextCandidates != voiceExpectedPitchCandidates {
+                voiceExpectedPitchCandidates = nextCandidates
+                PitchInputEngine.shared.setExpectedPitchCandidates(nextCandidates)
+            }
+        }
         processAutoPlayIfNeeded(phraseTimeSec: phraseTime)
         applyLyricsIfNeeded(phraseTimeSec: phraseTime)
         updateHiddenNotesAtEnd(phraseTimeSec: phraseTime)

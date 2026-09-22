@@ -223,4 +223,50 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.processFrame(other, frameIndex: 0).isEmpty)
         XCTAssertEqual(tracker.getCurrentNote(), -1)
     }
+
+    func testDoesNotEmitNoteOffWhenOnlyConfidenceDips() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.releaseFrames = 2
+        config.minNoteFrames = 1
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let lowConfidence = PitchFrame(prediction: 60, confidence: 0.1, volume: 0.01)
+
+        _ = tracker.processFrame(voiced, frameIndex: 0)
+        _ = tracker.processFrame(lowConfidence, frameIndex: 1)
+        _ = tracker.processFrame(lowConfidence, frameIndex: 2)
+        XCTAssertEqual(tracker.getCurrentNote(), 60)
+        XCTAssertTrue(tracker.processFrame(lowConfidence, frameIndex: 3).isEmpty)
+    }
+
+    func testDoesNotImmediateNoteOnForMultiCandidateExpectedAssist() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 4
+        config.expectedAssistConfidence = 0.38
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: (1 << 0) | (1 << 2) | (1 << 4), midis: [60, 62, 64])
+        let d = PitchFrame(prediction: 62, confidence: 0.38, volume: 0.01)
+        XCTAssertTrue(tracker.processFrame(d, frameIndex: 0).isEmpty)
+        XCTAssertEqual(tracker.getCurrentNote(), -1)
+    }
+
+    func testAllowsExpectedOctaveJumpWithLegatoStability() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 4
+        config.fastResponse = false
+        config.attackRiseDb = 6
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [72])
+        let c4 = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let c5a = PitchFrame(prediction: 72, confidence: 0.9, volume: 0.0105)
+        let c5b = PitchFrame(prediction: 72, confidence: 0.9, volume: 0.0105)
+
+        _ = tracker.processFrame(c4, frameIndex: 0)
+        _ = tracker.processFrame(c5a, frameIndex: 1)
+        let events = tracker.processFrame(c5b, frameIndex: 2)
+        XCTAssertEqual(events.count, 2)
+    }
 }

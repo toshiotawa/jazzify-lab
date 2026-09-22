@@ -34,7 +34,7 @@
   ],
   "expectedEvents": [
     { "type": "noteOn", "note": 60, "frameIndex": 2, "onsetFrameIndex": 1 },
-    { "type": "noteOff", "note": 60, "frameIndex": 9 },
+    { "type": "noteOff", "note": 60, "frameIndex": 11 },
     { "type": "noteOn", "note": 64, "frameIndex": 11, "onsetFrameIndex": 10 },
     { "type": "noteOff", "note": 64, "frameIndex": 18 }
   ]

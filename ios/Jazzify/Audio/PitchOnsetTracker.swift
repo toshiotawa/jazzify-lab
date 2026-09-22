@@ -52,6 +52,8 @@ final class PitchOnsetTracker {
     private var legatoHitNotes: [Int] = [-1, -1, -1]
     private var legatoHitIndex = 0
     private var expectedPitchMask = 0
+    private var expectedPitchMidis: [Int] = []
+    private var suspendedNote = -1
 
     init(config: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) {
         self.config = config
@@ -63,7 +65,12 @@ final class PitchOnsetTracker {
 
     /// Phrase Defense 以外は 0。通常の自由演奏には使わない。
     func setExpectedPitchMask(_ mask: Int) {
+        setExpectedPitchCandidates(mask: mask, midis: [])
+    }
+
+    func setExpectedPitchCandidates(mask: Int, midis: [Int]) {
         expectedPitchMask = mask & 0xFFF
+        expectedPitchMidis = midis.map { Int($0.rounded()) }
     }
 
     func reset() {
@@ -80,6 +87,7 @@ final class PitchOnsetTracker {
         pendingOffFrame = -1
         legatoHitNotes = [-1, -1, -1]
         legatoHitIndex = 0
+        suspendedNote = -1
     }
 
     func flushActiveNote(frameIndex: Int) -> [PitchInputEvent] {
@@ -118,11 +126,14 @@ final class PitchOnsetTracker {
             confidence: frame.confidence,
             levelDb: levelDb
         )
-        let voiced = expectedAssist || (
-            levelDb > config.onsetLevelDb
-                && frame.confidence >= config.minConfidence
-                && quantized != nil
-        )
+        let confidenceVoiced = levelDb > config.onsetLevelDb
+            && frame.confidence >= config.minConfidence
+            && quantized != nil
+        let sustainingSameNote = currentNote >= 0
+            && quantized != nil
+            && levelDb >= config.releaseLevelDb
+            && pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance)
+        let voiced = expectedAssist || confidenceVoiced || sustainingSameNote
         pushLegatoHit(voiced ? quantized ?? -1 : -1)
 
         if voiced, let quantized {
@@ -137,11 +148,11 @@ final class PitchOnsetTracker {
             pendingOff = false
 
             if currentNote < 0 {
-                if expectedAssist || shouldEmitNoteOn(
-                    pitchStableCount: pitchStableCount,
-                    confidence: frame.confidence,
-                    allowImmediate: true
-                ) {
+                if quantized == suspendedNote,
+                   recentLevelRise(levelDb: levelDb) < config.attackRiseDb {
+                    resumeSuspendedNote(note: quantized, frameIndex: frameIndex)
+                } else if shouldStartNoteOn(expectedAssist: expectedAssist, confidence: frame.confidence) {
+                    suspendedNote = -1
                     emitNoteOn(
                         &events,
                         note: quantized,
@@ -150,12 +161,14 @@ final class PitchOnsetTracker {
                     )
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
-                if isLikelyOctaveJump(quantized: quantized, levelDb: levelDb) {
+                let octaveRelated = isOctaveRelatedJump(quantized: quantized)
+                if isLikelyOctaveJump(quantized: quantized, levelDb: levelDb, confidence: frame.confidence) {
                     // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-                } else if expectedAssist || shouldEmitLegatoSwitch(
+                } else if (expectedAssist && !octaveRelated) || shouldEmitLegatoSwitch(
                     quantized: quantized,
                     confidence: frame.confidence
                 ) {
+                    suspendedNote = -1
                     emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
                     emitNoteOn(
                         &events,
@@ -173,7 +186,6 @@ final class PitchOnsetTracker {
 
             if currentNote >= 0 {
                 let belowRelease = levelDb < config.releaseLevelDb
-                    || frame.confidence < config.minConfidence
                 if belowRelease {
                     releaseCount += 1
                     if releaseCount >= config.releaseFrames {
@@ -191,6 +203,29 @@ final class PitchOnsetTracker {
 
     func getCurrentNote() -> Int { currentNote }
 
+    private func shouldStartNoteOn(expectedAssist: Bool, confidence: Double) -> Bool {
+        if expectedAssist, hasSingleExpectedPitchClass() { return true }
+        return shouldEmitNoteOn(
+            pitchStableCount: pitchStableCount,
+            confidence: confidence,
+            allowImmediate: !expectedAssist
+        )
+    }
+
+    private func hasSingleExpectedPitchClass() -> Bool {
+        popcountPitchClasses(expectedPitchMask) == 1
+    }
+
+    private func popcountPitchClasses(_ mask: Int) -> Int {
+        var count = 0
+        var bits = mask & 0xFFF
+        while bits > 0 {
+            count += bits & 1
+            bits >>= 1
+        }
+        return count
+    }
+
     private func shouldEmitNoteOn(
         pitchStableCount: Int,
         confidence: Double,
@@ -204,9 +239,17 @@ final class PitchOnsetTracker {
         return false
     }
 
+    private func isOctaveRelatedJump(quantized: Int) -> Bool {
+        guard currentNote >= 0 else { return false }
+        let diff = abs(quantized - currentNote)
+        return diff == 12 || diff == 24
+    }
+
     /// 高速反応かつ超高確信は 1 フレーム。それ以外は直近 3 フレーム中 2 ヒット。
     private func shouldEmitLegatoSwitch(quantized: Int, confidence: Double) -> Bool {
-        if config.fastResponse, confidence >= config.fastLegatoConfidence { return true }
+        if !isOctaveRelatedJump(quantized: quantized),
+           config.fastResponse,
+           confidence >= config.fastLegatoConfidence { return true }
         return legatoHitCount(quantized) >= 2
     }
 
@@ -235,11 +278,27 @@ final class PitchOnsetTracker {
         Double(config.pitchStableFrames) * config.frameDurationMs
     }
 
-    private func isLikelyOctaveJump(quantized: Int, levelDb: Double) -> Bool {
+    private func isLikelyOctaveJump(quantized: Int, levelDb: Double, confidence: Double) -> Bool {
         guard currentNote >= 0 else { return false }
         let diff = abs(quantized - currentNote)
         guard diff == 12 || diff == 24 else { return false }
-        return recentLevelRise(levelDb: levelDb) < config.attackRiseDb
+
+        let rise = recentLevelRise(levelDb: levelDb)
+        if expectedPitchMidis.contains(quantized) {
+            if rise >= config.attackRiseDb { return false }
+            if shouldEmitLegatoSwitch(quantized: quantized, confidence: confidence) { return false }
+            return true
+        }
+
+        return rise < config.attackRiseDb
+    }
+
+    private func resumeSuspendedNote(note: Int, frameIndex: Int) {
+        currentNote = note
+        noteOnFrame = frameIndex
+        releaseCount = 0
+        pendingOff = false
+        suspendedNote = -1
     }
 
     private func volumeToDb(_ volume: Double) -> Double {
@@ -262,11 +321,13 @@ final class PitchOnsetTracker {
         recentMinDb = .infinity
         recentMinDbFrame = -1
         recentLevelDbRing = []
+        suspendedNote = -1
         events.append(.noteOn(note: note, frameIndex: frameIndex, onsetFrameIndex: onsetFrameIndex))
     }
 
     private func emitNoteOff(_ events: inout [PitchInputEvent], note: Int, frameIndex: Int) {
         guard currentNote == note else { return }
+        suspendedNote = note
         currentNote = -1
         noteOnFrame = -1
         releaseCount = 0

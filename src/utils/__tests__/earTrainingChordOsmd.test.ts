@@ -14,6 +14,8 @@ import {
   chordOsmdNoteHitRatio,
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
+  collectChordOsmdExpectedPitchCandidates,
+  collectChordOsmdExpectedPitchCandidates,
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdMusicXmlLyrics,
   collectChordOsmdScoreLyricEvents,
@@ -415,18 +417,53 @@ describe('Chord OSMD target consumption', () => {
     expect(isPhraseTimeInChordOsmdJudgmentWindow(1.0, 1.0, 0, 0.25, 0.25)).toBe(true);
   });
 
-  it('pickNearestChordOsmdTargetIndex は voice 用 matchLateGraceSec を反映する', () => {
+  it('pickNearestChordOsmdTargetIndex は採点窓に到着猶予を加算しない', () => {
     const judgedTimes = [1.0];
-    const index = pickNearestChordOsmdTargetIndex(
+    const withinWindow = pickNearestChordOsmdTargetIndex(
+      1,
+      1.24,
+      (i) => judgedTimes[i] ?? 0,
+      () => true,
+      0.25,
+      0.25,
+    );
+    const outsideWindow = pickNearestChordOsmdTargetIndex(
       1,
       1.45,
       (i) => judgedTimes[i] ?? 0,
       () => true,
       0.25,
       0.25,
+    );
+    expect(withinWindow).toBe(0);
+    expect(outsideWindow).toBeNull();
+  });
+
+  it('hasChordOsmdJudgmentWindowExpired は到着猶予だけミス確定に使う', () => {
+    expect(hasChordOsmdJudgmentWindowExpired(1.45, 1.0, 0.25, 0)).toBe(true);
+    expect(hasChordOsmdJudgmentWindowExpired(1.45, 1.0, 0.25, 0.25)).toBe(false);
+    expect(hasChordOsmdJudgmentWindowExpired(1.51, 1.0, 0.25, 0.25)).toBe(true);
+  });
+
+  it('collectChordOsmdExpectedPitchCandidates は判定窓内の未消費 MIDI だけを返す', () => {
+    const candidates = collectChordOsmdExpectedPitchCandidates(
+      3,
+      1.1,
+      (index) => [1.0, 1.12, 1.24][index] ?? 0,
+      (index) => {
+        if (index === 0) {
+          return { completed: true, failed: false, remainingCounts: new Map([[60, 1]]) };
+        }
+        if (index === 1) {
+          return { completed: false, failed: false, remainingCounts: new Map([[62, 1]]) };
+        }
+        return { completed: false, failed: false, remainingCounts: new Map([[64, 1]]) };
+      },
+      0.25,
       0.25,
     );
-    expect(index).toBe(0);
+    expect(candidates.pitchClassMask).toBe((1 << 2) | (1 << 4));
+    expect(candidates.midis).toEqual([62, 64]);
   });
 
   it('同じタイミングの和音は1音だけでは完了しない', () => {

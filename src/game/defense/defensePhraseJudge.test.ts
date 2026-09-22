@@ -1,6 +1,7 @@
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
+  getDefenseExpectedPitchCandidates,
   getDefensePhraseKeyboardHints,
   nextPhraseIndex,
 } from '@/game/defense/defensePhraseJudge';
@@ -435,5 +436,16 @@ describe('defensePhraseJudge', () => {
     expect(hints.nextMidi).toBe(60);
     expect(hints.pendingMidis).toEqual(expect.arrayContaining([64, 67]));
     expect(hints.completedMidis).toEqual([]);
+  });
+
+  it('getDefenseExpectedPitchCandidates はフレーズ末尾でループ先頭も含める', () => {
+    const state = {
+      ...createInitialPhraseJudgeState(0),
+      chordIndex: 1,
+      targetStepIndex: 0,
+      correctNoteIndices: new Set<number>(),
+    };
+    const candidates = getDefenseExpectedPitchCandidates([phraseA], state, true);
+    expect(candidates.midis).toEqual(expect.arrayContaining([67, 62]));
   });
 });

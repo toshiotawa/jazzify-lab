@@ -16,6 +16,10 @@ import {
   type OrderedChordKeyboardHints,
 } from '@/utils/orderedChordInput';
 import {
+  buildExpectedPitchCandidates,
+  type ExpectedPitchCandidates,
+} from '@/utils/pitchInput/expectedPitchCandidates';
+import {
   advanceChordStep,
   getPhraseChordSteps,
   type ChordStepAdvanceState,
@@ -300,6 +304,54 @@ export const evaluateDefensePhraseNoteOn = (
       pendingSwitch: state.pendingSwitch,
     },
   };
+};
+
+const isOnPhraseLoopBoundary = (
+  phrase: DefensePhrase,
+  state: DefensePhraseJudgeState,
+): boolean => {
+  if (phrase.chords.length === 0) {
+    return false;
+  }
+  const lastChordIndex = phrase.chords.length - 1;
+  if (state.chordIndex !== lastChordIndex) {
+    return false;
+  }
+  const lastChord = phrase.chords[lastChordIndex];
+  if (!lastChord) {
+    return false;
+  }
+  const { steps } = getPhraseChordSteps(lastChord.notes);
+  return state.targetStepIndex >= steps.length - 1;
+};
+
+export const getDefenseExpectedPitchCandidates = (
+  phrases: readonly DefensePhrase[],
+  state: DefensePhraseJudgeState,
+  sequential: boolean,
+): ExpectedPitchCandidates => {
+  if (!sequential) {
+    return buildExpectedPitchCandidates([]);
+  }
+  const hints = getDefensePhraseKeyboardHints(phrases, state, sequential);
+  const midis: number[] = [];
+  if (hints.nextMidi != null) {
+    midis.push(hints.nextMidi);
+  }
+  const phrase = phrases[state.phraseIndex];
+  if (phrase && isOnPhraseLoopBoundary(phrase, state)) {
+    const firstChord = phrase.chords[0];
+    const firstSteps = firstChord ? getPhraseChordSteps(firstChord.notes).steps : [];
+    const firstStep = firstSteps[0];
+    if (firstChord && firstStep) {
+      for (const midi of stepMidiNotes(firstChord, firstStep)) {
+        if (!midis.includes(midi)) {
+          midis.push(midi);
+        }
+      }
+    }
+  }
+  return buildExpectedPitchCandidates(midis);
 };
 
 export const getDefensePhraseKeyboardHints = (

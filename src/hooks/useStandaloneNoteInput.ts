@@ -15,6 +15,7 @@ import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
 import { midiToNoteName } from '@/utils/musicXmlOrnamentExpander';
+import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
 
 export type StandaloneInputConnectionStatus =
   | 'idle'
@@ -35,6 +36,7 @@ interface UseStandaloneNoteInputOptions {
   voiceLowRegister?: boolean;
   /** Phrase Defense の期待 pitch class ビットマスク。0 は補助なし。 */
   expectedPitchMask?: number;
+  expectedPitchCandidates?: ExpectedPitchCandidates;
 }
 
 interface UseStandaloneNoteInputResult {
@@ -55,6 +57,7 @@ export const useStandaloneNoteInput = ({
   voiceFastResponse = false,
   voiceLowRegister = false,
   expectedPitchMask = 0,
+  expectedPitchCandidates,
 }: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
   const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
@@ -78,6 +81,8 @@ export const useStandaloneNoteInput = ({
   voiceLowRegisterRef.current = voiceLowRegister;
   const expectedPitchMaskRef = useRef(expectedPitchMask);
   expectedPitchMaskRef.current = expectedPitchMask;
+  const expectedPitchCandidatesRef = useRef(expectedPitchCandidates);
+  expectedPitchCandidatesRef.current = expectedPitchCandidates;
 
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
@@ -167,11 +172,19 @@ export const useStandaloneNoteInput = ({
   }, [settings.voiceSensitivity]);
 
   useEffect(() => {
-    pitchRef.current?.setExpectedPitchMask(expectedPitchMask);
+    const pitch = pitchRef.current;
+    if (!pitch) {
+      return undefined;
+    }
+    if (expectedPitchCandidates) {
+      pitch.setExpectedPitchCandidates(expectedPitchCandidates);
+    } else {
+      pitch.setExpectedPitchMask(expectedPitchMask);
+    }
     return () => {
-      pitchRef.current?.setExpectedPitchMask(0);
+      pitch.setExpectedPitchCandidates({ pitchClassMask: 0, midis: [] });
     };
-  }, [expectedPitchMask]);
+  }, [expectedPitchCandidates, expectedPitchMask]);
 
   const connect = useCallback(async () => {
     const generation = connectGenerationRef.current + 1;
@@ -196,7 +209,12 @@ export const useStandaloneNoteInput = ({
       pitch.setPitchStableFrames(voiceFastResponseRef.current ? 2 : 4);
       pitch.setLowRegister(voiceLowRegisterRef.current);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
-      pitch.setExpectedPitchMask(expectedPitchMaskRef.current);
+      const candidates = expectedPitchCandidatesRef.current;
+      if (candidates) {
+        pitch.setExpectedPitchCandidates(candidates);
+      } else {
+        pitch.setExpectedPitchMask(expectedPitchMaskRef.current);
+      }
       const deviceId =
         settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
           ? settings.selectedAudioDevice

@@ -98,7 +98,7 @@ struct DefenseGameView: View {
         .onAppear {
             OrientationManager.shared.lock(.portrait)
             scene.session = session
-            PitchInputEngine.shared.setExpectedPitchMask(expectedPitchMask)
+            PitchInputEngine.shared.setExpectedPitchCandidates(expectedPitchCandidates)
         }
         .task {
             await session.start()
@@ -106,10 +106,10 @@ struct DefenseGameView: View {
         .onDisappear {
             OrientationManager.shared.lock(.portrait)
             session.stop()
-            PitchInputEngine.shared.setExpectedPitchMask(0)
+            PitchInputEngine.shared.setExpectedPitchCandidates(.empty)
         }
-        .onChange(of: expectedPitchMask) { mask in
-            PitchInputEngine.shared.setExpectedPitchMask(mask)
+        .onChange(of: expectedPitchCandidates) { candidates in
+            PitchInputEngine.shared.setExpectedPitchCandidates(candidates)
         }
         .onChange(of: session.hud.result) { result in
             if isTutorialSession { return }
@@ -557,14 +557,12 @@ struct DefenseGameView: View {
         }
     }
 
-    private var expectedPitchMask: Int {
-        guard session.phase == .playing, effectiveSequentialInput else { return 0 }
-        var mask = 0
-        for midi in keyboardHints.nextMidis {
-            let pitchClass = ((midi % 12) + 12) % 12
-            mask |= 1 << pitchClass
-        }
-        return mask
+    private var expectedPitchCandidates: ExpectedPitchCandidates {
+        guard session.phase == .playing, effectiveSequentialInput else { return .empty }
+        return DefensePhraseJudge.expectedPitchCandidates(
+            state: session.judgeState,
+            sequential: true
+        )
     }
 
     private var keyboardHints: DefensePhraseJudge.KeyboardHints {

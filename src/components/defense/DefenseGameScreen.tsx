@@ -72,6 +72,7 @@ import {
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
+  getDefenseExpectedPitchCandidates,
   getDefensePhraseKeyboardHints,
   nextPhraseIndex,
   type DefensePhraseJudgeState,
@@ -155,7 +156,6 @@ interface FinalStats {
 
 /** fade_15s は 15 秒で完了するため、それ以降は秒カウンタの再レンダーを止める */
 const HINT_FADE_TRACK_LIMIT_SEC = 16;
-const VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS = 120;
 const DEFAULT_TUTORIAL_CONCERT_MIDIS: readonly [number, number, number] = [60, 62, 64];
 
 type DefenseGamePhase = 'loading' | 'loadError' | 'countdown' | 'playing';
@@ -252,7 +252,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const progressionActiveIndexRef = useRef(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSettingsOpenRef = useRef(false);
-  const lastVoicePcAtRef = useRef<Map<number, number>>(new Map());
   const profile = useAuthStore((state) => state.profile);
   const geoCountry = useGeoStore((state) => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({
@@ -379,11 +378,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     [activePhrases, judgeSnapshot, voiceSequential],
   );
 
-  const expectedPitchMask = useMemo(() => {
-    if (effectiveInputMethod !== 'voice' || keyboardHints.nextMidi == null) return 0;
-    const pitchClass = ((keyboardHints.nextMidi % 12) + 12) % 12;
-    return 1 << pitchClass;
-  }, [effectiveInputMethod, keyboardHints.nextMidi]);
+  const expectedPitchCandidates = useMemo(() => {
+    if (effectiveInputMethod !== 'voice') {
+      return { pitchClassMask: 0, midis: [] };
+    }
+    return getDefenseExpectedPitchCandidates(activePhrases, judgeSnapshot, voiceSequential);
+  }, [activePhrases, effectiveInputMethod, judgeSnapshot, voiceSequential]);
 
   const tutorialConcertPitchClasses = useMemo(
     () => tutorialConcertMidis.map((midi) => ((midi % 12) + 12) % 12),
@@ -611,14 +611,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     if (runtime.result !== 'playing') return;
 
     const pitchClass = normalizePitchClass(midiNote % 12);
-    if (sequential) {
-      const now = performance.now();
-      const lastAt = lastVoicePcAtRef.current.get(pitchClass) ?? 0;
-      if (now - lastAt < VOICE_DEFENSE_SAME_PC_DEBOUNCE_MS) {
-        return;
-      }
-      lastVoicePcAtRef.current.set(pitchClass, now);
-    }
 
     const autoAdvance = isTutorialSession
       ? Boolean(tutorialOptions?.autoAdvancePhrase)
@@ -740,7 +732,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       || effectiveInputMethod === 'voice',
     inputMethod: effectiveInputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
-    expectedPitchMask,
+    expectedPitchCandidates,
     onNoteOn: (note) => {
       if (isTutorialSession && effectiveInputMethod === 'touch') return;
       handleNoteOn(note, voiceSequential);

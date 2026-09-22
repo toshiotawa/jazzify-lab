@@ -107,12 +107,17 @@ import {
 } from '@/utils/earTrainingCanonicalPhraseNotes';
 import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
+  expectedPitchCandidatesEqual,
+  type ExpectedPitchCandidates,
+} from '@/utils/pitchInput/expectedPitchCandidates';
+import {
   calibratePrecisionNotes,
   resolvePrecisionDisplayKeyboardRange,
   type PrecisionKeyboardRange,
   type PrecisionNote,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
+  collectPrecisionExpectedPitchCandidates,
   createPrecisionRuntimeStates,
   findPrecisionNoteForInput,
   findNearestPendingPrecisionNote,
@@ -306,6 +311,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const phraseEndingRef = useRef(false);
   const progressSaveStartedRef = useRef(false);
   const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
+  const voiceExpectedPitchCandidatesRef = useRef<ExpectedPitchCandidates>({ pitchClassMask: 0, midis: [] });
   const activeGoodNotesByMidiRef = useRef<Map<number, string>>(new Map());
   const practiceSpeedPercentRef = useRef(100);
   const timingAdjustmentMsRef = useRef(loadEarTrainingOsmdTimingAdjustmentMs());
@@ -1032,15 +1038,28 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       hasSyncedPhraseStartPlayheadRef.current = true;
       syncPlayheadForTimeline(phraseTimeSec, true);
     }
+    const windowSec = resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC);
     const newlyMissed = markExpiredPrecisionNotesAsMiss(
       notesRef.current,
       runtimeStatesRef.current,
       phraseTimeSec,
-      resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC),
+      windowSec,
       settings.inputMethod === 'voice' ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0,
     );
     if (newlyMissed > 0) {
       syncRendererStates();
+    }
+    if (settings.inputMethod === 'voice') {
+      const nextCandidates = collectPrecisionExpectedPitchCandidates(
+        notesRef.current,
+        runtimeStatesRef.current,
+        phraseTimeSec,
+        windowSec,
+      );
+      if (!expectedPitchCandidatesEqual(voiceExpectedPitchCandidatesRef.current, nextCandidates)) {
+        voiceExpectedPitchCandidatesRef.current = nextCandidates;
+        earMidi.setExpectedPitchCandidates(nextCandidates);
+      }
     }
     if (precisionAutoPlayEnabledRef.current) {
       const autoPlayChanged = autoPlaySchedulerRef.current.tick(
@@ -1092,6 +1111,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       finishPhraseRef.current();
     }
   }, [
+    earMidi,
     syncPlayheadForTimeline,
     resolveCalibratedTargetTimeSec,
     resolveEffectiveTimingWindowSec,

@@ -2,6 +2,10 @@ import type { EarTrainingPhrase, EarTrainingPhraseChord, EarTrainingRank, EarTra
 import { transposeChordLabel } from '@/utils/earTrainingPracticeTranspose';
 import { ensureMusicXmlDeclaration } from '@/utils/musicXmlMapper';
 import {
+  buildExpectedPitchCandidates,
+  type ExpectedPitchCandidates,
+} from '@/utils/pitchInput/expectedPitchCandidates';
+import {
   musicXmlAccidentalTextToAlter,
   parseVoicingNoteName,
 } from '@/utils/voicingMusicXml';
@@ -108,6 +112,43 @@ export const hasChordOsmdJudgmentWindowExpired = (
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   arrivalGraceSec = 0,
 ): boolean => phraseTimeSec > judgedTargetTimeSec + lateSec + arrivalGraceSec;
+
+export interface ChordOsmdExpectedPitchRuntime {
+  completed: boolean;
+  failed: boolean;
+  remainingCounts: ReadonlyMap<number, number>;
+}
+
+export const collectChordOsmdExpectedPitchCandidates = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
+  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): ExpectedPitchCandidates => {
+  const midis: number[] = [];
+  for (let index = 0; index < targetCount; index += 1) {
+    const runtime = resolveRuntime(index);
+    if (!runtime || runtime.completed || runtime.failed) {
+      continue;
+    }
+    const judged = resolveJudgedTargetTimeSec(index);
+    const delta = phraseTimeSec - judged;
+    if (delta < -earlySec) {
+      break;
+    }
+    if (delta > lateSec) {
+      continue;
+    }
+    for (const [midi, count] of runtime.remainingCounts) {
+      if (count > 0 && !midis.includes(midi)) {
+        midis.push(midi);
+      }
+    }
+  }
+  return buildExpectedPitchCandidates(midis);
+};
 
 export const pickNearestChordOsmdTargetIndex = (
   targetCount: number,

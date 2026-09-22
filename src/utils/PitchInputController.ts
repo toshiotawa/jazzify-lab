@@ -5,6 +5,7 @@
 import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
+import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
 import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/pitchInput/pitchInputTypes';
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
@@ -85,6 +86,7 @@ export class PitchInputController {
   private sensitivityLevel = 5;
   private pitchStableFrames = 4;
   private expectedPitchMask = 0;
+  private expectedPitchMidis: number[] = [];
   private currentNote = -1;
   private cachedInputLatencySec = 0;
   private generationId = 0;
@@ -374,6 +376,7 @@ export class PitchInputController {
           fastResponse: this.pitchStableFrames <= 2,
         },
         expectedPitchMask: this.expectedPitchMask,
+        expectedPitchMidis: this.expectedPitchMidis,
         diagnostics: isPitchDiagnosticsEnabled()
           ? {
               deviceLabel: track?.label ?? null,
@@ -435,10 +438,16 @@ export class PitchInputController {
 
   /** Phrase Defense の期待 pitch class。0 で補助オフ。自由演奏では 0 のまま。 */
   setExpectedPitchMask(mask: number): void {
-    this.expectedPitchMask = mask & 0xfff;
+    this.setExpectedPitchCandidates({ pitchClassMask: mask, midis: [] });
+  }
+
+  setExpectedPitchCandidates(candidates: ExpectedPitchCandidates): void {
+    this.expectedPitchMask = candidates.pitchClassMask & 0xfff;
+    this.expectedPitchMidis = candidates.midis.map((midi) => Math.round(midi));
     this.worker?.postMessage({
-      type: 'setExpectedPitchMask',
+      type: 'setExpectedPitchCandidates',
       mask: this.expectedPitchMask,
+      midis: this.expectedPitchMidis,
     });
   }
 

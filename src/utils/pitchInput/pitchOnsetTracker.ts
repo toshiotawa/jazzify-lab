@@ -103,6 +103,16 @@ const pitchMatch = (a: number, b: number, centsTolerance: number): boolean => {
   return diffCents <= centsTolerance;
 };
 
+const popcountPitchClasses = (mask: number): number => {
+  let count = 0;
+  let bits = mask & 0xfff;
+  while (bits > 0) {
+    count += bits & 1;
+    bits >>= 1;
+  }
+  return count;
+};
+
 export class PitchOnsetTracker {
   private config: PitchOnsetTrackerConfig;
   private currentNote = -1;
@@ -121,6 +131,10 @@ export class PitchOnsetTracker {
   private legatoHitIndex = 0;
   /** pitch class のビットマスク。0 は補助なし。 */
   private expectedPitchMask = 0;
+  /** オクターブ判定用の実音 MIDI 候補。 */
+  private expectedPitchMidis: number[] = [];
+  /** noteOff 後、立ち上がりなしで戻った同音を noteOn にしないための保留音。 */
+  private suspendedNote = -1;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -132,7 +146,12 @@ export class PitchOnsetTracker {
 
   /** Phrase Defense 以外は 0。通常の自由演奏には使わない。 */
   setExpectedPitchMask(mask: number): void {
+    this.setExpectedPitchCandidates(mask, []);
+  }
+
+  setExpectedPitchCandidates(mask: number, midis: readonly number[]): void {
     this.expectedPitchMask = mask & 0xfff;
+    this.expectedPitchMidis = midis.map((midi) => Math.round(midi));
   }
 
   reset(): void {
@@ -151,6 +170,7 @@ export class PitchOnsetTracker {
     this.legatoHitNotes[1] = -1;
     this.legatoHitNotes[2] = -1;
     this.legatoHitIndex = 0;
+    this.suspendedNote = -1;
   }
 
   /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
@@ -172,11 +192,18 @@ export class PitchOnsetTracker {
     const levelDb = volumeToDb(frame.volume);
     const quantized = frame.prediction > 0 ? quantizeMidi(frame.prediction) : -1;
     const expectedAssist = this.isExpectedAssist(quantized, frame.confidence, levelDb);
-    const voiced = expectedAssist || (
+    const confidenceVoiced = (
       levelDb > this.config.onsetLevelDb
       && frame.confidence >= this.config.minConfidence
       && quantized >= 0
     );
+    const sustainingSameNote = (
+      this.currentNote >= 0
+      && quantized >= 0
+      && levelDb >= this.config.releaseLevelDb
+      && pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
+    );
+    const voiced = expectedAssist || confidenceVoiced || sustainingSameNote;
     this.pushLegatoHit(voiced ? quantized : -1);
 
     if (voiced) {
@@ -191,7 +218,13 @@ export class PitchOnsetTracker {
       this.pendingOff = false;
 
       if (this.currentNote < 0) {
-        if (expectedAssist || this.shouldEmitNoteOn(frame.confidence, true)) {
+        if (
+          quantized === this.suspendedNote
+          && this.recentLevelRise(levelDb) < this.config.attackRiseDb
+        ) {
+          this.resumeSuspendedNote(quantized, frameIndex);
+        } else if (this.shouldStartNoteOn(expectedAssist, frame.confidence)) {
+          this.suspendedNote = -1;
           this.emitNoteOn(
             events,
             quantized,
@@ -202,9 +235,14 @@ export class PitchOnsetTracker {
       } else if (
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
-        if (this.isLikelyOctaveJump(quantized, levelDb)) {
+        const octaveRelated = this.isOctaveRelatedJump(quantized);
+        if (this.isLikelyOctaveJump(quantized, levelDb, frame.confidence)) {
           // 倍音由来の ±12/±24 セミトーン飛びは PC 判定に影響しないため無視。
-        } else if (expectedAssist || this.shouldEmitLegatoSwitch(quantized, frame.confidence)) {
+        } else if (
+          (expectedAssist && !octaveRelated)
+          || this.shouldEmitLegatoSwitch(quantized, frame.confidence)
+        ) {
+          this.suspendedNote = -1;
           this.emitNoteOff(events, this.currentNote, frameIndex);
           this.emitNoteOn(
             events,
@@ -221,9 +259,7 @@ export class PitchOnsetTracker {
       this.lastStableNote = -1;
 
       if (this.currentNote >= 0) {
-        const belowRelease =
-          levelDb < this.config.releaseLevelDb ||
-          frame.confidence < this.config.minConfidence;
+        const belowRelease = levelDb < this.config.releaseLevelDb;
         if (belowRelease) {
           this.releaseCount += 1;
           if (this.releaseCount >= this.config.releaseFrames) {
@@ -237,6 +273,17 @@ export class PitchOnsetTracker {
 
     this.flushPendingOff(events, frameIndex);
     return events;
+  }
+
+  private shouldStartNoteOn(expectedAssist: boolean, confidence: number): boolean {
+    if (expectedAssist && this.hasSingleExpectedPitchClass()) {
+      return true;
+    }
+    return this.shouldEmitNoteOn(confidence, !expectedAssist);
+  }
+
+  private hasSingleExpectedPitchClass(): boolean {
+    return popcountPitchClasses(this.expectedPitchMask) === 1;
   }
 
   private shouldEmitNoteOn(confidence: number, allowImmediate: boolean): boolean {
@@ -256,9 +303,16 @@ export class PitchOnsetTracker {
    * 高速反応かつ超高確信は 1 フレーム。それ以外は直近 3 フレーム中 2 ヒット。
    * 無音からの noteOn には使わない。
    */
+  private isOctaveRelatedJump(quantized: number): boolean {
+    if (this.currentNote < 0) return false;
+    const diff = Math.abs(quantized - this.currentNote);
+    return diff === 12 || diff === 24;
+  }
+
   private shouldEmitLegatoSwitch(quantized: number, confidence: number): boolean {
     if (
-      this.config.fastResponse
+      !this.isOctaveRelatedJump(quantized)
+      && this.config.fastResponse
       && confidence >= this.config.fastLegatoConfidence
     ) {
       return true;
@@ -292,17 +346,27 @@ export class PitchOnsetTracker {
     return this.config.pitchStableFrames * this.config.frameDurationMs;
   }
 
-  private isLikelyOctaveJump(quantized: number, levelDb: number): boolean {
+  private isLikelyOctaveJump(quantized: number, levelDb: number, confidence: number): boolean {
     if (this.currentNote < 0) return false;
     const diff = Math.abs(quantized - this.currentNote);
     if (diff !== 12 && diff !== 24) return false;
-    const lookback = this.config.retriggerLookbackFrames;
-    const start = Math.max(0, this.recentLevelDbRing.length - lookback);
-    let minRecent = levelDb;
-    for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
-      minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
+
+    const rise = this.recentLevelRise(levelDb);
+    if (this.expectedPitchMidis.includes(quantized)) {
+      if (rise >= this.config.attackRiseDb) return false;
+      if (this.shouldEmitLegatoSwitch(quantized, confidence)) return false;
+      return true;
     }
-    return levelDb - minRecent < this.config.attackRiseDb;
+
+    return rise < this.config.attackRiseDb;
+  }
+
+  private resumeSuspendedNote(note: number, frameIndex: number): void {
+    this.currentNote = note;
+    this.noteOnFrame = frameIndex;
+    this.releaseCount = 0;
+    this.pendingOff = false;
+    this.suspendedNote = -1;
   }
 
   private emitNoteOn(
@@ -317,6 +381,7 @@ export class PitchOnsetTracker {
     this.recentMinDb = Infinity;
     this.recentMinDbFrame = -1;
     this.recentLevelDbRing = [];
+    this.suspendedNote = -1;
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
   }
 
@@ -326,6 +391,7 @@ export class PitchOnsetTracker {
     frameIndex: number,
   ): void {
     if (this.currentNote !== note) return;
+    this.suspendedNote = note;
     this.currentNote = -1;
     this.noteOnFrame = -1;
     this.releaseCount = 0;

@@ -42,6 +42,7 @@ interface WorkerInitMessage {
   shiftSemitones: PestoShiftSemitones;
   config?: Partial<PitchOnsetTrackerConfig>;
   expectedPitchMask?: number;
+  expectedPitchMidis?: number[];
   diagnostics?: {
     deviceLabel: string | null;
     sampleRate: number | null;
@@ -78,6 +79,12 @@ interface WorkerSetExpectedPitchMaskMessage {
   mask: number;
 }
 
+interface WorkerSetExpectedPitchCandidatesMessage {
+  type: 'setExpectedPitchCandidates';
+  mask: number;
+  midis: number[];
+}
+
 interface WorkerSetShiftMessage {
   type: 'setShiftSemitones';
   shiftSemitones: PestoShiftSemitones;
@@ -93,6 +100,7 @@ type WorkerInbound =
   | WorkerControlMessage
   | WorkerSetOnsetConfigMessage
   | WorkerSetExpectedPitchMaskMessage
+  | WorkerSetExpectedPitchCandidatesMessage
   | WorkerSetShiftMessage
   | WorkerConnectPortMessage;
 
@@ -141,6 +149,7 @@ let sensitivityLevel = 5;
 let pitchStableFramesOverride = 4;
 let fastResponseEnabled = false;
 let expectedPitchMask = 0;
+let expectedPitchMidis: number[] = [];
 let generationId = 0;
 let shiftSemitones: PestoShiftSemitones = 0;
 let frameDurationSec = PESTO_BASE_FRAME_SEC;
@@ -485,9 +494,10 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
       fastResponseEnabled = data.config?.fastResponse ?? pitchStableFramesOverride <= 2;
       expectedPitchMask = data.expectedPitchMask ?? 0;
+      expectedPitchMidis = data.expectedPitchMidis ?? [];
       applyShiftMode(data.shiftSemitones ?? 0);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
-      tracker.setExpectedPitchMask(expectedPitchMask);
+      tracker.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis);
       chunkQueue.reset(generationId, 0);
       isInferring = false;
       resetLatencyStats();
@@ -539,7 +549,15 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
 
     if (data.type === 'setExpectedPitchMask') {
       expectedPitchMask = data.mask & 0xfff;
-      tracker?.setExpectedPitchMask(expectedPitchMask);
+      expectedPitchMidis = [];
+      tracker?.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis);
+      return;
+    }
+
+    if (data.type === 'setExpectedPitchCandidates') {
+      expectedPitchMask = data.mask & 0xfff;
+      expectedPitchMidis = data.midis.map((midi) => Math.round(midi));
+      tracker?.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis);
       return;
     }
   } catch (error) {

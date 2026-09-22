@@ -74,9 +74,6 @@ final class DefenseGameSession: ObservableObject {
     private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private var countdownTask: Task<Void, Never>?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
-    private var lastVoicePcAtMs: [Int: Double] = [:]
-    private static let voiceSamePcDebounceMs: Double = 120
-
     init(
         stage: DefenseStageDefinition,
         difficulty: DefenseDifficultyDefinition,
@@ -417,14 +414,6 @@ final class DefenseGameSession: ObservableObject {
     func handleNoteOn(pitchClass: Int, sequential: Bool = false) {
         guard phase == .playing, !isPaused, runtime.result == .playing else { return }
         let normalizedPc = ((pitchClass % 12) + 12) % 12
-        if sequential {
-            let nowMs = CACurrentMediaTime() * 1000
-            if let lastAt = lastVoicePcAtMs[normalizedPc],
-               nowMs - lastAt < Self.voiceSamePcDebounceMs {
-                return
-            }
-            lastVoicePcAtMs[normalizedPc] = nowMs
-        }
         let evaluation = DefensePhraseJudge.evaluateNoteOn(
             state: judgeState,
             stageRequiredCompletionCount: stage.requiredCompletionCount,

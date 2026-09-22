@@ -9,6 +9,7 @@ import {
   resolvePrecisionKeyboardRange,
 } from '@/utils/earTrainingPrecisionNotes';
 import {
+  collectPrecisionExpectedPitchCandidates,
   findPrecisionNoteForInput,
   precisionRankForGoodRate,
   createPrecisionRuntimeStates,
@@ -195,6 +196,18 @@ describe('earTrainingPrecisionNotes', () => {
 });
 
 describe('earTrainingPrecisionJudge', () => {
+  it('collectPrecisionExpectedPitchCandidates は判定窓内の pending だけを返す', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+      { id: 'b', midi: 62, startSec: 1.12, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+      { id: 'c', midi: 64, startSec: 1.24, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    states.get('a')!.judgment = 'good';
+    const candidates = collectPrecisionExpectedPitchCandidates(notes, states, 1.1, 0.25);
+    expect(candidates.midis).toEqual([62, 64]);
+  });
+
   it('ignoreOctave で pitch class 一致を許容する（音声入力相当）', () => {
     const notes = [
       { id: 'a', midi: 72, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },

@@ -1,6 +1,10 @@
 import type { PrecisionLessonRank } from '@/types';
 import type { PrecisionNote } from '@/utils/earTrainingPrecisionNotes';
 import { VOICE_JUDGMENT_ARRIVAL_GRACE_SEC } from '@/utils/earTrainingChordOsmd';
+import {
+  buildExpectedPitchCandidates,
+  type ExpectedPitchCandidates,
+} from '@/utils/pitchInput/expectedPitchCandidates';
 
 export const PRECISION_JUDGMENT_WINDOW_SEC = 0.25;
 export { VOICE_JUDGMENT_ARRIVAL_GRACE_SEC };
@@ -62,6 +66,32 @@ export const resetPrecisionRuntimeStatesFromTime = (
     state.releasedEarly = undefined;
     state.hiddenFromLane = undefined;
   }
+};
+
+export const collectPrecisionExpectedPitchCandidates = (
+  notes: readonly PrecisionNote[],
+  states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
+  phraseTimeSec: number,
+  windowSec: number,
+): ExpectedPitchCandidates => {
+  const midis: number[] = [];
+  for (const note of notes) {
+    const state = states.get(note.id);
+    if (!state || state.judgment !== 'pending') {
+      continue;
+    }
+    const delta = phraseTimeSec - note.startSec;
+    if (delta < -windowSec) {
+      break;
+    }
+    if (delta > windowSec) {
+      continue;
+    }
+    if (!midis.includes(note.midi)) {
+      midis.push(note.midi);
+    }
+  }
+  return buildExpectedPitchCandidates(midis);
 };
 
 export const findPrecisionNoteForInput = (

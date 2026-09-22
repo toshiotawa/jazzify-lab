@@ -274,6 +274,38 @@ enum DefensePhraseJudge {
         step.noteIndices.compactMap { chord.notes[safe: $0]?.pitchMidi }
     }
 
+    private static func isOnPhraseLoopBoundary(
+        phrase: DefensePhraseDefinition,
+        state: DefensePhraseJudgeState
+    ) -> Bool {
+        guard !phrase.chords.isEmpty else { return false }
+        let lastChordIndex = phrase.chords.count - 1
+        guard state.chordIndex == lastChordIndex else { return false }
+        guard let lastChord = phrase.chords[safe: lastChordIndex] else { return false }
+        let steps = SurvivalPhraseChordSteps.getSteps(notes: lastChord.notes)
+        return state.targetStepIndex >= max(0, steps.count - 1)
+    }
+
+    static func expectedPitchCandidates(
+        state: DefensePhraseJudgeState,
+        sequential: Bool
+    ) -> ExpectedPitchCandidates {
+        guard sequential else { return .empty }
+        let hints = keyboardHints(state: state, sequential: true)
+        var midis = Array(hints.nextMidis)
+        if let phrase = state.phrases[safe: state.phraseIndex],
+           isOnPhraseLoopBoundary(phrase: phrase, state: state),
+           let firstChord = phrase.chords.first {
+            let steps = SurvivalPhraseChordSteps.getSteps(notes: firstChord.notes)
+            if let firstStep = steps.first {
+                for midi in stepMidis(chord: firstChord, step: firstStep) where !midis.contains(midi) {
+                    midis.append(midi)
+                }
+            }
+        }
+        return ExpectedPitchCandidates.build(from: midis)
+    }
+
     private static func sequentialCompletedPitchClasses(
         chord: SurvivalPhraseChord,
         step: PhraseChordStep,
