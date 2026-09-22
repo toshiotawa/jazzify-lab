@@ -5,7 +5,10 @@
 import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
-import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
+import {
+  EMPTY_EXPECTED_PITCH_CANDIDATES,
+  type ExpectedPitchCandidates,
+} from '@/utils/pitchInput/expectedPitchCandidates';
 import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/pitchInput/pitchInputTypes';
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
@@ -87,6 +90,7 @@ export class PitchInputController {
   private pitchStableFrames = 4;
   private expectedPitchMask = 0;
   private expectedPitchMidis: number[] = [];
+  private repeatPitchClassMask = 0;
   private currentNote = -1;
   private cachedInputLatencySec = 0;
   private generationId = 0;
@@ -377,6 +381,7 @@ export class PitchInputController {
         },
         expectedPitchMask: this.expectedPitchMask,
         expectedPitchMidis: this.expectedPitchMidis,
+        repeatPitchClassMask: this.repeatPitchClassMask,
         diagnostics: isPitchDiagnosticsEnabled()
           ? {
               deviceLabel: track?.label ?? null,
@@ -438,16 +443,21 @@ export class PitchInputController {
 
   /** Phrase Defense の期待 pitch class。0 で補助オフ。自由演奏では 0 のまま。 */
   setExpectedPitchMask(mask: number): void {
-    this.setExpectedPitchCandidates({ pitchClassMask: mask, midis: [] });
+    this.setExpectedPitchCandidates({
+      ...EMPTY_EXPECTED_PITCH_CANDIDATES,
+      pitchClassMask: mask,
+    });
   }
 
   setExpectedPitchCandidates(candidates: ExpectedPitchCandidates): void {
     this.expectedPitchMask = candidates.pitchClassMask & 0xfff;
     this.expectedPitchMidis = candidates.midis.map((midi) => Math.round(midi));
+    this.repeatPitchClassMask = candidates.repeatPitchClassMask & 0xfff;
     this.worker?.postMessage({
       type: 'setExpectedPitchCandidates',
       mask: this.expectedPitchMask,
       midis: this.expectedPitchMidis,
+      repeatPitchClassMask: this.repeatPitchClassMask,
     });
   }
 

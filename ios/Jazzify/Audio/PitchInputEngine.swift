@@ -220,14 +220,22 @@ final class PitchInputEngine: @unchecked Sendable {
 
     /// Phrase Defense の期待 pitch class。0 で補助オフ。
     func setExpectedPitchMask(_ mask: Int) {
-        setExpectedPitchCandidates(ExpectedPitchCandidates(pitchClassMask: mask & 0xFFF, midis: []))
+        setExpectedPitchCandidates(ExpectedPitchCandidates(
+            pitchClassMask: mask & 0xFFF,
+            midis: [],
+            repeatPitchClassMask: 0
+        ))
     }
 
     func setExpectedPitchCandidates(_ candidates: ExpectedPitchCandidates) {
         let mask = candidates.pitchClassMask & 0xFFF
         let midis = candidates.midis
         inferenceQueue.async { [self] in
-            self.tracker.setExpectedPitchCandidates(mask: mask, midis: midis)
+            self.tracker.setExpectedPitchCandidates(
+                mask: mask,
+                midis: midis,
+                repeatPitchClassMask: candidates.repeatPitchClassMask
+            )
         }
     }
 

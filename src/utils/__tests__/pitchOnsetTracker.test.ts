@@ -463,6 +463,116 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.getCurrentNote()).toBe(60);
   });
 
+  const collectNoteOns = (
+    tracker: PitchOnsetTracker,
+    frames: Array<{ frame: PitchFrame; index: number }>,
+  ): number[] => {
+    const notes: number[] = [];
+    for (const { frame, index } of frames) {
+      const events = tracker.processFrame(frame, index);
+      for (const event of events) {
+        if (event.type === 'noteOn') {
+          notes.push(event.note);
+        }
+      }
+    }
+    return notes;
+  };
+
+  it('emits multiple noteOns during monotonic attack rise without repeat mask', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      attackRiseDb: 6,
+      onsetImmediateConfidence: 2,
+    });
+    const soft: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.002 };
+    const loud: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.02 };
+
+    tracker.processFrame(soft, 0);
+    tracker.processFrame(quiet, 1);
+    tracker.processFrame(quiet, 2);
+    tracker.processFrame(quiet, 3);
+    const firstRetrigger = tracker.processFrame(loud, 4);
+    tracker.processFrame(quiet, 5);
+    tracker.processFrame(quiet, 6);
+    tracker.processFrame(quiet, 7);
+    const secondRetrigger = tracker.processFrame(loud, 8);
+    expect(firstRetrigger.some((event) => event.type === 'noteOn')).toBe(true);
+    expect(secondRetrigger.some((event) => event.type === 'noteOn')).toBe(true);
+  });
+
+  it('emits one noteOn during monotonic attack rise with repeat mask', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 6,
+      attackRiseDb: 6,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const frames: Array<{ frame: PitchFrame; index: number }> = [];
+    for (let index = 0; index < 20; index += 1) {
+      const volume = 0.001 * Math.pow(10, index * 0.08);
+      frames.push({
+        index,
+        frame: { prediction: 60, confidence: 0.9, volume },
+      });
+    }
+    const noteOns = collectNoteOns(tracker, frames);
+    expect(noteOns).toEqual([60]);
+  });
+
+  it('retriggers legato same note after peak dip and rise with repeat mask', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const dip: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.0063 };
+    const rise: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.016 };
+
+    const noteOns = collectNoteOns(tracker, [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: dip, index: 3 },
+      { frame: dip, index: 4 },
+      { frame: rise, index: 5 },
+      { frame: rise, index: 6 },
+    ]);
+    expect(noteOns).toEqual([60, 60]);
+  });
+
+  it('suppresses octave wobble within same pitch class when repeat mask is active', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      attackRiseDb: 6,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+      fastResponse: false,
+    });
+    tracker.setExpectedPitchCandidates(1 << 5, [65], 1 << 5);
+    const f4: PitchFrame = { prediction: 65, confidence: 0.9, volume: 0.01 };
+    const f5: PitchFrame = { prediction: 77, confidence: 0.95, volume: 0.0105 };
+
+    tracker.processFrame(f4, 0);
+    tracker.processFrame(f4, 1);
+    expect(tracker.processFrame(f5, 2)).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(65);
+  });
+
   it('retriggers same note after retriggerGuardFrames with attack rise', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,

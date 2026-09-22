@@ -107,9 +107,11 @@ import {
 } from '@/utils/earTrainingCanonicalPhraseNotes';
 import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
+  EMPTY_EXPECTED_PITCH_CANDIDATES,
   expectedPitchCandidatesEqual,
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
+import { isTooSoonForSamePitchRepeat } from '@/utils/pitchInput/samePitchRepeatGate';
 import {
   calibratePrecisionNotes,
   resolvePrecisionDisplayKeyboardRange,
@@ -121,6 +123,8 @@ import {
   createPrecisionRuntimeStates,
   findPrecisionNoteForInput,
   findNearestPendingPrecisionNote,
+  isPrecisionWaitingForSamePitchRepeat,
+  resolvePrecisionSamePitchRepeatMinIntervalMs,
   isPrecisionClearRank,
   mapPrecisionRankToLessonRank,
   markExpiredPrecisionNotesAsMiss,
@@ -311,7 +315,9 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const phraseEndingRef = useRef(false);
   const progressSaveStartedRef = useRef(false);
   const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
-  const voiceExpectedPitchCandidatesRef = useRef<ExpectedPitchCandidates>({ pitchClassMask: 0, midis: [] });
+  const lastVoiceAcceptedAtMsRef = useRef<number | null>(null);
+  const lastVoiceAcceptedPitchClassRef = useRef<number | null>(null);
+  const voiceExpectedPitchCandidatesRef = useRef<ExpectedPitchCandidates>(EMPTY_EXPECTED_PITCH_CANDIDATES);
   const activeGoodNotesByMidiRef = useRef<Map<number, string>>(new Map());
   const practiceSpeedPercentRef = useRef(100);
   const timingAdjustmentMsRef = useRef(loadEarTrainingOsmdTimingAdjustmentMs());
@@ -1372,6 +1378,36 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
   const handleNoteInput = useCallback((note: number, domTimeStampMs?: number) => {
     const now = performance.now();
     const midiNote = Math.round(note);
+    const inputPitchClass = ((midiNote % 12) + 12) % 12;
+    if (settings.inputMethod === 'voice') {
+      const phraseTime = resolveEarTrainingInputPhraseTimeSec(phrasePlayerRef.current, domTimeStampMs);
+      if (phraseTime != null && Number.isFinite(phraseTime)) {
+        const windowSec = resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC);
+        if (isPrecisionWaitingForSamePitchRepeat(
+          notesRef.current,
+          runtimeStatesRef.current,
+          phraseTime,
+          windowSec,
+        )) {
+          const minIntervalMs = resolvePrecisionSamePitchRepeatMinIntervalMs(
+            notesRef.current,
+            runtimeStatesRef.current,
+            phraseTime,
+            windowSec,
+          );
+          const inputTimeMs = domTimeStampMs ?? now;
+          if (minIntervalMs != null && isTooSoonForSamePitchRepeat(
+            inputPitchClass,
+            lastVoiceAcceptedPitchClassRef.current,
+            lastVoiceAcceptedAtMsRef.current,
+            inputTimeMs,
+            minIntervalMs,
+          )) {
+            return;
+          }
+        }
+      }
+    }
     const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
     if (now - lastInputAt < INPUT_COOLDOWN_MS) {
       return;
@@ -1427,6 +1463,10 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     }
     state.judgment = 'good';
     state.hitAtSec = phraseTime;
+    if (ignoreOctave) {
+      lastVoiceAcceptedPitchClassRef.current = inputPitchClass;
+      lastVoiceAcceptedAtMsRef.current = domTimeStampMs ?? now;
+    }
     if (matched.isShortNote) {
       state.hiddenFromLane = true;
     }

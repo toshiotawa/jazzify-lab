@@ -73,6 +73,7 @@ import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
   getDefenseExpectedPitchCandidates,
+  isDefenseWaitingForSamePitchRepeat,
   getDefensePhraseKeyboardHints,
   nextPhraseIndex,
   type DefensePhraseJudgeState,
@@ -118,6 +119,11 @@ import {
 import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
+import { EMPTY_EXPECTED_PITCH_CANDIDATES } from '@/utils/pitchInput/expectedPitchCandidates';
+import {
+  isTooSoonForSamePitchRepeat,
+  minIntervalMsForEighthNote,
+} from '@/utils/pitchInput/samePitchRepeatGate';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
 import {
   applySequentialSurvivalVoicingHints,
@@ -196,6 +202,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     ),
   );
   const judgeRef = useRef<DefensePhraseJudgeState>(createInitialPhraseJudgeState(0));
+  const lastVoiceAcceptedAtMsRef = useRef<number | null>(null);
   const pendingSwitchAtRef = useRef<number | null>(null);
   const scheduledNextPhraseIndexRef = useRef<number | null>(null);
   const backingRestartGenerationRef = useRef(0);
@@ -380,7 +387,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   const expectedPitchCandidates = useMemo(() => {
     if (effectiveInputMethod !== 'voice') {
-      return { pitchClassMask: 0, midis: [] };
+      return EMPTY_EXPECTED_PITCH_CANDIDATES;
     }
     return getDefenseExpectedPitchCandidates(activePhrases, judgeSnapshot, voiceSequential);
   }, [activePhrases, effectiveInputMethod, judgeSnapshot, voiceSequential]);
@@ -440,7 +447,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     const nextPhrase = stage.phrases[phraseIndex];
     if (!nextPhrase) return;
 
-    judgeRef.current = createInitialPhraseJudgeState(phraseIndex);
+    const lastAcceptedPitchClass = judgeRef.current.lastAcceptedPitchClass;
+    judgeRef.current = {
+      ...createInitialPhraseJudgeState(phraseIndex),
+      lastAcceptedPitchClass,
+    };
     setJudgeSnapshot(judgeRef.current);
   }, [stage.phrases]);
 
@@ -604,7 +615,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     }
   }, [stage]);
 
-  const handleNoteOn = useCallback((midiNote: number, sequential = false) => {
+  const handleNoteOn = useCallback((
+    midiNote: number,
+    sequential = false,
+    domTimeStampMs?: number,
+  ) => {
     if (isSettingsOpenRef.current) return;
     if (phaseRef.current !== 'playing') return;
     const runtime = runtimeRef.current;
@@ -632,6 +647,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     judgeRef.current = evaluation.nextState;
     setJudgeSnapshot(evaluation.nextState);
+    if (voiceSequential && effectiveInputMethod === 'voice') {
+      lastVoiceAcceptedAtMsRef.current = domTimeStampMs ?? performance.now();
+    }
 
     if (evaluation.phraseCompleted && isTutorialSession && !tutorialPhraseSucceededRef.current) {
       tutorialPhraseSucceededRef.current = true;
@@ -708,6 +726,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     applyImmediatePhraseSwitch,
     isSharedProgressionStage,
     isSeparateTracksStage,
+    voiceSequential,
+    effectiveInputMethod,
   ]);
 
   const handlePianoKeyDown = useCallback((midiNote: number) => {
@@ -733,9 +753,27 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     inputMethod: effectiveInputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
     expectedPitchCandidates,
-    onNoteOn: (note) => {
+    onNoteOn: (note, domTimeStampMs) => {
       if (isTutorialSession && effectiveInputMethod === 'touch') return;
-      handleNoteOn(note, voiceSequential);
+      if (voiceSequential && effectiveInputMethod === 'voice') {
+        const pitchClass = normalizePitchClass(note % 12);
+        if (isDefenseWaitingForSamePitchRepeat(activePhrases, judgeRef.current, true)) {
+          const speedRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+          const effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60;
+          const minIntervalMs = minIntervalMsForEighthNote(effectiveBpm);
+          const inputTimeMs = domTimeStampMs ?? performance.now();
+          if (isTooSoonForSamePitchRepeat(
+            pitchClass,
+            judgeRef.current.lastAcceptedPitchClass,
+            lastVoiceAcceptedAtMsRef.current,
+            inputTimeMs,
+            minIntervalMs,
+          )) {
+            return;
+          }
+        }
+      }
+      handleNoteOn(note, voiceSequential, domTimeStampMs);
     },
     onKeyHighlight: (note, active) => {
       pianoRef.current?.highlightKey(note, active);

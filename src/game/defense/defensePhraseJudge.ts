@@ -35,6 +35,8 @@ export interface DefensePhraseJudgeState {
   readonly revealedNoteIndices: ReadonlySet<number>;
   readonly completionCount: number;
   readonly pendingSwitch: boolean;
+  /** 直前に正解した pitch class。同音連打ゲート用。 */
+  readonly lastAcceptedPitchClass: number | null;
 }
 
 interface DefensePhraseNoteEvaluation {
@@ -59,6 +61,7 @@ export const createInitialPhraseJudgeState = (
   revealedNoteIndices: emptySet(),
   completionCount: 0,
   pendingSwitch: false,
+  lastAcceptedPitchClass: null,
 });
 
 const getCurrentChord = (
@@ -76,6 +79,32 @@ const resetChordProgress = (
   correctNoteIndices: emptySet(),
   revealedNoteIndices: emptySet(),
 });
+
+const pitchClassFromMidi = (midi: number): number => normalizePitchClass(midi % 12);
+
+const nextExpectedPitchClass = (
+  phrases: readonly DefensePhrase[],
+  state: DefensePhraseJudgeState,
+  sequential: boolean,
+): number | null => {
+  const hints = getDefensePhraseKeyboardHints(phrases, state, sequential);
+  if (hints.nextMidi == null) {
+    return null;
+  }
+  return pitchClassFromMidi(hints.nextMidi);
+};
+
+export const isDefenseWaitingForSamePitchRepeat = (
+  phrases: readonly DefensePhrase[],
+  state: DefensePhraseJudgeState,
+  sequential: boolean,
+): boolean => {
+  if (!sequential || state.lastAcceptedPitchClass === null) {
+    return false;
+  }
+  const nextPc = nextExpectedPitchClass(phrases, state, sequential);
+  return nextPc !== null && nextPc === state.lastAcceptedPitchClass;
+};
 
 const advanceChord = (
   state: DefensePhraseJudgeState,
@@ -239,7 +268,10 @@ export const evaluateDefensePhraseNoteOn = (
     };
   }
 
-  const progressedState = applyStepState(state, evaluation.nextState);
+  const progressedState: DefensePhraseJudgeState = {
+    ...applyStepState(state, evaluation.nextState),
+    lastAcceptedPitchClass: pitchClass,
+  };
   const isVoicingMode = playStyle === 'chord_voicing';
   const completedStepIndex = evaluation.result === 'measure-complete'
     ? Math.max(0, steps.length - 1)
@@ -353,7 +385,11 @@ export const getDefenseExpectedPitchCandidates = (
       }
     }
   }
-  return buildExpectedPitchCandidates(midis);
+  const repeatPitchClassMask = isDefenseWaitingForSamePitchRepeat(phrases, state, sequential)
+    && state.lastAcceptedPitchClass !== null
+    ? 1 << state.lastAcceptedPitchClass
+    : 0;
+  return buildExpectedPitchCandidates(midis, repeatPitchClassMask);
 };
 
 export const getDefensePhraseKeyboardHints = (

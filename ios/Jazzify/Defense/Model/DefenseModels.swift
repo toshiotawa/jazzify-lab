@@ -231,6 +231,7 @@ struct DefensePhraseJudgeState: Equatable {
     var revealedNoteIndices: Set<Int>
     var completionCount: Int
     var pendingSwitch: Bool
+    var lastAcceptedPitchClass: Int?
     let phrases: [DefensePhraseDefinition]
 }
 

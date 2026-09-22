@@ -5,6 +5,7 @@ import {
   buildExpectedPitchCandidates,
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
+import { minIntervalMsForWrittenSpacing } from '@/utils/pitchInput/samePitchRepeatGate';
 import {
   musicXmlAccidentalTextToAlter,
   parseVoicingNoteName,
@@ -119,6 +120,118 @@ export interface ChordOsmdExpectedPitchRuntime {
   remainingCounts: ReadonlyMap<number, number>;
 }
 
+const pitchClassFromMidi = (midi: number): number => ((Math.round(midi) % 12) + 12) % 12;
+
+const resolveChordOsmdRepeatPitchClassMask = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
+  resolveTargetMidis: (index: number) => readonly number[],
+  earlySec: number,
+  lateSec: number,
+): number => {
+  let pendingIndex: number | null = null;
+  let pendingMidi: number | null = null;
+  for (let index = 0; index < targetCount; index += 1) {
+    const runtime = resolveRuntime(index);
+    if (!runtime || runtime.completed || runtime.failed) {
+      continue;
+    }
+    const judged = resolveJudgedTargetTimeSec(index);
+    const delta = phraseTimeSec - judged;
+    if (delta < -earlySec) {
+      break;
+    }
+    if (delta > lateSec) {
+      continue;
+    }
+    const targetMidis = resolveTargetMidis(index);
+    if (targetMidis.length !== 1) {
+      return 0;
+    }
+    pendingIndex = index;
+    pendingMidi = targetMidis[0] ?? null;
+    break;
+  }
+  if (pendingIndex === null || pendingIndex === 0 || pendingMidi === null) {
+    return 0;
+  }
+  const previousRuntime = resolveRuntime(pendingIndex - 1);
+  if (!previousRuntime?.completed) {
+    return 0;
+  }
+  const previousMidis = resolveTargetMidis(pendingIndex - 1);
+  if (previousMidis.length !== 1) {
+    return 0;
+  }
+  const previousPc = pitchClassFromMidi(previousMidis[0] ?? 0);
+  const pendingPc = pitchClassFromMidi(pendingMidi);
+  return previousPc === pendingPc ? (1 << pendingPc) : 0;
+};
+
+export const isChordOsmdWaitingForSamePitchRepeat = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
+  resolveTargetMidis: (index: number) => readonly number[],
+  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): boolean => (
+  resolveChordOsmdRepeatPitchClassMask(
+    targetCount,
+    phraseTimeSec,
+    resolveJudgedTargetTimeSec,
+    resolveRuntime,
+    resolveTargetMidis,
+    earlySec,
+    lateSec,
+  ) !== 0
+);
+
+export const resolveChordOsmdSamePitchRepeatMinIntervalMs = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
+  resolveTargetMidis: (index: number) => readonly number[],
+  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): number | null => {
+  for (let index = 0; index < targetCount; index += 1) {
+    const runtime = resolveRuntime(index);
+    if (!runtime || runtime.completed || runtime.failed) {
+      continue;
+    }
+    const judged = resolveJudgedTargetTimeSec(index);
+    const delta = phraseTimeSec - judged;
+    if (delta < -earlySec) {
+      break;
+    }
+    if (delta > lateSec) {
+      continue;
+    }
+    const targetMidis = resolveTargetMidis(index);
+    if (targetMidis.length !== 1 || index === 0) {
+      return null;
+    }
+    const previousMidis = resolveTargetMidis(index - 1);
+    if (previousMidis.length !== 1) {
+      return null;
+    }
+    const previousPc = pitchClassFromMidi(previousMidis[0] ?? 0);
+    const pendingPc = pitchClassFromMidi(targetMidis[0] ?? 0);
+    if (previousPc !== pendingPc) {
+      return null;
+    }
+    const prevSec = resolveJudgedTargetTimeSec(index - 1);
+    const nextSec = resolveJudgedTargetTimeSec(index);
+    return minIntervalMsForWrittenSpacing(prevSec, nextSec);
+  }
+  return null;
+};
+
 export const collectChordOsmdExpectedPitchCandidates = (
   targetCount: number,
   phraseTimeSec: number,
@@ -126,6 +239,7 @@ export const collectChordOsmdExpectedPitchCandidates = (
   resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
   earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  resolveTargetMidis?: (index: number) => readonly number[],
 ): ExpectedPitchCandidates => {
   const midis: number[] = [];
   for (let index = 0; index < targetCount; index += 1) {
@@ -147,7 +261,18 @@ export const collectChordOsmdExpectedPitchCandidates = (
       }
     }
   }
-  return buildExpectedPitchCandidates(midis);
+  const repeatPitchClassMask = resolveTargetMidis
+    ? resolveChordOsmdRepeatPitchClassMask(
+      targetCount,
+      phraseTimeSec,
+      resolveJudgedTargetTimeSec,
+      resolveRuntime,
+      resolveTargetMidis,
+      earlySec,
+      lateSec,
+    )
+    : 0;
+  return buildExpectedPitchCandidates(midis, repeatPitchClassMask);
 };
 
 export const pickNearestChordOsmdTargetIndex = (

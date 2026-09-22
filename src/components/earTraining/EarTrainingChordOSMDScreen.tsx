@@ -101,6 +101,8 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   CHORD_OSMD_VOICING_HINT_DURATION_SEC,
   collectChordOsmdExpectedPitchCandidates,
+  isChordOsmdWaitingForSamePitchRepeat,
+  resolveChordOsmdSamePitchRepeatMinIntervalMs,
   hasChordOsmdJudgmentWindowExpired,
   VOICE_JUDGMENT_ARRIVAL_GRACE_SEC,
   pickNearestChordOsmdTargetIndex,
@@ -140,9 +142,14 @@ import {
 } from '@/utils/earTrainingOsmdTimingAdjustment';
 import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
+  EMPTY_EXPECTED_PITCH_CANDIDATES,
   expectedPitchCandidatesEqual,
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
+import {
+  isTooSoonForSamePitchRepeat,
+  minIntervalMsForEighthNote,
+} from '@/utils/pitchInput/samePitchRepeatGate';
 import {
   buildChordOsmdRhythmTargetsWithMeta,
   type EarTrainingTimingSource,
@@ -374,9 +381,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
   const lastStatusUpdateAtRef = useRef(0);
   const lastInputAtByNoteRef = useRef<Map<number, number>>(new Map());
-  const voiceExpectedPitchCandidatesRef = useRef<ExpectedPitchCandidates>({ pitchClassMask: 0, midis: [] });
+  const lastVoiceAcceptedAtMsRef = useRef<number | null>(null);
+  const lastVoiceAcceptedPitchClassRef = useRef<number | null>(null);
+  const voiceExpectedPitchCandidatesRef = useRef<ExpectedPitchCandidates>(EMPTY_EXPECTED_PITCH_CANDIDATES);
   const [voiceExpectedPitchCandidates, setVoiceExpectedPitchCandidates] = useState<ExpectedPitchCandidates>(
-    { pitchClassMask: 0, midis: [] },
+    EMPTY_EXPECTED_PITCH_CANDIDATES,
   );
   const battleEffectIdRef = useRef(0);
   const parryChainAnchorRef = useRef<ChordOsmdParrySpanAnchor | null>(null);
@@ -1344,24 +1353,29 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
       const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
       const phraseTargets = targetsRef.current;
+      const resolveRuntime = (index: number) => {
+        const target = phraseTargets[index];
+        const targetState = runtimeByTargetIdRef.current.get(target.id);
+        if (!targetState) {
+          return null;
+        }
+        return {
+          completed: targetState.completed,
+          failed: targetState.failed,
+          remainingCounts: targetState.remainingCounts,
+        };
+      };
+      const resolveTargetMidis = (index: number) => (
+        phraseTargets[index]?.midiCounts.map((entry) => entry.midi) ?? []
+      );
       const nextCandidates = collectChordOsmdExpectedPitchCandidates(
         phraseTargets.length,
         phraseTimeSec,
         (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
-        (index) => {
-          const target = phraseTargets[index];
-          const targetState = runtimeByTargetIdRef.current.get(target.id);
-          if (!targetState) {
-            return null;
-          }
-          return {
-            completed: targetState.completed,
-            failed: targetState.failed,
-            remainingCounts: targetState.remainingCounts,
-          };
-        },
+        resolveRuntime,
         earlyW,
         lateW,
+        resolveTargetMidis,
       );
       if (!expectedPitchCandidatesEqual(voiceExpectedPitchCandidatesRef.current, nextCandidates)) {
         voiceExpectedPitchCandidatesRef.current = nextCandidates;
@@ -2034,6 +2048,63 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const handleNoteInput = useCallback((note: number, domTimeStampMs?: number) => {
     const now = performance.now();
     const midiNote = Math.round(note);
+    const inputPitchClass = ((midiNote % 12) + 12) % 12;
+    if (settings.inputMethod === 'voice') {
+      const phraseTargets = targetsRef.current;
+      const phraseTime = resolveEarTrainingInputPhraseTimeSec(phrasePlayerRef.current, domTimeStampMs);
+      if (phraseTime != null && Number.isFinite(phraseTime)) {
+        const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
+        const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
+        const resolveRuntime = (index: number) => {
+          const target = phraseTargets[index];
+          const targetState = runtimeByTargetIdRef.current.get(target.id);
+          if (!targetState) {
+            return null;
+          }
+          return {
+            completed: targetState.completed,
+            failed: targetState.failed,
+            remainingCounts: targetState.remainingCounts,
+          };
+        };
+        const resolveTargetMidis = (index: number) => (
+          phraseTargets[index]?.midiCounts.map((entry) => entry.midi) ?? []
+        );
+        if (isChordOsmdWaitingForSamePitchRepeat(
+          phraseTargets.length,
+          phraseTime,
+          (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
+          resolveRuntime,
+          resolveTargetMidis,
+          earlyW,
+          lateW,
+        )) {
+          const minIntervalMs = osmdSelfPacedRef.current
+            ? minIntervalMsForEighthNote(
+              effectivePracticeBpm(stage.bpm, practiceSpeedPercentRef.current),
+            )
+            : resolveChordOsmdSamePitchRepeatMinIntervalMs(
+              phraseTargets.length,
+              phraseTime,
+              (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
+              resolveRuntime,
+              resolveTargetMidis,
+              earlyW,
+              lateW,
+            );
+          const inputTimeMs = domTimeStampMs ?? now;
+          if (minIntervalMs != null && isTooSoonForSamePitchRepeat(
+            inputPitchClass,
+            lastVoiceAcceptedPitchClassRef.current,
+            lastVoiceAcceptedAtMsRef.current,
+            inputTimeMs,
+            minIntervalMs,
+          )) {
+            return;
+          }
+        }
+      }
+    }
     const lastInputAt = lastInputAtByNoteRef.current.get(midiNote) ?? 0;
     if (now - lastInputAt < INPUT_COOLDOWN_MS) {
       return;
@@ -2071,6 +2142,10 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         return;
       }
       state.remainingCounts = nextRemaining;
+      if (allowPitchClass) {
+        lastVoiceAcceptedPitchClassRef.current = inputPitchClass;
+        lastVoiceAcceptedAtMsRef.current = domTimeStampMs ?? now;
+      }
       syncSelfPacedMeasureAndHints();
       if (chordOsmdTargetIsComplete(nextRemaining)) {
         completeTarget(firstTarget, state, Number.NaN);
@@ -2152,13 +2227,17 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     state.remainingCounts = nextRemaining;
+    if (allowPitchClass) {
+      lastVoiceAcceptedPitchClassRef.current = inputPitchClass;
+      lastVoiceAcceptedAtMsRef.current = domTimeStampMs ?? now;
+    }
     if (practiceModeRef.current) {
       syncPracticeVoicingHints();
     }
     if (chordOsmdTargetIsComplete(nextRemaining)) {
       completeTarget(target, state, phraseT);
     }
-  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod, stage.slug, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod, stage.bpm, stage.slug, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;

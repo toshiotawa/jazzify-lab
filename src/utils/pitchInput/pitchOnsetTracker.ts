@@ -22,6 +22,10 @@ export interface PitchOnsetTrackerConfig {
   retriggerGuardFrames: number;
   /** 同音リアタック: 直近 N フレームとの dB 差で立ち上がり判定 */
   retriggerLookbackFrames: number;
+  /** 同音待ち: ピークからこの dB 以上下がったら谷候補 */
+  repeatDipDb: number;
+  /** 同音待ち: 谷からこの dB 以上上がったら再発音 */
+  repeatRiseDb: number;
   /** グリッサンド抑制: cents 許容 */
   centsTolerance: number;
   /** 1 フレーム目でも confidence がこの値以上なら即 noteOn */
@@ -48,6 +52,8 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   attackRiseDb: 6,
   retriggerGuardFrames: 6,
   retriggerLookbackFrames: 4,
+  repeatDipDb: 2,
+  repeatRiseDb: 4,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
   fastLegatoConfidence: 0.8,
@@ -127,6 +133,14 @@ export class PitchOnsetTracker {
   private suspendedNote = -1;
   /** suspendedNote を設定した noteOff の frameIndex。 */
   private suspendedNoteOffFrame = -1;
+  /** 同音連打待ち pitch class マスク。0 で無効。 */
+  private repeatPitchClassMask = 0;
+  /** 持続中ノートのピーク dB（同音待ちモード用）。 */
+  private notePeakDb = -Infinity;
+  /** ピークから repeatDipDb 以上下がった。 */
+  private dippedFromPeak = false;
+  /** 谷候補以降の最小 dB。 */
+  private noteTroughDb = Infinity;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -141,9 +155,14 @@ export class PitchOnsetTracker {
     this.setExpectedPitchCandidates(mask, []);
   }
 
-  setExpectedPitchCandidates(mask: number, midis: readonly number[]): void {
+  setExpectedPitchCandidates(
+    mask: number,
+    midis: readonly number[],
+    repeatPitchClassMask = 0,
+  ): void {
     this.expectedPitchMask = mask & 0xfff;
     this.expectedPitchMidis = midis.map((midi) => Math.round(midi));
+    this.repeatPitchClassMask = repeatPitchClassMask & 0xfff;
   }
 
   reset(): void {
@@ -164,6 +183,14 @@ export class PitchOnsetTracker {
     this.legatoHitIndex = 0;
     this.suspendedNote = -1;
     this.suspendedNoteOffFrame = -1;
+    this.repeatPitchClassMask = 0;
+    this.resetRepeatPeakState();
+  }
+
+  private resetRepeatPeakState(): void {
+    this.notePeakDb = -Infinity;
+    this.dippedFromPeak = false;
+    this.noteTroughDb = Infinity;
   }
 
   /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
@@ -228,6 +255,7 @@ export class PitchOnsetTracker {
             quantized,
             frameIndex,
             frameIndex - this.pitchStableCount + 1,
+            levelDb,
           );
         }
       } else if (
@@ -249,9 +277,13 @@ export class PitchOnsetTracker {
             quantized,
             frameIndex,
             frameIndex - this.pitchStableCount + 1,
+            levelDb,
           );
         }
       } else {
+        if (this.isRepeatPitchClassActive(this.currentNote)) {
+          this.updateRepeatPeakAndDip(levelDb);
+        }
         this.tryRetrigger(events, levelDb, frameIndex);
       }
     } else {
@@ -318,9 +350,15 @@ export class PitchOnsetTracker {
     confidence: number,
     octaveRelated: boolean,
   ): boolean {
-    if (octaveRelated && this.expectedPitchMidis.includes(quantized)) {
-      if (this.recentLevelRise(levelDb) >= this.config.attackRiseDb) return true;
-      return this.legatoHitCount(quantized) >= 2;
+    if (octaveRelated) {
+      const samePitchClass = this.isSamePitchClass(quantized, this.currentNote);
+      if (samePitchClass && this.isRepeatPitchClassActive(this.currentNote)) {
+        return this.hasRepeatModeAttack(levelDb);
+      }
+      if (this.expectedPitchMidis.includes(quantized)) {
+        if (this.recentLevelRise(levelDb) >= this.config.attackRiseDb) return true;
+        return this.legatoHitCount(quantized) >= 2;
+      }
     }
     return this.shouldEmitLegatoSwitch(quantized, confidence);
   }
@@ -368,6 +406,11 @@ export class PitchOnsetTracker {
     if (diff !== 12 && diff !== 24) return false;
 
     const rise = this.recentLevelRise(levelDb);
+    if (this.isSamePitchClass(quantized, this.currentNote)
+      && this.isRepeatPitchClassActive(this.currentNote)) {
+      return !this.hasRepeatModeAttack(levelDb);
+    }
+
     if (this.expectedPitchMidis.includes(quantized)) {
       if (rise >= this.config.attackRiseDb) return false;
       if (this.shouldEmitLegatoSwitch(quantized, confidence)) return false;
@@ -390,6 +433,7 @@ export class PitchOnsetTracker {
     note: number,
     frameIndex: number,
     onsetFrameIndex: number,
+    levelDb?: number,
   ): void {
     this.currentNote = note;
     this.noteOnFrame = frameIndex;
@@ -399,7 +443,42 @@ export class PitchOnsetTracker {
     this.recentLevelDbRing = [];
     this.suspendedNote = -1;
     this.suspendedNoteOffFrame = -1;
+    this.resetRepeatPeakState();
+    if (levelDb !== undefined && Number.isFinite(levelDb)) {
+      this.notePeakDb = levelDb;
+      this.noteTroughDb = levelDb;
+    }
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
+  }
+
+  private isSamePitchClass(a: number, b: number): boolean {
+    if (a < 0 || b < 0) return false;
+    const pcA = ((a % 12) + 12) % 12;
+    const pcB = ((b % 12) + 12) % 12;
+    return pcA === pcB;
+  }
+
+  private isRepeatPitchClassActive(note: number): boolean {
+    if (note < 0 || this.repeatPitchClassMask === 0) return false;
+    const pitchClass = ((note % 12) + 12) % 12;
+    return (this.repeatPitchClassMask & (1 << pitchClass)) !== 0;
+  }
+
+  private updateRepeatPeakAndDip(levelDb: number): void {
+    if (levelDb > this.notePeakDb) {
+      this.notePeakDb = levelDb;
+    }
+    if (this.notePeakDb - levelDb >= this.config.repeatDipDb) {
+      this.dippedFromPeak = true;
+    }
+    if (this.dippedFromPeak) {
+      this.noteTroughDb = Math.min(this.noteTroughDb, levelDb);
+    }
+  }
+
+  private hasRepeatModeAttack(levelDb: number): boolean {
+    if (!this.dippedFromPeak) return false;
+    return levelDb - this.noteTroughDb >= this.config.repeatRiseDb;
   }
 
   private emitNoteOff(
@@ -468,7 +547,22 @@ export class PitchOnsetTracker {
   ): void {
     if (this.currentNote < 0) return;
     if (frameIndex - this.lastNoteOnFrame < this.config.retriggerGuardFrames) {
-      this.trackRecentMinDb(levelDb, frameIndex);
+      if (!this.isRepeatPitchClassActive(this.currentNote)) {
+        this.trackRecentMinDb(levelDb, frameIndex);
+      }
+      return;
+    }
+
+    if (this.isRepeatPitchClassActive(this.currentNote)) {
+      if (this.hasRepeatModeAttack(levelDb)) {
+        const note = this.currentNote;
+        const onsetFrameIndex = Math.max(
+          this.lastNoteOnFrame + 1,
+          frameIndex,
+        );
+        this.emitNoteOff(events, note, frameIndex);
+        this.emitNoteOn(events, note, frameIndex, onsetFrameIndex, levelDb);
+      }
       return;
     }
 
@@ -481,7 +575,7 @@ export class PitchOnsetTracker {
         this.recentMinDbFrame + 1,
       );
       this.emitNoteOff(events, note, frameIndex);
-      this.emitNoteOn(events, note, frameIndex, onsetFrameIndex);
+      this.emitNoteOn(events, note, frameIndex, onsetFrameIndex, levelDb);
     }
   }
 

@@ -83,6 +83,7 @@ interface WorkerSetExpectedPitchCandidatesMessage {
   type: 'setExpectedPitchCandidates';
   mask: number;
   midis: number[];
+  repeatPitchClassMask?: number;
 }
 
 interface WorkerSetShiftMessage {
@@ -150,6 +151,7 @@ let pitchStableFramesOverride = 4;
 let fastResponseEnabled = false;
 let expectedPitchMask = 0;
 let expectedPitchMidis: number[] = [];
+let repeatPitchClassMask = 0;
 let generationId = 0;
 let shiftSemitones: PestoShiftSemitones = 0;
 let frameDurationSec = PESTO_BASE_FRAME_SEC;
@@ -497,7 +499,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       expectedPitchMidis = data.expectedPitchMidis ?? [];
       applyShiftMode(data.shiftSemitones ?? 0);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
-      tracker.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis);
+      tracker.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis, repeatPitchClassMask);
       chunkQueue.reset(generationId, 0);
       isInferring = false;
       resetLatencyStats();
@@ -550,14 +552,20 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     if (data.type === 'setExpectedPitchMask') {
       expectedPitchMask = data.mask & 0xfff;
       expectedPitchMidis = [];
-      tracker?.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis);
+      repeatPitchClassMask = 0;
+      tracker?.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis, repeatPitchClassMask);
       return;
     }
 
     if (data.type === 'setExpectedPitchCandidates') {
       expectedPitchMask = data.mask & 0xfff;
       expectedPitchMidis = data.midis.map((midi) => Math.round(midi));
-      tracker?.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis);
+      repeatPitchClassMask = data.repeatPitchClassMask ?? 0;
+      tracker?.setExpectedPitchCandidates(
+        expectedPitchMask,
+        expectedPitchMidis,
+        repeatPitchClassMask,
+      );
       return;
     }
   } catch (error) {

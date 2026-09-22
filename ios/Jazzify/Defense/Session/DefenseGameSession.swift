@@ -73,6 +73,7 @@ final class DefenseGameSession: ObservableObject {
     private var startGeneration: UInt64 = 0
     private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private var countdownTask: Task<Void, Never>?
+    private var lastVoiceAcceptedAtMs: Double?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
     init(
         stage: DefenseStageDefinition,
@@ -274,7 +275,11 @@ final class DefenseGameSession: ObservableObject {
         let currentIndex = judgeState.phraseIndex
         let nextIndex = (currentIndex + delta + stage.phrases.count) % stage.phrases.count
         pendingSwitchPhraseIndex = nil
-        judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
+        judgeState = DefensePhraseJudge.resetToPhraseIndex(
+            nextIndex,
+            phrases: activePhrases,
+            lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass
+        )
         if isSeparateTracksStage {
             separateTracksRequestRevision += 1
             DefenseSeparateTracksAudio.shared.requestPhrase(
@@ -391,7 +396,8 @@ final class DefenseGameSession: ObservableObject {
                     self.registerMidiKeyDown(note)
                     self.handleNoteOn(
                         pitchClass: ((note % 12) + 12) % 12,
-                        sequential: NoteInputManager.shared.isVoiceInputActive
+                        sequential: NoteInputManager.shared.isVoiceInputActive,
+                        inputTimeMs: CACurrentMediaTime() * 1000
                     )
                 } else if isNoteOff {
                     self.registerMidiKeyUp(note)
@@ -411,9 +417,26 @@ final class DefenseGameSession: ObservableObject {
         guard midiHeldKeys.remove(midi) != nil else { return }
     }
 
-    func handleNoteOn(pitchClass: Int, sequential: Bool = false) {
+    func handleNoteOn(pitchClass: Int, sequential: Bool = false, inputTimeMs: Double? = nil) {
         guard phase == .playing, !isPaused, runtime.result == .playing else { return }
         let normalizedPc = ((pitchClass % 12) + 12) % 12
+        if sequential,
+           NoteInputManager.shared.isVoiceInputActive,
+           DefensePhraseJudge.isWaitingForSamePitchRepeat(state: judgeState, sequential: true) {
+            let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
+            let effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60
+            let minMs = SamePitchRepeatGate.minIntervalMsForEighthNote(bpm: effectiveBpm)
+            let inputMs = inputTimeMs ?? (CACurrentMediaTime() * 1000)
+            if SamePitchRepeatGate.isTooSoon(
+                inputPitchClass: normalizedPc,
+                lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass,
+                lastAcceptedAtMs: lastVoiceAcceptedAtMs,
+                inputTimeMs: inputMs,
+                minIntervalMs: minMs
+            ) {
+                return
+            }
+        }
         let evaluation = DefensePhraseJudge.evaluateNoteOn(
             state: judgeState,
             stageRequiredCompletionCount: stage.requiredCompletionCount,
@@ -426,6 +449,9 @@ final class DefenseGameSession: ObservableObject {
         )
         if evaluation.nextState != judgeState {
             judgeState = evaluation.nextState
+            if sequential, NoteInputManager.shared.isVoiceInputActive {
+                lastVoiceAcceptedAtMs = inputTimeMs ?? (CACurrentMediaTime() * 1000)
+            }
         }
         if evaluation.attack {
             let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
@@ -449,14 +475,22 @@ final class DefenseGameSession: ObservableObject {
                 current: judgeState.phraseIndex
             )
             if isSeparateTracksStage {
-                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(
+                    nextIndex,
+                    phrases: activePhrases,
+                    lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass
+                )
                 separateTracksRequestRevision += 1
                 DefenseSeparateTracksAudio.shared.requestPhrase(
                     at: nextIndex,
                     requestRevision: separateTracksRequestRevision
                 )
             } else if isSharedProgressionStage {
-                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(
+                    nextIndex,
+                    phrases: activePhrases,
+                    lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass
+                )
                 sharedProgressionRequestRevision += 1
                 DefenseSharedProgressionAudio.shared.requestPhrase(
                     at: nextIndex,
@@ -464,7 +498,11 @@ final class DefenseGameSession: ObservableObject {
                 )
             } else if pendingSwitchPhraseIndex == nil {
                 pendingSwitchPhraseIndex = nextIndex
-                judgeState = DefensePhraseJudge.resetToPhraseIndex(nextIndex, phrases: activePhrases)
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(
+                    nextIndex,
+                    phrases: activePhrases,
+                    lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass
+                )
                 Task {
                     var scheduledMs: Int64 = 0
                     do {

@@ -87,6 +87,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     private var phraseEnding = false
     private var progressSaveStarted = false
     private var lastInputAtByNote: [Int: Double] = [:]
+    private var lastVoiceAcceptedAtMs: Double?
+    private var lastVoiceAcceptedPitchClass: Int?
     private var voiceExpectedPitchCandidates = ExpectedPitchCandidates.empty
     private var activeGoodNotesByMidi: [Int: String] = [:]
     private var lastPrecisionRank: EarTrainingPrecisionJudge.LessonRank?
@@ -836,16 +838,6 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
 
     func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool, midiHostTime: UInt64?) {
         let now = CFAbsoluteTimeGetCurrent() * 1000
-        if let last = lastInputAtByNote[midi], now - last < Self.inputCooldownMs {
-            return
-        }
-        lastInputAtByNote[midi] = now
-        midiHeldKeys.insert(midi)
-
-        if playAudio {
-            SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
-        }
-
         guard gameState == .countIn || gameState == .playingPhrase else { return }
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
@@ -856,6 +848,39 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
 
         let windowSec = resolveEffectiveTimingWindowSec(EarTrainingPrecisionJudge.judgmentWindowSec)
+        if NoteInputPreferences.inputMethod == .voice,
+           ExpectedPitchCandidateCollectors.isPrecisionWaitingForSamePitchRepeat(
+               notes: precisionNotes,
+               states: runtimeStates,
+               phraseTimeSec: phraseTime,
+               windowSec: windowSec
+           ) {
+            let minIntervalMs = ExpectedPitchCandidateCollectors.resolvePrecisionSamePitchRepeatMinIntervalMs(
+                notes: precisionNotes,
+                states: runtimeStates,
+                phraseTimeSec: phraseTime,
+                windowSec: windowSec
+            ) ?? 0
+            let inputPc = ((midi % 12) + 12) % 12
+            if SamePitchRepeatGate.isTooSoon(
+                inputPitchClass: inputPc,
+                lastAcceptedPitchClass: lastVoiceAcceptedPitchClass,
+                lastAcceptedAtMs: lastVoiceAcceptedAtMs,
+                inputTimeMs: now,
+                minIntervalMs: minIntervalMs
+            ) {
+                return
+            }
+        }
+        if let last = lastInputAtByNote[midi], now - last < Self.inputCooldownMs {
+            return
+        }
+        lastInputAtByNote[midi] = now
+        midiHeldKeys.insert(midi)
+
+        if playAudio {
+            SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
+        }
         guard let matched = EarTrainingPrecisionJudge.findNoteForInput(
             notes: precisionNotes,
             states: runtimeStates,
@@ -900,6 +925,10 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         }
         runtimeStates[matched.id] = state
         activeGoodNotesByMidi[midi] = matched.id
+        if NoteInputPreferences.inputMethod == .voice {
+            lastVoiceAcceptedPitchClass = ((midi % 12) + 12) % 12
+            lastVoiceAcceptedAtMs = now
+        }
     }
 
     func handleNoteOff(midi: Int, playAudio: Bool = true) {

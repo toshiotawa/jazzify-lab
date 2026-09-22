@@ -3,6 +3,7 @@ import {
   evaluateDefensePhraseNoteOn,
   getDefenseExpectedPitchCandidates,
   getDefensePhraseKeyboardHints,
+  isDefenseWaitingForSamePitchRepeat,
   nextPhraseIndex,
 } from '@/game/defense/defensePhraseJudge';
 import type { DefensePhrase } from '@/game/defense/defenseTypes';
@@ -436,6 +437,63 @@ describe('defensePhraseJudge', () => {
     expect(hints.nextMidi).toBe(60);
     expect(hints.pendingMidis).toEqual(expect.arrayContaining([64, 67]));
     expect(hints.completedMidis).toEqual([]);
+  });
+
+  it('sets repeat mask when next expected pitch matches last accepted', () => {
+    const sameNotePhrase: DefensePhrase = {
+      id: 'repeat',
+      orderIndex: 0,
+      title: 'Repeat',
+      audioUrl: 'https://example.com/repeat.mp3',
+      loopStartMeasure: null,
+      loopEndMeasure: null,
+      keyFifths: null,
+      requiredCompletionCount: null,
+      chords: [
+        {
+          id: 'f-repeat',
+          orderIndex: 0,
+          chordName: 'F',
+          measureNumber: 1,
+          notes: [
+            { orderIndex: 0, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 1 },
+            { orderIndex: 2, pitchMidi: 65, pitchClass: 5, noteName: 'F4', staff: 1, stepIndex: 2 },
+          ],
+        },
+        {
+          id: 'c-repeat',
+          orderIndex: 1,
+          chordName: 'C',
+          measureNumber: 2,
+          notes: [
+            { orderIndex: 0, pitchMidi: 72, pitchClass: 0, noteName: 'C5', staff: 1, stepIndex: 0 },
+            { orderIndex: 1, pitchMidi: 72, pitchClass: 0, noteName: 'C5', staff: 1, stepIndex: 1 },
+          ],
+        },
+      ],
+    };
+    let state = createInitialPhraseJudgeState(0);
+    const afterFirst = evaluateDefensePhraseNoteOn([sameNotePhrase], 1, state, 5, true);
+    state = afterFirst.nextState;
+    expect(isDefenseWaitingForSamePitchRepeat([sameNotePhrase], state, true)).toBe(true);
+    const candidates = getDefenseExpectedPitchCandidates([sameNotePhrase], state, true);
+    expect(candidates.repeatPitchClassMask).toBe(1 << 5);
+
+    const afterSecond = evaluateDefensePhraseNoteOn([sameNotePhrase], 1, state, 5, true);
+    state = afterSecond.nextState;
+    expect(isDefenseWaitingForSamePitchRepeat([sameNotePhrase], state, true)).toBe(true);
+    expect(getDefenseExpectedPitchCandidates([sameNotePhrase], state, true).repeatPitchClassMask).toBe(1 << 5);
+
+    const afterThird = evaluateDefensePhraseNoteOn([sameNotePhrase], 1, state, 5, true);
+    state = afterThird.nextState;
+    expect(isDefenseWaitingForSamePitchRepeat([sameNotePhrase], state, true)).toBe(false);
+    expect(getDefenseExpectedPitchCandidates([sameNotePhrase], state, true).repeatPitchClassMask).toBe(0);
+
+    const afterC = evaluateDefensePhraseNoteOn([sameNotePhrase], 1, state, 0, true);
+    state = afterC.nextState;
+    expect(isDefenseWaitingForSamePitchRepeat([sameNotePhrase], state, true)).toBe(true);
+    expect(getDefenseExpectedPitchCandidates([sameNotePhrase], state, true).repeatPitchClassMask).toBe(1 << 0);
   });
 
   it('getDefenseExpectedPitchCandidates はフレーズ末尾でループ先頭も含める', () => {

@@ -5,6 +5,7 @@ import {
   buildExpectedPitchCandidates,
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
+import { minIntervalMsForWrittenSpacing } from '@/utils/pitchInput/samePitchRepeatGate';
 
 export const PRECISION_JUDGMENT_WINDOW_SEC = 0.25;
 export { VOICE_JUDGMENT_ARRIVAL_GRACE_SEC };
@@ -68,6 +69,88 @@ export const resetPrecisionRuntimeStatesFromTime = (
   }
 };
 
+const pitchClassFromMidi = (midi: number): number => ((Math.round(midi) % 12) + 12) % 12;
+
+const resolvePrecisionRepeatPitchClassMask = (
+  notes: readonly PrecisionNote[],
+  states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
+  phraseTimeSec: number,
+  windowSec: number,
+): number => {
+  for (let index = 0; index < notes.length; index += 1) {
+    const note = notes[index];
+    const state = states.get(note.id);
+    if (!state || state.judgment !== 'pending') {
+      continue;
+    }
+    const delta = phraseTimeSec - note.startSec;
+    if (delta < -windowSec) {
+      break;
+    }
+    if (delta > windowSec) {
+      continue;
+    }
+    if (index === 0) {
+      return 0;
+    }
+    const previousNote = notes[index - 1];
+    const previousState = states.get(previousNote.id);
+    if (!previousState || previousState.judgment !== 'good') {
+      return 0;
+    }
+    const previousPc = pitchClassFromMidi(previousNote.midi);
+    const pendingPc = pitchClassFromMidi(note.midi);
+    return previousPc === pendingPc ? (1 << pendingPc) : 0;
+  }
+  return 0;
+};
+
+export const isPrecisionWaitingForSamePitchRepeat = (
+  notes: readonly PrecisionNote[],
+  states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
+  phraseTimeSec: number,
+  windowSec: number,
+): boolean => (
+  resolvePrecisionRepeatPitchClassMask(notes, states, phraseTimeSec, windowSec) !== 0
+);
+
+export const resolvePrecisionSamePitchRepeatMinIntervalMs = (
+  notes: readonly PrecisionNote[],
+  states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
+  phraseTimeSec: number,
+  windowSec: number,
+): number | null => {
+  for (let index = 0; index < notes.length; index += 1) {
+    const note = notes[index];
+    const state = states.get(note.id);
+    if (!state || state.judgment !== 'pending') {
+      continue;
+    }
+    const delta = phraseTimeSec - note.startSec;
+    if (delta < -windowSec) {
+      break;
+    }
+    if (delta > windowSec) {
+      continue;
+    }
+    if (index === 0) {
+      return null;
+    }
+    const previousNote = notes[index - 1];
+    const previousState = states.get(previousNote.id);
+    if (!previousState || previousState.judgment !== 'good') {
+      return null;
+    }
+    const previousPc = pitchClassFromMidi(previousNote.midi);
+    const pendingPc = pitchClassFromMidi(note.midi);
+    if (previousPc !== pendingPc) {
+      return null;
+    }
+    return minIntervalMsForWrittenSpacing(previousNote.startSec, note.startSec);
+  }
+  return null;
+};
+
 export const collectPrecisionExpectedPitchCandidates = (
   notes: readonly PrecisionNote[],
   states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
@@ -91,7 +174,13 @@ export const collectPrecisionExpectedPitchCandidates = (
       midis.push(note.midi);
     }
   }
-  return buildExpectedPitchCandidates(midis);
+  const repeatPitchClassMask = resolvePrecisionRepeatPitchClassMask(
+    notes,
+    states,
+    phraseTimeSec,
+    windowSec,
+  );
+  return buildExpectedPitchCandidates(midis, repeatPitchClassMask);
 };
 
 export const findPrecisionNoteForInput = (

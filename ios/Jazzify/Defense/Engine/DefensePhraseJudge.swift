@@ -20,8 +20,17 @@ enum DefensePhraseJudge {
             revealedNoteIndices: [],
             completionCount: 0,
             pendingSwitch: false,
+            lastAcceptedPitchClass: nil,
             phrases: phrases
         )
+    }
+
+    static func isWaitingForSamePitchRepeat(state: DefensePhraseJudgeState, sequential: Bool) -> Bool {
+        guard sequential, let lastAccepted = state.lastAcceptedPitchClass else { return false }
+        let hints = keyboardHints(state: state, sequential: true)
+        guard let nextMidi = hints.nextMidis.first else { return false }
+        let nextPc = ((nextMidi % 12) + 12) % 12
+        return nextPc == lastAccepted
     }
 
     struct KeyboardHints: Equatable {
@@ -117,6 +126,7 @@ enum DefensePhraseJudge {
         next.targetStepIndex = evaluation.nextState.targetStepIndex
         next.correctNoteIndices = evaluation.nextState.correctNoteIndices
         next.revealedNoteIndices = evaluation.nextState.revealedNoteIndices
+        next.lastAcceptedPitchClass = ((pitchClass % 12) + 12) % 12
 
         let isVoicingMode = playStyle == .chordVoicing
         let completedStepIndex = evaluation.result == .measureComplete
@@ -175,8 +185,14 @@ enum DefensePhraseJudge {
         )
     }
 
-    static func resetToPhraseIndex(_ index: Int, phrases: [DefensePhraseDefinition]) -> DefensePhraseJudgeState {
-        createInitialState(phrases: phrases, phraseIndex: index)
+    static func resetToPhraseIndex(
+        _ index: Int,
+        phrases: [DefensePhraseDefinition],
+        lastAcceptedPitchClass: Int? = nil
+    ) -> DefensePhraseJudgeState {
+        var state = createInitialState(phrases: phrases, phraseIndex: index)
+        state.lastAcceptedPitchClass = lastAcceptedPitchClass
+        return state
     }
 
     static func targetMidis(state: DefensePhraseJudgeState) -> [Int] {
@@ -309,7 +325,14 @@ enum DefensePhraseJudge {
                 }
             }
         }
-        return ExpectedPitchCandidates.build(from: midis)
+        let repeatMask: Int
+        if isWaitingForSamePitchRepeat(state: state, sequential: sequential),
+           let lastAccepted = state.lastAcceptedPitchClass {
+            repeatMask = 1 << lastAccepted
+        } else {
+            repeatMask = 0
+        }
+        return ExpectedPitchCandidates.build(from: midis, repeatPitchClassMask: repeatMask)
     }
 
     private static func sequentialCompletedPitchClasses(

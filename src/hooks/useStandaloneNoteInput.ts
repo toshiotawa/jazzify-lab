@@ -15,7 +15,10 @@ import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
 import { midiToNoteName } from '@/utils/musicXmlOrnamentExpander';
-import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
+import {
+  EMPTY_EXPECTED_PITCH_CANDIDATES,
+  type ExpectedPitchCandidates,
+} from '@/utils/pitchInput/expectedPitchCandidates';
 
 export type StandaloneInputConnectionStatus =
   | 'idle'
@@ -182,7 +185,7 @@ export const useStandaloneNoteInput = ({
       pitch.setExpectedPitchMask(expectedPitchMask);
     }
     return () => {
-      pitch.setExpectedPitchCandidates({ pitchClassMask: 0, midis: [] });
+      pitch.setExpectedPitchCandidates(EMPTY_EXPECTED_PITCH_CANDIDATES);
     };
   }, [expectedPitchCandidates, expectedPitchMask]);
 
