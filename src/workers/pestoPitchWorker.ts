@@ -4,14 +4,18 @@
 
 import * as ort from 'onnxruntime-web';
 import {
-  PitchOctaveUpsampler,
-  decimationFactorFromShift,
   frameSecFromShift,
   normalizeVoiceLowPitchShift,
   pitchShiftSemitonesFromShift,
-  scaleOnsetConfigForDecimation,
   type VoiceLowPitchShift,
 } from '@/utils/pitchInput/pitchOctaveUpsample';
+import {
+  YIN_FRAME_SEC,
+  YinPitchProcessor,
+  hzToMidi,
+  scaleOnsetConfigForYin,
+  usesYinPitchDetection,
+} from '@/utils/pitchInput/yinPitch';
 import {
   PitchOnsetTracker,
   scaleOnsetConfigForSensitivity,
@@ -102,7 +106,7 @@ let audioTensor: ort.Tensor | null = null;
 let cacheData: Float32Array | null = null;
 let audioData: Float32Array | null = null;
 let tracker: PitchOnsetTracker | null = null;
-let upsampler = new PitchOctaveUpsampler();
+let yinProcessor = new YinPitchProcessor();
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
@@ -166,11 +170,11 @@ const resetLatencyStats = (): void => {
 
 const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
   const base = scaleOnsetConfigForSensitivity(sensitivityLevel);
-  const factor = decimationFactorFromShift(lowPitchShift);
-  return scaleOnsetConfigForDecimation(
-    { ...base, pitchStableFrames: pitchStableFramesOverride },
-    factor,
-  );
+  const withStableFrames = { ...base, pitchStableFrames: pitchStableFramesOverride };
+  if (usesYinPitchDetection(lowPitchShift)) {
+    return scaleOnsetConfigForYin(withStableFrames);
+  }
+  return withStableFrames;
 };
 
 const applyTrackerConfig = (): void => {
@@ -179,8 +183,8 @@ const applyTrackerConfig = (): void => {
 
 const resetInferenceState = (): void => {
   cacheData?.fill(0);
-  upsampler.reset();
-  frameSec = frameSecFromShift(lowPitchShift);
+  yinProcessor.reset();
+  frameSec = usesYinPitchDetection(lowPitchShift) ? YIN_FRAME_SEC : frameSecFromShift(0);
 };
 
 const emitTrackerFlush = (audioContextTime: number): void => {
@@ -194,7 +198,7 @@ const emitTrackerFlush = (audioContextTime: number): void => {
 const applyLowPitchShift = (shift: VoiceLowPitchShift): void => {
   if (shift === lowPitchShift) return;
   lowPitchShift = shift;
-  upsampler.setShift(shift);
+  yinProcessor.setShift(shift);
   emitTrackerFlush(performance.now() / 1000);
   resetInferenceState();
   applyTrackerConfig();
@@ -209,6 +213,63 @@ const initSession = async (): Promise<void> => {
   cacheTensor = new ort.Tensor('float32', cacheData, [1, CACHE_SIZE]);
   audioData = new Float32Array(CHUNK_SIZE);
   audioTensor = new ort.Tensor('float32', audioData, [1, CHUNK_SIZE]);
+};
+
+const emitTrackerEvents = (
+  frame: { prediction: number; confidence: number; volume: number },
+  audioContextTime: number,
+): void => {
+  if (!tracker) return;
+
+  const events = tracker.processFrame(frame, frameIndex);
+  frameIndex += 1;
+  maybePostMonitor();
+
+  for (const event of events) {
+    if (event.type === 'noteOn') {
+      const backdatedFrames = event.frameIndex - event.onsetFrameIndex;
+      const onsetAudioContextTime = audioContextTime - backdatedFrames * frameSec;
+      post({ type: 'noteOn', note: event.note, audioContextTime: onsetAudioContextTime });
+    } else {
+      post({ type: 'noteOff', note: event.note, audioContextTime });
+    }
+  }
+};
+
+const runYinAnalysis = (
+  samples: Float32Array,
+  audioContextTime: number,
+): void => {
+  if (!tracker) {
+    recycle(samples);
+    return;
+  }
+
+  const inferenceStart = performance.now();
+  const results = yinProcessor.push(samples);
+  emaInferenceMs = updateEma(emaInferenceMs, performance.now() - inferenceStart);
+
+  const frameDuration = frameSec;
+  const hopSec = YIN_FRAME_SEC;
+  const resultCount = results.length;
+  for (let resultIndex = 0; resultIndex < resultCount; resultIndex += 1) {
+    const result = results[resultIndex];
+    if (!result) continue;
+    const frameTime = audioContextTime
+      - (resultCount - 1 - resultIndex) * hopSec
+      - (frameDuration - hopSec);
+    const prediction = result.frequencyHz !== null ? hzToMidi(result.frequencyHz) : -1;
+    emitTrackerEvents(
+      {
+        prediction,
+        confidence: result.confidence,
+        volume: result.volume,
+      },
+      frameTime,
+    );
+  }
+
+  recycle(samples);
 };
 
 const runInference = async (
@@ -244,19 +305,7 @@ const runInference = async (
     volume: volumeArr[0] ?? 0,
   };
 
-  const events = tracker.processFrame(frame, frameIndex);
-  frameIndex += 1;
-  maybePostMonitor();
-
-  for (const event of events) {
-    if (event.type === 'noteOn') {
-      const backdatedFrames = event.frameIndex - event.onsetFrameIndex;
-      const onsetAudioContextTime = audioContextTime - backdatedFrames * frameSec;
-      post({ type: 'noteOn', note: event.note, audioContextTime: onsetAudioContextTime });
-    } else {
-      post({ type: 'noteOff', note: event.note, audioContextTime });
-    }
-  }
+  emitTrackerEvents(frame, audioContextTime);
 
   recycle(samples);
 };
@@ -294,16 +343,11 @@ const processChunk = async (
 };
 
 const handleAudioChunk = (samples: Float32Array, audioContextTime: number): void => {
-  if (decimationFactorFromShift(lowPitchShift) === 1) {
-    void processChunk(samples, audioContextTime);
+  if (usesYinPitchDetection(lowPitchShift)) {
+    runYinAnalysis(samples, audioContextTime);
     return;
   }
-
-  const emitted = upsampler.push(samples, audioContextTime);
-  recycle(samples);
-  for (const chunk of emitted) {
-    void processChunk(chunk.samples, chunk.audioContextTime);
-  }
+  void processChunk(samples, audioContextTime);
 };
 
 self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
@@ -329,8 +373,8 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       sensitivityLevel = data.sensitivity;
       lowPitchShift = normalizeVoiceLowPitchShift(data.lowPitchShift);
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
-      upsampler = new PitchOctaveUpsampler();
-      upsampler.setShift(lowPitchShift);
+      yinProcessor = new YinPitchProcessor();
+      yinProcessor.setShift(lowPitchShift);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
       frameIndex = 0;
       isInferring = false;

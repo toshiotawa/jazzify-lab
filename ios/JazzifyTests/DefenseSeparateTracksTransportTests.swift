@@ -104,19 +104,93 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
         XCTAssertEqual(format.channelCount, 2)
     }
 
-    func testMelodyEnvelopeAttenuatesStartAndEnd() {
-        var samples = [Float](repeating: 1, count: 441)
-        DefenseSeparateTracksBuffers.applyMelodyEnvelope(&samples, sampleRate: 44100)
-        XCTAssertEqual(samples.first ?? 1, 0, accuracy: 0.0001)
-        XCTAssertLessThan(samples[1], 1)
-        XCTAssertLessThan(samples[samples.count - 2], 1)
-        XCTAssertLessThan(samples.last ?? 1, 0.01)
+    func testMelodyLoopCrossfadeDoesNotSilenceFirstSample() {
+        var samples = [Float](repeating: 0, count: 4410)
+        samples[0] = 0.8
+        samples[samples.count - 1] = 0.2
+        DefenseSeparateTracksBuffers.applyMelodyLoopCrossfade(&samples, sampleRate: 44100)
+        XCTAssertGreaterThan(samples.first ?? 0, 0.1)
     }
 
-    func testMelodyEnvelopePreservesInteriorSamples() {
+    func testMelodyLoopCrossfadePreservesBoundaryTransient() {
+        var samples = [Float](repeating: 0, count: 4410)
+        let overlapFrames = max(1, Int((44100 * 0.015).rounded()))
+        samples[0] = 0.9
+        samples[1] = 0.7
+        samples[samples.count - overlapFrames] = 0.3
+        DefenseSeparateTracksBuffers.applyMelodyLoopCrossfade(&samples, sampleRate: 44100)
+        XCTAssertGreaterThan(samples[0], 0.2)
+        XCTAssertGreaterThan(samples[1], 0.05)
+    }
+
+    func testMelodyLoopCrossfadePreservesInteriorSamples() {
         var samples = [Float](repeating: 0.75, count: 4410)
-        DefenseSeparateTracksBuffers.applyMelodyEnvelope(&samples, sampleRate: 44100)
+        DefenseSeparateTracksBuffers.applyMelodyLoopCrossfade(&samples, sampleRate: 44100)
         XCTAssertEqual(samples[2205], 0.75, accuracy: 0.0001)
+    }
+
+    func testPhraseSwitchInsideLargeRenderBlockUsesEvalPhaseFrame() {
+        let grid = DefenseSeparateTracksTransport.computeGrid(
+            sampleRate: 44100,
+            bpm: 120,
+            beatsPerBar: 4,
+            phraseBars: .two,
+            progressionBars: 12,
+            playbackRatio: 1
+        )
+        let phraseZero = DefenseSeparateTracksPhrasePcm(
+            left: [Float](repeating: 0.1, count: grid.cycleFrames),
+            right: [Float](repeating: 0.1, count: grid.cycleFrames)
+        )
+        let phraseOne = DefenseSeparateTracksPhrasePcm(
+            left: [Float](repeating: 0.9, count: grid.cycleFrames),
+            right: [Float](repeating: 0.9, count: grid.cycleFrames)
+        )
+        let prepared = DefenseSeparateTracksPreparedSet(
+            grid: grid,
+            bgmLeft: [Float](repeating: 0.2, count: grid.bgmFrames),
+            bgmRight: [Float](repeating: 0.2, count: grid.bgmFrames),
+            phrasePcms: [phraseZero, phraseOne],
+            speedPercent: 100,
+            setId: 99
+        )
+        let state = DefenseSeparateTracksMixerState(
+            preparedSet: prepared,
+            sessionGeneration: 1,
+            initialPhraseIndex: 0
+        )
+        state.absoluteCycle = 0
+        state.phaseFrame = grid.cycleFrames - 480
+
+        var left = [Float](repeating: 0, count: 960)
+        var right = [Float](repeating: 0, count: 960)
+        left.withUnsafeMutableBufferPointer { leftPointer in
+            right.withUnsafeMutableBufferPointer { rightPointer in
+                guard let leftBase = leftPointer.baseAddress,
+                      let rightBase = rightPointer.baseAddress else {
+                    XCTFail("scratch buffers unavailable")
+                    return
+                }
+                let result = DefenseSeparateTracksMix.renderBlock(
+                    state: state,
+                    outputLeft: leftBase,
+                    outputRight: rightBase,
+                    blockFrames: 960,
+                    phraseRequest: DefenseSeparateTracksPhraseRequest(
+                        phraseIndex: 1,
+                        revision: 1,
+                        generation: 1
+                    ),
+                    tempoRequest: nil,
+                    phraseEvalAbsoluteCycle: 1,
+                    phraseEvalPhaseFrame: 0
+                )
+                XCTAssertTrue(result.appliedPhrase)
+            }
+        }
+
+        XCTAssertEqual(state.audiblePhraseIndex, 1)
+        XCTAssertGreaterThan(left[480], 0.5)
     }
 
     func testMixPausedBlockIsSilent() {
@@ -162,7 +236,9 @@ final class DefenseSeparateTracksTransportTests: XCTestCase {
                     outputRight: rightBase,
                     blockFrames: 64,
                     phraseRequest: nil,
-                    tempoRequest: nil
+                    tempoRequest: nil,
+                    phraseEvalAbsoluteCycle: state.absoluteCycle,
+                    phraseEvalPhaseFrame: state.phaseFrame
                 )
             }
         }

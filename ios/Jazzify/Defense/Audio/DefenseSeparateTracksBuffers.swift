@@ -3,7 +3,7 @@ import Foundation
 
 enum DefenseSeparateTracksBuffers {
     private static var nextSetId = 1
-    private static let envelopeMs: Double = 3
+    private static let loopOverlapMs: Double = 15
     private static let sampleRateMismatchThreshold = 0.01
 
     private struct NativeSourceCacheKey: Hashable {
@@ -97,24 +97,25 @@ enum DefenseSeparateTracksBuffers {
         )
     }
 
-    /// メロディ PCM 先頭/末尾に短いフェードを入れ、フレーズ周期のクリックを抑える（Web 3ms envelope と同等）。
-    static func applyMelodyEnvelope(_ samples: inout [Float], sampleRate: Double) {
+    /// メロディ PCM のループ切れ目を等パワー重なりでつなぐ（Web 15ms overlap と同等）。
+    static func applyMelodyLoopCrossfade(_ samples: inout [Float], sampleRate: Double) {
         guard !samples.isEmpty else { return }
-        let envelopeFrames = max(1, Int((sampleRate * envelopeMs / 1000).rounded()))
-        let fadeInEnd = min(envelopeFrames, samples.count)
-        if fadeInEnd > 0 {
-            for index in 0..<fadeInEnd {
-                let gain = Float(index) / Float(fadeInEnd)
-                samples[index] *= gain
-            }
+        let overlapFrames = max(1, Int((sampleRate * loopOverlapMs / 1000).rounded()))
+        guard samples.count > overlapFrames * 2 else { return }
+
+        for index in 0..<overlapFrames {
+            let head = samples[index]
+            let tail = samples[samples.count - overlapFrames + index]
+            let progress = Double(index) / Double(overlapFrames)
+            let fadeOut = Float(cos((Double.pi / 2) * progress))
+            let fadeIn = Float(sin((Double.pi / 2) * progress))
+            samples[index] = head * fadeOut + tail * fadeIn
         }
-        let fadeOutStart = max(0, samples.count - envelopeFrames)
-        if fadeOutStart < samples.count {
-            for index in fadeOutStart..<samples.count {
-                let gain = Float(samples.count - index) / Float(envelopeFrames)
-                samples[index] *= gain
-            }
-        }
+    }
+
+    /// 後方互換の別名。フェードアウトは行わずループ重なりのみ適用する。
+    static func applyMelodyEnvelope(_ samples: inout [Float], sampleRate: Double) {
+        applyMelodyLoopCrossfade(&samples, sampleRate: sampleRate)
     }
 
     private static func buildPreparedSet(

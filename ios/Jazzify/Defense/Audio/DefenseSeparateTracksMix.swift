@@ -42,6 +42,8 @@ final class DefenseSeparateTracksMixerState: @unchecked Sendable {
     var melodyGain: Float = 0.5
     var tempoCrossfadeFramesRemaining = 0
     var tempoCrossfadePreviousSet: DefenseSeparateTracksPreparedSet?
+    var playbackAnchorHostTime: UInt64 = 0
+    var playbackAnchorAbsoluteSample: Int = 0
 
     init(preparedSet: DefenseSeparateTracksPreparedSet, sessionGeneration: UInt64, initialPhraseIndex: Int) {
         self.activeSet = preparedSet
@@ -54,15 +56,38 @@ final class DefenseSeparateTracksMixerState: @unchecked Sendable {
 enum DefenseSeparateTracksMix {
     private static let tempoCrossfadeFrames = 220
 
+    static func absoluteSamplePosition(hostTime: UInt64, state: DefenseSeparateTracksMixerState) -> Int {
+        guard state.playbackAnchorHostTime > 0 else {
+            let cycleFrames = max(1, state.activeSet.grid.cycleFrames)
+            return state.absoluteCycle * cycleFrames + state.phaseFrame
+        }
+        let deltaHost = hostTime &- state.playbackAnchorHostTime
+        let deltaSec = hostTimeToSeconds(deltaHost)
+        let deltaSamples = Int((deltaSec * state.activeSet.grid.sampleRate).rounded())
+        return state.playbackAnchorAbsoluteSample + deltaSamples
+    }
+
+    static func gridPosition(
+        absoluteSample: Int,
+        cycleFrames: Int
+    ) -> (absoluteCycle: Int, phaseFrame: Int) {
+        let safeCycleFrames = max(1, cycleFrames)
+        let safeSample = max(0, absoluteSample)
+        return (safeSample / safeCycleFrames, safeSample % safeCycleFrames)
+    }
+
     static func renderBlock(
         state: DefenseSeparateTracksMixerState,
         outputLeft: UnsafeMutablePointer<Float>,
         outputRight: UnsafeMutablePointer<Float>,
         blockFrames: Int,
         phraseRequest: DefenseSeparateTracksPhraseRequest?,
-        tempoRequest: DefenseSeparateTracksTempoRequest?
+        tempoRequest: DefenseSeparateTracksTempoRequest?,
+        phraseEvalAbsoluteCycle: Int,
+        phraseEvalPhaseFrame: Int
     ) -> (appliedPhrase: Bool, appliedTempo: Bool) {
-        ingestPhraseRequest(state: state, request: phraseRequest)
+        var pendingPhraseRequest = phraseRequest
+        var phraseRequestConsumed = false
         ingestTempoRequest(state: state, request: tempoRequest)
 
         if state.paused {
@@ -78,6 +103,16 @@ enum DefenseSeparateTracksMix {
         let safeF = max(1, state.activeSet.grid.cycleFrames)
 
         for i in 0..<blockFrames {
+            if let request = pendingPhraseRequest, !phraseRequestConsumed {
+                ingestPhraseRequest(
+                    state: state,
+                    request: request,
+                    evalAbsoluteCycle: phraseEvalAbsoluteCycle,
+                    evalPhaseFrame: phraseEvalPhaseFrame
+                )
+                phraseRequestConsumed = true
+            }
+
             if state.phaseFrame == 0,
                state.scheduled != nil || state.pendingTempoSet != nil {
                 let hadTempo = state.pendingTempoSet != nil
@@ -170,7 +205,9 @@ enum DefenseSeparateTracksMix {
 
     private static func ingestPhraseRequest(
         state: DefenseSeparateTracksMixerState,
-        request: DefenseSeparateTracksPhraseRequest?
+        request: DefenseSeparateTracksPhraseRequest?,
+        evalAbsoluteCycle: Int,
+        evalPhaseFrame: Int
     ) {
         guard let request, request.generation == state.sessionGeneration else { return }
         let count = max(1, state.activeSet.phrasePcms.count)
@@ -178,8 +215,8 @@ enum DefenseSeparateTracksMix {
         state.desiredPhraseIndex = nextDesired
 
         let planned = DefenseSeparateTracksTransport.planPhraseReservation(
-            absoluteCycle: state.absoluteCycle,
-            phaseFrame: state.phaseFrame,
+            absoluteCycle: evalAbsoluteCycle,
+            phaseFrame: evalPhaseFrame,
             cycleFrames: state.activeSet.grid.cycleFrames,
             beatFrames: state.activeSet.grid.beatFrames,
             phraseIndex: nextDesired,
@@ -281,5 +318,11 @@ enum DefenseSeparateTracksMix {
         if framesUntil <= 0 {
             state.scheduledConfirmed = true
         }
+    }
+
+    private static func hostTimeToSeconds(_ hostTime: UInt64) -> Double {
+        var info = mach_timebase_info_data_t()
+        mach_timebase_info(&info)
+        return Double(hostTime) * Double(info.numer) / Double(info.denom) / 1_000_000_000
     }
 }

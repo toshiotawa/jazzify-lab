@@ -19,24 +19,15 @@ import type { DefenseStage } from '@/game/defense/defenseTypes';
 import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import { toCdnProxyUrl } from '@/utils/cdnProxy';
 
+import { applyMelodyLoopCrossfade } from '@/game/defense/defenseMelodyLoopCrossfade';
+
 const SPEED_RATIO_EPSILON = 0.0001;
-const ENVELOPE_MS = 3;
-const PROCESSOR_VERSION = 1;
+const PROCESSOR_VERSION = 2;
 
 let nextSetId = 1;
 
 const applyEnvelope = (data: Float32Array, sampleRate: number): void => {
-  const envelopeFrames = Math.max(1, Math.round(sampleRate * (ENVELOPE_MS / 1000)));
-  const fadeInEnd = Math.min(envelopeFrames, data.length);
-  for (let i = 0; i < fadeInEnd; i += 1) {
-    const gain = i / fadeInEnd;
-    data[i] = (data[i] ?? 0) * gain;
-  }
-  const fadeOutStart = Math.max(0, data.length - envelopeFrames);
-  for (let i = fadeOutStart; i < data.length; i += 1) {
-    const gain = (data.length - i) / envelopeFrames;
-    data[i] = (data[i] ?? 0) * gain;
-  }
+  applyMelodyLoopCrossfade(data, sampleRate);
 };
 
 const copyChannel = (

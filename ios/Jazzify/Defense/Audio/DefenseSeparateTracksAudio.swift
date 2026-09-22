@@ -17,9 +17,12 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var tempoRevision = 0
     private var isStopping = false
 
-    private var mailboxLock = os_unfair_lock()
-    private var pendingPhraseRequest: DefenseSeparateTracksPhraseRequest?
-    private var pendingTempoRequest: DefenseSeparateTracksTempoRequest?
+    private struct PhraseMailbox: Sendable {
+        var pendingPhraseRequest: DefenseSeparateTracksPhraseRequest?
+        var pendingTempoRequest: DefenseSeparateTracksTempoRequest?
+    }
+
+    private let mailbox = OSAllocatedUnfairLock(initialState: PhraseMailbox())
 
     private var snapshotAbsoluteCycle = 0
     private var snapshotPhaseFrame = 0
@@ -89,6 +92,8 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             state.absoluteCycle = 0
             state.phaseFrame = 0
             state.paused = false
+            state.playbackAnchorHostTime = 0
+            state.playbackAnchorAbsoluteSample = 0
 
             let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
             self.rebuildGraph(sourceFormat: format)
@@ -102,13 +107,14 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     func requestPhrase(at phraseIndex: Int, requestRevision: Int) {
-        os_unfair_lock_lock(&mailboxLock)
-        pendingPhraseRequest = DefenseSeparateTracksPhraseRequest(
-            phraseIndex: phraseIndex,
-            revision: requestRevision,
-            generation: sessionGeneration
-        )
-        os_unfair_lock_unlock(&mailboxLock)
+        let generation = sessionGeneration
+        mailbox.withLock { state in
+            state.pendingPhraseRequest = DefenseSeparateTracksPhraseRequest(
+                phraseIndex: phraseIndex,
+                revision: requestRevision,
+                generation: generation
+            )
+        }
     }
 
     func requestTempo(speedPercent: Int) async {
@@ -124,13 +130,13 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         ) else {
             return
         }
-        os_unfair_lock_lock(&mailboxLock)
-        pendingTempoRequest = DefenseSeparateTracksTempoRequest(
-            preparedSet: prepared,
-            tempoRevision: revision,
-            generation: generation
-        )
-        os_unfair_lock_unlock(&mailboxLock)
+        mailbox.withLock { state in
+            state.pendingTempoRequest = DefenseSeparateTracksTempoRequest(
+                preparedSet: prepared,
+                tempoRevision: revision,
+                generation: generation
+            )
+        }
     }
 
     func pauseProgression() {
@@ -154,10 +160,10 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             self.snapshotGrid = nil
             self.snapshotAbsoluteCycle = 0
             self.snapshotPhaseFrame = 0
-            os_unfair_lock_lock(&self.mailboxLock)
-            self.pendingPhraseRequest = nil
-            self.pendingTempoRequest = nil
-            os_unfair_lock_unlock(&self.mailboxLock)
+            self.mailbox.withLock { state in
+                state.pendingPhraseRequest = nil
+                state.pendingTempoRequest = nil
+            }
         }
         if Thread.isMainThread {
             apply()
@@ -290,9 +296,13 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
         detachPlaybackGraph(detachMasterMixer: false)
 
-        let node = AVAudioSourceNode(format: sourceFormat) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
+        let node = AVAudioSourceNode(format: sourceFormat) { [weak self] _, timestamp, frameCount, audioBufferList -> OSStatus in
             guard let self else { return noErr }
-            return self.render(frameCount: frameCount, audioBufferList: audioBufferList)
+            return self.render(
+                timestamp: timestamp,
+                frameCount: frameCount,
+                audioBufferList: audioBufferList
+            )
         }
         sourceNode = node
         engine.attach(node)
@@ -349,7 +359,11 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         try? engine.start()
     }
 
-    private func render(frameCount: AVAudioFrameCount, audioBufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+    private func render(
+        timestamp: UnsafePointer<AudioTimeStamp>,
+        frameCount: AVAudioFrameCount,
+        audioBufferList: UnsafeMutablePointer<AudioBufferList>
+    ) -> OSStatus {
         let blockFrames = Int(frameCount)
         zeroFillAudioBufferList(audioBufferList, frameCount: blockFrames)
 
@@ -357,12 +371,40 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
         ensureScratchCapacity(blockFrames)
 
-        os_unfair_lock_lock(&mailboxLock)
-        let phraseRequest = pendingPhraseRequest
-        let tempoRequest = pendingTempoRequest
-        pendingPhraseRequest = nil
-        pendingTempoRequest = nil
-        os_unfair_lock_unlock(&mailboxLock)
+        let hostTimeValid = timestamp.pointee.mFlags.contains(.hostTimeValid)
+        let hostTime = timestamp.pointee.mHostTime
+        if hostTimeValid, state.playbackAnchorHostTime == 0 {
+            state.playbackAnchorHostTime = hostTime
+            let cycleFrames = max(1, state.activeSet.grid.cycleFrames)
+            state.playbackAnchorAbsoluteSample = state.absoluteCycle * cycleFrames + state.phaseFrame
+        }
+
+        let evalPosition: (absoluteCycle: Int, phaseFrame: Int)
+        if hostTimeValid, state.playbackAnchorHostTime > 0 {
+            let absoluteSample = DefenseSeparateTracksMix.absoluteSamplePosition(
+                hostTime: hostTime,
+                state: state
+            )
+            evalPosition = DefenseSeparateTracksMix.gridPosition(
+                absoluteSample: absoluteSample,
+                cycleFrames: state.activeSet.grid.cycleFrames
+            )
+        } else {
+            evalPosition = (state.absoluteCycle, state.phaseFrame)
+        }
+
+        let requests = mailbox.withLock { state -> (
+            DefenseSeparateTracksPhraseRequest?,
+            DefenseSeparateTracksTempoRequest?
+        ) in
+            let phraseRequest = state.pendingPhraseRequest
+            let tempoRequest = state.pendingTempoRequest
+            state.pendingPhraseRequest = nil
+            state.pendingTempoRequest = nil
+            return (phraseRequest, tempoRequest)
+        }
+        let phraseRequest = requests.0
+        let tempoRequest = requests.1
 
         renderScratchLeft.withUnsafeMutableBufferPointer { leftPointer in
             renderScratchRight.withUnsafeMutableBufferPointer { rightPointer in
@@ -376,7 +418,9 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
                     outputRight: rightBase,
                     blockFrames: blockFrames,
                     phraseRequest: phraseRequest,
-                    tempoRequest: tempoRequest
+                    tempoRequest: tempoRequest,
+                    phraseEvalAbsoluteCycle: evalPosition.absoluteCycle,
+                    phraseEvalPhaseFrame: evalPosition.phaseFrame
                 )
             }
         }
