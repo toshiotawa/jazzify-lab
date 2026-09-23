@@ -105,6 +105,7 @@ import {
   resolveChordOsmdSamePitchRepeatMinIntervalMs,
   hasChordOsmdJudgmentWindowExpired,
   VOICE_JUDGMENT_ARRIVAL_GRACE_SEC,
+  pickEarliestChordOsmdTargetIndex,
   pickNearestChordOsmdTargetIndex,
   findNearestPendingChordOsmdTarget,
   isPhraseTimeInChordOsmdVoicingHintWindow,
@@ -2126,7 +2127,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     }
     const allowPitchClass = settings.inputMethod === 'voice';
     const completeOnAnyMatch = allowPitchClass;
-    const matchLateGrace = allowPitchClass ? VOICE_JUDGMENT_ARRIVAL_GRACE_SEC : 0;
 
     if (osmdSelfPacedRef.current) {
       if (gameStateRef.current !== 'playingPhrase') {
@@ -2174,22 +2174,34 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
     const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
     const phraseTargets = targetsRef.current;
-    const matchedIndex = pickNearestChordOsmdTargetIndex(
-      phraseTargets.length,
-      phraseT,
-      (index) => resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec),
-      (index) => {
-        const target = phraseTargets[index];
-        const state = runtimeByTargetIdRef.current.get(target.id);
-        if (!state || state.completed || state.failed) {
-          return false;
-        }
-        return chordOsmdTargetCanConsumeInput(state.remainingCounts, midiNote, allowPitchClass);
-      },
-      earlyW,
-      lateW,
-      matchLateGrace,
+    const canMatchTarget = (index: number) => {
+      const target = phraseTargets[index];
+      const state = runtimeByTargetIdRef.current.get(target.id);
+      if (!state || state.completed || state.failed) {
+        return false;
+      }
+      return chordOsmdTargetCanConsumeInput(state.remainingCounts, midiNote, allowPitchClass);
+    };
+    const resolveJudgedTargetTimeSec = (index: number) => (
+      resolveCalibratedTargetTimeSec(phraseTargets[index].targetTimeSec)
     );
+    const matchedIndex = allowPitchClass
+      ? pickEarliestChordOsmdTargetIndex(
+        phraseTargets.length,
+        phraseT,
+        resolveJudgedTargetTimeSec,
+        canMatchTarget,
+        earlyW,
+        lateW,
+      )
+      : pickNearestChordOsmdTargetIndex(
+        phraseTargets.length,
+        phraseT,
+        resolveJudgedTargetTimeSec,
+        canMatchTarget,
+        earlyW,
+        lateW,
+      );
     if (matchedIndex === null) {
       const nearest = findNearestPendingChordOsmdTarget(
         phraseTargets.length,
@@ -2227,6 +2239,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       nominalTargetSec: resolveCalibratedTargetTimeSec(target.targetTimeSec),
       inputSec: phraseT,
       midi: midiNote,
+      targetIndex: matchedIndex,
     });
     const nextRemaining = consumeChordOsmdMidi(
       state.remainingCounts,

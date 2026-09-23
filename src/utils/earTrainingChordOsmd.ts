@@ -312,6 +312,29 @@ export const pickNearestChordOsmdTargetIndex = (
   return bestIndex;
 };
 
+/** 音声入力用: 窓内で消費できる最も古い未判定ターゲット（リズムゲームの earliest 方式）。 */
+export const pickEarliestChordOsmdTargetIndex = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  canMatchTarget: (index: number) => boolean,
+  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+): number | null => {
+  for (let index = 0; index < targetCount; index += 1) {
+    if (!canMatchTarget(index)) {
+      continue;
+    }
+    const judged = resolveJudgedTargetTimeSec(index);
+    const delta = phraseTimeSec - judged;
+    if (delta < -earlySec || delta > lateSec) {
+      continue;
+    }
+    return index;
+  }
+  return null;
+};
+
 export const findNearestPendingChordOsmdTarget = (
   targetCount: number,
   phraseTimeSec: number,

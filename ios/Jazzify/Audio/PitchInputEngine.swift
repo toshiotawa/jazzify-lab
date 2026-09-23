@@ -959,9 +959,13 @@ final class PitchInputEngine: @unchecked Sendable {
             }
             ringWriteIndex = 0
             let sourceEndSample = totalSourceSamples
+            let sampleHostTime = Self.hostTimeAdvanced(
+                bySec: Double(index + 1) / Self.targetSampleRate,
+                from: hostTime
+            )
             let adjustedHostTime = Self.hostTimeBackdated(
                 bySec: cachedInputLatencySec,
-                from: hostTime
+                from: sampleHostTime
             )
             enqueueCaptureChunk(
                 PendingCaptureChunk(
@@ -1264,6 +1268,13 @@ final class PitchInputEngine: @unchecked Sendable {
         let info = machTimebaseInfo
         let ticks = UInt64((sec * 1_000_000_000 * Double(info.denom) / Double(info.numer)).rounded())
         return hostTime &- ticks
+    }
+
+    private static func hostTimeAdvanced(bySec sec: Double, from hostTime: UInt64) -> UInt64 {
+        guard sec > 0 else { return hostTime }
+        let info = machTimebaseInfo
+        let ticks = UInt64((sec * 1_000_000_000 * Double(info.denom) / Double(info.numer)).rounded())
+        return hostTime &+ ticks
     }
 }
 

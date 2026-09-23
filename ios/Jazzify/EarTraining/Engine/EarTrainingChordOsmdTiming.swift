@@ -75,6 +75,25 @@ enum EarTrainingChordOsmdTiming {
         return bestIndex
     }
 
+    /// 音声入力用: 窓内で消費できる最も古い未判定ターゲット（リズムゲームの earliest 方式）。
+    static func pickEarliestTargetIndex(
+        targetCount: Int,
+        phraseTimeSec: Double,
+        judgedTargetTimeSec: (Int) -> Double,
+        canMatchTarget: (Int) -> Bool,
+        earlySec: Double = judgmentWindowEarlySec,
+        lateSec: Double = judgmentWindowLateSec
+    ) -> Int? {
+        for index in 0..<targetCount {
+            guard canMatchTarget(index) else { continue }
+            let judged = judgedTargetTimeSec(index)
+            let delta = phraseTimeSec - judged
+            guard delta >= -earlySec, delta <= lateSec else { continue }
+            return index
+        }
+        return nil
+    }
+
     static func pickNearestPendingTargetIndex(
         targetCount: Int,
         phraseTimeSec: Double,

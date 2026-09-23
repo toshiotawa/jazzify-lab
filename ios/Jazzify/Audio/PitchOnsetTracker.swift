@@ -62,6 +62,7 @@ final class PitchOnsetTracker {
     private var notePeakDb = -Double.infinity
     private var dippedFromPeak = false
     private var noteTroughDb = Double.infinity
+    private var noteTroughFrame = -1
 
     init(config: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) {
         self.config = config
@@ -105,6 +106,7 @@ final class PitchOnsetTracker {
         notePeakDb = -.infinity
         dippedFromPeak = false
         noteTroughDb = .infinity
+        noteTroughFrame = -1
     }
 
     func flushActiveNote(frameIndex: Int) -> [PitchInputEvent] {
@@ -187,11 +189,11 @@ final class PitchOnsetTracker {
                 }
             } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
                 if shouldTreatRepeatModePitchWobble(quantized: quantized) {
-                    updateRepeatPeakAndDip(levelDb: levelDb)
+                    updateRepeatPeakAndDip(levelDb: levelDb, frameIndex: frameIndex)
                     trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
                     tryRetrigger(&events, levelDb: levelDb, frameIndex: frameIndex)
                 } else if shouldHoldRepeatModeUnexpectedPitch(quantized: quantized) {
-                    updateRepeatTroughOnly(levelDb: levelDb)
+                    updateRepeatTroughOnly(levelDb: levelDb, frameIndex: frameIndex)
                     trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
                 } else {
                     let octaveRelated = isOctaveRelatedJump(quantized: quantized)
@@ -216,7 +218,7 @@ final class PitchOnsetTracker {
                 }
             } else {
                 if isRepeatPitchClassActive(note: currentNote) {
-                    updateRepeatPeakAndDip(levelDb: levelDb)
+                    updateRepeatPeakAndDip(levelDb: levelDb, frameIndex: frameIndex)
                     trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
                 }
                 tryRetrigger(&events, levelDb: levelDb, frameIndex: frameIndex)
@@ -228,7 +230,7 @@ final class PitchOnsetTracker {
                 trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
             }
             if currentNote >= 0, isRepeatPitchClassActive(note: currentNote) {
-                updateRepeatTroughOnly(levelDb: levelDb)
+                updateRepeatTroughOnly(levelDb: levelDb, frameIndex: frameIndex)
             }
 
             if currentNote >= 0 {
@@ -422,19 +424,20 @@ final class PitchOnsetTracker {
         return abs(quantized - currentNote) == 1
     }
 
-    private func updateRepeatPeakAndDip(levelDb: Double) {
+    private func updateRepeatPeakAndDip(levelDb: Double, frameIndex: Int) {
         if levelDb > notePeakDb {
             notePeakDb = levelDb
         }
-        updateRepeatTroughOnly(levelDb: levelDb)
+        updateRepeatTroughOnly(levelDb: levelDb, frameIndex: frameIndex)
     }
 
-    private func updateRepeatTroughOnly(levelDb: Double) {
+    private func updateRepeatTroughOnly(levelDb: Double, frameIndex: Int) {
         if notePeakDb - levelDb >= config.repeatDipDb {
             dippedFromPeak = true
         }
-        if dippedFromPeak {
-            noteTroughDb = min(noteTroughDb, levelDb)
+        if dippedFromPeak, levelDb <= noteTroughDb {
+            noteTroughDb = levelDb
+            noteTroughFrame = frameIndex
         }
     }
 
@@ -523,6 +526,15 @@ final class PitchOnsetTracker {
         return levelDb - minRecent
     }
 
+    private func resolveRepeatModeOnsetFrameIndex(frameIndex: Int) -> Int {
+        let lookbackStart = frameIndex - repeatAttackLookbackFrames()
+        var onsetFrameIndex = max(lastNoteOnFrame + 1, lookbackStart)
+        if noteTroughFrame >= 0 {
+            onsetFrameIndex = max(onsetFrameIndex, noteTroughFrame + 1)
+        }
+        return onsetFrameIndex
+    }
+
     private func tryRetrigger(_ events: inout [PitchInputEvent], levelDb: Double, frameIndex: Int) {
         guard currentNote >= 0 else { return }
         if frameIndex - lastNoteOnFrame < config.retriggerGuardFrames {
@@ -533,7 +545,7 @@ final class PitchOnsetTracker {
         if isRepeatPitchClassActive(note: currentNote) {
             if hasRepeatModeAttack(levelDb: levelDb) {
                 let note = currentNote
-                let onsetFrameIndex = max(lastNoteOnFrame + 1, frameIndex)
+                let onsetFrameIndex = resolveRepeatModeOnsetFrameIndex(frameIndex: frameIndex)
                 emitNoteOff(&events, note: note, frameIndex: frameIndex)
                 emitNoteOn(
                     &events,

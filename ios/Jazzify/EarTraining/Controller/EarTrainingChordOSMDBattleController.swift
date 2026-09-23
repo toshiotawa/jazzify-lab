@@ -507,7 +507,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         let allowPitchClass = NoteInputPreferences.inputMethod == .voice
         let completeOnAnyMatch = allowPitchClass
-        let matchLateGrace = allowPitchClass ? EarTrainingChordOsmdTiming.voiceJudgmentArrivalGraceSec : 0
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
             phraseTime = fromMidi
@@ -571,20 +570,33 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
 
         let judgmentWindowEarly = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
         let judgmentWindowLate = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
-        let matchedIndex = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
-            targetCount: targets.count,
-            phraseTimeSec: phraseTime,
-            judgedTargetTimeSec: { [self] index in
-                resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
-            },
-            canMatchTarget: { [self] index in
-                guard targets[index].completed == false, targets[index].failed == false else { return false }
-                return targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass)
-            },
-            earlySec: judgmentWindowEarly,
-            lateSec: judgmentWindowLate,
-            matchLateGraceSec: matchLateGrace
-        )
+        let canMatchTarget: (Int) -> Bool = { [self] index in
+            guard targets[index].completed == false, targets[index].failed == false else { return false }
+            return targets[index].canConsume(midi: midi, allowPitchClass: allowPitchClass)
+        }
+        let resolveJudgedTargetTimeSec: (Int) -> Double = { [self] index in
+            resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
+        }
+        let matchedIndex: Int?
+        if allowPitchClass {
+            matchedIndex = EarTrainingChordOsmdTiming.pickEarliestTargetIndex(
+                targetCount: targets.count,
+                phraseTimeSec: phraseTime,
+                judgedTargetTimeSec: resolveJudgedTargetTimeSec,
+                canMatchTarget: canMatchTarget,
+                earlySec: judgmentWindowEarly,
+                lateSec: judgmentWindowLate
+            )
+        } else {
+            matchedIndex = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+                targetCount: targets.count,
+                phraseTimeSec: phraseTime,
+                judgedTargetTimeSec: resolveJudgedTargetTimeSec,
+                canMatchTarget: canMatchTarget,
+                earlySec: judgmentWindowEarly,
+                lateSec: judgmentWindowLate
+            )
+        }
         guard let matchedIndex else {
             let nearest = EarTrainingChordOsmdTiming.pickNearestPendingTargetIndex(
                 targetCount: targets.count,
@@ -616,7 +628,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             timingSource: timingSource.rawValue,
             nominalTargetSec: resolveCalibratedTargetTimeSec(target.targetTimeSec),
             inputSec: phraseTime,
-            midi: midi
+            midi: midi,
+            targetIndex: matchedIndex
         )
         guard targets[matchedIndex].consume(
             midi: midi,

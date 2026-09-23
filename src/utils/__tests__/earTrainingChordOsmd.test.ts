@@ -27,6 +27,7 @@ import {
   hasChordOsmdJudgmentWindowExpired,
   CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
+  pickEarliestChordOsmdTargetIndex,
   pickNearestChordOsmdTargetIndex,
   isPhraseTimeInChordOsmdJudgmentWindow,
   isPhraseTimeInChordOsmdVoicingHintWindow,
@@ -1615,6 +1616,58 @@ describe('chord osmd parry span finish', () => {
       targets2, targets2[4], toChordOsmdParrySpanAnchor(targets2[0]), 2, BPM, BEATS, false,
     );
     expect(finish.isFinish).toBe(true);
+  });
+});
+
+describe('pickEarliestChordOsmdTargetIndex', () => {
+  it('同音連打で遅れた入力を次のノーツではなく最古の pending に当てる', () => {
+    const judgedTimes = [0, 0.25, 0.5, 0.75];
+    const canMatch = [false, true, true, false];
+    expect(pickEarliestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.38,
+      (index) => judgedTimes[index] ?? 0,
+      (index) => canMatch[index] ?? false,
+    )).toBe(1);
+    expect(pickNearestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.38,
+      (index) => judgedTimes[index] ?? 0,
+      (index) => canMatch[index] ?? false,
+    )).toBe(2);
+  });
+
+  it('窓外の候補は選ばず、完了済みは飛ばす', () => {
+    const judgedTimes = [0, 0.25, 0.5];
+    const canMatch = [false, false, true];
+    expect(pickEarliestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.05,
+      (index) => judgedTimes[index] ?? 0,
+      (index) => canMatch[index] ?? false,
+    )).toBeNull();
+    expect(pickEarliestChordOsmdTargetIndex(
+      judgedTimes.length,
+      0.55,
+      (index) => judgedTimes[index] ?? 0,
+      (index) => canMatch[index] ?? false,
+    )).toBe(2);
+  });
+
+  it('遅い側は +250ms で閉じる（到着猶予は加算しない）', () => {
+    const judgedTimes = [1.0];
+    expect(pickEarliestChordOsmdTargetIndex(
+      1,
+      1.24,
+      (index) => judgedTimes[index] ?? 0,
+      () => true,
+    )).toBe(0);
+    expect(pickEarliestChordOsmdTargetIndex(
+      1,
+      1.26,
+      (index) => judgedTimes[index] ?? 0,
+      () => true,
+    )).toBeNull();
   });
 });
 

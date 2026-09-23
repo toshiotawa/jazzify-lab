@@ -479,6 +479,22 @@ describe('PitchOnsetTracker', () => {
     return notes;
   };
 
+  const collectRepeatModeOnsetFrames = (
+    tracker: PitchOnsetTracker,
+    frames: Array<{ frame: PitchFrame; index: number }>,
+  ): number[] => {
+    const onsetFrames: number[] = [];
+    for (const { frame, index } of frames) {
+      const events = tracker.processFrame(frame, index);
+      for (const event of events) {
+        if (event.type === 'noteOn') {
+          onsetFrames.push(event.onsetFrameIndex);
+        }
+      }
+    }
+    return onsetFrames;
+  };
+
   it('emits multiple noteOns during monotonic attack rise without repeat mask', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,
@@ -822,6 +838,33 @@ describe('PitchOnsetTracker', () => {
     }
     const noteOns = collectNoteOns(tracker, frames);
     expect(noteOns).toEqual([60, 60]);
+  });
+
+  it('backdates repeat-mode retrigger onsetFrameIndex to trough plus one within attack window', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      repeatAttackWindowMs: 40,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const dipUnvoiced: PitchFrame = { prediction: 60, confidence: 0.1, volume: 0.00001 };
+    const rise: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.016 };
+    const onsetFrames = collectRepeatModeOnsetFrames(tracker, [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: dipUnvoiced, index: 3 },
+      { frame: dipUnvoiced, index: 4 },
+      { frame: rise, index: 5 },
+      { frame: rise, index: 6 },
+    ]);
+    expect(onsetFrames).toEqual([0, 5]);
+    expect(onsetFrames[1]).toBeLessThan(6);
   });
 
   it('keeps repeat pitch class mask after reset', () => {

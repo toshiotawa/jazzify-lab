@@ -199,4 +199,56 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
             windowSec: 0.25
         ).repeatPitchClassMask, 1 << (60 % 12))
     }
+
+    func testPickEarliestTargetIndexPrefersOldestPendingForLateSamePitchInput() {
+        let judgedTimes = [0.0, 0.25, 0.5, 0.75]
+        let canMatch: [Bool] = [false, true, true, false]
+        let picked = EarTrainingChordOsmdTiming.pickEarliestTargetIndex(
+            targetCount: judgedTimes.count,
+            phraseTimeSec: 0.38,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { canMatch[$0] }
+        )
+        XCTAssertEqual(picked, 1)
+        let nearest = EarTrainingChordOsmdTiming.pickNearestTargetIndex(
+            targetCount: judgedTimes.count,
+            phraseTimeSec: 0.38,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { canMatch[$0] }
+        )
+        XCTAssertEqual(nearest, 2)
+    }
+
+    func testPickEarliestTargetIndexSkipsCompletedAndOutOfWindow() {
+        let judgedTimes = [0.0, 0.25, 0.5]
+        let canMatch: [Bool] = [false, false, true]
+        XCTAssertNil(EarTrainingChordOsmdTiming.pickEarliestTargetIndex(
+            targetCount: judgedTimes.count,
+            phraseTimeSec: 0.05,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { canMatch[$0] }
+        ))
+        XCTAssertEqual(EarTrainingChordOsmdTiming.pickEarliestTargetIndex(
+            targetCount: judgedTimes.count,
+            phraseTimeSec: 0.55,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { canMatch[$0] }
+        ), 2)
+    }
+
+    func testPickEarliestTargetIndexClosesLateSideAtTwoFiftyMsWithoutArrivalGrace() {
+        let judgedTimes = [1.0]
+        XCTAssertEqual(EarTrainingChordOsmdTiming.pickEarliestTargetIndex(
+            targetCount: 1,
+            phraseTimeSec: 1.24,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { _ in true }
+        ), 0)
+        XCTAssertNil(EarTrainingChordOsmdTiming.pickEarliestTargetIndex(
+            targetCount: 1,
+            phraseTimeSec: 1.26,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            canMatchTarget: { _ in true }
+        ))
+    }
 }

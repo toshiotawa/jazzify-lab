@@ -16,12 +16,14 @@ enum EarTrainingInputTimingTelemetry {
         timingSource: String?,
         nominalTargetSec: Double,
         inputSec: Double,
-        midi: Int
+        midi: Int,
+        targetIndex: Int? = nil
     ) {
         let deltaMs = (inputSec - nominalTargetSec) * 1000
         let roundedDelta = (deltaMs * 10).rounded() / 10
+        let targetIndexText = targetIndex.map { String($0) } ?? "nil"
         logger.debug(
-            "[earTrainingInputTiming] mode=\(mode.rawValue, privacy: .public) slug=\(slug ?? "", privacy: .public) timingSource=\(timingSource ?? "unknown", privacy: .public) nominalTargetSec=\(nominalTargetSec, privacy: .public) inputSec=\(inputSec, privacy: .public) deltaMs=\(roundedDelta, privacy: .public) midi=\(midi, privacy: .public) matched=true"
+            "[earTrainingInputTiming] mode=\(mode.rawValue, privacy: .public) slug=\(slug ?? "", privacy: .public) timingSource=\(timingSource ?? "unknown", privacy: .public) nominalTargetSec=\(nominalTargetSec, privacy: .public) inputSec=\(inputSec, privacy: .public) deltaMs=\(roundedDelta, privacy: .public) midi=\(midi, privacy: .public) targetIndex=\(targetIndexText, privacy: .public) matched=true"
         )
     }
 

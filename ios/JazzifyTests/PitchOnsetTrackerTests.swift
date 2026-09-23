@@ -509,6 +509,36 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertEqual(noteOnCount, 2)
     }
 
+    func testBackdatesRepeatModeRetriggerOnsetFrameIndexToTroughPlusOne() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        config.repeatDipDb = 2
+        config.repeatRiseDb = 4
+        config.repeatAttackWindowMs = 40
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [60], repeatPitchClassMask: 1 << 0)
+        let peak = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let dipUnvoiced = PitchFrame(prediction: 60, confidence: 0.1, volume: 0.00001)
+        let rise = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.016)
+        var onsetFrames: [Int] = []
+        for (frame, index) in [
+            (peak, 0), (peak, 1), (peak, 2),
+            (dipUnvoiced, 3), (dipUnvoiced, 4),
+            (rise, 5), (rise, 6),
+        ] {
+            let events = tracker.processFrame(frame, frameIndex: index)
+            for event in events {
+                if case let .noteOn(_, _, onsetFrameIndex) = event {
+                    onsetFrames.append(onsetFrameIndex)
+                }
+            }
+        }
+        XCTAssertEqual(onsetFrames, [0, 5])
+        XCTAssertLessThan(onsetFrames[1], 6)
+    }
+
     func testKeepsRepeatPitchClassMaskAfterReset() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1

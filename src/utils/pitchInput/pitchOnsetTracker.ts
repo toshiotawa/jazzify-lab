@@ -144,6 +144,8 @@ export class PitchOnsetTracker {
   private dippedFromPeak = false;
   /** 谷候補以降の最小 dB。 */
   private noteTroughDb = Infinity;
+  /** 谷候補を更新した frameIndex。 */
+  private noteTroughFrame = -1;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -193,6 +195,7 @@ export class PitchOnsetTracker {
     this.notePeakDb = -Infinity;
     this.dippedFromPeak = false;
     this.noteTroughDb = Infinity;
+    this.noteTroughFrame = -1;
   }
 
   /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
@@ -264,11 +267,11 @@ export class PitchOnsetTracker {
         !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
         if (this.shouldTreatRepeatModePitchWobble(quantized)) {
-          this.updateRepeatPeakAndDip(levelDb);
+          this.updateRepeatPeakAndDip(levelDb, frameIndex);
           this.trackRecentMinDb(levelDb, frameIndex);
           this.tryRetrigger(events, levelDb, frameIndex);
         } else if (this.shouldHoldRepeatModeUnexpectedPitch(quantized)) {
-          this.updateRepeatTroughOnly(levelDb);
+          this.updateRepeatTroughOnly(levelDb, frameIndex);
           this.trackRecentMinDb(levelDb, frameIndex);
         } else {
           const octaveRelated = this.isOctaveRelatedJump(quantized);
@@ -293,7 +296,7 @@ export class PitchOnsetTracker {
         }
       } else {
         if (this.isRepeatPitchClassActive(this.currentNote)) {
-          this.updateRepeatPeakAndDip(levelDb);
+          this.updateRepeatPeakAndDip(levelDb, frameIndex);
           this.trackRecentMinDb(levelDb, frameIndex);
         }
         this.tryRetrigger(events, levelDb, frameIndex);
@@ -305,7 +308,7 @@ export class PitchOnsetTracker {
         this.trackRecentMinDb(levelDb, frameIndex);
       }
       if (this.currentNote >= 0 && this.isRepeatPitchClassActive(this.currentNote)) {
-        this.updateRepeatTroughOnly(levelDb);
+        this.updateRepeatTroughOnly(levelDb, frameIndex);
       }
 
       if (this.currentNote >= 0) {
@@ -507,19 +510,20 @@ export class PitchOnsetTracker {
     return Math.abs(quantized - this.currentNote) === 1;
   }
 
-  private updateRepeatPeakAndDip(levelDb: number): void {
+  private updateRepeatPeakAndDip(levelDb: number, frameIndex: number): void {
     if (levelDb > this.notePeakDb) {
       this.notePeakDb = levelDb;
     }
-    this.updateRepeatTroughOnly(levelDb);
+    this.updateRepeatTroughOnly(levelDb, frameIndex);
   }
 
-  private updateRepeatTroughOnly(levelDb: number): void {
+  private updateRepeatTroughOnly(levelDb: number, frameIndex: number): void {
     if (this.notePeakDb - levelDb >= this.config.repeatDipDb) {
       this.dippedFromPeak = true;
     }
-    if (this.dippedFromPeak) {
-      this.noteTroughDb = Math.min(this.noteTroughDb, levelDb);
+    if (this.dippedFromPeak && levelDb <= this.noteTroughDb) {
+      this.noteTroughDb = levelDb;
+      this.noteTroughFrame = frameIndex;
     }
   }
 
@@ -612,6 +616,15 @@ export class PitchOnsetTracker {
     return levelDb - minRecent;
   }
 
+  private resolveRepeatModeOnsetFrameIndex(frameIndex: number): number {
+    const lookbackStart = frameIndex - this.repeatAttackLookbackFrames();
+    let onsetFrameIndex = Math.max(this.lastNoteOnFrame + 1, lookbackStart);
+    if (this.noteTroughFrame >= 0) {
+      onsetFrameIndex = Math.max(onsetFrameIndex, this.noteTroughFrame + 1);
+    }
+    return onsetFrameIndex;
+  }
+
   private tryRetrigger(
     events: PitchInputEvent[],
     levelDb: number,
@@ -626,10 +639,7 @@ export class PitchOnsetTracker {
     if (this.isRepeatPitchClassActive(this.currentNote)) {
       if (this.hasRepeatModeAttack(levelDb)) {
         const note = this.currentNote;
-        const onsetFrameIndex = Math.max(
-          this.lastNoteOnFrame + 1,
-          frameIndex,
-        );
+        const onsetFrameIndex = this.resolveRepeatModeOnsetFrameIndex(frameIndex);
         this.emitNoteOff(events, note, frameIndex);
         this.emitNoteOn(events, note, frameIndex, onsetFrameIndex, levelDb);
       }

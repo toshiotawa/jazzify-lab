@@ -9,6 +9,7 @@ export interface EarTrainingInputTimingTelemetryParams {
   nominalTargetSec: number;
   inputSec: number;
   midi: number;
+  targetIndex?: number;
 }
 
 export interface EarTrainingUnmatchedInputTimingTelemetryParams {
@@ -34,6 +35,7 @@ export const logEarTrainingInputTimingTelemetry = (
     inputSec: params.inputSec,
     deltaMs: Math.round(deltaMs * 10) / 10,
     midi: params.midi,
+    targetIndex: params.targetIndex ?? null,
     matched: true,
   });
 };
