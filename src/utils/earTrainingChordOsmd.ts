@@ -122,17 +122,19 @@ export interface ChordOsmdExpectedPitchRuntime {
 
 const pitchClassFromMidi = (midi: number): number => ((Math.round(midi) % 12) + 12) % 12;
 
-const resolveChordOsmdRepeatPitchClassMask = (
+interface ChordOsmdSamePitchRepeatContext {
+  pendingIndex: number;
+  pendingMidi: number;
+}
+
+const resolveChordOsmdSamePitchRepeatContext = (
   targetCount: number,
   phraseTimeSec: number,
   resolveJudgedTargetTimeSec: (index: number) => number,
   resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
   resolveTargetMidis: (index: number) => readonly number[],
-  earlySec: number,
   lateSec: number,
-): number => {
-  let pendingIndex: number | null = null;
-  let pendingMidi: number | null = null;
+): ChordOsmdSamePitchRepeatContext | null => {
   for (let index = 0; index < targetCount; index += 1) {
     const runtime = resolveRuntime(index);
     if (!runtime || runtime.completed || runtime.failed) {
@@ -140,34 +142,57 @@ const resolveChordOsmdRepeatPitchClassMask = (
     }
     const judged = resolveJudgedTargetTimeSec(index);
     const delta = phraseTimeSec - judged;
-    if (delta < -earlySec) {
-      break;
-    }
     if (delta > lateSec) {
       continue;
     }
     const targetMidis = resolveTargetMidis(index);
     if (targetMidis.length !== 1) {
-      return 0;
+      return null;
     }
-    pendingIndex = index;
-    pendingMidi = targetMidis[0] ?? null;
-    break;
+    if (index === 0) {
+      return null;
+    }
+    const previousRuntime = resolveRuntime(index - 1);
+    if (!previousRuntime?.completed) {
+      return null;
+    }
+    const previousMidis = resolveTargetMidis(index - 1);
+    if (previousMidis.length !== 1) {
+      return null;
+    }
+    const previousPc = pitchClassFromMidi(previousMidis[0] ?? 0);
+    const pendingMidi = targetMidis[0] ?? 0;
+    const pendingPc = pitchClassFromMidi(pendingMidi);
+    if (previousPc !== pendingPc) {
+      return null;
+    }
+    return { pendingIndex: index, pendingMidi };
   }
-  if (pendingIndex === null || pendingIndex === 0 || pendingMidi === null) {
+  return null;
+};
+
+const resolveChordOsmdRepeatPitchClassMask = (
+  targetCount: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
+  resolveTargetMidis: (index: number) => readonly number[],
+  _earlySec: number,
+  lateSec: number,
+): number => {
+  const context = resolveChordOsmdSamePitchRepeatContext(
+    targetCount,
+    phraseTimeSec,
+    resolveJudgedTargetTimeSec,
+    resolveRuntime,
+    resolveTargetMidis,
+    lateSec,
+  );
+  if (!context) {
     return 0;
   }
-  const previousRuntime = resolveRuntime(pendingIndex - 1);
-  if (!previousRuntime?.completed) {
-    return 0;
-  }
-  const previousMidis = resolveTargetMidis(pendingIndex - 1);
-  if (previousMidis.length !== 1) {
-    return 0;
-  }
-  const previousPc = pitchClassFromMidi(previousMidis[0] ?? 0);
-  const pendingPc = pitchClassFromMidi(pendingMidi);
-  return previousPc === pendingPc ? (1 << pendingPc) : 0;
+  const pendingPc = pitchClassFromMidi(context.pendingMidi);
+  return 1 << pendingPc;
 };
 
 export const isChordOsmdWaitingForSamePitchRepeat = (
@@ -196,40 +221,23 @@ export const resolveChordOsmdSamePitchRepeatMinIntervalMs = (
   resolveJudgedTargetTimeSec: (index: number) => number,
   resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
   resolveTargetMidis: (index: number) => readonly number[],
-  earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
+  _earlySec: number = CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC,
   lateSec: number = CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
 ): number | null => {
-  for (let index = 0; index < targetCount; index += 1) {
-    const runtime = resolveRuntime(index);
-    if (!runtime || runtime.completed || runtime.failed) {
-      continue;
-    }
-    const judged = resolveJudgedTargetTimeSec(index);
-    const delta = phraseTimeSec - judged;
-    if (delta < -earlySec) {
-      break;
-    }
-    if (delta > lateSec) {
-      continue;
-    }
-    const targetMidis = resolveTargetMidis(index);
-    if (targetMidis.length !== 1 || index === 0) {
-      return null;
-    }
-    const previousMidis = resolveTargetMidis(index - 1);
-    if (previousMidis.length !== 1) {
-      return null;
-    }
-    const previousPc = pitchClassFromMidi(previousMidis[0] ?? 0);
-    const pendingPc = pitchClassFromMidi(targetMidis[0] ?? 0);
-    if (previousPc !== pendingPc) {
-      return null;
-    }
-    const prevSec = resolveJudgedTargetTimeSec(index - 1);
-    const nextSec = resolveJudgedTargetTimeSec(index);
-    return minIntervalMsForWrittenSpacing(prevSec, nextSec);
+  const context = resolveChordOsmdSamePitchRepeatContext(
+    targetCount,
+    phraseTimeSec,
+    resolveJudgedTargetTimeSec,
+    resolveRuntime,
+    resolveTargetMidis,
+    lateSec,
+  );
+  if (!context) {
+    return null;
   }
-  return null;
+  const prevSec = resolveJudgedTargetTimeSec(context.pendingIndex - 1);
+  const nextSec = resolveJudgedTargetTimeSec(context.pendingIndex);
+  return minIntervalMsForWrittenSpacing(prevSec, nextSec);
 };
 
 export const collectChordOsmdExpectedPitchCandidates = (

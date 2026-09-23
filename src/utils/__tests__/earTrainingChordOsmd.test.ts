@@ -15,7 +15,8 @@ import {
   chordOsmdRankForAccuracy,
   chordOsmdTargetIsComplete,
   collectChordOsmdExpectedPitchCandidates,
-  collectChordOsmdExpectedPitchCandidates,
+  isChordOsmdWaitingForSamePitchRepeat,
+  resolveChordOsmdSamePitchRepeatMinIntervalMs,
   collectChordOsmdMusicXmlAttacks,
   collectChordOsmdMusicXmlLyrics,
   collectChordOsmdScoreLyricEvents,
@@ -443,6 +444,111 @@ describe('Chord OSMD target consumption', () => {
     expect(hasChordOsmdJudgmentWindowExpired(1.45, 1.0, 0.25, 0)).toBe(true);
     expect(hasChordOsmdJudgmentWindowExpired(1.45, 1.0, 0.25, 0.25)).toBe(false);
     expect(hasChordOsmdJudgmentWindowExpired(1.51, 1.0, 0.25, 0.25)).toBe(true);
+  });
+
+  it('同音連打待ちマスクは判定窓前でも直前正解と次の単音が同じなら立つ', () => {
+    const judgedTimes = [1.0, 2.0];
+    const resolveRuntime = (index: number) => {
+      if (index === 0) {
+        return { completed: true, failed: false, remainingCounts: new Map<number, number>() };
+      }
+      if (index === 1) {
+        return { completed: false, failed: false, remainingCounts: new Map([[67, 1]]) };
+      }
+      return null;
+    };
+    const resolveTargetMidis = (index: number) => (index === 0 || index === 1 ? [67] : []);
+    const phraseTimeSec = 1.5;
+
+    const candidates = collectChordOsmdExpectedPitchCandidates(
+      2,
+      phraseTimeSec,
+      (index) => judgedTimes[index] ?? 0,
+      resolveRuntime,
+      0.25,
+      0.25,
+      resolveTargetMidis,
+    );
+    expect(candidates.repeatPitchClassMask).toBe(1 << 7);
+    expect(isChordOsmdWaitingForSamePitchRepeat(
+      2,
+      phraseTimeSec,
+      (index) => judgedTimes[index] ?? 0,
+      resolveRuntime,
+      resolveTargetMidis,
+    )).toBe(true);
+    expect(resolveChordOsmdSamePitchRepeatMinIntervalMs(
+      2,
+      phraseTimeSec,
+      (index) => judgedTimes[index] ?? 0,
+      resolveRuntime,
+      resolveTargetMidis,
+    )).toBeCloseTo(500, 1);
+  });
+
+  it('同音連打待ちマスクは直前失敗・和音・別音のとき立たない', () => {
+    const resolveTargetMidis = (index: number) => {
+      if (index === 0) return [67, 71];
+      if (index === 1) return [67];
+      if (index === 2) return [67];
+      return [60];
+    };
+    const failedPrevious = (index: number) => {
+      if (index === 0) {
+        return { completed: false, failed: true, remainingCounts: new Map([[67, 1]]) };
+      }
+      if (index === 1) {
+        return { completed: false, failed: false, remainingCounts: new Map([[67, 1]]) };
+      }
+      return null;
+    };
+    expect(collectChordOsmdExpectedPitchCandidates(
+      2,
+      1.5,
+      (index) => [1.0, 2.0][index] ?? 0,
+      failedPrevious,
+      0.25,
+      0.25,
+      resolveTargetMidis,
+    ).repeatPitchClassMask).toBe(0);
+
+    const chordPrevious = (index: number) => {
+      if (index === 0) {
+        return { completed: true, failed: false, remainingCounts: new Map<number, number>() };
+      }
+      if (index === 1) {
+        return { completed: false, failed: false, remainingCounts: new Map([[67, 1]]) };
+      }
+      return null;
+    };
+    expect(collectChordOsmdExpectedPitchCandidates(
+      2,
+      1.5,
+      (index) => [1.0, 2.0][index] ?? 0,
+      chordPrevious,
+      0.25,
+      0.25,
+      resolveTargetMidis,
+    ).repeatPitchClassMask).toBe(0);
+
+    const differentPitch = (index: number) => {
+      if (index === 0) {
+        return { completed: true, failed: false, remainingCounts: new Map<number, number>() };
+      }
+      if (index === 1) {
+        return { completed: false, failed: false, remainingCounts: new Map([[60, 1]]) };
+      }
+      return null;
+    };
+    expect(collectChordOsmdExpectedPitchCandidates(
+      2,
+      1.5,
+      (index) => [1.0, 2.0][index] ?? 0,
+      differentPitch,
+      0.25,
+      0.25,
+      (index) => (index === 0 ? [67] : [60]),
+    ).repeatPitchClassMask).toBe(0);
   });
 
   it('collectChordOsmdExpectedPitchCandidates は判定窓内の未消費 MIDI だけを返す', () => {

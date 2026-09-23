@@ -504,13 +504,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         if allowPitchClass {
             let earlySec = resolveEffectiveTimingWindowSec(Self.judgmentWindowEarlySec)
             let lateSec = resolveEffectiveTimingWindowSec(Self.judgmentWindowLateSec)
-            let runtimeAt: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])? = { [self] index in
-                let target = targets[index]
-                guard !target.completed, !target.failed else { return nil }
-                let remainingMidis = target.remainingMidiCounts.compactMap { midi, count in
-                    count > 0 ? midi : nil
-                }
-                return (completed: target.completed, failed: target.failed, remainingMidis: remainingMidis)
+            let runtimeAt: (Int) -> ChordOsmdExpectedPitchRuntime? = { [self] index in
+                chordOsmdExpectedPitchRuntime(at: index)
             }
             if ExpectedPitchCandidateCollectors.isChordOsmdWaitingForSamePitchRepeat(
                 targetCount: targets.count,
@@ -1132,12 +1127,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                     resolveCalibratedTargetTimeSec(targets[index].targetTimeSec)
                 },
                 runtimeAt: { [self] index in
-                    let target = targets[index]
-                    guard !target.completed, !target.failed else { return nil }
-                    let remainingMidis = target.remainingMidiCounts.compactMap { midi, count in
-                        count > 0 ? midi : nil
-                    }
-                    return (completed: target.completed, failed: target.failed, remainingMidis: remainingMidis)
+                    chordOsmdExpectedPitchRuntime(at: index)
                 },
                 earlySec: earlySec,
                 lateSec: lateSec,
@@ -1653,6 +1643,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         completedTargetCount = completed
         failedTargetCount = failed
         phraseAccuracy = targets.isEmpty ? 0 : Double(completed) / Double(targets.count)
+    }
+
+    private typealias ChordOsmdExpectedPitchRuntime = (completed: Bool, failed: Bool, remainingMidis: [Int])
+
+    private func chordOsmdExpectedPitchRuntime(at index: Int) -> ChordOsmdExpectedPitchRuntime? {
+        guard targets.indices.contains(index) else { return nil }
+        let target = targets[index]
+        let remainingMidis = target.remainingMidiCounts.compactMap { midi, count in
+            count > 0 ? midi : nil
+        }
+        return (completed: target.completed, failed: target.failed, remainingMidis: remainingMidis)
     }
 
     private func compactActiveTargets(currentTime: Double? = nil) {

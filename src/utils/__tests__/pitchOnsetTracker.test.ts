@@ -646,6 +646,37 @@ describe('PitchOnsetTracker', () => {
     expect(noteOns).toEqual([60]);
   });
 
+  it('suppresses repeat-mode slow trough recovery without fast rise', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      retriggerLookbackFrames: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const dip: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.0063 };
+    const frames: Array<{ frame: PitchFrame; index: number }> = [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: dip, index: 3 },
+      { frame: dip, index: 4 },
+    ];
+    for (let step = 1; step <= 12; step += 1) {
+      const volume = 0.0063 + ((0.017 - 0.0063) * step) / 12;
+      frames.push({
+        index: 4 + step,
+        frame: { prediction: 60, confidence: 0.9, volume },
+      });
+    }
+    const noteOns = collectNoteOns(tracker, frames);
+    expect(noteOns).toEqual([60]);
+  });
+
   it('retriggers repeat-mode note after dip and rise during semitone wobble', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,

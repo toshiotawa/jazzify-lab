@@ -263,6 +263,7 @@ export class PitchOnsetTracker {
       ) {
         if (this.shouldTreatRepeatModePitchWobble(quantized)) {
           this.updateRepeatPeakAndDip(levelDb);
+          this.trackRecentMinDb(levelDb, frameIndex);
           this.tryRetrigger(events, levelDb, frameIndex);
         } else {
           const octaveRelated = this.isOctaveRelatedJump(quantized);
@@ -288,6 +289,7 @@ export class PitchOnsetTracker {
       } else {
         if (this.isRepeatPitchClassActive(this.currentNote)) {
           this.updateRepeatPeakAndDip(levelDb);
+          this.trackRecentMinDb(levelDb, frameIndex);
         }
         this.tryRetrigger(events, levelDb, frameIndex);
       }
@@ -494,7 +496,8 @@ export class PitchOnsetTracker {
 
   private hasRepeatModeAttack(levelDb: number): boolean {
     if (!this.dippedFromPeak) return false;
-    return levelDb - this.noteTroughDb >= this.config.repeatRiseDb;
+    if (levelDb - this.noteTroughDb < this.config.repeatRiseDb) return false;
+    return this.recentLevelRise(levelDb) >= this.config.repeatRiseDb;
   }
 
   private emitNoteOff(
@@ -563,9 +566,7 @@ export class PitchOnsetTracker {
   ): void {
     if (this.currentNote < 0) return;
     if (frameIndex - this.lastNoteOnFrame < this.config.retriggerGuardFrames) {
-      if (!this.isRepeatPitchClassActive(this.currentNote)) {
-        this.trackRecentMinDb(levelDb, frameIndex);
-      }
+      this.trackRecentMinDb(levelDb, frameIndex);
       return;
     }
 

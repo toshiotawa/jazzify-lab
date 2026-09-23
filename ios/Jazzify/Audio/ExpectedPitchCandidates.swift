@@ -56,6 +56,39 @@ enum ExpectedPitchCandidateCollectors {
         ((midi % 12) + 12) % 12
     }
 
+    private struct ChordOsmdSamePitchRepeatContext {
+        let pendingIndex: Int
+        let pendingMidi: Int
+    }
+
+    private static func resolveChordOsmdSamePitchRepeatContext(
+        targetCount: Int,
+        phraseTimeSec: Double,
+        judgedTargetTimeSec: (Int) -> Double,
+        runtimeAt: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])?,
+        targetMidisAt: (Int) -> [Int],
+        lateSec: Double
+    ) -> ChordOsmdSamePitchRepeatContext? {
+        for index in 0..<targetCount {
+            guard let runtime = runtimeAt(index) else { continue }
+            guard !runtime.completed, !runtime.failed else { continue }
+            let judged = judgedTargetTimeSec(index)
+            let delta = phraseTimeSec - judged
+            if delta > lateSec { continue }
+            let targetMidis = targetMidisAt(index)
+            guard targetMidis.count == 1, let pendingMidi = targetMidis.first else { return nil }
+            guard index > 0 else { return nil }
+            guard let previousRuntime = runtimeAt(index - 1), previousRuntime.completed else { return nil }
+            let previousMidis = targetMidisAt(index - 1)
+            guard previousMidis.count == 1, let previousMidi = previousMidis.first else { return nil }
+            let previousPc = pitchClass(from: previousMidi)
+            let pendingPc = pitchClass(from: pendingMidi)
+            guard previousPc == pendingPc else { return nil }
+            return ChordOsmdSamePitchRepeatContext(pendingIndex: index, pendingMidi: pendingMidi)
+        }
+        return nil
+    }
+
     private static func chordOsmdRepeatMask(
         targetCount: Int,
         phraseTimeSec: Double,
@@ -65,28 +98,16 @@ enum ExpectedPitchCandidateCollectors {
         earlySec: Double,
         lateSec: Double
     ) -> Int {
-        var pendingIndex: Int?
-        var pendingMidi: Int?
-        for index in 0..<targetCount {
-            guard let runtime = runtimeAt(index) else { continue }
-            guard !runtime.completed, !runtime.failed else { continue }
-            let judged = judgedTargetTimeSec(index)
-            let delta = phraseTimeSec - judged
-            if delta < -earlySec { break }
-            if delta > lateSec { continue }
-            let targetMidis = targetMidisAt(index)
-            guard targetMidis.count == 1, let midi = targetMidis.first else { return 0 }
-            pendingIndex = index
-            pendingMidi = midi
-            break
-        }
-        guard let pendingIndex, pendingIndex > 0, let pendingMidi else { return 0 }
-        guard let previousRuntime = runtimeAt(pendingIndex - 1), previousRuntime.completed else { return 0 }
-        let previousMidis = targetMidisAt(pendingIndex - 1)
-        guard previousMidis.count == 1, let previousMidi = previousMidis.first else { return 0 }
-        let previousPc = pitchClass(from: previousMidi)
-        let pendingPc = pitchClass(from: pendingMidi)
-        return previousPc == pendingPc ? (1 << pendingPc) : 0
+        guard let context = resolveChordOsmdSamePitchRepeatContext(
+            targetCount: targetCount,
+            phraseTimeSec: phraseTimeSec,
+            judgedTargetTimeSec: judgedTargetTimeSec,
+            runtimeAt: runtimeAt,
+            targetMidisAt: targetMidisAt,
+            lateSec: lateSec
+        ) else { return 0 }
+        let pendingPc = pitchClass(from: context.pendingMidi)
+        return 1 << pendingPc
     }
 
     static func collectChordOsmd(
@@ -153,27 +174,17 @@ enum ExpectedPitchCandidateCollectors {
         earlySec: Double,
         lateSec: Double
     ) -> Double? {
-        for index in 0..<targetCount {
-            guard let runtime = runtimeAt(index) else { continue }
-            guard !runtime.completed, !runtime.failed else { continue }
-            let judged = judgedTargetTimeSec(index)
-            let delta = phraseTimeSec - judged
-            if delta < -earlySec { break }
-            if delta > lateSec { continue }
-            let targetMidis = targetMidisAt(index)
-            guard targetMidis.count == 1, index > 0 else { return nil }
-            let previousMidis = targetMidisAt(index - 1)
-            guard previousMidis.count == 1,
-                  let previousMidi = previousMidis.first,
-                  let pendingMidi = targetMidis.first else { return nil }
-            let previousPc = pitchClass(from: previousMidi)
-            let pendingPc = pitchClass(from: pendingMidi)
-            guard previousPc == pendingPc else { return nil }
-            let prevSec = judgedTargetTimeSec(index - 1)
-            let nextSec = judgedTargetTimeSec(index)
-            return SamePitchRepeatGate.minIntervalMsForWrittenSpacing(prevSec: prevSec, nextSec: nextSec)
-        }
-        return nil
+        guard let context = resolveChordOsmdSamePitchRepeatContext(
+            targetCount: targetCount,
+            phraseTimeSec: phraseTimeSec,
+            judgedTargetTimeSec: judgedTargetTimeSec,
+            runtimeAt: runtimeAt,
+            targetMidisAt: targetMidisAt,
+            lateSec: lateSec
+        ) else { return nil }
+        let prevSec = judgedTargetTimeSec(context.pendingIndex - 1)
+        let nextSec = judgedTargetTimeSec(context.pendingIndex)
+        return SamePitchRepeatGate.minIntervalMsForWrittenSpacing(prevSec: prevSec, nextSec: nextSec)
     }
 
     private static func precisionRepeatMask(

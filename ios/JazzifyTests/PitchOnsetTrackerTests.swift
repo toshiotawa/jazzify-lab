@@ -398,6 +398,38 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertEqual(noteOnCount, 1)
     }
 
+    func testSuppressesRepeatModeSlowTroughRecoveryWithoutFastRise() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        config.repeatDipDb = 2
+        config.repeatRiseDb = 4
+        config.retriggerLookbackFrames = 4
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 0, midis: [60], repeatPitchClassMask: 1 << 0)
+        let peak = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.01)
+        let dip = PitchFrame(prediction: 60, confidence: 0.9, volume: 0.0063)
+        var noteOnCount = 0
+        for (frame, index) in [(peak, 0), (peak, 1), (peak, 2), (dip, 3), (dip, 4)] {
+            let events = tracker.processFrame(frame, frameIndex: index)
+            noteOnCount += events.filter {
+                if case .noteOn = $0 { return true }
+                return false
+            }.count
+        }
+        for step in 1...12 {
+            let volume = 0.0063 + ((0.017 - 0.0063) * Double(step)) / 12.0
+            let frame = PitchFrame(prediction: 60, confidence: 0.9, volume: volume)
+            let events = tracker.processFrame(frame, frameIndex: 4 + step)
+            noteOnCount += events.filter {
+                if case .noteOn = $0 { return true }
+                return false
+            }.count
+        }
+        XCTAssertEqual(noteOnCount, 1)
+    }
+
     func testRetriggersRepeatModeNoteAfterDipAndRiseDuringSemitoneWobble() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1
