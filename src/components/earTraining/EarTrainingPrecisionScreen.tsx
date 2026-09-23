@@ -105,7 +105,7 @@ import {
   canonicalNotesToPrecisionNotes,
   type EarTrainingTimingSource,
 } from '@/utils/earTrainingCanonicalPhraseNotes';
-import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
+import { logEarTrainingInputTimingTelemetry, logEarTrainingSamePitchGateRejectedTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
   EMPTY_EXPECTED_PITCH_CANDIDATES,
   expectedPitchCandidatesEqual,
@@ -1403,6 +1403,17 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
             inputTimeMs,
             minIntervalMs,
           )) {
+            const lastAcceptedAtMs = lastVoiceAcceptedAtMsRef.current;
+            if (lastAcceptedAtMs != null) {
+              logEarTrainingSamePitchGateRejectedTelemetry({
+                mode: 'chord_precision',
+                slug: stage.slug,
+                timingSource: timingSourceRef.current,
+                midi: midiNote,
+                intervalMs: inputTimeMs - lastAcceptedAtMs,
+                minIntervalMs,
+              });
+            }
             return;
           }
         }

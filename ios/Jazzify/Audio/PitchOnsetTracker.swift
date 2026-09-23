@@ -12,6 +12,7 @@ struct PitchOnsetTrackerConfig: Equatable {
     var retriggerLookbackFrames: Int = 4
     var repeatDipDb: Double = 2
     var repeatRiseDb: Double = 4
+    var repeatAttackWindowMs: Double = 40
     var centsTolerance: Double = 40
     /// 1 フレーム目でも confidence がこの値以上なら即 noteOn（高確信 = 5ms）。
     var onsetImmediateConfidence: Double = 0.85
@@ -97,7 +98,6 @@ final class PitchOnsetTracker {
         legatoHitIndex = 0
         suspendedNote = -1
         suspendedNoteOffFrame = -1
-        repeatPitchClassMask = 0
         resetRepeatPeakState()
     }
 
@@ -190,6 +190,9 @@ final class PitchOnsetTracker {
                     updateRepeatPeakAndDip(levelDb: levelDb)
                     trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
                     tryRetrigger(&events, levelDb: levelDb, frameIndex: frameIndex)
+                } else if shouldHoldRepeatModeUnexpectedPitch(quantized: quantized) {
+                    updateRepeatTroughOnly(levelDb: levelDb)
+                    trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
                 } else {
                     let octaveRelated = isOctaveRelatedJump(quantized: quantized)
                     if octaveRelated, isLikelyOctaveJump(quantized: quantized, levelDb: levelDb, confidence: frame.confidence) {
@@ -223,6 +226,9 @@ final class PitchOnsetTracker {
             lastStableNote = -1
             if currentNote >= 0 || suspendedNote >= 0 {
                 trackRecentMinDb(levelDb: levelDb, frameIndex: frameIndex)
+            }
+            if currentNote >= 0, isRepeatPitchClassActive(note: currentNote) {
+                updateRepeatTroughOnly(levelDb: levelDb)
             }
 
             if currentNote >= 0 {
@@ -400,6 +406,15 @@ final class PitchOnsetTracker {
         return (repeatPitchClassMask & (1 << pitchClass)) != 0
     }
 
+    /// 同音待ち中に期待実音以外へ逸れた誤検出はレガート切替しない。
+    private func shouldHoldRepeatModeUnexpectedPitch(quantized: Int) -> Bool {
+        guard currentNote >= 0, isRepeatPitchClassActive(note: currentNote) else { return false }
+        if shouldTreatRepeatModePitchWobble(quantized: quantized) { return false }
+        if isOctaveRelatedJump(quantized: quantized) { return false }
+        if expectedPitchMidis.contains(quantized) { return false }
+        return true
+    }
+
     /// 同音連打待ち中の半音以内揺れは再発音にしない（音量リトリガのみ）。
     private func shouldTreatRepeatModePitchWobble(quantized: Int) -> Bool {
         guard currentNote >= 0, isRepeatPitchClassActive(note: currentNote) else { return false }
@@ -411,6 +426,10 @@ final class PitchOnsetTracker {
         if levelDb > notePeakDb {
             notePeakDb = levelDb
         }
+        updateRepeatTroughOnly(levelDb: levelDb)
+    }
+
+    private func updateRepeatTroughOnly(levelDb: Double) {
         if notePeakDb - levelDb >= config.repeatDipDb {
             dippedFromPeak = true
         }
@@ -419,10 +438,32 @@ final class PitchOnsetTracker {
         }
     }
 
+    private func repeatAttackLookbackFrames() -> Int {
+        let frameMs = max(1, config.frameDurationMs)
+        return max(
+            config.retriggerLookbackFrames,
+            Int((config.repeatAttackWindowMs / frameMs).rounded())
+        )
+    }
+
+    private func recentLevelRiseWithinLookback(levelDb: Double, lookbackFrames: Int) -> Double {
+        let start = max(0, recentLevelDbRing.count - lookbackFrames)
+        var minRecent = levelDb
+        if start < recentLevelDbRing.count {
+            for index in start..<recentLevelDbRing.count {
+                minRecent = min(minRecent, recentLevelDbRing[index])
+            }
+        }
+        return levelDb - minRecent
+    }
+
     private func hasRepeatModeAttack(levelDb: Double) -> Bool {
         guard dippedFromPeak else { return false }
         guard levelDb - noteTroughDb >= config.repeatRiseDb else { return false }
-        return recentLevelRise(levelDb: levelDb) >= config.repeatRiseDb
+        return recentLevelRiseWithinLookback(
+            levelDb: levelDb,
+            lookbackFrames: repeatAttackLookbackFrames()
+        ) >= config.repeatRiseDb
     }
 
     private func emitNoteOff(_ events: inout [PitchInputEvent], note: Int, frameIndex: Int) {
@@ -456,7 +497,11 @@ final class PitchOnsetTracker {
 
     private func trackRecentMinDb(levelDb: Double, frameIndex: Int) {
         recentLevelDbRing.append(levelDb)
-        let maxRing = max(config.retriggerLookbackFrames, config.retriggerGuardFrames)
+        let maxRing = max(
+            config.retriggerLookbackFrames,
+            config.retriggerGuardFrames,
+            repeatAttackLookbackFrames()
+        )
         if recentLevelDbRing.count > maxRing {
             recentLevelDbRing.removeFirst()
         }

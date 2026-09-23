@@ -140,7 +140,7 @@ import {
   resolveOsmdPlayheadTimelineSec,
   saveEarTrainingOsmdTimingAdjustmentMs,
 } from '@/utils/earTrainingOsmdTimingAdjustment';
-import { logEarTrainingInputTimingTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
+import { logEarTrainingInputTimingTelemetry, logEarTrainingSamePitchGateRejectedTelemetry, logEarTrainingUnmatchedInputTimingTelemetry, resolveEarTrainingInputPhraseTimeSec } from '@/utils/earTrainingInputTimingTelemetry';
 import {
   EMPTY_EXPECTED_PITCH_CANDIDATES,
   expectedPitchCandidatesEqual,
@@ -2100,6 +2100,17 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
             inputTimeMs,
             minIntervalMs,
           )) {
+            const lastAcceptedAtMs = lastVoiceAcceptedAtMsRef.current;
+            if (lastAcceptedAtMs != null) {
+              logEarTrainingSamePitchGateRejectedTelemetry({
+                mode: 'chord_osmd',
+                slug: stage.slug,
+                timingSource: timingSourceRef.current,
+                midi: midiNote,
+                intervalMs: inputTimeMs - lastAcceptedAtMs,
+                minIntervalMs,
+              });
+            }
             return;
           }
         }

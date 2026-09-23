@@ -59,6 +59,30 @@ export interface EarTrainingPhraseTimelineReader {
   getPhraseTimelineSecFromDomTimeStamp?: (domTimeStampMs: number) => number | null;
 }
 
+export interface EarTrainingSamePitchGateRejectedTelemetryParams {
+  mode: EarTrainingInputTimingMode;
+  slug?: string;
+  timingSource?: string;
+  midi: number;
+  intervalMs: number;
+  minIntervalMs: number;
+}
+
+/** 同音連打ゲートで捨てた入力。入力イベント時のみ debug ログ。 */
+export const logEarTrainingSamePitchGateRejectedTelemetry = (
+  params: EarTrainingSamePitchGateRejectedTelemetryParams,
+): void => {
+  log.debug('[earTrainingInputTiming]', {
+    mode: params.mode,
+    slug: params.slug ?? '',
+    timingSource: params.timingSource ?? 'unknown',
+    midi: params.midi,
+    samePitchGateRejected: true,
+    intervalMs: Math.round(params.intervalMs * 10) / 10,
+    minIntervalMs: Math.round(params.minIntervalMs * 10) / 10,
+  });
+};
+
 /** MIDI パケット時刻があれば優先、なければフレーズ時計。 */
 export const resolveEarTrainingInputPhraseTimeSec = (
   player: EarTrainingPhraseTimelineReader | null | undefined,

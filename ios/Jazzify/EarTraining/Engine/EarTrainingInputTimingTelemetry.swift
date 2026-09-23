@@ -40,4 +40,19 @@ enum EarTrainingInputTimingTelemetry {
             "[earTrainingInputTiming] mode=\(mode.rawValue, privacy: .public) slug=\(slug ?? "", privacy: .public) timingSource=\(timingSource ?? "unknown", privacy: .public) inputSec=\(inputSec, privacy: .public) nearestTargetSec=\(nearestSecText, privacy: .public) nearestDeltaMs=\(nearestDeltaText, privacy: .public) midi=\(midi, privacy: .public) matched=false"
         )
     }
+
+    static func logSamePitchGateRejected(
+        mode: Mode,
+        slug: String?,
+        timingSource: String?,
+        midi: Int,
+        intervalMs: Double,
+        minIntervalMs: Double
+    ) {
+        let roundedInterval = (intervalMs * 10).rounded() / 10
+        let roundedMin = (minIntervalMs * 10).rounded() / 10
+        logger.debug(
+            "[earTrainingInputTiming] mode=\(mode.rawValue, privacy: .public) slug=\(slug ?? "", privacy: .public) timingSource=\(timingSource ?? "unknown", privacy: .public) midi=\(midi, privacy: .public) samePitchGateRejected=true intervalMs=\(roundedInterval, privacy: .public) minIntervalMs=\(roundedMin, privacy: .public)"
+        )
+    }
 }

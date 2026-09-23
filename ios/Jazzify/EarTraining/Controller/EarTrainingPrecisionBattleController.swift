@@ -1,5 +1,7 @@
-import Foundation
+import AVFoundation
 import Combine
+import Foundation
+import QuartzCore
 
 @MainActor
 final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingOsmdPlayheadBinding {
@@ -230,6 +232,8 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         audio.stopPhrase()
         audio.onTimeUpdate = nil
         audio.onEnded = nil
+        voiceExpectedPitchCandidates = .empty
+        PitchInputEngine.shared.setExpectedPitchCandidates(.empty)
     }
 
     /// ロビー idle 中に第1フレーズの譜面・MIDI・落下ノーツを先読みする（Web / chordOSMD と同様）。
@@ -837,7 +841,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     func handleNoteOn(midi: Int, velocity: Int, playAudio: Bool, midiHostTime: UInt64?) {
-        let now = CFAbsoluteTimeGetCurrent() * 1000
+        let now = resolveVoiceInputArrivalMs(midiHostTime: midiHostTime)
         guard gameState == .countIn || gameState == .playingPhrase else { return }
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
@@ -869,6 +873,16 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
                 inputTimeMs: now,
                 minIntervalMs: minIntervalMs
             ) {
+                if let lastAcceptedAtMs = lastVoiceAcceptedAtMs {
+                    EarTrainingInputTimingTelemetry.logSamePitchGateRejected(
+                        mode: .chordPrecision,
+                        slug: stage.slug,
+                        timingSource: timingSource.rawValue,
+                        midi: midi,
+                        intervalMs: now - lastAcceptedAtMs,
+                        minIntervalMs: minIntervalMs
+                    )
+                }
                 return
             }
         }
@@ -1300,6 +1314,17 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
         phrasePrepareTask = nil
         audio.stopPhrase()
         phraseEnding = false
+    }
+
+    /// 同音連打ゲート用。MIDI host time があれば到着遅延を差し引いた ms。
+    private func resolveVoiceInputArrivalMs(midiHostTime: UInt64?) -> Double {
+        guard let midiHostTime else {
+            return CACurrentMediaTime() * 1000
+        }
+        let packetSec = AVAudioTime.seconds(forHostTime: midiHostTime)
+        let nowSec = AVAudioTime.seconds(forHostTime: mach_absolute_time())
+        let nowMs = CACurrentMediaTime() * 1000
+        return nowMs - (nowSec - packetSec) * 1000
     }
 
     private func resolveEffectivePracticeBpm() -> Int {

@@ -187,26 +187,47 @@ enum ExpectedPitchCandidateCollectors {
         return SamePitchRepeatGate.minIntervalMsForWrittenSpacing(prevSec: prevSec, nextSec: nextSec)
     }
 
+    private struct PrecisionSamePitchRepeatContext {
+        let pendingIndex: Int
+        let pendingMidi: Int
+    }
+
+    private static func resolvePrecisionSamePitchRepeatContext(
+        notes: [EarTrainingPrecisionNote],
+        states: [String: EarTrainingPrecisionJudge.NoteRuntimeState],
+        phraseTimeSec: Double,
+        windowSec: Double
+    ) -> PrecisionSamePitchRepeatContext? {
+        for index in notes.indices {
+            let note = notes[index]
+            guard let state = states[note.id], state.judgment == .pending else { continue }
+            let delta = phraseTimeSec - note.startSec
+            if delta > windowSec { continue }
+            guard index > 0 else { return nil }
+            let previous = notes[index - 1]
+            guard let previousState = states[previous.id], previousState.judgment == .good else { return nil }
+            let previousPc = pitchClass(from: previous.midi)
+            let pendingPc = pitchClass(from: note.midi)
+            guard previousPc == pendingPc else { return nil }
+            return PrecisionSamePitchRepeatContext(pendingIndex: index, pendingMidi: note.midi)
+        }
+        return nil
+    }
+
     private static func precisionRepeatMask(
         notes: [EarTrainingPrecisionNote],
         states: [String: EarTrainingPrecisionJudge.NoteRuntimeState],
         phraseTimeSec: Double,
         windowSec: Double
     ) -> Int {
-        for index in notes.indices {
-            let note = notes[index]
-            guard let state = states[note.id], state.judgment == .pending else { continue }
-            let delta = phraseTimeSec - note.startSec
-            if delta < -windowSec { break }
-            if delta > windowSec { continue }
-            guard index > 0 else { return 0 }
-            let previous = notes[index - 1]
-            guard let previousState = states[previous.id], previousState.judgment == .good else { return 0 }
-            let previousPc = pitchClass(from: previous.midi)
-            let pendingPc = pitchClass(from: note.midi)
-            return previousPc == pendingPc ? (1 << pendingPc) : 0
-        }
-        return 0
+        guard let context = resolvePrecisionSamePitchRepeatContext(
+            notes: notes,
+            states: states,
+            phraseTimeSec: phraseTimeSec,
+            windowSec: windowSec
+        ) else { return 0 }
+        let pendingPc = pitchClass(from: context.pendingMidi)
+        return 1 << pendingPc
     }
 
     static func collectPrecision(
@@ -254,23 +275,17 @@ enum ExpectedPitchCandidateCollectors {
         phraseTimeSec: Double,
         windowSec: Double
     ) -> Double? {
-        for index in notes.indices {
-            let note = notes[index]
-            guard let state = states[note.id], state.judgment == .pending else { continue }
-            let delta = phraseTimeSec - note.startSec
-            if delta < -windowSec { break }
-            if delta > windowSec { continue }
-            guard index > 0 else { return nil }
-            let previous = notes[index - 1]
-            guard let previousState = states[previous.id], previousState.judgment == .good else { return nil }
-            let previousPc = pitchClass(from: previous.midi)
-            let pendingPc = pitchClass(from: note.midi)
-            guard previousPc == pendingPc else { return nil }
-            return SamePitchRepeatGate.minIntervalMsForWrittenSpacing(
-                prevSec: previous.startSec,
-                nextSec: note.startSec
-            )
-        }
-        return nil
+        guard let context = resolvePrecisionSamePitchRepeatContext(
+            notes: notes,
+            states: states,
+            phraseTimeSec: phraseTimeSec,
+            windowSec: windowSec
+        ) else { return nil }
+        let previous = notes[context.pendingIndex - 1]
+        let pending = notes[context.pendingIndex]
+        return SamePitchRepeatGate.minIntervalMsForWrittenSpacing(
+            prevSec: previous.startSec,
+            nextSec: pending.startSec
+        )
     }
 }

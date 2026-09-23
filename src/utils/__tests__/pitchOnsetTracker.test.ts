@@ -743,4 +743,110 @@ describe('PitchOnsetTracker', () => {
       { type: 'noteOn', note: 62, frameIndex: 3, onsetFrameIndex: 2 },
     ]);
   });
+
+  it('suppresses repeat-mode distant unexpected pitch detour', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 7, [67], 1 << 7);
+    const g4: PitchFrame = { prediction: 67, confidence: 0.9, volume: 0.01 };
+    const detour: PitchFrame = { prediction: 86, confidence: 0.9, volume: 0.01 };
+    const noteOns = collectNoteOns(tracker, [
+      { frame: g4, index: 0 },
+      { frame: g4, index: 1 },
+      { frame: detour, index: 2 },
+      { frame: detour, index: 3 },
+      { frame: g4, index: 4 },
+      { frame: g4, index: 5 },
+    ]);
+    expect(noteOns).toEqual([67]);
+  });
+
+  it('retriggers repeat-mode note when trough is only on unvoiced frames', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      repeatAttackWindowMs: 40,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const dipUnvoiced: PitchFrame = { prediction: 60, confidence: 0.1, volume: 0.00001 };
+    const rise: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.016 };
+    const noteOns = collectNoteOns(tracker, [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: dipUnvoiced, index: 3 },
+      { frame: dipUnvoiced, index: 4 },
+      { frame: rise, index: 5 },
+      { frame: rise, index: 6 },
+    ]);
+    expect(noteOns).toEqual([60, 60]);
+  });
+
+  it('retriggers repeat-mode note after dip and rise within repeat attack window', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      repeatAttackWindowMs: 40,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const dip: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.0063 };
+    const frames: Array<{ frame: PitchFrame; index: number }> = [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: dip, index: 3 },
+      { frame: dip, index: 4 },
+    ];
+    for (let step = 0; step <= 6; step += 1) {
+      const volume = 0.0063 + ((0.025 - 0.0063) * step) / 6;
+      frames.push({
+        index: 5 + step,
+        frame: { prediction: 60, confidence: 0.9, volume },
+      });
+    }
+    const noteOns = collectNoteOns(tracker, frames);
+    expect(noteOns).toEqual([60, 60]);
+  });
+
+  it('keeps repeat pitch class mask after reset', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 2,
+      repeatRiseDb: 4,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+    const peak: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
+    const dip: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.0063 };
+    const rise: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.016 };
+    tracker.processFrame(peak, 0);
+    tracker.reset();
+    const noteOns = collectNoteOns(tracker, [
+      { frame: peak, index: 1 },
+      { frame: peak, index: 2 },
+      { frame: dip, index: 3 },
+      { frame: dip, index: 4 },
+      { frame: rise, index: 5 },
+      { frame: rise, index: 6 },
+    ]);
+    expect(noteOns).toEqual([60, 60]);
+  });
 });

@@ -151,4 +151,52 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
             targetMidisAt: singleMidisAt
         ).repeatPitchClassMask, 0)
     }
+
+    func testPrecisionSamePitchRepeatMaskActiveBeforeJudgmentWindowWhenPreviousGood() {
+        let notes = [
+            EarTrainingPrecisionNote(
+                id: "a",
+                midi: 60,
+                startSec: 1.0,
+                durationSec: 0.5,
+                isBlackKey: false,
+                measureNumber: 1,
+                isShortNote: false
+            ),
+            EarTrainingPrecisionNote(
+                id: "b",
+                midi: 60,
+                startSec: 2.0,
+                durationSec: 0.5,
+                isBlackKey: false,
+                measureNumber: 1,
+                isShortNote: false
+            ),
+        ]
+        let states: [String: EarTrainingPrecisionJudge.NoteRuntimeState] = [
+            "a": EarTrainingPrecisionJudge.NoteRuntimeState(judgment: .good),
+            "b": EarTrainingPrecisionJudge.NoteRuntimeState(judgment: .pending),
+        ]
+        XCTAssertTrue(ExpectedPitchCandidateCollectors.isPrecisionWaitingForSamePitchRepeat(
+            notes: notes,
+            states: states,
+            phraseTimeSec: 0.5,
+            windowSec: 0.25
+        ))
+        XCTAssertEqual(
+            ExpectedPitchCandidateCollectors.resolvePrecisionSamePitchRepeatMinIntervalMs(
+                notes: notes,
+                states: states,
+                phraseTimeSec: 0.5,
+                windowSec: 0.25
+            ),
+            500
+        )
+        XCTAssertEqual(ExpectedPitchCandidateCollectors.collectPrecision(
+            notes: notes,
+            states: states,
+            phraseTimeSec: 0.5,
+            windowSec: 0.25
+        ).repeatPitchClassMask, 1 << (60 % 12))
+    }
 }

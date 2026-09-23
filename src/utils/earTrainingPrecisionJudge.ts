@@ -71,12 +71,17 @@ export const resetPrecisionRuntimeStatesFromTime = (
 
 const pitchClassFromMidi = (midi: number): number => ((Math.round(midi) % 12) + 12) % 12;
 
-const resolvePrecisionRepeatPitchClassMask = (
+interface PrecisionSamePitchRepeatContext {
+  pendingIndex: number;
+  pendingNote: PrecisionNote;
+}
+
+const resolvePrecisionSamePitchRepeatContext = (
   notes: readonly PrecisionNote[],
   states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
   phraseTimeSec: number,
   windowSec: number,
-): number => {
+): PrecisionSamePitchRepeatContext | null => {
   for (let index = 0; index < notes.length; index += 1) {
     const note = notes[index];
     const state = states.get(note.id);
@@ -84,25 +89,44 @@ const resolvePrecisionRepeatPitchClassMask = (
       continue;
     }
     const delta = phraseTimeSec - note.startSec;
-    if (delta < -windowSec) {
-      break;
-    }
     if (delta > windowSec) {
       continue;
     }
     if (index === 0) {
-      return 0;
+      return null;
     }
     const previousNote = notes[index - 1];
     const previousState = states.get(previousNote.id);
     if (!previousState || previousState.judgment !== 'good') {
-      return 0;
+      return null;
     }
     const previousPc = pitchClassFromMidi(previousNote.midi);
     const pendingPc = pitchClassFromMidi(note.midi);
-    return previousPc === pendingPc ? (1 << pendingPc) : 0;
+    if (previousPc !== pendingPc) {
+      return null;
+    }
+    return { pendingIndex: index, pendingNote: note };
   }
-  return 0;
+  return null;
+};
+
+const resolvePrecisionRepeatPitchClassMask = (
+  notes: readonly PrecisionNote[],
+  states: ReadonlyMap<string, PrecisionNoteRuntimeState>,
+  phraseTimeSec: number,
+  windowSec: number,
+): number => {
+  const context = resolvePrecisionSamePitchRepeatContext(
+    notes,
+    states,
+    phraseTimeSec,
+    windowSec,
+  );
+  if (!context) {
+    return 0;
+  }
+  const pendingPc = pitchClassFromMidi(context.pendingNote.midi);
+  return 1 << pendingPc;
 };
 
 export const isPrecisionWaitingForSamePitchRepeat = (
@@ -120,35 +144,17 @@ export const resolvePrecisionSamePitchRepeatMinIntervalMs = (
   phraseTimeSec: number,
   windowSec: number,
 ): number | null => {
-  for (let index = 0; index < notes.length; index += 1) {
-    const note = notes[index];
-    const state = states.get(note.id);
-    if (!state || state.judgment !== 'pending') {
-      continue;
-    }
-    const delta = phraseTimeSec - note.startSec;
-    if (delta < -windowSec) {
-      break;
-    }
-    if (delta > windowSec) {
-      continue;
-    }
-    if (index === 0) {
-      return null;
-    }
-    const previousNote = notes[index - 1];
-    const previousState = states.get(previousNote.id);
-    if (!previousState || previousState.judgment !== 'good') {
-      return null;
-    }
-    const previousPc = pitchClassFromMidi(previousNote.midi);
-    const pendingPc = pitchClassFromMidi(note.midi);
-    if (previousPc !== pendingPc) {
-      return null;
-    }
-    return minIntervalMsForWrittenSpacing(previousNote.startSec, note.startSec);
+  const context = resolvePrecisionSamePitchRepeatContext(
+    notes,
+    states,
+    phraseTimeSec,
+    windowSec,
+  );
+  if (!context) {
+    return null;
   }
-  return null;
+  const previousNote = notes[context.pendingIndex - 1];
+  return minIntervalMsForWrittenSpacing(previousNote.startSec, context.pendingNote.startSec);
 };
 
 export const collectPrecisionExpectedPitchCandidates = (

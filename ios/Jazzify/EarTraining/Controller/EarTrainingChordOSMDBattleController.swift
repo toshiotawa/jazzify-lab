@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Combine
 import QuartzCore
@@ -292,6 +293,17 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         audio.phraseWallClockTimelineSecNowOrNil()
     }
 
+    /// 同音連打ゲート用。MIDI host time があれば到着遅延を差し引いた ms。
+    private func resolveVoiceInputArrivalMs(midiHostTime: UInt64?) -> Double {
+        guard let midiHostTime else {
+            return CACurrentMediaTime() * 1000
+        }
+        let packetSec = AVAudioTime.seconds(forHostTime: midiHostTime)
+        let nowSec = AVAudioTime.seconds(forHostTime: mach_absolute_time())
+        let nowMs = CACurrentMediaTime() * 1000
+        return nowMs - (nowSec - packetSec) * 1000
+    }
+
     private func resolveEffectivePracticeBpm() -> Int {
         EarTrainingPracticeSpeed.effectivePracticeBpm(
             stage.bpm,
@@ -419,6 +431,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         phraseLyricEvents = []
         nextLyricQuoteIndex = 0
         scene = nil
+        voiceExpectedPitchCandidates = .empty
+        PitchInputEngine.shared.setExpectedPitchCandidates(.empty)
     }
 
     func registerMidiKeyDown(_ midi: Int) { midiHeldKeys.insert(midi) }
@@ -489,7 +503,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         if playAudio {
             SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: midi, velocity: velocity)
         }
-        let nowMs = CACurrentMediaTime() * 1000
+        let nowMs = resolveVoiceInputArrivalMs(midiHostTime: midiHostTime)
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         let allowPitchClass = NoteInputPreferences.inputMethod == .voice
         let completeOnAnyMatch = allowPitchClass
@@ -537,6 +551,16 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
                     inputTimeMs: nowMs,
                     minIntervalMs: minIntervalMs
                 ) {
+                    if let lastAcceptedAtMs = lastVoiceAcceptedAtMs {
+                        EarTrainingInputTimingTelemetry.logSamePitchGateRejected(
+                            mode: .chordOsmd,
+                            slug: stage.slug,
+                            timingSource: timingSource.rawValue,
+                            midi: midi,
+                            intervalMs: nowMs - lastAcceptedAtMs,
+                            minIntervalMs: minIntervalMs
+                        )
+                    }
                     return
                 }
             }

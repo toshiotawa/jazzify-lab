@@ -10,6 +10,8 @@ import {
 } from '@/utils/earTrainingPrecisionNotes';
 import {
   collectPrecisionExpectedPitchCandidates,
+  isPrecisionWaitingForSamePitchRepeat,
+  resolvePrecisionSamePitchRepeatMinIntervalMs,
   findPrecisionNoteForInput,
   precisionRankForGoodRate,
   createPrecisionRuntimeStates,
@@ -206,6 +208,19 @@ describe('earTrainingPrecisionJudge', () => {
     states.get('a')!.judgment = 'good';
     const candidates = collectPrecisionExpectedPitchCandidates(notes, states, 1.1, 0.25);
     expect(candidates.midis).toEqual([62, 64]);
+  });
+
+  it('同音待ちマスクは判定窓前でも直前 good なら有効', () => {
+    const notes = [
+      { id: 'a', midi: 60, startSec: 1, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+      { id: 'b', midi: 60, startSec: 2, durationSec: 0.5, isBlackKey: false, measureNumber: 1, isShortNote: false },
+    ];
+    const states = createPrecisionRuntimeStates(notes);
+    states.get('a')!.judgment = 'good';
+    expect(isPrecisionWaitingForSamePitchRepeat(notes, states, 0.5, 0.25)).toBe(true);
+    expect(resolvePrecisionSamePitchRepeatMinIntervalMs(notes, states, 0.5, 0.25)).toBe(500);
+    const candidates = collectPrecisionExpectedPitchCandidates(notes, states, 0.5, 0.25);
+    expect(candidates.repeatPitchClassMask).toBe(1 << (60 % 12));
   });
 
   it('ignoreOctave で pitch class 一致を許容する（音声入力相当）', () => {
