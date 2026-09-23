@@ -1,6 +1,10 @@
 import type { Course, Lesson } from '@/types';
 import type { LessonProgressBasic } from '@/platform/supabaseLessonProgress';
-import { buildMainQuestSummary, sortLessonsForQuest } from '@/utils/mainQuestSummary';
+import {
+  buildMainQuestSummary,
+  nextLessonForContinue,
+  sortLessonsForQuest,
+} from '@/utils/mainQuestSummary';
 
 const course: Course = {
   id: 'course-1',
@@ -57,5 +61,56 @@ describe('buildMainQuestSummary', () => {
   it('returns null when course or lessons are missing', () => {
     expect(buildMainQuestSummary(null, [], [], false, true)).toBeNull();
     expect(buildMainQuestSummary(course, [], [], false, true)).toBeNull();
+  });
+});
+
+describe('nextLessonForContinue', () => {
+  it('returns the frontier lesson when the current chapter is in progress', () => {
+    const lessons = [
+      makeLesson('l1', 0, 1, 'Intro'),
+      makeLesson('l2', 1, 1, 'Intro'),
+      makeLesson('l3', 0, 2, 'Next'),
+    ];
+    const progress: LessonProgressBasic[] = [
+      { lesson_id: 'l1', course_id: course.id, completed: true },
+    ];
+
+    const summary = buildMainQuestSummary(course, lessons, progress, false, true);
+    expect(summary).not.toBeNull();
+    expect(nextLessonForContinue(summary!)).toEqual(summary!.frontierLesson);
+    expect(nextLessonForContinue(summary!)?.id).toBe('l2');
+  });
+
+  it('returns the last lesson in the current block when the chapter is fully cleared', () => {
+    const lessons = [
+      makeLesson('l1', 0, 1, 'Intro'),
+      makeLesson('l2', 1, 1, 'Intro'),
+      makeLesson('l3', 0, 2, 'Next'),
+    ];
+    const progress: LessonProgressBasic[] = [
+      { lesson_id: 'l1', course_id: course.id, completed: true },
+      { lesson_id: 'l2', course_id: course.id, completed: true },
+    ];
+
+    const summary = buildMainQuestSummary(course, lessons, progress, false, true);
+    expect(summary).not.toBeNull();
+    expect(summary!.frontierLesson?.id).toBe('l3');
+    expect(nextLessonForContinue(summary!)?.id).toBe('l3');
+  });
+
+  it('returns the last lesson in the current block when the entire course is complete', () => {
+    const lessons = [
+      makeLesson('l1', 0, 1, 'Intro'),
+      makeLesson('l2', 1, 1, 'Intro'),
+    ];
+    const progress: LessonProgressBasic[] = [
+      { lesson_id: 'l1', course_id: course.id, completed: true },
+      { lesson_id: 'l2', course_id: course.id, completed: true },
+    ];
+
+    const summary = buildMainQuestSummary(course, lessons, progress, false, true);
+    expect(summary).not.toBeNull();
+    expect(summary!.frontierLesson).toBeNull();
+    expect(nextLessonForContinue(summary!)?.id).toBe('l2');
   });
 });

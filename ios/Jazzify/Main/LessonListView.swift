@@ -60,29 +60,22 @@ struct MainQuestCourseView: View {
                         .foregroundStyle(.gray)
                 }
             } else {
-                ScrollViewReader { pageProxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if let bannerKind = appState.paymentIssueBannerKind {
-                                PaymentIssueBannerView(kind: bannerKind, locale: locale)
-                            }
-
-                            if let mainQuest = mainQuestState {
-                                mainQuestDashboard(
-                                    mainQuest,
-                                    onContinue: {
-                                        continueMainQuest(mainQuest)
-                                        if UIDevice.current.userInterfaceIdiom != .pad {
-                                            withAnimation(.easeInOut(duration: 0.24)) {
-                                                pageProxy.scrollTo("mainQuestDetail", anchor: .top)
-                                            }
-                                        }
-                                    }
-                                )
-                            }
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if let bannerKind = appState.paymentIssueBannerKind {
+                            PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
-                        .padding()
+
+                        if let mainQuest = mainQuestState {
+                            mainQuestDashboard(
+                                mainQuest,
+                                onContinue: {
+                                    continueMainQuest(mainQuest)
+                                }
+                            )
+                        }
                     }
+                    .padding()
                 }
             }
         }
@@ -811,7 +804,21 @@ struct MainQuestCourseView: View {
     }
 
     private func continueMainQuest(_ state: MainQuestViewState) {
-        selectedMainQuestBlockNumber = state.currentBlock.blockNumber
+        guard let lesson = state.continueLesson else { return }
+        let bn = lesson.blockNumber ?? 1
+        if !appState.isPremium, bn > MainQuestFreeTier.maxFreeBlockNumber {
+            Task {
+                let premium = await appState.ensureFreshBilling()
+                if !premium {
+                    await MainActor.run {
+                        subscriptionEntry = .mainQuest
+                        showSubscription = true
+                    }
+                }
+            }
+            return
+        }
+        lessonToOpen = lesson
     }
 
     private func rowCenterY(index: Int, rowHeight: CGFloat, rowSpacing: CGFloat) -> CGFloat {

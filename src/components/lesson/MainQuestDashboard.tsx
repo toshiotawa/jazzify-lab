@@ -343,8 +343,9 @@ const MainQuestDashboard: React.FC<MainQuestDashboardProps> = ({
       <button
         type="button"
         onClick={() => {
-          setSelectedBlockNumber(currentBlock.blockNumber);
-          scrollChapterDetailIntoView();
+          if (nextLesson) {
+            onOpenLesson(nextLesson.id);
+          }
         }}
         className="group relative min-h-[132px] w-full overflow-hidden rounded-lg border border-violet-400/45 bg-slate-950 text-left shadow-[0_12px_40px_rgba(0,0,0,0.35)] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-200"
       >
