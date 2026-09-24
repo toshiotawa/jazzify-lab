@@ -407,11 +407,19 @@ describe('Chord OSMD target consumption', () => {
     expect(consumeChordOsmdMidi(remaining, 72, false)).toBeNull();
   });
 
-  it('completeOnAnyMatch で voice 入力時は 1 音一致でクラスタを完了する', () => {
+  it('allowPitchClass で voice 入力時は 1 音だけ消費し、全音が揃うまで未完了', () => {
     const remaining = new Map([[60, 1], [64, 1], [67, 1]]);
-    expect(consumeChordOsmdMidi(remaining, 72, true, true)).toEqual(
-      new Map([[60, 0], [64, 0], [67, 0]]),
-    );
+    const afterC = consumeChordOsmdMidi(remaining, 72, true);
+    expect(afterC).toEqual(new Map([[60, 0], [64, 1], [67, 1]]));
+    expect(afterC ? chordOsmdTargetIsComplete(afterC) : false).toBe(false);
+
+    const afterE = afterC ? consumeChordOsmdMidi(afterC, 64, true) : null;
+    expect(afterE).toEqual(new Map([[60, 0], [64, 0], [67, 1]]));
+    expect(afterE ? chordOsmdTargetIsComplete(afterE) : false).toBe(false);
+
+    const afterG = afterE ? consumeChordOsmdMidi(afterE, 67, true) : null;
+    expect(afterG).toEqual(new Map([[60, 0], [64, 0], [67, 0]]));
+    expect(afterG ? chordOsmdTargetIsComplete(afterG) : false).toBe(true);
   });
 
   it('sustain 再適用は early 窓 0 ではターゲット前の入力を受け付けない', () => {

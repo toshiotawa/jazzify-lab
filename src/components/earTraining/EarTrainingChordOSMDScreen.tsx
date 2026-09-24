@@ -2126,7 +2126,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       return;
     }
     const allowPitchClass = settings.inputMethod === 'voice';
-    const completeOnAnyMatch = allowPitchClass;
 
     if (osmdSelfPacedRef.current) {
       if (gameStateRef.current !== 'playingPhrase') {
@@ -2147,7 +2146,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         state.remainingCounts,
         midiNote,
         allowPitchClass,
-        completeOnAnyMatch,
       );
       if (!nextRemaining) {
         return;
@@ -2245,7 +2243,6 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       state.remainingCounts,
       midiNote,
       allowPitchClass,
-      completeOnAnyMatch,
     );
     if (!nextRemaining) {
       return;

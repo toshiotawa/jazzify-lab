@@ -506,7 +506,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         let nowMs = resolveVoiceInputArrivalMs(midiHostTime: midiHostTime)
         guard gameState == .playingPhrase || gameState == .countIn else { return }
         let allowPitchClass = NoteInputPreferences.inputMethod == .voice
-        let completeOnAnyMatch = allowPitchClass
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
             phraseTime = fromMidi
@@ -633,8 +632,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         )
         guard targets[matchedIndex].consume(
             midi: midi,
-            allowPitchClass: allowPitchClass,
-            completeOnAnyMatch: completeOnAnyMatch
+            allowPitchClass: allowPitchClass
         ) else {
             refreshPracticeVoicingHints()
             return
@@ -2325,16 +2323,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
 
         mutating func consume(
             midi: Int,
-            allowPitchClass: Bool = false,
-            completeOnAnyMatch: Bool = false
+            allowPitchClass: Bool = false
         ) -> Bool {
             if let count = remainingMidiCounts[midi], count > 0 {
-                if completeOnAnyMatch {
-                    for key in remainingMidiCounts.keys {
-                        remainingMidiCounts[key] = 0
-                    }
-                    return true
-                }
                 remainingMidiCounts[midi] = count - 1
                 return true
             }
@@ -2342,12 +2333,6 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             let inputPc = ((midi % 12) + 12) % 12
             for (targetMidi, count) in remainingMidiCounts where count > 0 {
                 if ((targetMidi % 12) + 12) % 12 == inputPc {
-                    if completeOnAnyMatch {
-                        for key in remainingMidiCounts.keys {
-                            remainingMidiCounts[key] = 0
-                        }
-                        return true
-                    }
                     remainingMidiCounts[targetMidi] = count - 1
                     return true
                 }
