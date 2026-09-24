@@ -63,6 +63,10 @@ final class PitchInputEngine: @unchecked Sendable {
     private var ortSession: ORTSession?
     private let cacheBuffer: UnsafeMutablePointer<Float>
     private let tracker = PitchOnsetTracker()
+    private let attackEnvelope = PitchAttackEnvelope()
+    private var expectedPitchMaskForEnvelope = 0
+    private var expectedPitchMidisForEnvelope: [Int] = []
+    private var repeatPitchClassMaskForEnvelope = 0
     private var frameIndex = 0
     private var inferenceFrameSec = PitchInputEngine.baseFrameSec
     private var configuredSensitivity = 5
@@ -231,6 +235,9 @@ final class PitchInputEngine: @unchecked Sendable {
         let mask = candidates.pitchClassMask & 0xFFF
         let midis = candidates.midis
         inferenceQueue.async { [self] in
+            self.expectedPitchMaskForEnvelope = mask
+            self.expectedPitchMidisForEnvelope = midis
+            self.repeatPitchClassMaskForEnvelope = candidates.repeatPitchClassMask
             self.tracker.setExpectedPitchCandidates(
                 mask: mask,
                 midis: midis,
@@ -1055,6 +1062,7 @@ final class PitchInputEngine: @unchecked Sendable {
             }
         }
         tracker.reset()
+        attackEnvelope.reset()
         cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
         frameIndex = 0
         warmupFramesRemaining = Self.warmupFrameCount
@@ -1170,11 +1178,18 @@ final class PitchInputEngine: @unchecked Sendable {
                 return
             }
 
+            attackEnvelope.pushSamples(slotBase, count: chunkSize)
+            let attackDb = attackEnvelope.computeAttackDb(targets: PitchAttackEnvelopeTargets(
+                repeatPitchClassMask: repeatPitchClassMaskForEnvelope,
+                expectedPitchMidis: expectedPitchMidisForEnvelope
+            ))
+
             let concertMidi = Self.restoreConcertMidi(modelMidi: rawPrediction, shift: shiftSemitones)
             let frame = PitchFrame(
                 prediction: concertMidi ?? rawPrediction,
                 confidence: confidence,
-                volume: volume
+                volume: volume,
+                attackDb: attackDb
             )
 
             let events = tracker.processFrame(frame, frameIndex: frameIndex)

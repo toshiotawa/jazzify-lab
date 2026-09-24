@@ -467,7 +467,7 @@ describe('Chord OSMD target consumption', () => {
       return null;
     };
     const resolveTargetMidis = (index: number) => (index === 0 || index === 1 ? [67] : []);
-    const phraseTimeSec = 1.5;
+    const phraseTimeSec = 1.8;
 
     const candidates = collectChordOsmdExpectedPitchCandidates(
       2,
@@ -495,13 +495,8 @@ describe('Chord OSMD target consumption', () => {
     )).toBeCloseTo(500, 1);
   });
 
-  it('同音連打待ちマスクは直前失敗・和音・別音のとき立たない', () => {
-    const resolveTargetMidis = (index: number) => {
-      if (index === 0) return [67, 71];
-      if (index === 1) return [67];
-      if (index === 2) return [67];
-      return [60];
-    };
+  it('同音連打待ちマスクは直前ミスでも譜面上の同音連打なら立つ', () => {
+    const resolveTargetMidis = (index: number) => (index === 0 || index === 1 ? [67] : []);
     const failedPrevious = (index: number) => {
       if (index === 0) {
         return { completed: false, failed: true, remainingCounts: new Map([[67, 1]]) };
@@ -513,6 +508,15 @@ describe('Chord OSMD target consumption', () => {
     };
     expect(collectChordOsmdExpectedPitchCandidates(
       2,
+      1.8,
+      (index) => [1.0, 2.0][index] ?? 0,
+      failedPrevious,
+      0.25,
+      0.25,
+      resolveTargetMidis,
+    ).repeatPitchClassMask).toBe(1 << 7);
+    expect(collectChordOsmdExpectedPitchCandidates(
+      2,
       1.5,
       (index) => [1.0, 2.0][index] ?? 0,
       failedPrevious,
@@ -520,7 +524,15 @@ describe('Chord OSMD target consumption', () => {
       0.25,
       resolveTargetMidis,
     ).repeatPitchClassMask).toBe(0);
+  });
 
+  it('同音連打待ちマスクは和音・別音のとき立たない', () => {
+    const resolveTargetMidis = (index: number) => {
+      if (index === 0) return [67, 71];
+      if (index === 1) return [67];
+      if (index === 2) return [67];
+      return [60];
+    };
     const chordPrevious = (index: number) => {
       if (index === 0) {
         return { completed: true, failed: false, remainingCounts: new Map<number, number>() };

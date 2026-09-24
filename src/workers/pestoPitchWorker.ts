@@ -16,6 +16,12 @@ import {
   scaleOnsetConfigForSensitivity,
   type PitchOnsetTrackerConfig,
 } from '@/utils/pitchInput/pitchOnsetTracker';
+import { PitchAttackEnvelope } from '@/utils/pitchInput/pitchAttackEnvelope';
+import {
+  ensurePitchFrameTraceBuffer,
+  resetPitchFrameTraceBuffer,
+} from '@/utils/pitchInput/pitchFrameTrace';
+import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
 import { restoreConcertMidi } from '@/utils/pitchInput/pitchShiftRestore';
 import {
   PESTO_BASE_FRAME_SEC,
@@ -92,6 +98,10 @@ interface WorkerSetShiftMessage {
   generationId: number;
 }
 
+interface WorkerDumpTraceMessage {
+  type: 'dumpFrameTrace';
+}
+
 interface WorkerConnectPortMessage {
   type: 'connectPort';
 }
@@ -103,6 +113,7 @@ type WorkerInbound =
   | WorkerSetExpectedPitchMaskMessage
   | WorkerSetExpectedPitchCandidatesMessage
   | WorkerSetShiftMessage
+  | WorkerDumpTraceMessage
   | WorkerConnectPortMessage;
 
 interface NoteEventMessage {
@@ -127,11 +138,17 @@ interface WorkerMonitorMessage {
   diagnostics?: ReturnType<PitchInputDiagnostics['snapshot']>;
 }
 
+interface WorkerFrameTraceMessage {
+  type: 'frameTrace';
+  entries: ReturnType<ReturnType<typeof ensurePitchFrameTraceBuffer>['snapshot']>;
+}
+
 type WorkerOutbound =
   | NoteEventMessage
   | WorkerReadyMessage
   | WorkerErrorMessage
-  | WorkerMonitorMessage;
+  | WorkerMonitorMessage
+  | WorkerFrameTraceMessage;
 
 let session: ort.InferenceSession | null = null;
 let cacheTensor: ort.Tensor | null = null;
@@ -163,6 +180,8 @@ const chunkQueue = new PitchChunkQueue();
 const decimationBuffer = new PitchDecimationBuffer(1);
 let decimatorState = createPestoDecimatorState(1);
 let diagnostics: PitchInputDiagnostics | null = null;
+const attackEnvelope = new PitchAttackEnvelope();
+let frameTraceEnabled = isPitchDiagnosticsEnabled();
 
 const LATENCY_EMA_ALPHA = 0.1;
 const MONITOR_POST_INTERVAL = 60;
@@ -297,8 +316,23 @@ const resolveRejectReason = (
   return 'voiced';
 };
 
+const formatTraceEvent = (
+  events: ReturnType<PitchOnsetTracker['processFrame']>,
+): string | null => {
+  for (const event of events) {
+    if (event.type === 'noteOn') {
+      return `noteOn:${event.note}`;
+    }
+    if (event.type === 'noteOff') {
+      return `noteOff:${event.note}`;
+    }
+  }
+  return null;
+};
+
 const emitTrackerEvents = (
   frame: { prediction: number; confidence: number; volume: number },
+  attackDb: number,
   chunk: CapturedChunk,
   inferenceMs: number,
   queueAgeMs: number,
@@ -347,10 +381,28 @@ const emitTrackerEvents = (
   }
 
   const trackerFrame = concertMidi !== null
-    ? { prediction: concertMidi, confidence: frame.confidence, volume: frame.volume }
-    : frame;
+    ? {
+      prediction: concertMidi,
+      confidence: frame.confidence,
+      volume: frame.volume,
+      attackDb,
+    }
+    : { ...frame, attackDb };
 
   const events = tracker.processFrame(trackerFrame, frameIndex);
+  if (frameTraceEnabled) {
+    ensurePitchFrameTraceBuffer().record({
+      frameIndex,
+      prediction: trackerFrame.prediction,
+      confidence: trackerFrame.confidence,
+      volumeDb: 10 * Math.log10(Math.max(frame.volume, 1e-12)),
+      attackDb,
+      expectedMask: expectedPitchMask,
+      repeatMask: repeatPitchClassMask,
+      currentNote: tracker.getCurrentNote(),
+      event: formatTraceEvent(events),
+    });
+  }
   frameIndex += 1;
   maybePostMonitor();
 
@@ -413,6 +465,11 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
   const rawPrediction = predictionArr[0] ?? 0;
   const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
   const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
+  attackEnvelope.pushSamples(chunk.samples);
+  const attackDb = attackEnvelope.computeAttackDb({
+    repeatPitchClassMask,
+    expectedPitchMidis,
+  });
 
   emitTrackerEvents(
     {
@@ -420,6 +477,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       confidence: confidenceArr[0] ?? 0,
       volume: volumeArr[0] ?? 0,
     },
+    attackDb,
     chunk,
     inferenceMs + preprocessMs,
     queueAgeMs,
@@ -504,6 +562,9 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       isInferring = false;
       resetLatencyStats();
       resetInferenceState();
+      attackEnvelope.reset();
+      resetPitchFrameTraceBuffer();
+      frameTraceEnabled = isPitchDiagnosticsEnabled();
       if (data.diagnostics) {
         diagnostics = new PitchInputDiagnostics({
           ...data.diagnostics,
@@ -525,6 +586,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       chunkQueue.reset(generationId, 0);
       applyShiftMode(data.shiftSemitones);
       resetInferenceState();
+      attackEnvelope.reset();
       diagnostics?.updateConfig({ shiftSemitones, generationId });
       audioPort?.postMessage({ type: 'resetCapture', generationId });
       return;
@@ -566,6 +628,15 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         expectedPitchMidis,
         repeatPitchClassMask,
       );
+      return;
+    }
+
+    if (data.type === 'dumpFrameTrace') {
+      if (!frameTraceEnabled) {
+        post({ type: 'frameTrace', entries: [] });
+        return;
+      }
+      post({ type: 'frameTrace', entries: ensurePitchFrameTraceBuffer().snapshot() });
       return;
     }
   } catch (error) {

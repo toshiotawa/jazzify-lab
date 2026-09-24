@@ -52,7 +52,7 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         let targetMidisAt: (Int) -> [Int] = { index in
             index == 0 || index == 1 ? [67] : []
         }
-        let phraseTimeSec = 1.5
+        let phraseTimeSec = 1.8
 
         let candidates = ExpectedPitchCandidateCollectors.collectChordOsmd(
             targetCount: 2,
@@ -88,14 +88,10 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         XCTAssertEqual(minIntervalMs, 500, accuracy: 1)
     }
 
-    func testSamePitchRepeatMaskStaysOffForFailedPreviousChordOrDifferentPitch() {
+    func testSamePitchRepeatMaskActiveEvenWhenPreviousFailedOnScore() {
         let judgedTimes = [1.0, 2.0]
-        let targetMidisAt: (Int) -> [Int] = { index in
-            switch index {
-            case 0: return [67, 71]
-            case 1: return [67]
-            default: return [60]
-            }
+        let singleMidisAt: (Int) -> [Int] = { index in
+            index == 0 || index == 1 ? [67] : []
         }
         let failedPrevious: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])? = { index in
             switch index {
@@ -106,13 +102,24 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         }
         XCTAssertEqual(ExpectedPitchCandidateCollectors.collectChordOsmd(
             targetCount: 2,
-            phraseTimeSec: 1.5,
+            phraseTimeSec: 1.8,
             judgedTargetTimeSec: { judgedTimes[$0] },
             runtimeAt: failedPrevious,
             earlySec: 0.25,
             lateSec: 0.25,
-            targetMidisAt: targetMidisAt
-        ).repeatPitchClassMask, 0)
+            targetMidisAt: singleMidisAt
+        ).repeatPitchClassMask, 1 << 7)
+    }
+
+    func testSamePitchRepeatMaskStaysOffForChordOrDifferentPitch() {
+        let judgedTimes = [1.0, 2.0]
+        let targetMidisAt: (Int) -> [Int] = { index in
+            switch index {
+            case 0: return [67, 71]
+            case 1: return [67]
+            default: return [60]
+            }
+        }
 
         let chordPrevious: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])? = { index in
             switch index {
@@ -123,7 +130,7 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         }
         XCTAssertEqual(ExpectedPitchCandidateCollectors.collectChordOsmd(
             targetCount: 2,
-            phraseTimeSec: 1.5,
+            phraseTimeSec: 1.8,
             judgedTargetTimeSec: { judgedTimes[$0] },
             runtimeAt: chordPrevious,
             earlySec: 0.25,
@@ -143,7 +150,7 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         }
         XCTAssertEqual(ExpectedPitchCandidateCollectors.collectChordOsmd(
             targetCount: 2,
-            phraseTimeSec: 1.5,
+            phraseTimeSec: 1.8,
             judgedTargetTimeSec: { judgedTimes[$0] },
             runtimeAt: differentPitch,
             earlySec: 0.25,
@@ -250,5 +257,48 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
             judgedTargetTimeSec: { judgedTimes[$0] },
             canMatchTarget: { _ in true }
         ))
+    }
+
+    func testJudgedPhraseSecAlignsOsuLockedAutoParryAndPreImpactHammer() {
+        let bpm = 100.0
+        let judgedPhraseSec = 2.44
+        let approachLeadSec = EarTrainingChordOsmdTiming.approachLeadSec(bpm: bpm)
+        let hammerLeadSec = EarTrainingChordOsmdTiming.hammerLeadSec(
+            bpm: bpm,
+            beatsPerMeasure: 4,
+            leadMeasures: EarTrainingChordOsmdTiming.hammerLeadMeasuresDefault
+        )
+        let throwPhraseSec = judgedPhraseSec - hammerLeadSec
+        let impactPhraseSec = judgedPhraseSec + EarTrainingChordOsmdTiming.hammerImpactOffsetSec
+        let osuTiming = EarTrainingBattleOsuCircleTiming.resolvePhraseTiming(
+            judgedPhraseTimeSec: judgedPhraseSec,
+            approachLeadSec: approachLeadSec
+        )
+        let osuState = EarTrainingBattleOsuCircleTiming.computeFromPhrase(
+            phraseTimelineSec: judgedPhraseSec,
+            approachStartPhraseSec: osuTiming.approachStartPhraseSec,
+            judgedPhraseSec: osuTiming.judgedPhraseSec,
+            centerX: 0,
+            targetY: 0
+        )
+        let overlapOuter = EarTrainingBattleOsuCircleTiming.overlapOuterRadiusPx()
+        let hammerDuration = impactPhraseSec - throwPhraseSec
+        let hammerProgress = hammerDuration > 0
+            ? min(1, max(0, (judgedPhraseSec - throwPhraseSec) / hammerDuration))
+            : 1
+
+        XCTAssertEqual(osuState.phase, .locked)
+        XCTAssertEqual(osuState.outerRadius, overlapOuter)
+        XCTAssertTrue(judgedPhraseSec + 1e-9 >= judgedPhraseSec)
+        XCTAssertLessThan(hammerProgress, 1)
+        XCTAssertLessThan(judgedPhraseSec + 1e-9, impactPhraseSec)
+    }
+
+    func testHammerImpactPhraseSecCompletesFlightProgress() {
+        let throwPhraseSec = 1.0
+        let impactPhraseSec = 2.0
+        let duration = impactPhraseSec - throwPhraseSec
+        let progress = min(1, max(0, (impactPhraseSec - throwPhraseSec) / duration))
+        XCTAssertEqual(progress, 1, accuracy: 1e-9)
     }
 }

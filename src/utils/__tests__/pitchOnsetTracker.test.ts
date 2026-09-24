@@ -4,6 +4,7 @@ import {
   scaleOnsetConfigForSensitivity,
   type PitchFrame,
 } from '@/utils/pitchInput/pitchOnsetTracker';
+import g4RepeatAttackTrace from '@/utils/pitchInput/__fixtures__/g4RepeatAttackTrace.json';
 import golden from '@/utils/pitchInput/__fixtures__/onsetGolden.json';
 
 describe('PitchOnsetTracker', () => {
@@ -891,5 +892,95 @@ describe('PitchOnsetTracker', () => {
       { frame: rise, index: 6 },
     ]);
     expect(noteOns).toEqual([60, 60]);
+  });
+
+  it('replays synthetic G4 repeat attack trace fixture', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      ...g4RepeatAttackTrace.config,
+    });
+    tracker.setExpectedPitchCandidates(
+      g4RepeatAttackTrace.repeatPitchClassMask,
+      g4RepeatAttackTrace.expectedPitchMidis,
+      g4RepeatAttackTrace.repeatPitchClassMask,
+    );
+    const noteOns = collectNoteOns(
+      tracker,
+      g4RepeatAttackTrace.frames.map((frame, index) => ({
+        frame: frame as PitchFrame,
+        index,
+      })),
+    );
+    expect(noteOns).toEqual(g4RepeatAttackTrace.expectedNoteOns);
+  });
+
+  it('uses sharp attackDb to retrigger four times when model volume stays blurred', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      repeatAttackWindowMs: 40,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 7, [67], 1 << 7);
+
+    const blurredVolume = 0.01;
+    const frame = (attackDb: number): PitchFrame => ({
+      prediction: 67,
+      confidence: 0.9,
+      volume: blurredVolume,
+      attackDb,
+    });
+    const attackPattern = [
+      -42, -38, -36, -34, -33, -31, -30, -28,
+      -40, -36, -34, -32, -30, -28, -26,
+      -39, -35, -33, -31, -29, -27, -25,
+      -38, -34, -32, -30, -28, -26, -24,
+    ];
+    const noteOns = collectNoteOns(
+      tracker,
+      attackPattern.map((attackDb, index) => ({ frame: frame(attackDb), index })),
+    );
+    expect(noteOns).toEqual([67, 67, 67, 67]);
+  });
+
+  it('does not emit a fourth noteOn when attackDb lacks a final rise after three strikes', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      repeatAttackWindowMs: 40,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 7, [67], 1 << 7);
+
+    const frame = (attackDb: number, confidence = 0.9): PitchFrame => ({
+      prediction: 67,
+      confidence,
+      volume: 0.01,
+      attackDb,
+    });
+    const frames: Array<{ frame: PitchFrame; index: number }> = [
+      { frame: frame(-42), index: 0 },
+      { frame: frame(-36), index: 1 },
+      { frame: frame(-30), index: 2 },
+      { frame: frame(-40), index: 3 },
+      { frame: frame(-34), index: 4 },
+      { frame: frame(-28), index: 5 },
+      { frame: frame(-39), index: 6 },
+      { frame: frame(-33), index: 7 },
+      { frame: frame(-27), index: 8 },
+      { frame: { prediction: 67, confidence: 0.4, volume: 0.004, attackDb: -40 }, index: 9 },
+      { frame: { prediction: 67, confidence: 0.4, volume: 0.004, attackDb: -39.5 }, index: 10 },
+      { frame: { prediction: 67, confidence: 0.4, volume: 0.004, attackDb: -39 }, index: 11 },
+      { frame: { prediction: 67, confidence: 0.4, volume: 0.004, attackDb: -38.8 }, index: 12 },
+      { frame: { prediction: 67, confidence: 0.4, volume: 0.004, attackDb: -38.5 }, index: 13 },
+    ];
+    const noteOns = collectNoteOns(tracker, frames);
+    expect(noteOns).toEqual([67, 67, 67]);
   });
 });

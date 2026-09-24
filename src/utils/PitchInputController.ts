@@ -6,6 +6,11 @@ import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
 import {
+  downloadPitchFrameTrace,
+  downloadPitchFrameTraceEntries,
+  type PitchFrameTraceEntry,
+} from '@/utils/pitchInput/pitchFrameTrace';
+import {
   EMPTY_EXPECTED_PITCH_CANDIDATES,
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
@@ -55,6 +60,30 @@ export class PitchInputController {
 
   static getLatencyStats(): PitchInputLatencyStats {
     return PitchInputController._latestLatencyStats;
+  }
+
+  static downloadFrameTrace(): void {
+    downloadPitchFrameTrace();
+  }
+
+  async requestFrameTraceDump(): Promise<void> {
+    const worker = this.worker;
+    if (!worker || !isPitchDiagnosticsEnabled()) {
+      downloadPitchFrameTrace();
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      const onMessage = (event: MessageEvent<{ type?: string; entries?: PitchFrameTraceEntry[] }>): void => {
+        if (event.data?.type !== 'frameTrace') {
+          return;
+        }
+        worker.removeEventListener('message', onMessage);
+        downloadPitchFrameTraceEntries(event.data.entries ?? []);
+        resolve();
+      };
+      worker.addEventListener('message', onMessage);
+      worker.postMessage({ type: 'dumpFrameTrace' });
+    });
   }
 
   private static resetLatencyStats(): void {

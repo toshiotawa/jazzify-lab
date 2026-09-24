@@ -171,28 +171,57 @@ const resolveChordOsmdSamePitchRepeatContext = (
   return null;
 };
 
+/** 同音 repeat マスク用: 判定窓 [now - late, now + early] の単音だけ。 */
+const isSingleNoteTargetInRepeatMaskWindow = (
+  index: number,
+  phraseTimeSec: number,
+  resolveJudgedTargetTimeSec: (index: number) => number,
+  resolveTargetMidis: (index: number) => readonly number[],
+  earlySec: number,
+  lateSec: number,
+): boolean => {
+  const judged = resolveJudgedTargetTimeSec(index);
+  const delta = phraseTimeSec - judged;
+  if (delta < -earlySec || delta > lateSec) {
+    return false;
+  }
+  return resolveTargetMidis(index).length === 1;
+};
+
+/** 譜面ベース: 判定窓内の単音ターゲットで前後が同 PC なら repeat マスクを立てる。 */
 const resolveChordOsmdRepeatPitchClassMask = (
   targetCount: number,
   phraseTimeSec: number,
   resolveJudgedTargetTimeSec: (index: number) => number,
-  resolveRuntime: (index: number) => ChordOsmdExpectedPitchRuntime | null,
   resolveTargetMidis: (index: number) => readonly number[],
-  _earlySec: number,
+  earlySec: number,
   lateSec: number,
 ): number => {
-  const context = resolveChordOsmdSamePitchRepeatContext(
-    targetCount,
-    phraseTimeSec,
-    resolveJudgedTargetTimeSec,
-    resolveRuntime,
-    resolveTargetMidis,
-    lateSec,
-  );
-  if (!context) {
-    return 0;
+  let mask = 0;
+  for (let index = 0; index < targetCount; index += 1) {
+    if (!isSingleNoteTargetInRepeatMaskWindow(
+      index,
+      phraseTimeSec,
+      resolveJudgedTargetTimeSec,
+      resolveTargetMidis,
+      earlySec,
+      lateSec,
+    )) {
+      continue;
+    }
+    const pendingMidi = resolveTargetMidis(index)[0] ?? 0;
+    const pendingPc = pitchClassFromMidi(pendingMidi);
+    const previousSamePc = index > 0
+      && resolveTargetMidis(index - 1).length === 1
+      && pitchClassFromMidi(resolveTargetMidis(index - 1)[0] ?? 0) === pendingPc;
+    const nextSamePc = index + 1 < targetCount
+      && resolveTargetMidis(index + 1).length === 1
+      && pitchClassFromMidi(resolveTargetMidis(index + 1)[0] ?? 0) === pendingPc;
+    if (previousSamePc || nextSamePc) {
+      mask |= 1 << pendingPc;
+    }
   }
-  const pendingPc = pitchClassFromMidi(context.pendingMidi);
-  return 1 << pendingPc;
+  return mask;
 };
 
 export const isChordOsmdWaitingForSamePitchRepeat = (
@@ -208,7 +237,6 @@ export const isChordOsmdWaitingForSamePitchRepeat = (
     targetCount,
     phraseTimeSec,
     resolveJudgedTargetTimeSec,
-    resolveRuntime,
     resolveTargetMidis,
     earlySec,
     lateSec,
@@ -274,7 +302,6 @@ export const collectChordOsmdExpectedPitchCandidates = (
       targetCount,
       phraseTimeSec,
       resolveJudgedTargetTimeSec,
-      resolveRuntime,
       resolveTargetMidis,
       earlySec,
       lateSec,

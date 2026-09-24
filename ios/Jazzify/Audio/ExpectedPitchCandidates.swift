@@ -89,25 +89,51 @@ enum ExpectedPitchCandidateCollectors {
         return nil
     }
 
+    private static func isSingleNoteTargetInRepeatMaskWindow(
+        index: Int,
+        phraseTimeSec: Double,
+        judgedTargetTimeSec: (Int) -> Double,
+        targetMidisAt: (Int) -> [Int],
+        earlySec: Double,
+        lateSec: Double
+    ) -> Bool {
+        let judged = judgedTargetTimeSec(index)
+        let delta = phraseTimeSec - judged
+        if delta < -earlySec || delta > lateSec { return false }
+        return targetMidisAt(index).count == 1
+    }
+
     private static func chordOsmdRepeatMask(
         targetCount: Int,
         phraseTimeSec: Double,
         judgedTargetTimeSec: (Int) -> Double,
-        runtimeAt: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])?,
         targetMidisAt: (Int) -> [Int],
         earlySec: Double,
         lateSec: Double
     ) -> Int {
-        guard let context = resolveChordOsmdSamePitchRepeatContext(
-            targetCount: targetCount,
-            phraseTimeSec: phraseTimeSec,
-            judgedTargetTimeSec: judgedTargetTimeSec,
-            runtimeAt: runtimeAt,
-            targetMidisAt: targetMidisAt,
-            lateSec: lateSec
-        ) else { return 0 }
-        let pendingPc = pitchClass(from: context.pendingMidi)
-        return 1 << pendingPc
+        var mask = 0
+        for index in 0..<targetCount {
+            guard isSingleNoteTargetInRepeatMaskWindow(
+                index: index,
+                phraseTimeSec: phraseTimeSec,
+                judgedTargetTimeSec: judgedTargetTimeSec,
+                targetMidisAt: targetMidisAt,
+                earlySec: earlySec,
+                lateSec: lateSec
+            ) else { continue }
+            let pendingMidi = targetMidisAt(index).first ?? 0
+            let pendingPc = pitchClass(from: pendingMidi)
+            let previousSamePc = index > 0
+                && targetMidisAt(index - 1).count == 1
+                && pitchClass(from: targetMidisAt(index - 1).first ?? 0) == pendingPc
+            let nextSamePc = index + 1 < targetCount
+                && targetMidisAt(index + 1).count == 1
+                && pitchClass(from: targetMidisAt(index + 1).first ?? 0) == pendingPc
+            if previousSamePc || nextSamePc {
+                mask |= 1 << pendingPc
+            }
+        }
+        return mask
     }
 
     static func collectChordOsmd(
@@ -136,7 +162,6 @@ enum ExpectedPitchCandidateCollectors {
                 targetCount: targetCount,
                 phraseTimeSec: phraseTimeSec,
                 judgedTargetTimeSec: judgedTargetTimeSec,
-                runtimeAt: runtimeAt,
                 targetMidisAt: $0,
                 earlySec: earlySec,
                 lateSec: lateSec
@@ -158,7 +183,6 @@ enum ExpectedPitchCandidateCollectors {
             targetCount: targetCount,
             phraseTimeSec: phraseTimeSec,
             judgedTargetTimeSec: judgedTargetTimeSec,
-            runtimeAt: runtimeAt,
             targetMidisAt: targetMidisAt,
             earlySec: earlySec,
             lateSec: lateSec
