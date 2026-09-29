@@ -923,6 +923,24 @@ final class SupabaseService: Sendable {
         return rows
     }
 
+    // MARK: - Dashboard Notices
+
+    func fetchPublishedDashboardNotice(locale: AppLocale) async throws -> DashboardNoticeRow? {
+        let localeKey = locale == .ja ? "ja" : "en"
+        let rows: [DashboardNoticeRow] = try await client
+            .from("dashboard_notices")
+            .select()
+            .eq("platform", value: "ios")
+            .eq("locale", value: localeKey)
+            .eq("is_published", value: true)
+            .order("sort_order")
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
     // MARK: - App Release Versions
 
     func fetchActiveAppReleaseVersion(platform: String) async throws -> AppReleaseVersionRow? {

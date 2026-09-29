@@ -2,8 +2,10 @@ import SwiftUI
 
 struct TopView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.openURL) private var openURL
     @ObservedObject private var playerXpHub = PlayerLevelHub.shared
     @State private var announcements: [AnnouncementRow] = []
+    @State private var dashboardNotice: DashboardNoticeRow?
     @State private var userStats: UserStats?
     @State private var earnedBadges: [SupabaseService.UserBadgeRow] = []
 
@@ -46,6 +48,7 @@ struct TopView: View {
                         if let bannerKind = appState.paymentIssueBannerKind {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                         }
+                        dashboardNoticeCard
                         mainQuestCard
                         MarketingOptInBannerView()
                         defenseGuidanceCard
@@ -77,7 +80,10 @@ struct TopView: View {
             .task { await loadData() }
             .refreshable { await loadData() }
             .onChange(of: locale) { _ in
-                Task { await fetchDashboardAnnouncements() }
+                Task {
+                    await fetchDashboardAnnouncements()
+                    await fetchDashboardNoticeCard()
+                }
             }
             .navigationDestination(
                 isPresented: Binding(
@@ -387,6 +393,63 @@ struct TopView: View {
         }
     }
 
+    // MARK: - Dashboard notice
+
+    @ViewBuilder
+    private var dashboardNoticeCard: some View {
+        if let notice = dashboardNotice {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Image(systemName: "megaphone.fill")
+                        .foregroundStyle(Color(hex: "fbbf24"))
+                    Text(notice.title)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                }
+
+                Text(notice.body)
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    applyDashboardNoticeAction(notice)
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(notice.actionLabel)
+                            .font(.subheadline.bold())
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: "d97706").opacity(0.85))
+                    .cornerRadius(20)
+                }
+            }
+            .padding(16)
+            .background(Color(hex: "1e293b"))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(hex: "f59e0b").opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+
+    private func applyDashboardNoticeAction(_ notice: DashboardNoticeRow) {
+        guard let kind = DashboardNoticeActionKind(rawValue: notice.actionKind) else { return }
+        switch kind {
+        case .external:
+            guard let url = DashboardNoticeNavigation.externalURL(from: notice.actionTarget) else { return }
+            openURL(url)
+        case .tab:
+            guard let tab = DashboardNoticeNavigation.tab(from: notice.actionTarget) else { return }
+            appState.requestedTab = tab
+        }
+    }
+
     // MARK: - Defense / Training guidance
 
     @ViewBuilder
@@ -625,8 +688,18 @@ struct TopView: View {
         }
     }
 
+    private func fetchDashboardNoticeCard() async {
+        let currentLocale = locale
+        do {
+            dashboardNotice = try await SupabaseService.shared.fetchPublishedDashboardNotice(locale: currentLocale)
+        } catch {
+            dashboardNotice = nil
+        }
+    }
+
     private func loadData() async {
         await fetchDashboardAnnouncements()
+        await fetchDashboardNoticeCard()
 
         guard let userId = profile?.id else {
             userStats = nil

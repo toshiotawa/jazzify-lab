@@ -303,6 +303,7 @@
 		9E211ABA193D596581FD5A4A /* SurvivalSpeechBubbleLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005286BEC2ECD415A5E2AB55 /* SurvivalSpeechBubbleLayout.swift */; };
 		9E5FE80FAAAD098F83CF448B /* TrainingRank.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E74BE1BD8F3E870D38B620A /* TrainingRank.swift */; };
 		9EE6D5DABFE2BA2B6CDE47DF /* Announcement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6053A6DDDCFD5A65983AEC /* Announcement.swift */; };
+		B1A2C3D4E5F60718293A4B5C /* DashboardNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* DashboardNotice.swift */; };
 		9F00A659D58DE75C0FF097DB /* SurvivalPhrasePreviewURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B0517AEE16077E85783267 /* SurvivalPhrasePreviewURL.swift */; };
 		9F0C4B2021BDCC4DFEB01759 /* EarTrainingChordOsmdTimingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50445B5EB476F1C7271F494 /* EarTrainingChordOsmdTimingTests.swift */; };
 		9FD046FE3B233F00410A3E99 /* TrainingGoalProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA9D7206788ADBB43C7240C /* TrainingGoalProgress.swift */; };
@@ -587,6 +588,7 @@
 		3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestResumeSheet.swift; sourceTree = "<group>"; };
 		3F2E89939A5C08F48F393CFF /* AchievementBadgeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementBadgeStore.swift; sourceTree = "<group>"; };
 		3F6053A6DDDCFD5A65983AEC /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* DashboardNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardNotice.swift; sourceTree = "<group>"; };
 		3F81049A4FCE2B486366727A /* EarTrainingAdlibCallResponseBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAdlibCallResponseBattleController.swift; sourceTree = "<group>"; };
 		400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		4026AD096CD764FDC4FC2C04 /* AssignmentInputSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignmentInputSnapshot.swift; sourceTree = "<group>"; };
@@ -1079,6 +1081,7 @@
 			isa = PBXGroup;
 			children = (
 				3F6053A6DDDCFD5A65983AEC /* Announcement.swift */,
+				A1B2C3D4E5F60718293A4B5D /* DashboardNotice.swift */,
 				73A3841554CFAB32D1715AB1 /* AppReleaseVersion.swift */,
 				AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */,
 				12AAB7776B432313249D043C /* FantasyStage.swift */,
@@ -2204,6 +2207,7 @@
 				CE2F672A1F097DFC77DA03CC /* AnalyticsClientID.swift in Sources */,
 				AC6AE0618B2EE4868993BF83 /* AnalyticsTracker.swift in Sources */,
 				9EE6D5DABFE2BA2B6CDE47DF /* Announcement.swift in Sources */,
+				B1A2C3D4E5F60718293A4B5C /* DashboardNotice.swift in Sources */,
 				C261FBF9974FB8B2007415C2 /* AnnouncementDetailView.swift in Sources */,
 				4F0DD4129C5C5D5B6EDEE76D /* AnnouncementListView.swift in Sources */,
 				9B655AE54C0C64405EBB2120 /* AnnouncementMarkdownSegments.swift in Sources */,

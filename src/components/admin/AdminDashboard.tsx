@@ -6,6 +6,7 @@ import { LessonManager } from './LessonManager';
 import MissionManager from './MissionManager';
 import UserManager from './UserManager';
 import AnnouncementManager from './AnnouncementManager';
+import DashboardNoticeManager from './DashboardNoticeManager';
 import FantasyBgmManager from './FantasyBgmManager';
 import FantasyStageManager from './FantasyStageManager';
 import LessonFantasyStageManager from './LessonFantasyStageManager';
@@ -75,6 +76,7 @@ const AdminDashboard: React.FC = () => {
            <SidebarLink hash="#admin-challenges" label="ミッション管理" />
            <SidebarLink hash="#admin-users" label="会員管理" />
            <SidebarLink hash="#admin-announcements" label="お知らせ管理" />
+           <SidebarLink hash="#admin-dashboard-notices" label="ダッシュボード案内" />
          </nav>
         <button className="btn btn-sm btn-outline w-full" onClick={() => { window.location.href = '/main#dashboard'; }}>
           閉じる
@@ -103,6 +105,7 @@ const AdminDashboard: React.FC = () => {
            <MobileTabLink hash="#admin-challenges" label="ミッション" />
            <MobileTabLink hash="#admin-users" label="会員" />
            <MobileTabLink hash="#admin-announcements" label="お知らせ" />
+           <MobileTabLink hash="#admin-dashboard-notices" label="DB案内" />
          </nav>
       </div>
 
@@ -164,6 +167,7 @@ const DashboardContent: React.FC = () => {
    if (currentHash.startsWith('#admin-challenges')) return <MissionManager />;
    if (currentHash.startsWith('#admin-users')) return <UserManager />;
    if (currentHash.startsWith('#admin-announcements')) return <AnnouncementManager />;
+   if (currentHash.startsWith('#admin-dashboard-notices')) return <DashboardNoticeManager />;
   return (
     <div className="flex items-center justify-center h-full">
       <p className="text-gray-400 text-center px-4">
