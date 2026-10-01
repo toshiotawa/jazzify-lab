@@ -160,6 +160,7 @@ let tracker: PitchOnsetTracker | null = null;
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
+let discontinuitySequence: number | null = null;
 let lastChunkTime = 0;
 let lastSourceEndSample = 0;
 let latestInputLevelDb: number | null = null;
@@ -189,6 +190,8 @@ let frameTraceEnabled = isPitchDiagnosticsEnabled();
 const LATENCY_EMA_ALPHA = 0.1;
 const MONITOR_POST_INTERVAL = 60;
 const CACHE_SIZE = 3976;
+// activations は判定に使わない。iOSと同じ4出力だけを取得する。
+const INFERENCE_OUTPUTS = ['prediction', 'confidence', 'volume', 'cache_out'];
 
 const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
@@ -289,15 +292,15 @@ const resetChunkQueue = (nextSequence = 0): void => {
     discarded = chunkQueue.dequeue();
   }
   chunkQueue.reset(generationId, nextSequence);
+  discontinuitySequence = null;
 };
 
 const handleDiscontinuity = (chunk: CapturedChunk, reason: string): void => {
-  diagnostics?.recordDiscontinuity();
-  flushActiveNote(chunk.sourceEndTimeSec);
-  tracker?.reset();
-  resetInferenceState();
-  attackEnvelope.reset();
+  diagnostics?.recordDiscontinuity(reason);
+  // 到着時にcacheをリセットすると、欠落より前の正常な推論まで無効になる。
+  // リセットは新しい連続区間を実際に処理する直前に一度だけ行う。
   resetChunkQueue(chunk.sequence);
+  discontinuitySequence = chunk.sequence;
   const enqueued = chunkQueue.enqueue(chunk);
   if (!enqueued.ok) {
     recycle(chunk.samples);
@@ -434,6 +437,7 @@ const emitTrackerEvents = (
 };
 
 const runInference = async (chunk: CapturedChunk): Promise<void> => {
+  let outputs: ort.InferenceSession.ReturnType | null = null;
   try {
     if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
       return;
@@ -459,10 +463,10 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     const generationAtStart = generationId;
     audioData.set(modelInput);
 
-    const outputs = await session.run({
+    outputs = await session.run({
       audio: audioTensor,
       cache: cacheTensor,
-    });
+    }, INFERENCE_OUTPUTS);
 
     if (epochAtStart !== cacheEpoch || generationAtStart !== generationId || chunk.generationId !== generationId) {
       return;
@@ -475,9 +479,18 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     const confidenceArr = outputs.confidence.data as Float32Array;
     const volumeArr = outputs.volume.data as Float32Array;
     const cacheOut = outputs.cache_out.data as Float32Array;
-    cacheData.set(cacheOut);
-
+    // iOS同様、非有限値を再帰cacheへ持ち越さない。
+    for (let i = 0; i < cacheOut.length; i += 1) {
+      if (!Number.isFinite(cacheOut[i])) throw new Error('Invalid PESTO cache');
+    }
     const rawPrediction = predictionArr[0] ?? 0;
+    const confidence = confidenceArr[0] ?? 0;
+    const volume = volumeArr[0] ?? 0;
+    if (!Number.isFinite(rawPrediction) || !Number.isFinite(confidence)
+        || !Number.isFinite(volume) || volume < 0) {
+      throw new Error('Invalid PESTO output');
+    }
+    cacheData.set(cacheOut);
     const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
     const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
     attackEnvelope.pushSamples(chunk.samples);
@@ -489,8 +502,8 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     emitTrackerEvents(
       {
         prediction: rawPrediction,
-        confidence: confidenceArr[0] ?? 0,
-        volume: volumeArr[0] ?? 0,
+        confidence,
+        volume,
       },
       attackDb,
       chunk,
@@ -500,6 +513,9 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       concertMidi,
     );
   } finally {
+    if (outputs) {
+      for (const name in outputs) outputs[name].dispose();
+    }
     recycle(chunk.samples);
   }
 };
@@ -511,10 +527,17 @@ const drainQueue = async (_reason: string): Promise<void> => {
     let next = chunkQueue.dequeue();
     while (next) {
       try {
+        if (next.sequence === discontinuitySequence) {
+          discontinuitySequence = null;
+          flushActiveNote(next.sourceEndTimeSec);
+          tracker?.reset();
+          resetInferenceState();
+          attackEnvelope.reset();
+        }
         await runInference(next);
       } catch (error) {
         diagnostics?.recordDrop(next.sourceEndSample - next.sourceStartSample);
-        diagnostics?.recordDiscontinuity();
+        diagnostics?.recordDiscontinuity('inferenceError');
         flushActiveNote(next.sourceEndTimeSec);
         tracker?.reset();
         resetInferenceState();
