@@ -160,7 +160,7 @@ let tracker: PitchOnsetTracker | null = null;
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
-let discontinuitySequence: number | null = null;
+let lastProcessedSourceEndSample: number | null = null;
 let lastChunkTime = 0;
 let lastSourceEndSample = 0;
 let latestInputLevelDb: number | null = null;
@@ -192,6 +192,8 @@ const MONITOR_POST_INTERVAL = 60;
 const CACHE_SIZE = 3976;
 // activations は判定に使わない。iOSと同じ4出力だけを取得する。
 const INFERENCE_OUTPUTS = ['prediction', 'confidence', 'volume', 'cache_out'];
+// 5ms入力に近い推論負荷では短い欠落が連発する。2フレーム以内はcacheを保つ。
+const MAX_SOFT_GAP_SAMPLES = PESTO_CHUNK_SIZE * 2;
 
 const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
@@ -269,6 +271,7 @@ const resetInferenceState = (): void => {
   warmupFramesRemaining = PESTO_WARMUP_FRAMES;
   suppressTracker = warmupFramesRemaining > 0;
   diagnostics?.setWarmupFrames(warmupFramesRemaining);
+  diagnostics?.recordModelReset();
   decimationBuffer.reset();
   resetPestoDecimator(decimatorState);
 };
@@ -292,21 +295,25 @@ const resetChunkQueue = (nextSequence = 0): void => {
     discarded = chunkQueue.dequeue();
   }
   chunkQueue.reset(generationId, nextSequence);
-  discontinuitySequence = null;
 };
 
-const handleDiscontinuity = (chunk: CapturedChunk, reason: string): void => {
-  diagnostics?.recordDiscontinuity(reason);
-  // 到着時にcacheをリセットすると、欠落より前の正常な推論まで無効になる。
-  // リセットは新しい連続区間を実際に処理する直前に一度だけ行う。
+const handleDiscontinuity = (chunk: CapturedChunk, reason: string, sourceGapSamples: number): void => {
+  // 短い穴より前に届いた正常な音声は捨てない。世代と40ms上限は引き続き検証する。
+  const recovered = reason === 'sequenceGap' || reason === 'sampleGap'
+    ? chunkQueue.enqueue(chunk, true)
+    : null;
+  diagnostics?.recordDiscontinuity(recovered && !recovered.ok ? recovered.reason : reason, sourceGapSamples);
+  if (recovered?.ok) {
+    void drainQueue();
+    return;
+  }
   resetChunkQueue(chunk.sequence);
-  discontinuitySequence = chunk.sequence;
   const enqueued = chunkQueue.enqueue(chunk);
   if (!enqueued.ok) {
     recycle(chunk.samples);
     return;
   }
-  void drainQueue(reason);
+  void drainQueue();
 };
 
 const initSession = async (): Promise<void> => {
@@ -438,6 +445,7 @@ const emitTrackerEvents = (
 
 const runInference = async (chunk: CapturedChunk): Promise<void> => {
   let outputs: ort.InferenceSession.ReturnType | null = null;
+  const processingStart = diagnostics ? performance.now() : 0;
   try {
     if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
       return;
@@ -517,23 +525,28 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       for (const name in outputs) outputs[name].dispose();
     }
     recycle(chunk.samples);
+    diagnostics?.recordProcessingDuration(performance.now() - processingStart);
   }
 };
 
-const drainQueue = async (_reason: string): Promise<void> => {
+const drainQueue = async (): Promise<void> => {
   if (isInferring) return;
   isInferring = true;
   try {
     let next = chunkQueue.dequeue();
     while (next) {
       try {
-        if (next.sequence === discontinuitySequence) {
-          discontinuitySequence = null;
+        const gapSamples = lastProcessedSourceEndSample === null
+          ? 0
+          : next.sourceStartSample - lastProcessedSourceEndSample;
+        if (gapSamples !== 0) diagnostics?.recordSourceGap(gapSamples);
+        if (gapSamples < 0 || gapSamples > MAX_SOFT_GAP_SAMPLES) {
           flushActiveNote(next.sourceEndTimeSec);
           tracker?.reset();
           resetInferenceState();
           attackEnvelope.reset();
         }
+        lastProcessedSourceEndSample = next.sourceEndSample;
         await runInference(next);
       } catch (error) {
         diagnostics?.recordDrop(next.sourceEndSample - next.sourceStartSample);
@@ -557,7 +570,8 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     return;
   }
 
-  diagnostics?.recordDrop(Math.max(0, message.sourceStartSample - lastSourceEndSample));
+  const sourceGapSamples = Math.max(0, message.sourceStartSample - lastSourceEndSample);
+  diagnostics?.recordDrop(sourceGapSamples);
   lastSourceEndSample = message.sourceEndSample;
   latestInputLevelDb = Number.isFinite(message.rawRmsDbfs) ? message.rawRmsDbfs : null;
 
@@ -576,11 +590,11 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
 
   const enqueued = chunkQueue.enqueue(chunk);
   if (!enqueued.ok) {
-    handleDiscontinuity(chunk, enqueued.reason);
+    handleDiscontinuity(chunk, enqueued.reason, sourceGapSamples);
     return;
   }
 
-  void drainQueue('enqueue');
+  void drainQueue();
 };
 
 self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
@@ -614,6 +628,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       tracker.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis, repeatPitchClassMask);
       resetChunkQueue();
       lastSourceEndSample = 0;
+      lastProcessedSourceEndSample = null;
       isInferring = false;
       resetLatencyStats();
       resetInferenceState();
@@ -640,6 +655,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       tracker?.reset();
       resetChunkQueue();
       lastSourceEndSample = 0;
+      lastProcessedSourceEndSample = null;
       applyShiftMode(data.shiftSemitones);
       resetInferenceState();
       attackEnvelope.reset();

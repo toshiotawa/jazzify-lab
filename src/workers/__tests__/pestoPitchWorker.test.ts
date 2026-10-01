@@ -50,7 +50,9 @@ describe('PESTO worker buffer recovery', () => {
     vi.stubGlobal('self', worker);
     await import('../pestoPitchWorker');
     await control({ type: 'connectPort' });
-    await control({ type: 'init', sensitivity: 5, generationId: 1, shiftSemitones: 0 });
+    await control({ type: 'init', sensitivity: 5, generationId: 1, shiftSemitones: 0,
+      diagnostics: { deviceLabel: 'test mic', sampleRate: 48_000, requestedEchoCancellation: true, actualEchoCancellation: true },
+    });
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -83,7 +85,7 @@ describe('PESTO worker buffer recovery', () => {
     });
     const first = send(6);
     send(7);
-    const resumed = send(9);
+    const resumed = send(30);
     // 欠落より前の推論は、入力cacheも結果もまだ正常。
     expect(runningCache?.[0]).toBe(1);
     if (!release) throw new Error('inference did not start');
@@ -95,7 +97,78 @@ describe('PESTO worker buffer recovery', () => {
     expect(cacheAtRun.at(-1)).toBe(0);
   });
 
-  it('coalesces repeated gaps during one slow inference and recovers', async () => {
+  it('keeps valid queued chunks and warm cache across a short sequence gap', async () => {
+    const cacheAtRun: number[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data[0]);
+      return Promise.resolve(output());
+    });
+    for (let sequence = 0; sequence < 6; sequence += 1) {
+      const buffer = send(sequence);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    }
+    let release: (() => void) | undefined;
+    run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
+    const first = send(6);
+    const queued = send(7);
+    const resumed = send(9);
+    expect(recycled()).not.toContain(queued);
+    if (!release) throw new Error('inference did not start');
+    release();
+    await vi.waitFor(() => expect(recycled()).toContain(resumed));
+    for (const buffer of [first, queued, resumed]) {
+      expect(recycled().filter((returned) => returned === buffer)).toHaveLength(1);
+    }
+    expect(cacheAtRun.slice(-2)).toEqual([1, 1]);
+    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
+  });
+
+  it('continues detecting notes across repeated 128-sample gaps without rewarming', async () => {
+    const cacheAtRun: number[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data[0]);
+      return Promise.resolve(output());
+    });
+    let sourceSample = 0;
+    let sequence = 0;
+    for (let frame = 0; frame < 180; frame += 1) {
+      if (frame > 0 && frame % 3 === 0) {
+        sourceSample += 128;
+        sequence += 1;
+      }
+      const buffer = send(sequence, sourceSample);
+      // モック推論・drainのmicrotaskを完了させ、実時間の待機はしない。
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(recycled()).toContain(buffer);
+      sequence += 1;
+      sourceSample += 240;
+    }
+    expect(cacheAtRun[0]).toBe(0);
+    expect(cacheAtRun.slice(1).every((cache) => cache === 1)).toBe(true);
+    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn')).toHaveLength(1);
+    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'monitor', diagnostics: expect.objectContaining({
+        modelResetCount: 0, discontinuities: 59, warmupFramesRemaining: 0, droppedSamples: 59 * 128,
+      }),
+    }));
+  });
+
+  it.each([480, 481])('only resets cache when the actual source gap exceeds 480 samples: %s', async (gap) => {
+    const cacheAtRun: number[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data[0]);
+      return Promise.resolve(output());
+    });
+    const first = send(0);
+    await vi.waitFor(() => expect(recycled()).toContain(first));
+    const next = send(2, 240 + gap);
+    await vi.waitFor(() => expect(recycled()).toContain(next));
+    expect(cacheAtRun).toEqual([0, gap <= 480 ? 1 : 0]);
+  });
+
+  it('bounds a burst of gaps and processes the retained valid suffix after a slow inference', async () => {
     let release: (() => void) | undefined;
     run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
     const first = send(0);
@@ -105,7 +178,8 @@ describe('PESTO worker buffer recovery', () => {
     if (!release) throw new Error('inference did not start');
     release();
     await vi.waitFor(() => expect(recycled()).toContain(resumed));
-    expect(run).toHaveBeenCalledTimes(2);
+    // 40ms制限で古いチャンクを回収し、末尾の98・100は両方処理する。
+    expect(run).toHaveBeenCalledTimes(3);
     for (const buffer of [first, ...discarded, resumed]) {
       expect(recycled().filter((returned) => returned === buffer)).toHaveLength(1);
     }
@@ -132,12 +206,12 @@ describe('PESTO worker buffer recovery', () => {
     expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
   });
 
-  it('recycles queued and in-flight buffers on a gap and resumes with a fresh cache', async () => {
+  it('recycles obsolete queued and in-flight buffers on a long gap and resumes with a fresh cache', async () => {
     let release: (() => void) | undefined;
     run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
     const first = send(0);
     const queued = send(1);
-    const resumed = send(3);
+    const resumed = send(30);
     expect(recycled()).toContain(queued);
     if (!release) throw new Error('inference did not start');
     release();
@@ -145,9 +219,9 @@ describe('PESTO worker buffer recovery', () => {
     expect(recycled().filter((buffer) => buffer === first)).toHaveLength(1);
     expect(recycled().filter((buffer) => buffer === queued)).toHaveLength(1);
     expect(recycled().filter((buffer) => buffer === resumed)).toHaveLength(1);
-    for (let sequence = 4; sequence < 10; sequence += 1) {
+    for (let sequence = 31; sequence < 37; sequence += 1) {
       send(sequence);
-      await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(sequence - 1));
+      await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(sequence - 28));
     }
     expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn', note: 64 }));
   });

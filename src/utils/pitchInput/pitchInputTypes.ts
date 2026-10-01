@@ -53,6 +53,9 @@ export interface PitchInputDiagnosticSnapshot {
   droppedSamples: number;
   discontinuities: number;
   lastDiscontinuityReason?: string | null;
+  lastGapMs?: number;
+  modelResetCount?: number;
+  processingMsP95?: number;
   queueDepthMs: number;
   queueAgeMsP50: number;
   queueAgeMsP95: number;
