@@ -70,6 +70,7 @@ export const useStandaloneNoteInput = ({
   const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
     captureIntervalMs: null,
     inferenceMs: null,
+    inputLevelDb: null,
     diagnostics: null,
   });
   const midiRef = useRef<MIDIController | null>(null);
@@ -268,9 +269,7 @@ export const useStandaloneNoteInput = ({
     return () => window.clearInterval(timer);
   }, [effectiveMethod, enabled]);
 
-  const inputLevelDb = latencyStats.captureIntervalMs !== null
-    ? -60 + Math.min(60, latencyStats.inferenceMs ?? 0)
-    : null;
+  const inputLevelDb = latencyStats.inputLevelDb;
 
   return {
     isConnected,

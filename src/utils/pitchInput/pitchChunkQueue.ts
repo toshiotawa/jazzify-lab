@@ -6,16 +6,18 @@ import {
 
 export type EnqueueResult =
   | { ok: true }
-  | { ok: false; reason: 'sequenceGap' | 'queueOverflow' | 'generationMismatch' };
+  | { ok: false; reason: 'sequenceGap' | 'sampleGap' | 'queueOverflow' | 'generationMismatch' };
 
 export class PitchChunkQueue {
   private queue: CapturedChunk[] = [];
   private expectedSequence = 0;
   private activeGenerationId = 0;
+  private expectedSourceSample: number | null = null;
 
   reset(generationId: number, nextSequence = 0): void {
     this.queue = [];
     this.expectedSequence = nextSequence;
+    this.expectedSourceSample = null;
     this.activeGenerationId = generationId;
   }
 
@@ -26,7 +28,11 @@ export class PitchChunkQueue {
     if (chunk.sequence !== this.expectedSequence) {
       return { ok: false, reason: 'sequenceGap' };
     }
+    if (this.expectedSourceSample !== null && chunk.sourceStartSample !== this.expectedSourceSample) {
+      return { ok: false, reason: 'sampleGap' };
+    }
     this.expectedSequence += 1;
+    this.expectedSourceSample = chunk.sourceEndSample;
 
     if (this.queue.length > 0) {
       const oldest = this.queue[0];

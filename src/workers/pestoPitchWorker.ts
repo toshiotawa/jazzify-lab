@@ -135,6 +135,7 @@ interface WorkerMonitorMessage {
   type: 'monitor';
   captureIntervalMs: number;
   inferenceMs: number;
+  inputLevelDb: number | null;
   diagnostics?: ReturnType<PitchInputDiagnostics['snapshot']>;
 }
 
@@ -160,6 +161,8 @@ let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
 let lastChunkTime = 0;
+let lastSourceEndSample = 0;
+let latestInputLevelDb: number | null = null;
 let emaCaptureIntervalMs = 0;
 let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
@@ -218,12 +221,14 @@ const maybePostMonitor = (): void => {
     type: 'monitor',
     captureIntervalMs: emaCaptureIntervalMs,
     inferenceMs: emaInferenceMs,
+    inputLevelDb: latestInputLevelDb,
     diagnostics: diagnostics?.snapshot(chunkQueue.depthMs()),
   });
 };
 
 const resetLatencyStats = (): void => {
   lastChunkTime = 0;
+  latestInputLevelDb = null;
   emaCaptureIntervalMs = 0;
   emaInferenceMs = 0;
   monitorFrameCounter = 0;
@@ -275,13 +280,24 @@ const flushActiveNote = (audioContextTime: number): void => {
   }
 };
 
+// reset() だけでは transfer 済みバッファを失い、Worklet のプールが枯渇する。
+const resetChunkQueue = (nextSequence = 0): void => {
+  let discarded = chunkQueue.dequeue();
+  while (discarded) {
+    diagnostics?.recordDrop(discarded.sourceEndSample - discarded.sourceStartSample);
+    recycle(discarded.samples);
+    discarded = chunkQueue.dequeue();
+  }
+  chunkQueue.reset(generationId, nextSequence);
+};
+
 const handleDiscontinuity = (chunk: CapturedChunk, reason: string): void => {
   diagnostics?.recordDiscontinuity();
-  diagnostics?.recordDrop(chunk.sourceEndSample - chunk.sourceStartSample);
   flushActiveNote(chunk.sourceEndTimeSec);
   tracker?.reset();
   resetInferenceState();
-  chunkQueue.reset(generationId, chunk.sequence);
+  attackEnvelope.reset();
+  resetChunkQueue(chunk.sequence);
   const enqueued = chunkQueue.enqueue(chunk);
   if (!enqueued.ok) {
     recycle(chunk.samples);
@@ -418,74 +434,74 @@ const emitTrackerEvents = (
 };
 
 const runInference = async (chunk: CapturedChunk): Promise<void> => {
-  if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
+  try {
+    if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
+      return;
+    }
+
+    const queueAgeMs = chunk.receivedTimeMs === undefined
+      ? 0
+      : Math.max(0, performance.now() - chunk.receivedTimeMs);
+    const accumulated = decimationBuffer.push(chunk.samples);
+    if (!accumulated) {
+      return;
+    }
+
+    const preprocessStart = performance.now();
+    const modelInput = feedPestoDecimator(accumulated, decimatorState);
+    if (!modelInput) {
+      return;
+    }
+    const preprocessMs = performance.now() - preprocessStart;
+
+    const inferenceStart = performance.now();
+    const epochAtStart = cacheEpoch;
+    const generationAtStart = generationId;
+    audioData.set(modelInput);
+
+    const outputs = await session.run({
+      audio: audioTensor,
+      cache: cacheTensor,
+    });
+
+    if (epochAtStart !== cacheEpoch || generationAtStart !== generationId || chunk.generationId !== generationId) {
+      return;
+    }
+
+    const inferenceMs = performance.now() - inferenceStart;
+    emaInferenceMs = updateEma(emaInferenceMs, inferenceMs);
+
+    const predictionArr = outputs.prediction.data as Float32Array;
+    const confidenceArr = outputs.confidence.data as Float32Array;
+    const volumeArr = outputs.volume.data as Float32Array;
+    const cacheOut = outputs.cache_out.data as Float32Array;
+    cacheData.set(cacheOut);
+
+    const rawPrediction = predictionArr[0] ?? 0;
+    const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
+    const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
+    attackEnvelope.pushSamples(chunk.samples);
+    const attackDb = attackEnvelope.computeAttackDb({
+      repeatPitchClassMask,
+      expectedPitchMidis,
+    });
+
+    emitTrackerEvents(
+      {
+        prediction: rawPrediction,
+        confidence: confidenceArr[0] ?? 0,
+        volume: volumeArr[0] ?? 0,
+      },
+      attackDb,
+      chunk,
+      inferenceMs + preprocessMs,
+      queueAgeMs,
+      modelMidi,
+      concertMidi,
+    );
+  } finally {
     recycle(chunk.samples);
-    return;
   }
-
-  const queueAgeMs = performance.now() - lastChunkTime;
-  const accumulated = decimationBuffer.push(chunk.samples);
-  if (!accumulated) {
-    recycle(chunk.samples);
-    return;
-  }
-
-  const preprocessStart = performance.now();
-  const modelInput = feedPestoDecimator(accumulated, decimatorState);
-  if (!modelInput) {
-    recycle(chunk.samples);
-    return;
-  }
-  const preprocessMs = performance.now() - preprocessStart;
-
-  const inferenceStart = performance.now();
-  const epochAtStart = cacheEpoch;
-  const generationAtStart = generationId;
-  audioData.set(modelInput);
-
-  const outputs = await session.run({
-    audio: audioTensor,
-    cache: cacheTensor,
-  });
-
-  if (epochAtStart !== cacheEpoch || generationAtStart !== generationId || chunk.generationId !== generationId) {
-    recycle(chunk.samples);
-    return;
-  }
-
-  const inferenceMs = performance.now() - inferenceStart;
-  emaInferenceMs = updateEma(emaInferenceMs, inferenceMs);
-
-  const predictionArr = outputs.prediction.data as Float32Array;
-  const confidenceArr = outputs.confidence.data as Float32Array;
-  const volumeArr = outputs.volume.data as Float32Array;
-  const cacheOut = outputs.cache_out.data as Float32Array;
-  cacheData.set(cacheOut);
-
-  const rawPrediction = predictionArr[0] ?? 0;
-  const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
-  const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
-  attackEnvelope.pushSamples(chunk.samples);
-  const attackDb = attackEnvelope.computeAttackDb({
-    repeatPitchClassMask,
-    expectedPitchMidis,
-  });
-
-  emitTrackerEvents(
-    {
-      prediction: rawPrediction,
-      confidence: confidenceArr[0] ?? 0,
-      volume: volumeArr[0] ?? 0,
-    },
-    attackDb,
-    chunk,
-    inferenceMs + preprocessMs,
-    queueAgeMs,
-    modelMidi,
-    concertMidi,
-  );
-
-  recycle(chunk.samples);
 };
 
 const drainQueue = async (_reason: string): Promise<void> => {
@@ -494,7 +510,17 @@ const drainQueue = async (_reason: string): Promise<void> => {
   try {
     let next = chunkQueue.dequeue();
     while (next) {
-      await runInference(next);
+      try {
+        await runInference(next);
+      } catch (error) {
+        diagnostics?.recordDrop(next.sourceEndSample - next.sourceStartSample);
+        diagnostics?.recordDiscontinuity();
+        flushActiveNote(next.sourceEndTimeSec);
+        tracker?.reset();
+        resetInferenceState();
+        attackEnvelope.reset();
+        post({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+      }
       next = chunkQueue.dequeue();
     }
   } finally {
@@ -508,6 +534,10 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     return;
   }
 
+  diagnostics?.recordDrop(Math.max(0, message.sourceStartSample - lastSourceEndSample));
+  lastSourceEndSample = message.sourceEndSample;
+  latestInputLevelDb = Number.isFinite(message.rawRmsDbfs) ? message.rawRmsDbfs : null;
+
   const chunk: CapturedChunk = {
     generationId: message.generationId,
     sequence: message.sequence,
@@ -515,6 +545,7 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     sourceEndSample: message.sourceEndSample,
     sourceEndTimeSec: message.sourceEndTimeSec,
     samples: message.samples,
+    receivedTimeMs: performance.now(),
     rawRmsDbfs: message.rawRmsDbfs,
     rawPeak: message.rawPeak,
     clipCount: message.clipCount,
@@ -558,7 +589,8 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       applyShiftMode(data.shiftSemitones ?? 0);
       tracker = new PitchOnsetTracker(buildTrackerConfig());
       tracker.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis, repeatPitchClassMask);
-      chunkQueue.reset(generationId, 0);
+      resetChunkQueue();
+      lastSourceEndSample = 0;
       isInferring = false;
       resetLatencyStats();
       resetInferenceState();
@@ -583,7 +615,8 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       generationId = data.generationId;
       flushActiveNote(performance.now() / 1000);
       tracker?.reset();
-      chunkQueue.reset(generationId, 0);
+      resetChunkQueue();
+      lastSourceEndSample = 0;
       applyShiftMode(data.shiftSemitones);
       resetInferenceState();
       attackEnvelope.reset();
