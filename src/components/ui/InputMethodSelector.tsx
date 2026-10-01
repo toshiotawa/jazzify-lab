@@ -207,11 +207,17 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 {latencyStats.diagnostics.discontinuities}
                 {' · '}
                 {latencyStats.diagnostics.lastDiscontinuityReason ?? '—'}
+                {' · gap '}
+                {(latencyStats.diagnostics.lastGapMs ?? 0).toFixed(2)}ms
+                {' · reset '}
+                {latencyStats.diagnostics.modelResetCount ?? 0}
               </p>
               <p>
                 p95 queue {Math.round(latencyStats.diagnostics.queueAgeMsP95)}ms
                 {' · '}
-                infer {Math.round(latencyStats.diagnostics.inferenceMsP95)}ms
+                infer {latencyStats.diagnostics.inferenceMsP95.toFixed(2)}ms
+                {' · process '}
+                {(latencyStats.diagnostics.processingMsP95 ?? 0).toFixed(2)}ms
                 {' · '}
                 input {latencyStats.inputLevelDb?.toFixed(1) ?? '—'}dB
               </p>

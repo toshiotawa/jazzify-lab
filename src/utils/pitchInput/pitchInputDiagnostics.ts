@@ -4,7 +4,7 @@ import type {
   PestoShiftSemitones,
   TrackerRejectReason,
 } from '@/utils/pitchInput/pitchInputTypes';
-import { PESTO_MODEL_ID } from '@/utils/pitchInput/pitchInputTypes';
+import { PESTO_MODEL_ID, PESTO_TARGET_SAMPLE_RATE } from '@/utils/pitchInput/pitchInputTypes';
 
 const RING_SIZE = 128;
 
@@ -30,6 +30,11 @@ export class PitchInputDiagnostics {
   private droppedSamples = 0;
   private discontinuities = 0;
   private lastDiscontinuityReason: string | null = null;
+  private lastGapMs = 0;
+  private modelResetCount = 0;
+  private readonly processingDurations = new Float32Array(RING_SIZE);
+  private processingWriteIndex = 0;
+  private processingCount = 0;
   private config: PitchInputDiagnosticsConfig;
   private warmupFramesRemaining = 0;
   private lastRejectReason: TrackerRejectReason = 'none';
@@ -56,9 +61,24 @@ export class PitchInputDiagnostics {
     this.droppedSamples += sampleCount;
   }
 
-  recordDiscontinuity(reason: string): void {
+  recordDiscontinuity(reason: string, sourceGapSamples = 0): void {
     this.discontinuities += 1;
     this.lastDiscontinuityReason = reason;
+    this.recordSourceGap(sourceGapSamples);
+  }
+
+  recordSourceGap(sampleCount: number): void {
+    this.lastGapMs = sampleCount / PESTO_TARGET_SAMPLE_RATE * 1000;
+  }
+
+  recordModelReset(): void {
+    this.modelResetCount += 1;
+  }
+
+  recordProcessingDuration(durationMs: number): void {
+    this.processingDurations[this.processingWriteIndex] = durationMs;
+    this.processingWriteIndex = (this.processingWriteIndex + 1) % RING_SIZE;
+    this.processingCount = Math.min(RING_SIZE, this.processingCount + 1);
   }
 
   recordObservation(obs: PitchObservation): void {
@@ -89,6 +109,9 @@ export class PitchInputDiagnostics {
       droppedSamples: this.droppedSamples,
       discontinuities: this.discontinuities,
       lastDiscontinuityReason: this.lastDiscontinuityReason,
+      lastGapMs: this.lastGapMs,
+      modelResetCount: this.modelResetCount,
+      processingMsP95: percentile(Array.from(this.processingDurations.subarray(0, this.processingCount)), 0.95),
       queueDepthMs,
       queueAgeMsP50: percentile(queueAges, 0.5),
       queueAgeMsP95: percentile(queueAges, 0.95),
