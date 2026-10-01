@@ -5,7 +5,9 @@
 
 const TARGET_CHUNK = 240;
 const TARGET_RATE = 48000;
-const POOL_SIZE = 8;
+// 転送バッファの返却は別スレッドの配送待ちになる。推論キューの40ms制限とは
+// 分離し、短い配送遅延だけで原音を欠落させない（24個 = 23KB）。
+const POOL_SIZE = 24;
 const RESAMPLE_SCRATCH = 4096;
 
 const computeChunkMetrics = (samples) => {

@@ -16,11 +16,11 @@ interface PortHarness {
   postMessage: ReturnType<typeof vi.fn>;
 }
 
-const output = () => ({
-  prediction: { data: new Float32Array([64]) },
-  confidence: { data: new Float32Array([0.99]) },
-  volume: { data: new Float32Array([0.1]) },
-  cache_out: { data: new Float32Array(3976) },
+const output = (note = 64) => ({
+  prediction: { data: new Float32Array([note]), dispose: vi.fn() },
+  confidence: { data: new Float32Array([0.99]), dispose: vi.fn() },
+  volume: { data: new Float32Array([0.1]), dispose: vi.fn() },
+  cache_out: { data: new Float32Array(3976).fill(1), dispose: vi.fn() },
 });
 
 describe('PESTO worker buffer recovery', () => {
@@ -55,6 +55,83 @@ describe('PESTO worker buffer recovery', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it('fetches only used outputs and releases their tensors after processing', async () => {
+    const result = output();
+    run.mockResolvedValueOnce(result);
+    const buffer = send(0);
+    await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    expect(run).toHaveBeenCalledWith(expect.anything(), ['prediction', 'confidence', 'volume', 'cache_out']);
+    for (const tensor of Object.values(result)) expect(tensor.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reset the in-flight cache when later chunks have a gap', async () => {
+    const cacheAtRun: number[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data[0]);
+      return Promise.resolve(output());
+    });
+    for (let i = 0; i < 6; i += 1) {
+      const buffer = send(i);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    }
+    let release: (() => void) | undefined;
+    let runningCache: Float32Array | undefined;
+    const result = output();
+    run.mockImplementationOnce((feeds: { cache: { data: Float32Array } }) => {
+      runningCache = feeds.cache.data;
+      return new Promise((resolve) => { release = () => resolve(result); });
+    });
+    const first = send(6);
+    send(7);
+    const resumed = send(9);
+    // 欠落より前の推論は、入力cacheも結果もまだ正常。
+    expect(runningCache?.[0]).toBe(1);
+    if (!release) throw new Error('inference did not start');
+    release();
+    await vi.waitFor(() => expect(recycled()).toContain(resumed));
+    expect(recycled()).toContain(first);
+    for (const tensor of Object.values(result)) expect(tensor.dispose).toHaveBeenCalledTimes(1);
+    // 新区間を推論するときだけcacheをクリアする。
+    expect(cacheAtRun.at(-1)).toBe(0);
+  });
+
+  it('coalesces repeated gaps during one slow inference and recovers', async () => {
+    let release: (() => void) | undefined;
+    run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
+    const first = send(0);
+    const discarded: ArrayBufferLike[] = [];
+    for (let sequence = 2; sequence < 100; sequence += 2) discarded.push(send(sequence));
+    const resumed = send(100);
+    if (!release) throw new Error('inference did not start');
+    release();
+    await vi.waitFor(() => expect(recycled()).toContain(resumed));
+    expect(run).toHaveBeenCalledTimes(2);
+    for (const buffer of [first, ...discarded, resumed]) {
+      expect(recycled().filter((returned) => returned === buffer)).toHaveLength(1);
+    }
+    for (let sequence = 101; sequence < 107; sequence += 1) {
+      const buffer = send(sequence);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    }
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn', note: 64 }));
+  });
+
+  it.each(['cache', 'prediction', 'confidence', 'volume'])('recovers from non-finite %s without poisoning future frames', async (field) => {
+    const invalid = output();
+    if (field === 'cache') invalid.cache_out.data[0] = NaN;
+    else if (field === 'prediction') invalid.prediction.data[0] = NaN;
+    else if (field === 'confidence') invalid.confidence.data[0] = Infinity;
+    else invalid.volume.data[0] = NaN;
+    run.mockResolvedValueOnce(invalid);
+    const failed = send(0);
+    const next = send(1);
+    await vi.waitFor(() => expect(recycled()).toContain(next));
+    expect(recycled()).toContain(failed);
+    expect(run).toHaveBeenCalledTimes(2);
+    for (const tensor of Object.values(invalid)) expect(tensor.dispose).toHaveBeenCalledTimes(1);
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }));
+  });
+
   it('recycles queued and in-flight buffers on a gap and resumes with a fresh cache', async () => {
     let release: (() => void) | undefined;
     run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
@@ -77,7 +154,8 @@ describe('PESTO worker buffer recovery', () => {
 
   it('returns buffers discarded by a generation change', async () => {
     let release: (() => void) | undefined;
-    run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
+    const stale = output();
+    run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(stale); }));
     const first = send(0);
     const queued = send(1);
     await control({ type: 'setShiftSemitones', shiftSemitones: 12, generationId: 2 });
@@ -86,6 +164,7 @@ describe('PESTO worker buffer recovery', () => {
     release();
     await vi.waitFor(() => expect(recycled()).toContain(first));
     expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn' }));
+    for (const tensor of Object.values(stale)) expect(tensor.dispose).toHaveBeenCalledTimes(1);
   });
 
   it('recycles a failed inference buffer and continues processing', async () => {

@@ -29,6 +29,7 @@ export class PitchInputDiagnostics {
   private writeIndex = 0;
   private droppedSamples = 0;
   private discontinuities = 0;
+  private lastDiscontinuityReason: string | null = null;
   private config: PitchInputDiagnosticsConfig;
   private warmupFramesRemaining = 0;
   private lastRejectReason: TrackerRejectReason = 'none';
@@ -55,8 +56,9 @@ export class PitchInputDiagnostics {
     this.droppedSamples += sampleCount;
   }
 
-  recordDiscontinuity(): void {
+  recordDiscontinuity(reason: string): void {
     this.discontinuities += 1;
+    this.lastDiscontinuityReason = reason;
   }
 
   recordObservation(obs: PitchObservation): void {
@@ -86,6 +88,7 @@ export class PitchInputDiagnostics {
       generationId: this.config.generationId,
       droppedSamples: this.droppedSamples,
       discontinuities: this.discontinuities,
+      lastDiscontinuityReason: this.lastDiscontinuityReason,
       queueDepthMs,
       queueAgeMsP50: percentile(queueAges, 0.5),
       queueAgeMsP95: percentile(queueAges, 0.95),

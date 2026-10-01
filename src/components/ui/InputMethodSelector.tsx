@@ -199,10 +199,21 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 {en ? 'drops' : '欠落'}
                 {' '}
                 {latencyStats.diagnostics.droppedSamples}
+                {' samples ('}
+                {Math.round(latencyStats.diagnostics.droppedSamples / 48)}ms)
                 {' · '}
                 {en ? 'disc' : '不連続'}
                 {' '}
                 {latencyStats.diagnostics.discontinuities}
+                {' · '}
+                {latencyStats.diagnostics.lastDiscontinuityReason ?? '—'}
+              </p>
+              <p>
+                p95 queue {Math.round(latencyStats.diagnostics.queueAgeMsP95)}ms
+                {' · '}
+                infer {Math.round(latencyStats.diagnostics.inferenceMsP95)}ms
+                {' · '}
+                input {latencyStats.inputLevelDb?.toFixed(1) ?? '—'}dB
               </p>
               <p>
                 MIDI {latencyStats.diagnostics.lastConcertMidi ?? '—'}
