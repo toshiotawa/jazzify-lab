@@ -10,6 +10,8 @@ export interface CapturedChunk {
   samples: Float32Array;
   /** Worker 到着時刻。音声の時刻とは分離して待ち時間を測る。 */
   receivedTimeMs?: number;
+  /** Workletで転送待ちした原音時間。 */
+  captureQueueAgeMs?: number;
   rawRmsDbfs: number;
   rawPeak: number;
   clipCount: number;

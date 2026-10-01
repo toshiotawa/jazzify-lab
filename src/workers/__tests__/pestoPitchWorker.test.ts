@@ -30,11 +30,11 @@ describe('PESTO worker buffer recovery', () => {
     if (!worker.onmessage) throw new Error('worker not initialized');
     await worker.onmessage({ data, ports: [port] });
   };
-  const send = (sequence: number, start = sequence * 240) => {
+  const send = (sequence: number, start = sequence * 240, activeGeneration = 1, captureQueueAgeMs = 0) => {
     const samples = new Float32Array(240).fill(0.1);
     if (!port.onmessage) throw new Error('port not connected');
     port.onmessage({ data: {
-      type: 'audioChunk', generationId: 1, sequence, sourceStartSample: start,
+      type: 'audioChunk', generationId: activeGeneration, sequence, captureQueueAgeMs, sourceStartSample: start,
       sourceEndSample: start + 240, sourceEndTimeSec: (start + 240) / 48_000,
       samples, rawRmsDbfs: -20, rawPeak: 0.1, clipCount: 0,
     } });
@@ -97,7 +97,7 @@ describe('PESTO worker buffer recovery', () => {
     expect(cacheAtRun.at(-1)).toBe(0);
   });
 
-  it('keeps valid queued chunks and warm cache across a short sequence gap', async () => {
+  it('discards pending chunks on any sequence gap and resets before resuming like iOS', async () => {
     const cacheAtRun: number[] = [];
     run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
       cacheAtRun.push(feeds.cache.data[0]);
@@ -112,50 +112,18 @@ describe('PESTO worker buffer recovery', () => {
     const first = send(6);
     const queued = send(7);
     const resumed = send(9);
-    expect(recycled()).not.toContain(queued);
+    expect(recycled()).toContain(queued);
     if (!release) throw new Error('inference did not start');
     release();
     await vi.waitFor(() => expect(recycled()).toContain(resumed));
     for (const buffer of [first, queued, resumed]) {
       expect(recycled().filter((returned) => returned === buffer)).toHaveLength(1);
     }
-    expect(cacheAtRun.slice(-2)).toEqual([1, 1]);
-    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
+    expect(cacheAtRun.at(-1)).toBe(0);
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
   });
 
-  it('continues detecting notes across repeated 128-sample gaps without rewarming', async () => {
-    const cacheAtRun: number[] = [];
-    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
-      cacheAtRun.push(feeds.cache.data[0]);
-      return Promise.resolve(output());
-    });
-    let sourceSample = 0;
-    let sequence = 0;
-    for (let frame = 0; frame < 180; frame += 1) {
-      if (frame > 0 && frame % 3 === 0) {
-        sourceSample += 128;
-        sequence += 1;
-      }
-      const buffer = send(sequence, sourceSample);
-      // モック推論・drainのmicrotaskを完了させ、実時間の待機はしない。
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(recycled()).toContain(buffer);
-      sequence += 1;
-      sourceSample += 240;
-    }
-    expect(cacheAtRun[0]).toBe(0);
-    expect(cacheAtRun.slice(1).every((cache) => cache === 1)).toBe(true);
-    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn')).toHaveLength(1);
-    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
-    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'monitor', diagnostics: expect.objectContaining({
-        modelResetCount: 0, discontinuities: 59, warmupFramesRemaining: 0, droppedSamples: 59 * 128,
-      }),
-    }));
-  });
-
-  it.each([480, 481])('only resets cache when the actual source gap exceeds 480 samples: %s', async (gap) => {
+  it.each([1, 128, 480, 481])('resets cache for any missing source samples like iOS: %s', async (gap) => {
     const cacheAtRun: number[] = [];
     run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
       cacheAtRun.push(feeds.cache.data[0]);
@@ -165,7 +133,42 @@ describe('PESTO worker buffer recovery', () => {
     await vi.waitFor(() => expect(recycled()).toContain(first));
     const next = send(2, 240 + gap);
     await vi.waitFor(() => expect(recycled()).toContain(next));
-    expect(cacheAtRun).toEqual([0, gap <= 480 ? 1 : 0]);
+    expect(cacheAtRun).toEqual([0, 0]);
+    for (let sequence = 3; sequence < 65; sequence += 1) {
+      send(sequence, (sequence - 1) * 240 + gap);
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn', note: 64 }));
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'monitor', diagnostics: expect.objectContaining({ modelResetCount: 1, warmupFramesRemaining: 0 }),
+    }));
+  });
+
+  it('includes capture-side waiting time in diagnostics', async () => {
+    for (let sequence = 0; sequence < 60; sequence += 1) {
+      send(sequence, sequence * 240, 1, 35);
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'monitor', diagnostics: expect.objectContaining({ queueAgeMsP95: expect.any(Number) }),
+    }));
+    const monitor = worker.postMessage.mock.calls.find(([message]) => message.type === 'monitor')?.[0];
+    expect(monitor.diagnostics.queueAgeMsP95).toBeGreaterThanOrEqual(35);
+  });
+
+  it.each([12, 24])('matches iOS low-register accumulation and restores concert pitch at shift +%s', async (shift) => {
+    await control({ type: 'init', sensitivity: 5, generationId: 1, shiftSemitones: shift });
+    const factor = shift === 12 ? 2 : 4;
+    for (let sequence = 0; sequence < 12 * factor; sequence += 1) {
+      const buffer = send(sequence);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(recycled()).toContain(buffer);
+      expect(run).toHaveBeenCalledTimes(Math.floor((sequence + 1) / factor));
+    }
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn', note: 64 - shift }));
   });
 
   it('bounds a burst of gaps and processes the retained valid suffix after a slow inference', async () => {
@@ -178,8 +181,8 @@ describe('PESTO worker buffer recovery', () => {
     if (!release) throw new Error('inference did not start');
     release();
     await vi.waitFor(() => expect(recycled()).toContain(resumed));
-    // 40ms制限で古いチャンクを回収し、末尾の98・100は両方処理する。
-    expect(run).toHaveBeenCalledTimes(3);
+    // iOS同様、欠番ごとに待機音声を回収し、最新の100から再開する。
+    expect(run).toHaveBeenCalledTimes(2);
     for (const buffer of [first, ...discarded, resumed]) {
       expect(recycled().filter((returned) => returned === buffer)).toHaveLength(1);
     }

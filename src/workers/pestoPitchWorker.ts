@@ -68,6 +68,7 @@ interface WorkerAudioMessage {
   rawRmsDbfs: number;
   rawPeak: number;
   clipCount: number;
+  captureQueueAgeMs?: number;
 }
 
 interface WorkerControlMessage {
@@ -160,6 +161,7 @@ let tracker: PitchOnsetTracker | null = null;
 let frameIndex = 0;
 let audioPort: MessagePort | null = null;
 let isInferring = false;
+let resetBeforeNextInference = false;
 let lastProcessedSourceEndSample: number | null = null;
 let lastChunkTime = 0;
 let lastSourceEndSample = 0;
@@ -192,8 +194,6 @@ const MONITOR_POST_INTERVAL = 60;
 const CACHE_SIZE = 3976;
 // activations は判定に使わない。iOSと同じ4出力だけを取得する。
 const INFERENCE_OUTPUTS = ['prediction', 'confidence', 'volume', 'cache_out'];
-// 5ms入力に近い推論負荷では短い欠落が連発する。2フレーム以内はcacheを保つ。
-const MAX_SOFT_GAP_SAMPLES = PESTO_CHUNK_SIZE * 2;
 
 const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
@@ -298,15 +298,10 @@ const resetChunkQueue = (nextSequence = 0): void => {
 };
 
 const handleDiscontinuity = (chunk: CapturedChunk, reason: string, sourceGapSamples: number): void => {
-  // 短い穴より前に届いた正常な音声は捨てない。世代と40ms上限は引き続き検証する。
-  const recovered = reason === 'sequenceGap' || reason === 'sampleGap'
-    ? chunkQueue.enqueue(chunk, true)
-    : null;
-  diagnostics?.recordDiscontinuity(recovered && !recovered.ok ? recovered.reason : reason, sourceGapSamples);
-  if (recovered?.ok) {
-    void drainQueue();
-    return;
-  }
+  // iOSと同じく、欠番・上限超過後は待機音声を捨てて次の推論前に初期化する。
+  // 実行中の正常な推論のcacheは書き換えない。
+  diagnostics?.recordDiscontinuity(reason, sourceGapSamples);
+  resetBeforeNextInference = true;
   resetChunkQueue(chunk.sequence);
   const enqueued = chunkQueue.enqueue(chunk);
   if (!enqueued.ok) {
@@ -451,9 +446,9 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       return;
     }
 
-    const queueAgeMs = chunk.receivedTimeMs === undefined
+    const queueAgeMs = (chunk.captureQueueAgeMs ?? 0) + (chunk.receivedTimeMs === undefined
       ? 0
-      : Math.max(0, performance.now() - chunk.receivedTimeMs);
+      : Math.max(0, performance.now() - chunk.receivedTimeMs));
     const accumulated = decimationBuffer.push(chunk.samples);
     if (!accumulated) {
       return;
@@ -540,7 +535,8 @@ const drainQueue = async (): Promise<void> => {
           ? 0
           : next.sourceStartSample - lastProcessedSourceEndSample;
         if (gapSamples !== 0) diagnostics?.recordSourceGap(gapSamples);
-        if (gapSamples < 0 || gapSamples > MAX_SOFT_GAP_SAMPLES) {
+        if (resetBeforeNextInference || gapSamples !== 0) {
+          resetBeforeNextInference = false;
           flushActiveNote(next.sourceEndTimeSec);
           tracker?.reset();
           resetInferenceState();
@@ -583,6 +579,7 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     sourceEndTimeSec: message.sourceEndTimeSec,
     samples: message.samples,
     receivedTimeMs: performance.now(),
+    captureQueueAgeMs: message.captureQueueAgeMs,
     rawRmsDbfs: message.rawRmsDbfs,
     rawPeak: message.rawPeak,
     clipCount: message.clipCount,
@@ -629,6 +626,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       resetChunkQueue();
       lastSourceEndSample = 0;
       lastProcessedSourceEndSample = null;
+      resetBeforeNextInference = false;
       isInferring = false;
       resetLatencyStats();
       resetInferenceState();
@@ -656,6 +654,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       resetChunkQueue();
       lastSourceEndSample = 0;
       lastProcessedSourceEndSample = null;
+      resetBeforeNextInference = false;
       applyShiftMode(data.shiftSemitones);
       resetInferenceState();
       attackEnvelope.reset();

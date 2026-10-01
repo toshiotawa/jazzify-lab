@@ -441,7 +441,7 @@ export class PitchInputController {
       throw new Error('AudioContext, mediaStream, or worker channel not initialized');
     }
 
-    await this.audioContext.audioWorklet.addModule('/js/audio/pesto-capture-worklet.js');
+    await this.audioContext.audioWorklet.addModule('/js/audio/pesto-capture-worklet.js?v=ios-queue-1');
     this.workletNode = new AudioWorkletNode(
       this.audioContext,
       'pesto-capture-processor',
