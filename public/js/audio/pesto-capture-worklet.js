@@ -144,6 +144,9 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
       if (!this.active) {
         this.active = this.pool.pop() ?? null;
         if (!this.active) {
+          // 欠落した原音時間を維持し、次チャンクの連番で Worker に不連続を伝える。
+          this.totalSourceSamples += length - offset;
+          this.sequence += 1;
           this.accumulatedLength = 0;
           return true;
         }

@@ -18,6 +18,14 @@ import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
 
+// 権限取得と本接続で同じ設定を使い、ブラウザ既定の AGC/NS を引き継がない。
+const microphoneConstraints = (deviceId?: string): MediaTrackConstraints => ({
+  deviceId: deviceId ? { exact: deviceId } : undefined,
+  echoCancellation: true,
+  noiseSuppression: false,
+  autoGainControl: false,
+});
+
 export interface PitchInputCallbacks {
   onNoteOn: (note: number, velocity?: number, domTimeStampMs?: number) => void;
   onNoteOff: (note: number) => void;
@@ -37,6 +45,7 @@ interface GetAudioDevicesOptions {
 export interface PitchInputLatencyStats {
   captureIntervalMs: number | null;
   inferenceMs: number | null;
+  inputLevelDb: number | null;
   diagnostics: PitchInputDiagnosticSnapshot | null;
 }
 
@@ -51,6 +60,7 @@ export class PitchInputController {
   private static _latestLatencyStats: PitchInputLatencyStats = {
     captureIntervalMs: null,
     inferenceMs: null,
+    inputLevelDb: null,
     diagnostics: null,
   };
 
@@ -90,6 +100,7 @@ export class PitchInputController {
     PitchInputController._latestLatencyStats = {
       captureIntervalMs: null,
       inferenceMs: null,
+      inputLevelDb: null,
       diagnostics: null,
     };
   }
@@ -199,7 +210,7 @@ export class PitchInputController {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: deviceId ? { exact: deviceId } : undefined },
+        audio: microphoneConstraints(deviceId),
         video: false,
       });
       if (PitchInputController._cachedStream) {
@@ -250,6 +261,7 @@ export class PitchInputController {
         if (isAlive && deviceMatch) {
           this.mediaStream = cached;
           PitchInputController._cachedStream = null;
+          await tracks[0].applyConstraints(microphoneConstraints(deviceId));
         } else {
           cached.getTracks().forEach((t) => t.stop());
           PitchInputController._cachedStream = null;
@@ -258,12 +270,7 @@ export class PitchInputController {
 
       if (!this.mediaStream) {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
-            echoCancellation: true,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
+          audio: microphoneConstraints(deviceId),
           video: false,
         });
         PitchInputController._permissionGranted = true;
@@ -301,6 +308,7 @@ export class PitchInputController {
       log.info('✅ PESTO 音声入力接続完了');
       return true;
     } catch (error) {
+      await this.disconnectInternal(false);
       log.error('PESTO 音声入力接続エラー:', error);
       this.onError?.(
         voiceUserMessage(
@@ -372,6 +380,9 @@ export class PitchInputController {
             : null,
           inferenceMs: typeof data.inferenceMs === 'number'
             ? data.inferenceMs
+            : null,
+          inputLevelDb: typeof data.inputLevelDb === 'number' && Number.isFinite(data.inputLevelDb)
+            ? data.inputLevelDb
             : null,
           diagnostics: isPitchDiagnosticsEnabled() && data.diagnostics
             ? data.diagnostics as PitchInputDiagnosticSnapshot

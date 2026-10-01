@@ -48,6 +48,16 @@ describe('PitchChunkQueue', () => {
     }
   });
 
+  it('rejects missing source samples even when the sequence is continuous', () => {
+    const queue = new PitchChunkQueue();
+    queue.reset(1);
+    expect(queue.enqueue(makeChunk(0, 0, 240)).ok).toBe(true);
+    queue.dequeue();
+    expect(queue.enqueue(makeChunk(1, 368, 608))).toEqual({ ok: false, reason: 'sampleGap' });
+    queue.reset(1, 1);
+    expect(queue.enqueue(makeChunk(1, 368, 608)).ok).toBe(true);
+  });
+
   it('rejects generation mismatch', () => {
     const queue = new PitchChunkQueue();
     queue.reset(1, 0);

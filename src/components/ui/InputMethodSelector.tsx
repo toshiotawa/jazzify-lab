@@ -28,6 +28,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
   const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
     captureIntervalMs: null,
     inferenceMs: null,
+    inputLevelDb: null,
     diagnostics: null,
   });
 
