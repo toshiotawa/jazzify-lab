@@ -21,14 +21,14 @@ export class PitchChunkQueue {
     this.activeGenerationId = generationId;
   }
 
-  enqueue(chunk: CapturedChunk, allowGap = false): EnqueueResult {
+  enqueue(chunk: CapturedChunk): EnqueueResult {
     if (chunk.generationId !== this.activeGenerationId) {
       return { ok: false, reason: 'generationMismatch' };
     }
-    if (!allowGap && chunk.sequence !== this.expectedSequence) {
+    if (chunk.sequence !== this.expectedSequence) {
       return { ok: false, reason: 'sequenceGap' };
     }
-    if (!allowGap && this.expectedSourceSample !== null && chunk.sourceStartSample !== this.expectedSourceSample) {
+    if (this.expectedSourceSample !== null && chunk.sourceStartSample !== this.expectedSourceSample) {
       return { ok: false, reason: 'sampleGap' };
     }
     this.expectedSequence = chunk.sequence + 1;

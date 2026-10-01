@@ -5,9 +5,11 @@
 
 const TARGET_CHUNK = 240;
 const TARGET_RATE = 48000;
-// 転送バッファの返却は別スレッドの配送待ちになる。推論キューの40ms制限とは
-// 分離し、短い配送遅延だけで原音を欠落させない（24個 = 23KB）。
-const POOL_SIZE = 24;
+// iOS同様、取り込み側で原音40msに制限する。Workerの同期WASM推論中も
+// MessagePortへ無制限に積まない。2転送の窓で返却配送の待ちを吸収する。
+const POOL_SIZE = 16;
+const QUEUE_LIMIT_SAMPLES = TARGET_RATE * 0.04;
+const MAX_IN_FLIGHT = 2;
 const RESAMPLE_SCRATCH = 4096;
 
 const computeChunkMetrics = (samples) => {
@@ -39,6 +41,8 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
     this.accumulatedLength = 0;
     this.resampleScratch = new Float32Array(RESAMPLE_SCRATCH);
     this.pool = [];
+    this.pendingChunks = [];
+    this.inFlight = 0;
     for (let i = 0; i < POOL_SIZE; i += 1) {
       this.pool.push(new Float32Array(TARGET_CHUNK));
     }
@@ -53,26 +57,43 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
           if (payload?.type === 'recycle' && payload.buffer instanceof ArrayBuffer
               && payload.buffer.byteLength === TARGET_CHUNK * 4) {
             this.pool.push(new Float32Array(payload.buffer));
+            this.inFlight = Math.max(0, this.inFlight - 1);
+            this.sendPendingChunks();
           }
           if (payload?.type === 'resetCapture' && typeof payload.generationId === 'number') {
-            this.generationId = payload.generationId;
-            this.sequence = 0;
-            this.totalSourceSamples = 0;
-            this.streamStartTimeSec = null;
-            this.resamplePhase = 0;
-            this.accumulatedLength = 0;
+            this.resetCapture(payload.generationId);
           }
         };
       }
       if (data?.type === 'resetCapture' && typeof data.generationId === 'number') {
-        this.generationId = data.generationId;
-        this.sequence = 0;
-        this.totalSourceSamples = 0;
-        this.streamStartTimeSec = null;
-        this.resamplePhase = 0;
-        this.accumulatedLength = 0;
+        this.resetCapture(data.generationId);
       }
     };
+  }
+
+  clearPendingChunks() {
+    for (const chunk of this.pendingChunks) this.pool.push(chunk.samples);
+    this.pendingChunks.length = 0;
+  }
+
+  resetCapture(generationId) {
+    this.clearPendingChunks();
+    this.generationId = generationId;
+    this.sequence = 0;
+    this.totalSourceSamples = 0;
+    this.streamStartTimeSec = null;
+    this.resamplePhase = 0;
+    this.accumulatedLength = 0;
+    // 旧世代の転送も返却されるまで数える。世代切替で転送窓を増やさない。
+  }
+
+  sendPendingChunks() {
+    while (this.workerPort && this.inFlight < MAX_IN_FLIGHT && this.pendingChunks.length > 0) {
+      const chunk = this.pendingChunks.shift();
+      chunk.captureQueueAgeMs = (this.totalSourceSamples - chunk.sourceEndSample) / TARGET_RATE * 1000;
+      this.inFlight += 1;
+      this.workerPort.postMessage(chunk, [chunk.samples.buffer]);
+    }
   }
 
   resampleTo48k(input) {
@@ -109,7 +130,14 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
     const sourceEndTimeSec = this.streamStartTimeSec + sourceEndSample / TARGET_RATE;
     const metrics = computeChunkMetrics(chunk);
 
-    this.workerPort.postMessage(
+    // iOSのenqueueCaptureChunkと同じく、上限超過時は古い待機音声を全て回収する。
+    // 転送窓のうち実行中の1個以外も待機音声として40ms枠に含める。
+    const oldest = this.pendingChunks[0];
+    const pendingLimitSamples = QUEUE_LIMIT_SAMPLES - Math.max(0, this.inFlight - 1) * TARGET_CHUNK;
+    if (oldest && sourceEndSample - oldest.sourceStartSample > pendingLimitSamples) {
+      this.clearPendingChunks();
+    }
+    this.pendingChunks.push(
       {
         type: 'audioChunk',
         generationId: this.generationId,
@@ -122,9 +150,9 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
         rawPeak: metrics.peak,
         clipCount: metrics.clipCount,
       },
-      [chunk.buffer],
     );
     this.sequence += 1;
+    this.sendPendingChunks();
   }
 
   process(inputs) {
