@@ -211,6 +211,9 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 {(latencyStats.diagnostics.lastGapMs ?? 0).toFixed(2)}ms
                 {' · reset '}
                 {latencyStats.diagnostics.modelResetCount ?? 0}
+                {' · '}
+                {en ? 'refill ' : '履歴復元 '}
+                {latencyStats.diagnostics.cacheRecoveryCount ?? 0}
               </p>
               <p>
                 p95 queue {Math.round(latencyStats.diagnostics.queueAgeMsP95)}ms

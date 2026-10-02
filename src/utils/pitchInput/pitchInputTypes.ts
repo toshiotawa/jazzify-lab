@@ -8,6 +8,8 @@ export interface CapturedChunk {
   sourceEndSample: number;
   sourceEndTimeSec: number;
   samples: Float32Array;
+  /** 欠落直後のみ、保持した実PCMから復元した3976サンプルのモデル履歴。 */
+  recoveryCache?: Float32Array;
   /** Worker 到着時刻。音声の時刻とは分離して待ち時間を測る。 */
   receivedTimeMs?: number;
   /** Workletで転送待ちした原音時間。 */
@@ -57,6 +59,7 @@ export interface PitchInputDiagnosticSnapshot {
   lastDiscontinuityReason?: string | null;
   lastGapMs?: number;
   modelResetCount?: number;
+  cacheRecoveryCount?: number;
   processingMsP95?: number;
   queueDepthMs: number;
   queueAgeMsP50: number;

@@ -33,13 +33,13 @@ describe('PESTO worker buffer recovery', () => {
     if (!worker.onmessage) throw new Error('worker not initialized');
     await worker.onmessage({ data, ports: [port] });
   };
-  const send = (sequence: number, start = sequence * 240, activeGeneration = 1, captureQueueAgeMs = 0) => {
+  const send = (sequence: number, start = sequence * 240, activeGeneration = 1, captureQueueAgeMs = 0, recoveryCache?: Float32Array) => {
     const samples = new Float32Array(240).fill(0.1);
     if (!port.onmessage) throw new Error('port not connected');
     port.onmessage({ data: {
       type: 'audioChunk', generationId: activeGeneration, sequence, captureQueueAgeMs, sourceStartSample: start,
       sourceEndSample: start + 240, sourceEndTimeSec: (start + 240) / 48_000,
-      samples, rawRmsDbfs: -20, rawPeak: 0.1, clipCount: 0,
+      samples, recoveryCache, rawRmsDbfs: -20, rawPeak: 0.1, clipCount: 0,
     } });
     return samples.buffer;
   };
@@ -159,6 +159,79 @@ describe('PESTO worker buffer recovery', () => {
     }));
     const monitor = worker.postMessage.mock.calls.find(([message]) => message.type === 'monitor')?.[0];
     expect(monitor.diagnostics.queueAgeMsP95).toBeGreaterThanOrEqual(35);
+  });
+
+  it('refills cache from real captured history after repeated gaps without changing generation or shift', async () => {
+    const cacheAtRun: Float32Array[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data.slice());
+      const result = output();
+      // 履歴をゼロにするとconfidenceが下がるモデルの復帰を再現する。
+      if (cacheAtRun.at(-1)?.[0] === 0) result.confidence.data[0] = 0.03;
+      return Promise.resolve(result);
+    });
+    let restored = 0;
+    for (let sequence = 0; sequence < 240; sequence += 1) {
+      if (sequence % 12 === 6) sequence += 7;
+      const history = sequence % 12 === 1 && sequence > 1
+        ? Float32Array.from({ length: 3976 }, (_, i) => (i + 1) / 10000)
+        : undefined;
+      if (history) restored += 1;
+      const buffer = send(sequence, sequence * 240, 1, 0, history);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+      if (history) {
+        expect(cacheAtRun.at(-1)).toEqual(history);
+        expect(port.postMessage).toHaveBeenCalledWith({ type: 'recycleHistory', buffer: history.buffer }, [history.buffer]);
+      }
+    }
+    expect(restored).toBeGreaterThan(5);
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn', note: 64 }));
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'monitor', diagnostics: expect.objectContaining({ cacheRecoveryCount: expect.any(Number), generationId: 1, shiftSemitones: 0 }),
+    }));
+    expect(port.postMessage.mock.calls.filter(([message]) => message.type === 'resetCapture')).toHaveLength(1);
+  });
+
+  it.each([12, 24])('does not replace decimated cache with raw history at shift +%s', async (shift) => {
+    await control({ type: 'setShiftSemitones', shiftSemitones: shift, generationId: 2 });
+    const cacheAtRun: number[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data[0]);
+      return Promise.resolve(output());
+    });
+    const history = new Float32Array(3976).fill(0.42);
+    for (let sequence = 20; sequence < 24; sequence += 1) {
+      const buffer = send(sequence, sequence * 240, 2, 0, sequence === 20 ? history : undefined);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    }
+    expect(cacheAtRun[0]).toBe(0);
+    expect(port.postMessage).toHaveBeenCalledWith({ type: 'recycleHistory', buffer: history.buffer }, [history.buffer]);
+  });
+
+  it.each(['short', 'nonfinite'])('uses the normal cold reset for %s recovery history', async (invalid) => {
+    const history = new Float32Array(invalid === 'short' ? 240 : 3976).fill(0.42);
+    if (invalid === 'nonfinite') history[2000] = NaN;
+    const cacheAtRun: number[] = [];
+    run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {
+      cacheAtRun.push(feeds.cache.data[0]);
+      return Promise.resolve(output());
+    });
+    const buffer = send(20, 4800, 1, 0, history);
+    await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    expect(cacheAtRun).toEqual([0]);
+  });
+
+  it('returns obsolete recovery buffers exactly once on a generation change', async () => {
+    let release: (() => void) | undefined;
+    run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve(output()); }));
+    const history = new Float32Array(3976).fill(0.42);
+    const active = send(20, 4800, 1, 0, history);
+    await control({ type: 'setShiftSemitones', shiftSemitones: 12, generationId: 2 });
+    if (!release) throw new Error('inference did not start');
+    release();
+    await vi.waitFor(() => expect(recycled()).toContain(active));
+    expect(recycled().filter((buffer) => buffer === history.buffer)).toHaveLength(1);
+    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn' }));
   });
 
   it.each([12, 24])('matches iOS low-register accumulation and restores concert pitch at shift +%s', async (shift) => {

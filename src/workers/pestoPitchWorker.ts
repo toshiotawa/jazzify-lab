@@ -63,6 +63,7 @@ interface WorkerAudioMessage {
   sourceEndSample: number;
   sourceEndTimeSec: number;
   samples: Float32Array;
+  recoveryCache?: Float32Array;
   rawRmsDbfs: number;
   rawPeak: number;
   clipCount: number;
@@ -197,11 +198,28 @@ const post = (message: WorkerOutbound): void => {
   self.postMessage(message);
 };
 
-const recycle = (samples: Float32Array): void => {
+const recycle = (samples: Float32Array, type: 'recycle' | 'recycleHistory' = 'recycle'): void => {
   const port = audioPort;
   const buffer = samples.buffer;
   if (!port || !(buffer instanceof ArrayBuffer) || buffer.byteLength === 0) return;
-  port.postMessage({ type: 'recycle', buffer }, [buffer]);
+  port.postMessage({ type, buffer }, [buffer]);
+};
+
+const recycleChunk = (chunk: Pick<CapturedChunk, 'samples' | 'recoveryCache'>): void => {
+  // 音声の転送枠を開ける前に、復元用プールへ返す。
+  if (chunk.recoveryCache) recycle(chunk.recoveryCache, 'recycleHistory');
+  recycle(chunk.samples);
+};
+
+const restoreCaptureCache = (chunk: CapturedChunk): void => {
+  const history = chunk.recoveryCache;
+  // 低音モードのcacheはフィルタ・間引き後のPCM。原音で上書きしない。
+  if (shiftSemitones !== 0 || !cacheData || !history || history.length !== CACHE_SIZE) return;
+  for (let i = 0; i < history.length; i += 1) {
+    if (!Number.isFinite(history[i])) return;
+  }
+  cacheData.set(history);
+  diagnostics?.recordCacheRecovery();
 };
 
 const updateEma = (current: number, sample: number): number =>
@@ -289,7 +307,7 @@ const resetChunkQueue = (nextSequence = 0): void => {
   let discarded = chunkQueue.dequeue();
   while (discarded) {
     diagnostics?.recordDrop(discarded.sourceEndSample - discarded.sourceStartSample);
-    recycle(discarded.samples);
+    recycleChunk(discarded);
     discarded = chunkQueue.dequeue();
   }
   chunkQueue.reset(generationId, nextSequence);
@@ -303,7 +321,7 @@ const handleDiscontinuity = (chunk: CapturedChunk, reason: string, sourceGapSamp
   resetChunkQueue(chunk.sequence);
   const enqueued = chunkQueue.enqueue(chunk);
   if (!enqueued.ok) {
-    recycle(chunk.samples);
+    recycleChunk(chunk);
     return;
   }
   void drainQueue();
@@ -517,7 +535,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     if (outputs) {
       for (const name in outputs) outputs[name].dispose();
     }
-    recycle(chunk.samples);
+    recycleChunk(chunk);
     diagnostics?.recordProcessingDuration(performance.now() - processingStart);
   }
 };
@@ -539,6 +557,9 @@ const drainQueue = async (): Promise<void> => {
           tracker?.reset();
           resetInferenceState();
           attackEnvelope.reset();
+          // cacheは隠れ状態ではなく実PCMの履歴。欠落音声もWorkletで保持し、
+          // 空の履歴が育つまでconfidenceが落ち続ける状態を避ける。
+          restoreCaptureCache(next);
         }
         lastProcessedSourceEndSample = next.sourceEndSample;
         await runInference(next);
@@ -560,7 +581,7 @@ const drainQueue = async (): Promise<void> => {
 
 const handleAudioChunk = (message: WorkerAudioMessage): void => {
   if (message.generationId !== generationId) {
-    recycle(message.samples);
+    recycleChunk(message);
     return;
   }
 
@@ -576,6 +597,7 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     sourceEndSample: message.sourceEndSample,
     sourceEndTimeSec: message.sourceEndTimeSec,
     samples: message.samples,
+    recoveryCache: message.recoveryCache,
     receivedTimeMs: performance.now(),
     captureQueueAgeMs: message.captureQueueAgeMs,
     rawRmsDbfs: message.rawRmsDbfs,

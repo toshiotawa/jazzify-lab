@@ -11,6 +11,10 @@ const POOL_SIZE = 16;
 const QUEUE_LIMIT_SAMPLES = TARGET_RATE * 0.04;
 const MAX_IN_FLIGHT = 2;
 const RESAMPLE_SCRATCH = 4096;
+// このモデルのcacheは直前3976個のPCMそのもの。欠落時だけ実音声で復元する。
+// 40msの待機分も含めて参照できる固定長リングと、転送窓分の復元用プール。
+const CACHE_SIZE = 3976;
+const HISTORY_SIZE = 8192;
 
 const computeChunkMetrics = (samples) => {
   let sumSq = 0;
@@ -43,6 +47,13 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
     this.pool = [];
     this.pendingChunks = [];
     this.inFlight = 0;
+    this.history = new Float32Array(HISTORY_SIZE);
+    this.historyWriteIndex = 0;
+    this.historyPool = [];
+    this.lastSentSourceEndSample = 0;
+    for (let i = 0; i < MAX_IN_FLIGHT; i += 1) {
+      this.historyPool.push(new Float32Array(CACHE_SIZE));
+    }
     for (let i = 0; i < POOL_SIZE; i += 1) {
       this.pool.push(new Float32Array(TARGET_CHUNK));
     }
@@ -58,6 +69,11 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
               && payload.buffer.byteLength === TARGET_CHUNK * 4) {
             this.pool.push(new Float32Array(payload.buffer));
             this.inFlight = Math.max(0, this.inFlight - 1);
+            this.sendPendingChunks();
+          }
+          if (payload?.type === 'recycleHistory' && payload.buffer instanceof ArrayBuffer
+              && payload.buffer.byteLength === CACHE_SIZE * 4) {
+            this.historyPool.push(new Float32Array(payload.buffer));
             this.sendPendingChunks();
           }
           if (payload?.type === 'resetCapture' && typeof payload.generationId === 'number') {
@@ -84,15 +100,33 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
     this.streamStartTimeSec = null;
     this.resamplePhase = 0;
     this.accumulatedLength = 0;
+    this.historyWriteIndex = 0;
+    this.lastSentSourceEndSample = 0;
     // 旧世代の転送も返却されるまで数える。世代切替で転送窓を増やさない。
   }
 
   sendPendingChunks() {
     while (this.workerPort && this.inFlight < MAX_IN_FLIGHT && this.pendingChunks.length > 0) {
+      const next = this.pendingChunks[0];
+      const hasGap = next.sourceStartSample !== this.lastSentSourceEndSample;
+      // 復元用バッファも返却まで再利用しない。取り込み側の待機上限は維持する。
+      if (hasGap && this.historyPool.length === 0) return;
       const chunk = this.pendingChunks.shift();
       chunk.captureQueueAgeMs = (this.totalSourceSamples - chunk.sourceEndSample) / TARGET_RATE * 1000;
       this.inFlight += 1;
-      this.workerPort.postMessage(chunk, [chunk.samples.buffer]);
+      this.lastSentSourceEndSample = chunk.sourceEndSample;
+      if (hasGap) {
+        const history = this.historyPool.pop();
+        const start = chunk.sourceStartSample - CACHE_SIZE;
+        for (let i = 0; i < CACHE_SIZE; i += 1) {
+          const sample = start + i;
+          history[i] = sample < 0 ? 0 : this.history[sample & (HISTORY_SIZE - 1)];
+        }
+        chunk.recoveryCache = history;
+        this.workerPort.postMessage(chunk, [chunk.samples.buffer, history.buffer]);
+      } else {
+        this.workerPort.postMessage(chunk, [chunk.samples.buffer]);
+      }
     }
   }
 
@@ -175,6 +209,10 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
         this.active = this.pool.pop() ?? null;
         if (!this.active) {
           // 欠落した原音時間を維持し、次チャンクの連番で Worker に不連続を伝える。
+          for (let i = offset; i < length; i += 1) {
+            this.history[this.historyWriteIndex] = source[i];
+            this.historyWriteIndex = (this.historyWriteIndex + 1) & (HISTORY_SIZE - 1);
+          }
           this.totalSourceSamples += length - offset;
           this.sequence += 1;
           this.accumulatedLength = 0;
@@ -186,6 +224,8 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
       const base = this.accumulatedLength;
       for (let i = 0; i < toCopy; i += 1) {
         this.active[base + i] = source[offset + i];
+        this.history[this.historyWriteIndex] = source[offset + i];
+        this.historyWriteIndex = (this.historyWriteIndex + 1) & (HISTORY_SIZE - 1);
       }
       this.accumulatedLength += toCopy;
       offset += toCopy;
