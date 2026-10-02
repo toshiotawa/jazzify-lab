@@ -32,6 +32,7 @@ export class PitchInputDiagnostics {
   private lastDiscontinuityReason: string | null = null;
   private lastGapMs = 0;
   private modelResetCount = 0;
+  private cacheRecoveryCount = 0;
   private readonly processingDurations = new Float32Array(RING_SIZE);
   private processingWriteIndex = 0;
   private processingCount = 0;
@@ -75,6 +76,10 @@ export class PitchInputDiagnostics {
     this.modelResetCount += 1;
   }
 
+  recordCacheRecovery(): void {
+    this.cacheRecoveryCount += 1;
+  }
+
   recordProcessingDuration(durationMs: number): void {
     this.processingDurations[this.processingWriteIndex] = durationMs;
     this.processingWriteIndex = (this.processingWriteIndex + 1) % RING_SIZE;
@@ -111,6 +116,7 @@ export class PitchInputDiagnostics {
       lastDiscontinuityReason: this.lastDiscontinuityReason,
       lastGapMs: this.lastGapMs,
       modelResetCount: this.modelResetCount,
+      cacheRecoveryCount: this.cacheRecoveryCount,
       processingMsP95: percentile(Array.from(this.processingDurations.subarray(0, this.processingCount)), 0.95),
       queueDepthMs,
       queueAgeMsP50: percentile(queueAges, 0.5),

@@ -15,6 +15,7 @@ interface CaptureProcessor {
   active: Float32Array | null;
   pendingChunks: CapturedChunk[];
   inFlight: number;
+  historyPool: Float32Array[];
   process: (inputs: Float32Array[][]) => boolean;
 }
 
@@ -39,16 +40,22 @@ const createCapture = () => {
     onChunk?.(chunk);
   } };
   processor.port.onmessage({ data: { type: 'connectWorker', port } });
-  const feed = (samples = 128) => {
-    processor.process([[new Float32Array(samples).fill(0.1)]]);
-    context.currentTime += samples / 48_000;
+  const feedInput = (input: Float32Array) => {
+    processor.process([[input]]);
+    context.currentTime += input.length / 48_000;
   };
+  const feed = (samples = 128) => feedInput(new Float32Array(samples).fill(0.1));
   const recycle = (chunk: CapturedChunk) => {
+    if (chunk.recoveryCache) {
+      const buffer = chunk.recoveryCache.buffer;
+      if (!isArrayBuffer(buffer)) throw new Error('unexpected history buffer');
+      port.onmessage?.({ data: structuredClone({ type: 'recycleHistory', buffer }, { transfer: [buffer] }) });
+    }
     const buffer = chunk.samples.buffer;
     if (!isArrayBuffer(buffer)) throw new Error('unexpected buffer');
     port.onmessage?.({ data: structuredClone({ type: 'recycle', buffer }, { transfer: [buffer] }) });
   };
-  return { processor, chunks, feed, context, recycle, setOnChunk: (handler: typeof onChunk) => { onChunk = handler; } };
+  return { processor, chunks, feed, feedInput, context, recycle, setOnChunk: (handler: typeof onChunk) => { onChunk = handler; } };
 };
 
 describe('PESTO capture with the iOS queue limit', () => {
@@ -67,6 +74,8 @@ describe('PESTO capture with the iOS queue limit', () => {
     expect(processor.pool.length + (processor.active ? 1 : 0)).toBe(16);
     expect(processor.inFlight).toBe(0);
     expect(processor.pendingChunks).toHaveLength(0);
+    expect(processor.historyPool).toHaveLength(2);
+    expect(chunks.every((chunk) => chunk.recoveryCache === undefined)).toBe(true);
   });
 
   it('bounds transport before the blocked Worker receives messages and discards old pending audio at 40ms', () => {
@@ -129,6 +138,7 @@ describe('PESTO capture with the iOS queue limit', () => {
     expect(processor.inFlight).toBe(0);
     expect(completed).toBeGreaterThan(22000);
     expect(processor.pool.length + (processor.active ? 1 : 0)).toBe(16);
+    expect(processor.historyPool).toHaveLength(2);
     let gaps = 0;
     for (let index = 1; index < chunks.length; index += 1) {
       const gap = chunks[index].sourceStartSample - chunks[index - 1].sourceEndSample;
@@ -156,5 +166,60 @@ describe('PESTO capture with the iOS queue limit', () => {
     recycle(chunks[1]);
     recycle(chunks[2]);
     expect(processor.pool.length + (processor.active ? 1 : 0)).toBe(16);
+    expect(processor.historyPool).toHaveLength(2);
+  });
+
+  it('restores the exact PCM preceding retained chunks, including dropped audio and ring wrap', () => {
+    const { feedInput, chunks, recycle, processor, setOnChunk } = createCapture();
+    let received = 0;
+    let restored = 0;
+    const sampleAt = (sample: number) => Math.fround(Math.sin(sample / 37) * 0.1);
+    setOnChunk((chunk) => {
+      const history = chunk.recoveryCache;
+      if (!history) return;
+      restored += 1;
+      expect(history).toHaveLength(3976);
+      for (let i = 0; i < history.length; i += 1) {
+        const sample = chunk.sourceStartSample - history.length + i;
+        expect(history[i]).toBe(sample < 0 ? 0 : sampleAt(sample));
+      }
+    });
+    for (let render = 0; render < 600; render += 1) {
+      const input = Float32Array.from({ length: 128 }, (_, i) => sampleAt(render * 128 + i));
+      feedInput(input);
+      // 通常は即返却し、20量子ごとに40ms以上停止して欠落を起こす。
+      if (render % 50 >= 20) {
+        while (received < chunks.length) recycle(chunks[received++]);
+      }
+    }
+    while (received < chunks.length) recycle(chunks[received++]);
+    expect(restored).toBeGreaterThan(10);
+    expect(processor.historyPool).toHaveLength(2);
+    expect(processor.inFlight).toBe(0);
+    expect(processor.pool.length + (processor.active ? 1 : 0)).toBe(16);
+  });
+
+  it('uses zero padding before a new generation and never copies previous-generation PCM', () => {
+    const { feed, chunks, recycle, processor, setOnChunk } = createCapture();
+    let received = 0;
+    for (let render = 0; render < 100; render += 1) {
+      feed();
+      while (received < chunks.length) recycle(chunks[received++]);
+    }
+    processor.port.onmessage({ data: { type: 'resetCapture', generationId: 2 } });
+    let restored = false;
+    setOnChunk((chunk) => {
+      if (!chunk.recoveryCache) return;
+      restored = true;
+      expect(chunk.generationId).toBe(2);
+      for (let i = 0; i < chunk.recoveryCache.length; i += 1) {
+        const sample = chunk.sourceStartSample - 3976 + i;
+        expect(chunk.recoveryCache[i]).toBe(sample < 0 ? 0 : Math.fround(0.1));
+      }
+    });
+    for (let render = 0; render < 24; render += 1) feed();
+    while (received < chunks.length) recycle(chunks[received++]);
+    expect(restored).toBe(true);
+    expect(processor.historyPool).toHaveLength(2);
   });
 });
