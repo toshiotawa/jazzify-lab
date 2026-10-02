@@ -1,6 +1,9 @@
 import { vi } from 'vitest';
 
 const { run } = vi.hoisted(() => ({ run: vi.fn() }));
+vi.mock('@/utils/pitchInput/pestoWebModel', () => ({
+  loadPestoWebModel: async () => new Uint8Array(0),
+}));
 vi.mock('onnxruntime-web', () => ({
   env: { wasm: {} },
   Tensor: class { constructor(public type: string, public data: Float32Array, public dims: number[]) {} },

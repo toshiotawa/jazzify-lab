@@ -3,6 +3,7 @@
  */
 
 import * as ort from 'onnxruntime-web';
+import { loadPestoWebModel } from '@/utils/pitchInput/pestoWebModel';
 import { PitchDecimationBuffer } from '@/utils/pitchInput/pitchDecimationBuffer';
 import { PitchChunkQueue } from '@/utils/pitchInput/pitchChunkQueue';
 import { PitchInputDiagnostics } from '@/utils/pitchInput/pitchInputDiagnostics';
@@ -26,7 +27,6 @@ import { restoreConcertMidi } from '@/utils/pitchInput/pitchShiftRestore';
 import {
   PESTO_BASE_FRAME_SEC,
   PESTO_CHUNK_SIZE,
-  PESTO_MODEL_ID,
   PESTO_WARMUP_FRAMES,
   decimationFactorForShift,
   frameDurationMsForShift,
@@ -34,8 +34,6 @@ import {
   type PestoShiftSemitones,
   type TrackerRejectReason,
 } from '@/utils/pitchInput/pitchInputTypes';
-
-const MODEL_URL = `/models/pesto/${PESTO_MODEL_ID}.onnx`;
 
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.simd = true;
@@ -312,7 +310,7 @@ const handleDiscontinuity = (chunk: CapturedChunk, reason: string, sourceGapSamp
 };
 
 const initSession = async (): Promise<void> => {
-  session = await ort.InferenceSession.create(MODEL_URL, {
+  session = await ort.InferenceSession.create(await loadPestoWebModel(), {
     executionProviders: ['wasm'],
   });
 
