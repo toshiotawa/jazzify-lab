@@ -1,0 +1,29 @@
+# Web用PESTOモデルの最適化
+
+Webの入力はiOSと同じ48kHz・240 samples（5ms）。推論時間が入力周期を超えると、40msの待機上限に達して欠落と再初期化が繰り返される。この変更では周期・音声・判定閾値を変えず、モデルの計算量を減らす。
+
+- CQTの各カーネルから、中心窓の外側の**厳密にゼロの係数だけ**を取り除く。入力も同じ幅で切り出し、実部・虚部のチャンネル順と出力時刻を保持する。
+- 入力形状を1×240に固定し、ONNX RuntimeのBASIC最適化で定数の形状計算・分岐を畳み込む。CPU専用の融合演算は使わない。
+- 学習済みの非ゼロ係数、5ms stride、refill、3976 samplesのcache、低音モード、オンセット判定、欠落後の復帰処理は保持する。浮動小数点の加算順の違いによる微小な差はあり得る。
+
+元モデルは17,015,145 bytes、最適化モデルは11,149,127 bytes。係数を複製したモデルファイルを配信する代わりに、元モデルからのコピーと小さなリテラルからなる45,971 bytesの差分を追加する。Worker初期化時に一度だけモデルを復元し、元モデルと復元結果のSHA-256を検証する。Viteビルド時・プレイ中にPythonやモデル変換は実行しない。初期化時の一時メモリには元モデルと復元用バッファが必要になる。
+
+## 再生成
+
+```sh
+python -m venv .venv-pesto-optimize
+.venv-pesto-optimize/bin/pip install onnx==1.23.1 onnxruntime==1.30.0 numpy==2.5.3
+.venv-pesto-optimize/bin/python scripts/pesto/optimize-pesto-onnx.py
+.venv-pesto-optimize/bin/python scripts/pesto/build-pesto-model-patch.py
+node scripts/pesto/verify-pesto-web-model.mjs
+```
+
+最適化ONNXの中間ファイルは一時ディレクトリへ出力する。元モデルと差分はimmutable配信のため、将来その内容を変えるときは配信パスと`PESTO_MODEL_ID`も更新する。
+
+## 検証
+
+`verify-pesto-web-model.mjs`は実際に配信する差分からモデルを復元し、onnxruntime-web 1.20.0の単一スレッドWASMで元モデルと比較する。2400フレームについて、低音から高音の倍音付き音・小音量・無音・ノイズ・インパルス・音程変更と定期的なcache初期化を含める。再帰cacheの一致は厳密、他の出力にはfloat32の丸め誤差の許容値を設定する。実行順は毎フレーム交互にする。
+
+2026-10-03の測定では中央値7.39→5.76ms、p95 8.46→6.64ms。最大差はMIDI 0.0000153、confidence 0.000000119、volume 0.00000382、cache 0。これは検証環境の値であり、利用端末の速度や実マイクでの停止解消を保証するものではない。
+
+ブラウザ側は本番ビルドのAudioWorklet・Worker・WASMを使用し、48kHzの440Hz信号を30秒間送って確認する。元モデルとの比較には、元モデルをそのまま復元する同一形式の差分を検証用HTTPサーバーで返す。ゲーム描画や実マイクを含まない検証として扱う。

@@ -1,4 +1,5 @@
 import { createHash, webcrypto } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { loadPestoWebModel } from '../pestoWebModel';
 
 const digest = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
@@ -21,6 +22,16 @@ describe('PESTO optimized model loading', () => {
   it('reconstructs exact model bytes from source ranges and literals', async () => {
     installAssets(makePatch());
     expect(await loadPestoWebModel()).toEqual(target);
+  });
+
+  it('reconstructs the checked-in production model with its verified checksum', async () => {
+    const directory = 'public/models/pesto/pesto-mir1k-g7-48000-240-refill';
+    const bytes = new Uint8Array(readFileSync(`${directory}.onnx`));
+    const patch: unknown = JSON.parse(readFileSync(`${directory}-compact-v1.patch.json`, 'utf8'));
+    installAssets(patch, bytes);
+    const model = await loadPestoWebModel();
+    expect(model.length).toBe(11_149_127);
+    expect(digest(model)).toBe('108d0969c5a99729aefce6367e34c3745b74c59fb5c89bda1676f894a964bfc8');
   });
 
   it('rejects failed HTTP requests before model initialization', async () => {
