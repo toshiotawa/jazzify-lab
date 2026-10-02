@@ -77,7 +77,7 @@ export const PESTO_CHUNK_SIZE = 240;
 export const PESTO_BASE_FRAME_SEC = PESTO_CHUNK_SIZE / PESTO_TARGET_SAMPLE_RATE;
 export const PESTO_QUEUE_LIMIT_MS = 40;
 export const PESTO_WARMUP_FRAMES = 4;
-export const PESTO_MODEL_ID = 'pesto-mir1k-g7-48000-240-refill';
+export const PESTO_MODEL_ID = 'pesto-mir1k-g7-48000-240-refill-compact-v1';
 
 export const decimationFactorForShift = (shift: PestoShiftSemitones): number => {
   if (shift === 12) return 2;

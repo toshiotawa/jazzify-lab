@@ -22,7 +22,7 @@ fi
 # shellcheck disable=SC1091
 source "${VENV}/bin/activate"
 
-uv pip install "torch==2.5.1" "torchaudio==2.5.1" pesto-pitch onnx onnxruntime onnxscript
+uv pip install "torch==2.5.1" "torchaudio==2.5.1" pesto-pitch "onnx==1.23.1" "onnxruntime==1.30.0" "numpy==2.5.3" onnxscript
 
 if [[ ! -d "${CACHE}" ]]; then
   git clone --depth 1 https://github.com/SonyCSLParis/pesto "${CACHE}"
@@ -40,6 +40,8 @@ python -m realtime.export_onnx "${CHECKPOINT}" -r "${SR}" -c "${CHUNK}" -b "${BA
 mkdir -p "$(dirname "${OUT_WEB}")" "$(dirname "${OUT_IOS}")" "$(dirname "${LICENSE_OUT}")"
 cp "${MODEL_NAME}" "${OUT_WEB}"
 cp "${MODEL_NAME}" "${OUT_IOS}"
+python "${ROOT}/scripts/pesto/optimize-pesto-onnx.py"
+python "${ROOT}/scripts/pesto/build-pesto-model-patch.py"
 curl -fsSL "https://raw.githubusercontent.com/SonyCSLParis/pesto/master/LICENSE.md" -o "${LICENSE_OUT}"
 
 echo "--- Model export complete ---"
