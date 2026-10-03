@@ -292,9 +292,9 @@ const resetInferenceState = (): void => {
   resetPestoDecimator(decimatorState);
 };
 
-const flushActiveNote = (audioContextTime: number): void => {
+const flushActiveNote = (audioContextTime: number, preserveRepeatGate = false): void => {
   if (!tracker) return;
-  const events = tracker.flushActiveNote(frameIndex);
+  const events = tracker.flushActiveNote(frameIndex, preserveRepeatGate);
   for (const event of events) {
     if (event.type === 'noteOff') {
       post({ type: 'noteOff', note: event.note, audioContextTime });
@@ -553,8 +553,7 @@ const drainQueue = async (): Promise<void> => {
         if (gapSamples !== 0) diagnostics?.recordSourceGap(gapSamples);
         if (resetBeforeNextInference || gapSamples !== 0) {
           resetBeforeNextInference = false;
-          flushActiveNote(next.sourceEndTimeSec);
-          tracker?.reset();
+          flushActiveNote(next.sourceEndTimeSec, true);
           resetInferenceState();
           attackEnvelope.reset();
           // cacheは隠れ状態ではなく実PCMの履歴。欠落音声もWorkletで保持し、
@@ -566,8 +565,7 @@ const drainQueue = async (): Promise<void> => {
       } catch (error) {
         diagnostics?.recordDrop(next.sourceEndSample - next.sourceStartSample);
         diagnostics?.recordDiscontinuity('inferenceError');
-        flushActiveNote(next.sourceEndTimeSec);
-        tracker?.reset();
+        flushActiveNote(next.sourceEndTimeSec, true);
         resetInferenceState();
         attackEnvelope.reset();
         post({ type: 'error', message: error instanceof Error ? error.message : String(error) });

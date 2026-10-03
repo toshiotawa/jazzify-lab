@@ -132,13 +132,14 @@ final class PitchOnsetTracker {
         return levelDb
     }
 
-    func flushActiveNote(frameIndex: Int) -> [PitchInputEvent] {
-        guard currentNote >= 0 else {
-            reset()
-            return []
-        }
-        let events: [PitchInputEvent] = [.noteOff(note: currentNote, frameIndex: frameIndex)]
+    func flushActiveNote(frameIndex: Int, preserveRepeatGate: Bool = false) -> [PitchInputEvent] {
+        let note = currentNote >= 0 ? currentNote : suspendedNote
+        let keepRepeatNote = preserveRepeatGate && isRepeatPitchClassActive(note: note)
+        let events: [PitchInputEvent] = currentNote >= 0
+            ? [.noteOff(note: currentNote, frameIndex: frameIndex)] : []
         reset()
+        // 音声欠落は発音ではない。フレーム時計を捨てても同音待ちは残す。
+        if keepRepeatNote { suspendedNote = note }
         return events
     }
 
@@ -163,6 +164,10 @@ final class PitchOnsetTracker {
 
         let levelDb = volumeToDb(frame.volume)
         let attackLevelDb = resolveAttackLevelDb(frame: frame, levelDb: levelDb)
+        if isRepeatPitchClassActive(note: suspendedNote), !notePeakAttackDb.isFinite {
+            notePeakAttackDb = attackLevelDb
+            noteTroughAttackDb = attackLevelDb
+        }
         let quantized = Self.quantizePrediction(frame.prediction)
         let expectedAssist = isExpectedAssist(
             quantized: quantized,
@@ -193,7 +198,7 @@ final class PitchOnsetTracker {
             if currentNote < 0 {
                 let withinRetriggerGuard = suspendedNoteOffFrame >= 0
                     && frameIndex - suspendedNoteOffFrame < config.retriggerGuardFrames
-                if quantized == suspendedNote,
+                if isSamePitchClass(quantized, suspendedNote),
                    isRepeatPitchClassActive(note: suspendedNote) {
                     if hasRepeatModeAttack(attackLevelDb: attackLevelDb) {
                         suspendedNote = -1
@@ -206,7 +211,7 @@ final class PitchOnsetTracker {
                             attackLevelDb: attackLevelDb
                         )
                     } else {
-                        resumeSuspendedNote(note: quantized, frameIndex: frameIndex)
+                        resumeSuspendedNote(note: suspendedNote, frameIndex: frameIndex)
                     }
                 } else if quantized == suspendedNote,
                           withinRetriggerGuard,

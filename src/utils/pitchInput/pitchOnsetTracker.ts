@@ -220,15 +220,15 @@ export class PitchOnsetTracker {
   }
 
   /** 低音シフト切替などで推論状態を捨てる前に noteOff を返す。 */
-  flushActiveNote(frameIndex: number): PitchInputEvent[] {
-    if (this.currentNote < 0) {
-      this.reset();
-      return [];
-    }
-    const events: PitchInputEvent[] = [
-      { type: 'noteOff', note: this.currentNote, frameIndex },
-    ];
+  flushActiveNote(frameIndex: number, preserveRepeatGate = false): PitchInputEvent[] {
+    const note = this.currentNote >= 0 ? this.currentNote : this.suspendedNote;
+    const keepRepeatNote = preserveRepeatGate && this.isRepeatPitchClassActive(note);
+    const events: PitchInputEvent[] = this.currentNote >= 0
+      ? [{ type: 'noteOff', note: this.currentNote, frameIndex }]
+      : [];
     this.reset();
+    // 音声欠落は発音ではない。フレーム時計を捨てても同音待ちは残す。
+    if (keepRepeatNote) this.suspendedNote = note;
     return events;
   }
 
@@ -237,6 +237,11 @@ export class PitchOnsetTracker {
     const events: PitchInputEvent[] = [];
     const levelDb = volumeToDb(frame.volume);
     const attackLevelDb = this.resolveAttackLevelDb(frame, levelDb);
+    if (this.isRepeatPitchClassActive(this.suspendedNote) && !Number.isFinite(this.notePeakAttackDb)) {
+      // 復帰後の最初の包絡は基準値にし、復帰そのものをアタックにしない。
+      this.notePeakAttackDb = attackLevelDb;
+      this.noteTroughAttackDb = attackLevelDb;
+    }
     const quantized = frame.prediction > 0 ? quantizeMidi(frame.prediction) : -1;
     const expectedAssist = this.isExpectedAssist(quantized, frame.confidence, levelDb);
     const confidenceVoiced = (
@@ -270,7 +275,7 @@ export class PitchOnsetTracker {
           && frameIndex - this.suspendedNoteOffFrame < this.config.retriggerGuardFrames
         );
         if (
-          quantized === this.suspendedNote
+          this.isSamePitchClass(quantized, this.suspendedNote)
           && this.isRepeatPitchClassActive(this.suspendedNote)
         ) {
           if (this.hasRepeatModeAttack(attackLevelDb)) {
@@ -284,7 +289,7 @@ export class PitchOnsetTracker {
               attackLevelDb,
             );
           } else {
-            this.resumeSuspendedNote(quantized, frameIndex);
+            this.resumeSuspendedNote(this.suspendedNote, frameIndex);
           }
         } else if (
           quantized === this.suspendedNote

@@ -868,6 +868,40 @@ describe('PitchOnsetTracker', () => {
     expect(onsetFrames[1]).toBeLessThan(6);
   });
 
+  it('does not score a sustained repeat pitch after discontinuity recovery, but accepts a fresh attack', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, retriggerGuardFrames: 2 });
+    tracker.setExpectedPitchCandidates(1, [60], 1);
+    const frame = (prediction: number, attackDb = -20): PitchFrame => ({
+      prediction, confidence: 0.99, volume: 0.01, attackDb,
+    });
+    tracker.processFrame(frame(60), 0);
+    tracker.processFrame(frame(60), 1);
+    expect(tracker.flushActiveNote(10, true)).toEqual([{ type: 'noteOff', note: 60, frameIndex: 10 }]);
+    const recovered = collectNoteOns(tracker, [
+      { frame: frame(72), index: 0 },
+      { frame: frame(72), index: 1 },
+      { frame: frame(60), index: 2 },
+      { frame: frame(60), index: 3 },
+      { frame: frame(60, -30), index: 4 },
+      { frame: frame(60, -30), index: 5 },
+      { frame: frame(60, -18), index: 6 },
+    ]);
+    expect(recovered).toEqual([60]);
+  });
+
+  it('requires a fresh attack for the same pitch class after release even if the detected octave changes', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, releaseFrames: 1, minNoteFrames: 1 });
+    tracker.setExpectedPitchCandidates(1, [60, 72], 1);
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -20 }, 0);
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -20 }, 1);
+    tracker.processFrame({ prediction: 0, confidence: 0, volume: 1e-8, attackDb: -20 }, 2);
+    const noteOns = collectNoteOns(tracker, [
+      { frame: { prediction: 72, confidence: 0.99, volume: 0.01, attackDb: -20 }, index: 3 },
+      { frame: { prediction: 72, confidence: 0.99, volume: 0.01, attackDb: -20 }, index: 4 },
+    ]);
+    expect(noteOns).toEqual([]);
+  });
+
   it('keeps repeat pitch class mask after reset', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,

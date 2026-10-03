@@ -1055,13 +1055,12 @@ final class PitchInputEngine: @unchecked Sendable {
 
     private func applyDiscontinuityReset(hostTime: UInt64) {
         discontinuityCount += 1
-        let offEvents = tracker.flushActiveNote(frameIndex: frameIndex)
+        let offEvents = tracker.flushActiveNote(frameIndex: frameIndex, preserveRepeatGate: true)
         for event in offEvents {
             if case let .noteOff(note, _) = event {
                 notify(status: 0x80, note: note, velocity: 0, hostTime: hostTime)
             }
         }
-        tracker.reset()
         attackEnvelope.reset()
         cacheBuffer.update(repeating: 0, count: Self.cacheElementCount)
         frameIndex = 0
@@ -1167,6 +1166,8 @@ final class PitchInputEngine: @unchecked Sendable {
 
             updateMonitorVolume(volume)
 
+            // 包絡もウォームアップ中に満たし、窓の充填を再アタックと誤認しない。
+            attackEnvelope.pushSamples(slotBase, count: chunkSize)
             if suppressTracker {
                 if warmupFramesRemaining > 0 {
                     warmupFramesRemaining -= 1
@@ -1178,7 +1179,6 @@ final class PitchInputEngine: @unchecked Sendable {
                 return
             }
 
-            attackEnvelope.pushSamples(slotBase, count: chunkSize)
             let attackDb = attackEnvelope.computeAttackDb(targets: PitchAttackEnvelopeTargets(
                 repeatPitchClassMask: repeatPitchClassMaskForEnvelope,
                 expectedPitchMidis: expectedPitchMidisForEnvelope
