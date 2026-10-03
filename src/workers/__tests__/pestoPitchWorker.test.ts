@@ -69,6 +69,22 @@ describe('PESTO worker buffer recovery', () => {
     for (const tensor of Object.values(result)) expect(tensor.dispose).toHaveBeenCalledTimes(1);
   });
 
+  it('does not emit another noteOn for a sustained repeat pitch after a sequence gap', async () => {
+    await control({ type: 'setExpectedPitchCandidates', mask: 1 << 4, midis: [64], repeatPitchClassMask: 1 << 4 });
+    for (let sequence = 0; sequence < 10; sequence += 1) {
+      const buffer = send(sequence);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    }
+    const noteOns = () => worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn');
+    expect(noteOns()).toHaveLength(1);
+    for (let sequence = 20; sequence < 32; sequence += 1) {
+      const buffer = send(sequence);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer));
+    }
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff', note: 64 }));
+    expect(noteOns()).toHaveLength(1);
+  });
+
   it('does not reset the in-flight cache when later chunks have a gap', async () => {
     const cacheAtRun: number[] = [];
     run.mockImplementation((feeds: { cache: { data: Float32Array } }) => {

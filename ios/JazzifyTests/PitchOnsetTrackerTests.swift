@@ -539,6 +539,48 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertLessThan(onsetFrames[1], 6)
     }
 
+    func testDiscontinuityRecoveryDoesNotScoreSustainButAcceptsNewAttack() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1, midis: [60], repeatPitchClassMask: 1)
+        let held = PitchFrame(prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -20)
+        _ = tracker.processFrame(held, frameIndex: 0)
+        _ = tracker.processFrame(held, frameIndex: 1)
+        XCTAssertEqual(tracker.flushActiveNote(frameIndex: 10, preserveRepeatGate: true).count, 1)
+        let octave = PitchFrame(prediction: 72, confidence: 0.99, volume: 0.01, attackDb: -20)
+        XCTAssertTrue(tracker.processFrame(octave, frameIndex: 0).isEmpty)
+        XCTAssertTrue(tracker.processFrame(octave, frameIndex: 1).isEmpty)
+        XCTAssertTrue(tracker.processFrame(held, frameIndex: 2).isEmpty)
+        let dip = PitchFrame(prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -30)
+        _ = tracker.processFrame(dip, frameIndex: 3)
+        _ = tracker.processFrame(dip, frameIndex: 4)
+        let attack = PitchFrame(prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -18)
+        let events = tracker.processFrame(attack, frameIndex: 5)
+        XCTAssertTrue(events.contains { event in
+            if case .noteOn(note: 60, frameIndex: _, onsetFrameIndex: _) = event { return true }
+            return false
+        })
+    }
+
+    func testReleasedRepeatPitchCannotBypassAttackGateThroughOctaveChange() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.releaseFrames = 1
+        config.minNoteFrames = 1
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1, midis: [60, 72], repeatPitchClassMask: 1)
+        let held = PitchFrame(prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -20)
+        _ = tracker.processFrame(held, frameIndex: 0)
+        _ = tracker.processFrame(held, frameIndex: 1)
+        let silent = PitchFrame(prediction: 0, confidence: 0, volume: 1e-8, attackDb: -20)
+        _ = tracker.processFrame(silent, frameIndex: 2)
+        let octave = PitchFrame(prediction: 72, confidence: 0.99, volume: 0.01, attackDb: -20)
+        XCTAssertTrue(tracker.processFrame(octave, frameIndex: 3).isEmpty)
+        XCTAssertTrue(tracker.processFrame(octave, frameIndex: 4).isEmpty)
+    }
+
     func testKeepsRepeatPitchClassMaskAfterReset() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1
