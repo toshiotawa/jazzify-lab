@@ -71,6 +71,9 @@ export interface PitchInputDiagnosticSnapshot {
   lastModelMidi: number | null;
   lastConcertMidi: number | null;
   lastConfidence: number;
+  lastRawRmsDbfs?: number | null;
+  lastModelVolume?: number | null;
+  lastSourceEndTimeSec?: number | null;
   lastRejectReason: TrackerRejectReason;
   warmupFramesRemaining: number;
 }

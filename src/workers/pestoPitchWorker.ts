@@ -6,7 +6,7 @@ import * as ort from 'onnxruntime-web';
 import { loadPestoWebModel } from '@/utils/pitchInput/pestoWebModel';
 import { PitchDecimationBuffer } from '@/utils/pitchInput/pitchDecimationBuffer';
 import { PitchChunkQueue } from '@/utils/pitchInput/pitchChunkQueue';
-import { PitchInputDiagnostics } from '@/utils/pitchInput/pitchInputDiagnostics';
+import { PitchInputDiagnostics, type PitchInputDiagnosticsConfig } from '@/utils/pitchInput/pitchInputDiagnostics';
 import {
   createPestoDecimatorState,
   feedPestoDecimator,
@@ -33,6 +33,7 @@ import {
   type CapturedChunk,
   type PestoShiftSemitones,
   type TrackerRejectReason,
+  type PitchObservation,
 } from '@/utils/pitchInput/pitchInputTypes';
 
 ort.env.wasm.numThreads = 1;
@@ -106,6 +107,15 @@ interface WorkerConnectPortMessage {
   type: 'connectPort';
 }
 
+interface WorkerDiagnosticControlMessage {
+  type: 'setDiagnostics';
+  config: PitchInputDiagnosticsConfig | null;
+}
+
+interface WorkerDiagnosticDumpMessage {
+  type: 'dumpDiagnostics';
+}
+
 type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
@@ -114,6 +124,8 @@ type WorkerInbound =
   | WorkerSetExpectedPitchCandidatesMessage
   | WorkerSetShiftMessage
   | WorkerDumpTraceMessage
+  | WorkerDiagnosticControlMessage
+  | WorkerDiagnosticDumpMessage
   | WorkerConnectPortMessage;
 
 interface NoteEventMessage {
@@ -144,12 +156,22 @@ interface WorkerFrameTraceMessage {
   entries: ReturnType<ReturnType<typeof ensurePitchFrameTraceBuffer>['snapshot']>;
 }
 
+interface WorkerDiagnosticStateMessage {
+  type: 'diagnosticState';
+  isInferring: boolean;
+  captureAgeMs: number | null;
+  sourceEndSample: number;
+  processedSourceEndSample: number | null;
+  diagnostics?: ReturnType<PitchInputDiagnostics['snapshot']>;
+}
+
 type WorkerOutbound =
   | NoteEventMessage
   | WorkerReadyMessage
   | WorkerErrorMessage
   | WorkerMonitorMessage
-  | WorkerFrameTraceMessage;
+  | WorkerFrameTraceMessage
+  | WorkerDiagnosticStateMessage;
 
 let session: ort.InferenceSession | null = null;
 let cacheTensor: ort.Tensor | null = null;
@@ -185,6 +207,12 @@ const chunkQueue = new PitchChunkQueue();
 const decimationBuffer = new PitchDecimationBuffer(1);
 let decimatorState = createPestoDecimatorState(1);
 let diagnostics: PitchInputDiagnostics | null = null;
+const observation: PitchObservation = {
+  generationId: 0, sourceStartSample: 0, sourceEndSample: 0, sourceEndTimeSec: 0,
+  shiftSemitones: 0, modelMidi: null, concertMidi: null, confidence: 0,
+  modelVolume: 0, rawRmsDbfs: -120, inferenceMs: 0, queueAgeMs: 0,
+  discontinuity: false, rejectReason: 'none',
+};
 const attackEnvelope = new PitchAttackEnvelope();
 let frameTraceEnabled = isPitchDiagnosticsEnabled();
 
@@ -387,22 +415,22 @@ const emitTrackerEvents = (
     config,
   );
 
-  diagnostics?.recordObservation({
-    generationId: chunk.generationId,
-    sourceStartSample: chunk.sourceStartSample,
-    sourceEndSample: chunk.sourceEndSample,
-    sourceEndTimeSec: chunk.sourceEndTimeSec,
-    shiftSemitones,
-    modelMidi,
-    concertMidi,
-    confidence: frame.confidence,
-    modelVolume: frame.volume,
-    rawRmsDbfs: chunk.rawRmsDbfs,
-    inferenceMs,
-    queueAgeMs,
-    discontinuity: false,
-    rejectReason,
-  });
+  if (diagnostics) {
+    observation.generationId = chunk.generationId;
+    observation.sourceStartSample = chunk.sourceStartSample;
+    observation.sourceEndSample = chunk.sourceEndSample;
+    observation.sourceEndTimeSec = chunk.sourceEndTimeSec;
+    observation.shiftSemitones = shiftSemitones;
+    observation.modelMidi = modelMidi;
+    observation.concertMidi = concertMidi;
+    observation.confidence = frame.confidence;
+    observation.modelVolume = frame.volume;
+    observation.rawRmsDbfs = chunk.rawRmsDbfs;
+    observation.inferenceMs = inferenceMs;
+    observation.queueAgeMs = queueAgeMs;
+    observation.rejectReason = suppressTracker ? 'warmup' : rejectReason;
+    diagnostics.recordObservation(observation);
+  }
 
   if (suppressTracker) {
     if (warmupFramesRemaining > 0) {
@@ -625,6 +653,23 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
           handleAudioChunk(portEvent.data);
         }
       };
+      return;
+    }
+
+    if (data.type === 'setDiagnostics') {
+      diagnostics = data.config ? new PitchInputDiagnostics(data.config) : null;
+      return;
+    }
+
+    if (data.type === 'dumpDiagnostics') {
+      post({
+        type: 'diagnosticState',
+        isInferring,
+        captureAgeMs: lastChunkTime > 0 ? performance.now() - lastChunkTime : null,
+        sourceEndSample: lastSourceEndSample,
+        processedSourceEndSample: lastProcessedSourceEndSample,
+        diagnostics: diagnostics?.snapshot(chunkQueue.depthMs()),
+      });
       return;
     }
 

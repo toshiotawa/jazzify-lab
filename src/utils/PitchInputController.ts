@@ -5,6 +5,7 @@
 import { log } from '@/utils/logger';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
+import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
 import {
   downloadPitchFrameTrace,
   downloadPitchFrameTraceEntries,
@@ -55,6 +56,51 @@ const isVoiceInputSupported = (): boolean =>
   Boolean(navigator.mediaDevices?.getUserMedia);
 
 export class PitchInputController {
+  private static readonly activeControllers = new Set<PitchInputController>();
+
+  static setDiagnosticRecording(enabled: boolean): void {
+    if (enabled) pitchDiagnosticRecording.start();
+    else pitchDiagnosticRecording.stop();
+    for (const controller of PitchInputController.activeControllers) {
+      controller.configureDiagnostics();
+      controller.recordDiagnostic('recordingState');
+    }
+  }
+
+  static async downloadDiagnostics(): Promise<void> {
+    const requests: Promise<void>[] = [];
+    for (const controller of PitchInputController.activeControllers) {
+      controller.recordDiagnostic('exportState');
+      requests.push(controller.requestDiagnosticState());
+    }
+    await Promise.all(requests);
+    pitchDiagnosticRecording.download();
+  }
+
+  private requestDiagnosticState(): Promise<void> {
+    const worker = this.worker;
+    if (!worker || !pitchDiagnosticRecording.enabled) return Promise.resolve();
+    return new Promise((resolve) => {
+      const finish = (): void => {
+        clearTimeout(timeout);
+        worker.removeEventListener('message', onMessage);
+        resolve();
+      };
+      const onMessage = (event: MessageEvent<{ type?: string }>): void => {
+        if (event.data?.type !== 'diagnosticState') return;
+        this.recordDiagnostic('workerState', { state: event.data });
+        finish();
+      };
+      // A stalled Worker must not prevent downloading the history already collected.
+      const timeout = setTimeout(() => {
+        this.recordDiagnostic('workerStateTimeout');
+        finish();
+      }, 1500);
+      worker.addEventListener('message', onMessage);
+      worker.postMessage({ type: 'dumpDiagnostics' });
+    });
+  }
+
   private static _permissionGranted = false;
   private static _cachedStream: MediaStream | null = null;
   private static _latestLatencyStats: PitchInputLatencyStats = {
@@ -135,6 +181,59 @@ export class PitchInputController {
   private cachedInputLatencySec = 0;
   private generationId = 0;
   private shiftSemitones: PestoShiftSemitones = 0;
+  private diagnosticTrack: MediaStreamTrack | null = null;
+  private lastMonitorAtMs: number | null = null;
+  private lastNoteAtMs: number | null = null;
+  private readonly diagnosticCleanups: (() => void)[] = [];
+
+  private recordDiagnostic(event: string, details?: object): void {
+    if (!pitchDiagnosticRecording.enabled) return;
+    const now = performance.now();
+    pitchDiagnosticRecording.record(event, {
+      generationId: this.generationId,
+      audioContextState: this.audioContext?.state ?? null,
+      audioContextTime: this.audioContext?.currentTime ?? null,
+      trackState: this.diagnosticTrack?.readyState ?? null,
+      trackMuted: this.diagnosticTrack?.muted ?? null,
+      visibility: document.visibilityState,
+      processing: this.isProcessing,
+      monitorAgeMs: this.lastMonitorAtMs === null ? null : now - this.lastMonitorAtMs,
+      noteAgeMs: this.lastNoteAtMs === null ? null : now - this.lastNoteAtMs,
+      currentNote: this.currentNote,
+      sensitivity: this.sensitivityLevel,
+      stableFrames: this.pitchStableFrames,
+      shiftSemitones: this.shiftSemitones,
+      expectedPitchMask: this.expectedPitchMask,
+      expectedPitchMidis: this.expectedPitchMidis,
+      repeatPitchClassMask: this.repeatPitchClassMask,
+      ...details,
+    });
+  }
+
+  private configureDiagnostics(): void {
+    const settings = this.diagnosticTrack?.getSettings();
+    this.worker?.postMessage({
+      type: 'setDiagnostics',
+      config: isPitchDiagnosticsEnabled() || pitchDiagnosticRecording.enabled
+        ? {
+            deviceLabel: this.diagnosticTrack?.label ?? null,
+            sampleRate: settings?.sampleRate ?? this.audioContext?.sampleRate ?? null,
+            requestedEchoCancellation: true,
+            actualEchoCancellation: settings?.echoCancellation ?? null,
+            shiftSemitones: this.shiftSemitones,
+            generationId: this.generationId,
+          }
+        : null,
+    });
+  }
+
+  private watchDiagnosticEvents(target: EventTarget, events: readonly string[], prefix: string): void {
+    for (const event of events) {
+      const listener = (): void => this.recordDiagnostic(`${prefix}:${event}`);
+      target.addEventListener(event, listener);
+      this.diagnosticCleanups.push(() => target.removeEventListener(event, listener));
+    }
+  }
   /**
    * connect / disconnect は AudioContext と Worker（ONNX セッション 17MB）を作り直すため、
    * 並行実行すると孤児リソースが残る。直列化して必ず順番に処理する。
@@ -251,6 +350,8 @@ export class PitchInputController {
 
     try {
       await this.disconnectInternal(false);
+      PitchInputController.activeControllers.add(this);
+      this.recordDiagnostic('connectStarted');
 
       const cached = PitchInputController._cachedStream;
       if (cached) {
@@ -288,6 +389,13 @@ export class PitchInputController {
         sampleRate: 48000,
         latencyHint: 'interactive',
       });
+      this.diagnosticTrack = this.mediaStream.getAudioTracks()[0] ?? null;
+      this.watchDiagnosticEvents(this.audioContext, ['statechange'], 'audioContext');
+      if (this.diagnosticTrack) {
+        this.watchDiagnosticEvents(this.diagnosticTrack, ['mute', 'unmute', 'ended'], 'track');
+      }
+      this.watchDiagnosticEvents(document, ['visibilitychange'], 'document');
+      this.watchDiagnosticEvents(window, ['pagehide', 'pageshow', 'offline', 'online'], 'window');
 
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
@@ -296,6 +404,7 @@ export class PitchInputController {
       this.cachedInputLatencySec = this.resolveCachedInputLatencySec();
 
       await this.setupWorker();
+      this.configureDiagnostics();
       await this.setupWorklet();
 
       const tracks = this.mediaStream.getAudioTracks();
@@ -304,10 +413,21 @@ export class PitchInputController {
       }
 
       this.isProcessing = true;
+      if (pitchDiagnosticRecording.enabled) {
+        const settings = this.diagnosticTrack?.getSettings();
+        this.recordDiagnostic('connected', { trackSettings: {
+          sampleRate: settings?.sampleRate,
+          channelCount: settings?.channelCount,
+          echoCancellation: settings?.echoCancellation,
+          noiseSuppression: settings?.noiseSuppression,
+          autoGainControl: settings?.autoGainControl,
+        } });
+      }
       this.onConnectionChange?.(true);
       log.info('✅ PESTO 音声入力接続完了');
       return true;
     } catch (error) {
+      this.recordDiagnostic('connectError', { message: error instanceof Error ? error.message : String(error) });
       await this.disconnectInternal(false);
       log.error('PESTO 音声入力接続エラー:', error);
       this.onError?.(
@@ -358,6 +478,10 @@ export class PitchInputController {
 
     this.workerChannel = new MessageChannel();
     this.worker.postMessage({ type: 'connectPort' }, [this.workerChannel.port1]);
+    this.worker.addEventListener('error', (event: ErrorEvent) => {
+      this.recordDiagnostic('workerError', { message: event.message });
+    });
+    this.worker.addEventListener('messageerror', () => this.recordDiagnostic('workerMessageError'));
 
     this.worker.addEventListener('message', (event: MessageEvent) => {
       const data = event.data;
@@ -366,14 +490,21 @@ export class PitchInputController {
           this.onNoteOff(this.currentNote);
         }
         this.currentNote = data.note;
+        this.lastNoteAtMs = performance.now();
+        if (pitchDiagnosticRecording.enabled) {
+          this.recordDiagnostic('noteOn', { note: data.note, audioContextTimeOfNote: data.audioContextTime });
+        }
         const domTimeStampMs = this.resolveDomTimeStampMs(data.audioContextTime);
         this.onNoteOn(data.note, 64, domTimeStampMs);
       } else if (data?.type === 'noteOff') {
+        if (pitchDiagnosticRecording.enabled) this.recordDiagnostic('noteOff', { note: data.note });
         if (this.currentNote === data.note) {
           this.onNoteOff(data.note);
           this.currentNote = -1;
         }
       } else if (data?.type === 'monitor') {
+        if (pitchDiagnosticRecording.enabled) this.recordDiagnostic('monitor', { monitor: data });
+        this.lastMonitorAtMs = performance.now();
         PitchInputController._latestLatencyStats = {
           captureIntervalMs: typeof data.captureIntervalMs === 'number'
             ? data.captureIntervalMs
@@ -384,11 +515,12 @@ export class PitchInputController {
           inputLevelDb: typeof data.inputLevelDb === 'number' && Number.isFinite(data.inputLevelDb)
             ? data.inputLevelDb
             : null,
-          diagnostics: isPitchDiagnosticsEnabled() && data.diagnostics
+          diagnostics: (isPitchDiagnosticsEnabled() || pitchDiagnosticRecording.enabled) && data.diagnostics
             ? data.diagnostics as PitchInputDiagnosticSnapshot
             : null,
         };
       } else if (data?.type === 'error') {
+        this.recordDiagnostic('inferenceError', { message: data.message });
         this.onError?.(data.message);
       }
     });
@@ -422,7 +554,7 @@ export class PitchInputController {
         expectedPitchMask: this.expectedPitchMask,
         expectedPitchMidis: this.expectedPitchMidis,
         repeatPitchClassMask: this.repeatPitchClassMask,
-        diagnostics: isPitchDiagnosticsEnabled()
+        diagnostics: isPitchDiagnosticsEnabled() || pitchDiagnosticRecording.enabled
           ? {
               deviceLabel: track?.label ?? null,
               sampleRate: typeof settings?.sampleRate === 'number' ? settings.sampleRate : null,
@@ -446,6 +578,7 @@ export class PitchInputController {
       this.audioContext,
       'pesto-capture-processor',
     );
+    this.workletNode.addEventListener('processorerror', () => this.recordDiagnostic('workletProcessorError'));
 
     this.workletNode.port.postMessage({
       type: 'connectWorker',
@@ -469,6 +602,7 @@ export class PitchInputController {
 
   setSensitivity(level: number): void {
     this.sensitivityLevel = Math.max(1, Math.min(10, Math.round(level)));
+    this.recordDiagnostic('sensitivityChanged');
     this.worker?.postMessage({
       type: 'setSensitivity',
       sensitivity: this.sensitivityLevel,
@@ -478,6 +612,7 @@ export class PitchInputController {
 
   setPitchStableFrames(frames: number): void {
     this.pitchStableFrames = Math.max(1, Math.min(8, Math.round(frames)));
+    this.recordDiagnostic('stableFramesChanged');
     this.postOnsetConfig();
   }
 
@@ -516,6 +651,7 @@ export class PitchInputController {
     const next: PestoShiftSemitones = enabled ? 12 : 0;
     const changed = this.shiftSemitones !== next;
     this.shiftSemitones = next;
+    if (changed) this.recordDiagnostic('lowRegisterChanged');
     if (!changed || !this.worker) return;
     this.generationId += 1;
     this.worker.postMessage({
@@ -546,6 +682,13 @@ export class PitchInputController {
   }
 
   private async disconnectInternal(notify: boolean): Promise<void> {
+    if (this.audioContext || this.worker) this.recordDiagnostic('disconnect');
+    PitchInputController.activeControllers.delete(this);
+    for (const cleanup of this.diagnosticCleanups) cleanup();
+    this.diagnosticCleanups.length = 0;
+    this.diagnosticTrack = null;
+    this.lastMonitorAtMs = null;
+    this.lastNoteAtMs = null;
     this.isProcessing = false;
     this.cachedInputLatencySec = 0;
     PitchInputController.resetLatencyStats();

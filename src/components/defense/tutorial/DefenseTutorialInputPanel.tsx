@@ -1,3 +1,4 @@
+import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React from 'react';
 import type { InputMethod } from '@/types';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
@@ -147,6 +148,7 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
           ? 'Headphones are recommended. Speaker bleed can make recognition unstable.'
           : 'イヤホン・ヘッドホンをおすすめします。スピーカーの音をマイクが拾うと、判定が不安定になることがあります。'}
       </p>
+      {inputMethod === 'voice' ? <PitchDiagnosticControls isEnglishCopy={isEnglishCopy} /> : null}
       {!PitchInputController.isSupported() ? (
         <p className="text-sm text-red-300">
           {isEnglishCopy ? 'Voice input is not supported in this browser.' : 'このブラウザでは音声入力に対応していません。'}

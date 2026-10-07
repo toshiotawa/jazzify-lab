@@ -1,3 +1,4 @@
+import type { PitchObservation } from '../pitchInputTypes';
 import { PitchInputDiagnostics } from '@/utils/pitchInput/pitchInputDiagnostics';
 
 const createDiagnostics = () => new PitchInputDiagnostics({
@@ -21,6 +22,26 @@ describe('PitchInputDiagnostics', () => {
     diagnostics.recordSourceGap(2400);
     diagnostics.recordModelReset();
     expect(diagnostics.snapshot(0)).toMatchObject({ lastGapMs: 50, modelResetCount: 1 });
+  });
+
+  it('reports the latest frame before and after ring wraparound without retaining mutable input', () => {
+    const diagnostics = createDiagnostics();
+    const observation: PitchObservation = {
+      generationId: 1, sourceStartSample: 0, sourceEndSample: 240, sourceEndTimeSec: 0.005,
+      shiftSemitones: 0, modelMidi: 60, concertMidi: 60, confidence: 0.9,
+      modelVolume: 0.01, rawRmsDbfs: -20, inferenceMs: 2, queueAgeMs: 3,
+      discontinuity: false, rejectReason: 'voiced',
+    };
+    diagnostics.recordObservation(observation);
+    observation.concertMidi = 65;
+    expect(diagnostics.snapshot(0)).toMatchObject({
+      lastConcertMidi: 60, lastRawRmsDbfs: -20, lastModelVolume: 0.01, lastSourceEndTimeSec: 0.005,
+    });
+    for (let index = 0; index < 150; index += 1) {
+      observation.concertMidi = index;
+      diagnostics.recordObservation(observation);
+    }
+    expect(diagnostics.snapshot(0).lastConcertMidi).toBe(149);
   });
 
   it('reports recent total processing duration and expires old slow samples', () => {

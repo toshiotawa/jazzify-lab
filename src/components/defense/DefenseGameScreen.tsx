@@ -118,6 +118,7 @@ import {
 } from '@/utils/notationInstrument';
 import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
 import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import { EMPTY_EXPECTED_PITCH_CANDIDATES } from '@/utils/pitchInput/expectedPitchCandidates';
 import {
@@ -643,6 +644,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       stage.playRootOnChordChange,
     );
 
+    if (pitchDiagnosticRecording.enabled && effectiveInputMethod === 'voice') {
+      pitchDiagnosticRecording.record('defenseJudge', {
+        stageId: stage.id,
+        midiNote,
+        accepted: evaluation.nextState !== judgeRef.current,
+        phraseCompleted: evaluation.phraseCompleted,
+        attack: evaluation.attack,
+      });
+    }
     if (evaluation.nextState === judgeRef.current) return;
 
     judgeRef.current = evaluation.nextState;
@@ -752,8 +762,19 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       || effectiveInputMethod === 'voice',
     inputMethod: effectiveInputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
+    masterVolume: isTutorialSession ? 1 : settings.masterVolume,
     expectedPitchCandidates,
     onNoteOn: (note, domTimeStampMs) => {
+      if (pitchDiagnosticRecording.enabled && effectiveInputMethod === 'voice') {
+        pitchDiagnosticRecording.record('defenseInput', {
+          stageId: stage.id,
+          note,
+          phase: phaseRef.current,
+          settingsOpen: isSettingsOpenRef.current,
+          result: runtimeRef.current.result,
+          domTimeStampMs,
+        });
+      }
       if (isTutorialSession && effectiveInputMethod === 'touch') return;
       if (voiceSequential && effectiveInputMethod === 'voice') {
         const pitchClass = normalizePitchClass(note % 12);
@@ -769,6 +790,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             inputTimeMs,
             minIntervalMs,
           )) {
+            if (pitchDiagnosticRecording.enabled) {
+              pitchDiagnosticRecording.record('defenseRepeatRejected', {
+                note, inputTimeMs, lastAcceptedAtMs: lastVoiceAcceptedAtMsRef.current, minIntervalMs,
+              });
+            }
             return;
           }
         }
@@ -782,7 +808,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   });
 
   useEffect(() => {
-    const volume = settings.bgmVolume ?? 0.8;
+    const volume = isTutorialSession
+      ? settings.bgmVolume
+      : settings.musicVolume * settings.masterVolume;
     defenseBackingDeck.setVoiceInputDucking(voiceSequential);
     defenseBackingDeck.setUserVolume(volume);
     if (isSharedProgressionStage) {
@@ -802,7 +830,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         defenseSeparateTracksDeck.setVoiceInputDucking(false);
       }
     };
-  }, [voiceSequential, settings.bgmVolume, isSharedProgressionStage, isSeparateTracksStage]);
+  }, [voiceSequential, isTutorialSession, settings.bgmVolume, settings.musicVolume, settings.masterVolume, isSharedProgressionStage, isSeparateTracksStage]);
 
   useEffect(() => {
     let cancelled = false;

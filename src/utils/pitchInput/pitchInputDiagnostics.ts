@@ -25,7 +25,13 @@ export interface PitchInputDiagnosticsConfig {
 }
 
 export class PitchInputDiagnostics {
-  private ring: PitchObservation[] = [];
+  private readonly ring: PitchObservation[] = Array.from({ length: RING_SIZE }, () => ({
+    generationId: 0, sourceStartSample: 0, sourceEndSample: 0, sourceEndTimeSec: 0,
+    shiftSemitones: 0, modelMidi: null, concertMidi: null, confidence: 0,
+    modelVolume: 0, rawRmsDbfs: -120, inferenceMs: 0, queueAgeMs: 0,
+    discontinuity: false, rejectReason: 'none',
+  }));
+  private observationCount = 0;
   private writeIndex = 0;
   private droppedSamples = 0;
   private discontinuities = 0;
@@ -88,18 +94,16 @@ export class PitchInputDiagnostics {
 
   recordObservation(obs: PitchObservation): void {
     this.lastRejectReason = obs.rejectReason;
-    if (this.ring.length < RING_SIZE) {
-      this.ring.push(obs);
-    } else {
-      this.ring[this.writeIndex] = obs;
-      this.writeIndex = (this.writeIndex + 1) % RING_SIZE;
-    }
+    Object.assign(this.ring[this.writeIndex], obs);
+    this.writeIndex = (this.writeIndex + 1) % RING_SIZE;
+    this.observationCount = Math.min(RING_SIZE, this.observationCount + 1);
   }
 
   snapshot(queueDepthMs: number): PitchInputDiagnosticSnapshot {
-    const queueAges = this.ring.map((o) => o.queueAgeMs);
-    const inferenceMs = this.ring.map((o) => o.inferenceMs);
-    const last = this.ring.length > 0
+    const observations = this.ring.slice(0, this.observationCount);
+    const queueAges = observations.map((o) => o.queueAgeMs);
+    const inferenceMs = observations.map((o) => o.inferenceMs);
+    const last = this.observationCount > 0
       ? this.ring[(this.writeIndex - 1 + this.ring.length) % this.ring.length]
       : undefined;
 
@@ -128,6 +132,9 @@ export class PitchInputDiagnostics {
       lastModelMidi: last?.modelMidi ?? null,
       lastConcertMidi: last?.concertMidi ?? null,
       lastConfidence: last?.confidence ?? 0,
+      lastRawRmsDbfs: last?.rawRmsDbfs ?? null,
+      lastModelVolume: last?.modelVolume ?? null,
+      lastSourceEndTimeSec: last?.sourceEndTimeSec ?? null,
       lastRejectReason: this.lastRejectReason,
       warmupFramesRemaining: this.warmupFramesRemaining,
     };

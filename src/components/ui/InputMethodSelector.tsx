@@ -1,3 +1,4 @@
+import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React, { useEffect, useState } from 'react';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
@@ -182,10 +183,11 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
               ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
               : `入力 ${formatLatencyMs(latencyStats.captureIntervalMs)} / 推論 ${formatLatencyMs(latencyStats.inferenceMs)}`}
           </p>
-          {import.meta.env.DEV && latencyStats.diagnostics && (
+          <PitchDiagnosticControls isEnglishCopy={en} />
+          {latencyStats.diagnostics && (
             <div className="text-[10px] text-gray-500 font-mono space-y-0.5 border-t border-purple-800/40 pt-2">
               <p>
-                {en ? 'Dev diagnostics' : '開発診断'}
+                {en ? 'Diagnostics' : '診断'}
                 {' · '}
                 shift +{latencyStats.diagnostics.shiftSemitones}
                 {' · '}

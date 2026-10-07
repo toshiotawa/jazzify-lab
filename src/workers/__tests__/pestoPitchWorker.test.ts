@@ -60,6 +60,29 @@ describe('PESTO worker buffer recovery', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it('can toggle diagnostic collection at runtime and dump state while inference is pending', async () => {
+    await control({ type: 'setDiagnostics', config: null });
+    await control({ type: 'dumpDiagnostics' });
+    expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'diagnosticState', diagnostics: undefined,
+    }));
+    await control({ type: 'setDiagnostics', config: {
+      deviceLabel: 'test mic', sampleRate: 48_000, requestedEchoCancellation: true,
+      actualEchoCancellation: true, shiftSemitones: 0, generationId: 1,
+    } });
+    let finish: ((value: ReturnType<typeof output>) => void) | undefined;
+    run.mockImplementationOnce(() => new Promise<ReturnType<typeof output>>((resolve) => { finish = resolve; }));
+    send(0);
+    await control({ type: 'dumpDiagnostics' });
+    expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'diagnosticState', isInferring: true, sourceEndSample: 240,
+      diagnostics: expect.objectContaining({ deviceLabel: 'test mic' }),
+    }));
+    if (!finish) throw new Error('inference did not start');
+    finish(output());
+    await vi.waitFor(() => expect(recycled()).toHaveLength(1));
+  });
+
   it('fetches only used outputs and releases their tensors after processing', async () => {
     const result = output();
     run.mockResolvedValueOnce(result);

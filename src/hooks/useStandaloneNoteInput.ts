@@ -33,6 +33,7 @@ interface UseStandaloneNoteInputOptions {
   onNoteOff?: (note: number) => void;
   onKeyHighlight?: (note: number, active: boolean) => void;
   playMidiSound?: boolean;
+  masterVolume?: number;
   enabled?: boolean;
   inputMethod?: InputMethod;
   voiceFastResponse?: boolean;
@@ -55,6 +56,7 @@ export const useStandaloneNoteInput = ({
   onNoteOff,
   onKeyHighlight,
   playMidiSound = true,
+  masterVolume = 1,
   enabled = true,
   inputMethod: inputMethodOverride,
   voiceFastResponse = false,
@@ -79,6 +81,8 @@ export const useStandaloneNoteInput = ({
   const onNoteOffRef = useRef(onNoteOff);
   const onKeyHighlightRef = useRef(onKeyHighlight);
   const connectGenerationRef = useRef(0);
+  const masterVolumeRef = useRef(masterVolume);
+  masterVolumeRef.current = masterVolume;
   const voiceFastResponseRef = useRef(voiceFastResponse);
   voiceFastResponseRef.current = voiceFastResponse;
   const voiceLowRegisterRef = useRef(voiceLowRegister);
@@ -142,8 +146,10 @@ export const useStandaloneNoteInput = ({
     pitchRef.current = pitch;
 
     const { midiVolume, soundEffectVolume, rootSoundVolume } = useGameStore.getState().settings;
-    void ensureBattlePianoAudio({ midiVolume, soundEffectVolume, rootSoundVolume })
+    void ensureBattlePianoAudio({ midiVolume: midiVolume * masterVolumeRef.current, soundEffectVolume, rootSoundVolume })
       .then(() => {
+        const latestSettings = useGameStore.getState().settings;
+        updateGlobalVolume(latestSettings.midiVolume * masterVolumeRef.current);
         if (!isIOSWebView()) {
           return midi.initialize();
         }
@@ -160,8 +166,8 @@ export const useStandaloneNoteInput = ({
   }, [playMidiSound, inputMethodOverride]);
 
   useEffect(() => {
-    updateGlobalVolume(settings.midiVolume ?? 0.8);
-  }, [settings.midiVolume]);
+    updateGlobalVolume((settings.midiVolume ?? 0.8) * masterVolume);
+  }, [settings.midiVolume, masterVolume]);
 
   useEffect(() => {
     pitchRef.current?.setPitchStableFrames(voiceFastResponse ? 2 : 4);

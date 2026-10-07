@@ -48,6 +48,15 @@ import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
 import * as Tone from 'tone';
 
+// soundfont-player ignores the per-note destination option; route the returned voice.
+const routeSoundfontVoice = (voice: unknown, destination: AudioNode): void => {
+  if (typeof voice !== 'object' || voice === null
+    || !('disconnect' in voice) || typeof voice.disconnect !== 'function'
+    || !('connect' in voice) || typeof voice.connect !== 'function') return;
+  voice.disconnect();
+  voice.connect(destination);
+};
+
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
 
 interface LoadedAudio {
@@ -538,7 +547,7 @@ export class FantasySoundManager {
 
       const noteGain = ctx.createGain();
       noteGain.gain.value = 1.0;
-      noteGain.connect(this.gmMasterGain || ctx.destination);
+      noteGain.connect(ctx.destination);
 
       const releaseSec = 0.06;
       const releaseStart = currentTime + Math.max(0, safeDuration - releaseSec);
@@ -550,11 +559,13 @@ export class FantasySoundManager {
       const startedVoices: unknown[] = [];
 
       if (acousticGain > 0) {
-        startedVoices.push(this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+        const voice = this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
           gain: acousticGain,
           duration: totalDuration,
           destination: noteGain
-        } as Parameters<Soundfont.Player['play']>[2]));
+        } as Parameters<Soundfont.Player['play']>[2]);
+        routeSoundfontVoice(voice, noteGain);
+        startedVoices.push(voice);
       }
 
       getWindow().setTimeout(() => {
@@ -754,7 +765,7 @@ export class FantasySoundManager {
 
   // GM音源でMIDIノートを再生（ピアノ演奏用）
   private async _playGMNote(midiNote: number, velocity: number = 1.0) {
-    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) {
+    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano || this.gmPianoVolume <= 0) {
       return;
     }
     
@@ -780,7 +791,7 @@ export class FantasySoundManager {
       const ctx = this.gmAudioContext;
       const currentTime = ctx.currentTime;
       const volumeBoost = 8.0;
-      const acousticGain = velocity * volumeBoost * this.gmPianoVolume;
+      const acousticGain = velocity * volumeBoost;
       
       const noteGain = ctx.createGain();
       noteGain.gain.value = 1.0;
@@ -794,6 +805,7 @@ export class FantasySoundManager {
           duration: 10.0,
           destination: noteGain
         } as Parameters<Soundfont.Player['play']>[2]);
+        routeSoundfontVoice(activeNodes.acoustic, noteGain);
       }
       
       this.activeGMNotes.set(midiNote, activeNodes);
@@ -867,7 +879,7 @@ export class FantasySoundManager {
 
   // BGM用: 指定durationで再生し自然にフェードアウト（手動stop不要）
   private _playBgmGMNote(midiNote: number, velocity: number, durationSec: number) {
-    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) return;
+    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano || this.gmPianoVolume <= 0) return;
 
     try {
       const ctx = this.gmAudioContext;
@@ -878,7 +890,7 @@ export class FantasySoundManager {
       const currentTime = ctx.currentTime;
       const safeDuration = Math.max(0.04, Math.min(durationSec, 16));
       const volumeBoost = 8.0;
-      const acousticGain = velocity * volumeBoost * this.gmPianoVolume;
+      const acousticGain = velocity * volumeBoost;
 
       const noteGain = ctx.createGain();
       noteGain.gain.value = 1.0;
@@ -894,11 +906,13 @@ export class FantasySoundManager {
       const startedVoices: unknown[] = [];
 
       if (acousticGain > 0) {
-        startedVoices.push(this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+        const voice = this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
           gain: acousticGain,
           duration: totalDuration,
           destination: noteGain
-        } as Parameters<Soundfont.Player['play']>[2]));
+        } as Parameters<Soundfont.Player['play']>[2]);
+        routeSoundfontVoice(voice, noteGain);
+        startedVoices.push(voice);
       }
 
       getWindow().setTimeout(() => {
@@ -999,6 +1013,9 @@ export class FantasySoundManager {
   // GM音源のピアノ音量を設定（0-1）
   private _setGMPianoVolume(volume: number) {
     this.gmPianoVolume = Math.max(0, Math.min(1, volume));
+    if (this.gmMasterGain && this.gmAudioContext) {
+      this.gmMasterGain.gain.setValueAtTime(this.gmPianoVolume, this.gmAudioContext.currentTime);
+    }
   }
 
   // GM音源（Acoustic Piano）の読み込み
@@ -1025,6 +1042,7 @@ export class FantasySoundManager {
       this.gmPianoReady = false;
 
       this.gmMasterGain = this.gmAudioContext.createGain();
+      this.gmMasterGain.gain.value = this.gmPianoVolume;
       this.gmMasterGain.connect(this.gmAudioContext.destination);
 
       const soundfontOptions = {

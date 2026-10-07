@@ -104,7 +104,7 @@ class DefenseSharedProgressionDeck {
     }
     const ctx = getSharedAudioContext();
     const masterGain = ctx.createGain();
-    masterGain.gain.value = 1;
+    masterGain.gain.value = this.userVolume * (this.voiceInputDucking ? VOICE_INPUT_BGM_DUCK : 1);
     masterGain.connect(ctx.destination);
     this.graph = { ctx, masterGain };
     return this.graph;
