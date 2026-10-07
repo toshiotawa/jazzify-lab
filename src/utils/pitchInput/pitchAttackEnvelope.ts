@@ -89,7 +89,9 @@ export class PitchAttackEnvelope {
   }
 
   pushSamples(samples: Float32Array): void {
-    for (let index = 0; index < samples.length; index += 1) {
+    // 復元履歴が窓より長い場合、最終窓に残らない先頭部分は処理しない。
+    const start = Math.max(0, samples.length - this.ring.length);
+    for (let index = start; index < samples.length; index += 1) {
       this.ring[this.writeIndex] = samples[index];
       this.writeIndex = (this.writeIndex + 1) % this.ring.length;
       this.filled = Math.min(this.ring.length, this.filled + 1);

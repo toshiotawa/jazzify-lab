@@ -47,6 +47,22 @@ const feedEnvelope = (
 };
 
 describe('PitchAttackEnvelope', () => {
+  it('restores the same final envelope as continuous capture without retaining stale audio', () => {
+    const samples = synthesizeBurst(67, 35, 25, 4);
+    const continuous = new PitchAttackEnvelope();
+    feedEnvelope(continuous, samples);
+    const recovered = new PitchAttackEnvelope();
+    recovered.pushSamples(new Float32Array(240).fill(0.9));
+    recovered.reset();
+    recovered.pushSamples(samples);
+    const targets = { repeatPitchClassMask: 1 << (67 % 12), expectedPitchMidis: [67] };
+    expect(recovered.computeAttackDb(targets)).toBe(continuous.computeAttackDb(targets));
+    const next = synthesizeBurst(67, 5, 0, 1);
+    continuous.pushSamples(next);
+    recovered.pushSamples(next);
+    expect(recovered.computeAttackDb(targets)).toBe(continuous.computeAttackDb(targets));
+  });
+
   it('G4 の 4 連バーストで包絡が 4 回立ち上がる', () => {
     const envelope = new PitchAttackEnvelope();
     const samples = synthesizeBurst(67, 35, 25, 4);

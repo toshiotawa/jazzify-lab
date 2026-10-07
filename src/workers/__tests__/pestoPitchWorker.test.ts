@@ -231,6 +231,65 @@ describe('PESTO worker buffer recovery', () => {
     expect(port.postMessage.mock.calls.filter(([message]) => message.type === 'resetCapture')).toHaveLength(1);
   });
 
+  it('recognizes expected pitches even when every observation follows a recovered 35ms gap', async () => {
+    await control({ type: 'setOnsetConfig', config: { pitchStableFrames: 2, fastResponse: true } });
+    await control({ type: 'setExpectedPitchCandidates', mask: 1 << 4, midis: [76] });
+    run.mockImplementation(async () => output(76));
+    for (let index = 1; index <= 12; index += 1) {
+      const sequence = index * 8;
+      const buffer = send(sequence, sequence * 240, 1, 0, new Float32Array(3976).fill(0.1));
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    }
+    const noteOns = worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn');
+    expect(noteOns).toHaveLength(1);
+    expect(noteOns[0][0]).toMatchObject({ note: 76 });
+    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
+    await control({ type: 'dumpDiagnostics' });
+    expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      type: 'diagnosticState', diagnostics: expect.objectContaining({
+        cacheRecoveryCount: 12, modelResetCount: 0, warmupFramesRemaining: 0, lastRejectReason: 'voiced',
+      }),
+    }));
+  });
+
+  it('keeps the repeat gate through recovered gaps and accepts a changed pitch without another warmup', async () => {
+    await control({ type: 'setOnsetConfig', config: { pitchStableFrames: 2, fastResponse: true } });
+    await control({ type: 'setExpectedPitchCandidates', mask: 1 << 4, midis: [64], repeatPitchClassMask: 1 << 4 });
+    for (let index = 1; index <= 8; index += 1) {
+      const sequence = index * 8;
+      const buffer = send(sequence, sequence * 240, 1, 0, new Float32Array(3976).fill(0.1));
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    }
+    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn')).toHaveLength(1);
+    await control({ type: 'setExpectedPitchCandidates', mask: 1 << 2, midis: [62] });
+    run.mockImplementation(async () => output(62));
+    const buffer = send(72, 72 * 240, 1, 0, new Float32Array(3976).fill(0.1));
+    await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn', note: 62 }));
+    expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff', note: 64 }));
+  });
+
+  it('releases a sustained note when recovered observations become silent', async () => {
+    for (let index = 1; index <= 6; index += 1) {
+      const sequence = index * 8;
+      const buffer = send(sequence, sequence * 240, 1, 0, new Float32Array(3976).fill(0.1));
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    }
+    run.mockImplementation(async () => {
+      const result = output(0);
+      result.confidence.data[0] = 0;
+      result.volume.data[0] = 1e-8;
+      return result;
+    });
+    for (let index = 7; index <= 12; index += 1) {
+      const sequence = index * 8;
+      const buffer = send(sequence, sequence * 240, 1, 0, new Float32Array(3976));
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    }
+    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn')).toHaveLength(1);
+    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOff')).toHaveLength(1);
+  });
+
   it.each([12, 24])('does not replace decimated cache with raw history at shift +%s', async (shift) => {
     await control({ type: 'setShiftSemitones', shiftSemitones: shift, generationId: 2 });
     const cacheAtRun: number[] = [];
@@ -258,6 +317,11 @@ describe('PESTO worker buffer recovery', () => {
     const buffer = send(20, 4800, 1, 0, history);
     await vi.waitFor(() => expect(recycled()).toContain(buffer));
     expect(cacheAtRun).toEqual([0]);
+    expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOn' }));
+    await control({ type: 'dumpDiagnostics' });
+    expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+      diagnostics: expect.objectContaining({ modelResetCount: 1, cacheRecoveryCount: 0, warmupFramesRemaining: 3 }),
+    }));
   });
 
   it('returns obsolete recovery buffers exactly once on a generation change', async () => {

@@ -191,6 +191,7 @@ let emaCaptureIntervalMs = 0;
 let emaInferenceMs = 0;
 let monitorFrameCounter = 0;
 let sensitivityLevel = 5;
+let trackerConfig = scaleOnsetConfigForSensitivity(sensitivityLevel);
 let pitchStableFramesOverride = 4;
 let fastResponseEnabled = false;
 let expectedPitchMask = 0;
@@ -239,15 +240,23 @@ const recycleChunk = (chunk: Pick<CapturedChunk, 'samples' | 'recoveryCache'>): 
   recycle(chunk.samples);
 };
 
-const restoreCaptureCache = (chunk: CapturedChunk): void => {
+const restoreCaptureCache = (chunk: CapturedChunk): boolean => {
   const history = chunk.recoveryCache;
   // 低音モードのcacheはフィルタ・間引き後のPCM。原音で上書きしない。
-  if (shiftSemitones !== 0 || !cacheData || !history || history.length !== CACHE_SIZE) return;
+  if (shiftSemitones !== 0 || !cacheData || !history || history.length !== CACHE_SIZE) return false;
   for (let i = 0; i < history.length; i += 1) {
-    if (!Number.isFinite(history[i])) return;
+    if (!Number.isFinite(history[i])) return false;
   }
   cacheData.set(history);
+  // 完全なPCM履歴は連続推論と同じ入力。冷起動のwarmupを繰り返さない。
+  // 判定器の持続音・同音待ちも保持し、復帰そのものを発音にしない。
+  warmupFramesRemaining = 0;
+  suppressTracker = false;
+  diagnostics?.setWarmupFrames(0);
+  attackEnvelope.reset();
+  attackEnvelope.pushSamples(history);
   diagnostics?.recordCacheRecovery();
+  return true;
 };
 
 const updateEma = (current: number, sample: number): number =>
@@ -305,7 +314,8 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
 };
 
 const applyTrackerConfig = (): void => {
-  tracker?.setConfig(buildTrackerConfig());
+  trackerConfig = buildTrackerConfig();
+  tracker?.setConfig(trackerConfig);
 };
 
 const resetInferenceState = (): void => {
@@ -406,13 +416,12 @@ const emitTrackerEvents = (
 ): void => {
   if (!tracker) return;
 
-  const config = buildTrackerConfig();
   const rejectReason = resolveRejectReason(
     modelMidi,
     concertMidi,
     frame.confidence,
     frame.volume,
-    config,
+    trackerConfig,
   );
 
   if (diagnostics) {
@@ -581,12 +590,13 @@ const drainQueue = async (): Promise<void> => {
         if (gapSamples !== 0) diagnostics?.recordSourceGap(gapSamples);
         if (resetBeforeNextInference || gapSamples !== 0) {
           resetBeforeNextInference = false;
-          flushActiveNote(next.sourceEndTimeSec, true);
-          resetInferenceState();
-          attackEnvelope.reset();
-          // cacheは隠れ状態ではなく実PCMの履歴。欠落音声もWorkletで保持し、
-          // 空の履歴が育つまでconfidenceが落ち続ける状態を避ける。
-          restoreCaptureCache(next);
+          // cacheは隠れ状態ではなく実PCMの履歴。復元できれば判定を継続する。
+          // 原音で復元できない低音モード・不正な履歴だけ従来の冷起動へ戻す。
+          if (!restoreCaptureCache(next)) {
+            flushActiveNote(next.sourceEndTimeSec, true);
+            resetInferenceState();
+            attackEnvelope.reset();
+          }
         }
         lastProcessedSourceEndSample = next.sourceEndSample;
         await runInference(next);
@@ -684,7 +694,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       expectedPitchMask = data.expectedPitchMask ?? 0;
       expectedPitchMidis = data.expectedPitchMidis ?? [];
       applyShiftMode(data.shiftSemitones ?? 0);
-      tracker = new PitchOnsetTracker(buildTrackerConfig());
+      tracker = new PitchOnsetTracker(trackerConfig);
       tracker.setExpectedPitchCandidates(expectedPitchMask, expectedPitchMidis, repeatPitchClassMask);
       resetChunkQueue();
       lastSourceEndSample = 0;
