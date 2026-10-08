@@ -1,0 +1,459 @@
+{
+  "generatedAt": "2026-10-08T07:09:03.403Z",
+  "cpu": "Apple M2",
+  "chromeVersion": "154.0.8037.98",
+  "modelSha256": "108d0969c5a99729aefce6367e34c3745b74c59fb5c89bda1676f894a964bfc8",
+  "ortVersion": "1.20.0",
+  "warmupFramesPerRun": 100,
+  "measuredFramesPerRun": 500,
+  "isolatedFinalTiming": true,
+  "timingOrder": [
+    [
+      1,
+      2,
+      4
+    ],
+    [
+      4,
+      1,
+      2
+    ],
+    [
+      2,
+      4,
+      1
+    ]
+  ],
+  "maximumThreadDifferences": {
+    "prediction": 1.1444091796875e-05,
+    "confidence": 0,
+    "volume": 0
+  },
+  "warnings": [],
+  "runs": [
+    {
+      "round": 1,
+      "environment": {
+        "requestedThreads": 1,
+        "actualThreads": 1,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 3.8400000035762787,
+        "p95Ms": 4.16499999910593,
+        "meanMs": 3.850879999682307,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 1,
+      "environment": {
+        "requestedThreads": 2,
+        "actualThreads": 2,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 2.4500000029802322,
+        "p95Ms": 2.719999998807907,
+        "meanMs": 2.4732000000178815,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 1,
+      "environment": {
+        "requestedThreads": 4,
+        "actualThreads": 4,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 1.9600000008940697,
+        "p95Ms": 3.3300000056624413,
+        "meanMs": 2.237670000106096,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 2,
+      "environment": {
+        "requestedThreads": 4,
+        "actualThreads": 4,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 2.0800000056624413,
+        "p95Ms": 3.4250000044703484,
+        "meanMs": 2.323330000013113,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 2,
+      "environment": {
+        "requestedThreads": 1,
+        "actualThreads": 1,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 3.8200000002980232,
+        "p95Ms": 4.03999999910593,
+        "meanMs": 3.817599999919534,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 2,
+      "environment": {
+        "requestedThreads": 2,
+        "actualThreads": 2,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 2.4950000047683716,
+        "p95Ms": 2.7049999982118607,
+        "meanMs": 2.5156199999004603,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 3,
+      "environment": {
+        "requestedThreads": 2,
+        "actualThreads": 2,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 2.4500000029802322,
+        "p95Ms": 2.630000002682209,
+        "meanMs": 2.465820000052452,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 3,
+      "environment": {
+        "requestedThreads": 4,
+        "actualThreads": 4,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 2.119999997317791,
+        "p95Ms": 3.5099999979138374,
+        "meanMs": 2.40835000012815,
+        "overFiveMs": 0.006,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    },
+    {
+      "round": 3,
+      "environment": {
+        "requestedThreads": 1,
+        "actualThreads": 1,
+        "crossOriginIsolated": true,
+        "sharedArrayBuffer": true,
+        "hardwareConcurrency": 8,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36"
+      },
+      "timing": {
+        "count": 500,
+        "medianMs": 3.8250000029802322,
+        "p95Ms": 4.054999999701977,
+        "meanMs": 3.8303700000047685,
+        "overFiveMs": 0,
+        "overTenMs": 0,
+        "maxCacheDifference": 0
+      }
+    }
+  ],
+  "strideSummary": {
+    "mixed": {
+      "differences": {
+        "prediction": 0,
+        "confidence": 0,
+        "volume": 0
+      },
+      "fiveNotes": [],
+      "tenNotes": [],
+      "fiveMedianMs": 15.609999999403954,
+      "tenMedianMs": 16.885000005364418
+    },
+    "held": {
+      "differences": {
+        "prediction": 0,
+        "confidence": 0,
+        "volume": 0
+      },
+      "fiveNotes": [
+        {
+          "note": 64,
+          "receivedMs": 75,
+          "onsetMs": 70
+        }
+      ],
+      "tenNotes": [
+        {
+          "note": 64,
+          "receivedMs": 80,
+          "onsetMs": 70
+        }
+      ],
+      "fiveMedianMs": 7.3599999994039536,
+      "tenMedianMs": 7.244999997317791
+    },
+    "repeat": {
+      "differences": {
+        "prediction": 0,
+        "confidence": 0,
+        "volume": 0
+      },
+      "fiveNotes": [
+        {
+          "note": 64,
+          "receivedMs": 15,
+          "onsetMs": 10
+        },
+        {
+          "note": 64,
+          "receivedMs": 210,
+          "onsetMs": 205
+        },
+        {
+          "note": 64,
+          "receivedMs": 410,
+          "onsetMs": 405
+        },
+        {
+          "note": 64,
+          "receivedMs": 605,
+          "onsetMs": 605
+        },
+        {
+          "note": 64,
+          "receivedMs": 810,
+          "onsetMs": 805
+        },
+        {
+          "note": 64,
+          "receivedMs": 1010,
+          "onsetMs": 1005
+        },
+        {
+          "note": 64,
+          "receivedMs": 1205,
+          "onsetMs": 1205
+        },
+        {
+          "note": 64,
+          "receivedMs": 1410,
+          "onsetMs": 1405
+        },
+        {
+          "note": 64,
+          "receivedMs": 1610,
+          "onsetMs": 1605
+        },
+        {
+          "note": 64,
+          "receivedMs": 1810,
+          "onsetMs": 1805
+        },
+        {
+          "note": 64,
+          "receivedMs": 2010,
+          "onsetMs": 2005
+        },
+        {
+          "note": 64,
+          "receivedMs": 2210,
+          "onsetMs": 2205
+        },
+        {
+          "note": 64,
+          "receivedMs": 2410,
+          "onsetMs": 2405
+        },
+        {
+          "note": 64,
+          "receivedMs": 2610,
+          "onsetMs": 2605
+        },
+        {
+          "note": 64,
+          "receivedMs": 2810,
+          "onsetMs": 2805
+        }
+      ],
+      "tenNotes": [
+        {
+          "note": 64,
+          "receivedMs": 20,
+          "onsetMs": 10
+        },
+        {
+          "note": 64,
+          "receivedMs": 210,
+          "onsetMs": 210
+        },
+        {
+          "note": 64,
+          "receivedMs": 410,
+          "onsetMs": 410
+        },
+        {
+          "note": 64,
+          "receivedMs": 610,
+          "onsetMs": 610
+        },
+        {
+          "note": 64,
+          "receivedMs": 810,
+          "onsetMs": 810
+        },
+        {
+          "note": 64,
+          "receivedMs": 1010,
+          "onsetMs": 1010
+        },
+        {
+          "note": 64,
+          "receivedMs": 1210,
+          "onsetMs": 1210
+        },
+        {
+          "note": 64,
+          "receivedMs": 1410,
+          "onsetMs": 1410
+        },
+        {
+          "note": 64,
+          "receivedMs": 1610,
+          "onsetMs": 1610
+        },
+        {
+          "note": 64,
+          "receivedMs": 1810,
+          "onsetMs": 1810
+        },
+        {
+          "note": 64,
+          "receivedMs": 2010,
+          "onsetMs": 2010
+        },
+        {
+          "note": 64,
+          "receivedMs": 2210,
+          "onsetMs": 2210
+        },
+        {
+          "note": 64,
+          "receivedMs": 2410,
+          "onsetMs": 2410
+        },
+        {
+          "note": 64,
+          "receivedMs": 2610,
+          "onsetMs": 2610
+        },
+        {
+          "note": 64,
+          "receivedMs": 2810,
+          "onsetMs": 2810
+        }
+      ],
+      "fiveMedianMs": 6.4849999994039536,
+      "tenMedianMs": 6.255000002682209
+    },
+    "phrase": {
+      "differences": {
+        "prediction": 0,
+        "confidence": 0,
+        "volume": 0
+      },
+      "fiveNotes": [],
+      "tenNotes": [],
+      "fiveMedianMs": 6.199999995529652,
+      "tenMedianMs": 6.295000001788139
+    }
+  },
+  "strideMaxCacheDifference": {
+    "mixed": {
+      "five": 0,
+      "ten": 0
+    },
+    "held": {
+      "five": 0,
+      "ten": 0
+    },
+    "repeat": {
+      "five": 0,
+      "ten": 0
+    },
+    "phrase": {
+      "five": 0,
+      "ten": 0
+    }
+  },
+  "gapRecovery": {
+    "frameCount": 3200,
+    "retained": 2658,
+    "dropped": 542,
+    "restored": 68,
+    "maxDifference": {
+      "prediction": 0,
+      "confidence": 0,
+      "volume": 0,
+      "cache_out": 0
+    },
+    "confidenceBelowPointOne": {
+      "coldReset": 1823,
+      "pcmRecovery": 1486
+    }
+  }
+}
