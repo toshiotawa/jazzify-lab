@@ -33,8 +33,9 @@ const computeChunkMetrics = (samples) => {
 };
 
 class PestoCaptureProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
+    this.inputChannel = options?.processorOptions?.inputChannel === 1 ? 1 : 0;
     this.workerPort = null;
     this.generationId = 0;
     this.sequence = 0;
@@ -190,7 +191,7 @@ class PestoCaptureProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs) {
-    const input = inputs[0]?.[0];
+    const input = inputs[0]?.[this.inputChannel];
     if (!input || input.length === 0) {
       return true;
     }

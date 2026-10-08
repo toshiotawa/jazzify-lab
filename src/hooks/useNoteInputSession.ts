@@ -164,7 +164,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
             ? settings.selectedAudioDevice
             : undefined;
         if (PitchInputController.isSupported()) {
-          await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true);
+          await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1);
         } else {
           await pitch.disconnect();
         }
@@ -187,6 +187,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
     settings.selectedMidiDevice,
     settings.selectedAudioDevice,
     settings.voiceEchoCancellation,
+    settings.voiceInputChannel,
     settings.inputMethod,
     isInputInitialized,
   ]);

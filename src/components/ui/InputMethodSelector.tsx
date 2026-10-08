@@ -1,4 +1,5 @@
 import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
+import { VoiceInputChannelControl } from '@/components/ui/VoiceInputChannelControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React, { useEffect, useState } from 'react';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
@@ -28,6 +29,9 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
   const { settings, updateSettings } = useGameStore();
   const en = shouldUseEnglishCopy();
   const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
+    inputChannel: null,
+    captureChannelCount: null,
+    inputError: null,
     captureIntervalMs: null,
     inferenceMs: null,
     inputLevelDb: null,
@@ -132,6 +136,12 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
             onChange={(deviceId) => updateSettings({ selectedAudioDevice: deviceId })}
           />
           <VoiceEchoCancellationControl isEnglishCopy={en} />
+          <VoiceInputChannelControl isEnglishCopy={en} />
+          <p className="text-xs text-gray-400">
+            {en ? 'Captured channels' : '取得チャンネル数'}: {latencyStats.captureChannelCount ?? '—'}
+            {' · '}{en ? 'Selected input' : '認識入力'}: {latencyStats.inputChannel ?? '—'}
+          </p>
+          {latencyStats.inputError && <p role="alert" className="text-xs text-red-300">{latencyStats.inputError}</p>}
           <label className="block">
             <div className="mb-1 flex items-center justify-between text-xs text-purple-200">
               <span>{en ? 'Sensitivity' : '感度'}</span>

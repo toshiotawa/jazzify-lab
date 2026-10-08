@@ -235,6 +235,9 @@ export interface GameSettings {
   /** Webマイクのエコーキャンセル。falseで演奏音の抑制を切り分ける。未指定はtrue。 */
   voiceEchoCancellation?: boolean;
 
+  /** Webマイクの取得チャンネル。1=左/モノラル、2=右（ステレオ取得必須）。 */
+  voiceInputChannel?: 1 | 2;
+
   /** 低音読み取り: ON で認識入力を +12 半音してから実音へ戻す */
   voiceLowRegister?: boolean;
 

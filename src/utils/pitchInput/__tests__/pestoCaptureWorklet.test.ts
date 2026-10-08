@@ -19,7 +19,7 @@ interface CaptureProcessor {
   process: (inputs: Float32Array[][]) => boolean;
 }
 
-const createCapture = () => {
+const createCapture = (inputChannel: 1 | 2 = 1) => {
   const context = {
     Float32Array,
     ArrayBuffer: structuredClone(new ArrayBuffer(0)).constructor,
@@ -29,8 +29,8 @@ const createCapture = () => {
     registerProcessor: () => undefined,
   };
   const source = readFileSync(resolve(process.cwd(), 'public/js/audio/pesto-capture-worklet.js'), 'utf8');
-  const Processor: new () => CaptureProcessor = runInNewContext(`${source}\nPestoCaptureProcessor;`, context);
-  const processor = new Processor();
+  const Processor: new (options: { processorOptions: { inputChannel: number } }) => CaptureProcessor = runInNewContext(`${source}\nPestoCaptureProcessor;`, context);
+  const processor = new Processor({ processorOptions: { inputChannel: inputChannel - 1 } });
   const chunks: CapturedChunk[] = [];
   let onChunk: ((chunk: CapturedChunk) => void) | undefined;
   const port: CapturePort = { postMessage: (message, transfer) => {
@@ -40,10 +40,11 @@ const createCapture = () => {
     onChunk?.(chunk);
   } };
   processor.port.onmessage({ data: { type: 'connectWorker', port } });
-  const feedInput = (input: Float32Array) => {
-    processor.process([[input]]);
-    context.currentTime += input.length / 48_000;
+  const feedChannels = (channels: Float32Array[]) => {
+    processor.process([channels]);
+    context.currentTime += (channels[0]?.length ?? 0) / 48_000;
   };
+  const feedInput = (input: Float32Array) => feedChannels([input]);
   const feed = (samples = 128) => feedInput(new Float32Array(samples).fill(0.1));
   const recycle = (chunk: CapturedChunk) => {
     if (chunk.recoveryCache) {
@@ -55,10 +56,44 @@ const createCapture = () => {
     if (!isArrayBuffer(buffer)) throw new Error('unexpected buffer');
     port.onmessage?.({ data: structuredClone({ type: 'recycle', buffer }, { transfer: [buffer] }) });
   };
-  return { processor, chunks, feed, feedInput, context, recycle, setOnChunk: (handler: typeof onChunk) => { onChunk = handler; } };
+  return { processor, chunks, feed, feedInput, feedChannels, context, recycle, setOnChunk: (handler: typeof onChunk) => { onChunk = handler; } };
 };
 
 describe('PESTO capture with the iOS queue limit', () => {
+  it.each<1 | 2>([1, 2])('captures only Input %s for PCM, level measurements and gap recovery', (inputChannel) => {
+    const { feedChannels, chunks, recycle, setOnChunk } = createCapture(inputChannel);
+    const left = new Float32Array(128).fill(-0.5);
+    const right = new Float32Array(128).fill(0.125);
+    const expected = inputChannel === 1 ? -0.5 : 0.125;
+    let consumed = 0;
+    let recovered = 0;
+    setOnChunk((chunk) => {
+      expect(chunk.samples.every((sample) => sample === expected)).toBe(true);
+      expect(chunk.rawRmsDbfs).toBeCloseTo(20 * Math.log10(Math.abs(expected)), 6);
+      if (chunk.recoveryCache) {
+        recovered += 1;
+        chunk.recoveryCache.forEach((sample, index) => {
+          expect(sample).toBe(chunk.sourceStartSample - 3976 + index < 0 ? 0 : expected);
+        });
+      }
+    });
+    for (let render = 0; render < 120; render += 1) {
+      feedChannels([left, right]);
+      if (render % 40 >= 20) {
+        while (consumed < chunks.length) recycle(chunks[consumed++]);
+      }
+    }
+    while (consumed < chunks.length) recycle(chunks[consumed++]);
+    expect(chunks.length).toBeGreaterThan(10);
+    expect(recovered).toBeGreaterThan(0);
+  });
+
+  it('does not substitute Input 1 when Input 2 is missing', () => {
+    const { feed, chunks } = createCapture(2);
+    for (let render = 0; render < 20; render += 1) feed();
+    expect(chunks).toHaveLength(0);
+  });
+
   it('preserves continuous PCM and all buffers when inference keeps up', () => {
     const { processor, chunks, feed, recycle } = createCapture();
     let consumed = 0;

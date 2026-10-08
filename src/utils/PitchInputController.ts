@@ -19,9 +19,15 @@ import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
 
+const channelUnavailableMessage = (): string => voiceUserMessage(
+  '入力2を選択できません。ブラウザから2チャンネルの音声を取得できていません。入力1または別の入力デバイスを選択してください。',
+  'Input 2 is unavailable: the browser did not provide two audio channels. Select Input 1 or another input device.',
+);
+
 // 権限取得と本接続で同じ設定を使い、ブラウザ既定の AGC/NS を引き継がない。
-const microphoneConstraints = (deviceId?: string, echoCancellation = true): MediaTrackConstraints => ({
+const microphoneConstraints = (deviceId?: string, echoCancellation = true, inputChannel: 1 | 2 = 1): MediaTrackConstraints => ({
   deviceId: deviceId ? { exact: deviceId } : undefined,
+  channelCount: inputChannel === 2 ? { exact: 2 } : { ideal: 2 },
   echoCancellation,
   noiseSuppression: false,
   autoGainControl: false,
@@ -44,6 +50,9 @@ interface GetAudioDevicesOptions {
 }
 
 export interface PitchInputLatencyStats {
+  inputChannel: 1 | 2 | null;
+  captureChannelCount: number | null;
+  inputError: string | null;
   captureIntervalMs: number | null;
   inferenceMs: number | null;
   inputLevelDb: number | null;
@@ -104,6 +113,9 @@ export class PitchInputController {
   private static _permissionGranted = false;
   private static _cachedStream: MediaStream | null = null;
   private static _latestLatencyStats: PitchInputLatencyStats = {
+    inputChannel: null,
+    captureChannelCount: null,
+    inputError: null,
     captureIntervalMs: null,
     inferenceMs: null,
     inputLevelDb: null,
@@ -144,6 +156,9 @@ export class PitchInputController {
 
   private static resetLatencyStats(): void {
     PitchInputController._latestLatencyStats = {
+      inputChannel: null,
+      captureChannelCount: null,
+      inputError: null,
       captureIntervalMs: null,
       inferenceMs: null,
       inputLevelDb: null,
@@ -173,6 +188,8 @@ export class PitchInputController {
   private currentDeviceId: string | null = null;
   private isProcessing = false;
   private echoCancellation = true;
+  private inputChannel: 1 | 2 = 1;
+  private captureChannelCount: number | null = null;
   private sensitivityLevel = 5;
   private pitchStableFrames = 4;
   private expectedPitchMask = 0;
@@ -202,6 +219,8 @@ export class PitchInputController {
       noteAgeMs: this.lastNoteAtMs === null ? null : now - this.lastNoteAtMs,
       currentNote: this.currentNote,
       echoCancellation: this.echoCancellation,
+      inputChannel: this.inputChannel,
+      captureChannelCount: this.captureChannelCount,
       sensitivity: this.sensitivityLevel,
       stableFrames: this.pitchStableFrames,
       shiftSemitones: this.shiftSemitones,
@@ -335,11 +354,11 @@ export class PitchInputController {
     return result;
   }
 
-  async connect(deviceId?: string, echoCancellation = true): Promise<boolean> {
-    return this.enqueue(() => this.connectInternal(deviceId, echoCancellation));
+  async connect(deviceId?: string, echoCancellation = true, inputChannel: 1 | 2 = 1): Promise<boolean> {
+    return this.enqueue(() => this.connectInternal(deviceId, echoCancellation, inputChannel));
   }
 
-  private async connectInternal(deviceId: string | undefined, echoCancellation: boolean): Promise<boolean> {
+  private async connectInternal(deviceId: string | undefined, echoCancellation: boolean, inputChannel: 1 | 2): Promise<boolean> {
     if (!PitchInputController.isSupported()) {
       this.onError?.(
         voiceUserMessage(
@@ -350,9 +369,12 @@ export class PitchInputController {
       return false;
     }
 
+    let channelUnavailable = false;
     try {
       await this.disconnectInternal(false);
       this.echoCancellation = echoCancellation;
+      this.inputChannel = inputChannel;
+      this.captureChannelCount = null;
       PitchInputController.activeControllers.add(this);
       this.recordDiagnostic('connectStarted');
 
@@ -365,7 +387,7 @@ export class PitchInputController {
         if (isAlive && deviceMatch) {
           this.mediaStream = cached;
           PitchInputController._cachedStream = null;
-          await tracks[0].applyConstraints(microphoneConstraints(deviceId, echoCancellation));
+          await tracks[0].applyConstraints(microphoneConstraints(deviceId, echoCancellation, inputChannel));
         } else {
           cached.getTracks().forEach((t) => t.stop());
           PitchInputController._cachedStream = null;
@@ -374,10 +396,16 @@ export class PitchInputController {
 
       if (!this.mediaStream) {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: microphoneConstraints(deviceId, echoCancellation),
+          audio: microphoneConstraints(deviceId, echoCancellation, inputChannel),
           video: false,
         });
         PitchInputController._permissionGranted = true;
+      }
+
+      this.captureChannelCount = this.mediaStream.getAudioTracks()[0]?.getSettings().channelCount ?? null;
+      if (inputChannel === 2 && (this.captureChannelCount === null || this.captureChannelCount < 2)) {
+        channelUnavailable = true;
+        throw new Error(channelUnavailableMessage());
       }
 
       const AudioContextClass =
@@ -433,12 +461,18 @@ export class PitchInputController {
       this.recordDiagnostic('connectError', { message: error instanceof Error ? error.message : String(error) });
       await this.disconnectInternal(false);
       log.error('PESTO 音声入力接続エラー:', error);
-      this.onError?.(
-        voiceUserMessage(
+      const inputError = channelUnavailable || (error instanceof Error && error.name === 'OverconstrainedError'
+        && 'constraint' in error && error.constraint === 'channelCount')
+        ? channelUnavailableMessage()
+        : voiceUserMessage(
           'マイクへのアクセスに失敗しました。権限を確認してください。',
           'Could not access the microphone. Please check permissions.',
-        ),
-      );
+        );
+      PitchInputController._latestLatencyStats = {
+        ...PitchInputController._latestLatencyStats,
+        inputError,
+      };
+      this.onError?.(inputError);
       return false;
     }
   }
@@ -509,6 +543,9 @@ export class PitchInputController {
         if (pitchDiagnosticRecording.enabled) this.recordDiagnostic('monitor', { monitor: data });
         this.lastMonitorAtMs = performance.now();
         PitchInputController._latestLatencyStats = {
+          inputChannel: this.inputChannel,
+          captureChannelCount: this.captureChannelCount,
+          inputError: null,
           captureIntervalMs: typeof data.captureIntervalMs === 'number'
             ? data.captureIntervalMs
             : null,
@@ -576,10 +613,15 @@ export class PitchInputController {
       throw new Error('AudioContext, mediaStream, or worker channel not initialized');
     }
 
-    await this.audioContext.audioWorklet.addModule('/js/audio/pesto-capture-worklet.js?v=pcm-cache-recovery-1');
+    await this.audioContext.audioWorklet.addModule('/js/audio/pesto-capture-worklet.js?v=input-channel-2');
     this.workletNode = new AudioWorkletNode(
       this.audioContext,
       'pesto-capture-processor',
+      {
+        channelCountMode: 'max',
+        channelInterpretation: 'discrete',
+        processorOptions: { inputChannel: this.inputChannel - 1 },
+      },
     );
     this.workletNode.addEventListener('processorerror', () => this.recordDiagnostic('workletProcessorError'));
 

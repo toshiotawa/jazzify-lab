@@ -7,6 +7,7 @@ vi.mock('@/utils/globalAudience', () => ({ shouldUseEnglishCopy: () => false }))
 
 const constraints = {
   deviceId: { exact: 'external-mic' },
+  channelCount: { ideal: 2 },
   echoCancellation: true,
   noiseSuppression: false,
   autoGainControl: false,
@@ -18,6 +19,7 @@ describe('PitchInputController microphone setup', () => {
   const getUserMedia = vi.fn();
   const getSettings = vi.fn<() => MediaTrackSettings>();
   const postMessage = vi.fn();
+  const createWorklet = vi.fn();
   let controller: PitchInputController;
   let worker: EventTarget;
 
@@ -41,6 +43,7 @@ describe('PitchInputController microphone setup', () => {
       terminate() {}
     });
     vi.stubGlobal('AudioWorkletNode', class extends EventTarget {
+      constructor(...args: unknown[]) { super(); createWorklet(...args); }
       port = { postMessage: () => undefined, close: () => undefined };
       connect() {}
       disconnect() {}
@@ -83,6 +86,39 @@ describe('PitchInputController microphone setup', () => {
     expect(await controller.connect('external-mic')).toBe(false);
     expect(stop).toHaveBeenCalled();
     expect(controller.isConnected()).toBe(false);
+  });
+
+  it('captures stereo and configures the Worklet to read only Input 2, including cached permission streams', async () => {
+    getSettings.mockReturnValue({ deviceId: 'external-mic', channelCount: 2 });
+    await PitchInputController.requestMicrophonePermission('external-mic');
+    PitchInputController.setDiagnosticRecording(true);
+    expect(await controller.connect('external-mic', false, 2)).toBe(true);
+    expect(applyConstraints).toHaveBeenLastCalledWith({ ...constraints, echoCancellation: false, channelCount: { exact: 2 } });
+    expect(createWorklet).toHaveBeenLastCalledWith(expect.anything(), 'pesto-capture-processor', {
+      channelCountMode: 'max', channelInterpretation: 'discrete', processorOptions: { inputChannel: 1 },
+    });
+    expect(pitchDiagnosticRecording.snapshot().entries.find((entry) => entry.event === 'connected')?.details).toMatchObject({
+      inputChannel: 2, captureChannelCount: 2,
+    });
+    worker.dispatchEvent(new MessageEvent('message', { data: { type: 'monitor' } }));
+    expect(PitchInputController.getLatencyStats()).toMatchObject({ inputChannel: 2, captureChannelCount: 2 });
+    expect(await controller.connect('external-mic', false, 2)).toBe(true);
+    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: { ...constraints, echoCancellation: false, channelCount: { exact: 2 } }, video: false });
+  });
+
+  it.each([1, undefined])('rejects Input 2 when actual channel count is %s and releases the microphone', async (channelCount) => {
+    getSettings.mockReturnValue({ deviceId: 'external-mic', channelCount });
+    expect(await controller.connect('external-mic', false, 2)).toBe(false);
+    expect(controller.isConnected()).toBe(false);
+    expect(stop).toHaveBeenCalled();
+    expect(createWorklet).not.toHaveBeenCalled();
+    expect(PitchInputController.getLatencyStats().inputError).toContain('入力2を選択できません');
+  });
+
+  it('reports unsupported stereo capture separately from microphone permission errors', async () => {
+    getUserMedia.mockRejectedValueOnce(Object.assign(new Error('unsupported'), { name: 'OverconstrainedError', constraint: 'channelCount' }));
+    expect(await controller.connect('external-mic', false, 2)).toBe(false);
+    expect(PitchInputController.getLatencyStats().inputError).toContain('入力2を選択できません');
   });
 
   it('applies OFF to a cached permission stream and retains it on reconnection', async () => {

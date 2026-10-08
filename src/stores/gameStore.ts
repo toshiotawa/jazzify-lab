@@ -50,6 +50,7 @@ const defaultSettings: GameSettings = {
   voiceSensitivity: 5,
   voiceFastResponse: false,
   voiceEchoCancellation: true,
+  voiceInputChannel: 1,
   voiceLowRegister: false,
   notationClefOverride: null,
   notationTranspositionOverride: null,

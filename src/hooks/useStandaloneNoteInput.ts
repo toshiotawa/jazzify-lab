@@ -70,6 +70,9 @@ export const useStandaloneNoteInput = ({
   const [connectionStatus, setConnectionStatus] = useState<StandaloneInputConnectionStatus>('idle');
   const [detectedNoteLabel, setDetectedNoteLabel] = useState<string | null>(null);
   const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
+    inputChannel: null,
+    captureChannelCount: null,
+    inputError: null,
     captureIntervalMs: null,
     inferenceMs: null,
     inputLevelDb: null,
@@ -233,7 +236,7 @@ export const useStandaloneNoteInput = ({
           : undefined;
       if (PitchInputController.isSupported()) {
         setConnectionStatus('requesting');
-        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true);
+        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1);
         if (connectGenerationRef.current !== generation) return;
         setIsConnected(ok);
         setConnectionStatus(ok ? 'ready' : 'error');
@@ -262,6 +265,7 @@ export const useStandaloneNoteInput = ({
     settings.selectedMidiDevice,
     settings.selectedAudioDevice,
     settings.voiceEchoCancellation,
+    settings.voiceInputChannel,
   ]);
 
   useEffect(() => {
