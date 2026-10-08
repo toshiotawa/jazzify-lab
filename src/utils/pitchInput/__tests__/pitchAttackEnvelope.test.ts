@@ -38,10 +38,7 @@ const feedEnvelope = (
   for (let offset = 0; offset < samples.length; offset += chunkSize) {
     const chunk = samples.subarray(offset, Math.min(offset + chunkSize, samples.length));
     envelope.pushSamples(chunk);
-    readings.push(envelope.computeAttackDb({
-      repeatPitchClassMask: 1 << (67 % 12),
-      expectedPitchMidis: [67],
-    }));
+    readings.push(envelope.computeAttackDb(67));
   }
   return readings;
 };
@@ -55,12 +52,12 @@ describe('PitchAttackEnvelope', () => {
     recovered.pushSamples(new Float32Array(240).fill(0.9));
     recovered.reset();
     recovered.pushSamples(samples);
-    const targets = { repeatPitchClassMask: 1 << (67 % 12), expectedPitchMidis: [67] };
-    expect(recovered.computeAttackDb(targets)).toBe(continuous.computeAttackDb(targets));
+    const referenceMidi = 67;
+    expect(recovered.computeAttackDb(referenceMidi)).toBe(continuous.computeAttackDb(referenceMidi));
     const next = synthesizeBurst(67, 5, 0, 1);
     continuous.pushSamples(next);
     recovered.pushSamples(next);
-    expect(recovered.computeAttackDb(targets)).toBe(continuous.computeAttackDb(targets));
+    expect(recovered.computeAttackDb(referenceMidi)).toBe(continuous.computeAttackDb(referenceMidi));
   });
 
   it('G4 の 4 連バーストで包絡が 4 回立ち上がる', () => {
@@ -82,18 +79,12 @@ describe('PitchAttackEnvelope', () => {
       noise[index] = (Math.random() * 2 - 1) * 0.02;
     }
     envelope.pushSamples(noise);
-    const noiseDb = envelope.computeAttackDb({
-      repeatPitchClassMask: 1 << (67 % 12),
-      expectedPitchMidis: [67],
-    });
+    const noiseDb = envelope.computeAttackDb(67);
 
     const toneEnvelope = new PitchAttackEnvelope();
     const tone = synthesizeBurst(67, 40, 0, 1);
     feedEnvelope(toneEnvelope, tone);
-    const toneDb = toneEnvelope.computeAttackDb({
-      repeatPitchClassMask: 1 << (67 % 12),
-      expectedPitchMidis: [67],
-    });
+    const toneDb = toneEnvelope.computeAttackDb(67);
     expect(toneDb - noiseDb).toBeGreaterThan(8);
   });
 });

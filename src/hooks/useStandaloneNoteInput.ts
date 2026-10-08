@@ -191,10 +191,12 @@ export const useStandaloneNoteInput = ({
     } else {
       pitch.setExpectedPitchMask(expectedPitchMask);
     }
-    return () => {
-      pitch.setExpectedPitchCandidates(EMPTY_EXPECTED_PITCH_CANDIDATES);
-    };
+    return undefined;
   }, [expectedPitchCandidates, expectedPitchMask]);
+
+  useEffect(() => () => {
+    pitchRef.current?.setExpectedPitchCandidates(EMPTY_EXPECTED_PITCH_CANDIDATES);
+  }, []);
 
   const connect = useCallback(async () => {
     const generation = connectGenerationRef.current + 1;

@@ -387,27 +387,14 @@ describe('PitchOnsetTracker', () => {
     ]);
   });
 
-  it('accepts an expected octave jump in one frame when the level rises', () => {
-    const tracker = new PitchOnsetTracker({
-      ...DEFAULT_ONSET_CONFIG,
-      pitchStableFrames: 1,
-      fastResponse: false,
-      attackRiseDb: 6,
-      retriggerLookbackFrames: 4,
-      onsetImmediateConfidence: 2,
-    });
-    const c4: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.004 };
-    const c5: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.02 };
-
-    expect(tracker.processFrame(c4, 0)).toEqual([
-      { type: 'noteOn', note: 60, frameIndex: 0, onsetFrameIndex: 0 },
-    ]);
+  it('does not count the rising tail of a guided note as another octave strike', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, retriggerGuardFrames: 2 });
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.004 }, 0);
     tracker.setExpectedPitchCandidates(1 << 0, [72]);
-    tracker.processFrame(c4, 1);
-    expect(tracker.processFrame(c5, 2)).toEqual([
-      { type: 'noteOff', note: 60, frameIndex: 2 },
-      { type: 'noteOn', note: 72, frameIndex: 2, onsetFrameIndex: 2 },
-    ]);
+    for (let index = 1; index < 12; index += 1) {
+      expect(tracker.processFrame({ prediction: 72, confidence: 0.99, volume: 0.02 }, index)).toEqual([]);
+    }
+    expect(tracker.getCurrentNote()).toBe(60);
   });
 
   it('does not immediate noteOn for multi-candidate expected assist at assist confidence', () => {
@@ -422,28 +409,14 @@ describe('PitchOnsetTracker', () => {
     expect(tracker.getCurrentNote()).toBe(-1);
   });
 
-  it('allows expected octave jump with legato stability evidence', () => {
-    const tracker = new PitchOnsetTracker({
-      ...DEFAULT_ONSET_CONFIG,
-      pitchStableFrames: 1,
-      fastResponse: false,
-      attackRiseDb: 6,
-      onsetImmediateConfidence: 2,
-    });
-    const c4: PitchFrame = { prediction: 60, confidence: 0.9, volume: 0.01 };
-    const c5a: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.0105 };
-    const c5b: PitchFrame = { prediction: 72, confidence: 0.9, volume: 0.0105 };
-
-    expect(tracker.processFrame(c4, 0)).toEqual([
-      { type: 'noteOn', note: 60, frameIndex: 0, onsetFrameIndex: 0 },
-    ]);
+  it('requires an attack even when the expected octave is stable for many frames', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1 });
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.01 }, 0);
     tracker.setExpectedPitchCandidates(1 << 0, [72]);
-    tracker.processFrame(c5a, 1);
-    const events = tracker.processFrame(c5b, 2);
-    expect(events).toEqual([
-      { type: 'noteOff', note: 60, frameIndex: 2 },
-      { type: 'noteOn', note: 72, frameIndex: 2, onsetFrameIndex: 1 },
-    ]);
+    for (let index = 1; index < 12; index += 1) {
+      expect(tracker.processFrame({ prediction: 72, confidence: 0.99, volume: 0.0105 }, index)).toEqual([]);
+    }
+    expect(tracker.getCurrentNote()).toBe(60);
   });
 
   it('suppresses one-frame expected octave wobble without stability evidence', () => {
@@ -1017,4 +990,93 @@ describe('PitchOnsetTracker', () => {
     const noteOns = collectNoteOns(tracker, frames);
     expect(noteOns).toEqual([67, 67, 67]);
   });
+  it('keeps one strike during octave wobble, then accepts a fresh octave-reported attack', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, retriggerGuardFrames: 6 });
+    tracker.setExpectedPitchCandidates(1 << 5, [65], 1 << 5);
+    const frame = (prediction: number, attackDb: number): PitchFrame => ({
+      prediction, confidence: 0.99, volume: 0.01, attackDb,
+    });
+    const notes = collectNoteOns(tracker, [
+      { frame: frame(65, -20), index: 0 },
+      { frame: frame(65, -20), index: 1 },
+      { frame: frame(65, -30), index: 2 },
+      // 同音再アタックのガード内でオクターブだけ変わっても受理しない。
+      { frame: frame(77, -20), index: 3 },
+      { frame: frame(77, -20), index: 8 },
+      { frame: frame(77, -32), index: 9 },
+      { frame: frame(77, -20), index: 10 },
+    ]);
+    expect(notes).toEqual([65, 65]);
+    expect(tracker.getAttackReferenceNote()).toBe(65);
+  });
+
+  it('does not compare envelope levels from different measurement bands', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, retriggerGuardFrames: 2 });
+    tracker.setExpectedPitchCandidates(1 << 5, [65], 1 << 5);
+    const frame = (attackDb: number, attackMidi: number): PitchFrame => ({
+      prediction: 65, confidence: 0.99, volume: 0.01, attackDb, attackMidi,
+    });
+    const notes = collectNoteOns(tracker, [
+      { frame: frame(-20, 72), index: 0 },
+      { frame: frame(-20, 72), index: 1 },
+      { frame: frame(-35, 72), index: 2 },
+      { frame: frame(-20, 65), index: 3 },
+      { frame: frame(-20, 65), index: 4 },
+      { frame: frame(-35, 65), index: 5 },
+      { frame: frame(-20, 65), index: 6 },
+    ]);
+    expect(notes).toEqual([65, 65]);
+  });
+
+  it('expires an old trough across missing PCM, including a released same-pitch return', () => {
+    for (const release of [false, true]) {
+      const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, releaseFrames: 1, minNoteFrames: 1 });
+      tracker.setExpectedPitchCandidates(1 << 0, [60], 1 << 0);
+      const frame = (attackDb: number): PitchFrame => ({
+        prediction: 60, confidence: 0.99, volume: 0.01, attackDb,
+      });
+      const notes = collectNoteOns(tracker, [
+        { frame: frame(-20), index: 0 },
+        { frame: frame(-20), index: 1 },
+        { frame: release ? { prediction: 0, confidence: 0, volume: 1e-8, attackDb: -35 } : frame(-35), index: 2 },
+        { frame: frame(-20), index: 30 },
+        { frame: frame(-20), index: 31 },
+        { frame: frame(-35), index: 32 },
+        { frame: frame(-20), index: 33 },
+      ]);
+      expect(notes).toEqual([60, 60]);
+    }
+  });
+
+  it('allows a written semitone step while suppressing an unexpected neighboring pitch', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, fastResponse: true });
+    tracker.setExpectedPitchCandidates(1 << 0, [60]);
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.01 }, 0);
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.01 }, 1);
+    expect(tracker.processFrame({ prediction: 61, confidence: 0.99, volume: 0.01 }, 2)).toEqual([]);
+    tracker.setExpectedPitchCandidates((1 << 0) | (1 << 1), [60, 61]);
+    expect(tracker.processFrame({ prediction: 61, confidence: 0.99, volume: 0.01 }, 3))
+      .toContainEqual(expect.objectContaining({ type: 'noteOn', note: 61 }));
+  });
+
+  it('backdates a stable onset to the first real observation across missing PCM', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 2 });
+    tracker.setExpectedPitchCandidates(1 << 0, [60]);
+    const frame = { prediction: 60, confidence: 0.99, volume: 0.01 };
+    expect(tracker.processFrame(frame, 1)).toEqual([]);
+    expect(tracker.processFrame(frame, 9)).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 9, onsetFrameIndex: 1 },
+    ]);
+  });
+
+  it('retains the full attack window while the initial retrigger guard is active', () => {
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, retriggerGuardFrames: 6 });
+    tracker.setExpectedPitchCandidates(1 << 5, [65]);
+    const levels = [-20, -20, -32, -31, -30, -29, -28, -27, -26];
+    const notes = collectNoteOns(tracker, levels.map((attackDb, index) => ({
+      frame: { prediction: 65, confidence: 0.99, volume: 0.01, attackDb }, index,
+    })));
+    expect(notes).toEqual([65, 65]);
+  });
+
 });

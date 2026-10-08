@@ -12,8 +12,6 @@ const energyToDb = (energy: number): number => (
   10 * Math.log10(Math.max(energy, MIN_ENERGY))
 );
 
-const pitchClassFromMidi = (midi: number): number => ((Math.round(midi) % 12) + 12) % 12;
-
 const buildHannWindow = (size: number): Float32Array => {
   const window = new Float32Array(size);
   if (size <= 1) {
@@ -62,11 +60,6 @@ const computeWindowRmsEnergy = (
   return sumSq / Math.max(1, sampleCount);
 };
 
-export interface PitchAttackEnvelopeTargets {
-  repeatPitchClassMask: number;
-  expectedPitchMidis: readonly number[];
-}
-
 export class PitchAttackEnvelope {
   private readonly ring: Float32Array;
   private readonly hannWindow: Float32Array;
@@ -98,25 +91,20 @@ export class PitchAttackEnvelope {
     }
   }
 
-  computeAttackDb(targets: PitchAttackEnvelopeTargets): number {
+  computeAttackDb(referenceMidi: number): number {
     const sampleCount = this.filled;
     if (sampleCount <= 0) {
       return -120;
     }
 
     const ordered = this.orderedWindow(sampleCount);
-    const targetMidis = this.resolveTargetMidis(targets);
-    if (targetMidis.length === 0) {
+    if (referenceMidi < 0 || !Number.isFinite(referenceMidi)) {
       return energyToDb(computeWindowRmsEnergy(ordered, this.hannWindow, sampleCount));
     }
-
-    let combinedEnergy = 0;
-    for (const midi of targetMidis) {
-      const fundamentalHz = midiToHz(midi);
-      combinedEnergy += goertzelEnergy(ordered, this.hannWindow, sampleCount, fundamentalHz);
-      combinedEnergy += goertzelEnergy(ordered, this.hannWindow, sampleCount, fundamentalHz * 2) * 0.5;
-    }
-    return energyToDb(combinedEnergy / targetMidis.length);
+    const fundamentalHz = midiToHz(Math.round(referenceMidi));
+    const energy = goertzelEnergy(ordered, this.hannWindow, sampleCount, fundamentalHz)
+      + goertzelEnergy(ordered, this.hannWindow, sampleCount, fundamentalHz * 2) * 0.5;
+    return energyToDb(energy);
   }
 
   private orderedWindow(sampleCount: number): Float32Array {
@@ -129,22 +117,4 @@ export class PitchAttackEnvelope {
     return this.orderedScratch;
   }
 
-  private resolveTargetMidis(targets: PitchAttackEnvelopeTargets): number[] {
-    const repeatMidis: number[] = [];
-    if (targets.repeatPitchClassMask !== 0) {
-      for (const midi of targets.expectedPitchMidis) {
-        const pitchClass = pitchClassFromMidi(midi);
-        if ((targets.repeatPitchClassMask & (1 << pitchClass)) !== 0) {
-          repeatMidis.push(Math.round(midi));
-        }
-      }
-    }
-    if (repeatMidis.length > 0) {
-      return repeatMidis;
-    }
-    if (targets.expectedPitchMidis.length > 0) {
-      return targets.expectedPitchMidis.map((midi) => Math.round(midi));
-    }
-    return [];
-  }
 }

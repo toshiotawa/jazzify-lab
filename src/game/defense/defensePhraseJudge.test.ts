@@ -1,3 +1,4 @@
+import { PitchOnsetTracker } from '@/utils/pitchInput/pitchOnsetTracker';
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
@@ -506,4 +507,47 @@ describe('defensePhraseJudge', () => {
     const candidates = getDefenseExpectedPitchCandidates([phraseA], state, true);
     expect(candidates.midis).toEqual(expect.arrayContaining([67, 62]));
   });
+  it('requires seven separate strikes across a D E F G E D loop boundary', () => {
+    const midis = [62, 64, 65, 67, 64, 62];
+    const phrase: DefensePhrase = {
+      ...phraseA,
+      chords: [{
+        ...phraseA.chords[0],
+        notes: midis.map((pitchMidi, stepIndex) => ({
+          orderIndex: stepIndex, pitchMidi, pitchClass: pitchMidi % 12,
+          noteName: '', staff: 1, stepIndex,
+        })),
+      }],
+    };
+    let state = createInitialPhraseJudgeState(0);
+    const tracker = new PitchOnsetTracker({ pitchStableFrames: 1 });
+    let accepted = 0;
+    const feed = (prediction: number, attackDb: number, frameIndex: number): void => {
+      const candidates = getDefenseExpectedPitchCandidates([phrase], state, true);
+      tracker.setExpectedPitchCandidates(candidates.pitchClassMask, candidates.midis, candidates.repeatPitchClassMask);
+      for (const event of tracker.processFrame({ prediction, confidence: 0.99, volume: 0.01, attackDb }, frameIndex)) {
+        if (event.type !== 'noteOn') continue;
+        const result = evaluateDefensePhraseNoteOn([phrase], 100, state, event.note % 12, true);
+        if (result.nextState !== state) accepted += 1;
+        state = result.nextState;
+      }
+    };
+    midis.forEach((midi, index) => {
+      feed(midi, -20, index * 20);
+      feed(midi, -20, index * 20 + 1);
+    });
+    expect(accepted).toBe(6);
+    expect(state.targetStepIndex).toBe(0);
+    expect(state.completionCount).toBe(1);
+    for (let frameIndex = 102; frameIndex <= 115; frameIndex += 1) feed(74, -20, frameIndex);
+    expect(accepted).toBe(6);
+    feed(74, -32, 116);
+    feed(74, -20, 117);
+    expect(accepted).toBe(7);
+    expect(state.targetStepIndex).toBe(1);
+
+    const boundary = { ...state, targetStepIndex: 5, lastAcceptedPitchClass: 4 };
+    expect(getDefenseExpectedPitchCandidates([phrase], boundary, true).repeatPitchClassMask).toBe(1 << 2);
+  });
+
 });

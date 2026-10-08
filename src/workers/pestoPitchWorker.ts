@@ -408,6 +408,7 @@ const formatTraceEvent = (
 const emitTrackerEvents = (
   frame: { prediction: number; confidence: number; volume: number },
   attackDb: number,
+  attackMidi: number,
   chunk: CapturedChunk,
   inferenceMs: number,
   queueAgeMs: number,
@@ -415,6 +416,8 @@ const emitTrackerEvents = (
   concertMidi: number | null,
 ): void => {
   if (!tracker) return;
+  // 欠落した PCM の時間もゲート・包絡の lookback 時計に反映する。
+  frameIndex = Math.round(chunk.sourceEndTimeSec / frameDurationSec);
 
   const rejectReason = resolveRejectReason(
     modelMidi,
@@ -460,8 +463,9 @@ const emitTrackerEvents = (
       confidence: frame.confidence,
       volume: frame.volume,
       attackDb,
+      attackMidi,
     }
-    : { ...frame, attackDb };
+    : { ...frame, attackDb, attackMidi };
 
   const events = tracker.processFrame(trackerFrame, frameIndex);
   if (frameTraceEnabled) {
@@ -550,10 +554,8 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
     const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
     attackEnvelope.pushSamples(chunk.samples);
-    const attackDb = attackEnvelope.computeAttackDb({
-      repeatPitchClassMask,
-      expectedPitchMidis,
-    });
+    const attackMidi = tracker?.getAttackReferenceNote() ?? -1;
+    const attackDb = attackEnvelope.computeAttackDb(attackMidi);
 
     emitTrackerEvents(
       {
@@ -562,6 +564,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
         volume,
       },
       attackDb,
+      attackMidi,
       chunk,
       inferenceMs + preprocessMs,
       queueAgeMs,

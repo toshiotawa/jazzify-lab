@@ -98,6 +98,8 @@ export interface PitchFrame {
   volume: number;
   /** Goertzel 包絡 dB。未指定時は volume 由来 dB にフォールバック。 */
   attackDb?: number;
+  /** attackDb の測定音。帯域変更時は比較基準を作り直す。 */
+  attackMidi?: number;
 }
 
 export type PitchInputEvent =
@@ -120,6 +122,7 @@ export class PitchOnsetTracker {
   private noteOnFrame = -1;
   private lastNoteOnFrame = -1;
   private pitchStableCount = 0;
+  private pitchStableStartFrame = -1;
   private lastStableNote = -1;
   private releaseCount = 0;
   private recentMinDb = Infinity;
@@ -156,6 +159,9 @@ export class PitchOnsetTracker {
   private noteTroughAttackFrame = -1;
   /** attackDb 直近リング。 */
   private recentAttackDbRing: number[] = [];
+  private recentFrameRing: number[] = [];
+  private attackMidi = -1;
+  private processingFrameIndex = 0;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -185,6 +191,7 @@ export class PitchOnsetTracker {
     this.noteOnFrame = -1;
     this.lastNoteOnFrame = -1;
     this.pitchStableCount = 0;
+    this.pitchStableStartFrame = -1;
     this.lastStableNote = -1;
     this.releaseCount = 0;
     this.recentMinDb = Infinity;
@@ -199,6 +206,8 @@ export class PitchOnsetTracker {
     this.suspendedNote = -1;
     this.suspendedNoteOffFrame = -1;
     this.resetRepeatPeakState();
+    this.recentFrameRing = [];
+    this.attackMidi = -1;
   }
 
   private resetRepeatPeakState(): void {
@@ -234,9 +243,19 @@ export class PitchOnsetTracker {
 
   /** 1 フレーム処理。発生したイベントのみ返す（割当最小化）。 */
   processFrame(frame: PitchFrame, frameIndex: number): PitchInputEvent[] {
+    this.processingFrameIndex = frameIndex;
     const events: PitchInputEvent[] = [];
     const levelDb = volumeToDb(frame.volume);
     const attackLevelDb = this.resolveAttackLevelDb(frame, levelDb);
+    if (frame.attackMidi !== undefined && frame.attackMidi !== this.attackMidi) {
+      // 異なる帯域の dB 差を鍵盤の再アタックとして扱わない。
+      this.attackMidi = frame.attackMidi;
+      this.resetRepeatPeakState();
+      this.notePeakAttackDb = attackLevelDb;
+      this.noteTroughAttackDb = attackLevelDb;
+      this.recentLevelDbRing.length = 0;
+      this.recentFrameRing.length = 0;
+    }
     if (this.isRepeatPitchClassActive(this.suspendedNote) && !Number.isFinite(this.notePeakAttackDb)) {
       // 復帰後の最初の包絡は基準値にし、復帰そのものをアタックにしない。
       this.notePeakAttackDb = attackLevelDb;
@@ -263,6 +282,7 @@ export class PitchOnsetTracker {
         this.pitchStableCount += 1;
       } else {
         this.pitchStableCount = 1;
+        this.pitchStableStartFrame = frameIndex;
         this.lastStableNote = quantized;
       }
 
@@ -303,7 +323,7 @@ export class PitchOnsetTracker {
             events,
             quantized,
             frameIndex,
-            frameIndex - this.pitchStableCount + 1,
+            this.pitchStableStartFrame,
             levelDb,
             attackLevelDb,
           );
@@ -335,7 +355,7 @@ export class PitchOnsetTracker {
               events,
               quantized,
               frameIndex,
-              frameIndex - this.pitchStableCount + 1,
+              this.pitchStableStartFrame,
               levelDb,
               attackLevelDb,
             );
@@ -350,6 +370,7 @@ export class PitchOnsetTracker {
       }
     } else {
       this.pitchStableCount = 0;
+      this.pitchStableStartFrame = -1;
       this.lastStableNote = -1;
       if (this.currentNote >= 0 || this.suspendedNote >= 0) {
         this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
@@ -514,6 +535,7 @@ export class PitchOnsetTracker {
     this.recentMinDb = Infinity;
     this.recentMinDbFrame = -1;
     this.recentLevelDbRing = [];
+    this.recentFrameRing = [];
     this.suspendedNote = -1;
     this.suspendedNoteOffFrame = -1;
     this.resetRepeatPeakState();
@@ -536,9 +558,12 @@ export class PitchOnsetTracker {
   }
 
   private isRepeatPitchClassActive(note: number): boolean {
-    if (note < 0 || this.repeatPitchClassMask === 0) return false;
+    if (note < 0) return false;
     const pitchClass = ((note % 12) + 12) % 12;
-    return (this.repeatPitchClassMask & (1 << pitchClass)) !== 0;
+    // 譜面の期待音も再アタックを要求する。正解後のマスク更新を待たない。
+    const mask = this.repeatPitchClassMask
+      | (this.expectedPitchMidis.length > 0 ? this.expectedPitchMask : 0);
+    return (mask & (1 << pitchClass)) !== 0;
   }
 
   /** 同音待ち中に期待実音以外へ逸れた誤検出はレガート切替しない。 */
@@ -558,7 +583,7 @@ export class PitchOnsetTracker {
     return true;
   }
 
-  /** 同音連打待ち中の半音以内揺れは再発音にしない（音量リトリガのみ）。 */
+  /** 同音・オクターブ・期待されていない半音揺れは再発音にしない。 */
   private shouldTreatRepeatModePitchWobble(quantized: number): boolean {
     if (this.currentNote < 0 || !this.isRepeatPitchClassActive(this.currentNote)) {
       return false;
@@ -566,6 +591,10 @@ export class PitchOnsetTracker {
     if (quantized === this.currentNote) {
       return true;
     }
+    if (this.isSamePitchClass(quantized, this.currentNote)) return true;
+    // 楽譜が実際に半音進行を要求している場合はレガート遷移を許す。
+    const nextPc = ((quantized % 12) + 12) % 12;
+    if ((this.expectedPitchMask & (1 << nextPc)) !== 0) return false;
     return Math.abs(quantized - this.currentNote) === 1;
   }
 
@@ -605,8 +634,18 @@ export class PitchOnsetTracker {
     );
   }
 
+  private recentLookbackStart(lookbackFrames: number): number {
+    const latestFrame = this.processingFrameIndex;
+    const earliestFrame = latestFrame - lookbackFrames + 1;
+    let start = 0;
+    while (start < this.recentFrameRing.length && this.recentFrameRing[start] < earliestFrame) {
+      start += 1;
+    }
+    return start;
+  }
+
   private recentLevelRiseWithinLookback(levelDb: number, lookbackFrames: number): number {
-    const start = Math.max(0, this.recentLevelDbRing.length - lookbackFrames);
+    const start = this.recentLookbackStart(lookbackFrames);
     let minRecent = levelDb;
     for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
       minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
@@ -624,7 +663,7 @@ export class PitchOnsetTracker {
   }
 
   private recentAttackRiseWithinLookback(attackLevelDb: number, lookbackFrames: number): number {
-    const start = Math.max(0, this.recentAttackDbRing.length - lookbackFrames);
+    const start = this.recentLookbackStart(lookbackFrames);
     let minRecent = attackLevelDb;
     for (let i = start; i < this.recentAttackDbRing.length; i += 1) {
       minRecent = Math.min(minRecent, this.recentAttackDbRing[i] ?? attackLevelDb);
@@ -674,6 +713,7 @@ export class PitchOnsetTracker {
     attackLevelDb: number,
     frameIndex: number,
   ): void {
+    this.recentFrameRing.push(frameIndex);
     this.recentLevelDbRing.push(levelDb);
     this.recentAttackDbRing.push(attackLevelDb);
     const maxRing = Math.max(
@@ -681,6 +721,9 @@ export class PitchOnsetTracker {
       this.config.retriggerGuardFrames,
       this.repeatAttackLookbackFrames(),
     );
+    if (this.recentFrameRing.length > maxRing) {
+      this.recentFrameRing.shift();
+    }
     if (this.recentLevelDbRing.length > maxRing) {
       this.recentLevelDbRing.shift();
     }
@@ -695,7 +738,7 @@ export class PitchOnsetTracker {
 
   private recentLevelRise(levelDb: number): number {
     const lookback = this.config.retriggerLookbackFrames;
-    const start = Math.max(0, this.recentLevelDbRing.length - lookback);
+    const start = this.recentLookbackStart(lookback);
     let minRecent = levelDb;
     for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
       minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
@@ -723,7 +766,9 @@ export class PitchOnsetTracker {
   ): void {
     if (this.currentNote < 0) return;
     if (frameIndex - this.lastNoteOnFrame < this.config.retriggerGuardFrames) {
-      this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+      if (!this.isRepeatPitchClassActive(this.currentNote)) {
+        this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+      }
       return;
     }
 
@@ -748,6 +793,11 @@ export class PitchOnsetTracker {
       this.emitNoteOff(events, note, frameIndex);
       this.emitNoteOn(events, note, frameIndex, onsetFrameIndex, levelDb, attackLevelDb);
     }
+  }
+
+  /** 正解待ちの音やオクターブ誤検出が変わっても測定帯域を保持する。 */
+  getAttackReferenceNote(): number {
+    return this.currentNote >= 0 ? this.currentNote : this.suspendedNote;
   }
 
   getCurrentNote(): number {

@@ -370,6 +370,7 @@ export const getDefenseExpectedPitchCandidates = (
   if (hints.nextMidi != null) {
     midis.push(hints.nextMidi);
   }
+  let boundaryRepeatMask = 0;
   const phrase = phrases[state.phraseIndex];
   if (phrase && isOnPhraseLoopBoundary(phrase, state)) {
     const firstChord = phrase.chords[0];
@@ -380,8 +381,13 @@ export const getDefenseExpectedPitchCandidates = (
         stepMidiNotes(firstChord, firstStep),
         [],
       );
-      if (loopStart.nextMidi != null && !midis.includes(loopStart.nextMidi)) {
-        midis.push(loopStart.nextMidi);
+      if (loopStart.nextMidi != null) {
+        if (hints.nextMidi != null
+          && pitchClassFromMidi(loopStart.nextMidi) === pitchClassFromMidi(hints.nextMidi)) {
+          // 末尾の発音前にゲートを有効化し、ループ先頭を同じ発音で進めない。
+          boundaryRepeatMask = 1 << pitchClassFromMidi(hints.nextMidi);
+        }
+        if (!midis.includes(loopStart.nextMidi)) midis.push(loopStart.nextMidi);
       }
     }
   }
@@ -389,7 +395,7 @@ export const getDefenseExpectedPitchCandidates = (
     && state.lastAcceptedPitchClass !== null
     ? 1 << state.lastAcceptedPitchClass
     : 0;
-  return buildExpectedPitchCandidates(midis, repeatPitchClassMask);
+  return buildExpectedPitchCandidates(midis, repeatPitchClassMask | boundaryRepeatMask);
 };
 
 export const getDefensePhraseKeyboardHints = (

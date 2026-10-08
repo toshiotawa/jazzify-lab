@@ -33,8 +33,8 @@ describe('PESTO worker buffer recovery', () => {
     if (!worker.onmessage) throw new Error('worker not initialized');
     await worker.onmessage({ data, ports: [port] });
   };
-  const send = (sequence: number, start = sequence * 240, activeGeneration = 1, captureQueueAgeMs = 0, recoveryCache?: Float32Array) => {
-    const samples = new Float32Array(240).fill(0.1);
+  const send = (sequence: number, start = sequence * 240, activeGeneration = 1, captureQueueAgeMs = 0, recoveryCache?: Float32Array, capturedSamples?: Float32Array) => {
+    const samples = capturedSamples ?? new Float32Array(240).fill(0.1);
     if (!port.onmessage) throw new Error('port not connected');
     port.onmessage({ data: {
       type: 'audioChunk', generationId: activeGeneration, sequence, captureQueueAgeMs, sourceStartSample: start,
@@ -243,6 +243,7 @@ describe('PESTO worker buffer recovery', () => {
     const noteOns = worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn');
     expect(noteOns).toHaveLength(1);
     expect(noteOns[0][0]).toMatchObject({ note: 76 });
+    expect(noteOns[0][0].audioContextTime).toBeCloseTo(0.045, 6);
     expect(worker.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'noteOff' }));
     await control({ type: 'dumpDiagnostics' });
     expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
@@ -250,6 +251,29 @@ describe('PESTO worker buffer recovery', () => {
         cacheRecoveryCount: 12, modelResetCount: 0, warmupFramesRemaining: 0, lastRejectReason: 'voiced',
       }),
     }));
+  });
+
+  it('does not invent an attack when expected octaves change on a steady captured F', async () => {
+    await control({ type: 'setOnsetConfig', config: { pitchStableFrames: 2, fastResponse: true } });
+    run.mockImplementation(async () => output(65));
+    let sequence = 0;
+    const feedTone = async (amplitude: number, count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        const samples = Float32Array.from({ length: 240 }, (_, sample) =>
+          amplitude * Math.sin(2 * Math.PI * 349.228231 * (sequence * 240 + sample) / 48_000));
+        const buffer = send(sequence, sequence * 240, 1, 0, undefined, samples);
+        sequence += 1;
+        await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+      }
+    };
+    for (const midi of [65, 77, 65]) {
+      await control({ type: 'setExpectedPitchCandidates', mask: 1 << 5, midis: [midi], repeatPitchClassMask: 1 << 5 });
+      await feedTone(0.1, 16);
+    }
+    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn')).toHaveLength(1);
+    await feedTone(0.01, 8);
+    await feedTone(0.1, 8);
+    expect(worker.postMessage.mock.calls.filter(([message]) => message.type === 'noteOn')).toHaveLength(2);
   });
 
   it('keeps the repeat gate through recovered gaps and accepts a changed pitch without another warmup', async () => {
