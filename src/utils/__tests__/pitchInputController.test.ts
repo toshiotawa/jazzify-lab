@@ -16,6 +16,8 @@ describe('PitchInputController microphone setup', () => {
   const applyConstraints = vi.fn().mockResolvedValue(undefined);
   const stop = vi.fn();
   const getUserMedia = vi.fn();
+  const getSettings = vi.fn<() => MediaTrackSettings>();
+  const postMessage = vi.fn();
   let controller: PitchInputController;
   let worker: EventTarget;
 
@@ -23,7 +25,8 @@ describe('PitchInputController microphone setup', () => {
     vi.clearAllMocks();
     PitchInputController.clearCachedPermission();
     applyConstraints.mockResolvedValue(undefined);
-    const track = Object.assign(new EventTarget(), { readyState: 'live', getSettings: () => ({ deviceId: 'external-mic' }), applyConstraints, stop });
+    getSettings.mockReturnValue({ deviceId: 'external-mic', echoCancellation: true });
+    const track = Object.assign(new EventTarget(), { readyState: 'live', getSettings, applyConstraints, stop });
     getUserMedia.mockResolvedValue({ getAudioTracks: () => [track], getTracks: () => [track] });
     vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
     vi.stubGlobal('MessageChannel', class { port1 = {}; port2 = {}; });
@@ -32,6 +35,7 @@ describe('PitchInputController microphone setup', () => {
       addEventListener(...args: Parameters<EventTarget['addEventListener']>) { worker.addEventListener(...args); }
       removeEventListener(...args: Parameters<EventTarget['removeEventListener']>) { worker.removeEventListener(...args); }
       postMessage(message: { type: string }) {
+        postMessage(message);
         if (message.type === 'init') queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', { data: { type: 'ready' } })));
       }
       terminate() {}
@@ -79,6 +83,46 @@ describe('PitchInputController microphone setup', () => {
     expect(await controller.connect('external-mic')).toBe(false);
     expect(stop).toHaveBeenCalled();
     expect(controller.isConnected()).toBe(false);
+  });
+
+  it('applies OFF to a cached permission stream and retains it on reconnection', async () => {
+    await PitchInputController.requestMicrophonePermission('external-mic');
+    expect(await controller.connect('external-mic', false)).toBe(true);
+    expect(applyConstraints).toHaveBeenLastCalledWith({ ...constraints, echoCancellation: false });
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(await controller.connect('external-mic', false)).toBe(true);
+    expect(getUserMedia).toHaveBeenLastCalledWith({
+      audio: { ...constraints, echoCancellation: false }, video: false,
+    });
+    expect(stop).toHaveBeenCalled();
+    expect(await controller.connect('external-mic', true)).toBe(true);
+    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });
+  });
+
+  it('requests permission without echo cancellation when OFF is selected first', async () => {
+    expect(await PitchInputController.requestMicrophonePermission('external-mic', false)).toBe(true);
+    expect(getUserMedia).toHaveBeenLastCalledWith({
+      audio: { ...constraints, echoCancellation: false }, video: false,
+    });
+  });
+
+  it('records requested and actual echo cancellation separately, including after recording starts', async () => {
+    getSettings.mockReturnValue({ deviceId: 'external-mic', echoCancellation: true });
+    await controller.connect('external-mic', false);
+    PitchInputController.setDiagnosticRecording(true);
+    expect(postMessage).toHaveBeenLastCalledWith({
+      type: 'setDiagnostics',
+      config: expect.objectContaining({ requestedEchoCancellation: false, actualEchoCancellation: true }),
+    });
+    getSettings.mockReturnValue({ deviceId: 'external-mic', echoCancellation: false });
+    await controller.connect('external-mic', false);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'init',
+      diagnostics: expect.objectContaining({ requestedEchoCancellation: false, actualEchoCancellation: false }),
+    }));
+    expect(pitchDiagnosticRecording.snapshot().entries.filter((entry) => entry.event === 'connected').at(-1)?.details).toMatchObject({
+      echoCancellation: false, trackSettings: { echoCancellation: false },
+    });
   });
 
   it('retains monitor and lifecycle history after disconnecting', async () => {

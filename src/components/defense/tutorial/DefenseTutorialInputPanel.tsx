@@ -1,3 +1,4 @@
+import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React from 'react';
 import type { InputMethod } from '@/types';
@@ -160,6 +161,7 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
         />
       )}
       <p className="text-sm text-slate-300">{connectionStatus}</p>
+      <VoiceEchoCancellationControl isEnglishCopy={isEnglishCopy} />
       <label className="block">
         <span className="mb-1 flex justify-between text-sm text-slate-200">
           <span>{isEnglishCopy ? 'Mic sensitivity' : 'マイク感度'}</span>

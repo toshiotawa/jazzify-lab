@@ -49,6 +49,7 @@ const defaultSettings: GameSettings = {
   performanceMode: 'standard',
   voiceSensitivity: 5,
   voiceFastResponse: false,
+  voiceEchoCancellation: true,
   voiceLowRegister: false,
   notationClefOverride: null,
   notationTranspositionOverride: null,

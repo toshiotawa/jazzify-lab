@@ -20,9 +20,9 @@ const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
 
 // 権限取得と本接続で同じ設定を使い、ブラウザ既定の AGC/NS を引き継がない。
-const microphoneConstraints = (deviceId?: string): MediaTrackConstraints => ({
+const microphoneConstraints = (deviceId?: string, echoCancellation = true): MediaTrackConstraints => ({
   deviceId: deviceId ? { exact: deviceId } : undefined,
-  echoCancellation: true,
+  echoCancellation,
   noiseSuppression: false,
   autoGainControl: false,
 });
@@ -172,6 +172,7 @@ export class PitchInputController {
   private workerChannel: MessageChannel | null = null;
   private currentDeviceId: string | null = null;
   private isProcessing = false;
+  private echoCancellation = true;
   private sensitivityLevel = 5;
   private pitchStableFrames = 4;
   private expectedPitchMask = 0;
@@ -200,6 +201,7 @@ export class PitchInputController {
       monitorAgeMs: this.lastMonitorAtMs === null ? null : now - this.lastMonitorAtMs,
       noteAgeMs: this.lastNoteAtMs === null ? null : now - this.lastNoteAtMs,
       currentNote: this.currentNote,
+      echoCancellation: this.echoCancellation,
       sensitivity: this.sensitivityLevel,
       stableFrames: this.pitchStableFrames,
       shiftSemitones: this.shiftSemitones,
@@ -218,7 +220,7 @@ export class PitchInputController {
         ? {
             deviceLabel: this.diagnosticTrack?.label ?? null,
             sampleRate: settings?.sampleRate ?? this.audioContext?.sampleRate ?? null,
-            requestedEchoCancellation: true,
+            requestedEchoCancellation: this.echoCancellation,
             actualEchoCancellation: settings?.echoCancellation ?? null,
             shiftSemitones: this.shiftSemitones,
             generationId: this.generationId,
@@ -284,7 +286,7 @@ export class PitchInputController {
     }
   }
 
-  static async requestMicrophonePermission(deviceId?: string): Promise<boolean> {
+  static async requestMicrophonePermission(deviceId?: string, echoCancellation = true): Promise<boolean> {
     if (!isVoiceInputSupported() || !navigator.mediaDevices?.getUserMedia) {
       return false;
     }
@@ -309,7 +311,7 @@ export class PitchInputController {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: microphoneConstraints(deviceId),
+        audio: microphoneConstraints(deviceId, echoCancellation),
         video: false,
       });
       if (PitchInputController._cachedStream) {
@@ -333,11 +335,11 @@ export class PitchInputController {
     return result;
   }
 
-  async connect(deviceId?: string): Promise<boolean> {
-    return this.enqueue(() => this.connectInternal(deviceId));
+  async connect(deviceId?: string, echoCancellation = true): Promise<boolean> {
+    return this.enqueue(() => this.connectInternal(deviceId, echoCancellation));
   }
 
-  private async connectInternal(deviceId?: string): Promise<boolean> {
+  private async connectInternal(deviceId: string | undefined, echoCancellation: boolean): Promise<boolean> {
     if (!PitchInputController.isSupported()) {
       this.onError?.(
         voiceUserMessage(
@@ -350,6 +352,7 @@ export class PitchInputController {
 
     try {
       await this.disconnectInternal(false);
+      this.echoCancellation = echoCancellation;
       PitchInputController.activeControllers.add(this);
       this.recordDiagnostic('connectStarted');
 
@@ -362,7 +365,7 @@ export class PitchInputController {
         if (isAlive && deviceMatch) {
           this.mediaStream = cached;
           PitchInputController._cachedStream = null;
-          await tracks[0].applyConstraints(microphoneConstraints(deviceId));
+          await tracks[0].applyConstraints(microphoneConstraints(deviceId, echoCancellation));
         } else {
           cached.getTracks().forEach((t) => t.stop());
           PitchInputController._cachedStream = null;
@@ -371,7 +374,7 @@ export class PitchInputController {
 
       if (!this.mediaStream) {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: microphoneConstraints(deviceId),
+          audio: microphoneConstraints(deviceId, echoCancellation),
           video: false,
         });
         PitchInputController._permissionGranted = true;
@@ -558,7 +561,7 @@ export class PitchInputController {
           ? {
               deviceLabel: track?.label ?? null,
               sampleRate: typeof settings?.sampleRate === 'number' ? settings.sampleRate : null,
-              requestedEchoCancellation: true,
+              requestedEchoCancellation: this.echoCancellation,
               actualEchoCancellation: typeof settings?.echoCancellation === 'boolean'
                 ? settings.echoCancellation
                 : null,

@@ -232,6 +232,9 @@ export interface GameSettings {
   /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
   voiceFastResponse?: boolean;
 
+  /** Webマイクのエコーキャンセル。falseで演奏音の抑制を切り分ける。未指定はtrue。 */
+  voiceEchoCancellation?: boolean;
+
   /** 低音読み取り: ON で認識入力を +12 半音してから実音へ戻す */
   voiceLowRegister?: boolean;
 

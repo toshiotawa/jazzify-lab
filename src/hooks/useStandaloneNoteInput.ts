@@ -233,7 +233,7 @@ export const useStandaloneNoteInput = ({
           : undefined;
       if (PitchInputController.isSupported()) {
         setConnectionStatus('requesting');
-        const ok = await pitch.connect(deviceId);
+        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true);
         if (connectGenerationRef.current !== generation) return;
         setIsConnected(ok);
         setConnectionStatus(ok ? 'ready' : 'error');
@@ -261,6 +261,7 @@ export const useStandaloneNoteInput = ({
     effectiveMethod,
     settings.selectedMidiDevice,
     settings.selectedAudioDevice,
+    settings.voiceEchoCancellation,
   ]);
 
   useEffect(() => {

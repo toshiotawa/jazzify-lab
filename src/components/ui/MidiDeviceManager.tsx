@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { PitchInputController } from '@/utils/PitchInputController';
+import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -242,7 +243,8 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
 
     if (!PitchInputController.isPermissionGranted()) {
       const permissionOk = await PitchInputController.requestMicrophonePermission(
-        newDeviceId === 'default' ? undefined : newDeviceId
+        newDeviceId === 'default' ? undefined : newDeviceId,
+        useGameStore.getState().settings.voiceEchoCancellation ?? true,
       );
       if (!permissionOk) {
         return;

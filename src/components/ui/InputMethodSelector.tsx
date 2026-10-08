@@ -1,3 +1,4 @@
+import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React, { useEffect, useState } from 'react';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
@@ -130,6 +131,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
             value={settings.selectedAudioDevice}
             onChange={(deviceId) => updateSettings({ selectedAudioDevice: deviceId })}
           />
+          <VoiceEchoCancellationControl isEnglishCopy={en} />
           <label className="block">
             <div className="mb-1 flex items-center justify-between text-xs text-purple-200">
               <span>{en ? 'Sensitivity' : '感度'}</span>
