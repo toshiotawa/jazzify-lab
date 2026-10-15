@@ -53,12 +53,99 @@ describe('PESTO worker buffer recovery', () => {
     vi.stubGlobal('self', worker);
     await import('../pestoPitchWorker');
     await control({ type: 'connectPort' });
-    await control({ type: 'init', sensitivity: 5, generationId: 1, shiftSemitones: 0,
+    await control({ type: 'init', sensitivity: 5, inferenceIntervalMs: 5, generationId: 1, shiftSemitones: 0,
       diagnostics: { deviceLabel: 'test mic', sampleRate: 48_000, requestedEchoCancellation: true, actualEchoCancellation: true },
     });
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it.each([10, 20] as const)('preserves all PCM at %sms and matches the 5ms model inputs', async (interval) => {
+    const frames: { audio: Float32Array; cache: Float32Array }[] = [];
+    run.mockImplementation(async (feeds: { audio: { data: Float32Array }; cache: { data: Float32Array } }) => {
+      frames.push({ audio: feeds.audio.data.slice(), cache: feeds.cache.data.slice() });
+      const result = output();
+      result.cache_out.data.set(feeds.cache.data.subarray(240));
+      result.cache_out.data.set(feeds.audio.data, 3976 - 240);
+      return result;
+    });
+    const pcm = Float32Array.from({ length: 240 * 32 }, (_, i) => Math.sin(i * 0.03) * 0.1);
+    await control({ type: 'init', sensitivity: 5, inferenceIntervalMs: interval, generationId: 1, shiftSemitones: 0,
+      diagnostics: { deviceLabel: 'test', sampleRate: 48000, requestedEchoCancellation: false, actualEchoCancellation: false },
+    });
+    for (let sequence = 0; sequence < 32; sequence += 1) {
+      const buffer = send(sequence, sequence * 240, 1, 0, undefined, pcm.slice(sequence * 240, (sequence + 1) * 240));
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    }
+    const stride = interval / 5;
+    expect(frames).toHaveLength(32 / stride);
+    for (let index = 0; index < frames.length; index += 1) {
+      const end = (index + 1) * stride * 240;
+      expect(frames[index].audio).toEqual(pcm.slice(end - 240, end));
+      const expected = new Float32Array(3976);
+      const start = Math.max(0, end - 240 - 3976);
+      const length = end - 240 - start;
+      expected.set(pcm.subarray(start, end - 240), 3976 - length);
+      expect(frames[index].cache).toEqual(expected);
+    }
+    await control({ type: 'dumpDiagnostics' });
+    expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({ diagnostics: expect.objectContaining({
+      inferenceIntervalMs: interval, inferenceCount: 32 / stride, skippedInferenceFrames: 32 - 32 / stride,
+    }) }));
+  });
+
+  it.each([10, 20] as const)('restores history after a gap and resets the %sms skip phase', async (interval) => {
+    await control({ type: 'init', sensitivity: 5, inferenceIntervalMs: interval, generationId: 1, shiftSemitones: 0 });
+    const first = send(0);
+    await vi.waitFor(() => expect(recycled()).toContain(first), { interval: 1 });
+    const history = Float32Array.from({ length: 3976 }, (_, i) => i / 3976);
+    const expectedCache = history.slice();
+    const stride = interval / 5;
+    for (let index = 0; index < stride - 1; index += 1) {
+      const buffer = send(20 + index, (20 + index) * 240, 1, 0, index === 0 ? history : undefined);
+      expectedCache.copyWithin(0, 240);
+      expectedCache.fill(Math.fround(0.1), 3976 - 240);
+      await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+    }
+    expect(run).not.toHaveBeenCalled();
+    run.mockImplementationOnce(async (feeds: { cache: { data: Float32Array } }) => {
+      expect(feeds.cache.data).toEqual(expectedCache);
+      return output();
+    });
+    const last = send(20 + stride - 1);
+    await vi.waitFor(() => expect(recycled()).toContain(last), { interval: 1 });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it.each([12, 24] as const)('retains filtered low-register PCM when comparing intervals at shift +%s', async (shift) => {
+    const collect = async (interval: 5 | 10 | 20) => {
+      const frames: { audio: Float32Array; cache: Float32Array }[] = [];
+      await control({ type: 'init', sensitivity: 5, inferenceIntervalMs: interval, generationId: 1, shiftSemitones: shift });
+      run.mockImplementation(async (feeds: { audio: { data: Float32Array }; cache: { data: Float32Array } }) => {
+        frames.push({ audio: feeds.audio.data.slice(), cache: feeds.cache.data.slice() });
+        const result = output();
+        result.cache_out.data.set(feeds.cache.data.subarray(240));
+        result.cache_out.data.set(feeds.audio.data, 3976 - 240);
+        return result;
+      });
+      for (let sequence = 0; sequence < 32; sequence += 1) {
+        const samples = Float32Array.from({ length: 240 }, (_, i) => Math.sin((sequence * 240 + i) * 0.02));
+        const buffer = send(sequence, sequence * 240, 1, 0, undefined, samples);
+        await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+      }
+      return frames;
+    };
+    const baseline = await collect(5);
+    const modelFrameMs = shift === 12 ? 10 : 20;
+    for (const interval of [10, 20] as const) {
+      const compared = await collect(interval);
+      const stride = Math.max(1, interval / modelFrameMs);
+      expect(compared).toHaveLength(baseline.length / stride);
+      for (let index = 0; index < compared.length; index += 1) {
+        expect(compared[index]).toEqual(baseline[(index + 1) * stride - 1]);
+      }
+    }
+  });
 
   it('can toggle diagnostic collection at runtime and dump state while inference is pending', async () => {
     await control({ type: 'setDiagnostics', config: null });

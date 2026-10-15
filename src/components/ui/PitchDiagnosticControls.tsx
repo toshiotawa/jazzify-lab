@@ -5,11 +5,41 @@ import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticReco
 export const PitchDiagnosticControls = ({ isEnglishCopy }: { isEnglishCopy: boolean }) => {
   const [recording, setRecording] = useState(pitchDiagnosticRecording.enabled);
   const [exporting, setExporting] = useState(false);
+  const [interval, setIntervalMs] = useState(PitchInputController.getInferenceIntervalMs);
+  const [reconnecting, setReconnecting] = useState(false);
   return (
     <div className="space-y-2 border-t border-purple-800/40 pt-2">
       <p className="text-xs text-purple-200">
         {isEnglishCopy ? 'Voice input diagnostics' : '音声入力の診断ログ'}
         {recording ? (isEnglishCopy ? ' — recording' : '：収集中') : ''}
+      </p>
+      <label className="flex items-center gap-2 text-xs text-purple-200">
+        {isEnglishCopy ? 'Pitch update interval' : '音程の更新間隔'}
+        <select
+          className="rounded bg-slate-800 p-2 text-white"
+          value={interval}
+          disabled={reconnecting || exporting}
+          onChange={async (event) => {
+            const value = event.target.value;
+            const next = value === '10' ? 10 : value === '20' ? 20 : 5;
+            setReconnecting(true);
+            try {
+              await PitchInputController.setInferenceIntervalMs(next);
+              setIntervalMs(next);
+            } finally {
+              setReconnecting(false);
+            }
+          }}
+        >
+          <option value={5}>5ms</option>
+          <option value={10}>10ms</option>
+          <option value={20}>20ms</option>
+        </select>
+      </label>
+      <p className="text-xs text-gray-400">
+        {isEnglishCopy
+          ? 'Changing this reconnects voice input. Default: 5ms. Experimental 10/20ms use less CPU but may miss short notes. Resets on reload.'
+          : '変更時に音声入力を再接続します。既定は5ms。比較用の10／20msは負荷が減りますが、短い音を取りこぼす場合があります。再読み込みで既定に戻ります。'}
       </p>
       <div className="flex flex-wrap gap-2">
         <button

@@ -43,6 +43,7 @@ ort.env.wasm.wasmPaths = '/ort/';
 interface WorkerInitMessage {
   type: 'init';
   sensitivity: number;
+  inferenceIntervalMs?: 5 | 10 | 20;
   generationId: number;
   shiftSemitones: PestoShiftSemitones;
   config?: Partial<PitchOnsetTrackerConfig>;
@@ -200,6 +201,9 @@ let repeatPitchClassMask = 0;
 let generationId = 0;
 let shiftSemitones: PestoShiftSemitones = 0;
 let frameDurationSec = PESTO_BASE_FRAME_SEC;
+let inferenceIntervalMs: 5 | 10 | 20 = 5;
+let inferenceStride = 1;
+let modelFramesSinceInference = 0;
 let warmupFramesRemaining = 0;
 let suppressTracker = false;
 let cacheEpoch = 0;
@@ -248,6 +252,7 @@ const restoreCaptureCache = (chunk: CapturedChunk): boolean => {
     if (!Number.isFinite(history[i])) return false;
   }
   cacheData.set(history);
+  modelFramesSinceInference = 0;
   // 完全なPCM履歴は連続推論と同じ入力。冷起動のwarmupを繰り返さない。
   // 判定器の持続音・同音待ちも保持し、復帰そのものを発音にしない。
   warmupFramesRemaining = 0;
@@ -271,7 +276,7 @@ const recordCaptureInterval = (): void => {
 };
 
 const maybePostMonitor = (): void => {
-  monitorFrameCounter += 1;
+  monitorFrameCounter += frameDurationSec / PESTO_BASE_FRAME_SEC;
   if (monitorFrameCounter < MONITOR_POST_INTERVAL) return;
   monitorFrameCounter = 0;
   if (emaCaptureIntervalMs <= 0 && emaInferenceMs <= 0 && !diagnostics) return;
@@ -297,7 +302,10 @@ const applyShiftMode = (shift: PestoShiftSemitones): void => {
   const factor = decimationFactorForShift(shift);
   decimationBuffer.reset();
   decimatorState = createPestoDecimatorState(factor);
-  frameDurationSec = frameDurationMsForShift(shift) / 1000;
+  const modelFrameMs = frameDurationMsForShift(shift);
+  inferenceStride = Math.max(1, inferenceIntervalMs / modelFrameMs);
+  frameDurationSec = modelFrameMs * inferenceStride / 1000;
+  modelFramesSinceInference = 0;
   applyTrackerConfig();
 };
 
@@ -308,7 +316,12 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
     ...base,
     pitchStableFrames: pitchStableFramesOverride,
     fastResponse: fastResponseEnabled,
-    frameDurationMs: frameDurationMsForShift(shiftSemitones),
+    frameDurationMs: frameDurationSec * 1000,
+    // Keep time-based guards in source time; stability still requires distinct observations.
+    releaseFrames: Math.max(1, Math.ceil(base.releaseFrames / inferenceStride)),
+    minNoteFrames: Math.max(1, Math.ceil(base.minNoteFrames / inferenceStride)),
+    retriggerGuardFrames: Math.max(1, Math.ceil(base.retriggerGuardFrames / inferenceStride)),
+    retriggerLookbackFrames: Math.max(1, Math.ceil(base.retriggerLookbackFrames / inferenceStride)),
     allowImmediateFirstFrame: factor <= 1,
   };
 };
@@ -322,7 +335,8 @@ const resetInferenceState = (): void => {
   cacheEpoch += 1;
   cacheData?.fill(0);
   frameIndex = 0;
-  warmupFramesRemaining = PESTO_WARMUP_FRAMES;
+  warmupFramesRemaining = Math.ceil(PESTO_WARMUP_FRAMES / inferenceStride);
+  modelFramesSinceInference = 0;
   suppressTracker = warmupFramesRemaining > 0;
   diagnostics?.setWarmupFrames(warmupFramesRemaining);
   diagnostics?.recordModelReset();
@@ -506,6 +520,8 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     const queueAgeMs = (chunk.captureQueueAgeMs ?? 0) + (chunk.receivedTimeMs === undefined
       ? 0
       : Math.max(0, performance.now() - chunk.receivedTimeMs));
+    // All captured PCM reaches the attack window, including non-inferred/decimated frames.
+    attackEnvelope.pushSamples(chunk.samples);
     const accumulated = decimationBuffer.push(chunk.samples);
     if (!accumulated) {
       return;
@@ -518,6 +534,16 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     }
     const preprocessMs = performance.now() - preprocessStart;
 
+    modelFramesSinceInference += 1;
+    if (modelFramesSinceInference < inferenceStride) {
+      // Deployed refill cache is raw PCM, not hidden state. Advance without executing ONNX.
+      // Fixed-size copy reuses the tensor's storage and preserves every input sample.
+      cacheData.copyWithin(0, PESTO_CHUNK_SIZE);
+      cacheData.set(modelInput, CACHE_SIZE - PESTO_CHUNK_SIZE);
+      diagnostics?.recordSkippedInference();
+      return;
+    }
+    modelFramesSinceInference = 0;
     const inferenceStart = performance.now();
     const epochAtStart = cacheEpoch;
     const generationAtStart = generationId;
@@ -553,7 +579,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     cacheData.set(cacheOut);
     const modelMidi = Number.isFinite(rawPrediction) && rawPrediction > 0 ? rawPrediction : 0;
     const concertMidi = restoreConcertMidi(modelMidi, shiftSemitones);
-    attackEnvelope.pushSamples(chunk.samples);
+    diagnostics?.recordInference();
     const attackMidi = tracker?.getAttackReferenceNote() ?? -1;
     const attackDb = attackEnvelope.computeAttackDb(attackMidi);
 
@@ -670,7 +696,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     }
 
     if (data.type === 'setDiagnostics') {
-      diagnostics = data.config ? new PitchInputDiagnostics(data.config) : null;
+      diagnostics = data.config ? new PitchInputDiagnostics({ ...data.config, inferenceIntervalMs: frameDurationSec * 1000 }) : null;
       return;
     }
 
@@ -692,6 +718,8 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       }
       generationId = data.generationId;
       sensitivityLevel = data.sensitivity;
+      inferenceIntervalMs = data.inferenceIntervalMs === 10 || data.inferenceIntervalMs === 20
+        ? data.inferenceIntervalMs : 5;
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
       fastResponseEnabled = data.config?.fastResponse ?? pitchStableFramesOverride <= 2;
       expectedPitchMask = data.expectedPitchMask ?? 0;
@@ -714,6 +742,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
           ...data.diagnostics,
           shiftSemitones,
           generationId,
+          inferenceIntervalMs: frameDurationSec * 1000,
         });
       } else {
         diagnostics = null;
@@ -734,7 +763,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       applyShiftMode(data.shiftSemitones);
       resetInferenceState();
       attackEnvelope.reset();
-      diagnostics?.updateConfig({ shiftSemitones, generationId });
+      diagnostics?.updateConfig({ shiftSemitones, generationId, inferenceIntervalMs: frameDurationSec * 1000 });
       audioPort?.postMessage({ type: 'resetCapture', generationId });
       return;
     }

@@ -10,6 +10,15 @@ describe('PitchDiagnosticControls', () => {
     vi.restoreAllMocks();
   });
 
+  it('switches between 10ms and 20ms without changing the diagnostic recording', async () => {
+    const change = vi.spyOn(PitchInputController, 'setInferenceIntervalMs').mockResolvedValue(undefined);
+    render(<PitchDiagnosticControls isEnglishCopy={false} />);
+    fireEvent.change(screen.getByRole('combobox', { name: '音程の更新間隔' }), { target: { value: '20' } });
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('20'));
+    expect(change).toHaveBeenCalledWith(20);
+    expect(pitchDiagnosticRecording.enabled).toBe(false);
+  });
+
   it('continues recording after closing settings and saves after stopping', async () => {
     const download = vi.spyOn(PitchInputController, 'downloadDiagnostics').mockResolvedValue(undefined);
     const first = render(<PitchDiagnosticControls isEnglishCopy={false} />);

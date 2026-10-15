@@ -22,6 +22,7 @@ export interface PitchInputDiagnosticsConfig {
   actualEchoCancellation: boolean | null;
   shiftSemitones: PestoShiftSemitones;
   generationId: number;
+  inferenceIntervalMs?: number;
 }
 
 export class PitchInputDiagnostics {
@@ -39,6 +40,10 @@ export class PitchInputDiagnostics {
   private lastGapMs = 0;
   private modelResetCount = 0;
   private cacheRecoveryCount = 0;
+  private inferenceCount = 0;
+  private skippedInferenceFrames = 0;
+  private lowInputFrames = 0;
+  private confidenceRejectedFrames = 0;
   private readonly processingDurations = new Float32Array(RING_SIZE);
   private processingWriteIndex = 0;
   private processingCount = 0;
@@ -86,6 +91,14 @@ export class PitchInputDiagnostics {
     this.cacheRecoveryCount += 1;
   }
 
+  recordInference(): void {
+    this.inferenceCount += 1;
+  }
+
+  recordSkippedInference(): void {
+    this.skippedInferenceFrames += 1;
+  }
+
   recordProcessingDuration(durationMs: number): void {
     this.processingDurations[this.processingWriteIndex] = durationMs;
     this.processingWriteIndex = (this.processingWriteIndex + 1) % RING_SIZE;
@@ -94,6 +107,8 @@ export class PitchInputDiagnostics {
 
   recordObservation(obs: PitchObservation): void {
     this.lastRejectReason = obs.rejectReason;
+    if (obs.rawRmsDbfs < -60) this.lowInputFrames += 1;
+    if (obs.rejectReason === 'confidence') this.confidenceRejectedFrames += 1;
     Object.assign(this.ring[this.writeIndex], obs);
     this.writeIndex = (this.writeIndex + 1) % RING_SIZE;
     this.observationCount = Math.min(RING_SIZE, this.observationCount + 1);
@@ -113,6 +128,11 @@ export class PitchInputDiagnostics {
       requestedEchoCancellation: this.config.requestedEchoCancellation,
       actualEchoCancellation: this.config.actualEchoCancellation,
       modelId: PESTO_MODEL_ID,
+      inferenceIntervalMs: this.config.inferenceIntervalMs ?? 5,
+      inferenceCount: this.inferenceCount,
+      skippedInferenceFrames: this.skippedInferenceFrames,
+      lowInputFrames: this.lowInputFrames,
+      confidenceRejectedFrames: this.confidenceRejectedFrames,
       shiftSemitones: this.config.shiftSemitones,
       generationId: this.config.generationId,
       droppedSamples: this.droppedSamples,

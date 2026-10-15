@@ -52,6 +52,12 @@ export interface PitchInputDiagnosticSnapshot {
   requestedEchoCancellation: boolean;
   actualEchoCancellation: boolean | null;
   modelId: string;
+  inferenceIntervalMs?: number;
+  inferenceCount?: number;
+  skippedInferenceFrames?: number;
+  /** Observed raw RMS below -60 dBFS; diagnostic evidence, not an automatic mute verdict. */
+  lowInputFrames?: number;
+  confidenceRejectedFrames?: number;
   shiftSemitones: PestoShiftSemitones;
   generationId: number;
   droppedSamples: number;
