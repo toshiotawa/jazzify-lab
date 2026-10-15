@@ -236,7 +236,7 @@ export const useStandaloneNoteInput = ({
           : undefined;
       if (PitchInputController.isSupported()) {
         setConnectionStatus('requesting');
-        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1);
+        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, settings.voicePitchEngine ?? 'pesto');
         if (connectGenerationRef.current !== generation) return;
         setIsConnected(ok);
         setConnectionStatus(ok ? 'ready' : 'error');
@@ -266,6 +266,7 @@ export const useStandaloneNoteInput = ({
     settings.selectedAudioDevice,
     settings.voiceEchoCancellation,
     settings.voiceInputChannel,
+    settings.voicePitchEngine,
   ]);
 
   useEffect(() => {

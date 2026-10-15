@@ -23,6 +23,7 @@ export interface PitchInputDiagnosticsConfig {
   shiftSemitones: PestoShiftSemitones;
   generationId: number;
   inferenceIntervalMs?: number;
+  modelId?: string;
 }
 
 export class PitchInputDiagnostics {
@@ -127,7 +128,7 @@ export class PitchInputDiagnostics {
       sampleRate: this.config.sampleRate,
       requestedEchoCancellation: this.config.requestedEchoCancellation,
       actualEchoCancellation: this.config.actualEchoCancellation,
-      modelId: PESTO_MODEL_ID,
+      modelId: this.config.modelId ?? PESTO_MODEL_ID,
       inferenceIntervalMs: this.config.inferenceIntervalMs ?? 5,
       inferenceCount: this.inferenceCount,
       skippedInferenceFrames: this.skippedInferenceFrames,

@@ -1,4 +1,5 @@
 import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
+import { VoicePitchEngineControl } from '@/components/ui/VoicePitchEngineControl';
 import { VoiceInputChannelControl } from '@/components/ui/VoiceInputChannelControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React from 'react';
@@ -163,6 +164,7 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
       )}
       <p className="text-sm text-slate-300">{connectionStatus}</p>
       <VoiceEchoCancellationControl isEnglishCopy={isEnglishCopy} />
+      <VoicePitchEngineControl isEnglishCopy={isEnglishCopy} />
       <VoiceInputChannelControl isEnglishCopy={isEnglishCopy} />
       <label className="block">
         <span className="mb-1 flex justify-between text-sm text-slate-200">

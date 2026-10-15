@@ -1,4 +1,5 @@
 import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
+import { VoicePitchEngineControl } from '@/components/ui/VoicePitchEngineControl';
 import { VoiceInputChannelControl } from '@/components/ui/VoiceInputChannelControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import React, { useEffect, useState } from 'react';
@@ -106,7 +107,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
       {settings.inputMethod === 'voice' && (
         <div className="bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700 border-opacity-30 space-y-3">
           <h4 className="text-sm font-medium text-purple-200">
-            {en ? '🎤 Voice input (PESTO)' : '🎤 音声入力（PESTO）'}
+            {en ? '🎤 Voice input' : '🎤 音声入力'}
           </h4>
           {showMonophonicWarning && (
             <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2">
@@ -136,6 +137,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
             onChange={(deviceId) => updateSettings({ selectedAudioDevice: deviceId })}
           />
           <VoiceEchoCancellationControl isEnglishCopy={en} />
+          <VoicePitchEngineControl isEnglishCopy={en} />
           <VoiceInputChannelControl isEnglishCopy={en} />
           <p className="text-xs text-gray-400">
             {en ? 'Captured channels' : '取得チャンネル数'}: {latencyStats.captureChannelCount ?? '—'}

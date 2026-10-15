@@ -15,7 +15,7 @@ import {
   EMPTY_EXPECTED_PITCH_CANDIDATES,
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
-import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones } from '@/utils/pitchInput/pitchInputTypes';
+import type { PitchInputDiagnosticSnapshot, PestoShiftSemitones, PitchEngine } from '@/utils/pitchInput/pitchInputTypes';
 const voiceUserMessage = (ja: string, en: string): string =>
   shouldUseEnglishCopy() ? en : ja;
 
@@ -79,7 +79,7 @@ export class PitchInputController {
       await controller.enqueue(async () => {
         if (!controller.isProcessing) return;
         await controller.connectInternal(
-          controller.currentDeviceId ?? undefined, controller.echoCancellation, controller.inputChannel,
+          controller.currentDeviceId ?? undefined, controller.echoCancellation, controller.inputChannel, controller.pitchEngine,
         );
       });
     }
@@ -209,6 +209,7 @@ export class PitchInputController {
   private isProcessing = false;
   private echoCancellation = true;
   private inputChannel: 1 | 2 = 1;
+  private pitchEngine: PitchEngine = 'pesto';
   private captureChannelCount: number | null = null;
   private sensitivityLevel = 5;
   private pitchStableFrames = 4;
@@ -244,6 +245,7 @@ export class PitchInputController {
       sensitivity: this.sensitivityLevel,
       stableFrames: this.pitchStableFrames,
       shiftSemitones: this.shiftSemitones,
+      pitchEngine: this.pitchEngine,
       inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
       expectedPitchMask: this.expectedPitchMask,
       expectedPitchMidis: this.expectedPitchMidis,
@@ -375,11 +377,11 @@ export class PitchInputController {
     return result;
   }
 
-  async connect(deviceId?: string, echoCancellation = true, inputChannel: 1 | 2 = 1): Promise<boolean> {
-    return this.enqueue(() => this.connectInternal(deviceId, echoCancellation, inputChannel));
+  async connect(deviceId?: string, echoCancellation = true, inputChannel: 1 | 2 = 1, pitchEngine: PitchEngine = 'pesto'): Promise<boolean> {
+    return this.enqueue(() => this.connectInternal(deviceId, echoCancellation, inputChannel, pitchEngine));
   }
 
-  private async connectInternal(deviceId: string | undefined, echoCancellation: boolean, inputChannel: 1 | 2): Promise<boolean> {
+  private async connectInternal(deviceId: string | undefined, echoCancellation: boolean, inputChannel: 1 | 2, pitchEngine: PitchEngine): Promise<boolean> {
     if (!PitchInputController.isSupported()) {
       this.onError?.(
         voiceUserMessage(
@@ -393,6 +395,7 @@ export class PitchInputController {
     let channelUnavailable = false;
     try {
       await this.disconnectInternal(false);
+      this.pitchEngine = pitchEngine;
       this.echoCancellation = echoCancellation;
       this.inputChannel = inputChannel;
       this.captureChannelCount = null;
@@ -476,12 +479,12 @@ export class PitchInputController {
         } });
       }
       this.onConnectionChange?.(true);
-      log.info('✅ PESTO 音声入力接続完了');
+      log.info('音声入力接続完了:', this.pitchEngine);
       return true;
     } catch (error) {
       this.recordDiagnostic('connectError', { message: error instanceof Error ? error.message : String(error) });
       await this.disconnectInternal(false);
-      log.error('PESTO 音声入力接続エラー:', error);
+      log.error('音声入力接続エラー:', this.pitchEngine, error);
       const inputError = channelUnavailable || (error instanceof Error && error.name === 'OverconstrainedError'
         && 'constraint' in error && error.constraint === 'channelCount')
         ? channelUnavailableMessage()
@@ -605,6 +608,7 @@ export class PitchInputController {
       const settings = track?.getSettings();
       this.worker?.postMessage({
         type: 'init',
+        pitchEngine: this.pitchEngine,
         inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
         sensitivity: this.sensitivityLevel,
         generationId: this.generationId,
