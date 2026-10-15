@@ -65,6 +65,26 @@ const isVoiceInputSupported = (): boolean =>
   Boolean(navigator.mediaDevices?.getUserMedia);
 
 export class PitchInputController {
+  private static inferenceIntervalMs: 5 | 10 | 20 = 5;
+
+  static getInferenceIntervalMs(): 5 | 10 | 20 {
+    return PitchInputController.inferenceIntervalMs;
+  }
+
+  static async setInferenceIntervalMs(interval: 5 | 10 | 20): Promise<void> {
+    if (interval === PitchInputController.inferenceIntervalMs) return;
+    PitchInputController.inferenceIntervalMs = interval;
+    // Explicit diagnostic action only; reuse serialized connection/resource cleanup.
+    for (const controller of [...PitchInputController.activeControllers]) {
+      await controller.enqueue(async () => {
+        if (!controller.isProcessing) return;
+        await controller.connectInternal(
+          controller.currentDeviceId ?? undefined, controller.echoCancellation, controller.inputChannel,
+        );
+      });
+    }
+  }
+
   private static readonly activeControllers = new Set<PitchInputController>();
 
   static setDiagnosticRecording(enabled: boolean): void {
@@ -224,6 +244,7 @@ export class PitchInputController {
       sensitivity: this.sensitivityLevel,
       stableFrames: this.pitchStableFrames,
       shiftSemitones: this.shiftSemitones,
+      inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
       expectedPitchMask: this.expectedPitchMask,
       expectedPitchMidis: this.expectedPitchMidis,
       repeatPitchClassMask: this.repeatPitchClassMask,
@@ -584,6 +605,7 @@ export class PitchInputController {
       const settings = track?.getSettings();
       this.worker?.postMessage({
         type: 'init',
+        inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
         sensitivity: this.sensitivityLevel,
         generationId: this.generationId,
         shiftSemitones: this.shiftSemitones,

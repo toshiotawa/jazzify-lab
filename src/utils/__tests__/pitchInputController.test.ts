@@ -68,6 +68,17 @@ describe('PitchInputController microphone setup', () => {
     vi.restoreAllMocks();
   });
 
+  it('reconnects with the selected interval while retaining device, echo setting and channel', async () => {
+    getSettings.mockReturnValue({ deviceId: 'external-mic', channelCount: 2 });
+    await controller.connect('external-mic', false, 2);
+    await PitchInputController.setInferenceIntervalMs(20);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', inferenceIntervalMs: 20 }));
+    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: { ...constraints, echoCancellation: false, channelCount: { exact: 2 } }, video: false });
+    expect(controller.isConnected()).toBe(true);
+    await controller.disconnect();
+    await PitchInputController.setInferenceIntervalMs(5);
+  });
+
   it('uses the same AGC/NS settings for permission capture and fresh connections', async () => {
     expect(await PitchInputController.requestMicrophonePermission('external-mic')).toBe(true);
     expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });

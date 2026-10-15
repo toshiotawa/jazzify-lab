@@ -43,3 +43,16 @@ node scripts/pesto/verify-pesto-gap-recovery.mjs
 配信する差分を復元した実際のWASMモデルに、低音〜高音の倍音付き・小音量信号を3200フレーム入力する。35msの欠落を繰り返し、200msの停止も含める。各フレームでcacheが原音履歴と厳密一致することを検証し、欠落後に実PCMを復元したprediction・confidence・volume・cacheが、欠落せずに推論を続けた参照モデルと**全て厳密一致**することを要求する。ゼロ初期化を繰り返す従来処理のconfidenceも比較する。実マイク・ゲーム描画を含む端末上の検証ではない。
 
 10ms推論の試作とWASM 1・2・4スレッドの実測結果は、[2026-10-08の検討レポート](../../docs/pitch-performance-options-2026-10-08.md)を参照。通常音域の完全な履歴復元後のwarmup回避はすでに実装済み。10ms周期・複数スレッドの実運用への適用はまだ行っていない。
+
+## 5/10/20msの実装比較
+
+[2026-10-16の比較と停止原因の切り分け](../../docs/pitch-cadence-comparison-2026-10-16.md)を参照。既定5msを維持し、音声設定の診断欄で10/20msへ切り替える。モデルの同時刻出力が一致しても、短い音の発音判定は一致しない条件がある。
+
+```sh
+node scripts/pesto/compare-pesto-cadence.mjs temp/pesto-cadence/results.json
+# Playwrightを検証環境へ用意し、Chromiumをインストールしてから実行
+npm run build:app
+PESTO_BENCHMARK_SECONDS=120 node scripts/pesto/benchmark-pesto-browser.mjs temp/pesto-cadence/browser-results.json
+```
+
+ブラウザ実行には任意の検証用Playwrightが必要（アプリ依存には追加しない）。必要なら`PESTO_PLAYWRIGHT_MODULE`へモジュールの絶対パス、`PESTO_CHROME_PATH`へChrome/Headless Shellの実行ファイルを指定する。モデル逐次再生の計測時間は実時間の取り込み負荷を表さない。ブラウザ試験は本番Worklet/Workerを使うが、実マイク・Apollo・ゲーム描画は含まない。

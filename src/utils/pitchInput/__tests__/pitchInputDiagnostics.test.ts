@@ -33,6 +33,19 @@ describe('PitchInputDiagnostics', () => {
       discontinuity: false, rejectReason: 'voiced',
     };
     diagnostics.recordObservation(observation);
+    expect(diagnostics.snapshot(0).lowInputFrames).toBe(0);
+    observation.rawRmsDbfs = -70;
+    observation.rejectReason = 'confidence';
+    diagnostics.recordInference();
+    diagnostics.recordSkippedInference();
+    diagnostics.recordObservation(observation);
+    diagnostics.updateConfig({ inferenceIntervalMs: 20 });
+    expect(diagnostics.snapshot(0)).toMatchObject({
+      inferenceIntervalMs: 20, inferenceCount: 1, skippedInferenceFrames: 1,
+      lowInputFrames: 1, confidenceRejectedFrames: 1,
+    });
+    observation.rawRmsDbfs = -20;
+    diagnostics.recordObservation(observation);
     observation.concertMidi = 65;
     expect(diagnostics.snapshot(0)).toMatchObject({
       lastConcertMidi: 60, lastRawRmsDbfs: -20, lastModelVolume: 0.01, lastSourceEndTimeSec: 0.005,
