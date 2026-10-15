@@ -12,7 +12,7 @@ const server = createServer(async (request, response) => {
     const path = new URL(request.url, 'http://localhost').pathname;
     if (path === '/') {
       response.setHeader('Content-Type', 'text/html');
-      response.end('<!doctype html><title>PESTO production pipeline benchmark</title>');
+      response.end('<!doctype html><title>Pitch production pipeline benchmark</title>');
       return;
     }
     const file = new URL(`.${path}`, root);
@@ -31,6 +31,8 @@ if (!address || typeof address === 'string') throw new Error('No server address'
 const browser = await chromium.launch({ headless: true, executablePath: process.env.PESTO_CHROME_PATH,
   args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
 const durationSec = Number(process.env.PESTO_BENCHMARK_SECONDS ?? 120);
+const pitchEngine = process.env.PESTO_BENCHMARK_ENGINE ?? 'pesto';
+if (!['pesto', 'pitchy'].includes(pitchEngine)) throw new Error('Invalid pitch engine');
 const intervals = (process.env.PESTO_BENCHMARK_INTERVALS ?? '5,10,20').split(',').map(Number);
 if (!intervals.length || intervals.some((value) => ![5, 10, 20].includes(value))) throw new Error('Invalid intervals');
 if (!Number.isFinite(durationSec) || durationSec <= 0) throw new Error('Invalid duration');
@@ -39,15 +41,15 @@ try {
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${address.port}/`);
   for (const interval of intervals) {
-    process.stderr.write(`Browser ${interval}ms, ${durationSec}s\n`);
-    results.push(await page.evaluate(async ({ interval, durationSec, workerFile }) => {
+    process.stderr.write(`Browser ${pitchEngine} ${interval}ms, ${durationSec}s\n`);
+    results.push(await page.evaluate(async ({ interval, durationSec, workerFile, pitchEngine }) => {
       const messages = [];
       const worker = new Worker(`/assets/${workerFile}`, { type: 'module' });
       const context = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
       const channel = new MessageChannel();
       worker.postMessage({ type: 'connectPort' }, [channel.port1]);
       worker.onmessage = (event) => messages.push({ ...event.data, receivedMs: performance.now() });
-      worker.postMessage({ type: 'init', generationId: 1, sensitivity: 5, shiftSemitones: 0,
+      worker.postMessage({ type: 'init', pitchEngine, generationId: 1, sensitivity: 5, shiftSemitones: 0,
         inferenceIntervalMs: interval, config: { pitchStableFrames: 2 },
         diagnostics: { deviceLabel: 'synthetic oscillator', sampleRate: 48000, requestedEchoCancellation: false, actualEchoCancellation: false },
       });
@@ -88,7 +90,7 @@ try {
       worker.terminate();
       await context.close();
       const percentile = (values, p) => [...values].sort((a, b) => a - b)[Math.floor(values.length * p)] ?? 0;
-      return { intervalMs: interval, durationSec, crossOriginIsolated, userAgent: navigator.userAgent,
+      return { pitchEngine, intervalMs: interval, durationSec, crossOriginIsolated, userAgent: navigator.userAgent,
         elapsedMs: performance.now() - start, noteCount: notes.length, wrongNotes: notes.filter((note) => note.note !== 69).length,
         errors, diagnostics: state.diagnostics,
         inferenceP50: percentile(monitors.map((message) => message.diagnostics.inferenceMsP50), 0.5),
@@ -97,7 +99,7 @@ try {
         queueAgeP95: percentile(monitors.map((message) => message.diagnostics.queueAgeMsP95), 0.95),
         firstNoteMs: notes.length ? notes[0].receivedMs - start : null,
       };
-    }, { interval, durationSec, workerFile }));
+    }, { interval, durationSec, workerFile, pitchEngine }));
     process.stderr.write(`${JSON.stringify(results.at(-1))}\n`);
   }
   const json = `${JSON.stringify({ results }, null, 2)}\n`;

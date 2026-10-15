@@ -229,6 +229,9 @@ export interface GameSettings {
   /** 音声認識の感度 (1-10, デフォルト5) */
   voiceSensitivity: number;
 
+  /** Web単音ピッチ推定方式。未指定はPESTO。 */
+  voicePitchEngine?: 'pesto' | 'pitchy';
+
   /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
   voiceFastResponse?: boolean;
 

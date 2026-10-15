@@ -1646,14 +1646,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (settings.selectedAudioDevice) {
           const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
-          await voiceControllerRef.current.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1);
+          await voiceControllerRef.current.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, settings.voicePitchEngine ?? 'pesto');
         }
       } catch {
         // エラー時はタッチ入力で続行可能
       }
     };
     void initVoiceInput();
-  }, [settings.inputMethod, settings.selectedAudioDevice, settings.voiceEchoCancellation, settings.voiceInputChannel, survivalMidi]);
+  }, [settings.inputMethod, settings.selectedAudioDevice, settings.voiceEchoCancellation, settings.voiceInputChannel, settings.voicePitchEngine, survivalMidi]);
 
   // 音声認識感度の反映
   useEffect(() => {

@@ -1,3 +1,5 @@
+export type PitchEngine = 'pesto' | 'pitchy';
+
 /** PESTO 低音実験: 認識専用の半音シフト（tracker 前に復元する）。 */
 export type PestoShiftSemitones = 0 | 12 | 24;
 

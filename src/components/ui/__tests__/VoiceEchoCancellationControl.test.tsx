@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { VoiceEchoCancellationControl } from '../VoiceEchoCancellationControl';
+import { VoicePitchEngineControl } from '../VoicePitchEngineControl';
 import { VoiceInputChannelControl } from '../VoiceInputChannelControl';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
 import { useGameStore } from '@/stores/gameStore';
@@ -40,7 +41,7 @@ vi.mock('@/utils/iosbridge', () => ({ isIOSWebView: () => false }));
 
 const InputSession = () => {
   useStandaloneNoteInput({ onNoteOn: () => undefined });
-  return <><VoiceEchoCancellationControl isEnglishCopy={false} /><VoiceInputChannelControl isEnglishCopy={false} /></>;
+  return <><VoicePitchEngineControl isEnglishCopy={false} /><VoiceEchoCancellationControl isEnglishCopy={false} /><VoiceInputChannelControl isEnglishCopy={false} /></>;
 };
 
 describe('VoiceEchoCancellationControl with a microphone session', () => {
@@ -58,11 +59,11 @@ describe('VoiceEchoCancellationControl with a microphone session', () => {
   it('reconnects with OFF and ON, retains the selection on remount, and does not reconnect for volume changes', async () => {
     const view = render(<InputSession />);
     await act(async () => { await Promise.resolve(); });
-    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1));
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1, 'pesto'));
     await act(async () => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'エコーキャンセル' }));
     });
-    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', false, 1));
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', false, 1, 'pesto'));
     expect(connect).toHaveBeenCalledTimes(2);
     expect(useGameStore.getState().settings.voiceEchoCancellation).toBe(false);
     await act(async () => {
@@ -74,29 +75,41 @@ describe('VoiceEchoCancellationControl with a microphone session', () => {
     render(<InputSession />);
     await act(async () => { await Promise.resolve(); });
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(3));
-    expect(connect).toHaveBeenLastCalledWith('external-mic', false, 1);
+    expect(connect).toHaveBeenLastCalledWith('external-mic', false, 1, 'pesto');
     expect(screen.getByRole('checkbox', { name: 'エコーキャンセル' })).not.toBeChecked();
     await act(async () => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'エコーキャンセル' }));
     });
-    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1));
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1, 'pesto'));
     expect(connect).toHaveBeenCalledTimes(4);
   });
 
   it('reconnects on channel selection and keeps Input 2 on remount', async () => {
     const view = render(<InputSession />);
     await act(async () => { await Promise.resolve(); });
-    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1));
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1, 'pesto'));
     await act(async () => {
       fireEvent.change(screen.getByRole('combobox', { name: 'マイク入力チャンネル' }), { target: { value: '2' } });
     });
-    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 2));
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 2, 'pesto'));
     expect(connect).toHaveBeenCalledTimes(2);
     view.unmount();
     render(<InputSession />);
     await act(async () => { await Promise.resolve(); });
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(3));
-    expect(connect).toHaveBeenLastCalledWith('external-mic', true, 2);
+    expect(connect).toHaveBeenLastCalledWith('external-mic', true, 2, 'pesto');
     expect(screen.getByRole('combobox', { name: 'マイク入力チャンネル' })).toHaveValue('2');
+  });
+
+  it('reconnects with Pitchy, retains it across echo changes, and switches back to PESTO', async () => {
+    render(<InputSession />);
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1, 'pesto'));
+    fireEvent.change(screen.getByRole('combobox', { name: '音程の認識方式' }), { target: { value: 'pitchy' } });
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', true, 1, 'pitchy'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'エコーキャンセル' }));
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', false, 1, 'pitchy'));
+    fireEvent.change(screen.getByRole('combobox', { name: '音程の認識方式' }), { target: { value: 'pesto' } });
+    await waitFor(() => expect(connect).toHaveBeenLastCalledWith('external-mic', false, 1, 'pesto'));
+    expect(connect).toHaveBeenCalledTimes(4);
   });
 });

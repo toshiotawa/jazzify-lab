@@ -3,6 +3,7 @@
  */
 
 import * as ort from 'onnxruntime-web';
+import { PitchyEstimator, PITCHY_MODEL_ID, PITCHY_WINDOW_SIZE } from '@/utils/pitchInput/pitchyEstimator';
 import { loadPestoWebModel } from '@/utils/pitchInput/pestoWebModel';
 import { PitchDecimationBuffer } from '@/utils/pitchInput/pitchDecimationBuffer';
 import { PitchChunkQueue } from '@/utils/pitchInput/pitchChunkQueue';
@@ -28,6 +29,8 @@ import {
   PESTO_BASE_FRAME_SEC,
   PESTO_CHUNK_SIZE,
   PESTO_WARMUP_FRAMES,
+  PESTO_MODEL_ID,
+  type PitchEngine,
   decimationFactorForShift,
   frameDurationMsForShift,
   type CapturedChunk,
@@ -42,6 +45,7 @@ ort.env.wasm.wasmPaths = '/ort/';
 
 interface WorkerInitMessage {
   type: 'init';
+  pitchEngine?: PitchEngine;
   sensitivity: number;
   inferenceIntervalMs?: 5 | 10 | 20;
   generationId: number;
@@ -174,6 +178,8 @@ type WorkerOutbound =
   | WorkerFrameTraceMessage
   | WorkerDiagnosticStateMessage;
 
+let pitchEngine: PitchEngine = 'pesto';
+let pitchy: PitchyEstimator | null = null;
 let session: ort.InferenceSession | null = null;
 let cacheTensor: ort.Tensor | null = null;
 let audioTensor: ort.Tensor | null = null;
@@ -245,6 +251,7 @@ const recycleChunk = (chunk: Pick<CapturedChunk, 'samples' | 'recoveryCache'>): 
 };
 
 const restoreCaptureCache = (chunk: CapturedChunk): boolean => {
+  if (pitchEngine === 'pitchy') return false;
   const history = chunk.recoveryCache;
   // 低音モードのcacheはフィルタ・間引き後のPCM。原音で上書きしない。
   if (shiftSemitones !== 0 || !cacheData || !history || history.length !== CACHE_SIZE) return false;
@@ -314,6 +321,11 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
   const factor = decimationFactorForShift(shiftSemitones);
   return {
     ...base,
+    // MPM clarity and neural confidence have different scales. Reject mixed-note windows.
+    minConfidence: pitchEngine === 'pitchy' ? 0.875 + (5 - sensitivityLevel) * 0.01 : base.minConfidence,
+    expectedAssistConfidence: pitchEngine === 'pitchy' ? 0.875 + (5 - sensitivityLevel) * 0.01 : base.expectedAssistConfidence,
+    onsetImmediateConfidence: pitchEngine === 'pitchy' ? 0.95 : base.onsetImmediateConfidence,
+    fastLegatoConfidence: pitchEngine === 'pitchy' ? 0.95 : base.fastLegatoConfidence,
     pitchStableFrames: pitchStableFramesOverride,
     fastResponse: fastResponseEnabled,
     frameDurationMs: frameDurationSec * 1000,
@@ -334,8 +346,10 @@ const applyTrackerConfig = (): void => {
 const resetInferenceState = (): void => {
   cacheEpoch += 1;
   cacheData?.fill(0);
+  pitchy?.reset();
   frameIndex = 0;
-  warmupFramesRemaining = Math.ceil(PESTO_WARMUP_FRAMES / inferenceStride);
+  const warmupFrames = pitchEngine === 'pitchy' ? Math.ceil(PITCHY_WINDOW_SIZE / PESTO_CHUNK_SIZE) : PESTO_WARMUP_FRAMES;
+  warmupFramesRemaining = Math.ceil(warmupFrames / inferenceStride);
   modelFramesSinceInference = 0;
   suppressTracker = warmupFramesRemaining > 0;
   diagnostics?.setWarmupFrames(warmupFramesRemaining);
@@ -513,7 +527,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
   let outputs: ort.InferenceSession.ReturnType | null = null;
   const processingStart = diagnostics ? performance.now() : 0;
   try {
-    if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData || !tracker) {
+    if (!tracker || (pitchEngine === 'pitchy' ? !pitchy : !session || !cacheTensor || !audioTensor || !cacheData || !audioData)) {
       return;
     }
 
@@ -534,17 +548,34 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     }
     const preprocessMs = performance.now() - preprocessStart;
 
+    pitchy?.push(modelInput);
     modelFramesSinceInference += 1;
     if (modelFramesSinceInference < inferenceStride) {
       // Deployed refill cache is raw PCM, not hidden state. Advance without executing ONNX.
       // Fixed-size copy reuses the tensor's storage and preserves every input sample.
-      cacheData.copyWithin(0, PESTO_CHUNK_SIZE);
-      cacheData.set(modelInput, CACHE_SIZE - PESTO_CHUNK_SIZE);
+      if (pitchEngine === 'pesto' && cacheData) {
+        cacheData.copyWithin(0, PESTO_CHUNK_SIZE);
+        cacheData.set(modelInput, CACHE_SIZE - PESTO_CHUNK_SIZE);
+      }
       diagnostics?.recordSkippedInference();
       return;
     }
     modelFramesSinceInference = 0;
     const inferenceStart = performance.now();
+    if (pitchEngine === 'pitchy' && pitchy) {
+      const frame = pitchy.estimate();
+      const inferenceMs = performance.now() - inferenceStart;
+      emaInferenceMs = updateEma(emaInferenceMs, inferenceMs);
+      diagnostics?.recordInference();
+      const attackMidi = tracker.getAttackReferenceNote();
+      emitTrackerEvents(
+        frame, attackEnvelope.computeAttackDb(attackMidi), attackMidi, chunk,
+        inferenceMs + preprocessMs, queueAgeMs, frame.prediction,
+        restoreConcertMidi(frame.prediction, shiftSemitones),
+      );
+      return;
+    }
+    if (!session || !cacheTensor || !audioTensor || !cacheData || !audioData) return;
     const epochAtStart = cacheEpoch;
     const generationAtStart = generationId;
     audioData.set(modelInput);
@@ -696,7 +727,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     }
 
     if (data.type === 'setDiagnostics') {
-      diagnostics = data.config ? new PitchInputDiagnostics({ ...data.config, inferenceIntervalMs: frameDurationSec * 1000 }) : null;
+      diagnostics = data.config ? new PitchInputDiagnostics({ ...data.config, modelId: pitchEngine === 'pitchy' ? PITCHY_MODEL_ID : PESTO_MODEL_ID, inferenceIntervalMs: frameDurationSec * 1000 }) : null;
       return;
     }
 
@@ -713,8 +744,12 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     }
 
     if (data.type === 'init') {
-      if (!session) {
-        await initSession();
+      pitchEngine = data.pitchEngine === 'pitchy' ? 'pitchy' : 'pesto';
+      if (pitchEngine === 'pitchy') {
+        pitchy = new PitchyEstimator();
+      } else {
+        pitchy = null;
+        if (!session) await initSession();
       }
       generationId = data.generationId;
       sensitivityLevel = data.sensitivity;
@@ -740,6 +775,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       if (data.diagnostics) {
         diagnostics = new PitchInputDiagnostics({
           ...data.diagnostics,
+          modelId: pitchEngine === 'pitchy' ? PITCHY_MODEL_ID : PESTO_MODEL_ID,
           shiftSemitones,
           generationId,
           inferenceIntervalMs: frameDurationSec * 1000,
@@ -747,6 +783,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       } else {
         diagnostics = null;
       }
+      diagnostics?.setWarmupFrames(warmupFramesRemaining);
       audioPort?.postMessage({ type: 'resetCapture', generationId });
       post({ type: 'ready' });
       return;

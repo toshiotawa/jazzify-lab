@@ -79,6 +79,23 @@ describe('PitchInputController microphone setup', () => {
     await PitchInputController.setInferenceIntervalMs(5);
   });
 
+  it('retains Pitchy on cadence changes and switches back to PESTO with active notes released', async () => {
+    getSettings.mockReturnValue({ deviceId: 'external-mic', channelCount: 2 });
+    const onNoteOff = vi.fn();
+    await controller.disconnect();
+    controller = new PitchInputController({ onNoteOn: vi.fn(), onNoteOff });
+    expect(await controller.connect('external-mic', false, 2, 'pitchy')).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', pitchEngine: 'pitchy' }));
+    worker.dispatchEvent(new MessageEvent('message', { data: { type: 'noteOn', note: 69 } }));
+    await PitchInputController.setInferenceIntervalMs(20);
+    expect(onNoteOff).toHaveBeenCalledWith(69);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', pitchEngine: 'pitchy', inferenceIntervalMs: 20 }));
+    expect(await controller.connect('external-mic', false, 2, 'pesto')).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', pitchEngine: 'pesto' }));
+    await controller.disconnect();
+    await PitchInputController.setInferenceIntervalMs(5);
+  });
+
   it('uses the same AGC/NS settings for permission capture and fresh connections', async () => {
     expect(await PitchInputController.requestMicrophonePermission('external-mic')).toBe(true);
     expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });
