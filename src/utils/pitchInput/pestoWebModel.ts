@@ -15,7 +15,8 @@ const sha256 = async (buffer: ArrayBuffer): Promise<string> => {
 };
 
 /** Reconstruct the precomputed ONNX once during Worker initialization.
- * CQT padding zeros and constant shape work are removed offline. No trained
+ * CQT padding zeros and constant shape work are removed offline; fixed-window
+ * CQT uses equivalent Gemm operators with the same coefficients. No trained
  * coefficient, input sample, 5ms stride, refill cache or tracker rule changes.
  */
 export const loadPestoWebModel = async (): Promise<Uint8Array> => {

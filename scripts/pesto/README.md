@@ -6,13 +6,13 @@ Webの入力はiOSと同じ48kHz・240 samples（5ms）。推論時間が入力�
 - 入力形状を1×240に固定し、ONNX RuntimeのBASIC最適化で定数の形状計算・分岐を畳み込む。CPU専用の融合演算は使わない。
 - 学習済みの非ゼロ係数、5ms stride、refill、3976 samplesのcache、低音モード、オンセット判定、欠落後の復帰処理は保持する。浮動小数点の加算順の違いによる微小な差はあり得る。
 
-元モデルは17,015,145 bytes、最適化モデルは11,149,127 bytes。係数を複製したモデルファイルを配信する代わりに、元モデルからのコピーと小さなリテラルからなる45,971 bytesの差分を追加する。Worker初期化時に一度だけモデルを復元し、元モデルと復元結果のSHA-256を検証する。Viteビルド時・プレイ中にPythonやモデル変換は実行しない。初期化時の一時メモリには元モデルと復元用バッファが必要になる。
+元モデルは17,015,145 bytes、現在のcompact-v2は11,150,637 bytes。係数を複製したモデルファイルを配信する代わりに、元モデルからのコピーと小さなリテラルからなる47,991 bytesの差分を追加する。Worker初期化時に一度だけモデルを復元し、元モデルと復元結果のSHA-256を検証する。Viteビルド時・プレイ中にPythonやモデル変換は実行しない。初期化時の一時メモリには元モデルと復元用バッファが必要になる。
 
 ## 再生成
 
 ```sh
 python -m venv .venv-pesto-optimize
-.venv-pesto-optimize/bin/pip install onnx==1.23.1 onnxruntime==1.30.0 numpy==2.5.3
+.venv-pesto-optimize/bin/pip install onnx==1.23.1 onnxruntime==1.30.0 numpy==2.5.4
 .venv-pesto-optimize/bin/python scripts/pesto/optimize-pesto-onnx.py
 .venv-pesto-optimize/bin/python scripts/pesto/build-pesto-model-patch.py
 node scripts/pesto/verify-pesto-web-model.mjs
@@ -24,7 +24,7 @@ node scripts/pesto/verify-pesto-web-model.mjs
 
 `verify-pesto-web-model.mjs`は実際に配信する差分からモデルを復元し、onnxruntime-web 1.20.0の単一スレッドWASMで元モデルと比較する。2400フレームについて、低音から高音の倍音付き音・小音量・無音・ノイズ・インパルス・音程変更と定期的なcache初期化を含める。再帰cacheの一致は厳密、他の出力にはfloat32の丸め誤差の許容値を設定する。実行順は毎フレーム交互にする。
 
-2026-10-03の測定では中央値7.39→5.76ms、p95 8.46→6.64ms。最大差はMIDI 0.0000153、confidence 0.000000119、volume 0.00000382、cache 0。これは検証環境の値であり、利用端末の速度や実マイクでの停止解消を保証するものではない。
+compact-v1の2026-10-03の測定では中央値7.39→5.76ms、p95 8.46→6.64ms。最大差はMIDI 0.0000153、confidence 0.000000119、volume 0.00000382、cache 0。これは検証環境の値であり、利用端末の速度や実マイクでの停止解消を保証するものではない。
 
 ブラウザ側は本番ビルドのAudioWorklet・Worker・WASMを使用し、48kHzの440Hz信号を30秒間送って確認する。元モデルとの比較には、元モデルをそのまま復元する同一形式の差分を検証用HTTPサーバーで返す。ゲーム描画や実マイクを含まない検証として扱う。
 
@@ -56,3 +56,36 @@ PESTO_BENCHMARK_SECONDS=120 node scripts/pesto/benchmark-pesto-browser.mjs temp/
 ```
 
 ブラウザ実行には任意の検証用Playwrightが必要（アプリ依存には追加しない）。必要なら`PESTO_PLAYWRIGHT_MODULE`へモジュールの絶対パス、`PESTO_CHROME_PATH`へChrome/Headless Shellの実行ファイルを指定する。モデル逐次再生の計測時間は実時間の取り込み負荷を表さない。ブラウザ試験は本番Worklet/Workerを使うが、実マイク・Apollo・ゲーム描画は含まない。
+
+## compact-v2: 固定CQT窓を行列積に置き換える
+
+各CQT Convは、入力幅とカーネル幅が一致し、時刻方向に1個の値を出す。これを `Gemm(transB=1)` と形状変換で表す。非ゼロ係数、チャンネル順、refill、cache、入力PCM、5/10/20ms周期とtrackerは変更しない。量子化・モデル再学習・スレッド増加は行わない。加算順の違いによるfloat32丸め差は許容値内で検証する。
+
+配信パスは `pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json` に変更。immutable配信中のv1ファイルは保持する。元のONNXは変更せず、初期化時だけ検証・復元する。
+
+v1とv2を実WASMで直接比較するには:
+
+```sh
+PESTO_REFERENCE_PATCH=pesto-mir1k-g7-48000-240-refill-compact-v1.patch.json node scripts/pesto/verify-pesto-web-model.mjs
+```
+
+本番Worker/Workletへ同じ録音ピアノ音声を入力する負荷試験:
+
+```sh
+# 修正前ビルドで実行し、比較用Workerを退避する。
+cp dist/assets/pestoPitchWorker-*.js /tmp/pesto-baseline-worker.js
+# 修正後のソースをビルドする。
+npm run build:app
+PESTO_BENCHMARK_SECONDS=120 PESTO_BENCHMARK_INTERVALS=10 \
+  node scripts/pesto/benchmark-pesto-headroom.mjs /path/to/pitch-comparison/fixtures.json /tmp/pesto-normal.json
+# 同じWorker内に50msごと20msの競合処理を追加する検証専用ストレス。
+PESTO_HEADROOM_VARIANTS=baseline,candidate PESTO_HEADROOM_BASELINE_WORKER=/tmp/pesto-baseline-worker.js \
+  PESTO_HEADROOM_STRESS_MS=20 PESTO_BENCHMARK_SECONDS=120 \
+  node scripts/pesto/benchmark-pesto-headroom.mjs /path/to/pitch-comparison/fixtures.json /tmp/pesto-stress.json
+```
+
+入力は前回のピアノ比較アーカイブにある `fixtures.json` と同じ階層の `fixtures/*.f32` を使用する。4音声のSHA-256を検証する。Playwright/Chromeの指定は既存の `PESTO_PLAYWRIGHT_MODULE` / `PESTO_CHROME_PATH`。競合処理のタイマーは検証サーバーが返すWorkerにだけ追加し、配信ソースや本番ビルドには入らない。各試行後にWorkerを終了する。
+
+診断の前処理時間は従来の固定値0から実測へ変更し、推論時間と分離。取り込み側の転送待ちとWorker内の待ちも個別に記録する。MessagePort内で配送待ちした時間はこの2指標に含まれないため、ブラウザ試験では原音終了時刻からmonitor受信までのpipelineLagも記録する。診断p95は末尾128観測、windowsはそのsnapshotを約300msごとに収集した分布であり、全推論の直接のp95ではない。
+
+結果と制約は [負荷改善レポート](../../docs/pesto-headroom-2026-10-16.md)を参照。

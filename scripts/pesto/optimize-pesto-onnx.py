@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Remove exact CQT padding zeros and specialize the Web model for 1 x 240 audio.
-Requires onnx==1.23.1, onnxruntime==1.30.0, numpy==2.5.3.
+"""Trim exact CQT zeros and use fixed-window Gemm for 1 x 240 audio.
+Requires onnx==1.23.1, onnxruntime==1.30.0, numpy==2.5.4.
 Trained coefficients, 5 ms stride, refill padding and cache stay unchanged.
 """
 import argparse
@@ -45,6 +45,17 @@ def optimize(source: Path, destination: Path) -> None:
         nodes.append(helper.make_node('Slice', [conv.input[0], f'{prefix}_starts',
             f'{prefix}_ends', f'{prefix}_axes'], [output], name=f'{prefix}_slice'))
         inputs[length] = output
+    # Each fixed CQT window produces exactly one time position. A matrix-vector
+    # product avoids WASM Conv's general convolution path without changing weights.
+    flattened = {}
+    for length, input_name in inputs.items():
+        prefix = f'compact_cqt_{length}'
+        shape = f'{prefix}_flat_shape'
+        model.graph.initializer.append(numpy_helper.from_array(
+            np.array([1, length], dtype=np.int64), shape))
+        flattened[length] = f'{prefix}_flat'
+        nodes.append(helper.make_node('Reshape', [input_name, shape],
+            [flattened[length]], name=f'{prefix}_flatten'))
     outputs = []
     begin = 0
     for end in range(1, len(lengths) + 1):
@@ -56,9 +67,15 @@ def optimize(source: Path, destination: Path) -> None:
         weight_name = f'{prefix}_weight'
         output = f'{prefix}_output'
         model.graph.initializer.append(numpy_helper.from_array(
-            kernels[begin:end, :, crop:crop + length].copy(), weight_name))
-        nodes.append(helper.make_node('Conv', [inputs[length], weight_name], [output],
-            name=prefix, kernel_shape=[length], strides=[240], dilations=[1], pads=[0, 0], group=1))
+            kernels[begin:end, 0, crop:crop + length].copy(), weight_name))
+        matrix_output = f'{prefix}_matrix_output'
+        nodes.append(helper.make_node('Gemm', [flattened[length], weight_name],
+            [matrix_output], name=f'{prefix}_gemm', transB=1))
+        shape = f'{prefix}_output_shape'
+        model.graph.initializer.append(numpy_helper.from_array(
+            np.array([1, end - begin, 1], dtype=np.int64), shape))
+        nodes.append(helper.make_node('Reshape', [matrix_output, shape], [output],
+            name=f'{prefix}_reshape'))
         outputs.append(output)
         begin = end
     nodes.append(helper.make_node('Concat', outputs, list(conv.output), name='compact_cqt_concat', axis=1))
@@ -91,6 +108,6 @@ def optimize(source: Path, destination: Path) -> None:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=ROOT / 'public/models/pesto' / f'{MODEL}.onnx')
-    parser.add_argument('--output', type=Path, default=Path(tempfile.gettempdir()) / f'{MODEL}-compact-v1.onnx')
+    parser.add_argument('--output', type=Path, default=Path(tempfile.gettempdir()) / f'{MODEL}-compact-v2.onnx')
     args = parser.parse_args()
     optimize(args.source, args.output)

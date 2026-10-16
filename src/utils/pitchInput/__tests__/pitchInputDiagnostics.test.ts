@@ -64,4 +64,21 @@ describe('PitchInputDiagnostics', () => {
     for (let i = 0; i < 128; i += 1) diagnostics.recordProcessingDuration(4.25);
     expect(diagnostics.snapshot(0).processingMsP95).toBe(4.25);
   });
+  it('keeps capture waiting, Worker waiting, preprocessing and inference separate after wraparound', () => {
+    const diagnostics = createDiagnostics();
+    const frame: PitchObservation = {
+      generationId: 1, sourceStartSample: 0, sourceEndSample: 240, sourceEndTimeSec: 0.005,
+      shiftSemitones: 0, modelMidi: 60, concertMidi: 60, confidence: 0.9,
+      modelVolume: 0.01, rawRmsDbfs: -20, inferenceMs: 3, queueAgeMs: 12,
+      preprocessMs: 0.25, captureQueueAgeMs: 8, workerQueueAgeMs: 4,
+      discontinuity: false, rejectReason: 'voiced',
+    };
+    for (let i = 0; i < 129; i += 1) diagnostics.recordObservation(frame);
+    frame.preprocessMs = 99;
+    expect(diagnostics.snapshot(0)).toMatchObject({
+      inferenceMsP50: 3, inferenceMsP95: 3, preprocessMsP50: 0.25, preprocessMsP95: 0.25,
+      queueAgeMsP95: 12, captureQueueAgeMsP95: 8, workerQueueAgeMsP95: 4,
+    });
+  });
+
 });

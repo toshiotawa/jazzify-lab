@@ -1,0 +1,3952 @@
+{
+  "date": "2026-10-16",
+  "baselineCommit": "4ba3917519d000d4b187ad5de053e45660db346c",
+  "runtime": "Node v24.19.0 / onnxruntime-web 1.20.0, single-thread WASM",
+  "sampleRate": 48000,
+  "fixtureManifestSha256": "906d0a9e608f4a6884fb5952b0faaf0d93231b3fa175e22cc8b1947d752622d3",
+  "offline": {
+    "runs": 203,
+    "rawFrames": 40038,
+    "identicalNoteEventsAndSourceTimes": true,
+    "maxDifference": {
+      "midi": 4.9591064453125e-05,
+      "cents": 0.0049591064453125,
+      "confidence": 6.4373016357421875e-06,
+      "volumeDb": 5.090932100770829e-06
+    },
+    "groups": {
+      "5": {
+        "all": {
+          "cases": 28,
+          "expected": 144,
+          "matched": 124,
+          "detected": 303,
+          "rpa50": 70.7917605407145,
+          "delayMsP50": 29.99999999999997,
+          "delayMsP95": 40.0
+        },
+        "lowmode": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 2,
+          "detected": 68,
+          "rpa50": 34.900990099009896,
+          "delayMsP50": 80.0,
+          "delayMsP95": 89.0
+        },
+        "phrase": {
+          "cases": 4,
+          "expected": 32,
+          "matched": 31,
+          "detected": 43,
+          "rpa50": 84.07871198568873,
+          "delayMsP50": 30.0,
+          "delayMsP95": 37.49999999999994
+        },
+        "range": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 6,
+          "detected": 70,
+          "rpa50": 53.64842454394692,
+          "delayMsP50": 32.5,
+          "delayMsP95": 35.0
+        },
+        "repeat": {
+          "cases": 8,
+          "expected": 96,
+          "matched": 85,
+          "detected": 122,
+          "rpa50": 88.7719298245614,
+          "delayMsP50": 5.0,
+          "delayMsP95": 40.0
+        }
+      },
+      "10": {
+        "all": {
+          "cases": 147,
+          "expected": 460,
+          "matched": 326,
+          "detected": 669,
+          "rpa50": 63.63742827028926,
+          "delayMsP50": 30.0,
+          "delayMsP95": 50.0
+        },
+        "clipping": {
+          "cases": 2,
+          "expected": 12,
+          "matched": 12,
+          "detected": 14,
+          "rpa50": 90.38461538461539,
+          "delayMsP50": 30.000000000000227,
+          "delayMsP95": 40.00000000000023
+        },
+        "decay": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 3,
+          "detected": 6,
+          "rpa50": 48.33887043189369,
+          "delayMsP50": 30.0,
+          "delayMsP95": 39.0
+        },
+        "lowmode": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 3,
+          "detected": 99,
+          "rpa50": 20.462046204620464,
+          "delayMsP50": 80.0,
+          "delayMsP95": 89.0
+        },
+        "negative": {
+          "cases": 5,
+          "expected": 0,
+          "matched": 0,
+          "detected": 0,
+          "rpa50": null,
+          "delayMsP50": null,
+          "delayMsP95": null
+        },
+        "noise": {
+          "cases": 8,
+          "expected": 48,
+          "matched": 48,
+          "detected": 61,
+          "rpa50": 89.34294871794873,
+          "delayMsP50": 30.000000000000227,
+          "delayMsP95": 40.00000000000023
+        },
+        "overlap": {
+          "cases": 2,
+          "expected": 12,
+          "matched": 12,
+          "detected": 14,
+          "rpa50": null,
+          "delayMsP50": 30.0,
+          "delayMsP95": 40.0
+        },
+        "phrase": {
+          "cases": 8,
+          "expected": 64,
+          "matched": 64,
+          "detected": 77,
+          "rpa50": 87.79724655819776,
+          "delayMsP50": 39.999999999999915,
+          "delayMsP95": 50.0
+        },
+        "range": {
+          "cases": 60,
+          "expected": 60,
+          "matched": 24,
+          "detected": 213,
+          "rpa50": 46.73267326732674,
+          "delayMsP50": 30.0,
+          "delayMsP95": 50.0
+        },
+        "repeat": {
+          "cases": 16,
+          "expected": 192,
+          "matched": 126,
+          "detected": 137,
+          "rpa50": 91.59420289855072,
+          "delayMsP50": 10.0,
+          "delayMsP95": 49.999999999999986
+        },
+        "reverb": {
+          "cases": 4,
+          "expected": 24,
+          "matched": 24,
+          "detected": 33,
+          "rpa50": null,
+          "delayMsP50": 30.000000000000227,
+          "delayMsP95": 50.00000000000023
+        },
+        "sensitivity": {
+          "cases": 2,
+          "expected": 8,
+          "matched": 0,
+          "detected": 0,
+          "rpa50": 93.07692307692308,
+          "delayMsP50": null,
+          "delayMsP95": null
+        },
+        "volume": {
+          "cases": 24,
+          "expected": 24,
+          "matched": 10,
+          "detected": 15,
+          "rpa50": 67.49174917491749,
+          "delayMsP50": 40.0,
+          "delayMsP95": 96.49999999999997
+        }
+      },
+      "20": {
+        "all": {
+          "cases": 28,
+          "expected": 144,
+          "matched": 93,
+          "detected": 131,
+          "rpa50": 69.987922705314,
+          "delayMsP50": 30.0,
+          "delayMsP95": 69.99999999999997
+        },
+        "lowmode": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 2,
+          "detected": 19,
+          "rpa50": 36.0,
+          "delayMsP50": 150.0,
+          "delayMsP95": 186.0
+        },
+        "phrase": {
+          "cases": 4,
+          "expected": 32,
+          "matched": 32,
+          "detected": 32,
+          "rpa50": 84.64285714285714,
+          "delayMsP50": 50.0,
+          "delayMsP95": 70.0
+        },
+        "range": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 7,
+          "detected": 28,
+          "rpa50": 53.666666666666664,
+          "delayMsP50": 30.0,
+          "delayMsP95": 43.999999999999986
+        },
+        "repeat": {
+          "cases": 8,
+          "expected": 96,
+          "matched": 52,
+          "detected": 52,
+          "rpa50": 91.66666666666666,
+          "delayMsP50": 29.999999999999886,
+          "delayMsP95": 50.0
+        }
+      }
+    }
+  },
+  "wasmV1V2": {
+    "frames": 2400,
+    "reference": "pesto-mir1k-g7-48000-240-refill-compact-v1.patch.json",
+    "maxDifference": {
+      "prediction": 2.6702880859375e-05,
+      "confidence": 1.8477439880371094e-06,
+      "volume": 6.103515625e-05,
+      "cache_out": 0
+    },
+    "timings": [
+      {
+        "model": "original",
+        "medianMs": 5.938823000000411,
+        "p95Ms": 6.64950300000055
+      },
+      {
+        "model": "compact",
+        "medianMs": 3.064786999999342,
+        "p95Ms": 3.53812999999991
+      }
+    ]
+  },
+  "wasmOriginalV2": {
+    "frames": 2400,
+    "maxDifference": {
+      "prediction": 2.6702880859375e-05,
+      "confidence": 1.8477439880371094e-06,
+      "volume": 6.103515625e-05,
+      "cache_out": 0
+    },
+    "timings": [
+      {
+        "model": "original",
+        "medianMs": 7.8332270000009885,
+        "p95Ms": 9.044765999999981
+      },
+      {
+        "model": "compact",
+        "medianMs": 3.105428999999276,
+        "p95Ms": 3.792595999999321
+      }
+    ]
+  },
+  "recovery": {
+    "frameCount": 3200,
+    "retained": 2658,
+    "dropped": 542,
+    "restored": 68,
+    "maxDifference": {
+      "prediction": 0,
+      "confidence": 0,
+      "volume": 0,
+      "cache_out": 0
+    },
+    "confidenceBelowPointOne": {
+      "coldReset": 1823,
+      "pcmRecovery": 1486
+    }
+  },
+  "productionPatch": {
+    "sourceSize": 17015145,
+    "targetSize": 11150637,
+    "sourceSha256": "9af2ab245abb45edc7df87865f37e7404f99978666f5caade21b4ca9506a0b23",
+    "targetSha256": "c50ca16a07297ddc2b788403268a43736cceb792ec599746da7d5486bca974b8"
+  },
+  "validation": {
+    "typeCheck": "pass",
+    "lint": "0 errors / 0 warnings",
+    "tests": {
+      "files": 315,
+      "passed": 2385
+    },
+    "build": "pass; existing warnings",
+    "tsPrune": "no new findings vs baseline; existing findings remain"
+  },
+  "normalBefore": {
+    "engine": "pesto",
+    "intervalMs": 10,
+    "durationSec": 120,
+    "crossOriginIsolated": false,
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+    "elapsedMs": 120013.59999999963,
+    "loopSeconds": 10.8,
+    "expected": 444,
+    "detected": 248,
+    "matched": 202,
+    "recall": 45.4954954954955,
+    "precision": 81.45161290322581,
+    "delayMsP50": 39.99999999997783,
+    "delayMsP95": 49.33333333332257,
+    "diagnostics": {
+      "deviceLabel": "two sampled piano banks",
+      "sampleRate": 48000,
+      "requestedEchoCancellation": false,
+      "actualEchoCancellation": false,
+      "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v1",
+      "inferenceIntervalMs": 10,
+      "inferenceCount": 12001,
+      "skippedInferenceFrames": 12002,
+      "lowInputFrames": 3443,
+      "confidenceRejectedFrames": 178,
+      "shiftSemitones": 0,
+      "generationId": 1,
+      "droppedSamples": 0,
+      "discontinuities": 0,
+      "lastDiscontinuityReason": null,
+      "lastGapMs": 0,
+      "modelResetCount": 0,
+      "cacheRecoveryCount": 0,
+      "processingMsP95": 6.800000190734863,
+      "queueDepthMs": 0,
+      "queueAgeMsP50": 0,
+      "queueAgeMsP95": 0,
+      "inferenceMsP50": 5.900000000372529,
+      "inferenceMsP95": 6.699999999254942,
+      "preprocessMsP50": 0,
+      "preprocessMsP95": 0,
+      "lastModelMidi": 69,
+      "lastConcertMidi": 69,
+      "lastConfidence": 1,
+      "lastRawRmsDbfs": -33.430580851898746,
+      "lastModelVolume": 11.44034481048584,
+      "lastSourceEndTimeSec": 120.66333333333334,
+      "lastRejectReason": "voiced",
+      "warmupFramesRemaining": 0
+    },
+    "monitorGapsOver600Ms": [],
+    "errors": [],
+    "endContext": 120.70133333333334,
+    "windows": {
+      "inferenceMsP50": {
+        "median": 6.400000000372529,
+        "p95": 6.900000000372529,
+        "max": 7.399999998509884
+      },
+      "inferenceMsP95": {
+        "median": 7.800000000745058,
+        "p95": 9.600000001490116,
+        "max": 12.200000000186265
+      },
+      "processingMsP95": {
+        "median": 7.300000190734863,
+        "p95": 8.899999618530273,
+        "max": 12.199999809265137
+      },
+      "queueAgeMsP95": {
+        "median": 0.10000000149011612,
+        "p95": 10,
+        "max": 28.666666666666668
+      }
+    }
+  },
+  "normalAfter": {
+    "sampleIds": [
+      "salamander-phrase-250",
+      "felt-phrase-250",
+      "salamander-repeat-200-0",
+      "felt-repeat-200-0"
+    ],
+    "pcmSha256": {
+      "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+      "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+      "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+      "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+    },
+    "stressMs": 0,
+    "stressPeriodMs": 50,
+    "results": [
+      {
+        "variant": "candidate",
+        "intervalMs": 10,
+        "durationSec": 120,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+        "crossOriginIsolated": false,
+        "expected": 444,
+        "matched": 202,
+        "detected": 248,
+        "delayMsP50": 37.99999999998249,
+        "delayMsP95": 47.33333333331302,
+        "diagnostics": {
+          "deviceLabel": "two sampled piano banks",
+          "sampleRate": 48000,
+          "requestedEchoCancellation": false,
+          "actualEchoCancellation": false,
+          "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+          "inferenceIntervalMs": 10,
+          "inferenceCount": 12001,
+          "skippedInferenceFrames": 12002,
+          "lowInputFrames": 3443,
+          "confidenceRejectedFrames": 178,
+          "shiftSemitones": 0,
+          "generationId": 1,
+          "droppedSamples": 0,
+          "discontinuities": 0,
+          "lastDiscontinuityReason": null,
+          "lastGapMs": 0,
+          "modelResetCount": 0,
+          "cacheRecoveryCount": 0,
+          "processingMsP95": 3.799999952316284,
+          "queueDepthMs": 0,
+          "queueAgeMsP50": 0,
+          "queueAgeMsP95": 0,
+          "captureQueueAgeMsP95": 0,
+          "workerQueueAgeMsP95": 0,
+          "inferenceMsP50": 3.300000000745058,
+          "inferenceMsP95": 4.199999999254942,
+          "preprocessMsP50": 0,
+          "preprocessMsP95": 0,
+          "lastModelMidi": 69,
+          "lastConcertMidi": 69,
+          "lastConfidence": 1,
+          "lastRawRmsDbfs": -33.430580851898746,
+          "lastModelVolume": 11.44034481048584,
+          "lastSourceEndTimeSec": 120.57266666666668,
+          "lastRejectReason": "voiced",
+          "warmupFramesRemaining": 0
+        },
+        "windows": {
+          "inferenceMsP50": {
+            "median": 3.399999998509884,
+            "p95": 3.699999999254942,
+            "max": 3.800000000745058
+          },
+          "inferenceMsP95": {
+            "median": 4.300000000745058,
+            "p95": 6,
+            "max": 7.900000000372529
+          },
+          "processingMsP95": {
+            "median": 4,
+            "p95": 5.199999809265137,
+            "max": 7.800000190734863
+          },
+          "queueAgeMsP95": {
+            "median": 0,
+            "p95": 0.09999999962747097,
+            "max": 18
+          },
+          "captureQueueAgeMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 18
+          },
+          "workerQueueAgeMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0.09999999962747097
+          },
+          "preprocessMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0.09999999962747097
+          }
+        },
+        "monitorCount": 400,
+        "monitorGapsOver600Ms": [],
+        "dropEvents": [],
+        "pipelineLagMs": {
+          "p50": 14.66666666667038,
+          "p95": 20.000000000000462,
+          "max": 26.666666666656624
+        },
+        "errors": []
+      }
+    ]
+  },
+  "stress": {
+    "sampleIds": [
+      "salamander-phrase-250",
+      "felt-phrase-250",
+      "salamander-repeat-200-0",
+      "felt-repeat-200-0"
+    ],
+    "pcmSha256": {
+      "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+      "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+      "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+      "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+    },
+    "stressMs": 20,
+    "stressPeriodMs": 50,
+    "results": [
+      {
+        "variant": "baseline",
+        "intervalMs": 10,
+        "durationSec": 120,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+        "crossOriginIsolated": false,
+        "expected": 444,
+        "matched": 239,
+        "detected": 315,
+        "delayMsP50": 57.99999999999983,
+        "delayMsP95": 91.33333333332416,
+        "diagnostics": {
+          "deviceLabel": "two sampled piano banks",
+          "sampleRate": 48000,
+          "requestedEchoCancellation": false,
+          "actualEchoCancellation": false,
+          "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v1",
+          "inferenceIntervalMs": 10,
+          "inferenceCount": 10360,
+          "skippedInferenceFrames": 10763,
+          "lowInputFrames": 2965,
+          "confidenceRejectedFrames": 160,
+          "shiftSemitones": 0,
+          "generationId": 1,
+          "droppedSamples": 690480,
+          "discontinuities": 411,
+          "lastDiscontinuityReason": "sequenceGap",
+          "lastGapMs": 35,
+          "modelResetCount": 0,
+          "cacheRecoveryCount": 411,
+          "processingMsP95": 7.5,
+          "queueDepthMs": 0,
+          "queueAgeMsP50": 16,
+          "queueAgeMsP95": 28,
+          "inferenceMsP50": 6.400000000372529,
+          "inferenceMsP95": 8.399999998509884,
+          "preprocessMsP50": 0,
+          "preprocessMsP95": 0,
+          "lastModelMidi": 69.07508850097656,
+          "lastConcertMidi": 69.07508850097656,
+          "lastConfidence": 1,
+          "lastRawRmsDbfs": -33.14306999098116,
+          "lastModelVolume": 17.20514488220215,
+          "lastSourceEndTimeSec": 120.64266666666667,
+          "lastRejectReason": "voiced",
+          "warmupFramesRemaining": 0
+        },
+        "windows": {
+          "inferenceMsP50": {
+            "median": 6.300000000745058,
+            "p95": 6.800000000745058,
+            "max": 7.100000001490116
+          },
+          "inferenceMsP95": {
+            "median": 7.600000001490116,
+            "p95": 9.699999999254942,
+            "max": 11.599999999627471
+          },
+          "processingMsP95": {
+            "median": 7.199999809265137,
+            "p95": 9,
+            "max": 11.699999809265137
+          },
+          "queueAgeMsP95": {
+            "median": 30,
+            "p95": 33.43333333296081,
+            "max": 34
+          },
+          "captureQueueAgeMsP95": {
+            "median": null,
+            "p95": null,
+            "max": null
+          },
+          "workerQueueAgeMsP95": {
+            "median": null,
+            "p95": null,
+            "max": null
+          },
+          "preprocessMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          }
+        },
+        "monitorCount": 345,
+        "monitorGapsOver600Ms": [],
+        "dropEvents": [
+          {
+            "sourceEndSec": 1.0626666666666666,
+            "droppedSamples": 5040,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 1.4826666666666668,
+            "droppedSamples": 10080,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 1.8626666666666667,
+            "droppedSamples": 13440,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 2.2426666666666666,
+            "droppedSamples": 16800,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 2.6226666666666665,
+            "droppedSamples": 20160,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 2.9626666666666663,
+            "droppedSamples": 21840,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 3.342666666666667,
+            "droppedSamples": 25200,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 3.722666666666667,
+            "droppedSamples": 28560,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 4.102666666666667,
+            "droppedSamples": 31920,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 4.482666666666667,
+            "droppedSamples": 35280,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 4.862666666666667,
+            "droppedSamples": 38640,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 5.2026666666666666,
+            "droppedSamples": 40320,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 5.622666666666667,
+            "droppedSamples": 45360,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 6.042666666666667,
+            "droppedSamples": 50400,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 6.382666666666667,
+            "droppedSamples": 52080,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 6.762666666666667,
+            "droppedSamples": 55440,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 7.102666666666667,
+            "droppedSamples": 57120,
+            "queueAgeMsP95": 31.43333333482345
+          },
+          {
+            "sourceEndSec": 7.442666666666667,
+            "droppedSamples": 58800,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 7.822666666666667,
+            "droppedSamples": 62160,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 8.162666666666667,
+            "droppedSamples": 63840,
+            "queueAgeMsP95": 33.43333333296081
+          },
+          {
+            "sourceEndSec": 8.542666666666667,
+            "droppedSamples": 67200,
+            "queueAgeMsP95": 33.43333333296081
+          },
+          {
+            "sourceEndSec": 8.882666666666667,
+            "droppedSamples": 68880,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 9.262666666666666,
+            "droppedSamples": 72240,
+            "queueAgeMsP95": 26.666666666666668
+          },
+          {
+            "sourceEndSec": 9.642666666666667,
+            "droppedSamples": 75600,
+            "queueAgeMsP95": 26.666666666666668
+          },
+          {
+            "sourceEndSec": 10.022666666666668,
+            "droppedSamples": 78960,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 10.402666666666667,
+            "droppedSamples": 82320,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 10.822666666666667,
+            "droppedSamples": 87360,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 11.162666666666667,
+            "droppedSamples": 89040,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 11.542666666666667,
+            "droppedSamples": 92400,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 11.882666666666667,
+            "droppedSamples": 94080,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 12.222666666666667,
+            "droppedSamples": 95760,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 12.602666666666668,
+            "droppedSamples": 99120,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 12.942666666666668,
+            "droppedSamples": 100800,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 13.282666666666668,
+            "droppedSamples": 102480,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 13.702666666666667,
+            "droppedSamples": 107520,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 14.122666666666667,
+            "droppedSamples": 112560,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 14.502666666666666,
+            "droppedSamples": 115920,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 14.882666666666667,
+            "droppedSamples": 119280,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 15.222666666666667,
+            "droppedSamples": 120960,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 15.602666666666668,
+            "droppedSamples": 124320,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 15.982666666666667,
+            "droppedSamples": 127680,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 16.402666666666665,
+            "droppedSamples": 132720,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 16.782666666666668,
+            "droppedSamples": 136080,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 17.162666666666667,
+            "droppedSamples": 139440,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 17.502666666666666,
+            "droppedSamples": 141120,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 17.842666666666666,
+            "droppedSamples": 142800,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 18.182666666666666,
+            "droppedSamples": 144480,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 18.822666666666667,
+            "droppedSamples": 146160,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 19.162666666666667,
+            "droppedSamples": 147840,
+            "queueAgeMsP95": 26.666666666666668
+          },
+          {
+            "sourceEndSec": 19.542666666666666,
+            "droppedSamples": 151200,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 19.922666666666668,
+            "droppedSamples": 154560,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 20.337666666666667,
+            "droppedSamples": 159600,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 20.757666666666665,
+            "droppedSamples": 164640,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 21.137666666666668,
+            "droppedSamples": 168000,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 21.517666666666667,
+            "droppedSamples": 171360,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 21.897666666666666,
+            "droppedSamples": 174720,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 22.27766666666667,
+            "droppedSamples": 178080,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 22.697666666666667,
+            "droppedSamples": 183120,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 23.077666666666666,
+            "droppedSamples": 186480,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 23.417666666666666,
+            "droppedSamples": 188160,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 23.757666666666665,
+            "droppedSamples": 189840,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 24.097666666666665,
+            "droppedSamples": 191520,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 24.477666666666668,
+            "droppedSamples": 194880,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 24.857666666666667,
+            "droppedSamples": 198240,
+            "queueAgeMsP95": 33.09999999962747
+          },
+          {
+            "sourceEndSec": 25.237666666666666,
+            "droppedSamples": 201600,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 25.61766666666667,
+            "droppedSamples": 204960,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 25.997666666666667,
+            "droppedSamples": 208320,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 26.377666666666666,
+            "droppedSamples": 211680,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 26.757666666666665,
+            "droppedSamples": 215040,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 27.177666666666667,
+            "droppedSamples": 220080,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 27.517666666666667,
+            "droppedSamples": 221760,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 27.972666666666665,
+            "droppedSamples": 228480,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 28.472666666666665,
+            "droppedSamples": 236880,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 28.852666666666668,
+            "droppedSamples": 240240,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 29.232666666666667,
+            "droppedSamples": 243600,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 29.572666666666667,
+            "droppedSamples": 245280,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 29.912666666666667,
+            "droppedSamples": 246960,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 30.292666666666666,
+            "droppedSamples": 250320,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 30.932666666666666,
+            "droppedSamples": 252000,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 31.272666666666666,
+            "droppedSamples": 253680,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 31.612666666666666,
+            "droppedSamples": 255360,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 31.952666666666666,
+            "droppedSamples": 257040,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 32.33266666666667,
+            "droppedSamples": 260400,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 32.712666666666664,
+            "droppedSamples": 263760,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 33.092666666666666,
+            "droppedSamples": 267120,
+            "queueAgeMsP95": 26.666666666666668
+          },
+          {
+            "sourceEndSec": 33.51266666666666,
+            "droppedSamples": 272160,
+            "queueAgeMsP95": 26.666666666666668
+          },
+          {
+            "sourceEndSec": 33.93266666666666,
+            "droppedSamples": 277200,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 34.30766666666666,
+            "droppedSamples": 280560,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 34.687666666666665,
+            "droppedSamples": 283920,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 35.06766666666666,
+            "droppedSamples": 287280,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 35.407666666666664,
+            "droppedSamples": 288960,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 35.78766666666667,
+            "droppedSamples": 292320,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 36.16766666666666,
+            "droppedSamples": 295680,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 36.507666666666665,
+            "droppedSamples": 297360,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 36.88766666666666,
+            "droppedSamples": 300720,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 37.26766666666666,
+            "droppedSamples": 304080,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 37.647666666666666,
+            "droppedSamples": 307440,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 37.98766666666666,
+            "droppedSamples": 309120,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 38.327666666666666,
+            "droppedSamples": 310800,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 38.66766666666666,
+            "droppedSamples": 312480,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 39.047666666666665,
+            "droppedSamples": 315840,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 39.38766666666666,
+            "droppedSamples": 317520,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 39.80766666666666,
+            "droppedSamples": 322560,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 40.187666666666665,
+            "droppedSamples": 325920,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 40.60766666666667,
+            "droppedSamples": 330960,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 40.98766666666666,
+            "droppedSamples": 334320,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 41.407666666666664,
+            "droppedSamples": 339360,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 41.78766666666667,
+            "droppedSamples": 342720,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 42.16766666666666,
+            "droppedSamples": 346080,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 42.547666666666665,
+            "droppedSamples": 349440,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 42.88766666666666,
+            "droppedSamples": 351120,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 43.227666666666664,
+            "droppedSamples": 352800,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 43.56766666666666,
+            "droppedSamples": 354480,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 43.94766666666666,
+            "droppedSamples": 357840,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 44.327666666666666,
+            "droppedSamples": 361200,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 44.70766666666666,
+            "droppedSamples": 364560,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 45.087666666666664,
+            "droppedSamples": 367920,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 45.467666666666666,
+            "droppedSamples": 371280,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 45.80766666666666,
+            "droppedSamples": 372960,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 46.147666666666666,
+            "droppedSamples": 374640,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 46.52766666666666,
+            "droppedSamples": 378000,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 46.94766666666666,
+            "droppedSamples": 383040,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 47.587666666666664,
+            "droppedSamples": 384720,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 47.92766666666666,
+            "droppedSamples": 386400,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 48.26766666666666,
+            "droppedSamples": 388080,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 48.647666666666666,
+            "droppedSamples": 391440,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 48.98766666666666,
+            "droppedSamples": 393120,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 49.327666666666666,
+            "droppedSamples": 394800,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 49.70766666666666,
+            "droppedSamples": 398160,
+            "queueAgeMsP95": 26.333333333333332
+          },
+          {
+            "sourceEndSec": 50.047666666666665,
+            "droppedSamples": 399840,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 50.38766666666666,
+            "droppedSamples": 401520,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 50.727666666666664,
+            "droppedSamples": 403200,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 51.06766666666666,
+            "droppedSamples": 404880,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 51.407666666666664,
+            "droppedSamples": 406560,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 51.74766666666666,
+            "droppedSamples": 408240,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 52.087666666666664,
+            "droppedSamples": 409920,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 52.42766666666666,
+            "droppedSamples": 411600,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 53.06766666666666,
+            "droppedSamples": 413280,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 53.44766666666666,
+            "droppedSamples": 416640,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 53.78766666666667,
+            "droppedSamples": 418320,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 54.16766666666666,
+            "droppedSamples": 421680,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 54.507666666666665,
+            "droppedSamples": 423360,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 54.962666666666664,
+            "droppedSamples": 430080,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 55.342666666666666,
+            "droppedSamples": 433440,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 55.68266666666666,
+            "droppedSamples": 435120,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 56.022666666666666,
+            "droppedSamples": 436800,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 56.36266666666666,
+            "droppedSamples": 438480,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 56.702666666666666,
+            "droppedSamples": 440160,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 57.08266666666666,
+            "droppedSamples": 443520,
+            "queueAgeMsP95": 26
+          },
+          {
+            "sourceEndSec": 57.50266666666666,
+            "droppedSamples": 448560,
+            "queueAgeMsP95": 26.666666666666668
+          },
+          {
+            "sourceEndSec": 57.882666666666665,
+            "droppedSamples": 451920,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 58.26266666666666,
+            "droppedSamples": 455280,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 58.64266666666666,
+            "droppedSamples": 458640,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 58.98266666666667,
+            "droppedSamples": 460320,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 59.32266666666666,
+            "droppedSamples": 462000,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 59.66266666666667,
+            "droppedSamples": 463680,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 60.00266666666666,
+            "droppedSamples": 465360,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 60.382666666666665,
+            "droppedSamples": 468720,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 60.72266666666666,
+            "droppedSamples": 470400,
+            "queueAgeMsP95": 33.43333333482345
+          },
+          {
+            "sourceEndSec": 61.102666666666664,
+            "droppedSamples": 473760,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 61.44266666666666,
+            "droppedSamples": 475440,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 61.90266666666666,
+            "droppedSamples": 482160,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 62.282666666666664,
+            "droppedSamples": 485520,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 62.922666666666665,
+            "droppedSamples": 487200,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 63.26266666666666,
+            "droppedSamples": 488880,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 66.00266666666667,
+            "droppedSamples": 490560,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 66.64266666666667,
+            "droppedSamples": 492240,
+            "queueAgeMsP95": 26
+          },
+          {
+            "sourceEndSec": 68.48266666666667,
+            "droppedSamples": 493920,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 70.02266666666667,
+            "droppedSamples": 495600,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 70.96266666666666,
+            "droppedSamples": 497280,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 72.50266666666667,
+            "droppedSamples": 498960,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 72.84266666666667,
+            "droppedSamples": 500640,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 73.78266666666667,
+            "droppedSamples": 502320,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 74.72266666666667,
+            "droppedSamples": 504000,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 75.40266666666668,
+            "droppedSamples": 507360,
+            "queueAgeMsP95": 25.333333333333332
+          },
+          {
+            "sourceEndSec": 76.34266666666667,
+            "droppedSamples": 509040,
+            "queueAgeMsP95": 25.333333333333332
+          },
+          {
+            "sourceEndSec": 76.68266666666668,
+            "droppedSamples": 510720,
+            "queueAgeMsP95": 26
+          },
+          {
+            "sourceEndSec": 77.02266666666667,
+            "droppedSamples": 512400,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 77.36266666666667,
+            "droppedSamples": 514080,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 79.20266666666667,
+            "droppedSamples": 515760,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 79.54266666666668,
+            "droppedSamples": 517440,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 79.88266666666667,
+            "droppedSamples": 519120,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 80.25766666666667,
+            "droppedSamples": 522480,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 80.59766666666667,
+            "droppedSamples": 524160,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 81.23766666666667,
+            "droppedSamples": 525840,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 82.81766666666667,
+            "droppedSamples": 529200,
+            "queueAgeMsP95": 24.333333333333332
+          },
+          {
+            "sourceEndSec": 83.15766666666667,
+            "droppedSamples": 530880,
+            "queueAgeMsP95": 25
+          },
+          {
+            "sourceEndSec": 83.49766666666667,
+            "droppedSamples": 532560,
+            "queueAgeMsP95": 25
+          },
+          {
+            "sourceEndSec": 83.83766666666666,
+            "droppedSamples": 534240,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 84.47766666666666,
+            "droppedSamples": 535920,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 84.81766666666667,
+            "droppedSamples": 537600,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 85.15766666666667,
+            "droppedSamples": 539280,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 85.79766666666667,
+            "droppedSamples": 540960,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 86.13766666666668,
+            "droppedSamples": 542640,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 86.51766666666667,
+            "droppedSamples": 546000,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 86.85766666666667,
+            "droppedSamples": 547680,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 87.19766666666668,
+            "droppedSamples": 549360,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 87.53766666666667,
+            "droppedSamples": 551040,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 87.95766666666667,
+            "droppedSamples": 556080,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 88.29766666666667,
+            "droppedSamples": 557760,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 88.63766666666668,
+            "droppedSamples": 559440,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 88.97766666666666,
+            "droppedSamples": 561120,
+            "queueAgeMsP95": 27
+          },
+          {
+            "sourceEndSec": 89.31766666666667,
+            "droppedSamples": 562800,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 89.69766666666668,
+            "droppedSamples": 566160,
+            "queueAgeMsP95": 28.333333333333332
+          },
+          {
+            "sourceEndSec": 90.07766666666667,
+            "droppedSamples": 569520,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 90.41766666666668,
+            "droppedSamples": 571200,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 90.75266666666667,
+            "droppedSamples": 572880,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 91.09266666666667,
+            "droppedSamples": 574560,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 91.47266666666667,
+            "droppedSamples": 577920,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 91.81266666666667,
+            "droppedSamples": 579600,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 92.15266666666668,
+            "droppedSamples": 581280,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 92.49266666666666,
+            "droppedSamples": 582960,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 93.73266666666667,
+            "droppedSamples": 584640,
+            "queueAgeMsP95": 22.666666666666668
+          },
+          {
+            "sourceEndSec": 94.07266666666668,
+            "droppedSamples": 586320,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 94.75266666666667,
+            "droppedSamples": 589680,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 95.09266666666667,
+            "droppedSamples": 591360,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 95.47266666666667,
+            "droppedSamples": 594720,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 95.85266666666666,
+            "droppedSamples": 598080,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 96.23266666666667,
+            "droppedSamples": 601440,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 96.87266666666667,
+            "droppedSamples": 603120,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 101.41266666666667,
+            "droppedSamples": 604800,
+            "queueAgeMsP95": 28
+          },
+          {
+            "sourceEndSec": 104.15266666666668,
+            "droppedSamples": 606480,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 104.79266666666668,
+            "droppedSamples": 608160,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 105.43266666666668,
+            "droppedSamples": 609840,
+            "queueAgeMsP95": 26
+          },
+          {
+            "sourceEndSec": 106.07266666666668,
+            "droppedSamples": 611520,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 106.71266666666666,
+            "droppedSamples": 613200,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 107.09266666666667,
+            "droppedSamples": 616560,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 107.42766666666667,
+            "droppedSamples": 618240,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 107.76766666666667,
+            "droppedSamples": 619920,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 108.10766666666667,
+            "droppedSamples": 621600,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 108.48766666666667,
+            "droppedSamples": 624960,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 108.82766666666667,
+            "droppedSamples": 626640,
+            "queueAgeMsP95": 29
+          },
+          {
+            "sourceEndSec": 109.50766666666667,
+            "droppedSamples": 630000,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 111.94766666666668,
+            "droppedSamples": 631680,
+            "queueAgeMsP95": 25.666666666666668
+          },
+          {
+            "sourceEndSec": 112.58766666666666,
+            "droppedSamples": 633360,
+            "queueAgeMsP95": 26.333333333333332
+          },
+          {
+            "sourceEndSec": 113.22766666666666,
+            "droppedSamples": 635040,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 113.56766666666667,
+            "droppedSamples": 636720,
+            "queueAgeMsP95": 27.666666666666664
+          },
+          {
+            "sourceEndSec": 114.28766666666667,
+            "droppedSamples": 641760,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 114.66266666666667,
+            "droppedSamples": 645120,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 115.00266666666667,
+            "droppedSamples": 646800,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 115.34266666666667,
+            "droppedSamples": 648480,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 115.76266666666668,
+            "droppedSamples": 653520,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 116.10266666666666,
+            "droppedSamples": 655200,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 116.48266666666667,
+            "droppedSamples": 658560,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 116.82266666666668,
+            "droppedSamples": 660240,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 117.16266666666667,
+            "droppedSamples": 661920,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 117.54266666666668,
+            "droppedSamples": 665280,
+            "queueAgeMsP95": 31.433333332960803
+          },
+          {
+            "sourceEndSec": 117.92266666666667,
+            "droppedSamples": 668640,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 118.30266666666667,
+            "droppedSamples": 672000,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 118.98266666666667,
+            "droppedSamples": 675360,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 119.36266666666667,
+            "droppedSamples": 678720,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 119.74266666666666,
+            "droppedSamples": 682080,
+            "queueAgeMsP95": 26
+          },
+          {
+            "sourceEndSec": 120.16266666666667,
+            "droppedSamples": 687120,
+            "queueAgeMsP95": 27.333333333333336
+          },
+          {
+            "sourceEndSec": 120.54266666666668,
+            "droppedSamples": 690480,
+            "queueAgeMsP95": 28
+          }
+        ],
+        "pipelineLagMs": {
+          "p50": 36.000000000001364,
+          "p95": 54.66666666666242,
+          "max": 68.33333333333513
+        },
+        "errors": []
+      },
+      {
+        "variant": "candidate",
+        "intervalMs": 10,
+        "durationSec": 120,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+        "crossOriginIsolated": false,
+        "expected": 444,
+        "matched": 202,
+        "detected": 247,
+        "delayMsP50": 41.333333333312794,
+        "delayMsP95": 48.666666666647984,
+        "diagnostics": {
+          "deviceLabel": "two sampled piano banks",
+          "sampleRate": 48000,
+          "requestedEchoCancellation": false,
+          "actualEchoCancellation": false,
+          "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+          "inferenceIntervalMs": 10,
+          "inferenceCount": 11988,
+          "skippedInferenceFrames": 11992,
+          "lowInputFrames": 3436,
+          "confidenceRejectedFrames": 178,
+          "shiftSemitones": 0,
+          "generationId": 1,
+          "droppedSamples": 5040,
+          "discontinuities": 3,
+          "lastDiscontinuityReason": "sequenceGap",
+          "lastGapMs": 35,
+          "modelResetCount": 0,
+          "cacheRecoveryCount": 3,
+          "processingMsP95": 3.5999999046325684,
+          "queueDepthMs": 0,
+          "queueAgeMsP50": 0,
+          "queueAgeMsP95": 16.666666666666668,
+          "captureQueueAgeMsP95": 16.666666666666668,
+          "workerQueueAgeMsP95": 0,
+          "inferenceMsP50": 3.199999999254942,
+          "inferenceMsP95": 5.199999999254942,
+          "preprocessMsP50": 0,
+          "preprocessMsP95": 0,
+          "lastModelMidi": 69.07506561279297,
+          "lastConcertMidi": 69.07506561279297,
+          "lastConfidence": 1,
+          "lastRawRmsDbfs": -33.14306999098116,
+          "lastModelVolume": 17.205150604248047,
+          "lastSourceEndTimeSec": 120.69333333333333,
+          "lastRejectReason": "voiced",
+          "warmupFramesRemaining": 0
+        },
+        "windows": {
+          "inferenceMsP50": {
+            "median": 3.399999998509884,
+            "p95": 3.800000000745058,
+            "max": 4.099999999627471
+          },
+          "inferenceMsP95": {
+            "median": 4.5,
+            "p95": 6.299999998882413,
+            "max": 10.300000000745058
+          },
+          "processingMsP95": {
+            "median": 4.099999904632568,
+            "p95": 5.699999809265137,
+            "max": 9.600000381469727
+          },
+          "queueAgeMsP95": {
+            "median": 14.666666666666666,
+            "p95": 18,
+            "max": 28.666666666666668
+          },
+          "captureQueueAgeMsP95": {
+            "median": 14.666666666666666,
+            "p95": 18,
+            "max": 28.666666666666668
+          },
+          "workerQueueAgeMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0.09999999962747097
+          },
+          "preprocessMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          }
+        },
+        "monitorCount": 399,
+        "monitorGapsOver600Ms": [],
+        "dropEvents": [
+          {
+            "sourceEndSec": 1.0333333333333334,
+            "droppedSamples": 1680,
+            "queueAgeMsP95": 28.666666666666668
+          },
+          {
+            "sourceEndSec": 1.6733333333333333,
+            "droppedSamples": 3360,
+            "queueAgeMsP95": 21.333333333333332
+          },
+          {
+            "sourceEndSec": 52.413333333333334,
+            "droppedSamples": 5040,
+            "queueAgeMsP95": 16
+          }
+        ],
+        "pipelineLagMs": {
+          "p50": 22.666666666680158,
+          "p95": 30.666666666675724,
+          "max": 37.33333333333633
+        },
+        "errors": []
+      }
+    ]
+  },
+  "preliminaryNormalAfter": {
+    "limitation": "Short overlap with offline spectral-reference result aggregation; rerun alone for normalAfter. Retained for transparency.",
+    "data": {
+      "sampleIds": [
+        "salamander-phrase-250",
+        "felt-phrase-250",
+        "salamander-repeat-200-0",
+        "felt-repeat-200-0"
+      ],
+      "pcmSha256": {
+        "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+        "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+        "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+        "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+      },
+      "stressMs": 0,
+      "stressPeriodMs": 50,
+      "results": [
+        {
+          "variant": "candidate",
+          "intervalMs": 10,
+          "durationSec": 120,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+          "crossOriginIsolated": false,
+          "expected": 444,
+          "matched": 202,
+          "detected": 248,
+          "delayMsP50": 37.33333333332922,
+          "delayMsP95": 49.33333333330836,
+          "diagnostics": {
+            "deviceLabel": "two sampled piano banks",
+            "sampleRate": 48000,
+            "requestedEchoCancellation": false,
+            "actualEchoCancellation": false,
+            "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+            "inferenceIntervalMs": 10,
+            "inferenceCount": 11996,
+            "skippedInferenceFrames": 11998,
+            "lowInputFrames": 3443,
+            "confidenceRejectedFrames": 178,
+            "shiftSemitones": 0,
+            "generationId": 1,
+            "droppedSamples": 1680,
+            "discontinuities": 1,
+            "lastDiscontinuityReason": "sequenceGap",
+            "lastGapMs": 35,
+            "modelResetCount": 0,
+            "cacheRecoveryCount": 1,
+            "processingMsP95": 3.799999952316284,
+            "queueDepthMs": 0,
+            "queueAgeMsP50": 0,
+            "queueAgeMsP95": 0,
+            "captureQueueAgeMsP95": 0,
+            "workerQueueAgeMsP95": 0,
+            "inferenceMsP50": 3.299999998882413,
+            "inferenceMsP95": 3.799999998882413,
+            "preprocessMsP50": 0,
+            "preprocessMsP95": 0,
+            "lastModelMidi": 69.07506561279297,
+            "lastConcertMidi": 69.07506561279297,
+            "lastConfidence": 1,
+            "lastRawRmsDbfs": -33.14306999098116,
+            "lastModelVolume": 17.205150604248047,
+            "lastSourceEndTimeSec": 120.552,
+            "lastRejectReason": "voiced",
+            "warmupFramesRemaining": 0
+          },
+          "windows": {
+            "inferenceMsP50": {
+              "median": 3.300000000745058,
+              "p95": 3.600000001490116,
+              "max": 3.800000000745058
+            },
+            "inferenceMsP95": {
+              "median": 4.299999998882413,
+              "p95": 5.800000000745058,
+              "max": 8.300000000745058
+            },
+            "processingMsP95": {
+              "median": 3.9000000953674316,
+              "p95": 5.300000190734863,
+              "max": 8.399999618530273
+            },
+            "queueAgeMsP95": {
+              "median": 0,
+              "p95": 0.09999999962747097,
+              "max": 20.09999999962747
+            },
+            "captureQueueAgeMsP95": {
+              "median": 0,
+              "p95": 0,
+              "max": 20
+            },
+            "workerQueueAgeMsP95": {
+              "median": 0,
+              "p95": 0,
+              "max": 0.09999999962747097
+            },
+            "preprocessMsP95": {
+              "median": 0,
+              "p95": 0,
+              "max": 0
+            }
+          },
+          "monitorCount": 399,
+          "monitorGapsOver600Ms": [],
+          "dropEvents": [
+            {
+              "sourceEndSec": 85.19200000000001,
+              "droppedSamples": 1680,
+              "queueAgeMsP95": 0
+            }
+          ],
+          "pipelineLagMs": {
+            "p50": 14.66666666667038,
+            "p95": 19.99999999999602,
+            "max": 25.33333333333232
+          },
+          "errors": []
+        }
+      ]
+    }
+  },
+  "preliminary5ms30sec": {
+    "sampleIds": [
+      "salamander-phrase-250",
+      "felt-phrase-250",
+      "salamander-repeat-200-0",
+      "felt-repeat-200-0"
+    ],
+    "pcmSha256": {
+      "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+      "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+      "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+      "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+    },
+    "stressMs": 0,
+    "stressPeriodMs": 50,
+    "results": [
+      {
+        "variant": "candidate",
+        "intervalMs": 5,
+        "durationSec": 30,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+        "crossOriginIsolated": false,
+        "expected": 109,
+        "matched": 106,
+        "detected": 196,
+        "delayMsP50": 38.66666666666596,
+        "delayMsP95": 45.33333333333189,
+        "diagnostics": {
+          "deviceLabel": "two sampled piano banks",
+          "sampleRate": 48000,
+          "requestedEchoCancellation": false,
+          "actualEchoCancellation": false,
+          "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+          "inferenceIntervalMs": 5,
+          "inferenceCount": 5988,
+          "skippedInferenceFrames": 0,
+          "lowInputFrames": 1717,
+          "confidenceRejectedFrames": 101,
+          "shiftSemitones": 0,
+          "generationId": 1,
+          "droppedSamples": 3360,
+          "discontinuities": 2,
+          "lastDiscontinuityReason": "sequenceGap",
+          "lastGapMs": 35,
+          "modelResetCount": 0,
+          "cacheRecoveryCount": 2,
+          "processingMsP95": 4.599999904632568,
+          "queueDepthMs": 0,
+          "queueAgeMsP50": 0,
+          "queueAgeMsP95": 0.09999999962747097,
+          "captureQueueAgeMsP95": 0,
+          "workerQueueAgeMsP95": 0,
+          "inferenceMsP50": 3,
+          "inferenceMsP95": 4.099999999627471,
+          "preprocessMsP50": 0,
+          "preprocessMsP95": 0,
+          "lastModelMidi": 60.33333206176758,
+          "lastConcertMidi": 60.33333206176758,
+          "lastConfidence": 1,
+          "lastRawRmsDbfs": -19.201414754764045,
+          "lastModelVolume": 73.34500122070312,
+          "lastSourceEndTimeSec": 30.583333333333336,
+          "lastRejectReason": "voiced",
+          "warmupFramesRemaining": 0
+        },
+        "windows": {
+          "inferenceMsP50": {
+            "median": 3.099999999627471,
+            "p95": 3.399999998509884,
+            "max": 3.5
+          },
+          "inferenceMsP95": {
+            "median": 4.099999999627471,
+            "p95": 5,
+            "max": 6.100000001490116
+          },
+          "processingMsP95": {
+            "median": 4.199999809265137,
+            "p95": 5.099999904632568,
+            "max": 6.300000190734863
+          },
+          "queueAgeMsP95": {
+            "median": 0.09999999962747097,
+            "p95": 4.666666666666667,
+            "max": 28
+          },
+          "captureQueueAgeMsP95": {
+            "median": 0,
+            "p95": 4.666666666666667,
+            "max": 28
+          },
+          "workerQueueAgeMsP95": {
+            "median": 0,
+            "p95": 0.09999999962747097,
+            "max": 0.09999999962747097
+          },
+          "preprocessMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0.09999999962747097
+          }
+        },
+        "monitorCount": 99,
+        "monitorGapsOver600Ms": [],
+        "dropEvents": [
+          {
+            "sourceEndSec": 3.308333333333333,
+            "droppedSamples": 1680,
+            "queueAgeMsP95": 0.8333333333333333
+          },
+          {
+            "sourceEndSec": 6.043333333333333,
+            "droppedSamples": 3360,
+            "queueAgeMsP95": 0.6666666666666666
+          }
+        ],
+        "pipelineLagMs": {
+          "p50": 4.6666666666652645,
+          "p95": 9.999999999999787,
+          "max": 10.333333333333083
+        },
+        "errors": []
+      }
+    ]
+  },
+  "normal5ms": {
+    "sampleIds": [
+      "salamander-phrase-250",
+      "felt-phrase-250",
+      "salamander-repeat-200-0",
+      "felt-repeat-200-0"
+    ],
+    "pcmSha256": {
+      "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+      "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+      "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+      "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+    },
+    "stressMs": 0,
+    "stressPeriodMs": 50,
+    "results": [
+      {
+        "variant": "baseline",
+        "intervalMs": 5,
+        "durationSec": 120,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+        "crossOriginIsolated": false,
+        "expected": 444,
+        "matched": 375,
+        "detected": 637,
+        "delayMsP50": 63.99999999997874,
+        "delayMsP95": 83.99999999999608,
+        "diagnostics": {
+          "deviceLabel": "two sampled piano banks",
+          "sampleRate": 48000,
+          "requestedEchoCancellation": false,
+          "actualEchoCancellation": false,
+          "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v1",
+          "inferenceIntervalMs": 5,
+          "inferenceCount": 17924,
+          "skippedInferenceFrames": 0,
+          "lowInputFrames": 5122,
+          "confidenceRejectedFrames": 264,
+          "shiftSemitones": 0,
+          "generationId": 1,
+          "droppedSamples": 1458240,
+          "discontinuities": 868,
+          "lastDiscontinuityReason": "sequenceGap",
+          "lastGapMs": 35,
+          "modelResetCount": 0,
+          "cacheRecoveryCount": 868,
+          "processingMsP95": 9.600000381469727,
+          "queueDepthMs": 0,
+          "queueAgeMsP50": 13.666666666666668,
+          "queueAgeMsP95": 30.666666666666664,
+          "inferenceMsP50": 6.699999999254942,
+          "inferenceMsP95": 9.5,
+          "preprocessMsP50": 0,
+          "preprocessMsP95": 0,
+          "lastModelMidi": 69.07508850097656,
+          "lastConcertMidi": 69.07508850097656,
+          "lastConfidence": 1,
+          "lastRawRmsDbfs": -33.14306999098116,
+          "lastModelVolume": 17.20514488220215,
+          "lastSourceEndTimeSec": 120.53333333333333,
+          "lastRejectReason": "voiced",
+          "warmupFramesRemaining": 0
+        },
+        "windows": {
+          "inferenceMsP50": {
+            "median": 6.400000000372529,
+            "p95": 6.800000000745058,
+            "max": 7.200000001117587
+          },
+          "inferenceMsP95": {
+            "median": 7.900000000372529,
+            "p95": 9.700000001117587,
+            "max": 11
+          },
+          "processingMsP95": {
+            "median": 8,
+            "p95": 9.800000190734863,
+            "max": 11.100000381469727
+          },
+          "queueAgeMsP95": {
+            "median": 31.666666666666668,
+            "p95": 33.666666666666664,
+            "max": 34
+          },
+          "captureQueueAgeMsP95": {
+            "median": null,
+            "p95": null,
+            "max": null
+          },
+          "workerQueueAgeMsP95": {
+            "median": null,
+            "p95": null,
+            "max": null
+          },
+          "preprocessMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0
+          }
+        },
+        "monitorCount": 298,
+        "monitorGapsOver600Ms": [],
+        "dropEvents": [
+          {
+            "sourceEndSec": 0.9733333333333334,
+            "droppedSamples": 6720,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 1.4133333333333333,
+            "droppedSamples": 13440,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 1.8533333333333335,
+            "droppedSamples": 20160,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 2.2583333333333333,
+            "droppedSamples": 25200,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 2.663333333333333,
+            "droppedSamples": 30240,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 3.033333333333333,
+            "droppedSamples": 33600,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 3.4033333333333333,
+            "droppedSamples": 36960,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 3.808333333333333,
+            "droppedSamples": 42000,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 4.178333333333334,
+            "droppedSamples": 45360,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 4.583333333333333,
+            "droppedSamples": 50400,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 4.988333333333333,
+            "droppedSamples": 55440,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 5.3933333333333335,
+            "droppedSamples": 60480,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 5.798333333333333,
+            "droppedSamples": 65520,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 6.168333333333333,
+            "droppedSamples": 68880,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 6.573333333333333,
+            "droppedSamples": 73920,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 6.943333333333333,
+            "droppedSamples": 77280,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 7.3133333333333335,
+            "droppedSamples": 80640,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 7.683333333333334,
+            "droppedSamples": 84000,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 8.158333333333333,
+            "droppedSamples": 92400,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 8.528333333333334,
+            "droppedSamples": 95760,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 8.933333333333334,
+            "droppedSamples": 100800,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 9.338333333333333,
+            "droppedSamples": 105840,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 9.708333333333334,
+            "droppedSamples": 109200,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 10.078333333333333,
+            "droppedSamples": 112560,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 10.448333333333332,
+            "droppedSamples": 115920,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 10.783333333333333,
+            "droppedSamples": 117600,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 11.153333333333332,
+            "droppedSamples": 120960,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 11.488333333333333,
+            "droppedSamples": 122640,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 11.893333333333333,
+            "droppedSamples": 127680,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 12.228333333333333,
+            "droppedSamples": 129360,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 12.598333333333333,
+            "droppedSamples": 132720,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 12.933333333333334,
+            "droppedSamples": 134400,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 13.268333333333333,
+            "droppedSamples": 136080,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 13.673333333333334,
+            "droppedSamples": 141120,
+            "queueAgeMsP95": 32.4333333329608
+          },
+          {
+            "sourceEndSec": 14.043333333333333,
+            "droppedSamples": 144480,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 14.413333333333334,
+            "droppedSamples": 147840,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 14.783333333333333,
+            "droppedSamples": 151200,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 15.153333333333332,
+            "droppedSamples": 154560,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 15.558333333333334,
+            "droppedSamples": 159600,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 15.963333333333333,
+            "droppedSamples": 164640,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 16.333333333333336,
+            "droppedSamples": 168000,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 16.703333333333337,
+            "droppedSamples": 171360,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 17.073333333333334,
+            "droppedSamples": 174720,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 17.408333333333335,
+            "droppedSamples": 176400,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 17.778333333333336,
+            "droppedSamples": 179760,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 18.148333333333333,
+            "droppedSamples": 183120,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 18.483333333333334,
+            "droppedSamples": 184800,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 18.853333333333335,
+            "droppedSamples": 188160,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 19.223333333333336,
+            "droppedSamples": 191520,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 19.628333333333334,
+            "droppedSamples": 196560,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 19.998333333333335,
+            "droppedSamples": 199920,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 20.403333333333336,
+            "droppedSamples": 204960,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 20.808333333333334,
+            "droppedSamples": 210000,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 21.178333333333335,
+            "droppedSamples": 213360,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 21.618333333333336,
+            "droppedSamples": 220080,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 22.023333333333333,
+            "droppedSamples": 225120,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 22.463333333333335,
+            "droppedSamples": 231840,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 22.938333333333336,
+            "droppedSamples": 240240,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 23.308333333333334,
+            "droppedSamples": 243600,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 23.713333333333335,
+            "droppedSamples": 248640,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 24.153333333333336,
+            "droppedSamples": 255360,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 24.558333333333334,
+            "droppedSamples": 260400,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 24.998333333333335,
+            "droppedSamples": 267120,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 25.403333333333336,
+            "droppedSamples": 272160,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 25.773333333333333,
+            "droppedSamples": 275520,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 26.213333333333335,
+            "droppedSamples": 282240,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 26.688333333333336,
+            "droppedSamples": 290640,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 27.058333333333334,
+            "droppedSamples": 294000,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 27.498333333333335,
+            "droppedSamples": 300720,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 27.903333333333336,
+            "droppedSamples": 305760,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 28.343333333333334,
+            "droppedSamples": 312480,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 28.748333333333335,
+            "droppedSamples": 317520,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 29.188333333333336,
+            "droppedSamples": 324240,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 29.558333333333334,
+            "droppedSamples": 327600,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 29.998333333333335,
+            "droppedSamples": 334320,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 30.403333333333336,
+            "droppedSamples": 339360,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 30.808333333333334,
+            "droppedSamples": 344400,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 31.213333333333335,
+            "droppedSamples": 349440,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 31.618333333333336,
+            "droppedSamples": 354480,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 32.02333333333333,
+            "droppedSamples": 359520,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 32.39333333333333,
+            "droppedSamples": 362880,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 32.76333333333333,
+            "droppedSamples": 366240,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 33.13333333333333,
+            "droppedSamples": 369600,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 33.57333333333333,
+            "droppedSamples": 376320,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 33.97833333333333,
+            "droppedSamples": 381360,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 34.38333333333333,
+            "droppedSamples": 386400,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 34.788333333333334,
+            "droppedSamples": 391440,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 35.19333333333333,
+            "droppedSamples": 396480,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 35.59833333333333,
+            "droppedSamples": 401520,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 36.038333333333334,
+            "droppedSamples": 408240,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 36.44333333333333,
+            "droppedSamples": 413280,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 36.84833333333333,
+            "droppedSamples": 418320,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 37.25333333333333,
+            "droppedSamples": 423360,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 37.65833333333333,
+            "droppedSamples": 428400,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 38.06333333333333,
+            "droppedSamples": 433440,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 38.50333333333333,
+            "droppedSamples": 440160,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 38.873333333333335,
+            "droppedSamples": 443520,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 39.24333333333333,
+            "droppedSamples": 446880,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 39.61333333333333,
+            "droppedSamples": 450240,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 40.01833333333333,
+            "droppedSamples": 455280,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 40.42333333333333,
+            "droppedSamples": 460320,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 40.79333333333333,
+            "droppedSamples": 463680,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 41.163333333333334,
+            "droppedSamples": 467040,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 41.56833333333333,
+            "droppedSamples": 472080,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 42.00833333333333,
+            "droppedSamples": 478800,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 42.413333333333334,
+            "droppedSamples": 483840,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 42.81833333333333,
+            "droppedSamples": 488880,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 43.22333333333333,
+            "droppedSamples": 493920,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 43.62833333333333,
+            "droppedSamples": 498960,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 44.03333333333333,
+            "droppedSamples": 504000,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 44.47333333333333,
+            "droppedSamples": 510720,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 44.87833333333333,
+            "droppedSamples": 515760,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 45.28333333333333,
+            "droppedSamples": 520800,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 45.72333333333333,
+            "droppedSamples": 527520,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 46.163333333333334,
+            "droppedSamples": 534240,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 46.56833333333333,
+            "droppedSamples": 539280,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 46.97333333333333,
+            "droppedSamples": 544320,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 47.37833333333333,
+            "droppedSamples": 549360,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 47.81833333333333,
+            "droppedSamples": 556080,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 48.25833333333333,
+            "droppedSamples": 562800,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 48.593333333333334,
+            "droppedSamples": 564480,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 48.998333333333335,
+            "droppedSamples": 569520,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 49.40333333333333,
+            "droppedSamples": 574560,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 49.843333333333334,
+            "droppedSamples": 581280,
+            "queueAgeMsP95": 32.100000001490116
+          },
+          {
+            "sourceEndSec": 50.248333333333335,
+            "droppedSamples": 586320,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 50.65333333333333,
+            "droppedSamples": 591360,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 51.05833333333333,
+            "droppedSamples": 596400,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 51.46333333333333,
+            "droppedSamples": 601440,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 51.90333333333333,
+            "droppedSamples": 608160,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 52.30833333333333,
+            "droppedSamples": 613200,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 52.748333333333335,
+            "droppedSamples": 619920,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 53.15333333333333,
+            "droppedSamples": 624960,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 53.55833333333333,
+            "droppedSamples": 630000,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 53.96333333333333,
+            "droppedSamples": 635040,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 54.29833333333333,
+            "droppedSamples": 636720,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 54.66833333333333,
+            "droppedSamples": 640080,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 55.00333333333333,
+            "droppedSamples": 641760,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 55.44333333333333,
+            "droppedSamples": 648480,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 55.84833333333333,
+            "droppedSamples": 653520,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 56.288333333333334,
+            "droppedSamples": 660240,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 56.72833333333333,
+            "droppedSamples": 666960,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 57.16833333333333,
+            "droppedSamples": 673680,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 57.57333333333333,
+            "droppedSamples": 678720,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 57.97833333333333,
+            "droppedSamples": 683760,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 58.38333333333333,
+            "droppedSamples": 688800,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 58.858333333333334,
+            "droppedSamples": 697200,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 59.26333333333333,
+            "droppedSamples": 702240,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 59.66833333333333,
+            "droppedSamples": 707280,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 60.07333333333333,
+            "droppedSamples": 712320,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 60.44333333333333,
+            "droppedSamples": 715680,
+            "queueAgeMsP95": 29.666666666666668
+          },
+          {
+            "sourceEndSec": 60.84833333333333,
+            "droppedSamples": 720720,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 61.25333333333333,
+            "droppedSamples": 725760,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 61.65833333333333,
+            "droppedSamples": 730800,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 62.06333333333333,
+            "droppedSamples": 735840,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 62.50333333333333,
+            "droppedSamples": 742560,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 62.90833333333333,
+            "droppedSamples": 747600,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 63.31333333333333,
+            "droppedSamples": 752640,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 63.75333333333333,
+            "droppedSamples": 759360,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 64.15833333333333,
+            "droppedSamples": 764400,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 64.59833333333333,
+            "droppedSamples": 771120,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 64.96833333333333,
+            "droppedSamples": 774480,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 65.40833333333333,
+            "droppedSamples": 781200,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 65.77833333333334,
+            "droppedSamples": 784560,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 66.18333333333334,
+            "droppedSamples": 789600,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 66.58833333333334,
+            "droppedSamples": 794640,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 66.95833333333333,
+            "droppedSamples": 798000,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 67.29333333333334,
+            "droppedSamples": 799680,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 67.66333333333333,
+            "droppedSamples": 803040,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 68.10333333333332,
+            "droppedSamples": 809760,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 68.50833333333333,
+            "droppedSamples": 814800,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 68.87833333333333,
+            "droppedSamples": 818160,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 69.24833333333333,
+            "droppedSamples": 821520,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 69.61833333333333,
+            "droppedSamples": 824880,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 69.98833333333333,
+            "droppedSamples": 828240,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 70.39333333333333,
+            "droppedSamples": 833280,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 70.79833333333333,
+            "droppedSamples": 838320,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 71.23833333333333,
+            "droppedSamples": 845040,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 71.64333333333333,
+            "droppedSamples": 850080,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 72.08333333333333,
+            "droppedSamples": 856800,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 72.52333333333333,
+            "droppedSamples": 863520,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 72.92833333333333,
+            "droppedSamples": 868560,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 73.33333333333333,
+            "droppedSamples": 873600,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 73.73833333333333,
+            "droppedSamples": 878640,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 74.17833333333333,
+            "droppedSamples": 885360,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 74.61833333333333,
+            "droppedSamples": 892080,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 75.02333333333333,
+            "droppedSamples": 897120,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 75.46333333333334,
+            "droppedSamples": 903840,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 75.86833333333333,
+            "droppedSamples": 908880,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 76.27333333333333,
+            "droppedSamples": 913920,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 76.67833333333333,
+            "droppedSamples": 918960,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 77.08333333333333,
+            "droppedSamples": 924000,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 77.48833333333333,
+            "droppedSamples": 929040,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 77.89333333333333,
+            "droppedSamples": 934080,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 78.33333333333333,
+            "droppedSamples": 940800,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 78.73833333333333,
+            "droppedSamples": 945840,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 79.14333333333333,
+            "droppedSamples": 950880,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 79.51333333333334,
+            "droppedSamples": 954240,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 79.91833333333334,
+            "droppedSamples": 959280,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 80.35833333333333,
+            "droppedSamples": 966000,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 80.76333333333334,
+            "droppedSamples": 971040,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 81.13333333333333,
+            "droppedSamples": 974400,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 81.53833333333333,
+            "droppedSamples": 979440,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 81.94333333333333,
+            "droppedSamples": 984480,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 82.31333333333333,
+            "droppedSamples": 987840,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 82.71833333333333,
+            "droppedSamples": 992880,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 83.08833333333334,
+            "droppedSamples": 996240,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 83.45833333333333,
+            "droppedSamples": 999600,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 83.86333333333333,
+            "droppedSamples": 1004640,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 84.19833333333334,
+            "droppedSamples": 1006320,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 84.63833333333334,
+            "droppedSamples": 1013040,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 85.04333333333334,
+            "droppedSamples": 1018080,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 85.44833333333334,
+            "droppedSamples": 1023120,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 85.85333333333332,
+            "droppedSamples": 1028160,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 86.25833333333333,
+            "droppedSamples": 1033200,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 86.66333333333333,
+            "droppedSamples": 1038240,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 87.10333333333332,
+            "droppedSamples": 1044960,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 87.54333333333334,
+            "droppedSamples": 1051680,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 87.94833333333334,
+            "droppedSamples": 1056720,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 88.38833333333334,
+            "droppedSamples": 1063440,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 88.79333333333334,
+            "droppedSamples": 1068480,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 89.19833333333334,
+            "droppedSamples": 1073520,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 89.60333333333332,
+            "droppedSamples": 1078560,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 90.00833333333333,
+            "droppedSamples": 1083600,
+            "queueAgeMsP95": 30.433333332960803
+          },
+          {
+            "sourceEndSec": 90.37833333333333,
+            "droppedSamples": 1086960,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 90.78333333333333,
+            "droppedSamples": 1092000,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 91.18833333333333,
+            "droppedSamples": 1097040,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 91.55833333333334,
+            "droppedSamples": 1100400,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 91.92833333333333,
+            "droppedSamples": 1103760,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 92.29833333333333,
+            "droppedSamples": 1107120,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 92.66833333333334,
+            "droppedSamples": 1110480,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 93.07333333333334,
+            "droppedSamples": 1115520,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 93.44333333333333,
+            "droppedSamples": 1118880,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 93.81333333333333,
+            "droppedSamples": 1122240,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 94.21833333333333,
+            "droppedSamples": 1127280,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 94.62333333333333,
+            "droppedSamples": 1132320,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 94.99333333333333,
+            "droppedSamples": 1135680,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 95.39833333333333,
+            "droppedSamples": 1140720,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 95.76833333333333,
+            "droppedSamples": 1144080,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 96.13833333333334,
+            "droppedSamples": 1147440,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 96.50833333333333,
+            "droppedSamples": 1150800,
+            "queueAgeMsP95": 29.333333333333332
+          },
+          {
+            "sourceEndSec": 96.91333333333333,
+            "droppedSamples": 1155840,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 97.28333333333333,
+            "droppedSamples": 1159200,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 97.68833333333333,
+            "droppedSamples": 1164240,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 98.12833333333333,
+            "droppedSamples": 1170960,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 98.53333333333333,
+            "droppedSamples": 1176000,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 98.93833333333333,
+            "droppedSamples": 1181040,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 99.30833333333334,
+            "droppedSamples": 1184400,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 99.67833333333333,
+            "droppedSamples": 1187760,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 100.08333333333333,
+            "droppedSamples": 1192800,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 100.48833333333333,
+            "droppedSamples": 1197840,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 100.85833333333333,
+            "droppedSamples": 1201200,
+            "queueAgeMsP95": 33.666666666666664
+          },
+          {
+            "sourceEndSec": 101.22833333333332,
+            "droppedSamples": 1204560,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 101.63333333333333,
+            "droppedSamples": 1209600,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 102.03833333333333,
+            "droppedSamples": 1214640,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 102.44333333333333,
+            "droppedSamples": 1219680,
+            "queueAgeMsP95": 32.09999999962747
+          },
+          {
+            "sourceEndSec": 102.84833333333333,
+            "droppedSamples": 1224720,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 103.21833333333333,
+            "droppedSamples": 1228080,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 103.58833333333334,
+            "droppedSamples": 1231440,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 103.92333333333333,
+            "droppedSamples": 1233120,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 104.32833333333333,
+            "droppedSamples": 1238160,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 104.73333333333333,
+            "droppedSamples": 1243200,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 105.10333333333332,
+            "droppedSamples": 1246560,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 105.50833333333333,
+            "droppedSamples": 1251600,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 105.91333333333333,
+            "droppedSamples": 1256640,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 106.31833333333333,
+            "droppedSamples": 1261680,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 106.72333333333333,
+            "droppedSamples": 1266720,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 107.12833333333333,
+            "droppedSamples": 1271760,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 107.53333333333333,
+            "droppedSamples": 1276800,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 107.90333333333334,
+            "droppedSamples": 1280160,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 108.34333333333333,
+            "droppedSamples": 1286880,
+            "queueAgeMsP95": 34
+          },
+          {
+            "sourceEndSec": 108.78333333333333,
+            "droppedSamples": 1293600,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 109.18833333333333,
+            "droppedSamples": 1298640,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 109.59333333333333,
+            "droppedSamples": 1303680,
+            "queueAgeMsP95": 31.666666666666668
+          },
+          {
+            "sourceEndSec": 109.99833333333333,
+            "droppedSamples": 1308720,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 110.40333333333334,
+            "droppedSamples": 1313760,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 110.84333333333333,
+            "droppedSamples": 1320480,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 111.28333333333333,
+            "droppedSamples": 1327200,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 111.72333333333333,
+            "droppedSamples": 1333920,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 112.19833333333334,
+            "droppedSamples": 1342320,
+            "queueAgeMsP95": 32.666666666666664
+          },
+          {
+            "sourceEndSec": 112.63833333333334,
+            "droppedSamples": 1349040,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 113.04333333333334,
+            "droppedSamples": 1354080,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 113.44833333333334,
+            "droppedSamples": 1359120,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 113.88833333333334,
+            "droppedSamples": 1365840,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 114.25833333333333,
+            "droppedSamples": 1369200,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 114.66333333333333,
+            "droppedSamples": 1374240,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 115.13833333333334,
+            "droppedSamples": 1382640,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 115.54333333333334,
+            "droppedSamples": 1387680,
+            "queueAgeMsP95": 30
+          },
+          {
+            "sourceEndSec": 115.98333333333333,
+            "droppedSamples": 1394400,
+            "queueAgeMsP95": 30.666666666666664
+          },
+          {
+            "sourceEndSec": 116.42333333333333,
+            "droppedSamples": 1401120,
+            "queueAgeMsP95": 31.333333333333332
+          },
+          {
+            "sourceEndSec": 116.86333333333333,
+            "droppedSamples": 1407840,
+            "queueAgeMsP95": 32
+          },
+          {
+            "sourceEndSec": 117.26833333333333,
+            "droppedSamples": 1412880,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 117.67333333333333,
+            "droppedSamples": 1417920,
+            "queueAgeMsP95": 33.333333333333336
+          },
+          {
+            "sourceEndSec": 118.07833333333333,
+            "droppedSamples": 1422960,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 118.51833333333333,
+            "droppedSamples": 1429680,
+            "queueAgeMsP95": 31
+          },
+          {
+            "sourceEndSec": 118.92333333333333,
+            "droppedSamples": 1434720,
+            "queueAgeMsP95": 30.333333333333332
+          },
+          {
+            "sourceEndSec": 119.36333333333333,
+            "droppedSamples": 1441440,
+            "queueAgeMsP95": 32.33333333333333
+          },
+          {
+            "sourceEndSec": 119.80333333333333,
+            "droppedSamples": 1448160,
+            "queueAgeMsP95": 33
+          },
+          {
+            "sourceEndSec": 120.20833333333333,
+            "droppedSamples": 1453200,
+            "queueAgeMsP95": 33.666666666666664
+          }
+        ],
+        "pipelineLagMs": {
+          "p50": 35.666666666671176,
+          "p95": 54.000000000002046,
+          "max": 61.666666666667425
+        },
+        "errors": []
+      },
+      {
+        "variant": "candidate",
+        "intervalMs": 5,
+        "durationSec": 120,
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+        "crossOriginIsolated": false,
+        "expected": 444,
+        "matched": 433,
+        "detected": 801,
+        "delayMsP50": 38.66666666665708,
+        "delayMsP95": 45.33333333333189,
+        "diagnostics": {
+          "deviceLabel": "two sampled piano banks",
+          "sampleRate": 48000,
+          "requestedEchoCancellation": false,
+          "actualEchoCancellation": false,
+          "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+          "inferenceIntervalMs": 5,
+          "inferenceCount": 23990,
+          "skippedInferenceFrames": 0,
+          "lowInputFrames": 6921,
+          "confidenceRejectedFrames": 401,
+          "shiftSemitones": 0,
+          "generationId": 1,
+          "droppedSamples": 3360,
+          "discontinuities": 2,
+          "lastDiscontinuityReason": "sequenceGap",
+          "lastGapMs": 35,
+          "modelResetCount": 0,
+          "cacheRecoveryCount": 2,
+          "processingMsP95": 4,
+          "queueDepthMs": 0,
+          "queueAgeMsP50": 0,
+          "queueAgeMsP95": 0.09999999962747097,
+          "captureQueueAgeMsP95": 0,
+          "workerQueueAgeMsP95": 0,
+          "inferenceMsP50": 3.199999999254942,
+          "inferenceMsP95": 3.900000000372529,
+          "preprocessMsP50": 0,
+          "preprocessMsP95": 0,
+          "lastModelMidi": 71.45136260986328,
+          "lastConcertMidi": 71.45136260986328,
+          "lastConfidence": 0.9999444484710693,
+          "lastRawRmsDbfs": -17.39164147467178,
+          "lastModelVolume": 26.103290557861328,
+          "lastSourceEndTimeSec": 120.64133333333334,
+          "lastRejectReason": "voiced",
+          "warmupFramesRemaining": 0
+        },
+        "windows": {
+          "inferenceMsP50": {
+            "median": 3.300000000745058,
+            "p95": 3.5,
+            "max": 3.699999999254942
+          },
+          "inferenceMsP95": {
+            "median": 4.299999998882413,
+            "p95": 5.5,
+            "max": 7.199999999254942
+          },
+          "processingMsP95": {
+            "median": 4.400000095367432,
+            "p95": 5.599999904632568,
+            "max": 7.300000190734863
+          },
+          "queueAgeMsP95": {
+            "median": 0.3333333333333333,
+            "p95": 5.666666666666667,
+            "max": 31.333333333333332
+          },
+          "captureQueueAgeMsP95": {
+            "median": 0.3333333333333333,
+            "p95": 5.666666666666667,
+            "max": 31.333333333333332
+          },
+          "workerQueueAgeMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0.09999999962747097
+          },
+          "preprocessMsP95": {
+            "median": 0,
+            "p95": 0,
+            "max": 0.09999999962747097
+          }
+        },
+        "monitorCount": 399,
+        "monitorGapsOver600Ms": [],
+        "dropEvents": [
+          {
+            "sourceEndSec": 69.65633333333334,
+            "droppedSamples": 1680,
+            "queueAgeMsP95": 22.666666666666668
+          },
+          {
+            "sourceEndSec": 108.99133333333334,
+            "droppedSamples": 3360,
+            "queueAgeMsP95": 5.333333333333333
+          }
+        ],
+        "pipelineLagMs": {
+          "p50": 16.00000000000179,
+          "p95": 21.33333333333276,
+          "max": 38.666666666664185
+        },
+        "errors": []
+      }
+    ]
+  }
+}
