@@ -12,7 +12,9 @@ final class PestoModelInputsTests: XCTestCase {
         defer { inputs = nil }
         let audio = try XCTUnwrap(inputs?.values["audio"])
         let cacheValue = try XCTUnwrap(inputs?.values["cache"])
-        XCTAssertEqual(try cacheValue.tensorData().bytes, UnsafeRawPointer(cache))
+        // tensorData() can expose a separate Foundation view; its address is not
+        // the storage contract. The owned buffer stays fixed and updates must be visible.
+        XCTAssertEqual(storage.mutableBytes, UnsafeMutableRawPointer(cache))
         for value in [Float(0.1), -0.25, 0] {
             let captured = [Float](repeating: value, count: 240)
             captured.withUnsafeBufferPointer { buffer in
@@ -20,6 +22,7 @@ final class PestoModelInputsTests: XCTestCase {
                 inputs?.updateAudio(from: base)
             }
             cache[3975] = value
+            XCTAssertEqual(storage.mutableBytes, UnsafeMutableRawPointer(cache))
             XCTAssertTrue(inputs?.values["audio"] === audio)
             XCTAssertTrue(inputs?.values["cache"] === cacheValue)
             let actualAudio = try audio.tensorData()

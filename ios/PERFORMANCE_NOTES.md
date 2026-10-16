@@ -47,4 +47,4 @@ xcodebuild -project ios/Jazzify.xcodeproj -scheme JazzifyPesto -configuration De
 
 PESTO検証は専用の `JazzifyPesto` scheme / `JazzifyPestoTests` targetで実行する。既存 `JazzifyTests/EarTrainingChordOsmdTimingTests.swift` が削除済みの `resolvePhraseTiming` / `computeFromPhrase` を参照して全体テストのコンパイルを止めるため、今回の検証を別ターゲットにした。既存のテストや対象APIは変更していない。
 
-cacheはエンジン所有の `NSMutableData` をORTValueへ直接渡す。外部ポインタを `NSMutableData(bytesNoCopy:freeWhenDone:false)` で再ラップすると、FoundationのmutableBytes取得時に別のメモリへ移る場合があり、再利用したTensorへ更新が届かない。この差をネイティブ試験で検出したため、エンジンの更新先とTensorの参照先を同じ所有バッファへ統一した。テストは両者のポインタ一致と値更新を検証する。
+cacheはエンジン所有の `NSMutableData` をORTValueへ直接渡す。外部ポインタを `NSMutableData(bytesNoCopy:freeWhenDone:false)` で再ラップすると、FoundationのmutableBytes取得時に別のメモリへ移る場合があり、再利用したTensorへ更新が届かない。この差をネイティブ試験で検出したため、エンジンの更新先とTensorの参照先を同じ所有バッファへ統一した。テストは所有バッファのアドレス維持とTensorから読み取れる値更新を検証する。tensorData()が返すFoundationビューのアドレス一致は要求しない。
