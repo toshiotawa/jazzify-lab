@@ -1,10 +1,11 @@
+import { pestoModelAssetPlugin } from './vite.pesto-model-plugin'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import { defenseSeparateTracksWorkletPlugin } from './vite.defense-worklet-plugin'
 
 export default defineConfig({
-  plugins: [react(), defenseSeparateTracksWorkletPlugin()],
+  plugins: [react(), defenseSeparateTracksWorkletPlugin(), pestoModelAssetPlugin()],
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

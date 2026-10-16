@@ -22,7 +22,7 @@ node scripts/pesto/verify-pesto-web-model.mjs
 
 ## 検証
 
-`verify-pesto-web-model.mjs`は実際に配信する差分からモデルを復元し、onnxruntime-web 1.20.0の単一スレッドWASMで元モデルと比較する。2400フレームについて、低音から高音の倍音付き音・小音量・無音・ノイズ・インパルス・音程変更と定期的なcache初期化を含める。再帰cacheの一致は厳密、他の出力にはfloat32の丸め誤差の許容値を設定する。実行順は毎フレーム交互にする。
+`verify-pesto-web-model.mjs`はビルドが生成した配信用ONNXを読み込み、onnxruntime-web 1.20.0の単一スレッドWASMで元モデルと比較する。2400フレームについて、低音から高音の倍音付き音・小音量・無音・ノイズ・インパルス・音程変更と定期的なcache初期化を含める。再帰cacheの一致は厳密、他の出力にはfloat32の丸め誤差の許容値を設定する。実行順は毎フレーム交互にする。
 
 compact-v1の2026-10-03の測定では中央値7.39→5.76ms、p95 8.46→6.64ms。最大差はMIDI 0.0000153、confidence 0.000000119、volume 0.00000382、cache 0。これは検証環境の値であり、利用端末の速度や実マイクでの停止解消を保証するものではない。
 
@@ -37,18 +37,20 @@ Workletは8192サンプルの固定リングに原音を保持し、欠落直後
 Workerはshift +0で3976サンプルの完全かつ有限な履歴を復元できた場合、モデルcacheを実PCMで復元し、trackerの持続音・同音連打ゲートを保持する。冷起動のゼロ初期化と4フレームの判定抑制は行わず、アタック包絡も実PCMから復元する。履歴が不足・不正な場合やshift +12/+24では、従来の冷起動・判定抑制を維持する。shift +12/+24のcacheはフィルタ・間引き後の音声なので原音で上書きしない。5ms周期、モデル、閾値、40msの待機上限は保持する。履歴に含まれる欠落区間を後から判定する処理は追加していない。
 
 ```sh
+npm run build:app
 node scripts/pesto/verify-pesto-gap-recovery.mjs
 ```
 
-配信する差分を復元した実際のWASMモデルに、低音〜高音の倍音付き・小音量信号を3200フレーム入力する。35msの欠落を繰り返し、200msの停止も含める。各フレームでcacheが原音履歴と厳密一致することを検証し、欠落後に実PCMを復元したprediction・confidence・volume・cacheが、欠落せずに推論を続けた参照モデルと**全て厳密一致**することを要求する。ゼロ初期化を繰り返す従来処理のconfidenceも比較する。実マイク・ゲーム描画を含む端末上の検証ではない。
+ビルド済みの配信ONNXを使う実際のWASMモデルに、低音〜高音の倍音付き・小音量信号を3200フレーム入力する。35msの欠落を繰り返し、200msの停止も含める。各フレームでcacheが原音履歴と厳密一致することを検証し、欠落後に実PCMを復元したprediction・confidence・volume・cacheが、欠落せずに推論を続けた参照モデルと**全て厳密一致**することを要求する。ゼロ初期化を繰り返す従来処理のconfidenceも比較する。実マイク・ゲーム描画を含む端末上の検証ではない。
 
-10ms推論の試作とWASM 1・2・4スレッドの実測結果は、[2026-10-08の検討レポート](../../docs/pitch-performance-options-2026-10-08.md)を参照。通常音域の完全な履歴復元後のwarmup回避はすでに実装済み。10ms周期・複数スレッドの実運用への適用はまだ行っていない。
+10ms推論の試作とWASM 1・2・4スレッドの実測結果は、[2026-10-08の検討レポート](../../docs/pitch-performance-options-2026-10-08.md)を参照。通常音域の完全な履歴復元後のwarmup回避はすでに実装済み。10ms周期は診断設定から選択可能。2スレッドの現在の条件は末尾の節を参照。
 
 ## 5/10/20msの実装比較
 
 [2026-10-16の比較と停止原因の切り分け](../../docs/pitch-cadence-comparison-2026-10-16.md)を参照。既定5msを維持し、音声設定の診断欄で10/20msへ切り替える。モデルの同時刻出力が一致しても、短い音の発音判定は一致しない条件がある。
 
 ```sh
+npm run build:app
 node scripts/pesto/compare-pesto-cadence.mjs temp/pesto-cadence/results.json
 # Playwrightを検証環境へ用意し、Chromiumをインストールしてから実行
 npm run build:app
@@ -59,13 +61,14 @@ PESTO_BENCHMARK_SECONDS=120 node scripts/pesto/benchmark-pesto-browser.mjs temp/
 
 ## compact-v2: 固定CQT窓を行列積に置き換える
 
-各CQT Convは、入力幅とカーネル幅が一致し、時刻方向に1個の値を出す。これを `Gemm(transB=1)` と形状変換で表す。非ゼロ係数、チャンネル順、refill、cache、入力PCM、5/10/20ms周期とtrackerは変更しない。量子化・モデル再学習・スレッド増加は行わない。加算順の違いによるfloat32丸め差は許容値内で検証する。
+各CQT Convは、入力幅とカーネル幅が一致し、時刻方向に1個の値を出す。これを `Gemm(transB=1)` と形状変換で表す。非ゼロ係数、チャンネル順、refill、cache、入力PCM、5/10/20ms周期とtrackerは変更しない。このモデル変換自体は量子化・モデル再学習・スレッド増加を行わない。加算順の違いによるfloat32丸め差は許容値内で検証する。
 
-配信パスは `pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json` に変更。immutable配信中のv1ファイルは保持する。元のONNXは変更せず、初期化時だけ検証・復元する。
+配信パスは `pesto-mir1k-g7-48000-240-refill-compact-v2.onnx`。Viteが元ONNXとv2差分からビルド時に生成し、旧配信と同じSHA-256を検証する。ブラウザは完成済みONNXだけを取得・ハッシュ検証する。元ONNXと既存差分は再現性および旧クライアント用に保持する。
 
 v1とv2を実WASMで直接比較するには:
 
 ```sh
+npm run build:app
 PESTO_REFERENCE_PATCH=pesto-mir1k-g7-48000-240-refill-compact-v1.patch.json node scripts/pesto/verify-pesto-web-model.mjs
 ```
 
@@ -89,3 +92,22 @@ PESTO_HEADROOM_VARIANTS=baseline,candidate PESTO_HEADROOM_BASELINE_WORKER=/tmp/p
 診断の前処理時間は従来の固定値0から実測へ変更し、推論時間と分離。取り込み側の転送待ちとWorker内の待ちも個別に記録する。MessagePort内で配送待ちした時間はこの2指標に含まれないため、ブラウザ試験では原音終了時刻からmonitor受信までのpipelineLagも記録する。診断p95は末尾128観測、windowsはそのsnapshotを約300msごとに収集した分布であり、全推論の直接のp95ではない。
 
 結果と制約は [負荷改善レポート](../../docs/pesto-headroom-2026-10-16.md)を参照。
+
+## 配信・2スレッド・低音バッファの軽量化
+
+本番では `/main/play` と `/main/play/*` の文書だけにCOOP `same-origin` / COEP `credentialless`を設定する。アプリはこの境界に出入りするときだけ文書を再読込し、ゲーム間のSPA遷移ではAudioContextを維持する。レッスン動画・アカウント・LP・ブログ・外部埋め込み文書は対象外。Workerスクリプトには同じCOEPを設定し、mjsの固定queryで旧immutableヘッダーキャッシュを避ける。Worker内の `crossOriginIsolated`、SharedArrayBuffer、論理コア数2以上を確認して2スレッドを選び、それ以外は1スレッド。診断snapshotの `wasmThreads` で実際の設定を確認できる。開発サーバーは分離ヘッダーを付けないので1スレッドになる。
+
+`onnxruntime-web/wasm`だけをimportし、GPU用JavaScriptを除外する。Node検証ハーネスはNode exportを持つ本体へaliasする（NodeのWASMは1スレッド）。モデル再構成はViteビルドまたは開発サーバー起動時に1回だけ実行。ブラウザは17MBの元ONNX・差分JSONを取得せず、11,150,637 bytesの完成済みONNXを1回取得する。
+
+q=2/4のローパス係数をデシメータ生成時に保存し、240サンプル出力を借用バッファとして返す。次のfeed/reset前に読み終える必要がある。Workerはキューを逐次処理し、推論前に既存tensorへコピーするため、非同期推論中に借用バッファを上書きしない。旧実装のPCMハッシュ、リセット、待機中の追加チャンクをテストする。
+
+```sh
+npm run build:app
+# 4録音ピアノから各2秒、同一PCMを1/2スレッドで逐次推論し全出力を比較。
+node scripts/pesto/verify-pesto-browser-threads.mjs /path/to/fixtures.json /tmp/thread-outputs.json
+# 実時間AudioWorklet→Worker試験。0は非分離・1スレッド、1は分離・対応時2スレッド。
+PESTO_BENCHMARK_ISOLATED=1 PESTO_BENCHMARK_INTERVALS=5 PESTO_BENCHMARK_SECONDS=120 \
+  node scripts/pesto/benchmark-pesto-headroom.mjs /path/to/fixtures.json /tmp/two-threads.json
+```
+
+Playwright/Chromeの指定は前述の環境変数を使用。結果・測定の制約は [実装レポート](../../docs/pesto-loading-threads-2026-10-16.md)を参照。

@@ -3,7 +3,8 @@
  */
 
 export interface PestoDecimatorState {
-  q: number;
+  readonly q: number;
+  readonly coeffs: ReturnType<typeof lowpassCoeffs>;
   /** biquad 直前サンプル */
   x1: number;
   x2: number;
@@ -18,6 +19,7 @@ export interface PestoDecimatorState {
 
 export const createPestoDecimatorState = (q: number): PestoDecimatorState => ({
   q,
+  coeffs: lowpassCoeffs(q),
   x1: 0,
   x2: 0,
   y1: 0,
@@ -62,6 +64,7 @@ const biquadStep = (
 
 /**
  * 連続 PCM を feed し、240 サンプル分が溜まったら返す。
+ * 出力は借用バッファ。次の feed/reset より前に読み終えること。
  */
 export const feedPestoDecimator = (
   input: Float32Array,
@@ -72,7 +75,7 @@ export const feedPestoDecimator = (
     return null;
   }
 
-  const coeffs = lowpassCoeffs(state.q);
+  const coeffs = state.coeffs;
   for (let i = 0; i < input.length; i += 1) {
     const filtered = biquadStep(input[i] ?? 0, state, coeffs);
     if (state.decimPhase === 0 && state.outLen < 240) {
@@ -83,9 +86,8 @@ export const feedPestoDecimator = (
   }
 
   if (state.outLen < 240) return null;
-  const out = state.outScratch.slice(0, 240);
   state.outLen = 0;
-  return out;
+  return state.outScratch;
 };
 
 export const resetPestoDecimator = (state: PestoDecimatorState): void => {

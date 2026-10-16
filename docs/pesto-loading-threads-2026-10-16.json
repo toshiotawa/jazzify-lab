@@ -1,0 +1,324 @@
+{
+  "threadOutputs": {
+    "pcmSha256": {
+      "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+      "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+      "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+      "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+    },
+    "maxDifference": [
+      0,
+      0,
+      0
+    ],
+    "results": [
+      {
+        "threads": 1,
+        "isolated": true,
+        "maxCacheDifference": 0,
+        "frames": 1600,
+        "p50": 3.550000000046566,
+        "p95": 4.534999999916181
+      },
+      {
+        "threads": 2,
+        "isolated": true,
+        "maxCacheDifference": 0,
+        "frames": 1600,
+        "p50": 2.5049999998882413,
+        "p95": 3.165000000037253
+      }
+    ]
+  },
+  "browser": {
+    "one": {
+      "sampleIds": [
+        "salamander-phrase-250",
+        "felt-phrase-250",
+        "salamander-repeat-200-0",
+        "felt-repeat-200-0"
+      ],
+      "pcmSha256": {
+        "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+        "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+        "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+        "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+      },
+      "stressMs": 0,
+      "stressPeriodMs": 50,
+      "results": [
+        {
+          "variant": "candidate",
+          "intervalMs": 5,
+          "durationSec": 120,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+          "crossOriginIsolated": false,
+          "expected": 444,
+          "matched": 433,
+          "detected": 799,
+          "delayMsP50": 38.66666666667129,
+          "delayMsP95": 45.333333333346104,
+          "diagnostics": {
+            "deviceLabel": "two sampled piano banks",
+            "sampleRate": 48000,
+            "requestedEchoCancellation": false,
+            "actualEchoCancellation": false,
+            "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+            "inferenceIntervalMs": 5,
+            "wasmThreads": 1,
+            "inferenceCount": 23959,
+            "skippedInferenceFrames": 0,
+            "lowInputFrames": 6894,
+            "confidenceRejectedFrames": 400,
+            "shiftSemitones": 0,
+            "generationId": 1,
+            "droppedSamples": 10080,
+            "discontinuities": 6,
+            "lastDiscontinuityReason": "sequenceGap",
+            "lastGapMs": 35,
+            "modelResetCount": 0,
+            "cacheRecoveryCount": 6,
+            "processingMsP95": 4.199999809265137,
+            "queueDepthMs": 0,
+            "queueAgeMsP50": 0,
+            "queueAgeMsP95": 0,
+            "captureQueueAgeMsP95": 0,
+            "workerQueueAgeMsP95": 0,
+            "inferenceMsP50": 3.699999999953434,
+            "inferenceMsP95": 4.099999999860302,
+            "preprocessMsP50": 0,
+            "preprocessMsP95": 0,
+            "lastModelMidi": 69,
+            "lastConcertMidi": 69,
+            "lastConfidence": 1,
+            "lastRawRmsDbfs": -61.88860430998638,
+            "lastModelVolume": 13.732044219970703,
+            "lastSourceEndTimeSec": 120.597,
+            "lastRejectReason": "voiced",
+            "warmupFramesRemaining": 0
+          },
+          "windows": {
+            "inferenceMsP50": {
+              "median": 3.7999999998137355,
+              "p95": 4,
+              "max": 4.399999999906868
+            },
+            "inferenceMsP95": {
+              "median": 4.600000000093132,
+              "p95": 6.600000000093132,
+              "max": 9.900000000139698
+            },
+            "processingMsP95": {
+              "median": 4.699999809265137,
+              "p95": 6.800000190734863,
+              "max": 10.100000381469727
+            },
+            "queueAgeMsP95": {
+              "median": 0.6666666666666666,
+              "p95": 14.333333333333334,
+              "max": 30.666666666666664
+            },
+            "captureQueueAgeMsP95": {
+              "median": 0.6666666666666666,
+              "p95": 14.333333333333334,
+              "max": 30.666666666666664
+            },
+            "workerQueueAgeMsP95": {
+              "median": 0,
+              "p95": 0,
+              "max": 0.4000000001396984
+            },
+            "preprocessMsP95": {
+              "median": 0,
+              "p95": 0,
+              "max": 0.10000000009313226
+            }
+          },
+          "monitorCount": 399,
+          "monitorGapsOver600Ms": [],
+          "dropEvents": [
+            {
+              "sourceEndSec": 0.927,
+              "droppedSamples": 1680,
+              "queueAgeMsP95": 30.666666666666664
+            },
+            {
+              "sourceEndSec": 44.762,
+              "droppedSamples": 3360,
+              "queueAgeMsP95": 14.333333333333334
+            },
+            {
+              "sourceEndSec": 57.097,
+              "droppedSamples": 5040,
+              "queueAgeMsP95": 21.199999999953434
+            },
+            {
+              "sourceEndSec": 67.032,
+              "droppedSamples": 6720,
+              "queueAgeMsP95": 8
+            },
+            {
+              "sourceEndSec": 67.967,
+              "droppedSamples": 8400,
+              "queueAgeMsP95": 19.333333333333336
+            },
+            {
+              "sourceEndSec": 78.502,
+              "droppedSamples": 10080,
+              "queueAgeMsP95": 25.666666666666668
+            }
+          ],
+          "pipelineLagMs": {
+            "p50": 27.33333333333121,
+            "p95": 33.00000000000125,
+            "max": 56.66666666666487
+          },
+          "errors": [],
+          "modelRequests": [
+            "/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx"
+          ]
+        }
+      ]
+    },
+    "two": {
+      "sampleIds": [
+        "salamander-phrase-250",
+        "felt-phrase-250",
+        "salamander-repeat-200-0",
+        "felt-repeat-200-0"
+      ],
+      "pcmSha256": {
+        "salamander-phrase-250": "990679d69709872852ea3b5d53011bb50a14324182c36e15bba6c30d48e09e3d",
+        "felt-phrase-250": "abbd029fdc685c7ae5c91b564d69bf4010fff634b894494b0c4dfc5d7a415647",
+        "salamander-repeat-200-0": "0a6945f3ca0c65eff94eb35a85b489dd607ebceed5d0ec5d4fef8180e6590e42",
+        "felt-repeat-200-0": "3851dea625a185cf009081526c7c97db6d737d8be058bcdcbbe05c3088dfe47b"
+      },
+      "stressMs": 0,
+      "stressPeriodMs": 50,
+      "results": [
+        {
+          "variant": "candidate",
+          "intervalMs": 5,
+          "durationSec": 120,
+          "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+          "crossOriginIsolated": true,
+          "expected": 444,
+          "matched": 433,
+          "detected": 800,
+          "delayMsP50": 38.666666666664185,
+          "delayMsP95": 45.33333333333189,
+          "diagnostics": {
+            "deviceLabel": "two sampled piano banks",
+            "sampleRate": 48000,
+            "requestedEchoCancellation": false,
+            "actualEchoCancellation": false,
+            "modelId": "pesto-mir1k-g7-48000-240-refill-compact-v2",
+            "inferenceIntervalMs": 5,
+            "wasmThreads": 2,
+            "inferenceCount": 23975,
+            "skippedInferenceFrames": 0,
+            "lowInputFrames": 6906,
+            "confidenceRejectedFrames": 398,
+            "shiftSemitones": 0,
+            "generationId": 1,
+            "droppedSamples": 6720,
+            "discontinuities": 4,
+            "lastDiscontinuityReason": "sequenceGap",
+            "lastGapMs": 35,
+            "modelResetCount": 0,
+            "cacheRecoveryCount": 4,
+            "processingMsP95": 2.9600000381469727,
+            "queueDepthMs": 0,
+            "queueAgeMsP50": 0,
+            "queueAgeMsP95": 0.005000000121071935,
+            "captureQueueAgeMsP95": 0,
+            "workerQueueAgeMsP95": 0.005000000121071935,
+            "inferenceMsP50": 2.3250000001862645,
+            "inferenceMsP95": 2.9050000000279397,
+            "preprocessMsP50": 0,
+            "preprocessMsP95": 0.005000000121071935,
+            "lastModelMidi": 68.66666412353516,
+            "lastConcertMidi": 68.66666412353516,
+            "lastConfidence": 1,
+            "lastRawRmsDbfs": -23.075658325414715,
+            "lastModelVolume": 14.274839401245117,
+            "lastSourceEndTimeSec": 120.61766666666666,
+            "lastRejectReason": "voiced",
+            "warmupFramesRemaining": 0
+          },
+          "windows": {
+            "inferenceMsP50": {
+              "median": 2.420000000158325,
+              "p95": 2.8950000000186265,
+              "max": 3.25
+            },
+            "inferenceMsP95": {
+              "median": 3.0600000000558794,
+              "p95": 4.044999999925494,
+              "max": 6.5
+            },
+            "processingMsP95": {
+              "median": 3.1500000953674316,
+              "p95": 4.014999866485596,
+              "max": 8.65999984741211
+            },
+            "queueAgeMsP95": {
+              "median": 0.005000000121071935,
+              "p95": 0.3383333332215746,
+              "max": 18.338333333221573
+            },
+            "captureQueueAgeMsP95": {
+              "median": 0,
+              "p95": 0.3333333333333333,
+              "max": 18.333333333333332
+            },
+            "workerQueueAgeMsP95": {
+              "median": 0.005000000121071935,
+              "p95": 0.010000000009313226,
+              "max": 0.07000000006519258
+            },
+            "preprocessMsP95": {
+              "median": 0.005000000121071935,
+              "p95": 0.005000000121071935,
+              "max": 0.029999999795109034
+            }
+          },
+          "monitorCount": 399,
+          "monitorGapsOver600Ms": [],
+          "dropEvents": [
+            {
+              "sourceEndSec": 0.9376666666666666,
+              "droppedSamples": 1680,
+              "queueAgeMsP95": 5.0499999998137355
+            },
+            {
+              "sourceEndSec": 60.10766666666667,
+              "droppedSamples": 5040,
+              "queueAgeMsP95": 3.3333333333333335
+            },
+            {
+              "sourceEndSec": 94.64266666666667,
+              "droppedSamples": 6720,
+              "queueAgeMsP95": 0.3383333332215746
+            }
+          ],
+          "pipelineLagMs": {
+            "p50": 15.66666666666805,
+            "p95": 21.00000000000035,
+            "max": 50.333333333332675
+          },
+          "errors": [],
+          "modelRequests": [
+            "/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx"
+          ]
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Local Chrome 153 on shared Linux host; no physical microphone or game rendering",
+    "Single paired real-time trial; thread count and document isolation differ",
+    "Raw output replay partially overlapped real-time test startup; no explicit stress timer",
+    "Final cache-version URL validated separately; numeric worker code unchanged"
+  ]
+}

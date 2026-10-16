@@ -2,8 +2,9 @@
  * pestoPitchWorker.ts - PESTO ONNX 推論 + オンセット検出 Worker
  */
 
-import * as ort from 'onnxruntime-web';
+import * as ort from 'onnxruntime-web/wasm';
 import { PitchyEstimator, PITCHY_MODEL_ID, PITCHY_WINDOW_SIZE } from '@/utils/pitchInput/pitchyEstimator';
+import { getPestoWasmThreadCount } from '@/utils/pitchInput/pestoRuntime';
 import { loadPestoWebModel } from '@/utils/pitchInput/pestoWebModel';
 import { PitchDecimationBuffer } from '@/utils/pitchInput/pitchDecimationBuffer';
 import { PitchChunkQueue } from '@/utils/pitchInput/pitchChunkQueue';
@@ -39,9 +40,13 @@ import {
   type PitchObservation,
 } from '@/utils/pitchInput/pitchInputTypes';
 
-ort.env.wasm.numThreads = 1;
+ort.env.wasm.numThreads = getPestoWasmThreadCount();
 ort.env.wasm.simd = true;
-ort.env.wasm.wasmPaths = '/ort/';
+// Bypass immutable pre-COEP script responses cached by existing clients.
+ort.env.wasm.wasmPaths = {
+  mjs: '/ort/ort-wasm-simd-threaded.mjs?coep=credentialless-v1',
+  wasm: '/ort/ort-wasm-simd-threaded.wasm',
+};
 
 interface WorkerInitMessage {
   type: 'init';
@@ -734,7 +739,12 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     }
 
     if (data.type === 'setDiagnostics') {
-      diagnostics = data.config ? new PitchInputDiagnostics({ ...data.config, modelId: pitchEngine === 'pitchy' ? PITCHY_MODEL_ID : PESTO_MODEL_ID, inferenceIntervalMs: frameDurationSec * 1000 }) : null;
+      diagnostics = data.config ? new PitchInputDiagnostics({
+        ...data.config,
+        modelId: pitchEngine === 'pitchy' ? PITCHY_MODEL_ID : PESTO_MODEL_ID,
+        wasmThreads: pitchEngine === 'pesto' ? ort.env.wasm.numThreads : undefined,
+        inferenceIntervalMs: frameDurationSec * 1000,
+      }) : null;
       return;
     }
 
@@ -783,6 +793,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         diagnostics = new PitchInputDiagnostics({
           ...data.diagnostics,
           modelId: pitchEngine === 'pitchy' ? PITCHY_MODEL_ID : PESTO_MODEL_ID,
+          wasmThreads: pitchEngine === 'pesto' ? ort.env.wasm.numThreads : undefined,
           shiftSemitones,
           generationId,
           inferenceIntervalMs: frameDurationSec * 1000,

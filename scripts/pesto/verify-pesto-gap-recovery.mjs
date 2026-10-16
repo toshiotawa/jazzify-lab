@@ -5,21 +5,8 @@ import { createHash } from 'node:crypto';
 import * as ort from 'onnxruntime-web';
 
 ort.env.wasm.numThreads = 1;
-const directory = new URL('../../public/models/pesto/', import.meta.url);
-const source = new Uint8Array(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill.onnx', directory)));
-const patch = JSON.parse(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json', directory), 'utf8'));
-const model = new Uint8Array(patch.targetSize);
-let position = 0;
-for (const operation of patch.operations) {
-  const bytes = operation.data === undefined
-    ? source.subarray(operation.sourceStart, operation.sourceStart + operation.length)
-    : Buffer.from(operation.data, 'base64');
-  model.set(bytes, position);
-  position += bytes.length;
-}
-if (position !== model.length || createHash('sha256').update(model).digest('hex') !== patch.targetSha256) {
-  throw new Error('Production model reconstruction differs');
-}
+const model = new Uint8Array(readFileSync(new URL('../../dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx', import.meta.url)));
+if (createHash('sha256').update(model).digest('hex') !== 'c50ca16a07297ddc2b788403268a43736cceb792ec599746da7d5486bca974b8') throw new Error('Emitted model checksum differs');
 
 const frameCount = 3200;
 const cacheSize = 3976;

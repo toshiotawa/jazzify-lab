@@ -26,6 +26,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // The browser-only subpath deliberately has no Node export condition.
+      'onnxruntime-web/wasm': path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort.wasm.min.mjs'),
     },
   },
   define: {

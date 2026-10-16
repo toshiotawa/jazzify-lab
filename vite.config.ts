@@ -1,3 +1,4 @@
+import { pestoModelAssetPlugin } from './vite.pesto-model-plugin'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
@@ -7,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === 'production';
   
   return {
-    plugins: [react(), defenseSeparateTracksWorkletPlugin()],
+    plugins: [react(), defenseSeparateTracksWorkletPlugin(), pestoModelAssetPlugin()],
     resolve: {
       alias: {
         '@': resolve(__dirname, './src'),

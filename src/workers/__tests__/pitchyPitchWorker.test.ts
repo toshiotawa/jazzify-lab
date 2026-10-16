@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 
 const { createSession, loadModel } = vi.hoisted(() => ({ createSession: vi.fn(), loadModel: vi.fn() }));
-vi.mock('onnxruntime-web', () => ({ env: { wasm: {} }, InferenceSession: { create: createSession } }));
+vi.mock('onnxruntime-web/wasm', () => ({ env: { wasm: {} }, InferenceSession: { create: createSession } }));
 vi.mock('@/utils/pitchInput/pestoWebModel', () => ({ loadPestoWebModel: loadModel }));
 
 interface Outbound {

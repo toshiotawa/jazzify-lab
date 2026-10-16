@@ -11,13 +11,13 @@ await mkdir(new URL('./', output), { recursive: true });
 await build({
   entryPoints: [new URL('src/workers/pestoPitchWorker.ts', root).pathname],
   outfile: output.pathname, bundle: true, platform: 'node', format: 'esm',
-  external: ['onnxruntime-web'], alias: { '@': new URL('src', root).pathname },
+  external: ['onnxruntime-web'], alias: { '@': new URL('src', root).pathname, 'onnxruntime-web/wasm': 'onnxruntime-web' },
   define: { 'import.meta.env.DEV': 'true' },
 });
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url, ...options) => {
   if (typeof url === 'string' && url.startsWith('/models/pesto/')) {
-    return new Response(await readFile(new URL(`public${url}`, root)));
+    return new Response(await readFile(new URL(`dist${url}`, root)));
   }
   return originalFetch(url, ...options);
 };

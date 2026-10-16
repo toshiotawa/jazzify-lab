@@ -21,7 +21,8 @@ const reconstruct = (filename) => {
   return compactModel;
 };
 const originalModel = process.env.PESTO_REFERENCE_PATCH ? reconstruct(process.env.PESTO_REFERENCE_PATCH) : sourceModel;
-const compactModel = reconstruct('pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json');
+const compactModel = new Uint8Array(readFileSync(new URL('../../dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx', import.meta.url)));
+if (createHash('sha256').update(compactModel).digest('hex') !== 'c50ca16a07297ddc2b788403268a43736cceb792ec599746da7d5486bca974b8') throw new Error('Emitted model checksum differs');
 const outputs = ['prediction', 'confidence', 'volume', 'cache_out'];
 const frames = 2400;
 const sessions = [];
