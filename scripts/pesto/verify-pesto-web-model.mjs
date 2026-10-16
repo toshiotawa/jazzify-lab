@@ -5,18 +5,23 @@ import { createHash } from 'node:crypto';
 import * as ort from 'onnxruntime-web';
 ort.env.wasm.numThreads = 1;
 const directory = new URL('../../public/models/pesto/', import.meta.url);
-const originalModel = new Uint8Array(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill.onnx', directory)));
-const patch = JSON.parse(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill-compact-v1.patch.json', directory), 'utf8'));
-const compactModel = new Uint8Array(patch.targetSize);
-let offset = 0;
-for (const operation of patch.operations) {
-  const bytes = operation.data === undefined
-    ? originalModel.subarray(operation.sourceStart, operation.sourceStart + operation.length)
-    : Buffer.from(operation.data, 'base64');
-  compactModel.set(bytes, offset);
-  offset += bytes.length;
-}
-if (offset !== compactModel.length || createHash('sha256').update(compactModel).digest('hex') !== patch.targetSha256) throw new Error('Model reconstruction differs');
+const sourceModel = new Uint8Array(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill.onnx', directory)));
+const reconstruct = (filename) => {
+  const patch = JSON.parse(readFileSync(new URL(filename, directory), 'utf8'));
+  const compactModel = new Uint8Array(patch.targetSize);
+  let offset = 0;
+  for (const operation of patch.operations) {
+    const bytes = operation.data === undefined
+      ? sourceModel.subarray(operation.sourceStart, operation.sourceStart + operation.length)
+      : Buffer.from(operation.data, 'base64');
+    compactModel.set(bytes, offset);
+    offset += bytes.length;
+  }
+  if (offset !== compactModel.length || createHash('sha256').update(compactModel).digest('hex') !== patch.targetSha256) throw new Error('Model reconstruction differs');
+  return compactModel;
+};
+const originalModel = process.env.PESTO_REFERENCE_PATCH ? reconstruct(process.env.PESTO_REFERENCE_PATCH) : sourceModel;
+const compactModel = reconstruct('pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json');
 const outputs = ['prediction', 'confidence', 'volume', 'cache_out'];
 const frames = 2400;
 const sessions = [];
@@ -81,7 +86,7 @@ try {
     return { model, medianMs: timings[index][Math.floor(timings[index].length * 0.5)],
       p95Ms: timings[index][Math.floor(timings[index].length * 0.95)] };
   });
-  process.stdout.write(`${JSON.stringify({ frames, maxDifference: Object.fromEntries(outputs.map((name, i) => [name, maxDifference[i]])), timings: report }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ frames, reference: process.env.PESTO_REFERENCE_PATCH ?? 'original ONNX', maxDifference: Object.fromEntries(outputs.map((name, i) => [name, maxDifference[i]])), timings: report }, null, 2)}\n`);
 } finally {
   for (const state of states) state.tensor.dispose();
   audioTensor.dispose();

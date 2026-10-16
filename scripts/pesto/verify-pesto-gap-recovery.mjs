@@ -7,7 +7,7 @@ import * as ort from 'onnxruntime-web';
 ort.env.wasm.numThreads = 1;
 const directory = new URL('../../public/models/pesto/', import.meta.url);
 const source = new Uint8Array(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill.onnx', directory)));
-const patch = JSON.parse(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill-compact-v1.patch.json', directory), 'utf8'));
+const patch = JSON.parse(readFileSync(new URL('pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json', directory), 'utf8'));
 const model = new Uint8Array(patch.targetSize);
 let position = 0;
 for (const operation of patch.operations) {

@@ -27,11 +27,11 @@ describe('PESTO optimized model loading', () => {
   it('reconstructs the checked-in production model with its verified checksum', async () => {
     const directory = 'public/models/pesto/pesto-mir1k-g7-48000-240-refill';
     const bytes = new Uint8Array(readFileSync(`${directory}.onnx`));
-    const patch: unknown = JSON.parse(readFileSync(`${directory}-compact-v1.patch.json`, 'utf8'));
+    const patch: unknown = JSON.parse(readFileSync(`${directory}-compact-v2.patch.json`, 'utf8'));
     installAssets(patch, bytes);
     const model = await loadPestoWebModel();
-    expect(model.length).toBe(11_149_127);
-    expect(digest(model)).toBe('108d0969c5a99729aefce6367e34c3745b74c59fb5c89bda1676f894a964bfc8');
+    expect(model.length).toBe(11_150_637);
+    expect(digest(model)).toBe('c50ca16a07297ddc2b788403268a43736cceb792ec599746da7d5486bca974b8');
   });
 
   it('rejects failed HTTP requests before model initialization', async () => {

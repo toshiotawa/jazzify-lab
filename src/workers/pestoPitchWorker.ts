@@ -223,6 +223,7 @@ const observation: PitchObservation = {
   shiftSemitones: 0, modelMidi: null, concertMidi: null, confidence: 0,
   modelVolume: 0, rawRmsDbfs: -120, inferenceMs: 0, queueAgeMs: 0,
   discontinuity: false, rejectReason: 'none',
+  preprocessMs: 0, captureQueueAgeMs: 0, workerQueueAgeMs: 0,
 };
 const attackEnvelope = new PitchAttackEnvelope();
 let frameTraceEnabled = isPitchDiagnosticsEnabled();
@@ -532,9 +533,11 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       return;
     }
 
-    const queueAgeMs = (chunk.captureQueueAgeMs ?? 0) + (chunk.receivedTimeMs === undefined
+    const workerQueueAgeMs = chunk.receivedTimeMs === undefined
       ? 0
-      : Math.max(0, performance.now() - chunk.receivedTimeMs));
+      : Math.max(0, performance.now() - chunk.receivedTimeMs);
+    const queueAgeMs = (chunk.captureQueueAgeMs ?? 0) + workerQueueAgeMs;
+    const preprocessStart = performance.now();
     // All captured PCM reaches the attack window, including non-inferred/decimated frames.
     attackEnvelope.pushSamples(chunk.samples);
     const accumulated = decimationBuffer.push(chunk.samples);
@@ -542,12 +545,10 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       return;
     }
 
-    const preprocessStart = performance.now();
     const modelInput = feedPestoDecimator(accumulated, decimatorState);
     if (!modelInput) {
       return;
     }
-    const preprocessMs = performance.now() - preprocessStart;
 
     pitchy?.push(modelInput);
     modelFramesSinceInference += 1;
@@ -562,6 +563,11 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       return;
     }
     modelFramesSinceInference = 0;
+    if (diagnostics) {
+      observation.preprocessMs = performance.now() - preprocessStart;
+      observation.captureQueueAgeMs = chunk.captureQueueAgeMs ?? 0;
+      observation.workerQueueAgeMs = workerQueueAgeMs;
+    }
     const inferenceStart = performance.now();
     if (pitchEngine === 'pitchy' && pitchy) {
       const frame = pitchy.estimate();
@@ -571,7 +577,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       const attackMidi = tracker.getAttackReferenceNote();
       emitTrackerEvents(
         frame, attackEnvelope.computeAttackDb(attackMidi), attackMidi, chunk,
-        inferenceMs + preprocessMs, queueAgeMs, frame.prediction,
+        inferenceMs, queueAgeMs, frame.prediction,
         restoreConcertMidi(frame.prediction, shiftSemitones),
       );
       return;
@@ -624,7 +630,7 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
       attackDb,
       attackMidi,
       chunk,
-      inferenceMs + preprocessMs,
+      inferenceMs,
       queueAgeMs,
       modelMidi,
       concertMidi,

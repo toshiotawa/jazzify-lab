@@ -70,7 +70,7 @@ def build(source_path, target_path, output_path):
         group = re.fullmatch(r'compact_cqt_channels_(\d+)_(\d+)_weight', name)
         if group:
             begin, end = map(int, group.groups())
-            width = tensor.dims[2]
+            width = tensor.dims[-1]
             crop = (8192 - width) // 2
             for channel in range(begin, end):
                 copies.append((target_begin + (channel - begin) * width * 4,
@@ -112,7 +112,7 @@ def build(source_path, target_path, output_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=ROOT / 'public/models/pesto' / f'{MODEL}.onnx')
-    parser.add_argument('--target', type=Path, default=Path(tempfile.gettempdir()) / f'{MODEL}-compact-v1.onnx')
-    parser.add_argument('--output', type=Path, default=ROOT / 'public/models/pesto' / f'{MODEL}-compact-v1.patch.json')
+    parser.add_argument('--target', type=Path, default=Path(tempfile.gettempdir()) / f'{MODEL}-compact-v2.onnx')
+    parser.add_argument('--output', type=Path, default=ROOT / 'public/models/pesto' / f'{MODEL}-compact-v2.patch.json')
     args = parser.parse_args()
     build(args.source, args.target, args.output)
