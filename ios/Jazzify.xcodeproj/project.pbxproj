@@ -483,7 +483,6 @@
 		69B05DF90077AEBCD32BB58E /* PestoModelInputsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */; };
 		0095BD48BE53E3FA30FEBC84 /* PestoDecimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */; };
 		ACF31B675780FD88AB949425 /* PestoNativeModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */; };
-		98982FA1957BFA9E50F51737 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = 2B181587246E5C03EE97C0F9 /* onnxruntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -988,12 +987,6 @@
 				343EF86689A175A8BE3A6B6A /* Supabase in Frameworks */,
 				96B79C5F22BC5C4412EE5F33 /* onnxruntime in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EE5C91D2D305D6B95396418C /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (98982FA1957BFA9E50F51737 /* onnxruntime in Frameworks */);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -2007,7 +2000,6 @@
 			buildPhases = (
 				0FBAF61F1D588FA15A634999 /* Sources */,
 				21E646F399DC73B571A9BE9A /* Resources */,
-				EE5C91D2D305D6B95396418C /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -2016,7 +2008,6 @@
 			);
 			name = JazzifyTests;
 			packageProductDependencies = (
-				2B181587246E5C03EE97C0F9 /* onnxruntime */,
 			);
 			productName = JazzifyTests;
 			productReference = FFE3BC5B83A8B485458619C7 /* JazzifyTests.xctest */;

@@ -82,8 +82,6 @@ targets:
         buildPhase: resources
     dependencies:
       - target: Jazzify
-      - package: onnxruntime
-        product: onnxruntime
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app.tests
