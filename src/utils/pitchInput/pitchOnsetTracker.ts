@@ -22,6 +22,8 @@ export interface PitchOnsetTrackerConfig {
   retriggerGuardFrames: number;
   /** 同音リアタック: 直近 N フレームとの dB 差で立ち上がり判定 */
   retriggerLookbackFrames: number;
+  /** Require energy growth in the held note band for unassisted repeats. */
+  retriggerRequiresPitchBandRise?: boolean;
   /** 同音待ち: ピークからこの dB 以上下がったら谷候補 */
   repeatDipDb: number;
   /** 同音待ち: 谷からこの dB 以上上がったら再発音 */
@@ -784,7 +786,10 @@ export class PitchOnsetTracker {
 
     this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
     const rise = this.recentLevelRise(levelDb);
-    if (rise >= this.config.attackRiseDb) {
+    if (rise >= this.config.attackRiseDb
+      && (!this.config.retriggerRequiresPitchBandRise
+        || this.recentAttackRiseWithinLookback(attackLevelDb, this.config.retriggerLookbackFrames)
+          >= this.config.attackRiseDb)) {
       const note = this.currentNote;
       const onsetFrameIndex = Math.max(
         this.lastNoteOnFrame + 1,

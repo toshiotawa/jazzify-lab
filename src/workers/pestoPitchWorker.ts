@@ -326,6 +326,7 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
     expectedAssistConfidence: pitchEngine === 'pitchy' ? 0.875 + (5 - sensitivityLevel) * 0.01 : base.expectedAssistConfidence,
     onsetImmediateConfidence: pitchEngine === 'pitchy' ? 0.95 : base.onsetImmediateConfidence,
     fastLegatoConfidence: pitchEngine === 'pitchy' ? 0.95 : base.fastLegatoConfidence,
+    retriggerRequiresPitchBandRise: pitchEngine === 'pitchy',
     pitchStableFrames: pitchStableFramesOverride,
     fastResponse: fastResponseEnabled,
     frameDurationMs: frameDurationSec * 1000,
