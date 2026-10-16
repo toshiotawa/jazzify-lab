@@ -1079,4 +1079,41 @@ describe('PitchOnsetTracker', () => {
     expect(notes).toEqual([65, 65]);
   });
 
+  it('rejects a broadband-only attack while Pitchy still reports the previous piano note', () => {
+    const frames = [
+      { frame: { prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -15 }, index: 0 },
+      { frame: { prediction: 60, confidence: 0.99, volume: 0.001, attackDb: -16 }, index: 1 },
+      // A new key raises total energy before the rolling pitch window changes.
+      { frame: { prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -16 }, index: 2 },
+      { frame: { prediction: 63, confidence: 0.99, volume: 0.01, attackDb: -17 }, index: 3 },
+      { frame: { prediction: 63, confidence: 0.99, volume: 0.01, attackDb: -17 }, index: 4 },
+    ];
+    const config = { pitchStableFrames: 1, retriggerGuardFrames: 2 };
+    expect(collectNoteOns(new PitchOnsetTracker({
+      ...config, retriggerRequiresPitchBandRise: true,
+    }), frames)).toEqual([60, 63]);
+    // PESTO retains its existing broadband retrigger behavior.
+    expect(collectNoteOns(new PitchOnsetTracker(config), frames)).toEqual([60, 60, 63]);
+  });
+
+  it('accepts a real same-note attack without adding a confirmation delay', () => {
+    const tracker = new PitchOnsetTracker({
+      pitchStableFrames: 1, retriggerGuardFrames: 2, retriggerRequiresPitchBandRise: true,
+    });
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -15 }, 0);
+    tracker.processFrame({ prediction: 60, confidence: 0.99, volume: 0.001, attackDb: -25 }, 1);
+    expect(tracker.processFrame({
+      prediction: 60, confidence: 0.99, volume: 0.01, attackDb: -15,
+    }, 2)).toContainEqual(expect.objectContaining({ type: 'noteOn', note: 60, frameIndex: 2 }));
+  });
+
+  it('does not turn a pitch-band fluctuation into an attack without a broadband rise', () => {
+    const tracker = new PitchOnsetTracker({
+      pitchStableFrames: 1, retriggerGuardFrames: 2, retriggerRequiresPitchBandRise: true,
+    });
+    expect(collectNoteOns(tracker, [-15, -25, -15].map((attackDb, index) => ({
+      frame: { prediction: 60, confidence: 0.99, volume: 0.01, attackDb }, index,
+    })))).toEqual([60]);
+  });
+
 });

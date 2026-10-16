@@ -1,0 +1,552 @@
+{
+  "date": "2026-10-16",
+  "baselineCommit": "ef63d3bd44524de0c9c8ad60bc047b092404460f",
+  "fixtureManifestSha256": "906d0a9e608f4a6884fb5952b0faaf0d93231b3fa175e22cc8b1947d752622d3",
+  "sampleRate": 48000,
+  "windowSamples": 4096,
+  "rawFramesCompared": 38409,
+  "identicalRawFields": [
+    "frameIndex",
+    "prediction",
+    "confidence",
+    "volumeDb"
+  ],
+  "all203CasesHaveIdenticalMatchedNotesAndNotificationDelays": true,
+  "casesWithIncreasedFalsePositives": 0,
+  "offline": {
+    "5": {
+      "all": {
+        "before": {
+          "cases": 28,
+          "expected": 144,
+          "matched": 143,
+          "detected": 198,
+          "delayMsP50": 25.0,
+          "delayMsP95": 80.0
+        },
+        "after": {
+          "cases": 28,
+          "expected": 144,
+          "matched": 143,
+          "detected": 158,
+          "delayMsP50": 25.0,
+          "delayMsP95": 80.0
+        }
+      },
+      "lowmode": {
+        "before": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 4,
+          "detected": 4,
+          "delayMsP50": 150.0,
+          "delayMsP95": 208.5
+        },
+        "after": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 4,
+          "detected": 4,
+          "delayMsP50": 150.0,
+          "delayMsP95": 208.5
+        }
+      },
+      "phrase": {
+        "before": {
+          "cases": 4,
+          "expected": 32,
+          "matched": 32,
+          "detected": 60,
+          "delayMsP50": 70.0,
+          "delayMsP95": 80.0
+        },
+        "after": {
+          "cases": 4,
+          "expected": 32,
+          "matched": 32,
+          "detected": 47,
+          "delayMsP50": 70.0,
+          "delayMsP95": 80.0
+        }
+      },
+      "range": {
+        "before": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 11,
+          "detected": 38,
+          "delayMsP50": 55.0,
+          "delayMsP95": 117.5
+        },
+        "after": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 11,
+          "detected": 11,
+          "delayMsP50": 55.0,
+          "delayMsP95": 117.5
+        }
+      },
+      "repeat": {
+        "before": {
+          "cases": 8,
+          "expected": 96,
+          "matched": 96,
+          "detected": 96,
+          "delayMsP50": 15.0,
+          "delayMsP95": 50.0
+        },
+        "after": {
+          "cases": 8,
+          "expected": 96,
+          "matched": 96,
+          "detected": 96,
+          "delayMsP50": 15.0,
+          "delayMsP95": 50.0
+        }
+      }
+    },
+    "10": {
+      "all": {
+        "before": {
+          "cases": 147,
+          "expected": 460,
+          "matched": 423,
+          "detected": 556,
+          "delayMsP50": 60.0,
+          "delayMsP95": 118.9999999999998
+        },
+        "after": {
+          "cases": 147,
+          "expected": 460,
+          "matched": 423,
+          "detected": 443,
+          "delayMsP50": 60.0,
+          "delayMsP95": 118.9999999999998
+        }
+      },
+      "clipping": {
+        "before": {
+          "cases": 2,
+          "expected": 12,
+          "matched": 12,
+          "detected": 13,
+          "delayMsP50": 70.0,
+          "delayMsP95": 74.50000000000014
+        },
+        "after": {
+          "cases": 2,
+          "expected": 12,
+          "matched": 12,
+          "detected": 13,
+          "delayMsP50": 70.0,
+          "delayMsP95": 74.50000000000014
+        }
+      },
+      "decay": {
+        "before": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 4,
+          "detected": 4,
+          "delayMsP50": 65.0,
+          "delayMsP95": 95.49999999999999
+        },
+        "after": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 4,
+          "detected": 4,
+          "delayMsP50": 65.0,
+          "delayMsP95": 95.49999999999999
+        }
+      },
+      "lowmode": {
+        "before": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 10,
+          "detected": 15,
+          "delayMsP50": 165.0,
+          "delayMsP95": 240.99999999999997
+        },
+        "after": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 10,
+          "detected": 10,
+          "delayMsP50": 165.0,
+          "delayMsP95": 240.99999999999997
+        }
+      },
+      "negative": {
+        "before": {
+          "cases": 5,
+          "expected": 0,
+          "matched": 0,
+          "detected": 1,
+          "delayMsP50": null,
+          "delayMsP95": null
+        },
+        "after": {
+          "cases": 5,
+          "expected": 0,
+          "matched": 0,
+          "detected": 1,
+          "delayMsP50": null,
+          "delayMsP95": null
+        }
+      },
+      "noise": {
+        "before": {
+          "cases": 8,
+          "expected": 48,
+          "matched": 37,
+          "detected": 42,
+          "delayMsP50": 60.0,
+          "delayMsP95": 72.00000000000014
+        },
+        "after": {
+          "cases": 8,
+          "expected": 48,
+          "matched": 37,
+          "detected": 40,
+          "delayMsP50": 60.0,
+          "delayMsP95": 72.00000000000014
+        }
+      },
+      "overlap": {
+        "before": {
+          "cases": 2,
+          "expected": 12,
+          "matched": 12,
+          "detected": 16,
+          "delayMsP50": 90.0,
+          "delayMsP95": 133.49999999999997
+        },
+        "after": {
+          "cases": 2,
+          "expected": 12,
+          "matched": 12,
+          "detected": 13,
+          "delayMsP50": 90.0,
+          "delayMsP95": 133.49999999999997
+        }
+      },
+      "phrase": {
+        "before": {
+          "cases": 8,
+          "expected": 64,
+          "matched": 64,
+          "detected": 104,
+          "delayMsP50": 70.0,
+          "delayMsP95": 90.0
+        },
+        "after": {
+          "cases": 8,
+          "expected": 64,
+          "matched": 64,
+          "detected": 67,
+          "delayMsP50": 70.0,
+          "delayMsP95": 90.0
+        }
+      },
+      "range": {
+        "before": {
+          "cases": 60,
+          "expected": 60,
+          "matched": 49,
+          "detected": 111,
+          "delayMsP50": 70.0,
+          "delayMsP95": 150.0
+        },
+        "after": {
+          "cases": 60,
+          "expected": 60,
+          "matched": 49,
+          "detected": 55,
+          "delayMsP50": 70.0,
+          "delayMsP95": 150.0
+        }
+      },
+      "repeat": {
+        "before": {
+          "cases": 16,
+          "expected": 192,
+          "matched": 192,
+          "detected": 192,
+          "delayMsP50": 20.0,
+          "delayMsP95": 69.99999999999989
+        },
+        "after": {
+          "cases": 16,
+          "expected": 192,
+          "matched": 192,
+          "detected": 192,
+          "delayMsP50": 20.0,
+          "delayMsP95": 69.99999999999989
+        }
+      },
+      "reverb": {
+        "before": {
+          "cases": 4,
+          "expected": 24,
+          "matched": 23,
+          "detected": 38,
+          "delayMsP50": 70.00000000000006,
+          "delayMsP95": 108.99999999999999
+        },
+        "after": {
+          "cases": 4,
+          "expected": 24,
+          "matched": 23,
+          "detected": 28,
+          "delayMsP50": 70.00000000000006,
+          "delayMsP95": 108.99999999999999
+        }
+      },
+      "sensitivity": {
+        "before": {
+          "cases": 2,
+          "expected": 8,
+          "matched": 8,
+          "detected": 8,
+          "delayMsP50": 60.0,
+          "delayMsP95": 60.0
+        },
+        "after": {
+          "cases": 2,
+          "expected": 8,
+          "matched": 8,
+          "detected": 8,
+          "delayMsP50": 60.0,
+          "delayMsP95": 60.0
+        }
+      },
+      "volume": {
+        "before": {
+          "cases": 24,
+          "expected": 24,
+          "matched": 12,
+          "detected": 12,
+          "delayMsP50": 65.0,
+          "delayMsP95": 104.5
+        },
+        "after": {
+          "cases": 24,
+          "expected": 24,
+          "matched": 12,
+          "detected": 12,
+          "delayMsP50": 65.0,
+          "delayMsP95": 104.5
+        }
+      }
+    },
+    "20": {
+      "all": {
+        "before": {
+          "cases": 28,
+          "expected": 144,
+          "matched": 90,
+          "detected": 92,
+          "delayMsP50": 84.99999999999994,
+          "delayMsP95": 140.99999999999994
+        },
+        "after": {
+          "cases": 28,
+          "expected": 144,
+          "matched": 90,
+          "detected": 92,
+          "delayMsP50": 84.99999999999994,
+          "delayMsP95": 140.99999999999994
+        }
+      },
+      "lowmode": {
+        "before": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 4,
+          "detected": 4,
+          "delayMsP50": 180.0,
+          "delayMsP95": 247.0
+        },
+        "after": {
+          "cases": 4,
+          "expected": 4,
+          "matched": 4,
+          "detected": 4,
+          "delayMsP50": 180.0,
+          "delayMsP95": 247.0
+        }
+      },
+      "phrase": {
+        "before": {
+          "cases": 4,
+          "expected": 32,
+          "matched": 24,
+          "detected": 26,
+          "delayMsP50": 90.0,
+          "delayMsP95": 100.0
+        },
+        "after": {
+          "cases": 4,
+          "expected": 32,
+          "matched": 24,
+          "detected": 26,
+          "delayMsP50": 90.0,
+          "delayMsP95": 100.0
+        }
+      },
+      "range": {
+        "before": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 11,
+          "detected": 11,
+          "delayMsP50": 110.0,
+          "delayMsP95": 170.0
+        },
+        "after": {
+          "cases": 12,
+          "expected": 12,
+          "matched": 11,
+          "detected": 11,
+          "delayMsP50": 110.0,
+          "delayMsP95": 170.0
+        }
+      },
+      "repeat": {
+        "before": {
+          "cases": 8,
+          "expected": 96,
+          "matched": 51,
+          "detected": 51,
+          "delayMsP50": 50.0,
+          "delayMsP95": 110.0
+        },
+        "after": {
+          "cases": 8,
+          "expected": 96,
+          "matched": 51,
+          "detected": 51,
+          "delayMsP50": 50.0,
+          "delayMsP95": 110.0
+        }
+      }
+    }
+  },
+  "browser": {
+    "durationSec": 120,
+    "sameFourCaseLoopSec": 10.8,
+    "before": {
+      "engine": "pitchy",
+      "intervalMs": 10,
+      "durationSec": 120,
+      "crossOriginIsolated": false,
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+      "elapsedMs": 120013.29999999981,
+      "loopSeconds": 10.8,
+      "expected": 444,
+      "detected": 557,
+      "matched": 444,
+      "recall": 100,
+      "precision": 79.71274685816876,
+      "delayMsP50": 70.66666666665355,
+      "delayMsP95": 87.33333333333348,
+      "diagnostics": {
+        "deviceLabel": "two sampled piano banks",
+        "sampleRate": 48000,
+        "requestedEchoCancellation": false,
+        "actualEchoCancellation": false,
+        "modelId": "pitchy-4.1.0-mpm-4096-48000",
+        "inferenceIntervalMs": 10,
+        "inferenceCount": 12001,
+        "skippedInferenceFrames": 12002,
+        "lowInputFrames": 3443,
+        "confidenceRejectedFrames": 807,
+        "shiftSemitones": 0,
+        "generationId": 1,
+        "droppedSamples": 0,
+        "discontinuities": 0,
+        "lastDiscontinuityReason": null,
+        "lastGapMs": 0,
+        "modelResetCount": 0,
+        "cacheRecoveryCount": 0,
+        "processingMsP95": 0.5,
+        "queueDepthMs": 0,
+        "queueAgeMsP50": 0,
+        "queueAgeMsP95": 0,
+        "inferenceMsP50": 0.2999999998137355,
+        "inferenceMsP95": 0.5,
+        "preprocessMsP50": 0,
+        "preprocessMsP95": 0,
+        "lastModelMidi": 69.08107948312899,
+        "lastConcertMidi": 69.08107948312899,
+        "lastConfidence": 0.990938979941582,
+        "lastRawRmsDbfs": -33.430580851898746,
+        "lastModelVolume": 0.00045388090779270763,
+        "lastSourceEndTimeSec": 120.08200000000001,
+        "lastRejectReason": "voiced",
+        "warmupFramesRemaining": 0
+      },
+      "monitorGapsOver600Ms": [],
+      "errors": [],
+      "endContext": 120.112
+    },
+    "after": {
+      "engine": "pitchy",
+      "intervalMs": 10,
+      "durationSec": 120,
+      "crossOriginIsolated": false,
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.0 Safari/537.36",
+      "elapsedMs": 120015.40000000037,
+      "loopSeconds": 10.8,
+      "expected": 444,
+      "detected": 456,
+      "matched": 444,
+      "recall": 100,
+      "precision": 97.36842105263158,
+      "delayMsP50": 70.66666666665355,
+      "delayMsP95": 87.33333333333348,
+      "diagnostics": {
+        "deviceLabel": "two sampled piano banks",
+        "sampleRate": 48000,
+        "requestedEchoCancellation": false,
+        "actualEchoCancellation": false,
+        "modelId": "pitchy-4.1.0-mpm-4096-48000",
+        "inferenceIntervalMs": 10,
+        "inferenceCount": 12001,
+        "skippedInferenceFrames": 12002,
+        "lowInputFrames": 3443,
+        "confidenceRejectedFrames": 807,
+        "shiftSemitones": 0,
+        "generationId": 1,
+        "droppedSamples": 0,
+        "discontinuities": 0,
+        "lastDiscontinuityReason": null,
+        "lastGapMs": 0,
+        "modelResetCount": 0,
+        "cacheRecoveryCount": 0,
+        "processingMsP95": 0.6000000238418579,
+        "queueDepthMs": 0,
+        "queueAgeMsP50": 0,
+        "queueAgeMsP95": 0,
+        "inferenceMsP50": 0.2999999998137355,
+        "inferenceMsP95": 0.6999999992549419,
+        "preprocessMsP50": 0,
+        "preprocessMsP95": 0,
+        "lastModelMidi": 69.08107948312899,
+        "lastConcertMidi": 69.08107948312899,
+        "lastConfidence": 0.990938979941582,
+        "lastRawRmsDbfs": -33.430580851898746,
+        "lastModelVolume": 0.00045388090779270763,
+        "lastSourceEndTimeSec": 120.08200000000001,
+        "lastRejectReason": "voiced",
+        "warmupFramesRemaining": 0
+      },
+      "monitorGapsOver600Ms": [],
+      "errors": [],
+      "endContext": 120.112
+    }
+  }
+}
