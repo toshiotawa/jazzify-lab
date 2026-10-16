@@ -5,12 +5,14 @@ import XCTest
 
 final class PestoModelInputsTests: XCTestCase {
     func testReusedValuesFollowAudioAndCacheWithoutMutatingCapturedPCM() throws {
-        let cache = UnsafeMutablePointer<Float>.allocate(capacity: 3976)
-        cache.initialize(repeating: 0, count: 3976)
-        var inputs: PestoModelInputs? = try PestoModelInputs(cacheBuffer: cache, chunkSize: 240, cacheCount: 3976)
-        defer { inputs = nil; cache.deallocate() }
+        let storage = NSMutableData()
+        storage.length = 3976 * MemoryLayout<Float>.size
+        let cache = storage.mutableBytes.assumingMemoryBound(to: Float.self)
+        var inputs: PestoModelInputs? = try PestoModelInputs(cacheStorage: storage, chunkSize: 240, cacheCount: 3976)
+        defer { inputs = nil }
         let audio = try XCTUnwrap(inputs?.values["audio"])
         let cacheValue = try XCTUnwrap(inputs?.values["cache"])
+        XCTAssertEqual(try cacheValue.tensorData().bytes, UnsafeRawPointer(cache))
         for value in [Float(0.1), -0.25, 0] {
             let captured = [Float](repeating: value, count: 240)
             captured.withUnsafeBufferPointer { buffer in
@@ -28,6 +30,10 @@ final class PestoModelInputsTests: XCTestCase {
         }
         cache.update(repeating: 0, count: 3976)
         XCTAssertEqual(try cacheValue.tensorData().bytes.assumingMemoryBound(to: Float.self)[3975], 0)
+    }
+
+    func testRejectsCacheWithWrongSize() {
+        XCTAssertThrowsError(try PestoModelInputs(cacheStorage: NSMutableData(), chunkSize: 240, cacheCount: 3976))
     }
 
     func testThreadOverrideIsOptInAndBounded() {

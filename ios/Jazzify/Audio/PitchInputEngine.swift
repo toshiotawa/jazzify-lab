@@ -62,6 +62,7 @@ final class PitchInputEngine: @unchecked Sendable {
     private var ortEnv: ORTEnv?
     private var ortSession: ORTSession?
     private var modelInputs: PestoModelInputs?
+    private let cacheStorage: NSMutableData
     private let cacheBuffer: UnsafeMutablePointer<Float>
     private let tracker = PitchOnsetTracker()
     private let attackEnvelope = PitchAttackEnvelope()
@@ -154,8 +155,10 @@ final class PitchInputEngine: @unchecked Sendable {
             capacity: Self.poolSlotCount * Self.chunkSize
         )
         chunkPool.initialize(repeating: 0, count: Self.poolSlotCount * Self.chunkSize)
-        cacheBuffer = UnsafeMutablePointer<Float>.allocate(capacity: Self.cacheElementCount)
-        cacheBuffer.initialize(repeating: 0, count: Self.cacheElementCount)
+        let cache = NSMutableData()
+        cache.length = Self.cacheElementCount * MemoryLayout<Float>.size
+        cacheStorage = cache
+        cacheBuffer = cache.mutableBytes.assumingMemoryBound(to: Float.self)
     }
 
     // MARK: - 権限
@@ -860,7 +863,7 @@ final class PitchInputEngine: @unchecked Sendable {
                     )
                     let session = try ORTSession(env: env, modelPath: modelURL.path, sessionOptions: options)
                     let inputs = try PestoModelInputs(
-                        cacheBuffer: cacheBuffer,
+                        cacheStorage: cacheStorage,
                         chunkSize: Self.chunkSize,
                         cacheCount: Self.cacheElementCount
                     )

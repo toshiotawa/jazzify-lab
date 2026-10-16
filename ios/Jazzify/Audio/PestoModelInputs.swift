@@ -29,7 +29,7 @@ enum PestoModelConfiguration {
     }
 }
 
-/// Confined to inferenceQueue. The engine owns cacheBuffer for the entire lifetime of these values.
+/// Confined to inferenceQueue. The engine retains owned cacheStorage for the entire lifetime of these values.
 /// Audio storage stays at a stable address even when the capture slot or low-register decimator changes.
 final class PestoModelInputs {
     private let audioStorage: NSMutableData
@@ -37,21 +37,21 @@ final class PestoModelInputs {
     private let audioByteCount: Int
     let values: [String: ORTValue]
 
-    init(cacheBuffer: UnsafeMutablePointer<Float>, chunkSize: Int, cacheCount: Int) throws {
+    init(cacheStorage: NSMutableData, chunkSize: Int, cacheCount: Int) throws {
+        guard cacheStorage.length == cacheCount * MemoryLayout<Float>.size else {
+            throw PestoModelInputsError.invalidCacheSize
+        }
         audioByteCount = chunkSize * MemoryLayout<Float>.size
         guard let audio = NSMutableData(length: audioByteCount) else {
             throw PestoModelInputsError.allocationFailed
         }
         audioStorage = audio
-        let cache = NSMutableData(
-            bytesNoCopy: cacheBuffer,
-            length: cacheCount * MemoryLayout<Float>.size,
-            freeWhenDone: false
-        )
-        cacheStorage = cache
+        // Borrowed NSData may move its buffer on mutableBytes access. Keep the same
+        // owned NSMutableData that the engine updates; do not wrap its pointer again.
+        self.cacheStorage = cacheStorage
         values = [
             "audio": try ORTValue(tensorData: audio, elementType: .float, shape: [1, NSNumber(value: chunkSize)]),
-            "cache": try ORTValue(tensorData: cache, elementType: .float, shape: [1, NSNumber(value: cacheCount)])
+            "cache": try ORTValue(tensorData: cacheStorage, elementType: .float, shape: [1, NSNumber(value: cacheCount)])
         ]
     }
 
@@ -62,4 +62,5 @@ final class PestoModelInputs {
 
 private enum PestoModelInputsError: Error {
     case allocationFailed
+    case invalidCacheSize
 }

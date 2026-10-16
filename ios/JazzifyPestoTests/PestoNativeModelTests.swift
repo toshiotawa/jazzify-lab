@@ -14,12 +14,13 @@ final class PestoNativeModelTests: XCTestCase {
         var measurements = [[String: Any]]()
         for threads in [Int32(0), 1, 2] {
             let session = try ORTSession(env: env, modelPath: compact.path, sessionOptions: PestoModelConfiguration.sessionOptions(intraOpThreads: threads == 0 ? nil : threads))
-            let cache = UnsafeMutablePointer<Float>.allocate(capacity: 3976)
+            let storage = NSMutableData()
+            storage.length = 3976 * MemoryLayout<Float>.size
+            let cache = storage.mutableBytes.assumingMemoryBound(to: Float.self)
             let referenceCache = UnsafeMutablePointer<Float>.allocate(capacity: 3976)
-            cache.initialize(repeating: 0, count: 3976)
             referenceCache.initialize(repeating: 0, count: 3976)
-            var inputs: PestoModelInputs? = try PestoModelInputs(cacheBuffer: cache, chunkSize: 240, cacheCount: 3976)
-            defer { inputs = nil; cache.deallocate(); referenceCache.deallocate() }
+            var inputs: PestoModelInputs? = try PestoModelInputs(cacheStorage: storage, chunkSize: 240, cacheCount: 3976)
+            defer { inputs = nil; referenceCache.deallocate() }
             var times = [Double]()
             var referenceTimes = [Double]()
             for frame in 0..<480 {

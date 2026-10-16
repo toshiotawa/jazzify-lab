@@ -46,3 +46,5 @@ xcodebuild -project ios/Jazzify.xcodeproj -scheme JazzifyPesto -configuration De
 実機では自動/1/2スレッドを同一iPhone・同一音源・ゲーム描画ありで各2分以上比較する。通常音域と低音域の認識、同音連打、droppedSamples/discontinuities、推論p95と通知遅延を確認し、さらに長時間使用時の発熱・消費電力を見る。Simulatorの速度をiPhoneの性能として採用しない。実機での優位が確認されるまで2スレッドに固定しない。
 
 PESTO検証は専用の `JazzifyPesto` scheme / `JazzifyPestoTests` targetで実行する。既存 `JazzifyTests/EarTrainingChordOsmdTimingTests.swift` が削除済みの `resolvePhraseTiming` / `computeFromPhrase` を参照して全体テストのコンパイルを止めるため、今回の検証を別ターゲットにした。既存のテストや対象APIは変更していない。
+
+cacheはエンジン所有の `NSMutableData` をORTValueへ直接渡す。外部ポインタを `NSMutableData(bytesNoCopy:freeWhenDone:false)` で再ラップすると、FoundationのmutableBytes取得時に別のメモリへ移る場合があり、再利用したTensorへ更新が届かない。この差をネイティブ試験で検出したため、エンジンの更新先とTensorの参照先を同じ所有バッファへ統一した。テストは両者のポインタ一致と値更新を検証する。
