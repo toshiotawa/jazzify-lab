@@ -19,7 +19,13 @@ jobs:
         run: python3 -m unittest discover -s scripts/pesto -p 'test_materialize_pesto_model.py' -v
       - name: Prepare simulator and build settings
         run: |
-          cp ios/Secrets.example.xcconfig ios/Secrets.xcconfig
+          # Offline placeholders satisfy Config's launch-time format checks.
+          # This token has no valid signature and cannot authorize any real project.
+          cat > ios/Secrets.xcconfig <<'CONFIG'
+          SUPABASE_HOST = 127.0.0.1
+          SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsInJlZiI6ImNpLXBsYWNlaG9sZGVyIn0.bm90LWEtcmVhbC1zaWduYXR1cmU
+          WEB_APP_HOST = 127.0.0.1
+          CONFIG
           ios/ensure-package-resolved.sh
           mkdir -p artifacts
           xcrun simctl list devices available -j > "$RUNNER_TEMP/simulators.json"
