@@ -78,13 +78,26 @@ targets:
     platform: iOS
     sources:
       - path: JazzifyTests
+    dependencies:
+      - target: Jazzify
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: ""
+
+  JazzifyPestoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: JazzifyPestoTests
       - path: Jazzify/Resources/pesto-mir1k-g7-48000-240-refill.onnx
         buildPhase: resources
     dependencies:
       - target: Jazzify
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app.tests
+        PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app.pesto-tests
         GENERATE_INFOPLIST_FILE: YES
         DEVELOPMENT_TEAM: ""
 
@@ -106,3 +119,15 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  JazzifyPesto:
+    build:
+      targets:
+        Jazzify: all
+        JazzifyPestoTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - JazzifyPestoTests

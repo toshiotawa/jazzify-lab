@@ -493,6 +493,13 @@
 			remoteGlobalIDString = E500BA83C6EE4C666A3895FC;
 			remoteInfo = Jazzify;
 		};
+		50EAB452606CD823E5968C9E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 21A49B4467817A918BEB7F91 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E500BA83C6EE4C666A3895FC;
+			remoteInfo = Jazzify;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -977,6 +984,7 @@
 		F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoModelInputsTests.swift; sourceTree = "<group>"; };
 		892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoDecimatorTests.swift; sourceTree = "<group>"; };
 		7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoNativeModelTests.swift; sourceTree = "<group>"; };
+		400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JazzifyPestoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1078,6 +1086,7 @@
 		1555215E9F1131E850E676A7 = {
 			isa = PBXGroup;
 			children = (
+				39A42C8BE3800E71210C789F /* JazzifyPestoTests */,
 				0741AA8AD13E97DF1BCFC3AD /* ios */,
 				0DAF2951F237E172998BF69A /* Jazzify */,
 				742893695586A7C964B3CC22 /* JazzifyTests */,
@@ -1421,9 +1430,6 @@
 				3E55DE62A334F6CFC0698D44 /* PianoKeyboardScrollGeometryTests.swift */,
 				C7EC1358AF809BB683C1BF59 /* PianoVelocityCurveTests.swift */,
 				4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */,
-				7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */,
-				892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */,
-				F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */,
 				C5FB3F9361B5F6BFC8182394 /* ScreenRotationApplierTests.swift */,
 				83ED53FE93C0297F2122C1A5 /* ScreenRotationPreferencesTests.swift */,
 				5D549AE5505928B0D2E38776 /* SoftLandingFreeTierTests.swift */,
@@ -1807,6 +1813,7 @@
 		D3C90A55DC4CE468656D6ABD /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */,
 				DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */,
 				FFE3BC5B83A8B485458619C7 /* JazzifyTests.xctest */,
 			);
@@ -1991,6 +1998,12 @@
 			path = Tutorial;
 			sourceTree = "<group>";
 		};
+		39A42C8BE3800E71210C789F /* JazzifyPestoTests */ = {
+			isa = PBXGroup;
+			children = (F4155862919DF7AD46583EDF, 892204BECA94E2EC395D9CE3, 7EEF4D3C839DA31B7C8C3023);
+			path = JazzifyPestoTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1999,7 +2012,6 @@
 			buildConfigurationList = 8D7E85572182C605F51B9C10 /* Build configuration list for PBXNativeTarget "JazzifyTests" */;
 			buildPhases = (
 				0FBAF61F1D588FA15A634999 /* Sources */,
-				21E646F399DC73B571A9BE9A /* Resources */,
 			);
 			buildRules = (
 			);
@@ -2036,6 +2048,25 @@
 			productReference = DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */;
 			productType = "com.apple.product-type.application";
 		};
+		575475F1315A7BA8FA9C0253 /* JazzifyPestoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B71048BEBE795C3692A20580 /* Build configuration list for PBXNativeTarget "JazzifyPestoTests" */;
+			buildPhases = (
+				B4FBB248C139D3FBBC42E60A /* Sources */,
+				21E646F399DC73B571A9BE9A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BABA3577AFF341B0D7E06109 /* PBXTargetDependency */,
+			);
+			name = JazzifyPestoTests;
+			packageProductDependencies = (
+			);
+			productName = JazzifyPestoTests;
+			productReference = 400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -2045,6 +2076,7 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					575475F1315A7BA8FA9C0253 = {CreatedOnToolsVersion = 15.0; TestTargetID = E500BA83C6EE4C666A3895FC; };
 					1422B8BE57AB5C3E6D6FC203 = {
 						DevelopmentTeam = "";
 					};
@@ -2071,6 +2103,7 @@
 			targets = (
 				E500BA83C6EE4C666A3895FC /* Jazzify */,
 				1422B8BE57AB5C3E6D6FC203 /* JazzifyTests */,
+				575475F1315A7BA8FA9C0253 /* JazzifyPestoTests */,
 			);
 		};
 /* End PBXProject section */
@@ -2202,9 +2235,6 @@
 				F0AE21C35900B961AE2BCF6B /* PianoKeyboardScrollGeometryTests.swift in Sources */,
 				70BF445A4167DD4784A1C64A /* PianoVelocityCurveTests.swift in Sources */,
 				6E0D60B0CA41EC2C528B8C89 /* PitchOnsetTrackerTests.swift in Sources */,
-				ACF31B675780FD88AB949425 /* PestoNativeModelTests.swift in Sources */,
-				0095BD48BE53E3FA30FEBC84 /* PestoDecimatorTests.swift in Sources */,
-				69B05DF90077AEBCD32BB58E /* PestoModelInputsTests.swift in Sources */,
 				D445C6B27F34AA59575894A5 /* ScreenRotationApplierTests.swift in Sources */,
 				54454BB426D048A6614E6A2C /* ScreenRotationPreferencesTests.swift in Sources */,
 				9676166C37A4A0AF36F96766 /* SoftLandingFreeTierTests.swift in Sources */,
@@ -2612,6 +2642,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B4FBB248C139D3FBBC42E60A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (69B05DF90077AEBCD32BB58E, 0095BD48BE53E3FA30FEBC84, ACF31B675780FD88AB949425);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2619,6 +2655,11 @@
 			isa = PBXTargetDependency;
 			target = E500BA83C6EE4C666A3895FC /* Jazzify */;
 			targetProxy = 05220C67432100957921E3C2 /* PBXContainerItemProxy */;
+		};
+		BABA3577AFF341B0D7E06109 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E500BA83C6EE4C666A3895FC /* Jazzify */;
+			targetProxy = 50EAB452606CD823E5968C9E /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2832,6 +2873,42 @@
 			};
 			name = Release;
 		};
+		1254B66EAD265001B4B29FB4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app.pesto-tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jazzify.app/Jazzify";
+			};
+			name = Debug;
+		};
+		B60ABE0C85738CA92B348E62 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app.pesto-tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jazzify.app/Jazzify";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2858,6 +2935,15 @@
 			buildConfigurations = (
 				78211611C4AE20F1D5D6D8A2 /* Debug */,
 				1BE852376D8B542CA0C676A3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B71048BEBE795C3692A20580 /* Build configuration list for PBXNativeTarget "JazzifyPestoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1254B66EAD265001B4B29FB4 /* Debug */,
+				B60ABE0C85738CA92B348E62 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

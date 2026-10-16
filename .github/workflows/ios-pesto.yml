@@ -35,13 +35,13 @@ jobs:
       - name: Build iOS app and run native model, tensor and decimator tests
         run: |
           set -o pipefail
-          xcodebuild -project ios/Jazzify.xcodeproj -scheme Jazzify -configuration Debug \
+          xcodebuild -project ios/Jazzify.xcodeproj -scheme JazzifyPesto -configuration Debug \
             -destination "platform=iOS Simulator,id=$PESTO_SIMULATOR" \
             -resultBundlePath artifacts/Pesto.xcresult \
             -parallel-testing-enabled NO \
-            -only-testing:JazzifyTests/PestoNativeModelTests \
-            -only-testing:JazzifyTests/PestoModelInputsTests \
-            -only-testing:JazzifyTests/PestoDecimatorTests \
+            -only-testing:JazzifyPestoTests/PestoNativeModelTests \
+            -only-testing:JazzifyPestoTests/PestoModelInputsTests \
+            -only-testing:JazzifyPestoTests/PestoDecimatorTests \
             CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5 test 2>&1 | tee artifacts/xcodebuild.log
       - name: Restore canonical dependency lock
         if: always()

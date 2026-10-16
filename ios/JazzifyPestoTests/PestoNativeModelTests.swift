@@ -21,6 +21,7 @@ final class PestoNativeModelTests: XCTestCase {
             var inputs: PestoModelInputs? = try PestoModelInputs(cacheBuffer: cache, chunkSize: 240, cacheCount: 3976)
             defer { inputs = nil; cache.deallocate(); referenceCache.deallocate() }
             var times = [Double]()
+            var referenceTimes = [Double]()
             for frame in 0..<480 {
                 if frame % 120 == 0 { cache.update(repeating: 0, count: 3976); referenceCache.update(repeating: 0, count: 3976) }
                 let midi = [45.0, 57.0, 69.0, 81.0][(frame / 80) % 4]
@@ -31,13 +32,15 @@ final class PestoNativeModelTests: XCTestCase {
                     let envelope = exp(-Double(frame % 80) / 18)
                     return Float((sin(phase) + 0.35 * sin(2 * phase) + 0.12 * sin(3 * phase)) * envelope * 0.005)
                 }
+                let referenceStart = ProcessInfo.processInfo.systemUptime
                 let expected = try originalRun(session: reference, audio: audio, cache: referenceCache)
+                if frame >= 20 { referenceTimes.append((ProcessInfo.processInfo.systemUptime - referenceStart) * 1000) }
                 let reused = try XCTUnwrap(inputs)
+                let start = ProcessInfo.processInfo.systemUptime
                 audio.withUnsafeBufferPointer { buffer in
                     guard let base = buffer.baseAddress else { return XCTFail("Empty PCM") }
                     reused.updateAudio(from: base)
                 }
-                let start = ProcessInfo.processInfo.systemUptime
                 let result = try session.run(withInputs: reused.values, outputNames: PestoModelConfiguration.outputNames, runOptions: nil)
                 if frame >= 20 { times.append((ProcessInfo.processInfo.systemUptime - start) * 1000) }
                 for name in ["prediction", "confidence", "volume", "cache_out"] {
@@ -61,7 +64,8 @@ final class PestoNativeModelTests: XCTestCase {
                 referenceCache.update(from: oldCacheOut.bytes.assumingMemoryBound(to: Float.self), count: 3976)
             }
             times.sort()
-            measurements.append(["configuredThreads": threads, "frames": 480, "p50Ms": times[times.count / 2], "p95Ms": times[Int(Double(times.count) * 0.95)]])
+            referenceTimes.sort()
+            measurements.append(["configuredThreads": threads, "frames": 480, "originalOneThreadP50Ms": referenceTimes[referenceTimes.count / 2], "originalOneThreadP95Ms": referenceTimes[Int(Double(referenceTimes.count) * 0.95)], "p50Ms": times[times.count / 2], "p95Ms": times[Int(Double(times.count) * 0.95)]])
         }
         let json = try JSONSerialization.data(withJSONObject: measurements, options: [.prettyPrinted, .sortedKeys])
         let attachment = XCTAttachment(data: json, uniformTypeIdentifier: "public.json")
