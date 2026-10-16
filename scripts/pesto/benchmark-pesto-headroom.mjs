@@ -48,6 +48,11 @@ for (const variant of variants) {
 const server = createServer(async (request, response) => {
   try {
     const path = new URL(request.url, 'http://localhost').pathname;
+    // Match the isolated /main document and its Worker scripts in Netlify.
+    if (process.env.PESTO_BENCHMARK_ISOLATED === '1') {
+      response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      response.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+    }
     if (path === '/') { response.setHeader('Content-Type', 'text/html'); response.end('<!doctype html><title>PESTO piano headroom benchmark</title>'); return; }
     if (path === '/piano.f32') { response.end(Buffer.from(combined.buffer)); return; }
     const variant = /^\/assets\/(baseline|candidate)-benchmark-worker\.js$/.exec(path)?.[1];
@@ -64,6 +69,11 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 const results = [];
 try {
   const page = await browser.newPage();
+  const modelRequests = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith('/models/pesto/')) modelRequests.push(path);
+  });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   for (const variant of variants) {
     process.stdout.write(`Starting ${variant}: ${durationSec}s, ${intervalMs}ms, test stall ${stressMs}/${stressPeriodMs}ms\n`);
@@ -130,6 +140,7 @@ try {
           errors: messages.filter((message) => message.type === 'error') };
       } finally { worker.terminate(); await context.close(); }
     }, { variant, durationSec, intervalMs, events });
+    result.modelRequests = modelRequests.splice(0);
     results.push(result);
     await writeFile(outputPath, JSON.stringify({ sampleIds, pcmSha256: hashes, stressMs, stressPeriodMs, results }, null, 2) + '\n');
     process.stdout.write(JSON.stringify(result) + '\n');

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { isPestoIsolatedPath } from '@/utils/pitchInput/pestoIsolation';
 import ToastContainer from '@/components/ui/ToastContainer';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
@@ -40,6 +41,14 @@ const App: React.FC = () => {
   const [authReady, setAuthReady] = useState(false);
   const authBootstrapStartedRef = useRef(false);
   const pathname = normalizePathname(location.pathname);
+  // Document headers change at the game boundary; SPA navigation cannot apply them.
+  const documentIsolatedPath = useRef(isPestoIsolatedPath(window.location.pathname));
+  const needsDocumentNavigation = documentIsolatedPath.current !== isPestoIsolatedPath(pathname);
+  useEffect(() => {
+    if (needsDocumentNavigation) {
+      window.location.replace(location.pathname + location.search + location.hash);
+    }
+  }, [needsDocumentNavigation, location.pathname, location.search, location.hash]);
   const routeKind = useMemo(() => resolveAppRouteKind(pathname), [pathname]);
   const [loadedRoute, setLoadedRoute] = useState<LoadedRouteModule | null>(() =>
     buildLoadedRoute(routeKind),
@@ -91,6 +100,8 @@ const App: React.FC = () => {
     }
     void import('@/app-extra.css');
   }, [pathname]);
+
+  if (needsDocumentNavigation) return <PageFallback />;
 
   if (location.pathname.length > 1 && location.pathname.endsWith('/')) {
     return (

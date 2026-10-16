@@ -10,6 +10,11 @@ if (!workerFile) throw new Error('Run npm run build:app first');
 const server = createServer(async (request, response) => {
   try {
     const path = new URL(request.url, 'http://localhost').pathname;
+    // Match the isolated /main document and its Worker scripts in Netlify.
+    if (process.env.PESTO_BENCHMARK_ISOLATED === '1') {
+      response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      response.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+    }
     if (path === '/') {
       response.setHeader('Content-Type', 'text/html');
       response.end('<!doctype html><title>Pitch production pipeline benchmark</title>');

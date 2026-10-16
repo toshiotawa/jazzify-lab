@@ -1,7 +1,7 @@
 /**
  * onnxruntime-web の WASM ランタイムを public/ort に配置する。
  * dist を丸ごとコピーすると 50MB 超（WebGPU/jsep 版含む）になるため、
- * ort.env.wasm.numThreads = 1 の wasm EP が実際に読み込むファイルのみを対象にする。
+ * 1／2スレッドの wasm EP が実際に読み込むファイルのみを対象にする。
  */
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';

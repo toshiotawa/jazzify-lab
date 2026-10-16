@@ -1,67 +1,35 @@
-import { createHash, webcrypto } from 'node:crypto';
+import { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { buildPestoWebModel } from '../../../../vite.pesto-model-plugin';
 import { loadPestoWebModel } from '../pestoWebModel';
 
-const digest = (data: Uint8Array): string => createHash('sha256').update(data).digest('hex');
-const source = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-const target = new Uint8Array([2, 3, 9, 10, 7, 8]);
-const makePatch = () => ({
-  version: 1, sourceSize: source.length, targetSize: target.length,
-  sourceSha256: digest(source), targetSha256: digest(target),
-  operations: [{ sourceStart: 1, length: 2 }, { data: 'CQo=' }, { sourceStart: 6, length: 2 }],
-});
-const installAssets = (patch: unknown, bytes = source, status = 200) => {
+const directory = 'public/models/pesto/pesto-mir1k-g7-48000-240-refill';
+const bytes = buildPestoWebModel(readFileSync(`${directory}.onnx`), JSON.parse(readFileSync(`${directory}-compact-v2.patch.json`, 'utf8')));
+const install = (model: Uint8Array = bytes, status = 200) => {
   vi.stubGlobal('crypto', webcrypto);
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => url.endsWith('.json')
-    ? new Response(JSON.stringify(patch), { status }) : new Response(bytes, { status })));
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(model, { status })));
 };
 
-describe('PESTO optimized model loading', () => {
+describe('direct PESTO model loading', () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  it('reconstructs exact model bytes from source ranges and literals', async () => {
-    installAssets(makePatch());
-    expect(await loadPestoWebModel()).toEqual(target);
+  it('fetches only the compact asset and validates its checksum', async () => {
+    install();
+    const loaded = await loadPestoWebModel();
+    expect(Buffer.compare(Buffer.from(loaded), Buffer.from(bytes))).toBe(0);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith('/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx');
   });
-
-  it('reconstructs the checked-in production model with its verified checksum', async () => {
-    const directory = 'public/models/pesto/pesto-mir1k-g7-48000-240-refill';
-    const bytes = new Uint8Array(readFileSync(`${directory}.onnx`));
-    const patch: unknown = JSON.parse(readFileSync(`${directory}-compact-v2.patch.json`, 'utf8'));
-    installAssets(patch, bytes);
-    const model = await loadPestoWebModel();
-    expect(model.length).toBe(11_150_637);
-    expect(digest(model)).toBe('c50ca16a07297ddc2b788403268a43736cceb792ec599746da7d5486bca974b8');
-  });
-
-  it('rejects failed HTTP requests before model initialization', async () => {
-    installAssets(makePatch(), source, 404);
+  it('rejects failed HTTP requests', async () => {
+    install(bytes, 404);
     await expect(loadPestoWebModel()).rejects.toThrow('Failed to load');
   });
-
-  it('rejects a stale or corrupted source model', async () => {
-    installAssets(makePatch(), new Uint8Array(8));
-    await expect(loadPestoWebModel()).rejects.toThrow('source model checksum mismatch');
+  it('rejects a truncated model before initializing ONNX', async () => {
+    install(bytes.subarray(0, -1));
+    await expect(loadPestoWebModel()).rejects.toThrow('model size');
   });
-
-  it.each([-1, 7, 1.5])('rejects an invalid source copy offset %s', async (sourceStart) => {
-    const patch = makePatch();
-    patch.operations[0] = { sourceStart, length: 2 };
-    installAssets(patch);
-    await expect(loadPestoWebModel()).rejects.toThrow('patch copy');
-  });
-
-  it('rejects target overflow instead of creating a truncated model', async () => {
-    const patch = makePatch();
-    patch.operations[1] = { data: 'CQoLDA0ODw==' };
-    installAssets(patch);
-    await expect(loadPestoWebModel()).rejects.toThrow('patch overflow');
-  });
-
-  it('rejects a patch producing different model bytes', async () => {
-    const patch = makePatch();
-    patch.operations[1] = { data: 'AQI=' };
-    installAssets(patch);
-    await expect(loadPestoWebModel()).rejects.toThrow('optimized model checksum mismatch');
+  it('rejects corruption even if the model has the expected size', async () => {
+    const corrupted = bytes.slice(); corrupted[corrupted.length - 1] ^= 1;
+    install(corrupted);
+    await expect(loadPestoWebModel()).rejects.toThrow('checksum mismatch');
   });
 });

@@ -4,7 +4,7 @@ const { run } = vi.hoisted(() => ({ run: vi.fn() }));
 vi.mock('@/utils/pitchInput/pestoWebModel', () => ({
   loadPestoWebModel: async () => new Uint8Array(0),
 }));
-vi.mock('onnxruntime-web', () => ({
+vi.mock('onnxruntime-web/wasm', () => ({
   env: { wasm: {} },
   Tensor: class { constructor(public type: string, public data: Float32Array, public dims: number[]) {} },
   InferenceSession: { create: async () => ({ run }) },
@@ -168,6 +168,26 @@ describe('PESTO worker buffer recovery', () => {
     if (!finish) throw new Error('inference did not start');
     finish(output());
     await vi.waitFor(() => expect(recycled()).toHaveLength(1));
+  });
+
+  it.each([12, 24])('keeps borrowed low-register PCM stable during deferred inference at shift +%s', async (shift) => {
+    await control({ type: 'setShiftSemitones', shiftSemitones: shift, generationId: 1 });
+    let finish: ((value: ReturnType<typeof output>) => void) | undefined;
+    let borrowed: Float32Array | undefined;
+    run.mockImplementationOnce((feeds: { audio: { data: Float32Array } }) => {
+      borrowed = feeds.audio.data;
+      return new Promise<ReturnType<typeof output>>((resolve) => { finish = resolve; });
+    });
+    const q = shift === 12 ? 2 : 4;
+    for (let sequence = 0; sequence < q; sequence += 1) send(sequence);
+    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    if (!borrowed || !finish) throw new Error('inference did not start');
+    const expected = borrowed.slice();
+    for (let sequence = q; sequence < q * 3; sequence += 1) send(sequence);
+    expect(borrowed).toEqual(expected);
+    expect(run).toHaveBeenCalledTimes(1);
+    finish(output());
+    await vi.waitFor(() => expect(run.mock.calls.length).toBeGreaterThan(1));
   });
 
   it('fetches only used outputs and releases their tensors after processing', async () => {

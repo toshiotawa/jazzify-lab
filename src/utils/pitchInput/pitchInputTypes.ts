@@ -58,6 +58,7 @@ export interface PitchInputDiagnosticSnapshot {
   actualEchoCancellation: boolean | null;
   modelId: string;
   inferenceIntervalMs?: number;
+  wasmThreads?: number;
   inferenceCount?: number;
   skippedInferenceFrames?: number;
   /** Observed raw RMS below -60 dBFS; diagnostic evidence, not an automatic mute verdict. */
