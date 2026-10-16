@@ -1,0 +1,54 @@
+name: iOS PESTO validation
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'scripts/pesto/**'
+      - 'public/models/pesto/**'
+      - '.github/workflows/ios-pesto.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-pesto:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate reproducible model generation
+        run: python3 -m unittest discover -s scripts/pesto -p 'test_materialize_pesto_model.py' -v
+      - name: Prepare simulator and build settings
+        run: |
+          cp ios/Secrets.example.xcconfig ios/Secrets.xcconfig
+          ios/ensure-package-resolved.sh
+          mkdir -p artifacts
+          xcrun simctl list devices available -j > "$RUNNER_TEMP/simulators.json"
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ['RUNNER_TEMP'] + '/simulators.json') as stream:
+              devices = json.load(stream)['devices']
+          phone = next(device for runtime, entries in devices.items() if 'iOS' in runtime
+                       for device in entries if device['name'].startswith('iPhone'))
+          with open(os.environ['GITHUB_ENV'], 'a') as stream:
+              stream.write('PESTO_SIMULATOR=' + phone['udid'] + '\n')
+          PY
+      - name: Build iOS app and run native model, tensor and decimator tests
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/Jazzify.xcodeproj -scheme Jazzify -configuration Debug \
+            -destination "platform=iOS Simulator,id=$PESTO_SIMULATOR" \
+            -resultBundlePath artifacts/Pesto.xcresult \
+            -parallel-testing-enabled NO \
+            -only-testing:JazzifyTests/PestoNativeModelTests \
+            -only-testing:JazzifyTests/PestoModelInputsTests \
+            -only-testing:JazzifyTests/PestoDecimatorTests \
+            CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5 test 2>&1 | tee artifacts/xcodebuild.log
+      - name: Restore canonical dependency lock
+        if: always()
+        run: ios/ensure-package-resolved.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-pesto-validation
+          path: artifacts/
+          if-no-files-found: ignore

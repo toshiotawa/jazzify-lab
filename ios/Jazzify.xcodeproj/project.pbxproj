@@ -347,7 +347,6 @@
 		B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 38BCDCE6710BA5E08D77BA6C /* InfoPlist.strings */; };
 		B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */; };
 		B1F14C2B56B6170044B78254 /* DefenseTutorialSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2576A0C6D7420F6B6D688B91 /* DefenseTutorialSetupView.swift */; };
-		B1F33138C1C84D298A69F7F6 /* pesto-mir1k-g7-48000-240.onnx in Resources */ = {isa = PBXBuildFile; fileRef = 0FD9B8F66958E3F1531B228A /* pesto-mir1k-g7-48000-240.onnx */; };
 		B203671EAE58746C79D191EB /* DefenseDescentAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9316179970F7C7C7172D3FD /* DefenseDescentAccessTests.swift */; };
 		B2C17E9EB2C7B760FD0C92D2 /* Gameover.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2AA6502C749876A952A425C8 /* Gameover.mp3 */; };
 		B32467ABF115CA695A1275A9 /* EarTrainingPhrasePairAdlibGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E801584AE49548B05A46466 /* EarTrainingPhrasePairAdlibGameView.swift */; };
@@ -479,6 +478,12 @@
 		FD527CCCF3BCCD9A461529D8 /* EarTrainingTutorialStageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F39571660006C71FEFC9F21A /* EarTrainingTutorialStageBuilder.swift */; };
 		FDA113D0CB1FB6F0600676CE /* BalloonRushGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713874BF16B04572CFB46CC5 /* BalloonRushGameLoop.swift */; };
 		FF2FC6EDE5AE062E3FD6447D /* OnboardingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCEE957CC365E4D451A6CF8 /* OnboardingPreferences.swift */; };
+		791019D929DE30727DF4CACB /* PestoModelInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */; };
+		1ED5EED16ABB47B78521E652 /* PestoDecimatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80700AD969E1229570EA6030 /* PestoDecimatorState.swift */; };
+		69B05DF90077AEBCD32BB58E /* PestoModelInputsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */; };
+		0095BD48BE53E3FA30FEBC84 /* PestoDecimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */; };
+		ACF31B675780FD88AB949425 /* PestoNativeModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */; };
+		98982FA1957BFA9E50F51737 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = 2B181587246E5C03EE97C0F9 /* onnxruntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -968,6 +973,11 @@
 		FFA8DA3D5BFD1A94646DBCC5 /* EarTrainingOsmdCameraEffectPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdCameraEffectPreferencesTests.swift; sourceTree = "<group>"; };
 		FFE01F7B16617A21ADF4EBBA /* EarTrainingPrecisionAutoPlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionAutoPlayTests.swift; sourceTree = "<group>"; };
 		FFE3BC5B83A8B485458619C7 /* JazzifyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JazzifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoModelInputs.swift; sourceTree = "<group>"; };
+		80700AD969E1229570EA6030 /* PestoDecimatorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoDecimatorState.swift; sourceTree = "<group>"; };
+		F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoModelInputsTests.swift; sourceTree = "<group>"; };
+		892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoDecimatorTests.swift; sourceTree = "<group>"; };
+		7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoNativeModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -978,6 +988,12 @@
 				343EF86689A175A8BE3A6B6A /* Supabase in Frameworks */,
 				96B79C5F22BC5C4412EE5F33 /* onnxruntime in Frameworks */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EE5C91D2D305D6B95396418C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (98982FA1957BFA9E50F51737 /* onnxruntime in Frameworks */);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -1412,6 +1428,9 @@
 				3E55DE62A334F6CFC0698D44 /* PianoKeyboardScrollGeometryTests.swift */,
 				C7EC1358AF809BB683C1BF59 /* PianoVelocityCurveTests.swift */,
 				4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */,
+				7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */,
+				892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */,
+				F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */,
 				C5FB3F9361B5F6BFC8182394 /* ScreenRotationApplierTests.swift */,
 				83ED53FE93C0297F2122C1A5 /* ScreenRotationPreferencesTests.swift */,
 				5D549AE5505928B0D2E38776 /* SoftLandingFreeTierTests.swift */,
@@ -1596,6 +1615,8 @@
 				C3A91E7B4D2F6801A5E9B4C7 /* ExpectedPitchCandidates.swift */,
 				B2C3D4E5F60718293A4B5C6D /* PitchAttackEnvelope.swift */,
 				39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */,
+				80700AD969E1229570EA6030 /* PestoDecimatorState.swift */,
+				BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */,
 				4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */,
 				2E4DC894813C1800B8E45772 /* QuestJinglePlayer.swift */,
 				6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */,
@@ -1985,6 +2006,8 @@
 			buildConfigurationList = 8D7E85572182C605F51B9C10 /* Build configuration list for PBXNativeTarget "JazzifyTests" */;
 			buildPhases = (
 				0FBAF61F1D588FA15A634999 /* Sources */,
+				21E646F399DC73B571A9BE9A /* Resources */,
+				EE5C91D2D305D6B95396418C /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -1993,6 +2016,7 @@
 			);
 			name = JazzifyTests;
 			packageProductDependencies = (
+				2B181587246E5C03EE97C0F9 /* onnxruntime */,
 			);
 			productName = JazzifyTests;
 			productReference = FFE3BC5B83A8B485458619C7 /* JazzifyTests.xctest */;
@@ -2006,6 +2030,7 @@
 				87BAD536101199DB635FD009 /* Sources */,
 				0093056A21E8BD17AD718571 /* Resources */,
 				55A996B77880CE7B3497FD16 /* Frameworks */,
+				4684BD01332150F1C0A8251E /* Build compact PESTO model */,
 			);
 			buildRules = (
 			);
@@ -2081,12 +2106,16 @@
 				F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */,
 				8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */,
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
-				D1118E4278DCD402CEFBA5F0 /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */,
-				B1F33138C1C84D298A69F7F6 /* pesto-mir1k-g7-48000-240.onnx in Resources */,
 				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
 				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		21E646F399DC73B571A9BE9A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (D1118E4278DCD402CEFBA5F0 /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -2110,6 +2139,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/ensure-package-resolved.sh\"\n";
+		};
+		4684BD01332150F1C0A8251E /* Build compact PESTO model */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ("$(SRCROOT)/../scripts/pesto/materialize-pesto-model.py", "$(SRCROOT)/Jazzify/Resources/pesto-mir1k-g7-48000-240-refill.onnx", "$(SRCROOT)/../public/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json");
+			name = "Build compact PESTO model";
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx", "$(DERIVED_FILE_DIR)/PestoModel");
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\npython3 \"${SRCROOT}/../scripts/pesto/materialize-pesto-model.py\" --output \"${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx\"\ncp \"${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -2171,6 +2211,9 @@
 				F0AE21C35900B961AE2BCF6B /* PianoKeyboardScrollGeometryTests.swift in Sources */,
 				70BF445A4167DD4784A1C64A /* PianoVelocityCurveTests.swift in Sources */,
 				6E0D60B0CA41EC2C528B8C89 /* PitchOnsetTrackerTests.swift in Sources */,
+				ACF31B675780FD88AB949425 /* PestoNativeModelTests.swift in Sources */,
+				0095BD48BE53E3FA30FEBC84 /* PestoDecimatorTests.swift in Sources */,
+				69B05DF90077AEBCD32BB58E /* PestoModelInputsTests.swift in Sources */,
 				D445C6B27F34AA59575894A5 /* ScreenRotationApplierTests.swift in Sources */,
 				54454BB426D048A6614E6A2C /* ScreenRotationPreferencesTests.swift in Sources */,
 				9676166C37A4A0AF36F96766 /* SoftLandingFreeTierTests.swift in Sources */,
@@ -2428,6 +2471,8 @@
 				62096837D078DF7C4B69B082 /* PianoVelocityCurve.swift in Sources */,
 				7F2E8A1C9B4D6035E8A1C2F4 /* ExpectedPitchCandidates.swift in Sources */,
 				1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */,
+				1ED5EED16ABB47B78521E652 /* PestoDecimatorState.swift in Sources */,
+				791019D929DE30727DF4CACB /* PestoModelInputs.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* PitchAttackEnvelope.swift in Sources */,
 				361DB20434662D7CEB99F82B /* PitchOnsetTracker.swift in Sources */,
 				285FDDB26AC17B29FCFB0736 /* PlayHubView.swift in Sources */,
