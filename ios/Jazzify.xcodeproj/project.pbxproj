@@ -347,7 +347,6 @@
 		B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 38BCDCE6710BA5E08D77BA6C /* InfoPlist.strings */; };
 		B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */; };
 		B1F14C2B56B6170044B78254 /* DefenseTutorialSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2576A0C6D7420F6B6D688B91 /* DefenseTutorialSetupView.swift */; };
-		B1F33138C1C84D298A69F7F6 /* pesto-mir1k-g7-48000-240.onnx in Resources */ = {isa = PBXBuildFile; fileRef = 0FD9B8F66958E3F1531B228A /* pesto-mir1k-g7-48000-240.onnx */; };
 		B203671EAE58746C79D191EB /* DefenseDescentAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9316179970F7C7C7172D3FD /* DefenseDescentAccessTests.swift */; };
 		B2C17E9EB2C7B760FD0C92D2 /* Gameover.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2AA6502C749876A952A425C8 /* Gameover.mp3 */; };
 		B32467ABF115CA695A1275A9 /* EarTrainingPhrasePairAdlibGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E801584AE49548B05A46466 /* EarTrainingPhrasePairAdlibGameView.swift */; };
@@ -479,10 +478,22 @@
 		FD527CCCF3BCCD9A461529D8 /* EarTrainingTutorialStageBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F39571660006C71FEFC9F21A /* EarTrainingTutorialStageBuilder.swift */; };
 		FDA113D0CB1FB6F0600676CE /* BalloonRushGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 713874BF16B04572CFB46CC5 /* BalloonRushGameLoop.swift */; };
 		FF2FC6EDE5AE062E3FD6447D /* OnboardingPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FCEE957CC365E4D451A6CF8 /* OnboardingPreferences.swift */; };
+		791019D929DE30727DF4CACB /* PestoModelInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */; };
+		1ED5EED16ABB47B78521E652 /* PestoDecimatorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80700AD969E1229570EA6030 /* PestoDecimatorState.swift */; };
+		69B05DF90077AEBCD32BB58E /* PestoModelInputsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */; };
+		0095BD48BE53E3FA30FEBC84 /* PestoDecimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */; };
+		ACF31B675780FD88AB949425 /* PestoNativeModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		05220C67432100957921E3C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 21A49B4467817A918BEB7F91 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E500BA83C6EE4C666A3895FC;
+			remoteInfo = Jazzify;
+		};
+		50EAB452606CD823E5968C9E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 21A49B4467817A918BEB7F91 /* Project object */;
 			proxyType = 1;
@@ -968,6 +979,12 @@
 		FFA8DA3D5BFD1A94646DBCC5 /* EarTrainingOsmdCameraEffectPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdCameraEffectPreferencesTests.swift; sourceTree = "<group>"; };
 		FFE01F7B16617A21ADF4EBBA /* EarTrainingPrecisionAutoPlayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPrecisionAutoPlayTests.swift; sourceTree = "<group>"; };
 		FFE3BC5B83A8B485458619C7 /* JazzifyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = JazzifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoModelInputs.swift; sourceTree = "<group>"; };
+		80700AD969E1229570EA6030 /* PestoDecimatorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoDecimatorState.swift; sourceTree = "<group>"; };
+		F4155862919DF7AD46583EDF /* PestoModelInputsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoModelInputsTests.swift; sourceTree = "<group>"; };
+		892204BECA94E2EC395D9CE3 /* PestoDecimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoDecimatorTests.swift; sourceTree = "<group>"; };
+		7EEF4D3C839DA31B7C8C3023 /* PestoNativeModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PestoNativeModelTests.swift; sourceTree = "<group>"; };
+		400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JazzifyPestoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1069,6 +1086,7 @@
 		1555215E9F1131E850E676A7 = {
 			isa = PBXGroup;
 			children = (
+				39A42C8BE3800E71210C789F /* JazzifyPestoTests */,
 				0741AA8AD13E97DF1BCFC3AD /* ios */,
 				0DAF2951F237E172998BF69A /* Jazzify */,
 				742893695586A7C964B3CC22 /* JazzifyTests */,
@@ -1596,6 +1614,8 @@
 				C3A91E7B4D2F6801A5E9B4C7 /* ExpectedPitchCandidates.swift */,
 				B2C3D4E5F60718293A4B5C6D /* PitchAttackEnvelope.swift */,
 				39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */,
+				80700AD969E1229570EA6030 /* PestoDecimatorState.swift */,
+				BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */,
 				4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */,
 				2E4DC894813C1800B8E45772 /* QuestJinglePlayer.swift */,
 				6EA4DEE6124337860BF84B06 /* RemoteAudioFileCache.swift */,
@@ -1793,6 +1813,7 @@
 		D3C90A55DC4CE468656D6ABD /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */,
 				DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */,
 				FFE3BC5B83A8B485458619C7 /* JazzifyTests.xctest */,
 			);
@@ -1977,6 +1998,12 @@
 			path = Tutorial;
 			sourceTree = "<group>";
 		};
+		39A42C8BE3800E71210C789F /* JazzifyPestoTests */ = {
+			isa = PBXGroup;
+			children = (F4155862919DF7AD46583EDF, 892204BECA94E2EC395D9CE3, 7EEF4D3C839DA31B7C8C3023);
+			path = JazzifyPestoTests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -2006,6 +2033,7 @@
 				87BAD536101199DB635FD009 /* Sources */,
 				0093056A21E8BD17AD718571 /* Resources */,
 				55A996B77880CE7B3497FD16 /* Frameworks */,
+				4684BD01332150F1C0A8251E /* Build compact PESTO model */,
 			);
 			buildRules = (
 			);
@@ -2020,6 +2048,25 @@
 			productReference = DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */;
 			productType = "com.apple.product-type.application";
 		};
+		575475F1315A7BA8FA9C0253 /* JazzifyPestoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B71048BEBE795C3692A20580 /* Build configuration list for PBXNativeTarget "JazzifyPestoTests" */;
+			buildPhases = (
+				B4FBB248C139D3FBBC42E60A /* Sources */,
+				21E646F399DC73B571A9BE9A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BABA3577AFF341B0D7E06109 /* PBXTargetDependency */,
+			);
+			name = JazzifyPestoTests;
+			packageProductDependencies = (
+			);
+			productName = JazzifyPestoTests;
+			productReference = 400726A1DB9B83F535E61560 /* JazzifyPestoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -2029,6 +2076,7 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					575475F1315A7BA8FA9C0253 = {CreatedOnToolsVersion = 15.0; TestTargetID = E500BA83C6EE4C666A3895FC; };
 					1422B8BE57AB5C3E6D6FC203 = {
 						DevelopmentTeam = "";
 					};
@@ -2055,6 +2103,7 @@
 			targets = (
 				E500BA83C6EE4C666A3895FC /* Jazzify */,
 				1422B8BE57AB5C3E6D6FC203 /* JazzifyTests */,
+				575475F1315A7BA8FA9C0253 /* JazzifyPestoTests */,
 			);
 		};
 /* End PBXProject section */
@@ -2081,12 +2130,16 @@
 				F3BFCE052B0204D9645EB3E1 /* fire_magic_1.mp3 in Resources */,
 				8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */,
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
-				D1118E4278DCD402CEFBA5F0 /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */,
-				B1F33138C1C84D298A69F7F6 /* pesto-mir1k-g7-48000-240.onnx in Resources */,
 				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
 				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		21E646F399DC73B571A9BE9A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (D1118E4278DCD402CEFBA5F0 /* pesto-mir1k-g7-48000-240-refill.onnx in Resources */);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
@@ -2110,6 +2163,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${SRCROOT}/ensure-package-resolved.sh\"\n";
+		};
+		4684BD01332150F1C0A8251E /* Build compact PESTO model */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ("$(SRCROOT)/../scripts/pesto/materialize-pesto-model.py", "$(SRCROOT)/Jazzify/Resources/pesto-mir1k-g7-48000-240-refill.onnx", "$(SRCROOT)/../public/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.patch.json");
+			name = "Build compact PESTO model";
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx", "$(DERIVED_FILE_DIR)/PestoModel");
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\npython3 \"${SRCROOT}/../scripts/pesto/materialize-pesto-model.py\" --output \"${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx\"\ncp \"${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -2428,6 +2492,8 @@
 				62096837D078DF7C4B69B082 /* PianoVelocityCurve.swift in Sources */,
 				7F2E8A1C9B4D6035E8A1C2F4 /* ExpectedPitchCandidates.swift in Sources */,
 				1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */,
+				1ED5EED16ABB47B78521E652 /* PestoDecimatorState.swift in Sources */,
+				791019D929DE30727DF4CACB /* PestoModelInputs.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* PitchAttackEnvelope.swift in Sources */,
 				361DB20434662D7CEB99F82B /* PitchOnsetTracker.swift in Sources */,
 				285FDDB26AC17B29FCFB0736 /* PlayHubView.swift in Sources */,
@@ -2576,6 +2642,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B4FBB248C139D3FBBC42E60A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (69B05DF90077AEBCD32BB58E, 0095BD48BE53E3FA30FEBC84, ACF31B675780FD88AB949425);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2583,6 +2655,11 @@
 			isa = PBXTargetDependency;
 			target = E500BA83C6EE4C666A3895FC /* Jazzify */;
 			targetProxy = 05220C67432100957921E3C2 /* PBXContainerItemProxy */;
+		};
+		BABA3577AFF341B0D7E06109 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E500BA83C6EE4C666A3895FC /* Jazzify */;
+			targetProxy = 50EAB452606CD823E5968C9E /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2796,6 +2873,42 @@
 			};
 			name = Release;
 		};
+		1254B66EAD265001B4B29FB4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app.pesto-tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jazzify.app/Jazzify";
+			};
+			name = Debug;
+		};
+		B60ABE0C85738CA92B348E62 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app.pesto-tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Jazzify.app/Jazzify";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2822,6 +2935,15 @@
 			buildConfigurations = (
 				78211611C4AE20F1D5D6D8A2 /* Debug */,
 				1BE852376D8B542CA0C676A3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B71048BEBE795C3692A20580 /* Build configuration list for PBXNativeTarget "JazzifyPestoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1254B66EAD265001B4B29FB4 /* Debug */,
+				B60ABE0C85738CA92B348E62 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
