@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getEarTrainingBattleCriticalUrls,
   getEarTrainingBattleDeferredUrls,
@@ -14,6 +14,7 @@ describe('earTrainingBattleImagePreload', () => {
   const originalImage = global.Image;
 
   afterEach(() => {
+    vi.useRealTimers();
     global.Image = originalImage;
     clearBattleImageCacheForTests();
   });
@@ -68,6 +69,7 @@ describe('earTrainingBattleImagePreload', () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       src = '';
+      removeAttribute(): void { this.src = ''; }
 
       constructor() {
         attempts += 1;
@@ -94,6 +96,7 @@ describe('earTrainingBattleImagePreload', () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       src = '';
+      removeAttribute(): void { this.src = ''; }
 
       constructor() {
         attempts += 1;
@@ -118,6 +121,7 @@ describe('earTrainingBattleImagePreload', () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       src = '';
+      removeAttribute(): void { this.src = ''; }
 
       constructor() {
         failAttempts += 1;
@@ -142,6 +146,7 @@ describe('earTrainingBattleImagePreload', () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       src = '';
+      removeAttribute(): void { this.src = ''; }
 
       constructor() {
         successAttempts += 1;
@@ -171,6 +176,7 @@ describe('earTrainingBattleImagePreload', () => {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       src = '';
+      removeAttribute(): void { this.src = ''; }
 
       constructor() {
         attempts += 1;
@@ -189,4 +195,65 @@ describe('earTrainingBattleImagePreload', () => {
     expect(attempts).toBe(2);
     expect(map.get('/test/sprite.webp')).toBeInstanceOf(MockImage);
   });
+  it('publishes ready images and advances workers while an unrelated request is stalled', async () => {
+    vi.useFakeTimers();
+    const requests: MockImage[] = [];
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+      removeAttribute(): void { this.src = ''; }
+      constructor() { requests.push(this); }
+    }
+    global.Image = MockImage as unknown as typeof Image;
+    const ready: string[] = [];
+    const loading = preloadEarTrainingBattleImages(
+      ['/stalled', '/player', '/enemy', '/pose', '/next'],
+      (map) => { ready.splice(0, ready.length, ...map.keys()); },
+    );
+    expect(requests).toHaveLength(4);
+    requests[1].onload?.();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ready).toEqual(['/player']);
+    expect(copyCachedBattleImages(['/player']).has('/player')).toBe(true);
+    expect(requests[4].src).toBe('/next');
+    for (const index of [2, 3, 4]) requests[index].onload?.();
+    await vi.advanceTimersByTimeAsync(24000);
+    const map = await loading;
+    expect([...map.keys()]).toEqual(['/player', '/enemy', '/pose', '/next']);
+    expect(requests).toHaveLength(7);
+    expect(requests[0].onload).toBeNull();
+    expect(requests[0].src).toBe('');
+    expect(vi.getTimerCount()).toBe(0);
+
+    // A failed URL is not kept as a permanently pending/cache entry.
+    const retry = preloadEarTrainingBattleImages(['/stalled']);
+    expect(requests[7].src).toBe('/stalled');
+    requests[7].onload?.();
+    expect((await retry).has('/stalled')).toBe(true);
+  });
+
+  it('notifies concurrent consumers separately while sharing the underlying request', async () => {
+    const images: MockImage[] = [];
+    class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      src = '';
+      removeAttribute(): void { this.src = ''; }
+      constructor() { images.push(this); }
+    }
+    global.Image = MockImage as unknown as typeof Image;
+    const first = vi.fn();
+    const second = vi.fn();
+    const a = preloadEarTrainingBattleImages(['/shared'], first);
+    const b = preloadEarTrainingBattleImages(['/shared'], second);
+    images[0].onload?.();
+    await Promise.all([a, b]);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+    const cached = vi.fn();
+    await preloadEarTrainingBattleImages(['/shared'], cached);
+    expect(cached).toHaveBeenCalledTimes(1);
+  });
+
 });

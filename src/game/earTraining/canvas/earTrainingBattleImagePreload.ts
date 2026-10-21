@@ -10,6 +10,7 @@ import { invalidateBackgroundCache } from '@/game/earTraining/canvas/earTraining
 
 const MAX_CONCURRENT = 4;
 const MAX_RETRIES = 2;
+const IMAGE_TIMEOUT_MS = 8000;
 
 /** Survives canvas remounts so replay does not re-decode battle sprites. */
 const battleImageCache = new Map<string, HTMLImageElement>();
@@ -35,14 +36,26 @@ export const clearBattleImageCacheForTests = (): void => {
 const loadBattleImageUncached = (url: string, attempt: number): Promise<HTMLImageElement | null> =>
   new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => {
-      if (attempt < MAX_RETRIES) {
-        void loadBattleImageUncached(url, attempt + 1).then(resolve);
-        return;
+    // The initial URL shares the browser cache with map <img> elements.
+    // A stalled request must not hold every subsequent sprite indefinitely.
+    const finish = (loaded: boolean): void => {
+      clearTimeout(timeout);
+      img.onload = null;
+      img.onerror = null;
+      if (loaded) {
+        resolve(img);
+      } else {
+        img.removeAttribute('src');
+        if (attempt < MAX_RETRIES) {
+          void loadBattleImageUncached(url, attempt + 1).then(resolve);
+        } else {
+          resolve(null);
+        }
       }
-      resolve(null);
     };
+    const timeout = setTimeout(() => finish(false), IMAGE_TIMEOUT_MS);
+    img.onload = () => finish(true);
+    img.onerror = () => finish(false);
     const retrySuffix = attempt === 0 ? '' : `${url.includes('?') ? '&' : '?'}_retry=${attempt}`;
     img.src = `${url}${retrySuffix}`;
   });
@@ -71,6 +84,7 @@ const loadBattleImage = (url: string): Promise<HTMLImageElement | null> => {
 
 export const preloadEarTrainingBattleImages = async (
   urls: readonly string[],
+  onLoaded?: (images: Map<string, HTMLImageElement>) => void,
 ): Promise<Map<string, HTMLImageElement>> => {
   const map = new Map<string, HTMLImageElement>();
   const unique = [...new Set(urls.filter(Boolean))];
@@ -85,16 +99,21 @@ export const preloadEarTrainingBattleImages = async (
     }
   });
 
-  for (let index = 0; index < toLoad.length; index += MAX_CONCURRENT) {
-    const batch = toLoad.slice(index, index + MAX_CONCURRENT);
-    const results = await Promise.all(batch.map((url) => loadBattleImage(url)));
-    batch.forEach((url, batchIndex) => {
-      const img = results[batchIndex];
+  if (map.size > 0) onLoaded?.(map);
+
+  // Workers advance independently: one slow URL cannot block an entire batch.
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < toLoad.length) {
+      const url = toLoad[nextIndex++];
+      const img = await loadBattleImage(url);
       if (img) {
         map.set(url, img);
+        onLoaded?.(map);
       }
-    });
-  }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT, toLoad.length) }, worker));
 
   return map;
 };
@@ -135,8 +154,9 @@ export const applyEarTrainingBattleImageMap = (
 export const preloadEarTrainingBattleCriticalImages = (
   avatarUrls: readonly string[],
   mode?: EarTrainingMode,
+  onLoaded?: (images: Map<string, HTMLImageElement>) => void,
 ): Promise<Map<string, HTMLImageElement>> =>
-  preloadEarTrainingBattleImages(getEarTrainingBattleCriticalUrls(avatarUrls, mode));
+  preloadEarTrainingBattleImages(getEarTrainingBattleCriticalUrls(avatarUrls, mode), onLoaded);
 
 export const preloadEarTrainingBattleSecondaryImages = (
   mode?: EarTrainingMode,

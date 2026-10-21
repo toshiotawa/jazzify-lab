@@ -1,3 +1,4 @@
+import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import {
   drawBattleAvatar,
   drawTintedImageCopy,
@@ -270,7 +271,8 @@ export const drawTrainingScene = (
     dying.slashUntilSec,
     runtime.guardPoseUntilSec,
   );
-  const playerImg = assets?.loadedImages.get(playerPoseUrl);
+  const playerImg = assets?.loadedImages.get(playerPoseUrl)
+    ?? assets?.loadedImages.get(SURVIVAL_DEFAULT_SPRITE_PATHS.migi);
   drawBattleAvatar(ctx, playerImg, width * TRAINING_PLAYER_X_RATIO, floorY, 'player');
 
   if (dying.active && dying.slashUntilSec > 0) {

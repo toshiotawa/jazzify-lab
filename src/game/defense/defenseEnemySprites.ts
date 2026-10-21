@@ -4,7 +4,7 @@
 import type { DefenseEnemyFrame } from '@/game/defense/defenseEnemyConfig';
 import { DEFENSE_ENEMY_TYPES } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemyType } from '@/game/defense/defenseTypes';
-import { preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
+import { copyCachedBattleImages, preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 
 interface DefenseEnemySpritePair {
   readonly idle: HTMLImageElement;
@@ -26,7 +26,6 @@ const spriteUrls = (): string[] => {
 };
 
 let cachedAtlas: DefenseEnemySpriteAtlas | null = null;
-let atlasLoadPromise: Promise<DefenseEnemySpriteAtlas | null> | null = null;
 
 const buildAtlasFromImageMap = (
   map: Map<string, HTMLImageElement>,
@@ -35,38 +34,36 @@ const buildAtlasFromImageMap = (
   for (const type of DEFENSE_ENEMY_TYPES) {
     const idle = map.get(spriteUrl(type, 'idle'));
     const move = map.get(spriteUrl(type, 'move'));
-    if (!idle || !move) {
-      return null;
+    const available = idle ?? move;
+    if (available) {
+      atlas.set(type, { idle: idle ?? available, move: move ?? available });
     }
-    atlas.set(type, { idle, move });
   }
-  return atlas;
+  return atlas.size > 0 ? atlas : null;
 };
 
-export const getCachedDefenseEnemySprites = (): DefenseEnemySpriteAtlas | null => cachedAtlas;
+export const getCachedDefenseEnemySprites = (): DefenseEnemySpriteAtlas | null => (
+  cachedAtlas ?? buildAtlasFromImageMap(copyCachedBattleImages(spriteUrls()))
+);
 
 export const clearDefenseEnemySpriteCacheForTests = (): void => {
   cachedAtlas = null;
-  atlasLoadPromise = null;
 };
 
-/** Resolves to null when any sprite failed to load (renderer then skips enemies). */
-export const loadDefenseEnemySprites = async (): Promise<DefenseEnemySpriteAtlas | null> => {
+/** Publish each available species independently; failed frames remain retryable. */
+export const loadDefenseEnemySprites = async (
+  onLoaded?: (atlas: DefenseEnemySpriteAtlas) => void,
+): Promise<DefenseEnemySpriteAtlas | null> => {
   if (cachedAtlas) {
+    onLoaded?.(cachedAtlas);
     return cachedAtlas;
   }
-  if (atlasLoadPromise) {
-    return atlasLoadPromise;
-  }
-
-  atlasLoadPromise = preloadEarTrainingBattleImages(spriteUrls()).then((map) => {
-    const atlas = buildAtlasFromImageMap(map);
-    if (atlas) {
-      cachedAtlas = atlas;
-    }
-    atlasLoadPromise = null;
-    return atlas;
+  const urls = spriteUrls();
+  const map = await preloadEarTrainingBattleImages(urls, (images) => {
+    const atlas = buildAtlasFromImageMap(images);
+    if (atlas) onLoaded?.(atlas);
   });
-
-  return atlasLoadPromise;
+  const atlas = buildAtlasFromImageMap(map);
+  if (map.size === urls.length) cachedAtlas = atlas;
+  return atlas;
 };
