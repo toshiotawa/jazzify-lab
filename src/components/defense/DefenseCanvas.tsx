@@ -2,6 +2,7 @@
  * Defense mode canvas host. Drawing is driven imperatively by the game loop via `draw(runtime, hud)`
  * so no React state changes per frame.
  */
+import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
@@ -34,6 +35,7 @@ interface DefenseCanvasProps {
 }
 
 const DEFENSE_SCENE_IMAGE_URLS = [
+  SURVIVAL_DEFAULT_SPRITE_PATHS.migi,
   ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
   BATTLE_EFFECT_SPRITE_URLS.fireball,
   ...Object.values(BACKGROUND_IMAGE_URLS),
@@ -71,28 +73,17 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
         atlasRef.current = cachedAtlas;
       }
 
-      const cachedImages = copyCachedBattleImages(DEFENSE_SCENE_IMAGE_URLS);
-      if (cachedImages.size > 0) {
-        assetsRef.current = {
-          loadedImages: cachedImages,
-          backgroundCache,
-        };
-      }
+      const loadedImages = copyCachedBattleImages(DEFENSE_SCENE_IMAGE_URLS);
+      assetsRef.current = { loadedImages, backgroundCache };
 
-      void (async () => {
-        const [atlas, imageMap] = await Promise.all([
-          loadDefenseEnemySprites(),
-          preloadEarTrainingBattleImages(DEFENSE_SCENE_IMAGE_URLS),
-        ]);
+      void loadDefenseEnemySprites((atlas) => {
+        if (!cancelled) atlasRef.current = atlas;
+      });
+      void preloadEarTrainingBattleImages(DEFENSE_SCENE_IMAGE_URLS, (imageMap) => {
         if (cancelled) return;
-        if (atlas) {
-          atlasRef.current = atlas;
-        }
-        assetsRef.current = {
-          loadedImages: imageMap,
-          backgroundCache,
-        };
-      })();
+        for (const [url, image] of imageMap) loadedImages.set(url, image);
+        invalidateBackgroundCache(backgroundCache);
+      });
 
       return () => {
         cancelled = true;

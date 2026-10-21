@@ -1,3 +1,4 @@
+import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
@@ -29,6 +30,7 @@ interface TrainingCanvasProps {
 }
 
 const TRAINING_SCENE_IMAGE_URLS = [
+  SURVIVAL_DEFAULT_SPRITE_PATHS.migi,
   ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
   ...Object.values(BACKGROUND_IMAGE_URLS),
 ] as const;
@@ -65,28 +67,17 @@ export const TrainingCanvas = forwardRef<TrainingCanvasHandle, TrainingCanvasPro
         atlasRef.current = cachedAtlas;
       }
 
-      const cachedImages = copyCachedBattleImages(TRAINING_SCENE_IMAGE_URLS);
-      if (cachedImages.size > 0) {
-        assetsRef.current = {
-          loadedImages: cachedImages,
-          backgroundCache,
-        };
-      }
+      const loadedImages = copyCachedBattleImages(TRAINING_SCENE_IMAGE_URLS);
+      assetsRef.current = { loadedImages, backgroundCache };
 
-      void (async () => {
-        const [atlas, imageMap] = await Promise.all([
-          loadDefenseEnemySprites(),
-          preloadEarTrainingBattleImages(TRAINING_SCENE_IMAGE_URLS),
-        ]);
+      void loadDefenseEnemySprites((atlas) => {
+        if (!cancelled) atlasRef.current = atlas;
+      });
+      void preloadEarTrainingBattleImages(TRAINING_SCENE_IMAGE_URLS, (imageMap) => {
         if (cancelled) return;
-        if (atlas) {
-          atlasRef.current = atlas;
-        }
-        assetsRef.current = {
-          loadedImages: imageMap,
-          backgroundCache,
-        };
-      })();
+        for (const [url, image] of imageMap) loadedImages.set(url, image);
+        invalidateBackgroundCache(backgroundCache);
+      });
 
       return () => {
         cancelled = true;

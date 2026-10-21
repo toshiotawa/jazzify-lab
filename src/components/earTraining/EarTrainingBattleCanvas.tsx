@@ -371,13 +371,13 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
       applyEarTrainingBattleImageMap(runtime, cachedImages, avatarUrls, battleMode);
     }
 
-    void preloadEarTrainingBattleCriticalImages(avatarUrls, battleMode).then((map) => {
-      if (cancelled || !runtimeRef.current) {
-        return;
-      }
+    const applyCriticalImages = (map: Map<string, HTMLImageElement>): void => {
+      if (cancelled || !runtimeRef.current) return;
       applyEarTrainingBattleImageMap(runtimeRef.current, map, avatarUrls, battleMode);
       markDirty();
-      window.requestAnimationFrame(() => markDirty());
+    };
+    void preloadEarTrainingBattleCriticalImages(avatarUrls, battleMode, applyCriticalImages).then(() => {
+      if (cancelled || !runtimeRef.current) return;
 
       void preloadEarTrainingBattleSecondaryImages(battleMode).then((secondaryMap) => {
         if (cancelled || !runtimeRef.current) {

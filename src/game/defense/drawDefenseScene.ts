@@ -1,6 +1,7 @@
 /**
  * Defense mode Canvas2D renderer (called imperatively from the game loop; no React state).
  */
+import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import {
   drawBattleAvatar,
   drawTintedImageCopy,
@@ -498,7 +499,8 @@ export const drawDefenseScene = (
   }
 
   const playerPoseUrl = pickDefensePlayerPoseUrl(runtime);
-  const playerImg = assets?.loadedImages.get(playerPoseUrl);
+  const playerImg = assets?.loadedImages.get(playerPoseUrl)
+    ?? assets?.loadedImages.get(SURVIVAL_DEFAULT_SPRITE_PATHS.migi);
 
   const impactActive = runtime.impactAt !== DEFENSE_NO_IMPACT
     && runtime.elapsedSec - runtime.impactAt >= 0
