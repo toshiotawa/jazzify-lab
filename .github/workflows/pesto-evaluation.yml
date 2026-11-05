@@ -11,7 +11,7 @@ permissions:
 jobs:
   evaluation-harness:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,6 +19,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: npm run type-check
+      - run: npm run lint
+      - name: Run application regression tests
+        run: npm test -- --reporter=dot --testTimeout=30000 --hookTimeout=60000
       - run: npm run test:pesto-evaluation
       - name: Materialize the exact production model
         run: python3 scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx

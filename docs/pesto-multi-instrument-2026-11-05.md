@@ -82,3 +82,9 @@ clean sustainのみ。recallは「全評価対象のうち音程が正しくconf
 - 外部音声はMP3に変換されたNSynth trainの小さいsubset。各sampleの名目音高・velocityを使う。velocity値が実際の音量差や独立録音を保証するわけではない。
 - 音量正規化・ゲームの閾値調整・モデル差し替えは実施していない。高い一致率を未知の楽器・実マイクへの汎用性の保証にしない。
 - 新しい毎フレーム処理・タイマー・高頻度React state更新・hot path allocationをゲームには追加していない。追加の配列・ループ・ファイルI/Oはオフライン検証内のみ。
+
+## テスト終了処理の補修
+
+全体Vitestの検証項目は2,416件成功したが、既存の`App.test.tsx`がAppの動的CSS/auth読み込みを待たずに終わり、worker終了時に`Closing rpc while fetch was pending`が7件記録された。テストのafterEachでReactのact内から`vi.dynamicImportSettled()`を待ってからグローバルを戻すよう修正した。アプリ本体の読み込み処理は変更しない。
+
+既存Workletの2分相当シミュレーションは、この実行環境で既定5秒の上限を超えた。テスト/フックの上限を30/60秒にして実行する。シミュレーションの入力・期待値・アプリの時間制限は変更しない。新CIも同じ上限で型・lint・全体Vitest・評価7テスト・実WASM統合テストを実行する。
