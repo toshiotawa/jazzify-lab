@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import App from './App';
 
@@ -19,7 +19,13 @@ vi.mock('@/routes/appRouteLoader', async () => {
   return { getPreloadedRouteModule: () => ({ default: Component }), loadRouteModule: async () => ({ default: Component }) };
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(async () => {
+  // App starts dynamic CSS/auth imports; finish them before the worker closes.
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
+  vi.unstubAllGlobals();
+});
 it.each(['/main/dashboard', '/login', '/main/play/training'])('reloads only across the game document boundary from %s', (pathname) => {
   const replace = vi.fn();
   vi.stubGlobal('window', Object.assign(Object.create(window), {

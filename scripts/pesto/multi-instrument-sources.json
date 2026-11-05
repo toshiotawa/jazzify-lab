@@ -1,0 +1,576 @@
+{
+  "version": 1,
+  "dataset": "NSynth train subset via vvolhejn MP3 conversion (evaluation only)",
+  "source": "https://magenta.tensorflow.org/datasets/nsynth",
+  "license": "CC BY 4.0",
+  "reference": "nominal MIDI note, not measured instantaneous F0",
+  "cases": [
+    {
+      "id": "keyboard_acoustic_000-036-025",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_000",
+      "midi": 36,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_000/036-025.mp3",
+      "sourceSha256": "bdc4e43bd25a50e85da0e17f387aa5ad3ccf211fb258f4f7b59eabfe3227c002"
+    },
+    {
+      "id": "keyboard_acoustic_000-036-100",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_000",
+      "midi": 36,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_000/036-100.mp3",
+      "sourceSha256": "c3f7d92060161df40a1d3b1c78d157a7bd6a192ed40806ed9d400b291c8a4620"
+    },
+    {
+      "id": "keyboard_acoustic_000-060-025",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_000",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_000/060-025.mp3",
+      "sourceSha256": "1771ed444f27928910564b3d38ab345f5f9944f6a9ed42a35679d50e8c1f15a3"
+    },
+    {
+      "id": "keyboard_acoustic_000-060-100",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_000",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_000/060-100.mp3",
+      "sourceSha256": "a2aad77baabaec6d0cdfcda93fc41e32f33492d56df366381b97deb372477b1f"
+    },
+    {
+      "id": "keyboard_acoustic_000-084-025",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_000",
+      "midi": 84,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_000/084-025.mp3",
+      "sourceSha256": "46120ebe8d4d1f7b40df30ca20bd285fae6621fb8105eeceff3ea514ea610b93"
+    },
+    {
+      "id": "keyboard_acoustic_000-084-100",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_000",
+      "midi": 84,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_000/084-100.mp3",
+      "sourceSha256": "1abcfdc1f6f40c35693698f8d97f6b884ab82fe24f34109a41b5b0cebff524a7"
+    },
+    {
+      "id": "keyboard_acoustic_001-036-025",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_001",
+      "midi": 36,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_001/036-025.mp3",
+      "sourceSha256": "9a9ef5c0663c04b9d190507ec65e8d1127e83322bad0969ced7ecfb0937ad702"
+    },
+    {
+      "id": "keyboard_acoustic_001-036-100",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_001",
+      "midi": 36,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_001/036-100.mp3",
+      "sourceSha256": "f747a0fba6943fffb9b6e60ac51543a5af6b9bd266a97710d1fa6dc2f4d37766"
+    },
+    {
+      "id": "keyboard_acoustic_001-060-025",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_001",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_001/060-025.mp3",
+      "sourceSha256": "297c255891dde6fb40c0a4316f227db6a54f78f95c8e614773da945b750fb313"
+    },
+    {
+      "id": "keyboard_acoustic_001-060-100",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_001",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_001/060-100.mp3",
+      "sourceSha256": "a1880c0508d793907c7c3270135f1a66166180444047034ae48a64987d86d918"
+    },
+    {
+      "id": "keyboard_acoustic_001-084-025",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_001",
+      "midi": 84,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_001/084-025.mp3",
+      "sourceSha256": "1a29e3ae8929bf9ab69a0056c4b76680506674c0afe7f6e7acb90593b5c8d745"
+    },
+    {
+      "id": "keyboard_acoustic_001-084-100",
+      "family": "piano-family-keyboard",
+      "instrument": "keyboard_acoustic_001",
+      "midi": 84,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/keyboard_acoustic_001/084-100.mp3",
+      "sourceSha256": "7be45199f7d8955e0639127c8536c07804c8a34c12946b1ac29ae9add552f572"
+    },
+    {
+      "id": "guitar_acoustic_000-048-025",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_000",
+      "midi": 48,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_000/048-025.mp3",
+      "sourceSha256": "0adc844109dfe4b9ef29b809c8b14e656fef05c1ba6a8459afdb3a408247be64"
+    },
+    {
+      "id": "guitar_acoustic_000-048-100",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_000",
+      "midi": 48,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_000/048-100.mp3",
+      "sourceSha256": "332702cdbf4849f962b84354e23496b5cc93efb7875c1c5e676305c2ef93a732"
+    },
+    {
+      "id": "guitar_acoustic_000-060-025",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_000",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_000/060-025.mp3",
+      "sourceSha256": "0568a11e4975f60e702379cd4f54533308c27241db22d31231bf0157ee1b47e2"
+    },
+    {
+      "id": "guitar_acoustic_000-060-100",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_000",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_000/060-100.mp3",
+      "sourceSha256": "4667a11eef1fe86d87bde2a759f2249e9fd65bb82ed9e9868cc62beb1b6b0de2"
+    },
+    {
+      "id": "guitar_acoustic_000-072-025",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_000",
+      "midi": 72,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_000/072-025.mp3",
+      "sourceSha256": "1540edb18249a2e959ed7282d73a1b2f1852c2c3429890e73d84caefa35a1f73"
+    },
+    {
+      "id": "guitar_acoustic_000-072-100",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_000",
+      "midi": 72,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_000/072-100.mp3",
+      "sourceSha256": "5d8c3bf0f08b4fbfaaa29ed50b11600f0f1315f79dff72cde768be71dbc646b5"
+    },
+    {
+      "id": "guitar_acoustic_001-048-025",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_001",
+      "midi": 48,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_001/048-025.mp3",
+      "sourceSha256": "d27b65fdbc02fcd234751ba496f41b1b480f82fe0e789de6a1d96581a7734c4e"
+    },
+    {
+      "id": "guitar_acoustic_001-048-100",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_001",
+      "midi": 48,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_001/048-100.mp3",
+      "sourceSha256": "5a891ff554a9a9f8d655ac442023e4fbc101abb3c98aa55d9b4ea8061f2f9211"
+    },
+    {
+      "id": "guitar_acoustic_001-060-025",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_001",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_001/060-025.mp3",
+      "sourceSha256": "4dca409e39c49cbbaf24e6d416f3bf5d41c775e42068eb9a30b0c7a1f8d481fe"
+    },
+    {
+      "id": "guitar_acoustic_001-060-100",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_001",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_001/060-100.mp3",
+      "sourceSha256": "1e8e15b0c6dd7ff3dd49bd4cfebbf05a5e916f9b78b9490564f74ec9ac081a13"
+    },
+    {
+      "id": "guitar_acoustic_001-072-025",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_001",
+      "midi": 72,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_001/072-025.mp3",
+      "sourceSha256": "7426d8b993b32270603947c6e9670490580076452f1ad184d23d055753ad364b"
+    },
+    {
+      "id": "guitar_acoustic_001-072-100",
+      "family": "guitar",
+      "instrument": "guitar_acoustic_001",
+      "midi": 72,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/guitar_acoustic_001/072-100.mp3",
+      "sourceSha256": "9bddc44619352df84d38df89927e014a89513eb5db02cceb5ecd524e6fde345a"
+    },
+    {
+      "id": "bass_acoustic_000-033-025",
+      "family": "bass",
+      "instrument": "bass_acoustic_000",
+      "midi": 33,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/bass_acoustic_000/033-025.mp3",
+      "sourceSha256": "9a81e769f39288dfa85ca3c600e50cc1a9d07895cad4140aaffef30e39e6371c"
+    },
+    {
+      "id": "bass_acoustic_000-033-100",
+      "family": "bass",
+      "instrument": "bass_acoustic_000",
+      "midi": 33,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/bass_acoustic_000/033-100.mp3",
+      "sourceSha256": "e6cb2afaefc132c0408f4e3af7c33e3c8f9e2b0279c24dd0f0c87bfb79684861"
+    },
+    {
+      "id": "bass_acoustic_000-045-025",
+      "family": "bass",
+      "instrument": "bass_acoustic_000",
+      "midi": 45,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/bass_acoustic_000/045-025.mp3",
+      "sourceSha256": "30342dc5e16af5f356afd4e9aabf2d7c5de32dca02a80f6dd7481cd7a8fdf61d"
+    },
+    {
+      "id": "bass_acoustic_000-045-100",
+      "family": "bass",
+      "instrument": "bass_acoustic_000",
+      "midi": 45,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/bass_acoustic_000/045-100.mp3",
+      "sourceSha256": "e0784d3bce54f93441756160e1af30f70d3266a4205859701dddd0ee820b62df"
+    },
+    {
+      "id": "bass_acoustic_000-057-025",
+      "family": "bass",
+      "instrument": "bass_acoustic_000",
+      "midi": 57,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/bass_acoustic_000/057-025.mp3",
+      "sourceSha256": "4c5d185dcd958e8c3b7dd56c93c6e91f0a0a32d268b350b2b2f87e8852d80b77"
+    },
+    {
+      "id": "bass_acoustic_000-057-100",
+      "family": "bass",
+      "instrument": "bass_acoustic_000",
+      "midi": 57,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/bass_acoustic_000/057-100.mp3",
+      "sourceSha256": "1581362654f96651817e05fff127a63e1b7fc62a53d834db0f9bbcb50a390284"
+    },
+    {
+      "id": "flute_acoustic_000-060-025",
+      "family": "flute",
+      "instrument": "flute_acoustic_000",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_000/060-025.mp3",
+      "sourceSha256": "f1e7d4c796416e24fcadc2d5d0f52b07964255777cfec1749f01158df546d614"
+    },
+    {
+      "id": "flute_acoustic_000-060-100",
+      "family": "flute",
+      "instrument": "flute_acoustic_000",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_000/060-100.mp3",
+      "sourceSha256": "fb8faf11463df97393cd477e124bb4ff9109cb931093e5cc3da3933b100581f6"
+    },
+    {
+      "id": "flute_acoustic_000-072-025",
+      "family": "flute",
+      "instrument": "flute_acoustic_000",
+      "midi": 72,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_000/072-025.mp3",
+      "sourceSha256": "7ee9f83736d7e7da9b1e1649352610cdfd4916be570f66d40508d9b08bcb5005"
+    },
+    {
+      "id": "flute_acoustic_000-072-100",
+      "family": "flute",
+      "instrument": "flute_acoustic_000",
+      "midi": 72,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_000/072-100.mp3",
+      "sourceSha256": "f49010ce4b6373b35defc7b1436b3246a5f265aa3c65ce899fb6454a734e6d83"
+    },
+    {
+      "id": "flute_acoustic_000-084-025",
+      "family": "flute",
+      "instrument": "flute_acoustic_000",
+      "midi": 84,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_000/084-025.mp3",
+      "sourceSha256": "954c8c6dbe6ec252def9f327b11b1e0b700f90afa1c0fb1ed0dbd6946cf7537e"
+    },
+    {
+      "id": "flute_acoustic_000-084-100",
+      "family": "flute",
+      "instrument": "flute_acoustic_000",
+      "midi": 84,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_000/084-100.mp3",
+      "sourceSha256": "c46047b7751762de5986a469812e5ce65e30e2733bb0b5ca7e7de9fcfa1b9bcc"
+    },
+    {
+      "id": "flute_acoustic_001-060-100",
+      "family": "flute",
+      "instrument": "flute_acoustic_001",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_001/060-100.mp3",
+      "sourceSha256": "b84d2b1c63b47b9f15e5d7f4de1f6f8bfb40e124b12a46c405194232e013405f"
+    },
+    {
+      "id": "flute_acoustic_001-072-100",
+      "family": "flute",
+      "instrument": "flute_acoustic_001",
+      "midi": 72,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_001/072-100.mp3",
+      "sourceSha256": "66773cfef5fa7f89c835d93ba5648b07f63e22c8244fde88c65214120b20d8b2"
+    },
+    {
+      "id": "flute_acoustic_001-084-100",
+      "family": "flute",
+      "instrument": "flute_acoustic_001",
+      "midi": 84,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/flute_acoustic_001/084-100.mp3",
+      "sourceSha256": "5fdf5bf77ce8ae1ce2b91fedc6c4506ed8aa4c542cbb46bb29b4fd2ee217c061"
+    },
+    {
+      "id": "brass_acoustic_000-048-025",
+      "family": "brass",
+      "instrument": "brass_acoustic_000",
+      "midi": 48,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_000/048-025.mp3",
+      "sourceSha256": "86df677d6008b2d662f728d07319f428647265c417ae018a75aedd7799868ec2"
+    },
+    {
+      "id": "brass_acoustic_000-048-100",
+      "family": "brass",
+      "instrument": "brass_acoustic_000",
+      "midi": 48,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_000/048-100.mp3",
+      "sourceSha256": "28a2328676c45b4b57a1de537bfc65e751efbffa17c2a218d75c8b218cdf51b8"
+    },
+    {
+      "id": "brass_acoustic_000-060-025",
+      "family": "brass",
+      "instrument": "brass_acoustic_000",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_000/060-025.mp3",
+      "sourceSha256": "e4524e2b91eafb21a32ae8995bf0509a6846e54c51f14d8c07d49441d017f3f3"
+    },
+    {
+      "id": "brass_acoustic_000-060-100",
+      "family": "brass",
+      "instrument": "brass_acoustic_000",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_000/060-100.mp3",
+      "sourceSha256": "a1dfb7567c4a40f4aed23dc8e9667ced5b37cd47aabc89d8120c6ecd4a82f703"
+    },
+    {
+      "id": "brass_acoustic_000-072-025",
+      "family": "brass",
+      "instrument": "brass_acoustic_000",
+      "midi": 72,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_000/072-025.mp3",
+      "sourceSha256": "e242ad72684b7bffd9ab49cb50541e898d845cb6114f7db898d82731318ab478"
+    },
+    {
+      "id": "brass_acoustic_000-072-100",
+      "family": "brass",
+      "instrument": "brass_acoustic_000",
+      "midi": 72,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_000/072-100.mp3",
+      "sourceSha256": "09afb68b88d0329fe9f1c03c4bbb5dbf6ef4da5ea4f92c5f4c1f6bf3b74cd6d1"
+    },
+    {
+      "id": "brass_acoustic_001-039-025",
+      "family": "brass",
+      "instrument": "brass_acoustic_001",
+      "midi": 39,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_001/039-025.mp3",
+      "sourceSha256": "b2944cac0a7f84021296088692170da0cfad2171d8d034416346d2fdacc1e27e"
+    },
+    {
+      "id": "brass_acoustic_001-039-100",
+      "family": "brass",
+      "instrument": "brass_acoustic_001",
+      "midi": 39,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_001/039-100.mp3",
+      "sourceSha256": "16a3d95ac8734170d9792469109e03a67bdd96ae46495bf7308ab590d0c5142f"
+    },
+    {
+      "id": "brass_acoustic_001-051-025",
+      "family": "brass",
+      "instrument": "brass_acoustic_001",
+      "midi": 51,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_001/051-025.mp3",
+      "sourceSha256": "7f1bfc8842d8b71b6a068bb47c2df032507feea4b09b2870f9d95154b9caede7"
+    },
+    {
+      "id": "brass_acoustic_001-051-100",
+      "family": "brass",
+      "instrument": "brass_acoustic_001",
+      "midi": 51,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_001/051-100.mp3",
+      "sourceSha256": "b470d8075f253501caf1cd66cedbed4569c0f53cbd7c3a3238257782c10e39f7"
+    },
+    {
+      "id": "brass_acoustic_001-063-025",
+      "family": "brass",
+      "instrument": "brass_acoustic_001",
+      "midi": 63,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_001/063-025.mp3",
+      "sourceSha256": "bb650f72fceb93882f464ecd161e4f4b491c96d54b7186b465cdd5f31d84d32c"
+    },
+    {
+      "id": "brass_acoustic_001-063-100",
+      "family": "brass",
+      "instrument": "brass_acoustic_001",
+      "midi": 63,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/brass_acoustic_001/063-100.mp3",
+      "sourceSha256": "b53e7a09461ce84edcaf7055edafbf1c35d80c204922cda0bd9e14d2518b1cad"
+    },
+    {
+      "id": "vocal_acoustic_001-039-025",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_001",
+      "midi": 39,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_001/039-025.mp3",
+      "sourceSha256": "387aa474477bd7ea87b42362ffada7d2cc37b2eaaf51edde705bcc242e47b902"
+    },
+    {
+      "id": "vocal_acoustic_001-039-100",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_001",
+      "midi": 39,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_001/039-100.mp3",
+      "sourceSha256": "fcb9aa7cf34598e25d8c431a5e943c34cf87ad20ecb569c380a62463a929b4e6"
+    },
+    {
+      "id": "vocal_acoustic_001-048-025",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_001",
+      "midi": 48,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_001/048-025.mp3",
+      "sourceSha256": "a9b3682971818ff2688c8692ff7afbd62c5f5b933807e2815b2e8797f7ccb028"
+    },
+    {
+      "id": "vocal_acoustic_001-048-100",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_001",
+      "midi": 48,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_001/048-100.mp3",
+      "sourceSha256": "aa2c318718f85689b1f8919e55b1ddfa57b896cfde05e8aed1821d7e5e7804d2"
+    },
+    {
+      "id": "vocal_acoustic_001-057-025",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_001",
+      "midi": 57,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_001/057-025.mp3",
+      "sourceSha256": "e64f21154f569bc509c7089505a8819df2f74ce61c9874ca44697eec3bece205"
+    },
+    {
+      "id": "vocal_acoustic_001-057-100",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_001",
+      "midi": 57,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_001/057-100.mp3",
+      "sourceSha256": "aee0c40ac5f66da955b5b04efa472bf4dec7ee618afedbd4af07945f2bf0c188"
+    },
+    {
+      "id": "vocal_acoustic_002-060-025",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_002",
+      "midi": 60,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_002/060-025.mp3",
+      "sourceSha256": "9474cc7987c4f5a433f56200b1a5a77e39611463156334af0f92bb7e97c6623e"
+    },
+    {
+      "id": "vocal_acoustic_002-060-100",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_002",
+      "midi": 60,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_002/060-100.mp3",
+      "sourceSha256": "a9320d9e993c96d83c972a81d0b1f21cb027324132736e6546747e3e967aa009"
+    },
+    {
+      "id": "vocal_acoustic_002-069-025",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_002",
+      "midi": 69,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_002/069-025.mp3",
+      "sourceSha256": "5a9ff75ba4eed9e1fb678a195b1fea259c4830d364b8f73fee40bac2acb9dda4"
+    },
+    {
+      "id": "vocal_acoustic_002-069-100",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_002",
+      "midi": 69,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_002/069-100.mp3",
+      "sourceSha256": "d001c3f7bc20f8c554ed45fb4cd4827d272deec30cb8098411232bbecc55bdff"
+    },
+    {
+      "id": "vocal_acoustic_002-078-025",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_002",
+      "midi": 78,
+      "velocity": 25,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_002/078-025.mp3",
+      "sourceSha256": "e5a8310720bfd7abe1d2d48b6a65b65b0a28ec154225626facce5a7b09cfa676"
+    },
+    {
+      "id": "vocal_acoustic_002-078-100",
+      "family": "vocal",
+      "instrument": "vocal_acoustic_002",
+      "midi": 78,
+      "velocity": 100,
+      "sourceUrl": "https://huggingface.co/datasets/vvolhejn/nsynth/resolve/main/nsynth-train/audio2/vocal_acoustic_002/078-100.mp3",
+      "sourceSha256": "4aaa6df4d49739bcb840c08247432c693988505c2438322e5cfe92695cda0720"
+    }
+  ]
+}
