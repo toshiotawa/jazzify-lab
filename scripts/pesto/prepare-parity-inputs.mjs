@@ -4,9 +4,10 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { makeCondition } from './multi-instrument-metrics.mjs';
-const [manifestPath, outputDirectory] = process.argv.slice(2);
-if (!manifestPath || !outputDirectory) throw Error('Usage: node prepare-parity-inputs.mjs manifest.json output-directory');
+const [manifestPath, outputDirectory, condition = 'clean'] = process.argv.slice(2);
+if (!manifestPath || !outputDirectory) throw Error('Usage: node prepare-parity-inputs.mjs manifest.json output-directory [clean|short100ms|short200ms]');
 const calibration = manifestPath === '--calibration';
+if (!['clean', 'short100ms', 'short200ms'].includes(condition) || (calibration && condition !== 'clean')) throw Error('Invalid parity condition');
 const manifest = calibration ? { version: 1, sampleRate: 48000, cases: [] } : JSON.parse(await readFile(manifestPath, 'utf8'));
 if (manifest.version !== 1 || manifest.sampleRate !== 48000 || (!calibration && !manifest.cases?.length)) throw Error('Invalid manifest');
 await mkdir(outputDirectory, { recursive: true });
@@ -14,7 +15,7 @@ const sha = (data) => createHash('sha256').update(data).digest('hex');
 const items = [];
 const storeInput = async (item, pcm) => {
   if (!/^[a-zA-Z0-9_-]+$/.test(item.id)) throw Error('Invalid case ID');
-  const input = makeCondition(pcm, 'clean');
+  const input = makeCondition(pcm, condition);
   const data = new Uint8Array(input.audio.buffer);
   const file = item.id + '.f32';
   await writeFile(resolve(outputDirectory, file), data);
@@ -40,5 +41,5 @@ if (calibration) {
   }
 }
 await writeFile(resolve(outputDirectory, 'manifest.json'), JSON.stringify({ version: 1, sampleRate: 48000,
-  condition: 'clean: 600ms with 2ms end fade + 200ms zero tail; same makeCondition as Web evaluation', cases: items }, null, 2) + '\n');
+  condition, protocol: 'same makeCondition as Web evaluation: 2ms end fade + 200ms zero tail', cases: items }, null, 2) + '\n');
 process.stdout.write(`Prepared ${items.length} exact Web-evaluation inputs.\n`);

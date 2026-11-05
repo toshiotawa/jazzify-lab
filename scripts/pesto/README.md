@@ -178,3 +178,46 @@ node scripts/pesto/prepare-parity-inputs.mjs --calibration /tmp/pesto-calibratio
 機能的な照合の合格条件は音高差≤1cent、confidence差<0.001、volumeの`abs(diff)/max(1,abs(reference))`<0.0001、cache差=0、独立復号との差<0.01cent。activationは別の診断項目で、最大絶対差≥0.001なら`activationAlert`を残す。実録音ではこの監視線を超えたため、「すべての中間値が0.001以内」とは判定しない。中間値のbitwise一致や、全入力での精度保証とも区別する。較正信号16本はCIでもPython→fresh/original/compact→実WASMを照合する。70音源の全再生は上のコマンドで実行する。
 
 数値と判断は[照合レポート](../../docs/pesto-python-onnx-audit-2026-11-05.md)を参照。今回はウェイト、音程補正、配信モデル、ゲーム判定を変更しない。
+
+## 未使用音源でのrefill/zeros比較と独立した基音確認
+
+`prepare-padding-holdout.py`は前回未評価の12音源ID・60サンプルを固定し、元データとPCMのSHA-256を検証する。NSynthの未使用IDに加え、Iowa Steinwayの実録音6音と同梱Finger Bassの元録音3音を使う。全音源の来歴と利用条件は`padding-holdout-sources.json`。NSynthは録音由来のacoustic分類で、vocalは連続歌唱や独立した歌い手の評価を意味しない。
+
+新音源は最初の2秒から、連続する2つの5ms区間が `max(-60dBFS, 最大区間エネルギー−40dB)` を超える最初の位置を探し、20ms前から800ms切り出す。Iowa音源の長い発音前無音を人工短音として切り落とさないためで、音量正規化・調律補正はしない。これは実際の発音時刻の人手注釈ではない。以前の70音源は以前と同じ切り出しで開発用対照として扱い、新音源との平均値の差を改善量とはしない。
+
+```sh
+# Python環境と固定upstreamは上の照合手順と同じ。
+python3 scripts/pesto/prepare-padding-holdout.py --output /tmp/pesto-padding-holdout
+python3 scripts/pesto/prepare-multi-instrument.py --output /tmp/pesto-padding-development
+/tmp/pesto-audit-venv/bin/python -m unittest discover -s scripts/pesto -p 'test_*.py' -v
+/tmp/pesto-audit-venv/bin/python scripts/pesto/evaluate-padding.py \
+  --upstream /tmp/pesto-upstream --manifest /tmp/pesto-padding-holdout/manifest.json \
+  --output /tmp/pesto-padding-holdout.json --reference-traces /tmp/pesto-padding-reference-traces.json
+/tmp/pesto-audit-venv/bin/python scripts/pesto/evaluate-padding.py \
+  --upstream /tmp/pesto-upstream --manifest /tmp/pesto-padding-development/manifest.json \
+  --output /tmp/pesto-padding-development.json
+```
+
+両コマンドはstrictなONNX/Python音高照合に不合格なら、結果JSONを保存した上で終了コード1となる。今回、極小音量・低confidence区間で不一致が見つかっており、候補モデルを自動採用しない。例外による失敗と区別するため、結果JSONの`exportPassed`・`onnxSourceParity`を確認する。CIは既知周波数16信号を使い、厳密照合に合格する経路を実行する。
+
+評価はclean/100ms人工短音/200ms人工短音。同じ学習済み係数・48kHz/240 samples・3976-sample履歴で、Python同士の補完方法だけを変える比較を行う。配信refill ONNXと新規zeros ONNXも同じ入力で比較し、各々のPython版との照合を別に残す。モデル/チェックポイント/source SHA・各条件のPCM SHAを記録する。`prepare-parity-inputs.mjs`の第3引数で`clean`/`short100ms`/`short200ms`を選べる。既定はclean。
+
+`pitch_reference.py`の独立推定は、PESTO出力と名目音番号を入力にしない。8192 samplesの窓で、周期差分の累積平均正規化（YINに着想を得た可変ペア数補正版）と、FFTピークからの倍音comb探索を別々に行い、20cent以内で一致した区間の幾何平均を診断用参照にする。窓は原音のチャンク終端を中心とし、**参照推定だけ**未来を使う。両モデルの推論へ未来の原音は渡さない。人工短音を切る前の原音を参照し、cut以降は音高評価へ入れない。
+
+この参照は人手で確認した真値ではない。二つの手法が共に倍音・オクターブを誤る可能性がある。名目音番号と食い違う音源は別途点検対象とし、解析一致率を実測F0の精度だと断定しない。名目音番号による全評価対象と、解析一致が得られた部分集合の結果を両方残す。除外マスクは両モデルで共通、confidenceで音高評価の分母を減らさない。
+
+発音直後の指標は、原音の連続2区間が−60dBFSを超えた位置を基準に、正しい音高が4フレーム続いた**4番目の通知時点**までの時間を測る。confidence≥0.5を要求する場合も別に測る。参照が4フレーム連続しない音は到達率の判定不能として区別し、判定可能数・到達数・未到達数を記録する。成功例だけの中央値で全例が速くなったとしない。これはアプリの実マイク入力遅延・ゲーム判定通知の計測ではない。
+
+各音源×条件×phaseで音高一致、confidence付き正音recall、オクターブ誤り、人工ゼロ末尾の誤有音を比較し、1 percentage point超の悪化があれば`do-not-promote`。前処理の良否と、ONNX/Pythonの厳密一致は別の判定。全体平均が上がっても、個別悪化や参照未確認を隠さない。今回の録音を見て次の方法を選んだ時点で、これらは以後の最終testには使えない。
+
+出典: [NSynth](https://magenta.tensorflow.org/datasets/nsynth)、[MP3配布](https://github.com/vvolhejn/nsynth)、[Iowa MISの利用条件](https://theremin.music.uiowa.edu/MIS.html)、[Piano録音の来歴](https://theremin.music.uiowa.edu/MISPiano.html)。独立推定の参考: [de Cheveigné & Kawahara, 2002, YIN](https://pubmed.ncbi.nlm.nih.gov/12002874/)。結果と制約は[今回の比較レポート](../../docs/pesto-padding-holdout-2026-11-05.md)を参照。
+
+評価JSONを、音源別診断・全Python評価行・楽器別集計・悪化行・到達率へまとめるには:
+
+```sh
+/tmp/pesto-audit-venv/bin/python scripts/pesto/summarize-padding.py \
+  --holdout /tmp/pesto-padding-holdout.json --development /tmp/pesto-padding-development.json \
+  --output /tmp/pesto-padding-summary.json
+```
+
+配列の評価行は`scoreColumns`/`timingColumns`に列定義を持つ。ONNXとPythonで整数評価指標が違う場合は`backendMetricDisagreements`へ別保存する。全区間の音高最大差は`onnxSourceParity`に残すため、ほぼ無音での厳密照合失敗を、評価集計の一致で隠さない。
