@@ -111,3 +111,39 @@ PESTO_BENCHMARK_ISOLATED=1 PESTO_BENCHMARK_INTERVALS=5 PESTO_BENCHMARK_SECONDS=1
 ```
 
 Playwright/Chromeの指定は前述の環境変数を使用。結果・測定の制約は [実装レポート](../../docs/pesto-loading-threads-2026-10-16.md)を参照。
+
+## 複数楽器の生音程評価（オフライン専用）
+
+`evaluate-multi-instrument.mjs` は本番compact-v2の**生のprediction/confidence**を5msごとに読み、tracker・期待音補助・オクターブ補正を通さず評価する。ゲーム側の処理や学習済み重みは変更しない。
+
+```sh
+npm ci
+npm run build:app
+npm run test:pesto-evaluation
+node scripts/pesto/smoke-multi-instrument.mjs
+# FFmpegとPython標準ライブラリのみ。外部MP3はダウンロードしてSHA-256を検証する。
+python scripts/pesto/prepare-multi-instrument.py --output /tmp/pesto-multi
+node scripts/pesto/evaluate-multi-instrument.mjs /tmp/pesto-multi/manifest.json /tmp/pesto-results.json
+# 候補ONNXは現行と同じaudio/cache入出力仕様が必要。
+# training-groups.jsonは候補の学習に使ったinstrument/speakerグループIDの配列。
+node scripts/pesto/evaluate-multi-instrument.mjs /tmp/pesto-multi/manifest.json /tmp/pesto-candidate-results.json candidate.onnx training-groups.json
+```
+
+音源はNSynth acousticの63サンプル（11音源ID、3音高、取得可能な弱/強velocity）と、リポジトリ内Felt Piano SF2の7つの**元録音**。波形を合成して楽器録音の代用にしない。NSynthの鍵盤ファミリーを具体的なピアノ機種だとは断定しない。ベースは1音源ID、Felt Pianoも1音源IDで、母集団の代表性は限定される。歌声はacoustic vocalサンプルであり、連続歌唱、子音、ポルタメント、実際の歌い手の独立評価を保証しない。
+
+NSynth元資料: https://magenta.tensorflow.org/datasets/nsynth （CC BY 4.0）。MP3配布・変換: https://github.com/vvolhejn/nsynth 。取得元URL・source SHA-256を`scripts/pesto/multi-instrument-sources.json`へ固定。準備時のFFmpeg版、デコードPCMのSHA-256、SF2のSHA-256・sample headerも結果JSONへ保存する。`--lock-sources`は音源リストを意図的に更新するときだけ使用し、変更内容と来歴をレビューする。MP3/WAV/PCMをGitへ追加しない。
+
+参照値は**名目MIDI音番号**。50cent以内の一致率を`rawRpa50`として集計するが、実測したフレーム別F0との正式なRPAではない。録音の調律、ビブラート、倍音・非調和性、元データのラベル不整合も数値に影響するため、不一致をすべてモデルの誤りと断定しない。
+
+- 全音源を48kHz mono float32にして先頭0.8秒を取得する。通常条件は最初の0.6秒、短音は0.1/0.2秒で切り、末尾2msにfadeを付けて0.2秒のゼロを追加する。短音条件は**人工的に切り出したアタック**であり、実奏のスタッカート・連打ではない。
+- 各条件でcacheをゼロ初期化する。原音チャンク終端へ時刻を合わせ、精度が上がるような遅延補正やwarmup除外をしない。attackは0〜100ms、sustainは100ms〜切断時刻、silenceはゼロ末尾の最後50ms。原音先頭が必ず物理的な発音時刻とは限らない。
+- cleanの5msチャンク平均エネルギーが−60dBFS超のフレームだけを名目音高の評価対象にする。**条件を加える前の同じマスク**を全モデルで使い、confidenceで評価分母を減らさない。各行のvoicedFramesを併記し、対象0フレームはnullにする。これは厳密なvoiced/unvoiced注釈ではない。
+- quietは−24dB、noiseはcleanのRMSを基準にした20dB SNRの固定seed白色雑音、反響は35/70msの2tap（0.25/0.1）。実際の部屋IR・マイク・ブラウザ音声処理・伴奏の代用とはしない。
+- confidence無条件の音高一致率、confidence≥0.5でのrecall/precision/coverage、オクターブ誤り、中央値cent誤差・confidence、人工ゼロ末尾の高confidence出力率を分離する。楽器・音源ID・絶対音域（<48、48〜71、≥72）・velocity・条件・phaseで集計。summary内のcasesは**音源×条件×phaseの行数**であり、独立録音の数ではない。
+- 実行はNode内のonnxruntime-web単一スレッドWASMの逐次再生。推論時間を打鍵から通知までの遅延や実時間欠落の測定値にしない。NodeのWASM統合smokeは440Hzの人工信号で、楽器精度の根拠にはしない。
+
+候補比較は同じPCMハッシュ・条件・phase・評価プロトコルを要求する。学習グループが評価instrumentと重なる場合は拒否。各音源×条件×phaseの行と各楽器/音域/条件などで音高一致率・confidence付きrecall・オクターブ誤り・人工無音の誤反応を比較し、1 percentage point超の悪化があれば終了コード1。全体平均の改善だけで合格にしない。学習グループは申告値なので、それ自体が正しいことや、元のPESTOの学習データとの完全非重複を証明する仕組みではない。評価対象フレームがない楽器は判定不能とする。小さいサンプルでの非悪化は追加学習の成功・汎化・本番採用の保証ではない。
+
+追加学習を行う場合は、評価に使った音源ID/歌い手を学習から丸ごと分離し、同じ録音の別音高・加工版も学習へ回さない。調整用validationと最終testをさらに別の楽器個体・歌い手・録音セッションで用意する。今回のsubsetを見て手法を選ぶなら、このsubsetは開発用であり最終testには使わない。複数楽器混合、学習前モデルとの比較、各楽器の悪化確認を必須にし、学習データの使用条件も確認する。
+
+生prediction/confidence/volumeの全フレームを調べる場合は、`PESTO_EVAL_TRACE_DIR=/tmp/pesto-traces`を評価コマンドに付ける。モデルSHA・音源ID・条件ごとにJSONを出力し、名目MIDIと劣化前のclean energyも記録する。保存先は検証用ディレクトリにし、Gitや公開用assetsへ追加しない。

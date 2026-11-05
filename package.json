@@ -41,7 +41,8 @@
     "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs",
     "growth:snapshot": "node growth/snapshot.mjs",
     "growth:links": "node growth/print-acquisition-links.mjs",
-    "postinstall": "node ./scripts/copy-ort-wasm.mjs"
+    "postinstall": "node ./scripts/copy-ort-wasm.mjs",
+    "test:pesto-evaluation": "node --test scripts/pesto/test-multi-instrument.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",
