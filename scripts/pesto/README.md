@@ -147,3 +147,34 @@ NSynth元資料: https://magenta.tensorflow.org/datasets/nsynth （CC BY 4.0）�
 追加学習を行う場合は、評価に使った音源ID/歌い手を学習から丸ごと分離し、同じ録音の別音高・加工版も学習へ回さない。調整用validationと最終testをさらに別の楽器個体・歌い手・録音セッションで用意する。今回のsubsetを見て手法を選ぶなら、このsubsetは開発用であり最終testには使わない。複数楽器混合、学習前モデルとの比較、各楽器の悪化確認を必須にし、学習データの使用条件も確認する。
 
 生prediction/confidence/volumeの全フレームを調べる場合は、`PESTO_EVAL_TRACE_DIR=/tmp/pesto-traces`を評価コマンドに付ける。モデルSHA・音源ID・条件ごとにJSONを出力し、名目MIDIと劣化前のclean energyも記録する。保存先は検証用ディレクトリにし、Gitや公開用assetsへ追加しない。
+
+## 元Python版・ONNX書き出し・音程較正の照合
+
+`scripts/pesto/audit-python-onnx.py`は元チェックポイントと学習済み係数、CQT/log/LayerNorm/logits、音高・voicing confidence・volume・activation・PCM cacheを比較する。元Pythonの既定streaming（zeros）、現行配信に合わせたrefill、未来を参照するoffline、長い履歴を使うcausalも分離する。較正済み384-bin activationを独立したNumPy ALWAでfractional MIDIへ復号し、A4=440Hz・3 bins/semitone・shiftの符号/丸めを確認する。元Pythonの既定値と現行配信は同一の前処理ではない。
+
+```sh
+python3 -m venv /tmp/pesto-audit-venv
+# LinuxのCPU環境。macOSではこの行を省略し、requirementsから通常のtorchを入れる。
+/tmp/pesto-audit-venv/bin/pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+/tmp/pesto-audit-venv/bin/pip install -r scripts/pesto/requirements-audit.txt
+git clone https://github.com/SonyCSLParis/pesto /tmp/pesto-upstream
+git -C /tmp/pesto-upstream checkout 62bc0c9702558f19af4593752947fb9db1eadac9
+npm ci
+python3 scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx
+/tmp/pesto-audit-venv/bin/python -m unittest discover -s scripts/pesto -p test_python_onnx_audit.py -v
+# 上のprepare-multi-instrument.pyで作成した70音源を使用。makeCondition(clean)と同一PCMを固定。
+node scripts/pesto/prepare-parity-inputs.mjs /tmp/pesto-multi/manifest.json /tmp/pesto-parity-inputs
+/tmp/pesto-audit-venv/bin/python scripts/pesto/audit-python-onnx.py \
+  --upstream /tmp/pesto-upstream --manifest /tmp/pesto-parity-inputs/manifest.json \
+  --fresh-export /tmp/pesto-fresh-audit.onnx --output /tmp/pesto-audit.json
+node scripts/pesto/verify-python-wasm-parity.mjs /tmp/pesto-parity-inputs/manifest.json \
+  /tmp/pesto-audit.json /tmp/pesto-audit.web-reference.json /tmp/pesto-wasm.json
+# 人工信号16本の較正検証。楽器精度の根拠にはしない。上と同じPython→WASM照合に入力できる。
+node scripts/pesto/prepare-parity-inputs.mjs --calibration /tmp/pesto-calibration
+```
+
+元ソースのcommit/未変更、checkpoint/model/input SHA-256を検証し、fresh exportはpublic/dist/iOSの配信モデル保存先への上書きを拒否する。既存の`export-pesto-onnx.sh`をこの監査で実行する必要はない。報告JSONに各段の最大差・全音源のattack/sustain・依存ライブラリ版を残す。伴う`.web-reference.json`は全フレームのCPU ONNX出力で、Python照合に合格した同じ入力・モデルだけをWASMで再生する。
+
+機能的な照合の合格条件は音高差≤1cent、confidence差<0.001、volumeの`abs(diff)/max(1,abs(reference))`<0.0001、cache差=0、独立復号との差<0.01cent。activationは別の診断項目で、最大絶対差≥0.001なら`activationAlert`を残す。実録音ではこの監視線を超えたため、「すべての中間値が0.001以内」とは判定しない。中間値のbitwise一致や、全入力での精度保証とも区別する。較正信号16本はCIでもPython→fresh/original/compact→実WASMを照合する。70音源の全再生は上のコマンドで実行する。
+
+数値と判断は[照合レポート](../../docs/pesto-python-onnx-audit-2026-11-05.md)を参照。今回はウェイト、音程補正、配信モデル、ゲーム判定を変更しない。
