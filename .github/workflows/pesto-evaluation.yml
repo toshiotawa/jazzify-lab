@@ -28,3 +28,51 @@ jobs:
         run: python3 scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx
       - name: Replay actual model and check candidate comparison
         run: node scripts/pesto/smoke-multi-instrument.mjs
+  python-onnx-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: SonyCSLParis/pesto
+          ref: 62bc0c9702558f19af4593752947fb9db1eadac9
+          path: .cache/pesto-upstream
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: scripts/pesto/requirements-audit.txt
+      - run: npm ci --no-audit --no-fund
+      - run: pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r scripts/pesto/requirements-audit.txt
+      - run: python -m unittest discover -s scripts/pesto -p test_python_onnx_audit.py -v
+      - run: python scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx
+      - name: Prepare analytic calibration inputs (not instrument accuracy)
+        run: node scripts/pesto/prepare-parity-inputs.mjs --calibration "$RUNNER_TEMP/pesto-calibration"
+      - name: Compare original Python, fresh ONNX export and shipped models
+        run: >-
+          python scripts/pesto/audit-python-onnx.py
+          --upstream .cache/pesto-upstream
+          --manifest "$RUNNER_TEMP/pesto-calibration/manifest.json"
+          --fresh-export "$RUNNER_TEMP/pesto-fresh.onnx"
+          --output "$RUNNER_TEMP/pesto-audit.json"
+      - name: Compare real Web WASM with the Python-verified CPU oracle
+        run: >-
+          node scripts/pesto/verify-python-wasm-parity.mjs
+          "$RUNNER_TEMP/pesto-calibration/manifest.json"
+          "$RUNNER_TEMP/pesto-audit.json"
+          "$RUNNER_TEMP/pesto-audit.web-reference.json"
+          "$RUNNER_TEMP/pesto-wasm.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pesto-python-onnx-audit
+          path: |
+            ${{ runner.temp }}/pesto-audit.json
+            ${{ runner.temp }}/pesto-wasm.json
+          if-no-files-found: ignore
