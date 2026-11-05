@@ -2,9 +2,9 @@ name: PESTO offline evaluation
 on:
   push:
     branches: [stg]
-    paths: ['scripts/pesto/**', 'public/models/pesto/**', 'package.json', 'package-lock.json', '.github/workflows/pesto-evaluation.yml']
+    paths: ['src/utils/pitchInput/**', 'src/utils/__tests__/pitchOnsetTracker.test.ts', 'scripts/pesto/**', 'public/models/pesto/**', 'package.json', 'package-lock.json', '.github/workflows/pesto-evaluation.yml']
   pull_request:
-    paths: ['scripts/pesto/**', 'public/models/pesto/**', 'package.json', 'package-lock.json', '.github/workflows/pesto-evaluation.yml']
+    paths: ['src/utils/pitchInput/**', 'src/utils/__tests__/pitchOnsetTracker.test.ts', 'scripts/pesto/**', 'public/models/pesto/**', 'package.json', 'package-lock.json', '.github/workflows/pesto-evaluation.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run type-check
       - run: npm run lint
+      - name: Audit unused exports (existing repository findings retained in logs)
+        run: npx ts-prune
       - name: Run application regression tests
         run: npm test -- --reporter=dot --testTimeout=30000 --hookTimeout=60000
       - run: npm run test:pesto-evaluation
@@ -85,3 +87,36 @@ jobs:
             ${{ runner.temp }}/pesto-wasm.json
             ${{ runner.temp }}/pesto-padding-smoke.json
           if-no-files-found: ignore
+  onset-drift-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        dataset: [development, holdout]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Prepare SHA-pinned recording subset
+        env:
+          DATASET: ${{ matrix.dataset }}
+        run: |
+          if [ "$DATASET" = development ]; then
+            python3 scripts/pesto/prepare-multi-instrument.py --output "$RUNNER_TEMP/pesto-recordings"
+          else
+            python3 scripts/pesto/prepare-padding-holdout.py --output "$RUNNER_TEMP/pesto-recordings"
+          fi
+      - run: python3 scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx
+      - name: Replay identical raw model outputs through baseline and corrected trackers
+        run: node scripts/pesto/evaluate-onset-drift.mjs "$RUNNER_TEMP/pesto-recordings/manifest.json" "$RUNNER_TEMP/pesto-onset-drift.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pesto-onset-drift-${{ matrix.dataset }}
+          path: ${{ runner.temp }}/pesto-onset-drift.json
+          if-no-files-found: warn

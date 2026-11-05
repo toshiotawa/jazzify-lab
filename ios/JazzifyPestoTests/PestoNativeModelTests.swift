@@ -75,6 +75,71 @@ final class PestoNativeModelTests: XCTestCase {
         add(attachment)
     }
 
+
+    func testSameMidiDriftDoesNotRetrigger() {
+        for midi in [36, 84] {
+            for fastResponse in [false, true] {
+                var config = PitchOnsetTrackerConfig()
+                config.fastResponse = fastResponse
+                let tracker = PitchOnsetTracker(config: config)
+                let offsets = [0.0, 0.41, 0.45, 0.49, -0.41, -0.45, -0.49, 0.45, 0.0]
+                var events = [PitchInputEvent]()
+                for (index, offset) in offsets.enumerated() {
+                    events += tracker.processFrame(PitchFrame(
+                        prediction: Double(midi) + offset, confidence: 0.99, volume: 0.01
+                    ), frameIndex: index)
+                }
+                XCTAssertEqual(events, [.noteOn(note: midi, frameIndex: 0, onsetFrameIndex: 0)])
+                XCTAssertEqual(tracker.getCurrentNote(), midi)
+            }
+        }
+    }
+
+    func testRealSemitoneLegatoSurvivesSameMidiDriftFix() {
+        for fastResponse in [false, true] {
+            var config = PitchOnsetTrackerConfig()
+            config.fastResponse = fastResponse
+            let tracker = PitchOnsetTracker(config: config)
+            var notes = [Int]()
+            for (index, midi) in [60.45, 60.45, 61.05, 61.05, 60.05, 60.05].enumerated() {
+                for event in tracker.processFrame(PitchFrame(
+                    prediction: midi, confidence: 0.99, volume: 0.01
+                ), frameIndex: index) {
+                    if case let .noteOn(note, _, _) = event { notes.append(note) }
+                }
+            }
+            XCTAssertEqual(notes, [60, 61, 60])
+        }
+    }
+
+    func testSameMidiDriftStillAllowsRealAttackAndRelease() {
+        var config = PitchOnsetTrackerConfig()
+        config.retriggerGuardFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        var onsets = [Int]()
+        for (index, volume) in [0.01, 0.01, 0.01, 0.001, 0.001, 0.01, 0.01].enumerated() {
+            for event in tracker.processFrame(PitchFrame(
+                prediction: 60.45, confidence: 0.99, volume: volume
+            ), frameIndex: index) {
+                if case let .noteOn(note, frameIndex, _) = event {
+                    XCTAssertEqual(note, 60)
+                    onsets.append(frameIndex)
+                }
+            }
+        }
+        XCTAssertEqual(onsets, [0, 5])
+        var releases = [Int]()
+        for index in 7..<20 {
+            for event in tracker.processFrame(PitchFrame(
+                prediction: 0, confidence: 0, volume: 1e-8
+            ), frameIndex: index) {
+                if case let .noteOff(note, _) = event { releases.append(note) }
+            }
+        }
+        XCTAssertEqual(releases, [60])
+        XCTAssertEqual(tracker.getCurrentNote(), -1)
+    }
+
     private func originalRun(session: ORTSession, audio: [Float], cache: UnsafeMutablePointer<Float>) throws -> [String: ORTValue] {
         // Baseline intentionally creates fresh wrappers, matching the previous engine.
         let storage = audio.withUnsafeBytes { NSMutableData(bytes: $0.baseAddress, length: $0.count) }
