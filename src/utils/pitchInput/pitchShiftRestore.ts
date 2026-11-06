@@ -9,6 +9,6 @@ export const restoreConcertMidi = (
     return null;
   }
   const concert = modelMidi - shiftSemitones;
-  if (concert <= 0 || concert >= 128) return null;
+  if (concert <= 0 || concert >= 127.5) return null;
   return concert;
 };

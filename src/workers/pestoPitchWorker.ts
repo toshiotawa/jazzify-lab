@@ -492,15 +492,13 @@ const emitTrackerEvents = (
     return;
   }
 
-  const trackerFrame = concertMidi !== null
-    ? {
-      prediction: concertMidi,
-      confidence: frame.confidence,
-      volume: frame.volume,
-      attackDb,
-      attackMidi,
-    }
-    : { ...frame, attackDb, attackMidi };
+  const trackerFrame = {
+    prediction: concertMidi ?? 0,
+    confidence: frame.confidence,
+    volume: frame.volume,
+    attackDb,
+    attackMidi,
+  };
 
   const events = tracker.processFrame(trackerFrame, frameIndex);
   if (frameTraceEnabled) {

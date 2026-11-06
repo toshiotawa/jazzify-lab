@@ -40,6 +40,97 @@ final class PestoDecimatorTests: XCTestCase {
         }
     }
 
+    func testEverySourceChunkContributesToAttackAtAllInferenceRates() {
+        for q in [1, 2, 4] {
+            let decimator = PestoDecimatorState(q: q)
+            let envelope = PitchAttackEnvelope()
+            let reference = PitchAttackEnvelope()
+            let targets = PitchAttackEnvelopeTargets(repeatPitchClassMask: 1, expectedPitchMidis: [36])
+            for chunk in 0..<24 {
+                // In low mode this burst falls entirely between ONNX calls.
+                var samples = (0..<240).map { i -> Float in
+                    guard chunk % q == 0 else { return 0 }
+                    return Float(0.1 * sin(2 * Double.pi * 65.406 * Double(chunk * 240 + i) / 48000))
+                }
+                samples.withUnsafeMutableBufferPointer { pcm in
+                    guard let base = pcm.baseAddress else { return XCTFail("Empty PCM") }
+                    reference.pushSamples(base, count: pcm.count)
+                    let model = PitchInputEngine.prepareModelInput(source: base, count: pcm.count,
+                        decimator: decimator, envelope: envelope)
+                    XCTAssertEqual(model != nil, (chunk + 1) % q == 0)
+                    if model != nil {
+                        let expected = reference.computeAttackDb(targets: targets)
+                        XCTAssertGreaterThan(expected, -110)
+                        XCTAssertEqual(envelope.computeAttackDb(targets: targets), expected, accuracy: 1e-8)
+                    }
+                }
+            }
+            envelope.reset()
+            XCTAssertEqual(envelope.computeAttackDb(targets: targets), -120)
+            let silence = [Float](repeating: 0, count: 240)
+            silence.withUnsafeBufferPointer { pcm in
+                if let base = pcm.baseAddress { envelope.pushSamples(base, count: pcm.count) }
+            }
+            XCTAssertEqual(envelope.computeAttackDb(targets: targets), -120)
+        }
+    }
+
+    func testLowRegisterAttackBetweenInferenceCallsCanRetriggerAHeldNote() {
+        for q in [2, 4] {
+            let decimator = PestoDecimatorState(q: q)
+            let envelope = PitchAttackEnvelope()
+            let previousEnvelope = PitchAttackEnvelope()
+            let targets = PitchAttackEnvelopeTargets(repeatPitchClassMask: 1, expectedPitchMidis: [36])
+            var config = PitchOnsetTrackerConfig()
+            config.frameDurationMs = Double(q * 5)
+            let trackers = [PitchOnsetTracker(config: config), PitchOnsetTracker(config: config)]
+            for tracker in trackers {
+                tracker.setExpectedPitchCandidates(mask: 1, midis: [36], repeatPitchClassMask: 1)
+            }
+            var onsets = [[Int](), [Int]()]
+            for observation in 0..<14 {
+                let amplitude = observation < 6 || observation >= 12 ? 0.1 : 0.0001
+                for part in 0..<q {
+                    // A 5ms attack in the first chunk. The final chunk of each group is silent.
+                    var pcm = (0..<240).map { i -> Float in
+                        part == 0 ? Float(amplitude * sin(2 * Double.pi * 65.406 * Double(i) / 48000)) : 0
+                    }
+                    pcm.withUnsafeMutableBufferPointer { buffer in
+                        guard let base = buffer.baseAddress else { return XCTFail("Empty PCM") }
+                        guard PitchInputEngine.prepareModelInput(source: base, count: buffer.count,
+                            decimator: decimator, envelope: envelope) != nil else { return }
+                        previousEnvelope.pushSamples(base, count: buffer.count)
+                        for (i, source) in [previousEnvelope, envelope].enumerated() {
+                            let frame = PitchFrame(prediction: 36, confidence: 0.99, volume: 0.01,
+                                                   attackDb: source.computeAttackDb(targets: targets))
+                            for event in trackers[i].processFrame(frame, frameIndex: observation) {
+                                if case let .noteOn(_, index, _) = event { onsets[i].append(index) }
+                            }
+                        }
+                    }
+                }
+            }
+            XCTAssertEqual(onsets[0], [1])
+            XCTAssertEqual(onsets[1], [1, 12])
+        }
+    }
+
+    func testUnrestorableModelPredictionCannotEmitANote() {
+        for (shift, invalid) in [(0, 127.5), (12, 10.0), (24, 24.0)] {
+            let tracker = PitchOnsetTracker()
+            var notes = [Int]()
+            for index in 0..<12 {
+                let raw = index < 6 ? invalid : Double(36 + shift)
+                let pitch = PitchInputEngine.trackerPitch(modelMidi: raw, shift: shift)
+                for event in tracker.processFrame(PitchFrame(prediction: pitch, confidence: 0.99, volume: 0.1), frameIndex: index) {
+                    if case let .noteOn(note, _, _) = event { notes.append(note) }
+                }
+            }
+            XCTAssertEqual(notes, [36])
+        }
+        XCTAssertEqual(PitchInputEngine.trackerPitch(modelMidi: 127.49, shift: 0), 127.49)
+    }
+
     func testNewStateDiscardsPartialLowRegisterHistory() {
         let partial = PestoDecimatorState(q: 4)
         var input = [Float](repeating: 0.25, count: 240)
