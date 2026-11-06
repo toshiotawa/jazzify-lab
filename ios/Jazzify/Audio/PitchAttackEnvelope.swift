@@ -11,40 +11,48 @@ struct PitchAttackEnvelopeTargets {
 }
 
 final class PitchAttackEnvelope {
-    private let ring: [Float]
+    private var orderedScratch: [Float]
     private let hannWindow: [Float]
     private var writeIndex = 0
     private var filled = 0
     private var mutableRing: [Float]
 
     init(windowSamples: Int = PitchAttackEnvelopeConstants.windowSamples) {
-        ring = Array(repeating: 0, count: windowSamples)
-        mutableRing = ring
+        orderedScratch = Array(repeating: 0, count: windowSamples)
+        mutableRing = Array(repeating: 0, count: windowSamples)
         hannWindow = Self.buildHannWindow(size: windowSamples)
     }
 
     func reset() {
-        mutableRing = Array(repeating: 0, count: mutableRing.count)
         writeIndex = 0
         filled = 0
     }
 
     func pushSamples(_ samples: UnsafePointer<Float>, count: Int) {
-        for index in 0..<count {
-            mutableRing[writeIndex] = samples[index]
-            writeIndex = (writeIndex + 1) % mutableRing.count
-            filled = min(mutableRing.count, filled + 1)
+        let capacity = mutableRing.count
+        let copied = min(count, capacity)
+        guard copied > 0 else { return }
+        let source = samples.advanced(by: count - copied)
+        let first = min(copied, capacity - writeIndex)
+        mutableRing.withUnsafeMutableBufferPointer { ring in
+            guard let base = ring.baseAddress else { return }
+            base.advanced(by: writeIndex).update(from: source, count: first)
+            if first < copied {
+                base.update(from: source.advanced(by: first), count: copied - first)
+            }
         }
+        writeIndex = (writeIndex + copied) % capacity
+        filled = min(capacity, filled + copied)
     }
 
     func computeAttackDb(targets: PitchAttackEnvelopeTargets) -> Double {
         guard filled > 0 else { return -120 }
         let sampleCount = filled
-        let ordered = orderedWindow(sampleCount: sampleCount)
+        copyOrderedWindow(sampleCount: sampleCount)
         let targetMidis = resolveTargetMidis(targets: targets)
         if targetMidis.isEmpty {
             return Self.energyToDb(Self.computeWindowRmsEnergy(
-                samples: ordered,
+                samples: orderedScratch,
                 window: hannWindow,
                 sampleCount: sampleCount
             ))
@@ -53,13 +61,13 @@ final class PitchAttackEnvelope {
         for midi in targetMidis {
             let fundamentalHz = Self.midiToHz(midi)
             combinedEnergy += Self.goertzelEnergy(
-                samples: ordered,
+                samples: orderedScratch,
                 window: hannWindow,
                 sampleCount: sampleCount,
                 targetHz: fundamentalHz
             )
             combinedEnergy += Self.goertzelEnergy(
-                samples: ordered,
+                samples: orderedScratch,
                 window: hannWindow,
                 sampleCount: sampleCount,
                 targetHz: fundamentalHz * 2
@@ -68,13 +76,11 @@ final class PitchAttackEnvelope {
         return Self.energyToDb(combinedEnergy / Double(targetMidis.count))
     }
 
-    private func orderedWindow(sampleCount: Int) -> [Float] {
-        var ordered = Array(repeating: Float(0), count: sampleCount)
+    private func copyOrderedWindow(sampleCount: Int) {
         let start = filled < mutableRing.count ? 0 : writeIndex
         for index in 0..<sampleCount {
-            ordered[index] = mutableRing[(start + index) % mutableRing.count]
+            orderedScratch[index] = mutableRing[(start + index) % mutableRing.count]
         }
-        return ordered
     }
 
     private func resolveTargetMidis(targets: PitchAttackEnvelopeTargets) -> [Int] {

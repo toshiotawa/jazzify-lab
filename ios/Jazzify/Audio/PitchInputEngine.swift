@@ -284,11 +284,21 @@ final class PitchInputEngine: @unchecked Sendable {
         applyTrackerConfig()
     }
 
-    private static func restoreConcertMidi(modelMidi: Double, shift: Int) -> Double? {
-        guard modelMidi.isFinite, modelMidi > 0, modelMidi < 128 else { return nil }
+    /// Zero is the tracker's unpitched sentinel. Rounded MIDI must fit in 0...127.
+    static func trackerPitch(modelMidi: Double, shift: Int) -> Double {
+        guard modelMidi.isFinite, modelMidi > 0, modelMidi < 128 else { return 0 }
         let concert = modelMidi - Double(shift)
-        guard concert > 0, concert < 128 else { return nil }
+        guard concert > 0, concert < 127.5 else { return 0 }
         return concert
+    }
+
+    /// The envelope always observes consecutive 48 kHz PCM, even between low-mode inferences.
+    static func prepareModelInput(source: UnsafeMutablePointer<Float>, count: Int,
+                                  decimator: PestoDecimatorState, envelope: PitchAttackEnvelope) -> UnsafeMutablePointer<Float>? {
+        envelope.pushSamples(source, count: count)
+        guard decimator.q > 1 else { return source }
+        decimator.accumulate(source: source, count: count)
+        return decimator.outputReady ? decimator.modelInputBase : nil
     }
 
     // MARK: - 購読
@@ -1127,17 +1137,8 @@ final class PitchInputEngine: @unchecked Sendable {
         let cacheCount = Self.cacheElementCount
         let slotBase = chunkPool + chunk.slot * chunkSize
 
-        if decimationFactor > 1 {
-            decimator.accumulate(source: slotBase, count: chunkSize)
-            guard decimator.outputReady else { return }
-        }
-
-        let modelBase: UnsafeMutablePointer<Float>
-        if decimationFactor > 1 {
-            modelBase = decimator.modelInputBase
-        } else {
-            modelBase = slotBase
-        }
+        guard let modelBase = Self.prepareModelInput(source: slotBase, count: chunkSize,
+                                                     decimator: decimator, envelope: attackEnvelope) else { return }
 
         do {
             // Stable tensor storage avoids two ORTValue/NSMutableData wrappers per inference.
@@ -1168,8 +1169,6 @@ final class PitchInputEngine: @unchecked Sendable {
 
             updateMonitorVolume(volume)
 
-            // 包絡もウォームアップ中に満たし、窓の充填を再アタックと誤認しない。
-            attackEnvelope.pushSamples(slotBase, count: chunkSize)
             if suppressTracker {
                 if warmupFramesRemaining > 0 {
                     warmupFramesRemaining -= 1
@@ -1186,9 +1185,8 @@ final class PitchInputEngine: @unchecked Sendable {
                 expectedPitchMidis: expectedPitchMidisForEnvelope
             ))
 
-            let concertMidi = Self.restoreConcertMidi(modelMidi: rawPrediction, shift: shiftSemitones)
             let frame = PitchFrame(
-                prediction: concertMidi ?? rawPrediction,
+                prediction: Self.trackerPitch(modelMidi: rawPrediction, shift: shiftSemitones),
                 confidence: confidence,
                 volume: volume,
                 attackDb: attackDb

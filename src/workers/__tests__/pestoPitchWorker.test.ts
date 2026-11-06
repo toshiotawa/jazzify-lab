@@ -60,6 +60,30 @@ describe('PESTO worker buffer recovery', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it.each([
+    { shift: 0, invalid: 127.5 },
+    { shift: 12, invalid: 10 },
+    { shift: 24, invalid: 24 },
+  ] as const)('drops unrestorable model notes and recovers at shift $shift', async ({ shift, invalid }) => {
+    await control({ type: 'init', sensitivity: 5, inferenceIntervalMs: 5, generationId: 1, shiftSemitones: shift });
+    let prediction: number = invalid;
+    run.mockImplementation(async () => output(prediction));
+    let sequence = 0;
+    const feed = async (count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        const buffer = send(sequence++);
+        await vi.waitFor(() => expect(recycled()).toContain(buffer), { interval: 1 });
+      }
+    };
+    await feed(36);
+    const notes = () => worker.postMessage.mock.calls
+      .filter(([message]) => message.type === 'noteOn').map(([message]) => message.note);
+    expect(notes()).toEqual([]);
+    prediction = 36 + shift;
+    await feed(24);
+    expect(notes()).toEqual([36]);
+  });
+
   it.each([10, 20] as const)('preserves all PCM at %sms and matches the 5ms model inputs', async (interval) => {
     const frames: { audio: Float32Array; cache: Float32Array }[] = [];
     run.mockImplementation(async (feeds: { audio: { data: Float32Array }; cache: { data: Float32Array } }) => {

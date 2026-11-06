@@ -63,6 +63,8 @@ try {
       const trackers = [new baselineModule.PitchOnsetTracker(), new candidateModule.PitchOnsetTracker()];
       const envelopes = trackers.map(() => new envelopeModule.PitchAttackEnvelope());
       const events = [[], []];
+      // A shared clean-energy mask and the default free-play start thresholds.
+      const gates = { audible: 0, correctPitch: 0, correctAndLoud: 0, correctAndConfident: 0, all: 0 };
       cache.fill(0);
       for (let start = 0, index = 0; start + 240 <= input.audio.length; start += 240, index += 1) {
         audio.set(input.audio.subarray(start, start + 240));
@@ -80,6 +82,21 @@ try {
           frameCount += 1;
           // Match the worker's four-frame cold-start suppression at 5ms, shift=0.
           if (index < 4) continue;
+          if ((start + 240) / 48000 <= input.duration) {
+            const energy = input.clean.subarray(start, start + 240).reduce((sum, x) => sum + x * x, 0) / 240;
+            if (energy > 1e-6) {
+              gates.audible += 1;
+              if (Math.round(frame.prediction) === item.midi) {
+                gates.correctPitch += 1;
+                const config = candidateModule.DEFAULT_ONSET_CONFIG;
+                const loud = 10 * Math.log10(Math.max(frame.volume, 1e-12)) > config.onsetLevelDb;
+                const confident = frame.confidence >= config.minConfidence;
+                if (loud) gates.correctAndLoud += 1;
+                if (confident) gates.correctAndConfident += 1;
+                if (loud && confident) gates.all += 1;
+              }
+            }
+          }
           for (let variant = 0; variant < trackers.length; variant += 1) {
             const tracker = trackers[variant];
             const attackMidi = tracker.getAttackReferenceNote();
@@ -91,7 +108,17 @@ try {
         } finally { for (const tensor of Object.values(output)) tensor.dispose(); }
       }
       const before = metrics(events[0], item.midi), after = metrics(events[1], item.midi);
-      const trial = { id: item.id, family: item.family, instrument: item.instrument, midi: item.midi,
+      let missReason = null;
+      if (after.firstCorrectMs === null) {
+        if (!gates.audible) missReason = 'no-active-reference';
+        else if (!gates.correctPitch) missReason = 'no-correct-raw-pitch';
+        else if (gates.all) missReason = 'eligible-frame-without-notification';
+        else if (!gates.correctAndLoud && !gates.correctAndConfident) missReason = 'level-and-confidence';
+        else if (!gates.correctAndLoud) missReason = 'level';
+        else if (!gates.correctAndConfident) missReason = 'confidence';
+        else missReason = 'gates-passed-on-different-frames';
+      }
+      const trial = { gates, missReason, id: item.id, family: item.family, instrument: item.instrument, midi: item.midi,
         range: rangeFor(item.midi), velocity: item.velocity, condition,
         conditionPcmSha256: sha(new Uint8Array(input.audio.buffer)), before, after,
         baselineEvents: events[0], candidateEvents: events[1] };
@@ -112,12 +139,17 @@ const totals = (rows, side) => ({ trials: rows.length,
     field, rows.reduce((sum, row) => sum + row[side][field], 0),
   ])) });
 const summary = { before: totals(trials, 'before'), after: totals(trials, 'after') };
+const missed = (rows) => {
+  const counts = {};
+  for (const row of rows) if (row.missReason) counts[row.missReason] = (counts[row.missReason] ?? 0) + 1;
+  return counts;
+};
 const groups = {};
 for (const dimension of ['family', 'instrument', 'range', 'condition', 'velocity']) {
   groups[dimension] = {};
   for (const value of new Set(trials.map((row) => String(row[dimension])))) {
     const rows = trials.filter((row) => String(row[dimension]) === value);
-    groups[dimension][value] = { before: totals(rows, 'before'), after: totals(rows, 'after') };
+    groups[dimension][value] = { before: totals(rows, 'before'), after: totals(rows, 'after'), misses: missed(rows) };
   }
 }
 const report = {
@@ -131,10 +163,10 @@ const report = {
     'Existing inspected source groups, not a fresh blind test or live-microphone evaluation.',
     'No raw pitch or model-weight change; this comparison evaluates event handling only.',
   ],
-  decoder: manifest.decoder, fixtures: manifest.cases, summary, groups, regressions, trials,
+  misses: missed(trials), decoder: manifest.decoder, fixtures: manifest.cases, summary, groups, regressions, trials,
 };
 await writeFile(outputPath, JSON.stringify(report, null, 2) + '\n');
-const brief = JSON.stringify({ frameCount, summary, family: groups.family, regressions }, null, 2);
+const brief = JSON.stringify({ frameCount, summary, misses: missed(trials), family: groups.family, regressions }, null, 2);
 process.stdout.write(brief + '\n');
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, '### Same-note drift replay\n\n~~~json\n' + brief + '\n~~~\n');
 if (regressions.length) process.exitCode = 1;
