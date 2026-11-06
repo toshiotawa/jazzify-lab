@@ -331,7 +331,8 @@ export class PitchOnsetTracker {
           );
         }
       } else if (
-        !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
+        quantized !== this.currentNote
+        && !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
         if (this.shouldTreatRepeatModePitchWobble(quantized)) {
           this.updateRepeatPeakAndDip(levelDb, attackLevelDb, frameIndex);

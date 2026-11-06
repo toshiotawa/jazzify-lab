@@ -232,7 +232,8 @@ final class PitchOnsetTracker {
                         attackLevelDb: attackLevelDb
                     )
                 }
-            } else if !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
+            } else if quantized != currentNote
+                && !pitchMatch(frame.prediction, Double(currentNote), config.centsTolerance) {
                 if shouldTreatRepeatModePitchWobble(quantized: quantized) {
                     updateRepeatPeakAndDip(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
                     trackRecentMinDb(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)

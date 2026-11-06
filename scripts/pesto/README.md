@@ -221,3 +221,7 @@ python3 scripts/pesto/prepare-multi-instrument.py --output /tmp/pesto-padding-de
 ```
 
 配列の評価行は`scoreColumns`/`timingColumns`に列定義を持つ。ONNXとPythonで整数評価指標が違う場合は`backendMetricDisagreements`へ別保存する。全区間の音高最大差は`onnxSourceParity`に残すため、ほぼ無音での厳密照合失敗を、評価集計の一致で隠さない。
+
+## 同音のピッチ揺れと通知処理
+
+[修正と再現手順](../../docs/pesto-onset-drift.md)を参照。生音程の評価とは分け、同じモデル出力を変更前後のtrackerへ再生する。モデルのウェイトと較正は変更しない。
