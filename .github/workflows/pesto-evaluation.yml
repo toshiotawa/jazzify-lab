@@ -96,6 +96,12 @@ jobs:
         dataset: [development, holdout]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: f92333ab3feb120a6c123c8c602b428b36fdd9fb
+          path: .cache/pesto-onset-reference
+          sparse-checkout: src/utils/pitchInput/pitchOnsetTracker.ts
+          sparse-checkout-cone-mode: false
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -113,6 +119,8 @@ jobs:
           fi
       - run: python3 scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx
       - name: Replay identical raw model outputs through baseline and corrected trackers
+        env:
+          PESTO_REFERENCE_TRACKER: .cache/pesto-onset-reference/src/utils/pitchInput/pitchOnsetTracker.ts
         run: |
           for shift in 0 12 24; do
             node scripts/pesto/evaluate-onset-drift.mjs "$RUNNER_TEMP/pesto-recordings/manifest.json" "$RUNNER_TEMP/pesto-onset-drift-$shift.json" "$shift"

@@ -582,7 +582,7 @@ describe('PitchOnsetTracker', () => {
     const events = tracker.processFrame(loud, 4);
     expect(events).toEqual([
       { type: 'noteOff', note: 60, frameIndex: 4 },
-      { type: 'noteOn', note: 60, frameIndex: 4, onsetFrameIndex: 2 },
+      { type: 'noteOn', note: 60, frameIndex: 4, onsetFrameIndex: 4 },
     ]);
   });
 

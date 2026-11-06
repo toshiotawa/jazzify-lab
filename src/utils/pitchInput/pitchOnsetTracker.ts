@@ -127,8 +127,6 @@ export class PitchOnsetTracker {
   private pitchStableStartFrame = -1;
   private lastStableNote = -1;
   private releaseCount = 0;
-  private recentMinDb = Infinity;
-  private recentMinDbFrame = -1;
   private recentLevelDbRing: number[] = [];
   private pendingOff = false;
   private pendingOffFrame = -1;
@@ -196,8 +194,6 @@ export class PitchOnsetTracker {
     this.pitchStableStartFrame = -1;
     this.lastStableNote = -1;
     this.releaseCount = 0;
-    this.recentMinDb = Infinity;
-    this.recentMinDbFrame = -1;
     this.recentLevelDbRing = [];
     this.pendingOff = false;
     this.pendingOffFrame = -1;
@@ -336,11 +332,11 @@ export class PitchOnsetTracker {
       ) {
         if (this.shouldTreatRepeatModePitchWobble(quantized)) {
           this.updateRepeatPeakAndDip(levelDb, attackLevelDb, frameIndex);
-          this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+          this.recordLevels(levelDb, attackLevelDb, frameIndex);
           this.tryRetrigger(events, levelDb, attackLevelDb, frameIndex);
         } else if (this.shouldHoldRepeatModeUnexpectedPitch(quantized)) {
           this.updateRepeatTroughOnly(levelDb, attackLevelDb, frameIndex);
-          this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+          this.recordLevels(levelDb, attackLevelDb, frameIndex);
         } else {
           const octaveRelated = this.isOctaveRelatedJump(quantized);
           if (octaveRelated && this.isLikelyOctaveJump(quantized, levelDb, attackLevelDb, frame.confidence)) {
@@ -367,7 +363,7 @@ export class PitchOnsetTracker {
       } else {
         if (this.isRepeatPitchClassActive(this.currentNote)) {
           this.updateRepeatPeakAndDip(levelDb, attackLevelDb, frameIndex);
-          this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+          this.recordLevels(levelDb, attackLevelDb, frameIndex);
         }
         this.tryRetrigger(events, levelDb, attackLevelDb, frameIndex);
       }
@@ -376,7 +372,7 @@ export class PitchOnsetTracker {
       this.pitchStableStartFrame = -1;
       this.lastStableNote = -1;
       if (this.currentNote >= 0 || this.suspendedNote >= 0) {
-        this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+        this.recordLevels(levelDb, attackLevelDb, frameIndex);
       }
       const repeatNote = this.currentNote >= 0 ? this.currentNote : this.suspendedNote;
       if (repeatNote >= 0 && this.isRepeatPitchClassActive(repeatNote)) {
@@ -535,8 +531,6 @@ export class PitchOnsetTracker {
     this.currentNote = note;
     this.noteOnFrame = frameIndex;
     this.lastNoteOnFrame = frameIndex;
-    this.recentMinDb = Infinity;
-    this.recentMinDbFrame = -1;
     this.recentLevelDbRing = [];
     this.recentFrameRing = [];
     this.suspendedNote = -1;
@@ -647,15 +641,6 @@ export class PitchOnsetTracker {
     return start;
   }
 
-  private recentLevelRiseWithinLookback(levelDb: number, lookbackFrames: number): number {
-    const start = this.recentLookbackStart(lookbackFrames);
-    let minRecent = levelDb;
-    for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
-      minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
-    }
-    return levelDb - minRecent;
-  }
-
   private hasRepeatModeAttack(attackLevelDb: number): boolean {
     if (!this.dippedFromPeak) return false;
     if (attackLevelDb - this.noteTroughAttackDb < this.config.repeatRiseDb) return false;
@@ -711,7 +696,7 @@ export class PitchOnsetTracker {
     }
   }
 
-  private trackRecentMinDb(
+  private recordLevels(
     levelDb: number,
     attackLevelDb: number,
     frameIndex: number,
@@ -733,20 +718,20 @@ export class PitchOnsetTracker {
     if (this.recentAttackDbRing.length > maxRing) {
       this.recentAttackDbRing.shift();
     }
-    if (levelDb < this.recentMinDb) {
-      this.recentMinDb = levelDb;
-      this.recentMinDbFrame = frameIndex;
+  }
+
+  private recentTroughIndex(): number {
+    const start = this.recentLookbackStart(this.config.retriggerLookbackFrames);
+    let trough = -1;
+    for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
+      if (trough < 0 || this.recentLevelDbRing[i] <= this.recentLevelDbRing[trough]) trough = i;
     }
+    return trough;
   }
 
   private recentLevelRise(levelDb: number): number {
-    const lookback = this.config.retriggerLookbackFrames;
-    const start = this.recentLookbackStart(lookback);
-    let minRecent = levelDb;
-    for (let i = start; i < this.recentLevelDbRing.length; i += 1) {
-      minRecent = Math.min(minRecent, this.recentLevelDbRing[i] ?? levelDb);
-    }
-    return levelDb - minRecent;
+    const trough = this.recentTroughIndex();
+    return trough < 0 ? 0 : Math.max(0, levelDb - this.recentLevelDbRing[trough]);
   }
 
   private resolveRepeatModeOnsetFrameIndex(frameIndex: number): number {
@@ -770,7 +755,7 @@ export class PitchOnsetTracker {
     if (this.currentNote < 0) return;
     if (frameIndex - this.lastNoteOnFrame < this.config.retriggerGuardFrames) {
       if (!this.isRepeatPitchClassActive(this.currentNote)) {
-        this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
+        this.recordLevels(levelDb, attackLevelDb, frameIndex);
       }
       return;
     }
@@ -785,16 +770,16 @@ export class PitchOnsetTracker {
       return;
     }
 
-    this.trackRecentMinDb(levelDb, attackLevelDb, frameIndex);
-    const rise = this.recentLevelRise(levelDb);
-    if (rise >= this.config.attackRiseDb
+    this.recordLevels(levelDb, attackLevelDb, frameIndex);
+    const trough = this.recentTroughIndex();
+    if (trough >= 0 && levelDb - this.recentLevelDbRing[trough] >= this.config.attackRiseDb
       && (!this.config.retriggerRequiresPitchBandRise
         || this.recentAttackRiseWithinLookback(attackLevelDb, this.config.retriggerLookbackFrames)
           >= this.config.attackRiseDb)) {
       const note = this.currentNote;
       const onsetFrameIndex = Math.max(
         this.lastNoteOnFrame + 1,
-        this.recentMinDbFrame + 1,
+        Math.min(frameIndex, this.recentFrameRing[trough] + 1),
       );
       this.emitNoteOff(events, note, frameIndex);
       this.emitNoteOn(events, note, frameIndex, onsetFrameIndex, levelDb, attackLevelDb);
