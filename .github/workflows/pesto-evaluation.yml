@@ -113,10 +113,13 @@ jobs:
           fi
       - run: python3 scripts/pesto/materialize-pesto-model.py --output dist/models/pesto/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx
       - name: Replay identical raw model outputs through baseline and corrected trackers
-        run: node scripts/pesto/evaluate-onset-drift.mjs "$RUNNER_TEMP/pesto-recordings/manifest.json" "$RUNNER_TEMP/pesto-onset-drift.json"
+        run: |
+          for shift in 0 12 24; do
+            node scripts/pesto/evaluate-onset-drift.mjs "$RUNNER_TEMP/pesto-recordings/manifest.json" "$RUNNER_TEMP/pesto-onset-drift-$shift.json" "$shift"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pesto-onset-drift-${{ matrix.dataset }}
-          path: ${{ runner.temp }}/pesto-onset-drift.json
+          path: ${{ runner.temp }}/pesto-onset-drift-*.json
           if-no-files-found: warn
