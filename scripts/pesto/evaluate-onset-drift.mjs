@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Offline-only replay: both trackers consume identical raw model outputs.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFile, writeFile, appendFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
@@ -21,14 +22,20 @@ const loadTs = async (source) => {
   return import('data:text/javascript;base64,' + Buffer.from(result.outputText).toString('base64'));
 };
 const candidateSource = await readFile(new URL('src/utils/pitchInput/pitchOnsetTracker.ts', root), 'utf8');
+// Read the historical tracker independently of future candidate edits.
+const referenceCommit = 'f92333ab3feb120a6c123c8c602b428b36fdd9fb';
+const trackerPath = 'src/utils/pitchInput/pitchOnsetTracker.ts';
+const referenceSource = process.env.PESTO_REFERENCE_TRACKER
+  ? await readFile(process.env.PESTO_REFERENCE_TRACKER, 'utf8')
+  : execFileSync('git', ['show', referenceCommit + ':' + trackerPath], { cwd: root, encoding: 'utf8' });
 const guard = '        quantized !== this.currentNote\r\n        && !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)';
-assert.equal(candidateSource.split(guard).length, 2, 'Expected the precise same-MIDI guard once');
-const baselineSource = candidateSource.replace(guard, '        !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)');
+assert.equal(referenceSource.split(guard).length, 2, 'Expected the precise same-MIDI guard once');
+const baselineSource = referenceSource.replace(guard, '        !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)');
 const baselineBytes = Buffer.from(baselineSource);
 const baselineBlob = createHash('sha1').update('blob ' + baselineBytes.length + '\0').update(baselineBytes).digest('hex');
 assert.equal(baselineBlob, '0a3b786295c3c8d5709bdf0f59372bd802a8214c', 'Baseline must match cf144d2 exactly');
-const [baselineModule, candidateModule, envelopeModule, decimation, restoration] = await Promise.all([
-  loadTs(baselineSource), loadTs(candidateSource),
+const [baselineModule, referenceModule, candidateModule, envelopeModule, decimation, restoration] = await Promise.all([
+  loadTs(baselineSource), loadTs(referenceSource), loadTs(candidateSource),
   loadTs(await readFile(new URL('src/utils/pitchInput/pitchAttackEnvelope.ts', root), 'utf8')),
   loadTs(await readFile(new URL('src/utils/pitchInput/pestoDecimator.ts', root), 'utf8')),
   loadTs(await readFile(new URL('src/utils/pitchInput/pitchShiftRestore.ts', root), 'utf8')),
@@ -49,6 +56,7 @@ const audioTensor = new ort.Tensor('float32', audio, [1, 240]);
 const cacheTensor = new ort.Tensor('float32', cache, [1, 3976]);
 const trials = [], regressions = [];
 let frameCount = 0;
+let retimedOnsets = 0;
 const metrics = (events, midi) => {
   const correct = events.filter(([note]) => note === midi);
   return { noteOns: events.length, wrongNoteOns: events.length - correct.length,
@@ -65,13 +73,13 @@ try {
     for (const condition of conditions) {
       const input = makeCondition(pcm, condition);
       // At +0 retain the historical same-note comparison. In low modes isolate concert restoration.
-      const previous = shift === 0 ? baselineModule : candidateModule;
+      const previous = shift === 0 ? baselineModule : referenceModule;
       const config = { frameDurationMs: 5 * factor, allowImmediateFirstFrame: factor === 1 };
-      const trackers = [new previous.PitchOnsetTracker(config), new candidateModule.PitchOnsetTracker(config)];
+      const trackers = [new previous.PitchOnsetTracker(config), new candidateModule.PitchOnsetTracker(config), new referenceModule.PitchOnsetTracker(config)];
       const decimator = decimation.createPestoDecimatorState(factor);
       let observation = 0;
       const envelopes = trackers.map(() => new envelopeModule.PitchAttackEnvelope());
-      const events = [[], []];
+      const events = [[], [], []];
       // A shared clean-energy mask and the default free-play start thresholds.
       const gates = { audible: 0, correctPitch: 0, correctAndLoud: 0, correctAndConfident: 0, all: 0 };
       cache.fill(0);
@@ -119,10 +127,21 @@ try {
             const attackMidi = tracker.getAttackReferenceNote();
             const attackDb = envelopes[variant].computeAttackDb(attackMidi);
             for (const event of tracker.processFrame({ ...frame, prediction: variant === 0 ? previousPitch : concert, attackMidi, attackDb }, observation)) {
-              if (event.type === 'noteOn') events[variant].push([event.note, event.frameIndex * 5 * factor]);
+              if (event.type === 'noteOn') events[variant].push([event.note, event.frameIndex * 5 * factor, event.onsetFrameIndex * 5 * factor]);
             }
           }
         } finally { for (const tensor of Object.values(output)) tensor.dispose(); }
+      }
+      // The timing fix may move onset timestamps forward, but must preserve every note and notification time.
+      const candidateEvents = events[1], referenceEvents = events[2];
+      assert.equal(candidateEvents.length, referenceEvents.length, item.id);
+      for (let i = 0; i < referenceEvents.length; i += 1) {
+        const [note, notified, onset] = candidateEvents[i];
+        const [oldNote, oldNotified, oldOnset] = referenceEvents[i];
+        assert.equal(note, oldNote, item.id);
+        assert.equal(notified, oldNotified, item.id);
+        assert.ok(onset >= oldOnset && onset <= notified, item.id);
+        if (onset !== oldOnset) retimedOnsets += 1;
       }
       const before = metrics(events[0], item.midi), after = metrics(events[1], item.midi);
       let missReason = null;
@@ -138,7 +157,7 @@ try {
       const trial = { gates, missReason, id: item.id, family: item.family, instrument: item.instrument, midi: item.midi,
         range: rangeFor(item.midi), velocity: item.velocity, condition,
         conditionPcmSha256: sha(new Uint8Array(input.audio.buffer)), before, after,
-        baselineEvents: events[0], candidateEvents: events[1] };
+        baselineEvents: events[0], candidateEvents, referenceEvents };
       if (before.firstCorrectMs !== null && (after.firstCorrectMs === null || after.firstCorrectMs > before.firstCorrectMs)) {
         regressions.push({ id: item.id, condition, reason: 'first-correct-note-lost-or-delayed', before, after });
       }
@@ -170,9 +189,9 @@ for (const dimension of ['family', 'instrument', 'range', 'condition', 'velocity
   }
 }
 const report = {
-  version: 2, modelSha256, shiftSemitones: shift,
+  version: 3, referenceCommit, retimedOnsets, eventColumns: ['midi', 'notificationMs', 'onsetMs'], modelSha256, shiftSemitones: shift,
   baselineCommit: shift === 0 ? 'cf144d2dd6534dc86979b44e76de2676a4e20b68' : 'f92333ab3feb120a6c123c8c602b428b36fdd9fb',
-  baselineTrackerSha256: sha(shift === 0 ? baselineSource : candidateSource), candidateSourceSha256: sha(candidateSource), frameCount,
+  baselineTrackerSha256: sha(shift === 0 ? baselineSource : referenceSource), candidateSourceSha256: sha(candidateSource), frameCount,
   runtime: 'onnxruntime-web ' + ort.env.versions.web + '; single-thread WASM',
   protocol: 'same raw prediction/confidence/volume; separate actual TS trackers and envelopes; default sensitivity 5; 5ms source chunks; 5/10/20ms observations; four cold-start model frames; no expected/repeat masks',
   limitations: [
@@ -184,7 +203,7 @@ const report = {
   misses: missed(trials), decoder: manifest.decoder, fixtures: manifest.cases, summary, groups, regressions, trials,
 };
 await writeFile(outputPath, JSON.stringify(report, null, 2) + '\n');
-const brief = JSON.stringify({ shiftSemitones: shift, frameCount, summary, misses: missed(trials), family: groups.family, regressions }, null, 2);
+const brief = JSON.stringify({ shiftSemitones: shift, frameCount, retimedOnsets, summary, misses: missed(trials), family: groups.family, regressions }, null, 2);
 process.stdout.write(brief + '\n');
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, '### Same-note drift replay\n\n~~~json\n' + brief + '\n~~~\n');
 if (regressions.length) process.exitCode = 1;

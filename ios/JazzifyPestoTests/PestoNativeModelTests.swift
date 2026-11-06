@@ -140,6 +140,27 @@ final class PestoNativeModelTests: XCTestCase {
         XCTAssertEqual(tracker.getCurrentNote(), -1)
     }
 
+    func testReattackTimestampUsesLastLocalTrough() {
+        for frameMs in [5.0, 10.0, 20.0] {
+            var config = PitchOnsetTrackerConfig()
+            config.frameDurationMs = frameMs
+            let tracker = PitchOnsetTracker(config: config)
+            let volumes = [0.01, 0.001] + Array(repeating: 0.002, count: 95)
+                + [0.0015, 0.0015, 0.003, 0.01]
+            var events = [PitchInputEvent]()
+            for (index, volume) in volumes.enumerated() {
+                events += tracker.processFrame(PitchFrame(
+                    prediction: 60, confidence: 0.99, volume: volume
+                ), frameIndex: index)
+            }
+            XCTAssertEqual(events, [
+                .noteOn(note: 60, frameIndex: 0, onsetFrameIndex: 0),
+                .noteOff(note: 60, frameIndex: 100),
+                .noteOn(note: 60, frameIndex: 100, onsetFrameIndex: 99)
+            ])
+        }
+    }
+
     private func originalRun(session: ORTSession, audio: [Float], cache: UnsafeMutablePointer<Float>) throws -> [String: ORTValue] {
         // Baseline intentionally creates fresh wrappers, matching the previous engine.
         let storage = audio.withUnsafeBytes { NSMutableData(bytes: $0.baseAddress, length: $0.count) }

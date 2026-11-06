@@ -46,3 +46,16 @@ describe('Same-note pitch drift', () => {
     expect(tracker.getCurrentNote()).toBe(-1);
   });
 });
+
+describe('Same-note reattack timestamp', () => {
+  it.each([5, 10, 20])('dates a gradual second attack from its local trough (%i ms)', (frameDurationMs) => {
+    const tracker = new PitchOnsetTracker({ frameDurationMs });
+    const volumes = [0.01, 0.001, ...Array<number>(95).fill(0.002), 0.0015, 0.0015, 0.003, 0.01];
+    const events = volumes.flatMap((volume, index) => tracker.processFrame(frame(60, volume), index));
+    expect(events).toEqual([
+      { type: 'noteOn', note: 60, frameIndex: 0, onsetFrameIndex: 0 },
+      { type: 'noteOff', note: 60, frameIndex: 100 },
+      { type: 'noteOn', note: 60, frameIndex: 100, onsetFrameIndex: 99 },
+    ]);
+  });
+});
