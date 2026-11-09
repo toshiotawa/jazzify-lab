@@ -299,7 +299,10 @@ export class PitchOnsetTracker {
           this.isSamePitchClass(quantized, this.suspendedNote)
           && this.isRepeatPitchClassActive(this.suspendedNote)
         ) {
-          if (this.hasRepeatModeAttack(attackLevelDb)) {
+          if (this.hasRepeatModeAttack(
+            attackLevelDb,
+            quantized === this.suspendedNote,
+          )) {
             this.suspendedNote = -1;
             this.emitNoteOn(
               events,
@@ -455,7 +458,10 @@ export class PitchOnsetTracker {
     if (octaveRelated) {
       const samePitchClass = this.isSamePitchClass(quantized, this.currentNote);
       if (samePitchClass && this.isRepeatPitchClassActive(this.currentNote)) {
-        return this.hasRepeatModeAttack(attackLevelDb);
+        return this.hasRepeatModeAttack(
+          attackLevelDb,
+          quantized === this.currentNote,
+        );
       }
       if (this.expectedPitchMidis.includes(quantized)) {
         if (this.recentLevelRise(levelDb) >= this.config.attackRiseDb) return true;
@@ -515,7 +521,13 @@ export class PitchOnsetTracker {
     const rise = this.recentLevelRise(levelDb);
     if (this.isSamePitchClass(quantized, this.currentNote)
       && this.isRepeatPitchClassActive(this.currentNote)) {
-      return !this.hasRepeatModeAttack(attackLevelDb);
+      if (
+        quantized > this.currentNote
+        && !this.expectedPitchMidis.includes(quantized)
+      ) {
+        return true;
+      }
+      return !this.hasRepeatModeAttack(attackLevelDb, false);
     }
 
     if (this.expectedPitchMidis.includes(quantized)) {
@@ -617,7 +629,20 @@ export class PitchOnsetTracker {
     if (quantized === this.currentNote) {
       return true;
     }
-    if (this.isSamePitchClass(quantized, this.currentNote)) return true;
+    if (this.isSamePitchClass(quantized, this.currentNote)) {
+      if (
+        quantized !== this.currentNote
+        && this.isOctaveRelatedJump(quantized)
+        && quantized > this.currentNote
+        && !this.expectedPitchMidis.includes(quantized)
+      ) {
+        return true;
+      }
+      if (quantized !== this.currentNote && this.isOctaveRelatedJump(quantized)) {
+        return false;
+      }
+      return true;
+    }
     // 楽譜が実際に半音進行を要求している場合はレガート遷移を許す。
     const nextPc = ((quantized % 12) + 12) % 12;
     if ((this.expectedPitchMask & (1 << nextPc)) !== 0) return false;
@@ -670,11 +695,15 @@ export class PitchOnsetTracker {
     return start;
   }
 
-  private hasRepeatModeAttack(attackLevelDb: number): boolean {
+  private hasRepeatModeAttack(
+    attackLevelDb: number,
+    requirePeakRecovery = false,
+  ): boolean {
     if (!this.dippedFromPeak) return false;
     if (attackLevelDb - this.noteTroughAttackDb < this.config.repeatRiseDb) return false;
     if (
-      Number.isFinite(this.notePeakAttackDb)
+      requirePeakRecovery
+      && Number.isFinite(this.notePeakAttackDb)
       && attackLevelDb < this.notePeakAttackDb - this.config.repeatPeakRecoveryMaxDropDb
     ) {
       return false;
@@ -796,7 +825,7 @@ export class PitchOnsetTracker {
     }
 
     if (this.isRepeatPitchClassActive(this.currentNote)) {
-      if (this.hasRepeatModeAttack(attackLevelDb)) {
+      if (this.hasRepeatModeAttack(attackLevelDb, true)) {
         const note = this.currentNote;
         const onsetFrameIndex = this.resolveRepeatModeOnsetFrameIndex(frameIndex);
         this.emitNoteOff(events, note, frameIndex);

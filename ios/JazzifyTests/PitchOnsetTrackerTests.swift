@@ -581,6 +581,37 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.processFrame(octave, frameIndex: 4).isEmpty)
     }
 
+    func testAcceptsSamePitchClassOnDifferentOctaveWithoutPeakRecoveryInAttackBand() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.releaseFrames = 1
+        config.minNoteFrames = 1
+        config.retriggerGuardFrames = 6
+        config.repeatDipDb = 3
+        config.repeatRiseDb = 6
+        config.repeatPeakRecoveryMaxDropDb = 6
+        config.onsetImmediateConfidence = 2
+        config.releaseLevelDb = -35
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 2, midis: [74], repeatPitchClassMask: 1 << 2)
+        let d5 = PitchFrame(prediction: 74, confidence: 0.9, volume: 0.01, attackDb: -18)
+        let d5Held = PitchFrame(prediction: 74, confidence: 0.9, volume: 0.004, attackDb: -30)
+        let d5Dip = PitchFrame(prediction: 74, confidence: 0.9, volume: 0.004, attackDb: -32)
+        let silent = PitchFrame(prediction: 0, confidence: 0, volume: 1e-8, attackDb: -50)
+        let d4 = PitchFrame(prediction: 62, confidence: 0.9, volume: 0.01, attackDb: -26)
+        var noteOns: [Int] = []
+        for (frame, index) in [
+            (d5, 0), (d5, 1), (d5Held, 2), (d5Dip, 3), (silent, 4), (d4, 10), (d4, 11),
+        ] {
+            for event in tracker.processFrame(frame, frameIndex: index) {
+                if case let .noteOn(note, _, _) = event {
+                    noteOns.append(note)
+                }
+            }
+        }
+        XCTAssertEqual(noteOns, [74, 62])
+    }
+
     func testSuppressesRepeatRetriggerOnDecayTailBounceWithoutConfidence() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1

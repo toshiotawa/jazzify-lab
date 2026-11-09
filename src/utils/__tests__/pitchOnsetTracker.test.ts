@@ -991,6 +991,97 @@ describe('PitchOnsetTracker', () => {
     expect(noteOns).toEqual([67, 67, 67]);
   });
 
+  it('accepts same pitch class on a different octave without peak recovery in attack band', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      releaseFrames: 1,
+      minNoteFrames: 1,
+      retriggerGuardFrames: 6,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      repeatPeakRecoveryMaxDropDb: 6,
+      onsetImmediateConfidence: 2,
+      releaseLevelDb: -35,
+    });
+    tracker.setExpectedPitchCandidates(1 << 2, [74], 1 << 2);
+    const d5 = (attackDb: number): PitchFrame => ({
+      prediction: 74,
+      confidence: 0.9,
+      volume: 0.01,
+      attackDb,
+      attackMidi: 74,
+    });
+    const d5Held = (attackDb: number): PitchFrame => ({
+      prediction: 74,
+      confidence: 0.9,
+      volume: 0.004,
+      attackDb,
+      attackMidi: 74,
+    });
+    const d5Dip = (attackDb: number): PitchFrame => ({
+      prediction: 74,
+      confidence: 0.9,
+      volume: 0.004,
+      attackDb,
+      attackMidi: 74,
+    });
+    const silent: PitchFrame = { prediction: 0, confidence: 0, volume: 1e-8, attackDb: -50 };
+    const d4 = (attackDb: number): PitchFrame => ({
+      prediction: 62,
+      confidence: 0.9,
+      volume: 0.01,
+      attackDb,
+      attackMidi: 74,
+    });
+    const noteOns = collectNoteOns(tracker, [
+      { frame: d5(-18), index: 0 },
+      { frame: d5(-18), index: 1 },
+      { frame: d5Held(-30), index: 2 },
+      { frame: d5Dip(-32), index: 3 },
+      { frame: silent, index: 4 },
+      { frame: d4(-26), index: 10 },
+      { frame: d4(-26), index: 11 },
+    ]);
+    expect(noteOns).toEqual([74, 62]);
+  });
+
+  it('switches octave while holding the previous octave under repeat mask without peak recovery', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 6,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      repeatPeakRecoveryMaxDropDb: 6,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 2, [74], 1 << 2);
+    const d5 = (attackDb: number): PitchFrame => ({
+      prediction: 74,
+      confidence: 0.9,
+      volume: 0.01,
+      attackDb,
+      attackMidi: 74,
+    });
+    const d4 = (attackDb: number): PitchFrame => ({
+      prediction: 62,
+      confidence: 0.9,
+      volume: 0.01,
+      attackDb,
+      attackMidi: 74,
+    });
+    const noteOns = collectNoteOns(tracker, [
+      { frame: d5(-18), index: 0 },
+      { frame: d5(-18), index: 1 },
+      { frame: d5(-32), index: 2 },
+      { frame: d5(-32), index: 3 },
+      { frame: d4(-26), index: 7 },
+      { frame: d4(-26), index: 8 },
+    ]);
+    expect(noteOns).toEqual([74, 62]);
+  });
+
   it('does not retrigger on decay-tail bounce when only sustaining without confidence', () => {
     const tracker = new PitchOnsetTracker({
       ...DEFAULT_ONSET_CONFIG,

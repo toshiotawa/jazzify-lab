@@ -197,7 +197,10 @@ final class PitchOnsetTracker {
                     && frameIndex - suspendedNoteOffFrame < config.retriggerGuardFrames
                 if isSamePitchClass(quantized, suspendedNote),
                    isRepeatPitchClassActive(note: suspendedNote) {
-                    if hasRepeatModeAttack(attackLevelDb: attackLevelDb) {
+                    if hasRepeatModeAttack(
+                        attackLevelDb: attackLevelDb,
+                        requirePeakRecovery: quantized == suspendedNote
+                    ) {
                         suspendedNote = -1
                         emitNoteOn(
                             &events,
@@ -356,7 +359,10 @@ final class PitchOnsetTracker {
         if octaveRelated {
             if isSamePitchClass(quantized, currentNote),
                isRepeatPitchClassActive(note: currentNote) {
-                return hasRepeatModeAttack(attackLevelDb: attackLevelDb)
+                return hasRepeatModeAttack(
+                    attackLevelDb: attackLevelDb,
+                    requirePeakRecovery: quantized == currentNote
+                )
             }
             if expectedPitchMidis.contains(quantized) {
                 if recentLevelRise(levelDb: levelDb) >= config.attackRiseDb { return true }
@@ -412,7 +418,10 @@ final class PitchOnsetTracker {
         let rise = recentLevelRise(levelDb: levelDb)
         if isSamePitchClass(quantized, currentNote),
            isRepeatPitchClassActive(note: currentNote) {
-            return !hasRepeatModeAttack(attackLevelDb: attackLevelDb)
+            if quantized > currentNote, !expectedPitchMidis.contains(quantized) {
+                return true
+            }
+            return !hasRepeatModeAttack(attackLevelDb: attackLevelDb, requirePeakRecovery: false)
         }
 
         if expectedPitchMidis.contains(quantized) {
@@ -501,6 +510,12 @@ final class PitchOnsetTracker {
     private func shouldTreatRepeatModePitchWobble(quantized: Int) -> Bool {
         guard currentNote >= 0, isRepeatPitchClassActive(note: currentNote) else { return false }
         if quantized == currentNote { return true }
+        if isSamePitchClass(quantized, currentNote), isOctaveRelatedJump(quantized: quantized) {
+            if quantized > currentNote, !expectedPitchMidis.contains(quantized) {
+                return true
+            }
+            return false
+        }
         return abs(quantized - currentNote) == 1
     }
 
@@ -532,10 +547,14 @@ final class PitchOnsetTracker {
         )
     }
 
-    private func hasRepeatModeAttack(attackLevelDb: Double) -> Bool {
+    private func hasRepeatModeAttack(
+        attackLevelDb: Double,
+        requirePeakRecovery: Bool = false
+    ) -> Bool {
         guard dippedFromPeak else { return false }
         guard attackLevelDb - noteTroughAttackDb >= config.repeatRiseDb else { return false }
-        if notePeakAttackDb.isFinite,
+        if requirePeakRecovery,
+           notePeakAttackDb.isFinite,
            attackLevelDb < notePeakAttackDb - config.repeatPeakRecoveryMaxDropDb {
             return false
         }
@@ -639,7 +658,7 @@ final class PitchOnsetTracker {
         }
 
         if isRepeatPitchClassActive(note: currentNote) {
-            if hasRepeatModeAttack(attackLevelDb: attackLevelDb) {
+            if hasRepeatModeAttack(attackLevelDb: attackLevelDb, requirePeakRecovery: true) {
                 let note = currentNote
                 let onsetFrameIndex = resolveRepeatModeOnsetFrameIndex(frameIndex: frameIndex)
                 emitNoteOff(&events, note: note, frameIndex: frameIndex)
