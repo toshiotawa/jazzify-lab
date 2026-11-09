@@ -673,6 +673,46 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertEqual(noteOnCount, 2)
     }
 
+    func testAllowsLegatoToExpectedPitchClassWhileHoldingRepeatPitch() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let mask = (1 << 2) | (1 << 4)
+        tracker.setExpectedPitchCandidates(mask: mask, midis: [62, 76], repeatPitchClassMask: 0)
+        let holdMi = PitchFrame(prediction: 76, confidence: 0.99, volume: 0.01)
+        _ = tracker.processFrame(holdMi, frameIndex: 0)
+        _ = tracker.processFrame(holdMi, frameIndex: 1)
+        let d5 = PitchFrame(prediction: 74, confidence: 0.99, volume: 0.01)
+        let events = tracker.processFrame(d5, frameIndex: 2) + tracker.processFrame(d5, frameIndex: 3)
+        XCTAssertTrue(events.contains(where: {
+            if case let .noteOn(note, _, _) = $0 { return note == 74 }
+            return false
+        }))
+    }
+
+    func testEmitsNoteOffWhenRawLevelDropsBelowPeak() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.releaseFrames = 2
+        config.minNoteFrames = 2
+        config.releaseLevelDb = -100
+        config.releaseRawDropDb = 30
+        let tracker = PitchOnsetTracker(config: config)
+        let on = PitchFrame(prediction: 60, confidence: 0.99, volume: 0.01, rawLevelDb: -20)
+        let tail = PitchFrame(prediction: 60, confidence: 0.05, volume: 0.0001, rawLevelDb: -55)
+        _ = tracker.processFrame(on, frameIndex: 0)
+        _ = tracker.processFrame(on, frameIndex: 1)
+        _ = tracker.processFrame(tail, frameIndex: 2)
+        let events = tracker.processFrame(tail, frameIndex: 3)
+        XCTAssertTrue(events.contains(where: {
+            if case .noteOff = $0 { return true }
+            return false
+        }))
+    }
+
     func testStillSwitchesLegatoBySemitoneWithoutRepeatMask() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1

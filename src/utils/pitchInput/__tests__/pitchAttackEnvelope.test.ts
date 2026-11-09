@@ -72,6 +72,13 @@ describe('PitchAttackEnvelope', () => {
     expect(maxReading).toBeGreaterThan(-20);
   });
 
+  it('computeBroadbandDb matches attack envelope when no pitch target is used', () => {
+    const envelope = new PitchAttackEnvelope();
+    const tone = synthesizeBurst(67, 40, 0, 1);
+    feedEnvelope(envelope, tone);
+    expect(envelope.computeBroadbandDb()).toBe(envelope.computeAttackDb(-1));
+  });
+
   it('広帯域ノイズでは G 帯域エネルギーが立ち上がらない', () => {
     const envelope = new PitchAttackEnvelope();
     const noise = new Float32Array(PITCH_ATTACK_ENVELOPE_WINDOW_SAMPLES);

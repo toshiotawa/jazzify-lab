@@ -91,6 +91,15 @@ export class PitchAttackEnvelope {
     }
   }
 
+  computeBroadbandDb(): number {
+    const sampleCount = this.filled;
+    if (sampleCount <= 0) {
+      return -120;
+    }
+    const ordered = this.orderedWindow(sampleCount);
+    return energyToDb(computeWindowRmsEnergy(ordered, this.hannWindow, sampleCount));
+  }
+
   computeAttackDb(referenceMidi: number): number {
     const sampleCount = this.filled;
     if (sampleCount <= 0) {
@@ -99,7 +108,7 @@ export class PitchAttackEnvelope {
 
     const ordered = this.orderedWindow(sampleCount);
     if (referenceMidi < 0 || !Number.isFinite(referenceMidi)) {
-      return energyToDb(computeWindowRmsEnergy(ordered, this.hannWindow, sampleCount));
+      return this.computeBroadbandDb();
     }
     const fundamentalHz = midiToHz(Math.round(referenceMidi));
     const energy = goertzelEnergy(ordered, this.hannWindow, sampleCount, fundamentalHz)

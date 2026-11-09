@@ -341,6 +341,7 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
     minNoteFrames: Math.max(1, Math.ceil(base.minNoteFrames / inferenceStride)),
     retriggerGuardFrames: Math.max(1, Math.ceil(base.retriggerGuardFrames / inferenceStride)),
     retriggerLookbackFrames: Math.max(1, Math.ceil(base.retriggerLookbackFrames / inferenceStride)),
+    repeatRetriggerGuardMs: 80,
     allowImmediateFirstFrame: factor <= 1,
   };
 };
@@ -498,6 +499,7 @@ const emitTrackerEvents = (
     volume: frame.volume,
     attackDb,
     attackMidi,
+    rawLevelDb: attackEnvelope.computeBroadbandDb(),
   };
 
   const events = tracker.processFrame(trackerFrame, frameIndex);

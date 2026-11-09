@@ -1291,4 +1291,114 @@ describe('PitchOnsetTracker', () => {
     })))).toEqual([60]);
   });
 
+  it('allows legato to expected pitch class while holding repeat pitch at loop boundary', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      fastResponse: true,
+      fastLegatoConfidence: 0.5,
+      onsetImmediateConfidence: 2,
+    });
+    const mask = (1 << 2) | (1 << 4);
+    tracker.setExpectedPitchCandidates(mask, [62, 76], 0);
+    const holdMi: PitchFrame = { prediction: 76, confidence: 0.99, volume: 0.01 };
+    expect(collectNoteOns(tracker, [
+      { frame: holdMi, index: 0 },
+      { frame: holdMi, index: 1 },
+    ])).toEqual([76]);
+    const d5: PitchFrame = { prediction: 74, confidence: 0.99, volume: 0.01 };
+    expect(collectNoteOns(tracker, [
+      { frame: d5, index: 2 },
+      { frame: d5, index: 3 },
+    ])).toContain(74);
+
+    const holdAgain = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      onsetImmediateConfidence: 2,
+    });
+    holdAgain.setExpectedPitchCandidates(mask, [62, 76], 0);
+    collectNoteOns(holdAgain, [
+      { frame: holdMi, index: 0 },
+      { frame: holdMi, index: 1 },
+    ]);
+    const f4: PitchFrame = { prediction: 71, confidence: 0.99, volume: 0.01 };
+    expect(collectNoteOns(holdAgain, [
+      { frame: f4, index: 2 },
+      { frame: f4, index: 3 },
+    ])).toEqual([]);
+    expect(holdAgain.getCurrentNote()).toBe(76);
+  });
+
+  it('emits noteOff when rawLevelDb drops releaseRawDropDb below peak', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      releaseFrames: 2,
+      minNoteFrames: 2,
+      releaseLevelDb: -100,
+      releaseRawDropDb: 30,
+    });
+    const on: PitchFrame = {
+      prediction: 60, confidence: 0.99, volume: 0.01, rawLevelDb: -20,
+    };
+    const tail: PitchFrame = {
+      prediction: 60, confidence: 0.05, volume: 0.0001, rawLevelDb: -55,
+    };
+    tracker.processFrame(on, 0);
+    tracker.processFrame(on, 1);
+    tracker.processFrame(tail, 2);
+    const events = tracker.processFrame(tail, 3);
+    expect(events.some((event) => event.type === 'noteOff')).toBe(true);
+  });
+
+  it('does not use raw release when rawLevelDb is omitted', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      releaseFrames: 2,
+      releaseLevelDb: -100,
+      releaseRawDropDb: 30,
+    });
+    const on: PitchFrame = { prediction: 60, confidence: 0.99, volume: 0.01 };
+    const quiet: PitchFrame = { prediction: 60, confidence: 0.05, volume: 0.0001 };
+    tracker.processFrame(on, 0);
+    tracker.processFrame(on, 1);
+    tracker.processFrame(quiet, 2);
+    expect(tracker.processFrame(quiet, 3)).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(60);
+  });
+
+  it('suppresses repeat retrigger within repeatRetriggerGuardMs but accepts after', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatRetriggerGuardMs: 80,
+      frameDurationMs: 5,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      repeatPeakRecoveryMaxDropDb: 6,
+      onsetImmediateConfidence: 2,
+    });
+    tracker.setExpectedPitchCandidates(1 << 7, [67], 1 << 7);
+    const peak = (attackDb: number): PitchFrame => ({
+      prediction: 67, confidence: 0.99, volume: 0.01, attackDb,
+    });
+    collectNoteOns(tracker, [
+      { frame: peak(-18), index: 0 },
+      { frame: peak(-18), index: 1 },
+    ]);
+    const early = collectNoteOns(tracker, [
+      ...Array.from({ length: 6 }, (_, offset) => ({ frame: peak(-24), index: 2 + offset })),
+      ...Array.from({ length: 4 }, (_, offset) => ({ frame: peak(-16), index: 8 + offset })),
+    ]);
+    expect(early).toEqual([]);
+    const late = collectNoteOns(tracker, [
+      ...Array.from({ length: 8 }, (_, offset) => ({ frame: peak(-26), index: 12 + offset })),
+      ...Array.from({ length: 6 }, (_, offset) => ({ frame: peak(-14), index: 20 + offset })),
+    ]);
+    expect(late.length).toBeGreaterThanOrEqual(1);
+  });
+
 });

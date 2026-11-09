@@ -20,6 +20,10 @@ export interface PitchOnsetTrackerConfig {
   attackRiseDb: number;
   /** 同音リアタック: ガードフレーム数 */
   retriggerGuardFrames: number;
+  /** 同音待ち再アタック: 追加ガード (ms)。0 は retriggerGuardFrames のみ。 */
+  repeatRetriggerGuardMs: number;
+  /** 生 RMS がピークからこの dB 以上落ちたら release 候補。 */
+  releaseRawDropDb: number;
   /** 同音リアタック: 直近 N フレームとの dB 差で立ち上がり判定 */
   retriggerLookbackFrames: number;
   /** Require energy growth in the held note band for unassisted repeats. */
@@ -57,6 +61,8 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   minNoteFrames: 6,
   attackRiseDb: 6,
   retriggerGuardFrames: 6,
+  repeatRetriggerGuardMs: 0,
+  releaseRawDropDb: 30,
   retriggerLookbackFrames: 4,
   repeatDipDb: 3,
   repeatRiseDb: 6,
@@ -105,6 +111,8 @@ export interface PitchFrame {
   attackDb?: number;
   /** attackDb の測定音。帯域変更時は比較基準を作り直す。 */
   attackMidi?: number;
+  /** Hann 窓の広帯域 RMS (dB)。未指定時は releaseRawDropDb を使わない。 */
+  rawLevelDb?: number;
 }
 
 export type PitchInputEvent =
@@ -165,6 +173,8 @@ export class PitchOnsetTracker {
   private recentFrameRing: number[] = [];
   private attackMidi = -1;
   private processingFrameIndex = 0;
+  /** ノート中の生 RMS ピーク (dB)。 */
+  private noteRawPeakDb = -Infinity;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -209,6 +219,7 @@ export class PitchOnsetTracker {
     this.resetRepeatPeakState();
     this.recentFrameRing = [];
     this.attackMidi = -1;
+    this.noteRawPeakDb = -Infinity;
   }
 
   private resetRepeatPeakState(): void {
@@ -248,6 +259,15 @@ export class PitchOnsetTracker {
     const events: PitchInputEvent[] = [];
     const levelDb = volumeToDb(frame.volume);
     const attackLevelDb = this.resolveAttackLevelDb(frame, levelDb);
+    const belowRawRelease = this.isBelowRawRelease(frame.rawLevelDb);
+    if (
+      frame.rawLevelDb !== undefined
+      && Number.isFinite(frame.rawLevelDb)
+      && this.currentNote >= 0
+      && frame.rawLevelDb > this.noteRawPeakDb
+    ) {
+      this.noteRawPeakDb = frame.rawLevelDb;
+    }
     if (frame.attackMidi !== undefined && frame.attackMidi !== this.attackMidi) {
       // 異なる帯域の dB 差を鍵盤の再アタックとして扱わない。
       this.attackMidi = frame.attackMidi;
@@ -273,6 +293,7 @@ export class PitchOnsetTracker {
       this.currentNote >= 0
       && quantized >= 0
       && levelDb >= this.config.releaseLevelDb
+      && !belowRawRelease
       && pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
     );
     const voiced = expectedAssist || confidenceVoiced || sustainingSameNote;
@@ -299,10 +320,16 @@ export class PitchOnsetTracker {
           this.isSamePitchClass(quantized, this.suspendedNote)
           && this.isRepeatPitchClassActive(this.suspendedNote)
         ) {
-          if (this.hasRepeatModeAttack(
-            attackLevelDb,
-            quantized === this.suspendedNote,
-          )) {
+          const withinRepeatRetriggerGuard = (
+            frameIndex - this.lastNoteOnFrame < this.repeatRetriggerGuardFrames()
+          );
+          if (
+            !withinRepeatRetriggerGuard
+            && this.hasRepeatModeAttack(
+              attackLevelDb,
+              quantized === this.suspendedNote,
+            )
+          ) {
             this.suspendedNote = -1;
             this.emitNoteOn(
               events,
@@ -311,6 +338,8 @@ export class PitchOnsetTracker {
               this.resolveRepeatModeOnsetFrameIndex(frameIndex),
               levelDb,
               attackLevelDb,
+              false,
+              frame.rawLevelDb,
             );
           } else {
             this.resumeSuspendedNote(this.suspendedNote, frameIndex);
@@ -330,6 +359,8 @@ export class PitchOnsetTracker {
             this.pitchStableStartFrame,
             levelDb,
             attackLevelDb,
+            false,
+            frame.rawLevelDb,
           );
         }
       } else if (
@@ -373,6 +404,8 @@ export class PitchOnsetTracker {
               this.pitchStableStartFrame,
               levelDb,
               attackLevelDb,
+              false,
+              frame.rawLevelDb,
             );
           }
         }
@@ -398,7 +431,7 @@ export class PitchOnsetTracker {
       }
 
       if (this.currentNote >= 0) {
-        const belowRelease = levelDb < this.config.releaseLevelDb;
+        const belowRelease = levelDb < this.config.releaseLevelDb || belowRawRelease;
         if (belowRelease) {
           this.releaseCount += 1;
           if (this.releaseCount >= this.config.releaseFrames) {
@@ -458,6 +491,12 @@ export class PitchOnsetTracker {
     if (octaveRelated) {
       const samePitchClass = this.isSamePitchClass(quantized, this.currentNote);
       if (samePitchClass && this.isRepeatPitchClassActive(this.currentNote)) {
+        if (
+          this.processingFrameIndex - this.lastNoteOnFrame
+          < this.repeatRetriggerGuardFrames()
+        ) {
+          return false;
+        }
         return this.hasRepeatModeAttack(
           attackLevelDb,
           quantized === this.currentNote,
@@ -522,6 +561,12 @@ export class PitchOnsetTracker {
     if (this.isSamePitchClass(quantized, this.currentNote)
       && this.isRepeatPitchClassActive(this.currentNote)) {
       if (
+        this.processingFrameIndex - this.lastNoteOnFrame
+        < this.repeatRetriggerGuardFrames()
+      ) {
+        return true;
+      }
+      if (
         quantized > this.currentNote
         && !this.expectedPitchMidis.includes(quantized)
       ) {
@@ -559,6 +604,7 @@ export class PitchOnsetTracker {
     levelDb?: number,
     attackLevelDb?: number,
     preserveAttackPeakReference = false,
+    rawLevelDb?: number,
   ): void {
     const prevPeakAttackDb = this.notePeakAttackDb;
     this.currentNote = note;
@@ -585,7 +631,26 @@ export class PitchOnsetTracker {
       }
       this.noteTroughAttackDb = attackLevelDb;
     }
+    if (rawLevelDb !== undefined && Number.isFinite(rawLevelDb)) {
+      this.noteRawPeakDb = rawLevelDb;
+    } else {
+      this.noteRawPeakDb = -Infinity;
+    }
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
+  }
+
+  private isBelowRawRelease(rawLevelDb: number | undefined): boolean {
+    if (rawLevelDb === undefined || !Number.isFinite(rawLevelDb)) return false;
+    if (!Number.isFinite(this.noteRawPeakDb)) return false;
+    return rawLevelDb < this.noteRawPeakDb - this.config.releaseRawDropDb;
+  }
+
+  private repeatRetriggerGuardFrames(): number {
+    const frameMs = Math.max(1, this.config.frameDurationMs);
+    return Math.max(
+      this.config.retriggerGuardFrames,
+      Math.round(this.config.repeatRetriggerGuardMs / frameMs),
+    );
   }
 
   private isSamePitchClass(a: number, b: number): boolean {
@@ -617,6 +682,12 @@ export class PitchOnsetTracker {
     }
     if (this.expectedPitchMidis.includes(quantized)) {
       return false;
+    }
+    if (this.expectedPitchMask !== 0) {
+      const pitchClass = ((quantized % 12) + 12) % 12;
+      if ((this.expectedPitchMask & (1 << pitchClass)) !== 0) {
+        return false;
+      }
     }
     return true;
   }
@@ -771,6 +842,7 @@ export class PitchOnsetTracker {
     const maxRing = Math.max(
       this.config.retriggerLookbackFrames,
       this.config.retriggerGuardFrames,
+      this.repeatRetriggerGuardFrames(),
       this.repeatAttackLookbackFrames(),
     );
     if (this.recentFrameRing.length > maxRing) {
@@ -825,6 +897,10 @@ export class PitchOnsetTracker {
     }
 
     if (this.isRepeatPitchClassActive(this.currentNote)) {
+      if (frameIndex - this.lastNoteOnFrame < this.repeatRetriggerGuardFrames()) {
+        this.recordLevels(levelDb, attackLevelDb, frameIndex);
+        return;
+      }
       if (this.hasRepeatModeAttack(attackLevelDb, true)) {
         const note = this.currentNote;
         const onsetFrameIndex = this.resolveRepeatModeOnsetFrameIndex(frameIndex);

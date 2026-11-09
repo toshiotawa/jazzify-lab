@@ -45,17 +45,24 @@ final class PitchAttackEnvelope {
         filled = min(capacity, filled + copied)
     }
 
+    func computeBroadbandDb() -> Double {
+        guard filled > 0 else { return -120 }
+        let sampleCount = filled
+        copyOrderedWindow(sampleCount: sampleCount)
+        return Self.energyToDb(Self.computeWindowRmsEnergy(
+            samples: orderedScratch,
+            window: hannWindow,
+            sampleCount: sampleCount
+        ))
+    }
+
     func computeAttackDb(targets: PitchAttackEnvelopeTargets) -> Double {
         guard filled > 0 else { return -120 }
         let sampleCount = filled
         copyOrderedWindow(sampleCount: sampleCount)
         let targetMidis = resolveTargetMidis(targets: targets)
         if targetMidis.isEmpty {
-            return Self.energyToDb(Self.computeWindowRmsEnergy(
-                samples: orderedScratch,
-                window: hannWindow,
-                sampleCount: sampleCount
-            ))
+            return computeBroadbandDb()
         }
         var combinedEnergy = 0.0
         for midi in targetMidis {

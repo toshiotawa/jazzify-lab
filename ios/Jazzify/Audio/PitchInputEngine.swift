@@ -273,6 +273,7 @@ final class PitchInputEngine: @unchecked Sendable {
         config.fastResponse = configuredPitchStableFrames <= 2
         config.frameDurationMs = Self.frameDurationMs(for: shiftSemitones)
         config.allowImmediateFirstFrame = Self.decimationFactor(for: shiftSemitones) <= 1
+        config.repeatRetriggerGuardMs = 80
         tracker.setConfig(config)
     }
 
@@ -1189,7 +1190,8 @@ final class PitchInputEngine: @unchecked Sendable {
                 prediction: Self.trackerPitch(modelMidi: rawPrediction, shift: shiftSemitones),
                 confidence: confidence,
                 volume: volume,
-                attackDb: attackDb
+                attackDb: attackDb,
+                rawLevelDb: attackEnvelope.computeBroadbandDb()
             )
 
             let events = tracker.processFrame(frame, frameIndex: frameIndex)
