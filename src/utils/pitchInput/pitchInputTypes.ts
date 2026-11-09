@@ -60,7 +60,6 @@ export interface PitchInputDiagnosticSnapshot {
   inferenceIntervalMs?: number;
   wasmThreads?: number;
   inferenceCount?: number;
-  skippedInferenceFrames?: number;
   /** Observed raw RMS below -60 dBFS; diagnostic evidence, not an automatic mute verdict. */
   lowInputFrames?: number;
   confidenceRejectedFrames?: number;

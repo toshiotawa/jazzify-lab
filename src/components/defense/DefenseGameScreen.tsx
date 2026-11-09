@@ -466,8 +466,16 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
     const generation = backingRestartGenerationRef.current + 1;
     backingRestartGenerationRef.current = generation;
+    const previousPendingSwitchAt = pendingSwitchAtRef.current;
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
+    if (!isSharedProgressionStage && !isSeparateTracksStage && previousPendingSwitchAt !== null) {
+      if (defenseBackingDeck.getCurrentTime() >= previousPendingSwitchAt) {
+        defenseBackingDeck.commitSwitch();
+      } else {
+        defenseBackingDeck.cancelPendingSwitch();
+      }
+    }
 
     const ratio = defensePracticeSpeedRatio(speedPercent);
     if (isSeparateTracksStage) {

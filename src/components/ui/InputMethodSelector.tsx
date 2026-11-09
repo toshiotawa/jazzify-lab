@@ -7,6 +7,7 @@ import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDev
 import { useGameStore } from '@/stores/gameStore';
 import { PitchInputController, type PitchInputLatencyStats } from '@/utils/PitchInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { isProduction } from '@/utils/environment';
 
 const formatLatencyMs = (value: number | null): string =>
   value === null ? '—' : `${Math.round(value)}ms`;
@@ -192,13 +193,17 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
               ? 'Turn this ON for low notes such as double bass. Response is a little slower.'
               : 'コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。'}
           </p>
-          <p className="text-xs text-gray-400 font-mono">
-            {en
-              ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
-              : `入力 ${formatLatencyMs(latencyStats.captureIntervalMs)} / 推論 ${formatLatencyMs(latencyStats.inferenceMs)}`}
-          </p>
-          <PitchDiagnosticControls isEnglishCopy={en} />
-          {latencyStats.diagnostics && (
+          {!isProduction() ? (
+            <>
+              <p className="text-xs text-gray-400 font-mono">
+                {en
+                  ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
+                  : `入力 ${formatLatencyMs(latencyStats.captureIntervalMs)} / 推論 ${formatLatencyMs(latencyStats.inferenceMs)}`}
+              </p>
+              <PitchDiagnosticControls isEnglishCopy={en} />
+            </>
+          ) : null}
+          {!isProduction() && latencyStats.diagnostics ? (
             <div className="text-[10px] text-gray-500 font-mono space-y-0.5 border-t border-purple-800/40 pt-2">
               <p>
                 {en ? 'Diagnostics' : '診断'}
@@ -252,7 +257,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 {latencyStats.diagnostics.warmupFramesRemaining}
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

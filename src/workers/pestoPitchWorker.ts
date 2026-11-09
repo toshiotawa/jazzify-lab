@@ -25,10 +25,6 @@ import {
   resetPitchFrameTraceBuffer,
 } from '@/utils/pitchInput/pitchFrameTrace';
 import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
-import {
-  PITCH_PCM_CAPTURE_SAMPLE_RATE,
-  PitchPcmCaptureRing,
-} from '@/utils/pitchInput/pitchPcmCapture';
 import { restoreConcertMidi } from '@/utils/pitchInput/pitchShiftRestore';
 import {
   PESTO_BASE_FRAME_SEC,
@@ -56,7 +52,6 @@ interface WorkerInitMessage {
   type: 'init';
   pitchEngine?: PitchEngine;
   sensitivity: number;
-  inferenceIntervalMs?: 5 | 10 | 20;
   generationId: number;
   shiftSemitones: PestoShiftSemitones;
   config?: Partial<PitchOnsetTrackerConfig>;
@@ -130,24 +125,6 @@ interface WorkerDiagnosticDumpMessage {
   type: 'dumpDiagnostics';
 }
 
-interface WorkerSetPcmCaptureMessage {
-  type: 'setPcmCapture';
-  enabled: boolean;
-}
-
-interface WorkerDumpPcmMessage {
-  type: 'dumpPcm';
-}
-
-interface WorkerPcmDumpMessage {
-  type: 'pcmDump';
-  samples: ArrayBuffer;
-  endSourceSample: number;
-  endSourceTimeSec: number;
-  sampleRate: number;
-  totalWritten: number;
-}
-
 type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
@@ -158,8 +135,6 @@ type WorkerInbound =
   | WorkerDumpTraceMessage
   | WorkerDiagnosticControlMessage
   | WorkerDiagnosticDumpMessage
-  | WorkerSetPcmCaptureMessage
-  | WorkerDumpPcmMessage
   | WorkerConnectPortMessage;
 
 interface NoteEventMessage {
@@ -206,8 +181,7 @@ type WorkerOutbound =
   | WorkerErrorMessage
   | WorkerMonitorMessage
   | WorkerFrameTraceMessage
-  | WorkerDiagnosticStateMessage
-  | WorkerPcmDumpMessage;
+  | WorkerDiagnosticStateMessage;
 
 let pitchEngine: PitchEngine = 'pesto';
 let pitchy: PitchyEstimator | null = null;
@@ -238,9 +212,6 @@ let repeatPitchClassMask = 0;
 let generationId = 0;
 let shiftSemitones: PestoShiftSemitones = 0;
 let frameDurationSec = PESTO_BASE_FRAME_SEC;
-let inferenceIntervalMs: 5 | 10 | 20 = 5;
-let inferenceStride = 1;
-let modelFramesSinceInference = 0;
 let warmupFramesRemaining = 0;
 let suppressTracker = false;
 let cacheEpoch = 0;
@@ -249,7 +220,6 @@ const chunkQueue = new PitchChunkQueue();
 const decimationBuffer = new PitchDecimationBuffer(1);
 let decimatorState = createPestoDecimatorState(1);
 let diagnostics: PitchInputDiagnostics | null = null;
-let pcmRing: PitchPcmCaptureRing | null = null;
 const observation: PitchObservation = {
   generationId: 0, sourceStartSample: 0, sourceEndSample: 0, sourceEndTimeSec: 0,
   shiftSemitones: 0, modelMidi: null, concertMidi: null, confidence: 0,
@@ -274,17 +244,8 @@ const CACHE_SIZE = 3976;
 // activations は判定に使わない。iOSと同じ4出力だけを取得する。
 const INFERENCE_OUTPUTS = ['prediction', 'confidence', 'volume', 'cache_out'];
 
-const postToMain = self.postMessage.bind(self) as (
-  message: WorkerOutbound,
-  transfer?: Transferable[],
-) => void;
-
-const post = (message: WorkerOutbound, transfer?: Transferable[]): void => {
-  if (transfer && transfer.length > 0) {
-    postToMain(message, transfer);
-    return;
-  }
-  postToMain(message);
+const post = (message: WorkerOutbound): void => {
+  self.postMessage(message);
 };
 
 const recycle = (samples: Float32Array, type: 'recycle' | 'recycleHistory' = 'recycle'): void => {
@@ -309,7 +270,6 @@ const restoreCaptureCache = (chunk: CapturedChunk): boolean => {
     if (!Number.isFinite(history[i])) return false;
   }
   cacheData.set(history);
-  modelFramesSinceInference = 0;
   // 完全なPCM履歴は連続推論と同じ入力。冷起動のwarmupを繰り返さない。
   // 判定器の持続音・同音待ちも保持し、復帰そのものを発音にしない。
   warmupFramesRemaining = 0;
@@ -360,9 +320,7 @@ const applyShiftMode = (shift: PestoShiftSemitones): void => {
   decimationBuffer.reset();
   decimatorState = createPestoDecimatorState(factor);
   const modelFrameMs = frameDurationMsForShift(shift);
-  inferenceStride = Math.max(1, inferenceIntervalMs / modelFrameMs);
-  frameDurationSec = modelFrameMs * inferenceStride / 1000;
-  modelFramesSinceInference = 0;
+  frameDurationSec = modelFrameMs / 1000;
   applyTrackerConfig();
 };
 
@@ -381,10 +339,10 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
     fastResponse: fastResponseEnabled,
     frameDurationMs: frameDurationSec * 1000,
     // Keep time-based guards in source time; stability still requires distinct observations.
-    releaseFrames: Math.max(1, Math.ceil(base.releaseFrames / inferenceStride)),
-    minNoteFrames: Math.max(1, Math.ceil(base.minNoteFrames / inferenceStride)),
-    retriggerGuardFrames: Math.max(1, Math.ceil(base.retriggerGuardFrames / inferenceStride)),
-    retriggerLookbackFrames: Math.max(1, Math.ceil(base.retriggerLookbackFrames / inferenceStride)),
+    releaseFrames: base.releaseFrames,
+    minNoteFrames: base.minNoteFrames,
+    retriggerGuardFrames: base.retriggerGuardFrames,
+    retriggerLookbackFrames: base.retriggerLookbackFrames,
     repeatRetriggerGuardMs: 80,
     legatoReturnGuardMs: 100,
     allowImmediateFirstFrame: factor <= 1,
@@ -402,8 +360,7 @@ const resetInferenceState = (): void => {
   pitchy?.reset();
   frameIndex = 0;
   const warmupFrames = pitchEngine === 'pitchy' ? Math.ceil(PITCHY_WINDOW_SIZE / PESTO_CHUNK_SIZE) : PESTO_WARMUP_FRAMES;
-  warmupFramesRemaining = Math.ceil(warmupFrames / inferenceStride);
-  modelFramesSinceInference = 0;
+  warmupFramesRemaining = warmupFrames;
   suppressTracker = warmupFramesRemaining > 0;
   diagnostics?.setWarmupFrames(warmupFramesRemaining);
   diagnostics?.recordModelReset();
@@ -605,18 +562,6 @@ const runInference = async (chunk: CapturedChunk): Promise<void> => {
     }
 
     pitchy?.push(modelInput);
-    modelFramesSinceInference += 1;
-    if (modelFramesSinceInference < inferenceStride) {
-      // Deployed refill cache is raw PCM, not hidden state. Advance without executing ONNX.
-      // Fixed-size copy reuses the tensor's storage and preserves every input sample.
-      if (pitchEngine === 'pesto' && cacheData) {
-        cacheData.copyWithin(0, PESTO_CHUNK_SIZE);
-        cacheData.set(modelInput, CACHE_SIZE - PESTO_CHUNK_SIZE);
-      }
-      diagnostics?.recordSkippedInference();
-      return;
-    }
-    modelFramesSinceInference = 0;
     if (diagnostics) {
       observation.preprocessMs = performance.now() - preprocessStart;
       observation.captureQueueAgeMs = chunk.captureQueueAgeMs ?? 0;
@@ -742,13 +687,6 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     return;
   }
 
-  pcmRing?.write(
-    message.samples,
-    message.sourceStartSample,
-    message.sourceEndSample,
-    message.sourceEndTimeSec,
-  );
-
   const sourceGapSamples = Math.max(0, message.sourceStartSample - lastSourceEndSample);
   diagnostics?.recordDrop(sourceGapSamples);
   lastSourceEndSample = message.sourceEndSample;
@@ -818,44 +756,6 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       return;
     }
 
-    if (data.type === 'setPcmCapture') {
-      if (data.enabled) {
-        if (!pcmRing) {
-          pcmRing = new PitchPcmCaptureRing();
-        }
-        pcmRing.setEnabled(true);
-      } else if (pcmRing) {
-        pcmRing.setEnabled(false);
-      }
-      return;
-    }
-
-    if (data.type === 'dumpPcm') {
-      if (!pcmRing?.isEnabled()) {
-        post({
-          type: 'pcmDump',
-          samples: new ArrayBuffer(0),
-          endSourceSample: 0,
-          endSourceTimeSec: 0,
-          sampleRate: PITCH_PCM_CAPTURE_SAMPLE_RATE,
-          totalWritten: 0,
-        });
-        return;
-      }
-      const snapshot = pcmRing.snapshot();
-      const ownedSamples = snapshot.samples.slice();
-      pcmRing.reset();
-      post({
-        type: 'pcmDump',
-        samples: ownedSamples.buffer,
-        endSourceSample: snapshot.endSourceSample,
-        endSourceTimeSec: snapshot.endSourceTimeSec,
-        sampleRate: PITCH_PCM_CAPTURE_SAMPLE_RATE,
-        totalWritten: snapshot.totalWritten,
-      }, [ownedSamples.buffer]);
-      return;
-    }
-
     if (data.type === 'init') {
       pitchEngine = data.pitchEngine === 'pitchy' ? 'pitchy' : 'pesto';
       if (pitchEngine === 'pitchy') {
@@ -866,8 +766,6 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       }
       generationId = data.generationId;
       sensitivityLevel = data.sensitivity;
-      inferenceIntervalMs = data.inferenceIntervalMs === 10 || data.inferenceIntervalMs === 20
-        ? data.inferenceIntervalMs : 5;
       pitchStableFramesOverride = data.config?.pitchStableFrames ?? 4;
       fastResponseEnabled = data.config?.fastResponse ?? pitchStableFramesOverride <= 2;
       expectedPitchMask = data.expectedPitchMask ?? 0;

@@ -28,28 +28,11 @@ describe('PitchDiagnosticRecording', () => {
     expect(snapshot.overwrittenEntries).toBe(6001);
   });
 
-  it('records with force after stop and retains at most four PCM segments', () => {
+  it('records with force after stop', () => {
     const recording = pitchDiagnosticRecording;
     recording.start();
     recording.stop();
     recording.record('workerState', { ok: true }, true);
     expect(recording.snapshot().entries.map((entry) => entry.event)).toContain('workerState');
-    for (let index = 0; index < 5; index += 1) {
-      recording.addPcmSegment({
-        generationId: index,
-        endSourceSample: index,
-        endSourceTimeSec: index,
-        inferenceIntervalMs: 5,
-        echoCancellation: false,
-        sampleRate: 48_000,
-        samples: new Int16Array([index]),
-        totalWritten: 1,
-      });
-    }
-    expect(recording.hasPcm).toBe(true);
-    expect(recording.snapshot().pcmSegments).toHaveLength(4);
-    expect(recording.snapshot().pcmSegments[0].generationId).toBe(1);
-    recording.start();
-    expect(recording.hasPcm).toBe(false);
   });
 });

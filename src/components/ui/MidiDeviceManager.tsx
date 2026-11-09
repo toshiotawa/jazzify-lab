@@ -322,6 +322,14 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           </div>
         )}
 
+        {PitchInputController.isSafariDesktop() && (
+          <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
+            {en
+              ? 'Safari: If you are asked for microphone access on every visit, set this site to Allow under Safari → Settings → Websites → Microphone.'
+              : 'Safari: 訪問のたびにマイク許可が出る場合は、Safari → 設定 → Web サイト → マイク でこのサイトを「許可」にしてください。'}
+          </div>
+        )}
+
         {error && (
           <div className="text-red-400 text-xs mt-2 p-2 bg-red-900 bg-opacity-30 rounded">
             ❌ {error}

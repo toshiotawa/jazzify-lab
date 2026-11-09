@@ -269,8 +269,43 @@ class DefenseBackingDeck {
     this.slotB = null;
   }
 
+  private pendingIncomingSlot(): DeckSlot | null {
+    if (this.pendingSwitchAt === null) {
+      return null;
+    }
+    return this.activeIsA ? this.slotB : this.slotA;
+  }
+
+  cancelPendingSwitch(): void {
+    const graph = this.graph;
+    const incoming = this.pendingIncomingSlot();
+    if (incoming) {
+      this.disposeSlot(incoming);
+      if (this.activeIsA) {
+        this.slotB = null;
+      } else {
+        this.slotA = null;
+      }
+    }
+    const current = this.activeIsA ? this.slotA : this.slotB;
+    if (graph && current && this.pendingSwitchAt !== null) {
+      const now = graph.ctx.currentTime;
+      try {
+        current.gain.gain.cancelScheduledValues(now);
+        current.gain.gain.setValueAtTime(1, now);
+      } catch {
+        /* ignore */
+      }
+    }
+    this.pendingBarSec = null;
+    this.pendingPlayback = null;
+    this.pendingSwitchAt = null;
+    this.pendingTransportStart = null;
+  }
+
   /** 次の小節頭、または 1 拍以内のオーバーなら即時に切替を予約する。 */
   scheduleSwitch(nextPlayback: DefensePhraseBackingPlayback): number {
+    this.cancelPendingSwitch();
     const graph = this.ensureGraph();
     const now = graph.ctx.currentTime;
     const beatSec = this.barSec / Math.max(1, this.beatsPerBar);
@@ -302,7 +337,11 @@ class DefenseBackingDeck {
 
     current.gain.gain.setValueAtTime(1, switchAt - FADE_OUT_LEAD_SEC);
     current.gain.gain.linearRampToValueAtTime(0, switchAt);
-    current.source.stop(switchAt + STOP_AFTER_FADE_SEC);
+    try {
+      current.source.stop(switchAt + STOP_AFTER_FADE_SEC);
+    } catch {
+      /* already stopped */
+    }
 
     if (this.activeIsA) {
       this.slotB = next;

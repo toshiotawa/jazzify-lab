@@ -219,6 +219,7 @@ struct InputMethodSection: View {
                     .foregroundStyle(.red)
             }
 
+            #if DEBUG
             if engineActive, monitorCaptureMs != nil || monitorInferenceMs != nil {
                 Text(
                     isEnglishCopy
@@ -228,6 +229,7 @@ struct InputMethodSection: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
             }
+            #endif
         }
 
         VStack(alignment: .leading, spacing: 4) {

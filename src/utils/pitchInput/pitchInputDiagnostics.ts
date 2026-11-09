@@ -43,7 +43,6 @@ export class PitchInputDiagnostics {
   private modelResetCount = 0;
   private cacheRecoveryCount = 0;
   private inferenceCount = 0;
-  private skippedInferenceFrames = 0;
   private lowInputFrames = 0;
   private confidenceRejectedFrames = 0;
   private readonly processingDurations = new Float32Array(RING_SIZE);
@@ -97,10 +96,6 @@ export class PitchInputDiagnostics {
     this.inferenceCount += 1;
   }
 
-  recordSkippedInference(): void {
-    this.skippedInferenceFrames += 1;
-  }
-
   recordProcessingDuration(durationMs: number): void {
     this.processingDurations[this.processingWriteIndex] = durationMs;
     this.processingWriteIndex = (this.processingWriteIndex + 1) % RING_SIZE;
@@ -133,7 +128,6 @@ export class PitchInputDiagnostics {
       inferenceIntervalMs: this.config.inferenceIntervalMs ?? 5,
       wasmThreads: this.config.wasmThreads,
       inferenceCount: this.inferenceCount,
-      skippedInferenceFrames: this.skippedInferenceFrames,
       lowInputFrames: this.lowInputFrames,
       confidenceRejectedFrames: this.confidenceRejectedFrames,
       shiftSemitones: this.config.shiftSemitones,

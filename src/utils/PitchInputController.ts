@@ -66,44 +66,13 @@ const isVoiceInputSupported = (): boolean =>
   Boolean(navigator.mediaDevices?.getUserMedia);
 
 export class PitchInputController {
-  private static inferenceIntervalMs: 5 | 10 | 20 = 5;
-
-  private static pcmCaptureEnabled = false;
-
-  static getInferenceIntervalMs(): 5 | 10 | 20 {
-    return PitchInputController.inferenceIntervalMs;
-  }
-
-  static isPcmCaptureEnabled(): boolean {
-    return PitchInputController.pcmCaptureEnabled;
-  }
-
-  static setPcmCapture(enabled: boolean): void {
-    PitchInputController.pcmCaptureEnabled = enabled;
-    for (const controller of PitchInputController.activeControllers) {
-      controller.worker?.postMessage({ type: 'setPcmCapture', enabled });
-    }
-  }
-
-  static downloadPcmDiagnostics(): void {
-    pitchDiagnosticRecording.downloadPcm();
-  }
-
-  static async setInferenceIntervalMs(interval: 5 | 10 | 20): Promise<void> {
-    if (interval === PitchInputController.inferenceIntervalMs) return;
-    PitchInputController.inferenceIntervalMs = interval;
-    // Explicit diagnostic action only; reuse serialized connection/resource cleanup.
-    for (const controller of [...PitchInputController.activeControllers]) {
-      await controller.enqueue(async () => {
-        if (!controller.isProcessing) return;
-        await controller.connectInternal(
-          controller.currentDeviceId ?? undefined, controller.echoCancellation, controller.inputChannel, controller.pitchEngine,
-        );
-      });
-    }
-  }
-
   private static readonly activeControllers = new Set<PitchInputController>();
+
+  static isSafariDesktop(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /Macintosh|Mac OS X/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg\//.test(ua);
+  }
 
   static setDiagnosticRecording(enabled: boolean): void {
     if (enabled) pitchDiagnosticRecording.start();
@@ -119,7 +88,6 @@ export class PitchInputController {
     for (const controller of PitchInputController.activeControllers) {
       controller.recordDiagnostic('exportState', undefined, true);
       requests.push(controller.requestDiagnosticState());
-      requests.push(controller.requestPcmDump());
     }
     await Promise.all(requests);
     pitchDiagnosticRecording.download();
@@ -149,59 +117,30 @@ export class PitchInputController {
     });
   }
 
-  private requestPcmDump(): Promise<void> {
-    const worker = this.worker;
-    if (
-      !worker
-      || !PitchInputController.pcmCaptureEnabled
-      || !pitchDiagnosticRecording.hasRecording
-    ) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      const finish = (): void => {
-        clearTimeout(timeout);
-        worker.removeEventListener('message', onMessage);
-        resolve();
-      };
-      const onMessage = (event: MessageEvent<{
-        type?: string;
-        samples?: ArrayBuffer;
-        endSourceSample?: number;
-        endSourceTimeSec?: number;
-        sampleRate?: number;
-        totalWritten?: number;
-      }>): void => {
-        if (event.data?.type !== 'pcmDump') return;
-        const samples = event.data.samples;
-        if (samples && samples.byteLength > 0 && event.data.totalWritten) {
-          pitchDiagnosticRecording.addPcmSegment({
-            generationId: this.generationId,
-            endSourceSample: event.data.endSourceSample ?? 0,
-            endSourceTimeSec: event.data.endSourceTimeSec ?? 0,
-            inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
-            echoCancellation: this.echoCancellation,
-            sampleRate: event.data.sampleRate ?? 48_000,
-            samples: new Int16Array(samples),
-            totalWritten: event.data.totalWritten,
-          });
-        }
-        finish();
-      };
-      const timeout = setTimeout(() => finish(), 1500);
-      worker.addEventListener('message', onMessage);
-      worker.postMessage({ type: 'dumpPcm' });
-    });
-  }
-
   private async dumpDiagnosticsBeforeWorkerShutdown(): Promise<void> {
     if (!pitchDiagnosticRecording.hasRecording || !this.worker) {
       return;
     }
-    await Promise.all([
-      this.requestDiagnosticState(),
-      this.requestPcmDump(),
-    ]);
+    await this.requestDiagnosticState();
+  }
+
+  private retainMediaStreamForReuse(): void {
+    if (!this.mediaStream) {
+      return;
+    }
+    const tracks = this.mediaStream.getAudioTracks();
+    const isAlive = tracks.length > 0 && tracks[0].readyState === 'live';
+    if (!isAlive) {
+      this.mediaStream.getTracks().forEach((track) => track.stop());
+      this.mediaStream = null;
+      return;
+    }
+    if (PitchInputController._cachedStream && PitchInputController._cachedStream !== this.mediaStream) {
+      PitchInputController._cachedStream.getTracks().forEach((track) => track.stop());
+    }
+    PitchInputController._cachedStream = this.mediaStream;
+    PitchInputController._permissionGranted = true;
+    this.mediaStream = null;
   }
 
   private static _permissionGranted = false;
@@ -320,7 +259,6 @@ export class PitchInputController {
       stableFrames: this.pitchStableFrames,
       shiftSemitones: this.shiftSemitones,
       pitchEngine: this.pitchEngine,
-      inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
       expectedPitchMask: this.expectedPitchMask,
       expectedPitchMidis: this.expectedPitchMidis,
       repeatPitchClassMask: this.repeatPitchClassMask,
@@ -468,7 +406,7 @@ export class PitchInputController {
 
     let channelUnavailable = false;
     try {
-      await this.disconnectInternal(false);
+      await this.disconnectInternal(false, true);
       this.pitchEngine = pitchEngine;
       this.echoCancellation = echoCancellation;
       this.inputChannel = inputChannel;
@@ -557,7 +495,7 @@ export class PitchInputController {
       return true;
     } catch (error) {
       this.recordDiagnostic('connectError', { message: error instanceof Error ? error.message : String(error) });
-      await this.disconnectInternal(false);
+      await this.disconnectInternal(false, false);
       log.error('音声入力接続エラー:', this.pitchEngine, error);
       const inputError = channelUnavailable || (error instanceof Error && error.name === 'OverconstrainedError'
         && 'constraint' in error && error.constraint === 'channelCount')
@@ -683,7 +621,6 @@ export class PitchInputController {
       this.worker?.postMessage({
         type: 'init',
         pitchEngine: this.pitchEngine,
-        inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
         sensitivity: this.sensitivityLevel,
         generationId: this.generationId,
         shiftSemitones: this.shiftSemitones,
@@ -706,9 +643,6 @@ export class PitchInputController {
           : undefined,
       });
     });
-    if (PitchInputController.pcmCaptureEnabled) {
-      this.worker?.postMessage({ type: 'setPcmCapture', enabled: true });
-    }
   }
 
   private async setupWorklet(): Promise<void> {
@@ -826,10 +760,10 @@ export class PitchInputController {
   }
 
   async disconnect(): Promise<void> {
-    await this.enqueue(() => this.disconnectInternal(true));
+    await this.enqueue(() => this.disconnectInternal(true, true));
   }
 
-  private async disconnectInternal(notify: boolean): Promise<void> {
+  private async disconnectInternal(notify: boolean, retainStream = true): Promise<void> {
     if (this.audioContext || this.worker) {
       this.recordDiagnostic('disconnect', undefined, pitchDiagnosticRecording.hasRecording);
     }
@@ -868,7 +802,9 @@ export class PitchInputController {
       this.silentGainNode = null;
     }
 
-    if (this.mediaStream) {
+    if (retainStream) {
+      this.retainMediaStreamForReuse();
+    } else if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => track.stop());
       this.mediaStream = null;
     }

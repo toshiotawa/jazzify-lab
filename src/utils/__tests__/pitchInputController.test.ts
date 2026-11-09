@@ -23,12 +23,10 @@ describe('PitchInputController microphone setup', () => {
   let controller: PitchInputController;
   let worker: EventTarget;
   let respondToDiagnosticDump = false;
-  let respondToPcmDump = false;
 
   beforeEach(() => {
     vi.clearAllMocks();
     respondToDiagnosticDump = true;
-    respondToPcmDump = false;
     PitchInputController.clearCachedPermission();
     applyConstraints.mockResolvedValue(undefined);
     getSettings.mockReturnValue({ deviceId: 'external-mic', echoCancellation: true });
@@ -47,17 +45,6 @@ describe('PitchInputController microphone setup', () => {
         } else if (message.type === 'dumpDiagnostics' && respondToDiagnosticDump) {
           queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', {
             data: { type: 'diagnosticState', isInferring: false, sourceEndSample: 120 },
-          })));
-        } else if (message.type === 'dumpPcm' && respondToPcmDump) {
-          queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', {
-            data: {
-              type: 'pcmDump',
-              samples: Int16Array.from([1, 2]).buffer,
-              endSourceSample: 2,
-              endSourceTimeSec: 0.001,
-              sampleRate: 48_000,
-              totalWritten: 2,
-            },
           })));
         }
       }
@@ -89,34 +76,6 @@ describe('PitchInputController microphone setup', () => {
     vi.restoreAllMocks();
   });
 
-  it('reconnects with the selected interval while retaining device, echo setting and channel', async () => {
-    getSettings.mockReturnValue({ deviceId: 'external-mic', channelCount: 2 });
-    await controller.connect('external-mic', false, 2);
-    await PitchInputController.setInferenceIntervalMs(20);
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', inferenceIntervalMs: 20 }));
-    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: { ...constraints, echoCancellation: false, channelCount: { exact: 2 } }, video: false });
-    expect(controller.isConnected()).toBe(true);
-    await controller.disconnect();
-    await PitchInputController.setInferenceIntervalMs(5);
-  });
-
-  it('retains Pitchy on cadence changes and switches back to PESTO with active notes released', async () => {
-    getSettings.mockReturnValue({ deviceId: 'external-mic', channelCount: 2 });
-    const onNoteOff = vi.fn();
-    await controller.disconnect();
-    controller = new PitchInputController({ onNoteOn: vi.fn(), onNoteOff });
-    expect(await controller.connect('external-mic', false, 2, 'pitchy')).toBe(true);
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', pitchEngine: 'pitchy' }));
-    worker.dispatchEvent(new MessageEvent('message', { data: { type: 'noteOn', note: 69 } }));
-    await PitchInputController.setInferenceIntervalMs(20);
-    expect(onNoteOff).toHaveBeenCalledWith(69);
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', pitchEngine: 'pitchy', inferenceIntervalMs: 20 }));
-    expect(await controller.connect('external-mic', false, 2, 'pesto')).toBe(true);
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'init', pitchEngine: 'pesto' }));
-    await controller.disconnect();
-    await PitchInputController.setInferenceIntervalMs(5);
-  });
-
   it('uses the same AGC/NS settings for permission capture and fresh connections', async () => {
     expect(await PitchInputController.requestMicrophonePermission('external-mic')).toBe(true);
     expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });
@@ -126,7 +85,7 @@ describe('PitchInputController microphone setup', () => {
     await controller.disconnect();
     expect(await controller.connect('external-mic')).toBe(true);
     expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });
-    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
   });
 
   it('releases a cached microphone when applying its constraints fails', async () => {
@@ -152,7 +111,8 @@ describe('PitchInputController microphone setup', () => {
     worker.dispatchEvent(new MessageEvent('message', { data: { type: 'monitor' } }));
     expect(PitchInputController.getLatencyStats()).toMatchObject({ inputChannel: 2, captureChannelCount: 2 });
     expect(await controller.connect('external-mic', false, 2)).toBe(true);
-    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: { ...constraints, echoCancellation: false, channelCount: { exact: 2 } }, video: false });
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(applyConstraints).toHaveBeenLastCalledWith({ ...constraints, echoCancellation: false, channelCount: { exact: 2 } });
   });
 
   it.each([1, undefined])('rejects Input 2 when actual channel count is %s and releases the microphone', async (channelCount) => {
@@ -176,10 +136,7 @@ describe('PitchInputController microphone setup', () => {
     expect(applyConstraints).toHaveBeenLastCalledWith({ ...constraints, echoCancellation: false });
     expect(getUserMedia).toHaveBeenCalledTimes(1);
     expect(await controller.connect('external-mic', false)).toBe(true);
-    expect(getUserMedia).toHaveBeenLastCalledWith({
-      audio: { ...constraints, echoCancellation: false }, video: false,
-    });
-    expect(stop).toHaveBeenCalled();
+    expect(applyConstraints).toHaveBeenLastCalledWith({ ...constraints, echoCancellation: false });
     expect(await controller.connect('external-mic', true)).toBe(true);
     expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });
   });
@@ -269,15 +226,4 @@ describe('PitchInputController microphone setup', () => {
     expect(events).toContain('workerState');
   });
 
-  it('requests PCM dump before disconnect when capture is enabled', async () => {
-    respondToDiagnosticDump = true;
-    respondToPcmDump = true;
-    PitchInputController.setDiagnosticRecording(true);
-    PitchInputController.setPcmCapture(true);
-    await controller.connect('external-mic');
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'setPcmCapture', enabled: true }));
-    await controller.disconnect();
-    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'dumpPcm' }));
-    expect(pitchDiagnosticRecording.hasPcm).toBe(true);
-  });
 });

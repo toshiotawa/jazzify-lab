@@ -19,14 +19,14 @@ export const VoicePitchEngineControl = ({ isEnglishCopy }: { isEnglishCopy: bool
       </label>
       <p className="text-xs text-gray-400">
         {isEnglishCopy
-          ? 'Changing this reconnects the microphone. Your choice is saved. Compare with the same sensitivity and update interval.'
-          : '変更するとマイクを再接続します。選択は保存されます。同じ感度・更新間隔で比較してください。'}
+          ? 'Changing this reconnects the microphone. Your choice is saved. Compare with the same sensitivity.'
+          : '変更するとマイクを再接続します。選択は保存されます。同じ感度で比較してください。'}
       </p>
       {engine === 'pitchy' && (
         <p className="text-xs text-gray-400">
           {isEnglishCopy
-            ? 'Pitchy uses an 85ms analysis window (171ms with Low register). This differs from the 5/10/20ms update interval. Accuracy on your instrument needs comparison.'
-            : 'Pitchyの解析窓は約85ms（低音読み取りONで約171ms）です。5／10／20msの更新間隔とは別です。楽器での認識精度を比較してください。'}
+            ? 'Pitchy uses an 85ms analysis window (171ms with Low register). This differs from the 5ms update interval. Accuracy on your instrument needs comparison.'
+            : 'Pitchyの解析窓は約85ms（低音読み取りONで約171ms）です。5msの更新間隔とは別です。楽器での認識精度を比較してください。'}
         </p>
       )}
     </div>

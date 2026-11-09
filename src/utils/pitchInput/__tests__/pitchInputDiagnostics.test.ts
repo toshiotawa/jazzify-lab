@@ -37,11 +37,10 @@ describe('PitchInputDiagnostics', () => {
     observation.rawRmsDbfs = -70;
     observation.rejectReason = 'confidence';
     diagnostics.recordInference();
-    diagnostics.recordSkippedInference();
     diagnostics.recordObservation(observation);
     diagnostics.updateConfig({ inferenceIntervalMs: 20 });
     expect(diagnostics.snapshot(0)).toMatchObject({
-      inferenceIntervalMs: 20, inferenceCount: 1, skippedInferenceFrames: 1,
+      inferenceIntervalMs: 20, inferenceCount: 1,
       lowInputFrames: 1, confidenceRejectedFrames: 1,
     });
     observation.rawRmsDbfs = -20;
