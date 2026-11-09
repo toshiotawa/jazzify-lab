@@ -6,11 +6,14 @@ import {
   type PitchPleaseLabHandle,
 } from '@/utils/pitchLab/pitchPleaseLab';
 import {
-  applyPolyMidiMask,
+  createPolyMidiGate,
   createPolyMidiMask,
   fillMaskFromEffeTuneLevels,
-  fillMaskFromMidis,
+  fillMaskFromPitchPleaseNotes,
   releasePolyMidiMask,
+  resetPolyMidiGate,
+  stepPolyMidiGate,
+  suppressWeakerNeighbors,
 } from '@/utils/pitchInput/polyPitchActiveSet';
 import type { PolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 
@@ -29,8 +32,10 @@ const microphoneConstraints = (deviceId?: string, echoCancellation = true): Medi
 });
 
 export class PolyPitchVoiceInput {
-  private readonly mask = createPolyMidiMask();
+  private readonly gate = createPolyMidiGate();
   private readonly scratch = createPolyMidiMask();
+  private readonly levels = new Float32Array(128);
+  private readonly drop = createPolyMidiMask();
   private stream: MediaStream | null = null;
   private ownsStream = false;
   private audioContext: AudioContext | null = null;
@@ -45,6 +50,7 @@ export class PolyPitchVoiceInput {
     echoCancellation = true,
   ): Promise<boolean> {
     await this.disconnect();
+    resetPolyMidiGate(this.gate);
     this.callbacks = callbacks;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -65,18 +71,21 @@ export class PolyPitchVoiceInput {
           (frame) => {
             fillMaskFromEffeTuneLevels(
               this.scratch,
-              this.mask,
+              this.gate.emitted,
               frame.levels,
               frame.firstMidi,
               frame.divisionsPerSemitone,
+              this.levels,
             );
+            suppressWeakerNeighbors(this.scratch, this.levels, this.drop);
             this.emitEdges();
           },
         );
       } else {
         const model = engine === 'pitchplease-piano' ? 'piano' : 'fast';
-        this.pitchPlease = createPitchPleaseLab(model, null, (frame) => {
-          fillMaskFromMidis(this.scratch, frame.activeMidis);
+        this.pitchPlease = createPitchPleaseLab(model, null, undefined, (frame) => {
+          fillMaskFromPitchPleaseNotes(this.scratch, this.levels, frame.notes, frame.probs);
+          if (frame.probs) suppressWeakerNeighbors(this.scratch, this.levels, this.drop);
           this.emitEdges();
         });
         const started = await startPitchPleaseOnStream(this.pitchPlease, stream);
@@ -110,7 +119,8 @@ export class PolyPitchVoiceInput {
     this.stream = null;
     this.ownsStream = false;
     const callbacks = this.callbacks;
-    releasePolyMidiMask(this.mask, (midi) => callbacks?.onNoteOff(midi));
+    releasePolyMidiMask(this.gate.emitted, (midi) => callbacks?.onNoteOff(midi));
+    resetPolyMidiGate(this.gate);
     callbacks?.onConnectionChange?.(false);
     this.callbacks = null;
   }
@@ -119,9 +129,10 @@ export class PolyPitchVoiceInput {
     const callbacks = this.callbacks;
     if (!callbacks) return;
     const now = performance.now();
-    applyPolyMidiMask(
-      this.mask,
+    stepPolyMidiGate(
+      this.gate,
       this.scratch,
+      now,
       (midi) => callbacks.onNoteOn(midi, now),
       (midi) => callbacks.onNoteOff(midi),
     );

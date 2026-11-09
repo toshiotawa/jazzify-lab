@@ -266,7 +266,10 @@ export const useStandaloneNoteInput = ({
             }
           },
         }, deviceId, settings.voiceEchoCancellation ?? true);
-        if (connectGenerationRef.current !== generation) return;
+        if (connectGenerationRef.current !== generation) {
+          await poly.disconnect();
+          return;
+        }
         setIsConnected(ok);
         setConnectionStatus(ok ? 'ready' : 'error');
         return;

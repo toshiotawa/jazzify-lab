@@ -23,11 +23,14 @@ export const createPitchPleaseLab = (
   model: 'fast' | 'piano',
   recorder: PolyPitchSessionRecorder | null,
   onFrame?: (frame: PolyPitchFrame) => void,
+  onDetectorFrame?: (frame: Frame) => void,
 ): PitchPleaseLabHandle => {
   const detector = create({
     model,
     assetBaseUrl: PITCH_PLEASE_ASSET_BASE,
     onNotes: (_notes, frame) => {
+      onDetectorFrame?.(frame);
+      if (!recorder && !onFrame) return;
       const poly = frameToPoly(model, frame);
       recorder?.append(poly);
       onFrame?.(poly);
