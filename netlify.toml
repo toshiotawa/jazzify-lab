@@ -76,9 +76,20 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Embedder-Policy = "credentialless"
 
+[[headers]]
+  for = "/main/lab/pitch-mpe"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
+
 # Dedicated/nested Worker scripts inherit the app's embedding policy.
 [[headers]]
   for = "/js/audio/*"
+  [headers.values]
+    Cross-Origin-Embedder-Policy = "credentialless"
+
+[[headers]]
+  for = "/vendor/*"
   [headers.values]
     Cross-Origin-Embedder-Policy = "credentialless"
 

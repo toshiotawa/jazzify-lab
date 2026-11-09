@@ -26,6 +26,7 @@ import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange
 import { collectMidisFromMusicXmlText, computeEarTrainingStageMidiMidis } from '@/utils/webKeyboardDisplayRange';
 import { cn } from '@/utils/cn';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
+import { isPolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 import {
   markAudioUserInteraction,
   playNote,
@@ -248,6 +249,8 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     tutorial?.bindings.onBattleReady?.();
   }, [timingCalibrationMode, tutorial]);
   const { settings, updateSettings } = useGameStore();
+  const monophonicVoice = settings.inputMethod === 'voice'
+    && !isPolyphonicVoiceEngine(settings.voicePitchEngine);
   const { profile } = useAuthStore(state => ({ profile: state.profile }));
   const geoCountry = useGeoStore(state => state.country);
   const audienceContext = useMemo(
@@ -1350,7 +1353,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     spawnDueApproachCircles(phraseTimeSec);
     autoCompleteDueTargetsInTimingCalibrationRef.current(phraseTimeSec);
     failExpiredTargets(phraseTimeSec);
-    if (settings.inputMethod === 'voice') {
+    if (monophonicVoice) {
       const earlyW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_EARLY_SEC);
       const lateW = resolveEffectiveTimingWindowSec(CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC);
       const phraseTargets = targetsRef.current;
@@ -1398,7 +1401,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     isTargetCompleted,
     resolveCalibratedTargetTimeSec,
     resolveEffectiveTimingWindowSec,
-    settings.inputMethod,
+    monophonicVoice,
     syncPracticeVoicingHints,
     syncSelfPacedMeasureAndHints,
     spawnDueApproachCircles,
@@ -2050,7 +2053,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     const now = performance.now();
     const midiNote = Math.round(note);
     const inputPitchClass = ((midiNote % 12) + 12) % 12;
-    if (settings.inputMethod === 'voice') {
+    if (monophonicVoice) {
       const phraseTargets = targetsRef.current;
       const phraseTime = resolveEarTrainingInputPhraseTimeSec(phrasePlayerRef.current, domTimeStampMs);
       if (phraseTime != null && Number.isFinite(phraseTime)) {
@@ -2125,7 +2128,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (gameStateRef.current !== 'playingPhrase' && gameStateRef.current !== 'countIn') {
       return;
     }
-    const allowPitchClass = settings.inputMethod === 'voice';
+    const allowPitchClass = monophonicVoice;
 
     if (osmdSelfPacedRef.current) {
       if (gameStateRef.current !== 'playingPhrase') {
@@ -2258,17 +2261,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     if (chordOsmdTargetIsComplete(nextRemaining)) {
       completeTarget(target, state, phraseT);
     }
-  }, [completeTarget, isTargetCompleted, isTargetIncomplete, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, settings.inputMethod, stage.bpm, stage.slug, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
+  }, [completeTarget, isTargetCompleted, isTargetIncomplete, monophonicVoice, resolveCalibratedTargetTimeSec, resolveEffectiveTimingWindowSec, stage.bpm, stage.slug, syncPracticeVoicingHints, syncSelfPacedMeasureAndHints]);
 
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInput;
   }, [handleNoteInput]);
 
   const { isConnected: isStandaloneInputConnected } = useStandaloneNoteInput({
+    allowPolyphonicVoice: true,
     onNoteOn: (note, domTimeStampMs) => {
       handleMidiNoteOn(note, domTimeStampMs);
     },
-    expectedPitchCandidates: settings.inputMethod === 'voice' ? voiceExpectedPitchCandidates : undefined,
+    expectedPitchCandidates: monophonicVoice ? voiceExpectedPitchCandidates : undefined,
     onKeyHighlight: (note, active) => pianoOverlayRef.current?.highlightKey(note, active),
   });
 
@@ -2595,6 +2599,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}
         isMidiConnected={isMidiConnected}
+        polyphonicVoiceEngines
         practiceRunMode={tutorial ? undefined : practiceRunModeConfig}
         practiceTranspose={tutorial ? undefined : practiceTransposeConfig}
         practiceSpeed={tutorial ? undefined : practiceSpeedConfig}

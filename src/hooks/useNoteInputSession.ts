@@ -3,6 +3,7 @@ import type { PIXINotesRendererInstance } from '@/components/piano/PIXINotesRend
 import { useGameStore } from '@/stores/gameStore';
 import { MIDIController, updateGlobalVolume } from '@/utils/MidiController';
 import { PitchInputController } from '@/utils/PitchInputController';
+import { monoPitchEngineForSession } from '@/utils/pitchInput/voicePitchEngine';
 import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
 import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
@@ -164,7 +165,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
             ? settings.selectedAudioDevice
             : undefined;
         if (PitchInputController.isSupported()) {
-          await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, settings.voicePitchEngine ?? 'pesto');
+          await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, monoPitchEngineForSession(settings.voicePitchEngine));
         } else {
           await pitch.disconnect();
         }

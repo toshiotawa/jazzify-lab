@@ -245,6 +245,7 @@ import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
 import { PitchInputController } from '@/utils/PitchInputController';
+import { monoPitchEngineForSession } from '@/utils/pitchInput/voicePitchEngine';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -1646,7 +1647,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (settings.selectedAudioDevice) {
           const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
-          await voiceControllerRef.current.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, settings.voicePitchEngine ?? 'pesto');
+          await voiceControllerRef.current.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, monoPitchEngineForSession(settings.voicePitchEngine));
         }
       } catch {
         // エラー時はタッチ入力で続行可能

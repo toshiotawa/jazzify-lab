@@ -85,6 +85,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
   const inputSetupMethod = session.screen === 'inputSetup' ? session.inputMethod : null;
   const inputMonitor = useStandaloneNoteInput({
     enabled: inputSetupMethod === 'midi' || inputSetupMethod === 'voice',
+    allowPolyphonicVoice: true,
     inputMethod: inputSetupMethod ?? settings.inputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
     voiceLowRegister: settings.voiceLowRegister ?? false,

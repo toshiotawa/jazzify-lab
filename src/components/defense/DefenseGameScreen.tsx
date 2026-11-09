@@ -107,6 +107,7 @@ import { createDefenseRuntime } from '@/game/defense/defenseTypes';
 import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
+import { isPolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -270,7 +271,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const settings = useGameStore((state) => state.settings);
   const updateSettings = useGameStore((state) => state.updateSettings);
   const effectiveInputMethod = tutorialInputMethod ?? settings.inputMethod;
-  const voiceSequential = effectiveInputMethod === 'voice';
+  const voiceInput = effectiveInputMethod === 'voice';
+  const polyphonicVoice = voiceInput && isPolyphonicVoiceEngine(settings.voicePitchEngine);
+  const voiceSequential = voiceInput && !polyphonicVoice;
   isSettingsOpenRef.current = isSettingsOpen;
 
   useEffect(() => {
@@ -768,6 +771,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     enabled: !isTutorialSession
       || effectiveInputMethod === 'midi'
       || effectiveInputMethod === 'voice',
+    allowPolyphonicVoice: true,
     inputMethod: effectiveInputMethod,
     voiceFastResponse: settings.voiceFastResponse ?? false,
     masterVolume: isTutorialSession ? 1 : settings.masterVolume,
@@ -819,14 +823,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     const volume = isTutorialSession
       ? settings.bgmVolume
       : settings.musicVolume * settings.masterVolume;
-    defenseBackingDeck.setVoiceInputDucking(voiceSequential);
+    defenseBackingDeck.setVoiceInputDucking(voiceInput);
     defenseBackingDeck.setUserVolume(volume);
     if (isSharedProgressionStage) {
-      defenseSharedProgressionDeck.setVoiceInputDucking(voiceSequential);
+      defenseSharedProgressionDeck.setVoiceInputDucking(voiceInput);
       defenseSharedProgressionDeck.setUserVolume(volume);
     }
     if (isSeparateTracksStage) {
-      defenseSeparateTracksDeck.setVoiceInputDucking(voiceSequential);
+      defenseSeparateTracksDeck.setVoiceInputDucking(voiceInput);
       defenseSeparateTracksDeck.setUserVolume(volume);
     }
     return () => {
@@ -838,7 +842,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         defenseSeparateTracksDeck.setVoiceInputDucking(false);
       }
     };
-  }, [voiceSequential, isTutorialSession, settings.bgmVolume, settings.musicVolume, settings.masterVolume, isSharedProgressionStage, isSeparateTracksStage]);
+  }, [voiceInput, isTutorialSession, settings.bgmVolume, settings.musicVolume, settings.masterVolume, isSharedProgressionStage, isSeparateTracksStage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1255,6 +1259,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           midiDeviceId={settings.selectedMidiDevice}
           onMidiDeviceChange={handleMidiDeviceChange}
           isMidiConnected={false}
+          polyphonicVoiceEngines
           practiceRunMode={{
             practiceMode,
             onApplyPracticeModeAndRestart: onApplyPracticeModeAndRestart,

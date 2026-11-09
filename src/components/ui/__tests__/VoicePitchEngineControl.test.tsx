@@ -19,4 +19,11 @@ describe('VoicePitchEngineControl', () => {
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'pesto' } });
     expect(screen.queryByText(/85ms/)).not.toBeInTheDocument();
   });
+
+  it('フレーズディフェンスとOSMD向けに多声エンジンを選べる', () => {
+    render(<VoicePitchEngineControl isEnglishCopy={false} includePolyphonic />);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'effetune' } });
+    expect(useGameStore.getState().settings.voicePitchEngine).toBe('effetune');
+    expect(screen.getByText(/そのまま鍵のON\/OFF/)).toBeInTheDocument();
+  });
 });

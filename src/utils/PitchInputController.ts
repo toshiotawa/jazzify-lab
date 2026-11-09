@@ -163,6 +163,11 @@ export class PitchInputController {
     return PitchInputController._latestLatencyStats;
   }
 
+  /** 診断・多声ラボで共有ストリームを取得する（接続中のみ） */
+  getActiveMediaStream(): MediaStream | null {
+    return this.mediaStream;
+  }
+
   static downloadFrameTrace(): void {
     downloadPitchFrameTrace();
   }

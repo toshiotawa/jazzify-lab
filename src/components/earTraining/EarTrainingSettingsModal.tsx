@@ -63,6 +63,8 @@ interface EarTrainingSettingsModalProps {
     enabled: boolean;
     onChange: (enabled: boolean) => void;
   };
+  /** フレーズディフェンスと OSMD だけ多声の音声入力を出す */
+  polyphonicVoiceEngines?: boolean;
 }
 
 const SliderRow: React.FC<{
@@ -102,6 +104,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   osmdTimingAdjustment,
   onLaunchTimingAdjustment,
   precisionAutoPlay,
+  polyphonicVoiceEngines = false,
 }) => {
   const isTutorialScope = scope === 'tutorial';
   const { settings, updateSettings } = useGameStore();
@@ -241,6 +244,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
               onMidiDeviceChange={onMidiDeviceChange}
               isMidiConnected={isMidiConnected}
               showMonophonicWarning
+              showPolyphonicEngines={polyphonicVoiceEngines}
             />
           </section>
 

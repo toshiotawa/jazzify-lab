@@ -229,8 +229,8 @@ export interface GameSettings {
   /** 音声認識の感度 (1-10, デフォルト5) */
   voiceSensitivity: number;
 
-  /** Web単音ピッチ推定方式。未指定はPESTO。 */
-  voicePitchEngine?: 'pesto' | 'pitchy';
+  /** Webピッチ推定方式。未指定はPESTO。多声はフレーズディフェンスとOSMDだけがON/OFFに使う。 */
+  voicePitchEngine?: import('@/utils/pitchInput/voicePitchEngine').VoicePitchEngine;
 
   /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
   voiceFastResponse?: boolean;

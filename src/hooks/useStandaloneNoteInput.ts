@@ -11,6 +11,10 @@ import {
   PitchInputController,
   type PitchInputLatencyStats,
 } from '@/utils/PitchInputController';
+import {
+  isPolyphonicVoiceEngine,
+  monoPitchEngineForSession,
+} from '@/utils/pitchInput/voicePitchEngine';
 import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
@@ -41,6 +45,8 @@ interface UseStandaloneNoteInputOptions {
   /** Phrase Defense の期待 pitch class ビットマスク。0 は補助なし。 */
   expectedPitchMask?: number;
   expectedPitchCandidates?: ExpectedPitchCandidates;
+  /** true のとき多声エンジンは検出MIDIをそのまま note on/off する。 */
+  allowPolyphonicVoice?: boolean;
 }
 
 interface UseStandaloneNoteInputResult {
@@ -63,6 +69,7 @@ export const useStandaloneNoteInput = ({
   voiceLowRegister = false,
   expectedPitchMask = 0,
   expectedPitchCandidates,
+  allowPolyphonicVoice = false,
 }: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
   const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
@@ -80,6 +87,8 @@ export const useStandaloneNoteInput = ({
   });
   const midiRef = useRef<MIDIController | null>(null);
   const pitchRef = useRef<PitchInputController | null>(null);
+  const polyRef = useRef<import('@/utils/pitchInput/polyPitchVoiceInput').PolyPitchVoiceInput | null>(null);
+  const polyActiveCountRef = useRef(0);
   const onNoteOnRef = useRef(onNoteOn);
   const onNoteOffRef = useRef(onNoteOff);
   const onKeyHighlightRef = useRef(onKeyHighlight);
@@ -163,8 +172,10 @@ export const useStandaloneNoteInput = ({
     return () => {
       void midi.destroy();
       pitch.destroy();
+      void polyRef.current?.disconnect();
       midiRef.current = null;
       pitchRef.current = null;
+      polyRef.current = null;
     };
   }, [playMidiSound, inputMethodOverride]);
 
@@ -211,6 +222,7 @@ export const useStandaloneNoteInput = ({
     if (!enabled || effectiveMethod === 'touch') {
       midi.disconnect();
       await pitch.disconnect();
+      await polyRef.current?.disconnect();
       setIsConnected(false);
       setConnectionStatus('idle');
       setDetectedNoteLabel(null);
@@ -221,6 +233,45 @@ export const useStandaloneNoteInput = ({
 
     if (effectiveMethod === 'voice') {
       midi.disconnect();
+      const storedEngine = useGameStore.getState().settings.voicePitchEngine;
+      if (allowPolyphonicVoice && isPolyphonicVoiceEngine(storedEngine)) {
+        await pitch.disconnect();
+        const { PolyPitchVoiceInput } = await import('@/utils/pitchInput/polyPitchVoiceInput');
+        const poly = polyRef.current ?? new PolyPitchVoiceInput();
+        polyRef.current = poly;
+        polyActiveCountRef.current = 0;
+        setConnectionStatus('requesting');
+        const deviceId =
+          settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
+            ? settings.selectedAudioDevice
+            : undefined;
+        const ok = await poly.connect(storedEngine, {
+          onNoteOn: (note, domTimeStampMs) => {
+            polyActiveCountRef.current += 1;
+            onNoteOnRef.current(note, domTimeStampMs);
+            onKeyHighlightRef.current?.(note, true);
+            setDetectedNoteLabel(midiToNoteName(note));
+          },
+          onNoteOff: (note) => {
+            polyActiveCountRef.current = Math.max(0, polyActiveCountRef.current - 1);
+            onNoteOffRef.current?.(note);
+            onKeyHighlightRef.current?.(note, false);
+            if (polyActiveCountRef.current === 0) setDetectedNoteLabel(null);
+          },
+          onConnectionChange: (connected) => {
+            const method = inputMethodOverride ?? useGameStore.getState().settings.inputMethod;
+            if (method === 'voice') {
+              setIsConnected(connected);
+              setConnectionStatus(connected ? 'ready' : 'disconnected');
+            }
+          },
+        }, deviceId, settings.voiceEchoCancellation ?? true);
+        if (connectGenerationRef.current !== generation) return;
+        setIsConnected(ok);
+        setConnectionStatus(ok ? 'ready' : 'error');
+        return;
+      }
+      await polyRef.current?.disconnect();
       pitch.setPitchStableFrames(voiceFastResponseRef.current ? 2 : 4);
       pitch.setLowRegister(voiceLowRegisterRef.current);
       pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
@@ -236,7 +287,7 @@ export const useStandaloneNoteInput = ({
           : undefined;
       if (PitchInputController.isSupported()) {
         setConnectionStatus('requesting');
-        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, settings.voicePitchEngine ?? 'pesto');
+        const ok = await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, monoPitchEngineForSession(settings.voicePitchEngine));
         if (connectGenerationRef.current !== generation) return;
         setIsConnected(ok);
         setConnectionStatus(ok ? 'ready' : 'error');
@@ -248,6 +299,7 @@ export const useStandaloneNoteInput = ({
     }
 
     await pitch.disconnect();
+    await polyRef.current?.disconnect();
     setDetectedNoteLabel(null);
     if (settings.selectedMidiDevice) {
       const ok = await midi.connectDevice(settings.selectedMidiDevice);
@@ -267,6 +319,7 @@ export const useStandaloneNoteInput = ({
     settings.voiceEchoCancellation,
     settings.voiceInputChannel,
     settings.voicePitchEngine,
+    allowPolyphonicVoice,
   ]);
 
   useEffect(() => {

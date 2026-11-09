@@ -8,6 +8,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { PitchInputController, type PitchInputLatencyStats } from '@/utils/PitchInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isProduction } from '@/utils/environment';
+import { isPolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 
 const formatLatencyMs = (value: number | null): string =>
   value === null ? '—' : `${Math.round(value)}ms`;
@@ -18,6 +19,8 @@ export interface InputMethodSelectorProps {
   isMidiConnected?: boolean;
   /** 和音モード等、単音のみの警告を表示 */
   showMonophonicWarning?: boolean;
+  /** フレーズディフェンスと OSMD だけ多声エンジンを出す */
+  showPolyphonicEngines?: boolean;
   className?: string;
 }
 
@@ -26,6 +29,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
   onMidiDeviceChange,
   isMidiConnected = false,
   showMonophonicWarning = false,
+  showPolyphonicEngines = false,
   className = '',
 }) => {
   const { settings, updateSettings } = useGameStore();
@@ -110,12 +114,21 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
           <h4 className="text-sm font-medium text-purple-200">
             {en ? '🎤 Voice input' : '🎤 音声入力'}
           </h4>
-          {showMonophonicWarning && (
+          {showMonophonicWarning && !isPolyphonicVoiceEngine(settings.voicePitchEngine) && (
             <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2">
               <p className="text-xs text-yellow-300">
                 {en
                   ? '⚠️ Monophonic only. Chord modes detect one note at a time.'
                   : '⚠️ 単音での読み取り専用です。和音モードでは1音ずつしか判定されません。'}
+              </p>
+            </div>
+          )}
+          {showPolyphonicEngines && isPolyphonicVoiceEngine(settings.voicePitchEngine) && (
+            <div className="bg-emerald-900/30 border border-emerald-600/40 rounded p-2">
+              <p className="text-xs text-emerald-200">
+                {en
+                  ? 'Detected notes turn keyboard keys on and off together, the same way a MIDI chord does.'
+                  : '検出した音は、MIDI和音と同じように鍵盤のON/OFFとして同時に出ます。'}
               </p>
             </div>
           )}
@@ -138,7 +151,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
             onChange={(deviceId) => updateSettings({ selectedAudioDevice: deviceId })}
           />
           <VoiceEchoCancellationControl isEnglishCopy={en} />
-          <VoicePitchEngineControl isEnglishCopy={en} />
+          <VoicePitchEngineControl isEnglishCopy={en} includePolyphonic={showPolyphonicEngines} />
           <VoiceInputChannelControl isEnglishCopy={en} />
           <p className="text-xs text-gray-400">
             {en ? 'Captured channels' : '取得チャンネル数'}: {latencyStats.captureChannelCount ?? '—'}
