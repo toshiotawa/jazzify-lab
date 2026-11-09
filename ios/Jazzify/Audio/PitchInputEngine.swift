@@ -274,6 +274,7 @@ final class PitchInputEngine: @unchecked Sendable {
         config.frameDurationMs = Self.frameDurationMs(for: shiftSemitones)
         config.allowImmediateFirstFrame = Self.decimationFactor(for: shiftSemitones) <= 1
         config.repeatRetriggerGuardMs = 80
+        config.legatoReturnGuardMs = 100
         tracker.setConfig(config)
     }
 

@@ -24,6 +24,8 @@ export interface PitchOnsetTrackerConfig {
   repeatRetriggerGuardMs: number;
   /** 生 RMS がピークからこの dB 以上落ちたら release 候補。 */
   releaseRawDropDb: number;
+  /** レガート後に鳴り残りへ戻る遷移を抑止する ms。0 で無効。 */
+  legatoReturnGuardMs: number;
   /** 同音リアタック: 直近 N フレームとの dB 差で立ち上がり判定 */
   retriggerLookbackFrames: number;
   /** Require energy growth in the held note band for unassisted repeats. */
@@ -63,6 +65,7 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   retriggerGuardFrames: 6,
   repeatRetriggerGuardMs: 0,
   releaseRawDropDb: 30,
+  legatoReturnGuardMs: 0,
   retriggerLookbackFrames: 4,
   repeatDipDb: 3,
   repeatRiseDb: 6,
@@ -175,6 +178,10 @@ export class PitchOnsetTracker {
   private processingFrameIndex = 0;
   /** ノート中の生 RMS ピーク (dB)。 */
   private noteRawPeakDb = -Infinity;
+  /** 直近のレガート遷移で離れた音。 */
+  private legatoFromNote = -1;
+  private readonly recentReleasedNotes: number[] = [-1, -1, -1];
+  private readonly recentReleasedFrames: number[] = [-1, -1, -1];
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -220,6 +227,13 @@ export class PitchOnsetTracker {
     this.recentFrameRing = [];
     this.attackMidi = -1;
     this.noteRawPeakDb = -Infinity;
+    this.legatoFromNote = -1;
+    this.recentReleasedNotes[0] = -1;
+    this.recentReleasedNotes[1] = -1;
+    this.recentReleasedNotes[2] = -1;
+    this.recentReleasedFrames[0] = -1;
+    this.recentReleasedFrames[1] = -1;
+    this.recentReleasedFrames[2] = -1;
   }
 
   private resetRepeatPeakState(): void {
@@ -384,6 +398,20 @@ export class PitchOnsetTracker {
         } else if (this.shouldHoldRepeatModeUnexpectedPitch(quantized)) {
           this.updateRepeatTroughOnly(levelDb, attackLevelDb, frameIndex);
           this.recordLevels(levelDb, attackLevelDb, frameIndex);
+        } else if (this.shouldSuppressLegatoReturnToRecentNote(quantized, frameIndex)) {
+          const wobbleReturn = (
+            quantized === this.legatoFromNote
+            && Math.abs(quantized - this.currentNote) === 1
+          );
+          if (wobbleReturn) {
+            const wobbleNote = this.currentNote;
+            this.emitNoteOff(events, wobbleNote, frameIndex);
+            this.legatoFromNote = wobbleNote;
+            this.resumeSuspendedNote(quantized, frameIndex);
+          } else {
+            this.updateRepeatTroughOnly(levelDb, attackLevelDb, frameIndex);
+            this.recordLevels(levelDb, attackLevelDb, frameIndex);
+          }
         } else {
           const octaveRelated = this.isOctaveRelatedJump(quantized);
           if (octaveRelated && this.isLikelyOctaveJump(quantized, levelDb, attackLevelDb, frame.confidence)) {
@@ -396,6 +424,7 @@ export class PitchOnsetTracker {
             octaveRelated,
           )) {
             this.suspendedNote = -1;
+            this.legatoFromNote = this.currentNote;
             this.emitNoteOff(events, this.currentNote, frameIndex);
             this.emitNoteOn(
               events,
@@ -653,6 +682,52 @@ export class PitchOnsetTracker {
     );
   }
 
+  private legatoReturnGuardFrames(): number {
+    const frameMs = Math.max(1, this.config.frameDurationMs);
+    if (this.config.legatoReturnGuardMs <= 0) {
+      return 0;
+    }
+    return Math.round(this.config.legatoReturnGuardMs / frameMs);
+  }
+
+  private pushRecentRelease(note: number, frameIndex: number): void {
+    this.recentReleasedNotes[0] = this.recentReleasedNotes[1];
+    this.recentReleasedNotes[1] = this.recentReleasedNotes[2];
+    this.recentReleasedNotes[2] = note;
+    this.recentReleasedFrames[0] = this.recentReleasedFrames[1];
+    this.recentReleasedFrames[1] = this.recentReleasedFrames[2];
+    this.recentReleasedFrames[2] = frameIndex;
+  }
+
+  private isRecentlyReleased(quantized: number, frameIndex: number): boolean {
+    const guardFrames = this.legatoReturnGuardFrames();
+    if (guardFrames <= 0) {
+      return false;
+    }
+    for (let index = 0; index < this.recentReleasedNotes.length; index += 1) {
+      const releasedNote = this.recentReleasedNotes[index];
+      const releasedFrame = this.recentReleasedFrames[index];
+      if (
+        releasedNote === quantized
+        && releasedFrame >= 0
+        && frameIndex - releasedFrame < guardFrames
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private shouldSuppressLegatoReturnToRecentNote(
+    quantized: number,
+    frameIndex: number,
+  ): boolean {
+    if (this.currentNote < 0) {
+      return false;
+    }
+    return this.isRecentlyReleased(quantized, frameIndex);
+  }
+
   private isSamePitchClass(a: number, b: number): boolean {
     if (a < 0 || b < 0) return false;
     const pcA = ((a % 12) + 12) % 12;
@@ -806,6 +881,7 @@ export class PitchOnsetTracker {
     this.noteOnFrame = -1;
     this.releaseCount = 0;
     this.pendingOff = false;
+    this.pushRecentRelease(note, frameIndex);
     events.push({ type: 'noteOff', note, frameIndex });
   }
 

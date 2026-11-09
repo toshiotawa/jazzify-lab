@@ -11,6 +11,7 @@ struct PitchOnsetTrackerConfig: Equatable {
     var retriggerGuardFrames: Int = 6
     var repeatRetriggerGuardMs: Double = 0
     var releaseRawDropDb: Double = 30
+    var legatoReturnGuardMs: Double = 0
     var retriggerLookbackFrames: Int = 4
     var repeatDipDb: Double = 3
     var repeatRiseDb: Double = 6
@@ -86,6 +87,9 @@ final class PitchOnsetTracker {
     private var recentAttackDbRing: [Double] = []
     private var noteRawPeakDb = -Double.infinity
     private var processingFrameIndex = 0
+    private var legatoFromNote = -1
+    private var recentReleasedNotes: [Int] = [-1, -1, -1]
+    private var recentReleasedFrames: [Int] = [-1, -1, -1]
 
     init(config: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) {
         self.config = config
@@ -122,6 +126,9 @@ final class PitchOnsetTracker {
         suspendedNoteOffFrame = -1
         resetRepeatPeakState()
         noteRawPeakDb = -.infinity
+        legatoFromNote = -1
+        recentReleasedNotes = [-1, -1, -1]
+        recentReleasedFrames = [-1, -1, -1]
     }
 
     private func resetRepeatPeakState() {
@@ -271,6 +278,18 @@ final class PitchOnsetTracker {
                 } else if shouldHoldRepeatModeUnexpectedPitch(quantized: quantized) {
                     updateRepeatTroughOnly(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
                     recordLevels(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
+                } else if shouldSuppressLegatoReturnToRecentNote(quantized: quantized, frameIndex: frameIndex) {
+                    let wobbleReturn = quantized == legatoFromNote
+                        && abs(quantized - currentNote) == 1
+                    if wobbleReturn {
+                        let wobbleNote = currentNote
+                        emitNoteOff(&events, note: wobbleNote, frameIndex: frameIndex)
+                        legatoFromNote = wobbleNote
+                        resumeSuspendedNote(note: quantized, frameIndex: frameIndex)
+                    } else {
+                        updateRepeatTroughOnly(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
+                        recordLevels(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
+                    }
                 } else {
                     let octaveRelated = isOctaveRelatedJump(quantized: quantized)
                     if octaveRelated, isLikelyOctaveJump(
@@ -288,6 +307,7 @@ final class PitchOnsetTracker {
                         octaveRelated: octaveRelated
                     ) {
                         suspendedNote = -1
+                        legatoFromNote = currentNote
                         emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
                         emitNoteOn(
                             &events,
@@ -532,6 +552,41 @@ final class PitchOnsetTracker {
         return max(config.retriggerGuardFrames, Int((config.repeatRetriggerGuardMs / frameMs).rounded()))
     }
 
+    private func legatoReturnGuardFrames() -> Int {
+        let frameMs = max(1, config.frameDurationMs)
+        guard config.legatoReturnGuardMs > 0 else { return 0 }
+        return Int((config.legatoReturnGuardMs / frameMs).rounded())
+    }
+
+    private func pushRecentRelease(note: Int, frameIndex: Int) {
+        recentReleasedNotes[0] = recentReleasedNotes[1]
+        recentReleasedNotes[1] = recentReleasedNotes[2]
+        recentReleasedNotes[2] = note
+        recentReleasedFrames[0] = recentReleasedFrames[1]
+        recentReleasedFrames[1] = recentReleasedFrames[2]
+        recentReleasedFrames[2] = frameIndex
+    }
+
+    private func isRecentlyReleased(quantized: Int, frameIndex: Int) -> Bool {
+        let guardFrames = legatoReturnGuardFrames()
+        guard guardFrames > 0 else { return false }
+        for index in 0..<recentReleasedNotes.count {
+            let releasedNote = recentReleasedNotes[index]
+            let releasedFrame = recentReleasedFrames[index]
+            if releasedNote == quantized,
+               releasedFrame >= 0,
+               frameIndex - releasedFrame < guardFrames {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func shouldSuppressLegatoReturnToRecentNote(quantized: Int, frameIndex: Int) -> Bool {
+        guard currentNote >= 0 else { return false }
+        return isRecentlyReleased(quantized: quantized, frameIndex: frameIndex)
+    }
+
     private func isSamePitchClass(_ a: Int, _ b: Int) -> Bool {
         guard a >= 0, b >= 0 else { return false }
         return ((a % 12) + 12) % 12 == ((b % 12) + 12) % 12
@@ -635,6 +690,7 @@ final class PitchOnsetTracker {
         noteOnFrame = -1
         releaseCount = 0
         pendingOff = false
+        pushRecentRelease(note: note, frameIndex: frameIndex)
         events.append(.noteOff(note: note, frameIndex: frameIndex))
     }
 

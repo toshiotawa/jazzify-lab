@@ -342,6 +342,7 @@ const buildTrackerConfig = (): PitchOnsetTrackerConfig => {
     retriggerGuardFrames: Math.max(1, Math.ceil(base.retriggerGuardFrames / inferenceStride)),
     retriggerLookbackFrames: Math.max(1, Math.ceil(base.retriggerLookbackFrames / inferenceStride)),
     repeatRetriggerGuardMs: 80,
+    legatoReturnGuardMs: 100,
     allowImmediateFirstFrame: factor <= 1,
   };
 };

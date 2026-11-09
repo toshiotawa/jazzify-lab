@@ -673,6 +673,54 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertEqual(noteOnCount, 2)
     }
 
+    func testSuppressesSustainingPitchReturnWithinLegatoReturnGuard() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.frameDurationMs = 5
+        config.minNoteFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        _ = tracker.processFrame(voiced(76), frameIndex: 0)
+        _ = tracker.processFrame(voiced(76), frameIndex: 1)
+        _ = tracker.processFrame(voiced(74), frameIndex: 2)
+        _ = tracker.processFrame(voiced(74), frameIndex: 3)
+        let tail = tracker.processFrame(voiced(76), frameIndex: 4)
+            + tracker.processFrame(voiced(76), frameIndex: 5)
+        XCTAssertTrue(tail.allSatisfy {
+            if case .noteOn = $0 { return false }
+            return true
+        })
+        XCTAssertEqual(tracker.getCurrentNote(), 74)
+    }
+
+    func testBlocksPhraseAdvanceChainFromSustainingReturns() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.frameDurationMs = 5
+        config.minNoteFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        let sequence = [64, 64, 62, 62, 63, 63, 64, 63, 62]
+        var noteOns: [Int] = []
+        for (index, midi) in sequence.enumerated() {
+            for event in tracker.processFrame(voiced(midi), frameIndex: index) {
+                if case let .noteOn(note, _, _) = event {
+                    noteOns.append(note)
+                }
+            }
+        }
+        XCTAssertEqual(noteOns, [64, 62, 63])
+        XCTAssertEqual(tracker.getCurrentNote(), 62)
+    }
+
     func testAllowsLegatoToExpectedPitchClassWhileHoldingRepeatPitch() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1

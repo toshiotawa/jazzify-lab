@@ -1401,4 +1401,81 @@ describe('PitchOnsetTracker', () => {
     expect(late.length).toBeGreaterThanOrEqual(1);
   });
 
+  const legatoReturnGuardConfig = {
+    ...DEFAULT_ONSET_CONFIG,
+    pitchStableFrames: 1,
+    fastResponse: true,
+    fastLegatoConfidence: 0.5,
+    onsetImmediateConfidence: 2,
+    legatoReturnGuardMs: 100,
+    frameDurationMs: 5,
+    minNoteFrames: 2,
+  };
+
+  const highConfidenceVoiced = (prediction: number): PitchFrame => ({
+    prediction, confidence: 0.99, volume: 0.01,
+  });
+
+  it('suppresses sustaining pitch return after legato within legatoReturnGuardMs', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    const noteOns = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+      { frame: highConfidenceVoiced(74), index: 2 },
+      { frame: highConfidenceVoiced(74), index: 3 },
+      { frame: highConfidenceVoiced(76), index: 4 },
+      { frame: highConfidenceVoiced(76), index: 5 },
+      { frame: highConfidenceVoiced(76), index: 6 },
+    ]);
+    expect(noteOns).toEqual([76, 74]);
+    expect(tracker.getCurrentNote()).toBe(74);
+  });
+
+  it('blocks phrase-advance chain from sustaining pitch returns', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    const sequence = [64, 64, 62, 62, 63, 63, 64, 63, 62];
+    const events: Array<{ type: string; note: number }> = [];
+    sequence.forEach((prediction, index) => {
+      for (const event of tracker.processFrame(highConfidenceVoiced(prediction), index)) {
+        events.push(event);
+      }
+    });
+    const noteOns = events.filter((event) => event.type === 'noteOn').map((event) => event.note);
+    expect(noteOns).toEqual([64, 62, 63]);
+    expect(tracker.getCurrentNote()).toBe(62);
+    expect(events.some((event) => event.type === 'noteOff' && event.note === 63)).toBe(true);
+  });
+
+  it('allows pitch return after legatoReturnGuardMs elapses', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+      { frame: highConfidenceVoiced(74), index: 2 },
+      { frame: highConfidenceVoiced(74), index: 3 },
+    ]);
+    const later = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(74), index: 24 },
+      { frame: highConfidenceVoiced(76), index: 25 },
+      { frame: highConfidenceVoiced(76), index: 26 },
+    ]);
+    expect(later).toEqual([76]);
+  });
+
+  it('emits noteOn on sustaining return when legatoReturnGuardMs is zero', () => {
+    const tracker = new PitchOnsetTracker({
+      ...legatoReturnGuardConfig,
+      legatoReturnGuardMs: 0,
+    });
+    const noteOns = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+      { frame: highConfidenceVoiced(74), index: 2 },
+      { frame: highConfidenceVoiced(74), index: 3 },
+      { frame: highConfidenceVoiced(76), index: 4 },
+      { frame: highConfidenceVoiced(76), index: 5 },
+    ]);
+    expect(noteOns).toEqual([76, 74, 76]);
+  });
+
 });
