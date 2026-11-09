@@ -25,6 +25,10 @@ import {
   resetPitchFrameTraceBuffer,
 } from '@/utils/pitchInput/pitchFrameTrace';
 import { isPitchDiagnosticsEnabled } from '@/utils/pitchInput/pitchInputDevFlags';
+import {
+  PITCH_PCM_CAPTURE_SAMPLE_RATE,
+  PitchPcmCaptureRing,
+} from '@/utils/pitchInput/pitchPcmCapture';
 import { restoreConcertMidi } from '@/utils/pitchInput/pitchShiftRestore';
 import {
   PESTO_BASE_FRAME_SEC,
@@ -126,6 +130,24 @@ interface WorkerDiagnosticDumpMessage {
   type: 'dumpDiagnostics';
 }
 
+interface WorkerSetPcmCaptureMessage {
+  type: 'setPcmCapture';
+  enabled: boolean;
+}
+
+interface WorkerDumpPcmMessage {
+  type: 'dumpPcm';
+}
+
+interface WorkerPcmDumpMessage {
+  type: 'pcmDump';
+  samples: ArrayBuffer;
+  endSourceSample: number;
+  endSourceTimeSec: number;
+  sampleRate: number;
+  totalWritten: number;
+}
+
 type WorkerInbound =
   | WorkerInitMessage
   | WorkerControlMessage
@@ -136,6 +158,8 @@ type WorkerInbound =
   | WorkerDumpTraceMessage
   | WorkerDiagnosticControlMessage
   | WorkerDiagnosticDumpMessage
+  | WorkerSetPcmCaptureMessage
+  | WorkerDumpPcmMessage
   | WorkerConnectPortMessage;
 
 interface NoteEventMessage {
@@ -182,7 +206,8 @@ type WorkerOutbound =
   | WorkerErrorMessage
   | WorkerMonitorMessage
   | WorkerFrameTraceMessage
-  | WorkerDiagnosticStateMessage;
+  | WorkerDiagnosticStateMessage
+  | WorkerPcmDumpMessage;
 
 let pitchEngine: PitchEngine = 'pesto';
 let pitchy: PitchyEstimator | null = null;
@@ -224,6 +249,7 @@ const chunkQueue = new PitchChunkQueue();
 const decimationBuffer = new PitchDecimationBuffer(1);
 let decimatorState = createPestoDecimatorState(1);
 let diagnostics: PitchInputDiagnostics | null = null;
+let pcmRing: PitchPcmCaptureRing | null = null;
 const observation: PitchObservation = {
   generationId: 0, sourceStartSample: 0, sourceEndSample: 0, sourceEndTimeSec: 0,
   shiftSemitones: 0, modelMidi: null, concertMidi: null, confidence: 0,
@@ -248,8 +274,17 @@ const CACHE_SIZE = 3976;
 // activations は判定に使わない。iOSと同じ4出力だけを取得する。
 const INFERENCE_OUTPUTS = ['prediction', 'confidence', 'volume', 'cache_out'];
 
-const post = (message: WorkerOutbound): void => {
-  self.postMessage(message);
+const postToMain = self.postMessage.bind(self) as (
+  message: WorkerOutbound,
+  transfer?: Transferable[],
+) => void;
+
+const post = (message: WorkerOutbound, transfer?: Transferable[]): void => {
+  if (transfer && transfer.length > 0) {
+    postToMain(message, transfer);
+    return;
+  }
+  postToMain(message);
 };
 
 const recycle = (samples: Float32Array, type: 'recycle' | 'recycleHistory' = 'recycle'): void => {
@@ -707,6 +742,13 @@ const handleAudioChunk = (message: WorkerAudioMessage): void => {
     return;
   }
 
+  pcmRing?.write(
+    message.samples,
+    message.sourceStartSample,
+    message.sourceEndSample,
+    message.sourceEndTimeSec,
+  );
+
   const sourceGapSamples = Math.max(0, message.sourceStartSample - lastSourceEndSample);
   diagnostics?.recordDrop(sourceGapSamples);
   lastSourceEndSample = message.sourceEndSample;
@@ -773,6 +815,44 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         diagnostics: diagnostics?.snapshot(chunkQueue.depthMs()),
         frameTrace: frameTraceEnabled ? ensurePitchFrameTraceBuffer().snapshot() : undefined,
       });
+      return;
+    }
+
+    if (data.type === 'setPcmCapture') {
+      if (data.enabled) {
+        if (!pcmRing) {
+          pcmRing = new PitchPcmCaptureRing();
+        }
+        pcmRing.setEnabled(true);
+      } else if (pcmRing) {
+        pcmRing.setEnabled(false);
+      }
+      return;
+    }
+
+    if (data.type === 'dumpPcm') {
+      if (!pcmRing?.isEnabled()) {
+        post({
+          type: 'pcmDump',
+          samples: new ArrayBuffer(0),
+          endSourceSample: 0,
+          endSourceTimeSec: 0,
+          sampleRate: PITCH_PCM_CAPTURE_SAMPLE_RATE,
+          totalWritten: 0,
+        });
+        return;
+      }
+      const snapshot = pcmRing.snapshot();
+      const ownedSamples = snapshot.samples.slice();
+      pcmRing.reset();
+      post({
+        type: 'pcmDump',
+        samples: ownedSamples.buffer,
+        endSourceSample: snapshot.endSourceSample,
+        endSourceTimeSec: snapshot.endSourceTimeSec,
+        sampleRate: PITCH_PCM_CAPTURE_SAMPLE_RATE,
+        totalWritten: snapshot.totalWritten,
+      }, [ownedSamples.buffer]);
       return;
     }
 

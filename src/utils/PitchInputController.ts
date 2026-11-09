@@ -68,8 +68,25 @@ const isVoiceInputSupported = (): boolean =>
 export class PitchInputController {
   private static inferenceIntervalMs: 5 | 10 | 20 = 5;
 
+  private static pcmCaptureEnabled = false;
+
   static getInferenceIntervalMs(): 5 | 10 | 20 {
     return PitchInputController.inferenceIntervalMs;
+  }
+
+  static isPcmCaptureEnabled(): boolean {
+    return PitchInputController.pcmCaptureEnabled;
+  }
+
+  static setPcmCapture(enabled: boolean): void {
+    PitchInputController.pcmCaptureEnabled = enabled;
+    for (const controller of PitchInputController.activeControllers) {
+      controller.worker?.postMessage({ type: 'setPcmCapture', enabled });
+    }
+  }
+
+  static downloadPcmDiagnostics(): void {
+    pitchDiagnosticRecording.downloadPcm();
   }
 
   static async setInferenceIntervalMs(interval: 5 | 10 | 20): Promise<void> {
@@ -100,8 +117,9 @@ export class PitchInputController {
   static async downloadDiagnostics(): Promise<void> {
     const requests: Promise<void>[] = [];
     for (const controller of PitchInputController.activeControllers) {
-      controller.recordDiagnostic('exportState');
+      controller.recordDiagnostic('exportState', undefined, true);
       requests.push(controller.requestDiagnosticState());
+      requests.push(controller.requestPcmDump());
     }
     await Promise.all(requests);
     pitchDiagnosticRecording.download();
@@ -109,7 +127,7 @@ export class PitchInputController {
 
   private requestDiagnosticState(): Promise<void> {
     const worker = this.worker;
-    if (!worker || !pitchDiagnosticRecording.enabled) return Promise.resolve();
+    if (!worker || !pitchDiagnosticRecording.hasRecording) return Promise.resolve();
     return new Promise((resolve) => {
       const finish = (): void => {
         clearTimeout(timeout);
@@ -118,17 +136,72 @@ export class PitchInputController {
       };
       const onMessage = (event: MessageEvent<{ type?: string }>): void => {
         if (event.data?.type !== 'diagnosticState') return;
-        this.recordDiagnostic('workerState', { state: event.data });
+        this.recordDiagnostic('workerState', { state: event.data }, true);
         finish();
       };
       // A stalled Worker must not prevent downloading the history already collected.
       const timeout = setTimeout(() => {
-        this.recordDiagnostic('workerStateTimeout');
+        this.recordDiagnostic('workerStateTimeout', undefined, true);
         finish();
       }, 1500);
       worker.addEventListener('message', onMessage);
       worker.postMessage({ type: 'dumpDiagnostics' });
     });
+  }
+
+  private requestPcmDump(): Promise<void> {
+    const worker = this.worker;
+    if (
+      !worker
+      || !PitchInputController.pcmCaptureEnabled
+      || !pitchDiagnosticRecording.hasRecording
+    ) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const finish = (): void => {
+        clearTimeout(timeout);
+        worker.removeEventListener('message', onMessage);
+        resolve();
+      };
+      const onMessage = (event: MessageEvent<{
+        type?: string;
+        samples?: ArrayBuffer;
+        endSourceSample?: number;
+        endSourceTimeSec?: number;
+        sampleRate?: number;
+        totalWritten?: number;
+      }>): void => {
+        if (event.data?.type !== 'pcmDump') return;
+        const samples = event.data.samples;
+        if (samples && samples.byteLength > 0 && event.data.totalWritten) {
+          pitchDiagnosticRecording.addPcmSegment({
+            generationId: this.generationId,
+            endSourceSample: event.data.endSourceSample ?? 0,
+            endSourceTimeSec: event.data.endSourceTimeSec ?? 0,
+            inferenceIntervalMs: PitchInputController.inferenceIntervalMs,
+            echoCancellation: this.echoCancellation,
+            sampleRate: event.data.sampleRate ?? 48_000,
+            samples: new Int16Array(samples),
+            totalWritten: event.data.totalWritten,
+          });
+        }
+        finish();
+      };
+      const timeout = setTimeout(() => finish(), 1500);
+      worker.addEventListener('message', onMessage);
+      worker.postMessage({ type: 'dumpPcm' });
+    });
+  }
+
+  private async dumpDiagnosticsBeforeWorkerShutdown(): Promise<void> {
+    if (!pitchDiagnosticRecording.hasRecording || !this.worker) {
+      return;
+    }
+    await Promise.all([
+      this.requestDiagnosticState(),
+      this.requestPcmDump(),
+    ]);
   }
 
   private static _permissionGranted = false;
@@ -226,8 +299,8 @@ export class PitchInputController {
   private lastNoteAtMs: number | null = null;
   private readonly diagnosticCleanups: (() => void)[] = [];
 
-  private recordDiagnostic(event: string, details?: object): void {
-    if (!pitchDiagnosticRecording.enabled) return;
+  private recordDiagnostic(event: string, details?: object, force = false): void {
+    if (!pitchDiagnosticRecording.enabled && !force) return;
     const now = performance.now();
     pitchDiagnosticRecording.record(event, {
       generationId: this.generationId,
@@ -252,7 +325,7 @@ export class PitchInputController {
       expectedPitchMidis: this.expectedPitchMidis,
       repeatPitchClassMask: this.repeatPitchClassMask,
       ...details,
-    });
+    }, force);
   }
 
   private configureDiagnostics(): void {
@@ -633,6 +706,9 @@ export class PitchInputController {
           : undefined,
       });
     });
+    if (PitchInputController.pcmCaptureEnabled) {
+      this.worker?.postMessage({ type: 'setPcmCapture', enabled: true });
+    }
   }
 
   private async setupWorklet(): Promise<void> {
@@ -754,7 +830,10 @@ export class PitchInputController {
   }
 
   private async disconnectInternal(notify: boolean): Promise<void> {
-    if (this.audioContext || this.worker) this.recordDiagnostic('disconnect');
+    if (this.audioContext || this.worker) {
+      this.recordDiagnostic('disconnect', undefined, pitchDiagnosticRecording.hasRecording);
+    }
+    await this.dumpDiagnosticsBeforeWorkerShutdown();
     PitchInputController.activeControllers.delete(this);
     for (const cleanup of this.diagnosticCleanups) cleanup();
     this.diagnosticCleanups.length = 0;

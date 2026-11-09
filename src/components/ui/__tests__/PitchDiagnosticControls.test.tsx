@@ -7,6 +7,7 @@ import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticReco
 describe('PitchDiagnosticControls', () => {
   afterEach(() => {
     PitchInputController.setDiagnosticRecording(false);
+    PitchInputController.setPcmCapture(false);
     vi.restoreAllMocks();
   });
 

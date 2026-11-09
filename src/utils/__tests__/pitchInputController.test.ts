@@ -22,9 +22,13 @@ describe('PitchInputController microphone setup', () => {
   const createWorklet = vi.fn();
   let controller: PitchInputController;
   let worker: EventTarget;
+  let respondToDiagnosticDump = false;
+  let respondToPcmDump = false;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    respondToDiagnosticDump = true;
+    respondToPcmDump = false;
     PitchInputController.clearCachedPermission();
     applyConstraints.mockResolvedValue(undefined);
     getSettings.mockReturnValue({ deviceId: 'external-mic', echoCancellation: true });
@@ -38,7 +42,24 @@ describe('PitchInputController microphone setup', () => {
       removeEventListener(...args: Parameters<EventTarget['removeEventListener']>) { worker.removeEventListener(...args); }
       postMessage(message: { type: string }) {
         postMessage(message);
-        if (message.type === 'init') queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', { data: { type: 'ready' } })));
+        if (message.type === 'init') {
+          queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', { data: { type: 'ready' } })));
+        } else if (message.type === 'dumpDiagnostics' && respondToDiagnosticDump) {
+          queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', {
+            data: { type: 'diagnosticState', isInferring: false, sourceEndSample: 120 },
+          })));
+        } else if (message.type === 'dumpPcm' && respondToPcmDump) {
+          queueMicrotask(() => worker.dispatchEvent(new MessageEvent('message', {
+            data: {
+              type: 'pcmDump',
+              samples: Int16Array.from([1, 2]).buffer,
+              endSourceSample: 2,
+              endSourceTimeSec: 0.001,
+              sampleRate: 48_000,
+              totalWritten: 2,
+            },
+          })));
+        }
       }
       terminate() {}
     });
@@ -221,6 +242,7 @@ describe('PitchInputController microphone setup', () => {
   });
 
   it('downloads collected history even when the Worker cannot answer the state request', async () => {
+    respondToDiagnosticDump = false;
     PitchInputController.setDiagnosticRecording(true);
     await controller.connect('external-mic');
     const download = vi.spyOn(pitchDiagnosticRecording, 'download').mockImplementation(() => undefined);
@@ -231,5 +253,31 @@ describe('PitchInputController microphone setup', () => {
     await request;
     expect(download).toHaveBeenCalledOnce();
     expect(pitchDiagnosticRecording.snapshot().entries.map((entry) => entry.event)).toContain('workerStateTimeout');
+    vi.useRealTimers();
+  });
+
+  it('records workerState after stopping when downloading diagnostics', async () => {
+    respondToDiagnosticDump = true;
+    PitchInputController.setDiagnosticRecording(true);
+    await controller.connect('external-mic');
+    PitchInputController.setDiagnosticRecording(false);
+    const download = vi.spyOn(pitchDiagnosticRecording, 'download').mockImplementation(() => undefined);
+    await PitchInputController.downloadDiagnostics();
+    expect(download).toHaveBeenCalledOnce();
+    const events = pitchDiagnosticRecording.snapshot().entries.map((entry) => entry.event);
+    expect(events).toContain('exportState');
+    expect(events).toContain('workerState');
+  });
+
+  it('requests PCM dump before disconnect when capture is enabled', async () => {
+    respondToDiagnosticDump = true;
+    respondToPcmDump = true;
+    PitchInputController.setDiagnosticRecording(true);
+    PitchInputController.setPcmCapture(true);
+    await controller.connect('external-mic');
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'setPcmCapture', enabled: true }));
+    await controller.disconnect();
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'dumpPcm' }));
+    expect(pitchDiagnosticRecording.hasPcm).toBe(true);
   });
 });
