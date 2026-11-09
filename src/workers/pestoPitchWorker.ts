@@ -440,15 +440,18 @@ const resolveRejectReason = (
 const formatTraceEvent = (
   events: ReturnType<PitchOnsetTracker['processFrame']>,
 ): string | null => {
+  if (events.length === 0) {
+    return null;
+  }
+  const parts: string[] = [];
   for (const event of events) {
     if (event.type === 'noteOn') {
-      return `noteOn:${event.note}`;
-    }
-    if (event.type === 'noteOff') {
-      return `noteOff:${event.note}`;
+      parts.push(`noteOn:${event.note}`);
+    } else if (event.type === 'noteOff') {
+      parts.push(`noteOff:${event.note}`);
     }
   }
-  return null;
+  return parts.length > 0 ? parts.join('|') : null;
 };
 
 const emitTrackerEvents = (

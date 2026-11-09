@@ -182,6 +182,7 @@ export class PitchOnsetTracker {
   private legatoFromNote = -1;
   private readonly recentReleasedNotes: number[] = [-1, -1, -1];
   private readonly recentReleasedFrames: number[] = [-1, -1, -1];
+  private readonly recentReleasedExpectedAtOnset: boolean[] = [false, false, false];
   /** 現在音が noteOn 時に期待ピッチクラスだったか（無音復帰のみの音は false）。 */
   private currentNoteExpectedAtOnset = false;
   private suspendedNoteExpectedAtOnset = false;
@@ -238,6 +239,9 @@ export class PitchOnsetTracker {
     this.recentReleasedFrames[0] = -1;
     this.recentReleasedFrames[1] = -1;
     this.recentReleasedFrames[2] = -1;
+    this.recentReleasedExpectedAtOnset[0] = false;
+    this.recentReleasedExpectedAtOnset[1] = false;
+    this.recentReleasedExpectedAtOnset[2] = false;
     this.currentNoteExpectedAtOnset = false;
     this.suspendedNoteExpectedAtOnset = false;
     this.legatoFromNoteExpectedAtOnset = false;
@@ -714,13 +718,28 @@ export class PitchOnsetTracker {
     return Math.round(this.config.legatoReturnGuardMs / frameMs);
   }
 
-  private pushRecentRelease(note: number, frameIndex: number): void {
+  private pushRecentRelease(
+    note: number,
+    frameIndex: number,
+    expectedAtOnset: boolean,
+  ): void {
     this.recentReleasedNotes[0] = this.recentReleasedNotes[1];
     this.recentReleasedNotes[1] = this.recentReleasedNotes[2];
     this.recentReleasedNotes[2] = note;
     this.recentReleasedFrames[0] = this.recentReleasedFrames[1];
     this.recentReleasedFrames[1] = this.recentReleasedFrames[2];
     this.recentReleasedFrames[2] = frameIndex;
+    this.recentReleasedExpectedAtOnset[0] = this.recentReleasedExpectedAtOnset[1];
+    this.recentReleasedExpectedAtOnset[1] = this.recentReleasedExpectedAtOnset[2];
+    this.recentReleasedExpectedAtOnset[2] = expectedAtOnset;
+  }
+
+  private isExpectedPitchClass(note: number): boolean {
+    if (this.expectedPitchMask === 0 || note < 0) {
+      return false;
+    }
+    const pitchClass = ((note % 12) + 12) % 12;
+    return (this.expectedPitchMask & (1 << pitchClass)) !== 0;
   }
 
   private isRecentlyReleased(quantized: number, frameIndex: number): boolean {
@@ -731,13 +750,19 @@ export class PitchOnsetTracker {
     for (let index = 0; index < this.recentReleasedNotes.length; index += 1) {
       const releasedNote = this.recentReleasedNotes[index];
       const releasedFrame = this.recentReleasedFrames[index];
-      if (
-        releasedNote === quantized
-        && releasedFrame >= 0
-        && frameIndex - releasedFrame < guardFrames
-      ) {
-        return true;
+      if (releasedNote !== quantized || releasedFrame < 0) {
+        continue;
       }
+      if (frameIndex - releasedFrame >= guardFrames) {
+        continue;
+      }
+      if (
+        !this.recentReleasedExpectedAtOnset[index]
+        && this.isExpectedPitchClass(quantized)
+      ) {
+        continue;
+      }
+      return true;
     }
     return false;
   }
@@ -921,7 +946,7 @@ export class PitchOnsetTracker {
     this.noteOnFrame = -1;
     this.releaseCount = 0;
     this.pendingOff = false;
-    this.pushRecentRelease(note, frameIndex);
+    this.pushRecentRelease(note, frameIndex, this.currentNoteExpectedAtOnset);
     events.push({ type: 'noteOff', note, frameIndex });
   }
 

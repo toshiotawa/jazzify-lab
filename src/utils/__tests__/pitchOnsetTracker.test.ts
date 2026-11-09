@@ -1507,17 +1507,70 @@ describe('PitchOnsetTracker', () => {
       { frame: highConfidenceVoiced(76), index: 3 },
     ]);
     tracker.setExpectedPitchCandidates(1 << 5, [77], 0);
-    const silentFa = collectNoteOns(tracker, [
+    const toFa = collectNoteOns(tracker, [
       { frame: highConfidenceVoiced(77), index: 4 },
       { frame: highConfidenceVoiced(77), index: 5 },
     ]);
-    expect(silentFa.filter((note) => note === 77)).toEqual([]);
+    expect(toFa).toContain(77);
     expect(tracker.getCurrentNote()).toBe(77);
-    const toF = collectNoteOns(tracker, [
-      { frame: highConfidenceVoiced(79), index: 6 },
-      { frame: highConfidenceVoiced(79), index: 7 },
+  });
+
+  it('emits noteOn for expected pitch after unaccepted wobble within legatoReturnGuardMs', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    tracker.setExpectedPitchCandidates(1 << 4, [76], 0);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+      { frame: highConfidenceVoiced(77), index: 2 },
+      { frame: highConfidenceVoiced(77), index: 3 },
+      { frame: highConfidenceVoiced(76), index: 4 },
+      { frame: highConfidenceVoiced(76), index: 5 },
     ]);
-    expect(toF).toContain(79);
+    tracker.setExpectedPitchCandidates(1 << 5, [77], 0);
+    const toFa = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(77), index: 6 },
+      { frame: highConfidenceVoiced(77), index: 7 },
+    ]);
+    expect(toFa).toContain(77);
+  });
+
+  it('emits noteOn for expected pitch after rejected flash within legatoReturnGuardMs', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    tracker.setExpectedPitchCandidates(1 << 7, [79], 0);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(79), index: 0 },
+      { frame: highConfidenceVoiced(79), index: 1 },
+      { frame: highConfidenceVoiced(76), index: 2 },
+      { frame: highConfidenceVoiced(76), index: 3 },
+      { frame: highConfidenceVoiced(79), index: 4 },
+      { frame: highConfidenceVoiced(79), index: 5 },
+    ]);
+    tracker.setExpectedPitchCandidates(1 << 4, [76], 0);
+    const toMi = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 6 },
+      { frame: highConfidenceVoiced(76), index: 7 },
+    ]);
+    expect(toMi).toContain(76);
+  });
+
+  it('still suppresses sustaining return of accepted pitch within legatoReturnGuardMs', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    tracker.setExpectedPitchCandidates(1 << 4, [76], 0);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+    ]);
+    tracker.setExpectedPitchCandidates(1 << 5, [77], 0);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(77), index: 2 },
+      { frame: highConfidenceVoiced(77), index: 3 },
+    ]);
+    const backToMi = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 4 },
+      { frame: highConfidenceVoiced(76), index: 5 },
+    ]);
+    expect(backToMi).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(77);
   });
 
   it('still holds unexpected pitch during accepted same-pitch repeat wait', () => {

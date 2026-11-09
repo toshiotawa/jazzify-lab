@@ -815,6 +815,84 @@ final class PitchOnsetTrackerTests: XCTestCase {
         }))
     }
 
+    func testEmitsNoteOnForExpectedPitchAfterUnacceptedWobbleWithinLegatoReturnGuard() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.frameDurationMs = 5
+        config.minNoteFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        tracker.setExpectedPitchCandidates(mask: 1 << 4, midis: [76])
+        for index in 0...5 {
+            let midi = index < 2 || index >= 4 ? 76 : 77
+            _ = tracker.processFrame(voiced(midi), frameIndex: index)
+        }
+        tracker.setExpectedPitchCandidates(mask: 1 << 5, midis: [77])
+        let events = tracker.processFrame(voiced(77), frameIndex: 6)
+            + tracker.processFrame(voiced(77), frameIndex: 7)
+        XCTAssertTrue(events.contains(where: {
+            if case let .noteOn(note, _, _) = $0 { return note == 77 }
+            return false
+        }))
+    }
+
+    func testEmitsNoteOnForExpectedPitchAfterRejectedFlashWithinLegatoReturnGuard() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.frameDurationMs = 5
+        config.minNoteFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        tracker.setExpectedPitchCandidates(mask: 1 << 7, midis: [79])
+        _ = tracker.processFrame(voiced(79), frameIndex: 0)
+        _ = tracker.processFrame(voiced(79), frameIndex: 1)
+        _ = tracker.processFrame(voiced(76), frameIndex: 2)
+        _ = tracker.processFrame(voiced(76), frameIndex: 3)
+        _ = tracker.processFrame(voiced(79), frameIndex: 4)
+        _ = tracker.processFrame(voiced(79), frameIndex: 5)
+        tracker.setExpectedPitchCandidates(mask: 1 << 4, midis: [76])
+        let events = tracker.processFrame(voiced(76), frameIndex: 6)
+            + tracker.processFrame(voiced(76), frameIndex: 7)
+        XCTAssertTrue(events.contains(where: {
+            if case let .noteOn(note, _, _) = $0 { return note == 76 }
+            return false
+        }))
+    }
+
+    func testStillSuppressesSustainingReturnOfAcceptedPitchWithinLegatoReturnGuard() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.frameDurationMs = 5
+        config.minNoteFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        tracker.setExpectedPitchCandidates(mask: 1 << 4, midis: [76])
+        _ = tracker.processFrame(voiced(76), frameIndex: 0)
+        _ = tracker.processFrame(voiced(76), frameIndex: 1)
+        tracker.setExpectedPitchCandidates(mask: 1 << 5, midis: [77])
+        _ = tracker.processFrame(voiced(77), frameIndex: 2)
+        _ = tracker.processFrame(voiced(77), frameIndex: 3)
+        let events = tracker.processFrame(voiced(76), frameIndex: 4)
+            + tracker.processFrame(voiced(76), frameIndex: 5)
+        XCTAssertFalse(events.contains(where: {
+            if case .noteOn = $0 { return true }
+            return false
+        }))
+        XCTAssertEqual(tracker.getCurrentNote(), 77)
+    }
+
     func testStillHoldsUnexpectedPitchDuringAcceptedSamePitchRepeatWait() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1

@@ -90,6 +90,7 @@ final class PitchOnsetTracker {
     private var legatoFromNote = -1
     private var recentReleasedNotes: [Int] = [-1, -1, -1]
     private var recentReleasedFrames: [Int] = [-1, -1, -1]
+    private var recentReleasedExpectedAtOnset: [Bool] = [false, false, false]
     /// 現在音が noteOn 時に期待ピッチクラスだったか（無音復帰のみの音は false）。
     private var currentNoteExpectedAtOnset = false
     private var suspendedNoteExpectedAtOnset = false
@@ -133,6 +134,7 @@ final class PitchOnsetTracker {
         legatoFromNote = -1
         recentReleasedNotes = [-1, -1, -1]
         recentReleasedFrames = [-1, -1, -1]
+        recentReleasedExpectedAtOnset = [false, false, false]
         currentNoteExpectedAtOnset = false
         suspendedNoteExpectedAtOnset = false
         legatoFromNoteExpectedAtOnset = false
@@ -580,13 +582,22 @@ final class PitchOnsetTracker {
         return Int((config.legatoReturnGuardMs / frameMs).rounded())
     }
 
-    private func pushRecentRelease(note: Int, frameIndex: Int) {
+    private func pushRecentRelease(note: Int, frameIndex: Int, expectedAtOnset: Bool) {
         recentReleasedNotes[0] = recentReleasedNotes[1]
         recentReleasedNotes[1] = recentReleasedNotes[2]
         recentReleasedNotes[2] = note
         recentReleasedFrames[0] = recentReleasedFrames[1]
         recentReleasedFrames[1] = recentReleasedFrames[2]
         recentReleasedFrames[2] = frameIndex
+        recentReleasedExpectedAtOnset[0] = recentReleasedExpectedAtOnset[1]
+        recentReleasedExpectedAtOnset[1] = recentReleasedExpectedAtOnset[2]
+        recentReleasedExpectedAtOnset[2] = expectedAtOnset
+    }
+
+    private func isExpectedPitchClass(_ note: Int) -> Bool {
+        guard note >= 0, expectedPitchMask != 0 else { return false }
+        let pitchClass = ((note % 12) + 12) % 12
+        return (expectedPitchMask & (1 << pitchClass)) != 0
     }
 
     private func isRecentlyReleased(quantized: Int, frameIndex: Int) -> Bool {
@@ -595,11 +606,12 @@ final class PitchOnsetTracker {
         for index in 0..<recentReleasedNotes.count {
             let releasedNote = recentReleasedNotes[index]
             let releasedFrame = recentReleasedFrames[index]
-            if releasedNote == quantized,
-               releasedFrame >= 0,
-               frameIndex - releasedFrame < guardFrames {
-                return true
+            guard releasedNote == quantized, releasedFrame >= 0 else { continue }
+            guard frameIndex - releasedFrame < guardFrames else { continue }
+            if !recentReleasedExpectedAtOnset[index], isExpectedPitchClass(quantized) {
+                continue
             }
+            return true
         }
         return false
     }
@@ -729,7 +741,7 @@ final class PitchOnsetTracker {
         noteOnFrame = -1
         releaseCount = 0
         pendingOff = false
-        pushRecentRelease(note: note, frameIndex: frameIndex)
+        pushRecentRelease(note: note, frameIndex: frameIndex, expectedAtOnset: currentNoteExpectedAtOnset)
         events.append(.noteOff(note: note, frameIndex: frameIndex))
     }
 
