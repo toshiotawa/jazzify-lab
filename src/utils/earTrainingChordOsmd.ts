@@ -196,6 +196,7 @@ const resolveChordOsmdRepeatPitchClassMask = (
   resolveTargetMidis: (index: number) => readonly number[],
   earlySec: number,
   lateSec: number,
+  resolveRuntime?: (index: number) => ChordOsmdExpectedPitchRuntime | null,
 ): number => {
   let mask = 0;
   for (let index = 0; index < targetCount; index += 1) {
@@ -221,6 +222,20 @@ const resolveChordOsmdRepeatPitchClassMask = (
       mask |= 1 << pendingPc;
     }
   }
+  if (resolveRuntime && resolveTargetMidis) {
+    const context = resolveChordOsmdSamePitchRepeatContext(
+      targetCount,
+      phraseTimeSec,
+      resolveJudgedTargetTimeSec,
+      resolveRuntime,
+      resolveTargetMidis,
+      lateSec,
+    );
+    if (context) {
+      const pendingPc = pitchClassFromMidi(context.pendingMidi);
+      mask |= 1 << pendingPc;
+    }
+  }
   return mask;
 };
 
@@ -240,6 +255,7 @@ export const isChordOsmdWaitingForSamePitchRepeat = (
     resolveTargetMidis,
     earlySec,
     lateSec,
+    resolveRuntime,
   ) !== 0
 );
 
@@ -297,6 +313,19 @@ export const collectChordOsmdExpectedPitchCandidates = (
       }
     }
   }
+  const repeatContext = resolveTargetMidis
+    ? resolveChordOsmdSamePitchRepeatContext(
+      targetCount,
+      phraseTimeSec,
+      resolveJudgedTargetTimeSec,
+      resolveRuntime,
+      resolveTargetMidis,
+      lateSec,
+    )
+    : null;
+  if (repeatContext && !midis.includes(repeatContext.pendingMidi)) {
+    midis.push(repeatContext.pendingMidi);
+  }
   const repeatPitchClassMask = resolveTargetMidis
     ? resolveChordOsmdRepeatPitchClassMask(
       targetCount,
@@ -305,6 +334,7 @@ export const collectChordOsmdExpectedPitchCandidates = (
       resolveTargetMidis,
       earlySec,
       lateSec,
+      resolveRuntime,
     )
     : 0;
   return buildExpectedPitchCandidates(midis, repeatPitchClassMask);

@@ -495,6 +495,40 @@ describe('Chord OSMD target consumption', () => {
     )).toBeCloseTo(500, 1);
   });
 
+  it('同音連打待ちマスクは判定窓の隙間でも前ノート完了後は維持する', () => {
+    const judgedTimes = [1.0, 2.0];
+    const resolveRuntime = (index: number) => {
+      if (index === 0) {
+        return { completed: true, failed: false, remainingCounts: new Map<number, number>() };
+      }
+      if (index === 1) {
+        return { completed: false, failed: false, remainingCounts: new Map([[67, 1]]) };
+      }
+      return null;
+    };
+    const resolveTargetMidis = (index: number) => (index === 0 || index === 1 ? [67] : []);
+    const phraseTimeSec = 1.5;
+
+    const candidates = collectChordOsmdExpectedPitchCandidates(
+      2,
+      phraseTimeSec,
+      (index) => judgedTimes[index] ?? 0,
+      resolveRuntime,
+      0.25,
+      0.25,
+      resolveTargetMidis,
+    );
+    expect(candidates.repeatPitchClassMask).toBe(1 << 7);
+    expect(candidates.midis).toContain(67);
+    expect(isChordOsmdWaitingForSamePitchRepeat(
+      2,
+      phraseTimeSec,
+      (index) => judgedTimes[index] ?? 0,
+      resolveRuntime,
+      resolveTargetMidis,
+    )).toBe(true);
+  });
+
   it('同音連打待ちマスクは直前ミスでも譜面上の同音連打なら立つ', () => {
     const resolveTargetMidis = (index: number) => (index === 0 || index === 1 ? [67] : []);
     const failedPrevious = (index: number) => {

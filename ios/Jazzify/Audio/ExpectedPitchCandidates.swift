@@ -109,7 +109,8 @@ enum ExpectedPitchCandidateCollectors {
         judgedTargetTimeSec: (Int) -> Double,
         targetMidisAt: (Int) -> [Int],
         earlySec: Double,
-        lateSec: Double
+        lateSec: Double,
+        runtimeAt: ((Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])?)? = nil
     ) -> Int {
         var mask = 0
         for index in 0..<targetCount {
@@ -130,6 +131,19 @@ enum ExpectedPitchCandidateCollectors {
                 && targetMidisAt(index + 1).count == 1
                 && pitchClass(from: targetMidisAt(index + 1).first ?? 0) == pendingPc
             if previousSamePc || nextSamePc {
+                mask |= 1 << pendingPc
+            }
+        }
+        if let runtimeAt {
+            if let context = resolveChordOsmdSamePitchRepeatContext(
+                targetCount: targetCount,
+                phraseTimeSec: phraseTimeSec,
+                judgedTargetTimeSec: judgedTargetTimeSec,
+                runtimeAt: runtimeAt,
+                targetMidisAt: targetMidisAt,
+                lateSec: lateSec
+            ) {
+                let pendingPc = pitchClass(from: context.pendingMidi)
                 mask |= 1 << pendingPc
             }
         }
@@ -157,6 +171,18 @@ enum ExpectedPitchCandidateCollectors {
                 midis.append(midi)
             }
         }
+        if let targetMidisAt,
+           let context = resolveChordOsmdSamePitchRepeatContext(
+            targetCount: targetCount,
+            phraseTimeSec: phraseTimeSec,
+            judgedTargetTimeSec: judgedTargetTimeSec,
+            runtimeAt: runtimeAt,
+            targetMidisAt: targetMidisAt,
+            lateSec: lateSec
+           ),
+           !midis.contains(context.pendingMidi) {
+            midis.append(context.pendingMidi)
+        }
         let repeatMask = targetMidisAt.map {
             chordOsmdRepeatMask(
                 targetCount: targetCount,
@@ -164,7 +190,8 @@ enum ExpectedPitchCandidateCollectors {
                 judgedTargetTimeSec: judgedTargetTimeSec,
                 targetMidisAt: $0,
                 earlySec: earlySec,
-                lateSec: lateSec
+                lateSec: lateSec,
+                runtimeAt: runtimeAt
             )
         } ?? 0
         return ExpectedPitchCandidates.build(from: midis, repeatPitchClassMask: repeatMask)
@@ -185,7 +212,8 @@ enum ExpectedPitchCandidateCollectors {
             judgedTargetTimeSec: judgedTargetTimeSec,
             targetMidisAt: targetMidisAt,
             earlySec: earlySec,
-            lateSec: lateSec
+            lateSec: lateSec,
+            runtimeAt: runtimeAt
         ) != 0
     }
 

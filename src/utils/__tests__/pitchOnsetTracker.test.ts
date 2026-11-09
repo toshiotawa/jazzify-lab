@@ -990,6 +990,90 @@ describe('PitchOnsetTracker', () => {
     const noteOns = collectNoteOns(tracker, frames);
     expect(noteOns).toEqual([67, 67, 67]);
   });
+
+  it('does not retrigger on decay-tail bounce when only sustaining without confidence', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      repeatPeakRecoveryMaxDropDb: 6,
+      onsetImmediateConfidence: 2,
+      onsetLevelDb: -35,
+      releaseLevelDb: -45,
+      minConfidence: 0.5,
+    });
+    tracker.setExpectedPitchCandidates(1 << 2, [62], 1 << 2);
+    const peak: PitchFrame = {
+      prediction: 62,
+      confidence: 0.9,
+      volume: 0.01,
+      attackDb: -18,
+    };
+    const decay: PitchFrame = {
+      prediction: 62,
+      confidence: 0.05,
+      volume: 0.00004,
+      attackDb: -52,
+    };
+    const bounce: PitchFrame = {
+      prediction: 62,
+      confidence: 0.05,
+      volume: 0.00004,
+      attackDb: -46,
+    };
+    const noteOns = collectNoteOns(tracker, [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      ...Array.from({ length: 8 }, (_, offset) => ({ frame: decay, index: 2 + offset })),
+      ...Array.from({ length: 4 }, (_, offset) => ({ frame: bounce, index: 10 + offset })),
+    ]);
+    expect(noteOns).toEqual([62]);
+  });
+
+  it('does not retrigger during neighbor-semitone wobble on decay tail without confidence', () => {
+    const tracker = new PitchOnsetTracker({
+      ...DEFAULT_ONSET_CONFIG,
+      pitchStableFrames: 1,
+      retriggerGuardFrames: 2,
+      repeatDipDb: 3,
+      repeatRiseDb: 6,
+      onsetImmediateConfidence: 2,
+      onsetLevelDb: -35,
+      releaseLevelDb: -45,
+      minConfidence: 0.5,
+    });
+    tracker.setExpectedPitchCandidates(1 << 2, [62], 1 << 2);
+    const peak: PitchFrame = {
+      prediction: 62,
+      confidence: 0.9,
+      volume: 0.01,
+      attackDb: -18,
+    };
+    const wobbleSharp: PitchFrame = {
+      prediction: 63,
+      confidence: 0.05,
+      volume: 0.00004,
+      attackDb: -50,
+    };
+    const returnHome: PitchFrame = {
+      prediction: 62,
+      confidence: 0.05,
+      volume: 0.00004,
+      attackDb: -44,
+    };
+    const noteOns = collectNoteOns(tracker, [
+      { frame: peak, index: 0 },
+      { frame: peak, index: 1 },
+      { frame: wobbleSharp, index: 2 },
+      { frame: wobbleSharp, index: 3 },
+      { frame: returnHome, index: 4 },
+      { frame: returnHome, index: 5 },
+    ]);
+    expect(noteOns).toEqual([62]);
+  });
+
   it('keeps one strike during octave wobble, then accepts a fresh octave-reported attack', () => {
     const tracker = new PitchOnsetTracker({ pitchStableFrames: 1, retriggerGuardFrames: 6 });
     tracker.setExpectedPitchCandidates(1 << 5, [65], 1 << 5);

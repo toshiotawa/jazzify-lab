@@ -30,6 +30,8 @@ export interface PitchOnsetTrackerConfig {
   repeatRiseDb: number;
   /** 同音待ち: 速い立ち上がり判定の窓 (ms) */
   repeatAttackWindowMs: number;
+  /** 同音待ち: 再発音は直前 attack ピークからこの dB 以内まで回復していること */
+  repeatPeakRecoveryMaxDropDb: number;
   /** グリッサンド抑制: cents 許容 */
   centsTolerance: number;
   /** 1 フレーム目でも confidence がこの値以上なら即 noteOn */
@@ -59,6 +61,7 @@ export const DEFAULT_ONSET_CONFIG: PitchOnsetTrackerConfig = {
   repeatDipDb: 3,
   repeatRiseDb: 6,
   repeatAttackWindowMs: 40,
+  repeatPeakRecoveryMaxDropDb: 6,
   centsTolerance: 40,
   onsetImmediateConfidence: 0.85,
   fastLegatoConfidence: 0.8,
@@ -331,9 +334,19 @@ export class PitchOnsetTracker {
         && !pitchMatch(frame.prediction, this.currentNote, this.config.centsTolerance)
       ) {
         if (this.shouldTreatRepeatModePitchWobble(quantized)) {
-          this.updateRepeatPeakAndDip(levelDb, attackLevelDb, frameIndex);
-          this.recordLevels(levelDb, attackLevelDb, frameIndex);
-          this.tryRetrigger(events, levelDb, attackLevelDb, frameIndex);
+          if (
+            quantized === this.currentNote
+            || this.isSamePitchClass(quantized, this.currentNote)
+          ) {
+            this.updateRepeatPeakAndDip(levelDb, attackLevelDb, frameIndex);
+            this.recordLevels(levelDb, attackLevelDb, frameIndex);
+            if (this.allowsRepeatRetrigger(confidenceVoiced, expectedAssist)) {
+              this.tryRetrigger(events, levelDb, attackLevelDb, frameIndex);
+            }
+          } else {
+            this.updateRepeatTroughOnly(levelDb, attackLevelDb, frameIndex);
+            this.recordLevels(levelDb, attackLevelDb, frameIndex);
+          }
         } else if (this.shouldHoldRepeatModeUnexpectedPitch(quantized)) {
           this.updateRepeatTroughOnly(levelDb, attackLevelDb, frameIndex);
           this.recordLevels(levelDb, attackLevelDb, frameIndex);
@@ -365,7 +378,9 @@ export class PitchOnsetTracker {
           this.updateRepeatPeakAndDip(levelDb, attackLevelDb, frameIndex);
           this.recordLevels(levelDb, attackLevelDb, frameIndex);
         }
-        this.tryRetrigger(events, levelDb, attackLevelDb, frameIndex);
+        if (this.allowsRepeatRetrigger(confidenceVoiced, expectedAssist)) {
+          this.tryRetrigger(events, levelDb, attackLevelDb, frameIndex);
+        }
       }
     } else {
       this.pitchStableCount = 0;
@@ -520,6 +535,10 @@ export class PitchOnsetTracker {
     this.suspendedNote = -1;
   }
 
+  private allowsRepeatRetrigger(confidenceVoiced: boolean, expectedAssist: boolean): boolean {
+    return confidenceVoiced || expectedAssist;
+  }
+
   private emitNoteOn(
     events: PitchInputEvent[],
     note: number,
@@ -527,7 +546,9 @@ export class PitchOnsetTracker {
     onsetFrameIndex: number,
     levelDb?: number,
     attackLevelDb?: number,
+    preserveAttackPeakReference = false,
   ): void {
+    const prevPeakAttackDb = this.notePeakAttackDb;
     this.currentNote = note;
     this.noteOnFrame = frameIndex;
     this.lastNoteOnFrame = frameIndex;
@@ -541,7 +562,15 @@ export class PitchOnsetTracker {
       this.noteTroughDb = levelDb;
     }
     if (attackLevelDb !== undefined && Number.isFinite(attackLevelDb)) {
-      this.notePeakAttackDb = attackLevelDb;
+      if (
+        preserveAttackPeakReference
+        && Number.isFinite(prevPeakAttackDb)
+      ) {
+        const floor = prevPeakAttackDb - this.config.repeatPeakRecoveryMaxDropDb;
+        this.notePeakAttackDb = Math.max(attackLevelDb, floor);
+      } else {
+        this.notePeakAttackDb = attackLevelDb;
+      }
       this.noteTroughAttackDb = attackLevelDb;
     }
     events.push({ type: 'noteOn', note, frameIndex, onsetFrameIndex });
@@ -644,6 +673,12 @@ export class PitchOnsetTracker {
   private hasRepeatModeAttack(attackLevelDb: number): boolean {
     if (!this.dippedFromPeak) return false;
     if (attackLevelDb - this.noteTroughAttackDb < this.config.repeatRiseDb) return false;
+    if (
+      Number.isFinite(this.notePeakAttackDb)
+      && attackLevelDb < this.notePeakAttackDb - this.config.repeatPeakRecoveryMaxDropDb
+    ) {
+      return false;
+    }
     return this.recentAttackRiseWithinLookback(
       attackLevelDb,
       this.repeatAttackLookbackFrames(),
@@ -765,7 +800,15 @@ export class PitchOnsetTracker {
         const note = this.currentNote;
         const onsetFrameIndex = this.resolveRepeatModeOnsetFrameIndex(frameIndex);
         this.emitNoteOff(events, note, frameIndex);
-        this.emitNoteOn(events, note, frameIndex, onsetFrameIndex, levelDb, attackLevelDb);
+        this.emitNoteOn(
+          events,
+          note,
+          frameIndex,
+          onsetFrameIndex,
+          levelDb,
+          attackLevelDb,
+          true,
+        );
       }
       return;
     }

@@ -581,6 +581,40 @@ final class PitchOnsetTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.processFrame(octave, frameIndex: 4).isEmpty)
     }
 
+    func testSuppressesRepeatRetriggerOnDecayTailBounceWithoutConfidence() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.retriggerGuardFrames = 2
+        config.repeatDipDb = 3
+        config.repeatRiseDb = 6
+        config.repeatPeakRecoveryMaxDropDb = 6
+        config.onsetImmediateConfidence = 2
+        config.onsetLevelDb = -35
+        config.releaseLevelDb = -45
+        config.minConfidence = 0.5
+        let tracker = PitchOnsetTracker(config: config)
+        tracker.setExpectedPitchCandidates(mask: 1 << 2, midis: [62], repeatPitchClassMask: 1 << 2)
+        let peak = PitchFrame(prediction: 62, confidence: 0.9, volume: 0.01, attackDb: -18)
+        let decay = PitchFrame(prediction: 62, confidence: 0.05, volume: 0.00004, attackDb: -52)
+        let bounce = PitchFrame(prediction: 62, confidence: 0.05, volume: 0.00004, attackDb: -46)
+        var noteOnCount = 0
+        var frames: [(PitchFrame, Int)] = [(peak, 0), (peak, 1)]
+        for offset in 0..<8 {
+            frames.append((decay, 2 + offset))
+        }
+        for offset in 0..<4 {
+            frames.append((bounce, 10 + offset))
+        }
+        for (frame, index) in frames {
+            let events = tracker.processFrame(frame, frameIndex: index)
+            noteOnCount += events.filter {
+                if case .noteOn = $0 { return true }
+                return false
+            }.count
+        }
+        XCTAssertEqual(noteOnCount, 1)
+    }
+
     func testKeepsRepeatPitchClassMaskAfterReset() {
         var config = PitchOnsetTrackerConfig()
         config.pitchStableFrames = 1

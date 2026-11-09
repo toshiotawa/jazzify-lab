@@ -88,6 +88,44 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         XCTAssertEqual(minIntervalMs, 500, accuracy: 1)
     }
 
+    func testSamePitchRepeatMaskPersistsAcrossJudgmentWindowGapAfterPreviousCompleted() {
+        let judgedTimes = [1.0, 2.0]
+        let runtimeAt: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])? = { index in
+            switch index {
+            case 0:
+                return (completed: true, failed: false, remainingMidis: [])
+            case 1:
+                return (completed: false, failed: false, remainingMidis: [67])
+            default:
+                return nil
+            }
+        }
+        let targetMidisAt: (Int) -> [Int] = { index in
+            index == 0 || index == 1 ? [67] : []
+        }
+        let phraseTimeSec = 1.5
+        let candidates = ExpectedPitchCandidateCollectors.collectChordOsmd(
+            targetCount: 2,
+            phraseTimeSec: phraseTimeSec,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            runtimeAt: runtimeAt,
+            earlySec: 0.25,
+            lateSec: 0.25,
+            targetMidisAt: targetMidisAt
+        )
+        XCTAssertEqual(candidates.repeatPitchClassMask, 1 << 7)
+        XCTAssertTrue(candidates.midis.contains(67))
+        XCTAssertTrue(ExpectedPitchCandidateCollectors.isChordOsmdWaitingForSamePitchRepeat(
+            targetCount: 2,
+            phraseTimeSec: phraseTimeSec,
+            judgedTargetTimeSec: { judgedTimes[$0] },
+            runtimeAt: runtimeAt,
+            targetMidisAt: targetMidisAt,
+            earlySec: 0.25,
+            lateSec: 0.25
+        ))
+    }
+
     func testSamePitchRepeatMaskActiveEvenWhenPreviousFailedOnScore() {
         let judgedTimes = [1.0, 2.0]
         let singleMidisAt: (Int) -> [Int] = { index in
