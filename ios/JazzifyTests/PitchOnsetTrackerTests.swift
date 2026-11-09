@@ -789,4 +789,51 @@ final class PitchOnsetTrackerTests: XCTestCase {
             XCTFail("Expected noteOn second")
         }
     }
+
+    func testAllowsLegatoToFWhenHoldingUnacceptedExpectedPitchClass() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.frameDurationMs = 5
+        config.minNoteFrames = 2
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        tracker.setExpectedPitchCandidates(mask: 1 << 4, midis: [76])
+        _ = tracker.processFrame(voiced(76), frameIndex: 0)
+        _ = tracker.processFrame(voiced(76), frameIndex: 1)
+        _ = tracker.processFrame(voiced(77), frameIndex: 2)
+        _ = tracker.processFrame(voiced(77), frameIndex: 3)
+        tracker.setExpectedPitchCandidates(mask: 1 << 5, midis: [77])
+        let events = tracker.processFrame(voiced(79), frameIndex: 4)
+            + tracker.processFrame(voiced(79), frameIndex: 5)
+        XCTAssertTrue(events.contains(where: {
+            if case let .noteOn(note, _, _) = $0 { return note == 79 }
+            return false
+        }))
+    }
+
+    func testStillHoldsUnexpectedPitchDuringAcceptedSamePitchRepeatWait() {
+        var config = PitchOnsetTrackerConfig()
+        config.pitchStableFrames = 1
+        config.fastResponse = true
+        config.fastLegatoConfidence = 0.5
+        config.onsetImmediateConfidence = 2
+        config.legatoReturnGuardMs = 100
+        config.repeatRetriggerGuardMs = 80
+        let tracker = PitchOnsetTracker(config: config)
+        let voiced = { (midi: Int) in PitchFrame(prediction: Double(midi), confidence: 0.99, volume: 0.01) }
+        tracker.setExpectedPitchCandidates(mask: (1 << 4) | (1 << 5), midis: [76, 77], repeatPitchClassMask: 1 << 4)
+        _ = tracker.processFrame(voiced(76), frameIndex: 0)
+        _ = tracker.processFrame(voiced(76), frameIndex: 1)
+        let events = tracker.processFrame(voiced(79), frameIndex: 2)
+            + tracker.processFrame(voiced(79), frameIndex: 3)
+        XCTAssertFalse(events.contains(where: {
+            if case .noteOn = $0 { return true }
+            return false
+        }))
+        XCTAssertEqual(tracker.getCurrentNote(), 76)
+    }
 }

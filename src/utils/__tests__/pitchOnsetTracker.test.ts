@@ -1478,4 +1478,64 @@ describe('PitchOnsetTracker', () => {
     expect(noteOns).toEqual([76, 74, 76]);
   });
 
+  it('allows legato to F when holding unaccepted expected pitch class', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    tracker.setExpectedPitchCandidates(1 << 4, [76], 0);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+    ]);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(77), index: 2 },
+      { frame: highConfidenceVoiced(77), index: 3 },
+    ]);
+    tracker.setExpectedPitchCandidates(1 << 5, [77], 0);
+    const toF = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(79), index: 4 },
+      { frame: highConfidenceVoiced(79), index: 5 },
+    ]);
+    expect(toF).toContain(79);
+  });
+
+  it('allows legato after legatoReturn wobble resume without repeat-hold trap', () => {
+    const tracker = new PitchOnsetTracker(legatoReturnGuardConfig);
+    tracker.setExpectedPitchCandidates(1 << 4, [76], 0);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(77), index: 0 },
+      { frame: highConfidenceVoiced(77), index: 1 },
+      { frame: highConfidenceVoiced(76), index: 2 },
+      { frame: highConfidenceVoiced(76), index: 3 },
+    ]);
+    tracker.setExpectedPitchCandidates(1 << 5, [77], 0);
+    const silentFa = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(77), index: 4 },
+      { frame: highConfidenceVoiced(77), index: 5 },
+    ]);
+    expect(silentFa.filter((note) => note === 77)).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(77);
+    const toF = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(79), index: 6 },
+      { frame: highConfidenceVoiced(79), index: 7 },
+    ]);
+    expect(toF).toContain(79);
+  });
+
+  it('still holds unexpected pitch during accepted same-pitch repeat wait', () => {
+    const tracker = new PitchOnsetTracker({
+      ...legatoReturnGuardConfig,
+      repeatRetriggerGuardMs: 80,
+    });
+    tracker.setExpectedPitchCandidates((1 << 4) | (1 << 5), [76, 77], 1 << 4);
+    collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(76), index: 0 },
+      { frame: highConfidenceVoiced(76), index: 1 },
+    ]);
+    const toSo = collectNoteOns(tracker, [
+      { frame: highConfidenceVoiced(79), index: 2 },
+      { frame: highConfidenceVoiced(79), index: 3 },
+    ]);
+    expect(toSo).toEqual([]);
+    expect(tracker.getCurrentNote()).toBe(76);
+  });
+
 });

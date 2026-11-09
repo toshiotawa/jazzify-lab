@@ -9,6 +9,7 @@ import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticReco
 import {
   downloadPitchFrameTrace,
   downloadPitchFrameTraceEntries,
+  type PitchFrameTraceColumns,
   type PitchFrameTraceEntry,
 } from '@/utils/pitchInput/pitchFrameTrace';
 import {
@@ -161,7 +162,7 @@ export class PitchInputController {
       return;
     }
     await new Promise<void>((resolve) => {
-      const onMessage = (event: MessageEvent<{ type?: string; entries?: PitchFrameTraceEntry[] }>): void => {
+      const onMessage = (event: MessageEvent<{ type?: string; entries?: PitchFrameTraceColumns | PitchFrameTraceEntry[] }>): void => {
         if (event.data?.type !== 'frameTrace') {
           return;
         }

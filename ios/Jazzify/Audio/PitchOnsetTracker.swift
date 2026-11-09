@@ -90,6 +90,10 @@ final class PitchOnsetTracker {
     private var legatoFromNote = -1
     private var recentReleasedNotes: [Int] = [-1, -1, -1]
     private var recentReleasedFrames: [Int] = [-1, -1, -1]
+    /// 現在音が noteOn 時に期待ピッチクラスだったか（無音復帰のみの音は false）。
+    private var currentNoteExpectedAtOnset = false
+    private var suspendedNoteExpectedAtOnset = false
+    private var legatoFromNoteExpectedAtOnset = false
 
     init(config: PitchOnsetTrackerConfig = PitchOnsetTrackerConfig()) {
         self.config = config
@@ -129,6 +133,9 @@ final class PitchOnsetTracker {
         legatoFromNote = -1
         recentReleasedNotes = [-1, -1, -1]
         recentReleasedFrames = [-1, -1, -1]
+        currentNoteExpectedAtOnset = false
+        suspendedNoteExpectedAtOnset = false
+        legatoFromNoteExpectedAtOnset = false
     }
 
     private func resetRepeatPeakState() {
@@ -283,9 +290,10 @@ final class PitchOnsetTracker {
                         && abs(quantized - currentNote) == 1
                     if wobbleReturn {
                         let wobbleNote = currentNote
+                        legatoFromNoteExpectedAtOnset = currentNoteExpectedAtOnset
                         emitNoteOff(&events, note: wobbleNote, frameIndex: frameIndex)
                         legatoFromNote = wobbleNote
-                        resumeSuspendedNote(note: quantized, frameIndex: frameIndex)
+                        resumeSuspendedNote(note: quantized, frameIndex: frameIndex, restoreExpectedAtOnset: false)
                     } else {
                         updateRepeatTroughOnly(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
                         recordLevels(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
@@ -307,6 +315,7 @@ final class PitchOnsetTracker {
                         octaveRelated: octaveRelated
                     ) {
                         suspendedNote = -1
+                        legatoFromNoteExpectedAtOnset = currentNoteExpectedAtOnset
                         legatoFromNote = currentNote
                         emitNoteOff(&events, note: currentNote, frameIndex: frameIndex)
                         emitNoteOn(
@@ -483,12 +492,22 @@ final class PitchOnsetTracker {
         return rise < config.attackRiseDb
     }
 
-    private func resumeSuspendedNote(note: Int, frameIndex: Int) {
+    private func resumeSuspendedNote(
+        note: Int,
+        frameIndex: Int,
+        restoreExpectedAtOnset: Bool = true
+    ) {
         currentNote = note
         noteOnFrame = frameIndex
         releaseCount = 0
         pendingOff = false
         suspendedNote = -1
+        if restoreExpectedAtOnset {
+            currentNoteExpectedAtOnset = suspendedNoteExpectedAtOnset
+            suspendedNoteExpectedAtOnset = false
+        } else {
+            currentNoteExpectedAtOnset = false
+        }
     }
 
     private func allowsRepeatRetrigger(confidenceVoiced: Bool, expectedAssist: Bool) -> Bool {
@@ -514,6 +533,9 @@ final class PitchOnsetTracker {
         rawLevelDb: Double? = nil
     ) {
         let prevPeakAttackDb = notePeakAttackDb
+        let pitchClass = ((note % 12) + 12) % 12
+        currentNoteExpectedAtOnset = expectedPitchMask != 0
+            && (expectedPitchMask & (1 << pitchClass)) != 0
         currentNote = note
         noteOnFrame = frameIndex
         lastNoteOnFrame = frameIndex
@@ -600,9 +622,19 @@ final class PitchOnsetTracker {
         return (mask & (1 << pitchClass)) != 0
     }
 
+    /// 受理済み同音待ちまたは repeat マスクのみでホールド・半音揺れ抑制を有効化。
+    private func isRepeatWaitActive(note: Int) -> Bool {
+        guard isRepeatPitchClassActive(note: note) else { return false }
+        let pitchClass = ((note % 12) + 12) % 12
+        if (repeatPitchClassMask & (1 << pitchClass)) != 0 {
+            return true
+        }
+        return currentNoteExpectedAtOnset
+    }
+
     /// 同音待ち中に期待実音以外へ逸れた誤検出はレガート切替しない。
     private func shouldHoldRepeatModeUnexpectedPitch(quantized: Int) -> Bool {
-        guard currentNote >= 0, isRepeatPitchClassActive(note: currentNote) else { return false }
+        guard currentNote >= 0, isRepeatWaitActive(note: currentNote) else { return false }
         if shouldTreatRepeatModePitchWobble(quantized: quantized) { return false }
         if isOctaveRelatedJump(quantized: quantized) { return false }
         if expectedPitchMidis.contains(quantized) { return false }
@@ -617,12 +649,18 @@ final class PitchOnsetTracker {
     private func shouldTreatRepeatModePitchWobble(quantized: Int) -> Bool {
         guard currentNote >= 0, isRepeatPitchClassActive(note: currentNote) else { return false }
         if quantized == currentNote { return true }
-        if isSamePitchClass(quantized, currentNote), isOctaveRelatedJump(quantized: quantized) {
-            if quantized > currentNote, !expectedPitchMidis.contains(quantized) {
-                return true
+        if isSamePitchClass(quantized, currentNote) {
+            if isOctaveRelatedJump(quantized: quantized) {
+                if quantized > currentNote, !expectedPitchMidis.contains(quantized) {
+                    return true
+                }
+                return false
             }
-            return false
+            return true
         }
+        guard isRepeatWaitActive(note: currentNote) else { return false }
+        let nextPc = ((quantized % 12) + 12) % 12
+        if expectedPitchMask != 0, (expectedPitchMask & (1 << nextPc)) != 0 { return false }
         return abs(quantized - currentNote) == 1
     }
 
@@ -684,6 +722,7 @@ final class PitchOnsetTracker {
 
     private func emitNoteOff(_ events: inout [PitchInputEvent], note: Int, frameIndex: Int) {
         guard currentNote == note else { return }
+        suspendedNoteExpectedAtOnset = currentNoteExpectedAtOnset
         suspendedNote = note
         suspendedNoteOffFrame = frameIndex
         currentNote = -1
@@ -768,7 +807,7 @@ final class PitchOnsetTracker {
             return
         }
 
-        if isRepeatPitchClassActive(note: currentNote) {
+        if isRepeatWaitActive(note: currentNote) {
             if frameIndex - lastNoteOnFrame < repeatRetriggerGuardFrames() {
                 recordLevels(levelDb: levelDb, attackLevelDb: attackLevelDb, frameIndex: frameIndex)
                 return

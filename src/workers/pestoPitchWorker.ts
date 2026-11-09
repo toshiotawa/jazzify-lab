@@ -173,6 +173,7 @@ interface WorkerDiagnosticStateMessage {
   sourceEndSample: number;
   processedSourceEndSample: number | null;
   diagnostics?: ReturnType<PitchInputDiagnostics['snapshot']>;
+  frameTrace?: ReturnType<ReturnType<typeof ensurePitchFrameTraceBuffer>['snapshot']>;
 }
 
 type WorkerOutbound =
@@ -232,6 +233,14 @@ const observation: PitchObservation = {
 };
 const attackEnvelope = new PitchAttackEnvelope();
 let frameTraceEnabled = isPitchDiagnosticsEnabled();
+
+const refreshFrameTraceEnabled = (): void => {
+  const nextEnabled = isPitchDiagnosticsEnabled() || diagnostics !== null;
+  if (nextEnabled && !frameTraceEnabled) {
+    resetPitchFrameTraceBuffer();
+  }
+  frameTraceEnabled = nextEnabled;
+};
 
 const LATENCY_EMA_ALPHA = 0.1;
 const MONITOR_POST_INTERVAL = 60;
@@ -505,17 +514,18 @@ const emitTrackerEvents = (
 
   const events = tracker.processFrame(trackerFrame, frameIndex);
   if (frameTraceEnabled) {
-    ensurePitchFrameTraceBuffer().record({
+    ensurePitchFrameTraceBuffer().record(
       frameIndex,
-      prediction: trackerFrame.prediction,
-      confidence: trackerFrame.confidence,
-      volumeDb: 10 * Math.log10(Math.max(frame.volume, 1e-12)),
+      trackerFrame.prediction,
+      trackerFrame.confidence,
+      10 * Math.log10(Math.max(frame.volume, 1e-12)),
       attackDb,
-      expectedMask: expectedPitchMask,
-      repeatMask: repeatPitchClassMask,
-      currentNote: tracker.getCurrentNote(),
-      event: formatTraceEvent(events),
-    });
+      trackerFrame.rawLevelDb,
+      expectedPitchMask,
+      repeatPitchClassMask,
+      tracker.getCurrentNote(),
+      formatTraceEvent(events),
+    );
   }
   frameIndex += 1;
   maybePostMonitor();
@@ -746,6 +756,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         wasmThreads: pitchEngine === 'pesto' ? ort.env.wasm.numThreads : undefined,
         inferenceIntervalMs: frameDurationSec * 1000,
       }) : null;
+      refreshFrameTraceEnabled();
       return;
     }
 
@@ -757,6 +768,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
         sourceEndSample: lastSourceEndSample,
         processedSourceEndSample: lastProcessedSourceEndSample,
         diagnostics: diagnostics?.snapshot(chunkQueue.depthMs()),
+        frameTrace: frameTraceEnabled ? ensurePitchFrameTraceBuffer().snapshot() : undefined,
       });
       return;
     }
@@ -789,7 +801,6 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       resetInferenceState();
       attackEnvelope.reset();
       resetPitchFrameTraceBuffer();
-      frameTraceEnabled = isPitchDiagnosticsEnabled();
       if (data.diagnostics) {
         diagnostics = new PitchInputDiagnostics({
           ...data.diagnostics,
@@ -802,6 +813,7 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
       } else {
         diagnostics = null;
       }
+      refreshFrameTraceEnabled();
       diagnostics?.setWarmupFrames(warmupFramesRemaining);
       audioPort?.postMessage({ type: 'resetCapture', generationId });
       post({ type: 'ready' });
@@ -864,10 +876,6 @@ self.onmessage = async (event: MessageEvent<WorkerInbound>) => {
     }
 
     if (data.type === 'dumpFrameTrace') {
-      if (!frameTraceEnabled) {
-        post({ type: 'frameTrace', entries: [] });
-        return;
-      }
       post({ type: 'frameTrace', entries: ensurePitchFrameTraceBuffer().snapshot() });
       return;
     }

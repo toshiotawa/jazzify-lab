@@ -182,6 +182,10 @@ export class PitchOnsetTracker {
   private legatoFromNote = -1;
   private readonly recentReleasedNotes: number[] = [-1, -1, -1];
   private readonly recentReleasedFrames: number[] = [-1, -1, -1];
+  /** 現在音が noteOn 時に期待ピッチクラスだったか（無音復帰のみの音は false）。 */
+  private currentNoteExpectedAtOnset = false;
+  private suspendedNoteExpectedAtOnset = false;
+  private legatoFromNoteExpectedAtOnset = false;
 
   constructor(config: Partial<PitchOnsetTrackerConfig> = DEFAULT_ONSET_CONFIG) {
     this.config = { ...DEFAULT_ONSET_CONFIG, ...config };
@@ -234,6 +238,9 @@ export class PitchOnsetTracker {
     this.recentReleasedFrames[0] = -1;
     this.recentReleasedFrames[1] = -1;
     this.recentReleasedFrames[2] = -1;
+    this.currentNoteExpectedAtOnset = false;
+    this.suspendedNoteExpectedAtOnset = false;
+    this.legatoFromNoteExpectedAtOnset = false;
   }
 
   private resetRepeatPeakState(): void {
@@ -405,9 +412,10 @@ export class PitchOnsetTracker {
           );
           if (wobbleReturn) {
             const wobbleNote = this.currentNote;
+            this.legatoFromNoteExpectedAtOnset = this.currentNoteExpectedAtOnset;
             this.emitNoteOff(events, wobbleNote, frameIndex);
             this.legatoFromNote = wobbleNote;
-            this.resumeSuspendedNote(quantized, frameIndex);
+            this.resumeSuspendedNote(quantized, frameIndex, false);
           } else {
             this.updateRepeatTroughOnly(levelDb, attackLevelDb, frameIndex);
             this.recordLevels(levelDb, attackLevelDb, frameIndex);
@@ -424,6 +432,7 @@ export class PitchOnsetTracker {
             octaveRelated,
           )) {
             this.suspendedNote = -1;
+            this.legatoFromNoteExpectedAtOnset = this.currentNoteExpectedAtOnset;
             this.legatoFromNote = this.currentNote;
             this.emitNoteOff(events, this.currentNote, frameIndex);
             this.emitNoteOn(
@@ -613,12 +622,22 @@ export class PitchOnsetTracker {
     return rise < this.config.attackRiseDb;
   }
 
-  private resumeSuspendedNote(note: number, frameIndex: number): void {
+  private resumeSuspendedNote(
+    note: number,
+    frameIndex: number,
+    restoreExpectedAtOnset = true,
+  ): void {
     this.currentNote = note;
     this.noteOnFrame = frameIndex;
     this.releaseCount = 0;
     this.pendingOff = false;
     this.suspendedNote = -1;
+    if (restoreExpectedAtOnset) {
+      this.currentNoteExpectedAtOnset = this.suspendedNoteExpectedAtOnset;
+      this.suspendedNoteExpectedAtOnset = false;
+    } else {
+      this.currentNoteExpectedAtOnset = false;
+    }
   }
 
   private allowsRepeatRetrigger(confidenceVoiced: boolean, expectedAssist: boolean): boolean {
@@ -636,6 +655,11 @@ export class PitchOnsetTracker {
     rawLevelDb?: number,
   ): void {
     const prevPeakAttackDb = this.notePeakAttackDb;
+    const pitchClass = ((note % 12) + 12) % 12;
+    this.currentNoteExpectedAtOnset = (
+      this.expectedPitchMask !== 0
+      && (this.expectedPitchMask & (1 << pitchClass)) !== 0
+    );
     this.currentNote = note;
     this.noteOnFrame = frameIndex;
     this.lastNoteOnFrame = frameIndex;
@@ -744,9 +768,21 @@ export class PitchOnsetTracker {
     return (mask & (1 << pitchClass)) !== 0;
   }
 
+  /** 受理済み同音待ちまたは repeat マスクのみでホールド・半音揺れ抑制を有効化。 */
+  private isRepeatWaitActive(note: number): boolean {
+    if (!this.isRepeatPitchClassActive(note)) {
+      return false;
+    }
+    const pitchClass = ((note % 12) + 12) % 12;
+    if ((this.repeatPitchClassMask & (1 << pitchClass)) !== 0) {
+      return true;
+    }
+    return this.currentNoteExpectedAtOnset;
+  }
+
   /** 同音待ち中に期待実音以外へ逸れた誤検出はレガート切替しない。 */
   private shouldHoldRepeatModeUnexpectedPitch(quantized: number): boolean {
-    if (this.currentNote < 0 || !this.isRepeatPitchClassActive(this.currentNote)) {
+    if (this.currentNote < 0 || !this.isRepeatWaitActive(this.currentNote)) {
       return false;
     }
     if (this.shouldTreatRepeatModePitchWobble(quantized)) {
@@ -788,6 +824,9 @@ export class PitchOnsetTracker {
         return false;
       }
       return true;
+    }
+    if (!this.isRepeatWaitActive(this.currentNote)) {
+      return false;
     }
     // 楽譜が実際に半音進行を要求している場合はレガート遷移を許す。
     const nextPc = ((quantized % 12) + 12) % 12;
@@ -875,6 +914,7 @@ export class PitchOnsetTracker {
     frameIndex: number,
   ): void {
     if (this.currentNote !== note) return;
+    this.suspendedNoteExpectedAtOnset = this.currentNoteExpectedAtOnset;
     this.suspendedNote = note;
     this.suspendedNoteOffFrame = frameIndex;
     this.currentNote = -1;
@@ -972,7 +1012,7 @@ export class PitchOnsetTracker {
       return;
     }
 
-    if (this.isRepeatPitchClassActive(this.currentNote)) {
+    if (this.isRepeatWaitActive(this.currentNote)) {
       if (frameIndex - this.lastNoteOnFrame < this.repeatRetriggerGuardFrames()) {
         this.recordLevels(levelDb, attackLevelDb, frameIndex);
         return;
