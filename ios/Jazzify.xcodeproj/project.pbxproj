@@ -263,6 +263,7 @@
 		8147A819F56B4898C892A831 /* EarTrainingOsmdCameraEffectPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95D64D5494D20256EEB835EE /* EarTrainingOsmdCameraEffectPreferences.swift */; };
 		8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */ = {isa = PBXBuildFile; fileRef = D1E8E57E80A86CD8B5085935 /* onboarding-v1.script.json */; };
 		85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */ = {isa = PBXBuildFile; fileRef = 3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */; };
+		D7A1C4E82F6B9051A3C8D4E1 /* pitchplease in Resources */ = {isa = PBXBuildFile; fileRef = E8B2D5F93A7C0162B4D9E5F2 /* pitchplease */; };
 		869BE1E60A0D21977667B064 /* EarTrainingOsmdCameraEffectPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA8DA3D5BFD1A94646DBCC5 /* EarTrainingOsmdCameraEffectPreferencesTests.swift */; };
 		86ADF39A3D3C12AB66DCFD68 /* MarketingEmailOptIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88453408DE12301997E620A /* MarketingEmailOptIn.swift */; };
 		8740DD82CC0968435363BD8E /* TrainingGoalListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC01A727938CFD3713F557D2 /* TrainingGoalListView.swift */; };
@@ -597,6 +598,7 @@
 		3DD183119AF389C09D3989F5 /* DefenseDescentMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseDescentMapView.swift; sourceTree = "<group>"; };
 		3E55DE62A334F6CFC0698D44 /* PianoKeyboardScrollGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PianoKeyboardScrollGeometryTests.swift; sourceTree = "<group>"; };
 		3E9AD285E094C9BFC9BB6FAD /* stage_cards_collection */ = {isa = PBXFileReference; lastKnownFileType = folder; name = stage_cards_collection; path = ../public/stage_cards_collection; sourceTree = SOURCE_ROOT; };
+		E8B2D5F93A7C0162B4D9E5F2 /* pitchplease */ = {isa = PBXFileReference; lastKnownFileType = folder; path = pitchplease; sourceTree = "<group>"; };
 		3F025416B60CF0EC0AB90A07 /* EarTrainingPhrasePairEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhrasePairEngine.swift; sourceTree = "<group>"; };
 		3F292131888865A3A2163F5D /* MainQuestResumeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainQuestResumeSheet.swift; sourceTree = "<group>"; };
 		3F2E89939A5C08F48F393CFF /* AchievementBadgeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AchievementBadgeStore.swift; sourceTree = "<group>"; };
@@ -1709,6 +1711,7 @@
 				2AA6502C749876A952A425C8 /* Gameover.mp3 */,
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 				A2F6F94B04EBCE40147CE417 /* opensheetmusicdisplay.min.js */,
+				E8B2D5F93A7C0162B4D9E5F2 /* pitchplease */,
 				4F8B3B95C18A0D73876DCCD4 /* pesto-mir1k-g7-48000-240-refill.onnx */,
 				0FD9B8F66958E3F1531B228A /* pesto-mir1k-g7-48000-240.onnx */,
 				381E12BED6CB73533234D66B /* クエスト完了.mp3 */,
@@ -2134,6 +2137,7 @@
 				8202A279186FC16229823B77 /* onboarding-v1.script.json in Resources */,
 				A02B7FA33A6373172BB2390A /* opensheetmusicdisplay.min.js in Resources */,
 				85D0439DB5E126DA53B72937 /* stage_cards_collection in Resources */,
+				D7A1C4E82F6B9051A3C8D4E1 /* pitchplease in Resources */,
 				21C0CE25572CEA2B2F06ADC3 /* クエスト完了.mp3 in Resources */,
 				7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */,
 			);
