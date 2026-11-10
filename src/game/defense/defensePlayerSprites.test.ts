@@ -4,11 +4,13 @@ import {
   DEFENSE_SLASH_SEC,
 } from '@/game/defense/defenseEnemyConfig';
 import {
+  createScenePlayerPoseCache,
   DEFENSE_PLAYER_IDLE_URLS,
   DEFENSE_PLAYER_SKILL_POSE_URLS,
   DEFENSE_PLAYER_SLASH_URL,
   pickDefensePlayerPoseUrl,
   pickTrainingPlayerPoseUrl,
+  resolveScenePlayerPoseImage,
 } from '@/game/defense/defensePlayerSprites';
 import {
   createDefenseRuntime,
@@ -100,5 +102,24 @@ describe('pickTrainingPlayerPoseUrl', () => {
 describe('DEFENSE_FIREBALL_SPAWN_DELAY_SEC', () => {
   it('matches Frame5 timing at 80ms per frame', () => {
     expect(DEFENSE_FIREBALL_SPAWN_DELAY_SEC).toBeCloseTo(DEFENSE_SKILL_POSE_FRAME_SEC * 4);
+  });
+});
+
+describe('resolveScenePlayerPoseImage', () => {
+  it('keeps the last resolved pose when the requested URL is not loaded', () => {
+    const loaded = new Map<string, HTMLImageElement>();
+    const idle0 = { width: 1, height: 1 } as HTMLImageElement;
+    loaded.set(DEFENSE_PLAYER_IDLE_URLS[0], idle0);
+    const cache = createScenePlayerPoseCache();
+
+    expect(resolveScenePlayerPoseImage(loaded, cache, DEFENSE_PLAYER_IDLE_URLS[0])).toBe(idle0);
+    expect(resolveScenePlayerPoseImage(loaded, cache, DEFENSE_PLAYER_IDLE_URLS[1])).toBe(idle0);
+    expect(cache.lastResolvedPlayerPose).toBe(idle0);
+  });
+
+  it('returns undefined when nothing has been resolved yet', () => {
+    const loaded = new Map<string, HTMLImageElement>();
+    const cache = createScenePlayerPoseCache();
+    expect(resolveScenePlayerPoseImage(loaded, cache, DEFENSE_PLAYER_IDLE_URLS[0])).toBeUndefined();
   });
 });

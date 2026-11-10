@@ -92,3 +92,24 @@ export const pickDefensePlayerPoseUrl = (runtime: DefenseRuntime): string => {
   return pickDefenseIdlePoseUrl(runtime.elapsedSec);
 };
 
+export interface ScenePlayerPoseCache {
+  lastResolvedPlayerPose: HTMLImageElement | null;
+}
+
+export const createScenePlayerPoseCache = (): ScenePlayerPoseCache => ({
+  lastResolvedPlayerPose: null,
+});
+
+export const resolveScenePlayerPoseImage = (
+  loadedImages: Map<string, HTMLImageElement>,
+  cache: ScenePlayerPoseCache,
+  poseUrl: string,
+): HTMLImageElement | undefined => {
+  const requested = loadedImages.get(poseUrl);
+  if (requested) {
+    cache.lastResolvedPlayerPose = requested;
+    return requested;
+  }
+  return cache.lastResolvedPlayerPose ?? undefined;
+};
+

@@ -1,4 +1,3 @@
-import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
@@ -13,6 +12,7 @@ import {
 } from '@/game/defense/defenseEnemySprites';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import {
+  createTrainingSceneAssets,
   drawTrainingScene,
   invalidateBackgroundCache,
   type TrainingSceneAssets,
@@ -30,7 +30,6 @@ interface TrainingCanvasProps {
 }
 
 const TRAINING_SCENE_IMAGE_URLS = [
-  SURVIVAL_DEFAULT_SPRITE_PATHS.migi,
   ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
   ...Object.values(BACKGROUND_IMAGE_URLS),
 ] as const;
@@ -68,7 +67,7 @@ export const TrainingCanvas = forwardRef<TrainingCanvasHandle, TrainingCanvasPro
       }
 
       const loadedImages = copyCachedBattleImages(TRAINING_SCENE_IMAGE_URLS);
-      assetsRef.current = { loadedImages, backgroundCache };
+      assetsRef.current = createTrainingSceneAssets(loadedImages, backgroundCache);
 
       void loadDefenseEnemySprites((atlas) => {
         if (!cancelled) atlasRef.current = atlas;

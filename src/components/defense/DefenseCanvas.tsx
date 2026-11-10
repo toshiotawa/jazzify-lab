@@ -2,7 +2,6 @@
  * Defense mode canvas host. Drawing is driven imperatively by the game loop via `draw(runtime, hud)`
  * so no React state changes per frame.
  */
-import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 
 import { BACKGROUND_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
@@ -18,6 +17,7 @@ import {
 } from '@/game/defense/defenseEnemySprites';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import {
+  createDefenseSceneAssets,
   drawDefenseScene,
   invalidateBackgroundCache,
   type DefenseSceneAssets,
@@ -35,7 +35,6 @@ interface DefenseCanvasProps {
 }
 
 const DEFENSE_SCENE_IMAGE_URLS = [
-  SURVIVAL_DEFAULT_SPRITE_PATHS.migi,
   ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
   BATTLE_EFFECT_SPRITE_URLS.fireball,
   ...Object.values(BACKGROUND_IMAGE_URLS),
@@ -74,7 +73,7 @@ export const DefenseCanvas = forwardRef<DefenseCanvasHandle, DefenseCanvasProps>
       }
 
       const loadedImages = copyCachedBattleImages(DEFENSE_SCENE_IMAGE_URLS);
-      assetsRef.current = { loadedImages, backgroundCache };
+      assetsRef.current = createDefenseSceneAssets(loadedImages, backgroundCache);
 
       void loadDefenseEnemySprites((atlas) => {
         if (!cancelled) atlasRef.current = atlas;

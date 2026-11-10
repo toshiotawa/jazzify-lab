@@ -1,4 +1,3 @@
-import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import {
   drawBattleAvatar,
   drawTintedImageCopy,
@@ -21,7 +20,12 @@ import {
 } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import { DEFENSE_ENEMY_TYPES } from '@/game/defense/defenseEnemyConfig';
-import { pickTrainingPlayerPoseUrl } from '@/game/defense/defensePlayerSprites';
+import {
+  createScenePlayerPoseCache,
+  pickTrainingPlayerPoseUrl,
+  resolveScenePlayerPoseImage,
+  type ScenePlayerPoseCache,
+} from '@/game/defense/defensePlayerSprites';
 import type { TrainingSceneHud } from '@/game/training/trainingSceneHud';
 import type { TrainingRuntime } from '@/game/training/trainingTypes';
 import { TRAINING_HUD_HEIGHT_PX } from '@/game/training/trainingTypes';
@@ -37,7 +41,17 @@ const TRAINING_PLAYER_X_RATIO = 0.23;
 export interface TrainingSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
   readonly backgroundCache: BackgroundCacheState;
+  readonly playerPoseCache: ScenePlayerPoseCache;
 }
+
+export const createTrainingSceneAssets = (
+  loadedImages: Map<string, HTMLImageElement>,
+  backgroundCache: BackgroundCacheState,
+): TrainingSceneAssets => ({
+  loadedImages,
+  backgroundCache,
+  playerPoseCache: createScenePlayerPoseCache(),
+});
 
 export { invalidateBackgroundCache };
 
@@ -271,9 +285,16 @@ export const drawTrainingScene = (
     dying.slashUntilSec,
     runtime.guardPoseUntilSec,
   );
-  const playerImg = assets?.loadedImages.get(playerPoseUrl)
-    ?? assets?.loadedImages.get(SURVIVAL_DEFAULT_SPRITE_PATHS.migi);
-  drawBattleAvatar(ctx, playerImg, width * TRAINING_PLAYER_X_RATIO, floorY, 'player');
+  const playerImg = assets
+    ? resolveScenePlayerPoseImage(
+      assets.loadedImages,
+      assets.playerPoseCache,
+      playerPoseUrl,
+    )
+    : undefined;
+  if (playerImg) {
+    drawBattleAvatar(ctx, playerImg, width * TRAINING_PLAYER_X_RATIO, floorY, 'player');
+  }
 
   if (dying.active && dying.slashUntilSec > 0) {
     drawSlashEffect(

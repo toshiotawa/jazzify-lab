@@ -645,10 +645,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       ? Boolean(tutorialOptions?.autoAdvancePhrase)
       : !practiceMode;
 
-    const allowSingleStepSkip = voiceInput
-      && !isTutorialSession
-      && stage.playStyle === 'phrase';
-
     const evaluation = evaluateDefensePhraseNoteOn(
       activePhrases,
       stage.requiredCompletionCount,
@@ -659,7 +655,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       autoAdvance,
       stage.playStyle,
       stage.playRootOnChordChange,
-      allowSingleStepSkip,
     );
 
     if (pitchDiagnosticRecording.enabled && effectiveInputMethod === 'voice') {
@@ -669,7 +664,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         accepted: evaluation.nextState !== judgeRef.current,
         phraseCompleted: evaluation.phraseCompleted,
         attack: evaluation.attack,
-        skipped: evaluation.skippedStep,
       });
     }
     if (evaluation.nextState === judgeRef.current) return;

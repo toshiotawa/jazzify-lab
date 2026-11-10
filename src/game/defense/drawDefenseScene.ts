@@ -1,7 +1,6 @@
 /**
  * Defense mode Canvas2D renderer (called imperatively from the game loop; no React state).
  */
-import { SURVIVAL_DEFAULT_SPRITE_PATHS } from '@/utils/survivalPlayerSprites';
 import {
   drawBattleAvatar,
   drawTintedImageCopy,
@@ -38,7 +37,12 @@ import {
   pickDefenseEnemyFrame,
 } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
-import { pickDefensePlayerPoseUrl } from '@/game/defense/defensePlayerSprites';
+import {
+  createScenePlayerPoseCache,
+  pickDefensePlayerPoseUrl,
+  resolveScenePlayerPoseImage,
+  type ScenePlayerPoseCache,
+} from '@/game/defense/defensePlayerSprites';
 import { defenseLogicalToScreenX } from '@/game/defense/defenseSceneLayout';
 import type { DefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import type { DefenseEnemyType, DefenseRuntime } from '@/game/defense/defenseTypes';
@@ -60,7 +64,17 @@ const SLASH_ROTATION_RAD = -4 * (Math.PI / 180);
 export interface DefenseSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
   readonly backgroundCache: BackgroundCacheState;
+  readonly playerPoseCache: ScenePlayerPoseCache;
 }
+
+export const createDefenseSceneAssets = (
+  loadedImages: Map<string, HTMLImageElement>,
+  backgroundCache: BackgroundCacheState,
+): DefenseSceneAssets => ({
+  loadedImages,
+  backgroundCache,
+  playerPoseCache: createScenePlayerPoseCache(),
+});
 
 export { invalidateBackgroundCache };
 
@@ -499,8 +513,13 @@ export const drawDefenseScene = (
   }
 
   const playerPoseUrl = pickDefensePlayerPoseUrl(runtime);
-  const playerImg = assets?.loadedImages.get(playerPoseUrl)
-    ?? assets?.loadedImages.get(SURVIVAL_DEFAULT_SPRITE_PATHS.migi);
+  const playerImg = assets
+    ? resolveScenePlayerPoseImage(
+      assets.loadedImages,
+      assets.playerPoseCache,
+      playerPoseUrl,
+    )
+    : undefined;
 
   const impactActive = runtime.impactAt !== DEFENSE_NO_IMPACT
     && runtime.elapsedSec - runtime.impactAt >= 0
@@ -512,10 +531,12 @@ export const drawDefenseScene = (
     && runtime.elapsedSec - runtime.waveStartedAt < DEFENSE_LEVEL_UP_SEC;
   const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
 
-  drawBattleAvatar(ctx, playerImg, playerX, floorY, 'player', {
-    tintColor: impactActive ? '#ef4444' : levelUpActive ? LEVEL_UP_GREEN : null,
-    tintAlpha: impactActive ? 0.45 : levelUpActive ? 0.42 : undefined,
-  });
+  if (playerImg) {
+    drawBattleAvatar(ctx, playerImg, playerX, floorY, 'player', {
+      tintColor: impactActive ? '#ef4444' : levelUpActive ? LEVEL_UP_GREEN : null,
+      tintAlpha: impactActive ? 0.45 : levelUpActive ? 0.42 : undefined,
+    });
+  }
 
   if (assets && showPhraseUi) {
     drawFireballs(ctx, runtime, width, floorY, spriteScale, assets);
