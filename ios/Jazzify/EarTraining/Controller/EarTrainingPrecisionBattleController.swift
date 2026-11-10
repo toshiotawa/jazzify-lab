@@ -901,14 +901,14 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
             midi: midi,
             phraseTimeSec: phraseTime,
             windowSec: windowSec,
-            ignoreOctave: MusicXmlPartCount.count(baseMusicXmlText ?? "") == 1
+            ignoreOctave: MusicXmlPartCount.ignoresOctave(baseMusicXmlText ?? "")
         ) else {
             let nearest = EarTrainingPrecisionJudge.findNearestPendingNote(
                 notes: precisionNotes,
                 states: runtimeStates,
                 midi: midi,
                 phraseTimeSec: phraseTime,
-                ignoreOctave: MusicXmlPartCount.count(baseMusicXmlText ?? "") == 1
+                ignoreOctave: MusicXmlPartCount.ignoresOctave(baseMusicXmlText ?? "")
             )
             EarTrainingInputTimingTelemetry.logUnmatched(
                 mode: .chordPrecision,

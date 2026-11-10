@@ -28,6 +28,21 @@ describe('PitchDiagnosticRecording', () => {
     expect(snapshot.overwrittenEntries).toBe(12001);
   });
 
+  it('keeps last poly connection error for the next recordingStarted', () => {
+    const recording = pitchDiagnosticRecording;
+    recording.recordPolyConnectionFailure('マイクへのアクセスに失敗しました');
+    recording.start();
+    const started = recording.snapshot().entries.find((entry) => entry.event === 'recordingStarted');
+    expect(started?.details).toMatchObject({
+      lastPolyConnectionError: 'マイクへのアクセスに失敗しました',
+    });
+    recording.clearLastPolyConnectionError();
+    recording.start();
+    const startedAgain = recording.snapshot().entries.find((entry) => entry.event === 'recordingStarted');
+    expect(startedAgain?.details).not.toHaveProperty('lastPolyConnectionError');
+    recording.stop();
+  });
+
   it('records with force after stop', () => {
     const recording = pitchDiagnosticRecording;
     recording.start();

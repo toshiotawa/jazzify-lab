@@ -6,6 +6,7 @@ import {
   type ExpectedPitchCandidates,
 } from '@/utils/pitchInput/expectedPitchCandidates';
 import { minIntervalMsForWrittenSpacing } from '@/utils/pitchInput/samePitchRepeatGate';
+import { detectMaxStaffLayersFromMusicXml } from '@/utils/earTrainingOsmdMusicXmlStaff';
 import {
   musicXmlAccidentalTextToAlter,
   parseVoicingNoteName,
@@ -1584,6 +1585,13 @@ export const countMusicXmlParts = (musicXmlText: string): number | null => {
   const doc = new DOMParser().parseFromString(musicXmlText, 'text/xml');
   if (doc.getElementsByTagName('parsererror').length > 0) return null;
   return doc.getElementsByTagName('part').length;
+};
+
+/** 単譜表（part 1 かつ段数 1）のときだけオクターブを無視する。大譜表・多パート・読めない譜面は一致を要求。 */
+export const musicXmlIgnoresOctave = (musicXmlText: string): boolean => {
+  const partCount = countMusicXmlParts(musicXmlText);
+  if (partCount === null || partCount >= 2) return false;
+  return detectMaxStaffLayersFromMusicXml(musicXmlText) === 1;
 };
 
 /** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>`・タイ続き `tie/tied type="stop"` を考慮）。OSMD 判定の正とする。 */

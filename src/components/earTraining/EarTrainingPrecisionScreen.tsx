@@ -63,7 +63,7 @@ import {
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   collectChordOsmdScoreLyricEvents,
-  countMusicXmlParts,
+  musicXmlIgnoresOctave,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
   joinScoreLyricVerseTexts,
   resolveActiveScoreLyricTextAtTime,
@@ -1421,7 +1421,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     const windowSec = resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC);
-    const ignoreOctave = musicXmlText != null && countMusicXmlParts(musicXmlText) === 1;
+    const ignoreOctave = musicXmlText != null && musicXmlIgnoresOctave(musicXmlText);
     const matched = findPrecisionNoteForInput(
       notesRef.current,
       runtimeStatesRef.current,

@@ -19,6 +19,7 @@ import {
   resolveChordOsmdSamePitchRepeatMinIntervalMs,
   collectChordOsmdMusicXmlAttacks,
   countMusicXmlParts,
+  musicXmlIgnoresOctave,
   collectChordOsmdMusicXmlLyrics,
   collectChordOsmdScoreLyricEvents,
   consumeChordOsmdMidi,
@@ -1771,6 +1772,35 @@ describe('countMusicXmlParts', () => {
     expect(countMusicXmlParts(xml)).toBe(1);
     expect(countMusicXmlParts(xml.replace('</score-partwise>', '<part id="P2"></part></score-partwise>'))).toBe(2);
     expect(countMusicXmlParts('<score-partwise><parsererror/></score-partwise>')).toBeNull();
+  });
+});
+
+describe('musicXmlIgnoresOctave', () => {
+  const singlePartXml = (inner: string) => `<?xml version="1.0"?>
+<score-partwise>
+  <part-list><score-part id="P1"/></part-list>
+  <part id="P1"><measure number="1">${inner}</measure></part>
+</score-partwise>`;
+
+  it('単譜表 1 パートだけオクターブを無視する', () => {
+    expect(musicXmlIgnoresOctave(singlePartXml('<attributes><staves>1</staves></attributes>'))).toBe(true);
+  });
+
+  it('大譜表 1 パートはオクターブ一致を要求する', () => {
+    expect(musicXmlIgnoresOctave(singlePartXml('<attributes><staves>2</staves></attributes>'))).toBe(false);
+  });
+
+  it('2 パートはオクターブ一致を要求する', () => {
+    const xml = `<?xml version="1.0"?>
+<score-partwise>
+  <part id="P1"><measure number="1"/></part>
+  <part id="P2"><measure number="1"/></part>
+</score-partwise>`;
+    expect(musicXmlIgnoresOctave(xml)).toBe(false);
+  });
+
+  it('パース失敗時はオクターブ一致を要求する', () => {
+    expect(musicXmlIgnoresOctave('<score-partwise><parsererror/></score-partwise>')).toBe(false);
   });
 });
 

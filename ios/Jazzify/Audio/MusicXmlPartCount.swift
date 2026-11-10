@@ -10,4 +10,11 @@ enum MusicXmlPartCount {
         let range = NSRange(xml.startIndex..<xml.endIndex, in: xml)
         return regex.numberOfMatches(in: xml, range: range)
     }
+
+    /// 単譜表（part 1 かつ段数 1）のときだけオクターブを無視する。
+    static func ignoresOctave(_ xml: String) -> Bool {
+        guard let partCount = count(xml) else { return false }
+        guard partCount == 1 else { return false }
+        return EarTrainingChordOsmdMusicXmlNormalizer.detectMaxStaffLayersFromMusicXmlString(xml) == 1
+    }
 }

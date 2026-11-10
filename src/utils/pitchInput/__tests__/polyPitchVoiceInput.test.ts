@@ -64,6 +64,7 @@ describe('PolyPitchVoiceInput', () => {
     vi.clearAllMocks();
     pendingMics.length = 0;
     pitchDiagnosticRecording.stop();
+    pitchDiagnosticRecording.clearLastPolyConnectionError();
     getUserMedia.mockImplementation(() => new Promise((resolve) => {
       pendingMics.push(resolve);
     }));
@@ -124,6 +125,33 @@ describe('PolyPitchVoiceInput', () => {
     expect(startPitchPleaseOnStream).not.toHaveBeenCalled();
   });
 
+  it('入力1では channelCount を要求しない', async () => {
+    const input = new PolyPitchVoiceInput();
+    const pending = input.connect(callbacks(), 'device-a', true, 1);
+    await vi.waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+    const audio = getUserMedia.mock.calls[0]?.[0]?.audio as MediaTrackConstraints;
+    expect(audio.channelCount).toBeUndefined();
+    expect(audio.echoCancellation).toBe(true);
+    pendingMics[0]?.(createStream().stream);
+    await input.disconnect();
+    await pending;
+  });
+
+  it('入力2では 2 チャンネルを exact で要求する', async () => {
+    const input = new PolyPitchVoiceInput();
+    const pending = input.connect(callbacks(), undefined, true, 2);
+    await vi.waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+    const audio = getUserMedia.mock.calls[0]?.[0]?.audio as MediaTrackConstraints;
+    expect(audio.channelCount).toEqual({ exact: 2 });
+    pendingMics[0]?.(createStream().stream);
+    await input.disconnect();
+    await pending;
+  });
+
   it('PitchPlease の開始失敗をエラーとして返す', async () => {
     vi.mocked(startPitchPleaseOnStream).mockResolvedValue(false);
     const input = new PolyPitchVoiceInput();
@@ -140,6 +168,13 @@ describe('PolyPitchVoiceInput', () => {
     expect(hooks.onConnectionChange).not.toHaveBeenCalledWith(true);
     expect(stopPitchPlease).toHaveBeenCalledTimes(1);
     expect(stream.stop).toHaveBeenCalledTimes(1);
+    pitchDiagnosticRecording.start();
+    const started = pitchDiagnosticRecording.snapshot().entries.find((entry) => entry.event === 'recordingStarted');
+    expect(started?.details).toMatchObject({
+      lastPolyConnectionError: 'PitchPlease を開始できませんでした',
+    });
+    pitchDiagnosticRecording.stop();
+    pitchDiagnosticRecording.clearLastPolyConnectionError();
   });
 
   it('実行中の PitchPlease エラーを診断に残して切断する', async () => {
@@ -167,5 +202,6 @@ describe('PolyPitchVoiceInput', () => {
     const errorEntry = pitchDiagnosticRecording.snapshot().entries.find((entry) => entry.event === 'polyError');
     expect(errorEntry?.details).toMatchObject({ engine: 'pitchplease-piano', message: 'detector stopped' });
     pitchDiagnosticRecording.stop();
+    pitchDiagnosticRecording.clearLastPolyConnectionError();
   });
 });

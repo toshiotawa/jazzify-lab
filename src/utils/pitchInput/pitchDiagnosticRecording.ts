@@ -18,6 +18,8 @@ class PitchDiagnosticRecording {
 
   private startedAtIso: string | null = null;
 
+  private lastPolyConnectionError: string | null = null;
+
   enabled = false;
 
   get hasRecording(): boolean {
@@ -31,10 +33,25 @@ class PitchDiagnosticRecording {
     this.startedAt = performance.now();
     this.startedAtIso = new Date().toISOString();
     this.enabled = true;
-    this.record('recordingStarted', {
+    const recordingStarted: Record<string, string> = {
       userAgent: navigator.userAgent,
       route: window.location.pathname + window.location.hash.split('?')[0],
-    });
+    };
+    if (this.lastPolyConnectionError) {
+      recordingStarted.lastPolyConnectionError = this.lastPolyConnectionError;
+    }
+    this.record('recordingStarted', recordingStarted);
+  }
+
+  recordPolyConnectionFailure(message: string): void {
+    this.lastPolyConnectionError = message;
+    if (this.startedAtIso) {
+      this.record('polyError', { message, phase: 'connect' }, !this.enabled);
+    }
+  }
+
+  clearLastPolyConnectionError(): void {
+    this.lastPolyConnectionError = null;
   }
 
   stop(): void {

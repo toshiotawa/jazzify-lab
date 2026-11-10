@@ -2,13 +2,18 @@ const microphoneConstraints = (
   deviceId?: string,
   echoCancellation = true,
   inputChannel: 1 | 2 = 1,
-): MediaTrackConstraints => ({
-  deviceId: deviceId ? { exact: deviceId } : undefined,
-  channelCount: inputChannel === 2 ? { exact: 2 } : { ideal: 2 },
-  echoCancellation,
-  noiseSuppression: false,
-  autoGainControl: false,
-});
+): MediaTrackConstraints => {
+  const base: MediaTrackConstraints = {
+    deviceId: deviceId ? { exact: deviceId } : undefined,
+    echoCancellation,
+    noiseSuppression: false,
+    autoGainControl: false,
+  };
+  if (inputChannel === 2) {
+    return { ...base, channelCount: { exact: 2 } };
+  }
+  return base;
+};
 
 export const isVoiceMicrophoneSupported = (): boolean =>
   typeof navigator !== 'undefined'

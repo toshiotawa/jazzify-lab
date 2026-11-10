@@ -34,6 +34,13 @@ const PITCH_PLEASE_START_ERROR = 'PitchPlease を開始できませんでした'
 const MICROPHONE_ERROR = 'マイクへのアクセスに失敗しました';
 const ENGINE = 'pitchplease-piano';
 
+const resolveGetUserMediaError = (error: unknown, inputChannel: 1 | 2): string => {
+  if (inputChannel === 2 && error instanceof DOMException && error.name === 'OverconstrainedError') {
+    return VOICE_INPUT_CHANNEL_UNAVAILABLE;
+  }
+  return MICROPHONE_ERROR;
+};
+
 interface OwnedPitchResources {
   stream: MediaStream | null;
   ownsStream: boolean;
@@ -134,6 +141,7 @@ export class PolyPitchVoiceInput {
           const message = error instanceof Error && error.message === 'voice-input-channel-unavailable'
             ? VOICE_INPUT_CHANNEL_UNAVAILABLE
             : MICROPHONE_ERROR;
+          pitchDiagnosticRecording.recordPolyConnectionFailure(message);
           callbacks.onError?.(message);
           callbacks.onConnectionChange?.(false);
           this.dropCallbacks(callbacks);
@@ -169,7 +177,9 @@ export class PolyPitchVoiceInput {
       }
       if (!started || this.startupError) {
         await this.abandonOwned(owned);
-        if (!this.startupError) callbacks.onError?.(PITCH_PLEASE_START_ERROR);
+        const message = this.startupError ?? PITCH_PLEASE_START_ERROR;
+        pitchDiagnosticRecording.recordPolyConnectionFailure(message);
+        callbacks.onError?.(message);
         callbacks.onConnectionChange?.(false);
         this.dropCallbacks(callbacks);
         return false;
@@ -183,7 +193,7 @@ export class PolyPitchVoiceInput {
       this.recordPolyConnect(echoCancellation);
       callbacks.onConnectionChange?.(true);
       return true;
-    } catch {
+    } catch (error) {
       if (!committed) await this.abandonOwned(owned);
       if (sessionId !== this.sessionId) {
         this.dropCallbacks(callbacks);
@@ -192,7 +202,9 @@ export class PolyPitchVoiceInput {
       if (committed) {
         await this.release();
       } else {
-        callbacks.onError?.(MICROPHONE_ERROR);
+        const message = resolveGetUserMediaError(error, inputChannel);
+        pitchDiagnosticRecording.recordPolyConnectionFailure(message);
+        callbacks.onError?.(message);
         callbacks.onConnectionChange?.(false);
         this.dropCallbacks(callbacks);
       }
@@ -258,6 +270,7 @@ export class PolyPitchVoiceInput {
   }
 
   private recordPolyConnect(echoCancellation: boolean): void {
+    pitchDiagnosticRecording.clearLastPolyConnectionError();
     if (!pitchDiagnosticRecording.enabled || this.diagConnectRecorded) return;
     this.diagConnectRecorded = true;
     pitchDiagnosticRecording.record('polyConnect', {

@@ -101,7 +101,7 @@ import {
   CHORD_OSMD_JUDGMENT_WINDOW_LATE_SEC,
   CHORD_OSMD_VOICING_HINT_DURATION_SEC,
   collectChordOsmdExpectedPitchCandidates,
-  countMusicXmlParts,
+  musicXmlIgnoresOctave,
   isChordOsmdWaitingForSamePitchRepeat,
   resolveChordOsmdSamePitchRepeatMinIntervalMs,
   hasChordOsmdJudgmentWindowExpired,
@@ -330,7 +330,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const [musicXmlText, setMusicXmlText] = useState<string | null>(null);
   const ignoreOctaveRef = useRef(false);
   useEffect(() => {
-    ignoreOctaveRef.current = musicXmlText != null && countMusicXmlParts(musicXmlText) === 1;
+    ignoreOctaveRef.current = musicXmlText != null && musicXmlIgnoresOctave(musicXmlText);
   }, [musicXmlText]);
   const [baseMusicXmlText, setBaseMusicXmlText] = useState<string | null>(null);
   const [practiceTransposeOffset, setPracticeTransposeOffset] = useState(0);
