@@ -16,9 +16,6 @@ const DEFAULT_ONSET = Object.freeze({
   fastConfirmFrames: 1,
   slowConfirmFrames: 4,
   releaseFrames: 10,
-  retrigLevel: 0.9,
-  retrigRise: 0.25,
-  retrigMinGapFrames: 6,
   neighborYoungFrames: 4,
 });
 
@@ -86,15 +83,12 @@ const createTracker = () => ({
   emitted: new Uint8Array(128),
   confirmFrames: new Int32Array(128),
   releaseFrames: new Int32Array(128),
-  valley: new Float32Array(128),
   framesSinceOn: new Int32Array(128),
-  framesSinceNoteOn: new Int32Array(128).fill(1_000_000),
   events: [],
 });
 
 const stepOnset = (tracker, levels, thr, cfg) => {
   for (let midi = 21; midi <= 108; midi += 1) {
-    tracker.framesSinceNoteOn[midi] += 1;
     if (tracker.emitted[midi] === 1) tracker.framesSinceOn[midi] += 1;
   }
   for (let midi = 21; midi <= 108; midi += 1) {
@@ -113,22 +107,8 @@ const stepOnset = (tracker, levels, thr, cfg) => {
       if (tracker.confirmFrames[midi] < need) continue;
       tracker.emitted[midi] = 1;
       tracker.confirmFrames[midi] = 0;
-      tracker.valley[midi] = level;
       tracker.framesSinceOn[midi] = 0;
-      tracker.framesSinceNoteOn[midi] = 0;
       tracker.events.push({ time: tracker.frameTime, midi, kind: 'on' });
-      continue;
-    }
-    if (level < tracker.valley[midi]) tracker.valley[midi] = level;
-    if (
-      level >= cfg.retrigLevel
-      && level - tracker.valley[midi] >= cfg.retrigRise
-      && tracker.framesSinceNoteOn[midi] >= cfg.retrigMinGapFrames
-    ) {
-      tracker.valley[midi] = level;
-      tracker.framesSinceOn[midi] = 0;
-      tracker.framesSinceNoteOn[midi] = 0;
-      tracker.events.push({ time: tracker.frameTime, midi, kind: 'retrigger' });
       continue;
     }
     if (level >= thr.off) {
@@ -163,7 +143,7 @@ const effeTuneLevelsToMidi = (frameLevels, firstMidi = 21, dps = 5) => {
 };
 
 const scoreEvents = (strikes, events) => {
-  const onEvents = events.filter((e) => e.kind === 'on' || e.kind === 'retrigger');
+  const onEvents = events.filter((e) => e.kind === 'on');
   const used = new Set();
   let hit = 0;
   const miss = {};

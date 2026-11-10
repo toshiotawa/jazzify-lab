@@ -1,13 +1,10 @@
 {
-  "generatedAt": "2026-11-10T04:26:27.005Z",
+  "generatedAt": "2026-11-10T08:10:05.950Z",
   "onset": {
     "strongLevel": 0.9,
     "fastConfirmFrames": 1,
     "slowConfirmFrames": 4,
     "releaseFrames": 10,
-    "retrigLevel": 0.9,
-    "retrigRise": 0.25,
-    "retrigMinGapFrames": 6,
     "neighborYoungFrames": 4
   },
   "cases": [
@@ -16,25 +13,39 @@
       "strikeCount": 48,
       "engines": {
         "pitchplease-fast": {
-          "hit": 48,
-          "total": 48,
-          "medianLatencyMs": 0,
-          "miss": {},
-          "extraOnEvents": 12
-        },
-        "pitchplease-piano": {
-          "hit": 48,
+          "hit": 26,
           "total": 48,
           "medianLatencyMs": 1,
-          "miss": {},
-          "extraOnEvents": 18
+          "miss": {
+            "64": 7,
+            "65": 1,
+            "69": 7,
+            "72": 7
+          },
+          "extraOnEvents": 4
+        },
+        "pitchplease-piano": {
+          "hit": 13,
+          "total": 48,
+          "medianLatencyMs": -1,
+          "miss": {
+            "64": 7,
+            "65": 7,
+            "69": 7,
+            "72": 7,
+            "74": 7
+          },
+          "extraOnEvents": 2
         },
         "effetune": {
-          "hit": 48,
+          "hit": 34,
           "total": 48,
-          "medianLatencyMs": 55,
-          "miss": {},
-          "extraOnEvents": 11
+          "medianLatencyMs": 50,
+          "miss": {
+            "64": 7,
+            "72": 7
+          },
+          "extraOnEvents": 6
         }
       }
     },
@@ -54,7 +65,7 @@
           "total": 48,
           "medianLatencyMs": 4,
           "miss": {},
-          "extraOnEvents": 31
+          "extraOnEvents": 18
         },
         "effetune": {
           "hit": 48,
@@ -70,26 +81,33 @@
       "strikeCount": 48,
       "engines": {
         "pitchplease-fast": {
-          "hit": 43,
+          "hit": 36,
           "total": 48,
-          "medianLatencyMs": -1,
+          "medianLatencyMs": 0,
           "miss": {
-            "74": 5
+            "74": 7,
+            "76": 5
           },
           "extraOnEvents": 0
         },
         "pitchplease-piano": {
-          "hit": 48,
+          "hit": 33,
           "total": 48,
-          "medianLatencyMs": 1,
-          "miss": {},
-          "extraOnEvents": 3
+          "medianLatencyMs": 2,
+          "miss": {
+            "74": 7,
+            "76": 8
+          },
+          "extraOnEvents": 0
         },
         "effetune": {
-          "hit": 48,
+          "hit": 33,
           "total": 48,
           "medianLatencyMs": 60,
-          "miss": {},
+          "miss": {
+            "74": 7,
+            "76": 8
+          },
           "extraOnEvents": 0
         }
       }
@@ -99,24 +117,33 @@
       "strikeCount": 12,
       "engines": {
         "pitchplease-fast": {
-          "hit": 12,
+          "hit": 3,
           "total": 12,
-          "medianLatencyMs": 14,
-          "miss": {},
+          "medianLatencyMs": 10,
+          "miss": {
+            "60": 3,
+            "64": 3,
+            "67": 3
+          },
           "extraOnEvents": 0
         },
         "pitchplease-piano": {
-          "hit": 12,
+          "hit": 3,
           "total": 12,
-          "medianLatencyMs": 9,
-          "miss": {},
+          "medianLatencyMs": 10,
+          "miss": {
+            "60": 3,
+            "64": 3,
+            "67": 3
+          },
           "extraOnEvents": 10
         },
         "effetune": {
-          "hit": 6,
+          "hit": 3,
           "total": 12,
-          "medianLatencyMs": 60,
+          "medianLatencyMs": 80,
           "miss": {
+            "60": 3,
             "64": 3,
             "67": 3
           },
@@ -140,7 +167,7 @@
           "total": 12,
           "medianLatencyMs": 11,
           "miss": {},
-          "extraOnEvents": 19
+          "extraOnEvents": 13
         },
         "effetune": {
           "hit": 12,

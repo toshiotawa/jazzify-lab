@@ -76,6 +76,13 @@ describe('PitchInputController microphone setup', () => {
     vi.restoreAllMocks();
   });
 
+  it('rejects connect after destroy', async () => {
+    controller.destroy();
+    expect(await controller.connect('external-mic')).toBe(false);
+    expect(controller.isConnected()).toBe(false);
+    expect(getUserMedia).not.toHaveBeenCalled();
+  });
+
   it('uses the same AGC/NS settings for permission capture and fresh connections', async () => {
     expect(await PitchInputController.requestMicrophonePermission('external-mic')).toBe(true);
     expect(getUserMedia).toHaveBeenLastCalledWith({ audio: constraints, video: false });

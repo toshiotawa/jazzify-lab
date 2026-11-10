@@ -20,12 +20,12 @@ describe('PitchDiagnosticRecording', () => {
   it('retains bounded recent history in chronological order through repeated wraparound', () => {
     const recording = pitchDiagnosticRecording;
     recording.start();
-    for (let index = 0; index < 12000; index += 1) recording.record(`event-${index}`);
+    for (let index = 0; index < 24000; index += 1) recording.record(`event-${index}`);
     const snapshot = recording.snapshot();
-    expect(snapshot.entries).toHaveLength(6000);
-    expect(snapshot.entries[0].event).toBe('event-6000');
-    expect(snapshot.entries[5999].event).toBe('event-11999');
-    expect(snapshot.overwrittenEntries).toBe(6001);
+    expect(snapshot.entries).toHaveLength(12000);
+    expect(snapshot.entries[0].event).toBe('event-12000');
+    expect(snapshot.entries[11999].event).toBe('event-23999');
+    expect(snapshot.overwrittenEntries).toBe(12001);
   });
 
   it('records with force after stop', () => {

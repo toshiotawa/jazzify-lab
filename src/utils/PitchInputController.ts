@@ -68,6 +68,10 @@ const isVoiceInputSupported = (): boolean =>
 export class PitchInputController {
   private static readonly activeControllers = new Set<PitchInputController>();
 
+  static getActiveControllerCount(): number {
+    return PitchInputController.activeControllers.size;
+  }
+
   static isSafariDesktop(): boolean {
     if (typeof navigator === 'undefined') return false;
     const ua = navigator.userAgent;
@@ -301,6 +305,8 @@ export class PitchInputController {
    */
   private opChain: Promise<void> = Promise.resolve();
 
+  private destroyed = false;
+
   constructor(callbacks: PitchInputCallbacks) {
     this.onNoteOn = callbacks.onNoteOn;
     this.onNoteOff = callbacks.onNoteOff;
@@ -399,6 +405,9 @@ export class PitchInputController {
   }
 
   private async connectInternal(deviceId: string | undefined, echoCancellation: boolean, inputChannel: 1 | 2, pitchEngine: PitchEngine): Promise<boolean> {
+    if (this.destroyed) {
+      return false;
+    }
     if (!PitchInputController.isSupported()) {
       this.onError?.(
         voiceUserMessage(
@@ -835,6 +844,7 @@ export class PitchInputController {
   }
 
   destroy(): void {
+    this.destroyed = true;
     void this.disconnect();
   }
 }

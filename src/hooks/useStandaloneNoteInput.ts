@@ -170,6 +170,7 @@ export const useStandaloneNoteInput = ({
       .catch(() => undefined);
 
     return () => {
+      connectGenerationRef.current += 1;
       void midi.destroy();
       pitch.destroy();
       void polyRef.current?.disconnect();

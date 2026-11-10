@@ -4,7 +4,7 @@ interface DiagnosticEntry {
   details: object;
 }
 
-const RECORDING_CAPACITY = 6000;
+const RECORDING_CAPACITY = 12000;
 
 // Bounded history shared by input sessions; recording survives settings/game unmounts.
 class PitchDiagnosticRecording {

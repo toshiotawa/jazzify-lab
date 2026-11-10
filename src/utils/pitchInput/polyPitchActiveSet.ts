@@ -24,12 +24,6 @@ export interface PolyOnsetTrackerConfig {
   readonly slowConfirmFrames: number;
   /** OFF 閾値を何フレーム連続下回ったら note-off するか */
   readonly releaseFrames: number;
-  /** 再打鍵の到達レベル */
-  readonly retrigLevel: number;
-  /** 谷からの再上昇量 */
-  readonly retrigRise: number;
-  /** 前回 note-on からの最短フレーム数 */
-  readonly retrigMinGapFrames: number;
   /** これより長く鳴っている隣は、後から来た音を抑えない */
   readonly neighborYoungFrames: number;
 }
@@ -39,38 +33,10 @@ export const DEFAULT_POLY_ONSET_CONFIG: PolyOnsetTrackerConfig = Object.freeze({
   fastConfirmFrames: 1,
   slowConfirmFrames: 4,
   releaseFrames: 10,
-  retrigLevel: 0.9,
-  retrigRise: 0.25,
-  retrigMinGapFrames: 6,
   neighborYoungFrames: 4,
 });
 
-export type PolyNoteEdgeKind = 'on' | 'retrigger' | 'off';
-
 export const createPolyMidiMask = (): Uint8Array => new Uint8Array(POLY_MIDI_COUNT);
-
-export const applyPolyMidiMask = (
-  mask: Uint8Array,
-  nextOn: Uint8Array,
-  onNoteOn: (midi: number) => void,
-  onNoteOff: (midi: number) => void,
-): void => {
-  for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
-    const next = nextOn[midi];
-    if (mask[midi] === next) continue;
-    mask[midi] = next;
-    if (next === 1) onNoteOn(midi);
-    else onNoteOff(midi);
-  }
-};
-
-export const fillMaskFromMidis = (target: Uint8Array, midis: readonly number[]): void => {
-  target.fill(0);
-  for (let i = 0; i < midis.length; i += 1) {
-    const midi = midis[i];
-    if (midi >= MIDI_PIANO_MIN && midi <= MIDI_PIANO_MAX) target[midi] = 1;
-  }
-};
 
 export const fillLevelsFromPitchPleaseProbs = (
   levelOut: Float32Array,
@@ -109,27 +75,21 @@ export interface PolyOnsetTracker {
   readonly emitted: Uint8Array;
   readonly confirmFrames: Int32Array;
   readonly releaseFrames: Int32Array;
-  readonly valley: Float32Array;
   readonly framesSinceOn: Int32Array;
-  readonly framesSinceNoteOn: Int32Array;
 }
 
 export const createPolyOnsetTracker = (): PolyOnsetTracker => ({
   emitted: createPolyMidiMask(),
   confirmFrames: new Int32Array(POLY_MIDI_COUNT),
   releaseFrames: new Int32Array(POLY_MIDI_COUNT),
-  valley: new Float32Array(POLY_MIDI_COUNT),
   framesSinceOn: new Int32Array(POLY_MIDI_COUNT),
-  framesSinceNoteOn: new Int32Array(POLY_MIDI_COUNT).fill(1_000_000),
 });
 
 export const resetPolyOnsetTracker = (tracker: PolyOnsetTracker): void => {
   tracker.emitted.fill(0);
   tracker.confirmFrames.fill(0);
   tracker.releaseFrames.fill(0);
-  tracker.valley.fill(0);
   tracker.framesSinceOn.fill(0);
-  tracker.framesSinceNoteOn.fill(1_000_000);
 };
 
 const neighborSuppressesOnset = (
@@ -155,17 +115,16 @@ const neighborSuppressesOnset = (
   return false;
 };
 
-/** 鍵ごとの確率レベルを打鍵・再打鍵・離鍵保持で note on/off にする。 */
+/** 鍵ごとの確率レベルを打鍵・離鍵保持で note on/off にする。 */
 export const stepPolyOnsetTracker = (
   tracker: PolyOnsetTracker,
   levels: Float32Array,
   thresholds: PolyOnsetThresholds,
   config: PolyOnsetTrackerConfig,
-  onNoteOn: (midi: number, kind: PolyNoteEdgeKind) => void,
+  onNoteOn: (midi: number) => void,
   onNoteOff: (midi: number) => void,
 ): void => {
   for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
-    tracker.framesSinceNoteOn[midi] += 1;
     if (tracker.emitted[midi] === 1) {
       tracker.framesSinceOn[midi] += 1;
     }
@@ -191,28 +150,8 @@ export const stepPolyOnsetTracker = (
       tracker.emitted[midi] = 1;
       tracker.confirmFrames[midi] = 0;
       tracker.releaseFrames[midi] = 0;
-      tracker.valley[midi] = level;
       tracker.framesSinceOn[midi] = 0;
-      tracker.framesSinceNoteOn[midi] = 0;
-      onNoteOn(midi, 'on');
-      continue;
-    }
-
-    if (level < tracker.valley[midi]) {
-      tracker.valley[midi] = level;
-    }
-
-    if (
-      level >= config.retrigLevel
-      && level - tracker.valley[midi] >= config.retrigRise
-      && tracker.framesSinceNoteOn[midi] >= config.retrigMinGapFrames
-    ) {
-      tracker.valley[midi] = level;
-      tracker.framesSinceOn[midi] = 0;
-      tracker.framesSinceNoteOn[midi] = 0;
-      tracker.releaseFrames[midi] = 0;
-      onNoteOff(midi);
-      onNoteOn(midi, 'retrigger');
+      onNoteOn(midi);
       continue;
     }
 
@@ -225,7 +164,6 @@ export const stepPolyOnsetTracker = (
     tracker.emitted[midi] = 0;
     tracker.releaseFrames[midi] = 0;
     tracker.confirmFrames[midi] = 0;
-    tracker.valley[midi] = 0;
     tracker.framesSinceOn[midi] = 0;
     onNoteOff(midi);
   }

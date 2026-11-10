@@ -17,10 +17,10 @@ import {
   resetPolyOnsetTracker,
   snapshotPolyLevelsForDiagnostics,
   stepPolyOnsetTracker,
-  type PolyNoteEdgeKind,
   type PolyOnsetThresholds,
 } from '@/utils/pitchInput/polyPitchActiveSet';
 import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
+import { PitchInputController } from '@/utils/PitchInputController';
 import type { PolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 
 export interface PolyPitchVoiceCallbacks {
@@ -30,7 +30,7 @@ export interface PolyPitchVoiceCallbacks {
   onError?: (error: string) => void;
 }
 
-const DIAG_FRAME_INTERVAL = 16;
+const DIAG_FRAME_BATCH_SIZE = 16;
 
 const microphoneConstraints = (deviceId?: string, echoCancellation = true): MediaTrackConstraints => ({
   deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -42,6 +42,7 @@ const microphoneConstraints = (deviceId?: string, echoCancellation = true): Medi
 export class PolyPitchVoiceInput {
   private readonly tracker = createPolyOnsetTracker();
   private readonly levels = new Float32Array(128);
+  private readonly diagFrameBatch: number[][][] = [];
   private stream: MediaStream | null = null;
   private ownsStream = false;
   private audioContext: AudioContext | null = null;
@@ -50,7 +51,6 @@ export class PolyPitchVoiceInput {
   private callbacks: PolyPitchVoiceCallbacks | null = null;
   private engine: PolyphonicVoiceEngine | null = null;
   private thresholds: PolyOnsetThresholds = PITCH_PLEASE_FAST_THRESHOLDS;
-  private diagFrameCounter = 0;
   private diagConnectRecorded = false;
 
   async connect(
@@ -67,7 +67,7 @@ export class PolyPitchVoiceInput {
       : engine === 'pitchplease-piano'
         ? PITCH_PLEASE_PIANO_THRESHOLDS
         : PITCH_PLEASE_FAST_THRESHOLDS;
-    this.diagFrameCounter = 0;
+    this.diagFrameBatch.length = 0;
     this.diagConnectRecorded = false;
     this.callbacks = callbacks;
     try {
@@ -120,6 +120,7 @@ export class PolyPitchVoiceInput {
   }
 
   async disconnect(): Promise<void> {
+    this.flushDiagFrameBatch();
     if (this.pitchPlease) stopPitchPlease(this.pitchPlease);
     this.pitchPlease = null;
     if (this.effetune) disconnectEffetuneLive(this.effetune);
@@ -150,17 +151,23 @@ export class PolyPitchVoiceInput {
       echoCancellation,
       thresholds: this.thresholds,
       onsetConfig: DEFAULT_POLY_ONSET_CONFIG,
+      activeMonoPitchControllers: PitchInputController.getActiveControllerCount(),
+    });
+  }
+
+  private flushDiagFrameBatch(): void {
+    if (!pitchDiagnosticRecording.enabled || this.diagFrameBatch.length === 0) return;
+    pitchDiagnosticRecording.record('polyFrames', {
+      engine: this.engine,
+      frames: this.diagFrameBatch.splice(0),
     });
   }
 
   private recordPolyFrameSample(): void {
     if (!pitchDiagnosticRecording.enabled) return;
-    this.diagFrameCounter += 1;
-    if (this.diagFrameCounter % DIAG_FRAME_INTERVAL !== 0) return;
-    pitchDiagnosticRecording.record('polyFrames', {
-      engine: this.engine,
-      levels: snapshotPolyLevelsForDiagnostics(this.levels),
-    });
+    this.diagFrameBatch.push(snapshotPolyLevelsForDiagnostics(this.levels));
+    if (this.diagFrameBatch.length < DIAG_FRAME_BATCH_SIZE) return;
+    this.flushDiagFrameBatch();
   }
 
   private emitEdges(): void {
@@ -173,12 +180,12 @@ export class PolyPitchVoiceInput {
       this.levels,
       this.thresholds,
       DEFAULT_POLY_ONSET_CONFIG,
-      (midi, kind: PolyNoteEdgeKind) => {
+      (midi) => {
         if (pitchDiagnosticRecording.enabled) {
           pitchDiagnosticRecording.record('polyNote', {
             engine: this.engine,
             midi,
-            kind,
+            kind: 'on',
             level: Math.round(this.levels[midi] * 100),
           });
         }

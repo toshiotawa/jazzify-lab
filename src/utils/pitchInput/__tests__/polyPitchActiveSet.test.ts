@@ -1,11 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_POLY_ONSET_CONFIG,
-  applyPolyMidiMask,
   createPolyMidiMask,
   createPolyOnsetTracker,
   fillLevelsFromEffeTune,
-  fillMaskFromMidis,
   releasePolyMidiMask,
   resetPolyOnsetTracker,
   stepPolyOnsetTracker,
@@ -21,24 +19,8 @@ const stubLevels = (entries: readonly (readonly [number, number])[]): Float32Arr
   return levels;
 };
 
-describe('applyPolyMidiMask', () => {
-  it('新しく鳴った音だけ ON し、消えた音だけ OFF する', () => {
-    const mask = createPolyMidiMask();
-    const next = createPolyMidiMask();
-    const on = vi.fn();
-    const off = vi.fn();
-    fillMaskFromMidis(next, [60, 64]);
-    applyPolyMidiMask(mask, next, on, off);
-    expect(on.mock.calls.map((c) => c[0])).toEqual([60, 64]);
-    expect(off).not.toHaveBeenCalled();
-
-    fillMaskFromMidis(next, [64, 67]);
-    applyPolyMidiMask(mask, next, on, off);
-    expect(off).toHaveBeenCalledWith(60);
-    expect(on).toHaveBeenCalledWith(67);
-  });
-
-  it('release はオンの鍵をすべて OFF する', () => {
+describe('releasePolyMidiMask', () => {
+  it('オンの鍵をすべて OFF する', () => {
     const mask = createPolyMidiMask();
     mask[60] = 1;
     const off = vi.fn();
@@ -81,7 +63,7 @@ describe('stepPolyOnsetTracker', () => {
     const on = vi.fn();
     const off = vi.fn();
     step(tracker, stubLevels([[60, 0.95]]), on, off);
-    expect(on).toHaveBeenCalledWith(60, 'on');
+    expect(on).toHaveBeenCalledWith(60);
     expect(off).not.toHaveBeenCalled();
   });
 
@@ -95,22 +77,22 @@ describe('stepPolyOnsetTracker', () => {
     }
     expect(on).not.toHaveBeenCalled();
     step(tracker, border, on, off);
-    expect(on).toHaveBeenCalledWith(60, 'on');
+    expect(on).toHaveBeenCalledWith(60);
   });
 
-  it('鳴り残り中の再打鍵で retrigger を出す', () => {
+  it('ON 中に確率が揺れても再打鍵 note-on を出さない', () => {
     const tracker = createPolyOnsetTracker();
     const on = vi.fn();
     const off = vi.fn();
     step(tracker, stubLevels([[60, 0.95]]), on, off);
     on.mockClear();
     off.mockClear();
-    for (let i = 0; i < DEFAULT_POLY_ONSET_CONFIG.retrigMinGapFrames; i += 1) {
+    for (let i = 0; i < 12; i += 1) {
       step(tracker, stubLevels([[60, 0.55]]), on, off);
     }
     step(tracker, stubLevels([[60, 0.95]]), on, off);
-    expect(off).toHaveBeenCalledWith(60);
-    expect(on).toHaveBeenCalledWith(60, 'retrigger');
+    expect(on).not.toHaveBeenCalled();
+    expect(off).not.toHaveBeenCalled();
   });
 
   it('1 フレームの欠落だけではすぐ OFF しない', () => {
@@ -138,13 +120,13 @@ describe('stepPolyOnsetTracker', () => {
     }
     on.mockClear();
     step(tracker, stubLevels([[64, 0.6], [65, 0.85]]), on, off);
-    expect(on).not.toHaveBeenCalledWith(65, 'on');
+    expect(on).not.toHaveBeenCalledWith(65);
     on.mockClear();
     for (let i = 0; i < DEFAULT_POLY_ONSET_CONFIG.neighborYoungFrames + 2; i += 1) {
       step(tracker, stubLevels([[64, 0.6]]), on, off);
     }
     step(tracker, stubLevels([[64, 0.55], [65, 0.95]]), on, off);
-    expect(on).toHaveBeenCalledWith(65, 'on');
+    expect(on).toHaveBeenCalledWith(65);
   });
 
   it('reset で状態をクリアする', () => {
