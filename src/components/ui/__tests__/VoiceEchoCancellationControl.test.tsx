@@ -13,7 +13,10 @@ const { connect, disconnect } = vi.hoisted(() => ({
 vi.mock('@/utils/pitchInput/polyPitchVoiceInput', () => ({
   PolyPitchVoiceInput: class {
     connect = connect;
+
     disconnect = disconnect;
+
+    setExpectedPitchClassMask = vi.fn();
   },
 }));
 vi.mock('@/utils/pitchInput/voiceMicrophoneSupport', () => ({

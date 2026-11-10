@@ -17,6 +17,10 @@ import {
 } from '@/utils/pitchInput/polyPitchActiveSet';
 import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
 import {
+  createPolyInputLevelMeter,
+  type PolyInputLevelMeter,
+} from '@/utils/pitchInput/polyInputLevelMeter';
+import {
   isolateVoiceInputChannel,
   VOICE_INPUT_CHANNEL_UNAVAILABLE,
 } from '@/utils/pitchInput/polyPitchCaptureStream';
@@ -46,6 +50,7 @@ interface OwnedPitchResources {
   ownsStream: boolean;
   pitchPlease: PitchPleaseLabHandle | null;
   isolationContext: AudioContext | null;
+  inputLevelMeter: PolyInputLevelMeter | null;
 }
 
 const emptyOwnedPitchResources = (): OwnedPitchResources => ({
@@ -53,22 +58,31 @@ const emptyOwnedPitchResources = (): OwnedPitchResources => ({
   ownsStream: false,
   pitchPlease: null,
   isolationContext: null,
+  inputLevelMeter: null,
 });
 
 export class PolyPitchVoiceInput {
   private readonly tracker = createPolyOnsetTracker();
   private readonly levels = new Float32Array(128);
   private readonly diagFrameBatch: number[][][] = [];
+  private readonly diagInputDbBatch: Array<number | null> = [];
   private stream: MediaStream | null = null;
   private ownsStream = false;
   private isolationContext: AudioContext | null = null;
   private pitchPlease: PitchPleaseLabHandle | null = null;
+  private inputLevelMeter: PolyInputLevelMeter | null = null;
   private callbacks: PolyPitchVoiceCallbacks | null = null;
   private inputChannel: 1 | 2 = 1;
+  private echoCancellation = true;
+  private expectedPitchClassMask = 0;
   private diagConnectRecorded = false;
   private operation: Promise<void> = Promise.resolve();
   private sessionId = 0;
   private startupError: string | null = null;
+
+  setExpectedPitchClassMask(mask: number): void {
+    this.expectedPitchClassMask = mask & 0xfff;
+  }
 
   async connect(
     callbacks: PolyPitchVoiceCallbacks,
@@ -110,7 +124,9 @@ export class PolyPitchVoiceInput {
 
     resetPolyOnsetTracker(this.tracker);
     this.inputChannel = inputChannel;
+    this.echoCancellation = echoCancellation;
     this.diagFrameBatch.length = 0;
+    this.diagInputDbBatch.length = 0;
     this.diagConnectRecorded = false;
     this.startupError = null;
     this.callbacks = callbacks;
@@ -185,12 +201,17 @@ export class PolyPitchVoiceInput {
         return false;
       }
 
+      if (pitchDiagnosticRecording.hasRecording || pitchDiagnosticRecording.enabled) {
+        owned.inputLevelMeter = createPolyInputLevelMeter(stream);
+      }
+
       this.stream = owned.stream;
       this.ownsStream = owned.ownsStream;
       this.pitchPlease = owned.pitchPlease;
       this.isolationContext = owned.isolationContext;
+      this.inputLevelMeter = owned.inputLevelMeter;
       committed = true;
-      this.recordPolyConnect(echoCancellation);
+      this.recordPolyConnectIfNeeded();
       callbacks.onConnectionChange?.(true);
       return true;
     } catch (error) {
@@ -228,6 +249,8 @@ export class PolyPitchVoiceInput {
     this.flushDiagFrameBatch();
     if (owned.pitchPlease) stopPitchPlease(owned.pitchPlease);
     owned.pitchPlease = null;
+    owned.inputLevelMeter?.dispose();
+    owned.inputLevelMeter = null;
     if (owned.isolationContext) {
       await owned.isolationContext.close().catch(() => undefined);
       owned.isolationContext = null;
@@ -251,6 +274,8 @@ export class PolyPitchVoiceInput {
     this.flushDiagFrameBatch();
     if (this.pitchPlease) stopPitchPlease(this.pitchPlease);
     this.pitchPlease = null;
+    this.inputLevelMeter?.dispose();
+    this.inputLevelMeter = null;
     if (this.isolationContext) {
       await this.isolationContext.close().catch(() => undefined);
       this.isolationContext = null;
@@ -269,30 +294,47 @@ export class PolyPitchVoiceInput {
     this.startupError = null;
   }
 
-  private recordPolyConnect(echoCancellation: boolean): void {
+  private recordPolyConnectIfNeeded(): void {
     pitchDiagnosticRecording.clearLastPolyConnectionError();
-    if (!pitchDiagnosticRecording.enabled || this.diagConnectRecorded) return;
+    if (this.diagConnectRecorded) return;
+  }
+
+  private maybeRecordPolyConnect(): void {
+    if (this.diagConnectRecorded) return;
+    if (!pitchDiagnosticRecording.hasRecording && !pitchDiagnosticRecording.enabled) return;
     this.diagConnectRecorded = true;
+    const stats = this.pitchPlease?.detector.stats;
     pitchDiagnosticRecording.record('polyConnect', {
       engine: ENGINE,
-      echoCancellation,
+      echoCancellation: this.echoCancellation,
       inputChannel: this.inputChannel,
       thresholds: PITCH_PLEASE_PIANO_THRESHOLDS,
       onsetConfig: DEFAULT_POLY_ONSET_CONFIG,
+      kernel: stats?.kernel ?? null,
+      sampleRate: stats?.sampleRate ?? 0,
     });
   }
 
   private flushDiagFrameBatch(): void {
     if (!pitchDiagnosticRecording.enabled || this.diagFrameBatch.length === 0) return;
+    const stats = this.pitchPlease?.detector.stats;
     pitchDiagnosticRecording.record('polyFrames', {
       engine: ENGINE,
       frames: this.diagFrameBatch.splice(0),
+      inputDb: this.diagInputDbBatch.splice(0),
+      cpuLoad: Math.round((stats?.cpuLoad ?? 0) * 1000) / 1000,
     });
   }
 
   private recordPolyFrameSample(): void {
     if (!pitchDiagnosticRecording.enabled) return;
+    this.maybeRecordPolyConnect();
+    if (!this.inputLevelMeter && this.stream) {
+      this.inputLevelMeter = createPolyInputLevelMeter(this.stream);
+    }
+    const inputDb = this.inputLevelMeter?.sampleInputDb() ?? null;
     this.diagFrameBatch.push(snapshotPolyLevelsForDiagnostics(this.levels));
+    this.diagInputDbBatch.push(inputDb);
     if (this.diagFrameBatch.length < DIAG_FRAME_BATCH_SIZE) return;
     this.flushDiagFrameBatch();
   }
@@ -329,6 +371,7 @@ export class PolyPitchVoiceInput {
         }
         callbacks.onNoteOff(midi);
       },
+      this.expectedPitchClassMask,
     );
   }
 }

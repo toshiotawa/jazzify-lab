@@ -1,4 +1,4 @@
-import { PitchPleaseError, type Detector, type Stats } from '@markusstrasser/pitchplease';
+import { PitchPleaseError, type Detector, type Frame, type Stats } from '@markusstrasser/pitchplease';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createPitchPleaseLab,
@@ -203,5 +203,86 @@ describe('PolyPitchVoiceInput', () => {
     expect(errorEntry?.details).toMatchObject({ engine: 'pitchplease-piano', message: 'detector stopped' });
     pitchDiagnosticRecording.stop();
     pitchDiagnosticRecording.clearLastPolyConnectionError();
+  });
+
+  it('接続後に録音を開始しても polyConnect を残す', async () => {
+    let onDetectorFrame: ((frame: Frame) => void) | undefined;
+    vi.mocked(createPitchPleaseLab).mockImplementation(
+      (_model, _recorder, _onFrame, onFrame) => {
+        onDetectorFrame = onFrame;
+        return createHandle();
+      },
+    );
+    const input = new PolyPitchVoiceInput();
+    const hooks = callbacks();
+    const pending = input.connect(hooks);
+    await vi.waitFor(() => {
+      expect(pendingMics).toHaveLength(1);
+    });
+    pendingMics[0]?.(createStream().stream);
+    await expect(pending).resolves.toBe(true);
+
+    expect(
+      pitchDiagnosticRecording.snapshot().entries.some((entry) => entry.event === 'polyConnect'),
+    ).toBe(false);
+
+    pitchDiagnosticRecording.start();
+    const probs = new Float32Array(88);
+    onDetectorFrame?.({
+      time: 0,
+      emitTime: 0,
+      probs,
+      notes: [],
+      pitchClasses: [],
+      stable: false,
+      chord: null,
+    });
+
+    const connectEntry = pitchDiagnosticRecording.snapshot().entries.find(
+      (entry) => entry.event === 'polyConnect',
+    );
+    expect(connectEntry?.details).toMatchObject({
+      engine: 'pitchplease-piano',
+      echoCancellation: true,
+    });
+
+    pitchDiagnosticRecording.stop();
+    await input.disconnect();
+  });
+
+  it('setExpectedPitchClassMask で弱い期待音を受理する', async () => {
+    let onDetectorFrame: ((frame: Frame) => void) | undefined;
+    vi.mocked(createPitchPleaseLab).mockImplementation(
+      (_model, _recorder, _onFrame, onFrame) => {
+        onDetectorFrame = onFrame;
+        return createHandle();
+      },
+    );
+    const input = new PolyPitchVoiceInput();
+    const hooks = callbacks();
+    const pending = input.connect(hooks);
+    await vi.waitFor(() => {
+      expect(pendingMics).toHaveLength(1);
+    });
+    pendingMics[0]?.(createStream().stream);
+    await expect(pending).resolves.toBe(true);
+    input.setExpectedPitchClassMask(1 << 4);
+
+    const probs = new Float32Array(88);
+    probs[64 - 21] = 0.5;
+    const frameBase: Frame = {
+      time: 0,
+      emitTime: 0,
+      probs,
+      notes: [],
+      pitchClasses: [],
+      stable: false,
+      chord: null,
+    };
+    onDetectorFrame?.(frameBase);
+    expect(hooks.onNoteOn).not.toHaveBeenCalled();
+    onDetectorFrame?.({ ...frameBase, time: 0.01, emitTime: 0.01 });
+    expect(hooks.onNoteOn).toHaveBeenCalledWith(64, expect.any(Number));
+    await input.disconnect();
   });
 });

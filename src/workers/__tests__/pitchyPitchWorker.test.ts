@@ -72,7 +72,10 @@ describe('Pitchy production worker pipeline', () => {
     expect(createSession).not.toHaveBeenCalled();
     expect(loadModel).not.toHaveBeenCalled();
     await control({ type: 'dumpDiagnostics' });
-    expect(messages.at(-1)?.diagnostics).toMatchObject({ modelId: 'pitchy-4.1.0-mpm-4096-48000', inferenceIntervalMs: interval });
+    expect(messages.at(-1)?.diagnostics).toMatchObject({
+      modelId: 'pitchy-4.1.0-mpm-4096-48000',
+      inferenceIntervalMs: 5,
+    });
   });
 
   it('keeps expected-note repeat attacks available', async () => {

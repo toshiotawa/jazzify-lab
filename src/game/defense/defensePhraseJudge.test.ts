@@ -550,4 +550,121 @@ describe('defensePhraseJudge', () => {
     expect(getDefenseExpectedPitchCandidates([phrase], boundary, true).repeatPitchClassMask).toBe(1 << 2);
   });
 
+  const sixStepPhrase = (): DefensePhrase => ({
+    ...phraseA,
+    chords: [
+      {
+        id: 'line',
+        orderIndex: 0,
+        chordName: 'Line',
+        measureNumber: 1,
+        notes: [62, 64, 65, 67, 64, 62].map((pitchMidi, stepIndex) => ({
+          orderIndex: stepIndex,
+          pitchMidi,
+          pitchClass: pitchMidi % 12,
+          noteName: 'n',
+          staff: 1 as const,
+          stepIndex,
+        })),
+      },
+    ],
+  });
+
+  it('音声向け 1 音抜け救済で次の音を受理する', () => {
+    const phrases = [sixStepPhrase()];
+    let state = createInitialPhraseJudgeState(0);
+    state = evaluateDefensePhraseNoteOn(phrases, 1, state, 2).nextState;
+    const rescued = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      state,
+      5,
+      false,
+      'note',
+      true,
+      'phrase',
+      false,
+      true,
+    );
+    expect(rescued.skippedStep).toBe(true);
+    expect(rescued.attack).toBe(true);
+    expect(rescued.nextState.skipUsedInLoop).toBe(true);
+    expect(rescued.nextState.targetStepIndex).toBe(3);
+  });
+
+  it('1 音抜け救済は既定で無効・二重救済・先頭・直前と同 PC では使わない', () => {
+    const phrases = [sixStepPhrase()];
+    let state = createInitialPhraseJudgeState(0);
+    state = evaluateDefensePhraseNoteOn(phrases, 1, state, 2).nextState;
+
+    const noFlag = evaluateDefensePhraseNoteOn(phrases, 1, state, 5);
+    expect(noFlag.skippedStep).toBe(false);
+    expect(noFlag.nextState).toBe(state);
+
+    const rescuedOnce = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      state,
+      5,
+      false,
+      'note',
+      true,
+      'phrase',
+      false,
+      true,
+    );
+    const afterRescue = rescuedOnce.nextState;
+    const blockedSecond = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      afterRescue,
+      7,
+      false,
+      'note',
+      true,
+      'phrase',
+      false,
+      true,
+    );
+    expect(blockedSecond.skippedStep).toBe(false);
+
+    const atStart = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      createInitialPhraseJudgeState(0),
+      4,
+      false,
+      'note',
+      true,
+      'phrase',
+      false,
+      true,
+    );
+    expect(atStart.skippedStep).toBe(false);
+
+    const samePc = evaluateDefensePhraseNoteOn(
+      phrases,
+      1,
+      state,
+      2,
+      false,
+      'note',
+      true,
+      'phrase',
+      false,
+      true,
+    );
+    expect(samePc.skippedStep).toBe(false);
+  });
+
+  it('フレーズ周回完了で skipUsedInLoop をリセットする', () => {
+    const phrases = [sixStepPhrase()];
+    let state = createInitialPhraseJudgeState(0);
+    for (const pc of [2, 4, 5, 7, 4, 2] as const) {
+      state = evaluateDefensePhraseNoteOn(phrases, 1, state, pc).nextState;
+    }
+    expect(state.completionCount).toBe(1);
+    expect(state.skipUsedInLoop).toBe(false);
+  });
+
 });

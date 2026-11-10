@@ -29,6 +29,8 @@ interface UseStandaloneNoteInputOptions {
   masterVolume?: number;
   enabled?: boolean;
   inputMethod?: InputMethod;
+  /** Phrase Defense 音声入力: 次に期待する pitch class のビットマスク。 */
+  expectedPitchClassMask?: number;
 }
 
 interface UseStandaloneNoteInputResult {
@@ -45,6 +47,7 @@ export const useStandaloneNoteInput = ({
   masterVolume = 1,
   enabled = true,
   inputMethod: inputMethodOverride,
+  expectedPitchClassMask = 0,
 }: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
   const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
@@ -58,8 +61,10 @@ export const useStandaloneNoteInput = ({
   const onNoteOffRef = useRef(onNoteOff);
   const onKeyHighlightRef = useRef(onKeyHighlight);
   const connectGenerationRef = useRef(0);
+  const expectedPitchClassMaskRef = useRef(expectedPitchClassMask);
   const masterVolumeRef = useRef(masterVolume);
   masterVolumeRef.current = masterVolume;
+  expectedPitchClassMaskRef.current = expectedPitchClassMask;
 
   useEffect(() => {
     onNoteOnRef.current = onNoteOn;
@@ -184,6 +189,7 @@ export const useStandaloneNoteInput = ({
         },
       }, deviceId, latest.voiceEchoCancellation ?? true, latest.voiceInputChannel ?? 1);
       if (connectGenerationRef.current !== generation) return;
+      poly.setExpectedPitchClassMask(expectedPitchClassMaskRef.current);
       setIsConnected(ok);
       setConnectionStatus(ok ? 'ready' : 'error');
       return;
@@ -214,6 +220,10 @@ export const useStandaloneNoteInput = ({
   useEffect(() => {
     void connect();
   }, [connect]);
+
+  useEffect(() => {
+    polyRef.current?.setExpectedPitchClassMask(expectedPitchClassMask);
+  }, [expectedPitchClassMask]);
 
   return {
     isConnected,

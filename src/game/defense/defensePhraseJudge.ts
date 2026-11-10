@@ -37,15 +37,18 @@ export interface DefensePhraseJudgeState {
   readonly pendingSwitch: boolean;
   /** 直前に正解した pitch class。同音連打ゲート用。 */
   readonly lastAcceptedPitchClass: number | null;
+  /** 同一フレーズ周回で 1 音抜け救済をすでに使ったか。 */
+  readonly skipUsedInLoop: boolean;
 }
 
-interface DefensePhraseNoteEvaluation {
+export interface DefensePhraseNoteEvaluation {
   readonly attack: boolean;
   readonly phraseCompleted: boolean;
   readonly measureCompleted: boolean;
   readonly pendingSwitch: boolean;
   readonly completionCount: number;
   readonly playRootMidi: number | null;
+  readonly skippedStep: boolean;
   readonly nextState: DefensePhraseJudgeState;
 }
 
@@ -62,6 +65,7 @@ export const createInitialPhraseJudgeState = (
   completionCount: 0,
   pendingSwitch: false,
   lastAcceptedPitchClass: null,
+  skipUsedInLoop: false,
 });
 
 const getCurrentChord = (
@@ -202,29 +206,52 @@ const sequentialCompletedPitchClasses = (
   return completed;
 };
 
-export const evaluateDefensePhraseNoteOn = (
+const missEvaluation = (
+  state: DefensePhraseJudgeState,
+): DefensePhraseNoteEvaluation => ({
+  attack: false,
+  phraseCompleted: false,
+  measureCompleted: false,
+  pendingSwitch: state.pendingSwitch,
+  completionCount: state.completionCount,
+  playRootMidi: null,
+  skippedStep: false,
+  nextState: state,
+});
+
+const canAttemptSingleStepSkip = (
+  state: DefensePhraseJudgeState,
+  pitchClass: number,
+  steps: readonly PhraseChordStep[],
+  step: PhraseChordStep | undefined,
+  playStyle: DefensePlayStyle,
+  sequential: boolean,
+  allowSingleStepSkip: boolean,
+): boolean => {
+  if (!allowSingleStepSkip || playStyle !== 'phrase' || sequential) return false;
+  if (state.skipUsedInLoop || state.lastAcceptedPitchClass === null) return false;
+  if (normalizePitchClass(pitchClass) === state.lastAcceptedPitchClass) return false;
+  if (!step || step.noteIndices.length !== 1) return false;
+  if (state.targetStepIndex < 1) return false;
+  return state.targetStepIndex + 1 < steps.length;
+};
+
+const evaluateDefensePhraseNoteOnCore = (
   phrases: readonly DefensePhrase[],
   stageRequiredCompletionCount: number,
   state: DefensePhraseJudgeState,
   pitchClass: number,
-  sequential = false,
-  attackTrigger: DefenseAttackTrigger = 'note',
-  autoAdvance = true,
-  playStyle: DefensePlayStyle = 'phrase',
-  playRootOnChordChange = false,
+  sequential: boolean,
+  attackTrigger: DefenseAttackTrigger,
+  autoAdvance: boolean,
+  playStyle: DefensePlayStyle,
+  playRootOnChordChange: boolean,
+  skippedStep: boolean,
 ): DefensePhraseNoteEvaluation => {
   const phrase = phrases[state.phraseIndex] ?? null;
   const chord = getCurrentChord(phrase, state.chordIndex);
   if (!phrase || !chord || chord.notes.length === 0) {
-    return {
-      attack: false,
-      phraseCompleted: false,
-      measureCompleted: false,
-      pendingSwitch: state.pendingSwitch,
-      completionCount: state.completionCount,
-      playRootMidi: null,
-      nextState: state,
-    };
+    return missEvaluation(state);
   }
 
   const { steps } = getPhraseChordSteps(chord.notes);
@@ -237,15 +264,7 @@ export const evaluateDefensePhraseNoteOn = (
       true,
     );
     if (!acceptance.accept) {
-      return {
-        attack: false,
-        phraseCompleted: false,
-        measureCompleted: false,
-        pendingSwitch: state.pendingSwitch,
-        completionCount: state.completionCount,
-        playRootMidi: null,
-        nextState: state,
-      };
+      return missEvaluation(state);
     }
   }
 
@@ -257,20 +276,13 @@ export const evaluateDefensePhraseNoteOn = (
 
   const evaluation = advanceChordStep(chord.notes, steps, stepState, pitchClass);
   if (evaluation.result === 'miss' || evaluation.result === 'chord-hold') {
-    return {
-      attack: false,
-      phraseCompleted: false,
-      measureCompleted: false,
-      pendingSwitch: state.pendingSwitch,
-      completionCount: state.completionCount,
-      playRootMidi: null,
-      nextState: state,
-    };
+    return missEvaluation(state);
   }
 
   const progressedState: DefensePhraseJudgeState = {
     ...applyStepState(state, evaluation.nextState),
     lastAcceptedPitchClass: pitchClass,
+    skipUsedInLoop: state.skipUsedInLoop,
   };
   const isVoicingMode = playStyle === 'chord_voicing';
   const completedStepIndex = evaluation.result === 'measure-complete'
@@ -301,10 +313,12 @@ export const evaluateDefensePhraseNoteOn = (
         pendingSwitch,
         completionCount: nextCount,
         playRootMidi,
+        skippedStep,
         nextState: {
           ...afterChord,
           completionCount: nextCount,
           pendingSwitch,
+          skipUsedInLoop: false,
         },
       };
     }
@@ -315,10 +329,12 @@ export const evaluateDefensePhraseNoteOn = (
       pendingSwitch: state.pendingSwitch,
       completionCount: state.completionCount,
       playRootMidi,
+      skippedStep,
       nextState: {
         ...afterChord,
         completionCount: state.completionCount,
         pendingSwitch: state.pendingSwitch,
+        skipUsedInLoop: progressedState.skipUsedInLoop,
       },
     };
   }
@@ -330,10 +346,91 @@ export const evaluateDefensePhraseNoteOn = (
     pendingSwitch: state.pendingSwitch,
     completionCount: state.completionCount,
     playRootMidi,
+    skippedStep,
     nextState: {
       ...progressedState,
       completionCount: state.completionCount,
       pendingSwitch: state.pendingSwitch,
+    },
+  };
+};
+
+export const evaluateDefensePhraseNoteOn = (
+  phrases: readonly DefensePhrase[],
+  stageRequiredCompletionCount: number,
+  state: DefensePhraseJudgeState,
+  pitchClass: number,
+  sequential = false,
+  attackTrigger: DefenseAttackTrigger = 'note',
+  autoAdvance = true,
+  playStyle: DefensePlayStyle = 'phrase',
+  playRootOnChordChange = false,
+  allowSingleStepSkip = false,
+): DefensePhraseNoteEvaluation => {
+  const phrase = phrases[state.phraseIndex] ?? null;
+  const chord = getCurrentChord(phrase, state.chordIndex);
+  if (!phrase || !chord || chord.notes.length === 0) {
+    return missEvaluation(state);
+  }
+
+  const { steps } = getPhraseChordSteps(chord.notes);
+  const currentStep = steps[state.targetStepIndex];
+
+  const evaluation = evaluateDefensePhraseNoteOnCore(
+    phrases,
+    stageRequiredCompletionCount,
+    state,
+    pitchClass,
+    sequential,
+    attackTrigger,
+    autoAdvance,
+    playStyle,
+    playRootOnChordChange,
+    false,
+  );
+  if (evaluation.nextState !== state) {
+    return evaluation;
+  }
+
+  if (
+    !canAttemptSingleStepSkip(
+      state,
+      pitchClass,
+      steps,
+      currentStep,
+      playStyle,
+      sequential,
+      allowSingleStepSkip,
+    )
+  ) {
+    return evaluation;
+  }
+
+  const skippedAhead: DefensePhraseJudgeState = {
+    ...state,
+    targetStepIndex: state.targetStepIndex + 1,
+  };
+  const retry = evaluateDefensePhraseNoteOnCore(
+    phrases,
+    stageRequiredCompletionCount,
+    skippedAhead,
+    pitchClass,
+    sequential,
+    attackTrigger,
+    autoAdvance,
+    playStyle,
+    playRootOnChordChange,
+    true,
+  );
+  if (retry.nextState === state) {
+    return evaluation;
+  }
+  return {
+    ...retry,
+    skippedStep: true,
+    nextState: {
+      ...retry.nextState,
+      skipUsedInLoop: true,
     },
   };
 };

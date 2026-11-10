@@ -380,6 +380,24 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     [activePhrases, judgeSnapshot, voiceSequential],
   );
 
+  const voicePhrasePitchClassMask = useMemo(() => {
+    if (!voiceInput || isTutorialSession || stage.playStyle !== 'phrase' || phase !== 'playing') {
+      return 0;
+    }
+    let mask = 0;
+    for (const midi of keyboardHints.pendingMidis) {
+      const pitchClass = ((midi % 12) + 12) % 12;
+      mask |= 1 << pitchClass;
+    }
+    return mask;
+  }, [
+    voiceInput,
+    isTutorialSession,
+    stage.playStyle,
+    phase,
+    keyboardHints.pendingMidis,
+  ]);
+
   const tutorialConcertPitchClasses = useMemo(
     () => tutorialConcertMidis.map((midi) => ((midi % 12) + 12) % 12),
     [tutorialConcertMidis],
@@ -627,6 +645,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       ? Boolean(tutorialOptions?.autoAdvancePhrase)
       : !practiceMode;
 
+    const allowSingleStepSkip = voiceInput
+      && !isTutorialSession
+      && stage.playStyle === 'phrase';
+
     const evaluation = evaluateDefensePhraseNoteOn(
       activePhrases,
       stage.requiredCompletionCount,
@@ -637,6 +659,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       autoAdvance,
       stage.playStyle,
       stage.playRootOnChordChange,
+      allowSingleStepSkip,
     );
 
     if (pitchDiagnosticRecording.enabled && effectiveInputMethod === 'voice') {
@@ -646,6 +669,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         accepted: evaluation.nextState !== judgeRef.current,
         phraseCompleted: evaluation.phraseCompleted,
         attack: evaluation.attack,
+        skipped: evaluation.skippedStep,
       });
     }
     if (evaluation.nextState === judgeRef.current) return;
@@ -756,6 +780,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       || effectiveInputMethod === 'midi'
       || effectiveInputMethod === 'voice',
     inputMethod: effectiveInputMethod,
+    expectedPitchClassMask: voicePhrasePitchClassMask,
     masterVolume: isTutorialSession ? 1 : settings.masterVolume,
     onNoteOn: (note, domTimeStampMs) => {
       if (pitchDiagnosticRecording.enabled && effectiveInputMethod === 'voice') {

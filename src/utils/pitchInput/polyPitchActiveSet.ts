@@ -19,6 +19,10 @@ export interface PolyOnsetTrackerConfig {
   readonly releaseFrames: number;
   /** これより長く鳴っている隣は、後から来た音を抑えない */
   readonly neighborYoungFrames: number;
+  /** 期待ピッチクラス用の ON しきい値 */
+  readonly expectedOnLevel: number;
+  /** 期待音の再打鍵: このフレーム数以上 ON 後に dip を認める */
+  readonly retriggerMinFrames: number;
 }
 
 export const DEFAULT_POLY_ONSET_CONFIG: PolyOnsetTrackerConfig = Object.freeze({
@@ -27,6 +31,8 @@ export const DEFAULT_POLY_ONSET_CONFIG: PolyOnsetTrackerConfig = Object.freeze({
   slowConfirmFrames: 2,
   releaseFrames: 5,
   neighborYoungFrames: 2,
+  expectedOnLevel: 0.45,
+  retriggerMinFrames: 3,
 });
 
 export const createPolyMidiMask = (): Uint8Array => new Uint8Array(POLY_MIDI_COUNT);
@@ -48,6 +54,7 @@ export interface PolyOnsetTracker {
   readonly confirmFrames: Int32Array;
   readonly releaseFrames: Int32Array;
   readonly framesSinceOn: Int32Array;
+  readonly dipped: Uint8Array;
 }
 
 export const createPolyOnsetTracker = (): PolyOnsetTracker => ({
@@ -55,6 +62,7 @@ export const createPolyOnsetTracker = (): PolyOnsetTracker => ({
   confirmFrames: new Int32Array(POLY_MIDI_COUNT),
   releaseFrames: new Int32Array(POLY_MIDI_COUNT),
   framesSinceOn: new Int32Array(POLY_MIDI_COUNT),
+  dipped: createPolyMidiMask(),
 });
 
 export const resetPolyOnsetTracker = (tracker: PolyOnsetTracker): void => {
@@ -62,6 +70,15 @@ export const resetPolyOnsetTracker = (tracker: PolyOnsetTracker): void => {
   tracker.confirmFrames.fill(0);
   tracker.releaseFrames.fill(0);
   tracker.framesSinceOn.fill(0);
+  tracker.dipped.fill(0);
+};
+
+const isExpectedPitchClass = (midi: number, expectedPitchClassMask: number): boolean => {
+  if (expectedPitchClassMask === 0 || midi < MIDI_PIANO_MIN || midi > MIDI_PIANO_MAX) {
+    return false;
+  }
+  const pitchClass = ((midi % 12) + 12) % 12;
+  return (expectedPitchClassMask & (1 << pitchClass)) !== 0;
 };
 
 const neighborSuppressesOnset = (
@@ -95,6 +112,7 @@ export const stepPolyOnsetTracker = (
   config: PolyOnsetTrackerConfig,
   onNoteOn: (midi: number) => void,
   onNoteOff: (midi: number) => void,
+  expectedPitchClassMask = 0,
 ): void => {
   for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
     if (tracker.emitted[midi] === 1) {
@@ -104,9 +122,11 @@ export const stepPolyOnsetTracker = (
 
   for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
     const level = levels[midi];
+    const expected = isExpectedPitchClass(midi, expectedPitchClassMask);
 
     if (tracker.emitted[midi] !== 1) {
-      if (level < thresholds.on) {
+      const onThreshold = expected ? config.expectedOnLevel : thresholds.on;
+      if (level < onThreshold) {
         tracker.confirmFrames[midi] = 0;
         continue;
       }
@@ -123,6 +143,27 @@ export const stepPolyOnsetTracker = (
       tracker.confirmFrames[midi] = 0;
       tracker.releaseFrames[midi] = 0;
       tracker.framesSinceOn[midi] = 0;
+      tracker.dipped[midi] = 0;
+      onNoteOn(midi);
+      continue;
+    }
+
+    if (
+      expected
+      && tracker.framesSinceOn[midi] >= config.retriggerMinFrames
+      && level < thresholds.off
+    ) {
+      tracker.dipped[midi] = 1;
+    }
+    if (expected && tracker.dipped[midi] === 1 && level >= config.strongLevel) {
+      tracker.emitted[midi] = 0;
+      tracker.releaseFrames[midi] = 0;
+      tracker.confirmFrames[midi] = 0;
+      tracker.framesSinceOn[midi] = 0;
+      tracker.dipped[midi] = 0;
+      onNoteOff(midi);
+      tracker.emitted[midi] = 1;
+      tracker.framesSinceOn[midi] = 0;
       onNoteOn(midi);
       continue;
     }
@@ -137,6 +178,7 @@ export const stepPolyOnsetTracker = (
     tracker.releaseFrames[midi] = 0;
     tracker.confirmFrames[midi] = 0;
     tracker.framesSinceOn[midi] = 0;
+    tracker.dipped[midi] = 0;
     onNoteOff(midi);
   }
 };
