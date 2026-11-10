@@ -110,7 +110,7 @@ enum ExpectedPitchCandidateCollectors {
         targetMidisAt: (Int) -> [Int],
         earlySec: Double,
         lateSec: Double,
-        runtimeAt: ((Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])?)? = nil
+        runtimeAt: (Int) -> (completed: Bool, failed: Bool, remainingMidis: [Int])?
     ) -> Int {
         var mask = 0
         for index in 0..<targetCount {
@@ -134,18 +134,16 @@ enum ExpectedPitchCandidateCollectors {
                 mask |= 1 << pendingPc
             }
         }
-        if let runtimeAt {
-            if let context = resolveChordOsmdSamePitchRepeatContext(
-                targetCount: targetCount,
-                phraseTimeSec: phraseTimeSec,
-                judgedTargetTimeSec: judgedTargetTimeSec,
-                runtimeAt: runtimeAt,
-                targetMidisAt: targetMidisAt,
-                lateSec: lateSec
-            ) {
-                let pendingPc = pitchClass(from: context.pendingMidi)
-                mask |= 1 << pendingPc
-            }
+        if let context = resolveChordOsmdSamePitchRepeatContext(
+            targetCount: targetCount,
+            phraseTimeSec: phraseTimeSec,
+            judgedTargetTimeSec: judgedTargetTimeSec,
+            runtimeAt: runtimeAt,
+            targetMidisAt: targetMidisAt,
+            lateSec: lateSec
+        ) {
+            let pendingPc = pitchClass(from: context.pendingMidi)
+            mask |= 1 << pendingPc
         }
         return mask
     }
