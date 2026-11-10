@@ -43,6 +43,7 @@
     "growth:links": "node growth/print-acquisition-links.mjs",
     "postinstall": "node ./scripts/copy-ort-wasm.mjs && node ./scripts/copy-pitch-lab-vendor.mjs",
     "test:pitch-lab-fixtures": "node ./scripts/pitch-lab/evaluate-fixtures.mjs",
+    "test:pitch-fast-phrases": "node ./scripts/pitch-lab/evaluate-fast-phrases.mjs",
     "test:pesto-evaluation": "node --test scripts/pesto/test-multi-instrument.mjs"
   },
   "dependencies": {

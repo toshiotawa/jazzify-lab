@@ -6,15 +6,21 @@ import {
   type PitchPleaseLabHandle,
 } from '@/utils/pitchLab/pitchPleaseLab';
 import {
-  createPolyMidiGate,
-  createPolyMidiMask,
-  fillMaskFromEffeTuneLevels,
-  fillMaskFromPitchPleaseNotes,
+  DEFAULT_POLY_ONSET_CONFIG,
+  EFFETUNE_POLY_THRESHOLDS,
+  PITCH_PLEASE_FAST_THRESHOLDS,
+  PITCH_PLEASE_PIANO_THRESHOLDS,
+  createPolyOnsetTracker,
+  fillLevelsFromEffeTune,
+  fillLevelsFromPitchPleaseProbs,
   releasePolyMidiMask,
-  resetPolyMidiGate,
-  stepPolyMidiGate,
-  suppressWeakerNeighbors,
+  resetPolyOnsetTracker,
+  snapshotPolyLevelsForDiagnostics,
+  stepPolyOnsetTracker,
+  type PolyNoteEdgeKind,
+  type PolyOnsetThresholds,
 } from '@/utils/pitchInput/polyPitchActiveSet';
+import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
 import type { PolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 
 export interface PolyPitchVoiceCallbacks {
@@ -24,6 +30,8 @@ export interface PolyPitchVoiceCallbacks {
   onError?: (error: string) => void;
 }
 
+const DIAG_FRAME_INTERVAL = 16;
+
 const microphoneConstraints = (deviceId?: string, echoCancellation = true): MediaTrackConstraints => ({
   deviceId: deviceId ? { exact: deviceId } : undefined,
   echoCancellation,
@@ -32,16 +40,18 @@ const microphoneConstraints = (deviceId?: string, echoCancellation = true): Medi
 });
 
 export class PolyPitchVoiceInput {
-  private readonly gate = createPolyMidiGate();
-  private readonly scratch = createPolyMidiMask();
+  private readonly tracker = createPolyOnsetTracker();
   private readonly levels = new Float32Array(128);
-  private readonly drop = createPolyMidiMask();
   private stream: MediaStream | null = null;
   private ownsStream = false;
   private audioContext: AudioContext | null = null;
   private pitchPlease: PitchPleaseLabHandle | null = null;
   private effetune: EffetuneLabLiveHandle | null = null;
   private callbacks: PolyPitchVoiceCallbacks | null = null;
+  private engine: PolyphonicVoiceEngine | null = null;
+  private thresholds: PolyOnsetThresholds = PITCH_PLEASE_FAST_THRESHOLDS;
+  private diagFrameCounter = 0;
+  private diagConnectRecorded = false;
 
   async connect(
     engine: PolyphonicVoiceEngine,
@@ -50,7 +60,15 @@ export class PolyPitchVoiceInput {
     echoCancellation = true,
   ): Promise<boolean> {
     await this.disconnect();
-    resetPolyMidiGate(this.gate);
+    resetPolyOnsetTracker(this.tracker);
+    this.engine = engine;
+    this.thresholds = engine === 'effetune'
+      ? EFFETUNE_POLY_THRESHOLDS
+      : engine === 'pitchplease-piano'
+        ? PITCH_PLEASE_PIANO_THRESHOLDS
+        : PITCH_PLEASE_FAST_THRESHOLDS;
+    this.diagFrameCounter = 0;
+    this.diagConnectRecorded = false;
     this.callbacks = callbacks;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -69,23 +87,19 @@ export class PolyPitchVoiceInput {
           null,
           undefined,
           (frame) => {
-            fillMaskFromEffeTuneLevels(
-              this.scratch,
-              this.gate.emitted,
+            fillLevelsFromEffeTune(
+              this.levels,
               frame.levels,
               frame.firstMidi,
               frame.divisionsPerSemitone,
-              this.levels,
             );
-            suppressWeakerNeighbors(this.scratch, this.levels, this.drop);
             this.emitEdges();
           },
         );
       } else {
         const model = engine === 'pitchplease-piano' ? 'piano' : 'fast';
         this.pitchPlease = createPitchPleaseLab(model, null, undefined, (frame) => {
-          fillMaskFromPitchPleaseNotes(this.scratch, this.levels, frame.notes, frame.probs);
-          if (frame.probs) suppressWeakerNeighbors(this.scratch, this.levels, this.drop);
+          fillLevelsFromPitchPleaseProbs(this.levels, frame.probs);
           this.emitEdges();
         });
         const started = await startPitchPleaseOnStream(this.pitchPlease, stream);
@@ -95,6 +109,7 @@ export class PolyPitchVoiceInput {
           return false;
         }
       }
+      this.recordPolyConnect(engine, echoCancellation);
       callbacks.onConnectionChange?.(true);
       return true;
     } catch {
@@ -119,22 +134,67 @@ export class PolyPitchVoiceInput {
     this.stream = null;
     this.ownsStream = false;
     const callbacks = this.callbacks;
-    releasePolyMidiMask(this.gate.emitted, (midi) => callbacks?.onNoteOff(midi));
-    resetPolyMidiGate(this.gate);
+    releasePolyMidiMask(this.tracker.emitted, (midi) => callbacks?.onNoteOff(midi));
+    resetPolyOnsetTracker(this.tracker);
     callbacks?.onConnectionChange?.(false);
     this.callbacks = null;
+    this.engine = null;
+    this.diagConnectRecorded = false;
+  }
+
+  private recordPolyConnect(engine: PolyphonicVoiceEngine, echoCancellation: boolean): void {
+    if (!pitchDiagnosticRecording.enabled || this.diagConnectRecorded) return;
+    this.diagConnectRecorded = true;
+    pitchDiagnosticRecording.record('polyConnect', {
+      engine,
+      echoCancellation,
+      thresholds: this.thresholds,
+      onsetConfig: DEFAULT_POLY_ONSET_CONFIG,
+    });
+  }
+
+  private recordPolyFrameSample(): void {
+    if (!pitchDiagnosticRecording.enabled) return;
+    this.diagFrameCounter += 1;
+    if (this.diagFrameCounter % DIAG_FRAME_INTERVAL !== 0) return;
+    pitchDiagnosticRecording.record('polyFrames', {
+      engine: this.engine,
+      levels: snapshotPolyLevelsForDiagnostics(this.levels),
+    });
   }
 
   private emitEdges(): void {
     const callbacks = this.callbacks;
     if (!callbacks) return;
     const now = performance.now();
-    stepPolyMidiGate(
-      this.gate,
-      this.scratch,
-      now,
-      (midi) => callbacks.onNoteOn(midi, now),
-      (midi) => callbacks.onNoteOff(midi),
+    this.recordPolyFrameSample();
+    stepPolyOnsetTracker(
+      this.tracker,
+      this.levels,
+      this.thresholds,
+      DEFAULT_POLY_ONSET_CONFIG,
+      (midi, kind: PolyNoteEdgeKind) => {
+        if (pitchDiagnosticRecording.enabled) {
+          pitchDiagnosticRecording.record('polyNote', {
+            engine: this.engine,
+            midi,
+            kind,
+            level: Math.round(this.levels[midi] * 100),
+          });
+        }
+        callbacks.onNoteOn(midi, now);
+      },
+      (midi) => {
+        if (pitchDiagnosticRecording.enabled) {
+          pitchDiagnosticRecording.record('polyNote', {
+            engine: this.engine,
+            midi,
+            kind: 'off',
+            level: Math.round(this.levels[midi] * 100),
+          });
+        }
+        callbacks.onNoteOff(midi);
+      },
     );
   }
 }

@@ -1,14 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  DEFAULT_POLY_ONSET_CONFIG,
   applyPolyMidiMask,
-  createPolyMidiGate,
   createPolyMidiMask,
-  fillMaskFromEffeTuneLevels,
+  createPolyOnsetTracker,
+  fillLevelsFromEffeTune,
   fillMaskFromMidis,
   releasePolyMidiMask,
-  stepPolyMidiGate,
-  suppressWeakerNeighbors,
+  resetPolyOnsetTracker,
+  stepPolyOnsetTracker,
 } from '../polyPitchActiveSet';
+
+const PITCH_PLEASE_THR = { on: 0.7, off: 0.42 };
+
+const stubLevels = (entries: readonly (readonly [number, number])[]): Float32Array => {
+  const levels = new Float32Array(128);
+  for (const [midi, level] of entries) {
+    levels[midi] = level;
+  }
+  return levels;
+};
 
 describe('applyPolyMidiMask', () => {
   it('新しく鳴った音だけ ON し、消えた音だけ OFF する', () => {
@@ -37,55 +48,111 @@ describe('applyPolyMidiMask', () => {
   });
 });
 
-describe('fillMaskFromEffeTuneLevels', () => {
-  it('オン中の鍵はオフ閾値まで維持する', () => {
-    const previous = createPolyMidiMask();
-    previous[60] = 1;
-    const target = createPolyMidiMask();
-    const levels = new Float32Array(440);
-    const idx = 2 + (60 - 21) * 5;
-    levels[idx] = 0.5;
-    fillMaskFromEffeTuneLevels(target, previous, levels, 21, 5);
-    expect(target[60]).toBe(1);
-    previous[60] = 0;
-    fillMaskFromEffeTuneLevels(target, previous, levels, 21, 5);
-    expect(target[60]).toBe(0);
-  });
-});
-
-describe('suppressWeakerNeighbors', () => {
-  it('隣より弱い半音を落とす', () => {
-    const mask = createPolyMidiMask();
+describe('fillLevelsFromEffeTune', () => {
+  it('5 cent ビンの最大値を鍵レベルにする', () => {
     const levels = new Float32Array(128);
-    const drop = createPolyMidiMask();
-    mask[64] = 1;
-    mask[65] = 1;
-    mask[67] = 1;
-    levels[64] = 0.9;
-    levels[65] = 0.72;
-    levels[67] = 0.8;
-    suppressWeakerNeighbors(mask, levels, drop);
-    expect(mask[64]).toBe(1);
-    expect(mask[65]).toBe(0);
-    expect(mask[67]).toBe(1);
+    const spec = new Float32Array(440);
+    const idx = 2 + (60 - 21) * 5;
+    spec[idx] = 0.55;
+    fillLevelsFromEffeTune(levels, spec, 21, 5);
+    expect(levels[60]).toBeCloseTo(0.55);
   });
 });
 
-describe('stepPolyMidiGate', () => {
-  it('短い点滅では ON せず、消えてもすぐ OFF しない', () => {
-    const gate = createPolyMidiGate();
-    const detected = createPolyMidiMask();
+describe('stepPolyOnsetTracker', () => {
+  const step = (
+    tracker: ReturnType<typeof createPolyOnsetTracker>,
+    levels: Float32Array,
+    on = vi.fn(),
+    off = vi.fn(),
+  ): void => {
+    stepPolyOnsetTracker(
+      tracker,
+      levels,
+      PITCH_PLEASE_THR,
+      DEFAULT_POLY_ONSET_CONFIG,
+      on,
+      off,
+    );
+  };
+
+  it('強いレベルは 1 フレームで ON する', () => {
+    const tracker = createPolyOnsetTracker();
     const on = vi.fn();
     const off = vi.fn();
-    detected[60] = 1;
-    stepPolyMidiGate(gate, detected, 1000, on, off, 45, 120);
-    expect(on).not.toHaveBeenCalled();
-    stepPolyMidiGate(gate, detected, 1046, on, off, 45, 120);
-    expect(on).toHaveBeenCalledWith(60);
-    detected[60] = 0;
-    stepPolyMidiGate(gate, detected, 1100, on, off, 45, 120);
+    step(tracker, stubLevels([[60, 0.95]]), on, off);
+    expect(on).toHaveBeenCalledWith(60, 'on');
     expect(off).not.toHaveBeenCalled();
-    stepPolyMidiGate(gate, detected, 1221, on, off, 45, 120);
+  });
+
+  it('閾値付近は slowConfirmFrames 待ってから ON する', () => {
+    const tracker = createPolyOnsetTracker();
+    const on = vi.fn();
+    const off = vi.fn();
+    const border = stubLevels([[60, 0.75]]);
+    for (let i = 0; i < DEFAULT_POLY_ONSET_CONFIG.slowConfirmFrames - 1; i += 1) {
+      step(tracker, border, on, off);
+    }
+    expect(on).not.toHaveBeenCalled();
+    step(tracker, border, on, off);
+    expect(on).toHaveBeenCalledWith(60, 'on');
+  });
+
+  it('鳴り残り中の再打鍵で retrigger を出す', () => {
+    const tracker = createPolyOnsetTracker();
+    const on = vi.fn();
+    const off = vi.fn();
+    step(tracker, stubLevels([[60, 0.95]]), on, off);
+    on.mockClear();
+    off.mockClear();
+    for (let i = 0; i < DEFAULT_POLY_ONSET_CONFIG.retrigMinGapFrames; i += 1) {
+      step(tracker, stubLevels([[60, 0.55]]), on, off);
+    }
+    step(tracker, stubLevels([[60, 0.95]]), on, off);
     expect(off).toHaveBeenCalledWith(60);
+    expect(on).toHaveBeenCalledWith(60, 'retrigger');
+  });
+
+  it('1 フレームの欠落だけではすぐ OFF しない', () => {
+    const tracker = createPolyOnsetTracker();
+    const on = vi.fn();
+    const off = vi.fn();
+    step(tracker, stubLevels([[60, 0.95]]), on, off);
+    off.mockClear();
+    step(tracker, stubLevels([[60, 0.2]]), on, off);
+    expect(off).not.toHaveBeenCalled();
+    for (let i = 0; i < DEFAULT_POLY_ONSET_CONFIG.releaseFrames - 2; i += 1) {
+      step(tracker, stubLevels([[60, 0.2]]), on, off);
+      expect(off).not.toHaveBeenCalled();
+    }
+    step(tracker, stubLevels([[60, 0.2]]), on, off);
+    expect(off).toHaveBeenCalledWith(60);
+  });
+
+  it('先に鳴っている隣より弱い同時立ち上がりだけ落とす', () => {
+    const tracker = createPolyOnsetTracker();
+    const on = vi.fn();
+    const off = vi.fn();
+    for (let i = 0; i < 6; i += 1) {
+      step(tracker, stubLevels([[64, 0.95]]), on, off);
+    }
+    on.mockClear();
+    step(tracker, stubLevels([[64, 0.6], [65, 0.85]]), on, off);
+    expect(on).not.toHaveBeenCalledWith(65, 'on');
+    on.mockClear();
+    for (let i = 0; i < DEFAULT_POLY_ONSET_CONFIG.neighborYoungFrames + 2; i += 1) {
+      step(tracker, stubLevels([[64, 0.6]]), on, off);
+    }
+    step(tracker, stubLevels([[64, 0.55], [65, 0.95]]), on, off);
+    expect(on).toHaveBeenCalledWith(65, 'on');
+  });
+
+  it('reset で状態をクリアする', () => {
+    const tracker = createPolyOnsetTracker();
+    const on = vi.fn();
+    const off = vi.fn();
+    step(tracker, stubLevels([[60, 0.95]]), on, off);
+    resetPolyOnsetTracker(tracker);
+    expect(tracker.emitted[60]).toBe(0);
   });
 });

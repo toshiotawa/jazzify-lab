@@ -1,17 +1,54 @@
 import { MIDI_PIANO_MAX, MIDI_PIANO_MIN } from '@/utils/pitchLab/polyPitchTypes';
 
 export const POLY_MIDI_COUNT = 128;
-/** 弱倍音を落とす。オンは PitchPlease 既定の 0.7 に合わせる。 */
+
 export const EFFETUNE_NOTE_ON_LEVEL = 0.7;
 export const EFFETUNE_NOTE_OFF_LEVEL = 0.45;
-/** この時間連続して検出された音だけを ON にする。 */
-export const POLY_NOTE_ON_CONFIRM_MS = 45;
-/** この時間消えてから OFF にする。1フレームの欠落で再打鍵しない。 */
-export const POLY_NOTE_OFF_RELEASE_MS = 120;
+
+export const PITCH_PLEASE_FAST_THRESHOLDS = Object.freeze({ on: 0.7, off: 0.42 });
+export const PITCH_PLEASE_PIANO_THRESHOLDS = Object.freeze({ on: 0.6, off: 0.36 });
+export const EFFETUNE_POLY_THRESHOLDS = Object.freeze({
+  on: EFFETUNE_NOTE_ON_LEVEL,
+  off: EFFETUNE_NOTE_OFF_LEVEL,
+});
+
+export interface PolyOnsetThresholds {
+  readonly on: number;
+  readonly off: number;
+}
+
+export interface PolyOnsetTrackerConfig {
+  /** この値以上なら 1 フレームで ON */
+  readonly strongLevel: number;
+  readonly fastConfirmFrames: number;
+  readonly slowConfirmFrames: number;
+  /** OFF 閾値を何フレーム連続下回ったら note-off するか */
+  readonly releaseFrames: number;
+  /** 再打鍵の到達レベル */
+  readonly retrigLevel: number;
+  /** 谷からの再上昇量 */
+  readonly retrigRise: number;
+  /** 前回 note-on からの最短フレーム数 */
+  readonly retrigMinGapFrames: number;
+  /** これより長く鳴っている隣は、後から来た音を抑えない */
+  readonly neighborYoungFrames: number;
+}
+
+export const DEFAULT_POLY_ONSET_CONFIG: PolyOnsetTrackerConfig = Object.freeze({
+  strongLevel: 0.9,
+  fastConfirmFrames: 1,
+  slowConfirmFrames: 4,
+  releaseFrames: 10,
+  retrigLevel: 0.9,
+  retrigRise: 0.25,
+  retrigMinGapFrames: 6,
+  neighborYoungFrames: 4,
+});
+
+export type PolyNoteEdgeKind = 'on' | 'retrigger' | 'off';
 
 export const createPolyMidiMask = (): Uint8Array => new Uint8Array(POLY_MIDI_COUNT);
 
-/** 前フレームとの差分だけを ON/OFF にする。mask は破壊的に更新する。 */
 export const applyPolyMidiMask = (
   mask: Uint8Array,
   nextOn: Uint8Array,
@@ -35,17 +72,26 @@ export const fillMaskFromMidis = (target: Uint8Array, midis: readonly number[]):
   }
 };
 
-/** 5 cent ビンの最大値。既にオンの鍵はオフ閾値まで維持する。 */
-export const fillMaskFromEffeTuneLevels = (
-  target: Uint8Array,
-  previous: Uint8Array,
+export const fillLevelsFromPitchPleaseProbs = (
+  levelOut: Float32Array,
+  probs: Float32Array | readonly number[] | null,
+): void => {
+  levelOut.fill(0);
+  if (!probs) return;
+  const count = Math.min(probs.length, MIDI_PIANO_MAX - MIDI_PIANO_MIN + 1);
+  for (let i = 0; i < count; i += 1) {
+    levelOut[MIDI_PIANO_MIN + i] = probs[i];
+  }
+};
+
+/** 5 cent ビンの最大値を鍵ごとのレベルにする。 */
+export const fillLevelsFromEffeTune = (
+  levelOut: Float32Array,
   levels: Float32Array | readonly number[],
   firstMidi: number,
   divisionsPerSemitone: number,
-  levelOut?: Float32Array,
 ): void => {
-  target.fill(0);
-  levelOut?.fill(0);
+  levelOut.fill(0);
   for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
     const centerIndex = 2 + (midi - firstMidi) * divisionsPerSemitone;
     let maxLevel = 0;
@@ -55,111 +101,133 @@ export const fillMaskFromEffeTuneLevels = (
       const level = levels[idx];
       if (level > maxLevel) maxLevel = level;
     }
-    if (levelOut) levelOut[midi] = maxLevel;
-    const threshold = previous[midi] === 1 ? EFFETUNE_NOTE_OFF_LEVEL : EFFETUNE_NOTE_ON_LEVEL;
-    if (maxLevel >= threshold) target[midi] = 1;
+    levelOut[midi] = maxLevel;
   }
 };
 
-export const fillMaskFromPitchPleaseNotes = (
-  target: Uint8Array,
-  levelOut: Float32Array,
-  notes: readonly { midi: number }[],
-  probs: Float32Array | readonly number[] | null,
-): void => {
-  target.fill(0);
-  levelOut.fill(0);
-  if (probs) {
-    const count = Math.min(probs.length, MIDI_PIANO_MAX - MIDI_PIANO_MIN + 1);
-    for (let i = 0; i < count; i += 1) levelOut[MIDI_PIANO_MIN + i] = probs[i];
-  }
-  for (let i = 0; i < notes.length; i += 1) {
-    const midi = notes[i].midi;
-    if (midi >= MIDI_PIANO_MIN && midi <= MIDI_PIANO_MAX) target[midi] = 1;
-  }
-};
-
-/** 隣より弱い半音を落とす。同値は低い方の MIDI を残す。 */
-export const suppressWeakerNeighbors = (
-  mask: Uint8Array,
-  levels: Float32Array | readonly number[],
-  drop: Uint8Array,
-): void => {
-  drop.fill(0);
-  for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
-    if (mask[midi] !== 1) continue;
-    const level = levels[midi] ?? 0;
-    const lower = midi > MIDI_PIANO_MIN ? (levels[midi - 1] ?? 0) : -1;
-    const higher = midi < MIDI_PIANO_MAX ? (levels[midi + 1] ?? 0) : -1;
-    if ((mask[midi - 1] === 1 && lower >= level) || (mask[midi + 1] === 1 && higher > level)) {
-      drop[midi] = 1;
-    }
-  }
-  for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
-    if (drop[midi] === 1) mask[midi] = 0;
-  }
-};
-
-export interface PolyMidiGate {
-  emitted: Uint8Array;
-  pendingOnMs: Float64Array;
-  pendingOffMs: Float64Array;
+export interface PolyOnsetTracker {
+  readonly emitted: Uint8Array;
+  readonly confirmFrames: Int32Array;
+  readonly releaseFrames: Int32Array;
+  readonly valley: Float32Array;
+  readonly framesSinceOn: Int32Array;
+  readonly framesSinceNoteOn: Int32Array;
 }
 
-export const createPolyMidiGate = (): PolyMidiGate => ({
+export const createPolyOnsetTracker = (): PolyOnsetTracker => ({
   emitted: createPolyMidiMask(),
-  pendingOnMs: new Float64Array(POLY_MIDI_COUNT),
-  pendingOffMs: new Float64Array(POLY_MIDI_COUNT),
+  confirmFrames: new Int32Array(POLY_MIDI_COUNT),
+  releaseFrames: new Int32Array(POLY_MIDI_COUNT),
+  valley: new Float32Array(POLY_MIDI_COUNT),
+  framesSinceOn: new Int32Array(POLY_MIDI_COUNT),
+  framesSinceNoteOn: new Int32Array(POLY_MIDI_COUNT).fill(1_000_000),
 });
 
-export const resetPolyMidiGate = (gate: PolyMidiGate): void => {
-  gate.emitted.fill(0);
-  gate.pendingOnMs.fill(0);
-  gate.pendingOffMs.fill(0);
+export const resetPolyOnsetTracker = (tracker: PolyOnsetTracker): void => {
+  tracker.emitted.fill(0);
+  tracker.confirmFrames.fill(0);
+  tracker.releaseFrames.fill(0);
+  tracker.valley.fill(0);
+  tracker.framesSinceOn.fill(0);
+  tracker.framesSinceNoteOn.fill(1_000_000);
 };
 
-/** 検出マスクを確定遅延と離鍵保持に通してから ON/OFF する。 */
-export const stepPolyMidiGate = (
-  gate: PolyMidiGate,
-  detected: Uint8Array,
-  nowMs: number,
-  onNoteOn: (midi: number) => void,
+const neighborSuppressesOnset = (
+  midi: number,
+  level: number,
+  levels: Float32Array,
+  thresholds: PolyOnsetThresholds,
+  tracker: PolyOnsetTracker,
+  config: PolyOnsetTrackerConfig,
+): boolean => {
+  for (const delta of [-1, 1] as const) {
+    const neighbor = midi + delta;
+    if (neighbor < MIDI_PIANO_MIN || neighbor > MIDI_PIANO_MAX) continue;
+    const neighborLevel = levels[neighbor];
+    if (neighborLevel < thresholds.on) continue;
+    const neighborStronger = delta < 0 ? neighborLevel >= level : neighborLevel > level;
+    if (!neighborStronger) continue;
+    const neighborEstablished = tracker.emitted[neighbor] === 1
+      && tracker.framesSinceOn[neighbor] > config.neighborYoungFrames;
+    if (neighborEstablished) continue;
+    return true;
+  }
+  return false;
+};
+
+/** 鍵ごとの確率レベルを打鍵・再打鍵・離鍵保持で note on/off にする。 */
+export const stepPolyOnsetTracker = (
+  tracker: PolyOnsetTracker,
+  levels: Float32Array,
+  thresholds: PolyOnsetThresholds,
+  config: PolyOnsetTrackerConfig,
+  onNoteOn: (midi: number, kind: PolyNoteEdgeKind) => void,
   onNoteOff: (midi: number) => void,
-  confirmMs = POLY_NOTE_ON_CONFIRM_MS,
-  releaseMs = POLY_NOTE_OFF_RELEASE_MS,
 ): void => {
   for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
-    if (detected[midi] === 1) {
-      gate.pendingOffMs[midi] = 0;
-      if (gate.emitted[midi] === 1) {
-        gate.pendingOnMs[midi] = 0;
+    tracker.framesSinceNoteOn[midi] += 1;
+    if (tracker.emitted[midi] === 1) {
+      tracker.framesSinceOn[midi] += 1;
+    }
+  }
+
+  for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
+    const level = levels[midi];
+
+    if (tracker.emitted[midi] !== 1) {
+      if (level < thresholds.on) {
+        tracker.confirmFrames[midi] = 0;
         continue;
       }
-      if (gate.pendingOnMs[midi] === 0) {
-        gate.pendingOnMs[midi] = nowMs;
+      if (neighborSuppressesOnset(midi, level, levels, thresholds, tracker, config)) {
+        tracker.confirmFrames[midi] = 0;
         continue;
       }
-      if (nowMs - gate.pendingOnMs[midi] >= confirmMs) {
-        gate.emitted[midi] = 1;
-        gate.pendingOnMs[midi] = 0;
-        onNoteOn(midi);
-      }
+      tracker.confirmFrames[midi] += 1;
+      const required = level >= config.strongLevel
+        ? config.fastConfirmFrames
+        : config.slowConfirmFrames;
+      if (tracker.confirmFrames[midi] < required) continue;
+      tracker.emitted[midi] = 1;
+      tracker.confirmFrames[midi] = 0;
+      tracker.releaseFrames[midi] = 0;
+      tracker.valley[midi] = level;
+      tracker.framesSinceOn[midi] = 0;
+      tracker.framesSinceNoteOn[midi] = 0;
+      onNoteOn(midi, 'on');
       continue;
     }
-    gate.pendingOnMs[midi] = 0;
-    if (gate.emitted[midi] !== 1) {
-      gate.pendingOffMs[midi] = 0;
-      continue;
+
+    if (level < tracker.valley[midi]) {
+      tracker.valley[midi] = level;
     }
-    if (gate.pendingOffMs[midi] === 0) {
-      gate.pendingOffMs[midi] = nowMs;
-      continue;
-    }
-    if (nowMs - gate.pendingOffMs[midi] >= releaseMs) {
-      gate.emitted[midi] = 0;
-      gate.pendingOffMs[midi] = 0;
+
+    if (
+      level >= config.retrigLevel
+      && level - tracker.valley[midi] >= config.retrigRise
+      && tracker.framesSinceNoteOn[midi] >= config.retrigMinGapFrames
+    ) {
+      tracker.valley[midi] = level;
+      tracker.framesSinceOn[midi] = 0;
+      tracker.framesSinceNoteOn[midi] = 0;
+      tracker.releaseFrames[midi] = 0;
       onNoteOff(midi);
+      onNoteOn(midi, 'retrigger');
+      continue;
     }
+
+    if (level >= thresholds.off) {
+      tracker.releaseFrames[midi] = 0;
+      continue;
+    }
+    tracker.releaseFrames[midi] += 1;
+    if (tracker.releaseFrames[midi] < config.releaseFrames) continue;
+    tracker.emitted[midi] = 0;
+    tracker.releaseFrames[midi] = 0;
+    tracker.confirmFrames[midi] = 0;
+    tracker.valley[midi] = 0;
+    tracker.framesSinceOn[midi] = 0;
+    onNoteOff(midi);
   }
 };
 
@@ -172,4 +240,18 @@ export const releasePolyMidiMask = (
     mask[midi] = 0;
     onNoteOff(midi);
   }
+};
+
+/** 診断用: 0.1 以上の鍵を [midi, prob×100] の配列に圧縮する。 */
+export const snapshotPolyLevelsForDiagnostics = (
+  levels: Float32Array,
+  minLevel = 0.1,
+): number[][] => {
+  const out: number[][] = [];
+  for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
+    const level = levels[midi];
+    if (level < minLevel) continue;
+    out.push([midi, Math.round(level * 100)]);
+  }
+  return out;
 };
