@@ -505,7 +505,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         }
         let nowMs = resolveVoiceInputArrivalMs(midiHostTime: midiHostTime)
         guard gameState == .playingPhrase || gameState == .countIn else { return }
-        let allowPitchClass = NoteInputPreferences.inputMethod == .voice
+        let allowPitchClass = MusicXmlPartCount.count(musicXMLText ?? "") == 1
         let phraseTime: Double
         if let midiHostTime, let fromMidi = audio.phraseTimelineSecFromMidiHostTime(midiHostTime) {
             phraseTime = fromMidi

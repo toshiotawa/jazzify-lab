@@ -2045,7 +2045,7 @@ private struct SurvivalCodeRunGameContent: View {
         heldKeys.insert(midi)
         guard status == .playing, !player.chordLockedUntilLanding, let chord = currentChord else { return }
         let pc = Self.pitchClass(midi)
-        let sequential = NoteInputManager.shared.isVoiceInputActive
+        let sequential = false
         if sequential {
             let prefix = orderedCompletedPrefix(for: chord)
             guard SurvivalChordResolver.acceptsSequentialInput(

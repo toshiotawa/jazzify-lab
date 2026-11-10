@@ -207,7 +207,6 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             midiDeviceId={settings.midiDeviceId}
             onMidiDeviceChange={handleMidiDeviceChange}
             isMidiConnected={isMidiConnected}
-            showMonophonicWarning
           />
 
           {/* ピアノ音量設定 */}

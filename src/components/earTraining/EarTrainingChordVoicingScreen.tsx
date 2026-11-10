@@ -1913,7 +1913,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
       judgmentChord,
       note,
       activeDamageConfig,
-      { sequential: settings.inputMethod === 'voice' },
+      { sequential: false },
     );
     if (result.attempt !== currentAttempt) {
       setAttempt(result.attempt);
@@ -2442,7 +2442,7 @@ const EarTrainingChordVoicingScreen: React.FC<EarTrainingChordVoicingScreenProps
     return computeVoicingKeyboardHints(
       activeChord.voicing,
       pressed,
-      settings.inputMethod === 'voice',
+      false,
     );
   }, [showKeyboardTargetHints, activeChord, attempt, showVoicingTargetHints, settings.inputMethod]);
 

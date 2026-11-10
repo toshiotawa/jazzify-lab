@@ -396,7 +396,7 @@ final class DefenseGameSession: ObservableObject {
                     self.registerMidiKeyDown(note)
                     self.handleNoteOn(
                         pitchClass: ((note % 12) + 12) % 12,
-                        sequential: NoteInputManager.shared.isVoiceInputActive,
+                        sequential: false,
                         inputTimeMs: CACurrentMediaTime() * 1000
                     )
                 } else if isNoteOff {

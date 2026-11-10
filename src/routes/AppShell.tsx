@@ -15,7 +15,6 @@ import { useAppIdlePrefetch } from '@/hooks/useAppIdlePrefetch';
 import { isFantasyRouteAllowedForLimitedUser } from '@/utils/lessonPlayRouteAccess';
 import { getHashBase, useHashMonitor } from '@/hooks/useHashMonitor';
 import { dashboardPath } from '@/utils/appNavigation';
-import { isProduction } from '@/utils/environment';
 import AppHashRedirect from '@/routes/AppHashRedirect';
 import GameRoutes from '@/routes/GameRoutes';
 
@@ -32,8 +31,6 @@ const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDeta
 const InformationPage = React.lazy(() => import('@/components/information/InformationPage'));
 const AchievementsPage = React.lazy(() => import('@/components/achievements/AchievementsPage'));
 const PricingTable = React.lazy(() => import('@/components/subscription/PricingTable'));
-const LazyPitchMpeLabPage = React.lazy(() => import('@/pages/PitchMpeLabPage'));
-
 const renderDashboard = (): React.ReactNode => (
   <React.Suspense fallback={<LoadingScreen compact />}>
     <LazyDashboard />
@@ -305,18 +302,6 @@ const AppShell: React.FC = () => {
                   isPremiumMember={isPremiumMember}
                   renderDashboard={renderDashboard}
                 />
-              }
-            />
-            <Route
-              path="lab/pitch-mpe"
-              element={
-                isProduction() ? (
-                  <Navigate to="/main/dashboard" replace />
-                ) : (
-                  <React.Suspense fallback={<LoadingScreen compact />}>
-                    <LazyPitchMpeLabPage />
-                  </React.Suspense>
-                )
               }
             />
             <Route path="*" element={<Navigate to="/main/dashboard" replace />} />

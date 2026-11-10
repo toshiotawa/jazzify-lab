@@ -16,7 +16,7 @@ final class NoteInputManager: ObservableObject {
     @Published private(set) var voicePreparing = false
 
     private let midiManager = MIDIManager.shared
-    private let pitchEngine = PitchInputEngine.shared
+    private let pitchEngine = PitchPleaseVoiceEngine.shared
 
     private let subscriberLock = NSLock()
     nonisolated(unsafe) private var simpleHandlers: [UUID: (UInt8, UInt8, UInt8) -> Void] = [:]
@@ -89,9 +89,6 @@ final class NoteInputManager: ObservableObject {
     func refreshActiveInput() async {
         activeMethod = NoteInputPreferences.inputMethod
 
-        PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
-        PitchInputEngine.shared.setLowRegister(NoteInputPreferences.voiceLowRegister)
-
         switch activeMethod {
         case .midi, .touch:
             voicePreparing = false
@@ -102,16 +99,9 @@ final class NoteInputManager: ObservableObject {
                 pitchEngine.stop()
                 return
             }
-            pitchEngine.setSensitivity(NoteInputPreferences.micSensitivity)
-            pitchEngine.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
-            pitchEngine.setLowRegister(NoteInputPreferences.voiceLowRegister)
             voicePreparing = true
-            defer { voicePreparing = false }
-            do {
-                try await pitchEngine.start()
-            } catch {
-                pitchEngine.stop()
-            }
+            pitchEngine.start(inputChannel: NoteInputPreferences.voiceInputChannel)
+            voicePreparing = false
         }
     }
 

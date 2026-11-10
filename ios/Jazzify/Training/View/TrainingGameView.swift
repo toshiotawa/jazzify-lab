@@ -260,7 +260,7 @@ struct TrainingGameView: View {
 
     private var sequentialKeyboardHints: TrainingSequentialKeyboardHints? {
         guard session.practiceMode, let question = session.question else { return nil }
-        let voiceSequential = NoteInputManager.shared.isVoiceInputActive
+        let voiceSequential = false
         guard TrainingEngine.shouldUseSequentialKeyboardHints(
             question: question,
             kind: session.training.kind,

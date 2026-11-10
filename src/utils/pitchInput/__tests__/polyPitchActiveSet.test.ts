@@ -3,7 +3,6 @@ import {
   DEFAULT_POLY_ONSET_CONFIG,
   createPolyMidiMask,
   createPolyOnsetTracker,
-  fillLevelsFromEffeTune,
   releasePolyMidiMask,
   resetPolyOnsetTracker,
   stepPolyOnsetTracker,
@@ -27,17 +26,6 @@ describe('releasePolyMidiMask', () => {
     releasePolyMidiMask(mask, off);
     expect(off).toHaveBeenCalledWith(60);
     expect(mask[60]).toBe(0);
-  });
-});
-
-describe('fillLevelsFromEffeTune', () => {
-  it('5 cent ビンの最大値を鍵レベルにする', () => {
-    const levels = new Float32Array(128);
-    const spec = new Float32Array(440);
-    const idx = 2 + (60 - 21) * 5;
-    spec[idx] = 0.55;
-    fillLevelsFromEffeTune(levels, spec, 21, 5);
-    expect(levels[60]).toBeCloseTo(0.55);
   });
 });
 

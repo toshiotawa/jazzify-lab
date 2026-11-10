@@ -1,16 +1,9 @@
-import { MIDI_PIANO_MAX, MIDI_PIANO_MIN } from '@/utils/pitchLab/polyPitchTypes';
+export const MIDI_PIANO_MIN = 21;
+export const MIDI_PIANO_MAX = 108;
 
 export const POLY_MIDI_COUNT = 128;
 
-export const EFFETUNE_NOTE_ON_LEVEL = 0.7;
-export const EFFETUNE_NOTE_OFF_LEVEL = 0.45;
-
-export const PITCH_PLEASE_FAST_THRESHOLDS = Object.freeze({ on: 0.7, off: 0.42 });
 export const PITCH_PLEASE_PIANO_THRESHOLDS = Object.freeze({ on: 0.6, off: 0.36 });
-export const EFFETUNE_POLY_THRESHOLDS = Object.freeze({
-  on: EFFETUNE_NOTE_ON_LEVEL,
-  off: EFFETUNE_NOTE_OFF_LEVEL,
-});
 
 export interface PolyOnsetThresholds {
   readonly on: number;
@@ -47,27 +40,6 @@ export const fillLevelsFromPitchPleaseProbs = (
   const count = Math.min(probs.length, MIDI_PIANO_MAX - MIDI_PIANO_MIN + 1);
   for (let i = 0; i < count; i += 1) {
     levelOut[MIDI_PIANO_MIN + i] = probs[i];
-  }
-};
-
-/** 5 cent ビンの最大値を鍵ごとのレベルにする。 */
-export const fillLevelsFromEffeTune = (
-  levelOut: Float32Array,
-  levels: Float32Array | readonly number[],
-  firstMidi: number,
-  divisionsPerSemitone: number,
-): void => {
-  levelOut.fill(0);
-  for (let midi = MIDI_PIANO_MIN; midi <= MIDI_PIANO_MAX; midi += 1) {
-    const centerIndex = 2 + (midi - firstMidi) * divisionsPerSemitone;
-    let maxLevel = 0;
-    for (let d = 0; d < divisionsPerSemitone; d += 1) {
-      const idx = centerIndex + d;
-      if (idx < 0 || idx >= levels.length) continue;
-      const level = levels[idx];
-      if (level > maxLevel) maxLevel = level;
-    }
-    levelOut[midi] = maxLevel;
   }
 };
 

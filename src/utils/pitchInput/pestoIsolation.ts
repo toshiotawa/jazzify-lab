@@ -2,5 +2,4 @@
 export const isPestoIsolatedPath = (pathname: string): boolean => (
   pathname === '/main/play'
   || pathname.startsWith('/main/play/')
-  || pathname === '/main/lab/pitch-mpe'
 );

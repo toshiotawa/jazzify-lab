@@ -8,7 +8,6 @@ struct InputMethodSection: View {
 
     @ObservedObject private var midiManager = MIDIManager.shared
     @State private var inputMethod: NoteInputMethod = NoteInputPreferences.inputMethod
-    @State private var micSensitivity: Double = Double(NoteInputPreferences.micSensitivity)
     @State private var permission: PitchInputEngine.MicrophonePermission = .undetermined
     @State private var hasHeadphones = true
     @State private var monitorVolume: Double = 0
@@ -18,8 +17,6 @@ struct InputMethodSection: View {
     @State private var monitorInferenceMs: Double?
     @State private var engineActive = false
     @State private var monitorTimer: Timer?
-    @State private var voiceFastResponse = NoteInputPreferences.voiceFastResponse
-    @State private var voiceLowRegister = NoteInputPreferences.voiceLowRegister
     @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
 
     var body: some View {
@@ -59,36 +56,19 @@ struct InputMethodSection: View {
                 midiVolumeControl
             } else {
                 voiceSettings
-                Toggle(isEnglishCopy ? "Fast response" : "高速反応", isOn: $voiceFastResponse)
-                    .font(.caption)
-                    .onChange(of: voiceFastResponse) { newValue in
-                        NoteInputPreferences.voiceFastResponse = newValue
-                        PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
-                    }
-                Text(isEnglishCopy
-                     ? "Turn this ON when pitch is hard to recognize. False detections may increase."
-                     : "ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Toggle(isEnglishCopy ? "Low register" : "低音読み取り", isOn: $voiceLowRegister)
-                    .font(.caption)
-                    .onChange(of: voiceLowRegister) { newValue in
-                        NoteInputPreferences.voiceLowRegister = newValue
-                        PitchInputEngine.shared.setLowRegister(newValue)
-                    }
-                Text(isEnglishCopy
-                     ? "Turn this ON for low notes such as double bass. Response is a little slower."
-                     : "コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Picker(isEnglishCopy ? "Input channel" : "入力チャンネル", selection: Binding(
+                    get: { NoteInputPreferences.voiceInputChannel },
+                    set: { NoteInputPreferences.voiceInputChannel = $0 }
+                )) {
+                    Text(isEnglishCopy ? "Input 1" : "入力1").tag(1)
+                    Text(isEnglishCopy ? "Input 2" : "入力2").tag(2)
+                }
+                .font(.caption)
             }
 
         }
         .onAppear {
             inputMethod = NoteInputPreferences.inputMethod
-            micSensitivity = Double(NoteInputPreferences.micSensitivity)
-            voiceFastResponse = NoteInputPreferences.voiceFastResponse
-            voiceLowRegister = NoteInputPreferences.voiceLowRegister
             midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
             refreshHeadphoneState()
@@ -232,28 +212,6 @@ struct InputMethodSection: View {
             #endif
         }
 
-        VStack(alignment: .leading, spacing: 4) {
-            Text(
-                isEnglishCopy
-                    ? "Sensitivity: \(Int(micSensitivity))"
-                    : "感度: \(Int(micSensitivity))"
-            )
-            .font(.caption)
-            Slider(value: $micSensitivity, in: 1...10, step: 1)
-                .onChange(of: micSensitivity) { newValue in
-                    let level = Int(newValue.rounded())
-                    NoteInputPreferences.micSensitivity = level
-                    PitchInputEngine.shared.setSensitivity(level)
-                }
-            Text(
-                isEnglishCopy
-                    ? "Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often."
-                    : "高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。"
-            )
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        }
-
     }
 
     private func refreshHeadphoneState() {
@@ -264,25 +222,18 @@ struct InputMethodSection: View {
     private func startVoicePreviewIfNeeded() async {
         guard inputMethod == .voice else { return }
         guard !NoteInputManager.shared.hasActiveSubscribers else { return }
-        guard !PitchInputEngine.shared.isActive else {
+        guard !PitchPleaseVoiceEngine.shared.isActive else {
             refreshMonitor()
             return
         }
-        do {
-            try await PitchInputEngine.shared.start()
-            PitchInputEngine.shared.setSensitivity(NoteInputPreferences.micSensitivity)
-            PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
-            PitchInputEngine.shared.setLowRegister(NoteInputPreferences.voiceLowRegister)
-        } catch {
-            monitorError = error.localizedDescription
-        }
+        PitchPleaseVoiceEngine.shared.start(inputChannel: NoteInputPreferences.voiceInputChannel)
         refreshMonitor()
     }
 
     @MainActor
     private func stopVoicePreviewIfNeeded() {
         guard !NoteInputManager.shared.hasActiveSubscribers else { return }
-        PitchInputEngine.shared.stop()
+        PitchPleaseVoiceEngine.shared.stop()
         engineActive = false
         monitorVolume = 0
         monitorNoteName = nil
@@ -306,15 +257,13 @@ struct InputMethodSection: View {
 
     @MainActor
     private func refreshMonitor() {
-        let snapshot = PitchInputEngine.shared.monitorSnapshot(
-            isActive: PitchInputEngine.shared.isActive
-        )
-        engineActive = snapshot.isActive
-        monitorVolume = snapshot.volume
-        monitorNoteName = snapshot.detectedNoteName
-        monitorError = snapshot.lastError
-        monitorCaptureMs = snapshot.captureIntervalMs
-        monitorInferenceMs = snapshot.inferenceMs
+        let engine = PitchPleaseVoiceEngine.shared
+        engineActive = engine.isActive
+        monitorNoteName = engine.detectedNoteName
+        monitorError = engine.lastError
+        monitorVolume = engine.isActive ? 0.4 : 0
+        monitorCaptureMs = nil
+        monitorInferenceMs = nil
     }
 
     private func formattedLatencyMs(_ value: Double?) -> String {

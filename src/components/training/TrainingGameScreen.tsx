@@ -117,7 +117,7 @@ export const TrainingGameScreen: React.FC<TrainingGameScreenProps> = ({
   const settings = useGameStore((state) => state.settings);
   const updateSettings = useGameStore((state) => state.updateSettings);
   const notationInstrumentId = settings.notationInstrumentId;
-  const voiceSequential = settings.inputMethod === 'voice';
+  const voiceSequential = false;
 
   const [phase, setPhase] = useState<Phase>('countdown');
   const [countdownSec, setCountdownSec] = useState(TRAINING_COUNTDOWN_SEC);

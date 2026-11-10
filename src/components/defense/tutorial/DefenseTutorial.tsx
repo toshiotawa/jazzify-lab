@@ -85,10 +85,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
   const inputSetupMethod = session.screen === 'inputSetup' ? session.inputMethod : null;
   const inputMonitor = useStandaloneNoteInput({
     enabled: inputSetupMethod === 'midi' || inputSetupMethod === 'voice',
-    allowPolyphonicVoice: true,
     inputMethod: inputSetupMethod ?? settings.inputMethod,
-    voiceFastResponse: settings.voiceFastResponse ?? false,
-    voiceLowRegister: settings.voiceLowRegister ?? false,
     onNoteOn: () => undefined,
     playMidiSound: false,
   });
@@ -237,12 +234,6 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
             midiDeviceId={settings.selectedMidiDevice}
             onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
             isMidiConnected={inputMonitor.isConnected}
-            voiceSensitivity={settings.voiceSensitivity}
-            voiceFastResponse={settings.voiceFastResponse ?? false}
-            voiceLowRegister={settings.voiceLowRegister ?? false}
-            onVoiceSensitivityChange={(value) => updateSettings({ voiceSensitivity: value })}
-            onVoiceFastResponseChange={(value) => updateSettings({ voiceFastResponse: value })}
-            onVoiceLowRegisterChange={(value) => updateSettings({ voiceLowRegister: value })}
             backingVolume={settings.bgmVolume}
             onBackingVolumeChange={(value) => updateSettings({ bgmVolume: value })}
             midiVolume={settings.midiVolume}

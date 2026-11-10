@@ -1,26 +1,17 @@
 import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
-import { VoicePitchEngineControl } from '@/components/ui/VoicePitchEngineControl';
 import { VoiceInputChannelControl } from '@/components/ui/VoiceInputChannelControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
-import { PitchInputController, type PitchInputLatencyStats } from '@/utils/PitchInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isProduction } from '@/utils/environment';
-import { isPolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
-
-const formatLatencyMs = (value: number | null): string =>
-  value === null ? '—' : `${Math.round(value)}ms`;
+import { isVoiceMicrophoneSupported } from '@/utils/pitchInput/voiceMicrophoneSupport';
 
 export interface InputMethodSelectorProps {
   midiDeviceId: string | null;
   onMidiDeviceChange: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
-  /** 和音モード等、単音のみの警告を表示 */
-  showMonophonicWarning?: boolean;
-  /** フレーズディフェンスと OSMD だけ多声エンジンを出す */
-  showPolyphonicEngines?: boolean;
   className?: string;
 }
 
@@ -28,31 +19,10 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
   midiDeviceId,
   onMidiDeviceChange,
   isMidiConnected = false,
-  showMonophonicWarning = false,
-  showPolyphonicEngines = false,
   className = '',
 }) => {
   const { settings, updateSettings } = useGameStore();
   const en = shouldUseEnglishCopy();
-  const [latencyStats, setLatencyStats] = useState<PitchInputLatencyStats>({
-    inputChannel: null,
-    captureChannelCount: null,
-    inputError: null,
-    captureIntervalMs: null,
-    inferenceMs: null,
-    inputLevelDb: null,
-    diagnostics: null,
-  });
-
-  useEffect(() => {
-    if (settings.inputMethod !== 'voice') {
-      return undefined;
-    }
-    const timer = window.setInterval(() => {
-      setLatencyStats(PitchInputController.getLatencyStats());
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [settings.inputMethod]);
 
   return (
     <div className={`space-y-3 ${className}`}>
@@ -114,24 +84,6 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
           <h4 className="text-sm font-medium text-purple-200">
             {en ? '🎤 Voice input' : '🎤 音声入力'}
           </h4>
-          {showMonophonicWarning && !isPolyphonicVoiceEngine(settings.voicePitchEngine) && (
-            <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2">
-              <p className="text-xs text-yellow-300">
-                {en
-                  ? '⚠️ Monophonic only. Chord modes detect one note at a time.'
-                  : '⚠️ 単音での読み取り専用です。和音モードでは1音ずつしか判定されません。'}
-              </p>
-            </div>
-          )}
-          {showPolyphonicEngines && isPolyphonicVoiceEngine(settings.voicePitchEngine) && (
-            <div className="bg-emerald-900/30 border border-emerald-600/40 rounded p-2">
-              <p className="text-xs text-emerald-200">
-                {en
-                  ? 'Detected notes turn keyboard keys on and off together, the same way a MIDI chord does.'
-                  : '検出した音は、MIDI和音と同じように鍵盤のON/OFFとして同時に出ます。'}
-              </p>
-            </div>
-          )}
           <div className="bg-yellow-900 bg-opacity-20 border border-yellow-700 border-opacity-30 rounded p-2">
             <p className="text-xs text-yellow-200">
               {en
@@ -139,7 +91,7 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
                 : '🎧 スピーカー音の回り込みを防ぐため、ヘッドホンの使用を推奨します。'}
             </p>
           </div>
-          {!PitchInputController.isSupported() && (
+          {!isVoiceMicrophoneSupported() && (
             <p className="text-xs text-red-300">
               {en
                 ? 'Voice input is not supported in this browser.'
@@ -151,126 +103,8 @@ export const InputMethodSelector: React.FC<InputMethodSelectorProps> = ({
             onChange={(deviceId) => updateSettings({ selectedAudioDevice: deviceId })}
           />
           <VoiceEchoCancellationControl isEnglishCopy={en} />
-          <VoicePitchEngineControl isEnglishCopy={en} includePolyphonic={showPolyphonicEngines} />
           <VoiceInputChannelControl isEnglishCopy={en} />
-          <p className="text-xs text-gray-400">
-            {en ? 'Captured channels' : '取得チャンネル数'}: {latencyStats.captureChannelCount ?? '—'}
-            {' · '}{en ? 'Selected input' : '認識入力'}: {latencyStats.inputChannel ?? '—'}
-          </p>
-          {latencyStats.inputError && <p role="alert" className="text-xs text-red-300">{latencyStats.inputError}</p>}
-          <label className="block">
-            <div className="mb-1 flex items-center justify-between text-xs text-purple-200">
-              <span>{en ? 'Sensitivity' : '感度'}</span>
-              <span>{settings.voiceSensitivity}</span>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              step={1}
-              value={settings.voiceSensitivity}
-              onChange={(e) => updateSettings({ voiceSensitivity: Number(e.target.value) })}
-              className="w-full"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              {en
-                ? 'Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often.'
-                : '高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。'}
-            </p>
-          </label>
-          <label className="flex items-center justify-between gap-3 text-xs text-purple-200">
-            <span>{en ? 'Fast response' : '高速反応'}</span>
-            <input
-              type="checkbox"
-              className="toggle toggle-primary toggle-sm"
-              checked={settings.voiceFastResponse ?? false}
-              onChange={(event) => updateSettings({ voiceFastResponse: event.target.checked })}
-            />
-          </label>
-          <p className="text-xs text-gray-400">
-            {en
-              ? 'Turn this ON when pitch is hard to recognize. False detections may increase.'
-              : 'ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。'}
-          </p>
-          <label className="flex items-center justify-between gap-3 text-xs text-purple-200">
-            <span>{en ? 'Low register' : '低音読み取り'}</span>
-            <input
-              type="checkbox"
-              className="toggle toggle-primary toggle-sm"
-              checked={settings.voiceLowRegister ?? false}
-              onChange={(event) => updateSettings({ voiceLowRegister: event.target.checked })}
-            />
-          </label>
-          <p className="text-xs text-gray-400">
-            {en
-              ? 'Turn this ON for low notes such as double bass. Response is a little slower.'
-              : 'コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。'}
-          </p>
-          {!isProduction() ? (
-            <>
-              <p className="text-xs text-gray-400 font-mono">
-                {en
-                  ? `Input ${formatLatencyMs(latencyStats.captureIntervalMs)} / infer ${formatLatencyMs(latencyStats.inferenceMs)}`
-                  : `入力 ${formatLatencyMs(latencyStats.captureIntervalMs)} / 推論 ${formatLatencyMs(latencyStats.inferenceMs)}`}
-              </p>
-              <PitchDiagnosticControls isEnglishCopy={en} />
-            </>
-          ) : null}
-          {!isProduction() && latencyStats.diagnostics ? (
-            <div className="text-[10px] text-gray-500 font-mono space-y-0.5 border-t border-purple-800/40 pt-2">
-              <p>
-                {en ? 'Diagnostics' : '診断'}
-                {' · '}
-                shift +{latencyStats.diagnostics.shiftSemitones}
-                {' · '}
-                gen {latencyStats.diagnostics.generationId}
-              </p>
-              <p>
-                {en ? 'Queue' : 'キュー'}
-                {' '}
-                {Math.round(latencyStats.diagnostics.queueDepthMs)}ms
-                {' · '}
-                {en ? 'drops' : '欠落'}
-                {' '}
-                {latencyStats.diagnostics.droppedSamples}
-                {' samples ('}
-                {Math.round(latencyStats.diagnostics.droppedSamples / 48)}ms)
-                {' · '}
-                {en ? 'disc' : '不連続'}
-                {' '}
-                {latencyStats.diagnostics.discontinuities}
-                {' · '}
-                {latencyStats.diagnostics.lastDiscontinuityReason ?? '—'}
-                {' · gap '}
-                {(latencyStats.diagnostics.lastGapMs ?? 0).toFixed(2)}ms
-                {' · reset '}
-                {latencyStats.diagnostics.modelResetCount ?? 0}
-                {' · '}
-                {en ? 'refill ' : '履歴復元 '}
-                {latencyStats.diagnostics.cacheRecoveryCount ?? 0}
-              </p>
-              <p>
-                p95 queue {Math.round(latencyStats.diagnostics.queueAgeMsP95)}ms
-                {' · '}
-                infer {latencyStats.diagnostics.inferenceMsP95.toFixed(2)}ms
-                {' · process '}
-                {(latencyStats.diagnostics.processingMsP95 ?? 0).toFixed(2)}ms
-                {' · '}
-                input {latencyStats.inputLevelDb?.toFixed(1) ?? '—'}dB
-              </p>
-              <p>
-                MIDI {latencyStats.diagnostics.lastConcertMidi ?? '—'}
-                {' · '}
-                conf {latencyStats.diagnostics.lastConfidence.toFixed(2)}
-                {' · '}
-                {latencyStats.diagnostics.lastRejectReason}
-                {' · '}
-                {en ? 'warmup' : 'ウォームアップ'}
-                {' '}
-                {latencyStats.diagnostics.warmupFramesRemaining}
-              </p>
-            </div>
-          ) : null}
+          {!isProduction() ? <PitchDiagnosticControls isEnglishCopy={en} /> : null}
         </div>
       )}
     </div>

@@ -51,7 +51,6 @@ export const EmbedMidiSettingsModal: React.FC<EmbedMidiSettingsModalProps> = ({
           midiDeviceId={settings.selectedMidiDevice}
           onMidiDeviceChange={(id) => updateSettings({ selectedMidiDevice: id })}
           isMidiConnected={isMidiConnected}
-          showMonophonicWarning
         />
 
         <p className="mt-3 text-xs text-white/50">

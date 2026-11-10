@@ -42,8 +42,6 @@
     "growth:snapshot": "node growth/snapshot.mjs",
     "growth:links": "node growth/print-acquisition-links.mjs",
     "postinstall": "node ./scripts/copy-ort-wasm.mjs && node ./scripts/copy-pitch-lab-vendor.mjs",
-    "test:pitch-lab-fixtures": "node ./scripts/pitch-lab/evaluate-fixtures.mjs",
-    "test:pitch-fast-phrases": "node ./scripts/pitch-lab/evaluate-fast-phrases.mjs",
     "test:pesto-evaluation": "node --test scripts/pesto/test-multi-instrument.mjs"
   },
   "dependencies": {
@@ -52,7 +50,6 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@effetune/dsp": "0.12.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",

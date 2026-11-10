@@ -1,12 +1,11 @@
 import { VoiceEchoCancellationControl } from '@/components/ui/VoiceEchoCancellationControl';
-import { VoicePitchEngineControl } from '@/components/ui/VoicePitchEngineControl';
+import { isVoiceMicrophoneSupported } from '@/utils/pitchInput/voiceMicrophoneSupport';
 import { VoiceInputChannelControl } from '@/components/ui/VoiceInputChannelControl';
 import { PitchDiagnosticControls } from '@/components/ui/PitchDiagnosticControls';
 import { isProduction } from '@/utils/environment';
 import React from 'react';
 import type { InputMethod } from '@/types';
 import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
-import { PitchInputController } from '@/utils/PitchInputController';
 import { useGameStore } from '@/stores/gameStore';
 
 interface DefenseTutorialInputPanelProps {
@@ -15,12 +14,6 @@ interface DefenseTutorialInputPanelProps {
   readonly midiDeviceId: string | null;
   readonly onMidiDeviceChange: (deviceId: string | null) => void;
   readonly isMidiConnected: boolean;
-  readonly voiceSensitivity: number;
-  readonly voiceFastResponse: boolean;
-  readonly voiceLowRegister: boolean;
-  readonly onVoiceSensitivityChange: (value: number) => void;
-  readonly onVoiceFastResponseChange: (enabled: boolean) => void;
-  readonly onVoiceLowRegisterChange: (enabled: boolean) => void;
   readonly backingVolume: number;
   readonly onBackingVolumeChange: (value: number) => void;
   readonly midiVolume: number;
@@ -67,12 +60,6 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
   midiDeviceId,
   onMidiDeviceChange,
   isMidiConnected,
-  voiceSensitivity,
-  voiceFastResponse,
-  voiceLowRegister,
-  onVoiceSensitivityChange,
-  onVoiceFastResponseChange,
-  onVoiceLowRegisterChange,
   backingVolume,
   onBackingVolumeChange,
   midiVolume,
@@ -155,7 +142,7 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
       {inputMethod === 'voice' && !isProduction()
         ? <PitchDiagnosticControls isEnglishCopy={isEnglishCopy} />
         : null}
-      {!PitchInputController.isSupported() ? (
+      {!isVoiceMicrophoneSupported() ? (
         <p className="text-sm text-red-300">
           {isEnglishCopy ? 'Voice input is not supported in this browser.' : 'このブラウザでは音声入力に対応していません。'}
         </p>
@@ -167,55 +154,7 @@ export const DefenseTutorialInputPanel: React.FC<DefenseTutorialInputPanelProps>
       )}
       <p className="text-sm text-slate-300">{connectionStatus}</p>
       <VoiceEchoCancellationControl isEnglishCopy={isEnglishCopy} />
-      <VoicePitchEngineControl isEnglishCopy={isEnglishCopy} includePolyphonic />
       <VoiceInputChannelControl isEnglishCopy={isEnglishCopy} />
-      <label className="block">
-        <span className="mb-1 flex justify-between text-sm text-slate-200">
-          <span>{isEnglishCopy ? 'Mic sensitivity' : 'マイク感度'}</span>
-          <span>{voiceSensitivity}</span>
-        </span>
-        <input
-          type="range"
-          min={1}
-          max={10}
-          value={voiceSensitivity}
-          onChange={(event) => onVoiceSensitivityChange(Number(event.target.value))}
-          className="range range-primary range-sm w-full"
-        />
-        <p className="mt-1 text-xs text-slate-400">
-          {isEnglishCopy
-            ? 'Recommended: 5. Higher values detect quieter and less certain pitches more easily. Lower if notes are picked up too often.'
-            : 'おすすめ: 5。高いほど小さな音や不確かなピッチも検出されやすくなります。拾いすぎる場合は下げてください。'}
-        </p>
-      </label>
-      <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-        <span>{isEnglishCopy ? 'Fast response' : '高速反応'}</span>
-        <input
-          type="checkbox"
-          className="toggle toggle-primary"
-          checked={voiceFastResponse}
-          onChange={(event) => onVoiceFastResponseChange(event.target.checked)}
-        />
-      </label>
-      <p className="text-xs text-slate-400">
-        {isEnglishCopy
-          ? 'Turn this ON when pitch is hard to recognize. False detections may increase.'
-          : 'ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。'}
-      </p>
-      <label className="flex items-center justify-between gap-3 text-sm text-slate-200">
-        <span>{isEnglishCopy ? 'Low register' : '低音読み取り'}</span>
-        <input
-          type="checkbox"
-          className="toggle toggle-primary"
-          checked={voiceLowRegister}
-          onChange={(event) => onVoiceLowRegisterChange(event.target.checked)}
-        />
-      </label>
-      <p className="text-xs text-slate-400">
-        {isEnglishCopy
-          ? 'Turn this ON for low notes such as double bass. Response is a little slower.'
-          : 'コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。'}
-      </p>
       <div className="rounded-lg bg-slate-900/60 p-3 text-sm">
         <div className="text-slate-400">{isEnglishCopy ? 'Detected pitch' : '認識中の音'}</div>
         <div className="text-white">{detectedNoteLabel ?? '—'}</div>

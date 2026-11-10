@@ -183,7 +183,7 @@ final class TrainingGameSession: ObservableObject {
             question: current,
             correctIndices: previousCorrectIndices,
             midiNote: midiNote,
-            sequential: NoteInputManager.shared.isVoiceInputActive
+            sequential: false
         )
         guard result.accepted else { return }
 

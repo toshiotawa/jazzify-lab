@@ -358,7 +358,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
         guard state != .disposed else { return }
         if gameLoop.runtime.scenario.blockMidiGameInput { return }
         userInputNotePulse &+= 1
-        input.enqueueNoteOn(note, velocity: velocity, sequential: NoteInputManager.shared.isVoiceInputActive)
+        input.enqueueNoteOn(note, velocity: velocity, sequential: false)
     }
 
     func midiGameNoteOff(_ note: Int) {

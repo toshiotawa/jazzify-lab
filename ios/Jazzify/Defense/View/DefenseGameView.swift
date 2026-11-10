@@ -13,7 +13,6 @@ struct DefenseGameView: View {
     let onApplyPracticeModeAndRestart: (Bool) -> Void
     let playMapNodeId: UUID?
     let tutorialOptions: DefenseTutorialOptions?
-    let tutorialInputMethod: NoteInputMethod?
     let tutorialStaffGroups: [DefenseTutorialStaffGroup]?
     let tutorialClefOverride: NotationInstrumentClef?
     let tutorialConcertPitchClasses: [Int]?
@@ -55,7 +54,6 @@ struct DefenseGameView: View {
         self.locale = locale
         self.playMapNodeId = playMapNodeId
         self.tutorialOptions = tutorialOptions
-        self.tutorialInputMethod = tutorialInputMethod
         self.tutorialStaffGroups = tutorialStaffGroups
         self.tutorialClefOverride = tutorialClefOverride
         self.tutorialConcertPitchClasses = tutorialConcertPitchClasses
@@ -573,10 +571,7 @@ struct DefenseGameView: View {
     }
 
     private var effectiveSequentialInput: Bool {
-        if let tutorialInputMethod {
-            return tutorialInputMethod == .voice
-        }
-        return NoteInputManager.shared.isVoiceInputActive
+        false
     }
 
     private var chordPadSnapshot: SurvivalChordPadSnapshot {

@@ -15,11 +15,6 @@ vi.mock('@/utils/pitchLab/pitchPleaseLab', () => ({
   stopPitchPlease: vi.fn(),
 }));
 
-vi.mock('@/utils/pitchLab/effetuneLab', () => ({
-  connectEffetuneLive: vi.fn(),
-  disconnectEffetuneLive: vi.fn(),
-}));
-
 const pianoStats = (): Stats => ({
   model: 'piano',
   kernel: null,
@@ -81,11 +76,11 @@ describe('PolyPitchVoiceInput', () => {
     const input = new PolyPitchVoiceInput();
     const firstCallbacks = callbacks();
     const secondCallbacks = callbacks();
-    const first = input.connect('pitchplease-piano', firstCallbacks);
+    const first = input.connect( firstCallbacks);
     await vi.waitFor(() => {
       expect(getUserMedia).toHaveBeenCalledTimes(1);
     });
-    const second = input.connect('pitchplease-piano', secondCallbacks);
+    const second = input.connect( secondCallbacks);
     const firstStream = createStream();
     const resolveFirst = pendingMics[0];
     if (!resolveFirst) throw new Error('マイク待ちがありません');
@@ -113,7 +108,7 @@ describe('PolyPitchVoiceInput', () => {
 
   it('接続中の disconnect は開いたマイクを残さない', async () => {
     const input = new PolyPitchVoiceInput();
-    const pending = input.connect('pitchplease-piano', callbacks());
+    const pending = input.connect( callbacks());
     await vi.waitFor(() => {
       expect(getUserMedia).toHaveBeenCalledTimes(1);
     });
@@ -133,7 +128,7 @@ describe('PolyPitchVoiceInput', () => {
     vi.mocked(startPitchPleaseOnStream).mockResolvedValue(false);
     const input = new PolyPitchVoiceInput();
     const hooks = callbacks();
-    const pending = input.connect('pitchplease-piano', hooks);
+    const pending = input.connect( hooks);
     await vi.waitFor(() => {
       expect(pendingMics).toHaveLength(1);
     });
@@ -156,7 +151,7 @@ describe('PolyPitchVoiceInput', () => {
     const input = new PolyPitchVoiceInput();
     const hooks = callbacks();
     pitchDiagnosticRecording.start();
-    const pending = input.connect('pitchplease-piano', hooks);
+    const pending = input.connect( hooks);
     await vi.waitFor(() => {
       expect(pendingMics).toHaveLength(1);
     });

@@ -244,8 +244,8 @@ import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import type { SurvivalMidiBindings } from '@/hooks/useSurvivalMidiSession';
-import { PitchInputController } from '@/utils/PitchInputController';
-import { monoPitchEngineForSession } from '@/utils/pitchInput/voicePitchEngine';
+import type { PolyPitchVoiceInput } from '@/utils/pitchInput/polyPitchVoiceInput';
+import { isVoiceMicrophoneSupported } from '@/utils/pitchInput/voiceMicrophoneSupport';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -1186,7 +1186,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // MIDI/ピアノ関連
   const midiControllerRef = useRef<MIDIController | null>(null);
-  const voiceControllerRef = useRef<PitchInputController | null>(null);
+  const voiceControllerRef = useRef<PolyPitchVoiceInput | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
@@ -1589,7 +1589,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
     return survivalMidi.registerNoteHandler((note) => {
       if (handleNoteInputRef.current) {
-        handleNoteInputRef.current(note, settings.inputMethod === 'voice');
+        handleNoteInputRef.current(note, false);
       }
     });
   }, [survivalMidi, settings.inputMethod]);
@@ -1601,79 +1601,42 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return survivalMidi.registerKeyHighlightTarget(() => pixiRendererRef.current);
   }, [survivalMidi]);
 
-  // 音声入力初期化（レジェンドモードと同様）
-  // survivalMidi があるときは useNoteInputSession 側が PitchInputController を持つ。
-  // ここで二重に作るとマイクストリームと 17MB の ONNX セッションが 2 つ立ち上がる。
   useEffect(() => {
     if (survivalMidi) return;
-    if (settings.inputMethod !== 'voice') {
-      if (voiceControllerRef.current) {
-        void voiceControllerRef.current.disconnect();
-      }
+    if (settings.inputMethod !== 'voice' || !isVoiceMicrophoneSupported()) {
+      void voiceControllerRef.current?.disconnect();
       return;
     }
-    if (!settings.selectedAudioDevice) {
-      if (voiceControllerRef.current) {
-        void voiceControllerRef.current.disconnect();
-      }
-      return;
-    }
-    if (!PitchInputController.isSupported()) return;
-
+    let cancelled = false;
     const initVoiceInput = async () => {
-      try {
-        if (!voiceControllerRef.current) {
-          voiceControllerRef.current = new PitchInputController({
-            onNoteOn: (note: number) => {
-              if (handleNoteInputRef.current) {
-                handleNoteInputRef.current(note, true);
-              }
-              const renderer = pixiRendererRef.current;
-              if (renderer) {
-                renderer.highlightKey(note, true);
-                setTimeout(() => {
-                  pixiRendererRef.current?.highlightKey(note, false);
-                }, 150);
-              }
-            },
-            onNoteOff: (note: number) => {
-              pixiRendererRef.current?.highlightKey(note, false);
-            },
-            onConnectionChange: () => {},
-            onError: () => {}
-          });
-          voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
-          voiceControllerRef.current.setLowRegister(settings.voiceLowRegister ?? false);
-        }
-        if (settings.selectedAudioDevice) {
-          const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
-          await voiceControllerRef.current.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, monoPitchEngineForSession(settings.voicePitchEngine));
-        }
-      } catch {
-        // エラー時はタッチ入力で続行可能
-      }
+      const { PolyPitchVoiceInput } = await import('@/utils/pitchInput/polyPitchVoiceInput');
+      if (cancelled) return;
+      const poly = voiceControllerRef.current ?? new PolyPitchVoiceInput();
+      voiceControllerRef.current = poly;
+      const latest = useGameStore.getState().settings;
+      const deviceId = latest.selectedAudioDevice && latest.selectedAudioDevice !== 'default'
+        ? latest.selectedAudioDevice
+        : undefined;
+      await poly.connect({
+        onNoteOn: (note) => {
+          handleNoteInputRef.current?.(note, false);
+          pixiRendererRef.current?.highlightKey(note, true);
+        },
+        onNoteOff: (note) => {
+          pixiRendererRef.current?.highlightKey(note, false);
+        },
+      }, deviceId, latest.voiceEchoCancellation ?? true, latest.voiceInputChannel ?? 1);
     };
     void initVoiceInput();
-  }, [settings.inputMethod, settings.selectedAudioDevice, settings.voiceEchoCancellation, settings.voiceInputChannel, settings.voicePitchEngine, survivalMidi]);
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.inputMethod, settings.selectedAudioDevice, settings.voiceEchoCancellation, settings.voiceInputChannel, survivalMidi]);
 
-  // 音声認識感度の反映
-  useEffect(() => {
-    if (voiceControllerRef.current) {
-      voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
-    }
-  }, [settings.voiceSensitivity]);
-
-  useEffect(() => {
-    voiceControllerRef.current?.setLowRegister(settings.voiceLowRegister ?? false);
-  }, [settings.voiceLowRegister]);
-
-  // 音声入力コントローラーのクリーンアップ
   useEffect(() => {
     return () => {
-      if (voiceControllerRef.current) {
-        voiceControllerRef.current.destroy();
-        voiceControllerRef.current = null;
-      }
+      void voiceControllerRef.current?.disconnect();
+      voiceControllerRef.current = null;
     };
   }, []);
 

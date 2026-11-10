@@ -72,8 +72,6 @@ import {
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
-  getDefenseExpectedPitchCandidates,
-  isDefenseWaitingForSamePitchRepeat,
   getDefensePhraseKeyboardHints,
   nextPhraseIndex,
   type DefensePhraseJudgeState,
@@ -107,7 +105,6 @@ import { createDefenseRuntime } from '@/game/defense/defenseTypes';
 import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
-import { isPolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -120,13 +117,8 @@ import {
 import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
-import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
-import { EMPTY_EXPECTED_PITCH_CANDIDATES } from '@/utils/pitchInput/expectedPitchCandidates';
-import {
-  isTooSoonForSamePitchRepeat,
-  minIntervalMsForEighthNote,
-} from '@/utils/pitchInput/samePitchRepeatGate';
 import { normalizePitchClass } from '@/utils/phraseStreamMatching';
+import { markAudioUserInteraction, playNote, stopNote } from '@/utils/MidiController';
 import {
   applySequentialSurvivalVoicingHints,
   applySurvivalVoicingHintsWithOpacity,
@@ -272,8 +264,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const updateSettings = useGameStore((state) => state.updateSettings);
   const effectiveInputMethod = tutorialInputMethod ?? settings.inputMethod;
   const voiceInput = effectiveInputMethod === 'voice';
-  const polyphonicVoice = voiceInput && isPolyphonicVoiceEngine(settings.voicePitchEngine);
-  const voiceSequential = voiceInput && !polyphonicVoice;
+  const voiceSequential = false;
   isSettingsOpenRef.current = isSettingsOpen;
 
   useEffect(() => {
@@ -388,13 +379,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     () => getDefensePhraseKeyboardHints(activePhrases, judgeSnapshot, voiceSequential),
     [activePhrases, judgeSnapshot, voiceSequential],
   );
-
-  const expectedPitchCandidates = useMemo(() => {
-    if (effectiveInputMethod !== 'voice') {
-      return EMPTY_EXPECTED_PITCH_CANDIDATES;
-    }
-    return getDefenseExpectedPitchCandidates(activePhrases, judgeSnapshot, voiceSequential);
-  }, [activePhrases, effectiveInputMethod, judgeSnapshot, voiceSequential]);
 
   const tutorialConcertPitchClasses = useMemo(
     () => tutorialConcertMidis.map((midi) => ((midi % 12) + 12) % 12),
@@ -771,11 +755,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     enabled: !isTutorialSession
       || effectiveInputMethod === 'midi'
       || effectiveInputMethod === 'voice',
-    allowPolyphonicVoice: true,
     inputMethod: effectiveInputMethod,
-    voiceFastResponse: settings.voiceFastResponse ?? false,
     masterVolume: isTutorialSession ? 1 : settings.masterVolume,
-    expectedPitchCandidates,
     onNoteOn: (note, domTimeStampMs) => {
       if (pitchDiagnosticRecording.enabled && effectiveInputMethod === 'voice') {
         pitchDiagnosticRecording.record('defenseInput', {
@@ -788,29 +769,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         });
       }
       if (isTutorialSession && effectiveInputMethod === 'touch') return;
-      if (voiceSequential && effectiveInputMethod === 'voice') {
-        const pitchClass = normalizePitchClass(note % 12);
-        if (isDefenseWaitingForSamePitchRepeat(activePhrases, judgeRef.current, true)) {
-          const speedRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
-          const effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60;
-          const minIntervalMs = minIntervalMsForEighthNote(effectiveBpm);
-          const inputTimeMs = domTimeStampMs ?? performance.now();
-          if (isTooSoonForSamePitchRepeat(
-            pitchClass,
-            judgeRef.current.lastAcceptedPitchClass,
-            lastVoiceAcceptedAtMsRef.current,
-            inputTimeMs,
-            minIntervalMs,
-          )) {
-            if (pitchDiagnosticRecording.enabled) {
-              pitchDiagnosticRecording.record('defenseRepeatRejected', {
-                note, inputTimeMs, lastAcceptedAtMs: lastVoiceAcceptedAtMsRef.current, minIntervalMs,
-              });
-            }
-            return;
-          }
-        }
-      }
       handleNoteOn(note, voiceSequential, domTimeStampMs);
     },
     onKeyHighlight: (note, active) => {
@@ -1259,7 +1217,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           midiDeviceId={settings.selectedMidiDevice}
           onMidiDeviceChange={handleMidiDeviceChange}
           isMidiConnected={false}
-          polyphonicVoiceEngines
           practiceRunMode={{
             practiceMode,
             onApplyPracticeModeAndRestart: onApplyPracticeModeAndRestart,

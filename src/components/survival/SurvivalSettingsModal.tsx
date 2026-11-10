@@ -218,7 +218,6 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
             midiDeviceId={midiDeviceId}
             onMidiDeviceChange={handleMidiDeviceChange}
             isMidiConnected={isMidiConnected}
-            showMonophonicWarning
           />
 
           {/* ピアノ音量設定 */}

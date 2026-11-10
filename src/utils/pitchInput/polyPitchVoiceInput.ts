@@ -1,5 +1,4 @@
 import type { PitchPleaseError } from '@markusstrasser/pitchplease';
-import { connectEffetuneLive, disconnectEffetuneLive, type EffetuneLabLiveHandle } from '@/utils/pitchLab/effetuneLab';
 import {
   createPitchPleaseLab,
   startPitchPleaseOnStream,
@@ -8,21 +7,20 @@ import {
 } from '@/utils/pitchLab/pitchPleaseLab';
 import {
   DEFAULT_POLY_ONSET_CONFIG,
-  EFFETUNE_POLY_THRESHOLDS,
-  PITCH_PLEASE_FAST_THRESHOLDS,
   PITCH_PLEASE_PIANO_THRESHOLDS,
   createPolyOnsetTracker,
-  fillLevelsFromEffeTune,
   fillLevelsFromPitchPleaseProbs,
   releasePolyMidiMask,
   resetPolyOnsetTracker,
   snapshotPolyLevelsForDiagnostics,
   stepPolyOnsetTracker,
-  type PolyOnsetThresholds,
 } from '@/utils/pitchInput/polyPitchActiveSet';
 import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
-import { PitchInputController } from '@/utils/PitchInputController';
-import type { PolyphonicVoiceEngine } from '@/utils/pitchInput/voicePitchEngine';
+import {
+  isolateVoiceInputChannel,
+  VOICE_INPUT_CHANNEL_UNAVAILABLE,
+} from '@/utils/pitchInput/polyPitchCaptureStream';
+import { voiceMicrophoneConstraints } from '@/utils/pitchInput/voiceMicrophoneSupport';
 
 export interface PolyPitchVoiceCallbacks {
   onNoteOn: (note: number, domTimeStampMs?: number) => void;
@@ -34,28 +32,20 @@ export interface PolyPitchVoiceCallbacks {
 const DIAG_FRAME_BATCH_SIZE = 16;
 const PITCH_PLEASE_START_ERROR = 'PitchPlease を開始できませんでした';
 const MICROPHONE_ERROR = 'マイクへのアクセスに失敗しました';
+const ENGINE = 'pitchplease-piano';
 
 interface OwnedPitchResources {
   stream: MediaStream | null;
   ownsStream: boolean;
   pitchPlease: PitchPleaseLabHandle | null;
-  effetune: EffetuneLabLiveHandle | null;
-  audioContext: AudioContext | null;
+  isolationContext: AudioContext | null;
 }
 
 const emptyOwnedPitchResources = (): OwnedPitchResources => ({
   stream: null,
   ownsStream: false,
   pitchPlease: null,
-  effetune: null,
-  audioContext: null,
-});
-
-const microphoneConstraints = (deviceId?: string, echoCancellation = true): MediaTrackConstraints => ({
-  deviceId: deviceId ? { exact: deviceId } : undefined,
-  echoCancellation,
-  noiseSuppression: false,
-  autoGainControl: false,
+  isolationContext: null,
 });
 
 export class PolyPitchVoiceInput {
@@ -64,26 +54,30 @@ export class PolyPitchVoiceInput {
   private readonly diagFrameBatch: number[][][] = [];
   private stream: MediaStream | null = null;
   private ownsStream = false;
-  private audioContext: AudioContext | null = null;
+  private isolationContext: AudioContext | null = null;
   private pitchPlease: PitchPleaseLabHandle | null = null;
-  private effetune: EffetuneLabLiveHandle | null = null;
   private callbacks: PolyPitchVoiceCallbacks | null = null;
-  private engine: PolyphonicVoiceEngine | null = null;
-  private thresholds: PolyOnsetThresholds = PITCH_PLEASE_FAST_THRESHOLDS;
+  private inputChannel: 1 | 2 = 1;
   private diagConnectRecorded = false;
   private operation: Promise<void> = Promise.resolve();
   private sessionId = 0;
   private startupError: string | null = null;
 
   async connect(
-    engine: PolyphonicVoiceEngine,
     callbacks: PolyPitchVoiceCallbacks,
     deviceId?: string,
     echoCancellation = true,
+    inputChannel: 1 | 2 = 1,
   ): Promise<boolean> {
     const sessionId = this.sessionId + 1;
     this.sessionId = sessionId;
-    return this.enqueue(() => this.connectSession(sessionId, engine, callbacks, deviceId, echoCancellation));
+    return this.enqueue(() => this.connectSession(
+      sessionId,
+      callbacks,
+      deviceId,
+      echoCancellation,
+      inputChannel,
+    ));
   }
 
   async disconnect(): Promise<void> {
@@ -99,21 +93,16 @@ export class PolyPitchVoiceInput {
 
   private async connectSession(
     sessionId: number,
-    engine: PolyphonicVoiceEngine,
     callbacks: PolyPitchVoiceCallbacks,
     deviceId: string | undefined,
     echoCancellation: boolean,
+    inputChannel: 1 | 2,
   ): Promise<boolean> {
     await this.release();
     if (sessionId !== this.sessionId) return false;
 
     resetPolyOnsetTracker(this.tracker);
-    this.engine = engine;
-    this.thresholds = engine === 'effetune'
-      ? EFFETUNE_POLY_THRESHOLDS
-      : engine === 'pitchplease-piano'
-        ? PITCH_PLEASE_PIANO_THRESHOLDS
-        : PITCH_PLEASE_FAST_THRESHOLDS;
+    this.inputChannel = inputChannel;
     this.diagFrameBatch.length = 0;
     this.diagConnectRecorded = false;
     this.startupError = null;
@@ -123,7 +112,7 @@ export class PolyPitchVoiceInput {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: microphoneConstraints(deviceId, echoCancellation),
+        audio: voiceMicrophoneConstraints(deviceId, echoCancellation, inputChannel),
         video: false,
       });
       owned.stream = stream;
@@ -134,68 +123,54 @@ export class PolyPitchVoiceInput {
         return false;
       }
 
-      if (engine === 'effetune') {
-        const context = new AudioContext({ sampleRate: 48_000, latencyHint: 'interactive' });
-        owned.audioContext = context;
-        if (context.state === 'suspended') await context.resume();
-        if (sessionId !== this.sessionId) {
-          await this.abandonOwned(owned);
-          this.dropCallbacks(callbacks);
-          return false;
-        }
-        owned.effetune = await connectEffetuneLive(
-          context,
-          stream,
-          null,
-          undefined,
-          (frame) => {
-            if (sessionId !== this.sessionId) return;
-            fillLevelsFromEffeTune(
-              this.levels,
-              frame.levels,
-              frame.firstMidi,
-              frame.divisionsPerSemitone,
-            );
-            this.emitEdges();
-          },
-        );
-        if (sessionId !== this.sessionId) {
-          await this.abandonOwned(owned);
-          this.dropCallbacks(callbacks);
-          return false;
-        }
-      } else {
-        const model = engine === 'pitchplease-piano' ? 'piano' : 'fast';
-        owned.pitchPlease = createPitchPleaseLab(
-          model,
-          null,
-          undefined,
-          (frame) => {
-            if (sessionId !== this.sessionId) return;
-            fillLevelsFromPitchPleaseProbs(this.levels, frame.probs);
-            this.emitEdges();
-          },
-          (error) => {
-            this.handlePitchPleaseError(sessionId, error);
-          },
-        );
-        const started = await startPitchPleaseOnStream(owned.pitchPlease, stream);
-        if (sessionId !== this.sessionId) {
-          await this.abandonOwned(owned);
-          this.dropCallbacks(callbacks);
-          return false;
-        }
-        if (!started || this.startupError) {
-          await this.abandonOwned(owned);
-          if (!this.startupError) callbacks.onError?.(PITCH_PLEASE_START_ERROR);
+      let detectorStream = stream;
+      try {
+        const isolated = await isolateVoiceInputChannel(stream, inputChannel);
+        detectorStream = isolated.stream;
+        owned.isolationContext = isolated.context;
+      } catch (error) {
+        await this.abandonOwned(owned);
+        if (sessionId === this.sessionId) {
+          const message = error instanceof Error && error.message === 'voice-input-channel-unavailable'
+            ? VOICE_INPUT_CHANNEL_UNAVAILABLE
+            : MICROPHONE_ERROR;
+          callbacks.onError?.(message);
           callbacks.onConnectionChange?.(false);
           this.dropCallbacks(callbacks);
-          return false;
+        } else {
+          this.dropCallbacks(callbacks);
         }
+        return false;
       }
-
       if (sessionId !== this.sessionId) {
         await this.abandonOwned(owned);
+        this.dropCallbacks(callbacks);
+        return false;
+      }
+
+      owned.pitchPlease = createPitchPleaseLab(
+        'piano',
+        null,
+        undefined,
+        (frame) => {
+          if (sessionId !== this.sessionId) return;
+          fillLevelsFromPitchPleaseProbs(this.levels, frame.probs);
+          this.emitEdges();
+        },
+        (error) => {
+          this.handlePitchPleaseError(sessionId, error);
+        },
+      );
+      const started = await startPitchPleaseOnStream(owned.pitchPlease, detectorStream);
+      if (sessionId !== this.sessionId) {
+        await this.abandonOwned(owned);
+        this.dropCallbacks(callbacks);
+        return false;
+      }
+      if (!started || this.startupError) {
+        await this.abandonOwned(owned);
+        if (!this.startupError) callbacks.onError?.(PITCH_PLEASE_START_ERROR);
+        callbacks.onConnectionChange?.(false);
         this.dropCallbacks(callbacks);
         return false;
       }
@@ -203,10 +178,9 @@ export class PolyPitchVoiceInput {
       this.stream = owned.stream;
       this.ownsStream = owned.ownsStream;
       this.pitchPlease = owned.pitchPlease;
-      this.effetune = owned.effetune;
-      this.audioContext = owned.audioContext;
+      this.isolationContext = owned.isolationContext;
       committed = true;
-      this.recordPolyConnect(engine, echoCancellation);
+      this.recordPolyConnect(echoCancellation);
       callbacks.onConnectionChange?.(true);
       return true;
     } catch {
@@ -229,7 +203,7 @@ export class PolyPitchVoiceInput {
   private handlePitchPleaseError(sessionId: number, error: PitchPleaseError): void {
     if (sessionId !== this.sessionId) return;
     const message = error.message.length > 0 ? error.message : PITCH_PLEASE_START_ERROR;
-    pitchDiagnosticRecording.record('polyError', { engine: this.engine, message });
+    pitchDiagnosticRecording.record('polyError', { engine: ENGINE, message });
     this.callbacks?.onError?.(message);
     if (!this.pitchPlease) {
       this.startupError = message;
@@ -242,11 +216,9 @@ export class PolyPitchVoiceInput {
     this.flushDiagFrameBatch();
     if (owned.pitchPlease) stopPitchPlease(owned.pitchPlease);
     owned.pitchPlease = null;
-    if (owned.effetune) disconnectEffetuneLive(owned.effetune);
-    owned.effetune = null;
-    if (owned.audioContext) {
-      await owned.audioContext.close().catch(() => undefined);
-      owned.audioContext = null;
+    if (owned.isolationContext) {
+      await owned.isolationContext.close().catch(() => undefined);
+      owned.isolationContext = null;
     }
     if (owned.ownsStream) {
       owned.stream?.getTracks().forEach((track) => track.stop());
@@ -260,7 +232,6 @@ export class PolyPitchVoiceInput {
     releasePolyMidiMask(this.tracker.emitted, (midi) => callbacks.onNoteOff(midi));
     resetPolyOnsetTracker(this.tracker);
     this.callbacks = null;
-    this.engine = null;
     this.diagConnectRecorded = false;
   }
 
@@ -268,11 +239,9 @@ export class PolyPitchVoiceInput {
     this.flushDiagFrameBatch();
     if (this.pitchPlease) stopPitchPlease(this.pitchPlease);
     this.pitchPlease = null;
-    if (this.effetune) disconnectEffetuneLive(this.effetune);
-    this.effetune = null;
-    if (this.audioContext) {
-      await this.audioContext.close().catch(() => undefined);
-      this.audioContext = null;
+    if (this.isolationContext) {
+      await this.isolationContext.close().catch(() => undefined);
+      this.isolationContext = null;
     }
     if (this.ownsStream) {
       this.stream?.getTracks().forEach((track) => track.stop());
@@ -284,27 +253,26 @@ export class PolyPitchVoiceInput {
     resetPolyOnsetTracker(this.tracker);
     callbacks?.onConnectionChange?.(false);
     this.callbacks = null;
-    this.engine = null;
     this.diagConnectRecorded = false;
     this.startupError = null;
   }
 
-  private recordPolyConnect(engine: PolyphonicVoiceEngine, echoCancellation: boolean): void {
+  private recordPolyConnect(echoCancellation: boolean): void {
     if (!pitchDiagnosticRecording.enabled || this.diagConnectRecorded) return;
     this.diagConnectRecorded = true;
     pitchDiagnosticRecording.record('polyConnect', {
-      engine,
+      engine: ENGINE,
       echoCancellation,
-      thresholds: this.thresholds,
+      inputChannel: this.inputChannel,
+      thresholds: PITCH_PLEASE_PIANO_THRESHOLDS,
       onsetConfig: DEFAULT_POLY_ONSET_CONFIG,
-      activeMonoPitchControllers: PitchInputController.getActiveControllerCount(),
     });
   }
 
   private flushDiagFrameBatch(): void {
     if (!pitchDiagnosticRecording.enabled || this.diagFrameBatch.length === 0) return;
     pitchDiagnosticRecording.record('polyFrames', {
-      engine: this.engine,
+      engine: ENGINE,
       frames: this.diagFrameBatch.splice(0),
     });
   }
@@ -324,12 +292,12 @@ export class PolyPitchVoiceInput {
     stepPolyOnsetTracker(
       this.tracker,
       this.levels,
-      this.thresholds,
+      PITCH_PLEASE_PIANO_THRESHOLDS,
       DEFAULT_POLY_ONSET_CONFIG,
       (midi) => {
         if (pitchDiagnosticRecording.enabled) {
           pitchDiagnosticRecording.record('polyNote', {
-            engine: this.engine,
+            engine: ENGINE,
             midi,
             kind: 'on',
             level: Math.round(this.levels[midi] * 100),
@@ -340,7 +308,7 @@ export class PolyPitchVoiceInput {
       (midi) => {
         if (pitchDiagnosticRecording.enabled) {
           pitchDiagnosticRecording.record('polyNote', {
-            engine: this.engine,
+            engine: ENGINE,
             midi,
             kind: 'off',
             level: Math.round(this.levels[midi] * 100),

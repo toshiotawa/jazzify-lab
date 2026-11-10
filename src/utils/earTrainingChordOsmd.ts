@@ -1578,6 +1578,14 @@ export const forEachChordOsmdNoteCluster = (
   }
 };
 
+/** `<part>` の数。`<score-part>` は数えない。読めないときは null。 */
+export const countMusicXmlParts = (musicXmlText: string): number | null => {
+  if (typeof DOMParser === 'undefined') return null;
+  const doc = new DOMParser().parseFromString(musicXmlText, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) return null;
+  return doc.getElementsByTagName('part').length;
+};
+
 /** MusicXML から「同時発音のクラスタ」単位で MIDI を収集（`<chord/>`・`<backup>`・タイ続き `tie/tied type="stop"` を考慮）。OSMD 判定の正とする。 */
 export const collectChordOsmdMusicXmlAttacks = (
   musicXmlText: string,

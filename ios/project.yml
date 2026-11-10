@@ -35,6 +35,10 @@ targets:
           - EarTraining/Tutorial/ear-training-developer-full-v1.script.json
           # Build compact-v2 once; original models belong only in the test bundle.
           - Resources/*.onnx
+          - Resources/pitchplease/**
+      - path: Jazzify/Resources/pitchplease
+        type: folder
+        buildPhase: resources
       # QuestStageCards は ~120MB のため Asset Catalog ではなく Web と共有の PNG を folder reference で bundle 直置き
       # (Bundle.main.url(..., subdirectory:) で読むため階層を保持する folder 指定が必須)
       - path: ../public/stage_cards_collection
@@ -72,6 +76,12 @@ targets:
           set -eu
           python3 "${SRCROOT}/../scripts/pesto/materialize-pesto-model.py" --output "${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx"
           cp "${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx" "${SCRIPT_OUTPUT_FILE_0}"
+          PITCH_SRC="${SRCROOT}/../node_modules/@markusstrasser/pitchplease"
+          PITCH_DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/pitchplease"
+          mkdir -p "${PITCH_DEST}/engine" "${PITCH_DEST}/models"
+          cp "${PITCH_SRC}/pitchplease.js" "${PITCH_DEST}/pitchplease.js"
+          cp -R "${PITCH_SRC}/engine/." "${PITCH_DEST}/engine/"
+          cp "${PITCH_SRC}/models/piano.bin" "${PITCH_DEST}/models/piano.bin"
 
   JazzifyTests:
     type: bundle.unit-test

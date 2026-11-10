@@ -521,7 +521,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             activeChord: chord,
             midiNote: midi,
             damage: damageConfig,
-            sequential: NoteInputPreferences.inputMethod == .voice
+            sequential: false
         )
 
         if result.attempt != current {
@@ -1753,7 +1753,7 @@ final class EarTrainingChordVoicingBattleController: ObservableObject {
             next = EarTrainingChordVoicingEngine.voicingKeyboardHints(
                 voicing: chord.voicing,
                 pressedPitchClasses: pressed,
-                sequential: NoteInputPreferences.inputMethod == .voice
+                sequential: false
             )
         } else {
             next = [:]

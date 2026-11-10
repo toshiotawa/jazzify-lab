@@ -63,6 +63,7 @@ import {
 } from '@/utils/earTrainingChordOsmdTimeline';
 import {
   collectChordOsmdScoreLyricEvents,
+  countMusicXmlParts,
   readBetweenStaffDistanceStaffHeightsFromMusicXml,
   joinScoreLyricVerseTexts,
   resolveActiveScoreLyricTextAtTime,
@@ -1055,18 +1056,6 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
     if (newlyMissed > 0) {
       syncRendererStates();
     }
-    if (settings.inputMethod === 'voice') {
-      const nextCandidates = collectPrecisionExpectedPitchCandidates(
-        notesRef.current,
-        runtimeStatesRef.current,
-        phraseTimeSec,
-        windowSec,
-      );
-      if (!expectedPitchCandidatesEqual(voiceExpectedPitchCandidatesRef.current, nextCandidates)) {
-        voiceExpectedPitchCandidatesRef.current = nextCandidates;
-        earMidi.setExpectedPitchCandidates(nextCandidates);
-      }
-    }
     if (precisionAutoPlayEnabledRef.current) {
       const autoPlayChanged = autoPlaySchedulerRef.current.tick(
         phraseTimeSec,
@@ -1432,7 +1421,7 @@ const EarTrainingPrecisionScreen: React.FC<EarTrainingPrecisionScreenProps> = ({
       return;
     }
     const windowSec = resolveEffectiveTimingWindowSec(PRECISION_JUDGMENT_WINDOW_SEC);
-    const ignoreOctave = settings.inputMethod === 'voice';
+    const ignoreOctave = musicXmlText != null && countMusicXmlParts(musicXmlText) === 1;
     const matched = findPrecisionNoteForInput(
       notesRef.current,
       runtimeStatesRef.current,

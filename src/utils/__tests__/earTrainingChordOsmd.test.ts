@@ -18,6 +18,7 @@ import {
   isChordOsmdWaitingForSamePitchRepeat,
   resolveChordOsmdSamePitchRepeatMinIntervalMs,
   collectChordOsmdMusicXmlAttacks,
+  countMusicXmlParts,
   collectChordOsmdMusicXmlLyrics,
   collectChordOsmdScoreLyricEvents,
   consumeChordOsmdMidi,
@@ -1757,6 +1758,19 @@ describe('pickNearestChordOsmdTargetIndex', () => {
       (index) => judgedTimes[index],
       (index) => canMatch[index],
     )).toBe(1);
+  });
+});
+
+describe('countMusicXmlParts', () => {
+  it('counts part elements and ignores score-part', () => {
+    const xml = `<?xml version="1.0"?>
+<score-partwise>
+  <part-list><score-part id="P1"/></part-list>
+  <part id="P1"><measure number="1"/></part>
+</score-partwise>`;
+    expect(countMusicXmlParts(xml)).toBe(1);
+    expect(countMusicXmlParts(xml.replace('</score-partwise>', '<part id="P2"></part></score-partwise>'))).toBe(2);
+    expect(countMusicXmlParts('<score-partwise><parsererror/></score-partwise>')).toBeNull();
   });
 });
 

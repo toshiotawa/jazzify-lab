@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PIXINotesRendererInstance } from '@/components/piano/PIXINotesRenderer';
 import { useGameStore } from '@/stores/gameStore';
 import { MIDIController, updateGlobalVolume } from '@/utils/MidiController';
-import { PitchInputController } from '@/utils/PitchInputController';
-import { monoPitchEngineForSession } from '@/utils/pitchInput/voicePitchEngine';
-import type { ExpectedPitchCandidates } from '@/utils/pitchInput/expectedPitchCandidates';
+import type { PolyPitchVoiceInput } from '@/utils/pitchInput/polyPitchVoiceInput';
+import { isVoiceMicrophoneSupported } from '@/utils/pitchInput/voiceMicrophoneSupport';
 import { ensureBattlePianoAudio } from '@/utils/ensureBattlePianoAudio';
 import { ensureSurvivalBattleAudio } from '@/utils/ensureSurvivalBattleAudio';
 import { isIOSWebView } from '@/utils/iosbridge';
@@ -24,7 +23,6 @@ export type NoteInputBindings = {
   isMidiInitialized: boolean;
   getMidiController: () => MIDIController | null;
   prepareBattleAudio: () => Promise<void>;
-  setExpectedPitchCandidates: (candidates: ExpectedPitchCandidates) => void;
 };
 
 export type GameMidiBindings = NoteInputBindings;
@@ -43,7 +41,7 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
   const [isInputConnected, setIsInputConnected] = useState(false);
   const [isInputInitialized, setIsInputInitialized] = useState(false);
   const midiControllerRef = useRef<MIDIController | null>(null);
-  const pitchControllerRef = useRef<PitchInputController | null>(null);
+  const polyRef = useRef<PolyPitchVoiceInput | null>(null);
   const initPromiseRef = useRef<Promise<void> | null>(null);
   const noteHandlerRef = useRef<(note: number, domTimeStampMs?: number) => void>(() => undefined);
   const noteOffHandlerRef = useRef<(note: number) => void>(() => undefined);
@@ -70,23 +68,6 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
     });
     midiControllerRef.current = midiController;
 
-    const pitchController = new PitchInputController({
-      onNoteOn: (note: number, _velocity?: number, domTimeStampMs?: number) => {
-        noteHandlerRef.current(note, domTimeStampMs);
-        keyHighlightHandlerRef.current(note, true);
-      },
-      onNoteOff: (note: number) => {
-        noteOffHandlerRef.current(note);
-        keyHighlightHandlerRef.current(note, false);
-      },
-      onConnectionChange: (connected) => {
-        if (useGameStore.getState().settings.inputMethod === 'voice') {
-          setIsInputConnected(connected);
-        }
-      },
-    });
-    pitchControllerRef.current = pitchController;
-
     if (audioProfile === 'battle') {
       const initPromise = (async () => {
         try {
@@ -104,9 +85,9 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
 
     return () => {
       void midiController.destroy();
-      pitchController.destroy();
+      void polyRef.current?.disconnect();
       midiControllerRef.current = null;
-      pitchControllerRef.current = null;
+      polyRef.current = null;
       initPromiseRef.current = null;
       setIsInputInitialized(false);
       setIsInputConnected(false);
@@ -150,29 +131,42 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       if (cancelled) return;
 
       const midi = midiControllerRef.current;
-      const pitch = pitchControllerRef.current;
-      if (!midi || !pitch) return;
+      if (!midi) return;
 
       if (settings.inputMethod === 'voice') {
         midi.disconnect();
-        pitch.setSensitivity(useGameStore.getState().settings.voiceSensitivity);
-        pitch.setPitchStableFrames(
-          useGameStore.getState().settings.voiceFastResponse ? 2 : 4,
-        );
-        pitch.setLowRegister(useGameStore.getState().settings.voiceLowRegister ?? false);
-        const deviceId =
-          settings.selectedAudioDevice && settings.selectedAudioDevice !== 'default'
-            ? settings.selectedAudioDevice
-            : undefined;
-        if (PitchInputController.isSupported()) {
-          await pitch.connect(deviceId, settings.voiceEchoCancellation ?? true, settings.voiceInputChannel ?? 1, monoPitchEngineForSession(settings.voicePitchEngine));
-        } else {
-          await pitch.disconnect();
+        if (!isVoiceMicrophoneSupported()) {
+          setIsInputConnected(false);
+          return;
         }
+        const { PolyPitchVoiceInput } = await import('@/utils/pitchInput/polyPitchVoiceInput');
+        if (cancelled) return;
+        const poly = polyRef.current ?? new PolyPitchVoiceInput();
+        polyRef.current = poly;
+        const latest = useGameStore.getState().settings;
+        const deviceId = latest.selectedAudioDevice && latest.selectedAudioDevice !== 'default'
+          ? latest.selectedAudioDevice
+          : undefined;
+        const ok = await poly.connect({
+          onNoteOn: (note, domTimeStampMs) => {
+            noteHandlerRef.current(note, domTimeStampMs);
+            keyHighlightHandlerRef.current(note, true);
+          },
+          onNoteOff: (note) => {
+            noteOffHandlerRef.current(note);
+            keyHighlightHandlerRef.current(note, false);
+          },
+          onConnectionChange: (connected) => {
+            if (useGameStore.getState().settings.inputMethod === 'voice') {
+              setIsInputConnected(connected);
+            }
+          },
+        }, deviceId, latest.voiceEchoCancellation ?? true, latest.voiceInputChannel ?? 1);
+        if (!cancelled) setIsInputConnected(ok);
         return;
       }
 
-      await pitch.disconnect();
+      await polyRef.current?.disconnect();
       const deviceId = settings.selectedMidiDevice;
       if (deviceId) {
         await midi.connectDevice(deviceId);
@@ -189,26 +183,9 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
     settings.selectedAudioDevice,
     settings.voiceEchoCancellation,
     settings.voiceInputChannel,
-    settings.voicePitchEngine,
     settings.inputMethod,
     isInputInitialized,
   ]);
-
-  // 感度は Worker への軽量メッセージだけで済む。connect の依存に入れると
-  // スライダー操作ごとに AudioContext と 17MB の ONNX セッションを作り直してしまう。
-  useEffect(() => {
-    pitchControllerRef.current?.setSensitivity(settings.voiceSensitivity);
-  }, [settings.voiceSensitivity]);
-
-  useEffect(() => {
-    pitchControllerRef.current?.setPitchStableFrames(
-      settings.voiceFastResponse ? 2 : 4,
-    );
-  }, [settings.voiceFastResponse]);
-
-  useEffect(() => {
-    pitchControllerRef.current?.setLowRegister(settings.voiceLowRegister ?? false);
-  }, [settings.voiceLowRegister]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume ?? 0.8);
@@ -262,10 +239,6 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
 
   const getMidiController = useCallback(() => midiControllerRef.current, []);
 
-  const setExpectedPitchCandidates = useCallback((candidates: ExpectedPitchCandidates) => {
-    pitchControllerRef.current?.setExpectedPitchCandidates(candidates);
-  }, []);
-
   return useMemo(
     () => ({
       registerNoteHandler,
@@ -278,7 +251,6 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       isMidiInitialized: isInputInitialized,
       getMidiController,
       prepareBattleAudio,
-      setExpectedPitchCandidates,
     }),
     [
       registerNoteHandler,
@@ -289,7 +261,6 @@ export const useNoteInputSession = (audioProfile: GameMidiAudioProfile): NoteInp
       isInputInitialized,
       getMidiController,
       prepareBattleAudio,
-      setExpectedPitchCandidates,
     ],
   );
 };
