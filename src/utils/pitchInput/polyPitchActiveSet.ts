@@ -31,9 +31,9 @@ export interface PolyOnsetTrackerConfig {
 export const DEFAULT_POLY_ONSET_CONFIG: PolyOnsetTrackerConfig = Object.freeze({
   strongLevel: 0.9,
   fastConfirmFrames: 1,
-  slowConfirmFrames: 4,
-  releaseFrames: 10,
-  neighborYoungFrames: 4,
+  slowConfirmFrames: 2,
+  releaseFrames: 5,
+  neighborYoungFrames: 2,
 });
 
 export const createPolyMidiMask = (): Uint8Array => new Uint8Array(POLY_MIDI_COUNT);

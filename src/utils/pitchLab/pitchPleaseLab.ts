@@ -1,4 +1,10 @@
-import { create, analyze, type Detector, type Frame } from '@markusstrasser/pitchplease';
+import {
+  create,
+  analyze,
+  type Detector,
+  type Frame,
+  type PitchPleaseError,
+} from '@markusstrasser/pitchplease';
 import type { PolyPitchEngineId, PolyPitchFrame } from './polyPitchTypes';
 import type { PolyPitchSessionRecorder } from './polyPitchSession';
 
@@ -24,6 +30,7 @@ export const createPitchPleaseLab = (
   recorder: PolyPitchSessionRecorder | null,
   onFrame?: (frame: PolyPitchFrame) => void,
   onDetectorFrame?: (frame: Frame) => void,
+  onError?: (error: PitchPleaseError) => void,
 ): PitchPleaseLabHandle => {
   const detector = create({
     model,
@@ -35,7 +42,9 @@ export const createPitchPleaseLab = (
       recorder?.append(poly);
       onFrame?.(poly);
     },
-    onError: () => {},
+    onError: (error) => {
+      onError?.(error);
+    },
   });
   return { detector, model };
 };

@@ -1,0 +1,176 @@
+import { PitchPleaseError, type Detector, type Stats } from '@markusstrasser/pitchplease';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createPitchPleaseLab,
+  startPitchPleaseOnStream,
+  stopPitchPlease,
+  type PitchPleaseLabHandle,
+} from '@/utils/pitchLab/pitchPleaseLab';
+import { pitchDiagnosticRecording } from '@/utils/pitchInput/pitchDiagnosticRecording';
+import { PolyPitchVoiceInput } from '@/utils/pitchInput/polyPitchVoiceInput';
+
+vi.mock('@/utils/pitchLab/pitchPleaseLab', () => ({
+  createPitchPleaseLab: vi.fn(),
+  startPitchPleaseOnStream: vi.fn(),
+  stopPitchPlease: vi.fn(),
+}));
+
+vi.mock('@/utils/pitchLab/effetuneLab', () => ({
+  connectEffetuneLive: vi.fn(),
+  disconnectEffetuneLive: vi.fn(),
+}));
+
+const pianoStats = (): Stats => ({
+  model: 'piano',
+  kernel: null,
+  cpuLoad: 0,
+  framesPerSecond: 0,
+  sampleRate: 48_000,
+});
+
+const createHandle = (): PitchPleaseLabHandle => {
+  const detector: Detector = {
+    start: () => Promise.resolve(true),
+    stop: () => undefined,
+    togglePause: () => false,
+    setModel: () => Promise.resolve(null),
+    paused: false,
+    running: true,
+    model: 'piano',
+    stats: pianoStats(),
+  };
+  return { detector, model: 'piano' };
+};
+
+const createStream = () => {
+  const stop = vi.fn();
+  const track = { stop };
+  return {
+    stop,
+    stream: {
+      getTracks: () => [track],
+      getAudioTracks: () => [track],
+    },
+  };
+};
+
+describe('PolyPitchVoiceInput', () => {
+  const getUserMedia = vi.fn();
+  const pendingMics: Array<(stream: ReturnType<typeof createStream>['stream']) => void> = [];
+
+  const callbacks = () => ({
+    onNoteOn: vi.fn(),
+    onNoteOff: vi.fn(),
+    onConnectionChange: vi.fn(),
+    onError: vi.fn(),
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pendingMics.length = 0;
+    pitchDiagnosticRecording.stop();
+    getUserMedia.mockImplementation(() => new Promise((resolve) => {
+      pendingMics.push(resolve);
+    }));
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } });
+    vi.mocked(createPitchPleaseLab).mockImplementation(() => createHandle());
+    vi.mocked(startPitchPleaseOnStream).mockResolvedValue(true);
+  });
+
+  it('重なった connect は最後の 1 台だけ残す', async () => {
+    const input = new PolyPitchVoiceInput();
+    const firstCallbacks = callbacks();
+    const secondCallbacks = callbacks();
+    const first = input.connect('pitchplease-piano', firstCallbacks);
+    await vi.waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+    const second = input.connect('pitchplease-piano', secondCallbacks);
+    const firstStream = createStream();
+    const resolveFirst = pendingMics[0];
+    if (!resolveFirst) throw new Error('マイク待ちがありません');
+    resolveFirst(firstStream.stream);
+
+    await expect(first).resolves.toBe(false);
+    expect(firstStream.stop).toHaveBeenCalledTimes(1);
+    expect(startPitchPleaseOnStream).not.toHaveBeenCalled();
+    expect(firstCallbacks.onConnectionChange).not.toHaveBeenCalledWith(true);
+
+    await vi.waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalledTimes(2);
+    });
+    const secondStream = createStream();
+    const resolveSecond = pendingMics[1];
+    if (!resolveSecond) throw new Error('2 台目のマイク待ちがありません');
+    resolveSecond(secondStream.stream);
+
+    await expect(second).resolves.toBe(true);
+    expect(startPitchPleaseOnStream).toHaveBeenCalledTimes(1);
+    expect(secondStream.stop).not.toHaveBeenCalled();
+    expect(secondCallbacks.onConnectionChange).toHaveBeenCalledWith(true);
+    await input.disconnect();
+  });
+
+  it('接続中の disconnect は開いたマイクを残さない', async () => {
+    const input = new PolyPitchVoiceInput();
+    const pending = input.connect('pitchplease-piano', callbacks());
+    await vi.waitFor(() => {
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+    });
+    const stopping = input.disconnect();
+    const stream = createStream();
+    const resolveMic = pendingMics[0];
+    if (!resolveMic) throw new Error('マイク待ちがありません');
+    resolveMic(stream.stream);
+
+    await expect(pending).resolves.toBe(false);
+    await stopping;
+    expect(stream.stop).toHaveBeenCalledTimes(1);
+    expect(startPitchPleaseOnStream).not.toHaveBeenCalled();
+  });
+
+  it('PitchPlease の開始失敗をエラーとして返す', async () => {
+    vi.mocked(startPitchPleaseOnStream).mockResolvedValue(false);
+    const input = new PolyPitchVoiceInput();
+    const hooks = callbacks();
+    const pending = input.connect('pitchplease-piano', hooks);
+    await vi.waitFor(() => {
+      expect(pendingMics).toHaveLength(1);
+    });
+    const stream = createStream();
+    pendingMics[0]?.(stream.stream);
+
+    await expect(pending).resolves.toBe(false);
+    expect(hooks.onError).toHaveBeenCalledWith('PitchPlease を開始できませんでした');
+    expect(hooks.onConnectionChange).not.toHaveBeenCalledWith(true);
+    expect(stopPitchPlease).toHaveBeenCalledTimes(1);
+    expect(stream.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('実行中の PitchPlease エラーを診断に残して切断する', async () => {
+    let reportError: ((error: PitchPleaseError) => void) | undefined;
+    vi.mocked(createPitchPleaseLab).mockImplementation((_model, _recorder, _onFrame, _onDetectorFrame, onError) => {
+      reportError = onError;
+      return createHandle();
+    });
+    const input = new PolyPitchVoiceInput();
+    const hooks = callbacks();
+    pitchDiagnosticRecording.start();
+    const pending = input.connect('pitchplease-piano', hooks);
+    await vi.waitFor(() => {
+      expect(pendingMics).toHaveLength(1);
+    });
+    pendingMics[0]?.(createStream().stream);
+    await expect(pending).resolves.toBe(true);
+
+    reportError?.(new PitchPleaseError('processor-error', 'detector stopped'));
+    await vi.waitFor(() => {
+      expect(stopPitchPlease).toHaveBeenCalledTimes(1);
+    });
+    expect(hooks.onError).toHaveBeenCalledWith('detector stopped');
+    expect(hooks.onConnectionChange).toHaveBeenCalledWith(false);
+    const errorEntry = pitchDiagnosticRecording.snapshot().entries.find((entry) => entry.event === 'polyError');
+    expect(errorEntry?.details).toMatchObject({ engine: 'pitchplease-piano', message: 'detector stopped' });
+    pitchDiagnosticRecording.stop();
+  });
+});

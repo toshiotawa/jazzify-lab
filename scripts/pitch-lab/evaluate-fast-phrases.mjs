@@ -14,9 +14,9 @@ const ASSET_BASE = `file://${join(root, 'public/vendor/pitchplease/')}`;
 const DEFAULT_ONSET = Object.freeze({
   strongLevel: 0.9,
   fastConfirmFrames: 1,
-  slowConfirmFrames: 4,
-  releaseFrames: 10,
-  neighborYoungFrames: 4,
+  slowConfirmFrames: 2,
+  releaseFrames: 5,
+  neighborYoungFrames: 2,
 });
 
 const THR = {

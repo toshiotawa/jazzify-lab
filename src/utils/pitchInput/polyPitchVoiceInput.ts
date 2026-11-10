@@ -1,3 +1,4 @@
+import type { PitchPleaseError } from '@markusstrasser/pitchplease';
 import { connectEffetuneLive, disconnectEffetuneLive, type EffetuneLabLiveHandle } from '@/utils/pitchLab/effetuneLab';
 import {
   createPitchPleaseLab,
@@ -31,6 +32,24 @@ export interface PolyPitchVoiceCallbacks {
 }
 
 const DIAG_FRAME_BATCH_SIZE = 16;
+const PITCH_PLEASE_START_ERROR = 'PitchPlease を開始できませんでした';
+const MICROPHONE_ERROR = 'マイクへのアクセスに失敗しました';
+
+interface OwnedPitchResources {
+  stream: MediaStream | null;
+  ownsStream: boolean;
+  pitchPlease: PitchPleaseLabHandle | null;
+  effetune: EffetuneLabLiveHandle | null;
+  audioContext: AudioContext | null;
+}
+
+const emptyOwnedPitchResources = (): OwnedPitchResources => ({
+  stream: null,
+  ownsStream: false,
+  pitchPlease: null,
+  effetune: null,
+  audioContext: null,
+});
 
 const microphoneConstraints = (deviceId?: string, echoCancellation = true): MediaTrackConstraints => ({
   deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -52,6 +71,9 @@ export class PolyPitchVoiceInput {
   private engine: PolyphonicVoiceEngine | null = null;
   private thresholds: PolyOnsetThresholds = PITCH_PLEASE_FAST_THRESHOLDS;
   private diagConnectRecorded = false;
+  private operation: Promise<void> = Promise.resolve();
+  private sessionId = 0;
+  private startupError: string | null = null;
 
   async connect(
     engine: PolyphonicVoiceEngine,
@@ -59,7 +81,32 @@ export class PolyPitchVoiceInput {
     deviceId?: string,
     echoCancellation = true,
   ): Promise<boolean> {
-    await this.disconnect();
+    const sessionId = this.sessionId + 1;
+    this.sessionId = sessionId;
+    return this.enqueue(() => this.connectSession(sessionId, engine, callbacks, deviceId, echoCancellation));
+  }
+
+  async disconnect(): Promise<void> {
+    this.sessionId += 1;
+    return this.enqueue(() => this.release());
+  }
+
+  private enqueue<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.operation.then(task, task);
+    this.operation = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  private async connectSession(
+    sessionId: number,
+    engine: PolyphonicVoiceEngine,
+    callbacks: PolyPitchVoiceCallbacks,
+    deviceId: string | undefined,
+    echoCancellation: boolean,
+  ): Promise<boolean> {
+    await this.release();
+    if (sessionId !== this.sessionId) return false;
+
     resetPolyOnsetTracker(this.tracker);
     this.engine = engine;
     this.thresholds = engine === 'effetune'
@@ -69,24 +116,40 @@ export class PolyPitchVoiceInput {
         : PITCH_PLEASE_FAST_THRESHOLDS;
     this.diagFrameBatch.length = 0;
     this.diagConnectRecorded = false;
+    this.startupError = null;
     this.callbacks = callbacks;
+    const owned = emptyOwnedPitchResources();
+    let committed = false;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: microphoneConstraints(deviceId, echoCancellation),
         video: false,
       });
-      this.stream = stream;
-      this.ownsStream = true;
+      owned.stream = stream;
+      owned.ownsStream = true;
+      if (sessionId !== this.sessionId) {
+        await this.abandonOwned(owned);
+        this.dropCallbacks(callbacks);
+        return false;
+      }
+
       if (engine === 'effetune') {
         const context = new AudioContext({ sampleRate: 48_000, latencyHint: 'interactive' });
-        this.audioContext = context;
+        owned.audioContext = context;
         if (context.state === 'suspended') await context.resume();
-        this.effetune = await connectEffetuneLive(
+        if (sessionId !== this.sessionId) {
+          await this.abandonOwned(owned);
+          this.dropCallbacks(callbacks);
+          return false;
+        }
+        owned.effetune = await connectEffetuneLive(
           context,
           stream,
           null,
           undefined,
           (frame) => {
+            if (sessionId !== this.sessionId) return;
             fillLevelsFromEffeTune(
               this.levels,
               frame.levels,
@@ -96,30 +159,112 @@ export class PolyPitchVoiceInput {
             this.emitEdges();
           },
         );
+        if (sessionId !== this.sessionId) {
+          await this.abandonOwned(owned);
+          this.dropCallbacks(callbacks);
+          return false;
+        }
       } else {
         const model = engine === 'pitchplease-piano' ? 'piano' : 'fast';
-        this.pitchPlease = createPitchPleaseLab(model, null, undefined, (frame) => {
-          fillLevelsFromPitchPleaseProbs(this.levels, frame.probs);
-          this.emitEdges();
-        });
-        const started = await startPitchPleaseOnStream(this.pitchPlease, stream);
-        if (!started) {
-          await this.disconnect();
-          callbacks.onError?.('PitchPlease を開始できませんでした');
+        owned.pitchPlease = createPitchPleaseLab(
+          model,
+          null,
+          undefined,
+          (frame) => {
+            if (sessionId !== this.sessionId) return;
+            fillLevelsFromPitchPleaseProbs(this.levels, frame.probs);
+            this.emitEdges();
+          },
+          (error) => {
+            this.handlePitchPleaseError(sessionId, error);
+          },
+        );
+        const started = await startPitchPleaseOnStream(owned.pitchPlease, stream);
+        if (sessionId !== this.sessionId) {
+          await this.abandonOwned(owned);
+          this.dropCallbacks(callbacks);
+          return false;
+        }
+        if (!started || this.startupError) {
+          await this.abandonOwned(owned);
+          if (!this.startupError) callbacks.onError?.(PITCH_PLEASE_START_ERROR);
+          callbacks.onConnectionChange?.(false);
+          this.dropCallbacks(callbacks);
           return false;
         }
       }
+
+      if (sessionId !== this.sessionId) {
+        await this.abandonOwned(owned);
+        this.dropCallbacks(callbacks);
+        return false;
+      }
+
+      this.stream = owned.stream;
+      this.ownsStream = owned.ownsStream;
+      this.pitchPlease = owned.pitchPlease;
+      this.effetune = owned.effetune;
+      this.audioContext = owned.audioContext;
+      committed = true;
       this.recordPolyConnect(engine, echoCancellation);
       callbacks.onConnectionChange?.(true);
       return true;
     } catch {
-      await this.disconnect();
-      callbacks.onError?.('マイクへのアクセスに失敗しました');
+      if (!committed) await this.abandonOwned(owned);
+      if (sessionId !== this.sessionId) {
+        this.dropCallbacks(callbacks);
+        return false;
+      }
+      if (committed) {
+        await this.release();
+      } else {
+        callbacks.onError?.(MICROPHONE_ERROR);
+        callbacks.onConnectionChange?.(false);
+        this.dropCallbacks(callbacks);
+      }
       return false;
     }
   }
 
-  async disconnect(): Promise<void> {
+  private handlePitchPleaseError(sessionId: number, error: PitchPleaseError): void {
+    if (sessionId !== this.sessionId) return;
+    const message = error.message.length > 0 ? error.message : PITCH_PLEASE_START_ERROR;
+    pitchDiagnosticRecording.record('polyError', { engine: this.engine, message });
+    this.callbacks?.onError?.(message);
+    if (!this.pitchPlease) {
+      this.startupError = message;
+      return;
+    }
+    void this.disconnect();
+  }
+
+  private async abandonOwned(owned: OwnedPitchResources): Promise<void> {
+    this.flushDiagFrameBatch();
+    if (owned.pitchPlease) stopPitchPlease(owned.pitchPlease);
+    owned.pitchPlease = null;
+    if (owned.effetune) disconnectEffetuneLive(owned.effetune);
+    owned.effetune = null;
+    if (owned.audioContext) {
+      await owned.audioContext.close().catch(() => undefined);
+      owned.audioContext = null;
+    }
+    if (owned.ownsStream) {
+      owned.stream?.getTracks().forEach((track) => track.stop());
+    }
+    owned.stream = null;
+    owned.ownsStream = false;
+  }
+
+  private dropCallbacks(callbacks: PolyPitchVoiceCallbacks): void {
+    if (this.callbacks !== callbacks) return;
+    releasePolyMidiMask(this.tracker.emitted, (midi) => callbacks.onNoteOff(midi));
+    resetPolyOnsetTracker(this.tracker);
+    this.callbacks = null;
+    this.engine = null;
+    this.diagConnectRecorded = false;
+  }
+
+  private async release(): Promise<void> {
     this.flushDiagFrameBatch();
     if (this.pitchPlease) stopPitchPlease(this.pitchPlease);
     this.pitchPlease = null;
@@ -141,6 +286,7 @@ export class PolyPitchVoiceInput {
     this.callbacks = null;
     this.engine = null;
     this.diagConnectRecorded = false;
+    this.startupError = null;
   }
 
   private recordPolyConnect(engine: PolyphonicVoiceEngine, echoCancellation: boolean): void {

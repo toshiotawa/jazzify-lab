@@ -238,6 +238,7 @@ export const useStandaloneNoteInput = ({
       if (allowPolyphonicVoice && isPolyphonicVoiceEngine(storedEngine)) {
         await pitch.disconnect();
         const { PolyPitchVoiceInput } = await import('@/utils/pitchInput/polyPitchVoiceInput');
+        if (connectGenerationRef.current !== generation) return;
         const poly = polyRef.current ?? new PolyPitchVoiceInput();
         polyRef.current = poly;
         polyActiveCountRef.current = 0;
@@ -260,17 +261,24 @@ export const useStandaloneNoteInput = ({
             if (polyActiveCountRef.current === 0) setDetectedNoteLabel(null);
           },
           onConnectionChange: (connected) => {
+            if (connectGenerationRef.current !== generation) return;
             const method = inputMethodOverride ?? useGameStore.getState().settings.inputMethod;
-            if (method === 'voice') {
-              setIsConnected(connected);
-              setConnectionStatus(connected ? 'ready' : 'disconnected');
-            }
+            if (method !== 'voice') return;
+            setIsConnected(connected);
+            setConnectionStatus((current) => {
+              if (!connected && current === 'error') return current;
+              return connected ? 'ready' : 'disconnected';
+            });
+          },
+          onError: () => {
+            if (connectGenerationRef.current !== generation) return;
+            const method = inputMethodOverride ?? useGameStore.getState().settings.inputMethod;
+            if (method !== 'voice') return;
+            setIsConnected(false);
+            setConnectionStatus('error');
           },
         }, deviceId, settings.voiceEchoCancellation ?? true);
-        if (connectGenerationRef.current !== generation) {
-          await poly.disconnect();
-          return;
-        }
+        if (connectGenerationRef.current !== generation) return;
         setIsConnected(ok);
         setConnectionStatus(ok ? 'ready' : 'error');
         return;
