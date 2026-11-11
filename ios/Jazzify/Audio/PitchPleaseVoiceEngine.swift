@@ -4,7 +4,7 @@ import WebKit
 /// 隠し WKWebView で Web と同じ PitchPlease piano を動かす。
 /// PitchInputEngine（PESTO）は残すが、ライブ入力では起動しない。
 @MainActor
-final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
+final class PitchPleaseVoiceEngine: NSObject {
     static let shared = PitchPleaseVoiceEngine()
 
     private(set) var isActive = false
@@ -16,6 +16,11 @@ final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
     nonisolated(unsafe) private var hostTimeHandlers: [UUID: (UInt8, UInt8, UInt8, UInt64) -> Void] = [:]
     private var webView: WKWebView?
     private var hostView: UIView?
+    private var assetServer = PitchPleaseAssetServer()
+    private var allowedMediaPort: Int?
+    private var sessionGeneration: UInt64 = 0
+
+    private lazy var webDelegate = VoiceWebDelegate(engine: self)
 
     func subscribe(_ handler: @escaping (UInt8, UInt8, UInt8) -> Void) -> MIDISubscription {
         let id = UUID()
@@ -36,41 +41,40 @@ final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
     func start(inputChannel: Int) {
         stop()
         lastError = nil
-        let configuration = WKWebViewConfiguration()
-        configuration.userContentController.add(self, name: "pitch")
-        let webView = WKWebView(frame: .zero, configuration: configuration)
-        webView.isHidden = true
-        let host = UIView(frame: .zero)
-        host.isHidden = true
-        host.addSubview(webView)
-        if let window = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow) {
-            window.addSubview(host)
+        isActive = false
+        detectedNoteName = nil
+
+        if PitchInputEngine.microphonePermission == .denied {
+            lastError = "マイクが許可されていません。設定アプリの Jazzify から許可してください。"
+            return
         }
-        self.webView = webView
-        self.hostView = host
-        let channel = inputChannel == 2 ? 2 : 1
-        guard let page = Bundle.main.url(forResource: "pitchplease-voice", withExtension: "html", subdirectory: "pitchplease") else {
+
+        guard PitchPleaseAssetServer.bundlePitchPleaseDirectory() != nil else {
             lastError = "PitchPlease のページがアプリに含まれていません"
             return
         }
-        var components = URLComponents(url: page, resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "channel", value: String(channel))]
-        guard let url = components?.url else {
-            lastError = "PitchPlease のページを開けません"
-            return
-        }
+
+        sessionGeneration &+= 1
+        let generation = sessionGeneration
+        let channel = inputChannel == 2 ? 2 : 1
+
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth])
         try? session.setActive(true)
-        webView.loadFileURL(url, allowingReadAccessTo: page.deletingLastPathComponent())
+
+        Task {
+            await self.launchSession(channel: channel, generation: generation)
+        }
     }
 
     func stop() {
+        sessionGeneration &+= 1
+        allowedMediaPort = nil
+
         if let webView {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "pitch")
+            webView.navigationDelegate = nil
+            webView.uiDelegate = nil
             webView.stopLoading()
         }
         webView?.removeFromSuperview()
@@ -80,10 +84,72 @@ final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
         isActive = false
         detectedNoteName = nil
         releaseSoundingNotes()
+
+        Task {
+            await assetServer.stop()
+        }
     }
 
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let kind = body["kind"] as? String else { return }
+    private func launchSession(channel: Int, generation: UInt64) async {
+        guard generation == sessionGeneration else { return }
+        await assetServer.stop()
+        guard let documentRoot = PitchPleaseAssetServer.bundlePitchPleaseDirectory() else {
+            lastError = "PitchPlease のページがアプリに含まれていません"
+            return
+        }
+
+        do {
+            let port = try await assetServer.start(documentRoot: documentRoot)
+            guard generation == sessionGeneration else {
+                await assetServer.stop()
+                return
+            }
+            allowedMediaPort = Int(port)
+            mountWebView(channel: channel, port: port, generation: generation)
+        } catch {
+            guard generation == sessionGeneration else { return }
+            lastError = "PitchPlease の配信を開始できません"
+        }
+    }
+
+    private func mountWebView(channel: Int, port: UInt16, generation: UInt64) {
+        guard generation == sessionGeneration else { return }
+
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(webDelegate, name: "pitch")
+
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1, height: 1), configuration: configuration)
+        webView.isUserInteractionEnabled = false
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.navigationDelegate = webDelegate
+        webView.uiDelegate = webDelegate
+
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        host.isUserInteractionEnabled = false
+        host.backgroundColor = .clear
+        host.addSubview(webView)
+
+        if let window = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow) {
+            window.addSubview(host)
+        }
+
+        self.webView = webView
+        self.hostView = host
+
+        guard let url = URL(string: "http://127.0.0.1:\(port)/pitchplease-voice.html?channel=\(channel)") else {
+            lastError = "PitchPlease のページを開けません"
+            return
+        }
+        webView.load(URLRequest(url: url))
+    }
+
+    fileprivate func handleScriptMessage(_ body: [String: Any]) {
+        guard let kind = body["kind"] as? String else { return }
         switch kind {
         case "ready":
             isActive = true
@@ -101,6 +167,15 @@ final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
         default:
             break
         }
+    }
+
+    fileprivate func handleNavigationFailure(_ message: String) {
+        isActive = false
+        lastError = message
+    }
+
+    fileprivate func allowedPortForMediaCapture() -> Int? {
+        allowedMediaPort
     }
 
     private func notify(status: UInt8, note: UInt8, velocity: UInt8) {
@@ -121,7 +196,7 @@ final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
         // WebView 側の離鍵は stop で届かないため、購読側の伸びを残さない。
     }
 
-    fileprivate func removeSubscriber(id: UUID, isHostTime: Bool) {
+    nonisolated fileprivate func removeSubscriber(id: UUID, isHostTime: Bool) {
         subscriberLock.lock()
         if isHostTime {
             hostTimeHandlers.removeValue(forKey: id)
@@ -129,6 +204,56 @@ final class PitchPleaseVoiceEngine: NSObject, WKScriptMessageHandler {
             simpleHandlers.removeValue(forKey: id)
         }
         subscriberLock.unlock()
+    }
+}
+
+@MainActor
+private final class VoiceWebDelegate: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+    private weak var engine: PitchPleaseVoiceEngine?
+
+    init(engine: PitchPleaseVoiceEngine) {
+        self.engine = engine
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "pitch",
+              let body = message.body as? [String: Any] else { return }
+        engine?.handleScriptMessage(body)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        engine?.handleNavigationFailure(error.localizedDescription)
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        engine?.handleNavigationFailure(error.localizedDescription)
+    }
+
+    @available(iOS 15.0, *)
+    func webView(
+        _ webView: WKWebView,
+        requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo,
+        type: WKMediaCaptureType,
+        decisionHandler: @escaping (WKPermissionDecision) -> Void
+    ) {
+        guard let engine else {
+            decisionHandler(.deny)
+            return
+        }
+        guard PitchInputEngine.microphonePermission == .granted else {
+            decisionHandler(.deny)
+            return
+        }
+        guard type == .microphone || type == .cameraAndMicrophone else {
+            decisionHandler(.deny)
+            return
+        }
+        guard origin.host == "127.0.0.1", let allowed = engine.allowedPortForMediaCapture(), origin.port == allowed else {
+            decisionHandler(.deny)
+            return
+        }
+        decisionHandler(.grant)
     }
 }
 

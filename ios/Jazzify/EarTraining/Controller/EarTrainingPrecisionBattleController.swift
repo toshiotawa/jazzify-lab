@@ -604,7 +604,7 @@ final class EarTrainingPrecisionBattleController: ObservableObject, EarTrainingO
     }
 
     private func rebuildPrecisionNotes() {
-        if practiceMode, !notesBySemitone.isEmpty, let base = baseMusicXmlText {
+        if practiceMode, !notesBySemitone.isEmpty, baseMusicXmlText != nil {
             refreshLoopWindow()
             applyLoopCycleTransition(cycleIndex: max(0, loopCycleIndex))
             phraseDurationSec = max(1, loopWindow.durationSec)
