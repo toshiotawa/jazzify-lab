@@ -49,7 +49,6 @@ const defaultSettings: GameSettings = {
   performanceMode: 'standard',
   voiceSensitivity: 5,
   voicePitchEngine: 'pesto',
-  voiceFastResponse: false,
   voiceEchoCancellation: true,
   voiceInputChannel: 1,
   voiceLowRegister: false,

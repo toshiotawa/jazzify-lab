@@ -2,25 +2,12 @@ import XCTest
 @testable import Jazzify
 
 final class DefenseTrainingGuidanceTests: XCTestCase {
-    private let basicBlockId = UUID()
     private let advancedBlockId = UUID()
+    private let floor2BlockId = UUID()
     private let tutorialId = UUID()
     private let stage1Id = UUID()
     private let stage2Id = UUID()
-    private let adv1Id = UUID()
-    private let adv2Id = UUID()
-
-    private var basicBlock: PlayMapBlock {
-        PlayMapBlock(
-            id: basicBlockId,
-            mode: .defense,
-            tier: .basic,
-            blockKey: "intro",
-            label: "はじめに",
-            labelEn: "Introduction",
-            sortOrder: 0
-        )
-    }
+    private let floor2StageId = UUID()
 
     private var advancedBlock: PlayMapBlock {
         PlayMapBlock(
@@ -34,11 +21,23 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         )
     }
 
-    private var basicNodes: [PlayMapNode] {
+    private var floor2Block: PlayMapBlock {
+        PlayMapBlock(
+            id: floor2BlockId,
+            mode: .defense,
+            tier: .advanced,
+            blockKey: "floor-2",
+            label: "第2階層",
+            labelEn: "Floor 2",
+            sortOrder: 1
+        )
+    }
+
+    private var floorNodes: [PlayMapNode] {
         [
             PlayMapNode(
                 id: tutorialId,
-                blockId: basicBlockId,
+                blockId: advancedBlockId,
                 sortOrder: -1,
                 nodeKind: .tutorial,
                 survivalMapCategory: nil,
@@ -51,15 +50,14 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
                 difficultyLevel: nil,
                 tutorialKey: DefenseTutorialConstants.key
             ),
-            makeStage(id: stage1Id, blockId: basicBlockId, sortOrder: 0, title: "フレーズ I"),
-            makeStage(id: stage2Id, blockId: basicBlockId, sortOrder: 1, title: "フレーズ II"),
+            makeStage(id: stage1Id, blockId: advancedBlockId, sortOrder: 0, title: "ステージ 1-1"),
+            makeStage(id: stage2Id, blockId: advancedBlockId, sortOrder: 1, title: "ステージ 1-2"),
         ]
     }
 
-    private var advancedNodes: [PlayMapNode] {
+    private var floor2Nodes: [PlayMapNode] {
         [
-            makeStage(id: adv1Id, blockId: advancedBlockId, sortOrder: 0, title: "Adv I"),
-            makeStage(id: adv2Id, blockId: advancedBlockId, sortOrder: 1, title: "Adv II"),
+            makeStage(id: floor2StageId, blockId: floor2BlockId, sortOrder: 0, title: "ステージ 2-1"),
         ]
     }
 
@@ -84,8 +82,8 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
     func testFreeUserStartsWithTutorial() {
         let guidance = DefenseTrainingGuidanceResolver.resolve(
             isPremium: false,
-            blocks: [basicBlock],
-            nodes: basicNodes,
+            blocks: [advancedBlock],
+            nodes: floorNodes,
             clearedNodeIds: [],
             locale: .ja
         )
@@ -93,7 +91,7 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         guard case .openDefense(let tier, let nodeId, _, let reason) = guidance else {
             return XCTFail("Expected openDefense")
         }
-        XCTAssertEqual(tier, .basic)
+        XCTAssertEqual(tier, .advanced)
         XCTAssertEqual(nodeId, tutorialId)
         XCTAssertEqual(reason, .tutorial)
     }
@@ -101,8 +99,8 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
     func testFreeUserContinuesBasicBlockAfterTutorial() {
         let guidance = DefenseTrainingGuidanceResolver.resolve(
             isPremium: false,
-            blocks: [basicBlock],
-            nodes: basicNodes,
+            blocks: [advancedBlock],
+            nodes: floorNodes,
             clearedNodeIds: [tutorialId],
             locale: .ja
         )
@@ -110,7 +108,7 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         guard case .openDefense(let tier, let nodeId, _, let reason) = guidance else {
             return XCTFail("Expected openDefense")
         }
-        XCTAssertEqual(tier, .basic)
+        XCTAssertEqual(tier, .advanced)
         XCTAssertEqual(nodeId, stage1Id)
         XCTAssertEqual(reason, .nextStage)
     }
@@ -118,8 +116,8 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
     func testFreeUserShowsBlockCompleteAfterBasicBlock() {
         let guidance = DefenseTrainingGuidanceResolver.resolve(
             isPremium: false,
-            blocks: [basicBlock],
-            nodes: basicNodes,
+            blocks: [advancedBlock, floor2Block],
+            nodes: floorNodes + floor2Nodes,
             clearedNodeIds: [tutorialId, stage1Id, stage2Id],
             locale: .ja
         )
@@ -127,12 +125,12 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
         XCTAssertEqual(guidance, .defenseBlockComplete)
     }
 
-    func testPremiumUserPrefersTierWithMoreClears() {
+    func testPremiumUserContinuesOnFloor2() {
         let guidance = DefenseTrainingGuidanceResolver.resolve(
             isPremium: true,
-            blocks: [basicBlock, advancedBlock],
-            nodes: basicNodes + advancedNodes,
-            clearedNodeIds: [tutorialId, adv1Id],
+            blocks: [advancedBlock, floor2Block],
+            nodes: floorNodes + floor2Nodes,
+            clearedNodeIds: [tutorialId, stage1Id, stage2Id],
             locale: .ja
         )
 
@@ -140,7 +138,7 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
             return XCTFail("Expected openDefense")
         }
         XCTAssertEqual(tier, .advanced)
-        XCTAssertEqual(nodeId, adv2Id)
+        XCTAssertEqual(nodeId, floor2StageId)
     }
 
     func testResumeSheetTitleUsesTrainingCopy() {
@@ -177,18 +175,18 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
     func testAfterTutorialPrefersFirstBasicStageWhenAllCleared() {
         let guidance = DefenseTrainingGuidanceResolver.resolveAfterTutorial(
             isPremium: true,
-            blocks: [basicBlock, advancedBlock],
-            nodes: basicNodes + advancedNodes,
-            clearedNodeIds: [tutorialId, stage1Id, stage2Id, adv1Id, adv2Id],
+            blocks: [advancedBlock, floor2Block],
+            nodes: floorNodes + floor2Nodes,
+            clearedNodeIds: [tutorialId, stage1Id, stage2Id, floor2StageId],
             locale: .ja
         )
 
         guard case .openDefense(let tier, let nodeId, let title, let reason) = guidance else {
             return XCTFail("Expected openDefense after tutorial")
         }
-        XCTAssertEqual(tier, .basic)
+        XCTAssertEqual(tier, .advanced)
         XCTAssertEqual(nodeId, stage1Id)
-        XCTAssertEqual(title, "フレーズ I")
+        XCTAssertEqual(title, "ステージ 1-1")
         XCTAssertEqual(reason, .nextStage)
         XCTAssertEqual(
             DefenseTrainingGuidanceResolver.primaryLabel(for: guidance, locale: .ja),
@@ -203,8 +201,8 @@ final class DefenseTrainingGuidanceTests: XCTestCase {
     func testAfterTutorialKeepsNextUnclearedStage() {
         let guidance = DefenseTrainingGuidanceResolver.resolveAfterTutorial(
             isPremium: false,
-            blocks: [basicBlock],
-            nodes: basicNodes,
+            blocks: [advancedBlock],
+            nodes: floorNodes,
             clearedNodeIds: [tutorialId],
             locale: .ja
         )

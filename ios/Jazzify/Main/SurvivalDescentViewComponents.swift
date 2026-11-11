@@ -218,9 +218,6 @@ struct SurvivalDescentBlockLantern: View {
 
     enum Side { case left, right }
 
-    @State private var flicker: Bool = false
-    @State private var glowPulse: Bool = false
-
     var body: some View {
         let bodyWidth = max(10, 14 * scale)
         let bodyHeight = max(18, 22 * scale)
@@ -229,40 +226,38 @@ struct SurvivalDescentBlockLantern: View {
         let delay: Double = side == .left ? 0 : 0.7
 
         ZStack(alignment: .center) {
-            // 灯火グロー
             if animating {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [theme.lanternOuter.opacity(0.55), .clear],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: max(22, 32 * scale)
-                        )
-                    )
-                    .frame(width: max(44, 64 * scale), height: max(44, 64 * scale))
-                    .blendMode(.screen)
-                    .scaleEffect(glowPulse ? 1.12 : 0.88)
-                    .opacity(glowPulse ? 0.95 : 0.55)
+                SurvivalDescentLanternGlow(
+                    diameter: max(44, 64 * scale),
+                    color: theme.lanternOuter,
+                    delay: delay
+                )
             }
 
             VStack(spacing: 0) {
-                // 炎
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [theme.lanternCore, theme.lanternOuter, .clear],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
+                if animating {
+                    SurvivalDescentLanternFlame(
+                        width: bodyWidth * 0.7,
+                        height: flameHeight,
+                        verticalOffset: bodyHeight * 0.1,
+                        colors: [theme.lanternCore, theme.lanternOuter, .clear],
+                        delay: delay
                     )
-                    .frame(width: bodyWidth * 0.7, height: flameHeight)
-                    .opacity(animating ? (flicker ? 0.95 : 0.75) : 0.35)
-                    .scaleEffect(x: flicker ? 1.08 : 0.92, y: flicker ? 1.12 : 0.88, anchor: .bottom)
-                    .blendMode(.screen)
-                    .offset(y: bodyHeight * 0.1)
+                } else {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [theme.lanternCore, theme.lanternOuter, .clear],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                        .frame(width: bodyWidth * 0.7, height: flameHeight)
+                        .opacity(0.35)
+                        .blendMode(.screen)
+                        .offset(y: bodyHeight * 0.1)
+                }
 
-                // ランタン本体
                 RoundedRectangle(cornerRadius: 2)
                     .fill(
                         LinearGradient(
@@ -279,21 +274,72 @@ struct SurvivalDescentBlockLantern: View {
             }
         }
         .opacity(dim ? 0.25 : 1.0)
-        .animation(
-            animating ? .easeInOut(duration: 1.3).delay(delay).repeatForever(autoreverses: true) : nil,
-            value: flicker
-        )
-        .animation(
-            animating ? .easeInOut(duration: 2.4).delay(delay).repeatForever(autoreverses: true) : nil,
-            value: glowPulse
-        )
         .position(x: xPx, y: yPx)
+        .animation(nil, value: xPx)
+        .animation(nil, value: yPx)
         .allowsHitTesting(false)
-        .onAppear {
-            guard animating else { return }
-            flicker = true
-            glowPulse = true
-        }
+    }
+}
+
+/// ランタンのグロー。`repeatForever` をこのビューの拡大率と不透明度だけに閉じ込める。
+private struct SurvivalDescentLanternGlow: View {
+    let diameter: CGFloat
+    let color: Color
+    let delay: Double
+
+    @State private var glowPulse = false
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [color.opacity(0.55), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: diameter / 2
+                )
+            )
+            .frame(width: diameter, height: diameter)
+            .blendMode(.screen)
+            .scaleEffect(glowPulse ? 1.12 : 0.88)
+            .opacity(glowPulse ? 0.95 : 0.55)
+            .animation(
+                .easeInOut(duration: 2.4).delay(delay).repeatForever(autoreverses: true),
+                value: glowPulse
+            )
+            .onAppear { glowPulse = true }
+    }
+}
+
+/// ランタンの炎。揺らぎは炎自身の拡大率と不透明度だけに適用する。
+private struct SurvivalDescentLanternFlame: View {
+    let width: CGFloat
+    let height: CGFloat
+    let verticalOffset: CGFloat
+    let colors: [Color]
+    let delay: Double
+
+    @State private var flicker = false
+
+    var body: some View {
+        Capsule()
+            .fill(
+                LinearGradient(
+                    colors: colors,
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+            )
+            .frame(width: width, height: height)
+            .opacity(flicker ? 0.95 : 0.75)
+            .scaleEffect(x: flicker ? 1.08 : 0.92, y: flicker ? 1.12 : 0.88, anchor: .bottom)
+            .blendMode(.screen)
+            .offset(y: verticalOffset)
+            .animation(
+                .easeInOut(duration: 1.3).delay(delay).repeatForever(autoreverses: true),
+                value: flicker
+            )
+            .onAppear { flicker = true }
     }
 }
 
@@ -427,9 +473,6 @@ struct SurvivalDescentBlockSeal: View {
     /// フロンティアブロックのみ true。回転/グローの連続アニメを間引く。
     var animated: Bool = true
 
-    @State private var rotation: Double = 0
-    @State private var glowPulse: Bool = false
-
     var body: some View {
         let size = max(50, 80 * scale)
         ZStack {
@@ -441,19 +484,15 @@ struct SurvivalDescentBlockSeal: View {
                 .stroke(theme.sealStroke.opacity(0.55), lineWidth: 0.8)
                 .frame(width: size * 0.72, height: size * 0.72)
 
-            // 六芒星を回転させて表現 (開封時にゆっくり回る)
-            ZStack {
-                Triangle()
-                    .stroke(theme.sealStroke.opacity(0.85), lineWidth: 1.2)
-                    .frame(width: size * 0.85, height: size * 0.85)
-                Triangle()
-                    .stroke(theme.sealStroke.opacity(0.85), lineWidth: 1.2)
-                    .frame(width: size * 0.85, height: size * 0.85)
-                    .rotationEffect(.degrees(180))
-            }
-            .rotationEffect(.degrees(rotation))
+            SurvivalDescentSealStar(
+                size: size * 0.85,
+                stroke: theme.sealStroke,
+                spins: opened && !dim && animated
+            )
 
-            if opened {
+            if opened && !dim && animated {
+                SurvivalDescentSealGlow(diameter: size * 1.3, color: theme.sealGlow)
+            } else if opened {
                 Circle()
                     .fill(
                         RadialGradient(
@@ -465,27 +504,73 @@ struct SurvivalDescentBlockSeal: View {
                     )
                     .frame(width: size * 1.3, height: size * 1.3)
                     .blendMode(.screen)
-                    .scaleEffect(glowPulse ? 1.15 : 0.9)
-                    .opacity(glowPulse ? 1.0 : 0.6)
             }
         }
         .frame(width: size, height: size)
         .opacity(dim ? 0.3 : (opened ? 1.0 : 0.75))
+        .position(x: xPx, y: yPx)
+        .animation(nil, value: xPx)
+        .animation(nil, value: yPx)
+        .allowsHitTesting(false)
+    }
+}
+
+/// 封印の六芒星。回転は星自身だけに適用し、親の位置へ伝えない。
+private struct SurvivalDescentSealStar: View {
+    let size: CGFloat
+    let stroke: Color
+    let spins: Bool
+
+    @State private var rotation: Double = 0
+
+    var body: some View {
+        ZStack {
+            Triangle()
+                .stroke(stroke.opacity(0.85), lineWidth: 1.2)
+                .frame(width: size, height: size)
+            Triangle()
+                .stroke(stroke.opacity(0.85), lineWidth: 1.2)
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(180))
+        }
+        .rotationEffect(.degrees(rotation))
         .animation(
-            (opened && !dim && animated) ? .linear(duration: 12).repeatForever(autoreverses: false) : nil,
+            spins ? .linear(duration: 12).repeatForever(autoreverses: false) : nil,
             value: rotation
         )
-        .animation(
-            (opened && !dim && animated) ? .easeInOut(duration: 2.0).repeatForever(autoreverses: true) : nil,
-            value: glowPulse
-        )
-        .position(x: xPx, y: yPx)
-        .allowsHitTesting(false)
         .onAppear {
-            guard opened, !dim, animated else { return }
+            guard spins else { return }
             rotation = 360
-            glowPulse = true
         }
+    }
+}
+
+/// 開封済み封印のグロー。拡大と不透明度だけを繰り返す。
+private struct SurvivalDescentSealGlow: View {
+    let diameter: CGFloat
+    let color: Color
+
+    @State private var glowPulse = false
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [color.opacity(0.9), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: diameter * 0.46
+                )
+            )
+            .frame(width: diameter, height: diameter)
+            .blendMode(.screen)
+            .scaleEffect(glowPulse ? 1.15 : 0.9)
+            .opacity(glowPulse ? 1.0 : 0.6)
+            .animation(
+                .easeInOut(duration: 2.0).repeatForever(autoreverses: true),
+                value: glowPulse
+            )
+            .onAppear { glowPulse = true }
     }
 }
 
@@ -546,6 +631,27 @@ struct SurvivalDescentDoorView: View {
 
 // MARK: - Stage node
 
+/// 現在地ノードの点滅リング。拡大率と不透明度だけを繰り返し、ノードの位置には適用しない。
+private struct SurvivalDescentFrontierPulseRing: View {
+    let diameter: CGFloat
+
+    @State private var pulse = false
+
+    var body: some View {
+        Circle()
+            .stroke(Color(red: 1, green: 214 / 255, blue: 96 / 255).opacity(0.55), lineWidth: 2)
+            .frame(width: diameter * 1.55, height: diameter * 1.55)
+            .scaleEffect(pulse ? 1.08 : 0.96)
+            .opacity(pulse ? 0.55 : 0.95)
+            .shadow(color: Color(red: 1, green: 196 / 255, blue: 80 / 255).opacity(0.5), radius: 8)
+            .animation(
+                .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
+                value: pulse
+            )
+            .onAppear { pulse = true }
+    }
+}
+
 /// ステージ番号ノード (踊り場の上に乗せる丸バッジ)
 struct SurvivalDescentStageNode: View {
     let stageNumber: Int
@@ -566,19 +672,12 @@ struct SurvivalDescentStageNode: View {
     /// 指定時は displayLabel の代わりにアイコンを表示
     var displayIcon: PlayMapProgression.DisplayIcon? = nil
 
-    @State private var pulse: Bool = false
-
     var body: some View {
         let diameter = max(40, 52 * scale)
 
         ZStack {
             if isCurrent && !dim {
-                Circle()
-                    .stroke(Color(red: 1, green: 214 / 255, blue: 96 / 255).opacity(0.55), lineWidth: 2)
-                    .frame(width: diameter * 1.55, height: diameter * 1.55)
-                    .scaleEffect(pulse ? 1.08 : 0.96)
-                    .opacity(pulse ? 0.55 : 0.95)
-                    .shadow(color: Color(red: 1, green: 196 / 255, blue: 80 / 255).opacity(0.5), radius: 8)
+                SurvivalDescentFrontierPulseRing(diameter: diameter)
             }
 
             Button(action: onTap) {
@@ -624,15 +723,9 @@ struct SurvivalDescentStageNode: View {
         }
         .opacity(dim ? 0.45 : 1.0)
         .saturation(dim ? 0.4 : 1.0)
-        .animation(
-            (isCurrent && !dim) ? .easeInOut(duration: 1.4).repeatForever(autoreverses: true) : nil,
-            value: pulse
-        )
         .position(x: xPx, y: yPx)
-        .onAppear {
-            guard isCurrent, !dim else { return }
-            pulse = true
-        }
+        .animation(nil, value: xPx)
+        .animation(nil, value: yPx)
     }
 
     private var fillGradient: LinearGradient {
@@ -725,8 +818,6 @@ struct SurvivalDescentCharacterView: View {
 
     enum Facing { case left, right, center }
 
-    @State private var breathe: Bool = false
-
     var body: some View {
         let size = max(56, 88 * scale)
         let offsetX: CGFloat = {
@@ -744,8 +835,35 @@ struct SurvivalDescentCharacterView: View {
             }
         }()
 
+        SurvivalDescentCharacterBody(
+            size: size,
+            scale: scale,
+            imageBaseName: imageBaseName,
+            flip: flip,
+            animateBreathe: animateBreathe
+        )
+        .position(
+            x: xPx + offsetX,
+            y: yPx - size * 0.5 - 10 * scale
+        )
+        .animation(nil, value: xPx)
+        .animation(nil, value: yPx)
+        .allowsHitTesting(false)
+    }
+}
+
+/// 立ち絵の呼吸。上下のずれだけを繰り返し、マップ上の位置には適用しない。
+private struct SurvivalDescentCharacterBody: View {
+    let size: CGFloat
+    let scale: CGFloat
+    let imageBaseName: String
+    let flip: CGFloat
+    let animateBreathe: Bool
+
+    @State private var breathe = false
+
+    var body: some View {
         ZStack(alignment: .bottom) {
-            // 足元の柔らかい光
             Ellipse()
                 .fill(
                     RadialGradient(
@@ -773,11 +891,6 @@ struct SurvivalDescentCharacterView: View {
             animateBreathe ? .easeInOut(duration: 2.2).repeatForever(autoreverses: true) : nil,
             value: breathe
         )
-        .position(
-            x: xPx + offsetX,
-            y: yPx - size * 0.5 - 10 * scale
-        )
-        .allowsHitTesting(false)
         .onAppear {
             guard animateBreathe else { return }
             breathe = true
@@ -801,9 +914,6 @@ struct SurvivalDescentBossFigure: View {
     /// フロンティアブロックのみ true。bob / pulse の連続アニメを起動する。
     var animated: Bool = true
 
-    @State private var bob: Bool = false
-    @State private var pulse: Bool = false
-
     private var assetName: String {
         switch ((bossIndex % 3) + 3) % 3 {
         case 0: return "SurvivalMap/boss_a"
@@ -818,8 +928,43 @@ struct SurvivalDescentBossFigure: View {
         let saturation: Double = dim ? 0.3 : (opened ? 0.5 : 0.9)
         let brightnessAdj: Double = dim ? -0.4 : (opened ? -0.3 : -0.05)
 
+        SurvivalDescentBossBody(
+            size: size,
+            scale: scale,
+            assetName: assetName,
+            opacity: opacity,
+            saturation: saturation,
+            brightnessAdj: brightnessAdj,
+            opened: opened,
+            dim: dim,
+            animated: animated
+        )
+        .position(x: xPx, y: yPx - size * 0.5)
+        .animation(nil, value: xPx)
+        .animation(nil, value: yPx)
+        .allowsHitTesting(false)
+    }
+}
+
+/// ボスの上下動と赤グロー。どちらもこのビュー内に閉じ込め、配置座標は動かさない。
+private struct SurvivalDescentBossBody: View {
+    let size: CGFloat
+    let scale: CGFloat
+    let assetName: String
+    let opacity: Double
+    let saturation: Double
+    let brightnessAdj: Double
+    let opened: Bool
+    let dim: Bool
+    let animated: Bool
+
+    @State private var bob = false
+
+    var body: some View {
         ZStack {
-            if !dim && !opened {
+            if !dim && !opened && animated {
+                SurvivalDescentBossPulse(diameter: size * 1.2)
+            } else if !dim && !opened {
                 Circle()
                     .fill(
                         RadialGradient(
@@ -830,8 +975,7 @@ struct SurvivalDescentBossFigure: View {
                         )
                     )
                     .frame(width: size * 1.2, height: size * 1.2)
-                    .scaleEffect(pulse ? 1.08 : 0.9)
-                    .opacity(pulse ? 0.75 : 0.35)
+                    .opacity(0.35)
                     .blendMode(.screen)
             }
 
@@ -850,19 +994,38 @@ struct SurvivalDescentBossFigure: View {
             (!dim && animated) ? .easeInOut(duration: 2.6).repeatForever(autoreverses: true) : nil,
             value: bob
         )
-        .animation(
-            (!dim && animated && !opened) ? .easeInOut(duration: 1.8).repeatForever(autoreverses: true) : nil,
-            value: pulse
-        )
-        .position(x: xPx, y: yPx - size * 0.5)
-        .allowsHitTesting(false)
         .onAppear {
             guard !dim, animated else { return }
             bob = true
-            if !opened {
-                pulse = true
-            }
         }
+    }
+}
+
+/// ボス足元の赤グロー。拡大率と不透明度だけを繰り返す。
+private struct SurvivalDescentBossPulse: View {
+    let diameter: CGFloat
+
+    @State private var pulse = false
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [Color.red.opacity(0.35), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: diameter * 0.46
+                )
+            )
+            .frame(width: diameter, height: diameter)
+            .scaleEffect(pulse ? 1.08 : 0.9)
+            .opacity(pulse ? 0.75 : 0.35)
+            .blendMode(.screen)
+            .animation(
+                .easeInOut(duration: 1.8).repeatForever(autoreverses: true),
+                value: pulse
+            )
+            .onAppear { pulse = true }
     }
 }
 

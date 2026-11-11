@@ -141,6 +141,8 @@ struct SurvivalView: View {
             Task { await loadProgress(showBlockingLoader: true, forceCatalogFetch: false) }
         }
         .onAppear {
+            SupabaseService.shared.invalidateSurvivalLaunchCache()
+            SurvivalAssetPreloader.preloadIfNeeded()
             if !SurvivalMapAudio.shared.isMuted {
                 SurvivalMapAudio.shared.play()
             }
@@ -149,8 +151,24 @@ struct SurvivalView: View {
         .onDisappear {
             SurvivalMapAudio.shared.stop()
         }
-        .onChange(of: selectedStageNumber) { _ in
+        .onChange(of: selectedStageNumber) { stageNumber in
             phrasePreviewModel.stopPlayback()
+            guard let stageNumber,
+                  let stage = SurvivalStageCatalog.stage(byNumber: stageNumber, in: mapCategory)
+            else { return }
+            let category = mapCategory
+            let difficulty = stage.difficulty.rawValue
+            let stageType = stage.survivalBgmConfigStageType
+            Task {
+                _ = try? await SupabaseService.shared.fetchSurvivalPhrase(
+                    mapCategory: category,
+                    stageNumber: stageNumber
+                )
+                _ = try? await SupabaseService.shared.fetchSurvivalStageConfig(
+                    difficulty: difficulty,
+                    stageType: stageType
+                )
+            }
         }
         .onChange(of: mobileDetailStage) { newStage in
             if newStage == nil {
@@ -378,6 +396,7 @@ struct SurvivalView: View {
         }
         guard isStageUnlocked(stage.stageNumber) else { return }
         mobileDetailStage = nil
+        PlayLaunchTiming.begin("SurvivalPlay")
         SurvivalMapAudio.shared.stopImmediately()
         phrasePreviewModel.stopPlayback(restoreMapBgm: false)
         stageLaunchSession = StageLaunchSession(

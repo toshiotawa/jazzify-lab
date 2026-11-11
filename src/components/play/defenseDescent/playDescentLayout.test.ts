@@ -73,8 +73,8 @@ describe('buildPlayDescentLayout', () => {
       makeNode('s1', blockA.id, 0, 'stage'),
       makeNode('s2', blockA.id, 1, 'stage'),
     ];
-    const layout = buildPlayDescentLayout([blockA], nodes, 'basic');
-    expect(layout.blocks[0].nodes.map((n) => n.displayLabel)).toEqual(['?', '1', '2']);
+    const layout = buildPlayDescentLayout([blockA], nodes, 'basic', true);
+    expect(layout.blocks[0].nodes.map((n) => n.displayLabel)).toEqual(['?', '1-1', '1-2']);
   });
 
   it('labels tutorial nodes as intro and does not block stage unlock', () => {
@@ -82,7 +82,7 @@ describe('buildPlayDescentLayout', () => {
       makeNode('t1', blockA.id, -1, 'tutorial'),
       makeNode('s1', blockA.id, 0, 'stage'),
     ];
-    const layout = buildPlayDescentLayout([blockA], nodes, 'basic', false);
+    const layout = buildPlayDescentLayout([blockA], nodes, 'basic');
     expect(layout.blocks[0].nodes[0].displayIcon).toBe('info');
     expect(layout.blocks[0].nodes[0].displayLabel).toBe('');
     const cleared = new Set<string>();

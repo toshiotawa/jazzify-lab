@@ -73,6 +73,8 @@ final class DefenseGameSession: ObservableObject {
     private var startGeneration: UInt64 = 0
     private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private var countdownTask: Task<Void, Never>?
+    private var startAudioResult: Bool?
+    private var startAudioWaiters: [CheckedContinuation<Bool, Never>] = []
     private var lastVoiceAcceptedAtMs: Double?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
     init(
@@ -130,6 +132,8 @@ final class DefenseGameSession: ObservableObject {
         let generation = startGeneration
         countdownTask?.cancel()
         countdownTask = nil
+        finishStartAudioWaiters(false)
+        startAudioResult = nil
         phase = .loading
         countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
         subscribeMidi()
@@ -138,6 +142,41 @@ final class DefenseGameSession: ObservableObject {
 
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
+        async let audioReady: Bool = prepareStartAudio(speedRatio: speedRatio)
+        startCountdown(generation: generation)
+        let prepared = await audioReady
+        guard generation == startGeneration, !Task.isCancelled else { return }
+        finishStartAudioWaiters(prepared)
+        if !prepared {
+            countdownTask?.cancel()
+            countdownTask = nil
+            phase = .loadError
+            PlayLaunchTiming.end("DefensePlay")
+        }
+        return
+    }
+
+    private func finishStartAudioWaiters(_ ready: Bool) {
+        startAudioResult = ready
+        let waiters = startAudioWaiters
+        startAudioWaiters.removeAll(keepingCapacity: false)
+        waiters.forEach { $0.resume(returning: ready) }
+    }
+
+    private func waitForStartAudio() async -> Bool {
+        if let startAudioResult {
+            return startAudioResult
+        }
+        return await withCheckedContinuation { continuation in
+            if let startAudioResult {
+                continuation.resume(returning: startAudioResult)
+                return
+            }
+            startAudioWaiters.append(continuation)
+        }
+    }
+
+    private func prepareStartAudio(speedRatio: Double) async -> Bool {
         if isSeparateTracksStage {
             if tutorialOptions == nil {
                 let stageSnapshot = stage
@@ -150,8 +189,7 @@ final class DefenseGameSession: ObservableObject {
                         )
                     }.value
                 } catch {
-                    phase = .loadError
-                    return
+                    return false
                 }
             }
         } else if isSharedProgressionStage {
@@ -167,8 +205,7 @@ final class DefenseGameSession: ObservableObject {
                         )
                     }.value
                 } catch {
-                    phase = .loadError
-                    return
+                    return false
                 }
             }
         } else {
@@ -195,8 +232,7 @@ final class DefenseGameSession: ObservableObject {
                 }.value
             }
         }
-        guard generation == startGeneration, !Task.isCancelled else { return }
-        startCountdown(generation: generation)
+        return true
     }
 
     private func startCountdown(generation: UInt64) {
@@ -216,7 +252,20 @@ final class DefenseGameSession: ObservableObject {
                 await self.waitIfPaused()
                 if Task.isCancelled || generation != self.startGeneration { return }
                 remaining -= stepSec
+                if remaining <= 0 {
+                    break
+                }
                 self.countdownSec = DefenseStartCountdown.displaySec(remaining: remaining)
+            }
+            if self.startAudioResult == nil {
+                self.phase = .loading
+            }
+            let audioReady = await self.waitForStartAudio()
+            guard generation == self.startGeneration, !Task.isCancelled else { return }
+            guard audioReady else {
+                self.phase = .loadError
+                PlayLaunchTiming.end("DefensePlay")
+                return
             }
             await self.beginPlay(generation: generation)
         }
@@ -263,6 +312,7 @@ final class DefenseGameSession: ObservableObject {
             DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: difficulty)
         }
         phase = .playing
+        PlayLaunchTiming.end("DefensePlay")
     }
 
     func stepPhrase(_ delta: Int) {
@@ -352,6 +402,7 @@ final class DefenseGameSession: ObservableObject {
         startGeneration += 1
         countdownTask?.cancel()
         countdownTask = nil
+        finishStartAudioWaiters(false)
         resumePauseWaiters()
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()

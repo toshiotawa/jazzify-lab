@@ -14,6 +14,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private let playerB = AVAudioPlayerNode()
     private let cache = RemoteAudioFileCache(subdirectory: "defense-backing")
     private var pcmCache: [URL: AVAudioPCMBuffer] = [:]
+    private var pcmDecodeTasks: [URL: Task<AVAudioPCMBuffer, Error>] = [:]
+    private var pcmDecodeGeneration: UInt64 = 0
     private var phraseBuffersByIndex: [Int: AVAudioPCMBuffer] = [:]
     private var preparedStage: DefenseStageDefinition?
 
@@ -272,6 +274,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.bufferA = nil
             self.bufferB = nil
             os_unfair_lock_lock(&self.lock)
+            self.pcmDecodeGeneration &+= 1
+            self.pcmDecodeTasks.removeAll()
             self.pcmCache.removeAll(keepingCapacity: false)
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
@@ -349,26 +353,36 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private func decodePCM(url: URL) async throws -> AVAudioPCMBuffer {
         os_unfair_lock_lock(&lock)
-        let cached = pcmCache[url]
-        os_unfair_lock_unlock(&lock)
-        if let cached {
+        if let cached = pcmCache[url] {
+            os_unfair_lock_unlock(&lock)
             return cached
         }
-
-        let local = try await cache.localFileURL(for: url)
-        let outputFormat = deckFormat ?? EarTrainingAudio.preferredOutputFormat()
-        let resolved = try await Task.detached(priority: .userInitiated) {
-            try Self.readPCM(localURL: local, outputFormat: outputFormat)
-        }.value
-
-        os_unfair_lock_lock(&lock)
-        if let existing = pcmCache[url] {
+        if let inFlight = pcmDecodeTasks[url] {
             os_unfair_lock_unlock(&lock)
-            return existing
+            return try await inFlight.value
         }
-        pcmCache[url] = resolved
+        let generation = pcmDecodeGeneration
+        let task = Task<AVAudioPCMBuffer, Error> { [weak self] in
+            guard let self else { throw CancellationError() }
+            let local = try await self.cache.localFileURL(for: url)
+            let outputFormat = self.deckFormat ?? EarTrainingAudio.preferredOutputFormat()
+            let resolved = try await Task.detached(priority: .userInitiated) {
+                try Self.readPCM(localURL: local, outputFormat: outputFormat)
+            }.value
+            os_unfair_lock_lock(&self.lock)
+            if self.pcmDecodeGeneration == generation {
+                if self.pcmCache[url] == nil {
+                    self.pcmCache[url] = resolved
+                }
+                self.pcmDecodeTasks[url] = nil
+            }
+            let stored = self.pcmCache[url]
+            os_unfair_lock_unlock(&self.lock)
+            return stored ?? resolved
+        }
+        pcmDecodeTasks[url] = task
         os_unfair_lock_unlock(&lock)
-        return resolved
+        return try await task.value
     }
 
     private static func readPCM(localURL: URL, outputFormat: AVAudioFormat) throws -> AVAudioPCMBuffer {

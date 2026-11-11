@@ -32,11 +32,13 @@ enum DefenseTrainingGuidanceResolver {
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 
-    private static func findBasicTutorialNode(
+    private static let playTier: PlayMapTier = .advanced
+
+    private static func findDefenseTutorialNode(
         blocks: [PlayMapBlock],
         nodes: [PlayMapNode]
     ) -> PlayMapNode? {
-        guard let block0 = sortedTierBlocks(blocks, tier: .basic).first else {
+        guard let block0 = sortedTierBlocks(blocks, tier: playTier).first else {
             return nil
         }
         return nodes.first { $0.blockId == block0.id && $0.nodeKind == .tutorial }
@@ -65,20 +67,6 @@ enum DefenseTrainingGuidanceResolver {
             .filter { $0.blockId == block.id && $0.nodeKind == .stage }
             .sorted { $0.sortOrder < $1.sortOrder }
         return stages.first { !clearedNodeIds.contains($0.id) }
-    }
-
-    private static func countTierClearedStages(
-        blocks: [PlayMapBlock],
-        nodes: [PlayMapNode],
-        tier: PlayMapTier,
-        clearedNodeIds: Set<UUID>
-    ) -> Int {
-        let layout = DefenseDescentLayoutBuilder.build(
-            blocks: blocks,
-            nodes: nodes,
-            tier: tier
-        )
-        return DefenseDescentAccess.countClearedStageNodes(in: layout, clearedNodeIds: clearedNodeIds)
     }
 
     private static func resolvePlayableFrontier(
@@ -127,7 +115,7 @@ enum DefenseTrainingGuidanceResolver {
         locale: AppLocale
     ) -> DefenseTrainingGuidance {
         .openDefense(
-            tier: .basic,
+            tier: playTier,
             nodeId: tutorial.id,
             nodeTitle: nodeDisplayTitle(tutorial, locale: locale),
             reason: .tutorial
@@ -145,63 +133,44 @@ enum DefenseTrainingGuidanceResolver {
             return .none
         }
 
-        let tutorial = findBasicTutorialNode(blocks: blocks, nodes: nodes)
+        let tutorial = findDefenseTutorialNode(blocks: blocks, nodes: nodes)
         let tutorialCleared = tutorial.map { clearedNodeIds.contains($0.id) } ?? true
+        let floor = sortedTierBlocks(blocks, tier: playTier).first
+
+        if let tutorial, !tutorialCleared {
+            return resolveTutorialGuidance(tutorial: tutorial, locale: locale)
+        }
 
         if !isPremium {
-            if let tutorial, !tutorialCleared {
-                return resolveTutorialGuidance(tutorial: tutorial, locale: locale)
-            }
-            let basicBlock0 = sortedTierBlocks(blocks, tier: .basic).first
-            if let basicBlock0,
+            if let floor,
                let nextStage = findNextUnclearedStageInBlock(
-                block: basicBlock0,
+                block: floor,
                 nodes: nodes,
                 clearedNodeIds: clearedNodeIds
                ) {
                 return .openDefense(
-                    tier: .basic,
+                    tier: playTier,
                     nodeId: nextStage.id,
                     nodeTitle: nodeDisplayTitle(nextStage, locale: locale),
                     reason: .nextStage
                 )
             }
-            if let basicBlock0,
-               isBlockFullyCleared(block: basicBlock0, nodes: nodes, clearedNodeIds: clearedNodeIds) {
+            if let floor,
+               isBlockFullyCleared(block: floor, nodes: nodes, clearedNodeIds: clearedNodeIds) {
                 return .defenseBlockComplete
             }
             return .openTraining
         }
 
-        let basicCleared = countTierClearedStages(
+        if let frontierGuidance = resolvePlayableFrontier(
+            tier: playTier,
             blocks: blocks,
             nodes: nodes,
-            tier: .basic,
-            clearedNodeIds: clearedNodeIds
-        )
-        let advancedCleared = countTierClearedStages(
-            blocks: blocks,
-            nodes: nodes,
-            tier: .advanced,
-            clearedNodeIds: clearedNodeIds
-        )
-        let preferredTier: PlayMapTier = advancedCleared > basicCleared ? .advanced : .basic
-        let tiersToTry: [PlayMapTier] = preferredTier == .basic ? [.basic, .advanced] : [.advanced, .basic]
-
-        for tier in tiersToTry {
-            if tier == .basic, let tutorial, !tutorialCleared {
-                return resolveTutorialGuidance(tutorial: tutorial, locale: locale)
-            }
-            if let frontierGuidance = resolvePlayableFrontier(
-                tier: tier,
-                blocks: blocks,
-                nodes: nodes,
-                clearedNodeIds: clearedNodeIds,
-                isPremium: true,
-                locale: locale
-            ) {
-                return frontierGuidance
-            }
+            clearedNodeIds: clearedNodeIds,
+            isPremium: true,
+            locale: locale
+        ) {
+            return frontierGuidance
         }
 
         return .openTraining
@@ -226,8 +195,8 @@ enum DefenseTrainingGuidanceResolver {
         case .openDefense, .defenseBlockComplete:
             return resolved
         case .openTraining, .none:
-            let basicBlock0 = sortedTierBlocks(blocks, tier: .basic).first
-            let stage = basicBlock0.flatMap { block in
+            let floor = sortedTierBlocks(blocks, tier: playTier).first
+            let stage = floor.flatMap { block in
                 findNextUnclearedStageInBlock(
                     block: block,
                     nodes: nodes,
@@ -238,7 +207,7 @@ enum DefenseTrainingGuidanceResolver {
                 return resolved
             }
             return .openDefense(
-                tier: .basic,
+                tier: playTier,
                 nodeId: stage.id,
                 nodeTitle: nodeDisplayTitle(stage, locale: locale),
                 reason: .nextStage
@@ -302,8 +271,8 @@ enum DefenseTrainingGuidanceResolver {
 
     static func blockCompleteBodyCopy(locale: AppLocale) -> String {
         locale == .ja
-            ? "第1階層をクリアしました。Advanced と全ステージはプレミアムで解放できます。"
-            : "You cleared Floor 1. Unlock Advanced and all stages with Premium."
+            ? "第1階層をクリアしました。第2階層と先のステージはプレミアムで解放できます。"
+            : "You cleared Floor 1. Floor 2 and later stages unlock with Premium."
     }
 
     static func blockCompleteNextStepLabel(locale: AppLocale) -> String {

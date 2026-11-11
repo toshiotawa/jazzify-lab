@@ -232,9 +232,6 @@ export interface GameSettings {
   /** Webピッチ推定方式。未指定はPESTO。多声はフレーズディフェンスとOSMDだけがON/OFFに使う。 */
   voicePitchEngine?: import('@/utils/pitchInput/voicePitchEngine').VoicePitchEngine;
 
-  /** マイク高速反応: ON=pitchStableFrames 2, OFF=4 */
-  voiceFastResponse?: boolean;
-
   /** Webマイクのエコーキャンセル。falseで演奏音の抑制を切り分ける。未指定はtrue。 */
   voiceEchoCancellation?: boolean;
 
@@ -1042,6 +1039,7 @@ export interface LessonSong {
   video_lesson_stage_id?: string | null;
   video_lesson_stage?: VideoLessonStageRow | null;
   is_defense?: boolean;
+  is_input_tutorial?: boolean;
   defense_stage_id?: string | null;
   defense_stage?: DefenseStageRow | null;
   is_training?: boolean;

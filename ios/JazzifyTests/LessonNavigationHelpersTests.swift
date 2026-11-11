@@ -307,6 +307,7 @@ final class LessonNavigationHelpersTests: XCTestCase {
             isVideoLesson: nil,
             videoLessonStageId: nil,
             isDefense: nil,
+            isInputTutorial: nil,
             defenseStageId: nil,
             isTraining: nil,
             trainingId: nil,

@@ -13,6 +13,7 @@ const GAME_FOCUS_IDLE_PREFETCH_SKIP = new Set([
   '#survival-tutorial-lesson',
   '#balloon-rush-lesson',
   '#defense-lesson',
+  '#defense-tutorial-lesson',
   '#fantasy',
   '#survival',
 ]);

@@ -205,6 +205,6 @@ final class DefenseDescentAccessTests: XCTestCase {
     func testTutorialDisplayIcon() {
         let node = makeTutorialNode(id: UUID(), blockId: blockAId, sortOrder: 0)
         XCTAssertEqual(PlayMapProgression.displayIcon(node: node), .info)
-        XCTAssertEqual(PlayMapProgression.displayLabel(node: node, stageLabel: 1, isEnglishCopy: false), "")
+        XCTAssertEqual(PlayMapProgression.displayLabel(node: node, stageLabel: "1-1"), "")
     }
 }

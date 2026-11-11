@@ -245,6 +245,7 @@ enum LessonNavigationHelpers {
             && requirement.isBalloonRush != true
             && requirement.isVideoLesson != true
             && requirement.isDefense != true
+            && requirement.isInputTutorial != true
             && requirement.isTraining != true
             && requirement.isTrainingGoalSet != true
     }

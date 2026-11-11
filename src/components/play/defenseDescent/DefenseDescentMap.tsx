@@ -4,20 +4,17 @@ import {
   fetchPlayMapNodeClears,
   fetchPlayMapNodes,
   type PlayMapNode,
-  type PlayMapTier,
 } from '@/platform/supabasePlayMap';
 import BackgroundWall from '@/components/survival/descent/parts/BackgroundWall';
 import DescentCharacter from '@/components/survival/descent/parts/DescentCharacter';
 import { useDescentCamera } from '@/components/survival/descent/useDescentCamera';
 import { MAP_LOGICAL_WIDTH } from '@/components/survival/descent/descentLayout';
 import { DESCENT_MAP_PRELOAD_IMAGES } from '@/utils/descentMapAssets';
-import { cn } from '@/utils/cn';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getWindow } from '@/platform';
 import DefenseDescentBlock, { DefenseBlockDimVeil } from '@/components/play/defenseDescent/DefenseDescentBlock';
 import DefenseDescentSidePanel from '@/components/play/defenseDescent/DefenseDescentSidePanel';
-import PlayMapTierBar from '@/components/play/PlayMapTierBar';
 import {
   buildPlayDescentLayout,
   countClearedStageNodes,
@@ -31,11 +28,11 @@ import {
   type PlayBlockLayout,
 } from '@/components/play/defenseDescent/playDescentLayout';
 
+const DEFENSE_MAP_TIER = 'advanced' as const;
+
 interface DefenseDescentMapProps {
   isEnglishCopy: boolean;
   isPremiumMember: boolean;
-  tier?: PlayMapTier;
-  onTierChange?: (tier: PlayMapTier) => void;
   onSelectNode: (node: PlayMapNode, practiceMode: boolean) => void;
   onSelectQuestNode: (node: PlayMapNode) => void;
   pendingSelectNodeId?: string | null;
@@ -71,16 +68,11 @@ const preloadDescentImages = (): Promise<void> => {
 const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   isEnglishCopy,
   isPremiumMember,
-  tier: controlledTier,
-  onTierChange,
   onSelectNode,
   onSelectQuestNode,
   pendingSelectNodeId,
   onPendingSelectNodeConsumed,
 }) => {
-  const [internalTier, setInternalTier] = useState<PlayMapTier>('basic');
-  const tier = controlledTier ?? internalTier;
-  const setTier = onTierChange ?? setInternalTier;
   const [blocks, setBlocks] = useState<Awaited<ReturnType<typeof fetchPlayMapBlocks>>>([]);
   const [nodes, setNodes] = useState<Awaited<ReturnType<typeof fetchPlayMapNodes>>>([]);
   const [clears, setClears] = useState<Awaited<ReturnType<typeof fetchPlayMapNodeClears>>>([]);
@@ -141,8 +133,8 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   }, [loading, assetsReady]);
 
   const layout = useMemo(
-    () => buildPlayDescentLayout(blocks, nodes, tier, isEnglishCopy),
-    [blocks, nodes, tier],
+    () => buildPlayDescentLayout(blocks, nodes, DEFENSE_MAP_TIER, true),
+    [blocks, nodes],
   );
 
   const clearedNodeIds = useMemo(() => {
@@ -203,7 +195,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
     if (!frontierNodeId) return;
     const pos = getPlayNodePosition(layout, frontierNodeId);
     if (pos) focusCamera(pos.y, true);
-  }, [loading, assetsReady, frontierNodeId, focusCamera, layout, tier]);
+  }, [loading, assetsReady, frontierNodeId, focusCamera, layout]);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -391,21 +383,6 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
     return 'center';
   })();
 
-  const tierProgress = useMemo(() => {
-    const result = {
-      basic: { cleared: 0, total: 0 },
-      advanced: { cleared: 0, total: 0 },
-    };
-    (['basic', 'advanced'] as const).forEach((mapTier) => {
-      const tierLayout = buildPlayDescentLayout(blocks, nodes, mapTier, isEnglishCopy);
-      result[mapTier] = {
-        cleared: countClearedStageNodes(tierLayout, clearedNodeIds),
-        total: countStageNodes(tierLayout),
-      };
-    });
-    return result;
-  }, [blocks, nodes, clearedNodeIds]);
-
   const totalStageNodes = useMemo(() => countStageNodes(layout), [layout]);
   const totalClearedCount = useMemo(
     () => countClearedStageNodes(layout, clearedNodeIds),
@@ -454,16 +431,6 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
 
       <div className="mx-auto grid w-full max-w-[1180px] flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-h-0 flex-col">
-          <PlayMapTierBar
-            mode="defense"
-            tier={tier}
-            onTierChange={(nextTier) => {
-              setTier(nextTier);
-              setSelectedNodeId(null);
-              setIsMobileDetailOpen(false);
-            }}
-            tierProgress={tierProgress}
-          />
           <div
             ref={viewportRef}
             className="relative min-h-0 flex-1 overflow-hidden touch-none select-none"

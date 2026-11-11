@@ -8,7 +8,6 @@ struct DefenseDescentMapView: View {
     let blocks: [PlayMapBlock]
     let nodes: [PlayMapNode]
     let clears: [PlayMapNodeClear]
-    @Binding var tier: PlayMapTier
     @Binding var pendingSelectNodeId: UUID?
     let onSelectNode: (PlayMapNode, Bool) -> Void
     let onSelectQuestNode: (PlayMapNode) -> Void
@@ -32,19 +31,7 @@ struct DefenseDescentMapView: View {
     }
 
     private var layout: DefenseDescentLayout {
-        DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: tier)
-    }
-
-    private var tierProgress: [PlayMapTier: PlayMapTierProgress] {
-        var result: [PlayMapTier: PlayMapTierProgress] = [:]
-        for mapTier in PlayMapTier.allCases {
-            let tierLayout = DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: mapTier)
-            result[mapTier] = PlayMapTierProgress(
-                cleared: DefenseDescentAccess.countClearedStageNodes(in: tierLayout, clearedNodeIds: clearedNodeIds),
-                total: DefenseDescentAccess.countStageNodes(in: tierLayout)
-            )
-        }
-        return result
+        DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: .advanced)
     }
 
     private var frontierNodeId: UUID? {
@@ -116,13 +103,6 @@ struct DefenseDescentMapView: View {
         GeometryReader { proxy in
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
-                    PlayMapTierBarView(
-                        locale: locale,
-                        mode: mode,
-                        tier: tier,
-                        tierProgress: tierProgress,
-                        onTierChange: { tier = $0 }
-                    )
                     mapViewport(width: proxy.size.width - (showSidePanelInline ? 320 : 0))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -167,20 +147,6 @@ struct DefenseDescentMapView: View {
                 consumePendingSelectNode(nodeId)
             }
         }
-        .onChange(of: tier) { _ in
-            let selectedStillVisible = selectedNodeId.map { nodeId in
-                layout.blocks.contains { block in
-                    block.nodes.contains { $0.nodeId == nodeId }
-                }
-            } ?? false
-            if selectedStillVisible {
-                return
-            }
-            selectedNodeId = nil
-            showMobileSheet = false
-            scrollAnimated = false
-            refreshScroll(scale: currentScale(for: UIScreen.main.bounds.width), animated: false)
-        }
     }
 
     private var sidePanel: some View {
@@ -210,7 +176,8 @@ struct DefenseDescentMapView: View {
         let mapScale = currentScale(for: width)
         let worldWidth = max(width, ceil(SurvivalDescentLayoutConstants.logicalWidth * mapScale))
         let worldHeight = ceil(layout.totalHeight * mapScale)
-        let contentToken = mapScrollSignature(selectedNodeId: selectedNodeId)
+        let contentToken = mapContentSignature(selectedNodeId: selectedNodeId)
+        let scrollToken = mapScrollSignature()
 
         UIKitVerticalScrollView(
             contentSize: CGSize(width: worldWidth, height: worldHeight),
@@ -236,7 +203,7 @@ struct DefenseDescentMapView: View {
         .onAppear {
             refreshScroll(scale: mapScale, animated: false)
         }
-        .onChange(of: contentToken) { _ in
+        .onChange(of: scrollToken) { _ in
             refreshScroll(scale: mapScale, animated: false)
         }
     }
@@ -246,12 +213,19 @@ struct DefenseDescentMapView: View {
         return (raw * 100).rounded() / 100
     }
 
-    private func mapScrollSignature(selectedNodeId: UUID?) -> AnyHashable {
+    /// ホストしたマップ描画を差し替える合図。選択中ノードの強調も更新する。
+    private func mapContentSignature(selectedNodeId: UUID?) -> AnyHashable {
         var hasher = Hasher()
-        hasher.combine(tier.rawValue)
+        hasher.combine(mapScrollSignature())
+        hasher.combine(selectedNodeId)
+        return hasher.finalize()
+    }
+
+    /// 現在地への自動スクロール。選択の変更では再スクロールしない。
+    private func mapScrollSignature() -> AnyHashable {
+        var hasher = Hasher()
         hasher.combine(accessibleBlockIndex)
         hasher.combine(frontierNodeId)
-        hasher.combine(selectedNodeId)
         hasher.combine(clearedNodeIds.count)
         for id in clearedNodeIds.sorted(by: { $0.uuidString < $1.uuidString }) {
             hasher.combine(id)
@@ -289,6 +263,9 @@ struct DefenseDescentMapView: View {
             return
         }
         selectedNodeId = nodeId
+        if let stageId = nodes.first(where: { $0.id == nodeId })?.defenseStageId {
+            Task { await SupabaseService.shared.preloadDefenseStage(stageId: stageId) }
+        }
         if !showSidePanelInline {
             showMobileSheet = true
         }

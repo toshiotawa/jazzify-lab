@@ -1,6 +1,5 @@
 import {
   buildPlayDescentLayout,
-  countClearedStageNodes,
   findFrontierNodeId,
   isPlayDescentNodeUnlocked,
 } from '@/components/play/defenseDescent/playDescentLayout';
@@ -29,17 +28,19 @@ export interface ResolveDefenseTrainingGuidanceInput {
   isEnglishCopy?: boolean;
 }
 
+const DEFENSE_PLAY_TIER: PlayMapTier = 'advanced';
+
 const sortedTierBlocks = (
   blocks: readonly PlayMapBlock[],
   tier: PlayMapTier,
 ): PlayMapBlock[] =>
   blocks.filter((block) => block.tier === tier).sort((a, b) => a.sortOrder - b.sortOrder);
 
-const findBasicTutorialNode = (
+const findDefenseTutorialNode = (
   blocks: readonly PlayMapBlock[],
   nodes: readonly PlayMapNode[],
 ): PlayMapNode | null => {
-  const block0 = sortedTierBlocks(blocks, 'basic')[0];
+  const block0 = sortedTierBlocks(blocks, DEFENSE_PLAY_TIER)[0];
   if (!block0) {
     return null;
   }
@@ -79,16 +80,6 @@ const findNextUnclearedStageInBlock = (
   return null;
 };
 
-const countTierClearedStages = (
-  blocks: readonly PlayMapBlock[],
-  nodes: readonly PlayMapNode[],
-  tier: PlayMapTier,
-  clearedNodeIds: ReadonlySet<string>,
-): number => {
-  const layout = buildPlayDescentLayout(blocks, nodes, tier);
-  return countClearedStageNodes(layout, clearedNodeIds);
-};
-
 const resolvePlayableFrontier = (
   tier: PlayMapTier,
   blocks: readonly PlayMapBlock[],
@@ -97,7 +88,7 @@ const resolvePlayableFrontier = (
   isPremiumMember: boolean,
   isEnglishCopy: boolean,
 ): Extract<DefenseTrainingGuidance, { kind: 'openDefense' }> | null => {
-  const layout = buildPlayDescentLayout(blocks, nodes, tier, isEnglishCopy);
+  const layout = buildPlayDescentLayout(blocks, nodes, tier);
   const frontierId = findFrontierNodeId(layout.blocks, clearedNodeIds, isPremiumMember);
   if (!frontierId) {
     return null;
@@ -130,7 +121,7 @@ const resolveTutorialGuidance = (
   isEnglishCopy: boolean,
 ): Extract<DefenseTrainingGuidance, { kind: 'openDefense' }> => ({
   kind: 'openDefense',
-  tier: 'basic',
+  tier: DEFENSE_PLAY_TIER,
   nodeId: tutorial.id,
   nodeTitle: nodeDisplayTitle(tutorial, isEnglishCopy),
   reason: 'tutorial',
@@ -151,21 +142,21 @@ export function resolveDefenseTrainingGuidance(
     return { kind: 'none' };
   }
 
-  const tutorial = findBasicTutorialNode(blocks, nodes);
+  const tutorial = findDefenseTutorialNode(blocks, nodes);
   const tutorialCleared = tutorial != null && clearedNodeIds.has(tutorial.id);
+  const floor = sortedTierBlocks(blocks, DEFENSE_PLAY_TIER)[0];
+
+  if (tutorial && !tutorialCleared) {
+    return resolveTutorialGuidance(tutorial, isEnglishCopy);
+  }
 
   if (!isPremiumMember) {
-    if (tutorial && !tutorialCleared) {
-      return resolveTutorialGuidance(tutorial, isEnglishCopy);
-    }
-
-    const basicBlock0 = sortedTierBlocks(blocks, 'basic')[0];
-    if (basicBlock0) {
-      const nextStage = findNextUnclearedStageInBlock(basicBlock0, nodes, clearedNodeIds);
+    if (floor) {
+      const nextStage = findNextUnclearedStageInBlock(floor, nodes, clearedNodeIds);
       if (nextStage) {
         return {
           kind: 'openDefense',
-          tier: 'basic',
+          tier: DEFENSE_PLAY_TIER,
           nodeId: nextStage.id,
           nodeTitle: nodeDisplayTitle(nextStage, isEnglishCopy),
           reason: 'nextStage',
@@ -173,36 +164,23 @@ export function resolveDefenseTrainingGuidance(
       }
     }
 
-    if (basicBlock0 && isBlockFullyCleared(basicBlock0, nodes, clearedNodeIds)) {
+    if (floor && isBlockFullyCleared(floor, nodes, clearedNodeIds)) {
       return { kind: 'defenseBlockComplete' };
     }
 
     return { kind: 'openTraining' };
   }
 
-  const basicCleared = countTierClearedStages(blocks, nodes, 'basic', clearedNodeIds);
-  const advancedCleared = countTierClearedStages(blocks, nodes, 'advanced', clearedNodeIds);
-  const preferredTier: PlayMapTier = advancedCleared > basicCleared ? 'advanced' : 'basic';
-  const tiersToTry: PlayMapTier[] = preferredTier === 'basic'
-    ? ['basic', 'advanced']
-    : ['advanced', 'basic'];
-
-  for (const tier of tiersToTry) {
-    if (tier === 'basic' && tutorial && !tutorialCleared) {
-      return resolveTutorialGuidance(tutorial, isEnglishCopy);
-    }
-
-    const frontierGuidance = resolvePlayableFrontier(
-      tier,
-      blocks,
-      nodes,
-      clearedNodeIds,
-      true,
-      isEnglishCopy,
-    );
-    if (frontierGuidance) {
-      return frontierGuidance;
-    }
+  const frontierGuidance = resolvePlayableFrontier(
+    DEFENSE_PLAY_TIER,
+    blocks,
+    nodes,
+    clearedNodeIds,
+    true,
+    isEnglishCopy,
+  );
+  if (frontierGuidance) {
+    return frontierGuidance;
   }
 
   return { kind: 'openTraining' };
@@ -227,23 +205,23 @@ export function resolveDefenseTrainingGuidanceAfterTutorial(
     return resolved;
   }
 
-  const basicBlock0 = sortedTierBlocks(input.blocks, 'basic')[0];
-  if (!basicBlock0) {
+  const floor = sortedTierBlocks(input.blocks, DEFENSE_PLAY_TIER)[0];
+  if (!floor) {
     return resolved;
   }
 
   const stage = findNextUnclearedStageInBlock(
-    basicBlock0,
+    floor,
     input.nodes,
     input.clearedNodeIds,
-  ) ?? findFirstStageInBlock(basicBlock0, input.nodes);
+  ) ?? findFirstStageInBlock(floor, input.nodes);
   if (!stage) {
     return resolved;
   }
 
   return {
     kind: 'openDefense',
-    tier: 'basic',
+    tier: DEFENSE_PLAY_TIER,
     nodeId: stage.id,
     nodeTitle: nodeDisplayTitle(stage, input.isEnglishCopy ?? false),
     reason: 'nextStage',
@@ -266,8 +244,8 @@ export function defenseBlockCompleteTrainingLabel(isEnglishCopy: boolean): strin
 
 export function defenseBlockCompleteBodyCopy(isEnglishCopy: boolean): string {
   return isEnglishCopy
-    ? 'You cleared Floor 1. Unlock Advanced and all stages with Premium.'
-    : '第1階層をクリアしました。Advanced と全ステージはプレミアムで解放できます。';
+    ? 'You cleared Floor 1. Floor 2 and later stages unlock with Premium.'
+    : '第1階層をクリアしました。第2階層と先のステージはプレミアムで解放できます。';
 }
 
 export function defenseGuidancePrimaryLabel(

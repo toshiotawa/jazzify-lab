@@ -28,7 +28,6 @@ describe('badgeDefinitions', () => {
         .map((badge) => badge.conditionValue);
 
     expect(thresholdsFor('defense')).toEqual([1]);
-    expect(thresholdsFor('defense_basic')).toEqual([50, 500, 1000, 10000]);
     expect(thresholdsFor('defense_advanced')).toEqual([50, 500, 1000, 10000]);
     expect(thresholdsFor('training_goal')).toEqual([1, 10, 20]);
     expect(thresholdsFor('player_level')).toEqual([2, 50, 100]);

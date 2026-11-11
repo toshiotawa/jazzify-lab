@@ -4,6 +4,9 @@ struct DefenseTutorialView: View {
     @EnvironmentObject private var appState: AppState
 
     let playMapNodeId: UUID?
+    let lessonId: UUID?
+    let lessonSongId: UUID?
+    let clearConditions: LessonClearConditions?
     let onExit: () -> Void
 
     @State private var session: DefenseTutorialSessionState
@@ -12,8 +15,17 @@ struct DefenseTutorialView: View {
     private var locale: AppLocale { appState.locale }
     private var isEnglishCopy: Bool { locale == .en }
 
-    init(playMapNodeId: UUID?, onExit: @escaping () -> Void) {
+    init(
+        playMapNodeId: UUID?,
+        lessonId: UUID? = nil,
+        lessonSongId: UUID? = nil,
+        clearConditions: LessonClearConditions? = nil,
+        onExit: @escaping () -> Void
+    ) {
         self.playMapNodeId = playMapNodeId
+        self.lessonId = lessonId
+        self.lessonSongId = lessonSongId
+        self.clearConditions = clearConditions
         self.onExit = onExit
         let instrumentId = NotationInstrumentPreferences.loadInstrumentId()
         let preset = NotationInstrumentCatalog.preset(for: instrumentId)
@@ -205,9 +217,18 @@ struct DefenseTutorialView: View {
     }
 
     private func handleExit() async {
-        if let playMapNodeId,
-           DefenseTutorialState.shouldSaveCompletionOnExit(session) {
-            _ = try? await SupabaseService.shared.recordPlayMapNodeClear(nodeId: playMapNodeId)
+        if DefenseTutorialState.shouldSaveCompletionOnExit(session) {
+            if let playMapNodeId {
+                _ = try? await SupabaseService.shared.recordPlayMapNodeClear(nodeId: playMapNodeId)
+            }
+            if let lessonId, let lessonSongId {
+                _ = try? await SupabaseService.shared.recordEarTrainingLessonProgress(
+                    lessonId: lessonId,
+                    lessonSongId: lessonSongId,
+                    rank: "S",
+                    clearConditions: clearConditions
+                )
+            }
             session = DefenseTutorialState.markCompletionSaved(session)
         }
         onExit()

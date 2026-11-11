@@ -93,7 +93,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, is_ear_training_tutorial, is_video_lesson, is_defense, is_training, training_id, ear_training_stage_id, is_clear_required')
+    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_survival_tutorial, is_balloon_rush, is_ear_training, is_ear_training_tutorial, is_video_lesson, is_defense, is_input_tutorial, is_training, training_id, ear_training_stage_id, is_clear_required')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;

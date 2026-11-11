@@ -525,6 +525,43 @@ actor EarTrainingStageDetailCache {
     }
 }
 
+enum EarTrainingMusicXmlTextCache {
+    private static let lock = NSLock()
+    private static var texts: [String: String] = [:]
+
+    static func text(for url: String) -> String? {
+        lock.lock()
+        let cached = texts.removeValue(forKey: url)
+        lock.unlock()
+        return cached
+    }
+
+    private static func contains(_ url: String) -> Bool {
+        lock.lock()
+        let cached = texts[url] != nil
+        lock.unlock()
+        return cached
+    }
+
+    static func prefetch(urls: [String]) async {
+        for url in Set(urls) {
+            let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !contains(trimmed), let parsed = URL(string: trimmed) else { continue }
+            var request = URLRequest(url: parsed)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  let http = response as? HTTPURLResponse,
+                  (200...299).contains(http.statusCode),
+                  let text = String(data: data, encoding: .utf8),
+                  text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            else { continue }
+            lock.lock()
+            texts[trimmed] = text
+            lock.unlock()
+        }
+    }
+}
+
 struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
     let id: UUID
     let stageId: UUID

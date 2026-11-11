@@ -1,12 +1,53 @@
 import Foundation
+import os
 import Supabase
+
+enum PlayLaunchTiming {
+    private static let poster = OSSignposter(subsystem: "jp.jazzify.app", category: "PlayLaunch")
+    private static let lock = NSLock()
+    private static var intervals: [String: OSSignpostIntervalState] = [:]
+
+    static func begin(_ name: StaticString) {
+        let state = poster.beginInterval(name)
+        lock.lock()
+        intervals[key(name)] = state
+        lock.unlock()
+    }
+
+    static func end(_ name: StaticString) {
+        lock.lock()
+        let state = intervals.removeValue(forKey: key(name))
+        lock.unlock()
+        guard let state else { return }
+        poster.endInterval(name, state)
+    }
+
+    private static func key(_ name: StaticString) -> String {
+        String(decoding: UnsafeBufferPointer(start: name.utf8Start, count: name.utf8CodeUnitCount), as: UTF8.self)
+    }
+}
 
 final class SupabaseService: Sendable {
     static let shared = SupabaseService()
 
     let client: SupabaseClient
+    private let defenseLaunchCache = DefenseLaunchCache()
+    private let survivalLaunchCache = SurvivalLaunchCache()
+
+    private final class DefenseLaunchCache: @unchecked Sendable {
+        var stages: [String: DefenseStageDefinition] = [:]
+        var difficulties: [String: DefenseDifficultyDefinition] = [:]
+        let lock = NSLock()
+    }
+
+    private final class SurvivalLaunchCache: @unchecked Sendable {
+        var phrases: [String: SurvivalPhraseDefinition] = [:]
+        var configs: [String: SurvivalStageConfig] = [:]
+        let lock = NSLock()
+    }
 
     private init() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
         client = SupabaseClient(
             supabaseURL: Config.supabaseURL,
             supabaseKey: Config.supabaseAnonKey,
@@ -14,7 +55,8 @@ final class SupabaseService: Sendable {
                 auth: .init(
                     flowType: .pkce,
                     emitLocalSessionAsInitialSession: true
-                )
+                ),
+                global: .init(headers: ["X-Client-Info": "jazzify-ios/\(version)"])
             )
         )
     }
@@ -1174,6 +1216,11 @@ final class SupabaseService: Sendable {
 
     /// Phrases モード用フレーズ定義（ステージ 1 件につき 1 フレーズ）。
     func fetchSurvivalPhrase(mapCategory: SurvivalMapCategory, stageNumber: Int) async throws -> SurvivalPhraseDefinition? {
+        let cacheKey = "\(mapCategory.rawValue):\(stageNumber)"
+        survivalLaunchCache.lock.lock()
+        let cachedPhrase = survivalLaunchCache.phrases[cacheKey]
+        survivalLaunchCache.lock.unlock()
+        if let cachedPhrase { return cachedPhrase }
         struct PhraseRow: Decodable {
             let id: String
             let map_category: String
@@ -1250,7 +1297,7 @@ final class SupabaseService: Sendable {
             )
         }
 
-        return SurvivalPhraseDefinition(
+        let definition = SurvivalPhraseDefinition(
             id: phrase.id,
             mapCategory: phrase.map_category,
             stageNumber: phrase.stage_number,
@@ -1259,6 +1306,10 @@ final class SupabaseService: Sendable {
             keyFifths: phrase.key_fifths,
             chords: builtChords
         )
+        survivalLaunchCache.lock.lock()
+        survivalLaunchCache.phrases[cacheKey] = definition
+        survivalLaunchCache.lock.unlock()
+        return definition
     }
 
     /// Phrases マップ試聴用: `survival_phrases.bgm_url` のみ取得。
@@ -1322,6 +1373,11 @@ final class SupabaseService: Sendable {
 
     /// 指定難易度 + ステージ種別の `SurvivalStageConfig` を取得。見つからなければ `nil`。
     func fetchSurvivalStageConfig(difficulty: String, stageType: SurvivalStageType) async throws -> SurvivalStageConfig? {
+        let cacheKey = "\(difficulty):\(stageType.rawValue)"
+        survivalLaunchCache.lock.lock()
+        let cachedConfig = survivalLaunchCache.configs[cacheKey]
+        survivalLaunchCache.lock.unlock()
+        if let cachedConfig { return cachedConfig }
         async let difficultyRowsTask: [SurvivalDifficultyDetailRow] = client
             .from("survival_difficulty_settings")
             .select("*")
@@ -1333,7 +1389,13 @@ final class SupabaseService: Sendable {
 
         let difficultyRows = try await difficultyRowsTask
         let bgmUrl = try? await bgmUrlTask
-        return difficultyRows.first?.toConfig(stageType: stageType, bgmUrl: bgmUrl)
+        guard let config = difficultyRows.first?.toConfig(stageType: stageType, bgmUrl: bgmUrl) else {
+            return nil
+        }
+        survivalLaunchCache.lock.lock()
+        survivalLaunchCache.configs[cacheKey] = config
+        survivalLaunchCache.lock.unlock()
+        return config
     }
 
     private func fetchSurvivalBgmUrl(stageType: SurvivalStageType) async throws -> URL? {
@@ -2298,7 +2360,82 @@ final class SupabaseService: Sendable {
 
     // MARK: - Defense mode
 
+    func invalidateDefenseStageCache() {
+        defenseLaunchCache.lock.lock()
+        defenseLaunchCache.stages.removeAll(keepingCapacity: false)
+        defenseLaunchCache.lock.unlock()
+    }
+
+    func invalidateSurvivalLaunchCache() {
+        survivalLaunchCache.lock.lock()
+        survivalLaunchCache.phrases.removeAll(keepingCapacity: false)
+        survivalLaunchCache.configs.removeAll(keepingCapacity: false)
+        survivalLaunchCache.lock.unlock()
+    }
+
+    func preloadDefenseDifficultyTable() async {
+        defenseLaunchCache.lock.lock()
+        let alreadyLoaded = !defenseLaunchCache.difficulties.isEmpty
+        defenseLaunchCache.lock.unlock()
+        if alreadyLoaded { return }
+        struct Row: Decodable {
+            let attack_trigger: String
+            let level: Int
+            let enemy_hp: Int
+            let spawn_interval_sec: Double
+            let max_enemies: Int
+            let enemy_speed_px_per_sec: Double
+            let enemy_damage: Int
+            let attack_interval_sec: Double
+            let attack_range_px: Double
+        }
+        guard let rows: [Row] = try? await client
+            .from("defense_difficulty_levels")
+            .select("""
+                attack_trigger, level, enemy_hp, spawn_interval_sec, max_enemies,
+                enemy_speed_px_per_sec, enemy_damage, attack_interval_sec, attack_range_px
+            """)
+            .execute()
+            .value
+        else { return }
+        defenseLaunchCache.lock.lock()
+        for row in rows {
+            defenseLaunchCache.difficulties["\(row.attack_trigger):\(row.level)"] = DefenseDifficultyDefinition(
+                level: row.level,
+                enemyHp: row.enemy_hp,
+                spawnIntervalSec: row.spawn_interval_sec,
+                maxEnemies: row.max_enemies,
+                enemySpeedPxPerSec: row.enemy_speed_px_per_sec,
+                enemyDamage: row.enemy_damage,
+                attackIntervalSec: row.attack_interval_sec,
+                attackRangePx: row.attack_range_px
+            )
+        }
+        defenseLaunchCache.lock.unlock()
+    }
+
+    func preloadDefenseStage(stageId: String) async {
+        guard let stage = try? await fetchDefenseStageDetail(stageId: stageId) else { return }
+        let urls = stage.phrases.prefix(2).compactMap { URL(string: $0.audioUrl) }.filter { !$0.absoluteString.isEmpty }
+        guard !urls.isEmpty else { return }
+        try? await DefenseBackingAudio.shared.preload(urls: Array(urls))
+    }
+
     func fetchDefenseStageDetail(stageId: String) async throws -> DefenseStageDefinition? {
+        defenseLaunchCache.lock.lock()
+        let cachedStage = defenseLaunchCache.stages[stageId]
+        defenseLaunchCache.lock.unlock()
+        if let cachedStage { return cachedStage }
+        let loaded = try await loadDefenseStageDetail(stageId: stageId)
+        if let loaded {
+            defenseLaunchCache.lock.lock()
+            defenseLaunchCache.stages[stageId] = loaded
+            defenseLaunchCache.lock.unlock()
+        }
+        return loaded
+    }
+
+    private func loadDefenseStageDetail(stageId: String) async throws -> DefenseStageDefinition? {
         struct StageRow: Decodable {
             let id: String
             let slug: String
@@ -2362,8 +2499,57 @@ final class SupabaseService: Sendable {
             let beat_offset: Int
             let duration_beats: Int
         }
+        struct NestedChordRow: Decodable {
+            let id: String
+            let order_index: Int
+            let chord_name: String
+            let measure_number: Int
+            let defense_phrase_chord_notes: [NoteRow]
+        }
+        struct NestedPhraseRow: Decodable {
+            let id: String
+            let order_index: Int
+            let title: String
+            let audio_url: String?
+            let loop_start_measure: Int?
+            let loop_end_measure: Int?
+            let key_fifths: Int?
+            let required_completion_count: Int?
+            let defense_phrase_chords: [NestedChordRow]
+        }
+        struct NestedStageRow: Decodable {
+            let id: String
+            let slug: String
+            let stage_number: Int
+            let title: String
+            let title_en: String
+            let bpm: Double
+            let beats_per_bar: Int
+            let phrase_bars: Int
+            let progression_bars: Int?
+            let audio_registration_mode: String
+            let audio_url: String?
+            let melody_audio_url: String?
+            let staff_layout: String
+            let attack_trigger: String
+            let key_fifths: Int
+            let required_completion_count: Int
+            let difficulty_level: Int
+            let survive_seconds: Int
+            let player_hp: Int
+            let production_staff_hint_mode: String
+            let production_keyboard_hint_mode: String
+            let play_style: String?
+            let voicing_key_mode: String?
+            let voicing_lowest_key: String?
+            let voicing_start_key: String?
+            let voicing_min_lowest_note: String?
+            let play_root_on_chord_change: Bool?
+            let defense_phrases: [NestedPhraseRow]
+            let defense_stage_progression_chords: [ProgressionChordRow]
+        }
 
-        let stages: [StageRow] = try await client
+        let stages: [NestedStageRow] = try await client
             .from("defense_stages")
             .select("""
                 id, slug, stage_number, title, title_en, bpm, beats_per_bar, phrase_bars,
@@ -2371,52 +2557,91 @@ final class SupabaseService: Sendable {
                 staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
                 survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode,
                 play_style, voicing_key_mode, voicing_lowest_key, voicing_start_key,
-                voicing_min_lowest_note, play_root_on_chord_change
+                voicing_min_lowest_note, play_root_on_chord_change,
+                defense_phrases (
+                    id, order_index, title, audio_url,
+                    loop_start_measure, loop_end_measure,
+                    key_fifths, required_completion_count,
+                    defense_phrase_chords (
+                        id, order_index, chord_name, measure_number,
+                        defense_phrase_chord_notes (
+                            chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index, staff_chord_name
+                        )
+                    )
+                ),
+                defense_stage_progression_chords (
+                    order_index, chord_name, measure_number, beat_offset, duration_beats
+                )
             """)
             .eq("id", value: stageId)
             .limit(1)
             .execute()
             .value
-        guard let stage = stages.first else { return nil }
-
-        let phraseRows: [PhraseRow] = try await client
-            .from("defense_phrases")
-            .select("""
-                id, order_index, title, audio_url,
-                loop_start_measure, loop_end_measure,
-                key_fifths, required_completion_count
-            """)
-            .eq("stage_id", value: stageId)
-            .order("order_index")
-            .execute()
-            .value
+        guard let nestedStage = stages.first else { return nil }
+        let stage = StageRow(
+            id: nestedStage.id,
+            slug: nestedStage.slug,
+            stage_number: nestedStage.stage_number,
+            title: nestedStage.title,
+            title_en: nestedStage.title_en,
+            bpm: nestedStage.bpm,
+            beats_per_bar: nestedStage.beats_per_bar,
+            phrase_bars: nestedStage.phrase_bars,
+            progression_bars: nestedStage.progression_bars,
+            audio_registration_mode: nestedStage.audio_registration_mode,
+            audio_url: nestedStage.audio_url,
+            melody_audio_url: nestedStage.melody_audio_url,
+            staff_layout: nestedStage.staff_layout,
+            attack_trigger: nestedStage.attack_trigger,
+            key_fifths: nestedStage.key_fifths,
+            required_completion_count: nestedStage.required_completion_count,
+            difficulty_level: nestedStage.difficulty_level,
+            survive_seconds: nestedStage.survive_seconds,
+            player_hp: nestedStage.player_hp,
+            production_staff_hint_mode: nestedStage.production_staff_hint_mode,
+            production_keyboard_hint_mode: nestedStage.production_keyboard_hint_mode,
+            play_style: nestedStage.play_style,
+            voicing_key_mode: nestedStage.voicing_key_mode,
+            voicing_lowest_key: nestedStage.voicing_lowest_key,
+            voicing_start_key: nestedStage.voicing_start_key,
+            voicing_min_lowest_note: nestedStage.voicing_min_lowest_note,
+            play_root_on_chord_change: nestedStage.play_root_on_chord_change
+        )
+        let phraseRows = nestedStage.defense_phrases
+            .sorted { $0.order_index < $1.order_index }
+            .map { row in
+                PhraseRow(
+                    id: row.id,
+                    order_index: row.order_index,
+                    title: row.title,
+                    audio_url: row.audio_url,
+                    loop_start_measure: row.loop_start_measure,
+                    loop_end_measure: row.loop_end_measure,
+                    key_fifths: row.key_fifths,
+                    required_completion_count: row.required_completion_count
+                )
+            }
         guard !phraseRows.isEmpty else { return nil }
-
-        let phraseIds = phraseRows.map(\.id)
-        let chordRows: [ChordRow] = try await client
-            .from("defense_phrase_chords")
-            .select("id, phrase_id, order_index, chord_name, measure_number")
-            .in("phrase_id", values: phraseIds)
-            .order("order_index")
-            .execute()
-            .value
-
-        let chordIds = chordRows.map(\.id)
-        let noteRows: [NoteRow] = chordIds.isEmpty ? [] : try await client
-            .from("defense_phrase_chord_notes")
-            .select("chord_id, order_index, pitch_midi, pitch_class, note_name, staff, step_index, staff_chord_name")
-            .in("chord_id", values: chordIds)
-            .order("order_index")
-            .execute()
-            .value
-
-        let progressionRows: [ProgressionChordRow] = try await client
-            .from("defense_stage_progression_chords")
-            .select("order_index, chord_name, measure_number, beat_offset, duration_beats")
-            .eq("stage_id", value: stageId)
-            .order("order_index")
-            .execute()
-            .value
+        let chordRows = nestedStage.defense_phrases.flatMap { phrase in
+            phrase.defense_phrase_chords
+                .sorted { $0.order_index < $1.order_index }
+                .map { chord in
+                    ChordRow(
+                        id: chord.id,
+                        phrase_id: phrase.id,
+                        order_index: chord.order_index,
+                        chord_name: chord.chord_name,
+                        measure_number: chord.measure_number
+                    )
+                }
+        }
+        let noteRows = nestedStage.defense_phrases.flatMap { phrase in
+            phrase.defense_phrase_chords.flatMap { chord in
+                chord.defense_phrase_chord_notes.sorted { $0.order_index < $1.order_index }
+            }
+        }
+        let progressionRows = nestedStage.defense_stage_progression_chords
+            .sorted { $0.order_index < $1.order_index }
 
         var notesByChord: [String: [SurvivalPhraseChordNote]] = [:]
         for row in noteRows {
@@ -2526,6 +2751,11 @@ final class SupabaseService: Sendable {
         level: Int,
         attackTrigger: DefenseAttackTrigger
     ) async throws -> DefenseDifficultyDefinition? {
+        let cacheKey = "\(attackTrigger.rawValue):\(level)"
+        defenseLaunchCache.lock.lock()
+        let cached = defenseLaunchCache.difficulties[cacheKey]
+        defenseLaunchCache.lock.unlock()
+        if let cached { return cached }
         struct Row: Decodable {
             let level: Int
             let enemy_hp: Int
@@ -2548,7 +2778,7 @@ final class SupabaseService: Sendable {
             .execute()
             .value
         guard let row = rows.first else { return nil }
-        return DefenseDifficultyDefinition(
+        let definition = DefenseDifficultyDefinition(
             level: row.level,
             enemyHp: row.enemy_hp,
             spawnIntervalSec: row.spawn_interval_sec,
@@ -2558,6 +2788,10 @@ final class SupabaseService: Sendable {
             attackIntervalSec: row.attack_interval_sec,
             attackRangePx: row.attack_range_px
         )
+        defenseLaunchCache.lock.lock()
+        defenseLaunchCache.difficulties[cacheKey] = definition
+        defenseLaunchCache.lock.unlock()
+        return definition
     }
 
     func upsertDefenseStageClear(

@@ -16,6 +16,16 @@ const baseReq = (overrides: Partial<LessonRequirementLaunchInput> = {}): LessonR
 });
 
 describe('buildLessonRequirementLaunchHash', () => {
+  it('returns the input tutorial hash', () => {
+    const hash = buildLessonRequirementLaunchHash(baseReq({
+      is_input_tutorial: true,
+      song_id: null,
+    }));
+    expect(hash).toContain('#defense-tutorial-lesson?');
+    expect(hash).toContain('lessonId=lesson-1');
+    expect(hash).toContain('lessonSongId=ls-1');
+  });
+
   it('returns survival tutorial hash', () => {
     const hash = buildLessonRequirementLaunchHash(baseReq({
       is_survival_tutorial: true,

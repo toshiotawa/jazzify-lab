@@ -9,6 +9,7 @@ export const isLegendOnlyLessonRequirement = (req: {
   is_balloon_rush?: boolean | null;
   is_video_lesson?: boolean | null;
   is_defense?: boolean | null;
+  is_input_tutorial?: boolean | null;
   is_training?: boolean | null;
   is_training_goal_set?: boolean | null;
 }): boolean =>
@@ -21,5 +22,6 @@ export const isLegendOnlyLessonRequirement = (req: {
   && req.is_balloon_rush !== true
   && req.is_video_lesson !== true
   && req.is_defense !== true
+  && req.is_input_tutorial !== true
   && req.is_training !== true
   && req.is_training_goal_set !== true;

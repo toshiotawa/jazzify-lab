@@ -63,7 +63,7 @@ function buildLayoutForBlock(
   nodes: readonly PlayMapNode[],
   startY: number,
   stageLabelOffset: number,
-  isEnglishCopy = false,
+  numberByBlock: boolean,
 ): { layout: PlayBlockLayout; nextStageLabel: number } {
   const blockNodes = nodes
     .filter((n) => n.blockId === block.id)
@@ -75,16 +75,21 @@ function buildLayoutForBlock(
   const count = blockNodes.length;
   let y = firstNodeY;
   let stageLabel = stageLabelOffset;
+  let stageInBlock = 0;
 
   for (let i = 0; i < count; i += 1) {
     const isLast = i === count - 1;
     const lane = assignLane(i, isLast);
     const node = blockNodes[i];
-    const displayLabel = playMapNodeDisplayLabel(node, stageLabel, isEnglishCopy);
-    const displayIcon = playMapNodeDisplayIcon(node);
     if (node.nodeKind === 'stage') {
+      stageInBlock += 1;
       stageLabel += 1;
     }
+    const displayLabel = playMapNodeDisplayLabel(
+      node,
+      numberByBlock ? `${blockIndex + 1}-${stageInBlock}` : String(stageLabel),
+    );
+    const displayIcon = playMapNodeDisplayIcon(node);
     positions.push({
       nodeId: node.id,
       node,
@@ -127,7 +132,7 @@ export const buildPlayDescentLayout = (
   blocks: readonly PlayMapBlock[],
   nodes: readonly PlayMapNode[],
   tier: PlayMapTier,
-  isEnglishCopy = false,
+  numberByBlock = false,
 ): PlayDescentLayout => {
   const tierBlocks = blocks
     .filter((b) => b.tier === tier)
@@ -136,7 +141,7 @@ export const buildPlayDescentLayout = (
   const blockLayouts: PlayBlockLayout[] = [];
   const nodePositions = new Map<string, PlayNodePosition>();
   let cursorY = 0;
-  let stageLabel = 1;
+  let stageLabel = 0;
 
   tierBlocks.forEach((block, blockIndex) => {
     const { layout, nextStageLabel } = buildLayoutForBlock(
@@ -145,7 +150,7 @@ export const buildPlayDescentLayout = (
       nodes,
       cursorY,
       stageLabel,
-      isEnglishCopy,
+      numberByBlock,
     );
     blockLayouts.push(layout);
     layout.nodes.forEach((node) => nodePositions.set(node.nodeId, node));

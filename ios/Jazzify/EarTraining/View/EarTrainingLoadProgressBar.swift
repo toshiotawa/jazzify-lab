@@ -10,7 +10,7 @@ enum EarTrainingLoadProgress {
     static let stepAnimationDuration: Double = 0.18
     static let fillAnimationDuration: Double = 0.22
     /// 実処理完了後に 100% を見せる時間（塗り + ごく短い停留）。
-    static let completionHoldNanoseconds: UInt64 = 270_000_000
+    static let completionHoldNanoseconds: UInt64 = 200_000_000
     static let scoreCompleteHoldNanoseconds: UInt64 = 180_000_000
 
     static func clamped(_ value: Double) -> Double {
@@ -114,6 +114,7 @@ struct EarTrainingPreparingOverlay: View {
             try? await Task.sleep(nanoseconds: EarTrainingLoadProgress.completionHoldNanoseconds)
             guard !Task.isCancelled, !didNotifyVisualComplete else { return }
             didNotifyVisualComplete = true
+            PlayLaunchTiming.end("EarTrainingPlay")
             onVisualComplete()
         }
     }

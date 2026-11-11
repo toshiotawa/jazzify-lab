@@ -937,7 +937,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             applyMusicXmlPrepared(cached)
             return
         }
-        guard let rawURL = phrase.musicXmlUrl, let url = URL(string: rawURL) else {
+        guard let rawURL = phrase.musicXmlUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawURL.isEmpty,
+              let url = URL(string: rawURL) else {
             guard musicXmlLoadGeneration == generation else { return }
             clearMusicXmlDisplay(
                 scoreErrorText: isEnglishCopy ? "MusicXML is not registered." : "MusicXMLが登録されていません"
@@ -945,24 +947,31 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             return
         }
         do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                finishMusicXmlLoadFailure(
-                    generation: generation,
-                    cacheKey: cacheKey,
-                    scoreErrorText: isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
-                )
-                return
-            }
-            guard let text = String(data: data, encoding: .utf8), text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-                finishMusicXmlLoadFailure(
-                    generation: generation,
-                    cacheKey: cacheKey,
-                    scoreErrorText: isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
-                )
-                return
+            let text: String
+            if let cached = EarTrainingMusicXmlTextCache.text(for: rawURL) {
+                text = cached
+            } else {
+                var request = URLRequest(url: url)
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    finishMusicXmlLoadFailure(
+                        generation: generation,
+                        cacheKey: cacheKey,
+                        scoreErrorText: isEnglishCopy ? "Could not load MusicXML." : "MusicXMLを読み込めませんでした"
+                    )
+                    return
+                }
+                guard let downloaded = String(data: data, encoding: .utf8),
+                      downloaded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                    finishMusicXmlLoadFailure(
+                        generation: generation,
+                        cacheKey: cacheKey,
+                        scoreErrorText: isEnglishCopy ? "MusicXML is empty." : "MusicXMLが空です"
+                    )
+                    return
+                }
+                text = downloaded
             }
             let prepared = EarTrainingChordOsmdMusicXmlNormalizer.normalizeChordOsmdMusicXmlWithMeta(text)
             let baseDisplayXml = EarTrainingChordOsmdMusicXmlNormalizer.stripLyricsFromMusicXml(prepared.xml)

@@ -152,35 +152,42 @@ struct EarTrainingGameView: View {
             let stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
             bootstrapProgress = EarTrainingLoadProgress.stageLoaded
             if stageDetail.resolvedMode == .chordVoicing {
+                showPreparingOverlay = false
                 self.resolvedMode = .chordVoicing
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordQuiz {
+                showPreparingOverlay = false
                 self.resolvedMode = .chordQuiz
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordOSMD {
+                showPreparingOverlay = false
                 self.resolvedMode = .chordOSMD
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .chordPrecision {
+                showPreparingOverlay = false
                 self.resolvedMode = .chordPrecision
                 return
             }
             if stageDetail.resolvedMode == .adlib {
+                showPreparingOverlay = false
                 self.resolvedMode = .adlib
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .phrasePairAdlib {
+                showPreparingOverlay = false
                 self.resolvedMode = .phrasePairAdlib
                 recordAssignmentStartIfNeeded()
                 return
             }
             if stageDetail.resolvedMode == .adlibCallResponse {
+                showPreparingOverlay = false
                 self.resolvedMode = .adlibCallResponse
                 recordAssignmentStartIfNeeded()
                 return

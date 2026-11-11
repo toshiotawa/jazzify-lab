@@ -20,12 +20,11 @@ export const playMapNodeDisplayIcon = (
 
 export const playMapNodeDisplayLabel = (
   node: PlayMapNode,
-  stageLabel: number,
-  _isEnglishCopy: boolean,
+  stageLabel: string,
 ): string => {
   if (node.nodeKind === 'tutorial') {
     return '';
   }
   if (node.nodeKind === 'quest') return '?';
-  return String(stageLabel);
+  return stageLabel;
 };

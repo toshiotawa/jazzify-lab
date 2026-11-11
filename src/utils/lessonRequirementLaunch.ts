@@ -39,6 +39,7 @@ export type LessonRequirementLaunchInput = LessonRequirement & {
   video_lesson_stage_id?: string | null;
   video_lesson_stage?: { id?: string } | null;
   is_defense?: boolean;
+  is_input_tutorial?: boolean;
   defense_stage_id?: string | null;
   defense_stage?: { id?: string } | null;
   is_training?: boolean;
@@ -69,6 +70,7 @@ export function buildLessonRequirementLaunchHash(
   const isFantasy = req.is_fantasy === true;
   const isVideoLesson = req.is_video_lesson === true;
   const isDefense = req.is_defense === true;
+  const isInputTutorial = req.is_input_tutorial === true;
   const isTraining = req.is_training === true;
   const isTrainingGoalSet = req.is_training_goal_set === true;
 
@@ -97,6 +99,15 @@ export function buildLessonRequirementLaunchHash(
     params.set('clearConditions', JSON.stringify(req.clear_conditions));
     appendPlayMapContext(params, playMap);
     return `#training-lesson?${params.toString()}`;
+  }
+
+  if (isInputTutorial) {
+    const params = new URLSearchParams();
+    params.set('lessonId', req.lesson_id);
+    params.set('lessonSongId', req.lesson_song_id ?? '');
+    params.set('clearConditions', JSON.stringify(req.clear_conditions));
+    appendPlayMapContext(params, playMap);
+    return `#defense-tutorial-lesson?${params.toString()}`;
   }
 
   if (isDefense) {

@@ -10,7 +10,7 @@ import { DefenseTutorial } from '@/components/defense/tutorial/DefenseTutorial';
 import SoftLandingOfferModal from '@/components/lesson/SoftLandingOfferModal';
 import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import LoadingScreen from '@/components/ui/LoadingScreen';
-import type { PlayMapNode, PlayMapTier } from '@/platform/supabasePlayMap';
+import type { PlayMapNode } from '@/platform/supabasePlayMap';
 import {
   fetchPlayMapBlocks,
   fetchPlayMapNodeClears,
@@ -77,7 +77,6 @@ const DefenseMapMain: React.FC = () => {
   const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   const [screen, setScreen] = useState<Screen>('map');
-  const [mapTier, setMapTier] = useState<PlayMapTier>('basic');
   const [activeNode, setActiveNode] = useState<PlayMapNode | null>(null);
   const [loaded, setLoaded] = useState<LoadedStage | null>(null);
   const [session, setSession] = useState<ActiveSession | null>(null);
@@ -177,15 +176,8 @@ const DefenseMapMain: React.FC = () => {
     launchingRef.current = true;
     setIsStarting(true);
     try {
-      const [blocks, detail] = await Promise.all([
-        fetchPlayMapBlocks('defense'),
-        fetchDefenseStageDetail(node.defenseStageId),
-      ]);
+      const detail = await fetchDefenseStageDetail(node.defenseStageId);
       if (!detail || detail.phrases.length === 0) return;
-      const block = blocks.find((entry) => entry.id === node.blockId);
-      if (block) {
-        setMapTier(block.tier);
-      }
       const difficultyLevel = resolvePlayMapDefenseDifficultyLevel(
         node.difficultyLevel,
         detail.difficultyLevel,
@@ -209,14 +201,9 @@ const DefenseMapMain: React.FC = () => {
   }, []);
 
   const selectNodeOnMap = useCallback(async (nodeId: string) => {
-    const blocks = await fetchPlayMapBlocks('defense');
     const nodes = await fetchPlayMapNodes('defense');
     const node = nodes.find((entry) => entry.id === nodeId);
     if (!node) return;
-    const block = blocks.find((entry) => entry.id === node.blockId);
-    if (block) {
-      setMapTier(block.tier);
-    }
     setPendingSelectNodeId(nodeId);
   }, []);
 
@@ -472,8 +459,6 @@ const DefenseMapMain: React.FC = () => {
       <DefenseDescentMap
         isEnglishCopy={isEnglishCopy}
         isPremiumMember={isPremiumMember}
-        tier={mapTier}
-        onTierChange={setMapTier}
         onSelectNode={(node, practiceMode) => { void startFromNode(node, practiceMode); }}
         onSelectQuestNode={(node) => { void startFromNode(node, false); }}
         pendingSelectNodeId={pendingSelectNodeId}

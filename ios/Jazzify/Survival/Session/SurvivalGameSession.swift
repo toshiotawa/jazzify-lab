@@ -147,24 +147,31 @@ final class SurvivalGameSession: SurvivalPlaySession {
                     }
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
+                PlayLaunchTiming.end("SurvivalPlay")
             } else if stage.isCompositePhraseBossStage, let nums = stage.compositePhraseSources, !nums.isEmpty {
                 startTask = Task {
-                    var collected: [SurvivalPhraseDefinition] = []
-                    collected.reserveCapacity(nums.count)
-                    for n in nums {
-                        guard let phrase = try? await supabase.fetchSurvivalPhrase(
-                            mapCategory: stage.mapCategory,
-                            stageNumber: n
-                        ) else {
-                            collected.removeAll()
-                            break
+                    var collected = Array<SurvivalPhraseDefinition?>(repeating: nil, count: nums.count)
+                    let category = stage.mapCategory
+                    let service = supabase
+                    await withTaskGroup(of: (Int, SurvivalPhraseDefinition?).self) { group in
+                        for (index, stageNumber) in nums.enumerated() {
+                            group.addTask {
+                                let phrase = try? await service.fetchSurvivalPhrase(
+                                    mapCategory: category,
+                                    stageNumber: stageNumber
+                                )
+                                return (index, phrase)
+                            }
                         }
-                        collected.append(phrase)
+                        for await (index, phrase) in group {
+                            collected[index] = phrase
+                        }
                     }
+                    let resolved = collected.compactMap { $0 }
                     guard !Task.isCancelled, state != .disposed else { return }
                     let kf = stage.compositePhraseKeyFifths ?? 0
-                    if collected.count == nums.count, !collected.isEmpty {
-                        gameLoop.loadCompositePhraseRuntime(sourcePhrases: collected, keyFifths: kf)
+                    if resolved.count == nums.count, !resolved.isEmpty {
+                        gameLoop.loadCompositePhraseRuntime(sourcePhrases: resolved, keyFifths: kf)
                         viewModel.syncPhraseStaff(from: gameLoop)
                         viewModel.syncKeyboardScrollAnchor(from: gameLoop)
                         if playBackgroundMusic {
@@ -176,6 +183,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                         }
                     }
                     audioController.start(playBackgroundMusic: playBackgroundMusic)
+                    PlayLaunchTiming.end("SurvivalPlay")
                 }
             } else if let phrase = inlinePhraseDefinition {
                 gameLoop.loadPhraseDefinition(phrase)
@@ -185,6 +193,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                     applyPhraseBackgroundMusicUrlIfAvailable()
                 }
                 audioController.start(playBackgroundMusic: playBackgroundMusic)
+                PlayLaunchTiming.end("SurvivalPlay")
             } else {
                 startTask = Task {
                     let phrase = try? await supabase.fetchSurvivalPhrase(
@@ -201,6 +210,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                         }
                     }
                     audioController.start(playBackgroundMusic: playBackgroundMusic)
+                    PlayLaunchTiming.end("SurvivalPlay")
                 }
             }
         } else {
@@ -212,6 +222,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
                 }
             }
             audioController.start(playBackgroundMusic: playBackgroundMusic)
+            PlayLaunchTiming.end("SurvivalPlay")
         }
         gameLoop.markAudioClockStarted()
         state = .running
@@ -230,6 +241,7 @@ final class SurvivalGameSession: SurvivalPlaySession {
             applyPhraseBackgroundMusicUrlIfAvailable()
         }
         audioController.start(playBackgroundMusic: true)
+        PlayLaunchTiming.end("SurvivalPlay")
     }
 
     private func applyPhraseBackgroundMusicUrlIfAvailable(

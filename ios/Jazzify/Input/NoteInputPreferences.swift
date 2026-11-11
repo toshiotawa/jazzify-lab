@@ -9,7 +9,6 @@ enum NoteInputMethod: String {
 enum NoteInputPreferences {
     private static let methodKey = "jazzify.input.method"
     private static let micSensitivityKey = "jazzify.input.micSensitivity"
-    private static let voiceFastResponseKey = "jazzify.input.voiceFastResponse"
     private static let voiceLowRegisterKey = "jazzify.input.voiceLowRegister"
     private static let voiceInputChannelKey = "jazzify.input.voiceInputChannel"
 
@@ -36,12 +35,6 @@ enum NoteInputPreferences {
         }
     }
 
-    /// マイク高速反応: ON=pitchStableFrames 2, OFF=4
-    static var voiceFastResponse: Bool {
-        get { UserDefaults.standard.bool(forKey: voiceFastResponseKey) }
-        set { UserDefaults.standard.set(newValue, forKey: voiceFastResponseKey) }
-    }
-
     /// 低音読み取り: ON で認識入力を +12 半音してから実音へ戻す
     /// 1 または 2。PitchPlease に渡す前のチャンネル。
     static var voiceInputChannel: Int {
@@ -59,7 +52,7 @@ enum NoteInputPreferences {
     }
 
     static var pitchStableFrames: Int {
-        voiceFastResponse ? 2 : 4
+        4
     }
 
     static var midiVolume: Float {

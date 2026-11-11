@@ -64,8 +64,6 @@ struct DefenseTutorialInputPanelView: View {
 
     @ObservedObject private var midiManager = MIDIManager.shared
     @State private var micSensitivity = Double(NoteInputPreferences.micSensitivity)
-    @State private var voiceFastResponse = NoteInputPreferences.voiceFastResponse
-    @State private var voiceLowRegister = NoteInputPreferences.voiceLowRegister
     @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
     @State private var permission = PitchInputEngine.MicrophonePermission.undetermined
     @State private var monitorNoteName: String?
@@ -115,8 +113,6 @@ struct DefenseTutorialInputPanelView: View {
         .frame(maxWidth: .infinity)
         .onAppear {
             NoteInputManager.shared.inputMethod = inputMethod
-            voiceFastResponse = NoteInputPreferences.voiceFastResponse
-            voiceLowRegister = NoteInputPreferences.voiceLowRegister
             micSensitivity = Double(NoteInputPreferences.micSensitivity)
             midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
@@ -227,30 +223,6 @@ struct DefenseTutorialInputPanelView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-
-        Toggle(isEnglishCopy ? "Fast response" : "高速反応", isOn: $voiceFastResponse)
-            .font(.caption)
-            .onChange(of: voiceFastResponse) { newValue in
-                NoteInputPreferences.voiceFastResponse = newValue
-                PitchInputEngine.shared.setPitchStableFrames(NoteInputPreferences.pitchStableFrames)
-            }
-        Text(isEnglishCopy
-             ? "Turn this ON when pitch is hard to recognize. False detections may increase."
-             : "ピッチが認識しづらい時にONにしてください。※誤検出が増える可能性があります。")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-
-        Toggle(isEnglishCopy ? "Low register" : "低音読み取り", isOn: $voiceLowRegister)
-            .font(.caption)
-            .onChange(of: voiceLowRegister) { newValue in
-                NoteInputPreferences.voiceLowRegister = newValue
-                PitchInputEngine.shared.setLowRegister(newValue)
-            }
-        Text(isEnglishCopy
-             ? "Turn this ON for low notes such as double bass. Response is a little slower."
-             : "コントラバスなど低い音が拾いにくいときにONにしてください。反応は少し遅くなります。")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
     }
 
     @MainActor

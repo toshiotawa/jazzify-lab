@@ -432,6 +432,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let isVideoLesson: Bool?
     let videoLessonStageId: UUID?
     let isDefense: Bool?
+    let isInputTutorial: Bool?
     let defenseStageId: UUID?
     let isTraining: Bool?
     let trainingId: UUID?
@@ -481,6 +482,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case videoLessonStageId = "video_lesson_stage_id"
         case videoLessonStage
         case isDefense = "is_defense"
+        case isInputTutorial = "is_input_tutorial"
         case defenseStageId = "defense_stage_id"
         case defenseStage
         case isTraining = "is_training"

@@ -30,12 +30,12 @@ struct DefenseBlockCompleteSheet: View {
                 Text(isJapanese ? "次のステップ" : "Next up")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color(hex: "93c5fd"))
-                Text(isJapanese ? "Advanced フレーズディフェンス" : "Advanced Phrase Defense")
+                Text(isJapanese ? "第2階層" : "Floor 2")
                     .font(.headline)
                     .foregroundStyle(.white)
                 Text(isJapanese
-                     ? "より難しいステージを解放して、ディフェンス力を伸ばしましょう。"
-                     : "Unlock harder stages and keep building your defense skills.")
+                     ? "第2階層を解放して、ディフェンスを続けましょう。"
+                     : "Unlock Floor 2 and keep playing Phrase Defense.")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.75))
             }

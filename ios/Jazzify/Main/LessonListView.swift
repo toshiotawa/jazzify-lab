@@ -1242,6 +1242,14 @@ private struct DefensePrepContext: Identifiable {
     let clearConditions: LessonClearConditions?
 }
 
+/// 入力設定チュートリアル課題の起動コンテキスト。
+private struct InputTutorialLessonLaunch: Identifiable {
+    let id = UUID()
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 /// ディフェンス課題（ネイティブ `DefenseGameView`）の起動コンテキスト。
 private struct DefenseLessonLaunch: Identifiable {
     let id = UUID()
@@ -1341,6 +1349,7 @@ struct LessonDetailView: View {
     @State private var balloonRushLessonLaunch: BalloonRushLessonLaunch?
     @State private var videoLessonLaunch: VideoLessonLaunch?
     @State private var defensePrep: DefensePrepContext?
+    @State private var inputTutorialLaunch: InputTutorialLessonLaunch?
     @State private var defenseLessonLaunch: DefenseLessonLaunch?
     @State private var trainingPrep: TrainingPrepContext?
     @State private var trainingLessonLaunch: TrainingLessonLaunch?
@@ -1447,6 +1456,7 @@ struct LessonDetailView: View {
             || balloonRushLessonLaunch != nil
             || videoLessonLaunch != nil
             || defenseLessonLaunch != nil
+            || inputTutorialLaunch != nil
             || trainingLessonLaunch != nil
             || trainingGoalSetLaunch != nil
     }
@@ -1866,6 +1876,7 @@ struct LessonDetailView: View {
                     isLaunchingGame = true
                     Task { @MainActor in
                         await Task.yield()
+                        PlayLaunchTiming.begin("DefensePlay")
                         defenseLessonLaunch = DefenseLessonLaunch(prep: selected, practiceMode: true)
                     }
                 }
@@ -1875,12 +1886,23 @@ struct LessonDetailView: View {
                     isLaunchingGame = true
                     Task { @MainActor in
                         await Task.yield()
+                        PlayLaunchTiming.begin("DefensePlay")
                         defenseLessonLaunch = DefenseLessonLaunch(prep: selected, practiceMode: false)
                     }
                 }
                 Button(locale == .ja ? "キャンセル" : "Cancel", role: .cancel) {
                     defensePrep = nil
                 }
+            }
+            .fullScreenCover(item: $inputTutorialLaunch) { launch in
+                DefenseTutorialView(
+                    playMapNodeId: nil,
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
+                    clearConditions: launch.clearConditions,
+                    onExit: { inputTutorialLaunch = nil }
+                )
+                .environmentObject(appState)
             }
             .fullScreenCover(item: $defenseLessonLaunch) { launch in
                 DefenseGameView(
@@ -1895,6 +1917,7 @@ struct LessonDetailView: View {
                     locale: locale,
                     onClose: { defenseLessonLaunch = nil },
                     onApplyPracticeModeAndRestart: { nextPracticeMode in
+                        PlayLaunchTiming.begin("DefensePlay")
                         defenseLessonLaunch = DefenseLessonLaunch(
                             prep: launch.prep,
                             practiceMode: nextPracticeMode
@@ -3065,8 +3088,27 @@ struct LessonDetailView: View {
         }
         guard !stageIds.isEmpty else { return }
 
+        let osmdStageIds = lessonDetail.lessonSongs.compactMap { requirement -> UUID? in
+            guard requirement.isEarTraining == true, requirement.earTrainingStage?.mode == .chordOSMD else {
+                return nil
+            }
+            return requirement.earTrainingStage?.id ?? requirement.earTrainingStageId
+        }
+
         Task {
             await EarTrainingStageDetailCache.shared.preload(stageIds: stageIds)
+            guard !osmdStageIds.isEmpty else { return }
+            await MainActor.run {
+                EarTrainingOSMDScoreWebView.prewarmScoreWebView()
+            }
+            var musicXmlUrls: [String] = []
+            for stageId in osmdStageIds {
+                guard let detail = try? await EarTrainingStageDetailCache.shared.stageDetail(for: stageId) else {
+                    continue
+                }
+                musicXmlUrls.append(contentsOf: detail.phrases?.compactMap(\.musicXmlUrl) ?? [])
+            }
+            await EarTrainingMusicXmlTextCache.prefetch(urls: musicXmlUrls)
         }
     }
 
@@ -3643,6 +3685,15 @@ struct LessonDetailView: View {
             return
         }
 
+        if requirement.isInputTutorial == true {
+            inputTutorialLaunch = InputTutorialLessonLaunch(
+                lessonId: activeLesson.id,
+                lessonSongId: requirement.id,
+                clearConditions: requirement.clearConditions
+            )
+            return
+        }
+
         if requirement.isSurvivalTutorial == true {
             survivalTutorialLaunch = SurvivalTutorialLaunch(
                 lessonId: activeLesson.id,
@@ -3996,6 +4047,10 @@ struct LessonDetailView: View {
                 }
                 let overrideBgm = requirement.survivalLessonOverrides?.bgmUrl?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                PlayLaunchTiming.begin("EarTrainingPlay")
+                Task {
+                    await EarTrainingStageDetailCache.shared.preload(stageIds: [stageId])
+                }
                 earTrainingLaunch = EarTrainingLaunch(
                     stageId: stageId,
                     lessonId: activeLesson.id,
@@ -4098,6 +4153,7 @@ struct LessonDetailView: View {
         case .launchRequirement(let requirement):
             launchRequirement(requirement)
         case .launchSurvival(let launch):
+            PlayLaunchTiming.begin("SurvivalPlay")
             survivalLessonLaunch = launch
         case .launchBalloonRush(let launch):
             balloonRushLessonLaunch = launch

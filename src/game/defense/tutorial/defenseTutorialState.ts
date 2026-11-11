@@ -19,8 +19,7 @@ export interface DefenseTutorialSessionState {
 export type DefenseTutorialResetReason =
   | 'notation'
   | 'inputMethod'
-  | 'micSensitivity'
-  | 'voiceFastResponse';
+  | 'micSensitivity';
 
 export const createDefenseTutorialSessionState = (
   notation: DefenseTutorialNotationSettings,
@@ -93,7 +92,6 @@ export const shouldResetPhraseProgress = (reason: DefenseTutorialResetReason): b
   reason === 'notation'
   || reason === 'inputMethod'
   || reason === 'micSensitivity'
-  || reason === 'voiceFastResponse'
 );
 
 export const shouldSaveCompletionOnExit = (

@@ -17,7 +17,6 @@ struct DefenseDescentView: View {
     @State private var softLandingOfferEntry: SoftLandingOfferEntry = .chapterComplete
     @State private var showBlockCompleteSheet = false
 
-    @State private var mapTier: PlayMapTier = .basic
     @State private var pendingSelectNodeId: UUID?
     @State private var stageLaunchSession: StageLaunchSession?
     @State private var mapResultContext: MapResultContext?
@@ -101,7 +100,6 @@ struct DefenseDescentView: View {
                     blocks: blocks,
                     nodes: nodes,
                     clears: clears,
-                    tier: $mapTier,
                     pendingSelectNodeId: $pendingSelectNodeId,
                     onSelectNode: { node, practiceMode in
                         if node.nodeKind == .tutorial {
@@ -191,9 +189,6 @@ struct DefenseDescentView: View {
                     Task { await handlePlayMapClear(session: session) }
                 },
                 onFinished: { summary in
-                    if let block = blocks.first(where: { $0.id == session.node.blockId }) {
-                        mapTier = block.tier
-                    }
                     stageLaunchSession = nil
                     mapResultContext = MapResultContext(
                         node: session.node,
@@ -486,9 +481,6 @@ struct DefenseDescentView: View {
         guard let nodeId = appState.pendingDefenseNodeId else { return }
         guard let node = nodes.first(where: { $0.id == nodeId }) else { return }
         appState.pendingDefenseNodeId = nil
-        if let block = blocks.first(where: { $0.id == node.blockId }) {
-            mapTier = block.tier
-        }
         switch node.nodeKind {
         case .tutorial:
             tutorialLaunch = TutorialLaunchContext(id: node.id)
@@ -500,6 +492,7 @@ struct DefenseDescentView: View {
     }
 
     private func reloadMap() async {
+        SupabaseService.shared.invalidateDefenseStageCache()
         let showLoading = blocks.isEmpty
         if showLoading {
             isLoading = true
@@ -518,10 +511,29 @@ struct DefenseDescentView: View {
             clears = []
         }
         isLoading = false
+        preloadFrontierStage()
+    }
+
+    private func preloadFrontierStage() {
+        Task {
+            await SupabaseService.shared.preloadDefenseDifficultyTable()
+            let layout = DefenseDescentLayoutBuilder.build(blocks: blocks, nodes: nodes, tier: .advanced)
+            let cleared = Set(clears.map(\.nodeId))
+            guard let frontierId = DefenseDescentAccess.findFrontierNodeId(
+                blockLayouts: layout.blocks,
+                clearedNodeIds: cleared,
+                isPremium: appState.isPremium
+            ),
+            let node = nodes.first(where: { $0.id == frontierId }),
+            let stageId = node.defenseStageId
+            else { return }
+            await SupabaseService.shared.preloadDefenseStage(stageId: stageId)
+        }
     }
 
     private func startStageNode(_ node: PlayMapNode, practiceMode: Bool) async {
         guard !isFetchingStage, !isStarting else { return }
+        PlayLaunchTiming.begin("DefensePlay")
         isFetchingStage = true
         isStarting = true
         defer {
@@ -563,9 +575,6 @@ struct DefenseDescentView: View {
                 ? "難易度設定の読み込みに失敗しました。"
                 : "Failed to load difficulty settings."
             return
-        }
-        if let block = blocks.first(where: { $0.id == node.blockId }) {
-            mapTier = block.tier
         }
         stageLaunchSession = StageLaunchSession(
             node: node,

@@ -348,6 +348,7 @@ const LessonDetailPage: React.FC = () => {
           video_lesson_stage_id: ls.video_lesson_stage_id,
           video_lesson_stage: ls.video_lesson_stage,
           is_defense: ls.is_defense,
+          is_input_tutorial: ls.is_input_tutorial,
           defense_stage_id: ls.defense_stage_id,
           defense_stage: ls.defense_stage,
           is_training: ls.is_training,

@@ -17,6 +17,9 @@ const LazyEarTrainingTimingAdjustmentMain = React.lazy(
 );
 const LazyBalloonRushMain = React.lazy(() => import('@/components/balloonRush/BalloonRushMain'));
 const LazyDefenseMain = React.lazy(() => import('@/components/defense/DefenseMain'));
+const LazyDefenseTutorialMain = React.lazy(
+  () => import('@/components/defense/tutorial/DefenseTutorialMain'),
+);
 const LazyVideoLessonMain = React.lazy(() => import('@/components/videoLesson/VideoLessonMain'));
 const LazyLessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
 
@@ -54,6 +57,12 @@ const IosWebViewShell: React.FC = () => {
         return <LazyFantasyMain />;
       case 'survival':
         return <LazySurvivalMain />;
+      case 'defense-tutorial-lesson':
+        return (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyDefenseTutorialMain />
+          </React.Suspense>
+        );
       case 'defense-lesson':
         return (
           <React.Suspense fallback={<LoadingScreen />}>

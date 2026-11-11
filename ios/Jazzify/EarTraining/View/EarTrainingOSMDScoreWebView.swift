@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WebKit
 import QuartzCore
 import os.log
@@ -39,7 +40,155 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         Coordinator(scrollLayout: scrollLayout)
     }
 
+    static func prewarmScoreWebView() {
+        if warmedWebView != nil { return }
+        let configuration = WKWebViewConfiguration()
+        let preferences = WKWebpagePreferences()
+        preferences.allowsContentJavaScript = true
+        configuration.defaultWebpagePreferences = preferences
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        applyScoreWebViewAppearance(webView)
+        let observer = PrewarmNavigationObserver()
+        webView.navigationDelegate = observer
+        webView.loadHTMLString(html(for: .battleDefault), baseURL: Bundle.main.bundleURL)
+        warmedWebView = webView
+        warmedLayout = .battleDefault
+        warmedLoadObserver = observer
+        installMemoryWarningObserverIfNeeded()
+    }
+
+    static func releasePrewarmedScoreWebView() {
+        warmedWebView?.stopLoading()
+        warmedWebView?.navigationDelegate = nil
+        warmedWebView = nil
+        warmedLayout = nil
+        warmedLoadObserver = nil
+    }
+
+    private static var warmedWebView: WKWebView?
+    private static var warmedLayout: EarTrainingOsmdScrollLayout?
+    private static var warmedLoadObserver: PrewarmNavigationObserver?
+    private static var didInstallMemoryWarningObserver = false
+
+    /// 事前起動中の HTML 読み込み結果。Coordinator 接続前に `didFinish` が済んでも取りこぼさない。
+    fileprivate final class PrewarmNavigationObserver: NSObject, WKNavigationDelegate {
+        enum LoadState {
+            case loading
+            case finished
+            case failed
+        }
+
+        private(set) var state: LoadState = .loading
+        var onFinish: ((WKWebView) -> Void)?
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
+            guard state == .loading else { return }
+            state = .finished
+            onFinish?(webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation?, withError error: Error) {
+            state = .failed
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation?,
+            withError error: Error
+        ) {
+            state = .failed
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            state = .failed
+        }
+    }
+
+    private struct PrewarmedScoreWebView {
+        let webView: WKWebView
+        let observer: PrewarmNavigationObserver
+    }
+
+    private static func applyScoreWebViewAppearance(_ webView: WKWebView) {
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.scrollView.contentInset = .zero
+    }
+
+    private static func installMemoryWarningObserverIfNeeded() {
+        guard !didInstallMemoryWarningObserver else { return }
+        didInstallMemoryWarningObserver = true
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            releasePrewarmedScoreWebView()
+        }
+    }
+
+    private static func takePrewarmedWebView(scrollLayout: EarTrainingOsmdScrollLayout) -> PrewarmedScoreWebView? {
+        guard warmedLayout == scrollLayout, let webView = warmedWebView, let observer = warmedLoadObserver else {
+            return nil
+        }
+        warmedWebView = nil
+        warmedLayout = nil
+        warmedLoadObserver = nil
+        return PrewarmedScoreWebView(webView: webView, observer: observer)
+    }
+
     func makeUIView(context: Context) -> WKWebView {
+        if let prewarmed = Self.takePrewarmedWebView(scrollLayout: scrollLayout) {
+            switch prewarmed.observer.state {
+            case .failed:
+                prewarmed.webView.stopLoading()
+                prewarmed.webView.navigationDelegate = nil
+            case .finished:
+                return adoptPrewarmedWebView(prewarmed.webView, context: context, alreadyLoaded: true, observer: nil)
+            case .loading:
+                return adoptPrewarmedWebView(
+                    prewarmed.webView,
+                    context: context,
+                    alreadyLoaded: false,
+                    observer: prewarmed.observer
+                )
+            }
+        }
+        return makeFreshWebView(context: context)
+    }
+
+    private func adoptPrewarmedWebView(
+        _ webView: WKWebView,
+        context: Context,
+        alreadyLoaded: Bool,
+        observer: PrewarmNavigationObserver?
+    ) -> WKWebView {
+        Self.applyScoreWebViewAppearance(webView)
+        webView.configuration.userContentController.add(
+            context.coordinator,
+            name: Self.osmdRenderScriptMessageName
+        )
+        context.coordinator.attach(webView: webView)
+        if alreadyLoaded {
+            webView.navigationDelegate = context.coordinator
+            context.coordinator.markHtmlReady(webView: webView)
+            return webView
+        }
+        if let observer {
+            context.coordinator.retainPrewarmObserver(observer)
+            observer.onFinish = { [weak coordinator = context.coordinator] finishedWebView in
+                finishedWebView.navigationDelegate = coordinator
+                coordinator?.markHtmlReady(webView: finishedWebView)
+            }
+            webView.navigationDelegate = observer
+        }
+        return webView
+    }
+
+    private func makeFreshWebView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let preferences = WKWebpagePreferences()
         preferences.allowsContentJavaScript = true
@@ -51,13 +200,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         )
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
+        Self.applyScoreWebViewAppearance(webView)
         webView.navigationDelegate = context.coordinator
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
-        webView.scrollView.isScrollEnabled = false
-        webView.scrollView.bounces = false
-        webView.scrollView.contentInset = .zero
         context.coordinator.attach(webView: webView)
         webView.loadHTMLString(Self.html(for: scrollLayout), baseURL: Bundle.main.bundleURL)
         return webView
@@ -116,6 +260,7 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
         }
 
         private weak var webView: WKWebView?
+        private var prewarmObserver: PrewarmNavigationObserver?
         private var htmlReady = false
         private var isTornDown = false
         private var renderGeneration: Int = 0
@@ -491,6 +636,10 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             )
         }
 
+        fileprivate func retainPrewarmObserver(_ observer: PrewarmNavigationObserver) {
+            prewarmObserver = observer
+        }
+
         func attach(webView: WKWebView) {
             self.webView = webView
             if enharmonicDisplayObserver == nil {
@@ -510,6 +659,8 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
                 self.enharmonicDisplayObserver = nil
             }
             isTornDown = true
+            prewarmObserver?.onFinish = nil
+            prewarmObserver = nil
             renderGeneration += 1
             htmlReady = false
             pendingMusicXMLText = nil
@@ -756,8 +907,11 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             }
         }
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
-            guard !isTornDown else { return }
+        fileprivate func markHtmlReady(webView: WKWebView) {
+            guard !isTornDown, !htmlReady else { return }
+            self.webView = webView
+            prewarmObserver?.onFinish = nil
+            prewarmObserver = nil
             htmlReady = true
             lastSentOverlayVisible = nil
             lastCountInDurationSec = nil
@@ -780,6 +934,10 @@ struct EarTrainingOSMDScoreWebView: UIViewRepresentable {
             } else {
                 flushPending(webView: webView)
             }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
+            markHtmlReady(webView: webView)
         }
 
         func update(

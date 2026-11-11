@@ -224,8 +224,6 @@ struct SurvivalGameView: View {
         isLoading = true
         loadError = nil
 
-        SurvivalAssetPreloader.preloadIfNeeded()
-
         let profile: SurvivalCharacterProfile
         var config: SurvivalStageConfig
 

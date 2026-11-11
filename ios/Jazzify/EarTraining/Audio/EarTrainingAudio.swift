@@ -324,7 +324,7 @@ final class EarTrainingAudio: NSObject {
         guard preloadDedupeURL != url else { return }
         preloadDedupeURL = url
         Task { [weak self] in
-            _ = try? await self?.cache.localFileURL(for: url)
+            _ = await self?.preparePhraseForImmediatePlayback(url: url)
         }
     }
 
@@ -337,6 +337,9 @@ final class EarTrainingAudio: NSObject {
 
     /// カウントイン前に呼ぶ。リモートならダウンロード・キャッシュし、`playPreparedPhrase` で即スケジュール再生可能にする。
     func preparePhraseForImmediatePlayback(url: URL) async -> Bool {
+        if preparedForImmediatePlaybackURL == url, preparedLocalFileURL != nil {
+            return true
+        }
         playbackToken += 1
         let token = playbackToken
         preparedForImmediatePlaybackURL = nil

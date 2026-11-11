@@ -24,10 +24,10 @@ export const DefenseBlockCompleteModal: React.FC<DefenseBlockCompleteModalProps>
     ? 'You cleared the first floor!'
     : '第1階層をクリアしました！';
   const nextLabel = isEnglishCopy ? 'Next up' : '次のステップ';
-  const nextTitle = isEnglishCopy ? 'Advanced Phrase Defense' : 'Advanced フレーズディフェンス';
+  const nextTitle = isEnglishCopy ? 'Floor 2' : '第2階層';
   const nextBody = isEnglishCopy
-    ? 'Unlock harder stages and keep building your defense skills.'
-    : 'より難しいステージを解放して、ディフェンス力を伸ばしましょう。';
+    ? 'Unlock Floor 2 and keep playing Phrase Defense.'
+    : '第2階層を解放して、ディフェンスを続けましょう。';
   const stayLabel = isEnglishCopy ? 'Back to map' : 'マップに戻る';
 
   return (

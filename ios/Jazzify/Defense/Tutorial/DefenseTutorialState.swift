@@ -20,7 +20,6 @@ enum DefenseTutorialResetReason: Equatable, Sendable {
     case notation
     case inputMethod
     case micSensitivity
-    case voiceFastResponse
 }
 
 enum DefenseTutorialState {
@@ -106,7 +105,7 @@ enum DefenseTutorialState {
 
     static func shouldResetPhraseProgress(reason: DefenseTutorialResetReason) -> Bool {
         switch reason {
-        case .notation, .inputMethod, .micSensitivity, .voiceFastResponse:
+        case .notation, .inputMethod, .micSensitivity:
             return true
         }
     }

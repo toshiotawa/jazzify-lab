@@ -22,14 +22,13 @@ enum PlayMapProgression {
 
     static func displayLabel(
         node: PlayMapNode,
-        stageLabel: Int,
-        isEnglishCopy: Bool
+        stageLabel: String
     ) -> String {
         if node.nodeKind == .tutorial {
             return ""
         }
         if node.nodeKind == .quest { return "?" }
-        return String(stageLabel)
+        return stageLabel
     }
 }
 
@@ -104,9 +103,8 @@ enum DefenseDescentLayoutBuilder {
         for block: PlayMapBlock,
         blockIndex: Int,
         nodes: [PlayMapNode],
-        startY: CGFloat,
-        stageLabelOffset: Int
-    ) -> (layout: DefenseDescentBlockLayout, nextStageLabel: Int) {
+        startY: CGFloat
+    ) -> DefenseDescentBlockLayout {
         let c = DefenseDescentLayoutConstants.self
         let blockNodes = nodes
             .filter { $0.blockId == block.id }
@@ -117,21 +115,20 @@ enum DefenseDescentLayoutBuilder {
         var positions: [DefenseDescentNodePosition] = []
         let count = blockNodes.count
         var y = firstNodeY
-        var stageLabel = stageLabelOffset
+        var stageInBlock = 0
 
         for i in 0..<count {
             let isLast = (i == count - 1)
             let lane = assignLane(indexInBlock: i, isLastInBlock: isLast)
             let node = blockNodes[i]
+            if node.nodeKind == .stage {
+                stageInBlock += 1
+            }
             let displayLabel = PlayMapProgression.displayLabel(
                 node: node,
-                stageLabel: stageLabel,
-                isEnglishCopy: false
+                stageLabel: "\(blockIndex + 1)-\(stageInBlock)"
             )
             let displayIcon = PlayMapProgression.displayIcon(node: node)
-            if node.nodeKind == .stage {
-                stageLabel += 1
-            }
             positions.append(
                 DefenseDescentNodePosition(
                     nodeId: node.id,
@@ -167,7 +164,7 @@ enum DefenseDescentLayoutBuilder {
             endY: endY,
             nodes: positions
         )
-        return (layout, stageLabel)
+        return layout
     }
 
     static func build(
@@ -182,20 +179,17 @@ enum DefenseDescentLayoutBuilder {
         var blockLayouts: [DefenseDescentBlockLayout] = []
         var nodePositions: [UUID: DefenseDescentNodePosition] = [:]
         var cursorY: CGFloat = 0
-        var stageLabel = 1
 
         for (blockIndex, block) in tierBlocks.enumerated() {
-            let built = buildLayout(
+            let layout = buildLayout(
                 for: block,
                 blockIndex: blockIndex,
                 nodes: nodes,
-                startY: cursorY,
-                stageLabelOffset: stageLabel
+                startY: cursorY
             )
-            blockLayouts.append(built.layout)
-            built.layout.nodes.forEach { nodePositions[$0.nodeId] = $0 }
-            cursorY = built.layout.endY
-            stageLabel = built.nextStageLabel
+            blockLayouts.append(layout)
+            layout.nodes.forEach { nodePositions[$0.nodeId] = $0 }
+            cursorY = layout.endY
         }
 
         let totalHeight = blockLayouts.last?.endY ?? 0

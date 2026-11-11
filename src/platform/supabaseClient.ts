@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { isStaging } from '@/utils/environment';
 import { log } from '@/utils/logger';
 
 /**
@@ -31,7 +32,7 @@ export function getSupabaseClient(): SupabaseClient {
       },
       global: {
         headers: {
-          'X-Client-Info': 'jazzgame-v1',
+          'X-Client-Info': `jazzify-web/${isStaging() ? 'staging' : 'production'}`,
         },
       },
     });

@@ -39,9 +39,18 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { isLowRegisterNotationInstrument } from '@/utils/notationInstrument';
 import type { InputMethod } from '@/types';
 import { recordPlayMapNodeClear } from '@/platform/supabasePlayMap';
+import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import type { ClearConditions } from '@/types';
+
+export interface DefenseTutorialLessonContext {
+  readonly lessonId: string;
+  readonly lessonSongId: string;
+  readonly clearConditions: ClearConditions | Record<string, unknown>;
+}
 
 interface DefenseTutorialProps {
   readonly playMapNodeId?: string;
+  readonly lessonContext?: DefenseTutorialLessonContext | null;
   readonly onExit: () => void;
 }
 
@@ -58,6 +67,7 @@ const tutorialDifficulty: DefenseDifficulty = {
 
 export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
   playMapNodeId,
+  lessonContext = null,
   onExit,
 }) => {
   const profile = useAuthStore((state) => state.profile);
@@ -112,16 +122,27 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
   }, [updateNotationInstrument, updateSettings]);
 
   const handleExit = useCallback(async () => {
-    if (playMapNodeId && shouldSaveCompletionOnExit(session)) {
+    if (shouldSaveCompletionOnExit(session)) {
       try {
-        await recordPlayMapNodeClear(playMapNodeId, {});
+        if (playMapNodeId) {
+          await recordPlayMapNodeClear(playMapNodeId, {});
+        }
+        if (lessonContext) {
+          await updateLessonRequirementProgress(
+            lessonContext.lessonId,
+            lessonContext.lessonSongId,
+            'S',
+            lessonContext.clearConditions,
+            { sourceType: 'defense', lessonSongId: lessonContext.lessonSongId },
+          );
+        }
         setSession((prev) => markDefenseTutorialCompletionSaved(prev));
       } catch {
         /* keep local success; user can retry later */
       }
     }
     onExit();
-  }, [onExit, playMapNodeId, session]);
+  }, [lessonContext, onExit, playMapNodeId, session]);
 
   const handleNotationConfirm = useCallback(() => {
     if (session.screen === 'notation') {
