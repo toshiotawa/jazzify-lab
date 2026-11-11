@@ -71,6 +71,7 @@
 		1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */; };
 		A91C4E7B2D8056F14C3A9B20 /* PitchPleaseVoiceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E81A6F9B2D5073E8C1A4D5 /* PitchPleaseVoiceEngine.swift */; };
 		D8E9F0A1B2C3D4E5F6071829 /* PitchPleaseAssetServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F0A1B2C3D4E5F60718293A /* PitchPleaseAssetServer.swift */; };
+		F1A2B3C4D5E60718293A4B5C /* PitchPleaseSampleSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B3C4D5E6F708192A3B4C5D /* PitchPleaseSampleSocket.swift */; };
 		1D6B4B7C684F2084328F9DBC /* TrainingQuestionBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718B539D8ADF7BEFB659DE6A /* TrainingQuestionBuilderTests.swift */; };
 		1DFBDACAE9043EB60DA4D7C1 /* DefenseTutorialStaffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DE07F208A0CCD0E9DC6500C /* DefenseTutorialStaffView.swift */; };
 		1E1EBC5E3CB19F126E4F5BEE /* AppAudioSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0597F2577B5F44C0665E74 /* AppAudioSession.swift */; };
@@ -232,6 +233,7 @@
 		6DF0F2EC897BEE7B9120DEA9 /* EarTrainingPianoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */; };
 		6E0D60B0CA41EC2C528B8C89 /* PitchOnsetTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */; };
 		F0A1B2C3D4E5F60718293A4B /* PitchPleaseAssetServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C8D9E0F1A2B3C4D5E6F708 /* PitchPleaseAssetServerTests.swift */; };
+		C3D4E5F60718293A4B5C6D7E /* PitchPleaseSampleSocketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F60718293A4B5C6D7E8F /* PitchPleaseSampleSocketTests.swift */; };
 		6E602616B42F970A84B18E0D /* TrainingProgression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76B83A7CEC8E09D2A75F237C /* TrainingProgression.swift */; };
 		6F8F58B05DADFEBA5599E9AB /* SurvivalTutorialV3DrumLoopSourceResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F679CD1D198D706377E721 /* SurvivalTutorialV3DrumLoopSourceResolverTests.swift */; };
 		7083199A0A134A74497AEAA0 /* 課題完了前 クリアモーダル.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = E0F49887F461620A77DBFC64 /* 課題完了前 クリアモーダル.mp3 */; };
@@ -594,6 +596,7 @@
 		39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchInputEngine.swift; sourceTree = "<group>"; };
 		C4E81A6F9B2D5073E8C1A4D5 /* PitchPleaseVoiceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchPleaseVoiceEngine.swift; sourceTree = "<group>"; };
 		E9F0A1B2C3D4E5F60718293A /* PitchPleaseAssetServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchPleaseAssetServer.swift; sourceTree = "<group>"; };
+		A2B3C4D5E6F708192A3B4C5D /* PitchPleaseSampleSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchPleaseSampleSocket.swift; sourceTree = "<group>"; };
 		3A6EA9048BECD0D6380647A9 /* UIKitHorizontalScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitHorizontalScrollView.swift; sourceTree = "<group>"; };
 		3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingEngine.swift; sourceTree = "<group>"; };
 		3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -631,6 +634,7 @@
 		4AF02B3F435FD1F224446320 /* EarTrainingBattleOsuCircleLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleOsuCircleLayout.swift; sourceTree = "<group>"; };
 		4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchOnsetTrackerTests.swift; sourceTree = "<group>"; };
 		B7C8D9E0F1A2B3C4D5E6F708 /* PitchPleaseAssetServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchPleaseAssetServerTests.swift; sourceTree = "<group>"; };
+		D4E5F60718293A4B5C6D7E8F /* PitchPleaseSampleSocketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchPleaseSampleSocketTests.swift; sourceTree = "<group>"; };
 		4BB920A475115C673D916DED /* TrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingGameView.swift; sourceTree = "<group>"; };
 		4D3B5D640D4F734150F2278A /* DefenseSharedProgressionAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSharedProgressionAudio.swift; sourceTree = "<group>"; };
 		A8A22A3125E5420ABAECDF21 /* DefenseSeparateTracksTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSeparateTracksTransport.swift; sourceTree = "<group>"; };
@@ -1441,6 +1445,7 @@
 				C7EC1358AF809BB683C1BF59 /* PianoVelocityCurveTests.swift */,
 				4B189251D10DEB84C31B4B54 /* PitchOnsetTrackerTests.swift */,
 				B7C8D9E0F1A2B3C4D5E6F708 /* PitchPleaseAssetServerTests.swift */,
+				D4E5F60718293A4B5C6D7E8F /* PitchPleaseSampleSocketTests.swift */,
 				C5FB3F9361B5F6BFC8182394 /* ScreenRotationApplierTests.swift */,
 				83ED53FE93C0297F2122C1A5 /* ScreenRotationPreferencesTests.swift */,
 				5D549AE5505928B0D2E38776 /* SoftLandingFreeTierTests.swift */,
@@ -1628,6 +1633,7 @@
 				39FAEF4D23D1173399BE071A /* PitchInputEngine.swift */,
 				C4E81A6F9B2D5073E8C1A4D5 /* PitchPleaseVoiceEngine.swift */,
 				E9F0A1B2C3D4E5F60718293A /* PitchPleaseAssetServer.swift */,
+				A2B3C4D5E6F708192A3B4C5D /* PitchPleaseSampleSocket.swift */,
 				80700AD969E1229570EA6030 /* PestoDecimatorState.swift */,
 				BE06ED770527F1EB6E7E93D9 /* PestoModelInputs.swift */,
 				4D822861991C2E994A0BE8D3 /* PitchOnsetTracker.swift */,
@@ -2252,6 +2258,7 @@
 				70BF445A4167DD4784A1C64A /* PianoVelocityCurveTests.swift in Sources */,
 				6E0D60B0CA41EC2C528B8C89 /* PitchOnsetTrackerTests.swift in Sources */,
 				F0A1B2C3D4E5F60718293A4B /* PitchPleaseAssetServerTests.swift in Sources */,
+				C3D4E5F60718293A4B5C6D7E /* PitchPleaseSampleSocketTests.swift in Sources */,
 				D445C6B27F34AA59575894A5 /* ScreenRotationApplierTests.swift in Sources */,
 				54454BB426D048A6614E6A2C /* ScreenRotationPreferencesTests.swift in Sources */,
 				9676166C37A4A0AF36F96766 /* SoftLandingFreeTierTests.swift in Sources */,
@@ -2512,6 +2519,7 @@
 				1CE974B9AA8B447B9D5D57BF /* PitchInputEngine.swift in Sources */,
 				A91C4E7B2D8056F14C3A9B20 /* PitchPleaseVoiceEngine.swift in Sources */,
 				D8E9F0A1B2C3D4E5F6071829 /* PitchPleaseAssetServer.swift in Sources */,
+				F1A2B3C4D5E60718293A4B5C /* PitchPleaseSampleSocket.swift in Sources */,
 				1ED5EED16ABB47B78521E652 /* PestoDecimatorState.swift in Sources */,
 				791019D929DE30727DF4CACB /* PestoModelInputs.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5C /* PitchAttackEnvelope.swift in Sources */,

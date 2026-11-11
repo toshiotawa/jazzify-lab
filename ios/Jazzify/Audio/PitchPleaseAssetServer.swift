@@ -174,24 +174,35 @@ final class PitchPleaseAssetServer: @unchecked Sendable {
     }
 
     private func send(connection: NWConnection, status: Int, body: Data, mimeType: String) {
-        let statusText = status == 200 ? "OK" : (status == 404 ? "Not Found" : (status == 405 ? "Method Not Allowed" : "Bad Request"))
-        let header = """
-        HTTP/1.1 \(status) \(statusText)\r
-        Content-Type: \(mimeType)\r
-        Content-Length: \(body.count)\r
-        Connection: close\r
-        \r
-        """
-        var payload = Data(header.utf8)
-        payload.append(body)
+        let payload = PitchPleaseHTTPStaticFile.makeHTTPResponse(status: status, body: body, mimeType: mimeType)
 
-        connection.send(content: payload, completion: .contentProcessed { [weak self] error in
-            connection.cancel()
-            self?.remove(connection: connection)
-            if error != nil {
-                _ = error
+        connection.send(
+            content: payload,
+            contentContext: .defaultMessage,
+            isComplete: true,
+            completion: .contentProcessed { [weak self] error in
+                guard let self else { return }
+                if error != nil {
+                    connection.cancel()
+                    self.remove(connection: connection)
+                    return
+                }
+                self.drainClientUntilClosed(connection: connection)
             }
-        })
+        )
+    }
+
+    /// 送信側 FIN 後、クライアントのクローズを待ってから接続を片付ける（RST で応答を途中切断しない）。
+    private func drainClientUntilClosed(connection: NWConnection) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] _, _, isComplete, error in
+            guard let self else { return }
+            if isComplete || error != nil {
+                connection.cancel()
+                self.remove(connection: connection)
+                return
+            }
+            self.drainClientUntilClosed(connection: connection)
+        }
     }
 }
 
@@ -242,6 +253,40 @@ enum PitchPleaseHTTPStaticFile {
             return nil
         }
         return candidate
+    }
+
+    static func httpStatusText(for status: Int) -> String {
+        switch status {
+        case 200:
+            return "OK"
+        case 404:
+            return "Not Found"
+        case 405:
+            return "Method Not Allowed"
+        default:
+            return "Bad Request"
+        }
+    }
+
+    /// HTTP/1.1 応答（ヘッダは CRLF、本文直後に追加する想定でヘッダ末尾は `\r\n\r\n`）。
+    static func makeHTTPResponse(status: Int, body: Data, mimeType: String) -> Data {
+        let statusText = httpStatusText(for: status)
+        let headerLines = [
+            "HTTP/1.1 \(status) \(statusText)",
+            "Content-Type: \(mimeType)",
+            "Content-Length: \(body.count)",
+            "Connection: close",
+        ]
+        let crlf = Data([0x0D, 0x0A])
+        var headerData = Data()
+        for line in headerLines {
+            headerData.append(Data(line.utf8))
+            headerData.append(crlf)
+        }
+        headerData.append(crlf)
+        var payload = headerData
+        payload.append(body)
+        return payload
     }
 
     static func mimeType(for fileURL: URL) -> String {

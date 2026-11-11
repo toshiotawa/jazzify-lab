@@ -2,6 +2,10 @@
 <html>
 <body>
 <script type="module">
+import { loadModel } from './engine/models.js';
+import { resolveKernel } from './engine/kernel-load.js';
+import { KEY_COUNT, LOWEST_MIDI } from './engine/tracker.js';
+
 const ON = 0.6;
 const OFF = 0.36;
 const STRONG = 0.9;
@@ -11,7 +15,8 @@ const NEIGHBOR = 2;
 const MIN = 21;
 const MAX = 108;
 const params = new URLSearchParams(location.search);
-const channel = params.get('channel') === '2' ? 2 : 1;
+const wsPort = Number(params.get('wsPort') ?? '0');
+const token = params.get('token') ?? '';
 const post = (payload) => {
   window.webkit?.messageHandlers?.pitch?.postMessage(payload);
 };
@@ -23,9 +28,11 @@ const release = new Int32Array(128);
 const sinceOn = new Int32Array(128);
 sinceOn.fill(-1);
 
-const step = (levels) => {
+const stepFromProbs = (probs) => {
+  if (!probs || probs.length < KEY_COUNT) return;
   for (let midi = MIN; midi <= MAX; midi += 1) {
-    const level = levels[midi] ?? 0;
+    const keyIndex = midi - LOWEST_MIDI;
+    const level = keyIndex >= 0 && keyIndex < probs.length ? probs[keyIndex] : 0;
     if (emitted[midi]) {
       if (level >= OFF) {
         release[midi] = 0;
@@ -48,7 +55,8 @@ const step = (levels) => {
     let blocked = false;
     if (sinceOn[midi] < 0 || sinceOn[midi] < NEIGHBOR) {
       for (const neighbor of [midi - 1, midi + 1]) {
-        const neighborLevel = levels[neighbor] ?? 0;
+        const neighborKey = neighbor - LOWEST_MIDI;
+        const neighborLevel = neighborKey >= 0 && neighborKey < probs.length ? probs[neighborKey] : 0;
         if (neighborLevel > level && neighborLevel >= STRONG) blocked = true;
       }
     }
@@ -71,48 +79,49 @@ const step = (levels) => {
 };
 
 try {
-  const { create } = await import('./pitchplease.js');
-  const detector = create({
-    model: 'piano',
-    assetBaseUrl: './',
-    onNotes: (_notes, frame) => {
-      const levels = new Array(128).fill(0);
-      const probs = frame?.probs;
-      if (probs) {
-        const count = Math.min(probs.length, MAX - MIN + 1);
-        for (let i = 0; i < count; i += 1) levels[MIN + i] = probs[i];
-      }
-      step(levels);
-    },
-    onError: (error) => post({ kind: 'error', message: String(error?.message || error) }),
-  });
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      channelCount: channel === 2 ? { exact: 2 } : { ideal: 2 },
-      echoCancellation: true,
-      noiseSuppression: false,
-      autoGainControl: false,
-    },
-    video: false,
-  });
-  const count = stream.getAudioTracks()[0]?.getSettings?.().channelCount ?? null;
-  let input = stream;
-  if (channel === 2) {
-    if (count !== null && count < 2) {
-      post({ kind: 'error', message: '入力2を選択できません。ブラウザから2チャンネルの音声を取得できていません。' });
-      throw new Error('voice-input-channel-unavailable');
-    }
-    const context = new AudioContext({ sampleRate: 48000 });
-    if (context.state === 'suspended') await context.resume();
-    const source = context.createMediaStreamSource(stream);
-    const splitter = context.createChannelSplitter(Math.max(source.channelCount, 2));
-    const destination = context.createMediaStreamDestination();
-    source.connect(splitter);
-    splitter.connect(destination, 1, 0);
-    input = destination.stream;
+  if (!wsPort || !token) {
+    throw new Error('PCM ソケットのパラメータがありません');
   }
-  const started = await detector.start(input);
-  post({ kind: started ? 'ready' : 'error', message: started ? '' : 'PitchPlease を開始できませんでした' });
+  const [loaded, kernel] = await Promise.all([
+    loadModel('piano', undefined, './'),
+    resolveKernel('auto', 'bytes', undefined, './'),
+  ]);
+  const detector = kernel.impl.createDetector(
+    kernel.impl.parseWeights(loaded.manifest, loaded.weights),
+    { inputRate: 48000, wasmModule: kernel.wasm },
+  );
+
+  const ws = new WebSocket(`ws://127.0.0.1:${wsPort}`);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => {
+    ws.send(token);
+  };
+
+  ws.onerror = () => {
+    post({ kind: 'error', message: 'PCM ソケットに接続できません' });
+  };
+
+  ws.onmessage = (event) => {
+    if (typeof event.data === 'string') {
+      if (event.data === 'ok') {
+        post({ kind: 'ready' });
+      }
+      return;
+    }
+    const samples = new Float32Array(event.data);
+    let frames;
+    try {
+      frames = detector.push(samples);
+    } catch (error) {
+      post({ kind: 'error', message: String(error?.message || error) });
+      ws.close();
+      return;
+    }
+    for (const frame of frames) {
+      stepFromProbs(frame.probs);
+    }
+  };
 } catch (error) {
   post({ kind: 'error', message: String(error?.message || error) });
 }

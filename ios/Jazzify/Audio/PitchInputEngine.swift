@@ -13,8 +13,21 @@ import QuartzCore
 ///
 /// 可変状態はすべて上記いずれかのスレッドに閉じ込めるか NSLock で保護しているため
 /// `@unchecked Sendable` として扱う。
+enum PitchCaptureExternalChannelError: LocalizedError {
+    case channelUnavailable
+
+    var errorDescription: String? {
+        "入力2を選択できません。ブラウザから2チャンネルの音声を取得できていません。"
+    }
+}
+
 final class PitchInputEngine: @unchecked Sendable {
     static let shared = PitchInputEngine()
+
+    private enum CaptureOutputMode {
+        case pesto
+        case pitchPleaseForward
+    }
 
     private static let chunkSize = 240
     private static let baseFrameSec = Double(chunkSize) / targetSampleRate
@@ -117,6 +130,11 @@ final class PitchInputEngine: @unchecked Sendable {
     private let subscriberLock = NSLock()
     nonisolated(unsafe) private var simpleHandlers: [UUID: (UInt8, UInt8, UInt8) -> Void] = [:]
     nonisolated(unsafe) private var hostTimeHandlers: [UUID: (UInt8, UInt8, UInt8, UInt64) -> Void] = [:]
+
+    private let captureConsumerLock = NSLock()
+    nonisolated(unsafe) private var captureOutputMode: CaptureOutputMode = .pesto
+    fileprivate var captureInputChannelIndex: Int = 0
+    nonisolated(unsafe) private var externalChunkConsumer: ((UnsafePointer<Float>, Int) -> Void)?
 
     /// 設定 UI 用モニタ（推論スレッドが更新、MainActor が 30Hz で読む）。
     private let monitorLock = NSLock()
@@ -425,6 +443,29 @@ final class PitchInputEngine: @unchecked Sendable {
 
     @MainActor
     func start() async throws {
+        captureConsumerLock.lock()
+        captureOutputMode = .pesto
+        externalChunkConsumer = nil
+        captureConsumerLock.unlock()
+        try await startCaptureCore(loadOnnxModel: true)
+    }
+
+    /// PitchPlease 用: ONNX を読まず 48kHz チャンクをコールバックへ転送する。
+    @MainActor
+    func startForwardingCapturedChunks(
+        inputChannel: Int,
+        onChunk: @escaping @Sendable (UnsafePointer<Float>, Int) -> Void
+    ) async throws {
+        captureConsumerLock.lock()
+        captureOutputMode = .pitchPleaseForward
+        captureInputChannelIndex = inputChannel == 2 ? 1 : 0
+        externalChunkConsumer = onChunk
+        captureConsumerLock.unlock()
+        try await startCaptureCore(loadOnnxModel: false)
+    }
+
+    @MainActor
+    private func startCaptureCore(loadOnnxModel: Bool) async throws {
         guard !isRunning else { return }
         guard !isStarting else { return }
         isStarting = true
@@ -439,8 +480,10 @@ final class PitchInputEngine: @unchecked Sendable {
         }
         guard lifecycleGeneration == generation, !isRunning else { return }
 
-        try await loadModelIfNeeded()
-        guard lifecycleGeneration == generation, !isRunning else { return }
+        if loadOnnxModel {
+            try await loadModelIfNeeded()
+            guard lifecycleGeneration == generation, !isRunning else { return }
+        }
 
         AppAudioSession.shared.setRecordingEnabled(true)
 
@@ -452,9 +495,18 @@ final class PitchInputEngine: @unchecked Sendable {
         } catch {
             guard lifecycleGeneration == generation else { return }
             AppAudioSession.shared.setRecordingEnabled(false)
+            clearExternalCaptureMode()
             setMonitorError(error.localizedDescription)
             throw error
         }
+    }
+
+    private func clearExternalCaptureMode() {
+        captureConsumerLock.lock()
+        captureOutputMode = .pesto
+        externalChunkConsumer = nil
+        captureInputChannelIndex = 0
+        captureConsumerLock.unlock()
     }
 
     @MainActor
@@ -504,20 +556,39 @@ final class PitchInputEngine: @unchecked Sendable {
             throw PitchInputEngineError.inputUnavailable
         }
 
+        if captureInputChannelIndex > 0, connectFormat.channelCount < 2 {
+            throw PitchCaptureExternalChannelError.channelUnavailable
+        }
+
+        let tapChannelCount = Int(connectFormat.channelCount)
+        let converterInputFormat: AVAudioFormat
+        if captureInputChannelIndex > 0,
+           let monoTap = AVAudioFormat(
+               standardFormatWithSampleRate: connectFormat.sampleRate,
+               channels: 1
+           ) {
+            converterInputFormat = monoTap
+        } else {
+            converterInputFormat = connectFormat
+        }
+
         guard let outputFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: Self.targetSampleRate,
             channels: 1,
             interleaved: false
-        ), let converter = AVAudioConverter(from: connectFormat, to: outputFormat) else {
+        ), let converter = AVAudioConverter(from: converterInputFormat, to: outputFormat) else {
             throw PitchInputEngineError.inputUnavailable
         }
 
         let scratchCapacity = AVAudioFrameCount(max(connectFormat.sampleRate, Self.targetSampleRate) * 0.1)
-        guard let inputScratch = AVAudioPCMBuffer(pcmFormat: connectFormat, frameCapacity: scratchCapacity),
+        guard let inputScratch = AVAudioPCMBuffer(pcmFormat: converterInputFormat, frameCapacity: scratchCapacity),
               let outputScratch = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: scratchCapacity) else {
             throw PitchInputEngineError.inputUnavailable
         }
+
+        let captureChannelIndex = captureInputChannelIndex
+        let captureSourceChannels = tapChannelCount
 
         generationId += 1
         applyShiftMode(NoteInputPreferences.pitchShiftSemitones)
@@ -537,7 +608,9 @@ final class PitchInputEngine: @unchecked Sendable {
             engine: self,
             converter: converter,
             inputScratch: inputScratch,
-            outputScratch: outputScratch
+            outputScratch: outputScratch,
+            sourceChannelIndex: captureChannelIndex,
+            sourceChannelCount: captureSourceChannels
         )
         let sink = AVAudioSinkNode { timestamp, frameCount, bufferList in
             pipeline.process(
@@ -710,6 +783,7 @@ final class PitchInputEngine: @unchecked Sendable {
 
         if releaseRecordingSession {
             AppAudioSession.shared.setRecordingEnabled(false)
+            clearExternalCaptureMode()
         }
     }
 
@@ -1130,7 +1204,30 @@ final class PitchInputEngine: @unchecked Sendable {
                 state.slotsInUse[chunk.slot] = false
             }
         }
-        guard chunk.generationId == generationId, let session = ortSession, let modelInputs else { return }
+        guard chunk.generationId == generationId else { return }
+
+        captureConsumerLock.lock()
+        let mode = captureOutputMode
+        let forward = externalChunkConsumer
+        captureConsumerLock.unlock()
+
+        if mode == .pitchPleaseForward {
+            let chunkSize = Self.chunkSize
+            let slotBase = chunkPool + chunk.slot * chunkSize
+            if let forward {
+                forward(slotBase, chunkSize)
+            }
+            var sum: Float = 0
+            for index in 0..<chunkSize {
+                let sample = slotBase[index]
+                sum += sample * sample
+            }
+            let rms = sqrt(sum / Float(chunkSize))
+            updateMonitorVolume(Double(rms))
+            return
+        }
+
+        guard let session = ortSession, let modelInputs else { return }
 
         let inferenceStart = CACurrentMediaTime()
         defer { recordInferenceDuration(startTime: inferenceStart) }
@@ -1322,6 +1419,8 @@ private final class CapturePipeline {
     let inputScratch: AVAudioPCMBuffer
     let outputScratch: AVAudioPCMBuffer
     unowned let engine: PitchInputEngine
+    private let sourceChannelIndex: Int
+    private let sourceChannelCount: Int
     private let conversionConsumed = ConversionConsumedFlag()
     private let conversionInputBlock: AVAudioConverterInputBlock
 
@@ -1329,12 +1428,16 @@ private final class CapturePipeline {
         engine: PitchInputEngine,
         converter: AVAudioConverter,
         inputScratch: AVAudioPCMBuffer,
-        outputScratch: AVAudioPCMBuffer
+        outputScratch: AVAudioPCMBuffer,
+        sourceChannelIndex: Int,
+        sourceChannelCount: Int
     ) {
         self.engine = engine
         self.converter = converter
         self.inputScratch = inputScratch
         self.outputScratch = outputScratch
+        self.sourceChannelIndex = sourceChannelIndex
+        self.sourceChannelCount = max(1, sourceChannelCount)
         let consumed = conversionConsumed
         let scratch = inputScratch
         self.conversionInputBlock = { _, outStatus in
@@ -1369,14 +1472,29 @@ private final class CapturePipeline {
             availableSamples,
             Int(inputScratch.frameCapacity)
         )
-        guard copyCount > 0,
-              let scratchDst = inputScratch.floatChannelData?[0] else {
-            return noErr
-        }
+        guard copyCount > 0 else { return noErr }
 
-        let source = sourceBytes.assumingMemoryBound(to: Float.self)
-        scratchDst.update(from: source, count: copyCount)
-        inputScratch.frameLength = AVAudioFrameCount(copyCount)
+        guard let scratchDst = inputScratch.floatChannelData?[0] else { return noErr }
+
+        if bufferListPointer.count > 1, sourceChannelIndex < bufferListPointer.count,
+           let channelBytes = bufferListPointer[sourceChannelIndex].mData {
+            let channelSource = channelBytes.assumingMemoryBound(to: Float.self)
+            let channelSamples = Int(bufferListPointer[sourceChannelIndex].mDataByteSize) / MemoryLayout<Float>.size
+            let monoCount = min(copyCount, channelSamples, Int(inputScratch.frameCapacity))
+            scratchDst.update(from: channelSource, count: monoCount)
+            inputScratch.frameLength = AVAudioFrameCount(monoCount)
+        } else if sourceChannelIndex > 0, sourceChannelCount > 1 {
+            let source = sourceBytes.assumingMemoryBound(to: Float.self)
+            let frames = min(copyCount / sourceChannelCount, Int(inputScratch.frameCapacity))
+            for frame in 0..<frames {
+                scratchDst[frame] = source[frame * sourceChannelCount + sourceChannelIndex]
+            }
+            inputScratch.frameLength = AVAudioFrameCount(frames)
+        } else {
+            let source = sourceBytes.assumingMemoryBound(to: Float.self)
+            scratchDst.update(from: source, count: copyCount)
+            inputScratch.frameLength = AVAudioFrameCount(copyCount)
+        }
 
         conversionConsumed.value = false
         var conversionError: NSError?
