@@ -102,14 +102,9 @@ node scripts/generate-mq-block3-ch4-ch5-migration.mjs
 
 ### OSMD クリア条件（本番）
 
-ターゲット数 N（Voice4 除外の pitch 数）:
+アプリが MusicXML からターゲット数 N を数え、敵HP = N×100、正解ごと与ダメ 40〜60（ランダム）、ミス被ダメ 20 を自動適用。**作者が DB で指定するのは `player_hp` のみ**（ほかの戦闘列は NOT NULL のためダミーでよいが本番 OSMD では無視される）。
 
-- `per_correct_note_damage = 1`
-- `good/great/perfect_completion_damage = 0`
-- `enemy_hp = N`（満点ちょうど 1 周クリア。足りなければ 2 周）
-- `max_loops_per_phrase >= 2`
-- `player_hp = 100`, `miss_damage = max(1, round(100 / (0.3 * N)))`
-- `fail_damage` ≈ miss 以上
+- `player_hp = 100`（任意）
 - `bpm=100`（素材に合わせる）, `is_swing=true`（ストレート記譜時）, `count_in_beats=0`, `osmd_targets_from_score=true`
 
 精密: `enemy_hp=1`、戦闘ダメ 0、GOOD 率 ≥70% でクリア（既存 Bluesy 精密）。
@@ -120,7 +115,7 @@ node scripts/generate-mq-block3-ch4-ch5-migration.mjs
 
 ### SQL 落とし穴
 
-- `ear_training_phrases.note_count` は **0〜32** → 大きい N は `note_count=0`、実ターゲットは `enemy_hp` 側
+- `ear_training_phrases.note_count` は **0〜32** → 大きい N は `note_count=0`（ランタイムが XML から数える）
 - `lesson_songs` に **`updated_at` 列なし** → ON CONFLICT で触らない
 - OSMD チュートリアル（`type: chord_osmd`）は **`timedLines` 必須**（演奏中セリフなしなら `timedLines: []`）。未設定だと Web が再生直前に TypeError で止まる
 - 大きな SQL は `.cursor/*_chunks/*.sql` に分割し、Supabase MCP `execute_sql` で順適用
@@ -138,7 +133,7 @@ where c.is_main_course and l.block_number in (/* new */)
 group by l.id order by l.block_number, l.order_index;
 
 -- ステージ戦闘値
-select slug, mode, bpm, is_swing, enemy_hp, miss_damage, count_in_beats
+select slug, mode, bpm, is_swing, player_hp, count_in_beats
 from ear_training_stages
 where slug like 'mq-bN-%' order by slug;
 ```

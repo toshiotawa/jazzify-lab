@@ -188,6 +188,8 @@
 		53EDBDC25339FD88006E14DF /* EarTrainingSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */; };
 		54454BB426D048A6614E6A2C /* ScreenRotationPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83ED53FE93C0297F2122C1A5 /* ScreenRotationPreferencesTests.swift */; };
 		54984AEFC83A27AAA4EAE456 /* EarTrainingOsmdTimingAdjustment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */; };
+		F1E2D3C4B5A69788695A4B3C /* EarTrainingOsmdCombatStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D3C4B5A69788695A4B3C2D1 /* EarTrainingOsmdCombatStats.swift */; };
+		D3C4B5A69788695A4B3C2D0 /* EarTrainingOsmdCombatStatsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4B5A69788695A4B3C2D1E0 /* EarTrainingOsmdCombatStatsTests.swift */; };
 		54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */; };
 		54FFCB32F2C995F454A1628D /* DefenseGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */; };
 		55F54C4BA1E268879298B4D9 /* SurvivalRunPrepSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43BC0A05D209E54BAAB95B5 /* SurvivalRunPrepSheet.swift */; };
@@ -682,6 +684,8 @@
 		5D3D77D4E0E31D5FC2A2A11A /* TrainingEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingEngineTests.swift; sourceTree = "<group>"; };
 		5D549AE5505928B0D2E38776 /* SoftLandingFreeTierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftLandingFreeTierTests.swift; sourceTree = "<group>"; };
 		5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdTimingAdjustment.swift; sourceTree = "<group>"; };
+		E2D3C4B5A69788695A4B3C2D1 /* EarTrainingOsmdCombatStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdCombatStats.swift; sourceTree = "<group>"; };
+		C4B5A69788695A4B3C2D1E0 /* EarTrainingOsmdCombatStatsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingOsmdCombatStatsTests.swift; sourceTree = "<group>"; };
 		5E7EA654B4F135FB53EDF52E /* SurvivalInputBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalInputBuffer.swift; sourceTree = "<group>"; };
 		5ECCBD6262FA0D7BF5AA6C86 /* SurvivalStaffOverlayLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStaffOverlayLayout.swift; sourceTree = "<group>"; };
 		5ECE76FBCD48F4FD05191971 /* EarTrainingChordQuizGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordQuizGameView.swift; sourceTree = "<group>"; };
@@ -1181,6 +1185,7 @@
 				95D64D5494D20256EEB835EE /* EarTrainingOsmdCameraEffectPreferences.swift */,
 				66CED8A9F431B3C6BF2DB649 /* EarTrainingOsmdScoreScroll.swift */,
 				5D5A3E7BE005EF76C082BA82 /* EarTrainingOsmdTimingAdjustment.swift */,
+				E2D3C4B5A69788695A4B3C2D1 /* EarTrainingOsmdCombatStats.swift */,
 				48494D61BCD36D80C12C54AD /* EarTrainingPhrasePairBattleEngine.swift */,
 				3F025416B60CF0EC0AB90A07 /* EarTrainingPhrasePairEngine.swift */,
 				1E61246F5E583E2666BE252D /* EarTrainingPracticeSpeed.swift */,
@@ -1428,6 +1433,7 @@
 				8C694911C7A252E821B53889 /* EarTrainingOsmdParrySyncTests.swift */,
 				1DB05AF3985C6C944824D6AE /* EarTrainingOsmdScoreScrollTests.swift */,
 				DD16418FE79E122CE5868E08 /* EarTrainingOsmdTimingAdjustmentTests.swift */,
+				C4B5A69788695A4B3C2D1E0 /* EarTrainingOsmdCombatStatsTests.swift */,
 				594B3EB40C6473D30DFBFAD5 /* EarTrainingPhrasePairEngineTests.swift */,
 				FCEBCCA27468C34C18839FD9 /* EarTrainingPianoLayoutTests.swift */,
 				EA1E0DE29DDC053BE73E64FA /* EarTrainingPracticeSpeedTests.swift */,
@@ -2241,6 +2247,7 @@
 				4B9CAC3DDC8B4B8F527D49A6 /* EarTrainingOsmdParrySyncTests.swift in Sources */,
 				225EDE3498D48B61BE6FC71D /* EarTrainingOsmdScoreScrollTests.swift in Sources */,
 				AE020982392397B0933A9213 /* EarTrainingOsmdTimingAdjustmentTests.swift in Sources */,
+				D3C4B5A69788695A4B3C2D0 /* EarTrainingOsmdCombatStatsTests.swift in Sources */,
 				87B55FC5B28DB048A39B9FB4 /* EarTrainingPhrasePairEngineTests.swift in Sources */,
 				CED8002B46A6AD0E39E70673 /* EarTrainingPianoLayoutTests.swift in Sources */,
 				51619807C80F761286939273 /* EarTrainingPracticeSpeedTests.swift in Sources */,
@@ -2427,6 +2434,7 @@
 				8147A819F56B4898C892A831 /* EarTrainingOsmdCameraEffectPreferences.swift in Sources */,
 				042B05486F736CD7167107E3 /* EarTrainingOsmdScoreScroll.swift in Sources */,
 				54984AEFC83A27AAA4EAE456 /* EarTrainingOsmdTimingAdjustment.swift in Sources */,
+				F1E2D3C4B5A69788695A4B3C /* EarTrainingOsmdCombatStats.swift in Sources */,
 				44D6034EFBE7D1558EB7FAA6 /* EarTrainingPhrasePairAdlibBattleController.swift in Sources */,
 				B32467ABF115CA695A1275A9 /* EarTrainingPhrasePairAdlibGameView.swift in Sources */,
 				EBD7121752D063D193721ACC /* EarTrainingPhrasePairBattleEngine.swift in Sources */,

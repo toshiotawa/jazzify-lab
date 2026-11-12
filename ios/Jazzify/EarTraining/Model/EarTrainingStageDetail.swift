@@ -193,8 +193,8 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
             return "\(r)問以上正解"
         case .chordOSMD:
             return isEnglish
-                ? "Reduce the enemy HP to 0."
-                : "敵HPを0にする。"
+                ? "Reduce the enemy HP to 0. Clearing all targets in two passes is the default goal."
+                : "敵HPを0にする。全問正解なら譜面2周が目安。"
         case .chordPrecision:
             return isEnglish
                 ? "Achieve 70% or more GOOD notes."

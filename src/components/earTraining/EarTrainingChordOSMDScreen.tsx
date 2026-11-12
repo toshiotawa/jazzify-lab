@@ -170,6 +170,13 @@ import {
 } from '@/components/earTraining/tutorial/scheduleTimedDialogueLines';
 import { shouldAutoStartTutorialOsmdBattle } from './tutorial/earTrainingTutorialOsmdAutoStart';
 import EarTrainingTimingAdjustmentSlider from './EarTrainingTimingAdjustmentSlider';
+import { countEarTrainingOsmdStageTargetsPerLoop } from '@/utils/countEarTrainingOsmdStageTargetsPerLoop';
+import {
+  osmdEnemyMaxHpForTargetCount,
+  OSMD_COMBAT_MISS_DAMAGE,
+  rollOsmdHitDamage,
+  usesEarTrainingOsmdAutoCombatStats,
+} from '@/utils/earTrainingOsmdCombatStats';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -230,6 +237,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const tutorialUi = tutorial?.bindings.ui;
   const timingCalibrationMode = tutorial?.bindings.timingCalibrationMode === true;
   const tutorialNoCombat = isEarTrainingTutorialNoCombat(tutorialUi);
+  const usesOsmdAutoCombat = usesEarTrainingOsmdAutoCombatStats(stage, Boolean(tutorial));
   const tutorialOsmdLoopRef = useRef(0);
   const tutorialAutoStartedRef = useRef(false);
   const tutorialDialogueHandleRef = useRef<DialogueScheduleHandle | null>(null);
@@ -280,15 +288,26 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const showKeyboardHintsInBattle = stage.show_keyboard_hints_in_battle === true;
   const showKeyboardHintsInBattleRef = useRef(showKeyboardHintsInBattle);
   const damageConfig = useMemo(
-    () => ({
-      perCorrectNote: stage.per_correct_note_damage,
-      good: stage.good_completion_damage,
-      great: stage.great_completion_damage,
-      perfect: stage.perfect_completion_damage,
-      miss: stage.miss_damage,
-      fail: stage.fail_damage,
-    }),
-    [stage],
+    () => (
+      usesOsmdAutoCombat
+        ? {
+          perCorrectNote: 0,
+          good: 0,
+          great: 0,
+          perfect: 0,
+          miss: OSMD_COMBAT_MISS_DAMAGE,
+          fail: 0,
+        }
+        : {
+          perCorrectNote: stage.per_correct_note_damage,
+          good: stage.good_completion_damage,
+          great: stage.great_completion_damage,
+          perfect: stage.perfect_completion_damage,
+          miss: stage.miss_damage,
+          fail: stage.fail_damage,
+        }
+    ),
+    [stage, usesOsmdAutoCombat],
   );
   const activeDamageConfig = useMemo(() => {
     if (practiceMode) {
@@ -308,6 +327,18 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     () => getEarTrainingRhythmBattleStartCopy(isEnglishCopy, osmdSelfPaced),
   );
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [phraseRunId, setPhraseRunId] = useState(0);
+  const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
+  const [osmdAutoEnemyMaxHp, setOsmdAutoEnemyMaxHp] = useState<number | null>(null);
+  const osmdAutoEnemyMaxHpRef = useRef<number | null>(null);
+  const resolvedEnemyMaxHp = usesOsmdAutoCombat
+    ? (osmdAutoEnemyMaxHp ?? 0)
+    : stage.enemy_hp;
+  const [enemyHp, setEnemyHp] = useState(() => (
+    usesOsmdAutoCombat ? 0 : stage.enemy_hp
+  ));
+  const [playerHp, setPlayerHp] = useState(stage.player_hp);
   useEffect(() => {
     if (typeof performance !== 'undefined' && performance.mark) {
       performance.mark('ear-training:osmd-screen-mounted');
@@ -315,13 +346,29 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     preloadEarTrainingPianoOverlay();
   }, []);
 
+  useEffect(() => {
+    osmdAutoEnemyMaxHpRef.current = osmdAutoEnemyMaxHp;
+  }, [osmdAutoEnemyMaxHp]);
+
+  useEffect(() => {
+    if (!usesOsmdAutoCombat) {
+      setOsmdAutoEnemyMaxHp(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void countEarTrainingOsmdStageTargetsPerLoop(stage).then((targetCount) => {
+      if (cancelled) {
+        return;
+      }
+      setOsmdAutoEnemyMaxHp(osmdEnemyMaxHpForTargetCount(targetCount));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, usesOsmdAutoCombat]);
+
   useQuestCompleteJingleOnStageClear(gameState);
   useGameOverJingleOnGameOver(gameState);
-  const [phraseIndex, setPhraseIndex] = useState(0);
-  const [phraseRunId, setPhraseRunId] = useState(0);
-  const [phraseIntroSeq, setPhraseIntroSeq] = useState(0);
-  const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
-  const [playerHp, setPlayerHp] = useState(stage.player_hp);
   const [activeMeasureNumber, setActiveMeasureNumber] = useState(1);
   const [scoreTimelineArmed, setScoreTimelineArmed] = useState(false);
   const osmdScoreRef = useRef<EarTrainingChordOSMDScoreHandle | null>(null);
@@ -380,7 +427,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
   const baseMidiDataRef = useRef<Uint8Array | null>(null);
   const timingSourceRef = useRef<EarTrainingTimingSource>('musicxml');
   const [midiLoadToken, setMidiLoadToken] = useState(0);
-  const enemyHpRef = useRef(stage.enemy_hp);
+  const enemyHpRef = useRef(usesOsmdAutoCombat ? 0 : stage.enemy_hp);
   const playerHpRef = useRef(stage.player_hp);
   const targetsRef = useRef<ChordOsmdRhythmTarget[]>([]);
   const runtimeByTargetIdRef = useRef<Map<string, RuntimeTargetState>>(new Map());
@@ -1792,13 +1839,33 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     totalCompletedTargetsRef.current = 0;
     totalJudgedTargetsRef.current = 0;
     lastRankRef.current = null;
-    setEnemyHp(stage.enemy_hp);
+    const enemyStartHp = usesOsmdAutoCombat
+      ? (osmdAutoEnemyMaxHpRef.current ?? 0)
+      : stage.enemy_hp;
+    if (usesOsmdAutoCombat && enemyStartHp <= 0) {
+      finishGameOver(isEnglishCopy
+        ? 'Could not determine battle targets.'
+        : '判定ターゲットを算出できませんでした');
+      return;
+    }
+    setEnemyHp(enemyStartHp);
     setPlayerHp(stage.player_hp);
-    enemyHpRef.current = stage.enemy_hp;
+    enemyHpRef.current = enemyStartHp;
     playerHpRef.current = stage.player_hp;
     battleEffectIdRef.current = 0;
     startPhrase(0);
-  }, [copy.noPhrases, ensureBattleAudioReady, ensureBattlePianoAudioLazy, finishGameOver, phrases.length, stage.enemy_hp, stage.player_hp, startPhrase]);
+  }, [
+    copy.noPhrases,
+    ensureBattleAudioReady,
+    ensureBattlePianoAudioLazy,
+    finishGameOver,
+    isEnglishCopy,
+    phrases.length,
+    stage.enemy_hp,
+    stage.player_hp,
+    startPhrase,
+    usesOsmdAutoCombat,
+  ]);
 
   const applyPracticePlaybackAndRestart = useCallback((params: {
     speedPercent: number;
@@ -1954,7 +2021,11 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
       lastStatusUpdateAtRef.current = statusNow;
       setStatusText(copy.chordCompleted(target.label));
     }
-    const damage = activeDamageConfig.perCorrectNote;
+    const damage = practiceMode || tutorialNoCombat
+      ? 0
+      : usesOsmdAutoCombat
+        ? rollOsmdHitDamage()
+        : activeDamageConfig.perCorrectNote;
     if (state.osuCircleEffectId !== undefined) {
       triggerBattleEffect('osmdApproachCircleBurst', {
         relatedEffectId: state.osuCircleEffectId,
@@ -2012,6 +2083,9 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     activeDamageConfig.perCorrectNote,
     applyEnemyDamage,
     copy,
+    practiceMode,
+    tutorialNoCombat,
+    usesOsmdAutoCombat,
     isTargetIncomplete,
     registerBattleEffectImpact,
     resolveCalibratedTargetTimeSec,
@@ -2380,7 +2454,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     playerHp,
     playerMaxHp: stage.player_hp,
     enemyHp,
-    enemyMaxHp: stage.enemy_hp,
+    enemyMaxHp: resolvedEnemyMaxHp,
     enemyName,
     enemyAvatarUrl: enemyAvatar,
     enemyAvatarFlipX,
@@ -2451,7 +2525,7 @@ const EarTrainingChordOSMDScreen: React.FC<EarTrainingChordOSMDScreenProps> = ({
     resultRankLine,
     resultState,
     showLobbyControls,
-    stage.enemy_hp,
+    resolvedEnemyMaxHp,
     stage.player_hp,
     stage.title,
     stageStatusText,

@@ -44,21 +44,18 @@ const midiToName = (midi) => {
   return `${FLAT_NAMES[pc]}${oct}`;
 };
 
-/** @param {number} n */
-const combatFromTargets = (n) => {
-  const miss = Math.max(1, Math.round(100 / (0.3 * n)));
-  return {
-    player_hp: 100,
-    enemy_hp: n,
-    per_correct_note_damage: 1,
-    good_completion_damage: 0,
-    great_completion_damage: 0,
-    perfect_completion_damage: 0,
-    miss_damage: miss,
-    fail_damage: Math.max(miss + 1, Math.round(miss * 1.5)),
-    max_loops_per_phrase: 2,
-  };
-};
+/** OSMD 本番の戦闘値はランタイム自動。DB 列は NOT NULL 用ダミー（`player_hp` のみ作者指定）。 */
+const combatFromTargets = (_n) => ({
+  player_hp: 100,
+  enemy_hp: 100,
+  per_correct_note_damage: 1,
+  good_completion_damage: 0,
+  great_completion_damage: 0,
+  perfect_completion_damage: 0,
+  miss_damage: 3,
+  fail_damage: 10,
+  max_loops_per_phrase: 6,
+});
 
 const earTutorialUi = {
   hidePlayerHpBar: true,

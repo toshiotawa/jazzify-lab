@@ -29,13 +29,13 @@ export const getEarTrainingLessonClearConditionText = (
 
   if (isEnglishCopy) {
     if (mode === 'chord_osmd') {
-      return 'Reduce the enemy HP to 0.';
+      return 'Reduce the enemy HP to 0. Clearing all targets in two passes is the default goal.';
     }
     return 'Reduce the enemy HP to 0 within the time limit.';
   }
 
   if (mode === 'chord_osmd') {
-    return '敵HPを0にする。';
+    return '敵HPを0にする。全問正解なら譜面2周が目安。';
   }
   return '制限時間以内に敵HPを0にする';
 };

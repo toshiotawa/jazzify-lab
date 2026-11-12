@@ -66,6 +66,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
     private var timingCalibrationMode: Bool { tutorialHooks?.timingCalibrationMode == true }
     /// Web `scheduleOsmdTimedLinesForLoop` 相当の `DispatchWorkItem`（フレーズ再開時・終了時にキャンセル）。
     private var tutorialOsmdTimedLineWorks: [DispatchWorkItem] = []
+    private var osmdAutoEnemyMaxHp: Int?
+
+    private var usesOsmdAutoCombat: Bool {
+        EarTrainingOsmdCombatStats.usesAutoCombat(stage: stage, hasTutorial: tutorialHooks != nil)
+    }
+
+    private var resolvedEnemyMaxHp: Int {
+        usesOsmdAutoCombat ? (osmdAutoEnemyMaxHp ?? 0) : stage.enemyHp
+    }
 
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
@@ -172,7 +181,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         self.onExitCallback = onExit
         self.hudLabels = EarTrainingBattleHudLabels.make(isEnglish: isEnglishCopy)
         self.copy = EarTrainingGameCopy.make(isEnglish: isEnglishCopy)
-        self.enemyHp = stage.enemyHp
+        self.enemyHp = EarTrainingOsmdCombatStats.usesAutoCombat(stage: stage, hasTutorial: false)
+            ? 0
+            : stage.enemyHp
         self.playerHp = stage.playerHp
         self.countInValue = max(0, min(32, stage.countInBeats))
         self.statusText = isEnglishCopy
@@ -391,6 +402,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         }
         publishSnapshot()
         scheduleLobbyMusicXMLPreload()
+        scheduleOsmdAutoCombatPreload()
         guard tutorialHooks?.ui.hideLobby == true else { return }
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
@@ -405,6 +417,21 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.loadMusicXML(for: first)
+        }
+    }
+
+    private func scheduleOsmdAutoCombatPreload() {
+        guard usesOsmdAutoCombat else {
+            osmdAutoEnemyMaxHp = nil
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let count = await EarTrainingOsmdStageTargetCounter.countTargetsPerLoop(
+                stage: self.stage,
+                phrases: self.phrases
+            )
+            self.osmdAutoEnemyMaxHp = EarTrainingOsmdCombatStats.enemyMaxHp(targetCountPerLoop: count)
         }
     }
 
@@ -470,7 +497,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         // EarTrainingBattleScene は phraseRunId の変化で clearTransientEffects()（osu! 円含む）を呼ぶため、
         // 巻き戻すと 1 ループ目のやり直しで runId が 1→1 のままになり円が残る。
         lastEmittedEffectId = -1
-        enemyHp = stage.enemyHp
+        let enemyStartHp = usesOsmdAutoCombat ? (osmdAutoEnemyMaxHp ?? 0) : stage.enemyHp
+        if usesOsmdAutoCombat && enemyStartHp <= 0 {
+            finishGameOver(message: isEnglishCopy
+                ? "Could not determine battle targets."
+                : "判定ターゲットを算出できませんでした")
+            return
+        }
+        enemyHp = enemyStartHp
         playerHp = stage.playerHp
         phraseIndex = 0
         totalCompletedTargets = 0
@@ -1470,7 +1504,14 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             targets[index].osuCircleEffectId = nil
         }
         let chordName = targets[index].label
-        let damage = practiceMode ? 0 : stage.perCorrectNoteDamage
+        let damage: Int
+        if practiceMode {
+            damage = 0
+        } else if usesOsmdAutoCombat {
+            damage = EarTrainingOsmdCombatStats.rollHitDamage()
+        } else {
+            damage = stage.perCorrectNoteDamage
+        }
         let reflectRelatedId = incomingHammerEffectId
         let target = targets[index]
         let parryTargets = targets.map {
@@ -1546,7 +1587,7 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         }
         resetParryChainState()
         guard practiceMode == false, tutorialNoCombat == false else { return }
-        let damage = stage.missDamage
+        let damage = usesOsmdAutoCombat ? EarTrainingOsmdCombatStats.missDamage : stage.missDamage
         guard damage > 0 else { return }
         playerHp = max(0, playerHp - damage)
         if playerHp <= 0 {
@@ -1591,8 +1632,15 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         totalJudgedTargets += phraseTotal
 
         let rank = rank(for: accuracy)
-        let completionDamageAmount = practiceMode ? 0 : completionDamage(for: rank)
-        let playerFailDamage = (!practiceMode && !tutorialNoCombat && rank == .fail) ? stage.failDamage : 0
+        let completionDamageAmount: Int
+        let playerFailDamage: Int
+        if usesOsmdAutoCombat {
+            completionDamageAmount = 0
+            playerFailDamage = 0
+        } else {
+            completionDamageAmount = practiceMode ? 0 : completionDamage(for: rank)
+            playerFailDamage = (!practiceMode && !tutorialNoCombat && rank == .fail) ? stage.failDamage : 0
+        }
 
         gameState = .phraseComplete
         statusText = isEnglishCopy
@@ -1941,8 +1989,8 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
         let base = EarTrainingHudModel(
             playerHp: practiceMode ? stage.playerHp : playerHp,
             playerMaxHp: stage.playerHp,
-            enemyHp: practiceMode ? stage.enemyHp : enemyHp,
-            enemyMaxHp: stage.enemyHp,
+            enemyHp: practiceMode ? resolvedEnemyMaxHp : enemyHp,
+            enemyMaxHp: resolvedEnemyMaxHp,
             practiceMode: practiceMode,
             timeRemaining: timeRemaining,
             timeLabel: "\(min(phraseIndex + 1, max(1, phrases.count)))/\(max(1, phrases.count))",
@@ -2243,6 +2291,30 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
             }
         }
         return result
+    }
+
+    static func rhythmTargetCountForCombat(
+        phrase: EarTrainingPhraseDetail,
+        stage: EarTrainingStageDetail,
+        attacks: [ChordOsmdMusicXmlAttack],
+        musicXmlText: String?,
+        midiData: Data?
+    ) -> Int {
+        var timingSource = EarTrainingCanonicalPhraseNotes.TimingSource.musicxml
+        let targets = makeRhythmTargets(
+            phrase: phrase,
+            bpm: stage.bpm,
+            beatsPerMeasure: stage.beatsPerMeasure,
+            attacks: attacks,
+            fromScore: stage.resolvedOsmdTargetsFromScore,
+            transposeOffset: 0,
+            isSwing: stage.resolvedIsSwing,
+            musicXmlText: musicXmlText,
+            midiData: midiData,
+            audioAnchorMs: phrase.audioAnchorMs,
+            timingSource: &timingSource
+        )
+        return targets.count
     }
 
     private static func mergeSpellingsFromXmlAttacks(

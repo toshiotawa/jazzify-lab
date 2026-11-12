@@ -800,19 +800,31 @@ const EarTrainingStageManager: React.FC = () => {
               <NumberInput label="拍/小節" value={stageForm.beats_per_measure} onChange={value => setStageForm(prev => ({ ...prev, beats_per_measure: value }))} />
               <NumberInput label="拍子分母" value={stageForm.beat_type} onChange={value => setStageForm(prev => ({ ...prev, beat_type: value }))} />
               <NumberInput label="ループ小節数" value={stageForm.loop_measures} onChange={value => setStageForm(prev => ({ ...prev, loop_measures: value }))} />
-              <NumberInput label="最大ループ数" value={stageForm.max_loops_per_phrase} onChange={value => setStageForm(prev => ({ ...prev, max_loops_per_phrase: value }))} />
+              {stageForm.mode !== 'chord_osmd' && (
+                <NumberInput label="最大ループ数" value={stageForm.max_loops_per_phrase} onChange={value => setStageForm(prev => ({ ...prev, max_loops_per_phrase: value }))} />
+              )}
               <NumberInput label="カウントイン拍数" value={stageForm.count_in_beats} onChange={value => setStageForm(prev => ({ ...prev, count_in_beats: value }))} />
-              <NumberInput label="制限時間(秒)" value={stageForm.time_limit_sec} onChange={value => setStageForm(prev => ({ ...prev, time_limit_sec: value }))} />
+              {stageForm.mode !== 'chord_osmd' && (
+                <NumberInput label="制限時間(秒)" value={stageForm.time_limit_sec} onChange={value => setStageForm(prev => ({ ...prev, time_limit_sec: value }))} />
+              )}
               <NumberInput label="プレイヤーHP" value={stageForm.player_hp} onChange={value => setStageForm(prev => ({ ...prev, player_hp: value }))} />
-              <NumberInput label="敵HP" value={stageForm.enemy_hp} onChange={value => setStageForm(prev => ({ ...prev, enemy_hp: value }))} />
-              <NumberInput label="1音ダメージ" value={stageForm.per_correct_note_damage} onChange={value => setStageForm(prev => ({ ...prev, per_correct_note_damage: value }))} />
-              <NumberInput label="ミスダメージ" value={stageForm.miss_damage} onChange={value => setStageForm(prev => ({ ...prev, miss_damage: value }))} />
-              <NumberInput label="Good完成" value={stageForm.good_completion_damage} onChange={value => setStageForm(prev => ({ ...prev, good_completion_damage: value }))} />
-              <NumberInput label="Great完成" value={stageForm.great_completion_damage} onChange={value => setStageForm(prev => ({ ...prev, great_completion_damage: value }))} />
-              <NumberInput label="Perfect完成" value={stageForm.perfect_completion_damage} onChange={value => setStageForm(prev => ({ ...prev, perfect_completion_damage: value }))} />
-              <NumberInput label="Fail被ダメージ" value={stageForm.fail_damage} onChange={value => setStageForm(prev => ({ ...prev, fail_damage: value }))} />
-              <NumberInput label="Perfect最大ミス" value={stageForm.perfect_max_misses} onChange={value => setStageForm(prev => ({ ...prev, perfect_max_misses: value }))} />
-              <NumberInput label="Great最大ミス" value={stageForm.great_max_misses} onChange={value => setStageForm(prev => ({ ...prev, great_max_misses: value }))} />
+              {stageForm.mode === 'chord_osmd' ? (
+                <p className="col-span-full text-sm text-gray-300 md:col-span-2">
+                  OSMD本番の敵HPはターゲット数×100（譜面2周が目安）、与ダメージは正解ごとに40〜60（ランダム）、ミス被ダメ20、制限時間なし。敵HP・与ダメージ等のDB値は本番では使いません。
+                </p>
+              ) : (
+                <>
+                  <NumberInput label="敵HP" value={stageForm.enemy_hp} onChange={value => setStageForm(prev => ({ ...prev, enemy_hp: value }))} />
+                  <NumberInput label="1音ダメージ" value={stageForm.per_correct_note_damage} onChange={value => setStageForm(prev => ({ ...prev, per_correct_note_damage: value }))} />
+                  <NumberInput label="ミスダメージ" value={stageForm.miss_damage} onChange={value => setStageForm(prev => ({ ...prev, miss_damage: value }))} />
+                  <NumberInput label="Good完成" value={stageForm.good_completion_damage} onChange={value => setStageForm(prev => ({ ...prev, good_completion_damage: value }))} />
+                  <NumberInput label="Great完成" value={stageForm.great_completion_damage} onChange={value => setStageForm(prev => ({ ...prev, great_completion_damage: value }))} />
+                  <NumberInput label="Perfect完成" value={stageForm.perfect_completion_damage} onChange={value => setStageForm(prev => ({ ...prev, perfect_completion_damage: value }))} />
+                  <NumberInput label="Fail被ダメージ" value={stageForm.fail_damage} onChange={value => setStageForm(prev => ({ ...prev, fail_damage: value }))} />
+                  <NumberInput label="Perfect最大ミス" value={stageForm.perfect_max_misses} onChange={value => setStageForm(prev => ({ ...prev, perfect_max_misses: value }))} />
+                  <NumberInput label="Great最大ミス" value={stageForm.great_max_misses} onChange={value => setStageForm(prev => ({ ...prev, great_max_misses: value }))} />
+                </>
+              )}
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <TextArea label="説明" value={stageForm.description ?? ''} onChange={value => setStageForm(prev => ({ ...prev, description: value }))} />
