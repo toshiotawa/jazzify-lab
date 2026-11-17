@@ -133,7 +133,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   }, [loading, assetsReady]);
 
   const layout = useMemo(
-    () => buildPlayDescentLayout(blocks, nodes, DEFENSE_MAP_TIER, true),
+    () => buildPlayDescentLayout(blocks, nodes, DEFENSE_MAP_TIER),
     [blocks, nodes],
   );
 

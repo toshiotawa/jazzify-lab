@@ -63,7 +63,6 @@ function buildLayoutForBlock(
   nodes: readonly PlayMapNode[],
   startY: number,
   stageLabelOffset: number,
-  numberByBlock: boolean,
 ): { layout: PlayBlockLayout; nextStageLabel: number } {
   const blockNodes = nodes
     .filter((n) => n.blockId === block.id)
@@ -75,20 +74,15 @@ function buildLayoutForBlock(
   const count = blockNodes.length;
   let y = firstNodeY;
   let stageLabel = stageLabelOffset;
-  let stageInBlock = 0;
 
   for (let i = 0; i < count; i += 1) {
     const isLast = i === count - 1;
     const lane = assignLane(i, isLast);
     const node = blockNodes[i];
     if (node.nodeKind === 'stage') {
-      stageInBlock += 1;
       stageLabel += 1;
     }
-    const displayLabel = playMapNodeDisplayLabel(
-      node,
-      numberByBlock ? `${blockIndex + 1}-${stageInBlock}` : String(stageLabel),
-    );
+    const displayLabel = playMapNodeDisplayLabel(node, String(stageLabel));
     const displayIcon = playMapNodeDisplayIcon(node);
     positions.push({
       nodeId: node.id,
@@ -132,7 +126,6 @@ export const buildPlayDescentLayout = (
   blocks: readonly PlayMapBlock[],
   nodes: readonly PlayMapNode[],
   tier: PlayMapTier,
-  numberByBlock = false,
 ): PlayDescentLayout => {
   const tierBlocks = blocks
     .filter((b) => b.tier === tier)
@@ -150,7 +143,6 @@ export const buildPlayDescentLayout = (
       nodes,
       cursorY,
       stageLabel,
-      numberByBlock,
     );
     blockLayouts.push(layout);
     layout.nodes.forEach((node) => nodePositions.set(node.nodeId, node));

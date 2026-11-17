@@ -84,6 +84,12 @@ final class DefenseDescentAccessTests: XCTestCase {
         return DefenseDescentLayoutBuilder.build(blocks: [blockA, blockB], nodes: nodes, tier: .basic)
     }
 
+    func testStageNodesUseSequentialLabelsAcrossBlocks() {
+        let layout = buildLayout()
+        XCTAssertEqual(layout.blocks[0].nodes.map(\.displayLabel), ["?", "1", "2"])
+        XCTAssertEqual(layout.blocks[1].nodes.map(\.displayLabel), ["3"])
+    }
+
     func testBlockUnlockRequiresAllNodesIncludingQuest() {
         let layout = buildLayout()
         let clearedStageOnly: Set<UUID> = [stage1Id, stage2Id]

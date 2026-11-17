@@ -103,8 +103,9 @@ enum DefenseDescentLayoutBuilder {
         for block: PlayMapBlock,
         blockIndex: Int,
         nodes: [PlayMapNode],
-        startY: CGFloat
-    ) -> DefenseDescentBlockLayout {
+        startY: CGFloat,
+        stageLabelOffset: Int
+    ) -> (layout: DefenseDescentBlockLayout, nextStageLabel: Int) {
         let c = DefenseDescentLayoutConstants.self
         let blockNodes = nodes
             .filter { $0.blockId == block.id }
@@ -115,18 +116,18 @@ enum DefenseDescentLayoutBuilder {
         var positions: [DefenseDescentNodePosition] = []
         let count = blockNodes.count
         var y = firstNodeY
-        var stageInBlock = 0
+        var stageLabel = stageLabelOffset
 
         for i in 0..<count {
             let isLast = (i == count - 1)
             let lane = assignLane(indexInBlock: i, isLastInBlock: isLast)
             let node = blockNodes[i]
             if node.nodeKind == .stage {
-                stageInBlock += 1
+                stageLabel += 1
             }
             let displayLabel = PlayMapProgression.displayLabel(
                 node: node,
-                stageLabel: "\(blockIndex + 1)-\(stageInBlock)"
+                stageLabel: "\(stageLabel)"
             )
             let displayIcon = PlayMapProgression.displayIcon(node: node)
             positions.append(
@@ -164,7 +165,7 @@ enum DefenseDescentLayoutBuilder {
             endY: endY,
             nodes: positions
         )
-        return layout
+        return (layout, stageLabel)
     }
 
     static func build(
@@ -179,17 +180,20 @@ enum DefenseDescentLayoutBuilder {
         var blockLayouts: [DefenseDescentBlockLayout] = []
         var nodePositions: [UUID: DefenseDescentNodePosition] = [:]
         var cursorY: CGFloat = 0
+        var stageLabel = 0
 
         for (blockIndex, block) in tierBlocks.enumerated() {
-            let layout = buildLayout(
+            let built = buildLayout(
                 for: block,
                 blockIndex: blockIndex,
                 nodes: nodes,
-                startY: cursorY
+                startY: cursorY,
+                stageLabelOffset: stageLabel
             )
-            blockLayouts.append(layout)
-            layout.nodes.forEach { nodePositions[$0.nodeId] = $0 }
-            cursorY = layout.endY
+            blockLayouts.append(built.layout)
+            built.layout.nodes.forEach { nodePositions[$0.nodeId] = $0 }
+            cursorY = built.layout.endY
+            stageLabel = built.nextStageLabel
         }
 
         let totalHeight = blockLayouts.last?.endY ?? 0
