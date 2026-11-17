@@ -2061,6 +2061,7 @@
 				0093056A21E8BD17AD718571 /* Resources */,
 				55A996B77880CE7B3497FD16 /* Frameworks */,
 				4684BD01332150F1C0A8251E /* Build compact PESTO model */,
+				A7C3E91B04D64F2A8B1C6E50 /* Remove onnxruntime stub framework */,
 			);
 			buildRules = (
 			);
@@ -2202,6 +2203,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "set -eu\npython3 \"${SRCROOT}/../scripts/pesto/materialize-pesto-model.py\" --output \"${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx\"\ncp \"${DERIVED_FILE_DIR}/PestoModel/pesto-mir1k-g7-48000-240-refill-compact-v2.onnx\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+		A7C3E91B04D64F2A8B1C6E50 /* Remove onnxruntime stub framework */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Remove onnxruntime stub framework";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\n# The SPM binary is a static archive. Xcode embeds a codeless stub\n# built for the app deployment target while Info.plist stays at 15.1.\n# App Store rejects that mismatch as ITMS-90208. The library itself\n# is already linked into the app executable.\nfor dir in \"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}\" \"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"; do\n  stub=\"${dir}/onnxruntime.framework\"\n  if [ -d \"${stub}\" ]; then\n    rm -rf \"${stub}\"\n  fi\ndone\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -2746,7 +2766,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -2823,7 +2843,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

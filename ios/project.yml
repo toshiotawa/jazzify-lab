@@ -11,7 +11,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "1.5.0"
-    CURRENT_PROJECT_VERSION: "2"
+    CURRENT_PROJECT_VERSION: "3"
 
 packages:
   Supabase:
@@ -82,6 +82,20 @@ targets:
           cp "${PITCH_SRC}/pitchplease.js" "${PITCH_DEST}/pitchplease.js"
           cp -R "${PITCH_SRC}/engine/." "${PITCH_DEST}/engine/"
           cp "${PITCH_SRC}/models/piano.bin" "${PITCH_DEST}/models/piano.bin"
+      - name: Remove onnxruntime stub framework
+        basedOnDependencyAnalysis: false
+        script: |
+          set -eu
+          # The SPM binary is a static archive. Xcode embeds a codeless stub
+          # built for the app deployment target while Info.plist stays at 15.1.
+          # App Store rejects that mismatch as ITMS-90208. The library itself
+          # is already linked into the app executable.
+          for dir in "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}" "${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}"; do
+            stub="${dir}/onnxruntime.framework"
+            if [ -d "${stub}" ]; then
+              rm -rf "${stub}"
+            fi
+          done
 
   JazzifyTests:
     type: bundle.unit-test
