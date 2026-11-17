@@ -738,15 +738,6 @@ private final class DescentSealStarUIView: UIView {
         tri1.lineWidth = 1.2
         spinContainer.addSublayer(tri1)
 
-        let tri2 = CAShapeLayer()
-        tri2.path = Self.trianglePath(in: CGRect(x: 0, y: 0, width: size, height: size)).cgPath
-        tri2.fillColor = nil
-        tri2.strokeColor = strokeCG
-        tri2.lineWidth = 1.2
-        tri2.transform = CATransform3DMakeRotation(.pi, 0, 0, 1)
-        tri2.frame = spinContainer.bounds
-        spinContainer.addSublayer(tri2)
-
         spinContainer.removeAnimation(forKey: "descentSpin")
         if configuredSpins {
             DescentMapLayerMotion.attachSpin(to: spinContainer, duration: 12)
@@ -791,7 +782,7 @@ private struct DescentSealStarRepresentable: UIViewRepresentable {
     }
 }
 
-/// 封印の六芒星。回転は星自身だけに適用し、親の位置へ伝えない。
+/// 封印の上向き三角。回転は星自身だけに適用し、親の位置へ伝えない。
 private struct SurvivalDescentSealStar: View {
     let size: CGFloat
     let stroke: Color
@@ -869,18 +860,6 @@ private struct SurvivalDescentSealGlow: View {
         DescentSealGlowRepresentable(diameter: diameter, uiColor: UIColor(color))
             .frame(width: diameter, height: diameter)
             .blendMode(.screen)
-    }
-}
-
-/// 正三角形パス (Seal 用)
-private struct Triangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.closeSubpath()
-        return path
     }
 }
 
