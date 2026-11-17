@@ -171,6 +171,13 @@ tmp-ear-training-build/
 # *.ogg
 # *.m4a
 
+# Local instrument-render workspace (scripts stay tracked)
+音源作成/.venv/
+音源作成/.venv_sys/
+音源作成/out/
+音源作成/**/__pycache__/
+音源作成/**/*.pyc
+
 # WASM files (will be added separately)
 # *.wasm
 
