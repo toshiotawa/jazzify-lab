@@ -1,6 +1,103 @@
 import SwiftUI
 import UIKit
 
+// MARK: - CALayer motion (map decorations)
+
+/// SwiftUI の `repeatForever` は配置座標まで補間することがあるため、揺らぎは CALayer の transform / opacity のみに閉じ込める。
+private enum DescentMapLayerMotion {
+    static func attachPulse(
+        to layer: CALayer,
+        duration: CFTimeInterval,
+        delay: CFTimeInterval,
+        scaleFrom: CGFloat,
+        scaleTo: CGFloat,
+        opacityFrom: Float,
+        opacityTo: Float,
+        autoreverses: Bool = true
+    ) {
+        layer.removeAnimation(forKey: "descentPulse")
+        let scale = CABasicAnimation(keyPath: "transform.scale")
+        scale.fromValue = scaleFrom
+        scale.toValue = scaleTo
+        let opacity = CABasicAnimation(keyPath: "opacity")
+        opacity.fromValue = opacityFrom
+        opacity.toValue = opacityTo
+        let group = CAAnimationGroup()
+        group.animations = [scale, opacity]
+        group.duration = duration
+        group.repeatCount = .infinity
+        group.autoreverses = autoreverses
+        group.isRemovedOnCompletion = false
+        group.timeOffset = delay
+        group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(group, forKey: "descentPulse")
+    }
+
+    static func attachFlicker(
+        to layer: CALayer,
+        duration: CFTimeInterval,
+        delay: CFTimeInterval,
+        scaleFrom: CGFloat,
+        scaleTo: CGFloat,
+        opacityFrom: Float,
+        opacityTo: Float
+    ) {
+        layer.removeAnimation(forKey: "descentFlicker")
+        let scale = CABasicAnimation(keyPath: "transform.scale")
+        scale.fromValue = scaleFrom
+        scale.toValue = scaleTo
+        let opacity = CABasicAnimation(keyPath: "opacity")
+        opacity.fromValue = opacityFrom
+        opacity.toValue = opacityTo
+        let group = CAAnimationGroup()
+        group.animations = [scale, opacity]
+        group.duration = duration
+        group.repeatCount = .infinity
+        group.autoreverses = true
+        group.isRemovedOnCompletion = false
+        group.timeOffset = delay
+        group.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(group, forKey: "descentFlicker")
+    }
+
+    static func attachTranslationYPulse(
+        to layer: CALayer,
+        duration: CFTimeInterval,
+        amplitude: CGFloat
+    ) {
+        layer.removeAnimation(forKey: "descentBob")
+        let animation = CABasicAnimation(keyPath: "transform.translation.y")
+        animation.fromValue = -amplitude
+        animation.toValue = amplitude
+        animation.duration = duration
+        animation.repeatCount = .infinity
+        animation.autoreverses = true
+        animation.isRemovedOnCompletion = false
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(animation, forKey: "descentBob")
+    }
+
+    static func attachSpin(to layer: CALayer, duration: CFTimeInterval) {
+        layer.removeAnimation(forKey: "descentSpin")
+        let animation = CABasicAnimation(keyPath: "transform.rotation.z")
+        animation.fromValue = 0
+        animation.toValue = CGFloat.pi * 2
+        animation.duration = duration
+        animation.repeatCount = .infinity
+        animation.isRemovedOnCompletion = false
+        layer.add(animation, forKey: "descentSpin")
+    }
+}
+
+private extension View {
+    func descentMapFixedPosition(x: CGFloat, y: CGFloat) -> some View {
+        position(x: x, y: y)
+            .transaction { transaction in
+                transaction.animation = nil
+            }
+    }
+}
+
 /// 魔王城降下マップ ネイティブ版の描画パーツ。
 /// Web 版 (`src/components/survival/descent/parts/*`) を SwiftUI の図形描画で再現する。
 /// 画像アセットは持ち込まず、すべて Shape + Gradient + Canvas で描画する。
@@ -225,24 +322,36 @@ struct SurvivalDescentBlockLantern: View {
         let animating = lit && !dim && animated
         let delay: Double = side == .left ? 0 : 0.7
 
-        ZStack(alignment: .center) {
+        let glowDiameter = max(44, 64 * scale)
+        let frameWidth = glowDiameter
+        let frameHeight = flameHeight + bodyHeight + bodyHeight * 0.1
+
+        ZStack(alignment: .bottom) {
             if animating {
-                SurvivalDescentLanternGlow(
-                    diameter: max(44, 64 * scale),
-                    color: theme.lanternOuter,
+                DescentLanternGlowRepresentable(
+                    diameter: glowDiameter,
+                    uiColor: UIColor(theme.lanternOuter),
                     delay: delay
                 )
+                .frame(width: glowDiameter, height: glowDiameter)
+                .blendMode(.screen)
             }
 
             VStack(spacing: 0) {
                 if animating {
-                    SurvivalDescentLanternFlame(
+                    DescentLanternFlameRepresentable(
                         width: bodyWidth * 0.7,
                         height: flameHeight,
-                        verticalOffset: bodyHeight * 0.1,
-                        colors: [theme.lanternCore, theme.lanternOuter, .clear],
+                        colors: [
+                            UIColor(theme.lanternCore),
+                            UIColor(theme.lanternOuter),
+                            UIColor.clear,
+                        ],
                         delay: delay
                     )
+                    .frame(width: bodyWidth * 0.7, height: flameHeight)
+                    .padding(.bottom, bodyHeight * 0.1)
+                    .blendMode(.screen)
                 } else {
                     Capsule()
                         .fill(
@@ -255,7 +364,7 @@ struct SurvivalDescentBlockLantern: View {
                         .frame(width: bodyWidth * 0.7, height: flameHeight)
                         .opacity(0.35)
                         .blendMode(.screen)
-                        .offset(y: bodyHeight * 0.1)
+                        .padding(.bottom, bodyHeight * 0.1)
                 }
 
                 RoundedRectangle(cornerRadius: 2)
@@ -273,73 +382,152 @@ struct SurvivalDescentBlockLantern: View {
                     )
             }
         }
+        .frame(width: frameWidth, height: frameHeight)
         .opacity(dim ? 0.25 : 1.0)
-        .position(x: xPx, y: yPx)
-        .animation(nil, value: xPx)
-        .animation(nil, value: yPx)
+        .descentMapFixedPosition(x: xPx, y: yPx)
         .allowsHitTesting(false)
     }
 }
 
-/// ランタンのグロー。`repeatForever` をこのビューの拡大率と不透明度だけに閉じ込める。
-private struct SurvivalDescentLanternGlow: View {
-    let diameter: CGFloat
-    let color: Color
-    let delay: Double
+private final class DescentLanternGlowUIView: UIView {
+    private let glowLayer = CAGradientLayer()
+    private var appliedKey = ""
 
-    @State private var glowPulse = false
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        glowLayer.type = .radial
+        glowLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        glowLayer.endPoint = CGPoint(x: 1, y: 1)
+        layer.addSublayer(glowLayer)
+    }
 
-    var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [color.opacity(0.55), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: diameter / 2
-                )
-            )
-            .frame(width: diameter, height: diameter)
-            .blendMode(.screen)
-            .scaleEffect(glowPulse ? 1.12 : 0.88)
-            .opacity(glowPulse ? 0.95 : 0.55)
-            .animation(
-                .easeInOut(duration: 2.4).delay(delay).repeatForever(autoreverses: true),
-                value: glowPulse
-            )
-            .onAppear { glowPulse = true }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(diameter: CGFloat, color: UIColor, delay: CFTimeInterval, animating: Bool) {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let key = String(format: "%.2f|%.3f%.3f%.3f%.3f|%.2f|%d", diameter, red, green, blue, alpha, delay, animating ? 1 : 0)
+        guard appliedKey != key else { return }
+        appliedKey = key
+
+        glowLayer.colors = [
+            color.withAlphaComponent(0.55).cgColor,
+            UIColor.clear.cgColor,
+        ]
+        glowLayer.frame = bounds
+        glowLayer.cornerRadius = diameter / 2
+        glowLayer.removeAnimation(forKey: "descentPulse")
+        guard animating else {
+            glowLayer.opacity = 0.75
+            glowLayer.transform = CATransform3DIdentity
+            return
+        }
+        DescentMapLayerMotion.attachPulse(
+            to: glowLayer,
+            duration: 2.4,
+            delay: delay,
+            scaleFrom: 0.88,
+            scaleTo: 1.12,
+            opacityFrom: 0.55,
+            opacityTo: 0.95
+        )
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        glowLayer.frame = bounds
     }
 }
 
-/// ランタンの炎。揺らぎは炎自身の拡大率と不透明度だけに適用する。
-private struct SurvivalDescentLanternFlame: View {
+private struct DescentLanternGlowRepresentable: UIViewRepresentable {
+    let diameter: CGFloat
+    let uiColor: UIColor
+    let delay: CFTimeInterval
+
+    func makeUIView(context: Context) -> DescentLanternGlowUIView {
+        let view = DescentLanternGlowUIView()
+        view.apply(diameter: diameter, color: uiColor, delay: delay, animating: true)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentLanternGlowUIView, context: Context) {
+        uiView.apply(diameter: diameter, color: uiColor, delay: delay, animating: true)
+    }
+}
+
+private final class DescentLanternFlameUIView: UIView {
+    private let flameLayer = CAGradientLayer()
+    private var appliedKey = ""
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        flameLayer.startPoint = CGPoint(x: 0.5, y: 1)
+        flameLayer.endPoint = CGPoint(x: 0.5, y: 0)
+        layer.addSublayer(flameLayer)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(width: CGFloat, height: CGFloat, colors: [UIColor], delay: CFTimeInterval, animating: Bool) {
+        let key = String(format: "%.2f|%.2f|%d|%.2f", width, height, colors.count, delay)
+        let sizeChanged = appliedKey != key
+        appliedKey = key
+
+        flameLayer.colors = colors.map(\.cgColor)
+        flameLayer.cornerRadius = min(width, height) / 2
+        flameLayer.anchorPoint = CGPoint(x: 0.5, y: 1)
+        flameLayer.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        flameLayer.position = CGPoint(x: bounds.midX, y: bounds.maxY)
+
+        flameLayer.removeAnimation(forKey: "descentFlicker")
+        guard animating else {
+            flameLayer.opacity = 0.75
+            flameLayer.transform = CATransform3DIdentity
+            return
+        }
+        if sizeChanged || flameLayer.animation(forKey: "descentFlicker") == nil {
+            DescentMapLayerMotion.attachFlicker(
+                to: flameLayer,
+                duration: 1.3,
+                delay: delay,
+                scaleFrom: 0.9,
+                scaleTo: 1.1,
+                opacityFrom: 0.75,
+                opacityTo: 0.95
+            )
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let width = flameLayer.bounds.width
+        let height = flameLayer.bounds.height
+        guard width > 0, height > 0 else { return }
+        flameLayer.position = CGPoint(x: bounds.midX, y: bounds.maxY)
+    }
+}
+
+private struct DescentLanternFlameRepresentable: UIViewRepresentable {
     let width: CGFloat
     let height: CGFloat
-    let verticalOffset: CGFloat
-    let colors: [Color]
-    let delay: Double
+    let colors: [UIColor]
+    let delay: CFTimeInterval
 
-    @State private var flicker = false
+    func makeUIView(context: Context) -> DescentLanternFlameUIView {
+        let view = DescentLanternFlameUIView()
+        view.apply(width: width, height: height, colors: colors, delay: delay, animating: true)
+        return view
+    }
 
-    var body: some View {
-        Capsule()
-            .fill(
-                LinearGradient(
-                    colors: colors,
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-            )
-            .frame(width: width, height: height)
-            .opacity(flicker ? 0.95 : 0.75)
-            .scaleEffect(x: flicker ? 1.08 : 0.92, y: flicker ? 1.12 : 0.88, anchor: .bottom)
-            .blendMode(.screen)
-            .offset(y: verticalOffset)
-            .animation(
-                .easeInOut(duration: 1.3).delay(delay).repeatForever(autoreverses: true),
-                value: flicker
-            )
-            .onAppear { flicker = true }
+    func updateUIView(_ uiView: DescentLanternFlameUIView, context: Context) {
+        uiView.apply(width: width, height: height, colors: colors, delay: delay, animating: true)
     }
 }
 
@@ -508,10 +696,98 @@ struct SurvivalDescentBlockSeal: View {
         }
         .frame(width: size, height: size)
         .opacity(dim ? 0.3 : (opened ? 1.0 : 0.75))
-        .position(x: xPx, y: yPx)
-        .animation(nil, value: xPx)
-        .animation(nil, value: yPx)
+        .descentMapFixedPosition(x: xPx, y: yPx)
         .allowsHitTesting(false)
+    }
+}
+
+private final class DescentSealStarUIView: UIView {
+    private let spinContainer = CALayer()
+    private var appliedKey = ""
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        layer.addSublayer(spinContainer)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    private var configuredSize: CGFloat = 0
+    private var configuredStroke: UIColor = .white
+    private var configuredSpins = false
+
+    func apply(size: CGFloat, stroke: UIColor, spins: Bool) {
+        let key = String(format: "%.2f|%d", size, spins ? 1 : 0)
+        let needsLayerRebuild = appliedKey != key
+        appliedKey = key
+        configuredSize = size
+        configuredStroke = stroke
+        configuredSpins = spins
+        guard needsLayerRebuild else { return }
+
+        spinContainer.sublayers?.forEach { $0.removeFromSuperlayer() }
+
+        let strokeCG = configuredStroke.withAlphaComponent(0.85).cgColor
+        let size = configuredSize
+        let tri1 = CAShapeLayer()
+        tri1.path = Self.trianglePath(in: CGRect(x: 0, y: 0, width: size, height: size)).cgPath
+        tri1.fillColor = nil
+        tri1.strokeColor = strokeCG
+        tri1.lineWidth = 1.2
+        spinContainer.addSublayer(tri1)
+
+        let tri2 = CAShapeLayer()
+        tri2.path = Self.trianglePath(in: CGRect(x: 0, y: 0, width: size, height: size)).cgPath
+        tri2.fillColor = nil
+        tri2.strokeColor = strokeCG
+        tri2.lineWidth = 1.2
+        tri2.transform = CATransform3DMakeRotation(.pi, 0, 0, 1)
+        tri2.frame = spinContainer.bounds
+        spinContainer.addSublayer(tri2)
+
+        spinContainer.removeAnimation(forKey: "descentSpin")
+        if configuredSpins {
+            DescentMapLayerMotion.attachSpin(to: spinContainer, duration: 12)
+        }
+        layoutStarFrames()
+    }
+
+    private func layoutStarFrames() {
+        let size = configuredSize > 0 ? configuredSize : min(bounds.width, bounds.height)
+        guard size > 0 else { return }
+        spinContainer.frame = CGRect(x: (bounds.width - size) / 2, y: (bounds.height - size) / 2, width: size, height: size)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutStarFrames()
+    }
+
+    private static func trianglePath(in rect: CGRect) -> UIBezierPath {
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.close()
+        return path
+    }
+}
+
+private struct DescentSealStarRepresentable: UIViewRepresentable {
+    let size: CGFloat
+    let stroke: UIColor
+    let spins: Bool
+
+    func makeUIView(context: Context) -> DescentSealStarUIView {
+        let view = DescentSealStarUIView()
+        view.apply(size: size, stroke: stroke, spins: spins)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentSealStarUIView, context: Context) {
+        uiView.apply(size: size, stroke: stroke, spins: spins)
     }
 }
 
@@ -521,27 +797,66 @@ private struct SurvivalDescentSealStar: View {
     let stroke: Color
     let spins: Bool
 
-    @State private var rotation: Double = 0
-
     var body: some View {
-        ZStack {
-            Triangle()
-                .stroke(stroke.opacity(0.85), lineWidth: 1.2)
-                .frame(width: size, height: size)
-            Triangle()
-                .stroke(stroke.opacity(0.85), lineWidth: 1.2)
-                .frame(width: size, height: size)
-                .rotationEffect(.degrees(180))
-        }
-        .rotationEffect(.degrees(rotation))
-        .animation(
-            spins ? .linear(duration: 12).repeatForever(autoreverses: false) : nil,
-            value: rotation
+        DescentSealStarRepresentable(size: size, stroke: UIColor(stroke), spins: spins)
+            .frame(width: size, height: size)
+    }
+}
+
+private final class DescentSealGlowUIView: UIView {
+    private let glowLayer = CAGradientLayer()
+    private var appliedKey = ""
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        glowLayer.type = .radial
+        glowLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        glowLayer.endPoint = CGPoint(x: 1, y: 1)
+        layer.addSublayer(glowLayer)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(diameter: CGFloat, color: UIColor, animating: Bool) {
+        let key = String(format: "%.2f|%d", diameter, animating ? 1 : 0)
+        guard appliedKey != key else { return }
+        appliedKey = key
+        glowLayer.colors = [color.withAlphaComponent(0.9).cgColor, UIColor.clear.cgColor]
+        glowLayer.frame = bounds
+        glowLayer.cornerRadius = diameter / 2
+        glowLayer.removeAnimation(forKey: "descentPulse")
+        guard animating else { return }
+        DescentMapLayerMotion.attachPulse(
+            to: glowLayer,
+            duration: 2.0,
+            delay: 0,
+            scaleFrom: 0.9,
+            scaleTo: 1.15,
+            opacityFrom: 0.6,
+            opacityTo: 1.0
         )
-        .onAppear {
-            guard spins else { return }
-            rotation = 360
-        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        glowLayer.frame = bounds
+    }
+}
+
+private struct DescentSealGlowRepresentable: UIViewRepresentable {
+    let diameter: CGFloat
+    let uiColor: UIColor
+
+    func makeUIView(context: Context) -> DescentSealGlowUIView {
+        let view = DescentSealGlowUIView()
+        view.apply(diameter: diameter, color: uiColor, animating: true)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentSealGlowUIView, context: Context) {
+        uiView.apply(diameter: diameter, color: uiColor, animating: true)
     }
 }
 
@@ -550,27 +865,10 @@ private struct SurvivalDescentSealGlow: View {
     let diameter: CGFloat
     let color: Color
 
-    @State private var glowPulse = false
-
     var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [color.opacity(0.9), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: diameter * 0.46
-                )
-            )
+        DescentSealGlowRepresentable(diameter: diameter, uiColor: UIColor(color))
             .frame(width: diameter, height: diameter)
             .blendMode(.screen)
-            .scaleEffect(glowPulse ? 1.15 : 0.9)
-            .opacity(glowPulse ? 1.0 : 0.6)
-            .animation(
-                .easeInOut(duration: 2.0).repeatForever(autoreverses: true),
-                value: glowPulse
-            )
-            .onAppear { glowPulse = true }
     }
 }
 
@@ -631,24 +929,77 @@ struct SurvivalDescentDoorView: View {
 
 // MARK: - Stage node
 
+private final class DescentFrontierPulseRingUIView: UIView {
+    private let ringLayer = CAShapeLayer()
+    private var configuredDiameter: CGFloat = 0
+    private var pulseAttached = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        layer.addSublayer(ringLayer)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(diameter: CGFloat) {
+        configuredDiameter = diameter
+        layoutRing()
+    }
+
+    private func layoutRing() {
+        guard configuredDiameter > 0, bounds.width > 0, bounds.height > 0 else { return }
+        let ringSize = configuredDiameter * 1.55
+        let rect = CGRect(x: (bounds.width - ringSize) / 2, y: (bounds.height - ringSize) / 2, width: ringSize, height: ringSize)
+        ringLayer.path = UIBezierPath(ovalIn: rect).cgPath
+        ringLayer.fillColor = nil
+        ringLayer.strokeColor = UIColor(red: 1, green: 214 / 255, blue: 96 / 255, alpha: 0.55).cgColor
+        ringLayer.lineWidth = 2
+        ringLayer.shadowColor = UIColor(red: 1, green: 196 / 255, blue: 80 / 255, alpha: 0.5).cgColor
+        ringLayer.shadowRadius = 8
+        ringLayer.shadowOpacity = 1
+        ringLayer.shadowOffset = .zero
+        guard !pulseAttached else { return }
+        pulseAttached = true
+        DescentMapLayerMotion.attachPulse(
+            to: ringLayer,
+            duration: 1.4,
+            delay: 0,
+            scaleFrom: 0.96,
+            scaleTo: 1.08,
+            opacityFrom: 0.55,
+            opacityTo: 0.95
+        )
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutRing()
+    }
+}
+
+private struct DescentFrontierPulseRingRepresentable: UIViewRepresentable {
+    let diameter: CGFloat
+
+    func makeUIView(context: Context) -> DescentFrontierPulseRingUIView {
+        let view = DescentFrontierPulseRingUIView()
+        view.apply(diameter: diameter)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentFrontierPulseRingUIView, context: Context) {
+        uiView.apply(diameter: diameter)
+    }
+}
+
 /// 現在地ノードの点滅リング。拡大率と不透明度だけを繰り返し、ノードの位置には適用しない。
 private struct SurvivalDescentFrontierPulseRing: View {
     let diameter: CGFloat
 
-    @State private var pulse = false
-
     var body: some View {
-        Circle()
-            .stroke(Color(red: 1, green: 214 / 255, blue: 96 / 255).opacity(0.55), lineWidth: 2)
+        DescentFrontierPulseRingRepresentable(diameter: diameter)
             .frame(width: diameter * 1.55, height: diameter * 1.55)
-            .scaleEffect(pulse ? 1.08 : 0.96)
-            .opacity(pulse ? 0.55 : 0.95)
-            .shadow(color: Color(red: 1, green: 196 / 255, blue: 80 / 255).opacity(0.5), radius: 8)
-            .animation(
-                .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
-                value: pulse
-            )
-            .onAppear { pulse = true }
     }
 }
 
@@ -721,11 +1072,10 @@ struct SurvivalDescentStageNode: View {
             .buttonStyle(.plain)
             .disabled(!isUnlocked)
         }
+        .frame(width: diameter * 1.55, height: diameter * 1.55)
         .opacity(dim ? 0.45 : 1.0)
         .saturation(dim ? 0.4 : 1.0)
-        .position(x: xPx, y: yPx)
-        .animation(nil, value: xPx)
-        .animation(nil, value: yPx)
+        .descentMapFixedPosition(x: xPx, y: yPx)
     }
 
     private var fillGradient: LinearGradient {
@@ -835,20 +1185,98 @@ struct SurvivalDescentCharacterView: View {
             }
         }()
 
-        SurvivalDescentCharacterBody(
+        DescentCharacterBodyRepresentable(
             size: size,
             scale: scale,
             imageBaseName: imageBaseName,
             flip: flip,
             animateBreathe: animateBreathe
         )
-        .position(
+        .frame(width: size, height: size)
+        .descentMapFixedPosition(
             x: xPx + offsetX,
             y: yPx - size * 0.5 - 10 * scale
         )
-        .animation(nil, value: xPx)
-        .animation(nil, value: yPx)
         .allowsHitTesting(false)
+    }
+}
+
+private final class DescentCharacterBodyUIView: UIView {
+    private let glowLayer = CAGradientLayer()
+    private let imageLayer = CALayer()
+    private let bobContainer = CALayer()
+    private var appliedKey = ""
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        glowLayer.type = .radial
+        glowLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        glowLayer.endPoint = CGPoint(x: 1, y: 1)
+        bobContainer.addSublayer(glowLayer)
+        bobContainer.addSublayer(imageLayer)
+        layer.addSublayer(bobContainer)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(size: CGFloat, scale: CGFloat, imageBaseName: String, flip: CGFloat, animateBreathe: Bool) {
+        let key = String(format: "%.1f|%.2f|%@|%.1f|%d", size, scale, imageBaseName, flip, animateBreathe ? 1 : 0)
+        guard appliedKey != key else { return }
+        appliedKey = key
+
+        let glowW = size * 0.9
+        let glowH = size * 0.3
+        glowLayer.colors = [
+            UIColor(red: 1, green: 224 / 255, blue: 160 / 255, alpha: 0.45).cgColor,
+            UIColor.clear.cgColor,
+        ]
+        glowLayer.cornerRadius = glowH / 2
+        glowLayer.frame = CGRect(x: (size - glowW) / 2, y: size - glowH + size * 0.05, width: glowW, height: glowH)
+
+        if let image = UIImage(named: imageBaseName) {
+            imageLayer.contents = image.cgImage
+            imageLayer.contentsGravity = .resizeAspect
+        }
+        imageLayer.frame = CGRect(x: 0, y: 0, width: size, height: size)
+        imageLayer.shadowColor = UIColor.black.cgColor
+        imageLayer.shadowOpacity = 0.55
+        imageLayer.shadowRadius = 6
+        imageLayer.shadowOffset = CGSize(width: 0, height: 6)
+        let flipTransform = flip < 0 ? CATransform3DMakeScale(-1, 1, 1) : CATransform3DIdentity
+        imageLayer.transform = flipTransform
+
+        bobContainer.frame = bounds
+        bobContainer.removeAnimation(forKey: "descentBob")
+        guard animateBreathe else {
+            bobContainer.transform = CATransform3DIdentity
+            return
+        }
+        DescentMapLayerMotion.attachTranslationYPulse(to: bobContainer, duration: 2.2, amplitude: 2 * scale)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        bobContainer.frame = bounds
+    }
+}
+
+private struct DescentCharacterBodyRepresentable: UIViewRepresentable {
+    let size: CGFloat
+    let scale: CGFloat
+    let imageBaseName: String
+    let flip: CGFloat
+    let animateBreathe: Bool
+
+    func makeUIView(context: Context) -> DescentCharacterBodyUIView {
+        let view = DescentCharacterBodyUIView()
+        view.apply(size: size, scale: scale, imageBaseName: imageBaseName, flip: flip, animateBreathe: animateBreathe)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentCharacterBodyUIView, context: Context) {
+        uiView.apply(size: size, scale: scale, imageBaseName: imageBaseName, flip: flip, animateBreathe: animateBreathe)
     }
 }
 
@@ -860,41 +1288,14 @@ private struct SurvivalDescentCharacterBody: View {
     let flip: CGFloat
     let animateBreathe: Bool
 
-    @State private var breathe = false
-
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Ellipse()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(red: 1, green: 224 / 255, blue: 160 / 255).opacity(0.45), .clear],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: size * 0.45
-                    )
-                )
-                .frame(width: size * 0.9, height: size * 0.3)
-                .blendMode(.screen)
-                .offset(y: size * 0.05)
-
-            Image(imageBaseName)
-                .resizable()
-                .interpolation(.medium)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: size, height: size)
-                .scaleEffect(x: flip, y: 1, anchor: .center)
-                .shadow(color: .black.opacity(0.55), radius: 6, x: 0, y: 6)
-        }
-        .frame(width: size, height: size)
-        .offset(y: breathe ? -2 * scale : 2 * scale)
-        .animation(
-            animateBreathe ? .easeInOut(duration: 2.2).repeatForever(autoreverses: true) : nil,
-            value: breathe
+        DescentCharacterBodyRepresentable(
+            size: size,
+            scale: scale,
+            imageBaseName: imageBaseName,
+            flip: flip,
+            animateBreathe: animateBreathe
         )
-        .onAppear {
-            guard animateBreathe else { return }
-            breathe = true
-        }
     }
 }
 
@@ -928,7 +1329,146 @@ struct SurvivalDescentBossFigure: View {
         let saturation: Double = dim ? 0.3 : (opened ? 0.5 : 0.9)
         let brightnessAdj: Double = dim ? -0.4 : (opened ? -0.3 : -0.05)
 
-        SurvivalDescentBossBody(
+        DescentBossBodyRepresentable(
+            size: size,
+            scale: scale,
+            assetName: assetName,
+            opacity: Float(opacity),
+            saturation: saturation,
+            brightnessAdj: brightnessAdj,
+            opened: opened,
+            dim: dim,
+            animated: animated
+        )
+        .frame(width: size, height: size)
+        .descentMapFixedPosition(x: xPx, y: yPx - size * 0.5)
+        .allowsHitTesting(false)
+    }
+}
+
+private final class DescentBossPulseUIView: UIView {
+    private let glowLayer = CAGradientLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        glowLayer.type = .radial
+        glowLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        glowLayer.endPoint = CGPoint(x: 1, y: 1)
+        layer.addSublayer(glowLayer)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(diameter: CGFloat, animating: Bool) {
+        glowLayer.colors = [
+            UIColor.red.withAlphaComponent(0.35).cgColor,
+            UIColor.clear.cgColor,
+        ]
+        glowLayer.frame = bounds
+        glowLayer.cornerRadius = diameter / 2
+        glowLayer.removeAnimation(forKey: "descentPulse")
+        guard animating else {
+            glowLayer.opacity = 0.35
+            return
+        }
+        DescentMapLayerMotion.attachPulse(
+            to: glowLayer,
+            duration: 1.8,
+            delay: 0,
+            scaleFrom: 0.9,
+            scaleTo: 1.08,
+            opacityFrom: 0.35,
+            opacityTo: 0.75
+        )
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        glowLayer.frame = bounds
+    }
+}
+
+private final class DescentBossBodyUIView: UIView {
+    private let pulseView = DescentBossPulseUIView()
+    private let bobContainerView = UIView()
+    private let imageView = UIImageView()
+    private var appliedKey = ""
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+        addSubview(pulseView)
+        addSubview(bobContainerView)
+        bobContainerView.addSubview(imageView)
+        imageView.contentMode = .scaleAspectFit
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    func apply(
+        size: CGFloat,
+        scale: CGFloat,
+        assetName: String,
+        opacity: Float,
+        saturation: Double,
+        brightnessAdj: Double,
+        opened: Bool,
+        dim: Bool,
+        animated: Bool
+    ) {
+        let key = String(format: "%.1f|%.2f|%@|%d|%d|%d", size, scale, assetName, dim ? 1 : 0, opened ? 1 : 0, animated ? 1 : 0)
+        guard appliedKey != key else { return }
+        appliedKey = key
+
+        let pulseDiameter = size * 1.2
+        pulseView.frame = CGRect(
+            x: (size - pulseDiameter) / 2,
+            y: (size - pulseDiameter) / 2,
+            width: pulseDiameter,
+            height: pulseDiameter
+        )
+        if !dim && !opened {
+            pulseView.isHidden = false
+            pulseView.apply(diameter: pulseDiameter, animating: animated)
+        } else {
+            pulseView.isHidden = true
+        }
+
+        imageView.image = UIImage(named: assetName)
+        layer.opacity = opacity
+
+        bobContainerView.layer.removeAnimation(forKey: "descentBob")
+        if !dim && animated {
+            DescentMapLayerMotion.attachTranslationYPulse(to: bobContainerView.layer, duration: 2.6, amplitude: 3 * scale)
+        } else {
+            bobContainerView.layer.transform = CATransform3DIdentity
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        bobContainerView.frame = bounds
+        imageView.frame = bounds
+    }
+}
+
+private struct DescentBossBodyRepresentable: UIViewRepresentable {
+    let size: CGFloat
+    let scale: CGFloat
+    let assetName: String
+    let opacity: Float
+    let saturation: Double
+    let brightnessAdj: Double
+    let opened: Bool
+    let dim: Bool
+    let animated: Bool
+
+    func makeUIView(context: Context) -> DescentBossBodyUIView {
+        let view = DescentBossBodyUIView()
+        view.apply(
             size: size,
             scale: scale,
             assetName: assetName,
@@ -939,10 +1479,21 @@ struct SurvivalDescentBossFigure: View {
             dim: dim,
             animated: animated
         )
-        .position(x: xPx, y: yPx - size * 0.5)
-        .animation(nil, value: xPx)
-        .animation(nil, value: yPx)
-        .allowsHitTesting(false)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentBossBodyUIView, context: Context) {
+        uiView.apply(
+            size: size,
+            scale: scale,
+            assetName: assetName,
+            opacity: opacity,
+            saturation: saturation,
+            brightnessAdj: brightnessAdj,
+            opened: opened,
+            dim: dim,
+            animated: animated
+        )
     }
 }
 
@@ -958,46 +1509,18 @@ private struct SurvivalDescentBossBody: View {
     let dim: Bool
     let animated: Bool
 
-    @State private var bob = false
-
     var body: some View {
-        ZStack {
-            if !dim && !opened && animated {
-                SurvivalDescentBossPulse(diameter: size * 1.2)
-            } else if !dim && !opened {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color.red.opacity(0.35), .clear],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: size * 0.55
-                        )
-                    )
-                    .frame(width: size * 1.2, height: size * 1.2)
-                    .opacity(0.35)
-                    .blendMode(.screen)
-            }
-
-            Image(assetName)
-                .resizable()
-                .interpolation(.medium)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: size, height: size)
-                .saturation(saturation)
-                .brightness(brightnessAdj)
-                .shadow(color: .black.opacity(opened ? 0.4 : 0.6), radius: 8, x: 0, y: 6)
-        }
-        .opacity(opacity)
-        .offset(y: bob ? -3 * scale : 3 * scale)
-        .animation(
-            (!dim && animated) ? .easeInOut(duration: 2.6).repeatForever(autoreverses: true) : nil,
-            value: bob
+        DescentBossBodyRepresentable(
+            size: size,
+            scale: scale,
+            assetName: assetName,
+            opacity: Float(opacity),
+            saturation: saturation,
+            brightnessAdj: brightnessAdj,
+            opened: opened,
+            dim: dim,
+            animated: animated
         )
-        .onAppear {
-            guard !dim, animated else { return }
-            bob = true
-        }
     }
 }
 
@@ -1005,27 +1528,24 @@ private struct SurvivalDescentBossBody: View {
 private struct SurvivalDescentBossPulse: View {
     let diameter: CGFloat
 
-    @State private var pulse = false
-
     var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [Color.red.opacity(0.35), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: diameter * 0.46
-                )
-            )
+        DescentBossPulseUIViewRepresentable(diameter: diameter)
             .frame(width: diameter, height: diameter)
-            .scaleEffect(pulse ? 1.08 : 0.9)
-            .opacity(pulse ? 0.75 : 0.35)
             .blendMode(.screen)
-            .animation(
-                .easeInOut(duration: 1.8).repeatForever(autoreverses: true),
-                value: pulse
-            )
-            .onAppear { pulse = true }
+    }
+}
+
+private struct DescentBossPulseUIViewRepresentable: UIViewRepresentable {
+    let diameter: CGFloat
+
+    func makeUIView(context: Context) -> DescentBossPulseUIView {
+        let view = DescentBossPulseUIView()
+        view.apply(diameter: diameter, animating: true)
+        return view
+    }
+
+    func updateUIView(_ uiView: DescentBossPulseUIView, context: Context) {
+        uiView.apply(diameter: diameter, animating: true)
     }
 }
 

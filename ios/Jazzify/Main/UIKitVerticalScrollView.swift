@@ -190,7 +190,11 @@ struct UIKitVerticalScrollView<Content: View>: UIViewRepresentable {
             shouldUpdateRootView = true
         }
         if shouldUpdateRootView {
-            context.coordinator.host?.rootView = content
+            UIView.performWithoutAnimation {
+                context.coordinator.host?.rootView = content
+                context.coordinator.host?.view.setNeedsLayout()
+                context.coordinator.host?.view.layoutIfNeeded()
+            }
         }
 
         let newWidth = max(1, contentSize.width)
