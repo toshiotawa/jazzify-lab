@@ -28,6 +28,7 @@ class LickDef:
     shared_audio_lick_id: str | None = None
     exclude_performers: tuple[str, ...] = ()
     spelling: str = "chord"
+    transpose_spelling_candidates: tuple = ()
 
     @property
     def audio_dir(self) -> Path:
@@ -65,6 +66,13 @@ def load_lick(lick_id: str) -> LickDef:
         ),
         exclude_performers=tuple(str(n) for n in raw.get("exclude_performers", [])),
         spelling=str(raw.get("spelling", "chord")),
+        transpose_spelling_candidates=tuple(
+            tuple(
+                (tuple(str(n) for n in c["row"]), int(c.get("root_fifths", 0)))
+                for c in cands
+            )
+            for cands in raw.get("transpose_spelling_candidates", [])
+        ),
     )
 
 

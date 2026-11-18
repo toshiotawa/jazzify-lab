@@ -13,6 +13,7 @@ from jazzlicks.db import DEFAULT_DB_PATH, PROJECT_ROOT
 from jazzlicks.licks import LickDef, load_lick
 from jazzlicks.patterns import load_notes
 from jazzlicks.spellings import (
+    chord_scale_fifths,
     octave_for_spelled_pitch,
     parse_note_name_to_midi,
     spell_midi_for_chord,
@@ -491,6 +492,45 @@ def export_ordered_playlist(entries: list[SomisiraEntry], dest: Path) -> None:
         w.writerows(rows)
 
 
+_SHARP_ORDER = "FCGDAEB"
+
+
+def _key_alter(letter: str, fifths: int) -> int:
+    if fifths > 0 and _SHARP_ORDER.index(letter) < fifths:
+        return 1
+    if fifths < 0 and _SHARP_ORDER[::-1].index(letter) < -fifths:
+        return -1
+    return 0
+
+
+def _pick_row_for_key(cands, key_fifths: int | None, chord: str = ""):
+    """Strict interval transposition of the reference spelling.
+
+    Each candidate is the reference spelling moved by one spelled interval
+    (letter distance + quality), tagged with the transposed chord root's
+    key-signature size (root_fifths). Notes are never re-spelled individually;
+    only the enharmonic choice of the transposed key is made here:
+
+    1. recording key known  -> candidate closest to the recording key on the
+       circle of fifths (Donna Lee in Ab -> Db-7, not C#-7)
+    2. else chord known      -> closest to the chord's scale (chord_scale_fifths)
+    3. else                  -> fewest key-signature accidentals (Db7 over C#7)
+    """
+    if not cands:
+        return None
+    context = key_fifths
+    if context is None and chord:
+        context = chord_scale_fifths(chord)
+
+    def cost(cand):
+        row, root_fifths = cand
+        if context is None:
+            return (abs(root_fifths), root_fifths > 0)
+        return (abs(root_fifths - context), abs(root_fifths))
+
+    return min(cands, key=cost)[0]
+
+
 def written_note_name(
     motif_transpose: int,
     note_index: int,
@@ -498,6 +538,8 @@ def written_note_name(
     lick_id: str = "somisira",
     chord: str = "",
     key_fifths: int = 0,
+    octave_offset: int = 0,
+    key_known: bool = True,
 ) -> str:
     """Spell one written pitch. Octave matches the sounding MIDI.
 
@@ -507,9 +549,18 @@ def written_note_name(
     from jazzlicks.licks import load_lick
 
     lick = load_lick(lick_id)
-    midi = lick.canonical_midi[note_index] + int(motif_transpose)
+    midi = lick.canonical_midi[note_index] + int(motif_transpose) + 12 * int(octave_offset)
     if lick.spelling == "transpose":
-        root = lick.transpose_spellings[int(motif_transpose) % 12][note_index]
+        t = int(motif_transpose) % 12
+        root = lick.transpose_spellings[t][note_index]
+        if lick.transpose_spelling_candidates:
+            row = _pick_row_for_key(
+                lick.transpose_spelling_candidates[t],
+                int(key_fifths) if key_known else None,
+                chord,
+            )
+            if row:
+                root = row[note_index]
         return f"{root}{octave_for_spelled_pitch(root, midi)}"
     return spell_midi_for_chord(midi, chord, key_fifths)
 
@@ -543,6 +594,7 @@ def validate_entry_spelling(entry: SomisiraEntry, lick: LickDef) -> None:
             lick_id=lick.id,
             chord=format_chord_for_display(chord),
             key_fifths=fifths or 0,
+            key_known=fifths is not None,
         )
         sounded = parse_note_name_to_midi(spelled)
         if sounded != written_midi:
@@ -604,6 +656,23 @@ def entry_to_score_payload(entry: SomisiraEntry, lick: LickDef | None = None) ->
     if len(unique_shifts) == 1:
         global_octave = next(iter(unique_shifts))
 
+    # Display octave: canonical + t (t in 0..11) always transposes UP from the
+    # reference register, so high keys drift far above the staff. Shift the whole
+    # slide by whole octaves so it sits in the treble staff (E4-F5) with the
+    # fewest ledger lines; contour/intervals are unchanged.
+    written_all = [
+        motif_canonical(i // notes_per, i % notes_per) for i in range(note_count)
+    ]
+
+    def _ledger_cost(k: int) -> tuple[int, float]:
+        ms = [m + 12 * k for m in written_all]
+        cost = sum(max(0, 64 - m) + max(0, m - 77) for m in ms)
+        center = (min(ms) + max(ms)) / 2
+        return (cost, abs(center - 70.5))
+
+    display_octave = min(range(-3, 4), key=_ledger_cost)
+    global_octave = None
+
     voicing_groups: list[dict[str, Any]] = []
     for global_i in range(note_count):
         motif_i = global_i // notes_per
@@ -626,6 +695,8 @@ def entry_to_score_payload(entry: SomisiraEntry, lick: LickDef | None = None) ->
                         lick_id=lick.id,
                         chord=format_chord_for_display(chord_for_motif(motif_i)),
                         key_fifths=key_fifths,
+                        octave_offset=display_octave,
+                        key_known=fifths is not None,
                     )
                 ],
                 "voicingStaves": [1],

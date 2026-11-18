@@ -1,0 +1,536 @@
+{
+  "id": "user_p06",
+  "label": "G7 ソ ラb ソ ファ ミb ドb シb ラb",
+  "intervals": [
+    -1,
+    -2,
+    -2,
+    -4,
+    -1,
+    -2
+  ],
+  "reference_pc": 8,
+  "canonical_midi": [
+    68,
+    67,
+    65,
+    63,
+    59,
+    58,
+    56
+  ],
+  "base_note_names": [
+    "Ab4",
+    "G4",
+    "F4",
+    "Eb4",
+    "Cb4",
+    "Bb3",
+    "Ab3"
+  ],
+  "chromatic_spellings": [
+    "C",
+    "Db",
+    "D",
+    "Eb",
+    "E",
+    "F",
+    "Gb",
+    "G",
+    "Ab",
+    "A",
+    "Bb",
+    "B"
+  ],
+  "transpose_spellings": [
+    [
+      "Ab",
+      "G",
+      "F",
+      "Eb",
+      "Cb",
+      "Bb",
+      "Ab"
+    ],
+    [
+      "A",
+      "G#",
+      "F#",
+      "E",
+      "C",
+      "B",
+      "A"
+    ],
+    [
+      "Bb",
+      "A",
+      "G",
+      "F",
+      "Db",
+      "C",
+      "Bb"
+    ],
+    [
+      "Cb",
+      "Bb",
+      "Ab",
+      "Gb",
+      "Ebb",
+      "Db",
+      "Cb"
+    ],
+    [
+      "C",
+      "B",
+      "A",
+      "G",
+      "Eb",
+      "D",
+      "C"
+    ],
+    [
+      "Db",
+      "C",
+      "Bb",
+      "Ab",
+      "Fb",
+      "Eb",
+      "Db"
+    ],
+    [
+      "D",
+      "C#",
+      "B",
+      "A",
+      "F",
+      "E",
+      "D"
+    ],
+    [
+      "Eb",
+      "D",
+      "C",
+      "Bb",
+      "Gb",
+      "F",
+      "Eb"
+    ],
+    [
+      "Fb",
+      "Eb",
+      "Db",
+      "Cb",
+      "Abb",
+      "Gb",
+      "Fb"
+    ],
+    [
+      "F",
+      "E",
+      "D",
+      "C",
+      "Ab",
+      "G",
+      "F"
+    ],
+    [
+      "Gb",
+      "F",
+      "Eb",
+      "Db",
+      "Bbb",
+      "Ab",
+      "Gb"
+    ],
+    [
+      "G",
+      "F#",
+      "E",
+      "D",
+      "Bb",
+      "A",
+      "G"
+    ]
+  ],
+  "notes_per_motif": 7,
+  "dig_that_lick_pattern": "-1 -2 -2 -4 -1 -2",
+  "combine_adjacent_motifs": false,
+  "spelling": "transpose",
+  "transpose_spelling_candidates": [
+    [
+      {
+        "row": [
+          "Ab",
+          "G",
+          "F",
+          "Eb",
+          "Cb",
+          "Bb",
+          "Ab"
+        ],
+        "root": "G",
+        "root_fifths": 0
+      },
+      {
+        "row": [
+          "G#",
+          "F##",
+          "E#",
+          "D#",
+          "B",
+          "A#",
+          "G#"
+        ],
+        "root": "F##",
+        "root_fifths": 12
+      }
+    ],
+    [
+      {
+        "row": [
+          "A",
+          "G#",
+          "F#",
+          "E",
+          "C",
+          "B",
+          "A"
+        ],
+        "root": "G#",
+        "root_fifths": 7
+      },
+      {
+        "row": [
+          "Bbb",
+          "Ab",
+          "Gb",
+          "Fb",
+          "Dbb",
+          "Cb",
+          "Bbb"
+        ],
+        "root": "Ab",
+        "root_fifths": -5
+      }
+    ],
+    [
+      {
+        "row": [
+          "A#",
+          "G##",
+          "F##",
+          "E#",
+          "C#",
+          "B#",
+          "A#"
+        ],
+        "root": "G##",
+        "root_fifths": 14
+      },
+      {
+        "row": [
+          "Bb",
+          "A",
+          "G",
+          "F",
+          "Db",
+          "C",
+          "Bb"
+        ],
+        "root": "A",
+        "root_fifths": 2
+      }
+    ],
+    [
+      {
+        "row": [
+          "B",
+          "A#",
+          "G#",
+          "F#",
+          "D",
+          "C#",
+          "B"
+        ],
+        "root": "A#",
+        "root_fifths": 9
+      },
+      {
+        "row": [
+          "Cb",
+          "Bb",
+          "Ab",
+          "Gb",
+          "Ebb",
+          "Db",
+          "Cb"
+        ],
+        "root": "Bb",
+        "root_fifths": -3
+      }
+    ],
+    [
+      {
+        "row": [
+          "B#",
+          "A##",
+          "G##",
+          "F##",
+          "D#",
+          "C##",
+          "B#"
+        ],
+        "root": "A##",
+        "root_fifths": 16
+      },
+      {
+        "row": [
+          "C",
+          "B",
+          "A",
+          "G",
+          "Eb",
+          "D",
+          "C"
+        ],
+        "root": "B",
+        "root_fifths": 4
+      },
+      {
+        "row": [
+          "Dbb",
+          "Cb",
+          "Bbb",
+          "Abb",
+          "Fbb",
+          "Ebb",
+          "Dbb"
+        ],
+        "root": "Cb",
+        "root_fifths": -8
+      }
+    ],
+    [
+      {
+        "row": [
+          "C#",
+          "B#",
+          "A#",
+          "G#",
+          "E",
+          "D#",
+          "C#"
+        ],
+        "root": "B#",
+        "root_fifths": 11
+      },
+      {
+        "row": [
+          "Db",
+          "C",
+          "Bb",
+          "Ab",
+          "Fb",
+          "Eb",
+          "Db"
+        ],
+        "root": "C",
+        "root_fifths": -1
+      }
+    ],
+    [
+      {
+        "row": [
+          "C##",
+          "B##",
+          "A##",
+          "G##",
+          "E#",
+          "D##",
+          "C##"
+        ],
+        "root": "B##",
+        "root_fifths": 18
+      },
+      {
+        "row": [
+          "D",
+          "C#",
+          "B",
+          "A",
+          "F",
+          "E",
+          "D"
+        ],
+        "root": "C#",
+        "root_fifths": 6
+      },
+      {
+        "row": [
+          "Ebb",
+          "Db",
+          "Cb",
+          "Bbb",
+          "Gbb",
+          "Fb",
+          "Ebb"
+        ],
+        "root": "Db",
+        "root_fifths": -6
+      }
+    ],
+    [
+      {
+        "row": [
+          "D#",
+          "C##",
+          "B#",
+          "A#",
+          "F#",
+          "E#",
+          "D#"
+        ],
+        "root": "C##",
+        "root_fifths": 13
+      },
+      {
+        "row": [
+          "Eb",
+          "D",
+          "C",
+          "Bb",
+          "Gb",
+          "F",
+          "Eb"
+        ],
+        "root": "D",
+        "root_fifths": 1
+      }
+    ],
+    [
+      {
+        "row": [
+          "E",
+          "D#",
+          "C#",
+          "B",
+          "G",
+          "F#",
+          "E"
+        ],
+        "root": "D#",
+        "root_fifths": 8
+      },
+      {
+        "row": [
+          "Fb",
+          "Eb",
+          "Db",
+          "Cb",
+          "Abb",
+          "Gb",
+          "Fb"
+        ],
+        "root": "Eb",
+        "root_fifths": -4
+      }
+    ],
+    [
+      {
+        "row": [
+          "E#",
+          "D##",
+          "C##",
+          "B#",
+          "G#",
+          "F##",
+          "E#"
+        ],
+        "root": "D##",
+        "root_fifths": 15
+      },
+      {
+        "row": [
+          "F",
+          "E",
+          "D",
+          "C",
+          "Ab",
+          "G",
+          "F"
+        ],
+        "root": "E",
+        "root_fifths": 3
+      }
+    ],
+    [
+      {
+        "row": [
+          "F#",
+          "E#",
+          "D#",
+          "C#",
+          "A",
+          "G#",
+          "F#"
+        ],
+        "root": "E#",
+        "root_fifths": 10
+      },
+      {
+        "row": [
+          "Gb",
+          "F",
+          "Eb",
+          "Db",
+          "Bbb",
+          "Ab",
+          "Gb"
+        ],
+        "root": "F",
+        "root_fifths": -2
+      }
+    ],
+    [
+      {
+        "row": [
+          "Abb",
+          "Gb",
+          "Fb",
+          "Ebb",
+          "Cbb",
+          "Bbb",
+          "Abb"
+        ],
+        "root": "Gb",
+        "root_fifths": -7
+      },
+      {
+        "row": [
+          "F##",
+          "E##",
+          "D##",
+          "C##",
+          "A#",
+          "G##",
+          "F##"
+        ],
+        "root": "E##",
+        "root_fifths": 17
+      },
+      {
+        "row": [
+          "G",
+          "F#",
+          "E",
+          "D",
+          "Bb",
+          "A",
+          "G"
+        ],
+        "root": "F#",
+        "root_fifths": 5
+      }
+    ]
+  ]
+}

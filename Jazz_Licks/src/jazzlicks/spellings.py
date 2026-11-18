@@ -175,3 +175,62 @@ def spell_midi_for_chord(midi: int, chord: str, key_fifths: int = 0) -> str:
     else:
         root = FLAT_NAMES[pc]
     return f"{root}{octave_for_spelled_pitch(root, int(midi))}"
+
+
+# --- Lick DNA: strict letter-preserving transposition candidates -------------
+
+_LETTER_FIFTHS = {"F": -1, "C": 0, "G": 1, "D": 2, "A": 3, "E": 4, "B": 5}
+_QUALITY_FIFTHS = {"dom": -1, "min": -2, "maj": 0}
+
+
+def spelled_root_fifths(root: str, quality: str = "maj") -> int:
+    """Key-signature size of a (possibly theoretical) root, e.g. Fb maj -> -8.
+
+    dom uses mixolydian (-1), min uses dorian (-2), maj the major key.
+    """
+    base = _LETTER_FIFTHS[root[0]] + 7 * root.count("#") - 7 * root.count("b")
+    return base + _QUALITY_FIFTHS.get(quality, 0)
+
+
+def _transpose_row_by_letters(
+    names: list[str], semitones: int, letter_delta: int
+) -> list[str] | None:
+    row: list[str] = []
+    for n in names:
+        step, alter, _octave = _split_spelled(n)
+        new_step = STEPS[(STEPS.index(step) + letter_delta) % 7]
+        target = (STEP_TO_SEMI[step] + alter + semitones) % 12
+        new_alter = (target - STEP_TO_SEMI[new_step] + 6) % 12 - 6
+        if new_alter not in ALTER_MARK:
+            return None
+        row.append(f"{new_step}{ALTER_MARK[new_alter]}")
+    return row
+
+
+def transpose_spelling_candidates(
+    base_note_names: list[str], chord_root: str, quality: str
+) -> list[list[dict]]:
+    """For each transpose 0..11: every spelled-interval transposition of the
+    reference spelling (letters move together, so the letter pattern is kept).
+
+    Each candidate: {"row": [...], "root": transposed chord root,
+    "root_fifths": key size of that root}. The renderer picks one per clip
+    from the recording's key (see notation._pick_row_for_key).
+    """
+    out: list[list[dict]] = []
+    for t in range(12):
+        cands = []
+        for d in range(7):
+            row = _transpose_row_by_letters(list(base_note_names), t, d)
+            root = _transpose_row_by_letters([f"{chord_root}4"], t, d)
+            if not row or not root:
+                continue
+            cands.append(
+                {
+                    "row": row,
+                    "root": root[0],
+                    "root_fifths": spelled_root_fifths(root[0], quality),
+                }
+            )
+        out.append(cands)
+    return out
