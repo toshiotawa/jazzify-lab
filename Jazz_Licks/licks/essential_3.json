@@ -1,0 +1,143 @@
+{
+  "id": "essential_3",
+  "label": "Essential 3",
+  "intervals": [
+    -2,
+    -1,
+    1,
+    4,
+    3
+  ],
+  "reference_pc": 2,
+  "canonical_midi": [
+    62,
+    60,
+    59,
+    60,
+    64,
+    67
+  ],
+  "base_note_names": [
+    "D4",
+    "C4",
+    "B3",
+    "C4",
+    "E4",
+    "G4"
+  ],
+  "chromatic_spellings": [
+    "C",
+    "Db",
+    "D",
+    "Eb",
+    "E",
+    "F",
+    "Gb",
+    "G",
+    "Ab",
+    "A",
+    "Bb",
+    "B"
+  ],
+  "transpose_spellings": [
+    [
+      "D",
+      "C",
+      "B",
+      "C",
+      "E",
+      "G"
+    ],
+    [
+      "Eb",
+      "Db",
+      "C",
+      "Db",
+      "F",
+      "Ab"
+    ],
+    [
+      "E",
+      "D",
+      "C#",
+      "D",
+      "F#",
+      "A"
+    ],
+    [
+      "F",
+      "Eb",
+      "D",
+      "Eb",
+      "G",
+      "Bb"
+    ],
+    [
+      "F#",
+      "E",
+      "D#",
+      "E",
+      "G#",
+      "B"
+    ],
+    [
+      "G",
+      "F",
+      "E",
+      "F",
+      "A",
+      "C"
+    ],
+    [
+      "Ab",
+      "Gb",
+      "F",
+      "Gb",
+      "Bb",
+      "Db"
+    ],
+    [
+      "A",
+      "G",
+      "F#",
+      "G",
+      "B",
+      "D"
+    ],
+    [
+      "Bb",
+      "Ab",
+      "G",
+      "Ab",
+      "C",
+      "Eb"
+    ],
+    [
+      "B",
+      "A",
+      "G#",
+      "A",
+      "C#",
+      "E"
+    ],
+    [
+      "C",
+      "Bb",
+      "A",
+      "Bb",
+      "D",
+      "F"
+    ],
+    [
+      "C#",
+      "B",
+      "A#",
+      "B",
+      "D#",
+      "F#"
+    ]
+  ],
+  "notes_per_motif": 6,
+  "dig_that_lick_pattern": "-2 -1 1 4 3",
+  "combine_adjacent_motifs": false
+}

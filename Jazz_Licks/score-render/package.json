@@ -1,0 +1,8 @@
+{
+  "name": "jazzlicks-score-render",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}

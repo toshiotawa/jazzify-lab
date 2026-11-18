@@ -69,6 +69,7 @@
     }
   },
   "ignorePatterns": [
+    "Jazz_Licks/",
     "dist/",
     "node_modules/",
     "public/",

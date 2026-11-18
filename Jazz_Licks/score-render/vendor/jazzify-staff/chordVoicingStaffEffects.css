@@ -1,0 +1,48 @@
+/* バトル用ヴォイシング譜面の完成エフェクト（軽量・短時間） */
+
+@keyframes voicingHaloPulse {
+  0% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes voicingMeasureFramePulse {
+  0% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes voicingChordNameGlow {
+  0% {
+    filter: drop-shadow(0 0 6px #22c55e) drop-shadow(0 0 12px #4ade80);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+.voicing-halo-pulse-partial {
+  animation: voicingHaloPulse 220ms ease-out forwards;
+  pointer-events: none;
+}
+
+.voicing-halo-pulse-complete {
+  animation: voicingHaloPulse 280ms ease-out forwards;
+  pointer-events: none;
+}
+
+.voicing-measure-frame-pulse {
+  animation: voicingMeasureFramePulse 280ms ease-out forwards;
+  pointer-events: none;
+}
+
+.voicing-chord-name-glow {
+  animation: voicingChordNameGlow 280ms ease-out forwards;
+  pointer-events: none;
+}

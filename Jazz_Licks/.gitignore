@@ -1,0 +1,12 @@
+data/cache/
+data/audio/
+data/wav/
+out/
+score-render/node_modules/
+score-render/staff-bundle/node_modules/
+.DS_Store
+__pycache__/
+*.pyc
+.Python
+.venv/
+venv/

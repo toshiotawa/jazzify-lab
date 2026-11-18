@@ -1,0 +1,2033 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { cn } from '@/utils/cn';
+/* Slide render fork: game storeなし（コンサート固定） */
+import { transposeChordLabelPitchClass } from '@/utils/earTrainingPracticeTranspose';
+import {
+  getNotationInstrumentPreset,
+  getWrittenSemitoneOffset,
+  resolveNotationFixedActiveStaves,
+  transposeKeyFifths,
+  transposeWrittenNoteName,
+  type NotationInstrumentClef,
+} from '@/utils/notationInstrument';
+import { simplifySpelledPitch } from '@/utils/enharmonicSimplify';
+import { parseVoicingNoteName } from '@/utils/voicingMusicXml';
+import { BRAVURA_WOFF2_PUBLIC_HREF } from './bravuraStaffDocumentFonts';
+import {
+  MusicNotationVectorAccidental,
+  MusicNotationVectorBassClef,
+  MusicNotationVectorTrebleClef,
+} from './musicNotationVectorStaff';
+import './chordVoicingStaffEffects.css';
+
+export type ChordVoicingStaffNoteValue = 'whole' | 'quarter';
+
+export interface ChordVoicingStaffGroup {
+  id: string;
+  chordName: string;
+  voicing: readonly string[];
+  voicingStaves?: readonly number[] | null;
+  correctPitchClasses?: readonly number[];
+  tiedFromPreviousVoicingIndices?: readonly number[];
+  measureOffset?: 0 | 1;
+  isActive?: boolean;
+  isRest?: boolean;
+  /** Display note value; default whole for existing callers. */
+  noteValue?: ChordVoicingStaffNoteValue;
+  /** Beat index within the measure (0-based) for quarter-note layout. */
+  beatIndex?: number;
+  /** true のとき HINT OFF フェード対象から除外（Phrases の reveal 等） */
+  exemptFromFade?: boolean;
+}
+
+export interface ChordVoicingCompletionPulse {
+  groupId: string;
+  kind: 'voicingPartial' | 'harmonyComplete';
+  eventKey: number;
+}
+
+/**
+ * 同一スタッフ上で degree が隣接する音符（譜上で2度相当）の符頭が重なるときの横ずらし方。
+ * - `anchor-low`: 低い音を baseX に固定し、高い音だけ右へ（既定）
+ * - `symmetric`: 従来どおり左右交互（後方互換用）
+ */
+export type ChordVoicingStaffNoteCollisionLayout = 'symmetric' | 'anchor-low';
+
+interface ChordVoicingStaffProps {
+  voicing?: readonly string[];
+  voicingStaves?: readonly number[] | null;
+  chordName?: string;
+  keyFifths?: number;
+  correctPitchClasses?: readonly number[];
+  voicingGroups?: readonly ChordVoicingStaffGroup[];
+  activeGroupId?: string | null;
+  correctPitchClassesByGroupId?: ReadonlyMap<string, readonly number[]>;
+  /** 指定時は符頭正解判定を pitch class ではなく group id で行う（同一音高の重複向け） */
+  correctGroupIds?: ReadonlySet<string>;
+  /** 親が算出した密集レイアウト。未指定時は measureOffset===0 のグループの合計音数で推論 */
+  denseCurrentMeasureLayout?: boolean;
+  /** 完成エフェクトのワンショット指示。groupId が現在小節（measureOffset===0）に存在しない場合は無視 */
+  completionPulse?: ChordVoicingCompletionPulse | null;
+  /** true のとき voicingGroups が空でも五線・音部記号・調号のみの空大譜表を描画する */
+  showEmptyStaff?: boolean;
+  /** 指定時は現フレームの音符有無に関わらず 1|2 段表示を固定する（demo シーン向け）。 */
+  fixedActiveStaves?: readonly (1 | 2)[];
+  /** false のとき、次ガイド色・三角・コード名強調など「入力許可」を示す強調のみ抑止する */
+  showTargetHints?: boolean;
+  /**
+   * true のとき、現在小節（measureOffset===0）で未正解の符頭を描画しない（五線・コード名は維持）。
+   * クイズ本番では右小節プレビュー自体を出さない（親が measureOffset===1 を渡さない）。
+   * @deprecated `unpressedNoteOpacity={0}` を優先。EarTraining 等の後方互換用。
+   */
+  hideUnpressedNotes?: boolean;
+  /**
+   * 現在小節の未正解符頭 opacity（0〜1）。五線・調号・コード名・正解済み音符は影響しない。
+   * `hideUnpressedNotes` が true のときは 0 相当。
+   */
+  unpressedNoteOpacity?: number;
+  /** 1 小節のみ表示。中央バーラインを廃し第 1 小節を右端まで広げる（既定: 2 小節）。 */
+  singleMeasureLayout?: boolean;
+  /** コード名ラベル帯と上部余白を畳む（既定: false）。 */
+  hideChordLabels?: boolean;
+  /** true のときコード名ラベルを移調せず登録文字列のまま表示する。 */
+  literalChordLabels?: boolean;
+  /**
+   * 1 和弦・単一小節向けに五線横幅を縮める。単位譜のみのため `singleMeasureLayout` を内部で許容済みとして扱う。
+   */
+  compactSingleMeasure?: boolean;
+  /**
+   * Safari 等で SVG の `<text>`／foreignObject 内の PUA が絵文字フォントに化ける場合に true。
+   * 音部・調号・臨時記号は Bravura に依存しない SVG ベクターで描画する（バトル既定は false）。
+   */
+  smuflUseForeignObject?: boolean;
+  /** 隣接 degree の符頭重なり回避。既定は低音基準（`anchor-low`） */
+  noteCollisionLayout?: ChordVoicingStaffNoteCollisionLayout;
+  /** true のとき measureOffset===1（次小節）の未正解符頭にも unpressedNoteOpacity を適用する */
+  fadeAllMeasureNotes?: boolean;
+  /** true のとき未正解符頭を隠していても逆三角マーカーを表示する */
+  alwaysShowTopPointer?: boolean;
+  /** true のとき移調楽器設定を無視し concert 記譜のまま描画する（トレーニング concert 固定用） */
+  ignoreNotationInstrument?: boolean;
+  /** true のとき親の高さに合わせて SVG をスケール（幅はアスペクト比維持） */
+  fitParentHeight?: boolean;
+  /** 五線右端 X（論理 px）。未指定時は STAFF_LINE_RIGHT_X。 */
+  staffLineRightXOverride?: number;
+  className?: string;
+}
+
+interface PositionedVoicingNote {
+  note: ParsedVoicingNoteWithStaff;
+  yCenter: number;
+  xOffset: number;
+  accidentalColumn: number;
+}
+
+interface ParsedVoicingNoteWithStaff {
+  step: string;
+  alter: number;
+  octave: number;
+  midi: number;
+  staff: StaffNumber;
+  degree: number;
+  pitchClass: number;
+  voicingIndex: number;
+  displayAccidentalAlter: number | null;
+  tiedFromPrevious: boolean;
+}
+
+interface StaffLayoutMetrics {
+  measureDividerX: number;
+  measureOneNoteLeftX: number;
+  measureOneNoteRightX: number;
+  measureTwoNoteLeftX: number;
+  measureTwoNoteRightX: number;
+}
+
+interface ParsedVoicingStaffGroup {
+  id: string;
+  chordName: string;
+  notes: ParsedVoicingNoteWithStaff[];
+  measureOffset: 0 | 1;
+  slotIndex: number;
+  slotCount: number;
+  noteValue: ChordVoicingStaffNoteValue;
+  legacyIsActive: boolean;
+  isRest: boolean;
+  exemptFromFade: boolean;
+}
+
+interface KeySignatureMark {
+  alter: number;
+  degree: number;
+}
+
+type StaffNumber = 1 | 2;
+
+interface NotationParseOptions {
+  writtenOffset: number;
+  originalFifths: number;
+  clefOverride?: NotationInstrumentClef;
+  simpleMode: boolean;
+}
+
+const NOTATION_COLOR = '#ffffff';
+const CORRECT_NOTATION_COLOR = '#22c55e';
+/** 未正解ガイド（次ノートの楕円ストロークとマーカー）マリンゴールド */
+const NEXT_TARGET_COLOR = '#f39800';
+const TOP_POINTER_COLOR = '#f39800';
+const ACTIVE_CHORD_LABEL_COLOR = '#facc15';
+const SP = 10;
+const STAFF_WIDTH = 720;
+const STAFF_LINE_LEFT_X = 24;
+const STAFF_LINE_RIGHT_X = 696;
+/** viewBox 右端は五線終端よりやや広い（従来座標との互換） */
+const VIEWBOX_EDGE_PAD_X = STAFF_WIDTH - STAFF_LINE_RIGHT_X;
+/** defs 直下。ドキュメント側も `bravuraStaffDocumentFonts` で同名フェイスを登録済み（Safari 対策）。 */
+const STAFF_SVG_SMUFL_CSS = `@font-face{font-family:BravuraSvgStaff;src:url("${BRAVURA_WOFF2_PUBLIC_HREF}") format("woff2");font-display:block;font-weight:normal;font-style:normal;unicode-range:U+E000-U+F8FF;}`
+  + '.bravura-staff-glyphs{font-family:BravuraSvgStaff,BravuraSMuFL,Bravura,serif;font-synthesis:none;font-variant-emoji:text;}';
+const STAFF_LINE_THICKNESS = Math.max(1, SP * 0.1);
+const STAFF_HEIGHT = SP * 4;
+/** 上下五線の縦オフセット。ト音譜の下端〜ヘ音譜の上端のあいだの余白（ト／ヘの離間）。 */
+const STAFF_TOP_STEP = STAFF_HEIGHT + SP * 12;
+/** 上下加線3本ぶん（+0.5SP の安全マージン込み）の余白。要望1。 */
+const LEDGER_LINE_PADDING = SP * 3.5;
+const CLEF_FONT_SIZE = SP * 4;
+/** SMuFL: gClef / fClef（https://www.w3.org/2021/03/smufl14/tables/clefs.html） */
+const SMUFL_G_CLEF = '\uE050';
+const SMUFL_F_CLEF = '\uE062';
+const SMUFL_ACCIDENTAL_FLAT = '\uE260';
+const SMUFL_ACCIDENTAL_NATURAL = '\uE261';
+const SMUFL_ACCIDENTAL_SHARP = '\uE262';
+const SMUFL_ACCIDENTAL_DOUBLE_SHARP = '\uE263';
+const SMUFL_ACCIDENTAL_DOUBLE_FLAT = '\uE264';
+const TREBLE_REFERENCE_DEGREE = 4 * 7 + 6;
+const BASS_REFERENCE_DEGREE = 3 * 7 + 1;
+const STEP_ORDER: Record<string, number> = {
+  C: 0,
+  D: 1,
+  E: 2,
+  F: 3,
+  G: 4,
+  A: 5,
+  B: 6,
+};
+const EMPTY_STAVES: readonly number[] = [];
+const EMPTY_PITCH_CLASSES: readonly number[] = [];
+const EMPTY_TIED_INDICES: readonly number[] = [];
+const EMPTY_GROUPS: readonly ChordVoicingStaffGroup[] = [];
+const EMPTY_CORRECT_PITCH_CLASS_MAP = new Map<string, readonly number[]>();
+const MEASURE_ONE_NOTE_LEFT_X = 138;
+const KEY_SIGNATURE_LEFT_X = 88;
+const KEY_SIGNATURE_GAP_X = SP * 1.05;
+const ACCIDENTAL_FONT_SIZE = SP * 2.9;
+const PARSED_NOTE_CACHE_LIMIT = 96;
+/** 現在小節の同一ハーモニー内の横並びヴォイシング合計がこれ以上なら密集レイアウト（親と共有） */
+export const CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD = 5;
+/**
+ * 隣接 degree（譜上で重なる2度クラスタ）の符頭横ずらし量 = (SP×1.45 の noteWidth) × この比率。
+ * 0.5 付近だと楕円符頭が見た目で重なるため広げる。
+ */
+export const CHORD_VOICING_ADJACENT_CLUSTER_OFFSET_RATIO = 0.72;
+const DENSE_CURRENT_MEASURE_RATIO = 0.9;
+const SHARP_KEY_SIGNATURE_STEPS: readonly string[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_KEY_SIGNATURE_STEPS: readonly string[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+
+const REFERENCE_DEGREE_BY_STAFF: Record<StaffNumber, number> = {
+  1: TREBLE_REFERENCE_DEGREE,
+  2: BASS_REFERENCE_DEGREE,
+};
+
+const KEY_SIGNATURE_MARKS: Record<StaffNumber, { sharps: number[]; flats: number[] }> = {
+  1: {
+    sharps: [
+      5 * 7 + 3,
+      5 * 7 + 0,
+      5 * 7 + 4,
+      5 * 7 + 1,
+      4 * 7 + 5,
+      5 * 7 + 2,
+      4 * 7 + 6,
+    ],
+    flats: [
+      4 * 7 + 6,
+      5 * 7 + 2,
+      4 * 7 + 5,
+      5 * 7 + 1,
+      4 * 7 + 4,
+      5 * 7 + 0,
+      4 * 7 + 3,
+    ],
+  },
+  2: {
+    sharps: [
+      3 * 7 + 3,
+      3 * 7 + 0,
+      3 * 7 + 4,
+      3 * 7 + 1,
+      2 * 7 + 5,
+      3 * 7 + 2,
+      2 * 7 + 6,
+    ],
+    flats: [
+      2 * 7 + 6,
+      3 * 7 + 2,
+      2 * 7 + 5,
+      3 * 7 + 1,
+      2 * 7 + 4,
+      3 * 7 + 0,
+      2 * 7 + 3,
+    ],
+  },
+};
+
+const clampKeyFifths = (keyFifths: number): number => (
+  Math.max(-7, Math.min(7, Math.trunc(keyFifths)))
+);
+
+const degreeForNote = (step: string, octave: number): number => (
+  octave * 7 + (STEP_ORDER[step] ?? 0)
+);
+
+const yForDegree = (staffTopY: number, staff: StaffNumber, degree: number): number => {
+  const middleLineY = staffTopY + SP * 2;
+  return middleLineY - (degree - REFERENCE_DEGREE_BY_STAFF[staff]) * (SP / 2);
+};
+
+const accidentalGlyph = (alter: number): string => {
+  if (alter === 2) {
+    return SMUFL_ACCIDENTAL_DOUBLE_SHARP;
+  }
+  if (alter === 1) {
+    return SMUFL_ACCIDENTAL_SHARP;
+  }
+  if (alter === -1) {
+    return SMUFL_ACCIDENTAL_FLAT;
+  }
+  if (alter === -2) {
+    return SMUFL_ACCIDENTAL_DOUBLE_FLAT;
+  }
+  if (alter === 0) {
+    return SMUFL_ACCIDENTAL_NATURAL;
+  }
+  return '';
+};
+
+const keySignatureAlter = (step: string, keyFifths: number): number => {
+  const fifths = clampKeyFifths(keyFifths);
+  if (fifths > 0) {
+    for (let index = 0; index < fifths; index += 1) {
+      if (SHARP_KEY_SIGNATURE_STEPS[index] === step) {
+        return 1;
+      }
+    }
+    return 0;
+  }
+  if (fifths < 0) {
+    const flatCount = Math.abs(fifths);
+    for (let index = 0; index < flatCount; index += 1) {
+      if (FLAT_KEY_SIGNATURE_STEPS[index] === step) {
+        return -1;
+      }
+    }
+    return 0;
+  }
+  return 0;
+};
+
+/** 単一和弦コンパクト表示用の五線終端 X（調号〜転回和弦クラスタぶん）。 */
+function compactChordStaffLineRightX(keyFifths: number): number {
+  const fifthsAbs = Math.abs(clampKeyFifths(keyFifths));
+  const keySignatureEndX = fifthsAbs > 0
+    ? KEY_SIGNATURE_LEFT_X + (fifthsAbs - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
+    : KEY_SIGNATURE_LEFT_X;
+  const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
+  const chordClusterReserve = SP * 6;
+  const barlineMargin = SP * 2;
+  return Math.ceil(measureOneNoteLeftX + chordClusterReserve + barlineMargin);
+}
+
+const getStaffLayoutMetrics = (
+  keyFifths: number,
+  wideFirstMeasure: boolean,
+  singleMeasureLayout: boolean,
+  staffLineRightX: number,
+): StaffLayoutMetrics => {
+  const fifths = Math.abs(clampKeyFifths(keyFifths));
+  const keySignatureEndX = fifths > 0
+    ? KEY_SIGNATURE_LEFT_X + (fifths - 1) * KEY_SIGNATURE_GAP_X + ACCIDENTAL_FONT_SIZE * 0.4
+    : KEY_SIGNATURE_LEFT_X;
+  const staffMidX = (STAFF_LINE_LEFT_X + staffLineRightX) / 2;
+  const dividerX = singleMeasureLayout
+    ? staffLineRightX
+    : wideFirstMeasure
+      ? STAFF_LINE_LEFT_X + (staffLineRightX - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO
+      : staffMidX;
+  const measureOneNoteLeftX = Math.max(MEASURE_ONE_NOTE_LEFT_X, keySignatureEndX + SP * 3.1);
+  const denseMeasureOneRightX =
+    STAFF_LINE_LEFT_X + (staffLineRightX - STAFF_LINE_LEFT_X) * DENSE_CURRENT_MEASURE_RATIO - SP * 2.5;
+  const measureOneNoteRightX = singleMeasureLayout && wideFirstMeasure
+    ? Math.max(measureOneNoteLeftX + SP * 3, denseMeasureOneRightX)
+    : Math.max(measureOneNoteLeftX + SP * 3, dividerX - SP * 2.5);
+
+  return {
+    measureDividerX: dividerX,
+    measureOneNoteLeftX,
+    measureOneNoteRightX,
+    measureTwoNoteLeftX: Math.min(dividerX + SP * 2.1, staffLineRightX - SP * 2.2),
+    measureTwoNoteRightX: staffLineRightX - SP * 2.5,
+  };
+};
+
+const keySignatureMarks = (staff: StaffNumber, keyFifths: number): KeySignatureMark[] => {
+  const fifths = clampKeyFifths(keyFifths);
+  if (fifths === 0) {
+    return [];
+  }
+  const alter = fifths > 0 ? 1 : -1;
+  const degrees = fifths > 0
+    ? KEY_SIGNATURE_MARKS[staff].sharps.slice(0, fifths)
+    : KEY_SIGNATURE_MARKS[staff].flats.slice(0, Math.abs(fifths));
+  return degrees.map(degree => ({ alter, degree }));
+};
+
+const parseNotes = (
+  voicing: readonly string[],
+  voicingStaves: readonly number[],
+  tiedFromPreviousVoicingIndices: readonly number[],
+  notationOptions?: NotationParseOptions,
+): ParsedVoicingNoteWithStaff[] => {
+  const shouldInferStaves = voicingStaves.length === 0;
+  if (!shouldInferStaves && voicing.length !== voicingStaves.length) {
+    throw new Error('voicing と voicing_staves は同じ長さである必要があります');
+  }
+  const tiedIndexSet = new Set(tiedFromPreviousVoicingIndices);
+  const clefOverride = notationOptions?.clefOverride;
+  const writtenOffset = notationOptions?.writtenOffset ?? 0;
+  const originalFifths = notationOptions?.originalFifths ?? 0;
+  const simpleMode = notationOptions?.simpleMode ?? false;
+  return voicing.map((noteName, index) => {
+    const parsed = parseVoicingNoteName(noteName);
+    const concertMidi = parsed.midi;
+    const concertPitchClass = ((concertMidi % 12) + 12) % 12;
+    let step = parsed.step;
+    let alter = parsed.alter;
+    let octave = parsed.octave;
+    if (writtenOffset !== 0) {
+      const writtenName = transposeWrittenNoteName(
+        noteName,
+        writtenOffset,
+        originalFifths,
+      );
+      const writtenParsed = parseVoicingNoteName(writtenName);
+      step = writtenParsed.step;
+      alter = writtenParsed.alter;
+      octave = writtenParsed.octave;
+    }
+    if (simpleMode) {
+      const simplified = simplifySpelledPitch(step, alter, octave);
+      if (simplified) {
+        step = simplified.step;
+        alter = simplified.alter;
+        octave = simplified.octave;
+      }
+    }
+    let staff: StaffNumber;
+    if (clefOverride === 'treble') {
+      staff = 1;
+    } else if (clefOverride === 'bass') {
+      staff = 2;
+    } else if (shouldInferStaves) {
+      staff = concertMidi < 60 ? 2 : 1;
+    } else {
+      const rawStaff = Math.trunc(voicingStaves[index]);
+      if (rawStaff !== 1 && rawStaff !== 2) {
+        throw new Error(`voicing_staves の値は 1 または 2 のみ許容します (index=${index})`);
+      }
+      staff = rawStaff;
+    }
+    return {
+      step,
+      alter,
+      octave,
+      midi: concertMidi,
+      staff,
+      degree: degreeForNote(step, octave),
+      pitchClass: concertPitchClass,
+      voicingIndex: index,
+      displayAccidentalAlter: null,
+      tiedFromPrevious: tiedIndexSet.has(index),
+    };
+  });
+};
+
+const parsedNoteCacheKey = (
+  voicing: readonly string[],
+  voicingStaves: readonly number[],
+  tiedFromPreviousVoicingIndices: readonly number[],
+  notationOptions?: NotationParseOptions,
+): string => [
+  voicing.join(','),
+  voicingStaves.join(','),
+  tiedFromPreviousVoicingIndices.join(','),
+  notationOptions?.writtenOffset ?? 0,
+  notationOptions?.originalFifths ?? 0,
+  notationOptions?.clefOverride ?? 'grand',
+  notationOptions?.simpleMode ? '1' : '0',
+].join('|');
+
+const parseNotesWithCache = (
+  cache: Map<string, ParsedVoicingNoteWithStaff[]>,
+  voicing: readonly string[],
+  voicingStaves: readonly number[],
+  tiedFromPreviousVoicingIndices: readonly number[],
+  notationOptions?: NotationParseOptions,
+): ParsedVoicingNoteWithStaff[] => {
+  const cacheKey = parsedNoteCacheKey(
+    voicing,
+    voicingStaves,
+    tiedFromPreviousVoicingIndices,
+    notationOptions,
+  );
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const parsed = parseNotes(voicing, voicingStaves, tiedFromPreviousVoicingIndices, notationOptions);
+  cache.set(cacheKey, parsed);
+  if (cache.size > PARSED_NOTE_CACHE_LIMIT) {
+    const firstKey = cache.keys().next().value;
+    if (typeof firstKey === 'string') {
+      cache.delete(firstKey);
+    }
+  }
+  return parsed;
+};
+
+const accidentalStateKey = (note: ParsedVoicingNoteWithStaff): string => (
+  `${note.staff}:${note.step}:${note.octave}`
+);
+
+const applyRequiredAccidentals = (
+  groups: readonly ParsedVoicingStaffGroup[],
+  keyFifths: number,
+): ParsedVoicingStaffGroup[] => {
+  const groupsByMeasure = new Map<0 | 1, ParsedVoicingStaffGroup[]>();
+  groups.forEach(group => {
+    const measureGroups = groupsByMeasure.get(group.measureOffset) ?? [];
+    measureGroups.push(group);
+    groupsByMeasure.set(group.measureOffset, measureGroups);
+  });
+
+  const nextGroupsById = new Map<string, ParsedVoicingStaffGroup>();
+  ([0, 1] as const).forEach(measureOffset => {
+    const measureGroups = groupsByMeasure.get(measureOffset) ?? [];
+    const accidentalState = new Map<string, number>();
+    measureGroups
+      .slice()
+      .sort((a, b) => a.slotIndex - b.slotIndex)
+      .forEach(group => {
+        const updatedNotes = group.notes.map(note => {
+          const currentAlter = accidentalState.get(accidentalStateKey(note)) ?? keySignatureAlter(note.step, keyFifths);
+          const displayAccidentalAlter = !note.tiedFromPrevious && currentAlter !== note.alter
+            ? note.alter
+            : null;
+          return {
+            ...note,
+            displayAccidentalAlter,
+          };
+        });
+
+        group.notes.forEach(note => {
+          accidentalState.set(accidentalStateKey(note), note.alter);
+        });
+        nextGroupsById.set(group.id, {
+          ...group,
+          notes: updatedNotes,
+        });
+      });
+  });
+
+  return groups.map(group => nextGroupsById.get(group.id) ?? group);
+};
+
+const compareNotesForDisplay = (
+  a: ParsedVoicingNoteWithStaff,
+  b: ParsedVoicingNoteWithStaff,
+): number => {
+  if (a.degree !== b.degree) {
+    return a.degree - b.degree;
+  }
+  if (a.alter !== b.alter) {
+    return a.alter - b.alter;
+  }
+  return a.voicingIndex - b.voicingIndex;
+};
+
+export const layoutChordVoicingStaffNotes = (
+  notes: readonly ParsedVoicingNoteWithStaff[],
+  staffTopY: number,
+  baseX: number,
+  collisionLayout: ChordVoicingStaffNoteCollisionLayout = 'anchor-low',
+): PositionedVoicingNote[] => {
+  if (notes.length === 0) {
+    return [];
+  }
+
+  const sortedNotes = [...notes].sort(compareNotesForDisplay);
+  const noteWidth = SP * 1.45;
+  const adjacentOffset = noteWidth * CHORD_VOICING_ADJACENT_CLUSTER_OFFSET_RATIO;
+  const offsets = Array.from({ length: sortedNotes.length }, () => 0);
+
+  let clusterStart = 0;
+  for (let index = 1; index <= sortedNotes.length; index += 1) {
+    const shouldBreak = index === sortedNotes.length
+      || sortedNotes[index].degree - sortedNotes[index - 1].degree > 1;
+    if (shouldBreak) {
+      const clusterCount = index - clusterStart;
+      if (clusterCount > 1) {
+        for (let noteIndex = clusterStart; noteIndex < index; noteIndex += 1) {
+          const rel = noteIndex - clusterStart;
+          if (collisionLayout === 'symmetric') {
+            offsets[noteIndex] = rel % 2 === 0 ? -adjacentOffset : adjacentOffset;
+          } else {
+            offsets[noteIndex] = rel % 2 === 0 ? 0 : adjacentOffset;
+          }
+        }
+      }
+      clusterStart = index;
+    }
+  }
+
+  const yCenters = sortedNotes.map(note => yForDegree(staffTopY, note.staff, note.degree));
+  const accidentalColumns = Array.from({ length: sortedNotes.length }, () => 0);
+  const occupiedColumnY: number[] = [];
+  const accidentalCollisionHeight = SP * 1.15;
+  const accidentalIndices = sortedNotes
+    .map((note, index) => ({ note, index }))
+    .filter(item => item.note.displayAccidentalAlter !== null)
+    .sort((a, b) => yCenters[a.index] - yCenters[b.index]);
+
+  accidentalIndices.forEach(({ index }) => {
+    let column = 0;
+    while (
+      column < occupiedColumnY.length
+      && Math.abs(occupiedColumnY[column] - yCenters[index]) < accidentalCollisionHeight
+    ) {
+      column += 1;
+    }
+    if (column === occupiedColumnY.length) {
+      occupiedColumnY.push(yCenters[index]);
+    } else {
+      occupiedColumnY[column] = yCenters[index];
+    }
+    accidentalColumns[index] = column;
+  });
+
+  const noteWidthForAcc = SP * 1.45;
+  const sortedAcc = [...accidentalIndices].sort((a, b) => {
+    const ax = baseX + offsets[a.index];
+    const bx = baseX + offsets[b.index];
+    if (ax !== bx) {
+      return ax - bx;
+    }
+    return yCenters[a.index] - yCenters[b.index];
+  });
+  sortedAcc.forEach(({ index: idx }) => {
+    let col = accidentalColumns[idx];
+    for (const { index: prev } of sortedAcc) {
+      if (prev === idx) {
+        break;
+      }
+      if (Math.abs(yCenters[prev] - yCenters[idx]) >= accidentalCollisionHeight) {
+        continue;
+      }
+      if (Math.abs((baseX + offsets[prev]) - (baseX + offsets[idx])) >= noteWidthForAcc * 1.3) {
+        continue;
+      }
+      col = Math.max(col, accidentalColumns[prev] + 1);
+    }
+    accidentalColumns[idx] = col;
+  });
+
+  return sortedNotes.map((note, index) => ({
+    note,
+    yCenter: yCenters[index],
+    xOffset: offsets[index],
+    accidentalColumn: accidentalColumns[index],
+  }));
+};
+
+const CLEF_LEFT_X = STAFF_LINE_LEFT_X + SP * 0.8;
+
+const StaffClefGlyph: React.FC<{
+  staff: StaffNumber;
+  staffTopY: number;
+  clefFontsLoaded: boolean;
+  smuflUseForeignObject: boolean;
+}> = ({
+  staff,
+  staffTopY,
+  clefFontsLoaded,
+  smuflUseForeignObject,
+}) => {
+  const anchorLineY = staff === 1 ? staffTopY + 3 * SP : staffTopY + SP;
+  const glyph = staff === 1 ? SMUFL_G_CLEF : SMUFL_F_CLEF;
+
+  return (
+    <g data-staff-clef={staff}>
+      {smuflUseForeignObject ? (
+        <g pointerEvents="none" transform={`translate(${CLEF_LEFT_X}, ${anchorLineY})`}>
+          {staff === 1 ? (
+            <MusicNotationVectorTrebleClef s={SP} stroke={NOTATION_COLOR} />
+          ) : (
+            <MusicNotationVectorBassClef s={SP} stroke={NOTATION_COLOR} />
+          )}
+        </g>
+      ) : null}
+      {clefFontsLoaded && !smuflUseForeignObject ? (
+        <text
+          className="bravura-staff-glyphs"
+          dominantBaseline="alphabetic"
+          fill={NOTATION_COLOR}
+          fontSize={CLEF_FONT_SIZE}
+          textAnchor="start"
+          x={CLEF_LEFT_X}
+          y={anchorLineY}
+        >
+          {glyph}
+        </text>
+      ) : null}
+    </g>
+  );
+};
+
+const StaffLines: React.FC<{
+  staff: StaffNumber;
+  topY: number;
+  staffLineRightX: number;
+}> = ({ staff, topY, staffLineRightX }) => (
+  <g>
+    {Array.from({ length: 5 }, (_, line) => {
+      const y = topY + line * SP;
+      return (
+        <line
+          key={line}
+          data-staff-line={line}
+          data-staff-number={staff}
+          x1={STAFF_LINE_LEFT_X}
+          x2={staffLineRightX}
+          y1={y}
+          y2={y}
+          stroke={NOTATION_COLOR}
+          strokeLinecap="round"
+          strokeWidth={STAFF_LINE_THICKNESS}
+        />
+      );
+    })}
+  </g>
+);
+
+const WholeRest: React.FC<{
+  groupId: string;
+  baseX: number;
+  staffTopY: number;
+  color: string;
+}> = ({ groupId, baseX, staffTopY, color }) => (
+  <rect
+    data-whole-rest-group-id={groupId}
+    x={baseX - SP * 0.72}
+    y={staffTopY + SP + STAFF_LINE_THICKNESS}
+    width={SP * 1.44}
+    height={SP * 0.5}
+    rx={1}
+    fill={color}
+  />
+);
+
+const QuarterRest: React.FC<{
+  groupId: string;
+  baseX: number;
+  staffTopY: number;
+  color: string;
+}> = ({ groupId, baseX, staffTopY, color }) => (
+  <path
+    data-quarter-rest-group-id={groupId}
+    d={`M ${baseX - SP * 0.15} ${staffTopY + SP * 2.1}
+        c ${SP * 0.35} ${-SP * 0.55} ${SP * 0.55} ${-SP * 0.15} ${SP * 0.2} ${SP * 0.15}
+        c ${-SP * 0.45} ${SP * 0.35} ${-SP * 0.55} ${SP * 0.75} ${-SP * 0.15} ${SP * 0.95}
+        c ${SP * 0.35} ${SP * 0.15} ${SP * 0.55} ${SP * 0.45} ${SP * 0.15} ${SP * 0.75}`}
+    fill="none"
+    stroke={color}
+    strokeWidth={STAFF_LINE_THICKNESS * 1.2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+
+const QuarterNote: React.FC<{
+  groupId: string;
+  positioned: PositionedVoicingNote;
+  baseX: number;
+  staffTopY: number;
+  isCorrect: boolean;
+  isNextHint: boolean;
+  noteOpacity: number;
+  clefFontsLoaded: boolean;
+  smuflUseForeignObject: boolean;
+}> = ({
+  groupId,
+  positioned,
+  baseX,
+  staffTopY,
+  isCorrect,
+  isNextHint,
+  noteOpacity,
+  clefFontsLoaded,
+  smuflUseForeignObject,
+}) => {
+  const noteWidth = SP * 1.1;
+  const noteHeight = SP * 0.78;
+  const xCenter = baseX + positioned.xOffset;
+  const stemX = xCenter + noteWidth * 0.42;
+  const stemTop = positioned.yCenter - noteHeight;
+  const stemBottom = positioned.yCenter + SP * 2.8;
+  const notationColor = isCorrect
+    ? CORRECT_NOTATION_COLOR
+    : isNextHint
+      ? NEXT_TARGET_COLOR
+      : NOTATION_COLOR;
+  const displayAlter = positioned.note.displayAccidentalAlter;
+  const accidental = displayAlter === null ? '' : accidentalGlyph(displayAlter);
+  const accidentalX = Math.min(
+    xCenter - noteWidth * 1.15,
+    baseX - noteWidth * 1.25 - positioned.accidentalColumn * SP * 0.95,
+  );
+
+  const noteContent = (
+    <>
+      {smuflUseForeignObject && displayAlter !== null ? (
+        <g
+          transform={`translate(${accidentalX}, ${positioned.yCenter})`}
+          pointerEvents="none"
+        >
+          <MusicNotationVectorAccidental alter={displayAlter} s={SP} stroke={notationColor} />
+        </g>
+      ) : null}
+      {clefFontsLoaded && accidental && !smuflUseForeignObject ? (
+        <text
+          className="bravura-staff-glyphs"
+          x={accidentalX}
+          y={positioned.yCenter}
+          dominantBaseline="central"
+          fill={notationColor}
+          fontSize={ACCIDENTAL_FONT_SIZE}
+          textAnchor="middle"
+        >
+          {accidental}
+        </text>
+      ) : null}
+      <ellipse
+        cx={xCenter}
+        cy={positioned.yCenter}
+        rx={noteWidth / 2}
+        ry={noteHeight / 2}
+        fill={notationColor}
+        stroke={notationColor}
+        strokeWidth={1}
+        transform={`rotate(-18 ${xCenter} ${positioned.yCenter})`}
+      />
+      <line
+        x1={stemX}
+        y1={stemTop}
+        x2={stemX}
+        y2={stemBottom}
+        stroke={notationColor}
+        strokeWidth={STAFF_LINE_THICKNESS * 1.1}
+        strokeLinecap="round"
+      />
+    </>
+  );
+
+  if (noteOpacity >= 1) {
+    return <g data-voicing-group-id={groupId}>{noteContent}</g>;
+  }
+  return <g data-voicing-group-id={groupId} opacity={noteOpacity}>{noteContent}</g>;
+};
+
+const LedgerLines: React.FC<{
+  xCenter: number;
+  yCenter: number;
+  staffTopY: number;
+  noteWidth: number;
+}> = ({ xCenter, yCenter, staffTopY, noteWidth }) => {
+  const topLineY = staffTopY;
+  const bottomLineY = staffTopY + STAFF_HEIGHT;
+  const noteHeight = SP * 0.86;
+  const noteTop = yCenter - noteHeight / 2;
+  const noteBottom = yCenter + noteHeight / 2;
+  const ledgerLineYs: number[] = [];
+
+  if (yCenter < topLineY) {
+    for (let y = topLineY - SP; y >= noteTop - 0.05; y -= SP) {
+      ledgerLineYs.push(y);
+    }
+  }
+  if (yCenter > bottomLineY) {
+    for (let y = bottomLineY + SP; y <= noteBottom + 0.05; y += SP) {
+      ledgerLineYs.push(y);
+    }
+  }
+
+  return (
+    <g data-voicing-ledger-lines="true">
+      {ledgerLineYs.map(y => (
+        <line
+          key={y}
+          x1={xCenter - noteWidth / 2 - SP * 0.4}
+          x2={xCenter + noteWidth / 2 + SP * 0.4}
+          y1={y}
+          y2={y}
+          stroke={NOTATION_COLOR}
+          strokeLinecap="round"
+          strokeWidth={STAFF_LINE_THICKNESS}
+        />
+      ))}
+    </g>
+  );
+};
+
+const WholeNote: React.FC<{
+  groupId: string;
+  positioned: PositionedVoicingNote;
+  baseX: number;
+  staffTopY: number;
+  isCorrect: boolean;
+  isNextHint: boolean;
+  noteOpacity: number;
+  clefFontsLoaded: boolean;
+  smuflUseForeignObject: boolean;
+}> = ({
+  groupId,
+  positioned,
+  baseX,
+  staffTopY,
+  isCorrect,
+  isNextHint,
+  noteOpacity,
+  clefFontsLoaded,
+  smuflUseForeignObject,
+}) => {
+  const noteWidth = SP * 1.45;
+  const noteHeight = SP * 0.86;
+  const xCenter = baseX + positioned.xOffset;
+  const accidental = positioned.note.displayAccidentalAlter === null
+    ? ''
+    : accidentalGlyph(positioned.note.displayAccidentalAlter);
+  const notationColor = isCorrect
+    ? CORRECT_NOTATION_COLOR
+    : isNextHint
+      ? NEXT_TARGET_COLOR
+      : NOTATION_COLOR;
+  const accidentalX = Math.min(
+    xCenter - noteWidth * 1.15,
+    baseX - noteWidth * 1.25 - positioned.accidentalColumn * SP * 0.95,
+  );
+
+  const displayAlter = positioned.note.displayAccidentalAlter;
+
+  const noteContent = (
+    <>
+      {smuflUseForeignObject && displayAlter !== null ? (
+        <g
+          data-accidental-group-id={groupId}
+          data-accidental-voicing-index={String(positioned.note.voicingIndex)}
+          data-smufl-vector-glyph="note-accidental"
+          data-voicing-pitch-class={String(positioned.note.pitchClass)}
+          pointerEvents="none"
+          transform={`translate(${accidentalX}, ${positioned.yCenter})`}
+        >
+          <MusicNotationVectorAccidental alter={displayAlter} s={SP} stroke={notationColor} />
+        </g>
+      ) : null}
+      {clefFontsLoaded && accidental && !smuflUseForeignObject ? (
+        <text
+          className="bravura-staff-glyphs"
+          data-accidental-group-id={groupId}
+          data-accidental-voicing-index={positioned.note.voicingIndex}
+          data-voicing-pitch-class={positioned.note.pitchClass}
+          x={accidentalX}
+          y={positioned.yCenter}
+          dominantBaseline="central"
+          fill={notationColor}
+          fontSize={ACCIDENTAL_FONT_SIZE}
+          textAnchor="middle"
+        >
+          {accidental}
+        </text>
+      ) : null}
+      <ellipse
+        data-next-voicing-hint={isNextHint ? 'true' : undefined}
+        data-voicing-group-id={groupId}
+        data-voicing-index={positioned.note.voicingIndex}
+        data-voicing-pitch-class={positioned.note.pitchClass}
+        cx={xCenter}
+        cy={positioned.yCenter}
+        fill="none"
+        rx={noteWidth / 2}
+        ry={noteHeight / 2}
+        stroke={notationColor}
+        strokeWidth="2.8"
+        transform={`rotate(-18 ${xCenter} ${positioned.yCenter})`}
+      />
+      <LedgerLines
+        xCenter={xCenter}
+        yCenter={positioned.yCenter}
+        staffTopY={staffTopY}
+        noteWidth={noteWidth}
+      />
+    </>
+  );
+
+  if (noteOpacity >= 1) {
+    return <g>{noteContent}</g>;
+  }
+
+  return <g opacity={noteOpacity}>{noteContent}</g>;
+};
+
+const getVoicingGroupBaseX = (
+  group: ParsedVoicingStaffGroup,
+  layout: StaffLayoutMetrics,
+): number => {
+  const left = group.measureOffset === 0 ? layout.measureOneNoteLeftX : layout.measureTwoNoteLeftX;
+  const right = group.measureOffset === 0 ? layout.measureOneNoteRightX : layout.measureTwoNoteRightX;
+  const slotWidth = (right - left) / Math.max(1, group.slotCount);
+  return left + slotWidth * (group.slotIndex + 0.5);
+};
+
+/** 計算済みコード名ラベル（座標は viewBox 内の論理 px） */
+interface ChordLabelFrame {
+  groupId: string;
+  chordName: string;
+  x: number;
+  fontSize: number;
+  fill: string;
+}
+
+interface StaffSystemVerticalLayout {
+  firstStaffTopY: number;
+  labelCenterY: number;
+  svgHeight: number;
+  chordLabels: readonly ChordLabelFrame[];
+}
+
+const estimateSingleChordNameLineWidthPx = (line: string, fontSize: number): number => {
+  let w = 0;
+  for (const ch of line) {
+    if (/[mwMW#b°Δ]/.test(ch)) {
+      w += fontSize * 0.68;
+    } else if (/[il1I|]/.test(ch)) {
+      w += fontSize * 0.26;
+    } else if (/\d/.test(ch)) {
+      w += fontSize * 0.5;
+    } else {
+      w += fontSize * 0.56;
+    }
+  }
+  return w + fontSize * 0.8;
+};
+
+export const estimateChordNameWidthPx = (chordName: string, fontSize: number): number => {
+  const lines = chordName.split('\n');
+  let maxW = 0;
+  for (const line of lines) {
+    maxW = Math.max(maxW, estimateSingleChordNameLineWidthPx(line, fontSize));
+  }
+  return Math.min(STAFF_WIDTH * 0.44, maxW);
+};
+
+interface ChordLabelLayoutRow {
+  groupId: string;
+  chordName: string;
+  fill: string;
+  fullWidth: number;
+  centerX: number;
+}
+
+const layoutChordLabelRowsInPlace = (
+  rows: ChordLabelLayoutRow[],
+  leftBound: number,
+  rightBound: number,
+  minGap: number,
+): void => {
+  rows.sort((a, b) => a.centerX - b.centerX);
+  for (let i = 1; i < rows.length; i += 1) {
+    const previousRight = rows[i - 1].centerX + rows[i - 1].fullWidth / 2;
+    const currentLeft = rows[i].centerX - rows[i].fullWidth / 2;
+    if (currentLeft < previousRight + minGap) {
+      rows[i].centerX += previousRight + minGap - currentLeft;
+    }
+  }
+  const last = rows[rows.length - 1];
+  const overflow = last.centerX + last.fullWidth / 2 - rightBound;
+  if (overflow > 0) {
+    for (let j = 0; j < rows.length; j += 1) {
+      rows[j].centerX -= overflow;
+    }
+  }
+  const first = rows[0];
+  const underflow = leftBound - (first.centerX - first.fullWidth / 2);
+  if (underflow > 0) {
+    for (let j = 0; j < rows.length; j += 1) {
+      rows[j].centerX += underflow;
+    }
+  }
+};
+
+export const layoutBattleChordLabels = (
+  groups: readonly ParsedVoicingStaffGroup[],
+  layout: StaffLayoutMetrics,
+  activeGroupId: string | null | undefined,
+  labelCenterY: number,
+  leftBound: number,
+  rightBound: number,
+  sp: number,
+): readonly ChordLabelFrame[] => {
+  const named = groups.filter(g => g.chordName.length > 0);
+  if (named.length === 0) {
+    return [];
+  }
+  const minGap = sp * 0.8;
+  let fontSize = 18;
+  const minFont = 12;
+  while (fontSize >= minFont) {
+    const rows: ChordLabelLayoutRow[] = named.map(g => {
+      const isActiveChord = activeGroupId !== undefined && activeGroupId !== null
+        ? g.id === activeGroupId
+        : g.legacyIsActive;
+      const fill = isActiveChord ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR;
+      const fullWidth = estimateChordNameWidthPx(g.chordName, fontSize);
+      const desiredX = getVoicingGroupBaseX(g, layout);
+      const clampedX = Math.min(
+        Math.max(desiredX, leftBound + fullWidth / 2),
+        rightBound - fullWidth / 2,
+      );
+      return {
+        groupId: g.id,
+        chordName: g.chordName,
+        fill,
+        fullWidth,
+        centerX: clampedX,
+      };
+    });
+    layoutChordLabelRowsInPlace(rows, leftBound, rightBound, minGap);
+    const fits = rows.every(r => (
+      r.centerX - r.fullWidth / 2 >= leftBound - 0.5
+      && r.centerX + r.fullWidth / 2 <= rightBound + 0.5
+    ));
+    if (fits) {
+      return rows.map(r => ({
+        groupId: r.groupId,
+        chordName: r.chordName,
+        x: r.centerX,
+        fontSize,
+        fill: r.fill,
+      }));
+    }
+    fontSize -= 1;
+  }
+  const rows: ChordLabelLayoutRow[] = named.map(g => {
+    const isActiveChord = activeGroupId !== undefined && activeGroupId !== null
+      ? g.id === activeGroupId
+      : g.legacyIsActive;
+    const fill = isActiveChord ? ACTIVE_CHORD_LABEL_COLOR : NOTATION_COLOR;
+    const fullWidth = estimateChordNameWidthPx(g.chordName, minFont);
+    const desiredX = getVoicingGroupBaseX(g, layout);
+    const clampedX = Math.min(
+      Math.max(desiredX, leftBound + fullWidth / 2),
+      rightBound - fullWidth / 2,
+    );
+    return {
+      groupId: g.id,
+      chordName: g.chordName,
+      fill,
+      fullWidth,
+      centerX: clampedX,
+    };
+  });
+  layoutChordLabelRowsInPlace(rows, leftBound, rightBound, minGap);
+  return rows.map(r => ({
+    groupId: r.groupId,
+    chordName: r.chordName,
+    x: r.centerX,
+    fontSize: minFont,
+    fill: r.fill,
+  }));
+};
+
+/** Battle overlay SVG の viewBox 高さ（論理 px、`w-full h-auto` スケール前） */
+export const computeBattleStaffSvgHeight = (
+  staffCount = 2,
+  hideChordLabels = false,
+): number => {
+  const labelTopPadding = SP * 0.4;
+  const labelBandCore = Math.min(34, Math.max(24, SP * 2.6));
+  const reservedLabelTop = hideChordLabels ? 0 : labelTopPadding + labelBandCore;
+  const labelBottomGap = hideChordLabels ? 0 : SP * 0.9;
+  const firstStaffTopY = reservedLabelTop + labelBottomGap + LEDGER_LINE_PADDING;
+  const staffBlockHeight = (staffCount - 1) * STAFF_TOP_STEP + STAFF_HEIGHT;
+  return firstStaffTopY + staffBlockHeight + LEDGER_LINE_PADDING + SP * 0.5;
+};
+
+export const CHORD_VOICING_BATTLE_STAFF_RENDER_WIDTH = STAFF_WIDTH;
+export const CHORD_VOICING_BATTLE_STAFF_CONTAINER_MAX_WIDTH_RATIO = 0.82;
+
+/** コード名レーンを確保し、その下に五線系を置く縦レイアウト（論理座標系） */
+const computeBattleStaffSystemLayout = (
+  activeStaves: readonly StaffNumber[],
+  groups: readonly ParsedVoicingStaffGroup[],
+  layout: StaffLayoutMetrics,
+  activeGroupId: string | null | undefined,
+  hideChordLabels: boolean,
+  staffLineRightX: number,
+): StaffSystemVerticalLayout => {
+  const labelTopPadding = SP * 0.4;
+  const labelBandCore = Math.min(34, Math.max(24, SP * 2.6));
+  const reservedLabelTop = hideChordLabels ? 0 : labelTopPadding + labelBandCore;
+  const labelCenterY = hideChordLabels ? 0 : labelTopPadding + labelBandCore / 2;
+  const labelBottomGap = hideChordLabels ? 0 : SP * 0.9;
+  const firstStaffTopY = reservedLabelTop + labelBottomGap + LEDGER_LINE_PADDING;
+  const staffCount = activeStaves.length;
+  const staffBlockHeight = (staffCount - 1) * STAFF_TOP_STEP + STAFF_HEIGHT;
+  const svgHeight = firstStaffTopY + staffBlockHeight + LEDGER_LINE_PADDING + SP * 0.5;
+  const margin = SP * 0.35;
+  const leftBound = STAFF_LINE_LEFT_X + margin;
+  const rightBound = staffLineRightX - margin;
+  const chordLabels = hideChordLabels
+    ? []
+    : layoutBattleChordLabels(
+        groups,
+        layout,
+        activeGroupId,
+        labelCenterY,
+        leftBound,
+        rightBound,
+        SP,
+      );
+  return {
+    firstStaffTopY,
+    labelCenterY,
+    svgHeight,
+    chordLabels,
+  };
+};
+
+interface VoicingBattleHintsResult {
+  nextHintVoicingIndex: number | null;
+  topPointer: {
+    staff: StaffNumber;
+    staffTopY: number;
+    xCenter: number;
+    yCenter: number;
+  } | null;
+}
+
+/** 現在小節（measureOffset === 0）のアクティブ・グループ: 未正解ガイドは左端の未演奏音、マーカーは和音の最高音上 */
+const computeVoicingBattleHints = (
+  groups: readonly ParsedVoicingStaffGroup[],
+  layout: StaffLayoutMetrics,
+  activeGroupId: string | null | undefined,
+  correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>,
+  activeStaves: readonly StaffNumber[],
+  firstStaffTopY: number,
+  noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout,
+): VoicingBattleHintsResult => {
+  if (activeGroupId === undefined || activeGroupId === null) {
+    return { nextHintVoicingIndex: null, topPointer: null };
+  }
+  const group = groups.find(g => g.id === activeGroupId);
+  if (!group || group.measureOffset !== 0 || group.isRest || group.notes.length === 0) {
+    return { nextHintVoicingIndex: null, topPointer: null };
+  }
+
+  const pressed = correctPitchClassSets.get(activeGroupId) ?? new Set<number>();
+
+  type Candidate = {
+    voicingIndex: number;
+    pitchClass: number;
+    xCenter: number;
+    degree: number;
+    midi: number;
+    staff: StaffNumber;
+    staffTopY: number;
+    yCenter: number;
+  };
+
+  const candidates: Candidate[] = [];
+  const rowsForTop: Candidate[] = [];
+
+  activeStaves.forEach((staff, staffIndex) => {
+    const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
+    const baseX = getVoicingGroupBaseX(group, layout);
+    const staffNotes = group.notes.filter(note => note.staff === staff);
+    const positioned = layoutChordVoicingStaffNotes(staffNotes, staffTopY, baseX, noteCollisionLayout);
+    positioned.forEach(p => {
+      const xCenter = baseX + p.xOffset;
+      const row: Candidate = {
+        voicingIndex: p.note.voicingIndex,
+        pitchClass: p.note.pitchClass,
+        xCenter,
+        degree: p.note.degree,
+        midi: p.note.midi,
+        staff,
+        staffTopY,
+        yCenter: p.yCenter,
+      };
+      rowsForTop.push(row);
+      if (!pressed.has(p.note.pitchClass)) {
+        candidates.push(row);
+      }
+    });
+  });
+
+  let nextHintVoicingIndex: number | null = null;
+
+  if (candidates.length === 0) {
+    return {
+      nextHintVoicingIndex: null,
+      topPointer: null,
+    };
+  }
+
+  candidates.sort((a, b) => {
+    if (a.xCenter !== b.xCenter) {
+      return a.xCenter - b.xCenter;
+    }
+    if (a.degree !== b.degree) {
+      return a.degree - b.degree;
+    }
+    return a.voicingIndex - b.voicingIndex;
+  });
+
+  const nextTarget = candidates[0];
+  nextHintVoicingIndex = nextTarget.voicingIndex;
+
+  const highestMidi = rowsForTop.reduce<Candidate | null>((best, row) => {
+    if (best === null || row.midi > best.midi) {
+      return row;
+    }
+    return best;
+  }, null);
+
+  if (highestMidi === null) {
+    return {
+      nextHintVoicingIndex,
+      topPointer: null,
+    };
+  }
+
+  return {
+    nextHintVoicingIndex,
+    topPointer: {
+      staff: highestMidi.staff,
+      staffTopY: highestMidi.staffTopY,
+      xCenter: highestMidi.xCenter,
+      yCenter: highestMidi.yCenter,
+    },
+  };
+};
+
+/** 完成エフェクトの発光オーバーレイ。eventKey で再マウントして CSS アニメーションを再起動する */
+const PulseOverlayLayer: React.FC<{
+  pulse: ChordVoicingCompletionPulse;
+  groups: readonly ParsedVoicingStaffGroup[];
+  correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>;
+  layout: StaffLayoutMetrics;
+  activeStaves: readonly StaffNumber[];
+  firstStaffTopY: number;
+  pulseGroupIds: ReadonlySet<string>;
+  noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout;
+}> = ({ pulse, groups, correctPitchClassSets, layout, activeStaves, firstStaffTopY, pulseGroupIds, noteCollisionLayout }) => {
+  const haloClass = pulse.kind === 'harmonyComplete'
+    ? 'voicing-halo-pulse-complete'
+    : 'voicing-halo-pulse-partial';
+  const halos: React.ReactNode[] = [];
+  const noteWidth = SP * 1.45;
+  const noteHeight = SP * 0.86;
+  activeStaves.forEach((staff, staffIndex) => {
+    const staffTopY = firstStaffTopY + staffIndex * STAFF_TOP_STEP;
+    groups.forEach(group => {
+      if (group.measureOffset !== 0 || !pulseGroupIds.has(group.id)) {
+        return;
+      }
+      const correctSet = correctPitchClassSets.get(group.id);
+      if (!correctSet || correctSet.size === 0) {
+        return;
+      }
+      const baseX = getVoicingGroupBaseX(group, layout);
+      const positioned = layoutChordVoicingStaffNotes(group.notes.filter(n => n.staff === staff), staffTopY, baseX, noteCollisionLayout);
+      positioned.forEach(p => {
+        if (!correctSet.has(p.note.pitchClass)) {
+          return;
+        }
+        const xCenter = baseX + p.xOffset;
+        halos.push(
+          <ellipse
+            key={`halo-${group.id}-${staff}-${p.note.voicingIndex}`}
+            className={haloClass}
+            cx={xCenter}
+            cy={p.yCenter}
+            rx={noteWidth * 0.9}
+            ry={noteHeight * 1.25}
+            fill="#22c55e"
+            stroke="#bbf7d0"
+            strokeWidth={2}
+            opacity={0.9}
+            transform={`rotate(-18 ${xCenter} ${p.yCenter})`}
+          />,
+        );
+      });
+    });
+  });
+  return <g aria-hidden>{halos}</g>;
+};
+
+const TopNotePointer: React.FC<{
+  xCenter: number;
+  yCenter: number;
+}> = ({ xCenter, yCenter }) => {
+  const noteHeight = SP * 0.86;
+  const triH = SP * 0.55;
+  const halfW = SP * 0.42;
+  const topEdgeY = yCenter - noteHeight / 2;
+  /** 逆三角マーカーを五線直上でやや離す（上方向へ） */
+  const apexY = topEdgeY - SP * 0.55;
+  const baseY = apexY - triH;
+  return (
+    <polygon
+      aria-hidden
+      data-voicing-top-pointer="true"
+      fill={TOP_POINTER_COLOR}
+      points={`${xCenter},${apexY} ${xCenter - halfW},${baseY} ${xCenter + halfW},${baseY}`}
+    />
+  );
+};
+
+const isVoicingNoteCorrect = (
+  groupId: string,
+  pitchClass: number,
+  correctPitchClassSet: ReadonlySet<number> | undefined,
+  correctGroupIds: ReadonlySet<string> | undefined,
+): boolean => {
+  if (correctGroupIds) {
+    return correctGroupIds.has(groupId);
+  }
+  return correctPitchClassSet?.has(pitchClass) ?? false;
+};
+
+const RenderedStaff: React.FC<{
+  staff: StaffNumber;
+  groups: readonly ParsedVoicingStaffGroup[];
+  correctPitchClassSets: ReadonlyMap<string, ReadonlySet<number>>;
+  correctGroupIds: ReadonlySet<string> | undefined;
+  staffTopY: number;
+  keyFifths: number;
+  layout: StaffLayoutMetrics;
+  activeGroupId: string | null | undefined;
+  unpressedNoteOpacity: number;
+  fadeAllMeasureNotes: boolean;
+  staffLineRightX: number;
+  clefFontsLoaded: boolean;
+  smuflUseForeignObject: boolean;
+  noteCollisionLayout: ChordVoicingStaffNoteCollisionLayout;
+}> = ({
+  staff,
+  groups,
+  correctPitchClassSets,
+  correctGroupIds,
+  staffTopY,
+  keyFifths,
+  layout,
+  activeGroupId,
+  unpressedNoteOpacity,
+  fadeAllMeasureNotes,
+  staffLineRightX,
+  clefFontsLoaded,
+  smuflUseForeignObject,
+  noteCollisionLayout,
+}) => {
+  const marks = keySignatureMarks(staff, keyFifths);
+  const positionedGroups = useMemo(() => (
+    groups.map(group => ({
+      group,
+      noteBaseX: getVoicingGroupBaseX(group, layout),
+      positionedNotes: layoutChordVoicingStaffNotes(
+        group.notes.filter(note => note.staff === staff),
+        staffTopY,
+        getVoicingGroupBaseX(group, layout),
+        noteCollisionLayout,
+      ),
+    }))
+  ), [groups, layout, noteCollisionLayout, staff, staffTopY]);
+
+  return (
+    <g>
+      <StaffLines staff={staff} topY={staffTopY} staffLineRightX={staffLineRightX} />
+      <StaffClefGlyph
+        staff={staff}
+        staffTopY={staffTopY}
+        clefFontsLoaded={clefFontsLoaded}
+        smuflUseForeignObject={smuflUseForeignObject}
+      />
+      {(clefFontsLoaded || smuflUseForeignObject)
+        ? marks.map((mark, index) => {
+            const cx = KEY_SIGNATURE_LEFT_X + index * KEY_SIGNATURE_GAP_X;
+            const cy = yForDegree(staffTopY, staff, mark.degree);
+            if (smuflUseForeignObject) {
+              return (
+                <g
+                  key={`${mark.alter}-${index}`}
+                  data-key-signature-index={String(index)}
+                  data-key-signature-staff={String(staff)}
+                  data-smufl-vector-glyph="key-signature-accidental"
+                  pointerEvents="none"
+                  transform={`translate(${cx}, ${cy})`}
+                >
+                  <MusicNotationVectorAccidental alter={mark.alter} s={SP} stroke={NOTATION_COLOR} />
+                </g>
+              );
+            }
+            const glyph = accidentalGlyph(mark.alter);
+            return (
+              <text
+                key={`${mark.alter}-${index}`}
+                className="bravura-staff-glyphs"
+                data-key-signature-index={index}
+                data-key-signature-staff={staff}
+                x={cx}
+                y={cy}
+                dominantBaseline="central"
+                fill={NOTATION_COLOR}
+                fontSize={ACCIDENTAL_FONT_SIZE}
+                textAnchor="middle"
+              >
+                {glyph}
+              </text>
+            );
+          })
+        : null}
+      {positionedGroups.map(({ group, noteBaseX, positionedNotes }) => {
+        const correctPitchClassSet = correctPitchClassSets.get(group.id);
+        const notes = positionedNotes.flatMap(positioned => {
+          const isCorrect = isVoicingNoteCorrect(
+            group.id,
+            positioned.note.pitchClass,
+            correctPitchClassSet,
+            correctGroupIds,
+          );
+          const isNextHint =
+            activeGroupId !== undefined
+            && activeGroupId !== null
+            && group.id === activeGroupId
+            && group.measureOffset === 0
+            && !isCorrect;
+          const fadeCurrentMeasure =
+            (group.measureOffset === 0 || fadeAllMeasureNotes)
+            && !group.exemptFromFade
+            && !isCorrect
+            && !isNextHint;
+          if (fadeCurrentMeasure && unpressedNoteOpacity === 0) {
+            return [];
+          }
+          const noteOpacity = fadeCurrentMeasure ? unpressedNoteOpacity : 1;
+          const NoteComponent = group.noteValue === 'quarter' ? QuarterNote : WholeNote;
+          const node = (
+            <NoteComponent
+              key={`${group.id}-${positioned.note.voicingIndex}`}
+              groupId={group.id}
+              positioned={positioned}
+              baseX={noteBaseX}
+              staffTopY={staffTopY}
+              isCorrect={isCorrect}
+              isNextHint={isNextHint}
+              noteOpacity={noteOpacity}
+              clefFontsLoaded={clefFontsLoaded}
+              smuflUseForeignObject={smuflUseForeignObject}
+            />
+          );
+          return [node];
+        });
+        if (!group.isRest) {
+          return notes;
+        }
+        const RestComponent = group.noteValue === 'quarter' ? QuarterRest : WholeRest;
+        return [
+          <RestComponent
+            key={`${group.id}-rest`}
+            groupId={group.id}
+            baseX={noteBaseX}
+            staffTopY={staffTopY}
+            color={NOTATION_COLOR}
+          />,
+          ...notes,
+        ];
+      })}
+    </g>
+  );
+};
+
+const ChordVoicingStaff: React.FC<ChordVoicingStaffProps> = ({
+  voicing = [],
+  voicingStaves,
+  chordName = '',
+  keyFifths = 0,
+  correctPitchClasses,
+  voicingGroups,
+  activeGroupId,
+  correctPitchClassesByGroupId,
+  correctGroupIds,
+  denseCurrentMeasureLayout,
+  completionPulse,
+  showEmptyStaff = false,
+  fixedActiveStaves,
+  showTargetHints = true,
+  hideUnpressedNotes = false,
+  unpressedNoteOpacity: unpressedNoteOpacityProp,
+  singleMeasureLayout = false,
+  compactSingleMeasure = false,
+  smuflUseForeignObject = false,
+  hideChordLabels = false,
+  literalChordLabels = false,
+  noteCollisionLayout = 'anchor-low',
+  fadeAllMeasureNotes = false,
+  alwaysShowTopPointer = false,
+  ignoreNotationInstrument = false,
+  fitParentHeight = false,
+  staffLineRightXOverride,
+  className,
+}) => {
+  const notationInstrumentId = 'concert_melody';
+  const notationOctaveShift = 0;
+  const simpleDisplayMode = false;
+  const notationPreset = useMemo(
+    () => getNotationInstrumentPreset(notationInstrumentId),
+    [notationInstrumentId],
+  );
+  const writtenOffset = useMemo(
+    () => (ignoreNotationInstrument ? 0 : getWrittenSemitoneOffset(notationPreset, notationOctaveShift)),
+    [ignoreNotationInstrument, notationPreset, notationOctaveShift],
+  );
+  const writtenFifths = useMemo(
+    () => transposeKeyFifths(keyFifths, writtenOffset),
+    [keyFifths, writtenOffset],
+  );
+  const clefOverride = ignoreNotationInstrument
+    ? undefined
+    : notationPreset.clef === 'grand'
+      ? undefined
+      : notationPreset.clef;
+  const notationParseOptions = useMemo((): NotationParseOptions => ({
+    writtenOffset,
+    originalFifths: keyFifths,
+    clefOverride,
+    simpleMode: simpleDisplayMode,
+  }), [writtenOffset, keyFifths, clefOverride, simpleDisplayMode]);
+  const normalizedVoicingStaves = voicingStaves ?? EMPTY_STAVES;
+  const normalizedCorrectPitchClasses = correctPitchClasses ?? EMPTY_PITCH_CLASSES;
+  const normalizedVoicingGroups = voicingGroups ?? EMPTY_GROUPS;
+  const normalizedCorrectPitchClassesByGroupId = correctPitchClassesByGroupId ?? EMPTY_CORRECT_PITCH_CLASS_MAP;
+  const parseCacheRef = useRef(new Map<string, ParsedVoicingNoteWithStaff[]>());
+  const staffGroups = useMemo<ChordVoicingStaffGroup[]>(() => {
+    if (normalizedVoicingGroups.length > 0) {
+      return normalizedVoicingGroups
+        .filter(group => group.isRest === true || group.voicing.length > 0)
+        .map(group => ({
+          ...group,
+          chordName: literalChordLabels || writtenOffset === 0
+            ? group.chordName
+            : transposeChordLabelPitchClass(group.chordName, writtenOffset),
+          measureOffset: group.measureOffset === 1 ? 1 : 0,
+          isRest: group.isRest === true || group.voicing.length === 0,
+        }));
+    }
+    if (voicing.length === 0) {
+      return [];
+    }
+    return [{
+      id: 'single',
+      chordName: literalChordLabels || writtenOffset === 0
+        ? chordName
+        : transposeChordLabelPitchClass(chordName, writtenOffset),
+      voicing,
+      voicingStaves: normalizedVoicingStaves,
+      correctPitchClasses: normalizedCorrectPitchClasses,
+      measureOffset: 0,
+    }];
+  }, [
+    chordName,
+    normalizedCorrectPitchClasses,
+    normalizedVoicingGroups,
+    normalizedVoicingStaves,
+    voicing,
+    writtenOffset,
+    literalChordLabels,
+  ]);
+
+  const renderState = useMemo(() => {
+    if (staffGroups.length === 0) {
+      return { groups: [] as ParsedVoicingStaffGroup[], error: null };
+    }
+    try {
+      const measureSlotCounts = new Map<0 | 1, number>();
+      const measureBeatLayout = new Map<0 | 1, boolean>();
+      staffGroups.forEach(group => {
+        const measureOffset = group.measureOffset ?? 0;
+        if (group.beatIndex !== undefined) {
+          measureBeatLayout.set(measureOffset, true);
+          measureSlotCounts.set(measureOffset, 4);
+          return;
+        }
+        measureSlotCounts.set(measureOffset, (measureSlotCounts.get(measureOffset) ?? 0) + 1);
+      });
+      const nextSlotByMeasure = new Map<0 | 1, number>();
+      const groups = staffGroups.map(group => {
+        const measureOffset = group.measureOffset ?? 0;
+        const usesBeatLayout = measureBeatLayout.get(measureOffset) === true;
+        const slotIndex = group.beatIndex ?? nextSlotByMeasure.get(measureOffset) ?? 0;
+        if (!usesBeatLayout || group.beatIndex === undefined) {
+          nextSlotByMeasure.set(measureOffset, slotIndex + 1);
+        }
+        return {
+          id: group.id,
+          chordName: group.chordName,
+          notes: parseNotesWithCache(
+            parseCacheRef.current,
+            group.voicing,
+            group.voicingStaves ?? EMPTY_STAVES,
+            group.tiedFromPreviousVoicingIndices ?? EMPTY_TIED_INDICES,
+            notationParseOptions,
+          ),
+          measureOffset,
+          slotIndex,
+          slotCount: measureSlotCounts.get(measureOffset) ?? 1,
+          noteValue: group.noteValue ?? 'whole',
+          legacyIsActive: group.isActive === true,
+          isRest: group.isRest === true || group.voicing.length === 0,
+          exemptFromFade: group.exemptFromFade === true,
+        };
+      });
+      return { groups: applyRequiredAccidentals(groups, writtenFifths), error: null };
+    } catch (error) {
+      return {
+        groups: [] as ParsedVoicingStaffGroup[],
+        error: error instanceof Error ? error.message : '譜面の生成に失敗しました',
+      };
+    }
+  }, [writtenFifths, staffGroups, notationParseOptions]);
+
+  const correctPitchClassSets = useMemo(() => {
+    const sets = new Map<string, ReadonlySet<number>>();
+    staffGroups.forEach(group => {
+      const pitchClasses = normalizedCorrectPitchClassesByGroupId.get(group.id)
+        ?? group.correctPitchClasses
+        ?? EMPTY_PITCH_CLASSES;
+      sets.set(group.id, new Set(pitchClasses));
+    });
+    return sets;
+  }, [normalizedCorrectPitchClassesByGroupId, staffGroups]);
+
+  const [clefFontsLoaded, setClefFontsLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    if (smuflUseForeignObject) {
+      setClefFontsLoaded(true);
+      return () => {};
+    }
+    setClefFontsLoaded(false);
+    const loadClefFont = async () => {
+      const sizePx = SP * 4;
+      let loaded = false;
+      try {
+        await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_G_CLEF);
+        await document.fonts.load(`${sizePx}px BravuraSMuFL`, SMUFL_F_CLEF);
+        await document.fonts.load(`${sizePx}px BravuraSvgStaff`, SMUFL_G_CLEF);
+        await document.fonts.load(`${sizePx}px BravuraSvgStaff`, SMUFL_F_CLEF);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_NATURAL);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSMuFL`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_NATURAL);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_FLAT);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_DOUBLE_SHARP);
+        await document.fonts.load(`${ACCIDENTAL_FONT_SIZE}px BravuraSvgStaff`, SMUFL_ACCIDENTAL_DOUBLE_FLAT);
+        await document.fonts.ready;
+
+        loaded =
+          document.fonts.check(`${sizePx}px BravuraSMuFL`, SMUFL_G_CLEF) &&
+          document.fonts.check(`${sizePx}px BravuraSvgStaff`, SMUFL_G_CLEF);
+      } catch {
+        loaded = false;
+      }
+      if (!cancelled) {
+        setClefFontsLoaded(loaded);
+      }
+    };
+    void loadClefFont();
+    return () => {
+      cancelled = true;
+    };
+  }, [smuflUseForeignObject]);
+
+  const hasRestGroups = renderState.groups.some(group => group.isRest);
+  const effectiveFixedActiveStaves = resolveNotationFixedActiveStaves(
+    clefOverride,
+    fixedActiveStaves,
+  );
+  const activeStaves = effectiveFixedActiveStaves ?? (
+    (hasRestGroups || showEmptyStaff) ? ([1, 2] as const) : ([1, 2] as const).filter(staff => (
+      renderState.groups.some(group => group.notes.some(note => note.staff === staff))
+    ))
+  );
+  const measureZeroNoteTotal = staffGroups.reduce((sum, group) => {
+    if ((group.measureOffset ?? 0) !== 0 || group.isRest === true) {
+      return sum;
+    }
+    return sum + group.voicing.length;
+  }, 0);
+  const inferredDenseLayout = measureZeroNoteTotal >= CHORD_VOICING_STAFF_DENSE_NOTE_TOTAL_THRESHOLD;
+  const wideFirstMeasure = typeof denseCurrentMeasureLayout === 'boolean'
+    ? denseCurrentMeasureLayout
+    : inferredDenseLayout;
+  const effectiveSingleMeasureLayout = singleMeasureLayout || compactSingleMeasure;
+  const staffLineRightX = staffLineRightXOverride ?? (
+    compactSingleMeasure
+      ? compactChordStaffLineRightX(writtenFifths)
+      : STAFF_LINE_RIGHT_X
+  );
+  const viewBoxWidth = staffLineRightX + VIEWBOX_EDGE_PAD_X;
+  const layout = getStaffLayoutMetrics(writtenFifths, wideFirstMeasure, effectiveSingleMeasureLayout, staffLineRightX);
+  const effectiveUnpressedNoteOpacity = hideUnpressedNotes
+    ? 0
+    : (unpressedNoteOpacityProp ?? 1);
+  const effectiveActiveGroupId = showTargetHints && effectiveUnpressedNoteOpacity > 0
+    ? activeGroupId
+    : null;
+  const topPointerActiveGroupId = showTargetHints && (alwaysShowTopPointer || effectiveUnpressedNoteOpacity > 0)
+    ? (activeGroupId ?? null)
+    : null;
+  const systemLayout = useMemo(
+    () => computeBattleStaffSystemLayout(
+      activeStaves,
+      renderState.groups,
+      layout,
+      effectiveActiveGroupId,
+      hideChordLabels,
+      staffLineRightX,
+    ),
+    [effectiveActiveGroupId, activeStaves, hideChordLabels, layout, renderState.groups, staffLineRightX],
+  );
+  const battleHints = useMemo(
+    () => computeVoicingBattleHints(
+      renderState.groups,
+      layout,
+      topPointerActiveGroupId,
+      correctPitchClassSets,
+      activeStaves,
+      systemLayout.firstStaffTopY,
+      noteCollisionLayout,
+    ),
+    [
+      topPointerActiveGroupId,
+      activeStaves,
+      correctPitchClassSets,
+      layout,
+      noteCollisionLayout,
+      renderState.groups,
+      systemLayout.firstStaffTopY,
+    ],
+  );
+
+  /** completionPulse が現在小節（measureOffset===0）に有効な間だけ採用する。小節が進めば自然に消える。 */
+  const activePulse = useMemo<ChordVoicingCompletionPulse | null>(() => {
+    if (!completionPulse) {
+      return null;
+    }
+    if (
+      showEmptyStaff
+      && completionPulse.kind === 'harmonyComplete'
+      && renderState.groups.length === 0
+    ) {
+      return completionPulse;
+    }
+    const target = renderState.groups.find(group => (
+      group.id === completionPulse.groupId && group.measureOffset === 0
+    ));
+    return target ? completionPulse : null;
+  }, [completionPulse, renderState.groups, showEmptyStaff]);
+
+  const pulseGroupIds = useMemo<ReadonlySet<string> | null>(() => {
+    if (!activePulse) {
+      return null;
+    }
+    if (activePulse.kind === 'harmonyComplete') {
+      const set = new Set<string>();
+      renderState.groups.forEach(group => {
+        if (group.measureOffset === 0) {
+          set.add(group.id);
+        }
+      });
+      return set;
+    }
+    return new Set<string>([activePulse.groupId]);
+  }, [activePulse, renderState.groups]);
+
+  const measureFramePulseGeometry = useMemo(() => {
+    if (!activePulse || activePulse.kind !== 'harmonyComplete' || activeStaves.length === 0) {
+      return null;
+    }
+    const padX = SP * 0.6;
+    const padY = SP * 1.2;
+    const x = STAFF_LINE_LEFT_X - padX;
+    const y = systemLayout.firstStaffTopY - padY;
+    const width = layout.measureDividerX - STAFF_LINE_LEFT_X + padX;
+    const height = (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT + padY * 2;
+    return { x, y, width, height };
+  }, [activePulse, activeStaves.length, layout.measureDividerX, systemLayout.firstStaffTopY]);
+
+  const svgHeight = systemLayout.svgHeight;
+
+  return (
+    <div className={cn(
+      'relative flex w-full justify-center',
+      fitParentHeight && 'h-full',
+      className,
+    )}
+    >
+      {renderState.error ? (
+        <div className="rounded bg-red-950/80 px-3 py-1 text-xs text-red-100">
+          {renderState.error}
+        </div>
+      ) : (
+        <svg
+          aria-busy={!clefFontsLoaded}
+          aria-label={chordName ? `${chordName} battle mode staff` : 'Battle mode staff'}
+          className={cn(
+            'overflow-visible drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]',
+            fitParentHeight ? 'h-full w-auto max-w-full' : 'h-auto w-full',
+          )}
+          role="img"
+          viewBox={`0 0 ${viewBoxWidth} ${svgHeight}`}
+        >
+          <defs>
+            <style type="text/css">{STAFF_SVG_SMUFL_CSS}</style>
+          </defs>
+          {activePulse?.kind === 'harmonyComplete' && measureFramePulseGeometry ? (
+            <rect
+              key={`measure-frame-pulse-${activePulse.eventKey}`}
+              className="voicing-measure-frame-pulse"
+              x={measureFramePulseGeometry.x}
+              y={measureFramePulseGeometry.y}
+              width={measureFramePulseGeometry.width}
+              height={measureFramePulseGeometry.height}
+              rx={SP * 0.6}
+              ry={SP * 0.6}
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth={3}
+              pointerEvents="none"
+            />
+          ) : null}
+          {systemLayout.chordLabels.map(label => {
+            const shouldGlow = activePulse?.kind === 'harmonyComplete' && label.groupId === activePulse.groupId;
+            return (
+              <text
+                key={shouldGlow ? `${label.groupId}-label-${activePulse?.eventKey}` : `${label.groupId}-label`}
+                className={cn('voicing-chord-name', shouldGlow && 'voicing-chord-name-glow')}
+                data-voicing-group-active={label.fill === ACTIVE_CHORD_LABEL_COLOR ? 'true' : 'false'}
+                data-voicing-group-id={label.groupId}
+                x={label.x}
+                y={systemLayout.labelCenterY}
+                dominantBaseline="central"
+                fill={label.fill}
+                fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
+                fontSize={label.fontSize}
+                fontWeight="800"
+                textAnchor="middle"
+              >
+                {label.chordName.split('\n').map((line, lineIndex, lines) => {
+                  const lineHeight = label.fontSize * 1.12;
+                  const startDy = -((lines.length - 1) * lineHeight) / 2;
+                  return (
+                    <tspan
+                      key={`${label.groupId}-line-${lineIndex}`}
+                      x={label.x}
+                      dy={lineIndex === 0 ? startDy : lineHeight}
+                    >
+                      {line}
+                    </tspan>
+                  );
+                })}
+              </text>
+            );
+          })}
+          {activeStaves.map((staff, index) => (
+            <RenderedStaff
+              key={staff}
+              staff={staff}
+              groups={renderState.groups}
+              correctPitchClassSets={correctPitchClassSets}
+              correctGroupIds={correctGroupIds}
+              staffTopY={systemLayout.firstStaffTopY + index * STAFF_TOP_STEP}
+              keyFifths={writtenFifths}
+              layout={layout}
+              activeGroupId={effectiveActiveGroupId}
+              unpressedNoteOpacity={effectiveUnpressedNoteOpacity}
+              fadeAllMeasureNotes={fadeAllMeasureNotes}
+              staffLineRightX={staffLineRightX}
+              clefFontsLoaded={clefFontsLoaded}
+              smuflUseForeignObject={smuflUseForeignObject}
+              noteCollisionLayout={noteCollisionLayout}
+            />
+          ))}
+          {activeStaves.length > 0 && Array.from(new Set([layout.measureDividerX, staffLineRightX])).map(x => (
+            <line
+              key={`system-barline-${x}`}
+              data-staff-barline={x}
+              x1={x}
+              x2={x}
+              y1={systemLayout.firstStaffTopY}
+              y2={systemLayout.firstStaffTopY + (activeStaves.length - 1) * STAFF_TOP_STEP + STAFF_HEIGHT}
+              stroke={NOTATION_COLOR}
+              strokeLinecap="round"
+              strokeWidth={STAFF_LINE_THICKNESS}
+            />
+          ))}
+          {activePulse && pulseGroupIds ? (
+            <g key={`pulse-overlay-${activePulse.eventKey}`}>
+              <PulseOverlayLayer
+                pulse={activePulse}
+                groups={renderState.groups}
+                correctPitchClassSets={correctPitchClassSets}
+                layout={layout}
+                activeStaves={activeStaves}
+                firstStaffTopY={systemLayout.firstStaffTopY}
+                pulseGroupIds={pulseGroupIds}
+                noteCollisionLayout={noteCollisionLayout}
+              />
+            </g>
+          ) : null}
+          {battleHints.topPointer ? (
+            <TopNotePointer
+              xCenter={battleHints.topPointer.xCenter}
+              yCenter={battleHints.topPointer.yCenter}
+            />
+          ) : null}
+        </svg>
+      )}
+    </div>
+  );
+};
+
+export default ChordVoicingStaff;

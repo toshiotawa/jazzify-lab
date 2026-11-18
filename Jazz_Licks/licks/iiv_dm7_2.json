@@ -1,0 +1,143 @@
+{
+  "id": "iiv_dm7_2",
+  "label": "II-V Dm7 #2",
+  "intervals": [
+    -2,
+    -5,
+    -4,
+    -1,
+    -2
+  ],
+  "reference_pc": 4,
+  "canonical_midi": [
+    76,
+    74,
+    69,
+    65,
+    64,
+    62
+  ],
+  "base_note_names": [
+    "E5",
+    "D5",
+    "A4",
+    "F4",
+    "E4",
+    "D4"
+  ],
+  "chromatic_spellings": [
+    "C",
+    "Db",
+    "D",
+    "Eb",
+    "E",
+    "F",
+    "Gb",
+    "G",
+    "Ab",
+    "A",
+    "Bb",
+    "B"
+  ],
+  "transpose_spellings": [
+    [
+      "E",
+      "D",
+      "A",
+      "F",
+      "E",
+      "D"
+    ],
+    [
+      "F",
+      "Eb",
+      "Bb",
+      "Gb",
+      "F",
+      "Eb"
+    ],
+    [
+      "F#",
+      "E",
+      "B",
+      "G",
+      "F#",
+      "E"
+    ],
+    [
+      "G",
+      "F",
+      "C",
+      "Ab",
+      "G",
+      "F"
+    ],
+    [
+      "G#",
+      "F#",
+      "C#",
+      "A",
+      "G#",
+      "F#"
+    ],
+    [
+      "A",
+      "G",
+      "D",
+      "Bb",
+      "A",
+      "G"
+    ],
+    [
+      "Bb",
+      "Ab",
+      "Eb",
+      "Cb",
+      "Bb",
+      "Ab"
+    ],
+    [
+      "B",
+      "A",
+      "E",
+      "C",
+      "B",
+      "A"
+    ],
+    [
+      "C",
+      "Bb",
+      "F",
+      "Db",
+      "C",
+      "Bb"
+    ],
+    [
+      "C#",
+      "B",
+      "F#",
+      "D",
+      "C#",
+      "B"
+    ],
+    [
+      "D",
+      "C",
+      "G",
+      "Eb",
+      "D",
+      "C"
+    ],
+    [
+      "D#",
+      "C#",
+      "G#",
+      "E",
+      "D#",
+      "C#"
+    ]
+  ],
+  "notes_per_motif": 6,
+  "dig_that_lick_pattern": "-2 -5 -4 -1 -2",
+  "combine_adjacent_motifs": false
+}

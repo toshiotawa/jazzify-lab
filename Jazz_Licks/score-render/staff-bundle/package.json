@@ -1,0 +1,16 @@
+{
+  "name": "somisira-staff-bundle",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tonal": "^6.4.2",
+    "vite": "^6.0.3",
+    "zustand": "^5.0.3"
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "id": "jesse_van_6",
+  "label": "Jesse van Ruller (6)",
+  "intervals": [
+    -1,
+    -1,
+    4,
+    3,
+    4
+  ],
+  "reference_pc": 7,
+  "canonical_midi": [
+    67,
+    66,
+    65,
+    69,
+    72,
+    76
+  ],
+  "base_note_names": [
+    "G4",
+    "Gb4",
+    "F4",
+    "A4",
+    "C5",
+    "E5"
+  ],
+  "chromatic_spellings": [
+    "C",
+    "Db",
+    "D",
+    "Eb",
+    "E",
+    "F",
+    "Gb",
+    "G",
+    "Ab",
+    "A",
+    "Bb",
+    "B"
+  ],
+  "transpose_spellings": [
+    [
+      "G",
+      "Gb",
+      "F",
+      "A",
+      "C",
+      "E"
+    ],
+    [
+      "Ab",
+      "Abb",
+      "Gb",
+      "Bb",
+      "Db",
+      "F"
+    ],
+    [
+      "A",
+      "Ab",
+      "G",
+      "B",
+      "D",
+      "F#"
+    ],
+    [
+      "Bb",
+      "Bbb",
+      "Ab",
+      "C",
+      "Eb",
+      "G"
+    ],
+    [
+      "B",
+      "Bb",
+      "A",
+      "C#",
+      "E",
+      "G#"
+    ],
+    [
+      "C",
+      "Cb",
+      "Bb",
+      "D",
+      "F",
+      "A"
+    ],
+    [
+      "Db",
+      "Dbb",
+      "Cb",
+      "Eb",
+      "Gb",
+      "Bb"
+    ],
+    [
+      "D",
+      "Db",
+      "C",
+      "E",
+      "G",
+      "B"
+    ],
+    [
+      "Eb",
+      "Ebb",
+      "Db",
+      "F",
+      "Ab",
+      "C"
+    ],
+    [
+      "E",
+      "Eb",
+      "D",
+      "F#",
+      "A",
+      "C#"
+    ],
+    [
+      "F",
+      "Fb",
+      "Eb",
+      "G",
+      "Bb",
+      "D"
+    ],
+    [
+      "F#",
+      "F",
+      "E",
+      "G#",
+      "B",
+      "D#"
+    ]
+  ],
+  "notes_per_motif": 6,
+  "dig_that_lick_pattern": "-1 -1 4 3 4",
+  "combine_adjacent_motifs": false
+}
