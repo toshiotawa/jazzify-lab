@@ -14,6 +14,8 @@ export class PitchChunkQueue {
   private activeGenerationId = 0;
   private expectedSourceSample: number | null = null;
 
+  constructor(private readonly queueLimitMs = PESTO_QUEUE_LIMIT_MS) {}
+
   reset(generationId: number, nextSequence = 0): void {
     this.queue = [];
     this.expectedSequence = nextSequence;
@@ -38,7 +40,7 @@ export class PitchChunkQueue {
       const oldest = this.queue[0];
       const depthMs =
         ((chunk.sourceEndSample - oldest.sourceStartSample) / PESTO_TARGET_SAMPLE_RATE) * 1000;
-      if (depthMs > PESTO_QUEUE_LIMIT_MS) {
+      if (depthMs > this.queueLimitMs) {
         return { ok: false, reason: 'queueOverflow' };
       }
     }

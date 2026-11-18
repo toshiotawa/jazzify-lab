@@ -98,6 +98,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
     inputMethod: inputSetupMethod ?? settings.inputMethod,
     onNoteOn: () => undefined,
     playMidiSound: false,
+    trackDetectedNoteLabel: true,
   });
 
   const phraseBuild = useMemo(

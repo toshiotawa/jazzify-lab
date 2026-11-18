@@ -3,6 +3,7 @@ import Foundation
 import OnnxRuntimeBindings
 import os
 import QuartzCore
+import UIKit
 
 /// PESTO v2 (ONNX) による単音ピッチ入力エンジン。
 ///
@@ -31,8 +32,8 @@ final class PitchInputEngine: @unchecked Sendable {
 
     private static let chunkSize = 240
     private static let baseFrameSec = Double(chunkSize) / targetSampleRate
-    /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕（80ms @ 5ms hop）。
-    private static let poolSlotCount = 16
+    /// 推論スロット数。tap が書き込み中のスロットを推論側が読むのを避けるための余裕（画面収録 40ms IO も吸収）。
+    private static let poolSlotCount = 48
     /// connect/start 前に HW フォーマットが揃うまで待つ最大回数。
     private static let inputFormatRetryCount = 10
     private static let inputFormatRetryDelayNs: UInt64 = 100_000_000
@@ -41,7 +42,7 @@ final class PitchInputEngine: @unchecked Sendable {
     private static let restartRetryDelaySec: TimeInterval = 0.5
     private static let cacheElementCount = 3_976
     private static let targetSampleRate: Double = 48_000
-    private static let queueLimitMs: Double = 40
+    private static let queueLimitMs: Double = 140
     private static let warmupFrameCount = 4
     /// モニタ UI 用: -60dB〜0dB を 0..1 にマップ。
     private static let monitorMinDb: Double = -60
@@ -158,6 +159,7 @@ final class PitchInputEngine: @unchecked Sendable {
     private var restartRetryAttempt = 0
     private var observersRegistered = false
     private var routeChangeObserver: NSObjectProtocol?
+    private var screenCaptureObserver: NSObjectProtocol?
     private var sessionReconfigureObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
@@ -520,7 +522,7 @@ final class PitchInputEngine: @unchecked Sendable {
             throw PitchInputEngineError.inputUnavailable
         }
 
-        let useVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput()
+        let useVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput() && !UIScreen.main.isCaptured
 
         AppAudioSession.shared.suppressAutomaticReconfigure(for: 1.0)
 
@@ -650,6 +652,8 @@ final class PitchInputEngine: @unchecked Sendable {
         activeTapSampleRate = connectFormat.sampleRate
         SurvivalGameAudio.shared.setVoiceInputDucking(true)
         DefenseBackingAudio.shared.setVoiceInputDucking(true)
+        DefenseSharedProgressionAudio.shared.setVoiceInputDucking(true)
+        DefenseSeparateTracksAudio.shared.setVoiceInputDucking(true)
     }
 
     @MainActor
@@ -678,7 +682,7 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func engineConfigurationMatchesDesired() -> Bool {
         guard isRunning, let engine = audioEngine, engine.isRunning else { return false }
-        let desiredVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput()
+        let desiredVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput() && !UIScreen.main.isCaptured
         let currentRate = engine.inputNode.outputFormat(forBus: 0).sampleRate
         guard currentRate > 0 else { return false }
         return activeVoiceProcessing == desiredVoiceProcessing
@@ -757,6 +761,8 @@ final class PitchInputEngine: @unchecked Sendable {
     private func tearDownEngine(releaseRecordingSession: Bool) {
         SurvivalGameAudio.shared.setVoiceInputDucking(false)
         DefenseBackingAudio.shared.setVoiceInputDucking(false)
+        DefenseSharedProgressionAudio.shared.setVoiceInputDucking(false)
+        DefenseSeparateTracksAudio.shared.setVoiceInputDucking(false)
         unregisterEngineConfigurationObserver()
         if let engine = audioEngine, let sink = captureSinkNode {
             engine.stop()
@@ -820,6 +826,16 @@ final class PitchInputEngine: @unchecked Sendable {
             }
         }
 
+        screenCaptureObserver = center.addObserver(
+            forName: UIScreen.capturedDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.scheduleRestartIfRunning()
+            }
+        }
+
         interruptionObserver = center.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: session,
@@ -854,6 +870,10 @@ final class PitchInputEngine: @unchecked Sendable {
         if let sessionReconfigureObserver {
             center.removeObserver(sessionReconfigureObserver)
             self.sessionReconfigureObserver = nil
+        }
+        if let screenCaptureObserver {
+            center.removeObserver(screenCaptureObserver)
+            self.screenCaptureObserver = nil
         }
         if let interruptionObserver {
             center.removeObserver(interruptionObserver)

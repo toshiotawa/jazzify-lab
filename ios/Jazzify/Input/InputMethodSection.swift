@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import UIKit
 
 /// 入力方式（MIDI / マイク）の共通設定ブロック。
 /// List と VStack のどちらに置かれても崩れないよう `Section` ではなく `VStack` で構成する。
@@ -18,6 +19,7 @@ struct InputMethodSection: View {
     @State private var engineActive = false
     @State private var monitorTimer: Timer?
     @State private var midiVolume = Double(NoteInputPreferences.midiVolume)
+    @State private var isScreenCaptured = UIScreen.main.isCaptured
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -71,6 +73,7 @@ struct InputMethodSection: View {
             inputMethod = NoteInputPreferences.inputMethod
             midiVolume = Double(NoteInputPreferences.midiVolume)
             permission = PitchInputEngine.microphonePermission
+            isScreenCaptured = UIScreen.main.isCaptured
             refreshHeadphoneState()
             if inputMethod == .voice {
                 Task {
@@ -87,6 +90,11 @@ struct InputMethodSection: View {
             NotificationCenter.default.publisher(for: AVAudioSession.routeChangeNotification)
         ) { _ in
             refreshHeadphoneState()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIScreen.capturedDidChangeNotification)
+        ) { _ in
+            isScreenCaptured = UIScreen.main.isCaptured
         }
     }
 
@@ -152,6 +160,17 @@ struct InputMethodSection: View {
                     ? "Echo cancellation is on for the speaker. Lower BGM if detection is unstable."
                     : "スピーカー時はエコーキャンセルが有効です。BGM が大きいと精度が落ちます。",
                 systemImage: "headphones"
+            )
+            .font(.caption)
+            .foregroundStyle(.orange)
+        }
+
+        if isScreenCaptured {
+            Label(
+                isEnglishCopy
+                    ? "During screen recording: use headphones and turn off the recording microphone in Control Center for stable input."
+                    : "画面収録中: ヘッドホン推奨。コントロールセンターの画面収録で「マイク」をオフにすると入力が安定します。",
+                systemImage: "record.circle"
             )
             .font(.caption)
             .foregroundStyle(.orange)

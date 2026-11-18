@@ -9,6 +9,12 @@ final class PitchPleaseVoiceEngine: NSObject {
     private(set) var isActive = false
     private(set) var lastError: String?
     private(set) var detectedNoteName: String?
+    private(set) var isNativeCaptureReady = false
+    private(set) var isKernelReady = false
+
+    private var isVoicePipelineReady: Bool {
+        isNativeCaptureReady && isKernelReady
+    }
 
     private let subscriberLock = NSLock()
     nonisolated(unsafe) private var simpleHandlers: [UUID: (UInt8, UInt8, UInt8) -> Void] = [:]
@@ -24,6 +30,7 @@ final class PitchPleaseVoiceEngine: NSObject {
     /// start/stop とサーバの起動を直列化し、重なった stop が新しい待受を閉じないようにする。
     private var sessionOperation: Task<Void, Never>?
     private var webDelegate: VoiceWebDelegate?
+    private var keepKernelWarm = false
 
     func subscribe(_ handler: @escaping (UInt8, UInt8, UInt8) -> Void) -> MIDISubscription {
         let id = UUID()
@@ -43,13 +50,12 @@ final class PitchPleaseVoiceEngine: NSObject {
 
     func start(inputChannel: Int) {
         let channel = inputChannel == 2 ? 2 : 1
-        if isActive, configuredInputChannel == channel {
+        if isVoicePipelineReady, configuredInputChannel == channel {
             return
         }
 
         lastError = nil
         isActive = false
-        detectedNoteName = nil
 
         if PitchInputEngine.microphonePermission == .denied {
             lastError = "マイクが許可されていません。設定アプリの Jazzify から許可してください。"
@@ -80,8 +86,58 @@ final class PitchPleaseVoiceEngine: NSObject {
         }
     }
 
+    /// マイクと録音セッションだけ解放し、PitchPlease カーネル（WebView）を温存する。
+    func stopCaptureOnly() {
+        sessionOperation?.cancel()
+        let previous = sessionOperation
+        sessionOperation = Task { [weak self] in
+            _ = await previous?.value
+            guard let self, !Task.isCancelled else { return }
+            self.stopNativeCaptureOnly()
+            self.keepKernelWarm = true
+            self.isActive = false
+            self.detectedNoteName = nil
+        }
+    }
+
+    /// ネイティブ録音セッションとカーネルの準備完了を待つ。タイムアウト時は false。
+    func waitUntilReady(timeout: TimeInterval = 8) async -> Bool {
+        if isVoicePipelineReady { return true }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if Task.isCancelled { return false }
+            if isVoicePipelineReady { return true }
+            try? await Task.sleep(nanoseconds: 40_000_000)
+        }
+        return isVoicePipelineReady
+    }
+
     private func beginStartSession(channel: Int) async {
+        let canReuseKernel = keepKernelWarm
+            && webView != nil
+            && configuredInputChannel == channel
+            && assetServer.currentPort() != nil
+
+        if canReuseKernel {
+            configuredInputChannel = channel
+            sessionGeneration &+= 1
+            let generation = sessionGeneration
+            captureGeneration = generation
+            isNativeCaptureReady = false
+            lastError = nil
+            do {
+                try await startNativeCapture(channel: channel, generation: generation)
+                if isKernelReady {
+                    isActive = true
+                }
+                return
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+
         await tearDownWebSession(stopCapture: true)
+        keepKernelWarm = false
         let stopGeneration = sessionGeneration &+ 1
         sessionGeneration = stopGeneration
         await stopServersIfGenerationStill(stopGeneration)
@@ -90,11 +146,14 @@ final class PitchPleaseVoiceEngine: NSObject {
         let generation = sessionGeneration
         configuredInputChannel = channel
         captureGeneration = generation
+        isKernelReady = false
+        isNativeCaptureReady = false
 
         await launchSession(channel: channel, generation: generation)
     }
 
     private func beginStopSession() async {
+        keepKernelWarm = false
         let stopGeneration = sessionGeneration &+ 1
         sessionGeneration = stopGeneration
         configuredInputChannel = nil
@@ -102,11 +161,17 @@ final class PitchPleaseVoiceEngine: NSObject {
         await stopServersIfGenerationStill(stopGeneration)
     }
 
+    private func stopNativeCaptureOnly() {
+        PitchInputEngine.shared.stop()
+        isNativeCaptureReady = false
+    }
+
     private func tearDownWebSession(stopCapture: Bool) async {
         mountedSessionGeneration = 0
+        isKernelReady = false
 
         if stopCapture {
-            PitchInputEngine.shared.stop()
+            stopNativeCaptureOnly()
         }
 
         if let webView {
@@ -146,6 +211,10 @@ final class PitchPleaseVoiceEngine: NSObject {
                 await sampleSocket.stop()
                 return
             }
+
+            try await startNativeCapture(channel: channel, generation: generation)
+
+            guard generation == sessionGeneration else { return }
             mountWebView(
                 channel: channel,
                 httpPort: httpPort,
@@ -158,6 +227,33 @@ final class PitchPleaseVoiceEngine: NSObject {
             lastError = "PitchPlease の配信を開始できません"
             await tearDownWebSession(stopCapture: true)
             await stopServersIfGenerationStill(generation)
+        }
+    }
+
+    private func startNativeCapture(channel: Int, generation: UInt64) async throws {
+        guard generation == sessionGeneration else { return }
+        let socket = sampleSocket
+        let captureGen = generation
+
+        do {
+            try await PitchInputEngine.shared.startForwardingCapturedChunks(inputChannel: channel) { samples, count in
+                socket.send(samples: samples, count: count)
+            }
+            guard captureGeneration == captureGen, generation == sessionGeneration else {
+                PitchInputEngine.shared.stop()
+                return
+            }
+            isNativeCaptureReady = true
+            if isKernelReady {
+                isActive = true
+                lastError = nil
+            }
+        } catch {
+            isNativeCaptureReady = false
+            if let channelError = error as? PitchCaptureExternalChannelError {
+                throw channelError
+            }
+            throw error
         }
     }
 
@@ -216,7 +312,7 @@ final class PitchPleaseVoiceEngine: NSObject {
         guard let kind = body["kind"] as? String else { return }
         switch kind {
         case "ready":
-            Task { await self.beginCaptureAfterKernelReady(generation: generation) }
+            onKernelReady(generation: generation)
         case "error":
             isActive = false
             lastError = body["message"] as? String
@@ -232,41 +328,21 @@ final class PitchPleaseVoiceEngine: NSObject {
         }
     }
 
-    private func beginCaptureAfterKernelReady(generation: UInt64) async {
+    private func onKernelReady(generation: UInt64) {
         guard generation == sessionGeneration, generation == mountedSessionGeneration else { return }
-        guard let channel = configuredInputChannel else { return }
-        captureGeneration = generation
-
-        let socket = sampleSocket
-        let captureGen = generation
-
-        do {
-            try await PitchInputEngine.shared.startForwardingCapturedChunks(inputChannel: channel) { samples, count in
-                socket.send(samples: samples, count: count)
-            }
-            guard captureGeneration == captureGen, generation == sessionGeneration else {
-                PitchInputEngine.shared.stop()
-                return
-            }
+        isKernelReady = true
+        if isNativeCaptureReady {
             isActive = true
             lastError = nil
-        } catch {
-            guard generation == sessionGeneration else { return }
-            isActive = false
-            if let channelError = error as? PitchCaptureExternalChannelError {
-                lastError = channelError.localizedDescription
-            } else {
-                lastError = error.localizedDescription
-            }
-            PitchInputEngine.shared.stop()
         }
     }
 
     fileprivate func handleNavigationFailure(_ message: String, sessionGeneration generation: UInt64) {
         guard generation == sessionGeneration, generation == mountedSessionGeneration else { return }
         isActive = false
+        isKernelReady = false
         lastError = message
-        PitchInputEngine.shared.stop()
+        stopNativeCaptureOnly()
     }
 
     private func notify(status: UInt8, note: UInt8, velocity: UInt8) {

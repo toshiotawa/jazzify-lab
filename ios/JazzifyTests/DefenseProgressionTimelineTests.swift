@@ -171,4 +171,60 @@ final class DefenseProgressionTimelineTests: XCTestCase {
             DefenseProgressionTimeline.HudWindow(firstVisibleIndex: 10, visibleCount: 4)
         )
     }
+
+    func testResolvePhraseProgressionChordsSlicesTwoBarEssentialLicks() {
+        let essential24: [DefenseStageProgressionChord] = [
+            DefenseStageProgressionChord(orderIndex: 0, chordName: "CM7", measureNumber: 1, beatOffset: 1, durationBeats: 4),
+            DefenseStageProgressionChord(orderIndex: 1, chordName: "CM7", measureNumber: 2, beatOffset: 1, durationBeats: 4),
+            DefenseStageProgressionChord(orderIndex: 2, chordName: "FM7", measureNumber: 3, beatOffset: 1, durationBeats: 4),
+            DefenseStageProgressionChord(orderIndex: 3, chordName: "FM7", measureNumber: 4, beatOffset: 1, durationBeats: 4),
+        ]
+        let phrase0 = DefenseProgressionTimeline.resolvePhraseProgressionChords(
+            params: DefenseProgressionTimeline.PhraseProgressionParams(
+                stageProgressionChords: essential24,
+                usesFullStageProgressionHud: false,
+                phraseLoopStartMeasure: 1,
+                phraseLoopEndMeasure: 2,
+                phraseLoopBarCount: 2
+            )
+        )
+        XCTAssertEqual(phrase0.count, 2)
+        XCTAssertEqual(phrase0[0].chordName, "CM7")
+        XCTAssertEqual(phrase0[0].measureNumber, 1)
+
+        let phrase1 = DefenseProgressionTimeline.resolvePhraseProgressionChords(
+            params: DefenseProgressionTimeline.PhraseProgressionParams(
+                stageProgressionChords: essential24,
+                usesFullStageProgressionHud: false,
+                phraseLoopStartMeasure: 3,
+                phraseLoopEndMeasure: 4,
+                phraseLoopBarCount: 2
+            )
+        )
+        XCTAssertEqual(phrase1.count, 2)
+        XCTAssertEqual(phrase1[0].chordName, "FM7")
+        XCTAssertEqual(phrase1[0].measureNumber, 1)
+    }
+
+    func testResolvePhraseProgressionChordsKeepsFullFormForSharedProgression() {
+        let twelve = (0..<12).map { index in
+            DefenseStageProgressionChord(
+                orderIndex: index,
+                chordName: "F7",
+                measureNumber: index + 1,
+                beatOffset: 1,
+                durationBeats: 4
+            )
+        }
+        let resolved = DefenseProgressionTimeline.resolvePhraseProgressionChords(
+            params: DefenseProgressionTimeline.PhraseProgressionParams(
+                stageProgressionChords: twelve,
+                usesFullStageProgressionHud: true,
+                phraseLoopStartMeasure: 1,
+                phraseLoopEndMeasure: 4,
+                phraseLoopBarCount: 4
+            )
+        )
+        XCTAssertEqual(resolved.count, 12)
+    }
 }

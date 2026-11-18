@@ -93,7 +93,7 @@ struct EarTrainingChordVoicingGameView: View {
             isBootstrapComplete = false
             showPreparingOverlay = true
             bootstrapProgress = EarTrainingLoadProgress.controllerReady
-            attachMidiFinishVoicingBootstrap(createdController: pack.controller, audioInstance: pack.audio)
+            await attachMidiFinishVoicingBootstrap(createdController: pack.controller, audioInstance: pack.audio)
             return
         }
         loadError = nil
@@ -145,7 +145,7 @@ struct EarTrainingChordVoicingGameView: View {
                 createdController.tutorialHooks = tutorialHooks
             }
 
-            attachMidiFinishVoicingBootstrap(createdController: createdController, audioInstance: audioInstance)
+            await attachMidiFinishVoicingBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
             showPreparingOverlay = false
@@ -156,11 +156,8 @@ struct EarTrainingChordVoicingGameView: View {
     private func attachMidiFinishVoicingBootstrap(
         createdController: EarTrainingChordVoicingBattleController,
         audioInstance: EarTrainingAudio
-    ) {
+    ) async {
         midiSubscriptionHolder.cancel()
-        if createdController.gameState == .idle {
-            createdController.start()
-        }
         midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribe { [weak createdController] status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
@@ -188,6 +185,10 @@ struct EarTrainingChordVoicingGameView: View {
                     createdController.registerMidiKeyUp(note)
                 }
             }
+        }
+        _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
+        if createdController.gameState == .idle {
+            createdController.start()
         }
         self.audio = audioInstance
         self.controller = createdController

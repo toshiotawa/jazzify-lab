@@ -34,6 +34,8 @@ final class DefenseGameSession: ObservableObject {
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var practiceSpeedPercent = 100
     @Published private(set) var progressionActiveIndex = 0
+    @Published private(set) var effectiveProgressionChords: [DefenseStageProgressionChord] = []
+    private var progressionPhraseIndexCache = -1
     @Published private(set) var voicingKeyState: DefenseVoicingKeyState?
     @Published private(set) var activePhrases: [DefensePhraseDefinition]
 
@@ -125,6 +127,38 @@ final class DefenseGameSession: ObservableObject {
             elapsedInt: 0,
             result: .playing
         )
+        syncEffectiveProgressionChords(phraseIndex: judgeState.phraseIndex, resetActiveIndex: true)
+    }
+
+    private func syncEffectiveProgressionChords(phraseIndex: Int, resetActiveIndex: Bool) {
+        let phrase = stage.phrases[safe: phraseIndex] ?? stage.phrases.first
+        let phraseLoopBars: Int = {
+            guard let phrase else { return max(1, stage.phraseBars) }
+            if let start = phrase.loopStartMeasure, let end = phrase.loopEndMeasure {
+                return max(1, end - start + 1)
+            }
+            return max(1, phrase.chords.count, stage.phraseBars)
+        }()
+        effectiveProgressionChords = DefenseProgressionTimeline.resolvePhraseProgressionChords(
+            params: DefenseProgressionTimeline.PhraseProgressionParams(
+                stageProgressionChords: stage.progressionChords,
+                usesFullStageProgressionHud: usesProgressionHud,
+                phraseLoopStartMeasure: phrase?.loopStartMeasure,
+                phraseLoopEndMeasure: phrase?.loopEndMeasure,
+                phraseLoopBarCount: phraseLoopBars
+            )
+        )
+        progressionPhraseIndexCache = phraseIndex
+        if resetActiveIndex {
+            progressionActiveIndex = 0
+        } else if progressionActiveIndex >= effectiveProgressionChords.count {
+            progressionActiveIndex = max(0, effectiveProgressionChords.count - 1)
+        }
+    }
+
+    private func refreshEffectiveProgressionChordsIfPhraseChanged() {
+        guard judgeState.phraseIndex != progressionPhraseIndexCache else { return }
+        syncEffectiveProgressionChords(phraseIndex: judgeState.phraseIndex, resetActiveIndex: true)
     }
 
     func start() async {
@@ -137,7 +171,9 @@ final class DefenseGameSession: ObservableObject {
         phase = .loading
         countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
         subscribeMidi()
-        await Task.yield()
+        if NoteInputPreferences.inputMethod == .voice {
+            _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
+        }
         guard generation == startGeneration, !Task.isCancelled else { return }
 
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
@@ -267,6 +303,10 @@ final class DefenseGameSession: ObservableObject {
                 PlayLaunchTiming.end("DefensePlay")
                 return
             }
+            if NoteInputPreferences.inputMethod == .voice {
+                _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
+            }
+            guard generation == self.startGeneration, !Task.isCancelled else { return }
             await self.beginPlay(generation: generation)
         }
     }
@@ -618,9 +658,11 @@ final class DefenseGameSession: ObservableObject {
             hud = nextHud
         }
 
+        refreshEffectiveProgressionChordsIfPhraseChanged()
+
         if DefenseProgressionTimeline.shouldSyncProgressionHud(
             isChordVoicingStage: isChordVoicingStage,
-            progressionChordCount: stage.progressionChords.count
+            progressionChordCount: effectiveProgressionChords.count
         ), phase == .playing {
             let phrase = stage.phrases[safe: judgeState.phraseIndex]
             let phraseLoopBars: Int = {
@@ -645,7 +687,7 @@ final class DefenseGameSession: ObservableObject {
                 beatInForm = beatInLoop.truncatingRemainder(dividingBy: totalBeats)
             }
             let nextActive = DefenseProgressionTimeline.resolveActiveIndex(
-                chords: stage.progressionChords,
+                chords: effectiveProgressionChords,
                 beatInForm: beatInForm,
                 formBarCount: formBarCount,
                 beatsPerBar: stage.beatsPerBar

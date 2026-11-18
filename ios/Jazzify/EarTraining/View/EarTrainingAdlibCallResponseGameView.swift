@@ -132,7 +132,7 @@ struct EarTrainingAdlibCallResponseGameView: View {
                 createdController.tutorialHooks = tutorialHooks
             }
 
-            attachMidiFinishBootstrap(createdController: createdController, audioInstance: audioInstance)
+            await attachMidiFinishBootstrap(createdController: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
             showPreparingOverlay = false
@@ -143,9 +143,8 @@ struct EarTrainingAdlibCallResponseGameView: View {
     private func attachMidiFinishBootstrap(
         createdController: EarTrainingAdlibCallResponseBattleController,
         audioInstance: EarTrainingAudio
-    ) {
+    ) async {
         midiSubscriptionHolder.cancel()
-        createdController.start()
         midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
             let messageType = status & 0xF0
             let note = Int(data1)
@@ -174,6 +173,8 @@ struct EarTrainingAdlibCallResponseGameView: View {
                 }
             }
         }
+        _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
+        createdController.start()
         self.audio = audioInstance
         self.controller = createdController
         bootstrapProgress = 1

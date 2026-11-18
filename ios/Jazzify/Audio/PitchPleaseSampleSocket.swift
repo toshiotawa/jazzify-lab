@@ -9,7 +9,7 @@ final class PitchPleaseSampleSocket: @unchecked Sendable {
 
     private static let chunkSampleCount = 240
     private static let chunkByteCount = chunkSampleCount * MemoryLayout<Float>.size
-    private static let maxQueuedMs: Double = 40
+    private static let maxQueuedMs: Double = 160
     private static let msPerChunk: Double = Double(chunkSampleCount) / 48_000 * 1000
 
     private let queue = DispatchQueue(label: "jazzify.pitchplease.sample-socket", qos: .userInitiated)
@@ -95,6 +95,10 @@ final class PitchPleaseSampleSocket: @unchecked Sendable {
     /// 推論キューから呼ぶ。240 サンプル単位の Float32 バッファ。
     func send(samples: UnsafePointer<Float>, count: Int) {
         guard count == Self.chunkSampleCount else { return }
+        lock.lock()
+        let shouldSend = clientAuthenticated && connection != nil
+        lock.unlock()
+        guard shouldSend else { return }
         let payload = Data(bytes: samples, count: Self.chunkByteCount)
         queue.async { [weak self] in
             self?.sendLocked(payload: payload)

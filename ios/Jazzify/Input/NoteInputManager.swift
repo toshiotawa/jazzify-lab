@@ -96,13 +96,20 @@ final class NoteInputManager: ObservableObject {
         case .voice:
             guard hasSubscribers else {
                 voicePreparing = false
-                pitchEngine.stop()
+                pitchEngine.stopCaptureOnly()
                 return
             }
             voicePreparing = true
             pitchEngine.start(inputChannel: NoteInputPreferences.voiceInputChannel)
+            _ = await pitchEngine.waitUntilReady(timeout: 8)
             voicePreparing = false
         }
+    }
+
+    /// 音声入力が有効なとき、再生開始前にネイティブ録音セッションとカーネル準備を待つ。
+    func waitUntilVoiceInputReady(timeoutSec: TimeInterval = 8) async -> Bool {
+        guard activeMethod == .voice, hasSubscribers else { return true }
+        return await pitchEngine.waitUntilReady(timeout: timeoutSec)
     }
 
     func stopVoiceInput() {
@@ -149,8 +156,11 @@ final class NoteInputManager: ObservableObject {
         upstream.forEach { $0.cancel() }
         upstream.removeAll()
         voicePreparing = false
-        // 最後の購読が外れたらマイクを解放し、AVAudioSession を .playback に戻す。
-        pitchEngine.stop()
+        if NoteInputPreferences.inputMethod == .voice {
+            pitchEngine.stopCaptureOnly()
+        } else {
+            pitchEngine.stop()
+        }
     }
 
     nonisolated private func forward(

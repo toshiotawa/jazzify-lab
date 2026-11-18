@@ -37,6 +37,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private var pausedOffsetSec: Double = 0
     private var userVolume: Float = 1
     private var voiceInputDucking = false
+    private var lifecycleObserversRegistered = false
+    private var appAudioSessionObserver: NSObjectProtocol?
+    private var engineConfigObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -489,8 +492,11 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     }
 
     private func ensureGraph() {
-        guard !graphReady else { return }
+        registerLifecycleObserversIfNeeded()
         let format = EarTrainingAudio.preferredOutputFormat()
+        if graphReady {
+            return
+        }
         engine.attach(deckMixer)
         engine.attach(masterMixer)
         engine.attach(timePitch)
@@ -545,5 +551,58 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
     private static func hostTimeSec() -> Double {
         AVAudioTime.seconds(forHostTime: mach_absolute_time())
+    }
+
+    private func registerLifecycleObserversIfNeeded() {
+        guard !lifecycleObserversRegistered else { return }
+        lifecycleObserversRegistered = true
+        let center = NotificationCenter.default
+        appAudioSessionObserver = center.addObserver(
+            forName: AppAudioSession.didReconfigureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleSharedAudioSessionReconfigure()
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
+    private func handleEngineConfigurationChange() {
+        restartEngineIfNeeded()
+    }
+
+    private func handleSharedAudioSessionReconfigure() {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            self.graphReady = false
+            self.ensureGraph()
+            self.restartEngineIfNeeded()
+        }
+    }
+
+    private func restartEngineIfNeeded() {
+        guard graphReady else { return }
+        let active = activeIsA ? playerA : playerB
+        let inactive = activeIsA ? playerB : playerA
+        let wasActivePlaying = active.isPlaying
+        let wasInactivePlaying = inactive.isPlaying
+        if engine.isRunning {
+            engine.stop()
+        }
+        engine.prepare()
+        try? engine.start()
+        applyMasterVolume()
+        if wasActivePlaying, !active.isPlaying {
+            active.play()
+        }
+        if wasInactivePlaying, !inactive.isPlaying {
+            inactive.play()
+        }
     }
 }

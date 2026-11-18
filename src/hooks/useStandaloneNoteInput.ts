@@ -31,6 +31,8 @@ interface UseStandaloneNoteInputOptions {
   inputMethod?: InputMethod;
   /** Phrase Defense 音声入力: 次に期待する pitch class のビットマスク。 */
   expectedPitchClassMask?: number;
+  /** true のときだけ検出音名ラベルを React state に反映する（チュートリアル入力設定など）。 */
+  trackDetectedNoteLabel?: boolean;
 }
 
 interface UseStandaloneNoteInputResult {
@@ -48,6 +50,7 @@ export const useStandaloneNoteInput = ({
   enabled = true,
   inputMethod: inputMethodOverride,
   expectedPitchClassMask = 0,
+  trackDetectedNoteLabel = false,
 }: UseStandaloneNoteInputOptions): UseStandaloneNoteInputResult => {
   const settings = useGameStore((state) => state.settings);
   const effectiveMethod = inputMethodOverride ?? settings.inputMethod;
@@ -162,13 +165,17 @@ export const useStandaloneNoteInput = ({
           polyActiveCountRef.current += 1;
           onNoteOnRef.current(note, domTimeStampMs);
           onKeyHighlightRef.current?.(note, true);
-          setDetectedNoteLabel(midiToNoteName(note));
+          if (trackDetectedNoteLabel) {
+            setDetectedNoteLabel(midiToNoteName(note));
+          }
         },
         onNoteOff: (note) => {
           polyActiveCountRef.current = Math.max(0, polyActiveCountRef.current - 1);
           onNoteOffRef.current?.(note);
           onKeyHighlightRef.current?.(note, false);
-          if (polyActiveCountRef.current === 0) setDetectedNoteLabel(null);
+          if (trackDetectedNoteLabel && polyActiveCountRef.current === 0) {
+            setDetectedNoteLabel(null);
+          }
         },
         onConnectionChange: (connected) => {
           if (connectGenerationRef.current !== generation) return;
@@ -215,6 +222,7 @@ export const useStandaloneNoteInput = ({
     settings.voiceEchoCancellation,
     settings.voiceInputChannel,
     inputMethodOverride,
+    trackDetectedNoteLabel,
   ]);
 
   useEffect(() => {

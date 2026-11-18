@@ -97,7 +97,9 @@ import { computeDefenseKeyboardMidis } from '@/game/defense/defenseStageMidis';
 import {
   buildDefenseProgressionChips,
   resolveDefenseFormBarCount,
+  resolveDefensePhraseProgressionChords,
   resolveDefenseProgressionActiveIndex,
+  type DefenseStageProgressionChord,
 } from '@/game/defense/defenseProgressionTimeline';
 import type { MutableDefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import { DEFENSE_HUD_HEIGHT_PX } from '@/game/defense/defenseSceneLayout';
@@ -251,6 +253,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
   const [progressionActiveIndex, setProgressionActiveIndex] = useState(0);
   const progressionActiveIndexRef = useRef(0);
+  const effectiveProgressionChordsRef = useRef<readonly DefenseStageProgressionChord[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSettingsOpenRef = useRef(false);
   const profile = useAuthStore((state) => state.profile);
@@ -353,6 +356,23 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     [usesProgressionHud, stage.progressionBars, phraseLoopBarCount],
   );
 
+  const effectiveProgressionChords = useMemo(
+    () => resolveDefensePhraseProgressionChords({
+      stageProgressionChords: stage.progressionChords,
+      usesFullStageProgressionHud: usesProgressionHud,
+      phraseLoopStartMeasure: currentPhrase?.loopStartMeasure ?? null,
+      phraseLoopEndMeasure: currentPhrase?.loopEndMeasure ?? null,
+      phraseLoopBarCount,
+    }),
+    [
+      stage.progressionChords,
+      usesProgressionHud,
+      currentPhrase?.loopStartMeasure,
+      currentPhrase?.loopEndMeasure,
+      phraseLoopBarCount,
+    ],
+  );
+
   const writtenOffset = useMemo(
     () => getWrittenSemitoneOffset(
       getNotationInstrumentPreset(settings.notationInstrumentId),
@@ -368,12 +388,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   const progressionChips = useMemo(
     () => buildDefenseProgressionChips(
-      stage.progressionChords,
+      effectiveProgressionChords,
       progressionActiveIndex,
       transposeProgressionLabel,
     ),
-    [stage.progressionChords, progressionActiveIndex, transposeProgressionLabel],
+    [effectiveProgressionChords, progressionActiveIndex, transposeProgressionLabel],
   );
+
+  useEffect(() => {
+    effectiveProgressionChordsRef.current = effectiveProgressionChords;
+  }, [effectiveProgressionChords]);
+
+  useEffect(() => {
+    progressionActiveIndexRef.current = 0;
+    setProgressionActiveIndex(0);
+  }, [judgeSnapshot.phraseIndex, effectiveProgressionChords]);
 
   const keyboardHints = useMemo(
     () => getDefensePhraseKeyboardHints(activePhrases, judgeSnapshot, voiceSequential),
@@ -972,14 +1001,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
           }
         }
 
-        if (!isChordVoicingStage && stage.progressionChords.length > 0) {
+        const hudProgressionChords = effectiveProgressionChordsRef.current;
+        if (!isChordVoicingStage && hudProgressionChords.length > 0) {
           const beatInForm = isSeparateTracksStage
             ? defenseSeparateTracksDeck.getBeatInForm()
             : isSharedProgressionStage
               ? defenseSharedProgressionDeck.getBeatInForm()
               : defenseBackingDeck.getBeatInLoop() % (formBarCount * stage.beatsPerBar);
           const nextActiveIndex = resolveDefenseProgressionActiveIndex(
-            stage.progressionChords,
+            hudProgressionChords,
             beatInForm,
             formBarCount,
             stage.beatsPerBar,
@@ -1032,9 +1062,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     phase,
     isSharedProgressionStage,
     isSeparateTracksStage,
-    stage.progressionChords,
     stage.beatsPerBar,
     formBarCount,
+    isChordVoicingStage,
   ]);
 
   useEffect(() => {

@@ -95,6 +95,8 @@ export const PESTO_TARGET_SAMPLE_RATE = 48_000;
 export const PESTO_CHUNK_SIZE = 240;
 export const PESTO_BASE_FRAME_SEC = PESTO_CHUNK_SIZE / PESTO_TARGET_SAMPLE_RATE;
 export const PESTO_QUEUE_LIMIT_MS = 40;
+/** Polyphonic PitchPlease worker backlog before dropping oldest chunks (screen recording headroom). */
+export const POLY_PITCH_QUEUE_LIMIT_MS = 120;
 export const PESTO_WARMUP_FRAMES = 4;
 export const PESTO_MODEL_ID = 'pesto-mir1k-g7-48000-240-refill-compact-v2';
 

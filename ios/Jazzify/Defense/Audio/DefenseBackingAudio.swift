@@ -63,6 +63,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
 
     private var lock = os_unfair_lock()
+    private var lifecycleObserversRegistered = false
+    private var appAudioSessionObserver: NSObjectProtocol?
+    private var engineConfigObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -294,8 +297,22 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     private func ensureGraph() {
-        guard !graphReady else { return }
+        registerLifecycleObserversIfNeeded()
         let format = EarTrainingAudio.preferredOutputFormat()
+        if graphReady, let deckFormat, deckFormat.isEqual(format) {
+            return
+        }
+        if graphReady {
+            engine.stop()
+            engine.disconnectNodeInput(engine.mainMixerNode)
+            engine.detach(deckMixer)
+            engine.detach(masterMixer)
+            engine.detach(timePitch)
+            engine.detach(playerA)
+            engine.detach(playerB)
+            graphReady = false
+        }
+        guard !graphReady else { return }
         deckFormat = format
 
         engine.attach(deckMixer)
@@ -628,6 +645,56 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private static func hostTimeSec() -> Double {
         AVAudioTime.seconds(forHostTime: mach_absolute_time())
+    }
+
+    private func registerLifecycleObserversIfNeeded() {
+        guard !lifecycleObserversRegistered else { return }
+        lifecycleObserversRegistered = true
+        let center = NotificationCenter.default
+        appAudioSessionObserver = center.addObserver(
+            forName: AppAudioSession.didReconfigureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleSharedAudioSessionReconfigure()
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
+    private func handleEngineConfigurationChange() {
+        restartEngineIfNeeded()
+    }
+
+    private func handleSharedAudioSessionReconfigure() {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            self.ensureGraph()
+            self.restartEngineIfNeeded()
+        }
+    }
+
+    private func restartEngineIfNeeded() {
+        guard graphReady else { return }
+        let wasPlayingA = playerA.isPlaying
+        let wasPlayingB = playerB.isPlaying
+        if engine.isRunning {
+            engine.stop()
+        }
+        engine.prepare()
+        try? engine.start()
+        applyMasterMixerVolume()
+        if wasPlayingA, !playerA.isPlaying {
+            playerA.play()
+        }
+        if wasPlayingB, !playerB.isPlaying {
+            playerB.play()
+        }
     }
 
     private func applyMasterMixerVolume() {

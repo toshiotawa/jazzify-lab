@@ -104,7 +104,7 @@ struct EarTrainingPrecisionGameView: View {
                 initialPracticeMode: initialPracticeMode,
                 onExit: onClose
             )
-            attachMidi(controller: createdController, audioInstance: audioInstance)
+            await attachMidi(controller: createdController, audioInstance: audioInstance)
         } catch {
             loadError = error.localizedDescription
             showPreparingOverlay = false
@@ -115,8 +115,7 @@ struct EarTrainingPrecisionGameView: View {
     private func attachMidi(
         controller createdController: EarTrainingPrecisionBattleController,
         audioInstance: EarTrainingAudio
-    ) {
-        createdController.start()
+    ) async {
         midiSubscriptionHolder.cancel()
         midiSubscriptionHolder.subscription = NoteInputManager.shared.subscribeWithHostTime { [weak createdController] status, data1, data2, hostTime in
             let messageType = status & 0xF0
@@ -144,6 +143,8 @@ struct EarTrainingPrecisionGameView: View {
                 }
             }
         }
+        _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
+        createdController.start()
         audio = audioInstance
         controller = createdController
         bootstrapProgress = 1

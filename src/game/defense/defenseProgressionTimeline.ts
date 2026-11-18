@@ -122,3 +122,78 @@ export const buildDefenseProgressionChips = (
     active: index === activeIndex,
   }))
 );
+
+export interface ResolveDefensePhraseProgressionChordsParams {
+  readonly stageProgressionChords: readonly DefenseStageProgressionChord[];
+  /** When true, use the full stage timeline (shared / separate-tracks HUD). */
+  readonly usesFullStageProgressionHud: boolean;
+  readonly phraseLoopStartMeasure: number | null;
+  readonly phraseLoopEndMeasure: number | null;
+  readonly phraseLoopBarCount: number;
+}
+
+const normalizePhraseSlice = (
+  chords: readonly DefenseStageProgressionChord[],
+  loopStartMeasure: number,
+): readonly DefenseStageProgressionChord[] => (
+  chords.map((chord, index) => ({
+    ...chord,
+    orderIndex: index,
+    measureNumber: chord.measureNumber - loopStartMeasure + 1,
+  }))
+);
+
+const reindexOrder = (
+  chords: readonly DefenseStageProgressionChord[],
+): readonly DefenseStageProgressionChord[] => (
+  chords.map((chord, index) => ({
+    ...chord,
+    orderIndex: index,
+  }))
+);
+
+/**
+ * HUD chip source for the current phrase: full-form progression vs phrase-local slice.
+ */
+export const resolveDefensePhraseProgressionChords = (
+  params: ResolveDefensePhraseProgressionChordsParams,
+): readonly DefenseStageProgressionChord[] => {
+  const {
+    stageProgressionChords,
+    usesFullStageProgressionHud,
+    phraseLoopStartMeasure,
+    phraseLoopEndMeasure,
+    phraseLoopBarCount,
+  } = params;
+
+  if (stageProgressionChords.length === 0) {
+    return [];
+  }
+  if (usesFullStageProgressionHud) {
+    return stageProgressionChords;
+  }
+
+  const loopBars = Math.max(1, phraseLoopBarCount);
+  if (
+    phraseLoopStartMeasure !== null
+    && phraseLoopEndMeasure !== null
+    && phraseLoopStartMeasure <= phraseLoopEndMeasure
+  ) {
+    const inRange = stageProgressionChords.filter(
+      (chord) => chord.measureNumber >= phraseLoopStartMeasure
+        && chord.measureNumber <= phraseLoopEndMeasure,
+    );
+    if (inRange.length > 0) {
+      return normalizePhraseSlice(inRange, phraseLoopStartMeasure);
+    }
+  }
+
+  const fallback = stageProgressionChords.filter(
+    (chord) => chord.measureNumber >= 1 && chord.measureNumber <= loopBars,
+  );
+  if (fallback.length > 0) {
+    return reindexOrder(fallback);
+  }
+
+  return [];
+};

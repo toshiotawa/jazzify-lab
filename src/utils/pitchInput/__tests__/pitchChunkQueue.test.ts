@@ -1,4 +1,5 @@
 import { PitchChunkQueue } from '@/utils/pitchInput/pitchChunkQueue';
+import { POLY_PITCH_QUEUE_LIMIT_MS } from '@/utils/pitchInput/pitchInputTypes';
 import type { CapturedChunk } from '@/utils/pitchInput/pitchInputTypes';
 
 const makeChunk = (
@@ -62,5 +63,19 @@ describe('PitchChunkQueue', () => {
     const queue = new PitchChunkQueue();
     queue.reset(1, 0);
     expect(queue.enqueue(makeChunk(0, 0, 240, 2)).ok).toBe(false);
+  });
+
+  it('allows deeper backlog for poly PitchPlease worker limit', () => {
+    const queue = new PitchChunkQueue(POLY_PITCH_QUEUE_LIMIT_MS);
+    queue.reset(1, 0);
+    for (let i = 0; i < 25; i += 1) {
+      const start = i * 240;
+      const result = queue.enqueue(makeChunk(i, start, start + 240));
+      if (i < 24) {
+        expect(result.ok).toBe(true);
+      } else {
+        expect(result).toEqual({ ok: false, reason: 'queueOverflow' });
+      }
+    }
   });
 });

@@ -6,8 +6,11 @@ interface DiagnosticEntry {
 
 const RECORDING_CAPACITY = 12000;
 
+type DiagnosticListener = () => void;
+
 // Bounded history shared by input sessions; recording survives settings/game unmounts.
 class PitchDiagnosticRecording {
+  private readonly listeners = new Set<DiagnosticListener>();
   private entries: DiagnosticEntry[] = [];
 
   private writeIndex = 0;
@@ -26,6 +29,19 @@ class PitchDiagnosticRecording {
     return this.startedAtIso !== null;
   }
 
+  subscribe(listener: DiagnosticListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners(): void {
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+
   start(): void {
     this.entries = [];
     this.writeIndex = 0;
@@ -41,6 +57,7 @@ class PitchDiagnosticRecording {
       recordingStarted.lastPolyConnectionError = this.lastPolyConnectionError;
     }
     this.record('recordingStarted', recordingStarted);
+    this.notifyListeners();
   }
 
   recordPolyConnectionFailure(message: string): void {
@@ -57,6 +74,7 @@ class PitchDiagnosticRecording {
   stop(): void {
     this.record('recordingStopped');
     this.enabled = false;
+    this.notifyListeners();
   }
 
   record(event: string, details: object = {}, force = false): void {

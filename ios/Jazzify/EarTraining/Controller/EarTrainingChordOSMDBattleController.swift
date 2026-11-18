@@ -814,6 +814,9 @@ final class EarTrainingChordOSMDBattleController: ObservableObject, EarTrainingO
 
     private func prepareAndSchedulePhrase(at index: Int) async {
         guard phrases.indices.contains(index) else { return }
+        if NoteInputPreferences.inputMethod == .voice {
+            _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
+        }
         let phrase = phrases[index]
         guard let audioURL = URL(string: phrase.audioUrl) else {
             finishGameOver(message: copy.audioFailed)

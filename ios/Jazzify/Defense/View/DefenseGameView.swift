@@ -340,7 +340,7 @@ struct DefenseGameView: View {
 
     private var defenseProgressionChips: [EarTrainingChordChip] {
         let writtenOffset = NotationInstrumentPreferences.loadWrittenOffset()
-        return session.stage.progressionChords.enumerated().map { index, chord in
+        return session.effectiveProgressionChords.enumerated().map { index, chord in
             let name = EarTrainingMusicXmlTransposer.transposeChordLabelPitchClass(
                 chord.chordName,
                 semitones: writtenOffset

@@ -1296,7 +1296,8 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func handleEngineConfigurationChange() {
-        guard isPhraseEngineRunning else { return }
+        guard isPhraseEngineRunning || phrasePlayer.isPlaying else { return }
+        reconnectGraphAfterCaptureTransition()
         DispatchQueue.main.async { [weak self] in
             self?.resumePhraseEngineAfterForeground()
         }

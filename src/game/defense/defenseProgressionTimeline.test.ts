@@ -3,6 +3,7 @@ import {
   elapsedSecToBeatInLoop,
   loopPositionToBeatInLoop,
   resolveDefenseFormBarCount,
+  resolveDefensePhraseProgressionChords,
   resolveDefenseProgressionActiveIndex,
   resolveDefenseProgressionHudWindow,
   type DefenseStageProgressionChord,
@@ -113,5 +114,75 @@ describe('buildDefenseProgressionChips', () => {
     );
     expect(chips[1]?.active).toBe(true);
     expect(chips[1]?.name).toBe('A7');
+  });
+});
+
+const essentialLicks24: readonly DefenseStageProgressionChord[] = [
+  { orderIndex: 0, chordName: 'CM7', measureNumber: 1, beatOffset: 1, durationBeats: 4 },
+  { orderIndex: 1, chordName: 'CM7', measureNumber: 2, beatOffset: 1, durationBeats: 4 },
+  { orderIndex: 2, chordName: 'FM7', measureNumber: 3, beatOffset: 1, durationBeats: 4 },
+  { orderIndex: 3, chordName: 'FM7', measureNumber: 4, beatOffset: 1, durationBeats: 4 },
+];
+
+describe('resolveDefensePhraseProgressionChords', () => {
+  it('slices single_source 12-key progression to the current 2-bar phrase', () => {
+    const phrase0 = resolveDefensePhraseProgressionChords({
+      stageProgressionChords: essentialLicks24,
+      usesFullStageProgressionHud: false,
+      phraseLoopStartMeasure: 1,
+      phraseLoopEndMeasure: 2,
+      phraseLoopBarCount: 2,
+    });
+    expect(phrase0).toHaveLength(2);
+    expect(phrase0[0]?.chordName).toBe('CM7');
+    expect(phrase0[0]?.measureNumber).toBe(1);
+    expect(phrase0[1]?.measureNumber).toBe(2);
+
+    const phrase1 = resolveDefensePhraseProgressionChords({
+      stageProgressionChords: essentialLicks24,
+      usesFullStageProgressionHud: false,
+      phraseLoopStartMeasure: 3,
+      phraseLoopEndMeasure: 4,
+      phraseLoopBarCount: 2,
+    });
+    expect(phrase1).toHaveLength(2);
+    expect(phrase1[0]?.chordName).toBe('FM7');
+    expect(phrase1[0]?.measureNumber).toBe(1);
+  });
+
+  it('falls back to measures 1..phraseLoopBarCount when loop range is absent in DB', () => {
+    const fourBarCommon: readonly DefenseStageProgressionChord[] = [
+      { orderIndex: 0, chordName: 'Dm7', measureNumber: 1, beatOffset: 1, durationBeats: 4 },
+      { orderIndex: 1, chordName: 'G7', measureNumber: 2, beatOffset: 1, durationBeats: 4 },
+      { orderIndex: 2, chordName: 'Dm7', measureNumber: 3, beatOffset: 1, durationBeats: 4 },
+      { orderIndex: 3, chordName: 'G7', measureNumber: 4, beatOffset: 1, durationBeats: 4 },
+    ];
+    const resolved = resolveDefensePhraseProgressionChords({
+      stageProgressionChords: fourBarCommon,
+      usesFullStageProgressionHud: false,
+      phraseLoopStartMeasure: null,
+      phraseLoopEndMeasure: null,
+      phraseLoopBarCount: 4,
+    });
+    expect(resolved).toHaveLength(4);
+    expect(resolved[0]?.chordName).toBe('Dm7');
+  });
+
+  it('returns full stage progression for shared_progression HUD', () => {
+    const blues12 = Array.from({ length: 12 }, (_, index) => ({
+      orderIndex: index,
+      chordName: 'F7',
+      measureNumber: index + 1,
+      beatOffset: 1,
+      durationBeats: 4,
+    }));
+    const resolved = resolveDefensePhraseProgressionChords({
+      stageProgressionChords: blues12,
+      usesFullStageProgressionHud: true,
+      phraseLoopStartMeasure: 1,
+      phraseLoopEndMeasure: 4,
+      phraseLoopBarCount: 4,
+    });
+    expect(resolved).toHaveLength(12);
   });
 });

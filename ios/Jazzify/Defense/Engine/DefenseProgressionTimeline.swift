@@ -129,4 +129,68 @@ enum DefenseProgressionTimeline {
             )
         }
     }
+
+  struct PhraseProgressionParams {
+        let stageProgressionChords: [DefenseStageProgressionChord]
+        let usesFullStageProgressionHud: Bool
+        let phraseLoopStartMeasure: Int?
+        let phraseLoopEndMeasure: Int?
+        let phraseLoopBarCount: Int
+    }
+
+    private static func normalizePhraseSlice(
+        _ chords: [DefenseStageProgressionChord],
+        loopStartMeasure: Int
+    ) -> [DefenseStageProgressionChord] {
+        chords.enumerated().map { index, chord in
+            DefenseStageProgressionChord(
+                orderIndex: index,
+                chordName: chord.chordName,
+                measureNumber: chord.measureNumber - loopStartMeasure + 1,
+                beatOffset: chord.beatOffset,
+                durationBeats: chord.durationBeats
+            )
+        }
+    }
+
+    private static func reindexOrder(_ chords: [DefenseStageProgressionChord]) -> [DefenseStageProgressionChord] {
+        chords.enumerated().map { index, chord in
+            DefenseStageProgressionChord(
+                orderIndex: index,
+                chordName: chord.chordName,
+                measureNumber: chord.measureNumber,
+                beatOffset: chord.beatOffset,
+                durationBeats: chord.durationBeats
+            )
+        }
+    }
+
+    /// HUD chip source for the current phrase: full-form progression vs phrase-local slice.
+    static func resolvePhraseProgressionChords(params: PhraseProgressionParams) -> [DefenseStageProgressionChord] {
+        let stageProgressionChords = params.stageProgressionChords
+        guard !stageProgressionChords.isEmpty else { return [] }
+        if params.usesFullStageProgressionHud {
+            return stageProgressionChords
+        }
+
+        let loopBars = max(1, params.phraseLoopBarCount)
+        if let loopStart = params.phraseLoopStartMeasure,
+           let loopEnd = params.phraseLoopEndMeasure,
+           loopStart <= loopEnd {
+            let inRange = stageProgressionChords.filter {
+                $0.measureNumber >= loopStart && $0.measureNumber <= loopEnd
+            }
+            if !inRange.isEmpty {
+                return normalizePhraseSlice(inRange, loopStartMeasure: loopStart)
+            }
+        }
+
+        let fallback = stageProgressionChords.filter {
+            $0.measureNumber >= 1 && $0.measureNumber <= loopBars
+        }
+        if !fallback.isEmpty {
+            return reindexOrder(fallback)
+        }
+        return []
+    }
 }
