@@ -255,6 +255,7 @@ If none were added, explicitly say so.
 - Always include required dependencies in hook dependency arrays.
 - Do not suppress `exhaustive-deps` unless there is a clear written reason.
 - Ensure JSX accessibility.
+- 不要なセカンダリラベルや説明を避ける。レイアウトに説明させる。
 - No unused props.
 - Do not destructure props that are not used.
 - Keep components small and focused.
