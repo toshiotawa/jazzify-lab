@@ -17,6 +17,7 @@ import {
 } from '@/game/defense/defenseEnemySprites';
 import type { DefenseEnemySpriteAtlas } from '@/game/defense/defenseEnemySprites';
 import {
+  DEFENSE_SWEEP_URLS,
   createDefenseSceneAssets,
   drawDefenseScene,
   invalidateBackgroundCache,
@@ -36,6 +37,7 @@ interface DefenseCanvasProps {
 
 const DEFENSE_SCENE_IMAGE_URLS = [
   ...DEFENSE_PLAYER_SCENE_IMAGE_URLS,
+  ...DEFENSE_SWEEP_URLS,
   BATTLE_EFFECT_SPRITE_URLS.fireball,
   ...Object.values(BACKGROUND_IMAGE_URLS),
 ] as const;

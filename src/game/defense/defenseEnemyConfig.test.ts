@@ -32,12 +32,15 @@ describe('defenseEnemyConfig', () => {
     expect(getDefenseEnemyAttackDy(DEFENSE_ATTACK_LUNGE_SEC + 0.1, false)).toBe(0);
   });
 
-  it('lunges toward player (left) and rises during the first half', () => {
-    const quarter = DEFENSE_ATTACK_LUNGE_SEC * 0.25;
+  it('winds up away, lunges left at the damage instant and recovers', () => {
+    const windup = DEFENSE_ATTACK_LUNGE_SEC * 0.28;
+    const arcPeak = DEFENSE_ATTACK_LUNGE_SEC * 0.39;
     const mid = DEFENSE_ATTACK_LUNGE_SEC * 0.5;
-    expect(getDefenseEnemyAttackDx(mid)).toBeCloseTo(-22);
-    expect(getDefenseEnemyAttackDy(quarter, false)).toBeCloseTo(-14);
-    expect(getDefenseEnemyAttackDy(quarter, true)).toBeCloseTo(-7);
+    expect(getDefenseEnemyAttackDx(windup)).toBeCloseTo(9);
+    expect(getDefenseEnemyAttackDx(mid)).toBeCloseTo(-32);
+    expect(getDefenseEnemyAttackDx(DEFENSE_ATTACK_LUNGE_SEC)).toBeCloseTo(0);
+    expect(getDefenseEnemyAttackDy(arcPeak, false)).toBeCloseTo(-14);
+    expect(getDefenseEnemyAttackDy(arcPeak, true)).toBeCloseTo(-7);
     expect(getDefenseEnemyAttackDy(mid, false)).toBeCloseTo(0);
   });
 
@@ -48,8 +51,10 @@ describe('defenseEnemyConfig', () => {
     expect(isDefenseEnemyAttacking(false, 0.1, 0)).toBe(false);
   });
 
-  it('uses move frame while attacking', () => {
-    expect(pickDefenseEnemyFrame(1, 0, false, false, true)).toBe('move');
+  it('shows anticipation, strike and recovery across the attack', () => {
+    expect(pickDefenseEnemyFrame(1, 0, false, false, true, 0)).toBe('recoil');
+    expect(pickDefenseEnemyFrame(1, 0, false, false, true, 0.18)).toBe('move');
+    expect(pickDefenseEnemyFrame(1, 0, false, false, true, 0.30)).toBe('passing');
   });
 
   it('alternates frames while moving and stays idle when stopped on ground', () => {

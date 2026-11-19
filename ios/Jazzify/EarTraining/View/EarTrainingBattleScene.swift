@@ -3282,10 +3282,20 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         return playerNode?.container.position.x
     }
 
+    private static let throwRecoil = SKAction.sequence([
+        .rotate(toAngle: 16 * .pi / 180, duration: 0),
+        .rotate(toAngle: -7 * .pi / 180, duration: 0.09),
+        .rotate(toAngle: 0, duration: 0.15)
+    ])
+
     private func holdCharacterForAction(_ side: CharacterSide, state: BattleCharacterMotionState, durationMs: TimeInterval) {
         guard let view = characterView(for: side), view.motion.state != .dead else { return }
         stopCharacterMotion(view)
         view.motion.state = state
+        if side == .enemy && state == .attack {
+            view.image?.run(Self.throwRecoil, withKey: "throw-recoil")
+            view.rim?.run(Self.throwRecoil, withKey: "throw-recoil")
+        }
         view.container.position = CGPoint(
             x: Self.clampCharacterX(view.container.position.x, range: view.motion.range),
             y: floorYForHeight(max(320, size.height))

@@ -281,6 +281,7 @@ interface CharacterView {
   image: Phaser.GameObjects.Sprite | null;
   fallback: Phaser.GameObjects.Text;
   motion: CharacterMotion;
+  throwRecoil?: Phaser.Tweens.TweenChain;
 }
 
 interface CharacterMotion {
@@ -826,6 +827,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.stopQuoteCueTween();
     this.stopPartnerQuoteCueTween();
     this.stopAllCharacterMotion();
+    this.enemyView?.throwRecoil?.stop();
     this.characterLayer?.destroy(true);
     this.characterLayer = null;
     this.playerView = null;
@@ -2997,6 +2999,14 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     this.stopCharacterMotion(view);
     view.motion.state = state;
+    if (side === 'enemy' && state === 'attack' && view.image) {
+      view.throwRecoil?.stop();
+      view.image.setAngle(-16);
+      view.throwRecoil = this.tweens.chain({
+        targets: view.image,
+        tweens: [{ angle: 7, duration: 90 }, { angle: 0, duration: 150 }],
+      });
+    }
     view.container.setPosition(clampBattleCharacterX(view.container.x, view.motion.range), getFloorY(Math.max(480, this.scale.height)));
     view.container.setAngle(0);
 

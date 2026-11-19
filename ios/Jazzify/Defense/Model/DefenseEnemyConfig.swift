@@ -37,7 +37,9 @@ enum DefenseEnemyConfig {
     static let noHitFlash: TimeInterval = -1
     static let groundY: CGFloat = 320
     static let attackLungeSec: TimeInterval = 0.36
-    static let lungeDist: CGFloat = 22
+    static let lungeDist: CGFloat = 32
+    private static let windupFraction = 0.28
+    private static let windupDistance: CGFloat = 9
     static let lungeHeight: CGFloat = 14
     static let impactSec: TimeInterval = 0.3
     static let impactHitbackSec: TimeInterval = 0.12
@@ -116,8 +118,15 @@ enum DefenseEnemyConfig {
             return .zero
         }
         let height = flying ? lungeHeight * 0.5 : lungeHeight
-        let dx = -lungeDist * sin(.pi * p)
-        let dy = -height * sin(.pi * min(1, p * 2))
+        if p <= windupFraction {
+            return CGPoint(x: windupDistance * p / windupFraction, y: 0)
+        }
+        if p >= 0.5 {
+            return CGPoint(x: -lungeDist * pow(2 - 2 * p, 2), y: 0)
+        }
+        let strike = (p - windupFraction) / (0.5 - windupFraction)
+        let dx = windupDistance - (windupDistance + lungeDist) * strike
+        let dy = -height * sin(.pi * strike)
         return CGPoint(x: dx, y: dy)
     }
 
@@ -126,9 +135,14 @@ enum DefenseEnemyConfig {
         slotIndex: Int,
         moving: Bool,
         flying: Bool,
-        attacking: Bool
+        attacking: Bool,
+        attackAge: TimeInterval = attackLungeSec * 0.5
     ) -> DefenseEnemyFrame {
-        if attacking { return .move }
+        if attacking {
+            if attackAge < attackLungeSec * windupFraction { return .recoil }
+            if attackAge > attackLungeSec * 0.72 { return .passing }
+            return .move
+        }
         if flying || moving {
             let phase = Int(floor((elapsedSec + Double(slotIndex) * 0.1) / 0.125))
             return DefenseEnemyFrame.walkCycle[phase % DefenseEnemyFrame.walkCycle.count]

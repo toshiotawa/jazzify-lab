@@ -58,8 +58,7 @@ const HUD_FONT = 'Arial, sans-serif';
 const IMPACT_RING_COLOR = '#fbbf24';
 const IMPACT_SPARK_COLOR = '#fef08a';
 const FLYING_Y_OFFSET = 90;
-const SLASH_SCALE_UP_SEC = 0.14;
-const SLASH_ROTATION_RAD = -4 * (Math.PI / 180);
+export const DEFENSE_SWEEP_URLS = [1, 2, 3, 4].map((n) => `/battle-pixels/pixel-flame-sweep-${n}.png`);
 
 export interface DefenseSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
@@ -77,12 +76,6 @@ export const createDefenseSceneAssets = (
 });
 
 export { invalidateBackgroundCache };
-
-const easeInOut = (t: number): number => (
-  t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2
-);
-
-const easeOut = (t: number): number => 1 - (1 - t) ** 2;
 
 const drawImpactEffect = (
   ctx: CanvasRenderingContext2D,
@@ -130,54 +123,31 @@ const drawSlashEffect = (
   width: number,
   floorY: number,
   spriteScale: number,
+  assets: DefenseSceneAssets | null,
 ): void => {
   if (runtime.slashAt === DEFENSE_NO_SLASH) return;
   const age = runtime.elapsedSec - runtime.slashAt;
   if (age < 0 || age > DEFENSE_SLASH_SEC) return;
 
+  const frame = Math.min(3, Math.floor(age / DEFENSE_SLASH_SEC * 4));
+  const image = assets?.loadedImages.get(DEFENSE_SWEEP_URLS[frame]);
+  if (!image) return;
   const playerScreenX = defenseLogicalToScreenX(width, runtime.playerX);
-  const avatarSize = CHARACTER_DISPLAY_SIZE * spriteScale;
-  const fromX = playerScreenX + avatarSize * 0.45;
-  const fromY = floorY - avatarSize * 0.55;
+  const avatarSize = CHARACTER_DISPLAY_SIZE;
+  const fromX = playerScreenX + avatarSize * 0.20;
+  const fromY = floorY - avatarSize * 0.42;
   const toX = defenseLogicalToScreenX(width, runtime.slashToX);
   const toY = floorY - (DEFENSE_GROUND_Y - runtime.slashY) * spriteScale;
 
   const dx = toX - fromX;
   const dy = toY - fromY;
-  const span = Math.hypot(dx, dy) + 48 * spriteScale;
-  const slashWidth = span;
-  const slashHeight = Math.max(4 * spriteScale, 11.25 * spriteScale * 0.032);
-  const scaleT = Math.min(1, age / SLASH_SCALE_UP_SEC);
-  const xScale = 0.5 + 0.5 * easeInOut(scaleT);
-  const alpha = 1 - easeOut(age / DEFENSE_SLASH_SEC);
-  const angle = Math.atan2(dy, dx) + SLASH_ROTATION_RAD;
-  const midX = (fromX + toX) / 2;
-  const midY = (fromY + toY) / 2;
-
+  const span = Math.max(avatarSize * 0.65, Math.hypot(dx, dy));
+  const height = Math.max(12 * spriteScale, Math.min(avatarSize * 0.46, span * 0.30));
   ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(midX, midY);
-  ctx.rotate(angle);
-  ctx.scale(xScale, 1);
-
-  const gradient = ctx.createLinearGradient(-slashWidth / 2, 0, slashWidth / 2, 0);
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-  gradient.addColorStop(0.04, 'rgba(255, 255, 255, 0.88)');
-  gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.95)');
-  gradient.addColorStop(0.96, 'rgba(255, 255, 255, 0.88)');
-  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(-slashWidth / 2, -slashHeight / 2, slashWidth, slashHeight);
-
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.fillRect(
-    -slashWidth * 0.42,
-    -1 * spriteScale,
-    slashWidth * 0.84,
-    2 * spriteScale,
-  );
-
+  ctx.translate(fromX, fromY);
+  ctx.rotate(Math.atan2(dy, dx));
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, 0, -height / 2, span, height);
   ctx.restore();
 };
 
@@ -245,6 +215,7 @@ const drawEnemiesOfType = (
       enemy.moving,
       config.isFlying,
       attacking,
+      runtime.elapsedSec - enemy.lastAttackAt,
     );
     const img = sprites[frame];
 
@@ -546,7 +517,7 @@ export const drawDefenseScene = (
   }
 
   drawImpactEffect(ctx, runtime, width, floorY, spriteScale);
-  drawSlashEffect(ctx, runtime, width, floorY, spriteScale);
+  drawSlashEffect(ctx, runtime, width, floorY, spriteScale, assets);
   drawImpactFlash(ctx, width, height, runtime);
 
   if (showPhraseUi) {

@@ -14,7 +14,9 @@ export const DEFENSE_SKILL_POSE_FRAME_SEC = 0.08;
 export const DEFENSE_SKILL_POSE_FRAME_COUNT = 6;
 export const DEFENSE_FIREBALL_SPAWN_DELAY_SEC = 0.32;
 
-const LUNGE_DIST = 22;
+const LUNGE_DIST = 32;
+const WINDUP_FRACTION = 0.28;
+const WINDUP_DISTANCE = 9;
 const LUNGE_HEIGHT = 14;
 const FLYING_Y_OFFSET = 90;
 const WALK_FRAME_SEC = 0.125;
@@ -210,15 +212,20 @@ const lungeProgress = (attackElapsed: number): number => {
 /** Horizontal lunge toward the player (negative = left). Returns 0 outside the lunge window. */
 export const getDefenseEnemyAttackDx = (attackElapsed: number): number => {
   const p = lungeProgress(attackElapsed);
-  return p === 0 ? 0 : -LUNGE_DIST * Math.sin(Math.PI * p);
+  if (p <= WINDUP_FRACTION) return WINDUP_DISTANCE * p / WINDUP_FRACTION;
+  if (p < 0.5) {
+    const strike = (p - WINDUP_FRACTION) / (0.5 - WINDUP_FRACTION);
+    return WINDUP_DISTANCE - (WINDUP_DISTANCE + LUNGE_DIST) * strike;
+  }
+  return -LUNGE_DIST * (2 - 2 * p) ** 2;
 };
 
 /** Arc: rises during the first half of the lunge, returns along the ground on the way back. */
 export const getDefenseEnemyAttackDy = (attackElapsed: number, flying: boolean): number => {
   const p = lungeProgress(attackElapsed);
-  if (p === 0) return 0;
+  if (p <= WINDUP_FRACTION || p >= 0.5) return 0;
   const height = flying ? LUNGE_HEIGHT * 0.5 : LUNGE_HEIGHT;
-  return -height * Math.sin(Math.PI * Math.min(1, p * 2));
+  return -height * Math.sin(Math.PI * (p - WINDUP_FRACTION) / (0.5 - WINDUP_FRACTION));
 };
 
 export const DEFENSE_WALK_FRAMES = ['idle', 'passing', 'move', 'recoil'] as const;
@@ -230,8 +237,11 @@ export const pickDefenseEnemyFrame = (
   moving: boolean,
   flying: boolean,
   attacking: boolean,
+  attackAge = DEFENSE_ATTACK_LUNGE_SEC * 0.5,
 ): DefenseEnemyFrame => {
   if (attacking) {
+    if (attackAge < DEFENSE_ATTACK_LUNGE_SEC * WINDUP_FRACTION) return 'recoil';
+    if (attackAge > DEFENSE_ATTACK_LUNGE_SEC * 0.72) return 'passing';
     return 'move';
   }
   if (flying || moving) {
