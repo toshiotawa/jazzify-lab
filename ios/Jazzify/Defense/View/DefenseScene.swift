@@ -384,8 +384,9 @@ final class DefenseScene: SKScene {
 
         var activeEnemyIds = Set<UUID>()
         for enemy in runtime.enemies where enemy.isActive {
+            guard let layout = DefenseSceneLayout.enemyLayouts[enemy.type] else { continue }
             activeEnemyIds.insert(enemy.id)
-            let node = enemyNodes[enemy.id] ?? makeEnemySprite(for: enemy.type)
+            let node = enemyNodes[enemy.id] ?? makeEnemySprite(for: enemy.type, size: layout.size)
 
             let attacking = DefenseEnemyConfig.isAttacking(
                 attackHitPending: enemy.attackHitPending,
@@ -431,8 +432,8 @@ final class DefenseScene: SKScene {
             }
 
             node.position = CGPoint(
-                x: drawX,
-                y: DefenseSceneLayout.screenY(floorY: floorY, canvasDeltaFromFloor: footOffset)
+                x: drawX + layout.centerDx,
+                y: DefenseSceneLayout.screenY(floorY: floorY, canvasDeltaFromFloor: footOffset) + layout.footDy
             )
             if node.parent == nil { characterLayer.addChild(node) }
             enemyNodes[enemy.id] = node
@@ -447,7 +448,7 @@ final class DefenseScene: SKScene {
             }
 
             if showPhraseUi {
-                updateEnemyHpBar(enemy: enemy, node: node)
+                updateEnemyHpBar(enemy: enemy, node: node, topInset: layout.hpInset)
             } else if let fill = enemyHpBarFill[enemy.id] {
                 fill.isHidden = true
             }
@@ -474,10 +475,10 @@ final class DefenseScene: SKScene {
         renderSlash(runtime: runtime, floorY: floorY, avatarSize: avatarSize)
     }
 
-    private func updateEnemyHpBar(enemy: DefenseEnemyState, node: SKSpriteNode) {
+    private func updateEnemyHpBar(enemy: DefenseEnemyState, node: SKSpriteNode, topInset: CGFloat) {
         let barWidth = node.size.width * 0.8
         let barHeight: CGFloat = 4
-        let barY = node.size.height + 6
+        let barY = node.size.height - topInset + 6
 
         if enemyHpBarFill[enemy.id] == nil {
             let bg = SKSpriteNode(color: UIColor(white: 0, alpha: 0.55), size: CGSize(width: barWidth, height: barHeight))
@@ -527,6 +528,7 @@ final class DefenseScene: SKScene {
                 label.isHidden = true
                 continue
             }
+            guard let layout = DefenseSceneLayout.enemyLayouts[popup.targetType] else { continue }
             let progress = age / DefenseEnemyConfig.damagePopupSec
             let screenX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: popup.x)
             let screenY = DefenseSceneLayout.screenY(
@@ -536,7 +538,7 @@ final class DefenseScene: SKScene {
                 )
             )
             label.text = "\(popup.value)"
-            label.position = CGPoint(x: screenX, y: screenY)
+            label.position = CGPoint(x: screenX + layout.centerDx, y: screenY + layout.centerDy)
             label.alpha = CGFloat(1 - progress)
             label.isHidden = false
         }
@@ -617,7 +619,8 @@ final class DefenseScene: SKScene {
             floorY: floorY,
             canvasDeltaFromFloor: -avatarSize * 0.42
         )
-        let toX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.slashToX)
+        guard let layout = DefenseSceneLayout.enemyLayouts[runtime.slashTargetType] else { return }
+        let toX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: runtime.slashToX) + layout.centerDx
         let toY = DefenseSceneLayout.screenY(
             floorY: floorY,
             canvasDeltaFromFloor: DefenseEnemyConfig.displayCanvasDeltaFromFloor(
@@ -626,8 +629,8 @@ final class DefenseScene: SKScene {
         )
 
         let dx = toX - fromX
-        let dy = toY - fromY
-        let span = max(avatarSize * 0.65, hypot(dx, dy))
+        let dy = toY + layout.centerDy - fromY
+        let span = hypot(dx, dy)
         let height = max(DefenseEnemyConfig.displayLayoutPt(12), min(avatarSize * 0.46, span * 0.30))
         let index = min(3, Int(age / DefenseEnemyConfig.slashSec * 4))
         slashNode.texture = slashTextures[index]
@@ -636,12 +639,9 @@ final class DefenseScene: SKScene {
         slashNode.zRotation = atan2(dy, dx)
     }
 
-    private func makeEnemySprite(for type: DefenseEnemyType) -> SKSpriteNode {
+    private func makeEnemySprite(for type: DefenseEnemyType, size: CGSize) -> SKSpriteNode {
         let node = SKSpriteNode(texture: textures[type.assetName(frame: .idle)])
-        node.size = CGSize(
-            width: DefenseEnemyConfig.displaySpriteWidth(for: type),
-            height: DefenseEnemyConfig.displaySpriteHeight(for: type)
-        )
+        node.size = size
         node.anchorPoint = CGPoint(x: 0.5, y: 0)
         node.zPosition = type.zDepth
         return node

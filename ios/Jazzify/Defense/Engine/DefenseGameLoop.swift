@@ -50,6 +50,7 @@ enum DefenseGameLoop {
         runtime.slashFromX = runtime.playerX
         runtime.slashToX = target.x
         runtime.slashY = target.y
+        runtime.slashTargetType = target.type
         if guardPoseSec > 0 {
             runtime.guardPoseUntilSec = runtime.elapsedSec + guardPoseSec
         }
@@ -185,15 +186,15 @@ enum DefenseGameLoop {
 
     private static func pushDamagePopup(
         runtime: inout DefenseRuntimeState,
-        x: CGFloat,
-        y: CGFloat,
+        target: DefenseEnemyState,
         value: Int
     ) {
         guard runtime.damagePopups.indices.contains(runtime.nextPopupIndex) else { return }
         runtime.damagePopups[runtime.nextPopupIndex] = DefenseDamagePopupState(
+            targetType: target.type,
             isActive: true,
-            x: x,
-            y: y,
+            x: target.x,
+            y: target.y,
             value: value,
             spawnedAt: runtime.elapsedSec
         )
@@ -213,7 +214,7 @@ enum DefenseGameLoop {
         target.hitFlashAt = runtime.elapsedSec
 
         if showPopup {
-            pushDamagePopup(runtime: &runtime, x: target.x, y: target.y, value: damage)
+            pushDamagePopup(runtime: &runtime, target: target, value: damage)
         }
 
         let kbDx = target.x - runtime.playerX
@@ -244,13 +245,15 @@ enum DefenseGameLoop {
 
         for fbIndex in runtime.fireballs.indices {
             guard runtime.fireballs[fbIndex].isActive else { continue }
+            let hitFrom = runtime.fireballs[fbIndex].x - DefenseEnemyConfig.fireballHitRadius
             runtime.fireballs[fbIndex].x += DefenseEnemyConfig.fireballSpeedPx * dt
+            let hitTo = runtime.fireballs[fbIndex].x + DefenseEnemyConfig.fireballHitRadius
 
             for enemyIndex in runtime.enemies.indices where runtime.enemies[enemyIndex].isActive {
                 let slotBit = 1 << runtime.enemies[enemyIndex].slotIndex
                 if runtime.fireballs[fbIndex].hitSlotMask & slotBit != 0 { continue }
                 let enemy = runtime.enemies[enemyIndex]
-                if abs(enemy.x - runtime.fireballs[fbIndex].x) > DefenseEnemyConfig.fireballHitRadius { continue }
+                if enemy.x < hitFrom || enemy.x > hitTo { continue }
 
                 runtime.fireballs[fbIndex].hitSlotMask |= slotBit
                 applyEnemyDamage(

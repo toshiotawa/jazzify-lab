@@ -144,6 +144,7 @@ export interface DefenseEnemy {
 }
 
 export interface DefenseDamagePopup {
+  targetType: DefenseEnemyType;
   active: boolean;
   x: number;
   y: number;
@@ -209,6 +210,7 @@ export interface DefenseRuntime {
   slashFromX: number;
   slashToX: number;
   slashY: number;
+  slashTargetType: DefenseEnemyType;
   /** Elapsed seconds until which GuardD pose is shown; 0 = inactive. */
   guardPoseUntilSec: number;
   /** Elapsed seconds when skill pose sequence started; -1 when inactive. */
@@ -289,6 +291,7 @@ export const createDefenseRuntime = (
   slashFromX: DEFENSE_PLAYER_X,
   slashToX: DEFENSE_PLAYER_X,
   slashY: DEFENSE_PLAYER_Y,
+  slashTargetType: 'slime',
   guardPoseUntilSec: 0,
   skillPoseStartSec: DEFENSE_NO_SKILL_POSE,
   fireballSpawnAtSec: DEFENSE_NO_PENDING_FIREBALL,
@@ -297,6 +300,7 @@ export const createDefenseRuntime = (
     active: false,
     x: 0,
     y: 0,
+    targetType: 'slime',
     value: 0,
     spawnedAt: 0,
   })),

@@ -43,7 +43,7 @@ import {
   resolveScenePlayerPoseImage,
   type ScenePlayerPoseCache,
 } from '@/game/defense/defensePlayerSprites';
-import { defenseLogicalToScreenX } from '@/game/defense/defenseSceneLayout';
+import { defenseLogicalToScreenX, getDefenseEnemyLayout } from '@/game/defense/defenseSceneLayout';
 import type { DefenseSceneHud } from '@/game/defense/defenseSceneHud';
 import type { DefenseEnemyType, DefenseRuntime } from '@/game/defense/defenseTypes';
 import {
@@ -136,12 +136,13 @@ const drawSlashEffect = (
   const avatarSize = CHARACTER_DISPLAY_SIZE;
   const fromX = playerScreenX + avatarSize * 0.20;
   const fromY = floorY - avatarSize * 0.42;
-  const toX = defenseLogicalToScreenX(width, runtime.slashToX);
-  const toY = floorY - (DEFENSE_GROUND_Y - runtime.slashY) * spriteScale;
+  const target = getDefenseEnemyLayout(runtime.slashTargetType, spriteScale);
+  const toX = defenseLogicalToScreenX(width, runtime.slashToX) + target.centerDx;
+  const toY = floorY - (DEFENSE_GROUND_Y - runtime.slashY) * spriteScale + target.centerDy;
 
   const dx = toX - fromX;
   const dy = toY - fromY;
-  const span = Math.max(avatarSize * 0.65, Math.hypot(dx, dy));
+  const span = Math.hypot(dx, dy);
   const height = Math.max(12 * spriteScale, Math.min(avatarSize * 0.46, span * 0.30));
   ctx.save();
   ctx.translate(fromX, fromY);
@@ -196,8 +197,9 @@ const drawEnemiesOfType = (
   const sprites = atlas.get(type);
   if (!sprites) return;
   const config = DEFENSE_ENEMY_CONFIG[type];
-  const drawHeight = config.spriteHeight * spriteScale;
-  const drawWidth = drawHeight * config.aspectRatio;
+  const layout = getDefenseEnemyLayout(type, spriteScale);
+  const drawHeight = layout.height;
+  const drawWidth = layout.width;
 
   const enemies = runtime.enemies;
   for (let i = 0; i < enemies.length; i += 1) {
@@ -224,7 +226,7 @@ const drawEnemiesOfType = (
       const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
       logicalX += getDefenseEnemyAttackDx(attackElapsed);
     }
-    const drawX = defenseLogicalToScreenX(width, logicalX);
+    const drawX = defenseLogicalToScreenX(width, logicalX) + layout.centerDx;
     let footOffset = 0;
     if (attacking) {
       const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;
@@ -236,7 +238,7 @@ const drawEnemiesOfType = (
     }
 
     drawEnemyShadow(ctx, drawX, floorY, spriteScale);
-    const top = floorY + footOffset - drawHeight;
+    const top = floorY + footOffset + layout.footDy - drawHeight;
     ctx.drawImage(img, drawX - drawWidth / 2, top, drawWidth, drawHeight);
 
     const hitFlashActive = enemy.hitFlashAt !== DEFENSE_NO_HIT_FLASH
@@ -255,7 +257,7 @@ const drawEnemiesOfType = (
     }
 
     if (showPhraseUi) {
-      drawEnemyHpBar(ctx, drawX, top, drawWidth, enemy.hp, enemy.maxHp);
+      drawEnemyHpBar(ctx, drawX, top + layout.hpInset, drawWidth, enemy.hp, enemy.maxHp);
     }
   }
 };
@@ -278,8 +280,9 @@ const drawDamagePopups = (
     if (age < 0 || age > DEFENSE_DAMAGE_POPUP_SEC) continue;
 
     const progress = age / DEFENSE_DAMAGE_POPUP_SEC;
-    const screenX = defenseLogicalToScreenX(width, popup.x);
-    const screenY = floorY - (DEFENSE_GROUND_Y - popup.y) * spriteScale - progress * 28 * spriteScale;
+    const target = getDefenseEnemyLayout(popup.targetType, spriteScale);
+    const screenX = defenseLogicalToScreenX(width, popup.x) + target.centerDx;
+    const screenY = floorY - (DEFENSE_GROUND_Y - popup.y) * spriteScale + target.centerDy - progress * 28 * spriteScale;
     ctx.globalAlpha = 1 - progress;
     ctx.fillStyle = '#fef08a';
     ctx.fillText(String(popup.value), screenX, screenY);

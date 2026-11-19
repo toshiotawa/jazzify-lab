@@ -132,7 +132,20 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertEqual(runtime.enemies[0].knockbackVx, DefenseEnemyConfig.knockbackImpulse, accuracy: 0.001)
         XCTAssertEqual(runtime.slashAt, 0, accuracy: 0.001)
         XCTAssertEqual(runtime.slashToX, 760, accuracy: 0.001)
+        XCTAssertEqual(runtime.slashTargetType, .goblin)
+        XCTAssertEqual(runtime.damagePopups[0].targetType, .goblin)
         XCTAssertEqual(runtime.guardPoseUntilSec, 0.5, accuracy: 0.001)
+    }
+
+    func testDefenseArtworkPreservesFrontContactAndGround() throws {
+        for type in [DefenseEnemyType.goblin, .skeleton, .wolf, .golem, .dragon] {
+            let layout = try XCTUnwrap(DefenseSceneLayout.enemyLayouts[type])
+            let oldHeight = DefenseEnemyConfig.displaySpriteHeight(for: type)
+            let oldWidth = DefenseEnemyConfig.displaySpriteWidth(for: type)
+            XCTAssertEqual(layout.centerDx - 0.44 * layout.size.width, -0.44 * oldWidth, accuracy: 0.001)
+            XCTAssertEqual(layout.footDy + layout.size.height / 28, oldHeight / 28, accuracy: 0.001)
+            XCTAssertEqual(oldHeight / 2 + layout.centerDy, layout.footDy + layout.size.height / 2, accuracy: 0.001)
+        }
     }
 
     func testSlashHitsFrontmostEnemyByMinX() {
@@ -264,6 +277,20 @@ final class DefenseGameLoopTests: XCTestCase {
         XCTAssertTrue(runtime.damagePopups.contains(where: {
             $0.isActive && $0.value == DefenseEnemyConfig.damageUnit
         }))
+    }
+
+    func testFireballHitsContactPointBetweenFrames() {
+        var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 1)
+        runtime.enemies[0].type = .wolf
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].x = runtime.playerX + 95
+        runtime.enemies[0].speedPxPerSec = 0
+        runtime.fireballs[0].isActive = true
+        runtime.fireballs[0].x = runtime.playerX + 40
+
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0.25)
+        XCTAssertFalse(runtime.enemies[0].isActive)
+        XCTAssertEqual(runtime.damagePopups[0].targetType, .wolf)
     }
 
     func testChargesSpStartsSkillPoseAndDelaysFireball() {
