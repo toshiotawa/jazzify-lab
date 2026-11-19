@@ -1,3 +1,5 @@
+import { BATTLE_IDLE_FRAME_MS, getBattleIdleFrames } from './battlePixelSprites';
+import { PLAYER_POSE_IMAGE_URLS } from './canvas/earTrainingBattleBackground';
 import Phaser from 'phaser';
 import type {
   EarTrainingBattleCallbacks,
@@ -205,35 +207,35 @@ const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
 const PLAYER_AVATAR_POSE_ASSETS: Record<PlayerAvatarPoseName, BattleEffectSpriteAsset> = {
   correct3: {
     key: 'ear-training-player-pose-correct-3',
-    url: '/data/correct3.webp',
+    url: PLAYER_POSE_IMAGE_URLS.correct3,
   },
   cast: {
     key: 'ear-training-player-pose-cast',
-    url: '/data/eishou.webp',
+    url: PLAYER_POSE_IMAGE_URLS.cast,
   },
   skill1: {
     key: 'ear-training-player-pose-skill-1',
-    url: '/data/Frame1.webp',
+    url: PLAYER_POSE_IMAGE_URLS.skill1,
   },
   skill2: {
     key: 'ear-training-player-pose-skill-2',
-    url: '/data/Frame2.webp',
+    url: PLAYER_POSE_IMAGE_URLS.skill2,
   },
   skill3: {
     key: 'ear-training-player-pose-skill-3',
-    url: '/data/Frame3.webp',
+    url: PLAYER_POSE_IMAGE_URLS.skill3,
   },
   skill4: {
     key: 'ear-training-player-pose-skill-4',
-    url: '/data/Frame4.webp',
+    url: PLAYER_POSE_IMAGE_URLS.skill4,
   },
   skill5: {
     key: 'ear-training-player-pose-skill-5',
-    url: '/data/Frame5.webp',
+    url: PLAYER_POSE_IMAGE_URLS.skill5,
   },
   skill6: {
     key: 'ear-training-player-pose-skill-6',
-    url: '/data/Frame6.webp',
+    url: PLAYER_POSE_IMAGE_URLS.skill6,
   },
 };
 
@@ -276,7 +278,7 @@ const hashText = (value: string): string => {
 
 interface CharacterView {
   container: Phaser.GameObjects.Container;
-  image: Phaser.GameObjects.Image | null;
+  image: Phaser.GameObjects.Sprite | null;
   fallback: Phaser.GameObjects.Text;
   motion: CharacterMotion;
 }
@@ -1632,9 +1634,21 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const shouldFlipX = !isPlayer && (avatarFlipX || EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(avatarUrl));
     const shadow = this.add.ellipse(0, 4, CHARACTER_SHADOW_WIDTH, CHARACTER_SHADOW_HEIGHT, 0x000000, 0.34);
     const image = this.textures.exists(textureKey)
-      ? this.add.image(0, 0, textureKey).setOrigin(0.5, 1).setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE)
+      ? this.add.sprite(0, 0, textureKey).setOrigin(0.5, 1).setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE)
       : null;
     image?.setFlipX(shouldFlipX);
+    const idleFrames = getBattleIdleFrames(avatarUrl);
+    if (image && idleFrames && idleFrames.every((url) => this.textures.exists(hashText(url)))) {
+      if (!this.anims.exists(textureKey)) {
+        this.anims.create({
+          key: textureKey,
+          frames: idleFrames.map((url) => ({ key: hashText(url) })),
+          frameRate: 1000 / BATTLE_IDLE_FRAME_MS,
+          repeat: -1,
+        });
+      }
+      image.play(textureKey);
+    }
     const fallback = this.add.text(0, 0, isPlayer ? 'P' : 'E', {
       color: '#ffffff',
       fontFamily: 'Arial, sans-serif',
@@ -3241,10 +3255,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     let image = view.image;
     if (!image) {
-      image = this.add.image(0, 0, asset.key).setOrigin(0.5, 1);
+      image = this.add.sprite(0, 0, asset.key).setOrigin(0.5, 1);
       view.image = image;
       view.container.add(image);
     }
+    image.stop();
     image
       .setTexture(asset.key)
       .setFlipX(false)
@@ -3269,7 +3284,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     let image = view.image;
     if (!image) {
-      image = this.add.image(0, 0, defaultTextureKey).setOrigin(0.5, 1);
+      image = this.add.sprite(0, 0, defaultTextureKey).setOrigin(0.5, 1);
       view.image = image;
       view.container.add(image);
     }
@@ -3279,12 +3294,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       .setTexture(defaultTextureKey)
       .setFlipX(false)
       .setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE);
+    if (this.anims.exists(defaultTextureKey)) image.play(defaultTextureKey);
     view.fallback.setVisible(false);
   }
 
   private loadAvatarTextures(snapshot: EarTrainingBattleSnapshot): void {
     const queuedKeys: string[] = [];
-    [snapshot.playerAvatarUrl, snapshot.enemyAvatarUrl].forEach(url => {
+    const avatars = [snapshot.playerAvatarUrl, snapshot.enemyAvatarUrl];
+    const frames = avatars.flatMap((url) => getBattleIdleFrames(url) ?? [url]);
+    frames.forEach(url => {
       if (!url) {
         return;
       }
@@ -3301,6 +3319,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.load.once('complete', () => {
       queuedKeys.forEach(key => this.loadingTextureKeys.delete(key));
+      this.lastCharacterBuildKey = null;
       this.queueSceneRebuild();
     });
     this.load.start();

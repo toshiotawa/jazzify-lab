@@ -17,7 +17,7 @@ export const DEFENSE_FIREBALL_SPAWN_DELAY_SEC = 0.32;
 const LUNGE_DIST = 22;
 const LUNGE_HEIGHT = 14;
 const FLYING_Y_OFFSET = 90;
-const WALK_FRAME_SEC = 0.25;
+const WALK_FRAME_SEC = 0.125;
 
 export const DEFENSE_ENEMY_TYPES: readonly DefenseEnemyType[] = [
   'slime',
@@ -221,7 +221,8 @@ export const getDefenseEnemyAttackDy = (attackElapsed: number, flying: boolean):
   return -height * Math.sin(Math.PI * Math.min(1, p * 2));
 };
 
-export type DefenseEnemyFrame = 'idle' | 'move';
+export const DEFENSE_WALK_FRAMES = ['idle', 'passing', 'move', 'recoil'] as const;
+export type DefenseEnemyFrame = typeof DEFENSE_WALK_FRAMES[number];
 
 export const pickDefenseEnemyFrame = (
   elapsedSec: number,
@@ -234,8 +235,8 @@ export const pickDefenseEnemyFrame = (
     return 'move';
   }
   if (flying || moving) {
-    const phase = Math.floor((elapsedSec + slotIndex * 0.1) / WALK_FRAME_SEC) % 2;
-    return phase === 0 ? 'idle' : 'move';
+    const phase = Math.floor((elapsedSec + slotIndex * 0.1) / WALK_FRAME_SEC) % DEFENSE_WALK_FRAMES.length;
+    return DEFENSE_WALK_FRAMES[phase];
   }
   return 'idle';
 };

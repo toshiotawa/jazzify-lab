@@ -1,6 +1,7 @@
 /**
  * Defense mode player sprite URLs and pose selection (pure, allocation-free).
  */
+import { BATTLE_IDLE_FRAME_MS, HERO_IDLE_FRAMES, HERO_SLASH_FRAMES } from '@/game/earTraining/battlePixelSprites';
 import { PLAYER_POSE_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 import {
   DEFENSE_SKILL_POSE_FRAME_COUNT,
@@ -13,13 +14,11 @@ import {
   DEFENSE_NO_SLASH,
 } from '@/game/defense/defenseTypes';
 
-export const DEFENSE_PLAYER_IDLE_URLS = [
-  '/defense/player/idle_1.webp',
-  '/defense/player/idle_2.webp',
-  '/defense/player/idle_3.webp',
-] as const;
+export const DEFENSE_PLAYER_IDLE_URLS = HERO_IDLE_FRAMES;
 
-export const DEFENSE_PLAYER_SLASH_URL = '/defense/player/slash.webp';
+const slashFrame = (age: number): string => HERO_SLASH_FRAMES[Math.min(
+  HERO_SLASH_FRAMES.length - 1, Math.floor(age / DEFENSE_SLASH_SEC * HERO_SLASH_FRAMES.length),
+)];
 
 export const DEFENSE_PLAYER_SKILL_POSE_URLS = [
   PLAYER_POSE_IMAGE_URLS.skill1,
@@ -32,24 +31,21 @@ export const DEFENSE_PLAYER_SKILL_POSE_URLS = [
 
 export const DEFENSE_PLAYER_SCENE_IMAGE_URLS = [
   ...DEFENSE_PLAYER_IDLE_URLS,
-  DEFENSE_PLAYER_SLASH_URL,
+  ...HERO_SLASH_FRAMES,
   PLAYER_POSE_IMAGE_URLS.guardD,
   ...DEFENSE_PLAYER_SKILL_POSE_URLS,
 ] as const;
 
-const DEFENSE_IDLE_FRAME_SEC = 0.28;
-const DEFENSE_IDLE_PING_PONG = [0, 1, 2, 1] as const;
-
 const pickIdleFrameIndex = (elapsedSec: number): number => {
-  const frame = Math.floor(elapsedSec / DEFENSE_IDLE_FRAME_SEC + 1e-9);
-  return DEFENSE_IDLE_PING_PONG[frame % DEFENSE_IDLE_PING_PONG.length];
+  const frame = Math.floor(elapsedSec * 1000 / BATTLE_IDLE_FRAME_MS + 1e-9);
+  return frame % HERO_IDLE_FRAMES.length;
 };
 
-export const pickDefenseIdlePoseUrl = (elapsedSec: number): string => (
+const pickDefenseIdlePoseUrl = (elapsedSec: number): string => (
   DEFENSE_PLAYER_IDLE_URLS[pickIdleFrameIndex(elapsedSec)]
 );
 
-/** Training mode: slash > guard > idle ping-pong (no skill poses). */
+/** Training mode: slash > guard > idle cycle (no skill poses). */
 export const pickTrainingPlayerPoseUrl = (
   elapsedSec: number,
   slashUntilSec: number,
@@ -58,7 +54,7 @@ export const pickTrainingPlayerPoseUrl = (
   if (slashUntilSec > 0) {
     const remaining = slashUntilSec - elapsedSec;
     if (remaining > 0 && remaining <= DEFENSE_SLASH_SEC) {
-      return DEFENSE_PLAYER_SLASH_URL;
+      return slashFrame(DEFENSE_SLASH_SEC - remaining);
     }
   }
 
@@ -81,7 +77,7 @@ export const pickDefensePlayerPoseUrl = (runtime: DefenseRuntime): string => {
   if (runtime.slashAt !== DEFENSE_NO_SLASH) {
     const slashAge = runtime.elapsedSec - runtime.slashAt;
     if (slashAge >= 0 && slashAge <= DEFENSE_SLASH_SEC) {
-      return DEFENSE_PLAYER_SLASH_URL;
+      return slashFrame(slashAge);
     }
   }
 

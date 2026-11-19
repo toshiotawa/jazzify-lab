@@ -32,6 +32,7 @@ import {
   syncCharactersFromSnapshot,
 } from '@/game/earTraining/canvas/earTrainingBattleCharacterMotion';
 import { drawEarTrainingBattle } from '@/game/earTraining/canvas/drawEarTrainingBattle';
+import { BATTLE_IDLE_FRAME_MS, getBattleIdleFrames } from '@/game/earTraining/battlePixelSprites';
 import { getEarTrainingBattleCriticalUrls } from '@/game/earTraining/canvas/earTrainingBattleImageAssets';
 import {
   applyEarTrainingBattleImageMap,
@@ -358,8 +359,8 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     deferredImagesScheduledRef.current = false;
 
     const avatarUrls = [
-      snapshot.playerAvatarUrl,
-      snapshot.enemyAvatarUrl,
+      ...(getBattleIdleFrames(snapshot.playerAvatarUrl) ?? [snapshot.playerAvatarUrl]),
+      ...(getBattleIdleFrames(snapshot.enemyAvatarUrl) ?? [snapshot.enemyAvatarUrl]),
     ];
 
     const criticalUrls = getEarTrainingBattleCriticalUrls(avatarUrls, battleMode);
@@ -493,6 +494,7 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
+    let idleWake: number | undefined;
     const drawFrame = (now: number): void => {
       const container = containerRef.current;
       const runtime = runtimeRef.current;
@@ -529,6 +531,12 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
 
       if (!dirtyRef.current && !hasActiveMotion) {
         rafRef.current = 0;
+        if (idleWake === undefined && (getBattleIdleFrames(runtime.player.avatarUrl) || getBattleIdleFrames(runtime.enemy.avatarUrl))) {
+          idleWake = window.setTimeout(() => {
+            idleWake = undefined;
+            markDirty();
+          }, BATTLE_IDLE_FRAME_MS - (now % BATTLE_IDLE_FRAME_MS));
+        }
         return;
       }
 
@@ -569,13 +577,14 @@ const EarTrainingBattleCanvas = forwardRef<EarTrainingBattleSceneHandle, EarTrai
     }
 
     return () => {
+      window.clearTimeout(idleWake);
       cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
       if (runtimeRef.current) {
         clearParryMotionTimers(runtimeRef.current);
       }
     };
-  }, [bindHudHitRegions, scheduleDrawFrame]);
+  }, [bindHudHitRegions, markDirty, scheduleDrawFrame]);
 
   const handlePointer = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;

@@ -158,7 +158,7 @@ final class DefenseScene: SKScene {
     private func preloadTextures() {
         guard textures.isEmpty else { return }
         for type in DefenseEnemyType.allCases {
-            for frame in [DefenseEnemyFrame.idle, .move] {
+            for frame in DefenseEnemyFrame.walkCycle {
                 let name = type.assetName(frame: frame)
                 let texture = SKTexture(imageNamed: name)
                 texture.filteringMode = .nearest

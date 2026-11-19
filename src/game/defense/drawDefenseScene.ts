@@ -246,7 +246,7 @@ const drawEnemiesOfType = (
       config.isFlying,
       attacking,
     );
-    const img = frame === 'idle' ? sprites.idle : sprites.move;
+    const img = sprites[frame];
 
     let logicalX = enemy.x;
     if (attacking) {
@@ -490,6 +490,8 @@ export const drawDefenseScene = (
   const showPhraseUi = runtime.attackTrigger === 'note';
 
   if (atlas) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
     for (let d = 0; d < DEFENSE_ENEMY_DRAW_ORDER.length; d += 1) {
       drawEnemiesOfType(
         ctx,
@@ -502,6 +504,7 @@ export const drawDefenseScene = (
         showPhraseUi,
       );
     }
+    ctx.restore();
   }
 
   let playerX = defenseLogicalToScreenX(width, DEFENSE_PLAYER_X);

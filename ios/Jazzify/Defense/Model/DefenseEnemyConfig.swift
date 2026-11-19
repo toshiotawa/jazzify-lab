@@ -130,8 +130,8 @@ enum DefenseEnemyConfig {
     ) -> DefenseEnemyFrame {
         if attacking { return .move }
         if flying || moving {
-            let phase = Int(floor((elapsedSec + Double(slotIndex) * 0.1) / 0.25)) % 2
-            return phase == 0 ? .idle : .move
+            let phase = Int(floor((elapsedSec + Double(slotIndex) * 0.1) / 0.125))
+            return DefenseEnemyFrame.walkCycle[phase % DefenseEnemyFrame.walkCycle.count]
         }
         return .idle
     }
@@ -209,8 +209,8 @@ private extension Array {
 }
 
 enum DefenseEnemyFrame: String {
-    case idle
-    case move
+    case idle, passing, move, recoil
+    static let walkCycle: [Self] = [.idle, .passing, .move, .recoil]
 }
 
 private struct DefenseEnemyTypeConfig {
@@ -257,6 +257,6 @@ extension DefenseEnemyType {
     var zDepth: CGFloat { config.zDepth }
 
     func assetName(frame: DefenseEnemyFrame) -> String {
-        "defense_enemy_\(rawValue)_\(frame.rawValue)"
+        "pixel-\(rawValue)_\(frame.rawValue)"
     }
 }

@@ -66,6 +66,7 @@ import {
 import {
   drawCachedBackground,
 } from './earTrainingBattleBackground';
+import { BATTLE_IDLE_FRAME_MS, getBattleIdleFrames } from '../battlePixelSprites';
 import { drawBattleAvatar } from './earTrainingBattleActorDraw';
 
 const HUD_FONT = 'Arial, sans-serif';
@@ -273,7 +274,9 @@ const drawCharacter = (
   const floorY = resolveFloorY(runtime.height, runtime.timingCalibrationLayout);
   const poseKey = view.poseKey && now < view.poseUntil ? view.poseKey : null;
   const poseImg = poseKey && side === 'player' ? runtime.loadedImages.get(poseKey) : null;
-  const img = poseImg ?? runtime.loadedImages.get(view.avatarUrl);
+  const frames = getBattleIdleFrames(view.avatarUrl);
+  const idleUrl = frames?.[Math.floor(now / BATTLE_IDLE_FRAME_MS) % frames.length];
+  const img = poseImg ?? runtime.loadedImages.get(idleUrl ?? view.avatarUrl) ?? runtime.loadedImages.get(view.avatarUrl);
   const flashAlpha = getCharacterFlashAlpha(view, now);
   const tintActive = view.tintColor && now < view.tintUntil;
 

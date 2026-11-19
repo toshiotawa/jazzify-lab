@@ -297,17 +297,17 @@ export const BACKGROUND_IMAGE_URLS: Record<string, string> = {
 };
 
 export const PLAYER_POSE_IMAGE_URLS: Record<string, string> = {
-  correct3: '/data/correct3.webp',
-  guardD: '/GuardD.webp',
-  guardE: '/GuardE.webp',
-  finish: '/finish.webp',
-  cast: '/data/eishou.webp',
-  skill1: '/data/Frame1.webp',
-  skill2: '/data/Frame2.webp',
-  skill3: '/data/Frame3.webp',
-  skill4: '/data/Frame4.webp',
-  skill5: '/data/Frame5.webp',
-  skill6: '/data/Frame6.webp',
+  correct3: '/battle-pixels/pixel-hero-slash-3.png',
+  guardD: '/battle-pixels/pixel-hero-guard-d.png',
+  guardE: '/battle-pixels/pixel-hero-guard-e.png',
+  finish: '/battle-pixels/pixel-hero-finish.png',
+  cast: '/battle-pixels/pixel-hero-cast.png',
+  skill1: '/battle-pixels/pixel-hero-skill-1.png',
+  skill2: '/battle-pixels/pixel-hero-skill-2.png',
+  skill3: '/battle-pixels/pixel-hero-cast.png',
+  skill4: '/battle-pixels/pixel-hero-skill-3.png',
+  skill5: '/battle-pixels/pixel-hero-skill-4.png',
+  skill6: '/battle-pixels/pixel-hero-slash-4.png',
 };
 
 export const drawCachedBackground = (

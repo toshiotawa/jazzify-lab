@@ -2,25 +2,22 @@
  * Defense enemy sprite loading (preloaded once at mount; no gameplay allocations).
  */
 import type { DefenseEnemyFrame } from '@/game/defense/defenseEnemyConfig';
-import { DEFENSE_ENEMY_TYPES } from '@/game/defense/defenseEnemyConfig';
+import { DEFENSE_ENEMY_TYPES, DEFENSE_WALK_FRAMES } from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemyType } from '@/game/defense/defenseTypes';
 import { copyCachedBattleImages, preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 
-interface DefenseEnemySpritePair {
-  readonly idle: HTMLImageElement;
-  readonly move: HTMLImageElement;
-}
+type DefenseEnemyFrames = Readonly<Record<DefenseEnemyFrame, HTMLImageElement>>;
 
-export type DefenseEnemySpriteAtlas = ReadonlyMap<DefenseEnemyType, DefenseEnemySpritePair>;
+export type DefenseEnemySpriteAtlas = ReadonlyMap<DefenseEnemyType, DefenseEnemyFrames>;
 
 const spriteUrl = (type: DefenseEnemyType, frame: DefenseEnemyFrame): string => (
-  `${import.meta.env.BASE_URL}defense/enemies/${type}_${frame}.webp`
+  `${import.meta.env.BASE_URL}battle-pixels/pixel-${type}_${frame}.png`
 );
 
 const spriteUrls = (): string[] => {
   const urls: string[] = [];
   for (const type of DEFENSE_ENEMY_TYPES) {
-    urls.push(spriteUrl(type, 'idle'), spriteUrl(type, 'move'));
+    for (const frame of DEFENSE_WALK_FRAMES) urls.push(spriteUrl(type, frame));
   }
   return urls;
 };
@@ -30,13 +27,15 @@ let cachedAtlas: DefenseEnemySpriteAtlas | null = null;
 const buildAtlasFromImageMap = (
   map: Map<string, HTMLImageElement>,
 ): DefenseEnemySpriteAtlas | null => {
-  const atlas = new Map<DefenseEnemyType, DefenseEnemySpritePair>();
+  const atlas = new Map<DefenseEnemyType, DefenseEnemyFrames>();
   for (const type of DEFENSE_ENEMY_TYPES) {
     const idle = map.get(spriteUrl(type, 'idle'));
     const move = map.get(spriteUrl(type, 'move'));
-    const available = idle ?? move;
+    const passing = map.get(spriteUrl(type, 'passing'));
+    const recoil = map.get(spriteUrl(type, 'recoil'));
+    const available = idle ?? move ?? passing ?? recoil;
     if (available) {
-      atlas.set(type, { idle: idle ?? available, move: move ?? available });
+      atlas.set(type, { idle: idle ?? available, passing: passing ?? available, move: move ?? available, recoil: recoil ?? available });
     }
   }
   return atlas.size > 0 ? atlas : null;

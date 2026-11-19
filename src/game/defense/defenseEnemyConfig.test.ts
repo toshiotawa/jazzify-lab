@@ -54,7 +54,10 @@ describe('defenseEnemyConfig', () => {
 
   it('alternates frames while moving and stays idle when stopped on ground', () => {
     expect(pickDefenseEnemyFrame(0, 0, true, false, false)).toBe('idle');
+    expect(pickDefenseEnemyFrame(0.125, 0, true, false, false)).toBe('passing');
     expect(pickDefenseEnemyFrame(0.25, 0, true, false, false)).toBe('move');
+    expect(pickDefenseEnemyFrame(0.375, 0, true, false, false)).toBe('recoil');
+    expect(pickDefenseEnemyFrame(0.5, 0, true, false, false)).toBe('idle');
     expect(pickDefenseEnemyFrame(0.25, 0, false, false, false)).toBe('idle');
     expect(pickDefenseEnemyFrame(0.25, 0, false, true, false)).toBe('move');
   });

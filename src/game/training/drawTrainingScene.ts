@@ -198,6 +198,7 @@ const drawTrainingEnemySprite = (
   ctx.fill();
 
   if (sprites) {
+    ctx.imageSmoothingEnabled = false;
     const frame = pickDefenseEnemyFrame(
       elapsedSec,
       typeIndex,
@@ -205,7 +206,7 @@ const drawTrainingEnemySprite = (
       config.isFlying,
       attacking,
     );
-    const img = frame === 'idle' ? sprites.idle : sprites.move;
+    const img = sprites[frame];
     const top = floorY + footOffset - drawHeight;
     ctx.drawImage(img, ex - drawWidth / 2, top, drawWidth, drawHeight);
     if (hitFlash) {

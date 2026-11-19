@@ -1,33 +1,28 @@
 import Foundation
 
 enum DefensePlayerPose {
-    static let idleAssetNames = [
-        "defense_player_idle_1",
-        "defense_player_idle_2",
-        "defense_player_idle_3",
-    ]
-    static let slashAssetName = "defense_player_slash"
-    static let guardAssetName = "GuardD"
+    static let idleAssetNames = (1...4).map { "pixel-hero-idle-\($0)" }
+    static let slashAssetNames = (1...4).map { "pixel-hero-slash-\($0)" }
+    static let guardAssetName = "pixel-hero-guard-d"
     static let skillAssetNames = [
-        "Frame1",
-        "Frame2",
-        "Frame3",
-        "Frame4",
-        "Frame5",
-        "Frame6",
+        "pixel-hero-skill-1", "pixel-hero-skill-2", "pixel-hero-cast",
+        "pixel-hero-skill-3", "pixel-hero-skill-4", "pixel-hero-slash-4"
     ]
 
-    static let sceneAssetNames: [String] = idleAssetNames + [slashAssetName, guardAssetName] + skillAssetNames
+    static let sceneAssetNames = idleAssetNames + slashAssetNames + [guardAssetName] + skillAssetNames
+    static let idleFrameSec: TimeInterval = 0.28
 
-    private static let idleFrameSec: TimeInterval = 0.28
-    private static let idlePingPong = [0, 1, 2, 1]
+    private static func slashAssetName(age: TimeInterval) -> String {
+        let frame = Int(age / DefenseEnemyConfig.slashSec * Double(slashAssetNames.count))
+        return slashAssetNames[min(slashAssetNames.count - 1, frame)]
+    }
 
     static func idleAssetName(elapsedSec: TimeInterval) -> String {
         let frame = Int(floor(elapsedSec / idleFrameSec + 1e-9))
-        return idleAssetNames[idlePingPong[frame % idlePingPong.count]]
+        return idleAssetNames[frame % idleAssetNames.count]
     }
 
-    /// Training mode: slash > guard > idle ping-pong (no skill poses).
+    /// Training mode: slash > guard > idle cycle (no skill poses).
     static func trainingAssetName(
         elapsedSec: TimeInterval,
         slashUntilSec: TimeInterval,
@@ -36,7 +31,7 @@ enum DefensePlayerPose {
         if slashUntilSec > 0 {
             let remaining = slashUntilSec - elapsedSec
             if remaining > 0, remaining <= DefenseEnemyConfig.slashSec {
-                return slashAssetName
+                return slashAssetName(age: DefenseEnemyConfig.slashSec - remaining)
             }
         }
 
@@ -59,7 +54,7 @@ enum DefensePlayerPose {
         if runtime.slashAt != DefenseEnemyConfig.noSlash {
             let slashAge = runtime.elapsedSec - runtime.slashAt
             if slashAge >= 0 && slashAge <= DefenseEnemyConfig.slashSec {
-                return slashAssetName
+                return slashAssetName(age: slashAge)
             }
         }
 
