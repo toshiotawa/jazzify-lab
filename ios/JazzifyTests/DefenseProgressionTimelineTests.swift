@@ -7,6 +7,14 @@ final class DefenseProgressionTimelineTests: XCTestCase {
         DefenseStageProgressionChord(orderIndex: 1, chordName: "G7", measureNumber: 1, beatOffset: 3, durationBeats: 2),
     ]
 
+    func testNoActiveChipBeforePlaybackStarts() {
+        let index = DefenseProgressionTimeline.resolveActiveIndex(
+            chords: twoBeatProgression, beatInForm: nil, formBarCount: 1, beatsPerBar: 4
+        )
+        let chips = DefenseProgressionTimeline.buildChips(chords: twoBeatProgression, activeIndex: index) { $0 }
+        XCTAssertFalse(chips.contains { $0.active })
+    }
+
     func testResolveActiveIndexSelectsG7OnBeatTwo() {
         XCTAssertEqual(
             DefenseProgressionTimeline.resolveActiveIndex(

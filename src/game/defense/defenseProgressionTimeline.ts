@@ -26,10 +26,11 @@ const progressionChordStartBeat = (
 /** 0-based fractional beat within the form loop. */
 export const resolveDefenseProgressionActiveIndex = (
   chords: readonly DefenseStageProgressionChord[],
-  beatInForm: number,
+  beatInForm: number | null,
   formBarCount: number,
   beatsPerBar: number,
 ): number => {
+  if (beatInForm === null) return -1;
   if (chords.length === 0 || formBarCount <= 0 || beatsPerBar <= 0) {
     return 0;
   }

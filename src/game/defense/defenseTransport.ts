@@ -2,6 +2,11 @@
  * Defense mode musical transport: bar boundary math on audio clock seconds.
  */
 
+/** Device presentation time in the same coordinate system as scheduled Web Audio sources. */
+export const defenseOutputTime = (ctx: AudioContext): number => (
+  ctx.currentTime - (ctx.baseLatency || 0) - (ctx.outputLatency || 0)
+);
+
 export const barSeconds = (bpm: number, beatsPerBar: number): number => {
   const safeBpm = Math.max(1, bpm);
   const safeBeats = Math.max(1, beatsPerBar);

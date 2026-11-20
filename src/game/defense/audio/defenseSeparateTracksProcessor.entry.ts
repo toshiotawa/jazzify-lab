@@ -24,6 +24,8 @@ type WorkletMessage =
 class DefenseSeparateTracksProcessor extends AudioWorkletProcessor {
   private state: SeparateTracksMixerState | null = null;
 
+  private publishPosition = false;
+
   private pendingPhraseRequest: PhraseRequestMailbox | null = null;
 
   private pendingTempoRequest: TempoRequestMailbox | null = null;
@@ -41,7 +43,7 @@ class DefenseSeparateTracksProcessor extends AudioWorkletProcessor {
           });
           this.pendingPhraseRequest = null;
           this.pendingTempoRequest = null;
-          this.port.postMessage({ type: 'ready', setId: message.set.setId });
+          this.publishPosition = true;
           break;
         }
         case 'requestPhrase':
@@ -66,6 +68,7 @@ class DefenseSeparateTracksProcessor extends AudioWorkletProcessor {
         case 'resume':
           if (this.state) {
             this.state = { ...this.state, paused: false };
+            this.publishPosition = true;
           }
           break;
         case 'stop':
@@ -121,11 +124,12 @@ class DefenseSeparateTracksProcessor extends AudioWorkletProcessor {
 
     this.state = result.state;
 
-    if (result.appliedPhraseAtBoundary || result.appliedTempoAtBoundary) {
+    if (!result.state.paused && (this.publishPosition || result.appliedPhraseAtBoundary || result.appliedTempoAtBoundary)) {
+      this.publishPosition = false;
       this.port.postMessage({
         type: 'boundary',
-        appliedPhrase: result.appliedPhraseAtBoundary,
-        appliedTempo: result.appliedTempoAtBoundary,
+        audioTime: currentTime + blockFrames / sampleRate,
+        grid: result.state.activeSet.grid,
         absoluteCycle: result.state.absoluteCycle,
         phaseFrame: result.state.phaseFrame,
         audiblePhraseIndex: result.state.audiblePhraseIndex,

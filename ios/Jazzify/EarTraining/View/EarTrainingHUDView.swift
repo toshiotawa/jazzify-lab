@@ -27,7 +27,15 @@ struct EarTrainingHUDView: View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 3) {
                 if !hud.hidePlayerHpBar {
-                    healthTimeRow
+                    if rightControlsLeading != nil {
+                        HStack(spacing: 8) {
+                            healthTimeRow
+                            rightControls
+                        }
+                    } else {
+                        healthTimeRow
+                            .padding(.trailing, healthRowTrailingReserve)
+                    }
                 }
                 if !hud.hideEnemyAttackGauge {
                     attackGauge
@@ -43,7 +51,8 @@ struct EarTrainingHUDView: View {
             .padding(.top, 4)
             .padding(.bottom, 2)
 
-            if !hud.hideSettingsButton || !hud.hideBackButton || rightControlsLeading != nil {
+            if (rightControlsLeading == nil || hud.hidePlayerHpBar)
+                && (!hud.hideSettingsButton || !hud.hideBackButton || rightControlsLeading != nil) {
                 rightControls
                     .padding(.top, 16)
                     .padding(.trailing, 14)
@@ -93,7 +102,6 @@ struct EarTrainingHUDView: View {
                 )
             }
         }
-        .padding(.trailing, healthRowTrailingReserve)
     }
 
     private var rightControls: some View {

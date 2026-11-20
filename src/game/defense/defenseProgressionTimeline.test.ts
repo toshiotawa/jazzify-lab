@@ -15,6 +15,11 @@ const twoBeatProgression: readonly DefenseStageProgressionChord[] = [
 ];
 
 describe('resolveDefenseProgressionActiveIndex', () => {
+  it('leaves all chips unlit before the first audible beat', () => {
+    const index = resolveDefenseProgressionActiveIndex(twoBeatProgression, null, 1, 4);
+    expect(buildDefenseProgressionChips(twoBeatProgression, index, (name) => name).some((chip) => chip.active)).toBe(false);
+  });
+
   it('selects G7 on beat 2 of a 4/4 bar', () => {
     expect(resolveDefenseProgressionActiveIndex(twoBeatProgression, 2, 1, 4)).toBe(1);
   });

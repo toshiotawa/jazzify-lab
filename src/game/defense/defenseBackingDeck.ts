@@ -10,6 +10,7 @@ import { fetchCachedFullAudioBuffer } from '@/utils/audioFetchCache';
 import {
   barSeconds,
   barSecondsFromLoop,
+  defenseOutputTime,
   planDefenseSwitch,
   rebaseTransportStart,
 } from '@/game/defense/defenseTransport';
@@ -140,13 +141,14 @@ class DefenseBackingDeck {
   }
 
   /** Fractional beat position within the active phrase loop (0 … barCount * beatsPerBar). */
-  getBeatInLoop(): number {
+  getBeatInLoop(): number | null {
     const graph = this.graph;
     const playback = this.activePlayback;
     if (!graph || !playback || this.transportStart <= 0 || this.barSec <= 0) {
-      return 0;
+      return null;
     }
-    const elapsed = Math.max(0, graph.ctx.currentTime - this.transportStart);
+    const elapsed = defenseOutputTime(graph.ctx) - this.transportStart;
+    if (elapsed < 0) return null;
     return elapsedSecToBeatInLoop(
       elapsed,
       playback.loopStart,

@@ -102,9 +102,9 @@ import {
   type DefenseStageProgressionChord,
 } from '@/game/defense/defenseProgressionTimeline';
 import type { MutableDefenseSceneHud } from '@/game/defense/defenseSceneHud';
-import { DEFENSE_HUD_HEIGHT_PX } from '@/game/defense/defenseSceneLayout';
+import { DEFENSE_HUD_HEIGHT_PX, DEFENSE_PLAYER_X_RATIO } from '@/game/defense/defenseSceneLayout';
 import { createDefenseRuntime } from '@/game/defense/defenseTypes';
-import { PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
+import { CHARACTER_DISPLAY_SIZE, PIANO_OVERLAY_HEIGHT } from '@/game/earTraining/canvas/earTrainingBattleLayout';
 import { useResolvedWebKeyboardRange } from '@/hooks/useResolvedWebKeyboardRange';
 import { useStandaloneNoteInput } from '@/hooks/useStandaloneNoteInput';
 import { useAuthStore } from '@/stores/authStore';
@@ -251,8 +251,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC),
   );
   const [finalStats, setFinalStats] = useState<FinalStats | null>(null);
-  const [progressionActiveIndex, setProgressionActiveIndex] = useState(0);
-  const progressionActiveIndexRef = useRef(0);
+  const [backingPhraseIndex, setBackingPhraseIndex] = useState(0);
+  const [progressionActiveIndex, setProgressionActiveIndex] = useState(-1);
+  const progressionActiveIndexRef = useRef(-1);
   const effectiveProgressionChordsRef = useRef<readonly DefenseStageProgressionChord[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isSettingsOpenRef = useRef(false);
@@ -301,6 +302,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       pendingPlaybackRef.current = null;
       defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
       defenseBackingDeck.start(playback);
+      setBackingPhraseIndex(0);
     }
 
     runtimeRef.current.elapsedSec = 0;
@@ -332,21 +334,22 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const activeVoicingKey = voicingKeyState != null ? currentVoicingKey(voicingKeyState) : null;
   const phraseKeyFifths = currentPhrase?.keyFifths ?? stage.keyFifths;
 
+  const backingPhrase = stage.phrases[backingPhraseIndex];
   const phraseLoopBarCount = useMemo(() => {
-    if (!currentPhrase) {
+    if (!backingPhrase) {
       return Math.max(1, stage.phraseBars);
     }
     if (
-      currentPhrase.loopStartMeasure !== null
-      && currentPhrase.loopEndMeasure !== null
+      backingPhrase.loopStartMeasure !== null
+      && backingPhrase.loopEndMeasure !== null
     ) {
       return Math.max(
         1,
-        currentPhrase.loopEndMeasure - currentPhrase.loopStartMeasure + 1,
+        backingPhrase.loopEndMeasure - backingPhrase.loopStartMeasure + 1,
       );
     }
-    return Math.max(1, currentPhrase.chords.length, stage.phraseBars);
-  }, [currentPhrase, stage.phraseBars]);
+    return Math.max(1, backingPhrase.chords.length, stage.phraseBars);
+  }, [backingPhrase, stage.phraseBars]);
 
   const formBarCount = useMemo(
     () => resolveDefenseFormBarCount(
@@ -360,15 +363,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     () => resolveDefensePhraseProgressionChords({
       stageProgressionChords: stage.progressionChords,
       usesFullStageProgressionHud: usesProgressionHud,
-      phraseLoopStartMeasure: currentPhrase?.loopStartMeasure ?? null,
-      phraseLoopEndMeasure: currentPhrase?.loopEndMeasure ?? null,
+      phraseLoopStartMeasure: backingPhrase?.loopStartMeasure ?? null,
+      phraseLoopEndMeasure: backingPhrase?.loopEndMeasure ?? null,
       phraseLoopBarCount,
     }),
     [
       stage.progressionChords,
       usesProgressionHud,
-      currentPhrase?.loopStartMeasure,
-      currentPhrase?.loopEndMeasure,
+      backingPhrase?.loopStartMeasure,
+      backingPhrase?.loopEndMeasure,
       phraseLoopBarCount,
     ],
   );
@@ -389,20 +392,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const progressionChips = useMemo(
     () => buildDefenseProgressionChips(
       effectiveProgressionChords,
-      progressionActiveIndex,
+      phase === 'playing' ? progressionActiveIndex : -1,
       transposeProgressionLabel,
     ),
-    [effectiveProgressionChords, progressionActiveIndex, transposeProgressionLabel],
+    [effectiveProgressionChords, phase, progressionActiveIndex, transposeProgressionLabel],
   );
 
   useEffect(() => {
     effectiveProgressionChordsRef.current = effectiveProgressionChords;
   }, [effectiveProgressionChords]);
-
-  useEffect(() => {
-    progressionActiveIndexRef.current = 0;
-    setProgressionActiveIndex(0);
-  }, [judgeSnapshot.phraseIndex, effectiveProgressionChords]);
 
   const keyboardHints = useMemo(
     () => getDefensePhraseKeyboardHints(activePhrases, judgeSnapshot, voiceSequential),
@@ -501,11 +499,13 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     const generation = backingRestartGenerationRef.current + 1;
     backingRestartGenerationRef.current = generation;
     const previousPendingSwitchAt = pendingSwitchAtRef.current;
+    const previousPhraseIndex = scheduledNextPhraseIndexRef.current;
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
     if (!isSharedProgressionStage && !isSeparateTracksStage && previousPendingSwitchAt !== null) {
       if (defenseBackingDeck.getCurrentTime() >= previousPendingSwitchAt) {
         defenseBackingDeck.commitSwitch();
+        if (previousPhraseIndex !== null) setBackingPhraseIndex(previousPhraseIndex);
       } else {
         defenseBackingDeck.cancelPendingSwitch();
       }
@@ -559,12 +559,12 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         backingRestartGenerationRef.current += 1;
         defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
         defenseBackingDeck.start(playback);
+        setBackingPhraseIndex(judgeRef.current.phraseIndex);
       } else {
         scheduledNextPhraseIndexRef.current = phraseIndex;
         const playback = await defenseBackingDeck.preparePhraseBacking(stage, phrase, ratio);
         if (backingRestartGenerationRef.current !== generation) return;
         if (scheduledNextPhraseIndexRef.current !== phraseIndex) return;
-        defenseBackingDeck.setTransportConfig(stage.bpm * ratio, stage.beatsPerBar);
         pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
       }
     } catch {
@@ -648,6 +648,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   const commitScheduledAudioSwitch = useCallback((phraseIndex: number): void => {
     defenseBackingDeck.commitSwitch();
+    setBackingPhraseIndex(phraseIndex);
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
 
@@ -853,6 +854,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   useEffect(() => {
     let cancelled = false;
     phaseRef.current = 'loading';
+    progressionActiveIndexRef.current = -1;
+    setProgressionActiveIndex(-1);
+    setBackingPhraseIndex(0);
     setPhase('loading');
     setCountdownSec(defenseStartCountdownDisplaySec(DEFENSE_START_COUNTDOWN_SEC));
     pendingPlaybackRef.current = null;
@@ -1007,7 +1011,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
             ? defenseSeparateTracksDeck.getBeatInForm()
             : isSharedProgressionStage
               ? defenseSharedProgressionDeck.getBeatInForm()
-              : defenseBackingDeck.getBeatInLoop() % (formBarCount * stage.beatsPerBar);
+              : defenseBackingDeck.getBeatInLoop();
           const nextActiveIndex = resolveDefenseProgressionActiveIndex(
             hudProgressionChords,
             beatInForm,
@@ -1195,8 +1199,11 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
       {practiceMode && currentPhrase && (
         <div
-          className="absolute left-3 z-40"
-          style={{ bottom: PIANO_OVERLAY_HEIGHT + 8 }}
+          className="absolute z-40"
+          style={{
+            left: `calc(${DEFENSE_PLAYER_X_RATIO * 100}% + ${CHARACTER_DISPLAY_SIZE / 2 + 12}px)`,
+            bottom: PIANO_OVERLAY_HEIGHT + 8,
+          }}
         >
           <DefensePracticeHud
             phraseIndex={voicingKeyState?.index ?? judgeSnapshot.phraseIndex}
