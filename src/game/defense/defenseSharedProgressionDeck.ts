@@ -14,7 +14,7 @@ import {
   sharedProgressionBarSeconds,
   type SharedProgressionSwitchEveryBars,
 } from '@/game/defense/defenseSharedProgressionTransport';
-import { beatSeconds } from '@/game/defense/defenseTransport';
+import { beatSeconds, defenseOutputTime } from '@/game/defense/defenseTransport';
 import type { DefenseStage } from '@/game/defense/defenseTypes';
 import { VOICE_INPUT_BGM_DUCK } from '@/utils/voiceInputBgmDuck';
 
@@ -252,13 +252,14 @@ class DefenseSharedProgressionDeck {
   }
 
   /** Fractional beat position within the shared progression form loop. */
-  getBeatInForm(): number {
+  getBeatInForm(): number | null {
     const graph = this.graph;
-    if (!graph || this.transportStart <= 0 || this.barSec <= 0 || this.progressionBars <= 0) {
-      return 0;
+    if (!graph || (!this.slotA && !this.slotB) || this.barSec <= 0 || this.progressionBars <= 0) {
+      return null;
     }
-    const now = graph.ctx.currentTime;
-    const absoluteBarPosition = Math.max(0, (now - this.transportStart) / this.barSec);
+    const elapsed = defenseOutputTime(graph.ctx) - this.transportStart;
+    if (elapsed < 0) return null;
+    const absoluteBarPosition = elapsed / this.barSec;
     const barInForm = absoluteBarPosition % this.progressionBars;
     const stageBeats = this.stage?.beatsPerBar ?? 4;
     return barInForm * stageBeats;

@@ -24,11 +24,14 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
     private let mailbox = OSAllocatedUnfairLock(initialState: PhraseMailbox())
 
-    private var snapshotAbsoluteCycle = 0
-    private var snapshotPhaseFrame = 0
-    private var snapshotGrid: DefenseSeparateTracksGrid?
-    private var snapshotSpeedPercent = 100
-    private var snapshotAudiblePhraseIndex = 0
+    private struct RenderPosition: Sendable {
+        let endFrame: Int
+        let endHostSec: Double
+        let grid: DefenseSeparateTracksGrid
+    }
+
+    private let renderPosition = OSAllocatedUnfairLock(initialState: Optional<RenderPosition>.none)
+    private var presentationLatency: TimeInterval = 0
 
     private var renderScratchLeft: [Float] = []
     private var renderScratchRight: [Float] = []
@@ -75,7 +78,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             state.bgmGain = 0.5
             state.melodyGain = 0.5
             self.mixerState = state
-            self.updateSnapshot(from: state)
         }
     }
 
@@ -97,7 +99,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
             let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
             self.rebuildGraph(sourceFormat: format)
-            self.updateSnapshot(from: state)
         }
         if Thread.isMainThread {
             apply()
@@ -157,9 +158,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             self.detachPlaybackGraph(detachMasterMixer: true)
             self.mixerState = nil
             self.stage = nil
-            self.snapshotGrid = nil
-            self.snapshotAbsoluteCycle = 0
-            self.snapshotPhaseFrame = 0
             self.mailbox.withLock { state in
                 state.pendingPhraseRequest = nil
                 state.pendingTempoRequest = nil
@@ -182,16 +180,15 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         applyMasterVolume()
     }
 
-    func beatInForm() -> Double {
-        guard let grid = snapshotGrid else { return 0 }
-        return DefenseSeparateTracksTransport.beatInForm(
-            absoluteCycle: snapshotAbsoluteCycle,
-            phaseFrame: snapshotPhaseFrame,
-            cycleFrames: grid.cycleFrames,
-            phraseBars: grid.phraseBars.rawValue,
-            beatsPerBar: stage?.beatsPerBar ?? 4,
-            cyclesPerForm: grid.cyclesPerForm
-        )
+    func beatInForm() -> Double? {
+        guard let position = renderPosition.withLock({ $0 }), engine.isRunning else { return nil }
+        let grid = position.grid
+        let now = AVAudioTime.seconds(forHostTime: mach_absolute_time()) - presentationLatency
+        let framesAhead = max(0, position.endHostSec - now) * grid.sampleRate
+        let frame = Double(position.endFrame) - framesAhead
+        guard frame >= 0 else { return nil }
+        let frameInForm = frame.truncatingRemainder(dividingBy: Double(grid.bgmFrames))
+        return frameInForm / Double(grid.cycleFrames) * Double(grid.phraseBars.rawValue * (stage?.beatsPerBar ?? 4))
     }
 
     private func registerLifecycleObservers() {
@@ -283,7 +280,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
             let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: reconverted.grid.sampleRate)
             rebuildGraph(sourceFormat: format)
-            updateSnapshot(from: state)
             return
         }
 
@@ -315,6 +311,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         applyMasterVolume()
         engine.prepare()
         try? engine.start()
+        presentationLatency = sourceNode?.outputPresentationLatency ?? 0
     }
 
     /// 旧 `AVAudioSourceNode` を engine から外す。`sourceNode = nil` だけでは attach が残り、
@@ -347,6 +344,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             engine.detach(masterMixer)
         }
 
+        renderPosition.withLock { $0 = nil }
         sourcePlaybackFormat = nil
     }
 
@@ -357,6 +355,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         }
         engine.prepare()
         try? engine.start()
+        presentationLatency = sourceNode?.outputPresentationLatency ?? 0
     }
 
     private func render(
@@ -416,7 +415,18 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             right: renderScratchRight,
             frameCount: blockFrames
         )
-        updateSnapshot(from: state)
+        if !state.paused {
+            let grid = state.activeSet.grid
+            let blockHost = hostTimeValid ? hostTime : mach_absolute_time()
+            let endHostSec = AVAudioTime.seconds(forHostTime: blockHost) + Double(blockFrames) / grid.sampleRate
+            let position = RenderPosition(
+                endFrame: state.absoluteCycle * grid.cycleFrames + state.phaseFrame,
+                endHostSec: endHostSec,
+                grid: grid
+            )
+            // The next audio block can refresh the HUD if the UI is reading this one.
+            _ = renderPosition.withLockIfAvailable { $0 = position }
+        }
         return noErr
     }
 
@@ -463,14 +473,6 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
                 interleaved[frame * 2 + 1] = right[frame]
             }
         }
-    }
-
-    private func updateSnapshot(from state: DefenseSeparateTracksMixerState) {
-        snapshotAbsoluteCycle = state.absoluteCycle
-        snapshotPhaseFrame = state.phaseFrame
-        snapshotGrid = state.activeSet.grid
-        snapshotSpeedPercent = state.activeSet.speedPercent
-        snapshotAudiblePhraseIndex = state.audiblePhraseIndex
     }
 
     private func applyMasterVolume() {

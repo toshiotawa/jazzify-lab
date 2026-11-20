@@ -29,6 +29,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var bpm: Double = 120
     private var beatsPerBar: Int = 4
     private var currentBarCount: Int = 4
+    private var presentationLatency: TimeInterval = 0
     private var pendingBarCount: Int = 4
     private var switchScheduleToken: UInt64 = 0
 
@@ -427,14 +428,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
         activeIsA = true
         bufferA = buffer
         bufferB = nil
-        let now = Self.hostTimeSec()
-        let transportStart = now + Self.startLeadSec
-        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: transportStart))
-        playerA.scheduleBuffer(buffer, at: when, options: [.loops])
+        playerA.scheduleBuffer(buffer, at: nil, options: [.loops])
         applyMasterMixerVolume()
         if !engine.isRunning {
             try engine.start()
         }
+        presentationLatency = playerA.outputPresentationLatency
+        let transportStart = Self.hostTimeSec() + Self.startLeadSec
+        let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: transportStart))
         playerA.play(at: when)
         os_unfair_lock_lock(&lock)
         transportStartHostSec = transportStart
@@ -479,17 +480,17 @@ final class DefenseBackingAudio: @unchecked Sendable {
             switchAt = max(now + Self.scheduleMinQuantumSec, switchAt)
             playbackWhen = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
             let rate = max(0.1, Double(timePitch.rate))
-            let overshootSec = max(0, now - plan.cutAt)
+            let overshootSec = max(0, switchAt - plan.cutAt)
             scheduleLoopFromOffset(
                 buffer: buffer,
                 player: incoming,
-                at: playbackWhen,
+                at: nil,
                 offsetSec: overshootSec,
                 playbackRate: rate
             )
         } else {
             playbackWhen = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: switchAt))
-            incoming.scheduleBuffer(buffer, at: playbackWhen, options: [.loops])
+            incoming.scheduleBuffer(buffer, at: nil, options: [.loops])
         }
         incoming.play(at: playbackWhen)
         scheduleOutgoingStop(
@@ -619,28 +620,19 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
     }
 
-    func beatInLoop() -> Double {
+    func beatInLoop() -> Double? {
         os_unfair_lock_lock(&lock)
         let transportStart = transportStartHostSec
         let bpmSnapshot = bpm
         let beatsSnapshot = beatsPerBar
         os_unfair_lock_unlock(&lock)
 
-        let now = Self.hostTimeSec()
-        guard transportStart > 0 else { return 0 }
+        guard transportStart > 0, engine.isRunning else { return nil }
+        let elapsed = Self.hostTimeSec() - presentationLatency - transportStart
+        guard elapsed >= 0 else { return nil }
         let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
-        guard barSec > 0 else { return 0 }
-
-        let elapsed = max(0, now - transportStart)
-        let currentBuffer = activeIsA ? bufferA : bufferB
-        guard let currentBuffer, currentBuffer.frameLength > 0 else {
-            return (elapsed / barSec) * Double(beatsSnapshot)
-        }
-        let rate = max(0.1, Double(timePitch.rate))
-        let loopDur = Double(currentBuffer.frameLength) / currentBuffer.format.sampleRate / rate
-        guard loopDur > 0 else { return 0 }
-        let positionInLoop = elapsed.truncatingRemainder(dividingBy: loopDur)
-        return (positionInLoop / barSec) * Double(beatsSnapshot)
+        let loopDuration = barSec * Double(currentBarCount)
+        return elapsed.truncatingRemainder(dividingBy: loopDuration) / barSec * Double(beatsSnapshot)
     }
 
     private static func hostTimeSec() -> Double {

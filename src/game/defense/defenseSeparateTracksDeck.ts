@@ -1,14 +1,11 @@
 /**
  * Separate-tracks defense deck: AudioWorklet bridge for BGM + melody mix.
  */
+import { defenseOutputTime } from './defenseTransport';
 import processorUrl from 'virtual:defense-separate-tracks-processor-url';
 
 import { isDefenseSharedProgressionSeparateTracksStage } from '@/game/defense/defenseAudioRegistrationMode';
-import {
-  advanceTransportByElapsedFrames,
-  computeBeatInForm,
-  type SeparateTracksGrid,
-} from '@/game/defense/defenseSeparateTracksTransport';
+import type { SeparateTracksGrid } from '@/game/defense/defenseSeparateTracksTransport';
 import {
   prepareSeparateTracksBuffers,
   separateTracksCacheKey,
@@ -85,8 +82,6 @@ class DefenseSeparateTracksDeck {
 
   private paused = false;
 
-  private pausedSnapshot: Snapshot | null = null;
-
   private processorLoaded = false;
 
   private async ensureProcessor(ctx: AudioContext): Promise<void> {
@@ -111,26 +106,6 @@ class DefenseSeparateTracksDeck {
     if (this.masterGain) {
       this.masterGain.gain.value = 1;
     }
-  }
-
-  private buildSnapshotFromMessage(data: {
-    absoluteCycle: number;
-    phaseFrame: number;
-    audiblePhraseIndex: number;
-    speedPercent: number;
-  }): void {
-    if (!this.activePreparedSet) {
-      return;
-    }
-    this.snapshot = {
-      absoluteCycle: data.absoluteCycle,
-      phaseFrame: data.phaseFrame,
-      audiblePhraseIndex: data.audiblePhraseIndex,
-      speedPercent: data.speedPercent,
-      grid: this.activePreparedSet.grid,
-      audioTime: getAudioContext().currentTime,
-    };
-    this.appliedSpeedPercent = data.speedPercent;
   }
 
   async prepare(stage: DefenseStage, speedRatio: number): Promise<void> {
@@ -178,7 +153,7 @@ class DefenseSeparateTracksDeck {
     this.sessionGeneration += 1;
     this.requestRevision = 0;
     this.paused = false;
-    this.pausedSnapshot = null;
+    this.snapshot = null;
 
     if (this.workletNode) {
       this.workletNode.disconnect();
@@ -195,22 +170,11 @@ class DefenseSeparateTracksDeck {
     });
     this.workletNode.connect(this.masterGain);
 
-    this.workletNode.port.onmessage = (event) => {
-      const data = event.data as {
-        type?: string;
-        absoluteCycle?: number;
-        phaseFrame?: number;
-        audiblePhraseIndex?: number;
-        speedPercent?: number;
-      };
-      if (data.type === 'boundary' && data.absoluteCycle !== undefined) {
-        this.buildSnapshotFromMessage({
-          absoluteCycle: data.absoluteCycle,
-          phaseFrame: data.phaseFrame ?? 0,
-          audiblePhraseIndex: data.audiblePhraseIndex ?? 0,
-          speedPercent: data.speedPercent ?? this.appliedSpeedPercent,
-        });
-      }
+    const generation = this.sessionGeneration;
+    this.workletNode.port.onmessage = (event: MessageEvent<Snapshot & { type: string }>) => {
+      if (this.sessionGeneration !== generation || event.data.type !== 'boundary') return;
+      this.snapshot = event.data;
+      this.appliedSpeedPercent = event.data.speedPercent;
     };
 
     const prepared = this.activePreparedSet;
@@ -224,15 +188,6 @@ class DefenseSeparateTracksDeck {
       sessionGeneration: this.sessionGeneration,
       phraseIndex,
     });
-
-    this.snapshot = {
-      absoluteCycle: 0,
-      phaseFrame: 0,
-      audiblePhraseIndex: phraseIndex,
-      speedPercent: prepared.speedPercent,
-      grid: prepared.grid,
-      audioTime: ctx.currentTime,
-    };
 
     this.updateGain();
     if (ctx.state !== 'running') {
@@ -287,31 +242,13 @@ class DefenseSeparateTracksDeck {
   }
 
   pause(): void {
-    const live = this.resolveLiveTransport();
     this.paused = true;
-    if (live && this.snapshot) {
-      const frozen: Snapshot = {
-        ...this.snapshot,
-        absoluteCycle: live.absoluteCycle,
-        phaseFrame: live.phaseFrame,
-        audioTime: getAudioContext().currentTime,
-      };
-      this.snapshot = frozen;
-      this.pausedSnapshot = frozen;
-    } else {
-      this.pausedSnapshot = this.snapshot;
-    }
     this.workletNode?.port.postMessage({ type: 'pause' });
   }
 
   resume(): void {
     this.paused = false;
-    if (this.snapshot) {
-      this.snapshot = {
-        ...this.snapshot,
-        audioTime: getAudioContext().currentTime,
-      };
-    }
+    this.snapshot = null;
     this.workletNode?.port.postMessage({ type: 'resume' });
   }
 
@@ -321,7 +258,6 @@ class DefenseSeparateTracksDeck {
     this.workletNode?.disconnect();
     this.workletNode = null;
     this.snapshot = null;
-    this.pausedSnapshot = null;
     this.pendingTempoPrepare = null;
     this.stage = null;
     this.activePreparedSet = null;
@@ -337,47 +273,14 @@ class DefenseSeparateTracksDeck {
     this.updateGain();
   }
 
-  getBeatInForm(): number {
-    const live = this.paused
-      ? (this.pausedSnapshot ?? this.snapshot)
-      : (this.resolveLiveTransport() ?? this.snapshot);
-    if (!live) {
-      return 0;
-    }
-    return computeBeatInForm(
-      live.absoluteCycle,
-      live.phaseFrame,
-      live.grid.cycleFrames,
-      live.grid.phraseBars,
-      this.stage?.beatsPerBar ?? 4,
-      live.grid.cyclesPerForm,
-    );
-  }
-
-  private resolveLiveTransport(): Snapshot | null {
+  getBeatInForm(): number | null {
     const snap = this.snapshot;
-    if (!snap) {
-      return null;
-    }
-    if (this.paused) {
-      return snap;
-    }
-    const ctx = sharedAudioContext;
-    if (!ctx) {
-      return snap;
-    }
-    const elapsedFrames = Math.round(Math.max(0, ctx.currentTime - snap.audioTime) * snap.grid.sampleRate);
-    const advanced = advanceTransportByElapsedFrames(
-      snap.absoluteCycle,
-      snap.phaseFrame,
-      snap.grid.cycleFrames,
-      elapsedFrames,
-    );
-    return {
-      ...snap,
-      absoluteCycle: advanced.absoluteCycle,
-      phaseFrame: advanced.phaseFrame,
-    };
+    if (!snap || !sharedAudioContext || this.paused) return null;
+    const { grid } = snap;
+    const frames = snap.absoluteCycle * grid.cycleFrames + snap.phaseFrame
+      + (defenseOutputTime(sharedAudioContext) - snap.audioTime) * grid.sampleRate;
+    if (frames < 0) return null;
+    return (frames % grid.bgmFrames) / grid.cycleFrames * grid.phraseBars * (this.stage?.beatsPerBar ?? 4);
   }
 
   getAppliedSpeedPercent(): number {

@@ -225,7 +225,8 @@ struct DefenseGameView: View {
                     Spacer(minLength: 0)
                     defensePracticeHud
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.leading, 12)
+                        .padding(.leading, size.width * DefenseSceneLayout.playerXRatio
+                            + EarTrainingBattleStageKit.characterDisplaySize / 2 + 12)
                         .padding(.bottom, Self.pianoHeight + 8)
                 }
             }
@@ -348,7 +349,7 @@ struct DefenseGameView: View {
             return EarTrainingChordChip(
                 id: UUID(uuidString: String(format: "D0000000-0000-4000-8000-%012X", chord.orderIndex)) ?? UUID(),
                 name: name,
-                active: index == session.progressionActiveIndex
+                active: session.phase == .playing && index == session.progressionActiveIndex
             )
         }
     }
@@ -515,7 +516,6 @@ struct DefenseGameView: View {
                 slotRow: .melody(slots: [], revealed: [], currentIndex: 0)
             ),
             showsSlotsRow: false,
-            healthRowTrailingReserve: 300,
             onSettings: {
                 session.isPaused = true
                 session.setSharedProgressionPaused(true)

@@ -91,10 +91,11 @@ enum DefenseProgressionTimeline {
 
     static func resolveActiveIndex(
         chords: [DefenseStageProgressionChord],
-        beatInForm: Double,
+        beatInForm: Double?,
         formBarCount: Int,
         beatsPerBar: Int
     ) -> Int {
+        guard let beatInForm else { return -1 }
         guard !chords.isEmpty, formBarCount > 0, beatsPerBar > 0 else { return 0 }
         let totalBeats = Double(formBarCount * beatsPerBar)
         var normalized = beatInForm.truncatingRemainder(dividingBy: totalBeats)

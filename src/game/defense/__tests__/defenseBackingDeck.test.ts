@@ -14,7 +14,7 @@ const playback = (): DefensePhraseBackingPlayback => ({
   barCount: 1,
 });
 
-const installMockAudioContext = (currentTime = 1): void => {
+const installMockAudioContext = (clock = { currentTime: 1, outputLatency: 0 }): void => {
   startedSources.length = 0;
   class MockGain {
     gain = {
@@ -51,8 +51,10 @@ const installMockAudioContext = (currentTime = 1): void => {
     state = 'running';
 
     get currentTime() {
-      return currentTime;
+      return clock.currentTime;
     }
+
+    outputLatency = clock.outputLatency;
 
     destination = {};
 
@@ -71,6 +73,21 @@ describe('defenseBackingDeck pending switch', () => {
     vi.unstubAllGlobals();
     vi.resetModules();
     startedSources.length = 0;
+  });
+
+  it('waits for audible output and follows the four-bar recording across its loop point', async () => {
+    const clock = { currentTime: 1, outputLatency: 0.1 };
+    installMockAudioContext(clock);
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    defenseBackingDeck.setTransportConfig(160, 4);
+    defenseBackingDeck.start({ ...playback(), barCount: 4, loopEnd: 6 });
+
+    clock.currentTime = 1.24; // 150 ms scheduling lead plus 100 ms of device latency
+    expect(defenseBackingDeck.getBeatInLoop()).toBeNull();
+    for (const [seconds, beat] of [[0, 0], [1.5, 4], [3, 8], [4.5, 12], [6, 0]]) {
+      clock.currentTime = 1.25 + seconds;
+      expect(defenseBackingDeck.getBeatInLoop()).toBeCloseTo(beat);
+    }
   });
 
   it('disposes the previous incoming source when scheduleSwitch is called again', async () => {

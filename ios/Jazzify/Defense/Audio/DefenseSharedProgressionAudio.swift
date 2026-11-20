@@ -23,6 +23,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private var progressionBars = 12
     private var switchEveryBars = 1
     private var barSec: Double = 2
+    private var presentationLatency: TimeInterval = 0
     private var transportStartHostSec: Double = 0
     private var generation: UInt64 = 0
     private var requestRevision = 0
@@ -162,13 +163,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.paused = false
             self.pausedOffsetSec = 0
             self.activeIsA = true
-            let transportStart = Self.hostTimeSec() + Self.startLeadSec
-            self.transportStartHostSec = transportStart
-            self.playActivePhraseImmediate(
-                at: initialPhraseIndex,
-                offsetSec: 0,
-                startAtHostSec: transportStart
-            )
+            self.playActivePhraseImmediate(at: initialPhraseIndex, offsetSec: 0)
         }
     }
 
@@ -203,9 +198,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.generation &+= 1
             let loopDuration = Double(self.progressionBars) * self.barSec
             let offsetSec = loopDuration > 0 ? self.pausedOffsetSec.truncatingRemainder(dividingBy: loopDuration) : 0
-            let offsetSecSnapshot = offsetSec
-            self.transportStartHostSec = Self.hostTimeSec() - offsetSecSnapshot
-            self.playActivePhraseImmediate(at: self.audiblePhraseIndex, offsetSec: offsetSecSnapshot)
+            self.playActivePhraseImmediate(at: self.audiblePhraseIndex, offsetSec: offsetSec)
             if self.desiredPhraseIndex != self.audiblePhraseIndex {
                 self.scheduleDesiredSwitch()
             }
@@ -226,7 +219,6 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             self.desiredPhraseIndex = phraseIndex
             self.audiblePhraseIndex = phraseIndex
             self.activeIsA = true
-            self.transportStartHostSec = Self.hostTimeSec()
             self.playActivePhraseImmediate(at: phraseIndex, offsetSec: 0)
         }
     }
@@ -340,13 +332,8 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             ? formStart
             : formStart + AVAudioFramePosition((wrappedOffset / totalSec) * Double(formFrames))
 
-        let playbackWhen: AVAudioTime? = {
-            guard let startAtHostSec else { return nil }
-            return AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: startAtHostSec))
-        }()
-
         if startFrame <= formStart {
-            scheduleFullLoop(for: phraseIndex, player: active, at: playbackWhen)
+            scheduleFullLoop(for: phraseIndex, player: active, at: nil)
         } else {
             let tailCount = AVAudioFrameCount(max(0, formEnd - startFrame))
             if tailCount > 0,
@@ -355,13 +342,13 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                    startingFrame: startFrame,
                    frameCount: tailCount
                ) {
-                active.scheduleBuffer(tailBuffer, at: playbackWhen) { [weak self] in
+                active.scheduleBuffer(tailBuffer, at: nil) { [weak self] in
                     self?.runOnMain {
                         self?.scheduleLoopHead(for: phraseIndex, player: active, at: nil)
                     }
                 }
             } else {
-                scheduleLoopHead(for: phraseIndex, player: active, at: playbackWhen)
+                scheduleLoopHead(for: phraseIndex, player: active, at: nil)
             }
         }
 
@@ -373,11 +360,11 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             return
         }
 
-        if let playbackWhen {
-            active.play(at: playbackWhen)
-        } else {
-            active.play()
-        }
+        let now = Self.hostTimeSec()
+        let start = max(now + Self.scheduleMinQuantumSec, startAtHostSec ?? (now + Self.startLeadSec))
+        presentationLatency = active.outputPresentationLatency
+        transportStartHostSec = start - offsetSec
+        active.play(at: AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: start)))
         applyMasterVolume()
     }
 
@@ -540,10 +527,11 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         }
     }
 
-    func beatInForm() -> Double {
-        guard transportStartHostSec > 0, barSec > 0, progressionBars > 0 else { return 0 }
-        let now = Self.hostTimeSec()
-        let absoluteBar = max(0, (now - transportStartHostSec) / barSec)
+    func beatInForm() -> Double? {
+        guard transportStartHostSec > 0, engine.isRunning, barSec > 0, progressionBars > 0 else { return nil }
+        let elapsed = Self.hostTimeSec() - presentationLatency - transportStartHostSec
+        guard elapsed >= 0 else { return nil }
+        let absoluteBar = elapsed / barSec
         let barInForm = absoluteBar.truncatingRemainder(dividingBy: Double(progressionBars))
         let beatsPerBar = Double(stage?.beatsPerBar ?? 4)
         return barInForm * beatsPerBar

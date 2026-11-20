@@ -33,9 +33,9 @@ final class DefenseGameSession: ObservableObject {
     )
     @Published private(set) var midiHeldKeys: Set<Int> = []
     @Published private(set) var practiceSpeedPercent = 100
-    @Published private(set) var progressionActiveIndex = 0
+    @Published private(set) var progressionActiveIndex = -1
     @Published private(set) var effectiveProgressionChords: [DefenseStageProgressionChord] = []
-    private var progressionPhraseIndexCache = -1
+    private var progressionPhraseIndex = 0
     @Published private(set) var voicingKeyState: DefenseVoicingKeyState?
     @Published private(set) var activePhrases: [DefensePhraseDefinition]
 
@@ -127,10 +127,10 @@ final class DefenseGameSession: ObservableObject {
             elapsedInt: 0,
             result: .playing
         )
-        syncEffectiveProgressionChords(phraseIndex: judgeState.phraseIndex, resetActiveIndex: true)
+        syncEffectiveProgressionChords(phraseIndex: judgeState.phraseIndex)
     }
 
-    private func syncEffectiveProgressionChords(phraseIndex: Int, resetActiveIndex: Bool) {
+    private func syncEffectiveProgressionChords(phraseIndex: Int) {
         let phrase = stage.phrases[safe: phraseIndex] ?? stage.phrases.first
         let phraseLoopBars: Int = {
             guard let phrase else { return max(1, stage.phraseBars) }
@@ -148,17 +148,7 @@ final class DefenseGameSession: ObservableObject {
                 phraseLoopBarCount: phraseLoopBars
             )
         )
-        progressionPhraseIndexCache = phraseIndex
-        if resetActiveIndex {
-            progressionActiveIndex = 0
-        } else if progressionActiveIndex >= effectiveProgressionChords.count {
-            progressionActiveIndex = max(0, effectiveProgressionChords.count - 1)
-        }
-    }
-
-    private func refreshEffectiveProgressionChordsIfPhraseChanged() {
-        guard judgeState.phraseIndex != progressionPhraseIndexCache else { return }
-        syncEffectiveProgressionChords(phraseIndex: judgeState.phraseIndex, resetActiveIndex: true)
+        progressionPhraseIndex = phraseIndex
     }
 
     func start() async {
@@ -169,6 +159,7 @@ final class DefenseGameSession: ObservableObject {
         finishStartAudioWaiters(false)
         startAudioResult = nil
         phase = .loading
+        progressionActiveIndex = -1
         countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
         subscribeMidi()
         if NoteInputPreferences.inputMethod == .voice {
@@ -339,6 +330,7 @@ final class DefenseGameSession: ObservableObject {
             DefenseSharedProgressionAudio.shared.start(initialPhraseIndex: judgeState.phraseIndex)
         } else {
             try? await DefenseBackingAudio.shared.startPhrase(at: 0)
+            syncEffectiveProgressionChords(phraseIndex: 0)
         }
         guard generation == startGeneration, !Task.isCancelled else { return }
         if isSharedProgressionStage {
@@ -433,7 +425,10 @@ final class DefenseGameSession: ObservableObject {
                 beatsPerBar: stage.beatsPerBar
             )
             Task {
-                try? await DefenseBackingAudio.shared.startPhrase(at: phraseIndex)
+                do {
+                    try await DefenseBackingAudio.shared.startPhrase(at: phraseIndex)
+                    syncEffectiveProgressionChords(phraseIndex: phraseIndex)
+                } catch { return }
             }
         }
     }
@@ -632,6 +627,7 @@ final class DefenseGameSession: ObservableObject {
                 lastSwitchGeneration = switchGen
                 pendingSwitchPhraseIndex = nil
                 DefenseBackingAudio.shared.commitSwitchFromMainThread()
+                syncEffectiveProgressionChords(phraseIndex: switchedToIndex)
                 let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
                     phrases: stage.phrases,
                     current: switchedToIndex
@@ -658,13 +654,11 @@ final class DefenseGameSession: ObservableObject {
             hud = nextHud
         }
 
-        refreshEffectiveProgressionChordsIfPhraseChanged()
-
         if DefenseProgressionTimeline.shouldSyncProgressionHud(
             isChordVoicingStage: isChordVoicingStage,
             progressionChordCount: effectiveProgressionChords.count
         ), phase == .playing {
-            let phrase = stage.phrases[safe: judgeState.phraseIndex]
+            let phrase = stage.phrases[safe: progressionPhraseIndex]
             let phraseLoopBars: Int = {
                 guard let phrase else { return max(1, stage.phraseBars) }
                 if let start = phrase.loopStartMeasure, let end = phrase.loopEndMeasure {
@@ -676,15 +670,13 @@ final class DefenseGameSession: ObservableObject {
                 progressionBars: usesProgressionHud ? stage.progressionBars : nil,
                 phraseLoopBarCount: phraseLoopBars
             )
-            let beatInForm: Double
+            let beatInForm: Double?
             if isSeparateTracksStage {
                 beatInForm = DefenseSeparateTracksAudio.shared.beatInForm()
             } else if isSharedProgressionStage {
                 beatInForm = DefenseSharedProgressionAudio.shared.beatInForm()
             } else {
-                let beatInLoop = DefenseBackingAudio.shared.beatInLoop()
-                let totalBeats = Double(formBarCount * stage.beatsPerBar)
-                beatInForm = beatInLoop.truncatingRemainder(dividingBy: totalBeats)
+                beatInForm = DefenseBackingAudio.shared.beatInLoop()
             }
             let nextActive = DefenseProgressionTimeline.resolveActiveIndex(
                 chords: effectiveProgressionChords,
