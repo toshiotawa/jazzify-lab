@@ -39,7 +39,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private static let scheduleMinQuantumSec = 0.001
 
     private var voiceInputDucking = false
-    private static let voiceInputDuckFactor: Float = 0.5
     /// フレーズ音源 × マスターの実効値（0...1）。`EarTrainingAudio` と同じヘッドルームを掛ける。
     private static let masterHeadroomGain: Float = 0.7
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
@@ -48,6 +47,8 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var lifecycleObserversRegistered = false
     private var appAudioSessionObserver: NSObjectProtocol?
     private var engineConfigObserver: NSObjectProtocol?
+    private var voicePolicyObserver: NSObjectProtocol?
+    private var playbackIntended = false
 
     private init() {}
 
@@ -242,6 +243,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
             self.transportStartHostSec = 0
+            self.playbackIntended = false
             os_unfair_lock_unlock(&self.lock)
         }
         if Thread.isMainThread {
@@ -391,6 +393,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let transportStart = Self.hostTimeSec() + Self.startLeadSec
         let when = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: transportStart))
         playerA.play(at: when)
+        playbackIntended = true
         os_unfair_lock_lock(&lock)
         transportStartHostSec = transportStart
         os_unfair_lock_unlock(&lock)
@@ -604,6 +607,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.handleEngineConfigurationChange()
         }
+        voicePolicyObserver = center.addObserver(
+            forName: VoiceSpeakerBleedCoordinator.policyDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyMasterMixerVolume()
+        }
     }
 
     private func handleEngineConfigurationChange() {
@@ -620,20 +630,24 @@ final class DefenseBackingAudio: @unchecked Sendable {
 
     private func restartEngineIfNeeded() {
         guard graphReady else { return }
-        let wasPlayingA = playerA.isPlaying
-        let wasPlayingB = playerB.isPlaying
+        let shouldResume = playbackIntended
+        let activeBuffer = activeIsA ? bufferA : bufferB
         if engine.isRunning {
             engine.stop()
         }
+        ensureGraph()
         engine.prepare()
         try? engine.start()
         applyMasterMixerVolume()
-        if wasPlayingA, !playerA.isPlaying {
-            playerA.play()
-        }
-        if wasPlayingB, !playerB.isPlaying {
-            playerB.play()
-        }
+        guard shouldResume, let buffer = activeBuffer else { return }
+        let active = activeIsA ? playerA : playerB
+        let inactive = activeIsA ? playerB : playerA
+        inactive.stop()
+        inactive.reset()
+        active.stop()
+        active.reset()
+        active.scheduleBuffer(buffer, at: nil, options: [.loops])
+        active.play()
     }
 
     private func applyMasterMixerVolume() {
@@ -643,7 +657,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
         var output = Self.masterHeadroomGain * volume
         if ducking {
-            output *= Self.voiceInputDuckFactor
+            output *= VoiceSpeakerBleedCoordinator.shared.snapshot().duckFactor
         }
         masterMixer.outputVolume = output
     }

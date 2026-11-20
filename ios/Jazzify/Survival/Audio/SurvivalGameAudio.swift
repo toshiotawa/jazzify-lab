@@ -125,9 +125,9 @@ final class SurvivalGameAudio {
     private var foregroundObserver: NSObjectProtocol?
     private var appAudioSessionObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
-    /// マイク入力中は BGM のみ 50% 減衰（ピアノ / SFX / フレーズは対象外）。
+    private var voicePolicyObserver: NSObjectProtocol?
+    /// マイク入力中は BGM のみ減衰（ピアノ / SFX / フレーズは対象外）。
     private var voiceInputDucking = false
-    private static let voiceInputDuckFactor: Float = 0.5
     /// サステインペダル (CC64) 用の MIDI 購読。各 GameView に同じ処理を撒かずここへ集約する。
     private var sustainPedalSubscription: MIDISubscription?
 
@@ -518,6 +518,7 @@ final class SurvivalGameAudio {
 
     /// 出力ルート変更時・`start()` 時に呼ぶ。`currentRoute` はここだけで読む。
     private func refreshAudioOutputRoute() {
+        VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
         let portTypes = AVAudioSession.sharedInstance().currentRoute.outputs.map(\.portType)
         isBuiltInSpeakerRoute = SurvivalRootBassRoutePolicy.usesBuiltInSpeaker(portTypes: portTypes)
         applyRootBassRoutePlayback()
@@ -721,6 +722,13 @@ final class SurvivalGameAudio {
         ) { [weak self] _ in
             self?.refreshAudioOutputRoute()
         }
+        voicePolicyObserver = center.addObserver(
+            forName: VoiceSpeakerBleedCoordinator.policyDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.bgmPlayer.volume = self?.effectiveBgmVolume() ?? 0
+        }
     }
 
     /// AppAudioSession 再構成後: エンジン stop/start → BGM 復帰 → 完了通知。
@@ -745,7 +753,7 @@ final class SurvivalGameAudio {
         startEngineIfNeeded()
 
         if wasBgmPlaying || currentBgmUrl != nil {
-            playBgm()
+            playBgm(forceRestart: true)
         }
     }
 
@@ -801,6 +809,14 @@ final class SurvivalGameAudio {
             reloadSoundBanksAfterEngineStartIfNeeded()
         } catch {
             isEngineStarted = false
+            engine.reset()
+            engine.prepare()
+            try? engine.start()
+            applyVolumesToNodes()
+            if engine.isRunning {
+                isEngineStarted = true
+                reloadSoundBanksAfterEngineStartIfNeeded()
+            }
         }
     }
 
@@ -833,9 +849,9 @@ final class SurvivalGameAudio {
         return base * routeGain
     }
 
-    private func playBgm() {
+    private func playBgm(forceRestart: Bool = false) {
         let url = bgmUrl ?? SurvivalBgmDefaults.randomURL
-        if currentBgmUrl == url, bgmPlayer.timeControlStatus == .playing {
+        if !forceRestart, currentBgmUrl == url, bgmPlayer.timeControlStatus == .playing {
             bgmPlayer.volume = effectiveBgmVolume()
             return
         }
@@ -902,7 +918,7 @@ final class SurvivalGameAudio {
             volume = max(0, min(1, userDefaults.float(forKey: bgmVolumeKey)))
         }
         if voiceInputDucking {
-            volume *= Self.voiceInputDuckFactor
+            volume *= VoiceSpeakerBleedCoordinator.shared.snapshot().duckFactor
         }
         return volume
     }

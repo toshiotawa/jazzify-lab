@@ -165,7 +165,6 @@ final class PitchInputEngine: @unchecked Sendable {
     private var mediaServicesResetObserver: NSObjectProtocol?
     private var engineConfigurationChangeObserver: NSObjectProtocol?
     private var restartWorkItem: DispatchWorkItem?
-    private var activeVoiceProcessing = false
     private var activeTapSampleRate: Double = 0
     private var captureSinkNode: AVAudioSinkNode?
     private var capturePipeline: CapturePipeline?
@@ -522,22 +521,11 @@ final class PitchInputEngine: @unchecked Sendable {
             throw PitchInputEngineError.inputUnavailable
         }
 
-        let useVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput() && !UIScreen.main.isCaptured
-
         AppAudioSession.shared.suppressAutomaticReconfigure(for: 1.0)
+        VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
 
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
-
-        if useVoiceProcessing {
-            try? inputNode.setVoiceProcessingEnabled(true)
-            if #available(iOS 17.0, *) {
-                inputNode.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
-                    enableAdvancedDucking: false,
-                    duckingLevel: .min
-                )
-            }
-        }
 
         let inputFormat = try await Self.waitForStableInputFormat(on: inputNode) { [weak self] in
             self?.lifecycleGeneration == generation
@@ -648,8 +636,11 @@ final class PitchInputEngine: @unchecked Sendable {
         captureSinkNode = sink
         capturePipeline = pipeline
         isRunning = true
-        activeVoiceProcessing = useVoiceProcessing
         activeTapSampleRate = connectFormat.sampleRate
+        VoiceSpeakerBleedCoordinator.shared.setEffectiveOutputLevel(
+            EarTrainingBattleVolumePreferences.loadPhraseVolume()
+        )
+        VoiceSpeakerBleedCoordinator.shared.setVoiceInputActive(true)
         SurvivalGameAudio.shared.setVoiceInputDucking(true)
         DefenseBackingAudio.shared.setVoiceInputDucking(true)
         DefenseSharedProgressionAudio.shared.setVoiceInputDucking(true)
@@ -682,11 +673,9 @@ final class PitchInputEngine: @unchecked Sendable {
     @MainActor
     private func engineConfigurationMatchesDesired() -> Bool {
         guard isRunning, let engine = audioEngine, engine.isRunning else { return false }
-        let desiredVoiceProcessing = !AudioRouteHelper.hasHeadphoneOutput() && !UIScreen.main.isCaptured
         let currentRate = engine.inputNode.outputFormat(forBus: 0).sampleRate
         guard currentRate > 0 else { return false }
-        return activeVoiceProcessing == desiredVoiceProcessing
-            && abs(activeTapSampleRate - currentRate) < 1.0
+        return abs(activeTapSampleRate - currentRate) < 1.0
     }
 
     @MainActor
@@ -743,22 +732,24 @@ final class PitchInputEngine: @unchecked Sendable {
     }
 
     @MainActor
-    func stop() {
+    func stop(immediateSessionRelease: Bool = false) {
         lifecycleGeneration += 1
         restartPending = false
         restartRetryAttempt = 0
         restartWorkItem?.cancel()
         restartWorkItem = nil
         if isRunning || audioEngine != nil {
-            tearDownEngine(releaseRecordingSession: true)
+            tearDownEngine(releaseRecordingSession: true, immediateSessionRelease: immediateSessionRelease)
         } else {
-            AppAudioSession.shared.setRecordingEnabled(false)
+            AppAudioSession.shared.setRecordingEnabled(false, immediate: immediateSessionRelease)
+            VoiceSpeakerBleedCoordinator.shared.setVoiceInputActive(false)
         }
         unregisterObserversIfNeeded()
     }
 
     @MainActor
-    private func tearDownEngine(releaseRecordingSession: Bool) {
+    private func tearDownEngine(releaseRecordingSession: Bool, immediateSessionRelease: Bool = false) {
+        VoiceSpeakerBleedCoordinator.shared.setVoiceInputActive(false)
         SurvivalGameAudio.shared.setVoiceInputDucking(false)
         DefenseBackingAudio.shared.setVoiceInputDucking(false)
         DefenseSharedProgressionAudio.shared.setVoiceInputDucking(false)
@@ -775,7 +766,6 @@ final class PitchInputEngine: @unchecked Sendable {
         captureSinkNode = nil
         capturePipeline = nil
         isRunning = false
-        activeVoiceProcessing = false
         activeTapSampleRate = 0
 
         stateLock.lock()
@@ -788,7 +778,7 @@ final class PitchInputEngine: @unchecked Sendable {
         updateMonitorDetectedNote(nil)
 
         if releaseRecordingSession {
-            AppAudioSession.shared.setRecordingEnabled(false)
+            AppAudioSession.shared.setRecordingEnabled(false, immediate: immediateSessionRelease)
             clearExternalCaptureMode()
         }
     }
@@ -1237,13 +1227,9 @@ final class PitchInputEngine: @unchecked Sendable {
             if let forward {
                 forward(slotBase, chunkSize)
             }
-            var sum: Float = 0
-            for index in 0..<chunkSize {
-                let sample = slotBase[index]
-                sum += sample * sample
-            }
-            let rms = sqrt(sum / Float(chunkSize))
-            updateMonitorVolume(Double(rms))
+            let rms = VoiceSpeakerInputGate.rmsFromFloatSamples(slotBase, count: chunkSize)
+            VoiceSpeakerBleedCoordinator.shared.recordForwardChunkRms(linearRms: rms)
+            updateMonitorVolume(rms)
             return
         }
 

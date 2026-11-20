@@ -38,15 +38,14 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private var renderScratchCapacity = 0
 
     private var engineConfigObserver: NSObjectProtocol?
-    private var survivalCaptureObserver: NSObjectProtocol?
     private var appAudioSessionObserver: NSObjectProtocol?
+    private var voicePolicyObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
     /// `stop` / `rebuildGraph` 中の同期 ConfigurationChange で旧グラフを再startしない。
     private var isMutatingGraph = false
 
     private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
     private var voiceInputDucking = false
-    private static let voiceInputDuckFactor: Float = 0.5
     private static let masterHeadroomGain: Float = 0.7
     private static let sampleRateMismatchThreshold = 0.01
 
@@ -145,7 +144,18 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     }
 
     func resumeProgression() {
-        mixerState?.paused = false
+        let apply = { [weak self] in
+            guard let self else { return }
+            self.mixerState?.paused = false
+            if self.mixerState != nil, !self.engine.isRunning {
+                self.restartEngineIfNeeded()
+            }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
     }
 
     func stop() {
@@ -177,7 +187,7 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
 
     func setVoiceInputDucking(_ active: Bool) {
         voiceInputDucking = active
-        applyMasterVolume()
+        applyVoiceInputPlaybackGains()
     }
 
     func beatInForm() -> Double? {
@@ -207,19 +217,19 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.handleEngineConfigurationChange()
         }
-        survivalCaptureObserver = center.addObserver(
-            forName: SurvivalGameAudio.didReconfigureAudioGraphNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleSharedAudioSessionReconfigure()
-        }
         appAudioSessionObserver = center.addObserver(
             forName: AppAudioSession.didReconfigureNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             self?.handleSharedAudioSessionReconfigure()
+        }
+        voicePolicyObserver = center.addObserver(
+            forName: VoiceSpeakerBleedCoordinator.policyDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyVoiceInputPlaybackGains()
         }
         foregroundObserver = center.addObserver(
             forName: UIApplication.willEnterForegroundNotification,
@@ -239,8 +249,29 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
     private func handleSharedAudioSessionReconfigure() {
         guard !isStopping, !isMutatingGraph, mixerState != nil else { return }
         Task { @MainActor in
-            await self.reconvertAndReconnectIfNeeded()
+            await self.reconfigureGraphAfterSessionChange()
         }
+    }
+
+    @MainActor
+    private func reconfigureGraphAfterSessionChange() async {
+        guard !isStopping, !isMutatingGraph, let state = mixerState else { return }
+        let hardwareRate = EarTrainingAudio.preferredHardwareSampleRate()
+        let preparedRate = state.activeSet.grid.sampleRate
+        let rateMismatch = abs(hardwareRate - preparedRate) / preparedRate > Self.sampleRateMismatchThreshold
+        if rateMismatch, let stage {
+            let ratio = DefensePracticeSpeed.ratio(state.activeSet.speedPercent)
+            if let reconverted = try? await DefenseSeparateTracksBuffers.reconvert(
+                preparedSet: state.activeSet,
+                stage: stage,
+                speedRatio: ratio,
+                newSampleRate: hardwareRate
+            ) {
+                state.activeSet = reconverted
+            }
+        }
+        let format = DefenseSeparateTracksPlayback.sourceFormat(sampleRate: state.activeSet.grid.sampleRate)
+        rebuildGraph(sourceFormat: format)
     }
 
     @MainActor
@@ -361,7 +392,14 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
             engine.stop()
         }
         engine.prepare()
-        try? engine.start()
+        do {
+            try engine.start()
+            applyMasterVolume()
+        } catch {
+            if let format = sourcePlaybackFormat {
+                rebuildGraph(sourceFormat: format)
+            }
+        }
         presentationLatency = sourceNode?.outputPresentationLatency ?? 0
     }
 
@@ -482,8 +520,26 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         }
     }
 
+    private func applyVoiceInputPlaybackGains() {
+        guard let state = mixerState else {
+            applyMasterVolume()
+            return
+        }
+        let snap = VoiceSpeakerBleedCoordinator.shared.snapshot()
+        if voiceInputDucking, snap.voiceInputActive {
+            state.melodyGain = snap.separateTracksMelodyGain
+            state.bgmGain = VoiceInputAudioPolicy.defaultMelodyGain
+        } else {
+            state.melodyGain = VoiceInputAudioPolicy.defaultMelodyGain
+            state.bgmGain = VoiceInputAudioPolicy.defaultMelodyGain
+        }
+        applyMasterVolume()
+    }
+
     private func applyMasterVolume() {
-        let duck = voiceInputDucking ? Self.voiceInputDuckFactor : 1
+        let duck = voiceInputDucking
+            ? VoiceSpeakerBleedCoordinator.shared.snapshot().duckFactor
+            : 1
         masterMixer.outputVolume = userVolume * duck * Self.masterHeadroomGain
     }
 }

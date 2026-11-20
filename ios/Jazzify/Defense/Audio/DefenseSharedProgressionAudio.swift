@@ -5,7 +5,6 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     static let shared = DefenseSharedProgressionAudio()
 
     private static let masterHeadroomGain: Float = 0.7
-    private static let voiceInputDuckFactor: Float = 0.5
     private static let startLeadSec = 0.15
     private static let scheduleMinQuantumSec = 0.001
 
@@ -36,11 +35,12 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private var barFramesByPhraseIndex: [Int: [Int]] = [:]
     private var paused = false
     private var pausedOffsetSec: Double = 0
-    private var userVolume: Float = 1
+    private var userVolume: Float = EarTrainingBattleVolumePreferences.loadPhraseVolume()
     private var voiceInputDucking = false
     private var lifecycleObserversRegistered = false
     private var appAudioSessionObserver: NSObjectProtocol?
     private var engineConfigObserver: NSObjectProtocol?
+    private var voicePolicyObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -71,7 +71,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private func applyMasterVolume() {
         var output = Self.masterHeadroomGain * userVolume
         if voiceInputDucking {
-            output *= Self.voiceInputDuckFactor
+            output *= VoiceSpeakerBleedCoordinator.shared.snapshot().duckFactor
         }
         masterMixer.outputVolume = output
     }
@@ -478,12 +478,25 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         }
     }
 
-    private func ensureGraph() {
+    private func ensureGraph(forceRebuild: Bool = false) {
         registerLifecycleObserversIfNeeded()
         let format = EarTrainingAudio.preferredOutputFormat()
-        if graphReady {
+        if graphReady, !forceRebuild {
             return
         }
+        if graphReady, forceRebuild {
+            if engine.isRunning {
+                engine.stop()
+            }
+            engine.disconnectNodeInput(engine.mainMixerNode)
+            engine.detach(deckMixer)
+            engine.detach(masterMixer)
+            engine.detach(timePitch)
+            engine.detach(playerA)
+            engine.detach(playerB)
+            graphReady = false
+        }
+        guard !graphReady else { return }
         engine.attach(deckMixer)
         engine.attach(masterMixer)
         engine.attach(timePitch)
@@ -559,6 +572,13 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.handleEngineConfigurationChange()
         }
+        voicePolicyObserver = center.addObserver(
+            forName: VoiceSpeakerBleedCoordinator.policyDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyMasterVolume()
+        }
     }
 
     private func handleEngineConfigurationChange() {
@@ -567,30 +587,32 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
 
     private func handleSharedAudioSessionReconfigure() {
         runOnMain { [weak self] in
-            guard let self else { return }
-            self.graphReady = false
-            self.ensureGraph()
-            self.restartEngineIfNeeded()
+            guard let self, self.stage != nil else { return }
+            let offset = max(0, Self.hostTimeSec() - self.transportStartHostSec)
+            let phrase = self.audiblePhraseIndex
+            let wasPaused = self.paused
+            let desired = self.desiredPhraseIndex
+            self.ensureGraph(forceRebuild: true)
+            guard !wasPaused else { return }
+            self.playActivePhraseImmediate(at: phrase, offsetSec: offset)
+            if desired != phrase {
+                self.desiredPhraseIndex = desired
+                self.scheduleDesiredSwitch()
+            }
         }
     }
 
     private func restartEngineIfNeeded() {
         guard graphReady else { return }
-        let active = activeIsA ? playerA : playerB
-        let inactive = activeIsA ? playerB : playerA
-        let wasActivePlaying = active.isPlaying
-        let wasInactivePlaying = inactive.isPlaying
-        if engine.isRunning {
-            engine.stop()
-        }
-        engine.prepare()
-        try? engine.start()
-        applyMasterVolume()
-        if wasActivePlaying, !active.isPlaying {
-            active.play()
-        }
-        if wasInactivePlaying, !inactive.isPlaying {
-            inactive.play()
+        guard stage != nil, !paused else { return }
+        let offset = max(0, Self.hostTimeSec() - transportStartHostSec)
+        let phrase = audiblePhraseIndex
+        let desired = desiredPhraseIndex
+        ensureGraph(forceRebuild: true)
+        playActivePhraseImmediate(at: phrase, offsetSec: offset)
+        if desired != phrase {
+            desiredPhraseIndex = desired
+            scheduleDesiredSwitch()
         }
     }
 }

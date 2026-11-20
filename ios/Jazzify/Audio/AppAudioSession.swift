@@ -62,9 +62,10 @@ final class AppAudioSession {
     }
 
     /// マイク入力（PESTO）使用中は `.playAndRecord`、それ以外は `.playback`。
-    func setRecordingEnabled(_ enabled: Bool) {
+    /// - Parameter immediate: true のとき録音オフをデバウンスせず即 `.playback` へ切替（入力方式の明示的変更用）。
+    func setRecordingEnabled(_ enabled: Bool, immediate: Bool = false) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { self.setRecordingEnabled(enabled) }
+            DispatchQueue.main.async { self.setRecordingEnabled(enabled, immediate: immediate) }
             return
         }
 
@@ -80,6 +81,15 @@ final class AppAudioSession {
 
         guard recordingEnabled else { return }
         recordingDisableWorkItem?.cancel()
+        recordingDisableWorkItem = nil
+
+        if immediate {
+            recordingEnabled = false
+            let didChange = configure(force: true)
+            postReconfigureIfNeeded(didChange)
+            return
+        }
+
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.recordingEnabled = false
@@ -101,6 +111,7 @@ final class AppAudioSession {
         guard !hasStarted else { return }
         hasStarted = true
         _ = configure(force: true)
+        VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
         registerObservers()
     }
 
@@ -214,6 +225,7 @@ final class AppAudioSession {
 
         switch reason {
         case .oldDeviceUnavailable, .newDeviceAvailable:
+            VoiceSpeakerBleedCoordinator.shared.refreshRouteFromSession()
             scheduleReconfigure()
         case .categoryChange, .routeConfigurationChange, .override:
             if isWithinAutomaticReconfigureSuppression { return }

@@ -92,7 +92,7 @@ final class NoteInputManager: ObservableObject {
         switch activeMethod {
         case .midi, .touch:
             voicePreparing = false
-            pitchEngine.stop()
+            pitchEngine.stop(immediateSessionRelease: true)
         case .voice:
             guard hasSubscribers else {
                 voicePreparing = false
@@ -113,7 +113,7 @@ final class NoteInputManager: ObservableObject {
     }
 
     func stopVoiceInput() {
-        pitchEngine.stop()
+        pitchEngine.stop(immediateSessionRelease: true)
     }
 
     // MARK: - Private

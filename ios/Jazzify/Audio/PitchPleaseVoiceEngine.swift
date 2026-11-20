@@ -76,13 +76,13 @@ final class PitchPleaseVoiceEngine: NSObject {
         }
     }
 
-    func stop() {
+    func stop(immediateSessionRelease: Bool = false) {
         sessionOperation?.cancel()
         let previous = sessionOperation
         sessionOperation = Task { [weak self] in
             _ = await previous?.value
             guard let self, !Task.isCancelled else { return }
-            await self.beginStopSession()
+            await self.beginStopSession(immediateSessionRelease: immediateSessionRelease)
         }
     }
 
@@ -152,26 +152,26 @@ final class PitchPleaseVoiceEngine: NSObject {
         await launchSession(channel: channel, generation: generation)
     }
 
-    private func beginStopSession() async {
+    private func beginStopSession(immediateSessionRelease: Bool = false) async {
         keepKernelWarm = false
         let stopGeneration = sessionGeneration &+ 1
         sessionGeneration = stopGeneration
         configuredInputChannel = nil
-        await tearDownWebSession(stopCapture: true)
+        await tearDownWebSession(stopCapture: true, immediateSessionRelease: immediateSessionRelease)
         await stopServersIfGenerationStill(stopGeneration)
     }
 
-    private func stopNativeCaptureOnly() {
-        PitchInputEngine.shared.stop()
+    private func stopNativeCaptureOnly(immediateSessionRelease: Bool = false) {
+        PitchInputEngine.shared.stop(immediateSessionRelease: immediateSessionRelease)
         isNativeCaptureReady = false
     }
 
-    private func tearDownWebSession(stopCapture: Bool) async {
+    private func tearDownWebSession(stopCapture: Bool, immediateSessionRelease: Bool = false) async {
         mountedSessionGeneration = 0
         isKernelReady = false
 
         if stopCapture {
-            stopNativeCaptureOnly()
+            stopNativeCaptureOnly(immediateSessionRelease: immediateSessionRelease)
         }
 
         if let webView {
@@ -318,6 +318,7 @@ final class PitchPleaseVoiceEngine: NSObject {
             lastError = body["message"] as? String
         case "on":
             guard let midi = (body["midi"] as? NSNumber)?.intValue, midi >= 0, midi <= 127 else { return }
+            guard VoiceSpeakerBleedCoordinator.shared.shouldAllowNoteOn() else { return }
             detectedNoteName = body["name"] as? String
             notify(status: 0x90, note: UInt8(midi), velocity: 64)
         case "off":

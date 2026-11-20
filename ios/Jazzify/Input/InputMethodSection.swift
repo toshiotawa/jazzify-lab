@@ -157,8 +157,8 @@ struct InputMethodSection: View {
         if !hasHeadphones {
             Label(
                 isEnglishCopy
-                    ? "Echo cancellation is on for the speaker. Lower BGM if detection is unstable."
-                    : "スピーカー時はエコーキャンセルが有効です。BGM が大きいと精度が落ちます。",
+                    ? "On the built-in speaker, guide melody is muted and backing is lowered. Use headphones if notes are mis-detected."
+                    : "スピーカー時はガイドメロディを抑え、伴奏を下げます。誤反応する場合はヘッドホンかフレーズ音量を下げてください。",
                 systemImage: "headphones"
             )
             .font(.caption)
@@ -276,13 +276,15 @@ struct InputMethodSection: View {
 
     @MainActor
     private func refreshMonitor() {
-        let engine = PitchPleaseVoiceEngine.shared
-        engineActive = engine.isActive
-        monitorNoteName = engine.detectedNoteName
-        monitorError = engine.lastError
-        monitorVolume = engine.isActive ? 0.4 : 0
-        monitorCaptureMs = nil
-        monitorInferenceMs = nil
+        let pitchEngine = PitchInputEngine.shared
+        let voiceEngine = PitchPleaseVoiceEngine.shared
+        engineActive = voiceEngine.isActive
+        monitorNoteName = voiceEngine.detectedNoteName
+        monitorError = voiceEngine.lastError
+        let snapshot = pitchEngine.monitorSnapshot(isActive: pitchEngine.isActive)
+        monitorVolume = snapshot.volume
+        monitorCaptureMs = snapshot.captureIntervalMs
+        monitorInferenceMs = snapshot.inferenceMs
     }
 
     private func formattedLatencyMs(_ value: Double?) -> String {

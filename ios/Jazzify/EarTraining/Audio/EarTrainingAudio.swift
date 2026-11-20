@@ -155,6 +155,7 @@ final class EarTrainingAudio: NSObject {
     private var engineConfigObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
     private var survivalCaptureObserver: NSObjectProtocol?
+    private var appAudioSessionObserver: NSObjectProtocol?
 
     /// `schedulePreparedPhraseWithCountIn` でフレーズ `scheduleFile` した頭のホスト時刻。
     /// 非ゼロの間は `playerTime.sampleTime` ではなくアンカー差分から `currentTimeSec` を出す。
@@ -1170,12 +1171,21 @@ final class EarTrainingAudio: NSObject {
         ) { [weak self] _ in
             self?.reconfigureAfterScreenCaptureTransition()
         }
+        appAudioSessionObserver = center.addObserver(
+            forName: AppAudioSession.didReconfigureNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.reconfigureAfterScreenCaptureTransition()
+        }
     }
 
     /// 画面録画 ON/OFF 後、SurvivalGameAudio の共有セッション再構成完了を受けてフレーズエンジンを clean restart する。
     private func reconfigureAfterScreenCaptureTransition() {
         let wasPhraseActive = (phrasePlayer.isPlaying || phrasePlaybackAnchorHostTime != 0) && loadedPhraseURL != nil
-        guard isPhraseEngineRunning || isDrumLoopActive || wasPhraseActive else { return }
+        let resumeLoop = loopSessionActive
+        let loopResumeTimelineSec = resumeLoop ? loopTimelineSecNowOrNil() : nil
+        guard isPhraseEngineRunning || isDrumLoopActive || wasPhraseActive || resumeLoop else { return }
 
         let resumeDrum = isDrumLoopActive
         let resumeTimelineSec = wasPhraseActive
@@ -1200,10 +1210,12 @@ final class EarTrainingAudio: NSObject {
             startDrumLoop()
         }
 
-        if wasPhraseActive,
-           let url = resumePhraseURL,
-           let offset = resumeTimelineSec,
-           !resumePhrasePlaybackFromOffset(url: url, timelineOffsetSec: offset) {
+        if resumeLoop, let loopSec = loopResumeTimelineSec {
+            resumeLoopSessionFromTimelineSec(loopSec)
+        } else if wasPhraseActive,
+                  let url = resumePhraseURL,
+                  let offset = resumeTimelineSec,
+                  !resumePhrasePlaybackFromOffset(url: url, timelineOffsetSec: offset) {
             NotificationCenter.default.post(
                 name: Self.phrasePlaybackSuspendedAfterCaptureNotification,
                 object: self
@@ -1296,10 +1308,13 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func handleEngineConfigurationChange() {
-        guard isPhraseEngineRunning || phrasePlayer.isPlaying else { return }
+        guard isPhraseEngineRunning || phrasePlayer.isPlaying || loopSessionActive else { return }
         reconnectGraphAfterCaptureTransition()
         DispatchQueue.main.async { [weak self] in
             self?.resumePhraseEngineAfterForeground()
+            if let self, self.loopSessionActive, let loopSec = self.loopTimelineSecNowOrNil() {
+                self.resumeLoopSessionFromTimelineSec(loopSec)
+            }
         }
     }
 

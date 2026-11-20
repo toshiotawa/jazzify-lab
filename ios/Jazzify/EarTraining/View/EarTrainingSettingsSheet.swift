@@ -802,9 +802,11 @@ struct EarTrainingSettingsSheet: View {
         SurvivalGameAudio.shared.setPianoVolume(piano)
         SurvivalGameAudio.shared.setSfxVolume(sfx)
         audio?.setVolumes(master: master, music: music, piano: Double(piano), sfx: Double(sfx))
-        DefenseBackingAudio.shared.setUserVolume(
-            EarTrainingBattleVolumePreferences.phraseVolume(master: master, music: music)
-        )
+        let phraseVol = EarTrainingBattleVolumePreferences.phraseVolume(master: master, music: music)
+        DefenseBackingAudio.shared.setUserVolume(phraseVol)
+        DefenseSharedProgressionAudio.shared.setUserVolume(phraseVol)
+        DefenseSeparateTracksAudio.shared.setUserVolume(phraseVol)
+        VoiceSpeakerBleedCoordinator.shared.setEffectiveOutputLevel(phraseVol)
     }
 
     private func persistAll() {
