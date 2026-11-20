@@ -32,10 +32,10 @@ describe('earTrainingBattleImagePreload', () => {
 
   it('OSMD クリティカルにはパリィ用ポーズを含む（3レイヤーVFXは火花に置換済み）', () => {
     const urls = getEarTrainingBattleCriticalUrls([], 'chord_osmd');
-    expect(urls.some((url) => url.includes('GuardD'))).toBe(true);
-    expect(urls.some((url) => url.includes('GuardE'))).toBe(true);
+    expect(urls.some((url) => url.includes('guard-d'))).toBe(true);
+    expect(urls.some((url) => url.includes('guard-e'))).toBe(true);
     expect(urls.some((url) => url.includes('finish'))).toBe(true);
-    expect(urls.some((url) => url.includes('eishou'))).toBe(true);
+    expect(urls.some((url) => url.includes('hero-cast'))).toBe(true);
     expect(urls.some((url) => url.includes('parry-flash'))).toBe(false);
     expect(urls.some((url) => url.includes('parry-ring'))).toBe(false);
     expect(urls.some((url) => url.includes('parry-splash'))).toBe(false);
@@ -45,22 +45,22 @@ describe('earTrainingBattleImagePreload', () => {
   it('OSMD secondary はフレーズ終了エフェクトとスキルポーズのみ', () => {
     const urls = getEarTrainingBattleSecondaryUrls('chord_osmd');
     expect(urls.some((url) => url.includes('meteor'))).toBe(true);
-    expect(urls.some((url) => url.includes('Frame2'))).toBe(true);
+    expect(urls.some((url) => url.includes('hero-skill-2'))).toBe(true);
     expect(urls.some((url) => url.includes('parry-flash'))).toBe(false);
-    expect(urls.some((url) => url.includes('GuardD'))).toBe(false);
+    expect(urls.some((url) => url.includes('guard-d'))).toBe(false);
   });
 
   it('OSMD deferred は背景のみ', () => {
     const urls = getEarTrainingBattleDeferredUrls('chord_osmd');
     expect(urls.some((url) => url.includes('bg-drum-kit'))).toBe(true);
     expect(urls.some((url) => url.includes('fireball'))).toBe(false);
-    expect(urls.some((url) => url.includes('Frame2'))).toBe(false);
+    expect(urls.some((url) => url.includes('hero-skill-2'))).toBe(false);
   });
 
   it('getEarTrainingBattleDeferredUrls はモード未指定時に従来どおり全件', () => {
     const urls = getEarTrainingBattleDeferredUrls();
     expect(urls.some((url) => url.includes('fireball'))).toBe(true);
-    expect(urls.some((url) => url.includes('Frame2'))).toBe(true);
+    expect(urls.some((url) => url.includes('hero-skill-2'))).toBe(true);
   });
 
   it('2回目の preload は Image を新規作成しない', async () => {

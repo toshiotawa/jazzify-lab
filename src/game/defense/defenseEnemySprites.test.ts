@@ -23,7 +23,7 @@ describe('defense enemy sprite loading', () => {
       removeAttribute(): void { this.src = ''; }
       constructor() {
         queueMicrotask(() => {
-          if (failMove && this.src.split('?')[0].endsWith('goblin_move.webp')) this.onerror?.();
+          if (failMove && this.src.split('?')[0].endsWith('goblin_move.png')) this.onerror?.();
           else this.onload?.();
         });
       }

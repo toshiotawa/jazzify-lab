@@ -214,7 +214,7 @@ final class EarTrainingBattleController: ObservableObject {
         Self.shouldFlipEnemyAvatar(name: enemyAvatarName)
     }
 
-    static let playerAvatarAssetName: String = "default-avater"
+    static let playerAvatarAssetName = DefensePlayerPose.idleAssetNames[0]
 
     // MARK: - Init
 
@@ -898,8 +898,8 @@ extension EarTrainingBattleController: EarTrainingLobbyPresentable {
 
 enum EarTrainingAvatarCatalog {
     /// チュートリアル `dialogue_only` の相方（ジャ爺）固定表示。
-    static let partnerJajiiAssetName = "survival_jajii"
-    static let enemyAssetNames: [String] = (1...10).map { "ear-training-enemy-\($0)" }
+    static let partnerJajiiAssetName = "pixel-band-5-1"
+    static let enemyAssetNames: [String] = (1...10).map { "pixel-band-\($0)-1" }
     static let flipXAssetNames: Set<String> = [
         "ear-training-enemy-1",
         "ear-training-enemy-2",

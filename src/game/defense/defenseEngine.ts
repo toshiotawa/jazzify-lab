@@ -100,15 +100,15 @@ const syncWaveState = (
 
 const pushDamagePopup = (
   runtime: DefenseRuntime,
-  x: number,
-  y: number,
+  target: DefenseEnemy,
   value: number,
 ): void => {
   const popup = runtime.damagePopups[runtime.nextPopupIndex];
   if (!popup) return;
   popup.active = true;
-  popup.x = x;
-  popup.y = y;
+  popup.targetType = target.type;
+  popup.x = target.x;
+  popup.y = target.y;
   popup.value = value;
   popup.spawnedAt = runtime.elapsedSec;
   runtime.nextPopupIndex = (runtime.nextPopupIndex + 1) % runtime.damagePopups.length;
@@ -126,7 +126,7 @@ const applyEnemyDamage = (
   target.hitFlashAt = runtime.elapsedSec;
 
   if (showPopup) {
-    pushDamagePopup(runtime, target.x, target.y, damage);
+    pushDamagePopup(runtime, target, damage);
   }
 
   const kbDx = target.x - runtime.playerX;
@@ -177,13 +177,15 @@ export const updateDefenseFireballs = (
   for (const fb of runtime.fireballs) {
     if (!fb.active) continue;
 
+    const hitFrom = fb.x - DEFENSE_FIREBALL_HIT_RADIUS;
     fb.x += DEFENSE_FIREBALL_SPEED_PX * dt;
+    const hitTo = fb.x + DEFENSE_FIREBALL_HIT_RADIUS;
 
     for (const enemy of runtime.enemies) {
       if (!enemy.active) continue;
       const slotBit = 1 << enemy.slotIndex;
       if ((fb.hitSlotMask & slotBit) !== 0) continue;
-      if (Math.abs(enemy.x - fb.x) > DEFENSE_FIREBALL_HIT_RADIUS) continue;
+      if (enemy.x < hitFrom || enemy.x > hitTo) continue;
 
       fb.hitSlotMask |= slotBit;
       applyEnemyDamage(
@@ -386,6 +388,7 @@ const applySlashHit = (runtime: DefenseRuntime, target: DefenseEnemy, damage: nu
   runtime.slashFromX = runtime.playerX;
   runtime.slashToX = target.x;
   runtime.slashY = target.y;
+  runtime.slashTargetType = target.type;
 };
 
 export const performDefenseSlash = (

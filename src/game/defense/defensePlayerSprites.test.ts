@@ -7,7 +7,6 @@ import {
   createScenePlayerPoseCache,
   DEFENSE_PLAYER_IDLE_URLS,
   DEFENSE_PLAYER_SKILL_POSE_URLS,
-  DEFENSE_PLAYER_SLASH_URL,
   pickDefensePlayerPoseUrl,
   pickTrainingPlayerPoseUrl,
   resolveScenePlayerPoseImage,
@@ -17,6 +16,7 @@ import {
   DEFENSE_NO_SKILL_POSE,
   DEFENSE_NO_SLASH,
 } from '@/game/defense/defenseTypes';
+import { HERO_SLASH_FRAMES } from '@/game/earTraining/battlePixelSprites';
 import { PLAYER_POSE_IMAGE_URLS } from '@/game/earTraining/canvas/earTrainingBattleBackground';
 
 describe('pickDefensePlayerPoseUrl', () => {
@@ -37,7 +37,10 @@ describe('pickDefensePlayerPoseUrl', () => {
     runtime.slashAt = 0;
     runtime.guardPoseUntilSec = 1;
 
-    expect(pickDefensePlayerPoseUrl(runtime)).toBe(DEFENSE_PLAYER_SLASH_URL);
+    for (const [index, age] of [0.01, 0.1, 0.14, DEFENSE_SLASH_SEC].entries()) {
+      runtime.elapsedSec = age;
+      expect(pickDefensePlayerPoseUrl(runtime)).toBe(HERO_SLASH_FRAMES[index]);
+    }
   });
 
   it('shows guard pose after slash window ends', () => {
@@ -50,7 +53,7 @@ describe('pickDefensePlayerPoseUrl', () => {
     expect(pickDefensePlayerPoseUrl(runtime)).toBe(PLAYER_POSE_IMAGE_URLS.guardD);
   });
 
-  it('cycles idle frames in ping-pong order', () => {
+  it('cycles idle frames in four-frame order', () => {
     const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
     runtime.skillPoseStartSec = DEFENSE_NO_SKILL_POSE;
     runtime.slashAt = DEFENSE_NO_SLASH;
@@ -66,7 +69,7 @@ describe('pickDefensePlayerPoseUrl', () => {
     expect(pickDefensePlayerPoseUrl(runtime)).toBe(DEFENSE_PLAYER_IDLE_URLS[2]);
 
     runtime.elapsedSec = 0.84;
-    expect(pickDefensePlayerPoseUrl(runtime)).toBe(DEFENSE_PLAYER_IDLE_URLS[1]);
+    expect(pickDefensePlayerPoseUrl(runtime)).toBe(DEFENSE_PLAYER_IDLE_URLS[3]);
   });
 
   it('maps skill frames at 80ms intervals', () => {
@@ -82,7 +85,7 @@ describe('pickDefensePlayerPoseUrl', () => {
 
 describe('pickTrainingPlayerPoseUrl', () => {
   it('shows slash pose during slash window', () => {
-    expect(pickTrainingPlayerPoseUrl(1.5, 1.74, 2.5)).toBe(DEFENSE_PLAYER_SLASH_URL);
+    expect(pickTrainingPlayerPoseUrl(1.5, 1.74, 2.5)).toBe(HERO_SLASH_FRAMES[0]);
   });
 
   it('shows guard pose after slash window ends', () => {
@@ -91,11 +94,11 @@ describe('pickTrainingPlayerPoseUrl', () => {
     );
   });
 
-  it('cycles idle frames in ping-pong order', () => {
+  it('cycles idle frames in four-frame order', () => {
     expect(pickTrainingPlayerPoseUrl(0, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[0]);
     expect(pickTrainingPlayerPoseUrl(0.28, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[1]);
     expect(pickTrainingPlayerPoseUrl(0.56, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[2]);
-    expect(pickTrainingPlayerPoseUrl(0.84, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[1]);
+    expect(pickTrainingPlayerPoseUrl(0.84, 0, 0)).toBe(DEFENSE_PLAYER_IDLE_URLS[3]);
   });
 });
 

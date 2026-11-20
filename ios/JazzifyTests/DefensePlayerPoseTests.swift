@@ -8,7 +8,7 @@ final class DefensePlayerPoseTests: XCTestCase {
         runtime.skillPoseStartSec = 0.8
         runtime.slashAt = 0.9
         runtime.guardPoseUntilSec = 2
-        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "Frame3")
+        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "pixel-hero-cast")
     }
 
     func testShowsSlashPoseDuringSlashWindow() {
@@ -16,7 +16,7 @@ final class DefensePlayerPoseTests: XCTestCase {
         runtime.elapsedSec = 0.1
         runtime.slashAt = 0
         runtime.guardPoseUntilSec = 1
-        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), DefensePlayerPose.slashAssetName)
+        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), DefensePlayerPose.slashAssetNames[1])
     }
 
     func testShowsGuardPoseAfterSlashWindow() {
@@ -27,16 +27,16 @@ final class DefensePlayerPoseTests: XCTestCase {
         XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), DefensePlayerPose.guardAssetName)
     }
 
-    func testIdlePingPongOrder() {
+    func testIdleFrameOrder() {
         var runtime = DefenseRuntimeState(playerHp: 5, surviveSeconds: 120, maxEnemies: 3)
         runtime.elapsedSec = 0
-        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "defense_player_idle_1")
+        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "pixel-hero-idle-1")
         runtime.elapsedSec = 0.28
-        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "defense_player_idle_2")
+        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "pixel-hero-idle-2")
         runtime.elapsedSec = 0.56
-        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "defense_player_idle_3")
+        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "pixel-hero-idle-3")
         runtime.elapsedSec = 0.84
-        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "defense_player_idle_2")
+        XCTAssertEqual(DefensePlayerPose.assetName(runtime: runtime), "pixel-hero-idle-4")
     }
 
     func testTrainingShowsSlashPoseDuringSlashWindow() {
@@ -45,7 +45,7 @@ final class DefensePlayerPoseTests: XCTestCase {
             slashUntilSec: 1.74,
             guardPoseUntilSec: 2.5
         )
-        XCTAssertEqual(assetName, DefensePlayerPose.slashAssetName)
+        XCTAssertEqual(assetName, DefensePlayerPose.slashAssetNames[0])
     }
 
     func testTrainingShowsGuardPoseAfterSlashWindow() {
@@ -57,22 +57,22 @@ final class DefensePlayerPoseTests: XCTestCase {
         XCTAssertEqual(assetName, DefensePlayerPose.guardAssetName)
     }
 
-    func testTrainingIdlePingPongOrder() {
+    func testTrainingIdleFrameOrder() {
         XCTAssertEqual(
             DefensePlayerPose.trainingAssetName(elapsedSec: 0, slashUntilSec: 0, guardPoseUntilSec: 0),
-            "defense_player_idle_1"
+            "pixel-hero-idle-1"
         )
         XCTAssertEqual(
             DefensePlayerPose.trainingAssetName(elapsedSec: 0.28, slashUntilSec: 0, guardPoseUntilSec: 0),
-            "defense_player_idle_2"
+            "pixel-hero-idle-2"
         )
         XCTAssertEqual(
             DefensePlayerPose.trainingAssetName(elapsedSec: 0.56, slashUntilSec: 0, guardPoseUntilSec: 0),
-            "defense_player_idle_3"
+            "pixel-hero-idle-3"
         )
         XCTAssertEqual(
             DefensePlayerPose.trainingAssetName(elapsedSec: 0.84, slashUntilSec: 0, guardPoseUntilSec: 0),
-            "defense_player_idle_2"
+            "pixel-hero-idle-4"
         )
     }
 }

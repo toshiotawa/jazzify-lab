@@ -108,6 +108,7 @@ struct DefenseEnemyState: Identifiable, Sendable {
 }
 
 struct DefenseDamagePopupState: Sendable {
+    var targetType: DefenseEnemyType = .slime
     var isActive: Bool = false
     var x: CGFloat = 0
     var y: CGFloat = 0
@@ -168,6 +169,7 @@ struct DefenseRuntimeState: Sendable {
     var slashAt: TimeInterval = DefenseEnemyConfig.noSlash
     var slashFromX: CGFloat = 80
     var slashToX: CGFloat = 80
+    var slashTargetType: DefenseEnemyType = .slime
     var slashY: CGFloat = 300
     var guardPoseUntilSec: TimeInterval = 0
     var skillPoseStartSec: TimeInterval = DefenseEnemyConfig.noSkillPose

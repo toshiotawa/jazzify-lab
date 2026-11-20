@@ -59,6 +59,7 @@ const getCachedRimTintCanvas = (
   }
   const offCtx = getTintCanvasContext(width, height);
   if (!offCtx || !tintCanvas) return null;
+  offCtx.imageSmoothingEnabled = false;
   offCtx.drawImage(img, 0, 0, width, height);
   offCtx.globalCompositeOperation = 'source-atop';
   offCtx.fillStyle = tintColor;
@@ -103,6 +104,7 @@ export const drawTintedImageCopy = (
 ): void => {
   const offCtx = getTintCanvasContext(width, height);
   if (!offCtx || !tintCanvas) return;
+  offCtx.imageSmoothingEnabled = false;
   offCtx.drawImage(img, 0, 0, width, height);
   offCtx.globalCompositeOperation = 'source-atop';
   offCtx.fillStyle = tintColor;
@@ -160,6 +162,7 @@ export const drawBattleAvatar = (
   const fallbackLabel = options.fallbackLabel ?? (side === 'player' ? 'P' : 'E');
 
   ctx.save();
+  ctx.imageSmoothingEnabled = false;
   ctx.translate(x, footY + yOffset);
   ctx.rotate(rotationDeg * Math.PI / 180);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';

@@ -246,6 +246,7 @@ export const holdCharacterForAction = (
   clearCharacterMotionTimers(timers);
   view.motionToken += 1;
   view.motionState = state;
+  if (view.side === 'enemy' && state === 'attack') view.throwStartedAt = performance.now();
   view.knockbackPhase = 'none';
   view.yOffset = 0;
   view.rotation = 0;

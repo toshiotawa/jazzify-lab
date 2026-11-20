@@ -53,12 +53,23 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let enemyWalkSpeed: CGFloat = 31
     private static var generatedTextureCache: [String: SKTexture] = [:]
 
+    private var actorTextures: [String: SKTexture] = [:]
+
+    private func actorTexture(named name: String) -> SKTexture? {
+        if let cached = actorTextures[name] { return cached }
+        guard let image = UIImage(named: name) else { return nil }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .nearest
+        actorTextures[name] = texture
+        return texture
+    }
+
     private enum PlayerAvatarPoseAsset {
-        static let correctName = "correct3"
-        static let castName = "eishou"
-        static let guardDName = "GuardD"
-        static let finishName = "finish"
-        static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
+        static let correctName = "pixel-hero-slash-3"
+        static let castName = "pixel-hero-cast"
+        static let guardDName = DefensePlayerPose.guardAssetName
+        static let finishName = "pixel-hero-finish"
+        static let skillNames = Array(DefensePlayerPose.skillAssetNames.prefix(5))
     }
 
     private enum CharacterActionKey {
@@ -1418,6 +1429,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func drawCharacters(width: CGFloat, height: CGFloat, floorY: CGFloat) {
         guard let snapshot else { return }
+        for name in PlayerAvatarPoseAsset.skillNames + [
+            PlayerAvatarPoseAsset.correctName, PlayerAvatarPoseAsset.castName,
+            PlayerAvatarPoseAsset.guardDName, PlayerAvatarPoseAsset.finishName
+        ] {
+            _ = actorTexture(named: name)
+        }
         playerNode = createCharacter(
             x: width * 0.23,
             footY: floorY,
@@ -1879,8 +1896,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         var rimNode: SKSpriteNode?
         var bodyGlowNode: SKSpriteNode?
         var bodyGlowRimNode: SKSpriteNode?
-        if let image = UIImage(named: avatarAssetName) {
-            let texture = SKTexture(image: image)
+        if let texture = actorTexture(named: avatarAssetName) {
 
             let rim = SKSpriteNode(texture: texture)
             rim.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -1950,7 +1966,21 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let side: CharacterSide = isPlayer ? .player : .enemy
         let range = Self.motionRange(for: side, stageWidth: max(320, size.width))
         let motion = CharacterMotion(side: side, range: range, targetX: x)
-        return CharacterView(
+        let frameNames: [String]
+        if avatarAssetName == EarTrainingBattleController.playerAvatarAssetName {
+            frameNames = DefensePlayerPose.idleAssetNames
+        } else if EarTrainingAvatarCatalog.enemyAssetNames.contains(avatarAssetName) {
+            let stem = String(avatarAssetName.dropLast())
+            frameNames = [avatarAssetName, stem + "2", stem + "3", stem + "2"]
+        } else {
+            frameNames = []
+        }
+        let frames = frameNames.compactMap { actorTexture(named: $0) }
+        let idleAction: SKAction? = frames.count > 1 ? .repeatForever(
+            .animate(with: frames, timePerFrame: DefensePlayerPose.idleFrameSec, resize: false, restore: false)
+        ) : nil
+        let view = CharacterView(
+            idleAction: idleAction,
             container: container,
             image: imageNode,
             rim: rimNode,
@@ -1959,6 +1989,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             fallback: fallback,
             motion: motion
         )
+        view.startIdleFrames()
+        return view
     }
 
     // MARK: - Phrase intro
@@ -3250,10 +3282,20 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         return playerNode?.container.position.x
     }
 
+    private static let throwRecoil = SKAction.sequence([
+        .rotate(toAngle: 16 * .pi / 180, duration: 0),
+        .rotate(toAngle: -7 * .pi / 180, duration: 0.09),
+        .rotate(toAngle: 0, duration: 0.15)
+    ])
+
     private func holdCharacterForAction(_ side: CharacterSide, state: BattleCharacterMotionState, durationMs: TimeInterval) {
         guard let view = characterView(for: side), view.motion.state != .dead else { return }
         stopCharacterMotion(view)
         view.motion.state = state
+        if side == .enemy && state == .attack {
+            view.image?.run(Self.throwRecoil, withKey: "throw-recoil")
+            view.rim?.run(Self.throwRecoil, withKey: "throw-recoil")
+        }
         view.container.position = CGPoint(
             x: Self.clampCharacterX(view.container.position.x, range: view.motion.range),
             y: floorYForHeight(max(320, size.height))
@@ -3451,8 +3493,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func applyPlayerPose(assetName: String) -> Bool {
-        guard let view = playerNode, let image = UIImage(named: assetName) else { return false }
-        let texture = SKTexture(image: image)
+        guard let view = playerNode, let texture = actorTexture(named: assetName) else { return false }
+        view.stopIdleFrames()
         view.image?.texture = texture
         view.image?.size = CGSize(width: Self.characterDisplaySize, height: Self.characterDisplaySize)
         view.image?.xScale = 1
@@ -3473,11 +3515,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         guard
             let view = playerNode,
             let avatarAssetName = snapshot?.playerAvatarName,
-            let image = UIImage(named: avatarAssetName)
+            let texture = actorTexture(named: avatarAssetName)
         else {
             return
         }
-        let texture = SKTexture(image: image)
         playerPoseToken = 0
         view.image?.texture = texture
         view.image?.size = CGSize(width: Self.characterDisplaySize, height: Self.characterDisplaySize)
@@ -3489,6 +3530,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         )
         view.rim?.xScale = 1
         view.fallback.isHidden = true
+        view.startIdleFrames()
     }
 
     // MARK: - Anchors
@@ -3598,6 +3640,19 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private struct CharacterView {
+        let idleAction: SKAction?
+
+        func startIdleFrames() {
+            guard let idleAction else { return }
+            image?.run(idleAction, withKey: "pixel-idle")
+            rim?.run(idleAction, withKey: "pixel-idle")
+        }
+
+        func stopIdleFrames() {
+            image?.removeAction(forKey: "pixel-idle")
+            rim?.removeAction(forKey: "pixel-idle")
+        }
+
         let container: SKNode
         let image: SKSpriteNode?
         let rim: SKSpriteNode?

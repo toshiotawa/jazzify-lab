@@ -80,6 +80,7 @@ enum EarTrainingBattleStageKit {
 
         if let image = UIImage(named: assetName) {
             let texture = SKTexture(image: image)
+            texture.filteringMode = .nearest
             let rim = SKSpriteNode(texture: texture)
             rim.anchorPoint = CGPoint(x: 0.5, y: 0)
             rim.size = CGSize(

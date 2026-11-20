@@ -162,6 +162,8 @@ describe('defenseEngine', () => {
     expect(runtime.guardPoseUntilSec).toBeCloseTo(0.5);
     expect(runtime.slashToX).toBeCloseTo(DEFENSE_SPAWN_X);
     expect(runtime.slashY).toBeCloseTo(getDefenseEnemyCenterY('goblin'));
+    expect(runtime.slashTargetType).toBe('goblin');
+    expect(runtime.damagePopups[0]?.targetType).toBe('goblin');
   });
 
   it('slash hits frontmost enemy by min x, not euclidean nearest', () => {
@@ -372,6 +374,16 @@ describe('defenseEngine', () => {
     tickDefenseSimulation(runtime, easyDifficulty, DEFENSE_FIREBALL_SPAWN_DELAY_SEC);
     expect(runtime.fireballs.some((fb) => fb.active)).toBe(true);
     expect(runtime.fireballSpawnAtSec).toBe(-1);
+  });
+
+  it('hits the crossed contact point even when a frame skips past the monster', () => {
+    const runtime = createDefenseRuntime(5, 120, 1);
+    const enemy = runtime.enemies[0]!;
+    Object.assign(enemy, { active: true, type: 'wolf', x: runtime.playerX + 95, hp: 100 });
+    spawnDefenseFireball(runtime);
+    updateDefenseFireballs(runtime, 0.25);
+    expect(enemy.active).toBe(false);
+    expect(runtime.damagePopups[0]?.targetType).toBe('wolf');
   });
 
   it('fireball one-shots each enemy it pierces', () => {

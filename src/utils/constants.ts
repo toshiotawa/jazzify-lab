@@ -1,3 +1,5 @@
+import { BAND_AVATARS, HERO_IDLE_FRAMES } from '@/game/earTraining/battlePixelSprites';
+
 /**
  * アプリケーション全体で使用する定数
  */
@@ -6,21 +8,10 @@
 export const DEFAULT_AVATAR_URL = '/default_avater/default-avater.webp';
 
 /** 耳コピバトル画面のプレイヤー（自分）側キャラ立ち絵 */
-export const EAR_TRAINING_PLAYER_AVATAR_URL = '/default_avater/default-avater.webp';
+export const EAR_TRAINING_PLAYER_AVATAR_URL = HERO_IDLE_FRAMES[0];
 
 /** 耳コピバトル画面の敵キャラ候補 */
-export const EAR_TRAINING_ENEMY_AVATAR_URLS: readonly string[] = [
-  '/stage_icons/1.webp',
-  '/stage_icons/2.webp',
-  '/stage_icons/3.webp',
-  '/stage_icons/4.webp',
-  '/stage_icons/5.webp',
-  '/stage_icons/6.webp',
-  '/stage_icons/7.webp',
-  '/stage_icons/8.webp',
-  '/stage_icons/9.webp',
-  '/stage_icons/10.webp',
-];
+export const EAR_TRAINING_ENEMY_AVATAR_URLS: readonly string[] = BAND_AVATARS;
 
 /** 右向きの素材を敵側で左向きに表示するための対象URL */
 export const EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS: ReadonlySet<string> = new Set([

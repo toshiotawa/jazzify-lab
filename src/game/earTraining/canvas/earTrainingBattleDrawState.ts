@@ -22,6 +22,7 @@ export interface CanvasCharacterRuntime {
   speed: number;
   motionState: CanvasCharacterMotionState;
   motionToken: number;
+  throwStartedAt?: number;
   walkFromX: number;
   walkToX: number;
   walkStartedAt: number;
