@@ -308,14 +308,17 @@ final class EarTrainingChordOsmdTimingTests: XCTestCase {
         )
         let throwPhraseSec = judgedPhraseSec - hammerLeadSec
         let impactPhraseSec = judgedPhraseSec + EarTrainingChordOsmdTiming.hammerImpactOffsetSec
-        let osuTiming = EarTrainingBattleOsuCircleTiming.resolvePhraseTiming(
+        let wallNowMs = 10_000.0
+        let osuTiming = EarTrainingBattleOsuCircleTiming.resolvePerfTiming(
             judgedPhraseTimeSec: judgedPhraseSec,
-            approachLeadSec: approachLeadSec
+            phraseTimeSec: judgedPhraseSec,
+            approachLeadSec: approachLeadSec,
+            wallNowMs: wallNowMs
         )
-        let osuState = EarTrainingBattleOsuCircleTiming.computeFromPhrase(
-            phraseTimelineSec: judgedPhraseSec,
-            approachStartPhraseSec: osuTiming.approachStartPhraseSec,
-            judgedPhraseSec: osuTiming.judgedPhraseSec,
+        let osuState = EarTrainingBattleOsuCircleTiming.compute(
+            nowMs: osuTiming.judgedMs,
+            approachStartMs: osuTiming.approachStartMs,
+            judgedMs: osuTiming.judgedMs,
             centerX: 0,
             targetY: 0
         )

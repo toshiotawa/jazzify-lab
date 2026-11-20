@@ -7,6 +7,7 @@ import {
   getDefenseEnemyAttackDy,
   getDefenseEnemyCenterY,
   DEFENSE_DAMAGE_UNIT,
+  getDefenseFireballDamage,
   getDefenseSlashDamage,
   getDefenseWaveHpMult,
   getDefenseWaveIndex,
@@ -124,10 +125,16 @@ describe('defenseEnemyConfig', () => {
     expect(getDefenseSlashDamage(2, false)).toBe(DEFENSE_DAMAGE_UNIT);
   });
 
+  it('returns wave-scaled fireball damage as triple slash when scaling enabled', () => {
+    expect(getDefenseFireballDamage(0, true)).toBe(3 * DEFENSE_DAMAGE_UNIT);
+    expect(getDefenseFireballDamage(3, true)).toBe(4 * 3 * DEFENSE_DAMAGE_UNIT);
+    expect(getDefenseFireballDamage(2, false)).toBe(3 * DEFENSE_DAMAGE_UNIT);
+  });
+
   it('returns wave hp and spawn interval multipliers', () => {
     expect(getDefenseWaveHpMult(0)).toBe(1);
     expect(getDefenseWaveHpMult(3)).toBe(2.0);
-    expect(getDefenseWaveSpawnIntervalMult(1)).toBe(0.75);
-    expect(getDefenseWaveSpawnIntervalMult(3)).toBe(0.4);
+    expect(getDefenseWaveSpawnIntervalMult(1)).toBe(0.85);
+    expect(getDefenseWaveSpawnIntervalMult(3)).toBe(0.6);
   });
 });

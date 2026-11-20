@@ -42,6 +42,6 @@ final class PitchPleaseSampleSocketTests: XCTestCase {
             let pointer = raw.bindMemory(to: Float.self)
             return Array(pointer)
         }
-        XCTAssertEqual(received.first, 0.375, accuracy: 0.0001)
+        XCTAssertEqual(Double(received.first ?? -1), 0.375, accuracy: 0.0001)
     }
 }

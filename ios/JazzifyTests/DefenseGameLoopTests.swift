@@ -284,6 +284,7 @@ final class DefenseGameLoopTests: XCTestCase {
         runtime.enemies[0].type = .wolf
         runtime.enemies[0].isActive = true
         runtime.enemies[0].x = runtime.playerX + 95
+        runtime.enemies[0].hp = 100
         runtime.enemies[0].speedPxPerSec = 0
         runtime.fireballs[0].isActive = true
         runtime.fireballs[0].x = runtime.playerX + 40
@@ -291,6 +292,58 @@ final class DefenseGameLoopTests: XCTestCase {
         DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0.25)
         XCTAssertFalse(runtime.enemies[0].isActive)
         XCTAssertEqual(runtime.damagePopups[0].targetType, .wolf)
+    }
+
+    func testFireballPiercesWithWaveScaledDamageAndLeavesHighHpEnemyAlive() {
+        var runtime = DefenseRuntimeState(
+            playerHp: 5, surviveSeconds: 120, maxEnemies: 3,
+            practiceMode: false, attackTrigger: .note
+        )
+        runtime.elapsedSec = 90
+        runtime.waveIndex = 3
+        runtime.enemies[0].isActive = true
+        runtime.enemies[0].type = .goblin
+        runtime.enemies[0].x = runtime.playerX + 100
+        runtime.enemies[0].hp = DefenseEnemyConfig.damageUnit
+        applyGoblinStats(&runtime.enemies[0])
+
+        runtime.enemies[1].isActive = true
+        runtime.enemies[1].type = .golem
+        runtime.enemies[1].x = runtime.playerX + 200
+        runtime.enemies[1].hp = 14 * DefenseEnemyConfig.damageUnit
+        let golemStats = DefenseEnemyConfig.resolveEnemyStats(type: .golem, difficulty: difficulty)
+        runtime.enemies[1].knockbackMult = golemStats.knockbackMult
+
+        runtime.fireballs[0].isActive = true
+        runtime.fireballs[0].x = runtime.playerX + 100
+        let fireballDamage = DefenseEnemyConfig.fireballDamage(waveIndex: runtime.waveIndex, scaling: true)
+
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0)
+        XCTAssertFalse(runtime.enemies[0].isActive)
+        XCTAssertTrue(runtime.enemies[1].isActive)
+        XCTAssertEqual(runtime.enemies[1].hp, 14 * DefenseEnemyConfig.damageUnit)
+
+        runtime.fireballs[0].x = runtime.playerX + 200
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: 0)
+        XCTAssertTrue(runtime.enemies[1].isActive)
+        XCTAssertEqual(runtime.enemies[1].hp, 14 * DefenseEnemyConfig.damageUnit - fireballDamage)
+        XCTAssertNotEqual(runtime.enemies[1].knockbackVx, 0, accuracy: 0.001)
+    }
+
+    func testWaveSpawnIntervalMultIsRelaxedForPhraseMode() {
+        XCTAssertEqual(DefenseEnemyConfig.waveSpawnIntervalMult(for: 1), 0.85, accuracy: 0.001)
+        XCTAssertEqual(DefenseEnemyConfig.waveSpawnIntervalMult(for: 3), 0.6, accuracy: 0.001)
+    }
+
+    func testFireballDamageIsTripleSlashInPhraseMode() {
+        XCTAssertEqual(
+            DefenseEnemyConfig.fireballDamage(waveIndex: 0, scaling: true),
+            3 * DefenseEnemyConfig.damageUnit
+        )
+        XCTAssertEqual(
+            DefenseEnemyConfig.fireballDamage(waveIndex: 3, scaling: true),
+            4 * 3 * DefenseEnemyConfig.damageUnit
+        )
     }
 
     func testChargesSpStartsSkillPoseAndDelaysFireball() {

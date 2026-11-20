@@ -38,12 +38,14 @@ export const DEFENSE_WAVE_COUNT = 4;
 
 export const DEFENSE_DAMAGE_UNIT = 50;
 export const DEFENSE_WAVE_HP_MULT: readonly number[] = [1, 1.5, 1.8, 2.0];
-export const DEFENSE_WAVE_SPAWN_INTERVAL_MULT: readonly number[] = [1, 0.75, 0.55, 0.4];
+export const DEFENSE_WAVE_SPAWN_INTERVAL_MULT: readonly number[] = [1, 0.85, 0.72, 0.6];
 
 export const DEFENSE_HIT_FLASH_SEC = 0.15;
 export const DEFENSE_SP_MAX = 5;
 export const DEFENSE_FIREBALL_SPEED_PX = 520;
 export const DEFENSE_FIREBALL_HIT_RADIUS = 28;
+export const DEFENSE_FIREBALL_DAMAGE_MULT = 3;
+export const DEFENSE_FIREBALL_KNOCKBACK_MULT = 2.0;
 export const DEFENSE_DAMAGE_POPUP_SEC = 0.6;
 
 export const DEFENSE_WAVE_ROSTERS: readonly (readonly DefenseEnemyType[])[] = [
@@ -135,6 +137,10 @@ export const getDefenseWaveSpawnIntervalMult = (waveIndex: number): number => (
 
 export const getDefenseSlashDamage = (waveIndex: number, scaling: boolean): number => (
   scaling ? (waveIndex + 1) * DEFENSE_DAMAGE_UNIT : DEFENSE_DAMAGE_UNIT
+);
+
+export const getDefenseFireballDamage = (waveIndex: number, scaling: boolean): number => (
+  getDefenseSlashDamage(waveIndex, scaling) * DEFENSE_FIREBALL_DAMAGE_MULT
 );
 
 export const resolveDefenseEnemyStats = (

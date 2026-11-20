@@ -5,8 +5,10 @@ import {
   DEFENSE_ATTACK_LUNGE_SEC,
   DEFENSE_DAMAGE_POPUP_SEC,
   DEFENSE_FIREBALL_HIT_RADIUS,
+  DEFENSE_FIREBALL_KNOCKBACK_MULT,
   DEFENSE_FIREBALL_SPAWN_DELAY_SEC,
   DEFENSE_FIREBALL_SPEED_PX,
+  getDefenseFireballDamage,
   DEFENSE_GROUND_Y,
   DEFENSE_HIT_FLASH_SEC,
   DEFENSE_SP_MAX,
@@ -173,6 +175,9 @@ export const updateDefenseFireballs = (
   dt: number,
 ): void => {
   const showPopup = isPhraseMode(runtime);
+  const scaling = isWaveScaling(runtime);
+  const fireballDamage = getDefenseFireballDamage(runtime.waveIndex, scaling);
+  const fireballKnockback = KNOCKBACK_IMPULSE * DEFENSE_FIREBALL_KNOCKBACK_MULT;
 
   for (const fb of runtime.fireballs) {
     if (!fb.active) continue;
@@ -191,8 +196,8 @@ export const updateDefenseFireballs = (
       applyEnemyDamage(
         runtime,
         enemy,
-        enemy.hp,
-        KNOCKBACK_IMPULSE * 0.5,
+        fireballDamage,
+        fireballKnockback,
         showPopup,
       );
     }

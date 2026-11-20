@@ -386,7 +386,7 @@ describe('defenseEngine', () => {
     expect(runtime.damagePopups[0]?.targetType).toBe('wolf');
   });
 
-  it('fireball one-shots each enemy it pierces', () => {
+  it('fireball pierces with wave-scaled damage and can leave high-hp enemies alive', () => {
     const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
     const front = runtime.enemies[0];
     const back = runtime.enemies[1];
@@ -395,21 +395,20 @@ describe('defenseEngine', () => {
     front.active = true;
     front.type = 'goblin';
     front.x = DEFENSE_PLAYER_X + 100;
-    front.hp = 10 * DEFENSE_DAMAGE_UNIT;
+    front.hp = 50;
     applyGoblinStats(front);
 
     back.active = true;
-    back.type = 'goblin';
+    back.type = 'golem';
     back.x = DEFENSE_PLAYER_X + 200;
-    back.hp = 10 * DEFENSE_DAMAGE_UNIT;
-    applyGoblinStats(back);
+    back.hp = 14 * DEFENSE_DAMAGE_UNIT;
+    const golemStats = resolveDefenseEnemyStats('golem', easyDifficulty);
+    back.speedPxPerSec = golemStats.speedPxPerSec;
+    back.damage = golemStats.damage;
+    back.knockbackMult = golemStats.knockbackMult;
 
     runtime.activeEnemyCount = 2;
-    chargeDefenseSp(runtime);
-    chargeDefenseSp(runtime);
-    chargeDefenseSp(runtime);
-    chargeDefenseSp(runtime);
-    chargeDefenseSp(runtime);
+    runtime.waveIndex = 3;
     spawnDefenseFireball(runtime);
 
     const fb = runtime.fireballs.find((f) => f.active);
@@ -419,6 +418,46 @@ describe('defenseEngine', () => {
     updateDefenseFireballs(runtime, 0);
     expect(front.active).toBe(false);
     expect(back.active).toBe(true);
+    expect(back.hp).toBe(14 * DEFENSE_DAMAGE_UNIT);
+
+    fb.x = DEFENSE_PLAYER_X + 200;
+    updateDefenseFireballs(runtime, 0);
+    expect(back.active).toBe(true);
+    expect(back.hp).toBe(14 * DEFENSE_DAMAGE_UNIT - 4 * 3 * DEFENSE_DAMAGE_UNIT);
+    expect(back.knockbackVx).not.toBe(0);
+  });
+
+  it('fireball defeats low-hp enemies in one pierce hit', () => {
+    const runtime = createDefenseRuntime(5, 120, 3, false, 'note');
+    const front = runtime.enemies[0];
+    const back = runtime.enemies[1];
+    if (!front || !back) throw new Error('missing enemy slots');
+
+    front.active = true;
+    front.type = 'bat';
+    front.x = DEFENSE_PLAYER_X + 100;
+    front.hp = DEFENSE_DAMAGE_UNIT;
+    const batStats = resolveDefenseEnemyStats('bat', easyDifficulty);
+    front.speedPxPerSec = batStats.speedPxPerSec;
+    front.knockbackMult = batStats.knockbackMult;
+
+    back.active = true;
+    back.type = 'slime';
+    back.x = DEFENSE_PLAYER_X + 200;
+    back.hp = DEFENSE_DAMAGE_UNIT;
+    const slimeStats = resolveDefenseEnemyStats('slime', easyDifficulty);
+    back.speedPxPerSec = slimeStats.speedPxPerSec;
+    back.knockbackMult = slimeStats.knockbackMult;
+
+    runtime.activeEnemyCount = 2;
+    spawnDefenseFireball(runtime);
+
+    const fb = runtime.fireballs.find((f) => f.active);
+    if (!fb) throw new Error('missing fireball');
+    fb.x = DEFENSE_PLAYER_X + 100;
+
+    updateDefenseFireballs(runtime, 0);
+    expect(front.active).toBe(false);
 
     fb.x = DEFENSE_PLAYER_X + 200;
     updateDefenseFireballs(runtime, 0);

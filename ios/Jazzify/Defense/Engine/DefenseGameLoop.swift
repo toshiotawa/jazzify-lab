@@ -241,6 +241,12 @@ enum DefenseGameLoop {
 
     private static func updateFireballs(runtime: inout DefenseRuntimeState, deltaTime: TimeInterval) {
         let showPopup = isPhraseMode(runtime)
+        let scaling = isWaveScaling(runtime)
+        let fireballDamage = DefenseEnemyConfig.fireballDamage(
+            waveIndex: runtime.waveIndex,
+            scaling: scaling
+        )
+        let fireballKnockback = DefenseEnemyConfig.knockbackImpulse * DefenseEnemyConfig.fireballKnockbackMult
         let dt = CGFloat(deltaTime)
 
         for fbIndex in runtime.fireballs.indices {
@@ -259,8 +265,8 @@ enum DefenseGameLoop {
                 applyEnemyDamage(
                     runtime: &runtime,
                     enemyIndex: enemyIndex,
-                    damage: runtime.enemies[enemyIndex].hp,
-                    knockbackImpulse: DefenseEnemyConfig.knockbackImpulse * 0.5,
+                    damage: fireballDamage,
+                    knockbackImpulse: fireballKnockback,
                     showPopup: showPopup
                 )
             }
