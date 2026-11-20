@@ -187,8 +187,15 @@ final class DefenseSeparateTracksAudio: @unchecked Sendable {
         let framesAhead = max(0, position.endHostSec - now) * grid.sampleRate
         let frame = Double(position.endFrame) - framesAhead
         guard frame >= 0 else { return nil }
-        let frameInForm = frame.truncatingRemainder(dividingBy: Double(grid.bgmFrames))
-        return frameInForm / Double(grid.cycleFrames) * Double(grid.phraseBars.rawValue * (stage?.beatsPerBar ?? 4))
+        let audibleFrame = Int(frame)
+        return DefenseSeparateTracksTransport.beatInForm(
+            absoluteCycle: audibleFrame / grid.cycleFrames,
+            phaseFrame: audibleFrame % grid.cycleFrames,
+            cycleFrames: grid.cycleFrames,
+            phraseBars: grid.phraseBars.rawValue,
+            beatsPerBar: stage?.beatsPerBar ?? 4,
+            cyclesPerForm: grid.cyclesPerForm
+        )
     }
 
     private func registerLifecycleObservers() {

@@ -330,6 +330,7 @@ final class DefenseGameSession: ObservableObject {
             DefenseSharedProgressionAudio.shared.start(initialPhraseIndex: judgeState.phraseIndex)
         } else {
             try? await DefenseBackingAudio.shared.startPhrase(at: 0)
+            lastSwitchGeneration = DefenseBackingAudio.shared.didSwitchGeneration
             syncEffectiveProgressionChords(phraseIndex: 0)
         }
         guard generation == startGeneration, !Task.isCancelled else { return }
@@ -621,12 +622,14 @@ final class DefenseGameSession: ObservableObject {
 
         DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: dt)
 
-        if !isSharedProgressionStage {
+        if !isSharedProgressionStage && !isSeparateTracksStage {
             let switchGen = DefenseBackingAudio.shared.didSwitchGeneration
-            if switchGen != lastSwitchGeneration, let switchedToIndex = pendingSwitchPhraseIndex {
+            if switchGen != lastSwitchGeneration {
+                let switchedToIndex = DefenseBackingAudio.shared.audiblePhraseIndex
                 lastSwitchGeneration = switchGen
-                pendingSwitchPhraseIndex = nil
-                DefenseBackingAudio.shared.commitSwitchFromMainThread()
+                if pendingSwitchPhraseIndex == switchedToIndex {
+                    pendingSwitchPhraseIndex = nil
+                }
                 syncEffectiveProgressionChords(phraseIndex: switchedToIndex)
                 let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
                     phrases: stage.phrases,

@@ -5,7 +5,11 @@ import { defenseOutputTime } from './defenseTransport';
 import processorUrl from 'virtual:defense-separate-tracks-processor-url';
 
 import { isDefenseSharedProgressionSeparateTracksStage } from '@/game/defense/defenseAudioRegistrationMode';
-import type { SeparateTracksGrid } from '@/game/defense/defenseSeparateTracksTransport';
+import {
+  advanceTransportByElapsedFrames,
+  computeBeatInForm,
+  type SeparateTracksGrid,
+} from '@/game/defense/defenseSeparateTracksTransport';
 import {
   prepareSeparateTracksBuffers,
   separateTracksCacheKey,
@@ -280,7 +284,15 @@ class DefenseSeparateTracksDeck {
     const frames = snap.absoluteCycle * grid.cycleFrames + snap.phaseFrame
       + (defenseOutputTime(sharedAudioContext) - snap.audioTime) * grid.sampleRate;
     if (frames < 0) return null;
-    return (frames % grid.bgmFrames) / grid.cycleFrames * grid.phraseBars * (this.stage?.beatsPerBar ?? 4);
+    const position = advanceTransportByElapsedFrames(0, 0, grid.cycleFrames, frames);
+    return computeBeatInForm(
+      position.absoluteCycle,
+      position.phaseFrame,
+      grid.cycleFrames,
+      grid.phraseBars,
+      this.stage?.beatsPerBar ?? 4,
+      grid.cyclesPerForm,
+    );
   }
 
   getAppliedSpeedPercent(): number {

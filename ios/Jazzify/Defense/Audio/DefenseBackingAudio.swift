@@ -30,32 +30,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var beatsPerBar: Int = 4
     private var currentBarCount: Int = 4
     private var presentationLatency: TimeInterval = 0
-    private var pendingBarCount: Int = 4
     private var switchScheduleToken: UInt64 = 0
-
-    private var pendingSwitchAtHostSec: Double = -1
-    private var pendingTransportStartHostSec: Double = -1
-    private var lastCommittedSwitchAtHostSec: Double = -1
-    private var lastCommittedTransportStartHostSec: Double = -1
-    private var switchGeneration: UInt64 = 0
+    private(set) var didSwitchGeneration: UInt64 = 0
+    private(set) var audiblePhraseIndex = 0
     private var outgoingStopWorkItem: DispatchWorkItem?
 
     private static let startLeadSec = 0.15
     private static let scheduleMinQuantumSec = 0.001
-
-    /// レンダー相当の切替時刻を過ぎると増える。メインスレッドはこれを監視して譜面を切り替える。
-    var didSwitchGeneration: UInt64 {
-        os_unfair_lock_lock(&lock)
-        defer { os_unfair_lock_unlock(&lock) }
-        if pendingSwitchAtHostSec >= 0, Self.hostTimeSec() >= pendingSwitchAtHostSec {
-            lastCommittedSwitchAtHostSec = pendingSwitchAtHostSec
-            lastCommittedTransportStartHostSec = pendingTransportStartHostSec
-            pendingSwitchAtHostSec = -1
-            pendingTransportStartHostSec = -1
-            switchGeneration &+= 1
-        }
-        return switchGeneration
-    }
 
     private var voiceInputDucking = false
     private static let voiceInputDuckFactor: Float = 0.5
@@ -93,6 +74,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let apply = { [weak self] in
             guard let self else { return }
             self.switchScheduleToken &+= 1
+            self.cancelOutgoingStopWork()
             let incoming = self.activeIsA ? self.playerB : self.playerA
             incoming.stop()
             incoming.reset()
@@ -101,12 +83,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
             } else {
                 self.bufferA = nil
             }
-            os_unfair_lock_lock(&self.lock)
-            self.pendingSwitchAtHostSec = -1
-            self.pendingTransportStartHostSec = -1
-            self.lastCommittedSwitchAtHostSec = -1
-            self.lastCommittedTransportStartHostSec = -1
-            os_unfair_lock_unlock(&self.lock)
         }
         if Thread.isMainThread {
             apply()
@@ -207,7 +183,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         try await MainActor.run {
             self.stopPlayersAndResetPending()
             self.currentBarCount = self.barCount(for: index)
-            self.pendingBarCount = self.currentBarCount
+            self.audiblePhraseIndex = index
             try self.startEngine(with: buffer)
         }
     }
@@ -228,12 +204,14 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     func scheduleSwitchPhrase(at index: Int) async throws -> Int64 {
-        let token = await MainActor.run { self.switchScheduleToken }
+        let token = await MainActor.run {
+            self.switchScheduleToken &+= 1
+            return self.switchScheduleToken
+        }
         let buffer = try await bufferForPhrase(at: index)
         return await MainActor.run {
             guard self.switchScheduleToken == token else { return 0 }
-            self.pendingBarCount = self.barCount(for: index)
-            return self.scheduleSwitchOnMain(buffer: buffer)
+            return self.scheduleSwitchOnMain(buffer: buffer, phraseIndex: index)
         }
     }
 
@@ -243,31 +221,11 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
-    func commitSwitchFromMainThread() {
-        let outgoing = activeIsA ? playerA : playerB
-        outgoing.stop()
-        outgoing.reset()
-        if activeIsA {
-            bufferA = nil
-        } else {
-            bufferB = nil
-        }
-        activeIsA.toggle()
-        currentBarCount = pendingBarCount
-        os_unfair_lock_lock(&lock)
-        if lastCommittedTransportStartHostSec >= 0 {
-            transportStartHostSec = lastCommittedTransportStartHostSec
-            lastCommittedTransportStartHostSec = -1
-        }
-        lastCommittedSwitchAtHostSec = -1
-        pendingSwitchAtHostSec = -1
-        pendingTransportStartHostSec = -1
-        os_unfair_lock_unlock(&lock)
-    }
-
     func stop() {
         let apply = { [weak self] in
             guard let self else { return }
+            self.switchScheduleToken &+= 1
+            self.cancelOutgoingStopWork()
             if self.graphReady {
                 self.playerA.stop()
                 self.playerB.stop()
@@ -283,10 +241,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.pcmCache.removeAll(keepingCapacity: false)
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
-            self.pendingSwitchAtHostSec = -1
-            self.pendingTransportStartHostSec = -1
-            self.lastCommittedSwitchAtHostSec = -1
-            self.lastCommittedTransportStartHostSec = -1
             self.transportStartHostSec = 0
             os_unfair_lock_unlock(&self.lock)
         }
@@ -439,15 +393,10 @@ final class DefenseBackingAudio: @unchecked Sendable {
         playerA.play(at: when)
         os_unfair_lock_lock(&lock)
         transportStartHostSec = transportStart
-        switchGeneration = 0
-        pendingSwitchAtHostSec = -1
-        pendingTransportStartHostSec = -1
-        lastCommittedSwitchAtHostSec = -1
-        lastCommittedTransportStartHostSec = -1
         os_unfair_lock_unlock(&lock)
     }
 
-    private func scheduleSwitchOnMain(buffer: AVAudioPCMBuffer) -> Int64 {
+    private func scheduleSwitchOnMain(buffer: AVAudioPCMBuffer, phraseIndex: Int? = nil) -> Int64 {
         cancelOutgoingStopWork()
         os_unfair_lock_lock(&lock)
         let bpmSnapshot = bpm
@@ -496,13 +445,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
         scheduleOutgoingStop(
             outgoing: outgoing,
             atHostSec: switchAt,
-            transportStartAfter: plan.cutAt
+            transportStartAfter: plan.cutAt,
+            phraseIndex: phraseIndex
         )
-
-        os_unfair_lock_lock(&lock)
-        pendingSwitchAtHostSec = switchAt
-        pendingTransportStartHostSec = plan.cutAt
-        os_unfair_lock_unlock(&lock)
 
         return Int64((switchAt * 1_000).rounded())
     }
@@ -515,20 +460,28 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private func scheduleOutgoingStop(
         outgoing: AVAudioPlayerNode,
         atHostSec: Double,
-        transportStartAfter: Double
+        transportStartAfter: Double,
+        phraseIndex: Int?
     ) {
         let delay = max(0, atHostSec - Self.hostTimeSec())
         let item = DispatchWorkItem { [weak self] in
             guard let self else { return }
             outgoing.stop()
             outgoing.reset()
+            if self.activeIsA {
+                self.bufferA = nil
+            } else {
+                self.bufferB = nil
+            }
+            self.activeIsA.toggle()
+            if let phraseIndex {
+                self.currentBarCount = self.barCount(for: phraseIndex)
+                self.audiblePhraseIndex = phraseIndex
+            }
             os_unfair_lock_lock(&self.lock)
-            self.lastCommittedSwitchAtHostSec = atHostSec
-            self.lastCommittedTransportStartHostSec = transportStartAfter
-            self.pendingSwitchAtHostSec = -1
-            self.pendingTransportStartHostSec = -1
-            self.switchGeneration &+= 1
+            self.transportStartHostSec = transportStartAfter
             os_unfair_lock_unlock(&self.lock)
+            self.didSwitchGeneration &+= 1
         }
         outgoingStopWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
@@ -612,12 +565,6 @@ final class DefenseBackingAudio: @unchecked Sendable {
         playerB.reset()
         bufferA = nil
         bufferB = nil
-        os_unfair_lock_lock(&lock)
-        pendingSwitchAtHostSec = -1
-        pendingTransportStartHostSec = -1
-        lastCommittedSwitchAtHostSec = -1
-        lastCommittedTransportStartHostSec = -1
-        os_unfair_lock_unlock(&lock)
     }
 
     func beatInLoop() -> Double? {
