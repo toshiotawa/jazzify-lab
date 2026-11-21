@@ -65,6 +65,8 @@ const installMockAudioContext = (clock = { currentTime: 1, outputLatency: 0 }): 
     createBufferSource() {
       return new MockSource();
     }
+
+    decodeAudioData = vi.fn(async () => ({ duration: 16 }) as AudioBuffer);
   });
 };
 
@@ -114,5 +116,142 @@ describe('defenseBackingDeck pending switch', () => {
     const incoming = startedSources[startedSources.length - 1];
     defenseBackingDeck.cancelPendingSwitch();
     expect(incoming.stop).toHaveBeenCalled();
+  });
+
+  it('schedules at the next bar head and resets phrase elapsed on forceNextBar commit', async () => {
+    const clock = { currentTime: 1, outputLatency: 0 };
+    installMockAudioContext(clock);
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    defenseBackingDeck.setTransportConfig(120, 4);
+    defenseBackingDeck.start({ ...playback(), barCount: 8, loopEnd: 16 });
+    // transportStart = 1.15, barSec = 2.0. Move 0.1s into bar 0 (within 1 beat).
+    clock.currentTime = 1.25;
+    const switchAt = defenseBackingDeck.scheduleSwitch(
+      { ...playback(), barCount: 8, loopEnd: 16 },
+      { forceNextBar: true },
+    );
+    expect(switchAt).toBeCloseTo(3.15, 6);
+    clock.currentTime = 3.15;
+    defenseBackingDeck.commitSwitch();
+    expect(defenseBackingDeck.getElapsedFromTransportStart()).toBeCloseTo(0, 6);
+  });
+
+  it('falls back to bundled local sozai path when CDN returns 404', async () => {
+    installMockAudioContext();
+    const { fetchCachedFullAudioBuffer } = await import('@/utils/audioFetchCache');
+    const mockFetch = vi.mocked(fetchCachedFullAudioBuffer);
+    mockFetch.mockReset();
+    mockFetch.mockRejectedValueOnce(new Error('HTTP 404'));
+    mockFetch.mockResolvedValueOnce(new ArrayBuffer(16));
+
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    const stage = {
+      id: 'cr-1',
+      slug: 'cr-1',
+      stageNumber: 101,
+      title: 'CR',
+      titleEn: 'CR',
+      bpm: 120,
+      beatsPerBar: 4,
+      audioRegistrationMode: 'per_phrase' as const,
+      audioUrl: null,
+      melodyAudioUrl: null,
+      progressionBars: null,
+      phraseBars: 1,
+      audioLoopBars: 8,
+      callResponseBars: 1,
+      staffLayout: 'treble' as const,
+      attackTrigger: 'note' as const,
+      keyFifths: 0,
+      requiredCompletionCount: 3,
+      difficultyLevel: 5,
+      surviveSeconds: 96,
+      playerHp: 16,
+      productionStaffHintMode: 'always' as const,
+      productionKeyboardHintMode: 'always' as const,
+      playStyle: 'phrase' as const,
+      voicingKeyMode: null,
+      voicingLowestKey: null,
+      voicingStartKey: null,
+      voicingMinLowestNote: null,
+      playRootOnChordChange: false,
+      phrases: [],
+      progressionChords: [],
+    };
+    const phrase = {
+      id: 'p1',
+      orderIndex: 0,
+      title: 'P1',
+      audioUrl: 'https://jazzify-cdn.com/sozai/defense-call-response/defense-stage-1-1-cr-phrase-1-bpm120.mp3',
+      loopStartMeasure: null,
+      loopEndMeasure: null,
+      keyFifths: null,
+      requiredCompletionCount: null,
+      chords: [],
+    };
+    const prepared = await defenseBackingDeck.preparePhraseBacking(stage, phrase, 1);
+    expect(prepared.barCount).toBe(8);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1]?.[0]).toContain('sozai/defense-call-response/defense-stage-1-1-cr-phrase-1-bpm120.mp3');
+  });
+
+  it('evicts failed audio cache entries so retries can succeed later', async () => {
+    installMockAudioContext();
+    const { fetchCachedFullAudioBuffer } = await import('@/utils/audioFetchCache');
+    const mockFetch = vi.mocked(fetchCachedFullAudioBuffer);
+    mockFetch.mockReset();
+    mockFetch.mockRejectedValueOnce(new Error('HTTP 404'));
+    mockFetch.mockRejectedValueOnce(new Error('HTTP 404'));
+    mockFetch.mockResolvedValueOnce(new ArrayBuffer(16));
+
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    const url = 'https://jazzify-cdn.com/sozai/defense-call-response/retry.mp3';
+    const stage = {
+      id: 'cr-1',
+      slug: 'cr-1',
+      stageNumber: 101,
+      title: 'CR',
+      titleEn: 'CR',
+      bpm: 120,
+      beatsPerBar: 4,
+      audioRegistrationMode: 'per_phrase' as const,
+      audioUrl: null,
+      melodyAudioUrl: null,
+      progressionBars: null,
+      phraseBars: 1,
+      audioLoopBars: 8,
+      callResponseBars: 1,
+      staffLayout: 'treble' as const,
+      attackTrigger: 'note' as const,
+      keyFifths: 0,
+      requiredCompletionCount: 3,
+      difficultyLevel: 5,
+      surviveSeconds: 96,
+      playerHp: 16,
+      productionStaffHintMode: 'always' as const,
+      productionKeyboardHintMode: 'always' as const,
+      playStyle: 'phrase' as const,
+      voicingKeyMode: null,
+      voicingLowestKey: null,
+      voicingStartKey: null,
+      voicingMinLowestNote: null,
+      playRootOnChordChange: false,
+      phrases: [],
+      progressionChords: [],
+    };
+    const phrase = {
+      id: 'p1',
+      orderIndex: 0,
+      title: 'P1',
+      audioUrl: url,
+      loopStartMeasure: null,
+      loopEndMeasure: null,
+      keyFifths: null,
+      requiredCompletionCount: null,
+      chords: [],
+    };
+    await expect(defenseBackingDeck.preparePhraseBacking(stage, phrase, 1)).rejects.toThrow();
+    const retried = await defenseBackingDeck.preparePhraseBacking(stage, phrase, 1);
+    expect(retried.barCount).toBe(8);
   });
 });
