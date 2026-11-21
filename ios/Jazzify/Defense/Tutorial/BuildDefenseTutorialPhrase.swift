@@ -76,7 +76,7 @@ enum BuildDefenseTutorialPhrase {
 
     static func build(
         settings: DefenseTutorialNotationSettings,
-        audioUrl: String = DefenseTutorialConstants.audioUrl
+        audioUrl: String? = nil
     ) -> DefenseTutorialPhraseBuildResult {
         let writtenOctave = pickWrittenOctave(settings)
         let clef = DefenseTutorialNotation.resolveClef(settings)
@@ -95,6 +95,10 @@ enum BuildDefenseTutorialPhrase {
 
         let writtenNoteNames = writtenMidis.map { concertMidiToName($0) }
         let concertNoteNames = concertMidis.map { concertMidiToName($0) }
+
+        let resolvedAudioUrl = audioUrl
+            ?? DefenseTutorialConstants.audioUrl(forConcertMidis: concertMidis)
+            ?? DefenseTutorialConstants.audioUrl
 
         let notes: [SurvivalPhraseChordNote] = concertMidis.enumerated().map { stepIndex, concertMidi in
             SurvivalPhraseChordNote(
@@ -119,7 +123,7 @@ enum BuildDefenseTutorialPhrase {
             id: "tutorial-cde-phrase",
             orderIndex: 0,
             title: "Input setup",
-            audioUrl: audioUrl,
+            audioUrl: resolvedAudioUrl,
             loopStartMeasure: nil,
             loopEndMeasure: nil,
             keyFifths: DefenseTutorialConstants.keyFifths,
