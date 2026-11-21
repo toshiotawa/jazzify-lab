@@ -50,6 +50,8 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let melodyAudioUrl: String?
     let progressionBars: Int?
     let phraseBars: Int
+    let audioLoopBars: Int?
+    let callResponseBars: Int?
     let staffLayout: DefenseStaffLayout
     let attackTrigger: DefenseAttackTrigger
     let keyFifths: Int
@@ -178,6 +180,9 @@ struct DefenseRuntimeState: Sendable {
     var damagePopups: [DefenseDamagePopupState]
     var nextPopupIndex: Int = 0
     var fireballs: [DefenseFireballState]
+    var enemyBehavior: DefenseEnemyBehavior = .approach
+    var callResponseCue: DefenseCallResponseCue?
+    var danceBeatPhase: Double = 0
     let playerX: CGFloat = 80
     let playerY: CGFloat = 300
 

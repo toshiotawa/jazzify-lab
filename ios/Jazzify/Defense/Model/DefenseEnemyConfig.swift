@@ -138,12 +138,23 @@ enum DefenseEnemyConfig {
         moving: Bool,
         flying: Bool,
         attacking: Bool,
-        attackAge: TimeInterval = attackLungeSec * 0.5
+        attackAge: TimeInterval = attackLungeSec * 0.5,
+        enemyBehavior: DefenseEnemyBehavior = .approach,
+        danceBeatPhase: Double = 0
     ) -> DefenseEnemyFrame {
         if attacking {
             if attackAge < attackLungeSec * windupFraction { return .recoil }
             if attackAge > attackLungeSec * 0.72 { return .passing }
             return .move
+        }
+        if enemyBehavior == .pause {
+            return .idle
+        }
+        if enemyBehavior == .dance {
+            let danceFrames = DefenseEnemyFrame.danceCycle
+            let slot = ((Int(floor(max(0, danceBeatPhase * 2))) + slotIndex) % danceFrames.count + danceFrames.count)
+                % danceFrames.count
+            return danceFrames[slot]
         }
         if flying || moving {
             let phase = Int(floor((elapsedSec + Double(slotIndex) * 0.1) / 0.125))
@@ -230,7 +241,12 @@ private extension Array {
 
 enum DefenseEnemyFrame: String {
     case idle, passing, move, recoil
+    case dance1 = "dance_1"
+    case dance2 = "dance_2"
+    case dance3 = "dance_3"
+    case dance4 = "dance_4"
     static let walkCycle: [Self] = [.idle, .passing, .move, .recoil]
+    static let danceCycle: [Self] = [.dance1, .dance2, .dance3, .dance4]
 }
 
 private struct DefenseEnemyTypeConfig {

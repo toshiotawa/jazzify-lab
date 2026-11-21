@@ -94,6 +94,14 @@ enum DefenseTransport {
         ).switchAt
     }
 
+    /// Always schedules at the next bar line (no immediate switch within one beat).
+    static func planNextBarSwitch(now: Double, transportStart: Double, barSec: Double) -> Double {
+        guard barSec > 0 else { return now + scheduleMinQuantumSec }
+        let elapsed = max(0, now - transportStart)
+        let barIndex = floor(elapsed / barSec + 1e-9)
+        return transportStart + (barIndex + 1) * barSec
+    }
+
     static func barSamples(sampleRate: Double, bpm: Double, beatsPerBar: Int) -> Int64 {
         let safeBpm = max(1.0, bpm)
         let safeBeats = max(1, beatsPerBar)

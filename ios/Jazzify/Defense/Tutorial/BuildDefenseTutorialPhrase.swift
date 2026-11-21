@@ -140,6 +140,8 @@ enum BuildDefenseTutorialPhrase {
             melodyAudioUrl: nil,
             progressionBars: nil,
             phraseBars: 1,
+            audioLoopBars: DefenseTutorialConstants.audioLoopBars,
+            callResponseBars: DefenseTutorialConstants.callResponseBars,
             staffLayout: .treble,
             attackTrigger: .note,
             keyFifths: DefenseTutorialConstants.keyFifths,
