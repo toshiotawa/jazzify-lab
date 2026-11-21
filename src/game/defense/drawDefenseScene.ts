@@ -54,6 +54,8 @@ import {
   DEFENSE_PLAYER_X,
 } from '@/game/defense/defenseTypes';
 
+import { defenseEnemyDancePose } from '@/game/defense/defenseEnemyDance';
+
 const HUD_FONT = 'Arial, sans-serif';
 const IMPACT_RING_COLOR = '#fbbf24';
 const IMPACT_SPARK_COLOR = '#fef08a';
@@ -206,12 +208,13 @@ const drawEnemiesOfType = (
     const enemy = enemies[i];
     if (!enemy.active || enemy.type !== type) continue;
 
-    const attacking = isDefenseEnemyAttacking(
+    const dancing = runtime.enemyDanceActive;
+    const attacking = !dancing && isDefenseEnemyAttacking(
       enemy.attackHitPending,
       runtime.elapsedSec,
       enemy.lastAttackAt,
     );
-    const frame = pickDefenseEnemyFrame(
+    const frame = dancing ? 'idle' : pickDefenseEnemyFrame(
       runtime.elapsedSec,
       enemy.slotIndex,
       enemy.moving,
@@ -239,7 +242,17 @@ const drawEnemiesOfType = (
 
     drawEnemyShadow(ctx, drawX, floorY, spriteScale);
     const top = floorY + footOffset + layout.footDy - drawHeight;
-    ctx.drawImage(img, drawX - drawWidth / 2, top, drawWidth, drawHeight);
+    if (dancing) {
+      const pose = defenseEnemyDancePose(runtime.elapsedSec, enemy.slotIndex, runtime.danceBpm);
+      ctx.save();
+      ctx.translate(drawX, floorY + layout.footDy);
+      ctx.rotate(pose.lean);
+      ctx.scale(1 / pose.squash, pose.squash);
+      ctx.drawImage(img, -drawWidth / 2, -drawHeight - pose.lift * spriteScale, drawWidth, drawHeight);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, drawX - drawWidth / 2, top, drawWidth, drawHeight);
+    }
 
     const hitFlashActive = enemy.hitFlashAt !== DEFENSE_NO_HIT_FLASH
       && runtime.elapsedSec - enemy.hitFlashAt < DEFENSE_HIT_FLASH_SEC;

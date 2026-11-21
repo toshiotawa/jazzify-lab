@@ -7,6 +7,8 @@ final class DefenseScene: SKScene {
 
     weak var session: DefenseGameSession?
 
+    var enemyDanceActive = false
+    var enemyDanceBpm: Double = 120
     private var enemyNodes: [UUID: SKSpriteNode] = [:]
     private var enemyFrameKeys: [UUID: String] = [:]
     private var enemyFlashing: [UUID: Bool] = [:]
@@ -388,12 +390,12 @@ final class DefenseScene: SKScene {
             activeEnemyIds.insert(enemy.id)
             let node = enemyNodes[enemy.id] ?? makeEnemySprite(for: enemy.type, size: layout.size)
 
-            let attacking = DefenseEnemyConfig.isAttacking(
+            let attacking = !enemyDanceActive && DefenseEnemyConfig.isAttacking(
                 attackHitPending: enemy.attackHitPending,
                 elapsedSec: runtime.elapsedSec,
                 attackStartedAt: enemy.lastAttackAt
             )
-            let frame = DefenseEnemyConfig.pickFrame(
+            let frame: DefenseEnemyFrame = enemyDanceActive ? .idle : DefenseEnemyConfig.pickFrame(
                 elapsedSec: runtime.elapsedSec,
                 slotIndex: enemy.slotIndex,
                 moving: enemy.isMoving,
@@ -435,6 +437,19 @@ final class DefenseScene: SKScene {
                 x: drawX + layout.centerDx,
                 y: DefenseSceneLayout.screenY(floorY: floorY, canvasDeltaFromFloor: footOffset) + layout.footDy
             )
+            if enemyDanceActive {
+                let beat = runtime.elapsedSec * max(1, enemyDanceBpm) / 60 + Double(enemy.slotIndex) * 0.31
+                let wave = sin(beat * .pi)
+                let lift = pow(max(0, wave), 2) * 5
+                node.position.y += CGFloat(lift) * DefenseEnemyConfig.battleDisplayScale
+                node.zRotation = CGFloat(wave * 0.075)
+                node.xScale = CGFloat(1 / (1 - lift * 0.012))
+                node.yScale = CGFloat(1 - lift * 0.012)
+            } else {
+                node.zRotation = 0
+                node.xScale = 1
+                node.yScale = 1
+            }
             if node.parent == nil { characterLayer.addChild(node) }
             enemyNodes[enemy.id] = node
 

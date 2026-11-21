@@ -307,6 +307,14 @@ export const updateDefenseEnemies = (
 ): void => {
   if (runtime.result !== 'playing') return;
 
+  if (runtime.enemyDanceActive) {
+    for (const enemy of runtime.enemies) {
+      enemy.moving = false;
+      enemy.attackHitPending = false;
+    }
+    return;
+  }
+
   for (const enemy of runtime.enemies) {
     if (!enemy.active) continue;
 

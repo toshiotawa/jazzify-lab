@@ -182,6 +182,9 @@ export const DEFENSE_TUTORIAL_INPUT_SETUP_V1: DefenseTutorialOptions = {
 
 export interface DefenseRuntime {
   elapsedSec: number;
+  /** Controlled by the audible call/response phase. */
+  enemyDanceActive: boolean;
+  danceBpm: number;
   playerHp: number;
   playerMaxHp: number;
   surviveSeconds: number;
@@ -248,6 +251,8 @@ export const createDefenseRuntime = (
   tutorial: DefenseTutorialOptions | null = null,
 ): DefenseRuntime => ({
   elapsedSec: 0,
+  enemyDanceActive: false,
+  danceBpm: 120,
   playerHp: playerMaxHp,
   playerMaxHp,
   surviveSeconds,
