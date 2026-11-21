@@ -65,6 +65,11 @@ final class DefenseGameSession: ObservableObject {
     }
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
+    private var callResponseTransitionWaitUntilHostSec: Double?
+    private var lastCallResponsePhase: DefenseCallResponsePhase?
+    private var callResponseConfig: DefenseCallResponseConfig? {
+        DefenseCallResponse.config(for: stage)
+    }
     var isPaused = false {
         didSet {
             if oldValue, !isPaused {
@@ -323,7 +328,19 @@ final class DefenseGameSession: ObservableObject {
         guard generation == startGeneration, !Task.isCancelled else { return }
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
         if let tutorialConcertMidis, tutorialOptions != nil {
-            try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
+            let isDefaultMidis = tutorialConcertMidis == [60, 62, 64]
+            if isDefaultMidis, let url = URL(string: DefenseTutorialConstants.audioUrl) {
+                do {
+                    try await DefenseBackingAudio.shared.start(
+                        firstUrl: url,
+                        barCount: DefenseTutorialConstants.audioLoopBars
+                    )
+                } catch {
+                    try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
+                }
+            } else {
+                try? await DefenseBackingAudio.shared.startSynthesizedTutorial(concertMidis: tutorialConcertMidis)
+            }
         } else if isSeparateTracksStage {
             DefenseSeparateTracksAudio.shared.start(initialPhraseIndex: judgeState.phraseIndex)
         } else if isSharedProgressionStage {
@@ -341,6 +358,16 @@ final class DefenseGameSession: ObservableObject {
         }
         runtime.elapsedSec = 0
         lastFrameTime = nil
+        callResponseTransitionWaitUntilHostSec = nil
+        lastCallResponsePhase = .call
+        if callResponseConfig != nil {
+            runtime.enemyBehavior = .dance
+            runtime.callResponseCue = .listen
+            runtime.danceBeatPhase = 0
+            if tutorialOptions == nil {
+                runtime.spawnTimerSec = difficulty.spawnIntervalSec * 0.8
+            }
+        }
         if tutorialOptions != nil {
             DefenseGameLoop.spawnTutorialInitialEnemies(runtime: &runtime, difficulty: difficulty)
         }
@@ -358,6 +385,8 @@ final class DefenseGameSession: ObservableObject {
         let currentIndex = judgeState.phraseIndex
         let nextIndex = (currentIndex + delta + stage.phrases.count) % stage.phrases.count
         pendingSwitchPhraseIndex = nil
+        callResponseTransitionWaitUntilHostSec = nil
+        lastCallResponsePhase = .call
         judgeState = DefensePhraseJudge.resetToPhraseIndex(
             nextIndex,
             phrases: activePhrases,
@@ -381,10 +410,14 @@ final class DefenseGameSession: ObservableObject {
             }
         } else {
             pendingSwitchPhraseIndex = nextIndex
+            let forceNextBar = callResponseConfig != nil
             Task {
                 var scheduledMs: Int64 = 0
                 do {
-                    scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(at: nextIndex)
+                    scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(
+                        at: nextIndex,
+                        forceNextBar: forceNextBar
+                    )
                 } catch {
                     scheduledMs = 0
                 }
@@ -401,6 +434,8 @@ final class DefenseGameSession: ObservableObject {
         practiceSpeedPercent = nextSpeed
         let ratio = Float(DefensePracticeSpeed.ratio(nextSpeed))
         pendingSwitchPhraseIndex = nil
+        callResponseTransitionWaitUntilHostSec = nil
+        lastCallResponsePhase = .call
         let phraseIndex = judgeState.phraseIndex
         if isSeparateTracksStage {
             Task {
@@ -506,6 +541,30 @@ final class DefenseGameSession: ObservableObject {
 
     func handleNoteOn(pitchClass: Int, sequential: Bool = false, inputTimeMs: Double? = nil) {
         guard phase == .playing, !isPaused, runtime.result == .playing else { return }
+        if let crConfig = callResponseConfig,
+           !isSharedProgressionStage,
+           !isSeparateTracksStage {
+            let outputTime = DefenseBackingAudio.shared.currentOutputTime()
+            if let waitHostSec = callResponseTransitionWaitUntilHostSec, outputTime >= waitHostSec {
+                callResponseTransitionWaitUntilHostSec = nil
+            }
+            let elapsed = DefenseBackingAudio.shared.elapsedFromTransportStart() ?? runtime.elapsedSec
+            let barSec = DefenseBackingAudio.shared.currentBarSec()
+            let waitUntilElapsed: Double?
+            if let waitHostSec = callResponseTransitionWaitUntilHostSec, outputTime < waitHostSec {
+                waitUntilElapsed = waitHostSec - (outputTime - elapsed)
+            } else {
+                waitUntilElapsed = nil
+            }
+            let snap = DefenseCallResponse.resolve(
+                config: crConfig,
+                elapsedFromPhraseStartSec: elapsed,
+                barSec: barSec,
+                beatsPerBar: stage.beatsPerBar,
+                transitionWaitUntilElapsedSec: waitUntilElapsed
+            )
+            guard snap.judgeActive else { return }
+        }
         let normalizedPc = ((pitchClass % 12) + 12) % 12
         if sequential,
            NoteInputManager.shared.isVoiceInputActive,
@@ -561,6 +620,49 @@ final class DefenseGameSession: ObservableObject {
                 phrases: stage.phrases,
                 current: judgeState.phraseIndex
             )
+            if callResponseConfig != nil, !isSharedProgressionStage, !isSeparateTracksStage {
+                guard pendingSwitchPhraseIndex == nil else { return }
+                judgeState = DefensePhraseJudge.resetToPhraseIndex(
+                    nextIndex,
+                    phrases: activePhrases,
+                    lastAcceptedPitchClass: judgeState.lastAcceptedPitchClass
+                )
+                runtime.enemyBehavior = .pause
+                runtime.callResponseCue = nil
+                if let elapsed = DefenseBackingAudio.shared.elapsedFromTransportStart() {
+                    let outputTime = DefenseBackingAudio.shared.currentOutputTime()
+                    let transportStart = outputTime - elapsed
+                    let barSec = DefenseBackingAudio.shared.currentBarSec()
+                    let endBar = DefenseCallResponse.transitionEndBarIndex(
+                        elapsedFromPhraseStartSec: elapsed,
+                        barSec: barSec
+                    )
+                    callResponseTransitionWaitUntilHostSec = transportStart + Double(endBar) * barSec
+                } else {
+                    callResponseTransitionWaitUntilHostSec = nil
+                }
+                pendingSwitchPhraseIndex = nextIndex
+                Task {
+                    var scheduledMs: Int64 = 0
+                    do {
+                        scheduledMs = try await DefenseBackingAudio.shared.scheduleSwitchPhrase(
+                            at: nextIndex,
+                            forceNextBar: true
+                        )
+                    } catch {
+                        scheduledMs = 0
+                    }
+                    if pendingSwitchPhraseIndex == nextIndex {
+                        if scheduledMs > 0 {
+                            callResponseTransitionWaitUntilHostSec = Double(scheduledMs) / 1_000.0
+                        } else {
+                            pendingSwitchPhraseIndex = nil
+                            callResponseTransitionWaitUntilHostSec = nil
+                        }
+                    }
+                }
+                return
+            }
             if isSeparateTracksStage {
                 judgeState = DefensePhraseJudge.resetToPhraseIndex(
                     nextIndex,
@@ -620,8 +722,6 @@ final class DefenseGameSession: ObservableObject {
         }
         lastFrameTime = currentTime
 
-        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: dt)
-
         if !isSharedProgressionStage && !isSeparateTracksStage {
             let switchGen = DefenseBackingAudio.shared.didSwitchGeneration
             if switchGen != lastSwitchGeneration {
@@ -630,6 +730,7 @@ final class DefenseGameSession: ObservableObject {
                 if pendingSwitchPhraseIndex == switchedToIndex {
                     pendingSwitchPhraseIndex = nil
                 }
+                callResponseTransitionWaitUntilHostSec = nil
                 syncEffectiveProgressionChords(phraseIndex: switchedToIndex)
                 let preloadIndex = DefensePhraseJudge.nextPhraseIndex(
                     phrases: stage.phrases,
@@ -643,6 +744,12 @@ final class DefenseGameSession: ObservableObject {
                 }
             }
         }
+
+        if let crConfig = callResponseConfig, !isSharedProgressionStage, !isSeparateTracksStage {
+            syncCallResponseRuntime(config: crConfig)
+        }
+
+        DefenseGameLoop.tick(runtime: &runtime, difficulty: difficulty, deltaTime: dt)
 
         let elapsedInt = Int(runtime.elapsedSec)
         let nextHud = DefenseHudState(
@@ -696,6 +803,42 @@ final class DefenseGameSession: ObservableObject {
             resultHandled = true
             handleResult()
         }
+    }
+
+    private func syncCallResponseRuntime(config: DefenseCallResponseConfig) {
+        let outputTime = DefenseBackingAudio.shared.currentOutputTime()
+        if let waitHostSec = callResponseTransitionWaitUntilHostSec, outputTime >= waitHostSec {
+            callResponseTransitionWaitUntilHostSec = nil
+        }
+        let barSec = DefenseBackingAudio.shared.currentBarSec()
+        let elapsed = DefenseBackingAudio.shared.elapsedFromTransportStart() ?? runtime.elapsedSec
+        let waitUntilElapsed: Double?
+        if let waitHostSec = callResponseTransitionWaitUntilHostSec, outputTime < waitHostSec {
+            waitUntilElapsed = waitHostSec - (outputTime - elapsed)
+        } else {
+            waitUntilElapsed = nil
+        }
+        let snapshot = DefenseCallResponse.resolve(
+            config: config,
+            elapsedFromPhraseStartSec: elapsed,
+            barSec: barSec,
+            beatsPerBar: stage.beatsPerBar,
+            transitionWaitUntilElapsedSec: waitUntilElapsed
+        )
+        runtime.enemyBehavior = snapshot.enemyBehavior
+        runtime.callResponseCue = snapshot.cue
+        runtime.danceBeatPhase = snapshot.danceBeatPhase
+
+        if let lastPhase = lastCallResponsePhase,
+           lastPhase == .response,
+           snapshot.phase == .call,
+           callResponseTransitionWaitUntilHostSec == nil {
+            let reset = DefensePhraseJudge.resetProgressForNextCycle(judgeState)
+            if reset != judgeState {
+                judgeState = reset
+            }
+        }
+        lastCallResponsePhase = snapshot.phase
     }
 
     private func applyVoicingKeyState(_ keyState: DefenseVoicingKeyState) {

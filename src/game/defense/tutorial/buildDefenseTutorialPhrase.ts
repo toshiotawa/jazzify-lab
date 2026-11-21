@@ -8,8 +8,10 @@ import type {
 import type { NotationInstrumentId } from '@/utils/notationInstrument';
 import {
   DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE,
+  DEFENSE_TUTORIAL_AUDIO_LOOP_BARS,
   DEFENSE_TUTORIAL_BEATS_PER_BAR,
   DEFENSE_TUTORIAL_BPM,
+  DEFENSE_TUTORIAL_CALL_RESPONSE_BARS,
   DEFENSE_TUTORIAL_KEY_FIFTHS,
   DEFENSE_TUTORIAL_SOLFEGE_LABELS,
   DEFENSE_TUTORIAL_TARGET_CONCERT_MIDI,
@@ -152,6 +154,8 @@ export const buildDefenseTutorialPhrase = (
     melodyAudioUrl: null,
     progressionBars: null,
     phraseBars: 1,
+    audioLoopBars: DEFENSE_TUTORIAL_AUDIO_LOOP_BARS,
+    callResponseBars: DEFENSE_TUTORIAL_CALL_RESPONSE_BARS,
     staffLayout,
     attackTrigger: 'note',
     keyFifths: DEFENSE_TUTORIAL_KEY_FIFTHS,
@@ -182,9 +186,8 @@ export const buildDefenseTutorialPhrase = (
   };
 };
 
-/** Placeholder URL; tutorial play uses synthesized buffer when this fails. */
 export const DEFENSE_TUTORIAL_AUDIO_URL =
-  'https://jazzify-cdn.com/sozai/defense-tutorial-cde-bpm60.mp3';
+  'https://jazzify-cdn.com/sozai/defense-call-response/defense-tutorial-call-response-cde-bpm60.mp3';
 
 export const defaultTutorialNotationSettings = (
   notationInstrumentId: NotationInstrumentId,

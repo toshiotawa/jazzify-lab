@@ -11,6 +11,7 @@ import {
   barSeconds,
   barSecondsFromLoop,
   defenseOutputTime,
+  planDefenseNextBarSwitch,
   planDefenseSwitch,
   rebaseTransportStart,
 } from '@/game/defense/defenseTransport';
@@ -140,6 +141,21 @@ class DefenseBackingDeck {
     return this.graph?.ctx.currentTime ?? 0;
   }
 
+  getOutputTime(): number {
+    return this.graph ? defenseOutputTime(this.graph.ctx) : 0;
+  }
+
+  getElapsedFromTransportStart(): number | null {
+    if (!this.graph || this.transportStart <= 0) {
+      return null;
+    }
+    return defenseOutputTime(this.graph.ctx) - this.transportStart;
+  }
+
+  getBarSec(): number {
+    return this.barSec;
+  }
+
   /** Fractional beat position within the active phrase loop (0 … barCount * beatsPerBar). */
   getBeatInLoop(): number | null {
     const graph = this.graph;
@@ -162,7 +178,7 @@ class DefenseBackingDeck {
   async preload(urls: readonly string[]): Promise<void> {
     const { ctx } = this.ensureGraph();
     const unique = [...new Set(urls.filter((url) => url.length > 0))];
-    await Promise.all(unique.map((url) => this.decodeRawUrl(ctx, url)));
+    await Promise.allSettled(unique.map((url) => this.decodeRawUrl(ctx, url)));
   }
 
   registerBufferFactory(
@@ -170,6 +186,11 @@ class DefenseBackingDeck {
     factory: (ctx: AudioContext) => AudioBuffer,
   ): void {
     this.bufferFactoryByUrl.set(url, factory);
+    this.rawBufferByUrl.delete(url);
+  }
+
+  unregisterBufferFactory(url: string): void {
+    this.bufferFactoryByUrl.delete(url);
     this.rawBufferByUrl.delete(url);
   }
 
@@ -197,8 +218,25 @@ class DefenseBackingDeck {
         if (factory) {
           return factory(ctx);
         }
-        const arrayBuffer = await fetchCachedFullAudioBuffer(url);
-        return ctx.decodeAudioData(arrayBuffer.slice(0));
+        try {
+          const arrayBuffer = await fetchCachedFullAudioBuffer(url);
+          return ctx.decodeAudioData(arrayBuffer.slice(0));
+        } catch (error) {
+          const prefix = 'https://jazzify-cdn.com/sozai/defense-call-response/';
+          if (url.startsWith(prefix)) {
+            try {
+              const fileName = url.slice(prefix.length);
+              const fallbackUrl = `${import.meta.env.BASE_URL}sozai/defense-call-response/${fileName}`;
+              const arrayBuffer = await fetchCachedFullAudioBuffer(fallbackUrl);
+              return await ctx.decodeAudioData(arrayBuffer.slice(0));
+            } catch (fallbackError) {
+              this.rawBufferByUrl.delete(url);
+              throw fallbackError;
+            }
+          }
+          this.rawBufferByUrl.delete(url);
+          throw error;
+        }
       })();
       this.rawBufferByUrl.set(url, promise);
     }
@@ -306,17 +344,26 @@ class DefenseBackingDeck {
   }
 
   /** 次の小節頭、または 1 拍以内のオーバーなら即時に切替を予約する。 */
-  scheduleSwitch(nextPlayback: DefensePhraseBackingPlayback): number {
+  scheduleSwitch(
+    nextPlayback: DefensePhraseBackingPlayback,
+    options?: { readonly forceNextBar?: boolean },
+  ): number {
     this.cancelPendingSwitch();
     const graph = this.ensureGraph();
-    const now = graph.ctx.currentTime;
+    const now = defenseOutputTime(graph.ctx);
     const beatSec = this.barSec / Math.max(1, this.beatsPerBar);
-    const plan = planDefenseSwitch({
-      now,
-      transportStart: this.transportStart,
-      cutIntervalSec: this.barSec,
-      beatSec,
-    });
+    const plan = options?.forceNextBar
+      ? planDefenseNextBarSwitch({
+        now,
+        transportStart: this.transportStart,
+        barSec: this.barSec,
+      })
+      : planDefenseSwitch({
+        now,
+        transportStart: this.transportStart,
+        cutIntervalSec: this.barSec,
+        beatSec,
+      });
     const switchAt = plan.switchAt;
 
     const current = this.activeIsA ? this.slotA : this.slotB;
@@ -330,7 +377,9 @@ class DefenseBackingDeck {
 
     const loopDur = Math.max(1e-6, nextPlayback.loopEnd - nextPlayback.loopStart);
     const overshootSec = plan.immediate ? Math.max(0, now - plan.cutAt) : 0;
-    const startOffset = nextPlayback.startOffset + (overshootSec % loopDur);
+    const startOffset = options?.forceNextBar
+      ? nextPlayback.startOffset
+      : nextPlayback.startOffset + (overshootSec % loopDur);
 
     const next = this.createLoopingSlot(graph, nextPlayback);
     next.gain.gain.setValueAtTime(0, switchAt);

@@ -2,13 +2,19 @@
  * Defense enemy sprite loading (preloaded once at mount; no gameplay allocations).
  */
 import type { DefenseEnemyFrame } from '@/game/defense/defenseEnemyConfig';
-import { DEFENSE_ENEMY_TYPES, DEFENSE_WALK_FRAMES } from '@/game/defense/defenseEnemyConfig';
+import {
+  DEFENSE_DANCE_FRAMES,
+  DEFENSE_ENEMY_TYPES,
+  DEFENSE_WALK_FRAMES,
+} from '@/game/defense/defenseEnemyConfig';
 import type { DefenseEnemyType } from '@/game/defense/defenseTypes';
 import { copyCachedBattleImages, preloadEarTrainingBattleImages } from '@/game/earTraining/canvas/earTrainingBattleImagePreload';
 
 type DefenseEnemyFrames = Readonly<Record<DefenseEnemyFrame, HTMLImageElement>>;
 
 export type DefenseEnemySpriteAtlas = ReadonlyMap<DefenseEnemyType, DefenseEnemyFrames>;
+
+const ALL_FRAMES = [...DEFENSE_WALK_FRAMES, ...DEFENSE_DANCE_FRAMES] as const;
 
 const spriteUrl = (type: DefenseEnemyType, frame: DefenseEnemyFrame): string => (
   `${import.meta.env.BASE_URL}battle-pixels/pixel-${type}_${frame}.png`
@@ -17,7 +23,7 @@ const spriteUrl = (type: DefenseEnemyType, frame: DefenseEnemyFrame): string => 
 const spriteUrls = (): string[] => {
   const urls: string[] = [];
   for (const type of DEFENSE_ENEMY_TYPES) {
-    for (const frame of DEFENSE_WALK_FRAMES) urls.push(spriteUrl(type, frame));
+    for (const frame of ALL_FRAMES) urls.push(spriteUrl(type, frame));
   }
   return urls;
 };
@@ -33,9 +39,22 @@ const buildAtlasFromImageMap = (
     const move = map.get(spriteUrl(type, 'move'));
     const passing = map.get(spriteUrl(type, 'passing'));
     const recoil = map.get(spriteUrl(type, 'recoil'));
-    const available = idle ?? move ?? passing ?? recoil;
+    const dance1 = map.get(spriteUrl(type, 'dance_1'));
+    const dance2 = map.get(spriteUrl(type, 'dance_2'));
+    const dance3 = map.get(spriteUrl(type, 'dance_3'));
+    const dance4 = map.get(spriteUrl(type, 'dance_4'));
+    const available = idle ?? move ?? passing ?? recoil ?? dance1;
     if (available) {
-      atlas.set(type, { idle: idle ?? available, passing: passing ?? available, move: move ?? available, recoil: recoil ?? available });
+      atlas.set(type, {
+        idle: idle ?? available,
+        passing: passing ?? available,
+        move: move ?? available,
+        recoil: recoil ?? available,
+        dance_1: dance1 ?? available,
+        dance_2: dance2 ?? available,
+        dance_3: dance3 ?? available,
+        dance_4: dance4 ?? available,
+      });
     }
   }
   return atlas.size > 0 ? atlas : null;

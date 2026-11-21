@@ -41,6 +41,12 @@ describe('buildDefenseTutorialPhrase', () => {
     expect(phrase.keyFifths).toBe(0);
   });
 
+  it('configures call-response audio loop on tutorial stage', () => {
+    const { stage } = buildDefenseTutorialPhrase(defaultTutorialNotationSettings('piano'), 'https://example.com/a.mp3');
+    expect(stage.audioLoopBars).toBe(8);
+    expect(stage.callResponseBars).toBe(1);
+  });
+
   it('uses C4 D4 E4 for piano', () => {
     const settings = defaultTutorialNotationSettings('piano');
     const { concertMidis, phrase, staffGroups } = buildDefenseTutorialPhrase(settings, 'https://example.com/a.mp3');

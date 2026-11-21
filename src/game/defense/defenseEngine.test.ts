@@ -464,4 +464,20 @@ describe('defenseEngine', () => {
     expect(back.active).toBe(false);
   });
 
+  it('does not move or attack enemies while dancing or paused', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    const enemy = runtime.enemies[0];
+    if (!enemy) throw new Error('missing enemy');
+    enemy.active = true;
+    enemy.x = DEFENSE_PLAYER_X + 120;
+    enemy.attackHitPending = true;
+    runtime.activeEnemyCount = 1;
+
+    runtime.enemyBehavior = 'dance';
+    updateDefenseEnemies(runtime, 0.1);
+    expect(enemy.x).toBeCloseTo(DEFENSE_PLAYER_X + 120);
+    expect(enemy.moving).toBe(false);
+    expect(enemy.attackHitPending).toBe(false);
+  });
+
 });

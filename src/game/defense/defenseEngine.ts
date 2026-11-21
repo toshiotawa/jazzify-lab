@@ -310,6 +310,20 @@ export const updateDefenseEnemies = (
   for (const enemy of runtime.enemies) {
     if (!enemy.active) continue;
 
+    if (runtime.enemyBehavior !== 'approach') {
+      enemy.moving = false;
+      enemy.attackHitPending = false;
+      if (enemy.knockbackVx !== 0) {
+        enemy.x += enemy.knockbackVx * dt;
+        enemy.x = Math.min(DEFENSE_SPAWN_X, enemy.x);
+        enemy.knockbackVx *= Math.exp(-dt / KNOCKBACK_DECAY_TAU_SEC);
+        if (Math.abs(enemy.knockbackVx) < KNOCKBACK_STOP_VX) {
+          enemy.knockbackVx = 0;
+        }
+      }
+      continue;
+    }
+
     const absDx = Math.abs(runtime.playerX - enemy.x);
     const inRange = absDx <= enemy.attackRangePx;
     const attackElapsed = runtime.elapsedSec - enemy.lastAttackAt;

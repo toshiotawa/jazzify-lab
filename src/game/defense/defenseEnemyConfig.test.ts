@@ -137,4 +137,10 @@ describe('defenseEnemyConfig', () => {
     expect(getDefenseWaveSpawnIntervalMult(1)).toBe(0.85);
     expect(getDefenseWaveSpawnIntervalMult(3)).toBe(0.6);
   });
+
+  it('returns idle while paused and dance frames while dancing', () => {
+    expect(pickDefenseEnemyFrame(0, 0, true, false, false, 0, 'pause', 0)).toBe('idle');
+    expect(pickDefenseEnemyFrame(0, 0, true, false, false, 0, 'dance', 0)).toBe('dance_1');
+    expect(pickDefenseEnemyFrame(0, 0, true, false, false, 0, 'dance', 1)).toBe('dance_3');
+  });
 });

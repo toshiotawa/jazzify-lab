@@ -29,6 +29,8 @@ final class DefenseScene: SKScene {
     private var fireballTexture: SKTexture?
     private var lastSpGauge = -1
     private var lastWaveStartedAt: TimeInterval = DefenseEnemyConfig.noWaveStart
+    private var callResponseCueNode: SKSpriteNode?
+    private var lastCallResponseCueKey = ""
     private let levelUpLabel = SKLabelNode(text: "LEVEL UP")
     private let levelUpRing = SKShapeNode(circleOfRadius: 10)
     private var levelUpSparks: [SKShapeNode] = []
@@ -110,6 +112,7 @@ final class DefenseScene: SKScene {
             isPlayer: true
         )
         setupSpGauge(on: player)
+        setupCallResponseCue(on: player)
         characterLayer.addChild(player)
         playerNode = player
         lastPlayerPoseKey = DefensePlayerPose.idleAssetNames[0]
@@ -158,15 +161,34 @@ final class DefenseScene: SKScene {
         spGaugeHost = host
     }
 
+    private func setupCallResponseCue(on player: SKNode) {
+        callResponseCueNode?.removeFromParent()
+        let node = SKSpriteNode()
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.zPosition = 7
+        let avatarSize = EarTrainingBattleStageKit.characterDisplaySize
+        node.position = CGPoint(x: 0, y: avatarSize + 34)
+        node.isHidden = true
+        player.addChild(node)
+        callResponseCueNode = node
+        lastCallResponseCueKey = ""
+    }
+
     private func preloadTextures() {
         guard textures.isEmpty else { return }
         for type in DefenseEnemyType.allCases {
-            for frame in DefenseEnemyFrame.walkCycle {
+            let frames = DefenseEnemyFrame.walkCycle + DefenseEnemyFrame.danceCycle
+            for frame in frames {
                 let name = type.assetName(frame: frame)
                 let texture = SKTexture(imageNamed: name)
                 texture.filteringMode = .nearest
                 textures[name] = texture
             }
+        }
+        for asset in ["pixel-cue-listen", "pixel-cue-play"] {
+            let texture = SKTexture(imageNamed: asset)
+            texture.filteringMode = .nearest
+            textures[asset] = texture
         }
         let fbTexture = SKTexture(imageNamed: "ear-training-effect-fireball")
         fbTexture.filteringMode = .linear
@@ -378,8 +400,10 @@ final class DefenseScene: SKScene {
 
         if showPhraseUi {
             renderSpGauge(runtime: runtime)
+            renderCallResponseCue(runtime: runtime)
         } else {
             spGaugeHost?.isHidden = true
+            callResponseCueNode?.isHidden = true
         }
 
         var activeEnemyIds = Set<UUID>()
@@ -399,7 +423,9 @@ final class DefenseScene: SKScene {
                 moving: enemy.isMoving,
                 flying: enemy.type.isFlying,
                 attacking: attacking,
-                attackAge: runtime.elapsedSec - enemy.lastAttackAt
+                attackAge: runtime.elapsedSec - enemy.lastAttackAt,
+                enemyBehavior: runtime.enemyBehavior,
+                danceBeatPhase: runtime.danceBeatPhase
             )
             let textureKey = enemy.type.assetName(frame: frame)
             if enemyFrameKeys[enemy.id] != textureKey, let texture = textures[textureKey] {
@@ -408,7 +434,7 @@ final class DefenseScene: SKScene {
             }
 
             var logicalX = enemy.x
-            if attacking {
+            if attacking, runtime.enemyBehavior == .approach {
                 let offset = DefenseEnemyConfig.attackOffset(
                     attackElapsed: runtime.elapsedSec - enemy.lastAttackAt,
                     flying: enemy.type.isFlying
@@ -417,7 +443,7 @@ final class DefenseScene: SKScene {
             }
             let drawX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: logicalX)
             var footOffset: CGFloat = 0
-            if attacking {
+            if attacking, runtime.enemyBehavior == .approach {
                 footOffset += DefenseEnemyConfig.displayAttackFootOffset(
                     attackElapsed: runtime.elapsedSec - enemy.lastAttackAt,
                     flying: enemy.type.isFlying
@@ -499,6 +525,28 @@ final class DefenseScene: SKScene {
         fill.isHidden = false
         let percent = enemy.maxHp > 0 ? CGFloat(enemy.hp) / CGFloat(enemy.maxHp) : 0
         fill.xScale = max(0, min(1, percent))
+    }
+
+    private func renderCallResponseCue(runtime: DefenseRuntimeState) {
+        guard let node = callResponseCueNode else { return }
+        guard let cue = runtime.callResponseCue else {
+            node.isHidden = true
+            lastCallResponseCueKey = ""
+            return
+        }
+        let assetName = cue == .listen ? "pixel-cue-listen" : "pixel-cue-play"
+        if lastCallResponseCueKey != assetName, let texture = textures[assetName] {
+            node.texture = texture
+            let texSize = texture.size()
+            let scale = max(1.0, 1.3 * DefenseEnemyConfig.battleDisplayScale)
+            if texSize.width > 0, texSize.height > 0 {
+                node.size = CGSize(width: texSize.width * scale, height: texSize.height * scale)
+            } else {
+                node.size = CGSize(width: 76 * scale, height: 22 * scale)
+            }
+            lastCallResponseCueKey = assetName
+        }
+        node.isHidden = false
     }
 
     private func renderSpGauge(runtime: DefenseRuntimeState) {

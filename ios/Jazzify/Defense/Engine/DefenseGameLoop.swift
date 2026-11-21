@@ -335,11 +335,16 @@ enum DefenseGameLoop {
         deltaTime: TimeInterval
     ) {
         let dt = CGFloat(deltaTime)
+        let enemiesApproach = runtime.enemyBehavior == .approach
         for index in runtime.enemies.indices where runtime.enemies[index].isActive {
             var enemy = runtime.enemies[index]
             let absDx = abs(runtime.playerX - enemy.x)
             let inRange = absDx <= CGFloat(enemy.attackRangePx)
             let attackElapsed = runtime.elapsedSec - enemy.lastAttackAt
+
+            if !enemiesApproach {
+                enemy.attackHitPending = false
+            }
 
             if enemy.attackHitPending && attackElapsed >= attackHitPhase {
                 runtime.impactAt = runtime.elapsedSec
@@ -356,6 +361,18 @@ enum DefenseGameLoop {
 
             let isLunging = enemy.attackHitPending
                 || (enemy.lastAttackAt > 0 && attackElapsed < DefenseEnemyConfig.attackLungeSec)
+
+            if !enemiesApproach {
+                if enemy.knockbackVx != 0 {
+                    enemy.x += enemy.knockbackVx * dt
+                    enemy.x = min(spawnX, enemy.x)
+                    enemy.knockbackVx *= CGFloat(exp(-deltaTime / DefenseEnemyConfig.knockbackDecayTauSec))
+                    if abs(enemy.knockbackVx) < knockbackStopVx { enemy.knockbackVx = 0 }
+                }
+                enemy.isMoving = false
+                runtime.enemies[index] = enemy
+                continue
+            }
 
             if !isLunging && !inRange {
                 let speed = CGFloat(enemy.speedPxPerSec) * dt

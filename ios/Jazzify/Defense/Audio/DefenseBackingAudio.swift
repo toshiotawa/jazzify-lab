@@ -171,10 +171,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
-    func start(firstUrl: URL) async throws {
+    func start(firstUrl: URL, barCount: Int? = nil) async throws {
         let buffer = try await decodePCM(url: firstUrl)
         try await MainActor.run {
             self.stopPlayersAndResetPending()
+            if let barCount, barCount > 0 {
+                self.currentBarCount = barCount
+            }
             try self.startEngine(with: buffer)
         }
     }
@@ -195,6 +198,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         try await MainActor.run {
             self.stop()
+            self.currentBarCount = DefenseTutorialConstants.audioLoopBars
             try self.startEngine(with: buffer)
         }
     }
@@ -204,7 +208,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         return await scheduleSwitch(buffer: buffer)
     }
 
-    func scheduleSwitchPhrase(at index: Int) async throws -> Int64 {
+    func scheduleSwitchPhrase(at index: Int, forceNextBar: Bool = false) async throws -> Int64 {
         let token = await MainActor.run {
             self.switchScheduleToken &+= 1
             return self.switchScheduleToken
@@ -212,8 +216,28 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let buffer = try await bufferForPhrase(at: index)
         return await MainActor.run {
             guard self.switchScheduleToken == token else { return 0 }
-            return self.scheduleSwitchOnMain(buffer: buffer, phraseIndex: index)
+            return self.scheduleSwitchOnMain(buffer: buffer, phraseIndex: index, forceNextBar: forceNextBar)
         }
+    }
+
+    func elapsedFromTransportStart() -> Double? {
+        os_unfair_lock_lock(&lock)
+        let transportStart = transportStartHostSec
+        os_unfair_lock_unlock(&lock)
+        guard transportStart > 0, engine.isRunning else { return nil }
+        return Self.hostTimeSec() - presentationLatency - transportStart
+    }
+
+    func currentBarSec() -> Double {
+        os_unfair_lock_lock(&lock)
+        let bpmSnapshot = bpm
+        let beatsSnapshot = beatsPerBar
+        os_unfair_lock_unlock(&lock)
+        return currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
+    }
+
+    func currentOutputTime() -> Double {
+        Self.hostTimeSec() - presentationLatency
     }
 
     func scheduleSwitch(buffer: AVAudioPCMBuffer) async -> Int64 {
@@ -399,7 +423,11 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_unlock(&lock)
     }
 
-    private func scheduleSwitchOnMain(buffer: AVAudioPCMBuffer, phraseIndex: Int? = nil) -> Int64 {
+    private func scheduleSwitchOnMain(
+        buffer: AVAudioPCMBuffer,
+        phraseIndex: Int? = nil,
+        forceNextBar: Bool = false
+    ) -> Int64 {
         cancelOutgoingStopWork()
         os_unfair_lock_lock(&lock)
         let bpmSnapshot = bpm
@@ -410,12 +438,22 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let now = Self.hostTimeSec()
         let barSec = currentBarSeconds(fallbackBpm: bpmSnapshot, fallbackBeats: beatsSnapshot)
         let beatSec = barSec / Double(max(1, beatsSnapshot))
-        let plan = DefenseTransport.planSwitch(
-            now: now,
-            transportStart: transportStart,
-            cutIntervalSec: barSec,
-            beatSec: beatSec
-        )
+        let plan: DefenseSwitchPlan
+        if forceNextBar {
+            let switchAt = DefenseTransport.planNextBarSwitch(
+                now: now,
+                transportStart: transportStart,
+                barSec: barSec
+            )
+            plan = DefenseSwitchPlan(switchAt: switchAt, immediate: false, cutAt: switchAt)
+        } else {
+            plan = DefenseTransport.planSwitch(
+                now: now,
+                transportStart: transportStart,
+                cutIntervalSec: barSec,
+                beatSec: beatSec
+            )
+        }
         var switchAt = plan.switchAt
         let incoming = activeIsA ? playerB : playerA
         let outgoing = activeIsA ? playerA : playerB
@@ -554,6 +592,9 @@ final class DefenseBackingAudio: @unchecked Sendable {
         os_unfair_lock_lock(&lock)
         let stage = preparedStage
         os_unfair_lock_unlock(&lock)
+        if let stage, let audioLoopBars = stage.audioLoopBars, audioLoopBars > 0 {
+            return audioLoopBars
+        }
         guard let stage, stage.phrases.indices.contains(index) else {
             return max(1, stage?.phraseBars ?? 4)
         }

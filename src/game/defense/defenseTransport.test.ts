@@ -3,6 +3,7 @@ import {
   barSecondsFromLoop,
   beatSeconds,
   nextSwitchTime,
+  planDefenseNextBarSwitch,
   planDefenseSwitch,
   rebaseTransportStart,
   scheduleDeadlineSec,
@@ -86,5 +87,15 @@ describe('defenseTransport', () => {
 
   it('scheduleDeadlineSec includes base latency', () => {
     expect(scheduleDeadlineSec(0.02)).toBeCloseTo(0.12);
+  });
+
+  it('planDefenseNextBarSwitch always targets next bar head', () => {
+    const plan = planDefenseNextBarSwitch({
+      now: 11.2,
+      transportStart: 10,
+      barSec: 2,
+    });
+    expect(plan.immediate).toBe(false);
+    expect(plan.switchAt).toBeCloseTo(12);
   });
 });

@@ -118,3 +118,23 @@ export const nextSwitchTime = (
 export const scheduleDeadlineSec = (baseLatencySec: number): number => (
   0.1 + Math.max(0, baseLatencySec)
 );
+
+/** Always schedule at the next bar head (no immediate switch within the current bar). */
+export const planDefenseNextBarSwitch = (params: {
+  readonly now: number;
+  readonly transportStart: number;
+  readonly barSec: number;
+}): DefenseSwitchPlan => {
+  const { now, transportStart, barSec } = params;
+  if (barSec <= 0) {
+    return { switchAt: now, immediate: true, cutAt: now };
+  }
+  const safeBarSec = Math.max(1e-6, barSec);
+  const elapsed = Math.max(0, now - transportStart);
+  const cutAt = transportStart + (Math.floor(elapsed / safeBarSec) + 1) * safeBarSec;
+  const remaining = cutAt - now;
+  if (remaining < SCHEDULE_MIN_QUANTUM_SEC) {
+    return { switchAt: now, immediate: true, cutAt };
+  }
+  return { switchAt: cutAt, immediate: false, cutAt };
+};

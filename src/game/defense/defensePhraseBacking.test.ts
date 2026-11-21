@@ -186,6 +186,27 @@ describe('buildDefensePhraseBackingPlayback', () => {
     expect(playback.loopEnd).toBeCloseTo(8);
   });
 
+  it('clamps per-phrase loop duration to audioLoopBars when MP3 includes padding', () => {
+    const ctx = createMockAudioContext();
+    const decoded = createTestBuffer(ctx, 16.06);
+    const playback = buildDefensePhraseBackingPlayback(
+      decoded,
+      baseStage({
+        audioRegistrationMode: 'per_phrase',
+        audioUrl: null,
+        bpm: 120,
+        beatsPerBar: 4,
+        phraseBars: 1,
+        audioLoopBars: 8,
+        callResponseBars: 1,
+      }),
+      phrase({ loopStartMeasure: null, loopEndMeasure: null }),
+      ctx,
+    );
+    expect(playback.barCount).toBe(8);
+    expect(playback.loopEnd).toBeCloseTo(16.0, 5);
+  });
+
   it('prepares sliced playback before speed change for single_source stages', async () => {
     const ctx = createMockAudioContext();
     const decoded = createTestBuffer(ctx, 32);
