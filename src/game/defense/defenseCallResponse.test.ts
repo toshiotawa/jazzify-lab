@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFENSE_CALL_RESPONSE_LEAD_SEC,
+  createDefenseCallResponseSnapshot,
   getDefenseCallResponseConfig,
-  resolveCallResponseTransitionEndBar,
   resolveDefenseCallResponseState,
 } from '@/game/defense/defenseCallResponse';
 
@@ -178,14 +177,26 @@ describe('resolveDefenseCallResponseState', () => {
     expect(snap.barIndexInLoop).toBe(0);
   });
 
-  it('exposes lead constant', () => {
-    expect(DEFENSE_CALL_RESPONSE_LEAD_SEC).toBe(0.03);
-  });
-});
+  it('reuses provided scratch snapshot without allocating a new object', () => {
+    const scratch = createDefenseCallResponseSnapshot();
+    const first = resolveDefenseCallResponseState({
+      config: config8x1,
+      elapsedFromPhraseStartSec: 0.5,
+      barSec,
+      beatsPerBar,
+      transitionWaitUntilElapsedSec: null,
+    }, scratch);
+    expect(first).toBe(scratch);
+    expect(scratch.phase).toBe('call');
 
-describe('resolveCallResponseTransitionEndBar', () => {
-  it('returns next bar boundary index', () => {
-    expect(resolveCallResponseTransitionEndBar(5.5, barSec)).toBe(3);
-    expect(resolveCallResponseTransitionEndBar(0, barSec)).toBe(1);
+    const second = resolveDefenseCallResponseState({
+      config: config8x1,
+      elapsedFromPhraseStartSec: 2.5,
+      barSec,
+      beatsPerBar,
+      transitionWaitUntilElapsedSec: null,
+    }, scratch);
+    expect(second).toBe(scratch);
+    expect(scratch.phase).toBe('response');
   });
 });

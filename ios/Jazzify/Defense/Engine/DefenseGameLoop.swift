@@ -296,8 +296,6 @@ enum DefenseGameLoop {
         let activeCount = runtime.enemies.filter(\.isActive).count
         guard activeCount < effectiveMaxEnemies(runtime: runtime, difficulty: difficulty) else { return }
 
-        guard runtime.enemyBehavior == .approach else { return }
-
         runtime.spawnTimerSec += deltaTime
         guard runtime.spawnTimerSec >= interval else { return }
         runtime.spawnTimerSec = 0

@@ -443,7 +443,7 @@ final class DefenseScene: SKScene {
             }
             let drawX = DefenseSceneLayout.logicalToScreenX(width: size.width, logicalX: logicalX)
             var footOffset: CGFloat = 0
-            if attacking {
+            if attacking, runtime.enemyBehavior == .approach {
                 footOffset += DefenseEnemyConfig.displayAttackFootOffset(
                     attackElapsed: runtime.elapsedSec - enemy.lastAttackAt,
                     flying: enemy.type.isFlying
@@ -537,7 +537,13 @@ final class DefenseScene: SKScene {
         let assetName = cue == .listen ? "pixel-cue-listen" : "pixel-cue-play"
         if lastCallResponseCueKey != assetName, let texture = textures[assetName] {
             node.texture = texture
-            node.size = CGSize(width: 32, height: 32)
+            let texSize = texture.size()
+            let scale = max(1.0, 1.3 * DefenseEnemyConfig.battleDisplayScale)
+            if texSize.width > 0, texSize.height > 0 {
+                node.size = CGSize(width: texSize.width * scale, height: texSize.height * scale)
+            } else {
+                node.size = CGSize(width: 76 * scale, height: 22 * scale)
+            }
             lastCallResponseCueKey = assetName
         }
         node.isHidden = false

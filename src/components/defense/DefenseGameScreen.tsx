@@ -70,6 +70,7 @@ import {
   stepDefensePracticeSpeedPercent,
 } from '@/game/defense/defensePracticeSpeed';
 import {
+  createDefenseCallResponseSnapshot,
   getDefenseCallResponseConfig,
   resolveDefenseCallResponseState,
   type DefenseCallResponsePhase,
@@ -210,6 +211,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const pendingSwitchAtRef = useRef<number | null>(null);
   const transitionWaitUntilAudioTimeRef = useRef<number | null>(null);
   const lastCallResponsePhaseRef = useRef<DefenseCallResponsePhase>('call');
+  const callResponseScratchRef = useRef(createDefenseCallResponseSnapshot());
   const scheduledNextPhraseIndexRef = useRef<number | null>(null);
   const backingRestartGenerationRef = useRef(0);
   const sharedProgressionRequestRevisionRef = useRef(0);
@@ -318,6 +320,17 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     runtimeRef.current.elapsedSec = 0;
     elapsedIntRef.current = 0;
     lastFrameRef.current = null;
+    transitionWaitUntilAudioTimeRef.current = null;
+    lastCallResponsePhaseRef.current = 'call';
+
+    if (callResponseConfig != null) {
+      runtimeRef.current.enemyBehavior = 'dance';
+      runtimeRef.current.callResponseCue = 'listen';
+      runtimeRef.current.danceBeatPhase = 0;
+      if (!isTutorialSession) {
+        runtimeRef.current.spawnTimerSec = difficulty.spawnIntervalSec * 0.8;
+      }
+    }
 
     if (isTutorialSession) {
       spawnTutorialInitialEnemies(runtimeRef.current, difficulty);
@@ -330,6 +343,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     stage.bpm,
     stage.beatsPerBar,
     difficulty,
+    callResponseConfig,
     isTutorialSession,
     isSharedProgressionStage,
     isSeparateTracksStage,
@@ -512,6 +526,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     const previousPhraseIndex = scheduledNextPhraseIndexRef.current;
     pendingSwitchAtRef.current = null;
     scheduledNextPhraseIndexRef.current = null;
+    transitionWaitUntilAudioTimeRef.current = null;
+    lastCallResponsePhaseRef.current = 'call';
     if (!isSharedProgressionStage && !isSeparateTracksStage && previousPendingSwitchAt !== null) {
       if (defenseBackingDeck.getOutputTime() >= previousPendingSwitchAt) {
         defenseBackingDeck.commitSwitch();
@@ -575,12 +591,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         const playback = await defenseBackingDeck.preparePhraseBacking(stage, phrase, ratio);
         if (backingRestartGenerationRef.current !== generation) return;
         if (scheduledNextPhraseIndexRef.current !== phraseIndex) return;
-        pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(playback);
+        pendingSwitchAtRef.current = defenseBackingDeck.scheduleSwitch(
+          playback,
+          callResponseConfig != null ? { forceNextBar: true } : undefined,
+        );
       }
     } catch {
       /* prepare/start failed; leave current backing as-is */
     }
-  }, [stage, isSharedProgressionStage, isSeparateTracksStage]);
+  }, [stage, callResponseConfig, isSharedProgressionStage, isSeparateTracksStage]);
 
   const applyVoicingKeyStep = useCallback((delta: -1 | 1): void => {
     const keyState = voicingKeyStateRef.current;
@@ -680,6 +699,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     if (runtime.result !== 'playing') return;
 
     if (callResponseConfig != null) {
+      const pendingAt = pendingSwitchAtRef.current;
+      if (pendingAt !== null && defenseBackingDeck.getOutputTime() >= pendingAt) {
+        const nextIdx = scheduledNextPhraseIndexRef.current;
+        if (nextIdx !== null) {
+          commitScheduledAudioSwitch(nextIdx);
+        }
+        transitionWaitUntilAudioTimeRef.current = null;
+      }
       const outputTime = defenseBackingDeck.getOutputTime();
       const elapsedFromStart = defenseBackingDeck.getElapsedFromTransportStart() ?? 0;
       const barSec = defenseBackingDeck.getBarSec();
@@ -694,7 +721,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         barSec,
         beatsPerBar: stage.beatsPerBar,
         transitionWaitUntilElapsedSec,
-      });
+      }, callResponseScratchRef.current);
       if (!snapshot.judgeActive) return;
     }
 
@@ -801,17 +828,24 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         }
         const generation = backingRestartGenerationRef.current;
         void (async () => {
-          const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
-          const playback = await defenseBackingDeck.preparePhraseBacking(stage, nextPhrase, ratio);
-          if (backingRestartGenerationRef.current !== generation) return;
-          if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
-          const switchAt = defenseBackingDeck.scheduleSwitch(
-            playback,
-            callResponseConfig != null ? { forceNextBar: true } : undefined,
-          );
-          pendingSwitchAtRef.current = switchAt;
-          if (callResponseConfig != null) {
-            transitionWaitUntilAudioTimeRef.current = switchAt;
+          try {
+            const ratio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
+            const playback = await defenseBackingDeck.preparePhraseBacking(stage, nextPhrase, ratio);
+            if (backingRestartGenerationRef.current !== generation) return;
+            if (scheduledNextPhraseIndexRef.current !== nextIndex) return;
+            const switchAt = defenseBackingDeck.scheduleSwitch(
+              playback,
+              callResponseConfig != null ? { forceNextBar: true } : undefined,
+            );
+            pendingSwitchAtRef.current = switchAt;
+            if (callResponseConfig != null) {
+              transitionWaitUntilAudioTimeRef.current = switchAt;
+            }
+          } catch {
+            if (scheduledNextPhraseIndexRef.current === nextIndex) {
+              scheduledNextPhraseIndexRef.current = null;
+              transitionWaitUntilAudioTimeRef.current = null;
+            }
           }
         })();
       }
@@ -819,6 +853,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   }, [
     activePhrases,
     callResponseConfig,
+    commitScheduledAudioSwitch,
     stage,
     stage.requiredCompletionCount,
     stage.attackTrigger,
@@ -979,11 +1014,39 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         : [0, 1].filter((index) => index < stage.phrases.length);
       const preloadUrls = resolveDefensePhrasePreloadUrls(stage, preloadIndices);
       await defenseBackingDeck.preload(preloadUrls);
-      const playback = await defenseBackingDeck.preparePhraseBacking(
-        stage,
-        firstPhrase,
-        initialRatio,
-      );
+      let playback: DefensePhraseBackingPlayback;
+      try {
+        playback = await defenseBackingDeck.preparePhraseBacking(
+          stage,
+          firstPhrase,
+          initialRatio,
+        );
+      } catch {
+        if (isTutorialSession) {
+          const midis = tutorialConcertMidisRef.current;
+          defenseBackingDeck.registerBufferFactory(
+            DEFENSE_TUTORIAL_AUDIO_URL,
+            (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, midis),
+          );
+          try {
+            playback = await defenseBackingDeck.preparePhraseBacking(
+              stage,
+              firstPhrase,
+              initialRatio,
+            );
+          } catch {
+            if (cancelled) return;
+            phaseRef.current = 'loadError';
+            setPhase('loadError');
+            return;
+          }
+        } else {
+          if (cancelled) return;
+          phaseRef.current = 'loadError';
+          setPhase('loadError');
+          return;
+        }
+      }
       if (cancelled) return;
       pendingPlaybackRef.current = playback;
       phaseRef.current = 'countdown';
@@ -1042,6 +1105,19 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         const dt = Math.min(0.05, (now - last) / 1000);
         lastFrameRef.current = now;
 
+        if (isSharedProgressionStage) {
+          defenseSharedProgressionDeck.commitDueSwitch();
+        } else {
+          const pendingAt = pendingSwitchAtRef.current;
+          if (pendingAt !== null && defenseBackingDeck.getOutputTime() >= pendingAt) {
+            const nextIdx = scheduledNextPhraseIndexRef.current;
+            if (nextIdx !== null) {
+              commitScheduledAudioSwitch(nextIdx);
+            }
+            transitionWaitUntilAudioTimeRef.current = null;
+          }
+        }
+
         if (callResponseConfig != null) {
           const outputTime = defenseBackingDeck.getOutputTime();
           const elapsedFromStart = defenseBackingDeck.getElapsedFromTransportStart();
@@ -1060,7 +1136,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
               barSec: defenseBackingDeck.getBarSec(),
               beatsPerBar: stage.beatsPerBar,
               transitionWaitUntilElapsedSec,
-            });
+            }, callResponseScratchRef.current);
             runtime.enemyBehavior = snapshot.enemyBehavior;
             runtime.callResponseCue = snapshot.cue;
             runtime.danceBeatPhase = snapshot.danceBeatPhase;
@@ -1081,18 +1157,6 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         }
 
         tickDefenseSimulation(runtime, difficulty, dt);
-
-        if (isSharedProgressionStage) {
-          defenseSharedProgressionDeck.commitDueSwitch();
-        } else {
-          const pendingAt = pendingSwitchAtRef.current;
-          if (pendingAt !== null && defenseBackingDeck.getOutputTime() >= pendingAt) {
-            const nextIdx = scheduledNextPhraseIndexRef.current;
-            if (nextIdx !== null) {
-              commitScheduledAudioSwitch(nextIdx);
-            }
-          }
-        }
 
         if (trackElapsedForHints) {
           const elapsedFloor = Math.floor(runtime.elapsedSec);
@@ -1156,6 +1220,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     };
   }, [
     difficulty,
+    callResponseConfig,
     commitScheduledAudioSwitch,
     practiceMode,
     trackElapsedForHints,

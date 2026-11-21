@@ -152,6 +152,39 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertTrue(DefenseEnemyFrame.danceCycle.contains(frame0))
         XCTAssertTrue(DefenseEnemyFrame.danceCycle.contains(frame1))
         XCTAssertNotEqual(frame0, frame1)
+
+        let danceOverridesAttack = DefenseEnemyConfig.pickFrame(
+            elapsedSec: 0,
+            slotIndex: 0,
+            moving: false,
+            flying: false,
+            attacking: true,
+            enemyBehavior: .dance,
+            danceBeatPhase: 0.25
+        )
+        XCTAssertTrue(DefenseEnemyFrame.danceCycle.contains(danceOverridesAttack))
+
+        let pauseOverridesAttack = DefenseEnemyConfig.pickFrame(
+            elapsedSec: 0,
+            slotIndex: 0,
+            moving: true,
+            flying: true,
+            attacking: true,
+            enemyBehavior: .pause,
+            danceBeatPhase: 0.25
+        )
+        XCTAssertEqual(pauseOverridesAttack, .idle)
+    }
+
+    func testTutorialConstantsMatchCallResponseSpec() {
+        XCTAssertEqual(DefenseTutorialConstants.bpm, 60)
+        XCTAssertEqual(DefenseTutorialConstants.audioLoopBars, 8)
+        XCTAssertEqual(DefenseTutorialConstants.callResponseBars, 1)
+        XCTAssertEqual(DefenseTutorialConstants.loopSec, 32, accuracy: 1e-9)
+        XCTAssertEqual(
+            DefenseTutorialConstants.audioUrl,
+            "https://jazzify-cdn.com/sozai/defense-call-response/defense-tutorial-call-response-cde-bpm60.mp3"
+        )
     }
 
     func testResetProgressKeepsCompletionCount() {

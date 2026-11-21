@@ -171,10 +171,13 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
-    func start(firstUrl: URL) async throws {
+    func start(firstUrl: URL, barCount: Int? = nil) async throws {
         let buffer = try await decodePCM(url: firstUrl)
         try await MainActor.run {
             self.stopPlayersAndResetPending()
+            if let barCount, barCount > 0 {
+                self.currentBarCount = barCount
+            }
             try self.startEngine(with: buffer)
         }
     }
@@ -195,6 +198,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
         try await MainActor.run {
             self.stop()
+            self.currentBarCount = DefenseTutorialConstants.audioLoopBars
             try self.startEngine(with: buffer)
         }
     }
@@ -221,8 +225,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
         let transportStart = transportStartHostSec
         os_unfair_lock_unlock(&lock)
         guard transportStart > 0, engine.isRunning else { return nil }
-        let elapsed = Self.hostTimeSec() - presentationLatency - transportStart
-        return elapsed >= 0 ? elapsed : nil
+        return Self.hostTimeSec() - presentationLatency - transportStart
     }
 
     func currentBarSec() -> Double {
@@ -234,7 +237,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     }
 
     func currentOutputTime() -> Double {
-        Self.hostTimeSec()
+        Self.hostTimeSec() - presentationLatency
     }
 
     func scheduleSwitch(buffer: AVAudioPCMBuffer) async -> Int64 {
@@ -442,9 +445,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
                 transportStart: transportStart,
                 barSec: barSec
             )
-            let cutIndex = Int(floor(max(0, switchAt - transportStart) / barSec + 1e-9)) - 1
-            let cutAt = transportStart + Double(max(0, cutIndex)) * barSec
-            plan = DefenseSwitchPlan(switchAt: switchAt, immediate: false, cutAt: cutAt)
+            plan = DefenseSwitchPlan(switchAt: switchAt, immediate: false, cutAt: switchAt)
         } else {
             plan = DefenseTransport.planSwitch(
                 now: now,

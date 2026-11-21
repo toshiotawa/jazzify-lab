@@ -142,11 +142,6 @@ enum DefenseEnemyConfig {
         enemyBehavior: DefenseEnemyBehavior = .approach,
         danceBeatPhase: Double = 0
     ) -> DefenseEnemyFrame {
-        if attacking {
-            if attackAge < attackLungeSec * windupFraction { return .recoil }
-            if attackAge > attackLungeSec * 0.72 { return .passing }
-            return .move
-        }
         if enemyBehavior == .pause {
             return .idle
         }
@@ -155,6 +150,11 @@ enum DefenseEnemyConfig {
             let slot = ((Int(floor(max(0, danceBeatPhase * 2))) + slotIndex) % danceFrames.count + danceFrames.count)
                 % danceFrames.count
             return danceFrames[slot]
+        }
+        if attacking {
+            if attackAge < attackLungeSec * windupFraction { return .recoil }
+            if attackAge > attackLungeSec * 0.72 { return .passing }
+            return .move
         }
         if flying || moving {
             let phase = Int(floor((elapsedSec + Double(slotIndex) * 0.1) / 0.125))

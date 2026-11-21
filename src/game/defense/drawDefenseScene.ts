@@ -317,7 +317,7 @@ const drawCallResponseCue = (
   const drawW = image.naturalWidth * drawScale;
   const drawH = image.naturalHeight * drawScale;
   const gaugeTop = floorY - avatarSize - 14;
-  const y = gaugeTop - 10 - drawH;
+  const y = Math.max(DEFENSE_HUD_HEIGHT_PX + 4, gaugeTop - 10 - drawH);
   const x = playerX - drawW / 2;
 
   ctx.save();

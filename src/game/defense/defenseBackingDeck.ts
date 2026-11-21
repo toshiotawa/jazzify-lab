@@ -178,7 +178,7 @@ class DefenseBackingDeck {
   async preload(urls: readonly string[]): Promise<void> {
     const { ctx } = this.ensureGraph();
     const unique = [...new Set(urls.filter((url) => url.length > 0))];
-    await Promise.all(unique.map((url) => this.decodeRawUrl(ctx, url)));
+    await Promise.allSettled(unique.map((url) => this.decodeRawUrl(ctx, url)));
   }
 
   registerBufferFactory(
@@ -224,11 +224,17 @@ class DefenseBackingDeck {
         } catch (error) {
           const prefix = 'https://jazzify-cdn.com/sozai/defense-call-response/';
           if (url.startsWith(prefix)) {
-            const fileName = url.slice(prefix.length);
-            const fallbackUrl = `${import.meta.env.BASE_URL}sozai/defense-call-response/${fileName}`;
-            const arrayBuffer = await fetchCachedFullAudioBuffer(fallbackUrl);
-            return ctx.decodeAudioData(arrayBuffer.slice(0));
+            try {
+              const fileName = url.slice(prefix.length);
+              const fallbackUrl = `${import.meta.env.BASE_URL}sozai/defense-call-response/${fileName}`;
+              const arrayBuffer = await fetchCachedFullAudioBuffer(fallbackUrl);
+              return await ctx.decodeAudioData(arrayBuffer.slice(0));
+            } catch (fallbackError) {
+              this.rawBufferByUrl.delete(url);
+              throw fallbackError;
+            }
           }
+          this.rawBufferByUrl.delete(url);
           throw error;
         }
       })();

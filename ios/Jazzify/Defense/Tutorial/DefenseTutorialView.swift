@@ -165,8 +165,8 @@ struct DefenseTutorialView: View {
         }
         if session.screen == .play {
             return isEnglishCopy
-                ? "Play do, re, and mi as shown on the staff. Timing is not judged. One octave up or down is OK."
-                : "譜面のド・レ・ミを演奏しましょう。タイミングは判定しません。1オクターブ上や下でも大丈夫です。"
+                ? "Listen on Listen! bars, then play do, re, and mi on Play! bars (one octave up or down is OK)."
+                : "Listen! の小節で聞き、Play! の小節で譜面のド・レ・ミを演奏しましょう（1オクターブ上下も可）。"
         }
         return ""
     }

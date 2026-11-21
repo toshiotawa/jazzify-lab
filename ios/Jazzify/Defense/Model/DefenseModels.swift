@@ -69,6 +69,72 @@ struct DefenseStageDefinition: Sendable, Equatable, Identifiable {
     let playRootOnChordChange: Bool
     let phrases: [DefensePhraseDefinition]
     let progressionChords: [DefenseStageProgressionChord]
+
+    init(
+        id: String,
+        slug: String,
+        stageNumber: Int,
+        title: String,
+        titleEn: String,
+        bpm: Double,
+        beatsPerBar: Int,
+        audioRegistrationMode: DefenseAudioRegistrationMode,
+        audioUrl: String?,
+        melodyAudioUrl: String?,
+        progressionBars: Int?,
+        phraseBars: Int,
+        audioLoopBars: Int? = nil,
+        callResponseBars: Int? = nil,
+        staffLayout: DefenseStaffLayout,
+        attackTrigger: DefenseAttackTrigger,
+        keyFifths: Int,
+        requiredCompletionCount: Int,
+        difficultyLevel: Int,
+        surviveSeconds: Int,
+        playerHp: Int,
+        productionStaffHintMode: String,
+        productionKeyboardHintMode: String,
+        playStyle: DefensePlayStyle,
+        voicingKeyMode: DefenseVoicingKeyMode?,
+        voicingLowestKey: String?,
+        voicingStartKey: String?,
+        voicingMinLowestNote: String?,
+        playRootOnChordChange: Bool,
+        phrases: [DefensePhraseDefinition],
+        progressionChords: [DefenseStageProgressionChord]
+    ) {
+        self.id = id
+        self.slug = slug
+        self.stageNumber = stageNumber
+        self.title = title
+        self.titleEn = titleEn
+        self.bpm = bpm
+        self.beatsPerBar = beatsPerBar
+        self.audioRegistrationMode = audioRegistrationMode
+        self.audioUrl = audioUrl
+        self.melodyAudioUrl = melodyAudioUrl
+        self.progressionBars = progressionBars
+        self.phraseBars = phraseBars
+        self.audioLoopBars = audioLoopBars
+        self.callResponseBars = callResponseBars
+        self.staffLayout = staffLayout
+        self.attackTrigger = attackTrigger
+        self.keyFifths = keyFifths
+        self.requiredCompletionCount = requiredCompletionCount
+        self.difficultyLevel = difficultyLevel
+        self.surviveSeconds = surviveSeconds
+        self.playerHp = playerHp
+        self.productionStaffHintMode = productionStaffHintMode
+        self.productionKeyboardHintMode = productionKeyboardHintMode
+        self.playStyle = playStyle
+        self.voicingKeyMode = voicingKeyMode
+        self.voicingLowestKey = voicingLowestKey
+        self.voicingStartKey = voicingStartKey
+        self.voicingMinLowestNote = voicingMinLowestNote
+        self.playRootOnChordChange = playRootOnChordChange
+        self.phrases = phrases
+        self.progressionChords = progressionChords
+    }
 }
 
 struct DefenseDifficultyDefinition: Sendable, Equatable {
