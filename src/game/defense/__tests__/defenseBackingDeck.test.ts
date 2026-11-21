@@ -254,4 +254,28 @@ describe('defenseBackingDeck pending switch', () => {
     const retried = await defenseBackingDeck.preparePhraseBacking(stage, phrase, 1);
     expect(retried.barCount).toBe(8);
   });
+
+  it('falls back to local tutorial root MP3 when CDN returns 404', async () => {
+    installMockAudioContext();
+    const { fetchCachedFullAudioBuffer } = await import('@/utils/audioFetchCache');
+    const mockFetch = vi.mocked(fetchCachedFullAudioBuffer);
+    mockFetch.mockReset();
+    mockFetch.mockRejectedValueOnce(new Error('HTTP 404'));
+    mockFetch.mockResolvedValueOnce(new ArrayBuffer(16));
+
+    const { defenseBackingDeck } = await import('../defenseBackingDeck');
+    const { buildDefenseTutorialPhrase, defaultTutorialNotationSettings } = await import(
+      '@/game/defense/tutorial/buildDefenseTutorialPhrase'
+    );
+    const { stage, phrase } = buildDefenseTutorialPhrase(defaultTutorialNotationSettings('trumpet_bb'));
+    expect(phrase.audioUrl).toBe(
+      'https://jazzify-cdn.com/sozai/defense-call-response/defense-tutorial-call-response-root-58-bpm60.mp3',
+    );
+    const prepared = await defenseBackingDeck.preparePhraseBacking(stage, phrase, 1);
+    expect(prepared.barCount).toBe(8);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch.mock.calls[1]?.[0]).toContain(
+      'sozai/defense-call-response/defense-tutorial-call-response-root-58-bpm60.mp3',
+    );
+  });
 });

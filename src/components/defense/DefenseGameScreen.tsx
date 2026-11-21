@@ -34,9 +34,7 @@ import {
   spawnTutorialInitialEnemies,
   tickDefenseSimulation,
 } from '@/game/defense/defenseEngine';
-import {
-  DEFENSE_TUTORIAL_AUDIO_URL,
-} from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
+import { resolveDefenseTutorialAudioUrlForMidis } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import { buildDefenseTutorialStaffDisplay } from '@/game/defense/tutorial/buildDefenseTutorialStaffDisplay';
 import { synthesizeDefenseTutorialCdeBuffer } from '@/game/defense/tutorial/defenseTutorialAudio';
 import {
@@ -960,20 +958,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       if (isSeparateTracksStage) {
         unlockDefenseSeparateTracksAudioContext();
       }
+      const firstPhrase = stage.phrases[0];
+      if (!firstPhrase) return;
+
       if (isTutorialSession) {
         const midis = tutorialConcertMidisRef.current;
-        const isDefaultTutorialMidis = midis[0] === 60 && midis[1] === 62 && midis[2] === 64;
-        if (isDefaultTutorialMidis) {
-          defenseBackingDeck.unregisterBufferFactory(DEFENSE_TUTORIAL_AUDIO_URL);
+        const pregeneratedUrl = resolveDefenseTutorialAudioUrlForMidis(midis);
+        if (pregeneratedUrl !== null && firstPhrase.audioUrl === pregeneratedUrl) {
+          defenseBackingDeck.unregisterBufferFactory(firstPhrase.audioUrl);
         } else {
           defenseBackingDeck.registerBufferFactory(
-            DEFENSE_TUTORIAL_AUDIO_URL,
+            firstPhrase.audioUrl,
             (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, midis),
           );
         }
       }
-      const firstPhrase = stage.phrases[0];
-      if (!firstPhrase) return;
 
       if (isSeparateTracksStage) {
         try {
@@ -1025,7 +1024,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         if (isTutorialSession) {
           const midis = tutorialConcertMidisRef.current;
           defenseBackingDeck.registerBufferFactory(
-            DEFENSE_TUTORIAL_AUDIO_URL,
+            firstPhrase.audioUrl,
             (ctx) => synthesizeDefenseTutorialCdeBuffer(ctx, midis),
           );
           try {
