@@ -119,3 +119,57 @@ enum DefenseTransport {
         Int64((0.05 * sampleRate).rounded()) + Int64(renderQuantum * 2)
     }
 }
+
+ 
+/// Audio-beat based call/response schedule. No independent wall-clock timer.
+enum DefenseCallResponse {
+    struct Config: Equatable {
+        let audioLoopBars: Int
+        let callBars: Int
+        let beatsPerBar: Int
+
+        init?(audioLoopBars: Int, callBars: Int, beatsPerBar: Int) {
+            guard audioLoopBars > 0, callBars > 0, beatsPerBar > 0,
+                  callBars <= Int.max / 2,
+                  audioLoopBars % (2 * callBars) == 0 else { return nil }
+            self.audioLoopBars = audioLoopBars
+            self.callBars = callBars
+            self.beatsPerBar = beatsPerBar
+        }
+    }
+
+    enum Phase: Equatable {
+        case call
+        case response
+    }
+
+    struct Position: Equatable {
+        let phase: Phase
+        let pairIndex: Int
+        let judgmentOpen: Bool
+    }
+
+    static func atBeat(
+        _ beat: Double,
+        bpm: Double,
+        playbackRatio: Double,
+        config: Config
+    ) -> Position {
+        let loopBeats = Double(config.audioLoopBars) * Double(config.beatsPerBar)
+        let pairBeats = Double(2 * config.callBars) * Double(config.beatsPerBar)
+        let safeBeat = beat.isFinite ? beat : 0
+        let inLoop = ((safeBeat.truncatingRemainder(dividingBy: loopBeats)) + loopBeats)
+            .truncatingRemainder(dividingBy: loopBeats)
+        let pairIndex = Int(floor(inLoop / pairBeats))
+        let inPair = inLoop - Double(pairIndex) * pairBeats
+        let callBeats = Double(config.callBars) * Double(config.beatsPerBar)
+        let isCall = inPair < callBeats
+        let secondsUntilResponse = (callBeats - inPair) * 60
+            / max(1, bpm) / max(0.0001, playbackRatio)
+        return Position(
+            phase: isCall ? .call : .response,
+            pairIndex: pairIndex,
+            judgmentOpen: !isCall || secondsUntilResponse <= 0.03
+        )
+    }
+}

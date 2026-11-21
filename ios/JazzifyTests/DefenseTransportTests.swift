@@ -79,3 +79,37 @@ final class DefenseTransportTests: XCTestCase {
         XCTAssertEqual(switchAt, 176400)
     }
 }
+
+extension DefenseTransportTests {
+    func testCallResponseFourPairsAndLoopWrap() {
+        guard let config = DefenseCallResponse.Config(audioLoopBars: 8, callBars: 1, beatsPerBar: 4) else {
+            XCTFail("Invalid config")
+            return
+        }
+        for pair in 0..<4 {
+            let call = DefenseCallResponse.atBeat(Double(pair * 8), bpm: 120, playbackRatio: 1, config: config)
+            XCTAssertEqual(call.phase, .call)
+            XCTAssertEqual(call.pairIndex, pair)
+            XCTAssertFalse(call.judgmentOpen)
+            let response = DefenseCallResponse.atBeat(Double(pair * 8 + 4), bpm: 120, playbackRatio: 1, config: config)
+            XCTAssertEqual(response.phase, .response)
+            XCTAssertEqual(response.pairIndex, pair)
+            XCTAssertTrue(response.judgmentOpen)
+        }
+        XCTAssertEqual(DefenseCallResponse.atBeat(32, bpm: 120, playbackRatio: 1, config: config).phase, .call)
+    }
+
+    func testCallResponseThirtyMillisecondJudgingLead() {
+        guard let config = DefenseCallResponse.Config(audioLoopBars: 8, callBars: 1, beatsPerBar: 4) else {
+            XCTFail("Invalid config")
+            return
+        }
+        let before = DefenseCallResponse.atBeat(4 - 0.031 * 2, bpm: 120, playbackRatio: 1, config: config)
+        let lead = DefenseCallResponse.atBeat(4 - 0.029 * 2, bpm: 120, playbackRatio: 1, config: config)
+        XCTAssertFalse(before.judgmentOpen)
+        XCTAssertEqual(lead.phase, .call)
+        XCTAssertTrue(lead.judgmentOpen)
+        XCTAssertFalse(DefenseCallResponse.atBeat(8, bpm: 120, playbackRatio: 1, config: config).judgmentOpen)
+        XCTAssertNil(DefenseCallResponse.Config(audioLoopBars: 8, callBars: 3, beatsPerBar: 4))
+    }
+}
