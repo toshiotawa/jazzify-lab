@@ -195,6 +195,15 @@ enum DefensePhraseJudge {
         return state
     }
 
+    static func resetProgressForNextCycle(_ state: DefensePhraseJudgeState) -> DefensePhraseJudgeState {
+        var next = state
+        next.chordIndex = 0
+        next.targetStepIndex = 0
+        next.correctNoteIndices = []
+        next.revealedNoteIndices = []
+        return next
+    }
+
     static func targetMidis(state: DefensePhraseJudgeState) -> [Int] {
         Array(keyboardHints(state: state, sequential: false).pendingMidis)
     }

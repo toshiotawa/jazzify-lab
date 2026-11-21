@@ -17,20 +17,27 @@ enum DefenseTutorialAudio {
         buffer.frameLength = length
         guard let channel = buffer.floatChannelData?[0] else { return nil }
 
-        for index in 0..<3 {
-            let midi = concertMidis[index]
-            let freq = midiToFrequency(midi)
-            let startSec = DefenseTutorialConstants.noteOnsetsSec[index]
-            let startSample = Int((startSec * sampleRate).rounded(.down))
-            let durationSamples = Int((DefenseTutorialConstants.noteDurationSec * sampleRate).rounded(.down))
-            for offset in 0..<durationSamples {
-                let sampleIndex = startSample + offset
-                guard sampleIndex >= 0, sampleIndex < Int(length) else { break }
-                let t = Double(offset) / sampleRate
-                let attack = min(1, t / 0.02)
-                let release = max(0, 1 - (t - 0.35) / 0.15)
-                let envelope = attack * release
-                channel[sampleIndex] += Float(sin(2 * Double.pi * freq * t) * envelope * 0.35)
+        let cycleBars = DefenseTutorialConstants.callResponseBars * 2
+        for barIdx in 0..<DefenseTutorialConstants.audioLoopBars {
+            let posInCycle = barIdx % cycleBars
+            let isCall = posInCycle < DefenseTutorialConstants.callResponseBars
+            guard isCall else { continue }
+            let barStartSec = Double(barIdx) * DefenseTutorialConstants.barSec
+            for index in 0..<3 {
+                let midi = concertMidis[index]
+                let freq = midiToFrequency(midi)
+                let startSec = barStartSec + DefenseTutorialConstants.noteBeatOffsets[index] * DefenseTutorialConstants.beatSec
+                let startSample = Int((startSec * sampleRate).rounded(.down))
+                let durationSamples = Int((DefenseTutorialConstants.noteDurationSec * sampleRate).rounded(.down))
+                for offset in 0..<durationSamples {
+                    let sampleIndex = startSample + offset
+                    guard sampleIndex >= 0, sampleIndex < Int(length) else { break }
+                    let t = Double(offset) / sampleRate
+                    let attack = min(1, t / 0.02)
+                    let release = max(0, 1 - (t - 0.35) / 0.15)
+                    let envelope = attack * release
+                    channel[sampleIndex] += Float(sin(2 * Double.pi * freq * t) * envelope * 0.35)
+                }
             }
         }
 
