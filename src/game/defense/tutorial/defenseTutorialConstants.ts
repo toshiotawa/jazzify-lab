@@ -32,4 +32,11 @@ export const DEFENSE_TUTORIAL_NOTE_DURATION_SEC = 0.8;
 
 export const DEFENSE_TUTORIAL_SOLFEGE_LABELS = ['ド', 'レ', 'ミ'] as const;
 
+export const DEFENSE_TUTORIAL_AUDIO_BASE_URL =
+  'https://jazzify-cdn.com/sozai/defense-call-response/';
+
+export const DEFENSE_TUTORIAL_PREGENERATED_ROOT_MIDIS = [
+  27, 29, 34, 36, 39, 41, 46, 48, 51, 53, 58, 60, 63, 65, 70, 72, 75, 77, 82, 84,
+] as const;
+
 export type DefenseTutorialWrittenOctave = 3 | 4 | 5 | 6;

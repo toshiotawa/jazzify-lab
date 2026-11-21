@@ -328,8 +328,8 @@ final class DefenseGameSession: ObservableObject {
         guard generation == startGeneration, !Task.isCancelled else { return }
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
         if let tutorialConcertMidis, tutorialOptions != nil {
-            let isDefaultMidis = tutorialConcertMidis == [60, 62, 64]
-            if isDefaultMidis, let url = URL(string: DefenseTutorialConstants.audioUrl) {
+            if let urlString = DefenseTutorialConstants.audioUrl(forConcertMidis: tutorialConcertMidis),
+               let url = URL(string: urlString) {
                 do {
                     try await DefenseBackingAudio.shared.start(
                         firstUrl: url,

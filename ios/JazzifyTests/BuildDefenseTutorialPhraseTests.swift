@@ -100,4 +100,73 @@ final class BuildDefenseTutorialPhraseTests: XCTestCase {
         XCTAssertEqual(DefenseTutorialNotation.resolveDisplayStaves(.grand), [1, 2])
         XCTAssertEqual(DefenseTutorialNotation.resolveDisplayStaves(.bass), [2])
     }
+
+    func testLegacyDefaultAudioUrlRemains() {
+        XCTAssertEqual(
+            DefenseTutorialConstants.audioUrl,
+            "https://jazzify-cdn.com/sozai/defense-call-response/defense-tutorial-call-response-cde-bpm60.mp3"
+        )
+    }
+
+    func testAllNotationCombinationsResolveDoReMiAndPregeneratedAudioUrls() {
+        let clefOverrides: [NotationInstrumentClef?] = [nil, .treble, .bass, .grand]
+        let transpositionOverrides: [Int?] = [nil, 0, -2, -7, -9]
+        var roots = Set<Int>()
+
+        for preset in NotationInstrumentCatalog.presets {
+            for octaveShift in NotationInstrumentCatalog.octaveShiftMin...NotationInstrumentCatalog.octaveShiftMax {
+                for clefOverride in clefOverrides {
+                    for transpositionOverride in transpositionOverrides {
+                        var settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: preset.id)
+                        settings.notationOctaveShift = octaveShift
+                        settings.clefOverride = clefOverride
+                        settings.transpositionOverride = transpositionOverride
+
+                        let result = BuildDefenseTutorialPhrase.build(settings: settings)
+                        let root = result.concertMidis[0]
+                        XCTAssertEqual(result.concertMidis, [root, root + 2, root + 4])
+
+                        let expectedUrl =
+                            "\(DefenseTutorialConstants.audioBaseUrl)defense-tutorial-call-response-root-\(root)-bpm60.mp3"
+                        XCTAssertEqual(DefenseTutorialConstants.audioUrl(forRootConcertMidi: root), expectedUrl)
+                        XCTAssertEqual(DefenseTutorialConstants.audioUrl(forConcertMidis: result.concertMidis), expectedUrl)
+                        XCTAssertEqual(result.phrase.audioUrl, expectedUrl)
+                        roots.insert(root)
+                    }
+                }
+            }
+        }
+
+        XCTAssertEqual(roots.sorted(), DefenseTutorialConstants.pregeneratedRootMidis)
+    }
+
+    func testRepresentativeInstrumentsResolveExpectedRootUrls() {
+        let cases: [(String, Int)] = [
+            ("piano", 60),
+            ("trumpet_bb", 58),
+            ("alto_sax", 63),
+            ("french_horn_f", 65),
+            ("trombone", 48),
+            ("electric_bass", 36),
+        ]
+
+        for (instrumentId, root) in cases {
+            let settings = DefenseTutorialNotation.defaultSettings(notationInstrumentId: instrumentId)
+            let result = BuildDefenseTutorialPhrase.build(settings: settings)
+            let expectedUrl =
+                "\(DefenseTutorialConstants.audioBaseUrl)defense-tutorial-call-response-root-\(root)-bpm60.mp3"
+            XCTAssertEqual(result.concertMidis[0], root)
+            XCTAssertEqual(DefenseTutorialConstants.audioUrl(forRootConcertMidi: root), expectedUrl)
+            XCTAssertEqual(DefenseTutorialConstants.audioUrl(forConcertMidis: result.concertMidis), expectedUrl)
+            XCTAssertEqual(result.phrase.audioUrl, expectedUrl)
+        }
+    }
+
+    func testUnregisteredRootsAndInvalidTriplesReturnNil() {
+        XCTAssertNil(DefenseTutorialConstants.audioUrl(forRootConcertMidi: 0))
+        XCTAssertNil(DefenseTutorialConstants.audioUrl(forRootConcertMidi: 61))
+        XCTAssertNil(DefenseTutorialConstants.audioUrl(forRootConcertMidi: 99))
+        XCTAssertNil(DefenseTutorialConstants.audioUrl(forConcertMidis: [60, 62, 65]))
+        XCTAssertNil(DefenseTutorialConstants.audioUrl(forConcertMidis: [60, 62]))
+    }
 }

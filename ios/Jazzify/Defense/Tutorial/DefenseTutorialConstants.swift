@@ -20,4 +20,28 @@ enum DefenseTutorialConstants {
     static let noteDurationSec = 0.8
     static let solfegeLabels = ["ド", "レ", "ミ"]
     static let audioUrl = "https://jazzify-cdn.com/sozai/defense-call-response/defense-tutorial-call-response-cde-bpm60.mp3"
+    static let audioBaseUrl = "https://jazzify-cdn.com/sozai/defense-call-response/"
+
+    static let pregeneratedRootMidis: [Int] = [
+        27, 29, 34, 36, 39, 41, 46, 48, 51, 53, 58, 60, 63, 65, 70, 72, 75, 77, 82, 84,
+    ]
+
+    private static let pregeneratedRootMidiSet: Set<Int> = Set(pregeneratedRootMidis)
+
+    static func audioUrl(forRootConcertMidi rootMidi: Int) -> String? {
+        guard pregeneratedRootMidiSet.contains(rootMidi) else {
+            return nil
+        }
+        return "\(audioBaseUrl)defense-tutorial-call-response-root-\(rootMidi)-bpm60.mp3"
+    }
+
+    static func audioUrl(forConcertMidis concertMidis: [Int]) -> String? {
+        guard concertMidis.count == 3,
+              concertMidis[1] == concertMidis[0] + 2,
+              concertMidis[2] == concertMidis[0] + 4
+        else {
+            return nil
+        }
+        return audioUrl(forRootConcertMidi: concertMidis[0])
+    }
 }

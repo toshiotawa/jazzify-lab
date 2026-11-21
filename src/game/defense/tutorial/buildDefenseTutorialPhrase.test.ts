@@ -1,8 +1,17 @@
+import { existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   buildDefenseTutorialPhrase,
+  DEFENSE_TUTORIAL_AUDIO_URL,
+  defaultTutorialNotationSettings,
   pickDefenseTutorialWrittenOctave,
+  resolveDefenseTutorialAudioUrl,
+  resolveDefenseTutorialAudioUrlForMidis,
 } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
-import { defaultTutorialNotationSettings } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
+import {
+  DEFENSE_TUTORIAL_AUDIO_BASE_URL,
+  DEFENSE_TUTORIAL_PREGENERATED_ROOT_MIDIS,
+} from '@/game/defense/tutorial/defenseTutorialConstants';
 import { buildDefaultTutorialNotationFromStore } from '@/components/defense/tutorial/DefenseTutorialSetup';
 import {
   formatTutorialOctaveShiftLabel,
@@ -12,6 +21,21 @@ import {
   resolveTutorialWrittenOffset,
   type DefenseTutorialNotationSettings,
 } from '@/game/defense/tutorial/defenseTutorialNotation';
+import {
+  NOTATION_INSTRUMENT_PRESETS,
+  NOTATION_OCTAVE_SHIFT_MAX,
+  NOTATION_OCTAVE_SHIFT_MIN,
+  type NotationInstrumentClef,
+} from '@/utils/notationInstrument';
+
+const TUTORIAL_CLEF_OVERRIDES: readonly (NotationInstrumentClef | null)[] = [
+  null, 'treble', 'bass', 'grand',
+];
+const TUTORIAL_TRANSPOSITION_OVERRIDES: readonly (number | null)[] = [null, 0, -2, -7, -9];
+
+const expectedDefenseTutorialRootAudioUrl = (rootConcertMidi: number): string => (
+  `${DEFENSE_TUTORIAL_AUDIO_BASE_URL}defense-tutorial-call-response-root-${rootConcertMidi}-bpm60.mp3`
+);
 
 describe('buildDefenseTutorialPhrase', () => {
   it('uses instrument concert midis for Bb trumpet', () => {
@@ -135,5 +159,84 @@ describe('buildDefenseTutorialPhrase', () => {
     expect(resolveTutorialDisplayStaves('treble')).toEqual([1]);
     expect(resolveTutorialDisplayStaves('grand')).toEqual([1, 2]);
     expect(resolveTutorialDisplayStaves('bass')).toEqual([2]);
+  });
+});
+
+describe('defense tutorial audio url resolution', () => {
+  it('keeps legacy default audio url export', () => {
+    expect(DEFENSE_TUTORIAL_AUDIO_URL).toBe(
+      'https://jazzify-cdn.com/sozai/defense-call-response/defense-tutorial-call-response-cde-bpm60.mp3',
+    );
+  });
+
+  it('enumerates all notation combinations with do-re-mi midis and pregenerated urls', () => {
+    const roots = new Set<number>();
+
+    NOTATION_INSTRUMENT_PRESETS.forEach((preset) => {
+      for (
+        let notationOctaveShift = NOTATION_OCTAVE_SHIFT_MIN;
+        notationOctaveShift <= NOTATION_OCTAVE_SHIFT_MAX;
+        notationOctaveShift += 1
+      ) {
+        TUTORIAL_CLEF_OVERRIDES.forEach((clefOverride) => {
+          TUTORIAL_TRANSPOSITION_OVERRIDES.forEach((transpositionOverride) => {
+            const settings: DefenseTutorialNotationSettings = {
+              notationInstrumentId: preset.id,
+              notationOctaveShift,
+              clefOverride,
+              transpositionOverride,
+            };
+            const { concertMidis, phrase } = buildDefenseTutorialPhrase(settings);
+            const root = concertMidis[0];
+            expect(concertMidis).toEqual([root, root + 2, root + 4]);
+            const expectedUrl = expectedDefenseTutorialRootAudioUrl(root);
+            expect(resolveDefenseTutorialAudioUrl(root)).toBe(expectedUrl);
+            expect(resolveDefenseTutorialAudioUrlForMidis(concertMidis)).toBe(expectedUrl);
+            expect(phrase.audioUrl).toBe(expectedUrl);
+            roots.add(root);
+          });
+        });
+      }
+    });
+
+    expect([...roots].sort((a, b) => a - b)).toEqual([...DEFENSE_TUTORIAL_PREGENERATED_ROOT_MIDIS]);
+  });
+
+  it.each([
+    ['piano', 60],
+    ['trumpet_bb', 58],
+    ['alto_sax', 63],
+    ['french_horn_f', 65],
+    ['trombone', 48],
+    ['electric_bass', 36],
+  ] as const)('resolves representative instrument %s to root %i url', (instrumentId, root) => {
+    const settings = defaultTutorialNotationSettings(instrumentId);
+    const { concertMidis, phrase } = buildDefenseTutorialPhrase(settings);
+    const expectedUrl = expectedDefenseTutorialRootAudioUrl(root);
+    expect(concertMidis[0]).toBe(root);
+    expect(resolveDefenseTutorialAudioUrl(root)).toBe(expectedUrl);
+    expect(resolveDefenseTutorialAudioUrlForMidis(concertMidis)).toBe(expectedUrl);
+    expect(phrase.audioUrl).toBe(expectedUrl);
+  });
+
+  it.each([0, 61, 99])('returns null for unregistered root %i', (root) => {
+    expect(resolveDefenseTutorialAudioUrl(root)).toBeNull();
+  });
+
+  it('returns null for non-do-re-mi concert midi triplets', () => {
+    expect(resolveDefenseTutorialAudioUrlForMidis([60, 62, 65])).toBeNull();
+  });
+
+  it('has committed non-empty local MP3 assets for every pregenerated root and legacy cde', () => {
+    const audioDir = resolve(process.cwd(), 'public/sozai/defense-call-response');
+    const cdePath = resolve(audioDir, 'defense-tutorial-call-response-cde-bpm60.mp3');
+    expect(existsSync(cdePath)).toBe(true);
+    expect(statSync(cdePath).size).toBeGreaterThan(0);
+
+    DEFENSE_TUTORIAL_PREGENERATED_ROOT_MIDIS.forEach((root) => {
+      const filePath = resolve(audioDir, `defense-tutorial-call-response-root-${root}-bpm60.mp3`);
+      expect(existsSync(filePath)).toBe(true);
+      expect(statSync(filePath).size).toBeGreaterThan(0);
+    });
   });
 });

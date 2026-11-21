@@ -10,10 +10,7 @@ import {
   buildDefaultTutorialNotationFromStore,
   DefenseTutorialSetup,
 } from '@/components/defense/tutorial/DefenseTutorialSetup';
-import {
-  buildDefenseTutorialPhrase,
-  DEFENSE_TUTORIAL_AUDIO_URL,
-} from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
+import { buildDefenseTutorialPhrase } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import {
   advanceDefenseTutorialScreen,
   createDefenseTutorialSessionState,
@@ -102,7 +99,7 @@ export const DefenseTutorial: React.FC<DefenseTutorialProps> = ({
   });
 
   const phraseBuild = useMemo(
-    () => buildDefenseTutorialPhrase(session.notation, DEFENSE_TUTORIAL_AUDIO_URL),
+    () => buildDefenseTutorialPhrase(session.notation),
     [session.notation],
   );
 

@@ -7,12 +7,14 @@ import type {
 } from '@/game/defense/defenseTypes';
 import type { NotationInstrumentId } from '@/utils/notationInstrument';
 import {
+  DEFENSE_TUTORIAL_AUDIO_BASE_URL,
   DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE,
   DEFENSE_TUTORIAL_AUDIO_LOOP_BARS,
   DEFENSE_TUTORIAL_BEATS_PER_BAR,
   DEFENSE_TUTORIAL_BPM,
   DEFENSE_TUTORIAL_CALL_RESPONSE_BARS,
   DEFENSE_TUTORIAL_KEY_FIFTHS,
+  DEFENSE_TUTORIAL_PREGENERATED_ROOT_MIDIS,
   DEFENSE_TUTORIAL_SOLFEGE_LABELS,
   DEFENSE_TUTORIAL_TARGET_CONCERT_MIDI,
   DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES,
@@ -26,6 +28,28 @@ import {
 } from '@/game/defense/tutorial/defenseTutorialNotation';
 
 const CONCERT_NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+
+const PREGENERATED_ROOT_MIDI_SET = new Set<number>(DEFENSE_TUTORIAL_PREGENERATED_ROOT_MIDIS);
+
+export const resolveDefenseTutorialAudioUrl = (rootConcertMidi: number): string | null => {
+  if (!PREGENERATED_ROOT_MIDI_SET.has(rootConcertMidi)) {
+    return null;
+  }
+  return `${DEFENSE_TUTORIAL_AUDIO_BASE_URL}defense-tutorial-call-response-root-${rootConcertMidi}-bpm60.mp3`;
+};
+
+export const resolveDefenseTutorialAudioUrlForMidis = (
+  concertMidis: readonly [number, number, number],
+): string | null => {
+  if (
+    concertMidis.length !== 3
+    || concertMidis[1] !== concertMidis[0] + 2
+    || concertMidis[2] !== concertMidis[0] + 4
+  ) {
+    return null;
+  }
+  return resolveDefenseTutorialAudioUrl(concertMidis[0]);
+};
 
 const concertMidiToName = (midi: number): string => {
   const pitchClass = ((midi % 12) + 12) % 12;
@@ -89,7 +113,7 @@ const buildStaffGroups = (
 
 export const buildDefenseTutorialPhrase = (
   settings: DefenseTutorialNotationSettings,
-  audioUrl: string,
+  audioUrl?: string,
 ): DefenseTutorialPhraseBuildResult => {
   const writtenOctave = pickDefenseTutorialWrittenOctave(settings);
   const clef = resolveTutorialClef(settings);
@@ -112,6 +136,10 @@ export const buildDefenseTutorialPhrase = (
   const writtenNoteNames = writtenMidis.map(concertMidiToName) as [string, string, string];
   const concertNoteNames = concertMidis.map(concertMidiToName) as [string, string, string];
 
+  const resolvedAudioUrl = audioUrl
+    ?? resolveDefenseTutorialAudioUrlForMidis(concertMidis)
+    ?? DEFENSE_TUTORIAL_AUDIO_URL;
+
   const notes = DEFENSE_TUTORIAL_WRITTEN_PITCH_CLASSES.map((_, stepIndex) => ({
     orderIndex: stepIndex,
     pitchMidi: concertMidis[stepIndex],
@@ -133,7 +161,7 @@ export const buildDefenseTutorialPhrase = (
     id: 'tutorial-cde-phrase',
     orderIndex: 0,
     title: 'Input setup',
-    audioUrl,
+    audioUrl: resolvedAudioUrl,
     loopStartMeasure: null,
     loopEndMeasure: null,
     keyFifths: DEFENSE_TUTORIAL_KEY_FIFTHS,
