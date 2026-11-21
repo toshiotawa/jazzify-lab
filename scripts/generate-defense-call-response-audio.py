@@ -11,9 +11,33 @@ import random
 import struct
 import subprocess
 import wave
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 SAMPLE_RATE = 44100
 OUT_DIR = os.path.join("public", "sozai", "defense-call-response")
+
+TUTORIAL_ROOT_MIDIS = (
+    27,
+    29,
+    34,
+    36,
+    39,
+    41,
+    46,
+    48,
+    51,
+    53,
+    58,
+    60,
+    63,
+    65,
+    70,
+    72,
+    75,
+    77,
+    82,
+    84,
+)
 
 
 def midi_to_freq(midi: int) -> float:
@@ -245,6 +269,21 @@ def render_call_response_mp3(
     print(f"Generated {mp3_path} ({total_sec:.3f}s, {audio_loop_bars} bars @ {bpm} BPM)")
 
 
+def render_tutorial_root_track(root_midi: int) -> None:
+    render_call_response_mp3(
+        filename=f"defense-tutorial-call-response-root-{root_midi}-bpm60.mp3",
+        bpm=60.0,
+        beats_per_bar=4,
+        audio_loop_bars=8,
+        call_response_bars=1,
+        melody_events_in_call_block=[
+            (0.0, 0.78, root_midi, 0.50),
+            (1.0, 0.78, root_midi + 2, 0.50),
+            (2.0, 0.78, root_midi + 4, 0.50),
+        ],
+    )
+
+
 def main():
     # 1) Tutorial: Do-Re-Mi (C4=60, D4=62, E4=64), BPM 60, 4/4, 8-bar loop, 1-bar call / 1-bar response
     render_call_response_mp3(
@@ -259,6 +298,12 @@ def main():
             (2.0, 0.78, 64, 0.50),
         ],
     )
+
+    # 1b) Tutorial: per-root ascending tracks (same C-D-E pattern transposed), BPM 60
+    with ProcessPoolExecutor(max_workers=min(len(TUTORIAL_ROOT_MIDIS), os.cpu_count() or 1)) as pool:
+        futures = [pool.submit(render_tutorial_root_track, root_midi) for root_midi in TUTORIAL_ROOT_MIDIS]
+        for future in as_completed(futures):
+            future.result()
 
     # 2) Stage 1-1: Phrases I-IV (Dm7), BPM 120, 4/4, 8-bar loop, 1-bar call / 1-bar response
     swing_six_note_slots = [
