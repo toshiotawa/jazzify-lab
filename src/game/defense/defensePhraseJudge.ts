@@ -428,6 +428,26 @@ export const getDefensePhraseKeyboardHints = (
   return { nextMidi: null, pendingMidis, completedMidis };
 };
 
+export const resetDefensePhraseProgressForNextCycle = (
+  state: DefensePhraseJudgeState,
+): DefensePhraseJudgeState => {
+  if (
+    state.chordIndex === 0
+    && state.targetStepIndex === 0
+    && state.correctNoteIndices.size === 0
+    && state.revealedNoteIndices.size === 0
+  ) {
+    return state;
+  }
+  return {
+    ...state,
+    chordIndex: 0,
+    targetStepIndex: 0,
+    correctNoteIndices: emptySet(),
+    revealedNoteIndices: emptySet(),
+  };
+};
+
 export const nextPhraseIndex = (
   phrases: readonly DefensePhrase[],
   currentIndex: number,

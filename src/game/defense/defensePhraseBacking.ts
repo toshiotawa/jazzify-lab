@@ -5,6 +5,7 @@ import {
   isDefenseSingleSourceStage,
 } from '@/game/defense/defenseAudioRegistrationMode';
 import { resolveDefenseAudioLoopWindow } from '@/game/defense/defenseAudioLoopWindow';
+import { barSeconds } from '@/game/defense/defenseTransport';
 
 export interface DefensePhraseBackingPlayback {
   readonly buffer: AudioBuffer;
@@ -64,7 +65,7 @@ export const sliceAudioBuffer = (
 };
 
 const resolveDefensePhraseBarCount = (
-  stage: Pick<DefenseStage, 'phraseBars' | 'progressionBars' | 'audioRegistrationMode'>,
+  stage: Pick<DefenseStage, 'phraseBars' | 'progressionBars' | 'audioRegistrationMode' | 'audioLoopBars'>,
   phrase: Pick<DefensePhrase, 'loopStartMeasure' | 'loopEndMeasure'>,
 ): number => {
   if (isDefenseSharedProgressionSeparateTracksStage(stage)) {
@@ -76,7 +77,23 @@ const resolveDefensePhraseBarCount = (
   if (phrase.loopStartMeasure !== null && phrase.loopEndMeasure !== null) {
     return Math.max(1, phrase.loopEndMeasure - phrase.loopStartMeasure + 1);
   }
+  if (stage.audioLoopBars != null && stage.audioLoopBars > 0) {
+    return stage.audioLoopBars;
+  }
   return Math.max(1, stage.phraseBars);
+};
+
+const resolvePerPhraseLoopEndSec = (
+  decoded: AudioBuffer,
+  stage: DefenseStage,
+  speedRatio: number,
+): number | null => {
+  if (stage.audioLoopBars == null || stage.audioLoopBars <= 0) {
+    return null;
+  }
+  const safeRatio = Math.max(0.1, speedRatio);
+  const expectedSec = (stage.audioLoopBars * barSeconds(stage.bpm, stage.beatsPerBar)) / safeRatio;
+  return Math.min(decoded.duration, expectedSec);
 };
 
 const fitAudioBufferToDuration = (
@@ -133,10 +150,13 @@ export const buildDefensePhraseBackingPlayback = (
     };
   }
 
+  const clampedLoopEnd = resolvePerPhraseLoopEndSec(decoded, stage, 1);
+  const loopEnd = clampedLoopEnd ?? decoded.duration;
+
   return {
     buffer: decoded,
     loopStart: 0,
-    loopEnd: decoded.duration,
+    loopEnd,
     startOffset: 0,
     barCount,
   };
@@ -172,7 +192,9 @@ export const prepareDefensePhraseBackingPlayback = async (
 
   if (!useSharedLoopRange && needsSpeedChange) {
     const processed = await applySpeed(decoded, safeRatio);
-    const fitted = fitAudioBufferToDuration(ctx, processed, decoded.duration / safeRatio);
+    const durationTarget = resolvePerPhraseLoopEndSec(decoded, stage, safeRatio)
+      ?? (decoded.duration / safeRatio);
+    const fitted = fitAudioBufferToDuration(ctx, processed, durationTarget);
     return {
       buffer: fitted,
       loopStart: 0,

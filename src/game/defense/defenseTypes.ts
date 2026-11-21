@@ -3,6 +3,10 @@
  */
 import type { ProductionHintMode } from '@/types';
 import type { MajorKey } from '@/utils/twoHandVoicingIntermediateCourse';
+import type {
+  DefenseCallResponseCue,
+  DefenseEnemyBehavior,
+} from '@/game/defense/defenseCallResponse';
 
 export type DefenseStaffLayout = 'treble' | 'grand';
 
@@ -76,6 +80,8 @@ export interface DefenseStage {
   /** Full progression length in bars for shared progression modes. */
   readonly progressionBars: number | null;
   readonly phraseBars: number;
+  readonly audioLoopBars?: number | null;
+  readonly callResponseBars?: number | null;
   readonly staffLayout: DefenseStaffLayout;
   readonly attackTrigger: DefenseAttackTrigger;
   readonly keyFifths: number;
@@ -222,6 +228,9 @@ export interface DefenseRuntime {
   damagePopups: DefenseDamagePopup[];
   nextPopupIndex: number;
   fireballs: DefenseFireball[];
+  enemyBehavior: DefenseEnemyBehavior;
+  callResponseCue: DefenseCallResponseCue;
+  danceBeatPhase: number;
 }
 
 export const DEFENSE_MAP_WIDTH = 800;
@@ -311,4 +320,7 @@ export const createDefenseRuntime = (
     y: 0,
     hitSlotMask: 0,
   })),
+  enemyBehavior: 'approach',
+  callResponseCue: null,
+  danceBeatPhase: 0,
 });

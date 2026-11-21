@@ -6,6 +6,7 @@ import {
   getDefensePhraseKeyboardHints,
   isDefenseWaitingForSamePitchRepeat,
   nextPhraseIndex,
+  resetDefensePhraseProgressForNextCycle,
 } from '@/game/defense/defensePhraseJudge';
 import type { DefensePhrase } from '@/game/defense/defenseTypes';
 
@@ -548,6 +549,41 @@ describe('defensePhraseJudge', () => {
 
     const boundary = { ...state, targetStepIndex: 5, lastAcceptedPitchClass: 4 };
     expect(getDefenseExpectedPitchCandidates([phrase], boundary, true).repeatPitchClassMask).toBe(1 << 2);
+  });
+
+  it('sets pendingSwitch after three phrase completions', () => {
+    let state = createInitialPhraseJudgeState(0);
+    const phrases = [phraseA];
+    const completeOnce = (): void => {
+      state = evaluateDefensePhraseNoteOn(phrases, 3, state, 2).nextState;
+      state = evaluateDefensePhraseNoteOn(phrases, 3, state, 4).nextState;
+      state = evaluateDefensePhraseNoteOn(phrases, 3, state, 7).nextState;
+    };
+    completeOnce();
+    expect(state.completionCount).toBe(1);
+    expect(state.pendingSwitch).toBe(false);
+    completeOnce();
+    expect(state.completionCount).toBe(2);
+    completeOnce();
+    expect(state.pendingSwitch).toBe(true);
+  });
+
+  it('resetDefensePhraseProgressForNextCycle keeps completion metadata', () => {
+    const state = {
+      ...createInitialPhraseJudgeState(0),
+      chordIndex: 1,
+      targetStepIndex: 1,
+      correctNoteIndices: new Set([0]),
+      revealedNoteIndices: new Set([0]),
+      completionCount: 3,
+      pendingSwitch: true,
+      lastAcceptedPitchClass: 2,
+    };
+    const reset = resetDefensePhraseProgressForNextCycle(state);
+    expect(reset.completionCount).toBe(3);
+    expect(reset.pendingSwitch).toBe(true);
+    expect(reset.chordIndex).toBe(0);
+    expect(reset).not.toBe(state);
   });
 
 

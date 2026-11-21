@@ -60,6 +60,11 @@ const IMPACT_SPARK_COLOR = '#fef08a';
 const FLYING_Y_OFFSET = 90;
 export const DEFENSE_SWEEP_URLS = [1, 2, 3, 4].map((n) => `/battle-pixels/pixel-flame-sweep-${n}.png`);
 
+export const DEFENSE_CUE_SPRITE_URLS = {
+  listen: `${import.meta.env.BASE_URL}battle-pixels/pixel-cue-listen.png`,
+  play: `${import.meta.env.BASE_URL}battle-pixels/pixel-cue-play.png`,
+} as const;
+
 export interface DefenseSceneAssets {
   readonly loadedImages: Map<string, HTMLImageElement>;
   readonly backgroundCache: BackgroundCacheState;
@@ -206,7 +211,8 @@ const drawEnemiesOfType = (
     const enemy = enemies[i];
     if (!enemy.active || enemy.type !== type) continue;
 
-    const attacking = isDefenseEnemyAttacking(
+    const allowAttackMotion = runtime.enemyBehavior === 'approach';
+    const attacking = allowAttackMotion && isDefenseEnemyAttacking(
       enemy.attackHitPending,
       runtime.elapsedSec,
       enemy.lastAttackAt,
@@ -218,6 +224,8 @@ const drawEnemiesOfType = (
       config.isFlying,
       attacking,
       runtime.elapsedSec - enemy.lastAttackAt,
+      runtime.enemyBehavior,
+      runtime.danceBeatPhase,
     );
     const img = sprites[frame];
 
@@ -287,6 +295,34 @@ const drawDamagePopups = (
     ctx.fillStyle = '#fef08a';
     ctx.fillText(String(popup.value), screenX, screenY);
   }
+  ctx.restore();
+};
+
+const drawCallResponseCue = (
+  ctx: CanvasRenderingContext2D,
+  runtime: DefenseRuntime,
+  playerX: number,
+  floorY: number,
+  avatarSize: number,
+  spriteScale: number,
+  assets: DefenseSceneAssets,
+): void => {
+  const cue = runtime.callResponseCue;
+  if (cue !== 'listen' && cue !== 'play') return;
+  const url = DEFENSE_CUE_SPRITE_URLS[cue];
+  const image = assets.loadedImages.get(url);
+  if (!image) return;
+
+  const drawScale = Math.max(1.2, 1.5 * spriteScale);
+  const drawW = image.naturalWidth * drawScale;
+  const drawH = image.naturalHeight * drawScale;
+  const gaugeTop = floorY - avatarSize - 14;
+  const y = gaugeTop - 10 - drawH;
+  const x = playerX - drawW / 2;
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(image, x, y, drawW, drawH);
   ctx.restore();
 };
 
@@ -526,6 +562,9 @@ export const drawDefenseScene = (
   if (showPhraseUi) {
     drawDamagePopups(ctx, runtime, width, floorY, spriteScale);
     drawSpGauge(ctx, runtime, playerX, floorY, avatarSize);
+    if (assets) {
+      drawCallResponseCue(ctx, runtime, playerX, floorY, avatarSize, spriteScale, assets);
+    }
   }
 
   drawLevelUpEffect(ctx, playerX, floorY, avatarSize, runtime, hud);

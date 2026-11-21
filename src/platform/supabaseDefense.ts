@@ -55,6 +55,8 @@ interface StageRow {
   voicing_start_key: string | null;
   voicing_min_lowest_note: string | null;
   play_root_on_chord_change: boolean;
+  audio_loop_bars: number | null;
+  call_response_bars: number | null;
 }
 
 interface PhraseRow {
@@ -176,7 +178,8 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
       staff_layout, attack_trigger, key_fifths, required_completion_count, difficulty_level,
       survive_seconds, player_hp, production_staff_hint_mode, production_keyboard_hint_mode,
       play_style, voicing_key_mode, voicing_lowest_key, voicing_start_key,
-      voicing_min_lowest_note, play_root_on_chord_change
+      voicing_min_lowest_note, play_root_on_chord_change,
+      audio_loop_bars, call_response_bars
     `)
     .eq('id', stageId)
     .maybeSingle();
@@ -294,6 +297,8 @@ export async function fetchDefenseStageDetail(stageId: string): Promise<DefenseS
     melodyAudioUrl: stage.melody_audio_url,
     progressionBars,
     phraseBars: stage.phrase_bars,
+    audioLoopBars: stage.audio_loop_bars ?? null,
+    callResponseBars: stage.call_response_bars ?? null,
     staffLayout: parseStaffLayout(stage.staff_layout),
     attackTrigger: parseAttackTrigger(stage.attack_trigger),
     keyFifths: stage.key_fifths,

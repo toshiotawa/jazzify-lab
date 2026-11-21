@@ -17,10 +17,14 @@ export const DEFENSE_TUTORIAL_BASS_WRITTEN_OCTAVE = 3;
 /** Beat duration at BPM 60 (seconds). */
 export const DEFENSE_TUTORIAL_BEAT_SEC = 60 / DEFENSE_TUTORIAL_BPM;
 
-/** One bar loop: 4 beats = 4 s */
-export const DEFENSE_TUTORIAL_LOOP_SEC = DEFENSE_TUTORIAL_BEAT_SEC * DEFENSE_TUTORIAL_BEATS_PER_BAR;
+export const DEFENSE_TUTORIAL_AUDIO_LOOP_BARS = 8;
+export const DEFENSE_TUTORIAL_CALL_RESPONSE_BARS = 1;
 
-/** Sample onsets within the loop (seconds). */
+/** One bar = 4 beats = 4 s; full loop = 8 bars = 32 s */
+export const DEFENSE_TUTORIAL_LOOP_SEC =
+  DEFENSE_TUTORIAL_BEAT_SEC * DEFENSE_TUTORIAL_BEATS_PER_BAR * DEFENSE_TUTORIAL_AUDIO_LOOP_BARS;
+
+/** Sample onsets within a call bar (seconds). */
 export const DEFENSE_TUTORIAL_NOTE_ONSETS_SEC = [0, 1, 2] as const;
 
 /** Quarter-note length with a short gap before the next beat. */

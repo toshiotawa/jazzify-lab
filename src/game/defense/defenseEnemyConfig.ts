@@ -2,6 +2,7 @@
  * Defense enemy display / combat constants shared by simulation and rendering.
  * All helpers are pure and allocation-free (called per frame from the renderer).
  */
+import type { DefenseEnemyBehavior } from '@/game/defense/defenseCallResponse';
 import type { DefenseDifficulty, DefenseEnemyType } from '@/game/defense/defenseTypes';
 import { DEFENSE_PLAYER_Y } from '@/game/defense/defenseTypes';
 
@@ -235,7 +236,10 @@ export const getDefenseEnemyAttackDy = (attackElapsed: number, flying: boolean):
 };
 
 export const DEFENSE_WALK_FRAMES = ['idle', 'passing', 'move', 'recoil'] as const;
-export type DefenseEnemyFrame = typeof DEFENSE_WALK_FRAMES[number];
+export const DEFENSE_DANCE_FRAMES = ['dance_1', 'dance_2', 'dance_3', 'dance_4'] as const;
+export type DefenseEnemyFrame =
+  | typeof DEFENSE_WALK_FRAMES[number]
+  | typeof DEFENSE_DANCE_FRAMES[number];
 
 export const pickDefenseEnemyFrame = (
   elapsedSec: number,
@@ -244,7 +248,17 @@ export const pickDefenseEnemyFrame = (
   flying: boolean,
   attacking: boolean,
   attackAge = DEFENSE_ATTACK_LUNGE_SEC * 0.5,
+  enemyBehavior: DefenseEnemyBehavior = 'approach',
+  danceBeatPhase = 0,
 ): DefenseEnemyFrame => {
+  if (enemyBehavior === 'pause') {
+    return 'idle';
+  }
+  if (enemyBehavior === 'dance') {
+    const phase = Math.floor(Math.max(0, danceBeatPhase * 2) + slotIndex)
+      % DEFENSE_DANCE_FRAMES.length;
+    return DEFENSE_DANCE_FRAMES[phase] ?? 'dance_1';
+  }
   if (attacking) {
     if (attackAge < DEFENSE_ATTACK_LUNGE_SEC * WINDUP_FRACTION) return 'recoil';
     if (attackAge > DEFENSE_ATTACK_LUNGE_SEC * 0.72) return 'passing';
