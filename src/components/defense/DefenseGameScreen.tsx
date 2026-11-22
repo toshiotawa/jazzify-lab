@@ -31,10 +31,15 @@ import DeferredEarTrainingPianoOverlay, {
 import {
   chargeDefenseSp,
   performDefenseSlash,
+  DEFENSE_ENDLESS_WAVE_INDEX,
   spawnCallResponseInitialEnemy,
   spawnTutorialInitialEnemies,
   tickDefenseSimulation,
 } from '@/game/defense/defenseEngine';
+import {
+  finalizeDefenseEndlessRecord,
+  recordDefenseClearV2,
+} from '@/platform/supabaseDefense';
 import { resolveDefenseTutorialAudioUrlForMidis } from '@/game/defense/tutorial/buildDefenseTutorialPhrase';
 import { buildDefenseTutorialStaffDisplay } from '@/game/defense/tutorial/buildDefenseTutorialStaffDisplay';
 import { synthesizeDefenseTutorialCdeBuffer } from '@/game/defense/tutorial/defenseTutorialAudio';
@@ -77,7 +82,11 @@ import {
 import {
   applyDefenseCallResponseDifficulty,
   computeDefenseCallResponseClearTarget,
+  computeDefenseEndlessAccel,
+  computeDefenseStarRank,
+  formatDefenseStarRank,
 } from '@/game/defense/defenseCallResponseCombat';
+import { DefenseEndlessContinueModal } from '@/components/defense/DefenseEndlessContinueModal';
 import {
   createInitialPhraseJudgeState,
   evaluateDefensePhraseNoteOn,
@@ -149,7 +158,9 @@ interface DefenseGameScreenProps {
   /** リザルト画面の「マップに戻る」。未指定時は onExit にフォールバック */
   readonly onResultBack?: () => void;
   /** 本番モードでクリアしたときに1回だけ呼ばれる（レッスン進捗の記録用） */
-  readonly onClear?: () => void;
+  readonly onClear?: (detail?: { readonly isFirstClear?: boolean }) => void;
+  readonly playMapNodeId?: string;
+  readonly useCallResponseTierRecording?: boolean;
   readonly resultNextStepLabel?: string;
   readonly onResultNextStep?: () => void;
   readonly tutorialOptions?: DefenseTutorialOptions | null;
@@ -165,6 +176,9 @@ interface FinalStats {
   readonly result: Exclude<DefenseGameResult, 'playing'>;
   readonly surviveSec: number;
   readonly enemiesDefeated: number;
+  readonly starRank?: 1 | 2 | 3;
+  readonly enteredEndless?: boolean;
+  readonly improvedEndlessBest?: boolean;
 }
 
 /** fade_15s は 15 秒で完了するため、それ以降は秒カウンタの再レンダーを止める */
@@ -182,6 +196,8 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   onApplyPracticeModeAndRestart,
   onResultBack,
   onClear,
+  playMapNodeId,
+  useCallResponseTierRecording = false,
   resultNextStepLabel,
   onResultNextStep,
   tutorialOptions = null,
@@ -200,7 +216,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
   const usesProgressionHud = !isChordVoicingStage && (isSharedProgressionStage || isSeparateTracksStage);
   const callResponseConfig = useMemo(() => getDefenseCallResponseConfig(stage), [stage]);
   const effectiveDifficulty = useMemo(() => {
-    if (callResponseConfig == null) {
+    if (callResponseConfig == null || useCallResponseTierRecording) {
       return difficulty;
     }
     return applyDefenseCallResponseDifficulty(
@@ -208,7 +224,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       callResponseConfig.cycleBars,
       callResponseConfig.responseBars,
     );
-  }, [callResponseConfig, difficulty]);
+  }, [callResponseConfig, difficulty, useCallResponseTierRecording]);
   const runtimeRef = useRef<DefenseRuntime>(
     createDefenseRuntime(
       stage.playerHp,
@@ -251,7 +267,15 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     enemiesDefeated: 0,
     wave: practiceMode ? 0 : 1,
     practiceMode,
+    endlessMode: false,
   });
+  const clearCommitStartedRef = useRef(false);
+  const clearCommitPromiseRef = useRef<Promise<void> | null>(null);
+  const finalStatsCommittedRef = useRef(false);
+  const playRecordIdRef = useRef<string | null>(null);
+  const confirmedStarRankRef = useRef<1 | 2 | 3 | null>(null);
+  const [showEndlessModal, setShowEndlessModal] = useState(false);
+  const [confirmedStarRank, setConfirmedStarRank] = useState<1 | 2 | 3>(1);
 
   const [judgeSnapshot, setJudgeSnapshot] = useState<DefensePhraseJudgeState>(
     createInitialPhraseJudgeState(0),
@@ -291,6 +315,44 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+
+  const resumeBackingAfterPause = useCallback(() => {
+    if (isSeparateTracksStage) {
+      defenseSeparateTracksDeck.resume();
+    } else if (isSharedProgressionStage) {
+      defenseSharedProgressionDeck.resume();
+    } else {
+      defenseBackingDeck.resume();
+    }
+  }, [isSeparateTracksStage, isSharedProgressionStage]);
+
+  const finishAfterClearWithoutEndless = useCallback(() => {
+    const runtime = runtimeRef.current;
+    runtime.awaitingEndlessChoice = false;
+    runtime.result = 'clear';
+    setShowEndlessModal(false);
+    if (!finalStatsCommittedRef.current) {
+      finalStatsCommittedRef.current = true;
+      setFinalStats({
+        result: 'clear',
+        surviveSec: Math.floor(runtime.elapsedSec),
+        enemiesDefeated: runtime.enemiesDefeated,
+        starRank: confirmedStarRankRef.current ?? undefined,
+        enteredEndless: false,
+      });
+    }
+  }, []);
+
+  const continueIntoEndless = useCallback(() => {
+    const runtime = runtimeRef.current;
+    runtime.awaitingEndlessChoice = false;
+    runtime.endlessMode = true;
+    runtime.waveIndex = DEFENSE_ENDLESS_WAVE_INDEX;
+    runtime.waveSpawnCount = 0;
+    setShowEndlessModal(false);
+    resumeBackingAfterPause();
+  }, [resumeBackingAfterPause]);
+
   const settings = useGameStore((state) => state.settings);
   const updateSettings = useGameStore((state) => state.updateSettings);
   const effectiveInputMethod = tutorialInputMethod ?? settings.inputMethod;
@@ -345,6 +407,21 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     runtimeRef.current.targetEnemiesDefeated = killClearTarget;
     runtimeRef.current.enemiesDefeated = 0;
     runtimeRef.current.callResponseActive = callResponseConfig != null && !isTutorialSession;
+    runtimeRef.current.endlessPromptEnabled = Boolean(
+      useCallResponseTierRecording && callResponseConfig != null && !isTutorialSession,
+    );
+    runtimeRef.current.awaitingEndlessChoice = false;
+    runtimeRef.current.endlessMode = false;
+    runtimeRef.current.endlessElapsedSec = 0;
+    runtimeRef.current.endlessSpeedMult = 1;
+    runtimeRef.current.endlessSpawnMult = 1;
+    runtimeRef.current.endlessHpMult = 1;
+    clearCommitStartedRef.current = false;
+    clearCommitPromiseRef.current = null;
+    finalStatsCommittedRef.current = false;
+    playRecordIdRef.current = null;
+    confirmedStarRankRef.current = null;
+    setShowEndlessModal(false);
 
     if (callResponseConfig != null) {
       runtimeRef.current.enemyBehavior = 'dance';
@@ -370,6 +447,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     effectiveDifficulty,
     callResponseConfig,
     isTutorialSession,
+    useCallResponseTierRecording,
     isSharedProgressionStage,
     isSeparateTracksStage,
     practiceMode,
@@ -724,7 +802,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     if (isSettingsOpenRef.current) return;
     if (phaseRef.current !== 'playing') return;
     const runtime = runtimeRef.current;
-    if (runtime.result !== 'playing') return;
+    if (runtime.result !== 'playing' || runtime.awaitingEndlessChoice) return;
 
     if (callResponseConfig != null) {
       const pendingAt = pendingSwitchAtRef.current;
@@ -797,7 +875,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
       const speedRatio = defensePracticeSpeedRatio(practiceSpeedPercentRef.current);
       const effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60;
       const guardPoseSec = 60 / effectiveBpm;
-      performDefenseSlash(runtime, guardPoseSec);
+      performDefenseSlash(runtime, guardPoseSec, effectiveDifficulty);
     }
 
     if (evaluation.playRootMidi != null) {
@@ -882,6 +960,7 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     activePhrases,
     callResponseConfig,
     commitScheduledAudioSwitch,
+    effectiveDifficulty,
     stage,
     stage.requiredCompletionCount,
     stage.attackTrigger,
@@ -1183,10 +1262,52 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
               lastCallResponseLoopIndexRef.current = snapshot.loopIndex;
             }
             lastCallResponsePhaseRef.current = snapshot.phase;
+            if (runtime.endlessMode && snapshot.phase === 'response') {
+              runtime.endlessElapsedSec += dt;
+              const accel = computeDefenseEndlessAccel(runtime.endlessElapsedSec);
+              runtime.endlessSpeedMult = accel.speedMult;
+              runtime.endlessSpawnMult = accel.spawnMult;
+              runtime.endlessHpMult = accel.hpMult;
+            }
           }
         }
 
-        tickDefenseSimulation(runtime, effectiveDifficulty, dt);
+        if (!runtime.awaitingEndlessChoice) {
+          tickDefenseSimulation(runtime, effectiveDifficulty, dt);
+        }
+
+        if (
+          runtime.awaitingEndlessChoice
+          && !clearCommitStartedRef.current
+          && !practiceMode
+          && useCallResponseTierRecording
+          && playMapNodeId
+        ) {
+          clearCommitStartedRef.current = true;
+          const starRank = computeDefenseStarRank(runtime.playerHp, runtime.playerMaxHp);
+          confirmedStarRankRef.current = starRank;
+          setConfirmedStarRank(starRank);
+          setShowEndlessModal(true);
+          if (isSeparateTracksStage) {
+            defenseSeparateTracksDeck.pause();
+          } else if (isSharedProgressionStage) {
+            defenseSharedProgressionDeck.pause();
+          } else {
+            defenseBackingDeck.pause();
+          }
+          clearCommitPromiseRef.current = recordDefenseClearV2({
+            nodeId: playMapNodeId,
+            stageId: stage.id,
+            starRank,
+            surviveSec: Math.floor(runtime.elapsedSec),
+            enemiesDefeated: runtime.enemiesDefeated,
+          }).then((result) => {
+            playRecordIdRef.current = result.recordId;
+            onClearRef.current?.({ isFirstClear: result.isFirstClear });
+          }).catch(() => {
+            /* non-fatal */
+          });
+        }
 
         if (trackElapsedForHints) {
           const elapsedFloor = Math.floor(runtime.elapsedSec);
@@ -1225,16 +1346,46 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         : 0;
       hud.enemiesDefeated = runtime.enemiesDefeated;
       hud.wave = practiceMode ? 0 : runtime.waveIndex + 1;
+      hud.endlessMode = runtime.endlessMode;
       canvasRef.current?.draw(runtime, hudRef.current);
 
-      if (runtime.result !== 'playing') {
+      if (runtime.result !== 'playing' && !runtime.awaitingEndlessChoice) {
         const result = runtime.result;
-        setFinalStats({
-          result,
-          surviveSec: Math.floor(runtime.elapsedSec),
-          enemiesDefeated: runtime.enemiesDefeated,
-        });
-        if (result === 'clear' && !practiceMode) {
+        if (!finalStatsCommittedRef.current) {
+          finalStatsCommittedRef.current = true;
+          const enteredEndless = runtime.endlessMode;
+          const finalSurviveSec = Math.floor(runtime.elapsedSec);
+          const finalDefeated = runtime.enemiesDefeated;
+          void (async () => {
+            let improvedEndlessBest = false;
+            if (enteredEndless && result === 'gameover') {
+              if (clearCommitPromiseRef.current) {
+                await clearCommitPromiseRef.current;
+              }
+              if (playRecordIdRef.current) {
+                try {
+                  const endlessResult = await finalizeDefenseEndlessRecord({
+                    recordId: playRecordIdRef.current,
+                    enemiesDefeated: finalDefeated,
+                    surviveSec: finalSurviveSec,
+                  });
+                  improvedEndlessBest = endlessResult.improvedEndlessBest;
+                } catch {
+                  /* non-fatal */
+                }
+              }
+            }
+            setFinalStats({
+              result,
+              surviveSec: finalSurviveSec,
+              enemiesDefeated: finalDefeated,
+              starRank: confirmedStarRankRef.current ?? undefined,
+              enteredEndless,
+              improvedEndlessBest,
+            });
+          })();
+        }
+        if (result === 'clear' && !practiceMode && !useCallResponseTierRecording) {
           onClearRef.current?.();
         }
         rafRef.current = null;
@@ -1264,6 +1415,9 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
     stage.beatsPerBar,
     formBarCount,
     isChordVoicingStage,
+    useCallResponseTierRecording,
+    playMapNodeId,
+    stage.id,
   ]);
 
   useEffect(() => {
@@ -1318,6 +1472,10 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
         practiceMode={practiceMode}
         surviveSec={finalStats.surviveSec}
         enemiesDefeated={finalStats.enemiesDefeated}
+        starRank={finalStats.starRank}
+        enteredEndless={finalStats.enteredEndless}
+        improvedEndlessBest={finalStats.improvedEndlessBest}
+        skipStageClearPersist={useCallResponseTierRecording}
         isEnglishCopy={isEnglishCopy}
         onRetry={onRetry}
         onBack={onResultBack ?? onExit}
@@ -1329,6 +1487,14 @@ export const DefenseGameScreen: React.FC<DefenseGameScreenProps> = ({
 
   return (
     <div className="defense-game-screen relative h-[100dvh] overflow-hidden bg-slate-950 text-white">
+      {showEndlessModal && (
+        <DefenseEndlessContinueModal
+          isEnglishCopy={isEnglishCopy}
+          starRankLabel={formatDefenseStarRank(confirmedStarRank)}
+          onContinueEndless={continueIntoEndless}
+          onFinish={finishAfterClearWithoutEndless}
+        />
+      )}
       <DefenseCanvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
       {progressionChips.length > 0 && (

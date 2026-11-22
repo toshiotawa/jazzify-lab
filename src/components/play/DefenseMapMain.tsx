@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import GameHeader from '@/components/ui/GameHeader';
 import DefenseDescentMap from '@/components/play/defenseDescent/DefenseDescentMap';
+import { DefenseEndlessRanking } from '@/components/defense/DefenseEndlessRanking';
 import { DefenseGameScreen } from '@/components/defense/DefenseGameScreen';
 import { DefenseNextStageLaunchModal } from '@/components/defense/DefenseNextStageLaunchModal';
 import { DefenseNextStepModal } from '@/components/defense/DefenseNextStepModal';
@@ -22,6 +23,8 @@ import {
   fetchDefenseStageDetail,
 } from '@/platform/supabaseDefense';
 import type { DefenseDifficulty, DefenseStage } from '@/game/defense/defenseTypes';
+import { getDefenseCallResponseConfig } from '@/game/defense/defenseCallResponse';
+import { resolveDefenseCallResponseGuardedDifficulty } from '@/game/defense/defenseCallResponseCombat';
 import { resolvePlayMapDefenseDifficultyLevel } from '@/game/defense/playMapDefenseDifficulty';
 import { awardPlayerXp } from '@/platform/supabasePlayerXp';
 import { grantAndToastUserBadges } from '@/utils/badgeToasts';
@@ -50,11 +53,12 @@ import {
 } from '@/utils/softLanding';
 import { markSoftLandingSessionDismissed } from '@/utils/softLandingResume';
 
-type Screen = 'map' | 'game' | 'tutorial';
+type Screen = 'map' | 'game' | 'tutorial' | 'endlessRanking';
 
 interface LoadedStage {
   stage: DefenseStage;
   difficulty: DefenseDifficulty;
+  useCallResponseTier: boolean;
 }
 
 interface ActiveSession {
@@ -89,6 +93,8 @@ const DefenseMapMain: React.FC = () => {
   const [isStarting, setIsStarting] = useState(false);
   const [pendingSelectNodeId, setPendingSelectNodeId] = useState<string | null>(null);
   const [nextStageLaunchNode, setNextStageLaunchNode] = useState<PlayMapNode | null>(null);
+  const [rankingNodeId, setRankingNodeId] = useState<string | null>(null);
+  const [defenseStageNodes, setDefenseStageNodes] = useState<PlayMapNode[]>([]);
   const skipSoftLandingOnPaywallCloseRef = useRef(false);
   const launchingRef = useRef(false);
 
@@ -182,13 +188,31 @@ const DefenseMapMain: React.FC = () => {
         node.difficultyLevel,
         detail.difficultyLevel,
       );
-      const difficulty = await fetchDefenseDifficultyLevel(
-        difficultyLevel,
-        detail.attackTrigger,
-      );
+      const callResponseConfig = getDefenseCallResponseConfig(detail);
+      const useCallResponseTier = callResponseConfig != null;
+      let difficulty: DefenseDifficulty | null;
+      if (useCallResponseTier) {
+        difficulty = resolveDefenseCallResponseGuardedDifficulty(detail, detail.phrases, {
+          tierLevel: difficultyLevel ?? 3,
+          bpm: detail.bpm,
+          beatsPerBar: detail.beatsPerBar,
+          phraseBars: detail.phraseBars,
+          attackTrigger: detail.attackTrigger,
+          phrases: detail.phrases,
+        });
+      } else {
+        difficulty = await fetchDefenseDifficultyLevel(
+          difficultyLevel,
+          detail.attackTrigger,
+        );
+      }
       if (!difficulty) return;
       setActiveNode(node);
-      setLoaded({ stage: { ...detail, difficultyLevel }, difficulty });
+      setLoaded({
+        stage: { ...detail, difficultyLevel },
+        difficulty,
+        useCallResponseTier,
+      });
       startSession(practiceMode);
     } finally {
       launchingRef.current = false;
@@ -296,8 +320,19 @@ const DefenseMapMain: React.FC = () => {
     return () => { cancelled = true; };
   }, [searchParams, selectNodeOnMap, setSearchParams]);
 
-  const handleClear = useCallback(async () => {
+  const handleClear = useCallback(async (detail?: { readonly isFirstClear?: boolean }) => {
     if (!activeNode || !loaded || session?.practiceMode) return;
+    if (loaded.useCallResponseTier) {
+      if (detail?.isFirstClear) {
+        const xp = await awardPlayerXp('defense_node_first_clear', activeNode.id, 80);
+        showPlayerXpToasts(toast, xp, isEnglishCopy);
+        await grantAndToastUserBadges(
+          { event: 'play_map_node_clear', mode: 'defense' },
+          toast,
+          isEnglishCopy,
+        );
+      }
+    } else {
     const result = await recordPlayMapNodeClear(activeNode.id, {
       surviveSec: loaded.stage.surviveSeconds,
     });
@@ -310,6 +345,7 @@ const DefenseMapMain: React.FC = () => {
         isEnglishCopy,
       );
     }
+    }
     try {
       const { guidance } = await loadGuidance();
       setResultNextStepLabel(defenseResultNextStepLabel(guidance, isEnglishCopy));
@@ -317,6 +353,14 @@ const DefenseMapMain: React.FC = () => {
       setResultNextStepLabel(null);
     }
   }, [activeNode, isEnglishCopy, loadGuidance, loaded, session?.practiceMode, toast]);
+
+  const openEndlessRanking = useCallback((nodeId: string) => {
+    void loadGuidance().then(({ nodes }) => {
+      setDefenseStageNodes(nodes);
+      setRankingNodeId(nodeId);
+      setScreen('endlessRanking');
+    });
+  }, [loadGuidance]);
 
   const backToMap = useCallback((options?: { checkBlockComplete?: boolean }) => {
     setScreen('map');
@@ -418,11 +462,13 @@ const DefenseMapMain: React.FC = () => {
           stage={loaded.stage}
           difficulty={loaded.difficulty}
           practiceMode={session.practiceMode}
+          playMapNodeId={activeNode?.id}
+          useCallResponseTierRecording={loaded.useCallResponseTier}
           onExit={() => backToMap()}
           onResultBack={() => backToMap({ checkBlockComplete: true })}
           onRetry={handleRetry}
           onApplyPracticeModeAndRestart={startSession}
-          onClear={() => { void handleClear(); }}
+          onClear={(detail) => { void handleClear(detail); }}
           resultNextStepLabel={resultNextStepLabel ?? undefined}
           onResultNextStep={resultNextStepLabel ? handleResultNextStep : undefined}
         />
@@ -456,6 +502,23 @@ const DefenseMapMain: React.FC = () => {
     );
   }
 
+  if (screen === 'endlessRanking' && rankingNodeId) {
+    return (
+      <div className="relative min-h-[100dvh] bg-[#09070f]">
+        <GameHeader />
+        <DefenseEndlessRanking
+          stageNodes={defenseStageNodes}
+          initialNodeId={rankingNodeId}
+          isEnglish={isEnglishCopy}
+          onBack={() => {
+            setRankingNodeId(null);
+            setScreen('map');
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-[100dvh] bg-[#09070f]">
       <GameHeader />
@@ -464,6 +527,7 @@ const DefenseMapMain: React.FC = () => {
         isPremiumMember={isPremiumMember}
         onSelectNode={(node, practiceMode) => { void startFromNode(node, practiceMode); }}
         onSelectQuestNode={(node) => { void startFromNode(node, false); }}
+        onOpenEndlessRanking={openEndlessRanking}
         pendingSelectNodeId={pendingSelectNodeId}
         onPendingSelectNodeConsumed={handlePendingSelectConsumed}
       />

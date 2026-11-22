@@ -1,6 +1,7 @@
 import React from 'react';
 import { FaCheck, FaLock, FaPlay } from 'react-icons/fa';
 import { cn } from '@/utils/cn';
+import { formatDefenseStarRank } from '@/game/defense/defenseCallResponseCombat';
 import type { PlayMapNode } from '@/platform/supabasePlayMap';
 import type { PlayBlockLayout } from '@/components/play/defenseDescent/playDescentLayout';
 
@@ -14,6 +15,9 @@ interface DefenseDescentSidePanelProps {
   selectedNodeCleared: boolean;
   selectedNodeUnlocked: boolean;
   bestSurviveSec: number | null;
+  bestStarRank: 1 | 2 | 3 | null;
+  bestEndlessEnemiesDefeated: number | null;
+  onOpenEndlessRanking: () => void;
   onStart: () => void;
   onStartPractice: () => void;
   onStartPerformance: () => void;
@@ -31,6 +35,9 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
   selectedNodeCleared,
   selectedNodeUnlocked,
   bestSurviveSec,
+  bestStarRank,
+  bestEndlessEnemiesDefeated,
+  onOpenEndlessRanking,
   onStart,
   onStartPractice,
   onStartPerformance,
@@ -105,6 +112,39 @@ export const DefenseDescentSidePanel: React.FC<DefenseDescentSidePanelProps> = (
             <p className="mt-1 text-xs text-emerald-300">
               {isEnglishCopy ? `Best survive: ${bestSurviveSec}s` : `ベスト生存: ${bestSurviveSec}秒`}
             </p>
+          )}
+          {selectedNode.nodeKind === 'stage' && selectedNodeCleared && (
+            <p className="mt-2 text-sm tracking-widest text-amber-200">
+              {formatDefenseStarRank(bestStarRank ?? undefined)}
+            </p>
+          )}
+          {selectedNode.nodeKind === 'stage' && (
+            <div className="mt-3 rounded-lg border border-slate-600/60 bg-black/25 p-3 text-left">
+              <p className="text-[10px] font-bold tracking-wider text-slate-400">
+                {isEnglishCopy ? 'STAR RANK' : 'クリアランク'}
+              </p>
+              <p className="mt-1 text-xs text-slate-300">
+                {isEnglishCopy
+                  ? '★★★ MAX HP · ★★☆ 50–99% · ★☆☆ 1–49%'
+                  : '★★★ 体力MAX · ★★☆ 50〜99% · ★☆☆ 1〜49%'}
+              </p>
+              <p className="mt-3 text-[10px] font-bold tracking-wider text-slate-400">
+                {isEnglishCopy ? 'ENDLESS' : 'エンドレスモード'}
+              </p>
+              <p className="mt-1 text-xs text-amber-100">
+                {isEnglishCopy ? 'Your best: ' : '自己ベスト撃破数: '}
+                <span className="font-bold tabular-nums">
+                  {bestEndlessEnemiesDefeated ?? '—'}
+                </span>
+              </p>
+              <button
+                type="button"
+                className="mt-2 w-full rounded-md border border-indigo-400/40 bg-indigo-950/40 py-2 text-xs font-semibold text-indigo-100 hover:bg-indigo-900/50"
+                onClick={onOpenEndlessRanking}
+              >
+                {isEnglishCopy ? 'View ranking' : 'ランキングを見る'}
+              </button>
+            </div>
           )}
           {startLocked ? (
             <button

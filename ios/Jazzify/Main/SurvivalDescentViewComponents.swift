@@ -1001,6 +1001,8 @@ struct SurvivalDescentStageNode: View {
     var displayLabel: String?
     /// 指定時は displayLabel の代わりにアイコンを表示
     var displayIcon: PlayMapProgression.DisplayIcon? = nil
+    /// クリア済みステージノード下に表示する星ランク（★☆☆ / ★★☆ / ★★★ / ☆☆☆）
+    var starRankLabel: String? = nil
 
     var body: some View {
         let diameter = max(40, 52 * scale)
@@ -1050,6 +1052,16 @@ struct SurvivalDescentStageNode: View {
             }
             .buttonStyle(.plain)
             .disabled(!isUnlocked)
+
+            if isCleared, let starRankLabel, !starRankLabel.isEmpty {
+                Text(starRankLabel)
+                    .font(.system(size: max(10, 12 * scale), weight: .bold))
+                    .tracking(1.5)
+                    .foregroundStyle(Color(hex: "fde68a"))
+                    .shadow(color: .black.opacity(0.85), radius: 2, x: 0, y: 1)
+                    .offset(y: diameter * 0.5 + max(10, 12 * scale))
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: diameter * 1.55, height: diameter * 1.55)
         .opacity(dim ? 0.45 : 1.0)

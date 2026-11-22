@@ -47,6 +47,7 @@ struct DefenseGameView: View {
             difficulty: difficulty,
             practiceMode: practiceMode,
             lessonContext: lessonContext,
+            playMapNodeId: playMapNodeId,
             tutorialOptions: tutorialOptions,
             tutorialConcertMidis: tutorialConcertMidis
         ))
@@ -111,16 +112,25 @@ struct DefenseGameView: View {
         }
         .onChange(of: session.hud.result) { result in
             if isTutorialSession { return }
-            if result == .clear, playMapNodeId != nil, !session.practiceMode {
+            if result == .clear,
+               playMapNodeId != nil,
+               !session.practiceMode,
+               !session.usesCallResponseTierPath {
                 onPlayMapCleared?()
             }
-            if result != .playing, let onFinished {
-                onFinished(DefenseFinishSummary(
-                    result: result,
-                    surviveSec: Int(session.runtime.elapsedSec.rounded(.down)),
-                    enemiesDefeated: session.runtime.enemiesDefeated
-                ))
+        }
+        .onChange(of: session.finishSummary) { summary in
+            if isTutorialSession { return }
+            if let summary, let onFinished {
+                onFinished(summary)
             }
+        }
+        .onChange(of: session.performanceRecordId) { recordId in
+            guard recordId != nil,
+                  session.usesCallResponseTierPath,
+                  playMapNodeId != nil,
+                  !session.practiceMode else { return }
+            onPlayMapCleared?()
         }
         .onChange(of: session.judgeState.completionCount) { count in
             guard isTutorialSession, count > 0 else { return }
@@ -279,6 +289,45 @@ struct DefenseGameView: View {
                 Text("\(session.countdownSec)")
                     .font(.system(size: 72, weight: .bold, design: .rounded))
             }
+
+            if session.hud.awaitingEndlessChoice, !session.practiceMode {
+                defenseEndlessContinueOverlay
+            }
+        }
+    }
+
+    private var defenseEndlessContinueOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.7).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text(locale == .ja ? "ステージクリア！" : "Stage clear!")
+                    .font(.title2.bold())
+                    .foregroundStyle(Color.yellow.opacity(0.9))
+                Text(DefenseCallResponseTier.formatStarRank(session.stageClearStarRank))
+                    .font(.title)
+                    .tracking(4)
+                Text(locale == .ja
+                     ? "まだ続けますか？（エンドレスモード突入）"
+                     : "Keep going? (Endless mode)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 12) {
+                    Button(locale == .ja ? "はい" : "Yes") {
+                        session.respondToEndlessChoice(continueEndless: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.yellow)
+                    Button(locale == .ja ? "いいえ" : "No") {
+                        session.respondToEndlessChoice(continueEndless: false)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(24)
+            .background(Color(hex: "12101c"))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 24)
         }
     }
 
@@ -481,6 +530,8 @@ struct DefenseGameView: View {
         let timeLabel: String
         if session.practiceMode {
             timeLabel = "∞  ·  KO \(session.hud.enemiesDefeated)"
+        } else if session.hud.endlessMode {
+            timeLabel = "ENDLESS · KO \(session.hud.enemiesDefeated)"
         } else if session.hud.targetEnemiesDefeated > 0 {
             let koProgress = "KO \(session.hud.enemiesDefeated)/\(session.hud.targetEnemiesDefeated)"
             if session.hud.wave > 0 {

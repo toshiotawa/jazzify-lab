@@ -27,6 +27,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
     private var deckFormat: AVAudioFormat?
 
     private var transportStartHostSec: Double = 0
+    private var pausedAtHostSec: Double?
     private var bpm: Double = 120
     private var beatsPerBar: Int = 4
     private var currentBarCount: Int = 4
@@ -249,6 +250,49 @@ final class DefenseBackingAudio: @unchecked Sendable {
         }
     }
 
+    func pausePlayback() {
+        let apply = { [weak self] in
+            guard let self else { return }
+            guard self.graphReady, self.engine.isRunning else { return }
+            os_unfair_lock_lock(&self.lock)
+            let alreadyPaused = self.pausedAtHostSec != nil
+            if !alreadyPaused {
+                self.pausedAtHostSec = Self.hostTimeSec()
+            }
+            os_unfair_lock_unlock(&self.lock)
+            guard !alreadyPaused else { return }
+            self.engine.pause()
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
+    }
+
+    func resumePlayback() {
+        let apply = { [weak self] in
+            guard let self else { return }
+            os_unfair_lock_lock(&self.lock)
+            let pausedAt = self.pausedAtHostSec
+            self.pausedAtHostSec = nil
+            if let pausedAt, self.transportStartHostSec > 0 {
+                let delta = max(0, Self.hostTimeSec() - pausedAt)
+                self.transportStartHostSec += delta
+            }
+            os_unfair_lock_unlock(&self.lock)
+            guard pausedAt != nil, self.graphReady else { return }
+            if !self.engine.isRunning {
+                try? self.engine.start()
+            }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.sync(execute: apply)
+        }
+    }
+
     func stop() {
         let apply = { [weak self] in
             guard let self else { return }
@@ -270,6 +314,7 @@ final class DefenseBackingAudio: @unchecked Sendable {
             self.phraseBuffersByIndex.removeAll(keepingCapacity: false)
             self.preparedStage = nil
             self.transportStartHostSec = 0
+            self.pausedAtHostSec = nil
             self.playbackIntended = false
             self.needsEngineResumeOnActive = false
             os_unfair_lock_unlock(&self.lock)

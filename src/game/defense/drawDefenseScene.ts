@@ -394,6 +394,10 @@ const drawDefenseHud = (
     ctx.fillStyle = '#67e8f9';
     ctx.font = `900 30px ${HUD_FONT}`;
     ctx.fillText('PRACTICE', width / 2, 18);
+  } else if (hud.endlessMode) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 30px ${HUD_FONT}`;
+    ctx.fillText(`ENDLESS · KO ${hud.enemiesDefeated}`, width / 2, 18);
   } else if (hud.targetEnemiesDefeated > 0) {
     ctx.fillStyle = '#ffffff';
     ctx.font = `900 30px ${HUD_FONT}`;

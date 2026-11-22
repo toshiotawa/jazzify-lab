@@ -820,13 +820,16 @@ final class SupabaseService: Sendable {
             let best_time_sec: Double?
             let best_rank: String?
             let best_survive_sec: Int?
+            let best_star_rank: Int?
+            let best_endless_enemies_defeated: Int?
             let clear_count: Int
         }
 
         let rows: [ClearRow] = try await client
             .from("play_map_node_clears")
             .select("""
-                node_id, best_time_sec, best_rank, best_survive_sec, clear_count,
+                node_id, best_time_sec, best_rank, best_survive_sec,
+                best_star_rank, best_endless_enemies_defeated, clear_count,
                 play_map_nodes!inner(
                     play_map_blocks!inner(mode)
                 )
@@ -842,7 +845,160 @@ final class SupabaseService: Sendable {
                 bestTimeSec: row.best_time_sec,
                 bestRank: row.best_rank.flatMap { CodeRunLetterRank(rawValue: $0) },
                 bestSurviveSec: row.best_survive_sec,
+                bestStarRank: row.best_star_rank,
+                bestEndlessEnemiesDefeated: row.best_endless_enemies_defeated,
                 clearCount: row.clear_count
+            )
+        }
+    }
+
+    func recordDefenseClearV2(
+        nodeId: UUID,
+        stageId: String,
+        starRank: Int,
+        surviveSec: Int,
+        enemiesDefeated: Int
+    ) async throws -> RecordDefenseClearV2Result {
+        struct Params: Encodable {
+            let p_node_id: UUID
+            let p_stage_id: String
+            let p_star_rank: Int
+            let p_survive_sec: Int
+            let p_enemies_defeated: Int
+        }
+        struct Payload: Decodable {
+            let is_first_clear: Bool?
+            let record_id: String?
+            let node_id: UUID?
+            let error: String?
+        }
+        let payload: Payload = try await client
+            .rpc(
+                "rpc_record_defense_clear_v2",
+                params: Params(
+                    p_node_id: nodeId,
+                    p_stage_id: stageId,
+                    p_star_rank: starRank,
+                    p_survive_sec: surviveSec,
+                    p_enemies_defeated: enemiesDefeated
+                )
+            )
+            .execute()
+            .value
+        if let error = payload.error {
+            return RecordDefenseClearV2Result(
+                isFirstClear: false,
+                recordId: nil,
+                nodeId: nil,
+                error: error
+            )
+        }
+        return RecordDefenseClearV2Result(
+            isFirstClear: payload.is_first_clear ?? false,
+            recordId: payload.record_id,
+            nodeId: payload.node_id,
+            error: nil
+        )
+    }
+
+    func finalizeDefenseEndlessRecord(
+        recordId: String,
+        enemiesDefeated: Int,
+        surviveSec: Int? = nil
+    ) async throws -> FinalizeDefenseEndlessRecordResult {
+        struct Params: Encodable {
+            let p_record_id: String
+            let p_enemies_defeated: Int
+            let p_survive_sec: Int?
+        }
+        struct Payload: Decodable {
+            let record_id: String?
+            let node_id: UUID?
+            let improved_endless_best: Bool?
+            let enemies_defeated: Int?
+            let error: String?
+        }
+        let payload: Payload = try await client
+            .rpc(
+                "rpc_finalize_defense_endless_record",
+                params: Params(
+                    p_record_id: recordId,
+                    p_enemies_defeated: enemiesDefeated,
+                    p_survive_sec: surviveSec
+                )
+            )
+            .execute()
+            .value
+        if let error = payload.error {
+            return FinalizeDefenseEndlessRecordResult(
+                recordId: recordId,
+                nodeId: UUID(),
+                improvedEndlessBest: false,
+                enemiesDefeated: enemiesDefeated,
+                error: error
+            )
+        }
+        return FinalizeDefenseEndlessRecordResult(
+            recordId: payload.record_id ?? recordId,
+            nodeId: payload.node_id ?? UUID(),
+            improvedEndlessBest: payload.improved_endless_best ?? false,
+            enemiesDefeated: payload.enemies_defeated ?? enemiesDefeated,
+            error: nil
+        )
+    }
+
+    func fetchDefenseEndlessRanking(nodeId: UUID, limit: Int = 100) async throws -> [DefenseEndlessRankingEntry] {
+        struct Params: Encodable {
+            let p_node_id: UUID
+            let limit_count: Int
+        }
+        struct Row: Decodable {
+            let rank_position: Int?
+            let user_id: UUID
+            let nickname: String?
+            let avatar_url: String?
+            let player_level: Int?
+            let enemies_defeated: Int?
+            let star_rank: Int?
+        }
+        let rows: [Row] = try await client
+            .rpc(
+                "rpc_get_defense_endless_ranking",
+                params: Params(p_node_id: nodeId, limit_count: limit)
+            )
+            .execute()
+            .value
+        return rows.map { row in
+            DefenseEndlessRankingEntry(
+                id: "\(row.user_id.uuidString)-\(row.rank_position ?? 0)",
+                rankPosition: row.rank_position ?? 0,
+                userId: row.user_id,
+                nickname: row.nickname ?? "",
+                avatarUrl: row.avatar_url,
+                playerLevel: row.player_level ?? 0,
+                enemiesDefeated: row.enemies_defeated ?? 0,
+                starRank: row.star_rank
+            )
+        }
+    }
+
+    func fetchMyDefenseEndlessSummary() async throws -> [DefenseEndlessSummaryRow] {
+        struct Row: Decodable {
+            let node_id: UUID
+            let enemies_defeated: Int?
+            let star_rank: Int?
+            let rank_position: Int?
+        }
+        let rows: [Row] = try await client
+            .rpc("rpc_get_my_defense_endless_summary")
+            .execute()
+            .value
+        return rows.map { row in
+            DefenseEndlessSummaryRow(
+                nodeId: row.node_id,
+                enemiesDefeated: row.enemies_defeated ?? 0,
+                starRank: row.star_rank,
+                rankPosition: row.rank_position
             )
         }
     }

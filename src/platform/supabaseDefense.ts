@@ -469,3 +469,156 @@ export async function saveDefenseStageAudioRegistration(
     throw error;
   }
 }
+
+interface RecordDefenseClearV2Result {
+  readonly isFirstClear: boolean;
+  readonly recordId: string | null;
+  readonly nodeId: string | null;
+  readonly error?: string;
+}
+
+export async function recordDefenseClearV2(params: {
+  readonly nodeId: string;
+  readonly stageId: string;
+  readonly starRank: 1 | 2 | 3;
+  readonly surviveSec: number;
+  readonly enemiesDefeated: number;
+}): Promise<RecordDefenseClearV2Result> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('rpc_record_defense_clear_v2', {
+    p_node_id: params.nodeId,
+    p_stage_id: params.stageId,
+    p_star_rank: params.starRank,
+    p_survive_sec: params.surviveSec,
+    p_enemies_defeated: params.enemiesDefeated,
+  });
+  if (error) throw error;
+  const payload = data as {
+    is_first_clear?: boolean;
+    record_id?: string;
+    node_id?: string;
+    error?: string;
+  } | null;
+  if (payload?.error) {
+    return {
+      isFirstClear: false,
+      recordId: null,
+      nodeId: null,
+      error: payload.error,
+    };
+  }
+  return {
+    isFirstClear: Boolean(payload?.is_first_clear),
+    recordId: payload?.record_id ?? null,
+    nodeId: payload?.node_id ?? null,
+  };
+}
+
+interface FinalizeDefenseEndlessRecordResult {
+  readonly recordId: string;
+  readonly nodeId: string;
+  readonly improvedEndlessBest: boolean;
+  readonly enemiesDefeated: number;
+  readonly error?: string;
+}
+
+export async function finalizeDefenseEndlessRecord(params: {
+  readonly recordId: string;
+  readonly enemiesDefeated: number;
+  readonly surviveSec?: number;
+}): Promise<FinalizeDefenseEndlessRecordResult> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('rpc_finalize_defense_endless_record', {
+    p_record_id: params.recordId,
+    p_enemies_defeated: params.enemiesDefeated,
+    p_survive_sec: params.surviveSec ?? null,
+  });
+  if (error) throw error;
+  const payload = data as {
+    record_id?: string;
+    node_id?: string;
+    improved_endless_best?: boolean;
+    enemies_defeated?: number;
+    error?: string;
+  } | null;
+  if (payload?.error) {
+    return {
+      recordId: params.recordId,
+      nodeId: '',
+      improvedEndlessBest: false,
+      enemiesDefeated: params.enemiesDefeated,
+      error: payload.error,
+    };
+  }
+  return {
+    recordId: payload?.record_id ?? params.recordId,
+    nodeId: payload?.node_id ?? '',
+    improvedEndlessBest: Boolean(payload?.improved_endless_best),
+    enemiesDefeated: Number(payload?.enemies_defeated) || params.enemiesDefeated,
+  };
+}
+
+interface DefenseEndlessRankingEntry {
+  readonly rankPosition: number;
+  readonly userId: string;
+  readonly nickname: string;
+  readonly avatarUrl: string | null;
+  readonly playerLevel: number;
+  readonly enemiesDefeated: number;
+  readonly starRank: 1 | 2 | 3 | null;
+}
+
+export async function fetchDefenseEndlessRanking(
+  nodeId: string,
+  limit = 100,
+): Promise<readonly DefenseEndlessRankingEntry[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('rpc_get_defense_endless_ranking', {
+    p_node_id: nodeId,
+    limit_count: limit,
+  });
+  if (error) throw error;
+  type RankingRow = {
+    rank_position: number;
+    user_id: string;
+    nickname: string | null;
+    avatar_url: string | null;
+    player_level: number;
+    enemies_defeated: number;
+    star_rank: number | null;
+  };
+  return (data ?? []).map((row: RankingRow) => ({
+    rankPosition: Number(row.rank_position) || 0,
+    userId: row.user_id as string,
+    nickname: (row.nickname as string) || '',
+    avatarUrl: (row.avatar_url as string | null) ?? null,
+    playerLevel: Number(row.player_level) || 0,
+    enemiesDefeated: Number(row.enemies_defeated) || 0,
+    starRank: row.star_rank != null ? (Number(row.star_rank) as 1 | 2 | 3) : null,
+  }));
+}
+
+interface DefenseEndlessSummaryRow {
+  readonly nodeId: string;
+  readonly enemiesDefeated: number;
+  readonly starRank: 1 | 2 | 3 | null;
+  readonly rankPosition: number | null;
+}
+
+export async function fetchMyDefenseEndlessSummary(): Promise<readonly DefenseEndlessSummaryRow[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('rpc_get_my_defense_endless_summary');
+  if (error) throw error;
+  type SummaryRow = {
+    node_id: string;
+    enemies_defeated: number;
+    star_rank: number | null;
+    rank_position: number | null;
+  };
+  return (data ?? []).map((row: SummaryRow) => ({
+    nodeId: row.node_id as string,
+    enemiesDefeated: Number(row.enemies_defeated) || 0,
+    starRank: row.star_rank != null ? (Number(row.star_rank) as 1 | 2 | 3) : null,
+    rankPosition: row.rank_position != null ? Number(row.rank_position) : null,
+  }));
+}

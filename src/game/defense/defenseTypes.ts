@@ -201,6 +201,17 @@ export interface DefenseRuntime {
   /** Kill-count clear (call-and-response stages); 0 = timed survive clear. */
   targetEnemiesDefeated: number;
   callResponseActive: boolean;
+  /** When true, kill-clear pauses for endless continue modal (play-map C&R tier). */
+  endlessPromptEnabled: boolean;
+  /** Stage clear reached; awaiting endless continue choice (C&R only). */
+  awaitingEndlessChoice: boolean;
+  /** Continued past clear with HP carry-over. */
+  endlessMode: boolean;
+  /** Seconds spent in response phase during endless (drives accel). */
+  endlessElapsedSec: number;
+  endlessSpeedMult: number;
+  endlessSpawnMult: number;
+  endlessHpMult: number;
   spawnTimerSec: number;
   nextEnemyIndex: number;
   /** 0-based wave index; fixed at 0 in practice mode. */
@@ -272,6 +283,13 @@ export const createDefenseRuntime = (
   enemiesDefeated: 0,
   targetEnemiesDefeated: 0,
   callResponseActive: false,
+  endlessPromptEnabled: false,
+  awaitingEndlessChoice: false,
+  endlessMode: false,
+  endlessElapsedSec: 0,
+  endlessSpeedMult: 1,
+  endlessSpawnMult: 1,
+  endlessHpMult: 1,
   spawnTimerSec: 0,
   nextEnemyIndex: 0,
   waveIndex: 0,

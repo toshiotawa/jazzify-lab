@@ -265,6 +265,172 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertNil(DefenseCallResponse.config(for: stage))
     }
 
+    func testTierPresetClampAndStarRank() {
+        XCTAssertEqual(DefenseCallResponseTier.clampTierLevel(0), 1)
+        XCTAssertEqual(DefenseCallResponseTier.clampTierLevel(3), 3)
+        XCTAssertEqual(DefenseCallResponseTier.clampTierLevel(9), 5)
+        XCTAssertEqual(DefenseCallResponseTier.tierPreset(for: 1).enemyHp, 2)
+        XCTAssertEqual(DefenseCallResponseTier.tierPreset(for: 5).maxEnemies, 10)
+        XCTAssertEqual(DefenseCallResponseTier.starRank(playerHp: 16, playerMaxHp: 16), 3)
+        XCTAssertEqual(DefenseCallResponseTier.starRank(playerHp: 9, playerMaxHp: 16), 2)
+        XCTAssertEqual(DefenseCallResponseTier.starRank(playerHp: 4, playerMaxHp: 16), 1)
+        XCTAssertEqual(DefenseCallResponseTier.formatStarRank(2), "★★☆")
+    }
+
+    func testBuildBaseDifficultyMeasureTriggerHalvesHp() {
+        let stage = crStage().withAttackTrigger(.measure)
+        let difficulty = DefenseCallResponseTier.buildBaseDifficulty(
+            tierLevel: 5,
+            bpm: stage.bpm,
+            beatsPerBar: stage.beatsPerBar,
+            phraseBars: stage.phraseBars,
+            attackTrigger: .measure,
+            phrases: []
+        )
+        XCTAssertEqual(difficulty.enemyHp, 3)
+    }
+
+    func testSparse2Bar7NoteClearGuardAllTiers() {
+        let sparsePhrase = DefensePhraseDefinition(
+            id: "sp",
+            orderIndex: 0,
+            title: "sparse",
+            audioUrl: "",
+            loopStartMeasure: nil,
+            loopEndMeasure: nil,
+            keyFifths: nil,
+            requiredCompletionCount: 3,
+            chords: [
+                SurvivalPhraseChord(
+                    id: "c",
+                    orderIndex: 0,
+                    chordName: "Dm7",
+                    measureNumber: 1,
+                    notes: (0..<7).map { idx in
+                        SurvivalPhraseChordNote(
+                            orderIndex: idx,
+                            pitchMidi: 60 + idx,
+                            pitchClass: idx % 12,
+                            noteName: "C4",
+                            staff: 1,
+                            stepIndex: idx,
+                            staffChordName: nil
+                        )
+                    }
+                )
+            ]
+        )
+        let stage = DefenseStageDefinition(
+            id: "s-sparse",
+            slug: "s-sparse",
+            stageNumber: 1,
+            title: "Sparse",
+            titleEn: "Sparse",
+            bpm: 120,
+            beatsPerBar: 4,
+            audioRegistrationMode: .perPhrase,
+            audioUrl: nil,
+            melodyAudioUrl: nil,
+            progressionBars: nil,
+            phraseBars: 2,
+            audioLoopBars: 8,
+            callResponseBars: 2,
+            callResponseResponseBars: 6,
+            callResponseLaps: 1,
+            staffLayout: .treble,
+            attackTrigger: .note,
+            keyFifths: 0,
+            requiredCompletionCount: 3,
+            difficultyLevel: 5,
+            surviveSeconds: 120,
+            playerHp: 16,
+            productionStaffHintMode: "always",
+            productionKeyboardHintMode: "always",
+            playStyle: .phrase,
+            voicingKeyMode: nil,
+            voicingLowestKey: nil,
+            voicingStartKey: nil,
+            voicingMinLowestNote: nil,
+            playRootOnChordChange: false,
+            phrases: [sparsePhrase, sparsePhrase, sparsePhrase, sparsePhrase],
+            progressionChords: []
+        )
+        let scale = DefenseCallResponseTier.phraseDensityScale(
+            phrases: stage.phrases,
+            bpm: stage.bpm,
+            beatsPerBar: stage.beatsPerBar,
+            phraseBars: stage.phraseBars,
+            attackTrigger: .note
+        )
+        XCTAssertLessThan(scale, 0.75)
+
+        for tier in 1...5 {
+            let guarded = DefenseCallResponseClearGuard.resolveGuardedDifficulty(
+                stage: stage,
+                phrases: stage.phrases,
+                tierLevel: tier
+            )
+            XCTAssertGreaterThanOrEqual(guarded.enemySpeedPxPerSec, 2)
+        }
+    }
+
+    func testAntiWhiffInstantRespawnOnSameFrameSlash() {
+        let diff = DefenseDifficultyDefinition(
+            level: 1,
+            enemyHp: 1,
+            spawnIntervalSec: 5,
+            maxEnemies: 4,
+            enemySpeedPxPerSec: 40,
+            enemyDamage: 1,
+            attackIntervalSec: 2,
+            attackRangePx: 50
+        )
+        var runtime = DefenseRuntimeState(
+            playerHp: 10,
+            surviveSeconds: 120,
+            maxEnemies: 4,
+            practiceMode: false,
+            tutorial: nil,
+            attackTrigger: .note
+        )
+        runtime.callResponseActive = true
+        runtime.targetEnemiesDefeated = 5
+        DefenseGameLoop.spawnCallResponseInitialEnemy(runtime: &runtime, difficulty: diff)
+        XCTAssertTrue(DefenseGameLoop.performSlash(runtime: &runtime, difficulty: diff))
+        XCTAssertEqual(runtime.enemiesDefeated, 1)
+        XCTAssertEqual(runtime.enemies.filter(\.isActive).count, 1)
+        XCTAssertTrue(DefenseGameLoop.performSlash(runtime: &runtime, difficulty: diff))
+        XCTAssertEqual(runtime.enemiesDefeated, 2)
+    }
+
+    func testResolveEffectiveDifficultyGatedByMarketingVersion() {
+        let stage = crStage()
+        let legacyDiff = DefenseDifficultyDefinition(
+            level: 5,
+            enemyHp: 3,
+            spawnIntervalSec: 2,
+            maxEnemies: 6,
+            enemySpeedPxPerSec: 64,
+            enemyDamage: 2,
+            attackIntervalSec: 2,
+            attackRangePx: 52
+        )
+        let oldVer = DefenseCallResponseCombat.resolveEffectiveDifficulty(
+            stage: stage,
+            phrases: stage.phrases,
+            fetchedDifficulty: legacyDiff,
+            marketingVersion: "1.5.1"
+        )
+        XCTAssertFalse(oldVer.usesTierPath)
+        let newVer = DefenseCallResponseCombat.resolveEffectiveDifficulty(
+            stage: stage,
+            phrases: stage.phrases,
+            fetchedDifficulty: legacyDiff,
+            marketingVersion: "1.5.2"
+        )
+        XCTAssertTrue(newVer.usesTierPath)
+    }
+
     func testClearTargetMinimumNotes() {
         let difficulty = DefenseDifficultyDefinition(
             level: 5,
@@ -358,6 +524,44 @@ private extension DefenseStageDefinition {
             callResponseResponseBars: callResponseResponseBars,
             staffLayout: staffLayout,
             attackTrigger: attackTrigger,
+            keyFifths: keyFifths,
+            requiredCompletionCount: requiredCompletionCount,
+            difficultyLevel: difficultyLevel,
+            surviveSeconds: surviveSeconds,
+            playerHp: playerHp,
+            productionStaffHintMode: productionStaffHintMode,
+            productionKeyboardHintMode: productionKeyboardHintMode,
+            playStyle: playStyle,
+            voicingKeyMode: voicingKeyMode,
+            voicingLowestKey: voicingLowestKey,
+            voicingStartKey: voicingStartKey,
+            voicingMinLowestNote: voicingMinLowestNote,
+            playRootOnChordChange: playRootOnChordChange,
+            phrases: phrases,
+            progressionChords: progressionChords
+        )
+    }
+
+    func withAttackTrigger(_ trigger: DefenseAttackTrigger) -> DefenseStageDefinition {
+        DefenseStageDefinition(
+            id: id,
+            slug: slug,
+            stageNumber: stageNumber,
+            title: title,
+            titleEn: titleEn,
+            bpm: bpm,
+            beatsPerBar: beatsPerBar,
+            audioRegistrationMode: audioRegistrationMode,
+            audioUrl: audioUrl,
+            melodyAudioUrl: melodyAudioUrl,
+            progressionBars: progressionBars,
+            phraseBars: phraseBars,
+            audioLoopBars: audioLoopBars,
+            callResponseBars: callResponseBars,
+            callResponseResponseBars: callResponseResponseBars,
+            callResponseLaps: callResponseLaps,
+            staffLayout: staffLayout,
+            attackTrigger: trigger,
             keyFifths: keyFifths,
             requiredCompletionCount: requiredCompletionCount,
             difficultyLevel: difficultyLevel,

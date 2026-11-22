@@ -179,4 +179,33 @@ enum DefenseCallResponseCombat {
         let index = Int(floor(ratio * Double(DefenseEnemyConfig.waveCount)))
         return min(DefenseEnemyConfig.waveCount - 1, max(0, index))
     }
+
+    static let endlessWaveIndex = 3
+
+    /// 1.5.2+ コール＆レスポンスは 5 段ティア＋ガード。それ以前は従来の速度カーブ。
+    static func resolveEffectiveDifficulty(
+        stage: DefenseStageDefinition,
+        phrases: [DefensePhraseDefinition],
+        fetchedDifficulty: DefenseDifficultyDefinition,
+        marketingVersion: String
+    ) -> (difficulty: DefenseDifficultyDefinition, usesTierPath: Bool) {
+        guard let crConfig = DefenseCallResponse.config(for: stage) else {
+            return (fetchedDifficulty, false)
+        }
+        guard PlayMapDefenseStageResolve.appSupportsCallResponsePlayMapStages(marketingVersion: marketingVersion) else {
+            let legacy = applyDifficulty(
+                fetchedDifficulty,
+                cycleBars: crConfig.cycleBars,
+                responseBars: crConfig.responseBars
+            )
+            return (legacy, false)
+        }
+        let tierLevel = DefenseCallResponseTier.clampTierLevel(fetchedDifficulty.level)
+        let guarded = DefenseCallResponseClearGuard.resolveGuardedDifficulty(
+            stage: stage,
+            phrases: phrases,
+            tierLevel: tierLevel
+        )
+        return (guarded, true)
+    }
 }

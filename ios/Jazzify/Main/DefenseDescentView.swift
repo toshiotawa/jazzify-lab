@@ -28,8 +28,18 @@ struct DefenseDescentView: View {
     @State private var nextStepPrompt: NextStepPrompt?
     @State private var resultNextStepLabel: String?
     @State private var todayStreakUpdated = false
+    @State private var endlessRankingLaunch: EndlessRankingLaunch?
+
+    private struct EndlessRankingLaunch: Identifiable {
+        let id: UUID
+    }
 
     private var locale: AppLocale { appState.locale }
+
+    private var usesCallResponsePlayMap: Bool {
+        let marketingVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        return PlayMapDefenseStageResolve.appSupportsCallResponsePlayMapStages(marketingVersion: marketingVersion)
+    }
 
     private struct StageLaunchSession: Identifiable {
         let id = UUID()
@@ -115,7 +125,10 @@ struct DefenseDescentView: View {
                         subscriptionEntry = .phraseDefense
                         paywallEntryAtOpen = .phraseDefense
                         showSubscription = true
-                    }
+                    },
+                    onOpenEndlessRanking: usesCallResponsePlayMap
+                        ? { nodeId in endlessRankingLaunch = EndlessRankingLaunch(id: nodeId) }
+                        : nil
                 )
             }
 
@@ -186,7 +199,12 @@ struct DefenseDescentView: View {
                     )
                 },
                 onPlayMapCleared: {
-                    Task { await handlePlayMapClear(session: session) }
+                    Task {
+                        await handlePlayMapClear(
+                            session: session,
+                            usesTierRecording: usesCallResponseTierRecording(for: session)
+                        )
+                    }
                 },
                 onFinished: { summary in
                     stageLaunchSession = nil
@@ -203,6 +221,14 @@ struct DefenseDescentView: View {
             .onAppear {
                 isStarting = false
             }
+        }
+        .fullScreenCover(item: $endlessRankingLaunch) { launch in
+            DefenseEndlessRankingView(
+                locale: locale,
+                stageNodes: nodes,
+                initialNodeId: launch.id,
+                onBack: { endlessRankingLaunch = nil }
+            )
         }
         .fullScreenCover(item: $mapResultContext) { context in
             DefenseResultView(
@@ -592,27 +618,39 @@ struct DefenseDescentView: View {
         }
     }
 
-    private func handlePlayMapClear(session: StageLaunchSession) async {
+    private func usesCallResponseTierRecording(for session: StageLaunchSession) -> Bool {
+        usesCallResponsePlayMap
+            && DefenseCallResponse.config(for: session.stage) != nil
+            && !session.practiceMode
+    }
+
+    private func handlePlayMapClear(session: StageLaunchSession, usesTierRecording: Bool) async {
         let node = session.node
         let stage = session.stage
+        if usesTierRecording {
+            let wasFirst = !clears.contains(where: { $0.nodeId == node.id })
+            await reloadMap()
+            if wasFirst {
+                await awardFirstClearRewards(nodeId: node.id)
+            }
+            if !session.practiceMode {
+                await refreshTodayStreakUpdated()
+                resultNextStepLabel = DefenseTrainingGuidanceResolver.resultNextStepLabel(
+                    for: resolveGuidance(),
+                    locale: locale
+                )
+            } else {
+                resultNextStepLabel = nil
+            }
+            return
+        }
         do {
             let result = try await SupabaseService.shared.recordPlayMapNodeClear(
                 nodeId: node.id,
                 surviveSec: stage.surviveSeconds
             )
             if result.isFirstClear {
-                let award = try await SupabaseService.shared.awardPlayerXp(
-                    reason: "defense_node_first_clear",
-                    sourceId: node.id.uuidString,
-                    amount: 80
-                )
-                await MainActor.run {
-                    PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: locale == .en)
-                }
-                let badges = try await SupabaseService.shared.grantUserBadgesForEvent(event: "play_map_node_clear")
-                await MainActor.run {
-                    PlayerLevelHub.shared.ingestAchievementBadges(badges, usesEnglishUi: locale == .en)
-                }
+                await awardFirstClearRewards(nodeId: node.id)
             }
             await reloadMap()
             if !session.practiceMode {
@@ -623,6 +661,25 @@ struct DefenseDescentView: View {
                 )
             } else {
                 resultNextStepLabel = nil
+            }
+        } catch {
+            /* non-fatal */
+        }
+    }
+
+    private func awardFirstClearRewards(nodeId: UUID) async {
+        do {
+            let award = try await SupabaseService.shared.awardPlayerXp(
+                reason: "defense_node_first_clear",
+                sourceId: nodeId.uuidString,
+                amount: 80
+            )
+            await MainActor.run {
+                PlayerLevelHub.shared.ingestAwardResponse(award, usesEnglishUi: locale == .en)
+            }
+            let badges = try await SupabaseService.shared.grantUserBadgesForEvent(event: "play_map_node_clear")
+            await MainActor.run {
+                PlayerLevelHub.shared.ingestAchievementBadges(badges, usesEnglishUi: locale == .en)
             }
         } catch {
             /* non-fatal */

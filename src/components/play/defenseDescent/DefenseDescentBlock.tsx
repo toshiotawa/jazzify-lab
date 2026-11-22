@@ -17,6 +17,7 @@ interface DefenseDescentBlockProps {
   scale: number;
   selectedNodeId: string | null;
   clearedNodeIds: ReadonlySet<string>;
+  starRankByNodeId: ReadonlyMap<string, string>;
   unlockedNodeIds: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
   dim: boolean;
@@ -32,6 +33,7 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
   scale,
   selectedNodeId,
   clearedNodeIds,
+  starRankByNodeId,
   unlockedNodeIds,
   onSelectNode,
   dim,
@@ -200,6 +202,11 @@ export const DefenseDescentBlock: React.FC<DefenseDescentBlockProps> = ({
             onActivate={() => onSelectNode(nodePos.nodeId)}
             dim={dim}
             isFrontier={isFrontierNode}
+            starRankLabel={
+              nodePos.node.nodeKind === 'stage' && clearedNodeIds.has(nodePos.nodeId)
+                ? starRankByNodeId.get(nodePos.nodeId)
+                : undefined
+            }
           />
         );
       })}

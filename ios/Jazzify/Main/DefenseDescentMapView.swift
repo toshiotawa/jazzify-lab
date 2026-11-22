@@ -12,6 +12,7 @@ struct DefenseDescentMapView: View {
     let onSelectNode: (PlayMapNode, Bool) -> Void
     let onSelectQuestNode: (PlayMapNode) -> Void
     let onRequestUpgrade: () -> Void
+    let onOpenEndlessRanking: ((UUID) -> Void)?
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedNodeId: UUID?
@@ -163,6 +164,12 @@ struct DefenseDescentMapView: View {
             selectedNodeCleared: selectedNode.map { clearedNodeIds.contains($0.id) } ?? false,
             selectedNodeUnlocked: selectedNodeUnlocked,
             bestSurviveSec: selectedNode.flatMap { clearByNodeId[$0.id]?.bestSurviveSec },
+            bestStarRank: selectedNode.flatMap { clearByNodeId[$0.id]?.bestStarRank },
+            bestEndlessEnemiesDefeated: selectedNode.flatMap { clearByNodeId[$0.id]?.bestEndlessEnemiesDefeated },
+            onOpenEndlessRanking: {
+                guard let onOpenEndlessRanking, let selectedNode else { return nil as (() -> Void)? }
+                return { onOpenEndlessRanking(selectedNode.id) }
+            }(),
             startLocked: startLocked,
             onStart: handleStart,
             onStartPractice: handleStartPractice,
@@ -189,6 +196,7 @@ struct DefenseDescentMapView: View {
                 layout: layout,
                 locale: locale,
                 clearedNodeIds: clearedNodeIds,
+                clearByNodeId: clearByNodeId,
                 unlockedNodeIds: unlockedNodeIds,
                 accessibleBlockIndex: accessibleBlockIndex,
                 frontierNodeId: frontierNodeId,
@@ -229,6 +237,7 @@ struct DefenseDescentMapView: View {
         hasher.combine(clearedNodeIds.count)
         for id in clearedNodeIds.sorted(by: { $0.uuidString < $1.uuidString }) {
             hasher.combine(id)
+            hasher.combine(clearByNodeId[id]?.bestStarRank ?? 0)
         }
         return hasher.finalize()
     }
@@ -330,6 +339,7 @@ private struct DefenseDescentMapContent: View {
     let layout: DefenseDescentLayout
     let locale: AppLocale
     let clearedNodeIds: Set<UUID>
+    let clearByNodeId: [UUID: PlayMapNodeClear]
     let unlockedNodeIds: Set<UUID>
     let accessibleBlockIndex: Int
     let frontierNodeId: UUID?
@@ -365,6 +375,7 @@ private struct DefenseDescentMapContent: View {
                     allBlockLayouts: layout.blocks,
                     hasNextBlock: blockLayout.blockIndex + 1 < layout.blocks.count,
                     clearedNodeIds: clearedNodeIds,
+                    clearByNodeId: clearByNodeId,
                     unlockedNodeIds: unlockedNodeIds,
                     accessibleBlockIndex: accessibleBlockIndex,
                     frontierNodeId: frontierNodeId,
@@ -433,6 +444,7 @@ private struct DefenseDescentBlockContent: View {
     let allBlockLayouts: [DefenseDescentBlockLayout]
     let hasNextBlock: Bool
     let clearedNodeIds: Set<UUID>
+    let clearByNodeId: [UUID: PlayMapNodeClear]
     let unlockedNodeIds: Set<UUID>
     let accessibleBlockIndex: Int
     let frontierNodeId: UUID?
@@ -545,6 +557,9 @@ private struct DefenseDescentBlockContent: View {
 
         ForEach(blockLayout.nodes) { nodePos in
             let cleared = clearedNodeIds.contains(nodePos.nodeId)
+            let starRankLabel: String? = (nodePos.node.nodeKind == .stage && cleared)
+                ? DefenseCallResponseTier.formatStarRank(clearByNodeId[nodePos.nodeId]?.bestStarRank)
+                : nil
             SurvivalDescentStageNode(
                 stageNumber: 0,
                 xPx: nodePos.x * scale + horizontalOffset,
@@ -563,7 +578,8 @@ private struct DefenseDescentBlockContent: View {
                     onNodeTap(nodePos.nodeId, blockLayout.blockIndex)
                 },
                 displayLabel: nodePos.displayLabel,
-                displayIcon: nodePos.displayIcon
+                displayIcon: nodePos.displayIcon,
+                starRankLabel: starRankLabel
             )
         }
     }

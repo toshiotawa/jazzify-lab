@@ -16,7 +16,7 @@ enum DefenseGameLoop {
         difficulty: DefenseDifficultyDefinition,
         deltaTime: TimeInterval
     ) {
-        guard runtime.result == .playing else { return }
+        guard runtime.result == .playing, !runtime.awaitingEndlessChoice else { return }
         runtime.elapsedSec += deltaTime
         spawnPendingFireball(runtime: &runtime)
         if timedClearEnabled(runtime: runtime),
@@ -28,12 +28,16 @@ enum DefenseGameLoop {
 
         spawnIfDue(runtime: &runtime, difficulty: difficulty, deltaTime: deltaTime)
         updateEnemies(runtime: &runtime, deltaTime: deltaTime)
-        updateFireballs(runtime: &runtime, deltaTime: deltaTime)
+        updateFireballs(runtime: &runtime, deltaTime: deltaTime, difficulty: difficulty)
         updatePopups(runtime: &runtime)
     }
 
-    static func performSlash(runtime: inout DefenseRuntimeState, guardPoseSec: TimeInterval = 0) -> Bool {
-        guard runtime.result == .playing else { return false }
+    static func performSlash(
+        runtime: inout DefenseRuntimeState,
+        guardPoseSec: TimeInterval = 0,
+        difficulty: DefenseDifficultyDefinition? = nil
+    ) -> Bool {
+        guard runtime.result == .playing, !runtime.awaitingEndlessChoice else { return false }
         guard let targetIndex = frontmostEnemyIndex(runtime: runtime) else { return false }
 
         let scaling = isWaveScaling(runtime)
@@ -43,7 +47,8 @@ enum DefenseGameLoop {
             enemyIndex: targetIndex,
             damage: damage,
             knockbackImpulse: DefenseEnemyConfig.knockbackImpulse,
-            showPopup: isPhraseMode(runtime)
+            showPopup: isPhraseMode(runtime),
+            difficulty: difficulty
         )
 
         let target = runtime.enemies[targetIndex]
@@ -190,8 +195,14 @@ enum DefenseGameLoop {
         runtime: DefenseRuntimeState,
         difficulty: DefenseDifficultyDefinition
     ) -> Double {
-        guard isWaveScaling(runtime) else { return difficulty.spawnIntervalSec }
-        return difficulty.spawnIntervalSec * DefenseEnemyConfig.waveSpawnIntervalMult(for: runtime.waveIndex)
+        let base: Double = {
+            guard isWaveScaling(runtime) else { return difficulty.spawnIntervalSec }
+            return difficulty.spawnIntervalSec * DefenseEnemyConfig.waveSpawnIntervalMult(for: runtime.waveIndex)
+        }()
+        if runtime.endlessMode, runtime.endlessSpawnMult > 0 {
+            return base / runtime.endlessSpawnMult
+        }
+        return base
     }
 
     private static func syncKillClearWaveState(
@@ -199,6 +210,15 @@ enum DefenseGameLoop {
         spawnIntervalSec: Double
     ) {
         guard !runtime.practiceMode else { return }
+        if runtime.endlessMode {
+            if runtime.waveIndex != DefenseCallResponseCombat.endlessWaveIndex {
+                runtime.waveIndex = DefenseCallResponseCombat.endlessWaveIndex
+                runtime.waveSpawnCount = 0
+                runtime.waveStartedAt = runtime.elapsedSec
+                runtime.spawnTimerSec = spawnIntervalSec
+            }
+            return
+        }
         let nextWaveIndex = DefenseCallResponseCombat.waveIndex(
             enemiesDefeated: runtime.enemiesDefeated,
             targetEnemiesDefeated: runtime.targetEnemiesDefeated
@@ -234,10 +254,12 @@ enum DefenseGameLoop {
     ) {
         let hpMult = isWaveScaling(runtime) ? DefenseEnemyConfig.waveHpMult(for: runtime.waveIndex) : 1
         let resolved = DefenseEnemyConfig.resolveEnemyStats(type: type, difficulty: difficulty, hpMult: hpMult)
+        let endlessSpeedMult = runtime.endlessMode ? runtime.endlessSpeedMult : 1
+        let endlessHpMult = runtime.endlessMode ? runtime.endlessHpMult : 1
         enemy.type = type
-        enemy.hp = resolved.hp
-        enemy.maxHp = resolved.hp
-        enemy.speedPxPerSec = resolved.speedPxPerSec
+        enemy.hp = max(1, Int(ceil(Double(resolved.hp) * endlessHpMult)))
+        enemy.maxHp = enemy.hp
+        enemy.speedPxPerSec = resolved.speedPxPerSec * endlessSpeedMult
         enemy.damage = resolved.damage
         enemy.attackIntervalSec = resolved.attackIntervalSec
         enemy.attackRangePx = resolved.attackRangePx
@@ -261,12 +283,75 @@ enum DefenseGameLoop {
         runtime.nextPopupIndex = (runtime.nextPopupIndex + 1) % runtime.damagePopups.count
     }
 
+    private static func activateSpawnedEnemy(
+        runtime: inout DefenseRuntimeState,
+        slotIndex: Int,
+        enemyType: DefenseEnemyType,
+        spawnX: CGFloat,
+        difficulty: DefenseDifficultyDefinition
+    ) {
+        runtime.enemies[slotIndex].isActive = true
+        runtime.enemies[slotIndex].x = spawnX
+        runtime.enemies[slotIndex].y = DefenseEnemyConfig.centerY(for: enemyType)
+        runtime.enemies[slotIndex].knockbackVx = 0
+        runtime.enemies[slotIndex].lastAttackAt = 0
+        runtime.enemies[slotIndex].isMoving = false
+        runtime.enemies[slotIndex].attackHitPending = false
+        runtime.enemies[slotIndex].hitFlashAt = DefenseEnemyConfig.noHitFlash
+        applyResolvedStats(
+            enemy: &runtime.enemies[slotIndex],
+            type: enemyType,
+            difficulty: difficulty,
+            runtime: runtime
+        )
+
+        runtime.nextEnemyIndex += 1
+        if !runtime.practiceMode {
+            runtime.waveSpawnCount += 1
+        }
+    }
+
+    private static func spawnInstantEnemyIfEmpty(
+        runtime: inout DefenseRuntimeState,
+        difficulty: DefenseDifficultyDefinition
+    ) {
+        guard runtime.callResponseActive, runtime.tutorial == nil else { return }
+        guard runtime.result == .playing, !runtime.awaitingEndlessChoice else { return }
+        guard !runtime.enemies.contains(where: \.isActive) else { return }
+        guard effectiveMaxEnemies(runtime: runtime, difficulty: difficulty) > 0 else { return }
+
+        let spawnInterval = spawnIntervalSec(runtime: runtime, difficulty: difficulty)
+        if isEnemyKillClearMode(runtime) {
+            syncKillClearWaveState(runtime: &runtime, spawnIntervalSec: spawnInterval)
+        } else {
+            syncWaveState(runtime: &runtime, spawnIntervalSec: spawnInterval)
+        }
+
+        guard let slotIndex = runtime.enemies.firstIndex(where: { !$0.isActive }) else { return }
+        let cumulative = isWaveScaling(runtime) && !runtime.practiceMode
+        let waveIndex = runtime.practiceMode ? 0 : runtime.waveIndex
+        let enemyType = DefenseEnemyConfig.pickWaveEnemyType(
+            waveIndex: waveIndex,
+            spawnCount: runtime.practiceMode ? runtime.nextEnemyIndex : runtime.waveSpawnCount,
+            cumulative: cumulative
+        )
+        runtime.spawnTimerSec = 0
+        activateSpawnedEnemy(
+            runtime: &runtime,
+            slotIndex: slotIndex,
+            enemyType: enemyType,
+            spawnX: spawnX,
+            difficulty: difficulty
+        )
+    }
+
     private static func applyEnemyDamage(
         runtime: inout DefenseRuntimeState,
         enemyIndex: Int,
         damage: Int,
         knockbackImpulse: CGFloat,
-        showPopup: Bool
+        showPopup: Bool,
+        difficulty: DefenseDifficultyDefinition? = nil
     ) {
         var target = runtime.enemies[enemyIndex]
         target.attackHitPending = false
@@ -280,15 +365,25 @@ enum DefenseGameLoop {
         let kbDx = target.x - runtime.playerX
         target.knockbackVx = (kbDx >= 0 ? 1 : -1) * knockbackImpulse * CGFloat(target.knockbackMult)
 
+        var defeatedNow = false
         if target.hp <= 0 {
             target.isActive = false
+            defeatedNow = true
             runtime.enemiesDefeated += 1
             if isEnemyKillClearMode(runtime),
+               !runtime.endlessMode,
                runtime.enemiesDefeated >= runtime.targetEnemiesDefeated {
-                runtime.result = .clear
+                if runtime.callResponseActive, runtime.endlessPromptEnabled {
+                    runtime.awaitingEndlessChoice = true
+                } else {
+                    runtime.result = .clear
+                }
             }
         }
         runtime.enemies[enemyIndex] = target
+        if defeatedNow, let difficulty {
+            spawnInstantEnemyIfEmpty(runtime: &runtime, difficulty: difficulty)
+        }
     }
 
     private static func spawnFireball(runtime: inout DefenseRuntimeState) {
@@ -303,8 +398,12 @@ enum DefenseGameLoop {
         }
     }
 
-    private static func updateFireballs(runtime: inout DefenseRuntimeState, deltaTime: TimeInterval) {
-        guard runtime.result == .playing else { return }
+    private static func updateFireballs(
+        runtime: inout DefenseRuntimeState,
+        deltaTime: TimeInterval,
+        difficulty: DefenseDifficultyDefinition? = nil
+    ) {
+        guard runtime.result == .playing, !runtime.awaitingEndlessChoice else { return }
         let showPopup = isPhraseMode(runtime)
         let scaling = isWaveScaling(runtime)
         let fireballDamage = DefenseEnemyConfig.fireballDamage(
@@ -332,9 +431,10 @@ enum DefenseGameLoop {
                     enemyIndex: enemyIndex,
                     damage: fireballDamage,
                     knockbackImpulse: fireballKnockback,
-                    showPopup: showPopup
+                    showPopup: showPopup,
+                    difficulty: difficulty
                 )
-                if runtime.result != .playing {
+                if runtime.result != .playing || runtime.awaitingEndlessChoice {
                     return
                 }
             }
@@ -367,7 +467,10 @@ enum DefenseGameLoop {
 
         guard runtime.enemyBehavior == .approach else { return }
 
-        let activeCount = runtime.enemies.filter(\.isActive).count
+        var activeCount = 0
+        for enemy in runtime.enemies where enemy.isActive {
+            activeCount += 1
+        }
         guard activeCount < effectiveMaxEnemies(runtime: runtime, difficulty: difficulty) else { return }
 
         let instantSpawn = runtime.callResponseActive && activeCount == 0
@@ -388,25 +491,13 @@ enum DefenseGameLoop {
             cumulative: cumulative
         )
 
-        runtime.enemies[index].isActive = true
-        runtime.enemies[index].x = spawnX
-        runtime.enemies[index].y = DefenseEnemyConfig.centerY(for: enemyType)
-        runtime.enemies[index].knockbackVx = 0
-        runtime.enemies[index].lastAttackAt = 0
-        runtime.enemies[index].isMoving = false
-        runtime.enemies[index].attackHitPending = false
-        runtime.enemies[index].hitFlashAt = DefenseEnemyConfig.noHitFlash
-        applyResolvedStats(
-            enemy: &runtime.enemies[index],
-            type: enemyType,
-            difficulty: difficulty,
-            runtime: runtime
+        activateSpawnedEnemy(
+            runtime: &runtime,
+            slotIndex: index,
+            enemyType: enemyType,
+            spawnX: spawnX,
+            difficulty: difficulty
         )
-
-        runtime.nextEnemyIndex += 1
-        if !runtime.practiceMode {
-            runtime.waveSpawnCount += 1
-        }
     }
 
     private static func updateEnemies(

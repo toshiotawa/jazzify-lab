@@ -9,6 +9,7 @@ export interface DefenseSceneHud {
   /** 1-based wave number; 0 hides wave UI (practice mode). */
   readonly wave: number;
   readonly practiceMode: boolean;
+  readonly endlessMode: boolean;
 }
 
 export type MutableDefenseSceneHud = {

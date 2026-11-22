@@ -15,6 +15,7 @@ import LoadingScreen from '@/components/ui/LoadingScreen';
 import { getWindow } from '@/platform';
 import DefenseDescentBlock, { DefenseBlockDimVeil } from '@/components/play/defenseDescent/DefenseDescentBlock';
 import DefenseDescentSidePanel from '@/components/play/defenseDescent/DefenseDescentSidePanel';
+import { formatDefenseStarRank } from '@/game/defense/defenseCallResponseCombat';
 import {
   buildPlayDescentLayout,
   countClearedStageNodes,
@@ -35,6 +36,7 @@ interface DefenseDescentMapProps {
   isPremiumMember: boolean;
   onSelectNode: (node: PlayMapNode, practiceMode: boolean) => void;
   onSelectQuestNode: (node: PlayMapNode) => void;
+  onOpenEndlessRanking: (nodeId: string) => void;
   pendingSelectNodeId?: string | null;
   onPendingSelectNodeConsumed?: () => void;
 }
@@ -70,6 +72,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   isPremiumMember,
   onSelectNode,
   onSelectQuestNode,
+  onOpenEndlessRanking,
   pendingSelectNodeId,
   onPendingSelectNodeConsumed,
 }) => {
@@ -146,6 +149,14 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
   const clearByNodeId = useMemo(() => {
     const map = new Map<string, (typeof clears)[number]>();
     clears.forEach((c) => map.set(c.nodeId, c));
+    return map;
+  }, [clears]);
+
+  const starRankByNodeId = useMemo(() => {
+    const map = new Map<string, string>();
+    clears.forEach((clear) => {
+      map.set(clear.nodeId, formatDefenseStarRank(clear.bestStarRank));
+    });
     return map;
   }, [clears]);
 
@@ -474,6 +485,7 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
                       scale={scale}
                       selectedNodeId={selectedNodeId}
                       clearedNodeIds={clearedNodeIds}
+                      starRankByNodeId={starRankByNodeId}
                       unlockedNodeIds={unlockedNodeIds}
                       onSelectNode={(nodeId) => handleSelectNode(nodeId, blockLayout.blockIndex)}
                       dim={dim}
@@ -529,6 +541,11 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
             selectedNodeCleared={selectedNode ? clearedNodeIds.has(selectedNode.id) : false}
             selectedNodeUnlocked={selectedNodeUnlocked}
             bestSurviveSec={selectedClear?.bestSurviveSec ?? null}
+            bestStarRank={selectedClear?.bestStarRank ?? null}
+            bestEndlessEnemiesDefeated={selectedClear?.bestEndlessEnemiesDefeated ?? null}
+            onOpenEndlessRanking={() => {
+              if (selectedNode) onOpenEndlessRanking(selectedNode.id);
+            }}
             onStart={handleStart}
             onStartPractice={handleStartPractice}
             onStartPerformance={handleStartPerformance}
@@ -569,6 +586,9 @@ const DefenseDescentMap: React.FC<DefenseDescentMapProps> = ({
                 selectedNodeCleared={clearedNodeIds.has(selectedNode.id)}
                 selectedNodeUnlocked={selectedNodeUnlocked}
                 bestSurviveSec={selectedClear?.bestSurviveSec ?? null}
+                bestStarRank={selectedClear?.bestStarRank ?? null}
+                bestEndlessEnemiesDefeated={selectedClear?.bestEndlessEnemiesDefeated ?? null}
+                onOpenEndlessRanking={() => onOpenEndlessRanking(selectedNode.id)}
                 onStart={handleStart}
                 onStartPractice={handleStartPractice}
                 onStartPerformance={handleStartPerformance}

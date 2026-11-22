@@ -11,6 +11,9 @@ struct DefenseDescentSidePanel: View {
     let selectedNodeCleared: Bool
     let selectedNodeUnlocked: Bool
     let bestSurviveSec: Int?
+    let bestStarRank: Int?
+    let bestEndlessEnemiesDefeated: Int?
+    let onOpenEndlessRanking: (() -> Void)?
     let startLocked: Bool
     let onStart: () -> Void
     let onStartPractice: () -> Void
@@ -107,6 +110,49 @@ struct DefenseDescentSidePanel: View {
                     Text(bestSurviveText(bestSurviveSec))
                         .font(.caption)
                         .foregroundStyle(.green)
+                }
+                if selectedNode.nodeKind == .stage {
+                    if selectedNodeCleared {
+                        Text(DefenseCallResponseTier.formatStarRank(bestStarRank))
+                            .font(.subheadline.bold())
+                            .tracking(2)
+                            .foregroundStyle(Color(hex: "fde68a"))
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(isEnglishCopy ? "STAR RANK" : "クリアランク")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.gray)
+                        Text(isEnglishCopy
+                             ? "★★★ MAX HP · ★★☆ 50–99% · ★☆☆ 1–49%"
+                             : "★★★ 体力MAX · ★★☆ 50〜99% · ★☆☆ 1〜49%")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(isEnglishCopy ? "ENDLESS" : "エンドレスモード")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.gray)
+                            .padding(.top, 4)
+                        Text(bestEndlessText(bestEndlessEnemiesDefeated))
+                            .font(.caption)
+                            .foregroundStyle(Color(hex: "fef3c7"))
+                        if let onOpenEndlessRanking {
+                            Button(action: onOpenEndlessRanking) {
+                                Text(isEnglishCopy ? "View ranking" : "ランキングを見る")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .font(.caption.bold())
+                            .buttonStyle(.bordered)
+                            .tint(.indigo)
+                            .padding(.top, 2)
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.black.opacity(0.25))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 launchButtons
             }
@@ -220,6 +266,13 @@ struct DefenseDescentSidePanel: View {
 
     private func bestSurviveText(_ seconds: Int) -> String {
         isEnglishCopy ? "Best survive: \(seconds)s" : "ベスト生存: \(seconds)秒"
+    }
+
+    private func bestEndlessText(_ defeated: Int?) -> String {
+        let countText = defeated.map(String.init) ?? "—"
+        return isEnglishCopy
+            ? "Your best: \(countText)"
+            : "自己ベスト撃破数: \(countText)"
     }
 }
 

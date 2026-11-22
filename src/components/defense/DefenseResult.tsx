@@ -15,6 +15,10 @@ interface DefenseResultProps {
   readonly practiceMode: boolean;
   readonly surviveSec: number;
   readonly enemiesDefeated: number;
+  readonly starRank?: 1 | 2 | 3;
+  readonly enteredEndless?: boolean;
+  readonly improvedEndlessBest?: boolean;
+  readonly skipStageClearPersist?: boolean;
   readonly isEnglishCopy: boolean;
   readonly onRetry: () => void;
   readonly onBack: () => void;
@@ -29,6 +33,10 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
   practiceMode,
   surviveSec,
   enemiesDefeated,
+  starRank,
+  enteredEndless,
+  improvedEndlessBest,
+  skipStageClearPersist = false,
   isEnglishCopy,
   onRetry,
   onBack,
@@ -36,10 +44,10 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
   onNextStep,
 }) => {
   const userId = useAuthStore((state) => state.user?.id ?? null);
-  const [saved, setSaved] = useState(practiceMode);
+  const [saved, setSaved] = useState(practiceMode || skipStageClearPersist);
 
   useEffect(() => {
-    if (practiceMode || result !== 'clear' || !userId) {
+    if (practiceMode || skipStageClearPersist || result !== 'clear' || !userId) {
       return undefined;
     }
     let cancelled = false;
@@ -53,17 +61,25 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [practiceMode, result, userId, stageId, surviveSec, enemiesDefeated]);
+  }, [practiceMode, skipStageClearPersist, result, userId, stageId, surviveSec, enemiesDefeated]);
 
   const isClear = result === 'clear';
+  const isStageCleared = isClear || Boolean(enteredEndless);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-sm rounded-xl bg-slate-900 p-6 text-center shadow-xl">
-        <h2 className={cn('text-2xl font-bold', isClear ? 'text-emerald-400' : 'text-red-400')}>
-          {isClear
-            ? (isEnglishCopy ? 'Clear!' : 'クリア！')
-            : (isEnglishCopy ? 'Game Over' : 'ゲームオーバー')}
+        <h2
+          className={cn(
+            'text-2xl font-bold',
+            enteredEndless ? 'text-amber-300' : (isClear ? 'text-emerald-400' : 'text-red-400'),
+          )}
+        >
+          {enteredEndless
+            ? (isEnglishCopy ? 'Endless Complete!' : 'エンドレス終了！')
+            : isClear
+              ? (isEnglishCopy ? 'Clear!' : 'クリア！')
+              : (isEnglishCopy ? 'Game Over' : 'ゲームオーバー')}
         </h2>
         <p className="mt-2 text-slate-300">{stageTitle}</p>
         <p className="mt-4 text-sm text-slate-400">
@@ -71,7 +87,25 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
             ? `Survived ${Math.floor(surviveSec)}s / Defeated ${enemiesDefeated}`
             : `生存 ${Math.floor(surviveSec)}秒 / 撃破 ${enemiesDefeated}`}
         </p>
-        {!practiceMode && isClear && (
+        {starRank != null && (
+          <p className="mt-2 text-lg tracking-widest text-amber-200">
+            {'★'.repeat(starRank)}
+            {'☆'.repeat(3 - starRank)}
+          </p>
+        )}
+        {enteredEndless && (
+          <p className="mt-2 text-xs text-indigo-200">
+            {isEnglishCopy ? `Endless total KO: ${enemiesDefeated}` : `エンドレス撃破数: ${enemiesDefeated}`}
+            {improvedEndlessBest && (
+              <>
+                {' '}
+                ·
+                {isEnglishCopy ? ' New best!' : ' 自己ベスト更新！'}
+              </>
+            )}
+          </p>
+        )}
+        {!practiceMode && isStageCleared && (
           <p className="mt-2 text-xs text-slate-500">
             {saved
               ? (isEnglishCopy ? 'Record saved' : '記録を保存しました')
@@ -79,7 +113,7 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
           </p>
         )}
         <div className="mt-6 flex flex-col gap-3">
-          {isClear && nextStepLabel && onNextStep ? (
+          {isStageCleared && nextStepLabel && onNextStep ? (
             <button
               type="button"
               className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-500"
@@ -88,7 +122,7 @@ export const DefenseResult: React.FC<DefenseResultProps> = ({
               {nextStepLabel}
             </button>
           ) : null}
-          {!isClear ? (
+          {(!isClear || enteredEndless) ? (
             <button
               type="button"
               className="rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"

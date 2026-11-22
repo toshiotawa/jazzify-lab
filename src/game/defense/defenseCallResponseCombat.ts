@@ -206,6 +206,7 @@ export const resolveDefenseCallResponseEnemySpeedPx = (
   return floorSpeed * mult;
 };
 
+/** Legacy cycle/response speed curve (pre–5-tier C&R). Prefer resolveDefenseCallResponseGuardedDifficulty. */
 export const applyDefenseCallResponseDifficulty = (
   difficulty: DefenseDifficulty,
   cycleBars: number,
@@ -218,3 +219,10 @@ export const applyDefenseCallResponseDifficulty = (
     responseBars,
   ),
 });
+
+export { resolveDefenseCallResponseGuardedDifficulty } from '@/game/defense/defenseCallResponseClearGuard';
+export {
+  computeDefenseEndlessAccel,
+  computeDefenseStarRank,
+  formatDefenseStarRank,
+} from '@/game/defense/defenseCallResponseTier';

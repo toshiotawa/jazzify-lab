@@ -88,6 +88,8 @@ struct PlayMapNodeClear: Codable, Sendable {
     let bestTimeSec: Double?
     let bestRank: CodeRunLetterRank?
     let bestSurviveSec: Int?
+    let bestStarRank: Int?
+    let bestEndlessEnemiesDefeated: Int?
     let clearCount: Int
 
     enum CodingKeys: String, CodingKey {
@@ -95,8 +97,43 @@ struct PlayMapNodeClear: Codable, Sendable {
         case bestTimeSec = "best_time_sec"
         case bestRank = "best_rank"
         case bestSurviveSec = "best_survive_sec"
+        case bestStarRank = "best_star_rank"
+        case bestEndlessEnemiesDefeated = "best_endless_enemies_defeated"
         case clearCount = "clear_count"
     }
+}
+
+struct RecordDefenseClearV2Result: Sendable {
+    let isFirstClear: Bool
+    let recordId: String?
+    let nodeId: UUID?
+    let error: String?
+}
+
+struct FinalizeDefenseEndlessRecordResult: Sendable {
+    let recordId: String
+    let nodeId: UUID
+    let improvedEndlessBest: Bool
+    let enemiesDefeated: Int
+    let error: String?
+}
+
+struct DefenseEndlessRankingEntry: Identifiable, Sendable {
+    let id: String
+    let rankPosition: Int
+    let userId: UUID
+    let nickname: String
+    let avatarUrl: String?
+    let playerLevel: Int
+    let enemiesDefeated: Int
+    let starRank: Int?
+}
+
+struct DefenseEndlessSummaryRow: Sendable {
+    let nodeId: UUID
+    let enemiesDefeated: Int
+    let starRank: Int?
+    let rankPosition: Int?
 }
 
 struct CodeRunRankThreshold: Codable, Sendable {

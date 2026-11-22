@@ -41,6 +41,8 @@ interface PlayMapNodeClear {
   bestTimeSec: number | null;
   bestRank: CodeRunLetterRank | null;
   bestSurviveSec: number | null;
+  bestStarRank: 1 | 2 | 3 | null;
+  bestEndlessEnemiesDefeated: number | null;
   clearCount: number;
 }
 
@@ -135,6 +137,7 @@ export async function fetchPlayMapNodeClears(mode: PlayMapMode): Promise<PlayMap
     .from('play_map_node_clears')
     .select(`
       node_id, best_time_sec, best_rank, best_survive_sec, clear_count,
+      best_star_rank, best_endless_enemies_defeated,
       play_map_nodes!inner(
         play_map_blocks!inner(mode)
       )
@@ -147,6 +150,12 @@ export async function fetchPlayMapNodeClears(mode: PlayMapMode): Promise<PlayMap
     bestTimeSec: row.best_time_sec != null ? Number(row.best_time_sec) : null,
     bestRank: (row.best_rank as CodeRunLetterRank | null) ?? null,
     bestSurviveSec: row.best_survive_sec != null ? Number(row.best_survive_sec) : null,
+    bestStarRank: row.best_star_rank != null
+      ? (Number(row.best_star_rank) as 1 | 2 | 3)
+      : null,
+    bestEndlessEnemiesDefeated: row.best_endless_enemies_defeated != null
+      ? Number(row.best_endless_enemies_defeated)
+      : null,
     clearCount: Number(row.clear_count) || 0,
   }));
 }

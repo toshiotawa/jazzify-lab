@@ -21,6 +21,8 @@ struct DefenseHudState: Equatable {
     var wave: Int
     var elapsedInt: Int
     var result: DefenseGameResult
+    var endlessMode: Bool
+    var awaitingEndlessChoice: Bool
 }
 
 @MainActor
@@ -43,7 +45,9 @@ final class DefenseGameSession: ObservableObject {
 
     let stage: DefenseStageDefinition
     let difficulty: DefenseDifficultyDefinition
-    private let effectiveDifficulty: DefenseDifficultyDefinition
+    private var effectiveDifficulty: DefenseDifficultyDefinition
+    private(set) var usesCallResponseTierPath = false
+    private let playMapNodeId: UUID?
     let practiceMode: Bool
     let tutorialOptions: DefenseTutorialOptions?
     let tutorialConcertMidis: [Int]?
@@ -68,6 +72,12 @@ final class DefenseGameSession: ObservableObject {
     }
     private var lastFrameTime: TimeInterval?
     private var resultHandled = false
+    @Published private(set) var stageClearStarRank: Int?
+    @Published private(set) var performanceRecordId: String?
+    @Published private(set) var finishSummary: DefenseFinishSummary?
+    private var clearCommitStarted = false
+    private var clearCommitTask: Task<String?, Never>?
+    private var endlessFinalized = false
     private var callResponseTransitionWaitUntilHostSec: Double?
     private var lastCallResponsePhase: DefenseCallResponsePhase?
     private var lastCallResponseLoopIndex = 0
@@ -91,35 +101,13 @@ final class DefenseGameSession: ObservableObject {
         difficulty: DefenseDifficultyDefinition,
         practiceMode: Bool,
         lessonContext: DefenseLessonContext?,
+        playMapNodeId: UUID? = nil,
         tutorialOptions: DefenseTutorialOptions? = nil,
         tutorialConcertMidis: [Int]? = nil
     ) {
         self.stage = stage
         self.difficulty = difficulty
-        if let crConfig = DefenseCallResponse.config(for: stage) {
-            self.effectiveDifficulty = DefenseCallResponseCombat.applyDifficulty(
-                difficulty,
-                cycleBars: crConfig.cycleBars,
-                responseBars: crConfig.responseBars
-            )
-        } else {
-            self.effectiveDifficulty = difficulty
-        }
-        self.practiceMode = practiceMode
-        self.tutorialOptions = tutorialOptions
-        self.tutorialConcertMidis = tutorialConcertMidis
-        self.lessonContext = lessonContext
-        let maxEnemies = tutorialOptions?.maxEnemies ?? difficulty.maxEnemies
-        let runtime = DefenseRuntimeState(
-            playerHp: stage.playerHp,
-            surviveSeconds: TimeInterval(stage.surviveSeconds),
-            maxEnemies: maxEnemies,
-            practiceMode: practiceMode,
-            tutorial: tutorialOptions,
-            attackTrigger: stage.attackTrigger,
-            initialSpGauge: tutorialOptions?.initialSpGauge ?? 0
-        )
-        self.runtime = runtime
+        self.playMapNodeId = playMapNodeId
         let initialVoicingKeyState: DefenseVoicingKeyState?
         let initialActivePhrases: [DefensePhraseDefinition]
         if DefenseVoicingKeys.isChordVoicingStage(stage),
@@ -132,6 +120,30 @@ final class DefenseGameSession: ObservableObject {
             initialVoicingKeyState = nil
             initialActivePhrases = stage.phrases
         }
+        let marketingVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let resolved = DefenseCallResponseCombat.resolveEffectiveDifficulty(
+            stage: stage,
+            phrases: initialActivePhrases,
+            fetchedDifficulty: difficulty,
+            marketingVersion: marketingVersion
+        )
+        self.effectiveDifficulty = resolved.difficulty
+        self.usesCallResponseTierPath = resolved.usesTierPath
+        self.practiceMode = practiceMode
+        self.tutorialOptions = tutorialOptions
+        self.tutorialConcertMidis = tutorialConcertMidis
+        self.lessonContext = lessonContext
+        let maxEnemies = tutorialOptions?.maxEnemies ?? resolved.difficulty.maxEnemies
+        let runtime = DefenseRuntimeState(
+            playerHp: stage.playerHp,
+            surviveSeconds: TimeInterval(stage.surviveSeconds),
+            maxEnemies: maxEnemies,
+            practiceMode: practiceMode,
+            tutorial: tutorialOptions,
+            attackTrigger: stage.attackTrigger,
+            initialSpGauge: tutorialOptions?.initialSpGauge ?? 0
+        )
+        self.runtime = runtime
         self.voicingKeyState = initialVoicingKeyState
         self.activePhrases = initialActivePhrases
         self.judgeState = DefensePhraseJudge.createInitialState(phrases: initialActivePhrases)
@@ -143,7 +155,9 @@ final class DefenseGameSession: ObservableObject {
             targetEnemiesDefeated: 0,
             wave: practiceMode ? 0 : 1,
             elapsedInt: 0,
-            result: .playing
+            result: .playing,
+            endlessMode: false,
+            awaitingEndlessChoice: false
         )
         syncEffectiveProgressionChords(phraseIndex: judgeState.phraseIndex)
     }
@@ -350,6 +364,23 @@ final class DefenseGameSession: ObservableObject {
         runtime.targetEnemiesDefeated = killClearTarget
         runtime.enemiesDefeated = 0
         runtime.callResponseActive = callResponseConfig != nil && tutorialOptions == nil
+        runtime.endlessPromptEnabled = usesCallResponseTierPath
+            && callResponseConfig != nil
+            && !practiceMode
+            && tutorialOptions == nil
+            && playMapNodeId != nil
+        runtime.awaitingEndlessChoice = false
+        runtime.endlessMode = false
+        runtime.endlessElapsedSec = 0
+        runtime.endlessSpeedMult = 1
+        runtime.endlessSpawnMult = 1
+        runtime.endlessHpMult = 1
+        clearCommitStarted = false
+        clearCommitTask = nil
+        endlessFinalized = false
+        stageClearStarRank = nil
+        performanceRecordId = nil
+        finishSummary = nil
 
         if callResponseConfig != nil {
             runtime.enemyBehavior = .dance
@@ -532,7 +563,7 @@ final class DefenseGameSession: ObservableObject {
     }
 
     func handleNoteOn(pitchClass: Int, sequential: Bool = false, inputTimeMs: Double? = nil) {
-        guard phase == .playing, !isPaused, runtime.result == .playing else { return }
+        guard phase == .playing, !isPaused, runtime.result == .playing, !runtime.awaitingEndlessChoice else { return }
         if let crConfig = callResponseConfig,
            !isSharedProgressionStage,
            !isSeparateTracksStage {
@@ -595,7 +626,11 @@ final class DefenseGameSession: ObservableObject {
             let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
             let effectiveBpm = stage.bpm > 0 ? stage.bpm * speedRatio : 60
             let guardPoseSec = 60 / effectiveBpm
-            _ = DefenseGameLoop.performSlash(runtime: &runtime, guardPoseSec: guardPoseSec)
+            _ = DefenseGameLoop.performSlash(
+                runtime: &runtime,
+                guardPoseSec: guardPoseSec,
+                difficulty: effectiveDifficulty
+            )
         }
         if let rootMidi = evaluation.playRootMidi {
             SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
@@ -737,13 +772,35 @@ final class DefenseGameSession: ObservableObject {
             }
         }
 
-        if let crConfig = callResponseConfig, !isSharedProgressionStage, !isSeparateTracksStage {
-            syncCallResponseRuntime(config: crConfig)
+        if let crConfig = callResponseConfig, !isSharedProgressionStage, !isSeparateTracksStage, !runtime.awaitingEndlessChoice {
+            syncCallResponseRuntime(config: crConfig, deltaTime: dt)
         }
 
-        DefenseGameLoop.tick(runtime: &runtime, difficulty: effectiveDifficulty, deltaTime: dt)
+        if !runtime.awaitingEndlessChoice {
+            DefenseGameLoop.tick(runtime: &runtime, difficulty: effectiveDifficulty, deltaTime: dt)
+        }
 
         let elapsedInt = Int(runtime.elapsedSec)
+        if runtime.awaitingEndlessChoice, !clearCommitStarted, !practiceMode, usesCallResponseTierPath {
+            clearCommitStarted = true
+            let starRank = DefenseCallResponseTier.starRank(
+                playerHp: runtime.playerHp,
+                playerMaxHp: runtime.playerMaxHp
+            )
+            stageClearStarRank = starRank
+            pauseAllBackingAudio()
+            let surviveSecAtClear = Int(runtime.elapsedSec.rounded(.down))
+            let enemiesAtClear = runtime.enemiesDefeated
+            clearCommitTask = Task { [weak self] () -> String? in
+                guard let self else { return nil }
+                return await self.recordPerformanceClearV2(
+                    starRank: starRank,
+                    surviveSec: surviveSecAtClear,
+                    enemiesDefeated: enemiesAtClear
+                )
+            }
+        }
+
         let nextHud = DefenseHudState(
             playerHp: runtime.playerHp,
             playerMaxHp: runtime.playerMaxHp,
@@ -752,7 +809,9 @@ final class DefenseGameSession: ObservableObject {
             targetEnemiesDefeated: !practiceMode ? runtime.targetEnemiesDefeated : 0,
             wave: practiceMode ? 0 : runtime.waveIndex + 1,
             elapsedInt: elapsedInt,
-            result: runtime.result
+            result: runtime.result,
+            endlessMode: runtime.endlessMode,
+            awaitingEndlessChoice: runtime.awaitingEndlessChoice
         )
         if nextHud != hud {
             hud = nextHud
@@ -799,7 +858,7 @@ final class DefenseGameSession: ObservableObject {
         }
     }
 
-    private func syncCallResponseRuntime(config: DefenseCallResponseConfig) {
+    private func syncCallResponseRuntime(config: DefenseCallResponseConfig, deltaTime: TimeInterval) {
         let outputTime = DefenseBackingAudio.shared.currentOutputTime()
         if let waitHostSec = callResponseTransitionWaitUntilHostSec, outputTime >= waitHostSec {
             callResponseTransitionWaitUntilHostSec = nil
@@ -833,6 +892,92 @@ final class DefenseGameSession: ObservableObject {
             lastCallResponseLoopIndex = snapshot.loopIndex
         }
         lastCallResponsePhase = snapshot.phase
+
+        if runtime.endlessMode, snapshot.phase == .response {
+            runtime.endlessElapsedSec += deltaTime
+            let accel = DefenseCallResponseTier.endlessAccel(elapsedSec: runtime.endlessElapsedSec)
+            runtime.endlessSpeedMult = accel.speedMult
+            runtime.endlessSpawnMult = accel.spawnMult
+            runtime.endlessHpMult = accel.hpMult
+        }
+    }
+
+    private func pauseAllBackingAudio() {
+        if isSeparateTracksStage {
+            DefenseSeparateTracksAudio.shared.pauseProgression()
+        } else if isSharedProgressionStage {
+            DefenseSharedProgressionAudio.shared.pauseProgression()
+        } else {
+            DefenseBackingAudio.shared.pausePlayback()
+        }
+    }
+
+    private func resumeAllBackingAudio() {
+        if isSeparateTracksStage {
+            DefenseSeparateTracksAudio.shared.resumeProgression()
+        } else if isSharedProgressionStage {
+            DefenseSharedProgressionAudio.shared.resumeProgression()
+        } else {
+            DefenseBackingAudio.shared.resumePlayback()
+        }
+    }
+
+    func respondToEndlessChoice(continueEndless: Bool) {
+        guard runtime.awaitingEndlessChoice, !practiceMode, usesCallResponseTierPath else { return }
+        runtime.awaitingEndlessChoice = false
+        if continueEndless {
+            runtime.endlessMode = true
+            runtime.waveIndex = DefenseCallResponseCombat.endlessWaveIndex
+            runtime.waveSpawnCount = 0
+            runtime.endlessElapsedSec = 0
+            resumeAllBackingAudio()
+        } else {
+            runtime.result = .clear
+            if !resultHandled {
+                resultHandled = true
+                handleResult()
+            }
+        }
+    }
+
+    private func recordPerformanceClearV2(
+        starRank: Int,
+        surviveSec: Int,
+        enemiesDefeated: Int
+    ) async -> String? {
+        guard let nodeId = playMapNodeId, usesCallResponseTierPath, !practiceMode else { return nil }
+        guard let result = try? await SupabaseService.shared.recordDefenseClearV2(
+            nodeId: nodeId,
+            stageId: stage.id,
+            starRank: starRank,
+            surviveSec: surviveSec,
+            enemiesDefeated: enemiesDefeated
+        ) else { return nil }
+        performanceRecordId = result.recordId
+        return result.recordId
+    }
+
+    private func finalizeEndlessIfNeeded(
+        enemiesDefeated: Int,
+        surviveSec: Int
+    ) async -> Bool {
+        guard !endlessFinalized else { return false }
+        endlessFinalized = true
+        let recordId: String?
+        if let existing = performanceRecordId {
+            recordId = existing
+        } else if let task = clearCommitTask {
+            recordId = await task.value
+        } else {
+            recordId = nil
+        }
+        guard let recordId else { return false }
+        let res = try? await SupabaseService.shared.finalizeDefenseEndlessRecord(
+            recordId: recordId,
+            enemiesDefeated: enemiesDefeated,
+            surviveSec: surviveSec
+        )
+        return res?.improvedEndlessBest ?? false
     }
 
     private func applyVoicingKeyState(_ keyState: DefenseVoicingKeyState) {
@@ -843,12 +988,31 @@ final class DefenseGameSession: ObservableObject {
     }
 
     private func handleResult() {
-        guard runtime.result == .clear, !practiceMode else { return }
-        let surviveSec = Int(runtime.elapsedSec)
+        let finalResult = runtime.result
+        let surviveSec = Int(runtime.elapsedSec.rounded(.down))
         let enemiesDefeated = runtime.enemiesDefeated
+        let enteredEndless = runtime.endlessMode
+        let starRank = stageClearStarRank
         let stageId = stage.id
         let lessonContext = lessonContext
         Task {
+            var improvedEndlessBest = false
+            if enteredEndless, finalResult == .gameOver {
+                improvedEndlessBest = await finalizeEndlessIfNeeded(
+                    enemiesDefeated: enemiesDefeated,
+                    surviveSec: surviveSec
+                )
+            }
+            finishSummary = DefenseFinishSummary(
+                result: finalResult,
+                surviveSec: surviveSec,
+                enemiesDefeated: enemiesDefeated,
+                starRank: starRank,
+                endlessMode: enteredEndless,
+                improvedEndlessBest: improvedEndlessBest
+            )
+            guard finalResult == .clear, !practiceMode else { return }
+            if usesCallResponseTierPath { return }
             if let userId = try? await SupabaseService.shared.currentUserId() {
                 _ = try? await SupabaseService.shared.upsertDefenseStageClear(
                     userId: userId,

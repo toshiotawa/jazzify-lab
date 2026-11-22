@@ -195,6 +195,9 @@
 		54FFCB32F2C995F454A1628D /* DefenseGameLoop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */; };
 		5559EB7A6E740B1C36FEBB78 /* DefenseCallResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 613E0021504F19F56CE30E5E /* DefenseCallResponse.swift */; };
 		F1C2A3B4C5D6E7F8091A2B4 /* DefenseCallResponseCombat.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1C2A3B4C5D6E7F8091A2B3 /* DefenseCallResponseCombat.swift */; };
+		F1C2A3B4C5D6E7F8091A2C2 /* DefenseCallResponseTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1C2A3B4C5D6E7F8091A2C1 /* DefenseCallResponseTier.swift */; };
+		F1C2A3B4C5D6E7F8091A2C4 /* DefenseCallResponseClearGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1C2A3B4C5D6E7F8091A2C3 /* DefenseCallResponseClearGuard.swift */; };
+		F1C2A3B4C5D6E7F8091A2C6 /* DefenseEndlessRankingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1C2A3B4C5D6E7F8091A2C5 /* DefenseEndlessRankingView.swift */; };
 		06FDAEA15B1673DF7D3FEA52 /* DefenseCallResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6301BE46016E005162395020 /* DefenseCallResponseTests.swift */; };
 		55F54C4BA1E268879298B4D9 /* SurvivalRunPrepSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43BC0A05D209E54BAAB95B5 /* SurvivalRunPrepSheet.swift */; };
 		56798F7B79D567C225C5CB37 /* TopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F034080E04C73977D21BFCEC /* TopView.swift */; };
@@ -670,6 +673,9 @@
 		5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseGameLoop.swift; sourceTree = "<group>"; };
 		613E0021504F19F56CE30E5E /* DefenseCallResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseCallResponse.swift; sourceTree = "<group>"; };
 		F1C2A3B4C5D6E7F8091A2B3 /* DefenseCallResponseCombat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseCallResponseCombat.swift; sourceTree = "<group>"; };
+		F1C2A3B4C5D6E7F8091A2C1 /* DefenseCallResponseTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseCallResponseTier.swift; sourceTree = "<group>"; };
+		F1C2A3B4C5D6E7F8091A2C3 /* DefenseCallResponseClearGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseCallResponseClearGuard.swift; sourceTree = "<group>"; };
+		F1C2A3B4C5D6E7F8091A2C5 /* DefenseEndlessRankingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseEndlessRankingView.swift; sourceTree = "<group>"; };
 		6301BE46016E005162395020 /* DefenseCallResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseCallResponseTests.swift; sourceTree = "<group>"; };
 		519C033031ADA5E8D43A12DC /* CourseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseListView.swift; sourceTree = "<group>"; };
 		51A4E61E2702D5B49F7554F1 /* NotationInstrumentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotationInstrumentModels.swift; sourceTree = "<group>"; };
@@ -1695,6 +1701,8 @@
 				5106A36A97FB80AEAE3E34AB /* DefenseGameLoop.swift */,
 				613E0021504F19F56CE30E5E /* DefenseCallResponse.swift */,
 				F1C2A3B4C5D6E7F8091A2B3 /* DefenseCallResponseCombat.swift */,
+				F1C2A3B4C5D6E7F8091A2C3 /* DefenseCallResponseClearGuard.swift */,
+				F1C2A3B4C5D6E7F8091A2C1 /* DefenseCallResponseTier.swift */,
 				B0A3E14C8C3628C7552ECD84 /* DefenseKeyboardRange.swift */,
 				7ED993F78D97573F2ACB0326 /* DefensePhraseJudge.swift */,
 				E4F5A60718293A4B5C6D7E8F /* DefenseStaffChordLabel.swift */,
@@ -1936,6 +1944,7 @@
 				3DD183119AF389C09D3989F5 /* DefenseDescentMapView.swift */,
 				18FB9A232D8D2F0B09B00AFA /* DefenseDescentSidePanel.swift */,
 				608172A6A4F4ADE6E8FD61C9 /* DefenseDescentView.swift */,
+				F1C2A3B4C5D6E7F8091A2C5 /* DefenseEndlessRankingView.swift */,
 				81302253FD7261D38D3D7AF1 /* DefenseTrainingGuidance.swift */,
 				E550634C87455D6EBEC36891 /* DefenseTrainingResumeSheet.swift */,
 				2C4479ADC94942DC614C3CEF /* DiscordCommunitySectionView.swift */,
@@ -2399,6 +2408,9 @@
 				54FFCB32F2C995F454A1628D /* DefenseGameLoop.swift in Sources */,
 				5559EB7A6E740B1C36FEBB78 /* DefenseCallResponse.swift in Sources */,
 				F1C2A3B4C5D6E7F8091A2B4 /* DefenseCallResponseCombat.swift in Sources */,
+				F1C2A3B4C5D6E7F8091A2C4 /* DefenseCallResponseClearGuard.swift in Sources */,
+				F1C2A3B4C5D6E7F8091A2C2 /* DefenseCallResponseTier.swift in Sources */,
+				F1C2A3B4C5D6E7F8091A2C6 /* DefenseEndlessRankingView.swift in Sources */,
 				B07BC94786FF77545A500019 /* DefenseGameSession.swift in Sources */,
 				19C9B64FB798B5B39894E127 /* DefenseGameView.swift in Sources */,
 				F6343BD5063EFD41DECBADD9 /* DefenseKeyboardRange.swift in Sources */,

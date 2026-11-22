@@ -27,6 +27,8 @@ interface StageNodeProps {
   displayLabel?: string;
   /** 指定時は displayLabel の代わりにアイコンを表示 */
   displayIcon?: PlayMapNodeDisplayIcon;
+  /** クリア済みステージの下に表示する星ランク（例: ★★☆） */
+  starRankLabel?: string;
 }
 
 export const StageNode: React.FC<StageNodeProps> = ({
@@ -42,6 +44,7 @@ export const StageNode: React.FC<StageNodeProps> = ({
   isFrontier,
   displayLabel,
   displayIcon,
+  starRankLabel,
 }) => {
   const diameter = Math.round(52 * scale);
   const labelText = displayLabel ?? String(stageNumber);
@@ -148,6 +151,22 @@ export const StageNode: React.FC<StageNodeProps> = ({
           labelText
         )}
       </button>
+      {state === 'cleared' && starRankLabel && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute text-amber-200"
+          style={{
+            left: xPx,
+            top: yPx + diameter / 2 + Math.round(4 * scale),
+            transform: 'translateX(-50%)',
+            fontSize: Math.max(10, 13 * scale),
+            letterSpacing: '0.12em',
+            zIndex: 18,
+          }}
+        >
+          {starRankLabel}
+        </span>
+      )}
     </>
   );
 };

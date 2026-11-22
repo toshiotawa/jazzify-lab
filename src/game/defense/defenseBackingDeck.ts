@@ -431,8 +431,26 @@ class DefenseBackingDeck {
     }
   }
 
+  pause(): void {
+    const ctx = this.graph?.ctx;
+    if (ctx && ctx.state === 'running') {
+      void ctx.suspend();
+    }
+  }
+
+  resume(): void {
+    const ctx = this.graph?.ctx ?? sharedAudioContext;
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+  }
+
   stop(): void {
     this.stopInternal(true);
+    const ctx = this.graph?.ctx ?? sharedAudioContext;
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume();
+    }
   }
 
   private disposeSlot(slot: DeckSlot): void {

@@ -519,6 +519,33 @@ describe('defenseEngine', () => {
     expect(runtime.enemiesDefeated).toBe(1);
   });
 
+  it('awaits endless choice when endless prompt is enabled', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.targetEnemiesDefeated = 1;
+    runtime.callResponseActive = true;
+    runtime.endlessPromptEnabled = true;
+    spawnCallResponseInitialEnemy(runtime, easyDifficulty);
+    expect(performDefenseSlash(runtime, 0, easyDifficulty)).toBe(true);
+    expect(runtime.result).toBe('playing');
+    expect(runtime.awaitingEndlessChoice).toBe(true);
+    expect(runtime.enemiesDefeated).toBe(1);
+  });
+
+  it('anti-whiff immediately spawns next enemy after C&R kill in the same frame', () => {
+    const runtime = createDefenseRuntime(5, 120, 3);
+    runtime.targetEnemiesDefeated = 5;
+    runtime.callResponseActive = true;
+    spawnCallResponseInitialEnemy(runtime, easyDifficulty);
+    expect(runtime.activeEnemyCount).toBe(1);
+
+    // First slash defeats enemy 1; next enemy spawns immediately so a second same-frame slash hits.
+    expect(performDefenseSlash(runtime, 0, easyDifficulty)).toBe(true);
+    expect(runtime.enemiesDefeated).toBe(1);
+    expect(runtime.activeEnemyCount).toBe(1);
+    expect(performDefenseSlash(runtime, 0, easyDifficulty)).toBe(true);
+    expect(runtime.enemiesDefeated).toBe(2);
+  });
+
   it('clears immediately when SP fireball reaches kill target', () => {
     const runtime = createDefenseRuntime(5, 120, 3);
     runtime.targetEnemiesDefeated = 1;

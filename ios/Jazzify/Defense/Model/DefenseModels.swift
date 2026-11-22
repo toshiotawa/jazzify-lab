@@ -233,6 +233,13 @@ struct DefenseRuntimeState: Sendable {
     var enemiesDefeated: Int = 0
     var targetEnemiesDefeated: Int = 0
     var callResponseActive: Bool = false
+    var endlessPromptEnabled: Bool = false
+    var awaitingEndlessChoice: Bool = false
+    var endlessMode: Bool = false
+    var endlessElapsedSec: TimeInterval = 0
+    var endlessSpeedMult: Double = 1
+    var endlessSpawnMult: Double = 1
+    var endlessHpMult: Double = 1
     var spawnTimerSec: TimeInterval = 0
     var nextEnemyIndex: Int = 0
     var waveIndex: Int = 0

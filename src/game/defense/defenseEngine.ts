@@ -62,10 +62,16 @@ const getSpawnIntervalSec = (
   runtime: DefenseRuntime,
   difficulty: DefenseDifficulty,
 ): number => {
+  let interval: number;
   if (!isWaveScaling(runtime)) {
-    return difficulty.spawnIntervalSec;
+    interval = difficulty.spawnIntervalSec;
+  } else {
+    interval = difficulty.spawnIntervalSec * getDefenseWaveSpawnIntervalMult(runtime.waveIndex);
   }
-  return difficulty.spawnIntervalSec * getDefenseWaveSpawnIntervalMult(runtime.waveIndex);
+  if (runtime.endlessMode && runtime.endlessSpawnMult > 0) {
+    return interval / runtime.endlessSpawnMult;
+  }
+  return interval;
 };
 
 const applyResolvedStatsToEnemy = (
@@ -76,10 +82,12 @@ const applyResolvedStatsToEnemy = (
 ): void => {
   const hpMult = isWaveScaling(runtime) ? getDefenseWaveHpMult(runtime.waveIndex) : 1;
   const resolved = resolveDefenseEnemyStats(type, difficulty, hpMult);
+  const endlessSpeedMult = runtime.endlessMode ? runtime.endlessSpeedMult : 1;
+  const endlessHpMult = runtime.endlessMode ? runtime.endlessHpMult : 1;
   enemy.type = type;
-  enemy.hp = resolved.hp;
-  enemy.maxHp = resolved.hp;
-  enemy.speedPxPerSec = resolved.speedPxPerSec;
+  enemy.hp = Math.max(1, Math.ceil(resolved.hp * endlessHpMult));
+  enemy.maxHp = enemy.hp;
+  enemy.speedPxPerSec = resolved.speedPxPerSec * endlessSpeedMult;
   enemy.damage = resolved.damage;
   enemy.attackIntervalSec = resolved.attackIntervalSec;
   enemy.attackRangePx = resolved.attackRangePx;
@@ -92,11 +100,22 @@ const isEnemyKillClearMode = (runtime: DefenseRuntime): boolean => (
   && runtime.targetEnemiesDefeated > 0
 );
 
+export const DEFENSE_ENDLESS_WAVE_INDEX = 3;
+
 const syncKillClearWaveState = (
   runtime: DefenseRuntime,
   spawnIntervalSec: number,
 ): void => {
   if (runtime.practiceMode) return;
+  if (runtime.endlessMode) {
+    if (runtime.waveIndex !== DEFENSE_ENDLESS_WAVE_INDEX) {
+      runtime.waveIndex = DEFENSE_ENDLESS_WAVE_INDEX;
+      runtime.waveSpawnCount = 0;
+      runtime.waveStartedAt = runtime.elapsedSec;
+      runtime.spawnTimerSec = spawnIntervalSec;
+    }
+    return;
+  }
   const nextWaveIndex = getDefenseWaveIndexFromKillProgress(
     runtime.enemiesDefeated,
     runtime.targetEnemiesDefeated,
@@ -139,12 +158,44 @@ const pushDamagePopup = (
   runtime.nextPopupIndex = (runtime.nextPopupIndex + 1) % runtime.damagePopups.length;
 };
 
+const spawnInstantEnemyIfEmpty = (
+  runtime: DefenseRuntime,
+  difficulty: DefenseDifficulty,
+): void => {
+  if (!runtime.callResponseActive || runtime.tutorial != null) return;
+  if (runtime.result !== 'playing' || runtime.awaitingEndlessChoice) return;
+  if (runtime.activeEnemyCount > 0) return;
+  if (runtime.activeEnemyCount >= getEffectiveMaxEnemies(runtime, difficulty)) return;
+
+  const spawnIntervalSec = getSpawnIntervalSec(runtime, difficulty);
+  if (isEnemyKillClearMode(runtime)) {
+    syncKillClearWaveState(runtime, spawnIntervalSec);
+  } else {
+    syncWaveState(runtime, spawnIntervalSec);
+  }
+
+  const slot = findInactiveEnemySlot(runtime);
+  if (!slot) return;
+
+  const cumulative = isWaveScaling(runtime) && !runtime.practiceMode;
+  const waveIndex = runtime.practiceMode ? 0 : runtime.waveIndex;
+  const enemyType = pickDefenseWaveEnemyType(
+    waveIndex,
+    runtime.practiceMode ? runtime.nextEnemyIndex : runtime.waveSpawnCount,
+    cumulative,
+  );
+
+  runtime.spawnTimerSec = 0;
+  activateSpawnedEnemy(runtime, slot, enemyType, DEFENSE_SPAWN_X, difficulty);
+};
+
 const applyEnemyDamage = (
   runtime: DefenseRuntime,
   target: DefenseEnemy,
   damage: number,
   knockbackImpulse: number,
   showPopup: boolean,
+  difficulty?: DefenseDifficulty,
 ): void => {
   target.attackHitPending = false;
   target.hp -= damage;
@@ -163,9 +214,16 @@ const applyEnemyDamage = (
     runtime.enemiesDefeated += 1;
     if (
       isEnemyKillClearMode(runtime)
+      && !runtime.endlessMode
       && runtime.enemiesDefeated >= runtime.targetEnemiesDefeated
     ) {
-      runtime.result = 'clear';
+      if (runtime.callResponseActive && runtime.endlessPromptEnabled) {
+        runtime.awaitingEndlessChoice = true;
+      } else {
+        runtime.result = 'clear';
+      }
+    } else if (difficulty != null) {
+      spawnInstantEnemyIfEmpty(runtime, difficulty);
     }
   }
 };
@@ -202,8 +260,9 @@ const spawnPendingFireball = (runtime: DefenseRuntime): void => {
 export const updateDefenseFireballs = (
   runtime: DefenseRuntime,
   dt: number,
+  difficulty?: DefenseDifficulty,
 ): void => {
-  if (runtime.result !== 'playing') return;
+  if (runtime.result !== 'playing' || runtime.awaitingEndlessChoice) return;
   const showPopup = isPhraseMode(runtime);
   const scaling = isWaveScaling(runtime);
   const fireballDamage = getDefenseFireballDamage(runtime.waveIndex, scaling);
@@ -229,8 +288,9 @@ export const updateDefenseFireballs = (
         fireballDamage,
         fireballKnockback,
         showPopup,
+        difficulty,
       );
-      if (runtime.result !== 'playing') {
+      if (runtime.result !== 'playing' || runtime.awaitingEndlessChoice) {
         return;
       }
     }
@@ -474,13 +534,19 @@ const findFrontmostActiveEnemy = (runtime: DefenseRuntime): DefenseEnemy | null 
   return frontmost;
 };
 
-const applySlashHit = (runtime: DefenseRuntime, target: DefenseEnemy, damage: number): void => {
+const applySlashHit = (
+  runtime: DefenseRuntime,
+  target: DefenseEnemy,
+  damage: number,
+  difficulty?: DefenseDifficulty,
+): void => {
   applyEnemyDamage(
     runtime,
     target,
     damage,
     KNOCKBACK_IMPULSE,
     isPhraseMode(runtime),
+    difficulty,
   );
 
   runtime.slashAt = runtime.elapsedSec;
@@ -493,13 +559,14 @@ const applySlashHit = (runtime: DefenseRuntime, target: DefenseEnemy, damage: nu
 export const performDefenseSlash = (
   runtime: DefenseRuntime,
   guardPoseSec = 0,
+  difficulty?: DefenseDifficulty,
 ): boolean => {
-  if (runtime.result !== 'playing') return false;
+  if (runtime.result !== 'playing' || runtime.awaitingEndlessChoice) return false;
   const target = findFrontmostActiveEnemy(runtime);
   if (!target) return false;
 
   const damage = getDefenseSlashDamage(runtime.waveIndex, isWaveScaling(runtime));
-  applySlashHit(runtime, target, damage);
+  applySlashHit(runtime, target, damage, difficulty);
   if (guardPoseSec > 0) {
     runtime.guardPoseUntilSec = runtime.elapsedSec + guardPoseSec;
   }
@@ -514,7 +581,7 @@ const isTimedClearEnabled = (runtime: DefenseRuntime): boolean => {
 };
 
 const tickDefenseTimer = (runtime: DefenseRuntime, dt: number): void => {
-  if (runtime.result !== 'playing') return;
+  if (runtime.result !== 'playing' || runtime.awaitingEndlessChoice) return;
   runtime.elapsedSec += dt;
   if (isTimedClearEnabled(runtime) && runtime.elapsedSec >= runtime.surviveSeconds) {
     runtime.result = 'clear';
@@ -526,10 +593,11 @@ export const tickDefenseSimulation = (
   difficulty: DefenseDifficulty,
   dt: number,
 ): void => {
+  if (runtime.awaitingEndlessChoice) return;
   tickDefenseTimer(runtime, dt);
   spawnPendingFireball(runtime);
   spawnEnemyIfDue(runtime, difficulty, dt);
   updateDefenseEnemies(runtime, dt);
-  updateDefenseFireballs(runtime, dt);
+  updateDefenseFireballs(runtime, dt, difficulty);
   updateDefensePopups(runtime);
 };
