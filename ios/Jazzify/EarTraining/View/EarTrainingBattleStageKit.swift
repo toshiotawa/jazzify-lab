@@ -18,6 +18,9 @@ enum EarTrainingBattleStageKit {
 
     static let jazzBackdropEdgeColor = UIColor(red: 14 / 255, green: 7 / 255, blue: 5 / 255, alpha: 1)
 
+    static let avatarSpriteNodeName = "EarTrainingBattleAvatarSprite"
+    static let avatarRimNodeName = "EarTrainingBattleAvatarRim"
+
     static func battleLayoutPt(_ base: CGFloat) -> CGFloat {
         base * battleCharacterVisualScale
     }
@@ -93,6 +96,7 @@ enum EarTrainingBattleStageKit {
             rim.alpha = SpotlightLayout.rimAlpha
             rim.blendMode = .add
             rim.zPosition = -1
+            rim.name = avatarRimNodeName
             container.addChild(rim)
 
             let sprite = SKSpriteNode(texture: texture)
@@ -100,6 +104,7 @@ enum EarTrainingBattleStageKit {
             sprite.size = CGSize(width: characterDisplaySize, height: characterDisplaySize)
             sprite.xScale = flipX ? -1 : 1
             sprite.zPosition = 0
+            sprite.name = avatarSpriteNodeName
             container.addChild(sprite)
         } else {
             let fallback = SKLabelNode(text: isPlayer ? "P" : "E")

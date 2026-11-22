@@ -158,3 +158,64 @@ enum CodeRunRankCalculator {
         thresholds.first(where: { $0.rank == rank })?.sortOrder ?? 99
     }
 }
+
+enum PlayMapDefenseStageResolve {
+    static let callResponseMinMarketingVersion = "1.5.2"
+
+    static func appSupportsCallResponsePlayMapStages(marketingVersion: String) -> Bool {
+        marketingVersionCompare(marketingVersion, isAtLeast: callResponseMinMarketingVersion)
+    }
+
+    static func resolvedDefenseStageId(
+        legacyStageId: String?,
+        callResponseStageId: String?,
+        marketingVersion: String
+    ) -> String? {
+        guard appSupportsCallResponsePlayMapStages(marketingVersion: marketingVersion) else {
+            return legacyStageId
+        }
+        guard let trimmed = callResponseStageId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return legacyStageId
+        }
+        return trimmed
+    }
+
+    static func resolvedDifficultyLevel(
+        legacyLevel: Int?,
+        callResponseLevel: Int?,
+        marketingVersion: String
+    ) -> Int? {
+        guard appSupportsCallResponsePlayMapStages(marketingVersion: marketingVersion) else {
+            return legacyLevel
+        }
+        guard let callResponseLevel, (1...15).contains(callResponseLevel) else {
+            return legacyLevel
+        }
+        return callResponseLevel
+    }
+
+    /// `CFBundleShortVersionString` 形式（例: 1.5.2）をセグメントごとに数値比較する。
+    static func marketingVersionCompare(_ lhs: String, isAtLeast rhs: String) -> Bool {
+        let left = parseVersionSegments(lhs)
+        let right = parseVersionSegments(rhs)
+        let count = max(left.count, right.count)
+        for index in 0..<count {
+            let l = index < left.count ? left[index] : 0
+            let r = index < right.count ? right[index] : 0
+            if l > r { return true }
+            if l < r { return false }
+        }
+        return true
+    }
+
+    private static func parseVersionSegments(_ version: String) -> [Int] {
+        version
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ".")
+            .map { segment in
+                let digits = segment.prefix { $0.isNumber }
+                return Int(digits) ?? 0
+            }
+    }
+}

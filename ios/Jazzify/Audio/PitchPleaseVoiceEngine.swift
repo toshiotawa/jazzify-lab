@@ -112,25 +112,62 @@ final class PitchPleaseVoiceEngine: NSObject {
         return isVoicePipelineReady
     }
 
+    nonisolated static func shouldReuseWarmKernel(
+        keepKernelWarm: Bool,
+        hasWebView: Bool,
+        isKernelReady: Bool,
+        hasAssetServerPort: Bool,
+        isSampleSocketConnected: Bool,
+        mountedSessionGeneration: UInt64,
+        currentSessionGeneration: UInt64
+    ) -> Bool {
+        keepKernelWarm
+            && hasWebView
+            && isKernelReady
+            && hasAssetServerPort
+            && isSampleSocketConnected
+            && mountedSessionGeneration != 0
+            && mountedSessionGeneration == currentSessionGeneration
+    }
+
+    nonisolated static func shouldAcceptScriptMessage(
+        messageGeneration: UInt64,
+        currentSessionGeneration: UInt64,
+        mountedSessionGeneration: UInt64
+    ) -> Bool {
+        messageGeneration != 0
+            && messageGeneration == currentSessionGeneration
+            && messageGeneration == mountedSessionGeneration
+    }
+
     private func beginStartSession(channel: Int) async {
-        let canReuseKernel = keepKernelWarm
-            && webView != nil
-            && configuredInputChannel == channel
-            && assetServer.currentPort() != nil
+        let canReuseKernel = Self.shouldReuseWarmKernel(
+            keepKernelWarm: keepKernelWarm,
+            hasWebView: webView != nil,
+            isKernelReady: isKernelReady,
+            hasAssetServerPort: assetServer.currentPort() != nil,
+            isSampleSocketConnected: sampleSocket.isClientConnected,
+            mountedSessionGeneration: mountedSessionGeneration,
+            currentSessionGeneration: sessionGeneration
+        )
 
         if canReuseKernel {
             configuredInputChannel = channel
-            sessionGeneration &+= 1
-            let generation = sessionGeneration
-            captureGeneration = generation
+            captureGeneration &+= 1
+            let sessionGen = sessionGeneration
+            let captureGen = captureGeneration
             isNativeCaptureReady = false
             lastError = nil
             do {
-                try await startNativeCapture(channel: channel, generation: generation)
-                if isKernelReady {
+                try await startNativeCapture(
+                    channel: channel,
+                    sessionGeneration: sessionGen,
+                    captureGeneration: captureGen
+                )
+                if isKernelReady, isNativeCaptureReady {
                     isActive = true
+                    return
                 }
-                return
             } catch {
                 lastError = error.localizedDescription
             }
@@ -145,11 +182,12 @@ final class PitchPleaseVoiceEngine: NSObject {
         sessionGeneration &+= 1
         let generation = sessionGeneration
         configuredInputChannel = channel
-        captureGeneration = generation
+        captureGeneration &+= 1
+        let captureGen = captureGeneration
         isKernelReady = false
         isNativeCaptureReady = false
 
-        await launchSession(channel: channel, generation: generation)
+        await launchSession(channel: channel, generation: generation, captureGeneration: captureGen)
     }
 
     private func beginStopSession(immediateSessionRelease: Bool = false) async {
@@ -196,7 +234,7 @@ final class PitchPleaseVoiceEngine: NSObject {
         await sampleSocket.stop()
     }
 
-    private func launchSession(channel: Int, generation: UInt64) async {
+    private func launchSession(channel: Int, generation: UInt64, captureGeneration captureGen: UInt64) async {
         guard generation == sessionGeneration else { return }
         guard let documentRoot = PitchPleaseAssetServer.bundlePitchPleaseDirectory() else {
             lastError = "PitchPlease のページがアプリに含まれていません"
@@ -204,23 +242,28 @@ final class PitchPleaseVoiceEngine: NSObject {
         }
 
         do {
-            let httpPort = try await assetServer.start(documentRoot: documentRoot)
+            async let httpPortTask = assetServer.start(documentRoot: documentRoot)
+            async let socketTask = sampleSocket.start()
+            let httpPort = try await httpPortTask
             guard generation == sessionGeneration else { return }
-            let socketInfo = try await sampleSocket.start()
+            let socketInfo = try await socketTask
             guard generation == sessionGeneration else {
                 await sampleSocket.stop()
                 return
             }
 
-            try await startNativeCapture(channel: channel, generation: generation)
-
-            guard generation == sessionGeneration else { return }
             mountWebView(
                 channel: channel,
                 httpPort: httpPort,
                 wsPort: socketInfo.port,
                 token: socketInfo.token,
                 generation: generation
+            )
+
+            try await startNativeCapture(
+                channel: channel,
+                sessionGeneration: generation,
+                captureGeneration: captureGen
             )
         } catch {
             guard generation == sessionGeneration else { return }
@@ -230,18 +273,25 @@ final class PitchPleaseVoiceEngine: NSObject {
         }
     }
 
-    private func startNativeCapture(channel: Int, generation: UInt64) async throws {
-        guard generation == sessionGeneration else { return }
+    private func startNativeCapture(
+        channel: Int,
+        sessionGeneration sessionGen: UInt64,
+        captureGeneration captureGen: UInt64
+    ) async throws {
+        guard sessionGen == sessionGeneration, captureGen == captureGeneration else { return }
         let socket = sampleSocket
-        let captureGen = generation
 
         do {
             try await PitchInputEngine.shared.startForwardingCapturedChunks(inputChannel: channel) { samples, count in
                 socket.send(samples: samples, count: count)
             }
-            guard captureGeneration == captureGen, generation == sessionGeneration else {
+            guard captureGen == captureGeneration, sessionGen == sessionGeneration else {
                 PitchInputEngine.shared.stop()
                 return
+            }
+            guard PitchInputEngine.shared.isActive else {
+                isNativeCaptureReady = false
+                throw PitchInputEngineError.inputUnavailable
             }
             isNativeCaptureReady = true
             if isKernelReady {
@@ -284,14 +334,17 @@ final class PitchPleaseVoiceEngine: NSObject {
         let host = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
         host.isUserInteractionEnabled = false
         host.backgroundColor = .clear
+        host.alpha = 0.01
+        host.isHidden = false
         host.addSubview(webView)
 
-        if let window = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
-            .first(where: \.isKeyWindow) {
-            window.addSubview(host)
-        }
+        let window = windows.first(where: \.isKeyWindow)
+            ?? windows.first(where: { $0.windowLevel == .normal && !$0.isHidden })
+            ?? windows.first
+        window?.addSubview(host)
 
         self.webView = webView
         self.hostView = host
@@ -308,7 +361,11 @@ final class PitchPleaseVoiceEngine: NSObject {
     }
 
     fileprivate func handleScriptMessage(_ body: [String: Any], sessionGeneration generation: UInt64) {
-        guard generation == sessionGeneration, generation == mountedSessionGeneration else { return }
+        guard Self.shouldAcceptScriptMessage(
+            messageGeneration: generation,
+            currentSessionGeneration: sessionGeneration,
+            mountedSessionGeneration: mountedSessionGeneration
+        ) else { return }
         guard let kind = body["kind"] as? String else { return }
         switch kind {
         case "ready":

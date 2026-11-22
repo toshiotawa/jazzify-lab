@@ -45,3 +45,10 @@ enum DefenseTutorialConstants {
         return audioUrl(forRootConcertMidi: concertMidis[0])
     }
 }
+
+enum DefenseTutorialWrittenOctave: Int, Sendable {
+    case three = 3
+    case four = 4
+    case five = 5
+    case six = 6
+}

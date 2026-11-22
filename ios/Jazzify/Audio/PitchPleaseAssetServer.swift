@@ -8,12 +8,13 @@ final class PitchPleaseAssetServer: @unchecked Sendable {
         case listenerFailed(String)
     }
 
-  private let queue = DispatchQueue(label: "jazzify.pitchplease.asset-server", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "jazzify.pitchplease.asset-server", qos: .userInitiated)
     private let lock = NSLock()
     private var listener: NWListener?
     private var connections: [NWConnection] = []
     private var documentRoot: URL?
     private var port: UInt16?
+    private var responseCache: [String: Data] = [:]
 
     static func bundlePitchPleaseDirectory() -> URL? {
         Bundle.main.url(forResource: "pitchplease-voice", withExtension: "html", subdirectory: "pitchplease")?
@@ -38,14 +39,24 @@ final class PitchPleaseAssetServer: @unchecked Sendable {
             queue.async {
                 do {
                     let created = try NWListener(using: parameters)
+                    let resumeGuard = ListenerResumeGuard()
                     created.stateUpdateHandler = { state in
                         switch state {
                         case .ready:
-                            continuation.resume(returning: created)
+                            if resumeGuard.tryResumeSuccess() {
+                                created.stateUpdateHandler = nil
+                                continuation.resume(returning: created)
+                            }
                         case .failed(let error):
-                            continuation.resume(throwing: StartError.listenerFailed(error.localizedDescription))
+                            if resumeGuard.tryResumeFailure() {
+                                created.stateUpdateHandler = nil
+                                continuation.resume(throwing: StartError.listenerFailed(error.localizedDescription))
+                            }
                         case .cancelled:
-                            break
+                            if resumeGuard.tryResumeFailure() {
+                                created.stateUpdateHandler = nil
+                                continuation.resume(throwing: StartError.listenerFailed("cancelled"))
+                            }
                         default:
                             break
                         }
@@ -84,6 +95,7 @@ final class PitchPleaseAssetServer: @unchecked Sendable {
                 listener = nil
                 documentRoot = nil
                 port = nil
+                responseCache.removeAll(keepingCapacity: false)
                 lock.unlock()
 
                 for connection in active {
@@ -163,14 +175,47 @@ final class PitchPleaseAssetServer: @unchecked Sendable {
         }
 
         let rawPath = String(parts[1])
-        guard let fileURL = PitchPleaseHTTPStaticFile.resolvedFileURL(documentRoot: documentRoot, requestPath: rawPath),
-              let body = try? Data(contentsOf: fileURL) else {
+        guard let relative = PitchPleaseHTTPStaticFile.sanitizedRelativePath(fromRequestPath: rawPath) else {
             send(connection: connection, status: 404, body: Data(), mimeType: "text/plain")
             return
         }
 
-        let mimeType = PitchPleaseHTTPStaticFile.mimeType(for: fileURL)
-        send(connection: connection, status: 200, body: body, mimeType: mimeType)
+        let cacheKey = relative.isEmpty ? "/" : relative
+        var payload: Data?
+        lock.lock()
+        payload = responseCache[cacheKey]
+        lock.unlock()
+
+        if payload == nil,
+           let fileURL = PitchPleaseHTTPStaticFile.resolvedFileURL(documentRoot: documentRoot, requestPath: rawPath),
+           let body = try? Data(contentsOf: fileURL) {
+            let mimeType = PitchPleaseHTTPStaticFile.mimeType(for: fileURL)
+            let built = PitchPleaseHTTPStaticFile.makeHTTPResponse(status: 200, body: body, mimeType: mimeType)
+            lock.lock()
+            responseCache[cacheKey] = built
+            lock.unlock()
+            payload = built
+        }
+
+        guard let payload else {
+            send(connection: connection, status: 404, body: Data(), mimeType: "text/plain")
+            return
+        }
+
+        connection.send(
+            content: payload,
+            contentContext: .defaultMessage,
+            isComplete: true,
+            completion: .contentProcessed { [weak self] error in
+                guard let self else { return }
+                if error != nil {
+                    connection.cancel()
+                    self.remove(connection: connection)
+                    return
+                }
+                self.drainClientUntilClosed(connection: connection)
+            }
+        )
     }
 
     private func send(connection: NWConnection, status: Int, body: Data, mimeType: String) {

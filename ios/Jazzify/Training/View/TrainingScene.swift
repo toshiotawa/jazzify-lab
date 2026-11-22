@@ -94,14 +94,8 @@ final class TrainingScene: SKScene {
         playerNode = player
         lastPlayerPoseKey = DefensePlayerPose.idleAssetNames[0]
 
-        for child in player.children {
-            guard let sprite = child as? SKSpriteNode else { continue }
-            if sprite.blendMode == .add {
-                playerRimNode = sprite
-            } else {
-                playerSpriteNode = sprite
-            }
-        }
+        playerSpriteNode = player.childNode(withName: EarTrainingBattleStageKit.avatarSpriteNodeName) as? SKSpriteNode
+        playerRimNode = player.childNode(withName: EarTrainingBattleStageKit.avatarRimNodeName) as? SKSpriteNode
     }
 
     private func preloadTextures() {

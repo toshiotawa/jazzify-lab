@@ -35,14 +35,24 @@ final class PitchPleaseSampleSocket: @unchecked Sendable {
             queue.async {
                 do {
                     let created = try NWListener(using: parameters)
+                    let resumeGuard = ListenerResumeGuard()
                     created.stateUpdateHandler = { state in
                         switch state {
                         case .ready:
-                            continuation.resume(returning: created)
+                            if resumeGuard.tryResumeSuccess() {
+                                created.stateUpdateHandler = nil
+                                continuation.resume(returning: created)
+                            }
                         case .failed(let error):
-                            continuation.resume(throwing: StartError.listenerFailed(error.localizedDescription))
+                            if resumeGuard.tryResumeFailure() {
+                                created.stateUpdateHandler = nil
+                                continuation.resume(throwing: StartError.listenerFailed(error.localizedDescription))
+                            }
                         case .cancelled:
-                            break
+                            if resumeGuard.tryResumeFailure() {
+                                created.stateUpdateHandler = nil
+                                continuation.resume(throwing: StartError.listenerFailed("cancelled"))
+                            }
                         default:
                             break
                         }
@@ -90,6 +100,12 @@ final class PitchPleaseSampleSocket: @unchecked Sendable {
                 continuation.resume()
             }
         }
+    }
+
+    var isClientConnected: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return clientAuthenticated && connection != nil
     }
 
     /// 推論キューから呼ぶ。240 サンプル単位の Float32 バッファ。

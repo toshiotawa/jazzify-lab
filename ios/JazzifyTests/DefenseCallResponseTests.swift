@@ -1,3 +1,4 @@
+import SpriteKit
 import XCTest
 @testable import Jazzify
 
@@ -108,7 +109,7 @@ final class DefenseCallResponseTests: XCTestCase {
 
         let after = DefenseCallResponse.resolve(
             config: config,
-            elapsedFromPhraseStartSec: 6,
+            elapsedFromPhraseStartSec: 8,
             barSec: barSec,
             beatsPerBar: beatsPerBar,
             transitionWaitUntilElapsedSec: 6
@@ -233,6 +234,28 @@ final class DefenseCallResponseTests: XCTestCase {
         XCTAssertNil(stage.audioLoopBars)
         XCTAssertNil(stage.callResponseBars)
         XCTAssertNil(DefenseCallResponse.config(for: stage))
+    }
+
+    func testAvatarContainerNamedSpritesNotShadowedByCueNode() {
+        let player = EarTrainingBattleStageKit.makeAvatarContainer(
+            assetName: DefensePlayerPose.idleAssetNames[0],
+            position: .zero,
+            isPlayer: true
+        )
+        let cueNode = SKSpriteNode()
+        cueNode.zPosition = 7
+        player.addChild(cueNode)
+
+        let bodySprite = player.childNode(withName: EarTrainingBattleStageKit.avatarSpriteNodeName) as? SKSpriteNode
+        let rimSprite = player.childNode(withName: EarTrainingBattleStageKit.avatarRimNodeName) as? SKSpriteNode
+
+        XCTAssertNotNil(bodySprite)
+        XCTAssertNotNil(rimSprite)
+        XCTAssertTrue(bodySprite !== cueNode)
+        XCTAssertTrue(rimSprite !== cueNode)
+        XCTAssertTrue(bodySprite !== rimSprite)
+        XCTAssertEqual(rimSprite?.blendMode, .add)
+        XCTAssertNotEqual(bodySprite?.blendMode, .add)
     }
 }
 

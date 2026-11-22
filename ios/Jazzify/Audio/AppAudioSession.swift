@@ -33,6 +33,7 @@ final class AppAudioSession {
     private var captureObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
     private var mediaServicesResetObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
     private var hasStarted = false
     private var recordingEnabled = false
     /// この時刻まで routeChange 由来の自動再構成を抑制する（非同期配信の自己発火対策）。
@@ -214,6 +215,29 @@ final class AppAudioSession {
         ) { [weak self] _ in
             self?.scheduleReconfigure()
         }
+
+        interruptionObserver = center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleInterruption(notification)
+        }
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        guard type == .ended else { return }
+        guard let optionsValue = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt else {
+            scheduleReconfigure()
+            return
+        }
+        let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+        guard options.contains(.shouldResume) else { return }
+        scheduleReconfigure()
     }
 
     private func handleRouteChange(_ notification: Notification) {

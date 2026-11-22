@@ -213,4 +213,84 @@ final class DefenseDescentAccessTests: XCTestCase {
         XCTAssertEqual(PlayMapProgression.displayIcon(node: node), .info)
         XCTAssertEqual(PlayMapProgression.displayLabel(node: node, stageLabel: "1-1"), "")
     }
+
+    func testPlayMapCallResponseMarketingVersionCompare() {
+        XCTAssertTrue(PlayMapDefenseStageResolve.marketingVersionCompare("1.5.2", isAtLeast: "1.5.2"))
+        XCTAssertTrue(PlayMapDefenseStageResolve.marketingVersionCompare("1.5.3", isAtLeast: "1.5.2"))
+        XCTAssertTrue(PlayMapDefenseStageResolve.marketingVersionCompare("2.0.0", isAtLeast: "1.5.2"))
+        XCTAssertTrue(PlayMapDefenseStageResolve.marketingVersionCompare("1.5.2-beta", isAtLeast: "1.5.2"))
+        XCTAssertFalse(PlayMapDefenseStageResolve.marketingVersionCompare("1.5.1", isAtLeast: "1.5.2"))
+        XCTAssertFalse(PlayMapDefenseStageResolve.marketingVersionCompare("1.4.9", isAtLeast: "1.5.2"))
+        XCTAssertFalse(PlayMapDefenseStageResolve.marketingVersionCompare("", isAtLeast: "1.5.2"))
+    }
+
+    func testPlayMapCallResponseStageIdVersionGate() {
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDefenseStageId(
+                legacyStageId: "legacy",
+                callResponseStageId: "cr",
+                marketingVersion: "1.5.1"
+            ),
+            "legacy"
+        )
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDefenseStageId(
+                legacyStageId: "legacy",
+                callResponseStageId: "cr",
+                marketingVersion: "1.5.2"
+            ),
+            "cr"
+        )
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDefenseStageId(
+                legacyStageId: "legacy",
+                callResponseStageId: nil,
+                marketingVersion: "1.5.2"
+            ),
+            "legacy"
+        )
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDefenseStageId(
+                legacyStageId: "legacy",
+                callResponseStageId: "   ",
+                marketingVersion: "1.5.2"
+            ),
+            "legacy"
+        )
+    }
+
+    func testPlayMapCallResponseDifficultyLevelVersionGate() {
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDifficultyLevel(
+                legacyLevel: 7,
+                callResponseLevel: 5,
+                marketingVersion: "1.5.1"
+            ),
+            7
+        )
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDifficultyLevel(
+                legacyLevel: 7,
+                callResponseLevel: 5,
+                marketingVersion: "1.5.2"
+            ),
+            5
+        )
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDifficultyLevel(
+                legacyLevel: 7,
+                callResponseLevel: 99,
+                marketingVersion: "1.5.2"
+            ),
+            7
+        )
+        XCTAssertEqual(
+            PlayMapDefenseStageResolve.resolvedDifficultyLevel(
+                legacyLevel: 7,
+                callResponseLevel: nil,
+                marketingVersion: "1.5.2"
+            ),
+            7
+        )
+    }
 }

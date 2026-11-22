@@ -80,8 +80,6 @@ final class DefenseGameSession: ObservableObject {
     private var startGeneration: UInt64 = 0
     private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
     private var countdownTask: Task<Void, Never>?
-    private var startAudioResult: Bool?
-    private var startAudioWaiters: [CheckedContinuation<Bool, Never>] = []
     private var lastVoiceAcceptedAtMs: Double?
     private let midiSubscriptionHolder = MIDISubscriptionHolder()
     init(
@@ -161,51 +159,26 @@ final class DefenseGameSession: ObservableObject {
         let generation = startGeneration
         countdownTask?.cancel()
         countdownTask = nil
-        finishStartAudioWaiters(false)
-        startAudioResult = nil
         phase = .loading
         progressionActiveIndex = -1
         countdownSec = DefenseStartCountdown.displaySec(remaining: DefenseStartCountdown.durationSec)
         subscribeMidi()
-        if NoteInputPreferences.inputMethod == .voice {
-            _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
-        }
-        guard generation == startGeneration, !Task.isCancelled else { return }
-
         SurvivalGameAudio.shared.start(playBackgroundMusic: false)
         let speedRatio = DefensePracticeSpeed.ratio(practiceSpeedPercent)
+        async let voiceReady: Bool = NoteInputPreferences.inputMethod == .voice
+            ? NoteInputManager.shared.waitUntilVoiceInputReady()
+            : true
         async let audioReady: Bool = prepareStartAudio(speedRatio: speedRatio)
-        startCountdown(generation: generation)
-        let prepared = await audioReady
+        _ = await voiceReady
         guard generation == startGeneration, !Task.isCancelled else { return }
-        finishStartAudioWaiters(prepared)
-        if !prepared {
-            countdownTask?.cancel()
-            countdownTask = nil
+        let audioOk = await audioReady
+        guard generation == startGeneration, !Task.isCancelled else { return }
+        guard audioOk else {
             phase = .loadError
             PlayLaunchTiming.end("DefensePlay")
+            return
         }
-        return
-    }
-
-    private func finishStartAudioWaiters(_ ready: Bool) {
-        startAudioResult = ready
-        let waiters = startAudioWaiters
-        startAudioWaiters.removeAll(keepingCapacity: false)
-        waiters.forEach { $0.resume(returning: ready) }
-    }
-
-    private func waitForStartAudio() async -> Bool {
-        if let startAudioResult {
-            return startAudioResult
-        }
-        return await withCheckedContinuation { continuation in
-            if let startAudioResult {
-                continuation.resume(returning: startAudioResult)
-                return
-            }
-            startAudioWaiters.append(continuation)
-        }
+        startCountdown(generation: generation)
     }
 
     private func prepareStartAudio(speedRatio: Double) async -> Bool {
@@ -288,19 +261,6 @@ final class DefenseGameSession: ObservableObject {
                     break
                 }
                 self.countdownSec = DefenseStartCountdown.displaySec(remaining: remaining)
-            }
-            if self.startAudioResult == nil {
-                self.phase = .loading
-            }
-            let audioReady = await self.waitForStartAudio()
-            guard generation == self.startGeneration, !Task.isCancelled else { return }
-            guard audioReady else {
-                self.phase = .loadError
-                PlayLaunchTiming.end("DefensePlay")
-                return
-            }
-            if NoteInputPreferences.inputMethod == .voice {
-                _ = await NoteInputManager.shared.waitUntilVoiceInputReady()
             }
             guard generation == self.startGeneration, !Task.isCancelled else { return }
             await self.beginPlay(generation: generation)
@@ -473,7 +433,6 @@ final class DefenseGameSession: ObservableObject {
         startGeneration += 1
         countdownTask?.cancel()
         countdownTask = nil
-        finishStartAudioWaiters(false)
         resumePauseWaiters()
         midiSubscriptionHolder.cancel()
         midiHeldKeys.removeAll()

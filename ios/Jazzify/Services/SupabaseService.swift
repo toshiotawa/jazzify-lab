@@ -750,11 +750,13 @@ final class SupabaseService: Sendable {
             let survival_map_category: String?
             let survival_stage_number: Int?
             let defense_stage_id: String?
+            let call_response_defense_stage_id: String?
             let lesson_id: UUID?
             let title: String
             let title_en: String
             let required_rank: String
             let difficulty_level: Int?
+            let call_response_difficulty_level: Int?
             let play_map_blocks: BlockModeRow
 
             struct BlockModeRow: Decodable {
@@ -767,8 +769,8 @@ final class SupabaseService: Sendable {
             .select("""
                 id, block_id, sort_order, node_kind, tutorial_key,
                 survival_map_category, survival_stage_number,
-                defense_stage_id, lesson_id,
-                title, title_en, required_rank, difficulty_level,
+                defense_stage_id, call_response_defense_stage_id, lesson_id,
+                title, title_en, required_rank, difficulty_level, call_response_difficulty_level,
                 play_map_blocks!inner(mode)
             """)
             .eq("play_map_blocks.mode", value: mode.rawValue)
@@ -777,10 +779,22 @@ final class SupabaseService: Sendable {
             .execute()
             .value
 
-        return rows.compactMap { row in
+        let marketingVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+
+        return rows.compactMap { row -> PlayMapNode? in
             guard let nodeKind = PlayMapNodeKind(rawValue: row.node_kind) else {
                 return nil
             }
+            let defenseStageId = PlayMapDefenseStageResolve.resolvedDefenseStageId(
+                legacyStageId: row.defense_stage_id,
+                callResponseStageId: row.call_response_defense_stage_id,
+                marketingVersion: marketingVersion
+            )
+            let difficultyLevel = PlayMapDefenseStageResolve.resolvedDifficultyLevel(
+                legacyLevel: row.difficulty_level,
+                callResponseLevel: row.call_response_difficulty_level,
+                marketingVersion: marketingVersion
+            )
             return PlayMapNode(
                 id: row.id,
                 blockId: row.block_id,
@@ -788,12 +802,12 @@ final class SupabaseService: Sendable {
                 nodeKind: nodeKind,
                 survivalMapCategory: row.survival_map_category,
                 survivalStageNumber: row.survival_stage_number,
-                defenseStageId: row.defense_stage_id,
+                defenseStageId: defenseStageId,
                 lessonId: row.lesson_id,
                 title: row.title,
                 titleEn: row.title_en,
                 requiredRank: CodeRunLetterRank(rawValue: row.required_rank) ?? .C,
-                difficultyLevel: row.difficulty_level,
+                difficultyLevel: difficultyLevel,
                 tutorialKey: row.tutorial_key
             )
         }

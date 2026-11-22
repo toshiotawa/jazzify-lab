@@ -219,6 +219,7 @@
 		63492CE24546DCBB8AA1A513 /* EnharmonicDisplayToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A67DE1041F363129582DF7C4 /* EnharmonicDisplayToggle.swift */; };
 		64752CF5E1B36DF6E2B2171F /* AudioRouteHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86AF694D9264BF8DF2E9FC15 /* AudioRouteHelper.swift */; };
 		B60718293A4B5C6D7E8F902 /* VoiceSpeakerBleedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60718293A4B5C6D7E8F901 /* VoiceSpeakerBleedControl.swift */; };
+		F1A2B3C4D5E60718293A4B0A /* NWListenerResumeGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E60718293A4B09 /* NWListenerResumeGuard.swift */; };
 		B60718293A4B5C6D7E8F904 /* VoiceSpeakerBleedControlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60718293A4B5C6D7E8F903 /* VoiceSpeakerBleedControlTests.swift */; };
 		64C7D5F1D985886668C91974 /* EarTrainingChordOsmdTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492634E033E8A7C802CB39A6 /* EarTrainingChordOsmdTiming.swift */; };
 		66442C9DA7212B13C6213C98 /* EarTrainingChordQuizDamageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6500CADC2EFF5D476D9C8A22 /* EarTrainingChordQuizDamageTests.swift */; };
@@ -780,6 +781,7 @@
 		851944FC2BEA72DA1A9D8F99 /* DefenseSharedProgressionTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefenseSharedProgressionTransport.swift; sourceTree = "<group>"; };
 		86AF694D9264BF8DF2E9FC15 /* AudioRouteHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRouteHelper.swift; sourceTree = "<group>"; };
 		B60718293A4B5C6D7E8F901 /* VoiceSpeakerBleedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSpeakerBleedControl.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E60718293A4B09 /* NWListenerResumeGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NWListenerResumeGuard.swift; sourceTree = "<group>"; };
 		B60718293A4B5C6D7E8F903 /* VoiceSpeakerBleedControlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSpeakerBleedControlTests.swift; sourceTree = "<group>"; };
 		86B19C7BDC14CCB6328F106D /* EarTrainingChordVoicingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingChordVoicingGameView.swift; sourceTree = "<group>"; };
 		8761ED966B44CC4D71AF1614 /* DrumLoop.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = DrumLoop.mp3; sourceTree = "<group>"; };
@@ -1644,6 +1646,7 @@
 				6C0597F2577B5F44C0665E74 /* AppAudioSession.swift */,
 				86AF694D9264BF8DF2E9FC15 /* AudioRouteHelper.swift */,
 				B60718293A4B5C6D7E8F901 /* VoiceSpeakerBleedControl.swift */,
+				F1A2B3C4D5E60718293A4B09 /* NWListenerResumeGuard.swift */,
 				C3A91E7B4D2F6801A5E9B4C7 /* ExpectedPitchCandidates.swift */,
 				A7C4E91B2D8F4061B3E5A9C0 /* MusicXmlPartCount.swift */,
 				B2C3D4E5F60718293A4B5C6D /* PitchAttackEnvelope.swift */,
@@ -2348,6 +2351,7 @@
 				7598ED846B4DF9CA25491496 /* AssignmentInputSnapshot.swift in Sources */,
 				64752CF5E1B36DF6E2B2171F /* AudioRouteHelper.swift in Sources */,
 				B60718293A4B5C6D7E8F902 /* VoiceSpeakerBleedControl.swift in Sources */,
+				F1A2B3C4D5E60718293A4B0A /* NWListenerResumeGuard.swift in Sources */,
 				FDA113D0CB1FB6F0600676CE /* BalloonRushGameLoop.swift in Sources */,
 				1E714EDEA2479FCF52815332 /* BalloonRushGameSession.swift in Sources */,
 				371DDEA0D249F4F3675F86D8 /* BalloonRushGameView.swift in Sources */,

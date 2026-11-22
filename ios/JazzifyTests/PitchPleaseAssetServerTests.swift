@@ -57,6 +57,26 @@ final class PitchPleaseAssetServerTests: XCTestCase {
         XCTAssertNil(PitchPleaseHTTPStaticFile.resolvedFileURL(documentRoot: root, requestPath: "/../worklet.js"))
     }
 
+    func testHTTPServerServesCachedPayloadTwice() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pitchplease-cache-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let file = root.appendingPathComponent("cached.js")
+        let payload = Data(String(repeating: "x", count: 4_096).utf8)
+        try payload.write(to: file)
+
+        let server = PitchPleaseAssetServer()
+        let port = try await server.start(documentRoot: root)
+        defer { Task { await server.stop() } }
+
+        let url = URL(string: "http://127.0.0.1:\(port)/cached.js")!
+        let first = try await URLSession.shared.data(from: url)
+        let second = try await URLSession.shared.data(from: url)
+        XCTAssertEqual(first.0, payload)
+        XCTAssertEqual(second.0, payload)
+    }
+
     func testHTTPServerServesFile() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("pitchplease-http-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -106,5 +126,76 @@ final class PitchPleaseAssetServerTests: XCTestCase {
         let http = try XCTUnwrap(response as? HTTPURLResponse)
         XCTAssertEqual(http.statusCode, 200)
         XCTAssertEqual(data, payload)
+    }
+
+    func testWarmKernelReuseRequiresMatchingGenerationAndLiveSocket() {
+        XCTAssertTrue(
+            PitchPleaseVoiceEngine.shouldReuseWarmKernel(
+                keepKernelWarm: true,
+                hasWebView: true,
+                isKernelReady: true,
+                hasAssetServerPort: true,
+                isSampleSocketConnected: true,
+                mountedSessionGeneration: 3,
+                currentSessionGeneration: 3
+            )
+        )
+        XCTAssertFalse(
+            PitchPleaseVoiceEngine.shouldReuseWarmKernel(
+                keepKernelWarm: true,
+                hasWebView: true,
+                isKernelReady: true,
+                hasAssetServerPort: true,
+                isSampleSocketConnected: false,
+                mountedSessionGeneration: 3,
+                currentSessionGeneration: 3
+            )
+        )
+        XCTAssertFalse(
+            PitchPleaseVoiceEngine.shouldReuseWarmKernel(
+                keepKernelWarm: true,
+                hasWebView: true,
+                isKernelReady: true,
+                hasAssetServerPort: true,
+                isSampleSocketConnected: true,
+                mountedSessionGeneration: 2,
+                currentSessionGeneration: 3
+            )
+        )
+        XCTAssertFalse(
+            PitchPleaseVoiceEngine.shouldReuseWarmKernel(
+                keepKernelWarm: true,
+                hasWebView: true,
+                isKernelReady: true,
+                hasAssetServerPort: true,
+                isSampleSocketConnected: true,
+                mountedSessionGeneration: 0,
+                currentSessionGeneration: 0
+            )
+        )
+    }
+
+    func testScriptMessageAcceptedOnlyWhenGenerationsMatch() {
+        XCTAssertTrue(
+            PitchPleaseVoiceEngine.shouldAcceptScriptMessage(
+                messageGeneration: 3,
+                currentSessionGeneration: 3,
+                mountedSessionGeneration: 3
+            )
+        )
+        XCTAssertFalse(
+            PitchPleaseVoiceEngine.shouldAcceptScriptMessage(
+                messageGeneration: 3,
+                currentSessionGeneration: 4,
+                mountedSessionGeneration: 3
+            )
+        )
+        XCTAssertFalse(
+            PitchPleaseVoiceEngine.shouldAcceptScriptMessage(
+                messageGeneration: 0,
+                currentSessionGeneration: 0,
+                mountedSessionGeneration: 0
+            )
+        )
     }
 }

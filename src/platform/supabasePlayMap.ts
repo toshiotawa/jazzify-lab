@@ -1,3 +1,8 @@
+import {
+  resolvePlayMapDefenseDifficultyLevelFromCallResponse,
+  resolvePlayMapDefenseStageId,
+  webUsesCallResponsePlayMapDefense,
+} from '@/game/defense/playMapDefenseStageResolve';
 import { getSupabaseClient, fetchWithCache, getCurrentUserIdCached } from '@/platform/supabaseClient';
 import type { CodeRunLetterRank } from '@/utils/codeRunRank';
 
@@ -79,8 +84,8 @@ export async function fetchPlayMapNodes(mode: PlayMapMode): Promise<PlayMapNode[
       .select(`
         id, block_id, sort_order, node_kind, tutorial_key,
         survival_map_category, survival_stage_number,
-        defense_stage_id, lesson_id,
-        title, title_en, required_rank, difficulty_level,
+        defense_stage_id, call_response_defense_stage_id, lesson_id,
+        title, title_en, required_rank, difficulty_level, call_response_difficulty_level,
         play_map_blocks!inner(mode)
       `)
       .eq('play_map_blocks.mode', mode)
@@ -89,21 +94,37 @@ export async function fetchPlayMapNodes(mode: PlayMapMode): Promise<PlayMapNode[
     10 * 60 * 1000,
   );
   if (error) throw error;
-  return (data ?? []).map((row) => ({
-    id: row.id as string,
-    blockId: row.block_id as string,
-    sortOrder: Number(row.sort_order) || 0,
-    nodeKind: row.node_kind as PlayMapNodeKind,
-    tutorialKey: (row.tutorial_key as string | null) ?? null,
-    survivalMapCategory: (row.survival_map_category as string | null) ?? null,
-    survivalStageNumber: row.survival_stage_number != null ? Number(row.survival_stage_number) : null,
-    defenseStageId: (row.defense_stage_id as string | null) ?? null,
-    lessonId: (row.lesson_id as string | null) ?? null,
-    title: row.title as string,
-    titleEn: (row.title_en as string) || (row.title as string),
-    requiredRank: (row.required_rank as CodeRunLetterRank) || 'C',
-    difficultyLevel: row.difficulty_level != null ? Number(row.difficulty_level) : null,
-  }));
+  return (data ?? []).map((row) => {
+    const legacyStageId = (row.defense_stage_id as string | null) ?? null;
+    const callResponseStageId = (row.call_response_defense_stage_id as string | null) ?? null;
+    const legacyDifficultyLevel = row.difficulty_level != null ? Number(row.difficulty_level) : null;
+    const callResponseDifficultyLevel = row.call_response_difficulty_level != null
+      ? Number(row.call_response_difficulty_level)
+      : null;
+    return {
+      id: row.id as string,
+      blockId: row.block_id as string,
+      sortOrder: Number(row.sort_order) || 0,
+      nodeKind: row.node_kind as PlayMapNodeKind,
+      tutorialKey: (row.tutorial_key as string | null) ?? null,
+      survivalMapCategory: (row.survival_map_category as string | null) ?? null,
+      survivalStageNumber: row.survival_stage_number != null ? Number(row.survival_stage_number) : null,
+      defenseStageId: resolvePlayMapDefenseStageId(
+        legacyStageId,
+        callResponseStageId,
+        webUsesCallResponsePlayMapDefense,
+      ),
+      lessonId: (row.lesson_id as string | null) ?? null,
+      title: row.title as string,
+      titleEn: (row.title_en as string) || (row.title as string),
+      requiredRank: (row.required_rank as CodeRunLetterRank) || 'C',
+      difficultyLevel: resolvePlayMapDefenseDifficultyLevelFromCallResponse(
+        legacyDifficultyLevel,
+        callResponseDifficultyLevel,
+        webUsesCallResponsePlayMapDefense,
+      ),
+    };
+  });
 }
 
 export async function fetchPlayMapNodeClears(mode: PlayMapMode): Promise<PlayMapNodeClear[]> {
