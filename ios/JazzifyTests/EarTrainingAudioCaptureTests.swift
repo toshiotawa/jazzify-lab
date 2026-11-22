@@ -86,6 +86,166 @@ final class EarTrainingAudioCaptureTests: XCTestCase {
         )
     }
 
+    func testResolveSampleRateStoppedEnginePrefersSessionOverStaleOutputNode() {
+        XCTAssertEqual(
+            AudioOutputFormatResolver.resolveSampleRate(
+                outputNodeSampleRate: 44_100,
+                sessionSampleRate: 48_000,
+                isEngineRunning: false
+            ),
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.resolveSampleRate(
+                outputNodeSampleRate: 48_000,
+                sessionSampleRate: 44_100,
+                isEngineRunning: false
+            ),
+            44_100,
+            accuracy: 0.001
+        )
+    }
+
+    func testResolveSampleRateStoppedEngineFallsBackToOutputNodeWhenSessionInvalid() {
+        XCTAssertEqual(
+            AudioOutputFormatResolver.resolveSampleRate(
+                outputNodeSampleRate: 44_100,
+                sessionSampleRate: 0,
+                isEngineRunning: false
+            ),
+            44_100,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.resolveSampleRate(
+                outputNodeSampleRate: 0,
+                sessionSampleRate: Double.nan,
+                isEngineRunning: false
+            ),
+            48_000,
+            accuracy: 0.001
+        )
+    }
+
+    func testResolveSampleRateRunningEnginePrefersOutputNodeOverSession() {
+        XCTAssertEqual(
+            AudioOutputFormatResolver.resolveSampleRate(
+                outputNodeSampleRate: 44_100,
+                sessionSampleRate: 48_000,
+                isEngineRunning: true
+            ),
+            44_100,
+            accuracy: 0.001
+        )
+    }
+
+    func testPreferredSessionSampleRateAllCombinations() {
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(recordingEnabled: false, isScreenCaptured: false),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(recordingEnabled: false, isScreenCaptured: true),
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(recordingEnabled: true, isScreenCaptured: false),
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(recordingEnabled: true, isScreenCaptured: true),
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(
+                recordingEnabled: false,
+                isScreenCaptured: true,
+                isBluetoothOutput: true
+            ),
+            0,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.preferredSessionSampleRate(
+                recordingEnabled: true,
+                isScreenCaptured: false,
+                isBluetoothOutput: true
+            ),
+            48_000,
+            accuracy: 0.001
+        )
+    }
+
+    func testPostStartMismatchedRateDetectsDivergenceAndIgnoresMatchOrInvalid() {
+        XCTAssertEqual(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 44_100
+            ) ?? 0,
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 44_100,
+                expectedSampleRate: 48_000
+            ) ?? 0,
+            44_100,
+            accuracy: 0.001
+        )
+        XCTAssertNil(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000.5
+            )
+        )
+        XCTAssertNil(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 0,
+                expectedSampleRate: 48_000
+            )
+        )
+        XCTAssertNil(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: Double.nan,
+                expectedSampleRate: 48_000
+            )
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000,
+                mainMixerOutputSampleRate: 44_100,
+                outputNodeInputSampleRate: 48_000
+            ) ?? 0,
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000,
+                mainMixerOutputSampleRate: 48_000,
+                outputNodeInputSampleRate: 44_100
+            ) ?? 0,
+            48_000,
+            accuracy: 0.001
+        )
+        XCTAssertNil(
+            AudioOutputFormatResolver.postStartMismatchedRate(
+                actualOutputSampleRate: 48_000,
+                expectedSampleRate: 48_000,
+                mainMixerOutputSampleRate: 48_000,
+                outputNodeInputSampleRate: 48_000
+            )
+        )
+    }
+
     func testSampleRatesMatchTolerance() {
         XCTAssertFalse(AudioOutputFormatResolver.sampleRatesMatch(44_100, 48_000))
         XCTAssertTrue(AudioOutputFormatResolver.sampleRatesMatch(48_000, 48_000.5))

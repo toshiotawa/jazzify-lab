@@ -667,6 +667,11 @@ final class PitchInputEngine: @unchecked Sendable {
         capturePipeline = pipeline
         isRunning = true
         activeTapSampleRate = connectFormat.sampleRate
+        AudioRateDiagnostics.logPitchInputStart(
+            inputNode: inputNode,
+            connectSampleRate: connectFormat.sampleRate
+        )
+        AppAudioSession.shared.notifyPlaybackEnginesAfterCaptureStart()
         VoiceSpeakerBleedCoordinator.shared.setEffectiveOutputLevel(
             EarTrainingBattleVolumePreferences.loadPhraseVolume()
         )
@@ -860,7 +865,11 @@ final class PitchInputEngine: @unchecked Sendable {
             forName: AppAudioSession.didReconfigureNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            if (notification.userInfo?[AppAudioSession.reconfigureSourceKey] as? String)
+                == AppAudioSession.captureEngineStartSource {
+                return
+            }
             Task { @MainActor in
                 self?.scheduleRestartIfRunning()
             }

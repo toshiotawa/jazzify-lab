@@ -62,22 +62,24 @@ final class EarTrainingAudio: NSObject {
     /// true のとき、フレーズアンカーより前に `onTimeUpdate` へ負のフレーズ秒を送る（OSMD カウントイン中の先行判定用）。
     var emitNegativePhraseTimelineBeforeAnchor: Bool = false
 
-    private let engine = AVAudioEngine()
-    private let phrasePlayer = AVAudioPlayerNode()
-    private let phraseInputMixer = AVAudioMixerNode()
-    private let phraseTimePitch = AVAudioUnitTimePitch()
-    private let clickPlayer = AVAudioPlayerNode()
-    private let phraseMixer = AVAudioMixerNode()
-    private let drumPlayer = AVAudioPlayerNode()
-    private let drumMixer = AVAudioMixerNode()
+    private var engine = AVAudioEngine()
+    private var phrasePlayer = AVAudioPlayerNode()
+    private var phraseInputMixer = AVAudioMixerNode()
+    private var phraseTimePitch = AVAudioUnitTimePitch()
+    private var clickPlayer = AVAudioPlayerNode()
+    private var phraseMixer = AVAudioMixerNode()
+    private var drumPlayer = AVAudioPlayerNode()
+    private var drumMixer = AVAudioMixerNode()
     /// 火炎魔法 SE（コードヴォイシング正解の火の玉 / Skill キャスト演出と同期）。
     /// SFX 音量スライダーに連動。
-    private let fireSePlayer = AVAudioPlayerNode()
-    private let fireSeMixer = AVAudioMixerNode()
+    private var fireSePlayer = AVAudioPlayerNode()
+    private var fireSeMixer = AVAudioMixerNode()
     /// フレーズ / ドラム / SE を合算してからリミッターへ送るマスターミキサー。
-    private let masterMixer = AVAudioMixerNode()
+    private var masterMixer = AVAudioMixerNode()
     /// 画面録画時のデジタルクリップ抑止用ピークリミッター（Apple AUPeakLimiter）。
-    private let limiter: AVAudioUnitEffect = {
+    private var limiter: AVAudioUnitEffect = EarTrainingAudio.makePeakLimiter()
+
+    private static func makePeakLimiter() -> AVAudioUnitEffect {
         let description = AudioComponentDescription(
             componentType: kAudioUnitType_Effect,
             componentSubType: kAudioUnitSubType_PeakLimiter,
@@ -86,7 +88,7 @@ final class EarTrainingAudio: NSObject {
             componentFlagsMask: 0
         )
         return AVAudioUnitEffect(audioComponentDescription: description)
-    }()
+    }
 
     /// フレーズ MP3 のピッチシフト（半音）。`AVAudioUnitTimePitch` に反映する。
     var phrasePitchSemitones: Float = 0 {
@@ -109,6 +111,10 @@ final class EarTrainingAudio: NSObject {
     private var timeTicker: DispatchSourceTimer?
 
     private var isGraphInstalled = false
+    private var isMutatingGraph = false
+    private var pendingConfigurationChange = false
+    private var pendingConfigurationWorkItem: DispatchWorkItem?
+    private var activeOutputFormat: AVAudioFormat?
     private var lastPhraseFormat: AVAudioFormat?
     private var lastPhraseInputFormat: AVAudioFormat?
     private var lastDrumFormat: AVAudioFormat?
@@ -208,6 +214,8 @@ final class EarTrainingAudio: NSObject {
         if let appAudioSessionObserver {
             NotificationCenter.default.removeObserver(appAudioSessionObserver)
         }
+        pendingConfigurationWorkItem?.cancel()
+        pendingConfigurationWorkItem = nil
         stopTimeTicker()
         if engine.isRunning {
             engine.stop()
@@ -239,6 +247,9 @@ final class EarTrainingAudio: NSObject {
     /// フレーズ／ドラム／SFX エンジンのみ停止。共有ピアノ（`SurvivalGameAudio`）は維持する。
     /// タイミング調整モードなど、親バトルの上に重ねた子セッションの tearDown 用。
     func stopPhraseEngine() {
+        pendingConfigurationWorkItem?.cancel()
+        pendingConfigurationWorkItem = nil
+        pendingConfigurationChange = false
         stopDrumLoop()
         stopPhrase()
         fireSePlayer.stop()
@@ -967,8 +978,47 @@ final class EarTrainingAudio: NSObject {
 
     private func installGraphIfNeeded() {
         guard !isGraphInstalled else { return }
+        rebuildEntireGraph(phraseInputFormat: nil, forcedSampleRate: nil, recreateEngine: false)
+    }
 
-        let outputFormat = currentOutputFormat()
+    /// 現行レートで全ノードを明示フォーマット接続する。
+    /// `recreateEngine == true` のときは `AVAudioEngine` と配下ノードをすべて新規生成して
+    /// スピーカー＋ReplayKit 切替時の旧レート残留を遮断する。
+    private func rebuildEntireGraph(
+        phraseInputFormat: AVAudioFormat? = nil,
+        forcedSampleRate: Double? = nil,
+        recreateEngine: Bool = true
+    ) {
+        if recreateEngine {
+            if engine.isRunning {
+                stopSharedPianoBeforePhraseEngineRebuild()
+                engine.stop()
+            }
+            phrasePlayer.stop()
+            clickPlayer.stop()
+            drumPlayer.stop()
+            fireSePlayer.stop()
+            engine.reset()
+
+            engine = AVAudioEngine()
+            phrasePlayer = AVAudioPlayerNode()
+            phraseInputMixer = AVAudioMixerNode()
+            phraseTimePitch = AVAudioUnitTimePitch()
+            clickPlayer = AVAudioPlayerNode()
+            phraseMixer = AVAudioMixerNode()
+            drumPlayer = AVAudioPlayerNode()
+            drumMixer = AVAudioMixerNode()
+            fireSePlayer = AVAudioPlayerNode()
+            fireSeMixer = AVAudioMixerNode()
+            masterMixer = AVAudioMixerNode()
+            limiter = Self.makePeakLimiter()
+            rebindEngineConfigObserver()
+        }
+
+        let targetRate = forcedSampleRate ?? AudioOutputFormatResolver.resolveSampleRate(engine: engine)
+        let outputFormat = AudioOutputFormatResolver.stereoFormat(sampleRate: targetRate)
+        let inputFormat = phraseInputFormat ?? outputFormat
+
         engine.attach(phrasePlayer)
         engine.attach(phraseInputMixer)
         engine.attach(phraseTimePitch)
@@ -980,21 +1030,24 @@ final class EarTrainingAudio: NSObject {
         engine.attach(fireSeMixer)
         engine.attach(masterMixer)
         engine.attach(limiter)
-        engine.connect(phrasePlayer, to: phraseInputMixer, format: outputFormat)
+
+        _ = engine.outputNode
+        engine.connect(phrasePlayer, to: phraseInputMixer, format: inputFormat)
         engine.connect(phraseInputMixer, to: phraseTimePitch, format: outputFormat)
         engine.connect(phraseTimePitch, to: phraseMixer, format: outputFormat)
         engine.connect(clickPlayer, to: phraseMixer, format: outputFormat)
-        engine.connect(phraseMixer, to: masterMixer, format: nil)
+        engine.connect(phraseMixer, to: masterMixer, format: outputFormat)
         engine.connect(drumPlayer, to: drumMixer, format: outputFormat)
-        engine.connect(drumMixer, to: masterMixer, format: nil)
+        engine.connect(drumMixer, to: masterMixer, format: outputFormat)
         engine.connect(fireSePlayer, to: fireSeMixer, format: outputFormat)
-        engine.connect(fireSeMixer, to: masterMixer, format: nil)
-        engine.connect(masterMixer, to: limiter, format: nil)
-        engine.connect(limiter, to: engine.mainMixerNode, format: nil)
+        engine.connect(fireSeMixer, to: masterMixer, format: outputFormat)
+        engine.connect(masterMixer, to: limiter, format: outputFormat)
+        engine.connect(limiter, to: engine.mainMixerNode, format: outputFormat)
         configurePeakLimiter(limiter)
 
+        activeOutputFormat = outputFormat
         lastPhraseFormat = outputFormat
-        lastPhraseInputFormat = outputFormat
+        lastPhraseInputFormat = inputFormat
         lastDrumFormat = outputFormat
         lastFireSeFormat = outputFormat
         rebuildClickBuffer(for: outputFormat)
@@ -1002,13 +1055,21 @@ final class EarTrainingAudio: NSObject {
         drumMixer.outputVolume = phraseVolume
         fireSeMixer.outputVolume = sfxVolume * Self.fireSeBaseGain
         applyMasterMixerVolume()
+        engine.mainMixerNode.outputVolume = 1.0
 
         isGraphInstalled = true
         applyPhraseTimeStretch()
+        reconvertCachedPCMSamplesToOutputFormatIfNeeded()
     }
 
     private func currentOutputFormat() -> AVAudioFormat {
-        AudioOutputFormatResolver.stereoFormat(engine: engine)
+        if let activeOutputFormat, engine.isRunning {
+            let actualRate = engine.outputNode.outputFormat(forBus: 0).sampleRate
+            if AudioOutputFormatResolver.sampleRatesMatch(actualRate, activeOutputFormat.sampleRate) {
+                return activeOutputFormat
+            }
+        }
+        return AudioOutputFormatResolver.stereoFormat(engine: engine)
     }
 
     /// 共有 AVAudioSession の現行サンプルレートへフレーズ系ノードを再接続する。
@@ -1017,6 +1078,18 @@ final class EarTrainingAudio: NSObject {
 
         let outputFormat = currentOutputFormat()
         let inputFormat = phraseInputFormat ?? outputFormat
+        if let active = activeOutputFormat,
+           !AudioOutputFormatResolver.sampleRatesMatch(active.sampleRate, outputFormat.sampleRate) {
+            let wasRunning = engine.isRunning
+            let prevMutating = isMutatingGraph
+            isMutatingGraph = true
+            defer { isMutatingGraph = prevMutating }
+            rebuildEntireGraph(phraseInputFormat: inputFormat, forcedSampleRate: outputFormat.sampleRate, recreateEngine: true)
+            if wasRunning || isPhraseEngineRunning {
+                startPhraseEngineIfNeeded(allowPostStartRetry: false)
+            }
+            return
+        }
         if lastPhraseFormat?.isEqual(outputFormat) == true,
            lastPhraseInputFormat?.isEqual(inputFormat) == true {
             phraseMixer.outputVolume = phraseVolume
@@ -1199,12 +1272,13 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
-    private func startPhraseEngineIfNeeded() {
+    private func startPhraseEngineIfNeeded(allowPostStartRetry: Bool = true) {
         guard !engine.isRunning else { return }
         guard AppAudioSession.shared.canStartAudioEngine else {
             needsEngineResumeOnActive = true
             return
         }
+        installGraphIfNeeded()
         do {
             engine.prepare()
             try engine.start()
@@ -1212,6 +1286,40 @@ final class EarTrainingAudio: NSObject {
             needsEngineResumeOnActive = false
             applyPhraseMixerVolumes()
             engine.mainMixerNode.outputVolume = 1.0
+
+            let expectedRate = activeOutputFormat?.sampleRate ?? currentOutputFormat().sampleRate
+            if allowPostStartRetry,
+               let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+                   engine: engine,
+                   expectedSampleRate: expectedRate
+               ) {
+                AudioRateDiagnostics.logEngineStart(
+                    tag: "EarTraining.start.mismatch",
+                    engine: engine,
+                    deckSampleRate: expectedRate,
+                    bufferSampleRate: lastPhraseInputFormat?.sampleRate,
+                    didRetry: false
+                )
+                let savedInputFormat = lastPhraseInputFormat
+                let prevMutating = isMutatingGraph
+                isMutatingGraph = true
+                rebuildEntireGraph(
+                    phraseInputFormat: savedInputFormat,
+                    forcedSampleRate: actualRate,
+                    recreateEngine: true
+                )
+                isMutatingGraph = prevMutating
+                startPhraseEngineIfNeeded(allowPostStartRetry: false)
+                return
+            }
+
+            AudioRateDiagnostics.logEngineStart(
+                tag: "EarTraining.start",
+                engine: engine,
+                deckSampleRate: expectedRate,
+                bufferSampleRate: lastPhraseInputFormat?.sampleRate,
+                didRetry: !allowPostStartRetry
+            )
         } catch {
             isPhraseEngineRunning = false
             if AppAudioSession.isCannotStartPlayingError(error) {
@@ -1222,13 +1330,7 @@ final class EarTrainingAudio: NSObject {
 
     private func registerLifecycleObservers() {
         let center = NotificationCenter.default
-        engineConfigObserver = center.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleEngineConfigurationChange()
-        }
+        rebindEngineConfigObserver()
         foregroundObserver = center.addObserver(
             forName: UIApplication.didBecomeActiveNotification,
             object: nil,
@@ -1241,19 +1343,64 @@ final class EarTrainingAudio: NSObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.reconfigureAfterScreenCaptureTransition()
+            self?.handleExternalReconfigureSignal()
         }
         appAudioSessionObserver = center.addObserver(
             forName: AppAudioSession.didReconfigureNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.reconfigureAfterScreenCaptureTransition()
+            self?.handleExternalReconfigureSignal()
         }
+    }
+
+    private func rebindEngineConfigObserver() {
+        let center = NotificationCenter.default
+        if let existing = engineConfigObserver {
+            center.removeObserver(existing)
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
+    private func handleExternalReconfigureSignal() {
+        if isMutatingGraph {
+            pendingConfigurationChange = true
+            return
+        }
+        reconfigureAfterScreenCaptureTransition()
+    }
+
+    private func schedulePendingConfigurationCheck() {
+        pendingConfigurationWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, !self.isMutatingGraph else { return }
+            let active = self.isPhraseEngineRunning || self.isDrumLoopActive || self.loopSessionActive
+            guard active else { return }
+            let expectedRate = self.activeOutputFormat?.sampleRate ?? self.currentOutputFormat().sampleRate
+            let mismatch = AudioOutputFormatResolver.postStartMismatchedRate(
+                engine: self.engine,
+                expectedSampleRate: expectedRate
+            ) != nil
+            if !self.engine.isRunning || mismatch {
+                self.reconfigureAfterScreenCaptureTransition()
+            }
+        }
+        pendingConfigurationWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
     }
 
     /// 画面録画 ON/OFF 後、SurvivalGameAudio の共有セッション再構成完了を受けてフレーズエンジンを clean restart する。
     private func reconfigureAfterScreenCaptureTransition() {
+        guard !isMutatingGraph else {
+            pendingConfigurationChange = true
+            return
+        }
         let wasPhraseActive = (phrasePlayer.isPlaying || phrasePlaybackAnchorHostTime != 0) && loadedPhraseURL != nil
         let resumeLoop = loopSessionActive
         let loopResumeTimelineSec = resumeLoop ? loopTimelineSecNowOrNil() : nil
@@ -1269,18 +1416,21 @@ final class EarTrainingAudio: NSObject {
             : nil
         let resumePhraseURL = loadedPhraseURL
 
-        if engine.isRunning {
-            stopSharedPianoBeforePhraseEngineRebuild()
-            engine.stop()
+        isMutatingGraph = true
+        pendingConfigurationChange = false
+        defer {
+            isMutatingGraph = false
+            if pendingConfigurationChange {
+                pendingConfigurationChange = false
+                schedulePendingConfigurationCheck()
+            }
         }
-        isPhraseEngineRunning = false
 
-        phrasePlayer.stop()
-        clickPlayer.stop()
+        isPhraseEngineRunning = false
         phrasePlaybackAnchorHostTime = 0
 
-        reconnectGraphAfterCaptureTransition()
-        startPhraseEngineIfNeeded()
+        rebuildEntireGraph(phraseInputFormat: nil, forcedSampleRate: nil, recreateEngine: true)
+        startPhraseEngineIfNeeded(allowPostStartRetry: true)
 
         if resumeDrum {
             startDrumLoop()
@@ -1299,12 +1449,13 @@ final class EarTrainingAudio: NSObject {
         }
     }
 
-    /// 画面キャプチャ遷移後に現行ハードウェアサンプルレートへグラフを再接続する。
-    private func reconnectGraphAfterCaptureTransition() {
-        ensurePhraseGraphConnected()
-        ensureDrumGraph(for: currentOutputFormat())
-        ensureFireSeGraph(for: currentOutputFormat())
-        reconvertCachedPCMSamplesToOutputFormatIfNeeded()
+    /// 出力グラフ形式へ PCM を変換する。既に一致していればそのまま返す。
+    private func pcmBufferForOutput(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+        let outputFormat = activeOutputFormat ?? currentOutputFormat()
+        if buffer.format.isEqual(outputFormat) {
+            return buffer
+        }
+        return Self.convertBuffer(buffer, to: outputFormat) ?? buffer
     }
 
     /// キャッシュ済み PCM を現行出力レートへ揃える（サンプルレート遷移後の再開用）。
@@ -1315,15 +1466,6 @@ final class EarTrainingAudio: NSObject {
         if let fire = fireSeSourcePCM {
             fireSePCM = pcmBufferForOutput(fire)
         }
-    }
-
-    /// 出力グラフ形式へ PCM を変換する。既に一致していればそのまま返す。
-    private func pcmBufferForOutput(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
-        let outputFormat = currentOutputFormat()
-        if buffer.format.isEqual(outputFormat) {
-            return buffer
-        }
-        return Self.convertBuffer(buffer, to: outputFormat) ?? buffer
     }
 
     /// 画面録画再構成後、同一タイムライン位置からフレーズを再開する。
@@ -1424,6 +1566,10 @@ final class EarTrainingAudio: NSObject {
     }
 
     private func handleEngineConfigurationChange() {
+        if isMutatingGraph {
+            pendingConfigurationChange = true
+            return
+        }
         reconfigureAfterScreenCaptureTransition()
     }
 

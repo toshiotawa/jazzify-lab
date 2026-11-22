@@ -10,13 +10,16 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private static let scheduleMinQuantumSec = 0.001
 
     private let cache = RemoteAudioFileCache(subdirectory: "defense-shared-progression")
-    private let engine = AVAudioEngine()
-    private let playerA = AVAudioPlayerNode()
-    private let playerB = AVAudioPlayerNode()
-    private let deckMixer = AVAudioMixerNode()
-    private let masterMixer = AVAudioMixerNode()
-    private let timePitch = AVAudioUnitTimePitch()
+    private var engine = AVAudioEngine()
+    private var playerA = AVAudioPlayerNode()
+    private var playerB = AVAudioPlayerNode()
+    private var deckMixer = AVAudioMixerNode()
+    private var masterMixer = AVAudioMixerNode()
+    private var timePitch = AVAudioUnitTimePitch()
     private var graphReady = false
+    private var isMutatingGraph = false
+    private var pendingConfigurationChange = false
+    private var pendingConfigurationWorkItem: DispatchWorkItem?
     private var activeIsA = true
     private var stage: DefenseStageDefinition?
     private var playbackRatio: Double = 1
@@ -259,6 +262,9 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             guard let self else { return }
             self.generation &+= 1
             self.cancelWake()
+            self.pendingConfigurationWorkItem?.cancel()
+            self.pendingConfigurationWorkItem = nil
+            self.pendingConfigurationChange = false
             self.stopPlayers(resetTransport: true)
             self.stage = nil
             self.needsEngineResumeOnActive = false
@@ -338,9 +344,15 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     private func playActivePhraseImmediate(
         at phraseIndex: Int,
         offsetSec: Double,
-        startAtHostSec: Double? = nil
+        startAtHostSec: Double? = nil,
+        forcedSampleRate: Double? = nil,
+        allowPostStartRetry: Bool = true
     ) {
-        ensureGraph()
+        if let forcedSampleRate {
+            ensureGraph(forceRebuild: true, forcedSampleRate: forcedSampleRate)
+        } else {
+            ensureGraph()
+        }
         if let format = deckFormat {
             rebuildBuffersIfNeeded(for: format)
         }
@@ -394,6 +406,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
                     needsEngineResumeOnActive = true
                     return
                 }
+                engine.prepare()
                 try engine.start()
             }
         } catch {
@@ -403,6 +416,37 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
             return
         }
         needsEngineResumeOnActive = false
+
+        if allowPostStartRetry,
+           let expectedRate = deckFormat?.sampleRate,
+           let actualRate = AudioOutputFormatResolver.postStartMismatchedRate(
+               engine: engine,
+               expectedSampleRate: expectedRate
+           ) {
+            AudioRateDiagnostics.logEngineStart(
+                tag: "DefenseSharedProgression.play.mismatch",
+                engine: engine,
+                deckSampleRate: expectedRate,
+                bufferSampleRate: buffer.format.sampleRate,
+                didRetry: false
+            )
+            playActivePhraseImmediate(
+                at: phraseIndex,
+                offsetSec: offsetSec,
+                startAtHostSec: startAtHostSec,
+                forcedSampleRate: actualRate,
+                allowPostStartRetry: false
+            )
+            return
+        }
+
+        AudioRateDiagnostics.logEngineStart(
+            tag: "DefenseSharedProgression.play",
+            engine: engine,
+            deckSampleRate: deckFormat?.sampleRate ?? 0,
+            bufferSampleRate: buffer.format.sampleRate,
+            didRetry: !allowPostStartRetry
+        )
 
         let now = Self.hostTimeSec()
         let start = max(now + Self.scheduleMinQuantumSec, startAtHostSec ?? (now + Self.startLeadSec))
@@ -531,45 +575,68 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         }
     }
 
-    private func ensureGraph(forceRebuild: Bool = false) {
+    private func ensureGraph(forceRebuild: Bool = false, forcedSampleRate: Double? = nil) {
         registerLifecycleObserversIfNeeded()
-        let resolved = AudioOutputFormatResolver.stereoFormat(engine: engine)
-        if graphReady, !forceRebuild, let deckFormat,
+        let resolved = forcedSampleRate.map { AudioOutputFormatResolver.stereoFormat(sampleRate: $0) }
+            ?? AudioOutputFormatResolver.stereoFormat(engine: engine)
+        if graphReady, !forceRebuild, forcedSampleRate == nil, let deckFormat,
            deckFormat.isEqual(resolved),
            AudioOutputFormatResolver.sampleRatesMatch(deckFormat.sampleRate, resolved.sampleRate) {
             return
         }
         let needsRebuild = !graphReady
             || forceRebuild
+            || forcedSampleRate != nil
             || deckFormat == nil
             || !AudioOutputFormatResolver.sampleRatesMatch(deckFormat?.sampleRate ?? 0, resolved.sampleRate)
         guard needsRebuild else { return }
 
-        if graphReady {
+        let ownsMutationGuard = !isMutatingGraph
+        if ownsMutationGuard {
+            isMutatingGraph = true
+        }
+        defer {
+            if ownsMutationGuard {
+                isMutatingGraph = false
+                if pendingConfigurationChange {
+                    pendingConfigurationChange = false
+                    schedulePendingConfigurationCheck()
+                }
+            }
+        }
+
+        if graphReady || forceRebuild || forcedSampleRate != nil {
+            playerA.stop()
+            playerB.stop()
             if engine.isRunning {
                 engine.stop()
             }
-            engine.disconnectNodeInput(engine.mainMixerNode)
-            engine.detach(deckMixer)
-            engine.detach(masterMixer)
-            engine.detach(timePitch)
-            engine.detach(playerA)
-            engine.detach(playerB)
+            engine.reset()
+            engine = AVAudioEngine()
+            playerA = AVAudioPlayerNode()
+            playerB = AVAudioPlayerNode()
+            deckMixer = AVAudioMixerNode()
+            masterMixer = AVAudioMixerNode()
+            timePitch = AVAudioUnitTimePitch()
+            rebindEngineConfigObserver()
             graphReady = false
         }
-        let format = AudioOutputFormatResolver.stereoFormat(engine: engine)
+        let format = forcedSampleRate.map { AudioOutputFormatResolver.stereoFormat(sampleRate: $0) }
+            ?? AudioOutputFormatResolver.stereoFormat(engine: engine)
         deckFormat = format
         engine.attach(deckMixer)
         engine.attach(masterMixer)
         engine.attach(timePitch)
         engine.attach(playerA)
         engine.attach(playerB)
+        _ = engine.outputNode
         engine.connect(playerA, to: deckMixer, format: format)
         engine.connect(playerB, to: deckMixer, format: format)
         engine.connect(deckMixer, to: timePitch, format: format)
         engine.connect(timePitch, to: masterMixer, format: format)
-        engine.connect(masterMixer, to: engine.mainMixerNode, format: nil)
+        engine.connect(masterMixer, to: engine.mainMixerNode, format: format)
         applyTimePitchSettings()
+        applyMasterVolume()
         graphReady = true
     }
 
@@ -655,13 +722,7 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         ) { [weak self] _ in
             self?.handleSharedAudioSessionReconfigure()
         }
-        engineConfigObserver = center.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: .main
-        ) { [weak self] _ in
-            self?.handleEngineConfigurationChange()
-        }
+        rebindEngineConfigObserver()
         voicePolicyObserver = center.addObserver(
             forName: VoiceSpeakerBleedCoordinator.policyDidChangeNotification,
             object: nil,
@@ -680,13 +741,54 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
         }
     }
 
+    private func rebindEngineConfigObserver() {
+        let center = NotificationCenter.default
+        if let existing = engineConfigObserver {
+            center.removeObserver(existing)
+        }
+        engineConfigObserver = center.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleEngineConfigurationChange()
+        }
+    }
+
     private func handleEngineConfigurationChange() {
+        if isMutatingGraph {
+            pendingConfigurationChange = true
+            return
+        }
         restartEngineIfNeeded()
+    }
+
+    private func schedulePendingConfigurationCheck() {
+        pendingConfigurationWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, !self.isMutatingGraph, self.stage != nil, !self.paused else { return }
+            let rateMismatch: Bool = {
+                guard let expected = self.deckFormat?.sampleRate else { return true }
+                return AudioOutputFormatResolver.postStartMismatchedRate(
+                    engine: self.engine,
+                    expectedSampleRate: expected
+                ) != nil
+            }()
+            if !self.engine.isRunning || rateMismatch {
+                self.restartEngineIfNeeded()
+            }
+        }
+        pendingConfigurationWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
     }
 
     private func handleSharedAudioSessionReconfigure() {
         runOnMain { [weak self] in
             guard let self, self.stage != nil else { return }
+            if self.isMutatingGraph {
+                self.pendingConfigurationChange = true
+                return
+            }
             guard AppAudioSession.shared.canStartAudioEngine else {
                 if !self.paused {
                     self.needsEngineResumeOnActive = true
@@ -713,6 +815,10 @@ final class DefenseSharedProgressionAudio: @unchecked Sendable {
     }
 
     private func restartEngineIfNeeded() {
+        guard !isMutatingGraph else {
+            pendingConfigurationChange = true
+            return
+        }
         guard graphReady else { return }
         guard stage != nil, !paused else { return }
         guard AppAudioSession.shared.canStartAudioEngine else {
